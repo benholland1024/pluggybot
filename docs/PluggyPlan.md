@@ -45,7 +45,7 @@ The core idea: a small wheeled robot with stereo vision that explores its enviro
 4. ✅ Occupancy mapping + frontier exploration — log-odds grid from a virtual laser scan (depth-image center row), gyro-fused odometry, A* over inflated free space, autonomous frontier exploration with look-around spins; maps both rooms collision-free and self-terminates *(July 2026)*
 5. ✅ Outlet detector trained on synthetic data — YOLO11n on 1200 domain-randomized renders with free segmentation-derived labels; generalizes to `room_1.xml` outlets it was never trained on (3/3 detected at 0.94–0.97 confidence, no false positive on the decoy switch). Detections project to world coordinates via depth and merge into a landmark map; a full mission parks at the docking hand-off pose within **0.5° yaw / 1.3 cm lateral** *(August 2026)*
 6. ✅ Docking controller (scripted baseline → RL) — the mechanical stack docks deterministically from a good standoff (pytest), and both controllers are now scored by one protocol: `eval_docking.py` runs identical seeded trials in room_1 with the real YOLO (pose jitter ±2 cm/±1°, landmark error ±2 cm xy / ±1.5 cm z). **Scripted: 8/24 = 33.3 %. RL (SAC over `envs/DockEnv`, 70.8 % in-env): 6/24 = 25 %** — but the failures are *complementary* (union 13/24): RL wins 3/9 at the high outlet C where scripted manages 1/9 (the predicted vision-z gap, confirmed fixed by learning) and docks in 4–12 s vs scripted's 9–19 s, yet goes 0/8 at outlet A, parked by a residual sensor-model gap (an out-of-distribution hover with the arm extended). The real yield of the RL work was **four measured design findings**: the feeler straddle trap, the arm's self-occlusion of the dock camera, odometry corruption under wall-grinding (all fixed, pytest-guarded), and SAC's late-training instability on this task. Wall-outlet docking parks here — milestone 8's hub supersedes it as the primary charge path, and this becomes the "plug-anywhere module" backlog *(August 2026)*
-7. Battery model + state machine tying the full loop together: explore → detect → approach → dock → charge — the state machine exists (`scripts/lifecycle.py`: EXPLORE → GO_CHARGE → FACE_OUTLET); what remains is the battery model behind the `explore_budget` stand-in, and the charge state itself. **Build the charge state against a charge-source abstraction, not the outlet specifically** — milestone 8's hub becomes a second charge source without rework. *Milestones 1–7 together are the "repo MVP": documented, portfolio-ready.*
+7. ✅ Battery model + the closed loop — `pluggybot/power.py` models honest electrical draw (torque-proportional motor current from the Pololu datasheet, 6 W electronics, steppers only while moving, ~1C charging) against a deliberately scaled demo capacity; the lifecycle's CHARGE state charges on the electrical contact criterion (source-agnostic — the hub plugs into the same seam), presses the plug home while charging (both halves measured necessary), undocks, and resumes or finishes. Reserve is **absolute energy** (~0.4 Wh: a failed dock attempt + redrive), not a pack fraction — a fraction starved a small pack mid-insertion. Verified end-to-end: the full mission explored both rooms, benched a jammed outlet, **caught and erased a phantom decoy landmark at close range**, docked at outlet B, charged 21 → 90 % in 82 s of continuous contact, undocked, and ended recharged with zero chassis contacts. Battery-dead is an honest failure mode (and was reached honestly several times en route). *Milestones 1–7 together are the "repo MVP": documented, portfolio-ready.* *(August 2026)*
 8. **Modular tool system — the hub pivot** *(proposed August 2026)*. The arm tip becomes a tool interface; a "tool hub" shelf stores swappable modules (first two: the Schuko plug, an LCD screen), and the robot autonomously exchanges them. The hub also charges the robot through a purpose-built low-force connector — which resolves the measured hardware blocker head-on: a real Schuko socket's sprung contacts need tens of newtons, and the robot's measured push budget is ~3 N. "Plug into any wall outlet" survives as one module (the flagship demo), no longer the load-bearing architecture. Design constraints already known from measurement: no wrist, so latch verbs are slide-in + lift/lower (kinematic mount / gravity hook, not bayonet); power-only coupling with wireless data (a microcontroller per module) keeps the mating interface dumb and tolerant; a per-module tip-mass cap protects the veer counterweight calibration. De-risk order, per house method: standalone coupling spike (schuko_spike-style MJCF, no robot) → hub + modules in sim → autonomous swap in the lifecycle. **The hardware MVP / parts-ordering trigger: a physical robot swapping plug ↔ LCD at a real hub** — extensible from then on without structural change.
 
 Each milestone is independently runnable and demoable.
@@ -76,17 +76,17 @@ pluggy/
 
 ## Status
 
-🚧 **Milestones 1–6 complete.** August 2026: milestone 6 closed with both docking
-controllers scored by one seeded protocol (`scripts/eval_docking.py`): scripted 33.3 %,
-RL 25 % end-to-end — complementary failure sets (union 54 %), with the RL policy 3×
-better at the high outlet and 2–4× faster when it seats. The larger yield was the
-measured design findings the RL environment surfaced (feeler geometry, camera
-self-occlusion, slip-corrupted odometry — see SimNotes) and the reusable train/eval
-stack (`envs/DockEnv`, `train_docking.py`, `eval_docking.py`). The **hub pivot**
-(milestone 8) supersedes wall-outlet docking as the primary charge path; next up is
-milestone 7's battery model (against a charge-source abstraction) to finish the
-"repo MVP", then the hub coupling spike. Issue #1's camera dashboard shipped:
-`--views` on teleop/map_teleop/lifecycle writes `views.png` (stereo pair + map +
-dock camera) beside `map.png`.
+✅ **Milestones 1–7 complete — the repo MVP.** August 2026: the loop that names the
+project runs end to end in `scripts/lifecycle.py`: PluggyBot explores, remembers
+outlets, and when its (honestly modeled) battery runs low, drives to one, docks with
+real contact physics, charges through the plug, and gets back to work. The
+verification run had everything: a jam at the hard high outlet (benched), a phantom
+decoy landmark (caught by close-range verification and erased), a successful dock
+and 21 → 90 % charge at outlet B, and zero wall strikes. Milestone 6 closed with
+both docking controllers scored by one seeded protocol (scripted 33.3 %, RL 25 %
+end-to-end with complementary failure sets — see SimNotes for the four measured
+design findings the RL work surfaced). Next: the **hub pivot** (milestone 8) — the
+coupling spike first, then hub + tool modules in sim; the hardware MVP bar is a
+physical plug ↔ LCD swap at a real hub.
 
 Earlier — milestones 1–4 (July 2026): teleoperable diff-drive base with a physics regression suite; stereo pair rendering with a parallax test; classical dead-reckoning odometry (<2 % error, gyro-fused for heading); and full autonomous mapping — virtual laser scanner from ground-truth depth, log-odds occupancy grid, A* path planning, frontier exploration (`scripts/explore.py` maps both rooms of `room_1.xml` collision-free and terminates on its own). Hardware is anchored to real EU-purchasable parts in [Parts.md](Parts.md); simulation lessons live in [SimNotes.md](SimNotes.md). Next: outlet detector on synthetic data (milestone 5 — the machine learning begins) and the plug/socket contact spike.

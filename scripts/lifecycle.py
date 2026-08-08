@@ -1,18 +1,24 @@
-"""Full lifecycle: PluggyBot explores, remembers outlets, then goes to charge.
+"""Full lifecycle: PluggyBot explores, docks when hungry, charges, repeats.
 
-A mission-level state machine on top of the milestone-4 navigation stack:
+A mission-level state machine on top of the navigation stack, closed into
+the loop that names the project (milestone 7):
 
-  EXPLORE ---- battery low, or map finished ----> GO_CHARGE ----> FACE_OUTLET
-     |  frontier-drive the map while the           |  A* to the     |  pivot to
-     |  outlet detector logs landmarks             |  standoff pose |  the outlet
+  EXPLORE --- battery low, or map done --> GO_CHARGE --> FACE_OUTLET --> DOCK
+     ^   frontier-drive the map while         A* to the     square up     servo,
+     |   the detector logs landmarks          standoff       (0.5 deg)    insert
+     |                                                                      |
+     +--- recharged, map unfinished --- CHARGE <--- charge contact ---------+
+                                          |  sit + charge, then undock
+                                          +--- map complete --> DONE
 
-FACE_OUTLET ends parked ~0.6 m out, squared up to the socket: exactly the
-start state milestone 6's docking controller takes over from.
+The battery drains against real actuator effort (pluggybot.power) and
+charges on the electrical contact criterion -- it never knows what it is
+plugged into, which is exactly the seam milestone 8's hub docks into.
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/lifecycle.py --headless
   uv run python scripts/lifecycle.py                       # watch live
-  uv run python scripts/lifecycle.py --headless --explore-budget 40
+  uv run python scripts/lifecycle.py --headless --battery-wh 0.5   # hungrier
 """
 
 import argparse
@@ -50,13 +56,28 @@ from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.odometry.dead_reckoning import DeadReckoner
 from pluggybot.perception.outlet_spotter import OutletSpotter, latest_weights
 from pluggybot.perception.scanner import Scanner
+from pluggybot.power import DEMO_CAPACITY_WH, Battery
 from pluggybot.viz import ViewDashboard
 
-State = Literal["EXPLORE", "GO_CHARGE", "FACE_OUTLET", "DOCK", "DONE"]
+State = Literal["EXPLORE", "GO_CHARGE", "FACE_OUTLET", "DOCK", "CHARGE", "DONE"]
 
 SPOT_PERIOD = 0.5        # sim seconds between YOLO looks (outlets don't move)
-EXPLORE_BUDGET = 60.0    # sim seconds before the battery stand-in calls for a charge
 BACKOFF_SPEED = -0.15    # m/s straight reverse when the safety reflex trips
+
+# ---- battery thresholds (milestone 7) ---------------------------------------
+LOW_BATTERY_WH = 0.40    # go charge below this ABSOLUTE reserve. Absolute, not
+                         # a fraction: the mission's cost is fixed by the room,
+                         # not the pack -- a 35%-of-capacity reserve starved a
+                         # 0.55 Wh cell mid-insertion (dead at 81.5 s, four
+                         # seconds short of contact). And it must cover more
+                         # than one clean run home: a failed dock attempt plus
+                         # the redrive to a fallback outlet measured ~0.4 Wh
+                         # worst case (0.25 died at 141 s mid-redrive).
+CHARGED = 0.90           # stop charging here (LiPo longevity; also the demo
+                         # doesn't need the taper phase a real charger has)
+CHARGE_LOST_TIMEOUT = 5.0  # s without charge contact mid-charge = unseated
+UNDOCK_RETRACT_TIME = 2.0  # s pulling the arm in before reversing
+UNDOCK_REVERSE_TIME = 4.0  # s at -0.06 m/s: ~0.25 m off the wall
 
 STANDOFF_DISTANCE = 0.6  # m out from the outlet: where docking will take over
 STANDOFF_RETRY_STEP = 0.15   # m further out when no route to the standoff exists
@@ -128,13 +149,17 @@ class Lifecycle:
   """
 
   def __init__(self, headless: bool, max_sim_time: float,
-               weights: str | None, explore_budget: float,
-               views: bool = False) -> None:
+               weights: str | None, explore_budget: float | None = None,
+               views: bool = False, battery_wh: float = DEMO_CAPACITY_WH) -> None:
     self.model = mujoco.MjModel.from_xml_path("models/room_1.xml")
     self.data = mujoco.MjData(self.model)
     self.headless = headless
     self.max_sim_time = max_sim_time
-    self.explore_budget = explore_budget
+    # The timer stand-in survives as an override (tests use it; a demo can
+    # force an early charge with it). None = the battery is the trigger.
+    self.explore_budget = math.inf if explore_budget is None else explore_budget
+    self.battery = Battery(self.model, capacity_wh=battery_wh)
+    self.cruise_timestep = self.model.opt.timestep   # restored after undocking
 
     # -- subsystems
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
@@ -167,6 +192,11 @@ class Lifecycle:
     self.charge_strikes = 0
     self.final_heading_error: float | None = None
 
+    # -- CHARGE state
+    self.charge_stage = "charging"     # charging -> retract -> backoff
+    self.last_charge_contact = 0.0
+    self.charging_now = False
+
     # -- DOCK state
     self.dock_stage = "align"          # align -> servo -> insert (-> retract)
     self.stage_t0 = 0.0
@@ -180,6 +210,7 @@ class Lifecycle:
     self.last_ext = 0.0
     self.last_ext_t = 0.0
     self.docked = False
+    self.charged_once = False
 
     # -- shared navigation state
     self.waypoints: list[tuple[float, float]] = []
@@ -215,6 +246,11 @@ class Lifecycle:
       d.qpos[self.left_adr], d.qpos[self.right_adr],
       gyro_yaw_rate=d.sensordata[self.gyro.adr[0] + 2], dt=m.opt.timestep,
     )
+    # Battery: drains against actual actuator effort every step; charges
+    # whenever the charge circuit reports contact -- the battery neither
+    # knows nor cares WHAT it is plugged into (milestone 8's hub reuses this).
+    self.charging_now = self.state == "CHARGE" and self.charging_contact()
+    self.battery.update(d, m.opt.timestep, charging=self.charging_now)
 
     if self.step_count % SCAN_EVERY == 0:
       angles, ranges = self.scanner.scan(d)
@@ -232,7 +268,15 @@ class Lifecycle:
           self.backoff_until = d.time + BACKOFF_TIME
           self.waypoints = []          # forces the phase to replan afterwards
 
-    if self.spotter is not None and d.time >= self.next_spot:
+    # No map-spotter sightings while docking/charging: the head camera is
+    # then closer than its calibrated regime, and a long jam racks up dozens
+    # of biased sightings that DRAG the landmark into the wall -- measured:
+    # outlet C's estimate ended 8 cm inside the wall slab after failed dock
+    # attempts, wall_normal() over an in-wall point returned a -67 deg
+    # standoff, and every later approach was worse (a feedback loop). The
+    # dock eye has its own close-range pipeline; exploration owns this one.
+    if (self.spotter is not None and d.time >= self.next_spot
+        and self.state not in ("DOCK", "CHARGE")):
       self.next_spot = d.time + SPOT_PERIOD
       px, py, _ = self.pose
       for x, y, z, _conf in self.spotter.spot(d, self.pose):
@@ -323,7 +367,7 @@ class Lifecycle:
   def explore(self) -> tuple[float, float]:
     """Frontier-drive the map while the detector logs outlet landmarks."""
     d = self.data
-    if d.time >= self.explore_budget:
+    if self.battery.energy_wh < LOW_BATTERY_WH or d.time >= self.explore_budget:
       return self.leave_explore("battery-low")
 
     # -- decide: replan when the plan is stale or spent (a spin runs to completion)
@@ -449,6 +493,11 @@ class Lifecycle:
     self.set_aside.add(id(self.target))
     self.data.ctrl[self.model.actuator("arm").id] = 0.0
     self.data.ctrl[self.model.actuator("lift").id] = 0.0
+    # Rejecting re-enters GO_CHARGE: restore cruise physics (DOCK's fine
+    # timestep would otherwise tax the whole cross-map redrive, and
+    # face_outlet re-applies it on the next approach anyway).
+    self.model.opt.timestep = self.cruise_timestep
+    self.model.actuator_forcerange[self.model.actuator("arm").id] = [-50, 50]
     self.standoff_distance = STANDOFF_DISTANCE
     self.dock_attempts = 0
     candidates = [lm for lm in self.landmarks.confirmed()
@@ -575,10 +624,18 @@ class Lifecycle:
       # physical robot will use anyway.
       if self.charging_contact():
         self.docked = True
-        d.ctrl[arm] = ext                # stop pushing; hold the plug home
-        print(f"t={d.time:6.1f}s  DOCK -> DONE  PLUGGED IN "
-              f"(charge contact, ext {ext * 1000:.1f} mm)")
-        self.state = "DONE"
+        # Deliberately NOT freezing the arm at ext: with the position servo
+        # holding zero error the wheel press routes through the stiffer
+        # prong-wall path and the pin floats off the floor within a step --
+        # measured as an instant loss of charge contact, every time. The
+        # capped arm press IS what keeps the pin on the contacts.
+        print(f"t={d.time:6.1f}s  DOCK -> CHARGE  PLUGGED IN "
+              f"(charge contact, ext {ext * 1000:.1f} mm, "
+              f"battery {self.battery.fraction:.0%})")
+        self.state = "CHARGE"
+        self.charge_stage = "charging"
+        self.last_charge_contact = d.time
+        self.stage_t0 = d.time
         return 0.0, 0.0
       if ext > self.last_ext + 0.0005:
         self.last_ext = ext
@@ -608,11 +665,82 @@ class Lifecycle:
     self.last_seen_socket = d.time
     return 0.0, 0.0
 
+  def charge(self) -> tuple[float, float]:
+    """Plugged in: sit still and take on energy, then undock and move on.
+
+    Undocking is the docking film played backwards -- retract the arm, back
+    straight off the wall -- and where the mission goes next depends on WHY
+    it came here: a battery-low interrupt resumes exploring (the loop that
+    names the project); a finished map means this was the final top-off, and
+    the mission ends plugged into nothing but its own satisfaction.
+    """
+    d, m = self.data, self.model
+
+    if self.charge_stage == "charging":
+      if self.charging_now:
+        self.last_charge_contact = d.time
+      elif d.time - self.last_charge_contact > CHARGE_LOST_TIMEOUT:
+        # The seated plug crept out (the arm cap's known side effect is the
+        # base sliding back). Not a new mission phase: it is a dock problem,
+        # so hand it back to the dock servo to re-seat.
+        print(f"t={d.time:6.1f}s  CHARGE lost contact -- re-docking")
+        self.state = "DOCK"
+        self.dock_stage = "servo"
+        self.stage_t0 = d.time
+        self.last_seen_socket = d.time
+        return 0.0, 0.0
+      if self.battery.fraction >= CHARGED:
+        print(f"t={d.time:6.1f}s  CHARGE done ({self.battery.fraction:.0%}) -- undocking")
+        self.charged_once = True
+        self.charge_stage = "retract"
+        self.stage_t0 = d.time
+        d.ctrl[m.actuator("arm").id] = 0.0
+        return 0.0, 0.0
+      # Charging keeps the FULL insert-stage press regime: arm at its full
+      # target under the 2.5 N cap, wheels gently pressing. Both halves were
+      # measured necessary, one mission-death each: wheels-at-zero let the
+      # RCC relax and the pin float off the floor (14 dock->lost cycles,
+      # starved at 1%); arm-frozen-at-ext routed the wheel press through the
+      # stiffer prong-wall path instead of the pin (contact lost within a
+      # step of every re-seat, same starvation). A real Schuko's spring
+      # contacts grip the pins; a springless sim socket needs sustained
+      # press as the analog.
+      d.ctrl[m.actuator("arm").id] = 0.20
+      return DOCK_PRESS * 0.045, 0.0
+
+    if self.charge_stage == "retract":
+      if d.time - self.stage_t0 > UNDOCK_RETRACT_TIME:
+        self.charge_stage = "backoff"
+        self.stage_t0 = d.time
+      return 0.0, 0.0
+
+    # backoff: straight reverse off the wall, then decide where life goes
+    if d.time - self.stage_t0 < UNDOCK_REVERSE_TIME:
+      return -0.06, 0.0
+    if self.explore_done_reason == "battery-low":
+      # The map was not finished -- back to work. Restore cruise physics
+      # (the fine timestep and the 2.5 N arm cap were DOCK's settings).
+      m.opt.timestep = self.cruise_timestep
+      m.actuator_forcerange[m.actuator("arm").id] = [-50, 50]
+      self.explore_budget = math.inf     # the timer stand-in fires once
+      self.state = "EXPLORE"
+      self.start_spin()                  # relocalize the frontier picture
+      self.waypoints = []
+      self.next_replan = d.time
+      self.strikes = 0
+      self.just_spun = False
+      print(f"t={d.time:6.1f}s  CHARGE -> EXPLORE  (recharged, map unfinished)")
+    else:
+      self.state = "DONE"
+      print(f"t={d.time:6.1f}s  CHARGE -> DONE  (recharged; map complete)")
+    return 0.0, 0.0
+
   # ---- the loop ------------------------------------------------------------
 
   def run(self) -> None:
     phases = {"EXPLORE": self.explore, "GO_CHARGE": self.go_charge,
-              "FACE_OUTLET": self.face_outlet, "DOCK": self.dock}
+              "FACE_OUTLET": self.face_outlet, "DOCK": self.dock,
+              "CHARGE": self.charge}
     viewer = None if self.headless else mujoco.viewer.launch_passive(self.model, self.data)
     try:
       while ((viewer is None or viewer.is_running())
@@ -621,6 +749,13 @@ class Lifecycle:
         wall_start = time.time()
 
         self.perceive()
+        if self.battery.empty:
+          # An honest failure mode: a robot that budgets badly dies mid-room.
+          print(f"t={self.data.time:6.1f}s  BATTERY DEAD in {self.state} -- "
+                "mission over")
+          self.explore_done_reason = "battery-dead"
+          self.state = "DONE"
+          break
         if self.data.time < self.backoff_until:
           v, w = BACKOFF_SPEED, 0.0    # reflex pre-empts whatever the mission wanted
         else:
@@ -660,7 +795,8 @@ class Lifecycle:
       self.last_report = t
       known = int(np.count_nonzero(np.abs(self.grid.grid) > 0.5))
       print(f"t={t:6.1f}s  {self.state:<11s} mode={self.mode:<5s} "
-            f"known cells={known}  outlets={len(self.landmarks.confirmed())}")
+            f"known cells={known}  outlets={len(self.landmarks.confirmed())}  "
+            f"battery={self.battery.fraction:.0%} ({self.battery.last_power_w:+.1f} W)")
 
   def true_axle_pose(self) -> tuple[float, float, float]:
     """Ground-truth (x, y, yaw) of the axle midpoint, from qpos rather than
@@ -689,9 +825,12 @@ class Lifecycle:
       nx, ny = float(mat[0]), float(mat[3])       # socket +x = outward normal
       depth = -((face[0] - sp[0]) * nx + (face[1] - sp[1]) * ny)
       lat = abs(-(face[0] - sp[0]) * ny + (face[1] - sp[1]) * nx)
-      print(f"\nDOCK truth vs {best}: face {depth * 1000:+.1f} mm into the recess "
-            f"(floor at +17), lateral {lat * 1000:.1f} mm, height err "
-            f"{(face[2] - sp[2]) * 1000:+.1f} mm")
+      if depth > -0.05:
+        # Only meaningful while still plugged in -- after a successful charge
+        # the robot has undocked and the face is wherever life took it.
+        print(f"\nDOCK truth vs {best}: face {depth * 1000:+.1f} mm into the recess "
+              f"(floor at +17), lateral {lat * 1000:.1f} mm, height err "
+              f"{(face[2] - sp[2]) * 1000:+.1f} mm")
     names = ("outlet_a", "outlet_b", "outlet_c")
     name = min(names, key=lambda n: math.hypot(
       self.model.body(n).pos[0] - self.target.x,
@@ -735,6 +874,8 @@ class Lifecycle:
     known = int(np.count_nonzero(np.abs(self.grid.grid) > 0.5))
     print(f"\nended after {self.data.time:.1f} sim-seconds in state {self.state}"
           f" (explore: {self.explore_done_reason})")
+    print(f"battery: {self.battery.fraction:.0%} of {self.battery.capacity_wh:.2f} Wh"
+          f"  (charged this mission: {self.charged_once})")
     print(f"known cells: {known}   frontiers blacklisted: {len(self.blacklist)}")
     print(f"chassis-contact steps (should be 0): {self.collision_steps}")
     # Every landmark, not just the confirmed ones: the tentative ones are on
@@ -757,8 +898,11 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--headless", action="store_true", help="no viewer, run at full speed")
   parser.add_argument("--max-sim-time", type=float, default=600.0, help="sim-seconds budget")
-  parser.add_argument("--explore-budget", type=float, default=EXPLORE_BUDGET,
-                      help="sim-seconds of exploring before the battery stand-in trips")
+  parser.add_argument("--explore-budget", type=float, default=None,
+                      help="optional timer override; default: the battery decides")
+  parser.add_argument("--battery-wh", type=float, default=DEMO_CAPACITY_WH,
+                      help="battery capacity (demo cell by default; 55.5 = the "
+                           "real 3S 5Ah pack, which takes hours of sim to drain)")
   parser.add_argument("--weights", default=None, help="YOLO weights; default: newest under runs/")
   parser.add_argument("--views", action="store_true",
                       help="also save views.png: stereo pair + map + dock camera")
@@ -766,5 +910,5 @@ if __name__ == "__main__":
   Lifecycle(
     headless=args.headless, max_sim_time=args.max_sim_time,
     weights=args.weights or latest_weights(), explore_budget=args.explore_budget,
-    views=args.views,
+    views=args.views, battery_wh=args.battery_wh,
   ).run()

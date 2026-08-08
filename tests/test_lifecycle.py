@@ -174,6 +174,149 @@ def test_mechanical_dock_from_perfect_standoff(lifecycle_module):
   assert abs(face[2] - oz) < 0.006, "seated plug should be at socket height"
 
 
+def test_no_map_sightings_while_docking(sim):
+  """Sightings logged mid-dock are poison: the head camera sits closer than
+  its calibrated regime, and a long jam racks up dozens of biased sightings
+  that DRAG the landmark -- measured: outlet C's estimate ended 8 cm inside
+  the wall after failed dock attempts, wall_normal() over the in-wall point
+  gave a -67 deg standoff, and every subsequent approach was worse. The map
+  spotter must go quiet in DOCK/CHARGE."""
+  class FakeSpotter:
+    def spot(self, data, pose):
+      return [(1.0, 2.0, 0.30, 0.99)]
+  sim.spotter = FakeSpotter()
+  sim.next_spot = 0.0
+  sim.state = "DOCK"
+  sim.perceive()
+  assert len(sim.landmarks.landmarks) == 0, "DOCK-state sighting was recorded"
+  sim.state = "EXPLORE"
+  sim.perceive()
+  assert len(sim.landmarks.landmarks) == 1, "EXPLORE sighting should record"
+
+
+def test_low_battery_triggers_charge_seeking(sim):
+  """The battery is now the real trigger the explore_budget timer stood in
+  for: a drained cell must end EXPLORE with the battery-low reason."""
+  sim.explore_budget = 1e9              # timer out of the way
+  sim.battery.energy_wh = sim.battery.capacity_wh * 0.10
+  for _ in range(3):
+    sim.landmarks.add_sighting(-1.99, 1.0, 0.24, seen_from=(-1.2, 1.0))
+  sim.explore()
+  assert sim.state == "GO_CHARGE"
+  assert sim.explore_done_reason == "battery-low"
+
+
+def test_charge_reserve_is_absolute_energy_not_fraction(sim):
+  """The go-charge reserve must be ABSOLUTE energy: the drive home + dock
+  costs a fixed ~0.2 Wh in this room regardless of pack size. The original
+  35%-of-capacity trigger starved a 0.55 Wh pack mid-insertion (dead at
+  81.5 s, four seconds short of charge contact) because 35% of a small pack
+  is not the mission's cost. At 0.24 Wh remaining -- 44% of a small pack, so
+  the fraction rule would sit tight -- the mission must head home."""
+  sim.explore_budget = 1e9
+  sim.battery.capacity_wh = 0.55
+  sim.battery.energy_wh = 0.24
+  for _ in range(3):
+    sim.landmarks.add_sighting(-1.99, 1.0, 0.24, seen_from=(-1.2, 1.0))
+  sim.explore()
+  assert sim.state == "GO_CHARGE"
+  assert sim.explore_done_reason == "battery-low"
+
+
+def test_charge_fills_then_resumes_exploring(sim, monkeypatch):
+  """CHARGE must actually charge (only while contact reports true), undock,
+  and -- because the map was NOT finished -- go back to exploring with the
+  cruise physics restored. The contact signal is faked; the real seat is
+  covered by the mechanical dock test."""
+  lc = _load()
+  sim.state = "CHARGE"
+  sim.charge_stage = "charging"
+  sim.explore_done_reason = "battery-low"
+  sim.model.opt.timestep = lc.DOCK_TIMESTEP         # as DOCK leaves things
+  sim.battery.capacity_wh = 0.05                    # tiny cell: fast test
+  sim.battery.energy_wh = sim.battery.capacity_wh * 0.2
+  monkeypatch.setattr(sim, "charging_contact", lambda: True)
+  t0 = sim.data.time
+  while sim.state == "CHARGE" and sim.data.time - t0 < 120:
+    sim.perceive()
+    v, w = sim.charge()
+    sim.actuate(v, w)
+    mujoco.mj_step(sim.model, sim.data)
+    sim.step_count += 1
+  assert sim.battery.fraction >= lc.CHARGED
+  assert sim.state == "EXPLORE", "unfinished map must resume exploring"
+  assert sim.model.opt.timestep == sim.cruise_timestep, \
+    "cruise physics must be restored after undocking"
+  assert sim.mode == "spin", "resume opens with a look-around"
+
+
+def test_charge_with_finished_map_ends_mission(sim, monkeypatch):
+  lc = _load()
+  sim.state = "CHARGE"
+  sim.charge_stage = "charging"
+  sim.explore_done_reason = "no-frontiers"
+  sim.battery.capacity_wh = 0.05                    # tiny cell: fast test
+  sim.battery.energy_wh = sim.battery.capacity_wh * 0.85
+  monkeypatch.setattr(sim, "charging_contact", lambda: True)
+  t0 = sim.data.time
+  while sim.state == "CHARGE" and sim.data.time - t0 < 120:
+    sim.perceive()
+    v, w = sim.charge()
+    sim.actuate(v, w)
+    mujoco.mj_step(sim.model, sim.data)
+    sim.step_count += 1
+  assert sim.state == "DONE"
+  assert sim.battery.fraction >= lc.CHARGED
+
+
+def test_charging_keeps_the_press_on(sim, monkeypatch, lifecycle_module):
+  """While charging, the wheels must keep the gentle insert-stage press.
+  Wheels-at-zero was measured fatal: the RCC relaxes, the pin floats off the
+  socket floor, contact drops, and the mission oscillated dock->charge->lost
+  14 times before starving at 1%. Press is the springless sim socket's
+  analog of a real Schuko's pin-gripping contacts."""
+  sim.state = "CHARGE"
+  sim.charge_stage = "charging"
+  sim.battery.energy_wh = sim.battery.capacity_wh * 0.2
+  monkeypatch.setattr(sim, "charging_contact", lambda: True)
+  sim.data.ctrl[sim.model.actuator("arm").id] = 0.06   # as a frozen seat would
+  sim.perceive()
+  v, w = sim.charge()
+  assert v > 0.0, "charging must press, or the plug floats off the contacts"
+  assert v <= lifecycle_module.DOCK_PRESS * 0.045 + 1e-9, "press stays gentle"
+  assert sim.data.ctrl[sim.model.actuator("arm").id] == pytest.approx(0.20), \
+    "the ARM must keep pressing too: frozen at ext, the wheel press routes " \
+    "through the prongs and the pin floats off the contacts"
+
+
+def test_lost_contact_mid_charge_returns_to_dock(sim):
+  """A plug that creeps out mid-charge is a DOCK problem, not a new mission
+  phase: after the timeout with no contact, CHARGE hands back to the servo."""
+  sim.state = "CHARGE"
+  sim.charge_stage = "charging"
+  sim.last_charge_contact = sim.data.time
+  sim.battery.energy_wh = sim.battery.capacity_wh * 0.2
+  # charging_contact stays honest (and false: nothing is docked)
+  for _ in range(int(6.0 / sim.model.opt.timestep)):
+    sim.perceive()
+    v, w = sim.charge()
+    if sim.state != "CHARGE":
+      break
+    sim.actuate(v, w)
+    mujoco.mj_step(sim.model, sim.data)
+    sim.step_count += 1
+  assert sim.state == "DOCK" and sim.dock_stage == "servo"
+
+
+def test_dead_battery_ends_the_mission(lifecycle_module):
+  sim = lifecycle_module.Lifecycle(
+    headless=True, max_sim_time=5.0, weights=None, explore_budget=1e9)
+  sim.battery.energy_wh = 1e-6
+  sim.run()
+  assert sim.state == "DONE"
+  assert sim.explore_done_reason == "battery-dead"
+
+
 def test_jam_benches_but_phantom_forgets(sim):
   """A jam at a real outlet must NOT erase it from the map (watched failure:
   two jams deleted a true charging spot forever); only a phantom -- a target

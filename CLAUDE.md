@@ -32,9 +32,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 - Demos: `scripts/teleop.py`, `scripts/map_teleop.py`, `scripts/explore.py [--headless]`
   (milestone-4 mapping demo — kept as the minimal repro; `lifecycle.py` is the
   full mission), `scripts/spot_outlets.py` (detector → landmarks),
-  `scripts/lifecycle.py [--headless] [--explore-budget N]` (full mission:
-  explore → charge → dock; DOCK is real physics — plug seats in the socket),
-  `scripts/schuko_spike.py` (docking tolerance sweep)
+  `scripts/lifecycle.py [--headless] [--battery-wh W]` (full mission loop:
+  explore → dock → charge → resume; battery-driven since milestone 7 —
+  `--explore-budget N` remains as a timer override, and DOCK is real
+  physics — plug seats in the socket), `scripts/schuko_spike.py`
+  (docking tolerance sweep)
 - `--views` on teleop.py / map_teleop.py / lifecycle.py saves `views.png`
   (stereo pair + map + dock camera, issue #1) alongside `map.png`; ~15 ms/save
 - RL docking (milestone 6): train
