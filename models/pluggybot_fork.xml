@@ -1,0 +1,283 @@
+<mujocoinclude>
+  <!-- FORK VARIANT of pluggybot.xml (milestone 8, hub era): the arm tip
+       carries the tool-coupling FORK instead of the Schuko plug; the plug
+       becomes a swappable module. Everything else is a verbatim copy of
+       pluggybot.xml -- keep the two in sync until the hub design fully
+       supersedes the plug robot (then this file becomes canonical).
+       Fork geometry mirrors hub/coupling.py's spike carrier exactly, via a
+       180-degree body rotation so the spike-frame coordinates paste in
+       unchanged (the spike approaches along -x; the robot along +x). -->
+  <visual><global offwidth="1280" offheight="720"/></visual>
+
+  <worldbody>
+
+    
+
+    <!-- origin at axle height (aka wheel radius) -->
+    <body name="pluggybot" pos="0 0 0.045">
+      <freejoint />
+
+      <!-- For the gyroscope  -->
+      <site name="imu" pos="0 0 0.05"/> 
+      
+      <geom
+        name="chassis"
+        type="box"
+        size="0.12 0.09 0.03"
+        pos="0 0 0.045"
+        mass="0.9"
+        rgba="0.2 0.4 0.8 1"
+      />
+
+      <!-- Battery (placeholder mass/size: ~5000 mAh 3S LiPo class, Parts.md).
+           Position is deliberate, not packaging: slightly AHEAD of centre
+           (x=+0.05) and low. Measured (SimNotes): over the axle it buys
+           traction but no tipping margin; here it buys both. y=+0.06 is a
+           counterweight: the arm assembly hangs at y=-0.05, and without the
+           offset the robot veered 26 cm right over 4 m of open-loop driving. -->
+      <geom
+        name="battery"
+        type="box"
+        size="0.065 0.023 0.013"
+        pos="0.05 0.06 0.092"
+        mass="0.40"
+        rgba="0.15 0.15 0.2 1"
+      />
+
+      <!--  Head  -->
+      <body name="head" pos="-0.08 0 0.135">
+        <geom
+          name="head_mount"
+          type="box"
+          size="0.02 0.02 0.02"
+          pos="0 0 0"
+          mass="0.12"
+          rgba="0.2 0.4 0.8 1"
+        />
+
+        <!--  Cameras  -->
+        <!--  Decoding xyaxes="0 -1 0  0 0 1": 
+                image-right is body −y, image-up is body +z, 
+                which forces the viewing direction to be body +x
+        -->
+        <camera name="left_eye" pos="0.03 0.03 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
+        <camera name="right_eye" pos="0.03 -0.03 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
+
+      </body>
+
+
+      <body name="left_wheel" pos="-0.08 0.105 0">
+        <joint
+          name="left_wheel_joint"
+          type="hinge"
+          axis="0 1 0"
+          armature="0.012"
+          damping="0.05"
+        />
+        <geom
+          type="cylinder"
+          size="0.045 0.005"
+          zaxis="0 1 0"
+          mass="0.05"
+          rgba="0.1 0.1 0.1 1"
+        />
+        <!-- Spoke - purely visual, to see rotation  -->
+        <geom
+          type="box"
+          size="0.04 0.013 0.004"
+          mass="0.001"
+          contype="0"
+          conaffinity="0"
+          rgba="1 1 0.3 1"
+        />
+      </body>
+
+      <body name="right_wheel" pos="-0.08 -0.105 0">
+        <joint
+          name="right_wheel_joint"
+          type="hinge"
+          axis="0 1 0"
+          armature="0.012"
+          damping="0.05"
+        />
+        <geom
+          type="cylinder"
+          size="0.045 0.005"
+          zaxis="0 1 0"
+          mass="0.05"
+          rgba="0.1 0.1 0.1 1"
+        />
+        <!-- Spoke - purely visual, to see rotation  -->
+        <geom
+          type="box"
+          size="0.04 0.013 0.004"
+          mass="0.001"
+          contype="0"
+          conaffinity="0"
+          rgba="1 1 0.3 1"
+        />
+      </body>
+
+      <!-- caster:
+        center height is radius at rest,
+        so z = caster_radius − wheel_radius = 0.02 − 0.045 = −0.025
+
+        condim="1" makes it frictionless (while retaining normal force)
+        priority="1" makes it so the frictionless is the priority over the floor's friction
+      -->
+      <geom
+        name="caster"
+        type="sphere"
+        size="0.02"
+        pos="0.10 0 -0.025"
+        mass="0.02"
+        condim="1"
+        priority="1"
+      />
+
+      <!-- ======================= Docking arm (milestone 6) =================
+           Stretch-style decomposition: base owns x/yaw, LIFT owns z, ARM owns
+           reach. Offset to the RIGHT (y=-0.05) so the arm plane clears the
+           head cameras (mapping bakes in their fixed offsets — they must not
+           move). Masses are placeholders pending the igus quote (Parts.md);
+           marked TBD where so.
+      -->
+
+      <!-- Mast: fixed column + lift motor block at its foot (igus NEMA11
+           lead-screw class). Column top at body-local z=0.455. TBD masses. -->
+      <geom name="mast" type="box" size="0.015 0.015 0.19"
+            pos="-0.10 -0.05 0.265" mass="0.20" rgba="0.55 0.57 0.6 1"/>
+      <geom name="lift_motor" type="box" size="0.015 0.02 0.02"
+            pos="-0.105 -0.05 0.095" mass="0.15" rgba="0.3 0.3 0.32 1"/>
+
+      <!-- Carriage: rides the mast. Body origin sits ON the plug axis, so
+           lift_joint qpos 0 parks the plug axis at world z=0.145 — below the
+           scanner's z=0.18 center row, so the parked arm cannot corrupt the
+           map. Range 0.31 puts the plug axis at 0.455 max: covers room_1's
+           highest outlet (0.38) with margin. Carriage mass includes the
+           arm-drive motor (TBD). -->
+      <body name="carriage" pos="-0.10 -0.05 0.10">
+        <joint name="lift_joint" type="slide" axis="0 0 1" range="0 0.31"
+               damping="10"/>
+        <geom name="carriage_block" type="box" size="0.025 0.02 0.022"
+              pos="0.01 0 0.008" mass="0.25" rgba="0.4 0.42 0.45 1"/>
+
+        <!-- NO alignment feelers on the fork variant (deprecated by Ben,
+             Aug 2026): they bake in a nonstandard outlet-housing width, and
+             at the hub they threaded between the rack rail and the peg ends
+             with mm-level margins. The plug ROBOT keeps them until the
+             well-centric plug-module redesign; remove-not-design-around. -->
+
+        <!-- Docking camera: rises with the plug, mounted above it so the plug
+             body doesn't occlude the socket until the last moment. The head
+             pair stays fixed for mapping; this one exists because the fixed
+             eye loses a 0.38 m outlet inside 0.40 m range (measured). -->
+        <camera name="dock_eye" pos="0.03 0 0.06" xyaxes="0 -1 0 0 0 1" fovy="41"/>
+
+        <!-- Telescoping arm: short tube, 0.20 m stroke. Retracted, the plug
+             tip sits at body-local +0.059 — safely behind the +0.12 bumper. -->
+        <body name="arm" pos="0 0 0">
+          <joint name="arm_joint" type="slide" axis="1 0 0" range="0 0.20"
+                 damping="5"/>
+          <geom name="arm_tube" type="box" size="0.06 0.012 0.012"
+                pos="0.08 0 0" mass="0.12" rgba="0.5 0.52 0.55 1"/>
+
+          <!-- Tool-coupling FORK on the same passive compliant wrist (RCC)
+               the plug used. euler 180 about z lets the spike-frame fork
+               coordinates from hub/coupling.py paste in verbatim (geometry
+               is y-symmetric, so the mirror is exact). V-notch vertices sit
+               22 mm below the fork axis (FORK_DROP): the whole fork passes
+               UNDER a module's peg on approach, then the lift raises it
+               36 mm to take the tool. -->
+          <body name="tool_fork" pos="0.14 0 0" euler="0 0 180">
+            <joint name="fork_lat_y" type="slide" axis="0 1 0" range="-0.02 0.02"
+                   stiffness="150" damping="4" armature="1e-5"/>
+            <joint name="fork_lat_z" type="slide" axis="0 0 1" range="-0.02 0.02"
+                   stiffness="150" damping="4" armature="1e-5"/>
+            <joint name="fork_rot_z" type="hinge" axis="0 0 1" range="-0.35 0.35"
+                   stiffness="1.0" damping="0.05" armature="1e-5"/>
+            <joint name="fork_rot_y" type="hinge" axis="0 1 0" range="-0.35 0.35"
+                   stiffness="1.0" damping="0.05" armature="1e-5"/>
+            <geom name="fork_bridge" type="box" size="0.006 0.064 0.005"
+                  pos="-0.014 0 -0.010" mass="0.020" rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_prong_l" type="box" size="0.035 0.005 0.004"
+                  pos="-0.020 0.058 -0.014" mass="0.008" rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_prong_r" type="box" size="0.035 0.005 0.004"
+                  pos="-0.020 -0.058 -0.014" mass="0.008" rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_vl_a" type="box" size="0.011 0.006 0.003"
+                  pos="-0.0628 0.058 0.0018" euler="0 45 0" mass="0.002"
+                  rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_vl_b" type="box" size="0.011 0.006 0.003"
+                  pos="-0.0472 0.058 0.0018" euler="0 -45 0" mass="0.002"
+                  rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_vr_a" type="box" size="0.011 0.006 0.003"
+                  pos="-0.0628 -0.058 0.0018" euler="0 45 0" mass="0.002"
+                  rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_vr_b" type="box" size="0.011 0.006 0.003"
+                  pos="-0.0472 -0.058 0.0018" euler="0 -45 0" mass="0.002"
+                  rgba="0.30 0.32 0.36 1"/>
+            <!-- Axial end-stops. The V-notches constrain the peg
+                 vertically and fore-aft but NOT along its own axis: nothing
+                 held the tool laterally, and the first carried module walked
+                 sideways off the fork during a turn and hit the floor 2.5 m
+                 from the rack. These posts sit just outboard of the peg ends
+                 (peg half-length 0.075) and cap the walk at a few mm. -->
+            <geom name="fork_stop_l" type="box" size="0.006 0.004 0.012"
+                  pos="-0.055 0.079 -0.002" mass="0.004" rgba="0.30 0.32 0.36 1"/>
+            <geom name="fork_stop_r" type="box" size="0.006 0.004 0.012"
+                  pos="-0.055 -0.079 -0.002" mass="0.004" rgba="0.30 0.32 0.36 1"/>
+            <site name="fork_vertex" pos="-0.055 0 -0.006" size="0.002"/>
+          </body>
+        </body>
+      </body>
+
+    </body>
+  </worldbody>
+
+  <!-- The arm tube passes beside the mast on a carriage bracket in the real
+       igus unit; as primitives on one axis they would interpenetrate. -->
+  <contact>
+    <exclude body1="pluggybot" body2="arm"/>
+  </contact>
+
+  <actuator>
+    <velocity
+      name="left_motor"
+      joint="left_wheel_joint"
+      kv="0.5"
+      ctrlrange="-21 21"
+      forcerange="-2.06 2.06"
+    />
+    <velocity
+      name="right_motor"
+      joint="right_wheel_joint"
+      kv="0.5"
+      ctrlrange="-21 21"
+      forcerange="-2.06 2.06"
+    />
+    <!-- Lift + arm: position servos (a stepper lead-screw IS a position
+         device). forcerange from the igus DLE-LA-0001 spec: 50 N thrust.
+         ctrl is the joint target in meters. -->
+    <position
+      name="lift"
+      joint="lift_joint"
+      kp="1200"
+      kv="60"
+      ctrlrange="0 0.31"
+      forcerange="-50 50"
+    />
+    <position
+      name="arm"
+      joint="arm_joint"
+      kp="1200"
+      kv="60"
+      ctrlrange="0 0.20"
+      forcerange="-50 50"
+    />
+  </actuator>
+
+  <sensor>
+    <gyro name="imu_gyro" site="imu"/>
+  </sensor>
+
+</mujocoinclude>

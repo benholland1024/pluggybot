@@ -5,6 +5,8 @@ Start one of the various scripts:
 uv run python scripts/teleop.py      # Teleop test the robot
 uv run python scripts/map_teleop.py  # Teleop the robot while updating /map.png
 uv run python scripts/explore.py     # Run the frontier exploration script (also updates map)
+
+uv run python scripts/hub_mission.py --view  # Explore, find + use hub
 ```
 
 View the world:

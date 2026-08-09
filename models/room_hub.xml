@@ -1,0 +1,9 @@
+<mujoco>
+  <!-- The HUB-ERA room (milestone 8): room_1's exact floor plan, the FORK
+       robot, and the tool rack against the north wall of room 1.
+       hub_rack.xml is GENERATED -- regenerate with:
+         uv run python -m pluggybot.hub.coupling -->
+  <include file="world_fork.xml"/>
+  <include file="room_1_scenery.xml"/>
+  <include file="hub_rack.xml"/>
+</mujoco>

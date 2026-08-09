@@ -45,3 +45,22 @@ def test_dashboard_embeds_map_tile(playground_model, playground_data):
   upper_left = map_tile[:h // 2, :w // 2].mean()
   lower_right = map_tile[h // 2:, w // 2:].mean()
   assert upper_left < lower_right, "map tile flipped or misplaced"
+
+
+def test_battery_glyph_renders_and_reflects_state(playground_model, playground_data):
+  import mujoco
+  mujoco.mj_forward(playground_model, playground_data)
+  dash = ViewDashboard(playground_model)
+  try:
+    plain = dash.render(playground_data)
+    full = dash.render(playground_data, battery=0.9)
+    low = dash.render(playground_data, battery=0.1)
+    charging = dash.render(playground_data, battery=0.1, charging=True)
+  finally:
+    dash.close()
+  region = np.s_[TILE_H + SEAM:TILE_H + SEAM + 24, TILE_W - 100:TILE_W]
+  assert not np.array_equal(plain[region], full[region]), "glyph missing"
+  assert not np.array_equal(full[region], low[region]), \
+    "urgency color must change with charge level"
+  assert not np.array_equal(low[region], charging[region]), \
+    "charging must be visually distinct"

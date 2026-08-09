@@ -392,6 +392,218 @@ here by design — the hub pivot (PluggyPlan milestone 8) makes purpose-built
 low-force docking the primary charge path, and everything this environment
 taught (coupling spikes, sensor calibration, odometry-in-the-loop) transfers.
 
+## Hub coupling spike (milestone-8 prep)
+
+Standalone fork-and-peg rig (`hub/coupling.py`, `scripts/hub_spike.py`) — no
+robot: a compliant carrier runs scripted pick-and-return cycles against a hub
+shelf. The coupling is designed around the no-wrist constraint (latch verbs:
+slide + lift): the tool hangs by a long peg axle in two upward-open V-trays;
+the arm's fork grabs the peg *outboard* of the trays, so lateral capture is
+set by peg overhang, not machined clearance. Gravity is the latch. Findings
+(guarded by tests/test_hub_coupling.py):
+
+- **Measured envelope: ±4 mm lateral, ≥ −8/+6 mm vertical, <2° yaw.** Yaw is
+  the tight constraint — *again* (schuko found the same): picks survive 2°,
+  returns don't, and ±4° jams at 50–120 N. Unlike the outlet, we own both
+  sides of this interface, so the v2 levers are known: y-chamfered trays, a
+  squaring press against the hub back wall (the feeler idea, reincarnated),
+  softer yaw compliance. Navigation already delivers 0.5° settle, so v1 is
+  usable as-is; the margin is just thinner than it should be.
+- **Retention beats traction: held through 8 m/s² shakes** — more than the
+  wheels can transmit — and carried a 300 g tool (2× the planned per-module
+  mass cap). Gravity latching needs no spring, magnet, or actuator.
+- Three geometry bugs found by filmstrip + phase telemetry, none by reasoning:
+  the approach stroke stopped short of the peg; the V-plate tips rode above
+  the peg's underside and rammed it horizontally (the whole fork now runs
+  22 mm low and lifts 36 mm); and a lift 8 mm too short made the peg exit by
+  grinding up the tray flank at the full 10 N push cap (clean is ~2 N).
+- **Depth referencing by gentle press** carries over from docking: the
+  approach just drives until the fork bridge bottoms against the tool face
+  under the force cap — no range sensing needed at the hub.
+
+### Robot integration: the fork inherits the plug's lessons, item by item
+Mounting the fork on the real robot (`pluggybot_fork.xml`, `hub/swap.py`,
+demo `scripts/hub_swap.py`) replayed three known plot beats in one afternoon:
+- **The bumper reaches the hub before the fork does.** Retracted, the fork
+  vertex sits 25 mm behind the chassis front — the chassis bottomed on the
+  tray posts and the wheels slipped the last 5 cm of "odometry travel"
+  (vertex stopped 43 mm short). The arm extends 60 mm for hub work — the
+  same reach fix the plug needed.
+- **RCC droop is a fork axis too**: the fork line sags ~7 mm under gravity
+  (plug measured 7.8); compensated feed-forward in the lift preset.
+- **The parked fork interpenetrated the chassis** (right prong, 9 mm at zero
+  lift, plus 3 mm of spring droop) — caught by the geometric clearance sweep,
+  silent to contacts, third time this class of bug has been caught this way.
+  The fork now mounts 16 mm higher on the wrist; the lift preset absorbs it.
+End state: full robot-driven swap cycles (pick, carry, re-hang) succeed with
+±3 mm / 1° hand-off jitter — inside the spike's measured envelope, from the
+real base, lift, odometry, and wrist.
+
+### Hub-in-room navigation: three bugs the bare world could not show
+Putting the rack in `room_hub.xml` (room_1's floor plan via a shared scenery
+include, plus the fork robot) and driving to it end to end found three
+failures that every bare-world test had passed:
+
+- **A verdict written in the wrong frame.** `module_state` compared WORLD
+  coordinates against RACK-LOCAL constants. In the bare world the rack sits
+  at the origin unrotated, so the two coincide and the check looked correct
+  for weeks; in room_hub (rack at (-0.9, 5.99), yaw -90°) it reported every
+  correct placement as a failure. The mechanics had been working — the
+  module was landing 0.2 mm from the hang plane while the test said "no".
+  The verdict now transforms through the rack body's LIVE pose, which also
+  survives the rack being a free body that can shift. Meta-lesson: an
+  identity transform is not a validated transform. A check that only ever
+  ran at the origin has never actually been tested.
+- **A sign on the terminal travel.** The carried peg rides 7 mm *ahead* of
+  the fork vertex, so the return must stop SHORT by that much; the code
+  added it instead, overdriving 14 mm — past the tray V's ~16 mm mouth, so
+  the peg came down outside the tray every time. Symmetric-looking
+  compensations are exactly where sign errors hide.
+- **Fixed choreography does not survive navigation.** The bare-world swap
+  used fixed approach distances (a perfect standoff was assumed). Arriving
+  by A* is good to ~8 cm and the coupling captures ±11 mm, so travel is now
+  computed from the BELIEVED distance to the hang plane each time. Related:
+  drive_to's 8 cm arrival radius happily parks 7 cm off the bay line — far
+  outside capture, and the tag servo's authority over a 0.2 m creep is only
+  1–2 cm. The fix is the oldest one in driving: **back up and take another
+  run at it** (`refine_standoff`), which converges the P-controller
+  laterally given a runway — 70 mm → 3 mm in one retry.
+
+Two more that were merely ordinary: A* must plan to the reachable cell
+NEAREST an unreachable goal (a blind greedy advance toward an unknown-space
+goal ignored the very map it was building and ground into the floor-box's
+reflex zone), and a demo waypoint that sits inside an obstacle produces
+"mysterious" collisions — check the target before debugging the driver.
+
+### Real AprilTags: what the swap cost and what it bought
+Replacing the colour-plate stand-in with tag36h11 markers (`hub/tags.py`,
+generated with moms-apriltag, decoded with pupil-apriltags):
+
+- **`type="2d"` textures do not paint primitives.** A 2d texture is mapped
+  through geom texcoords, which boxes do not carry: the plate rendered flat
+  grey and nothing ever decoded, with no error from the compiler. `cube`
+  mapping puts the image squarely on every face — which is also what a
+  printed marker glued to a plate looks like.
+- **Marker size is a range decision, not a detail.** A tag36h11 needs
+  roughly 25–30 px to decode, so physical size sets detection range.
+  Measured at 1280×720: the rack's 120 mm marker decodes past **4.5 m**
+  with PnP range good to a few mm at working distances; the 30 mm bay and
+  module markers decode to ~2.5 m, far more than the arm's-length reads
+  they exist for.
+- **One decode serves every marker size.** PnP translation is linear in the
+  assumed tag size, so a single pass can be rescaled per id exactly —
+  cheaper than a render per size.
+- **It got FASTER.** PnP replaced the depth buffer, so each look is one
+  render instead of two: a full mission dropped from ~40 s to ~30 s of wall
+  time. And it matches the hardware, which has no depth camera on that path.
+- **What it actually bought: identity.** Every reading is now keyed to a
+  decoded ID, so the servo is told *which* marker to steer on. The
+  stand-in's one unfixable weakness — guessing by size and image position,
+  which once locked onto the charge bay's marker and dragged a module 22 cm
+  toward the wrong bay — is no longer expressible.
+
+### Finding the hub by looking at it: what the fiducial stand-in taught
+Promoting the rack from "a pose the robot is told" to "a landmark the robot
+sees" (`hub/localize.py`) cost five measured lessons, none of them about the
+rack:
+
+- **A white marker is not a detectable marker.** The tag plates started
+  white; the room lights straight down, so vertical white surfaces render at
+  ~178/255 and a `> 215` threshold saw *nothing* — while a lower one would
+  have caught every pale wall. Recoloured orange, they still failed a
+  channel-RATIO test, because MuJoCo's ambient term washes a (1.0, 0.45,
+  0.05) material out to about (185, 115, 64). What works is **hue plus
+  saturation**: scaling all channels (what lighting does) moves neither.
+  This is the honest stand-in for the property real AprilTags get from being
+  *patterns* — and a reminder that the marker is part of the perception
+  system, not scenery.
+- **Line of sight is a property of where you are standing.** The opening
+  look-around saw nothing at all: from the demo's start pose the floor-box
+  occludes the rack tag, the sight line passing just under its top edge.
+  Discovery now rides along with every maneuver (the milestone-4 lesson
+  again) — driving toward the rack is itself what buys the view. Measured
+  result: **9 mm / 0.00°** from truth by the time it matters.
+- **A stale prior must lose to an observation.** The believed rack pose is
+  now a *fallback* (what a robot that booted docked knows); a confirmed tag
+  overrides it, and a test starts the robot with a 30 cm-wrong prior to
+  prove the correction happens.
+- **Odometry cannot close a terminal approach.** Dead reckoning integrated
+  over a mission was ~20 mm out by the return leg — twice the coupling's
+  capture window. The terminal travel is now **ranged off the rack tag**
+  through the dock camera, which does not drift; the odometry version
+  survives only as the no-tag fallback.
+- **"Nearest/lowest blob" is not identity.** With several fiducials in view
+  the lateral servo locked onto the *charge bay's* tag and dragged the peg
+  22 cm toward the wrong bay. Selection now drops the rack plate (much the
+  largest, and deliberately offset from every bay) and takes whatever
+  remains closest to the camera axis. This is the stand-in's weakest point
+  and precisely what a real tag's ID removes.
+
+### The hub lifecycle: four failures, all of them about *driving*, not docking
+Wiring the hub into a battery-driven mission (`hub/lifecycle.py`) broke in
+four ways, and not one of them was in the coupling that had been so
+carefully measured:
+
+- **The fork does not hold a tool sideways.** The V-notches constrain the
+  peg vertically and fore-aft, but nothing constrains it along its own
+  axis — the first carried module walked off during a turn and landed on
+  the floor 2.5 m from the rack. Fixed in hardware, not control: end-stop
+  posts just outboard of the peg ends (`fork_stop_l/r`). Carrying now
+  survives three legs of hard maneuvering.
+- **Tuck the arm before you drive.** After a *successful* stow, the robot
+  drove along the rack to the charge bay with the fork still extended at
+  module height and swept the module it had just put away off its trays.
+  Stowed is the driving configuration; the fork deploys only once lined up
+  on a bay.
+- **Stop on the sensor, not on believed distance.** The charge approach
+  drove by odometry, and pressing against the rack slips the wheels — dead
+  reckoning counts the slip as progress, so neither the distance target nor
+  the stall detector ever fired. It had been connected for 15 s and kept
+  pushing until timeout, and the wasted press flattened the battery. Now it
+  stops on `rack_charge_contact`, the same electrical criterion the plug
+  uses. (Third time wheel slip has broken something that trusted odometry.)
+- **Intended contact is not a collision.** The charge press put the pogo
+  pins on the bumper, and the collision counter — written for wall-grinding
+  in room_1 — read a perfect charge as 24 750 steps of crashing. Metrics
+  need to know the difference between hitting something and touching it on
+  purpose.
+
+One arbitration lesson too: exploring must not outrank the job. With
+explore first, the robot mapped, ran flat, charged, mapped again, and never
+got to the errand it existed for. Priority is charge > errand > explore,
+with an explore budget so background work is bounded.
+
+### Capture and release are not symmetric
+The return leg needed two asymmetries that "undo the pick" does not provide.
+A carried peg settles only ~9–18 mm above its hanging rest, which is BELOW
+the tray flanks' tops, so driving in flat strikes the flank (measured: the
+module came down 29 mm low, still on the fork, and rode away again) — hence
+`RETURN_CLEARANCE`, lift-clear-then-set-down, exactly as a person stows a
+tool. And undoing the pick's lift exactly leaves the fork's V still touching
+the peg: the contact list showed the peg correctly seated in *both* trays
+*and* resting on the fork, 5 mm high, then dragged out on the way back.
+Capture only needs the V to reach peg height; release needs it to go
+clearly below (`RELEASE_DROP`). Reaching for the contact list rather than
+guessing settled in one run what three rounds of tuning had not.
+
+### Rack v2 (the unified rack): three measured calibrations
+Rebuilding the hub as one freestanding rack (open frame, modules hanging
+business-end-inward, charge bay, free body in sim) surfaced three numbers:
+- **Approach overshoot is 4 mm, not 12.** With no depth stop to press
+  against (the open rack removed the accidental one), the approach is pure
+  odometry + V self-centering. 12 mm of overdrive wedged the peg between the
+  fork V and tray V flank tips during the hand-off; the spike's own aligned
+  figure (4 mm) puts the peg low on the near flank where the lift centres it.
+- **The carried peg rides 7 mm ahead of the fork vertex** (the wrist tilts
+  nose-down under the tool). The return compensates, or the drop misses the
+  tray mouth by exactly that much. Feed-forward calibration again — the
+  droop story in its fourth costume.
+- **"Leaning on the wall" must be geometry, not intention.** The free-body
+  rack scooted 9.6 mm under a sustained charge-bay press when its rearmost
+  member stood 6 cm proud of the wall; with actual wall braces the same
+  press costs 1.2 mm of take-up, and a full swap cycle moves the rack <1 mm.
+  Modeling the rack as a free body is what made this measurable at all.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

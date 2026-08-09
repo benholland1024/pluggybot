@@ -26,6 +26,11 @@ SEAM = 2                         # px gap between tiles, drawn in BACKGROUND
 
 CAMERAS = ("left_eye", "right_eye", "dock_eye")
 
+BATTERY_OK = (80, 220, 100)      # > 50 %
+BATTERY_LOW = (235, 180, 50)     # 20-50 %
+BATTERY_CRITICAL = (230, 70, 60)  # < 20 %
+BATTERY_CHARGING = (80, 180, 235)
+
 
 class ViewDashboard:
   """Renders the composite view image. Reuse one instance per run.
@@ -59,8 +64,32 @@ class ViewDashboard:
     tile[y0:y0 + h, x0:x0 + w] = scaled
     return tile
 
-  def render(self, data, map_img: np.ndarray | None = None) -> np.ndarray:
-    """The composite frame as an (2*tile_h+SEAM, 2*tile_w+SEAM, 3) uint8 array."""
+  def _draw_battery(self, draw, x0: int, y0: int,
+                    fraction: float, charging: bool) -> None:
+    """Compact battery glyph: outlined bar + tip, fill scaled by charge and
+    colored by urgency (blue while charging), with the percentage beside."""
+    bw, bh = 40, 12
+    color = (BATTERY_CHARGING if charging
+             else BATTERY_OK if fraction > 0.5
+             else BATTERY_LOW if fraction > 0.2
+             else BATTERY_CRITICAL)
+    draw.rectangle([x0, y0, x0 + bw, y0 + bh], outline=(230, 230, 230))
+    draw.rectangle([x0 + bw + 1, y0 + 3, x0 + bw + 4, y0 + bh - 3],
+                   fill=(230, 230, 230))                    # the + terminal nub
+    fill_w = max(1, round((bw - 4) * min(max(fraction, 0.0), 1.0)))
+    draw.rectangle([x0 + 2, y0 + 2, x0 + 2 + fill_w, y0 + bh - 2], fill=color)
+    label = f"{fraction:.0%}" + ("+" if charging else "")
+    draw.text((x0 + bw + 10, y0 + 1), label, fill=color)
+
+  def render(self, data, map_img: np.ndarray | None = None,
+             battery: float | None = None, charging: bool = False) -> np.ndarray:
+    """The composite frame as an (2*tile_h+SEAM, 2*tile_w+SEAM, 3) uint8 array.
+
+    battery (0..1) draws a charge glyph in the map tile's top-right corner --
+    the map tile, because that is where a human watches mission state (the
+    map IMAGE itself stays untouched: map.png is a data surface where every
+    pixel is an occupancy cell, so the HUD lives only on the dashboard).
+    """
     left, right, dock = (self._camera_tile(data, c) for c in CAMERAS)
     tiles = ((left, "left eye"), (right, "right eye"),
              (self._map_tile(map_img), "map"), (dock, "dock eye"))
@@ -75,11 +104,14 @@ class ViewDashboard:
     for i, (_, label) in enumerate(tiles):
       y0, x0 = (i // 2) * (th + SEAM), (i % 2) * (tw + SEAM)
       draw.text((x0 + 5, y0 + 3), label, fill=(255, 220, 60))
+    if battery is not None:
+      self._draw_battery(draw, tw - 90, th + SEAM + 4, battery, charging)
     return np.asarray(img)
 
   def save(self, data, map_img: np.ndarray | None = None,
-           path: str = "views.png") -> None:
-    Image.fromarray(self.render(data, map_img)).save(path)
+           path: str = "views.png", battery: float | None = None,
+           charging: bool = False) -> None:
+    Image.fromarray(self.render(data, map_img, battery, charging)).save(path)
 
   def close(self) -> None:
     self.renderer.close()

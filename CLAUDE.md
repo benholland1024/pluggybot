@@ -36,7 +36,19 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   explore → dock → charge → resume; battery-driven since milestone 7 —
   `--explore-budget N` remains as a timer override, and DOCK is real
   physics — plug seats in the socket), `scripts/schuko_spike.py`
-  (docking tolerance sweep)
+  (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
+  tolerance sweep; `--film` for a filmstrip), `scripts/hub_swap.py` (robot
+  swaps a module at the hub in `models/hub_world.xml`), `scripts/hub_mission.py`
+  (the milestone-8 story: navigate room_hub → fine-align → swap → return;
+  `--view` opens the MuJoCo viewer and paces it to real time, `--fast` skips
+  the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:
+  explore → fetch a tool → use it → stow it → charge at the hub; `--view`,
+  `--battery-wh W`)
+- Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
+  `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
+  changing any rack geometry. `models/room_1_scenery.xml` is the shared floor
+  plan behind both `room_1.xml` (plug robot) and `room_hub.xml` (fork robot);
+  edit scenery there, never in one room only.
 - `--views` on teleop.py / map_teleop.py / lifecycle.py saves `views.png`
   (stereo pair + map + dock camera, issue #1) alongside `map.png`; ~15 ms/save
 - RL docking (milestone 6): train

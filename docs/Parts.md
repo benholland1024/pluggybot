@@ -198,7 +198,17 @@ budget, and it works without any control loop.
 - Build, don't buy: commercial RCC units are industrial-scale and priced accordingly. Four compression springs plus a floating plate around the plug body is the standard hobby equivalent. Budget **≈ €10** in springs and printed parts.
 - Sim already models this: the spike's carrier uses 150 N/m lateral and 1 N·m/rad angular compliance. Those were guesses — measure the built part and update, since the whole tolerance envelope scales with them.
 
-### Alignment feelers (formerly "wall-brace foot" — see consequence 1 above)
+### Alignment feelers — ⚠ SLATED FOR REMOVAL (Ben, Aug 2026)
+
+The feelers bake in an outlet-housing width that real outlets don't
+standardize (multi-gang rectangles defeat the straddle); the circular well is
+the only standard geometry, so the **well-centric plug-module redesign**
+supersedes them. Already removed from the fork robot (`pluggybot_fork.xml`) —
+at the hub they threaded between rack structures with mm margins, and the
+rule is remove-not-design-around. The plug ROBOT keeps them until that
+redesign so the milestone 6–7 measurements stay reproducible as recorded.
+
+### Original feeler design (historical, still on the plug robot)
 
 Two prongs on the lift carriage straddling the socket (lateral **±0.085 m**, on a
 standoff bracket **2 cm above the plug axis**), tips 4 cm past the bumper. Printed
@@ -230,6 +240,30 @@ a third camera needs a CSI multiplexer/HAT or a USB camera instead. **TBD: resol
 before ordering.**
 
 ---
+
+## Tool hub & modules (milestone 8) — PROVISIONAL, geometry validated in sim
+
+The coupling spike (`scripts/hub_spike.py`) has validated the fork-and-peg
+gravity latch: ±4 mm lateral / <2° yaw envelope, retention beyond the base's
+traction limit, 300 g tool mass with margin. Parts below are the build list
+that geometry implies; **prices/models TBD until the v2 geometry iteration
+settles the yaw margin.**
+
+| Part | Route | Notes → sim |
+|---|---|---|
+| Hub shelf + V-trays + back wall | **3D-printed** (PETG; the trays see ~3 N loads) | tray geometry = `hub/coupling.py` constants |
+| Tool peg axles | **6 mm steel or alu rod**, cut to 150 mm (hardware store, ~€2) | printed pegs would flex/wear; the rod is the one loaded part |
+| Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits (the plug becomes *a module*) | prong stance ±58 mm |
+| Module frames (plug module, LCD module) | 3D-printed plates, common peg interface | ≤150 g budget each (validated to 300 g) |
+| Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant |
+| Charge contacts | pogo-pin pairs (spring-loaded, ~€5) on the hub face, pads on the robot | gravity preload from the hang; the electrical-contact criterion carries over verbatim |
+| Hub power | 12.6 V CC/CV charger board (3S, ~€10–15) fed by a mains adapter; balance leads handled robot-side by a 3S BMS | replaces wall-outlet charging as the primary path |
+| LCD (first demo module) | small SPI/I2C display driven by the module's ESP32 | display-only; zero mechanical demands |
+
+Open questions for the physical design: pogo-pin placement that engages by
+the same hang motion (no extra alignment), whether the trays need steel wear
+inserts, and the v2 yaw margin (chamfered trays / squaring press — see
+SimNotes).
 
 ## Power
 

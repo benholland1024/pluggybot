@@ -790,7 +790,9 @@ class Lifecycle:
                            self.landmarks.landmarks)
       Image.fromarray(map_img).save("map.png")
       if self.dashboard is not None:
-        self.dashboard.save(self.data, map_img)
+        self.dashboard.save(self.data, map_img,
+                            battery=self.battery.fraction,
+                            charging=self.charging_now)
     if self.headless and t - self.last_report >= 30.0:
       self.last_report = t
       known = int(np.count_nonzero(np.abs(self.grid.grid) > 0.5))
@@ -870,7 +872,9 @@ class Lifecycle:
     map_img = render_map(self.grid, self.pose, [], self.landmarks.landmarks)
     Image.fromarray(map_img).save("map.png")
     if self.dashboard is not None:
-      self.dashboard.save(self.data, map_img)
+      self.dashboard.save(self.data, map_img,
+                          battery=self.battery.fraction,
+                          charging=self.charging_now)
     known = int(np.count_nonzero(np.abs(self.grid.grid) > 0.5))
     print(f"\nended after {self.data.time:.1f} sim-seconds in state {self.state}"
           f" (explore: {self.explore_done_reason})")
