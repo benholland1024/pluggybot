@@ -39,6 +39,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
   tolerance sweep; `--film` for a filmstrip), `scripts/hub_swap.py` (robot
   swaps a module at the hub in `models/hub_world.xml`),
+  `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
+  it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
+  traced overlay + error stats. `--view` watches it live and skips the
+  filmstrip, `--shape square` for the more diagnostic figure),
   `scripts/module_power.py` (module electrical interface: runs the errand and
   saves `module_power.png` — filmstrip with the module painted live/dead plus
   a per-pole continuity timeline; `--bare` for the faster hub_world version),

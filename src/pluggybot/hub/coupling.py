@@ -434,9 +434,48 @@ PEN_RAIL_Z = -0.025      # rail below the module body centre, i.e. 47 mm below
                          # 36 mm below the peg) and under the rack's tray
                          # brackets. Guarded by a clearance sweep, not by this
                          # comment.
-PEN_LEN = 0.045          # pen protrusion past the module's business face
+PEN_LEN = 0.045          # pen protrusion past the carriage
+PEN_MOUNT_X = -(TOOL_HALF_X + 0.016)   # rail/carriage stand off IN FRONT of
+                         # the module plate. The first version put them at
+                         # the plate's own x, so the carriage block and pen
+                         # shaft were buried inside it -- and since the quill
+                         # is a GRANDCHILD of the module body, MuJoCo does not
+                         # filter that pair (only parent-child is excluded).
+                         # The carriage jammed against the plate's corner at
+                         # +21.9 mm and stopped tracking for most of a figure.
+                         # The clearance sweep missed it because it checked
+                         # the pen against the ROBOT, never against the
+                         # module's own frame.
+PEN_RAIL_DZ = 0.012      # rail rides above the pen line, so a fully
+                         # compressed quill retracts the shaft past the rail
+                         # rather than into it
 PEN_CARRIAGE_MASS = 0.030
 PEN_RAIL_MASS = 0.020
+PEN_QUILL_TRAVEL = 0.020     # sprung pen holder: absorbs arm-position error
+PEN_QUILL_STIFFNESS = 60.0   # N/m. SOFT and long-travel, which is the whole
+                             # trick. A first attempt at 200 N/m held only
+                             # ~0.5 mm of deflection and the pen lifted clean
+                             # off the top edge of the figure (0 % ink there,
+                             # 98 % at the bottom): the arm's droop GROWS with
+                             # lift height, so the pen retreats a few mm as it
+                             # draws upward. A stiff spring cannot absorb that
+                             # without the force swinging wildly; a soft one
+                             # at ~10 mm nominal press holds 0.6 N and varies
+                             # only 0.4-0.8 N across the whole figure. Sized
+                             # against the peg's limit too -- the lean-pad
+                             # reacts pen torque at a 29 mm lever, and past
+                             # ~1.5 N the peg rides up its V-notch and out.
+
+# The board the pen draws on. In the bare hub world it stands opposite the
+# rack, so the robot picks the tool at x~0 and drives out to x~1 to use it --
+# the errand shape the lifecycle already runs. Placed on the FORK line
+# (y = -PLUG_LATERAL for a robot heading +x at y=0), because the pen inherits
+# the fork's 5 cm lateral offset and a board centred on the chassis would put
+# every drawing off to one side.
+BOARD_X = 1.30
+BOARD_Y = -0.05
+BOARD_Z = 0.30
+BOARD_HALF = (0.010, 0.16, 0.13)
 
 
 def _module_faces() -> tuple[str, str]:
@@ -466,8 +505,8 @@ def _module_faces() -> tuple[str, str]:
     # so the pen can reach past the tool's own width.
     f'<geom name="module_pen_rail" type="box" '
     f'size="0.004 {PEN_TRAVEL + 0.012:.4f} 0.004" '
-    f'pos="0 0 {PEN_RAIL_Z:.4f}" mass="{PEN_RAIL_MASS}" '
-    f'rgba="0.55 0.57 0.60 1"/>'
+    f'pos="{PEN_MOUNT_X:.4f} 0 {PEN_RAIL_Z + PEN_RAIL_DZ:.4f}" '
+    f'mass="{PEN_RAIL_MASS}" rgba="0.55 0.57 0.60 1"/>'
     f'\n      <geom name="module_pen_tag" type="box" '
     f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
     f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
@@ -476,17 +515,31 @@ def _module_faces() -> tuple[str, str]:
     # argument from Parts.md that milestone 7's power model already relies
     # on), so a position servo parked at its target is the honest model of a
     # module sitting unpowered on the rack.
-    f'\n      <body name="module_pen_carriage" pos="0 0 {PEN_RAIL_Z:.4f}">'
+    f'\n      <body name="module_pen_carriage" '
+    f'pos="{PEN_MOUNT_X:.4f} 0 {PEN_RAIL_Z + PEN_RAIL_DZ:.4f}">'
     f'\n        <joint name="pen_carriage_joint" type="slide" axis="0 1 0" '
     f'range="{-PEN_TRAVEL:.4f} {PEN_TRAVEL:.4f}" damping="2"/>'
     f'\n        <geom name="module_pen_block" type="box" '
-    f'size="0.008 0.010 0.008" mass="{PEN_CARRIAGE_MASS}" '
-    f'rgba="0.30 0.32 0.36 1"/>'
-    f'\n        <geom name="module_pen_shaft" type="capsule" size="0.0025" '
-    f'fromto="{-TOOL_HALF_X:.4f} 0 0 {-(TOOL_HALF_X + PEN_LEN):.4f} 0 0" '
-    f'mass="0.006" rgba="0.90 0.30 0.25 1"/>'
-    f'\n        <site name="pen_tip" pos="{-(TOOL_HALF_X + PEN_LEN):.4f} 0 0" '
+    f'size="0.008 0.010 0.014" pos="0 0 {-PEN_RAIL_DZ + 0.002:.4f}" '
+    f'mass="{PEN_CARRIAGE_MASS}" rgba="0.30 0.32 0.36 1"/>'
+    # SPRUNG QUILL. The plug's RCC lesson, one tool along: the wrist has
+    # compliance in y, z, and both yaws, but NONE along the approach axis,
+    # so pen pressure would otherwise be (arm position error) x (the arm's
+    # 1200 N/m servo) -- 6 mm of overshoot is 7 N, and past ~1.5 N the peg
+    # rides up its own V-notch. A spring behind the pen turns pressure into
+    # a design constant instead of a positioning problem, and absorbs the
+    # lift droop that varies with height. This is what a real plotter pen is.
+    f'\n        <body name="module_pen_quill" pos="0 0 {-PEN_RAIL_DZ:.4f}">'
+    f'\n          <joint name="pen_quill_joint" type="slide" axis="1 0 0" '
+    f'range="0 {PEN_QUILL_TRAVEL:.4f}" stiffness="{PEN_QUILL_STIFFNESS}" '
+    f'damping="2" armature="1e-6"/>'
+    f'\n          <geom name="module_pen_shaft" type="capsule" size="0.0025" '
+    f'fromto="-0.008 0 0 {-(0.008 + PEN_LEN):.4f} 0 0" '
+    f'mass="0.006" friction="0.25" priority="1" '
+    f'rgba="0.90 0.30 0.25 1"/>'
+    f'\n          <site name="pen_tip" pos="{-(0.008 + PEN_LEN):.4f} 0 0" '
     f'size="0.002" rgba="0.9 0.3 0.25 1"/>'
+    f'\n        </body>'
     f'\n      </body>')
   return lcd_face, plug_face, pen_face
 
@@ -495,8 +548,13 @@ def pen_actuator_xml() -> str:
   """The pen carriage's own actuator. Lives on the MODULE, not the robot --
   which is the whole point of the drawing tool: it brings an axis the base
   does not have."""
+  # kp is a LEAD SCREW's stiffness, not a hobby servo's. The first version
+  # used kp=120, which needs ~8 mm of tracking error to make 1 N -- and the
+  # pen drags against the board the whole time it draws, so the figure came
+  # out 12 mm RMS off. A screw does not yield to friction; neither should
+  # this.
   return (f'<position name="pen_carriage" joint="pen_carriage_joint" '
-          f'kp="120" kv="8" '
+          f'kp="2000" kv="80" '
           f'ctrlrange="{-PEN_TRAVEL:.4f} {PEN_TRAVEL:.4f}" '
           f'forcerange="-15 15"/>')
 
@@ -533,6 +591,25 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
     <geom name="floor" type="plane" size="5 5 0.1" rgba="0.5 0.5 0.5 1"/>
     <geom name="wall" type="box" size="0.01 1.2 0.5" pos="-0.01 0 0.5"
           rgba="0.72 0.70 0.62 1"/>
+
+    <!-- Drawing board for the pen module: a whiteboard on a stand, facing
+         the rack. Static geoms (no freejoint) -- a board that slides away
+         under the pen would be measuring the board, not the plotter. -->
+    <!-- friction + priority, not friction alone: MuJoCo combines pair
+         friction as the elementwise MAX, so a slippery board against the
+         default 1.0 floor material would still drag like rubber. This is
+         THE caster lesson, and it costs a drawing dearly -- pen drag is what
+         the carriage servo has to fight. -->
+    <geom name="board" type="box"
+          size="{BOARD_HALF[0]} {BOARD_HALF[1]} {BOARD_HALF[2]}"
+          pos="{BOARD_X} {BOARD_Y} {BOARD_Z}" friction="0.25" priority="1"
+          rgba="0.95 0.95 0.93 1"/>
+    <geom name="board_leg_l" type="box" size="0.012 0.012 {BOARD_Z / 2:.3f}"
+          pos="{BOARD_X + 0.02} {BOARD_Y + BOARD_HALF[1] - 0.02} {BOARD_Z / 2:.3f}"
+          rgba="0.45 0.47 0.50 1"/>
+    <geom name="board_leg_r" type="box" size="0.012 0.012 {BOARD_Z / 2:.3f}"
+          pos="{BOARD_X + 0.02} {BOARD_Y - BOARD_HALF[1] + 0.02} {BOARD_Z / 2:.3f}"
+          rgba="0.45 0.47 0.50 1"/>
 
     {_rack_body_xml()}
 

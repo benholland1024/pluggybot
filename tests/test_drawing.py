@@ -1,0 +1,113 @@
+"""Guards for the drawing tool's plot controller (hub/drawing.py, milestone 8)."""
+
+import math
+
+import mujoco
+import pytest
+
+from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.hub.drawing import (
+  PEN_MODULE, PenPlotter, circle_path, pen_on_board, square_path,
+)
+from pluggybot.hub.swap import HubSwap
+
+
+@pytest.fixture(scope="module")
+def hub_model():
+  return mujoco.MjModel.from_xml_path("models/hub_world.xml")
+
+
+def test_paths_are_closed_and_sized():
+  for path in (square_path(0.075), circle_path(0.075)):
+    assert math.dist(path[0], path[-1]) < 1e-9, "figure must close"
+    xs = [p[0] for p in path]
+    ys = [p[1] for p in path]
+    assert 0.070 < max(xs) - min(xs) <= 0.0751
+    assert 0.070 < max(ys) - min(ys) <= 0.0751
+
+
+def test_board_is_static(hub_model):
+  """A board that slides under the pen would be measuring the board, not the
+  plotter -- so it must have no freejoint."""
+  gid = hub_model.geom("board").id
+  bid = hub_model.geom_bodyid[gid]
+  assert bid == 0, "the board must be welded to the world"
+
+
+def test_squaring_up_does_not_overshoot(hub_model):
+  """_face's P-controller stops commanding when the error goes small, but
+  `slew` rate-limits the wheel command, so the robot coasts past: measured
+  -9.5 deg in, +7.5 deg out. Squareness is load-bearing here -- the carriage
+  sweeps 110 mm across the board, so a yaw error theta swings pen depth by
+  110*sin(theta), and 7.5 deg is 14 mm, most of the quill's whole travel.
+  """
+  data = mujoco.MjData(hub_model)
+  swap = HubSwap(hub_model, data)
+  swap.place_at_standoff(HUB_STATION_YS[2])
+  swap.pick()
+  plotter = PenPlotter(hub_model, data, swap)
+  assert plotter.drive_to_board(), "never reached the board"
+  w, x, y, z = data.qpos[3:7]
+  true_yaw = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+  assert abs(true_yaw) < 2.0, (
+    f"parked {true_yaw:.2f} deg off square to the board -- that is "
+    f"{110 * math.sin(math.radians(abs(true_yaw))):.1f} mm of pen-depth swing "
+    f"across the carriage stroke")
+
+
+@pytest.mark.slow
+def test_pen_module_draws_a_figure(hub_model):
+  """The milestone claim: the robot fetches an axis it does not own and uses
+  it. Fetch the pen module, carry it to the board, and plot a circle.
+
+  Judged on SHAPE error -- distance from the commanded figure -- not on
+  same-instant tracking error, because a figure traced slightly behind
+  schedule is still the right figure on the board.
+  """
+  data = mujoco.MjData(hub_model)
+  swap = HubSwap(hub_model, data)
+  swap.place_at_standoff(HUB_STATION_YS[2])
+  swap.pick()
+  assert module_power_contact(hub_model, data, PEN_MODULE), \
+    "the pen module is not powered through the coupling"
+
+  plotter = PenPlotter(hub_model, data, swap)
+  assert plotter.drive_to_board(), "never reached the board"
+  r = plotter.draw(circle_path())
+
+  assert r["drew"], f"never got the pen on the board: {r}"
+  assert r["inked_fraction"] > 0.85, (
+    f"pen was only on the board for {r['inked_fraction']:.0%} of the path")
+  assert r["shape_rms_mm"] < 5.0, f"figure is {r['shape_rms_mm']:.1f} mm off"
+  assert module_power_contact(hub_model, data, PEN_MODULE), \
+    "the tool came unseated while drawing"
+  assert not pen_on_board(hub_model, data), \
+    "the pen was left down on the board after finishing the figure"
+
+
+@pytest.mark.slow
+def test_loaded_calibration_moves_the_origin(hub_model):
+  """What the free-air calibration gets wrong is the ORIGIN, not the scale.
+
+  Pressing the pen deflects the module and the compliant wrist, moving the
+  pen's home position ~10 mm sideways; re-zeroing there took a drawn circle
+  from 9.2 mm to 2.2 mm of shape error. The gain, measured at rest, barely
+  moves -- so this test asserts the offset, which is the effect that is
+  really there, rather than the scale change I first assumed and which the
+  measurement did not support.
+  """
+  data = mujoco.MjData(hub_model)
+  swap = HubSwap(hub_model, data)
+  swap.place_at_standoff(HUB_STATION_YS[2])
+  swap.pick()
+  plotter = PenPlotter(hub_model, data, swap)
+  assert plotter.drive_to_board()
+  free = dict(plotter.calibrate())
+  loaded = dict(plotter.calibrate_loaded(0.0375))
+  assert abs(free["dy_dcarriage"]) > 0.95, \
+    f"free-air gain should be ~1, got {free['dy_dcarriage']:.3f}"
+  assert loaded["loaded"] is True
+  shift = abs(loaded["y0"] - free["y0"])
+  assert shift > 0.004, (
+    f"loaded calibration only moved the origin {shift * 1000:.1f} mm -- if "
+    f"pressing does not displace the pen, this pass is dead weight")

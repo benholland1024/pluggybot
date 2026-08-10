@@ -294,21 +294,33 @@ def test_pen_module_is_a_usable_tool(hub_model):
     "the pen module is not powered through the coupling -- a motorised tool " \
     "with no power is cargo"
 
-  # Drive the carriage end to end; it must actually travel, and the module
-  # must stay on the fork while it does (its reaction is a real disturbance).
+  # Drive the carriage end to end and check BOTH that it tracks and that the
+  # tool stays seated. Seating is judged by the ELECTRICAL criterion, not by
+  # module_state's on_fork: on_fork allows 3-4 cm of slop, and it cheerfully
+  # reported True while the module had come out of the V-notches and yawed
+  # 100 degrees. The poles are the honest answer, same as everywhere else.
+  #
+  # The setpoint is RAMPED. A stiff position servo handed a step command
+  # delivers it as an impulse: an 80 mm jump threw the module off the fork,
+  # while walking the same distance held seated throughout.
   act = hub_model.actuator("pen_carriage").id
   adr = hub_model.joint("pen_carriage_joint").qposadr[0]
   reached = []
   for target in (PEN_TRAVEL, -PEN_TRAVEL, 0.0):
-    data.ctrl[act] = target
-    swap._run(2.0, 0.0)
+    cur = float(data.ctrl[act])
+    steps = max(int(abs(target - cur) / 0.03 / hub_model.opt.timestep), 1)
+    for k in range(steps):
+      data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
+      mujoco.mj_step(hub_model, data)
+    swap._run(1.0, 0.0)
     reached.append(float(data.qpos[adr]))
     assert abs(float(data.qpos[adr]) - target) < 0.004, (
       f"carriage commanded to {target * 1000:.0f} mm reached "
-      f"{float(data.qpos[adr]) * 1000:.1f} mm")
+      f"{float(data.qpos[adr]) * 1000:.1f} mm -- it is jammed on something")
+    assert module_power_contact(hub_model, data, "module_pen"), (
+      f"the carriage's own motion unseated the module at "
+      f"{target * 1000:.0f} mm")
   assert max(reached) - min(reached) > 0.10, "carriage barely moved"
-  assert swap.module_state("module_pen")["on_fork"], \
-    "the carriage's own motion shook the module off the fork"
 
 
 def test_pen_carriage_sweep_clears_the_robot(hub_model):
@@ -326,9 +338,15 @@ def test_pen_carriage_sweep_clears_the_robot(hub_model):
   swap.pick()
   assert swap.module_state("module_pen")["on_fork"], "pick failed"
 
-  pen_geoms = ("module_pen_rail", "module_pen_block", "module_pen_shaft")
+  pen_geoms = ("module_pen_block", "module_pen_shaft")
+  # The module's OWN frame belongs in this list. The first version checked
+  # the pen only against the robot, and missed that the carriage and shaft
+  # were buried inside the module's body plate -- MuJoCo filters parent-child
+  # contacts but NOT grandparent, so the quill fought the plate and the
+  # carriage jammed at +21.9 mm partway through every figure.
   refs = CLEARANCE_REFS + ("lean_pad", "lean_pad_post", "fork_bridge",
-                           "fork_prong_l", "fork_prong_r")
+                           "fork_prong_l", "fork_prong_r",
+                           "module_pen_body", "module_pen_rail")
   act = hub_model.actuator("pen_carriage").id
   hits = set()
   for step in range(2400):
@@ -337,7 +355,11 @@ def test_pen_carriage_sweep_clears_the_robot(hub_model):
     if step % 20 == 0:
       hits |= {(a, b) for a in pen_geoms for b in refs
                if _aabb_overlap(hub_model, data, a, b)}
-  assert not hits, f"pen carriage sweeps through the robot: {sorted(hits)}"
+  # The block wraps the rail it rides on -- that overlap IS the bearing, and
+  # MuJoCo filters the pair anyway (parent-child). Everything else must clear,
+  # including shaft-vs-rail, which is the grandparent pair that does collide.
+  hits -= {("module_pen_block", "module_pen_rail")}
+  assert not hits, f"pen carriage sweeps through something: {sorted(hits)}"
 
 
 def test_charge_bay_press_connects(hub_model):

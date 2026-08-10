@@ -7,6 +7,9 @@ uv run python scripts/map_teleop.py  # Teleop the robot while updating /map.png
 uv run python scripts/explore.py     # Run the frontier exploration script (also updates map)
 
 uv run python scripts/hub_mission.py --view  # Explore, find + use hub
+
+uv run python scripts/draw.py --view --fast
+uv run python scripts/draw.py --shape square
 ```
 
 View the world:

@@ -736,6 +736,75 @@ new was added to the coupling: the connector *is* the latch.
   lesson as "fixed choreography does not survive navigation", met from the
   other side. The room errand computes its travel and stows fine.
 
+### The drawing tool: five bugs, and only one was about drawing
+Building the pen module's plot controller (`hub/drawing.py`, demo
+`scripts/draw.py`). End state: a circle traced to **2.2 mm RMS shape error,
+98 % inked**, with the tool still electrically seated afterwards. Getting
+there cost five failures, each of which is a lesson this repo already had in
+some other costume:
+
+- **Teleporting the robot drops the tool.** `park_at_board` wrote the base's
+  qpos to place it in front of the board — and the module, a free body held
+  only by gravity in the fork's V, stayed behind in mid-air and fell. The
+  giveaway was `dz/dlift` calibrating to exactly **0.000**: the pen was lying
+  on the floor. Carried tools mean the robot has to *drive*.
+- **A stiff position servo handed a step command is an impulse.** Raising the
+  carriage gain to kp=2000 (a lead screw does not yield to pen drag) fixed a
+  12 mm tracking error — and then an 80 mm setpoint jump threw the module
+  clean out of the fork, both electrical poles opening as it yawed ~100°.
+  Walking the same 80 mm in 5 mm steps held seated the whole way. The wheels
+  have had `control.slew` since milestone 1; position setpoints need it too.
+- **`on_fork` is a position heuristic, not a seating check.** It reported
+  True throughout that ejection, because its tolerances are 3–4 cm. The
+  electrical criterion caught it instantly. Written the same day the
+  criterion was built, and still reached for the wrong one first.
+- **Parent-child contact filtering is not grandparent filtering.** The pen
+  carriage and shaft were modelled at the module plate's own x, i.e. buried
+  inside it. MuJoCo excludes body↔parent contacts but the quill is a
+  *grandchild*, so the shaft fought the plate: the carriage jammed at
+  +21.9 mm and stopped tracking for most of a figure while its joint reported
+  perfect command-following. The clearance sweep missed it because it checked
+  the pen against the ROBOT and never against the module's own frame — the
+  same "an envelope check is not the check you didn't write" trap as the arm.
+- **A P-controller that stops commanding at the target overshoots when the
+  command is rate-limited.** `_face` went in at −9.52° and came out at
+  **+7.47°**, a 17° overshoot, because `slew` was still unwinding when the
+  loop exited. Nobody noticed for a while because nothing before drawing
+  cared about squareness — but the carriage sweeps 110 mm across the board,
+  so a yaw error θ swings pen depth by 110·sin θ, and 7.5° is **14 mm**, most
+  of the quill's entire travel. That is why one edge of the first square came
+  out blank. Fix: settle and re-check, the same shape as refine_standoff.
+
+Two things that are design, not bugs:
+- **The pen needs its own compliance.** The wrist has RCC in y, z and both
+  yaws but none along the approach axis, so pen pressure would be (arm
+  position error) × the arm's 1200 N/m servo — 6 mm of overshoot is 7 N,
+  against a peg that rides out of its V-notch past ~1.5 N. A sprung quill
+  makes pressure a design constant instead. It must be **soft and
+  long-travel**: a first attempt at 200 N/m engaged only ~0.5 mm and the pen
+  lifted clean off the top of the figure (0 % ink there, 98 % at the bottom),
+  because arm droop grows with lift height. At 60 N/m and ~10 mm nominal
+  press the force holds 0.4–0.8 N across the whole figure.
+- **Report shape error, not tracking error.** Same-instant error includes
+  following lag, and a figure traced a fraction of a second behind schedule
+  is still the right figure on the board — nobody looking at it can tell. On
+  the good circle: 4.6 mm track, **2.2 mm shape**. Reporting only the first
+  would condemn a drawing for being late.
+
+Two measured facts left standing, characterised but not fixed:
+- **Calibrate under load — but know what it fixes.** Pressing the pen shifts
+  its home position **10 mm** sideways (module + wrist deflect), and
+  re-zeroing there is what took the circle from 9.2 mm to 2.2 mm. It does
+  *not* fix the scale: the quasi-static gain barely moves (0.999 → 0.992). I
+  asserted it did, and the measurement said otherwise.
+- **The real residual is kinetic.** Sweeping with the pen down, the tip
+  tracks the carriage at only **~0.81:1** against ~1:1 at rest — drag
+  reverses with direction and yaws the module as it goes, so a calibration
+  that settles before each reading cannot see it by construction. It is why
+  a *square* still draws poorly (10.4 mm, 63 % inked) where a circle draws
+  well: a square holds an extreme carriage offset for a whole edge. Wants a
+  stiffer yaw constraint on the module, or a fit taken while sweeping.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

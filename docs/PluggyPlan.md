@@ -119,9 +119,22 @@ hub**. What stands between here and ordering parts:
    drives its carriage end-to-end without shaking off the fork, and its sweep
    clears the robot. **Mass 182 g** (vs LCD 130 g, plug 156 g) — over the
    150 g soft budget, inside the 300 g the latch was validated to.
-   Still to build: a drawing surface, the plot controller (module-y × lift-z),
-   a traced-path-vs-commanded error report, and a **veer re-measurement**,
-   since the y=+0.06 battery counterweight was tuned against a lighter tip.
+   **It draws.** `hub/drawing.py` assembles an X-Y plotter from the module's
+   carriage (horizontal), the robot's lift (vertical), and the arm's reach
+   through a sprung quill (pen pressure); the base stays parked, so nothing
+   in a drawing is integrated from wheel odometry. Calibration is measured
+   two-point per axis, then re-zeroed with the pen pressed. Measured end to
+   end — fetch the tool from bay C, carry it to a board, plot a figure:
+   **circle 2.2 mm RMS shape error, 98 % inked**, tool still electrically
+   seated afterwards. A *square* is worse (10.4 mm, 63 %) and that is the
+   informative part: it holds an extreme carriage offset for a whole edge,
+   and sweeping with the pen down loses ~19 % of commanded travel to module
+   yaw under drag. Demo: `scripts/draw.py` (`--view`, `--shape square`).
+   Still to build: a stiffer yaw constraint (or a measured-while-sweeping
+   fit) for that residual, the drawing surface in `room_hub` so the errand
+   runs in the real room rather than the bare world, and a **veer
+   re-measurement**, since the y=+0.06 battery counterweight was tuned
+   against a lighter tip than the 182 g pen module.
 
 **Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
 igus stroke quote, chassis material, motor brackets).
