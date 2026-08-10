@@ -12,10 +12,14 @@
     <material name="tagmat1" texture="tagtex1" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex2" type="cube" file="tags/tag2.png"/>
     <material name="tagmat2" texture="tagtex2" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex4" type="cube" file="tags/tag4.png"/>
+    <material name="tagmat4" texture="tagtex4" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex10" type="cube" file="tags/tag10.png"/>
     <material name="tagmat10" texture="tagtex10" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex11" type="cube" file="tags/tag11.png"/>
     <material name="tagmat11" texture="tagtex11" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex12" type="cube" file="tags/tag12.png"/>
+    <material name="tagmat12" texture="tagtex12" specular="0.05" shininess="0.05" reflectance="0"/>
   </asset>
   <worldbody>
     <body name="rack" pos="-0.9000 5.9900 0.0000" euler="0 0 -90.0">
@@ -55,7 +59,7 @@
       <geom name="rack_tag_mast" type="box" size="0.006 0.006 0.045"
             pos="0.0700 0 0.445" mass="0.02"
             rgba="0.50 0.52 0.55 1"/>
-      <geom name="baya_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.1650 0.3415" rgba="0.45 0.47 0.50 1"/>
+            <geom name="baya_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.1650 0.3415" rgba="0.45 0.47 0.50 1"/>
       <geom name="baya_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 0.1650 0.284" rgba="0.45 0.47 0.50 1"/>
       <geom name="baya_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.1650 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
       <geom name="baya_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.1650 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
@@ -73,6 +77,15 @@
       <geom name="bayb_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 -0.1650 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
       <geom name="bayb_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 -0.1650 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
       <geom name="bayb_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 -0.1250 0.3550" contype="0" conaffinity="0" material="tagmat2"/>
+      <geom name="bayc_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.4150 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayc_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 0.4150 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayc_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.4150 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayc_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.4150 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayc_col_r" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.3350 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayc_foot_r" type="box" size="0.014 0.008 0.004" pos="0.0800 0.3350 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayc_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.3350 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayc_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.3350 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayc_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 0.3750 0.3550" contype="0" conaffinity="0" material="tagmat4"/>
       <!-- charge bay: panel + two pogo pins at bumper height + its own tag
            (the terminal servo needs a mark here like anywhere else) -->
       <geom name="rack_charge_panel" type="box" size="0.008 0.06 0.05"
@@ -95,9 +108,9 @@
       <geom name="module_lcd_body" type="box"
             size="0.01 0.02 0.03"
             mass="0.100" rgba="0.20 0.45 0.75 1"/>
-      <geom name="module_lcd_peg" type="cylinder" size="0.003 0.075"
-            zaxis="0 1 0" pos="0 0 0.0220" mass="0.02"
-            rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_lcd_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_lcd_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_lcd_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
       <geom name="module_lcd_screen" type="box" size="0.002 0.014 0.020" pos="-0.0100 0 0" contype="0" conaffinity="0" rgba="0.05 0.08 0.10 1"/>
       <geom name="module_lcd_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat10"/>
     </body>
@@ -107,13 +120,34 @@
       <geom name="module_plug_body" type="box"
             size="0.01 0.02 0.03"
             mass="0.100" rgba="0.25 0.27 0.30 1"/>
-      <geom name="module_plug_peg" type="cylinder" size="0.003 0.075"
-            zaxis="0 1 0" pos="0 0 0.0220" mass="0.02"
-            rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_plug_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_plug_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_plug_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
       <geom name="module_plug_barrel" type="cylinder" size="0.01775 0.015" zaxis="1 0 0" pos="-0.0230 0 0" contype="0" conaffinity="0" rgba="0.15 0.25 0.6 1"/>
       <geom name="module_plug_pin_l" type="capsule" size="0.0024" fromto="-0.0380 0.0095 0 -0.0540 0.0095 0" contype="0" conaffinity="0" rgba="0.75 0.75 0.78 1"/>
       <geom name="module_plug_pin_r" type="capsule" size="0.0024" fromto="-0.0380 -0.0095 0 -0.0540 -0.0095 0" contype="0" conaffinity="0" rgba="0.75 0.75 0.78 1"/>
       <geom name="module_plug_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat11"/>
     </body>
+    
+    <body name="module_pen" pos="-0.5250 5.9000 0.2730" euler="0 0 -90.0">
+      <freejoint/>
+      <geom name="module_pen_body" type="box"
+            size="0.01 0.02 0.03"
+            mass="0.100" rgba="0.65 0.35 0.30 1"/>
+      <geom name="module_pen_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_pen_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_pen_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
+      <geom name="module_pen_rail" type="box" size="0.004 0.0670 0.004" pos="0 0 -0.0250" mass="0.02" rgba="0.55 0.57 0.60 1"/>
+      <geom name="module_pen_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat12"/>
+      <body name="module_pen_carriage" pos="0 0 -0.0250">
+        <joint name="pen_carriage_joint" type="slide" axis="0 1 0" range="-0.0550 0.0550" damping="2"/>
+        <geom name="module_pen_block" type="box" size="0.008 0.010 0.008" mass="0.03" rgba="0.30 0.32 0.36 1"/>
+        <geom name="module_pen_shaft" type="capsule" size="0.0025" fromto="-0.0100 0 0 -0.0550 0 0" mass="0.006" rgba="0.90 0.30 0.25 1"/>
+        <site name="pen_tip" pos="-0.0550 0 0" size="0.002" rgba="0.9 0.3 0.25 1"/>
+      </body>
+    </body>
   </worldbody>
+  <actuator>
+    <position name="pen_carriage" joint="pen_carriage_joint" kp="120" kv="8" ctrlrange="-0.0550 0.0550" forcerange="-15 15"/>
+  </actuator>
 </mujocoinclude>

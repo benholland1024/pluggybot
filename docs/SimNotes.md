@@ -604,6 +604,138 @@ business-end-inward, charge bay, free body in sim) surfaced three numbers:
   press costs 1.2 mm of take-up, and a full swap cycle moves the rack <1 mm.
   Modeling the rack as a free body is what made this measurable at all.
 
+### Motorised-module prep: a gravity latch cannot push
+Before designing the lean-pad and the drawing tool, three things were measured
+on a carried module (headless probes against `hub_world.xml`, LCD module on
+the fork). They redirected the design, one of them away from a Parts.md
+decision:
+
+- **The hang is repeatable, and that is the good news.** Over a net-zero
+  maneuver (out, back, turn, counter-turn), the module returns to its resting
+  lean within **+0.00° / 0.02 mm** of where it started, and settles under
+  0.5 mm in **0.14 s**. Three identical maneuvers landed identically. So a pen
+  tip *can* be calibrated against the resting pose — the peg seats the same
+  way every time. In transit it swings **10.3° peak-to-peak** during a turn
+  (pen-tip proxy: ±10.9 mm vertical, 3.7 mm board-normal), which is why the
+  pen must be clear of the board while driving, but that is a sequencing
+  constraint, not a mechanical one.
+- **A gravity latch cannot push — the levers are the same length.** The
+  restoring torque is `m·g·d·sin θ` with d = `PEG_ABOVE_BODY` = 22 mm, and the
+  moment arm of a *horizontal* pen force about the peg is the same 22 mm
+  vertical offset (not the 60 mm horizontal reach — an arithmetic slip in the
+  probe's first draft, caught because the measured angles did not match).
+  Equal arms means any pen force buys a proportional, large rotation:
+
+  | pen force | rotation | tip retreat |
+  |---|---|---|
+  | 0.10 N | −5.3° | 2.1 mm |
+  | 0.25 N | −25.5° | 14.5 mm |
+  | 0.50 N | −51.3° | 38.3 mm (flopped onto the fork) |
+
+  And it *runs away* past ~0.25 N: rotating swings the tip further from the
+  peg, growing the disturbing arm faster than `sin θ` grows the restoring one.
+  A whiteboard marker wants 0.5–2 N. The latch gives out at 0.1 N. This is the
+  mirror image of the milestone-6 finding that a wall cannot brace you: one-way
+  contacts don't pull, and a gravity hook doesn't push. **The lean-pad is not a
+  sway damper — it is the part that lets the tool exert force at all**, and it
+  works by reacting the pen torque in compression at a ~50 mm lever instead of
+  by gravity at 22 mm. Convenient sign: the pen's reaction rotates the module's
+  lower back *toward* the robot, i.e. into the pad, so drawing load and preload
+  push the same way.
+- **⚠ The power contacts do NOT belong on the lean-pad** (correcting Parts.md).
+  A lean-pad's preload is capped by the same weak geometry: `m·g·d / lever` =
+  0.56 N absolute maximum for a 130 g module, realistically ~0.1 N at a few
+  degrees of lean — well under what a pogo pin needs. Meanwhile the peg is
+  *already* sitting in four V-notch plates carrying **0.43–0.47 N each,
+  1.79 N total** of gravity preload (vertical components summing to the
+  module's 1.276 N weight, as they should). So the electrical interface should
+  be **the peg and the V-notches**: the preload is free, the seating slide
+  wipes the contact clean, the peg is already the one metal part in the design
+  (6 mm steel rod, Parts.md), and left-pair/right-pair gives exactly the two
+  conductors a power-only coupling needs. `rack_charge_contact`'s "both pins
+  touching" criterion maps over verbatim.
+
+### The lean-pad: what it fixed, and what bounded its shape
+Built on `pluggybot_fork.xml` as a rigid pad on the fork, bearing on the
+module's lower back (guarded by `test_carried_module_can_exert_tool_force`,
+shown failing at 51.3° first). Result, same probe as above:
+
+| tool force | before | after |
+|---|---|---|
+| 0.10 N | −5.30° / 2.10 mm | −0.01° / 0.01 mm |
+| 0.50 N | −51.32° / 38.27 mm | −0.06° / 0.07 mm |
+| 2.00 N | −52.51° / 39.50 mm | −0.19° / 0.26 mm |
+
+The response is also **linear now** (~0.095°/N) instead of running away, and
+2 N still holds — past the ~1.5 N the peg-popping arithmetic predicted.
+
+Three things decided the geometry, and only one of them was the lever:
+
+- **The V self-centres so well that it erased the design problem I thought I
+  had.** A fork-mounted rigid pad has to clear the module while the approach
+  drives `PICK_OVERSHOOT` past the peg line, yet touch it after the lift.
+  Measured across 0/2/4/6/8 mm of overshoot, the seated module lands at the
+  same fork-local x **to 0.00 mm every time** — the seat has no memory of the
+  approach. So the pad's target plane is a constant you can design against,
+  and the conflict is resolved by *height*: the fork runs 22 mm low and lifts
+  36 mm to latch, so a pad below the tray-hung module's bottom edge clears the
+  approach entirely and the **lift** carries it into contact. Slide-in-then-
+  lift, the coupling's own verb, doing one more job for free.
+- **The parked envelope, not the lever, sets the depth.** Arm retracted, the
+  fork tucks over the chassis with only ~60 mm between the chassis top (0.12)
+  and the scanner's centre row (0.18). A first version reaching to z = −0.056
+  put its bracket ON the chassis and jacked the whole fork *up* into the scan
+  row — and this time contacts caught it (`chassis <-> lean_pad_arm`), because
+  `tool_fork` is outside the `pluggybot`/`arm` exclude. Fix: route the bracket
+  behind the module instead of under it, stop the pad at −0.036, and raise the
+  fork mount 19 mm (`FORK_MOUNT_RAISE` 0.016 → 0.035, its second instalment).
+- **The lever has a floor, set by the peg popping out of its own V.** Pad force
+  is (tool torque / lever) and it is reacted at the peg, which sits in a 45°
+  V. Push the peg harder than its own weight (1.28 N) and it rides up the
+  flank and out. At the 29 mm lever that survived the envelope, tool force
+  caps near 1.5 N by arithmetic and measured fine at 2 N. Moving the pad *up*
+  shrinks that number fast — it is the constraint to check first if the parked
+  envelope ever gets tighter.
+
+One duplication bug fell out: `mission.py` had the lift preset re-typed as bare
+`0.016`/`0.008` instead of importing `FORK_MOUNT_RAISE`/`DROOP_COMP`, so
+raising the mount would have silently left it aiming at the old geometry. It
+imports them now. A constant that describes geometry should have exactly one
+home — the same lesson the rack-frame verdict taught, one level down.
+
+### The module electrical interface: put the contacts where the force is
+Built as a split peg — two conductors around an insulated centre, so the
+fork's left and right V-notch pairs are the two poles (`hub/coupling.py`
+`peg_xml` / `module_power_state`, demo `scripts/module_power.py`). Nothing
+new was added to the coupling: the connector *is* the latch.
+
+- **Continuity through a full errand is clean, and the failures are exactly
+  where they should be.** Over the room_hub errand (navigate, pick, carry
+  across the room, stow — 89.5 s), brown-outs by phase: pick 5 spans / worst
+  14 ms, **carry 0 spans**, stow 5 spans / worst 50 ms. Every interruption is
+  a mating or release transition, where one pole necessarily breaks before
+  the other; while actually hauling the tool, the coupling never flickers.
+  Under a deliberately harsher 1.2 rad/s spin (the pytest, not the mission)
+  a pole opens for <1 % of steps, so hard spinning *can* flicker it.
+- **Report brown-outs as durations in a window, not as a percentage over the
+  run.** The first version printed "left 0.28 %, right 0.08 %" and that
+  number is nearly meaningless twice over: 0.4 % as microsecond blips and
+  0.4 % as one 200 ms outage are different hardware, and a run-wide figure is
+  dominated by mate/release events that are not faults. The duration inside
+  the carry window is what sizes a module's holding capacitor.
+- **Reporting the poles separately is what makes the criterion useful.** A
+  half-seated coupling — one conductor on, one off — is a real failure mode
+  of any two-point latch (the feelers taught it: one prong 39 mm short
+  wrecked everything while the other looked perfect), and a bare boolean
+  files it under "off" with no way to tell a missing tool from a bad seat.
+- A demo-authoring trap worth remembering: the bare-world version of the demo
+  originally hauled the tool with 360° of spinning between `pick` and
+  `put_back`, and the stow missed the trays entirely — `put_back`'s default
+  travel assumes the pose `pick`'s retreat left it in, and that much turning
+  drifts odometry well past the coupling's ±11 mm capture window. Same
+  lesson as "fixed choreography does not survive navigation", met from the
+  other side. The room errand computes its travel and stows fine.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

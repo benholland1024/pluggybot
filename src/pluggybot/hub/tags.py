@@ -35,9 +35,13 @@ PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 # Tag identities. The whole point of real tags: these are decoded, not
 # inferred from where a blob happened to sit in the frame.
 RACK_TAG_ID = 0
-BAY_TAG_IDS = (1, 2)     # bay A, bay B (same order as HUB_STATION_YS)
+BAY_TAG_IDS = (1, 2, 4)  # bays A, B, C -- same ORDER as HUB_STATION_YS, which
+                         # is what pairs them (coupling.bay_tag_id). Not
+                         # contiguous because 3 was already the charge bay and
+                         # renumbering would invalidate every generated tag
+                         # PNG and rack model for cosmetics.
 CHARGE_TAG_ID = 3
-MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11}
+MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12}
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is

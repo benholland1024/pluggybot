@@ -38,7 +38,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   physics — plug seats in the socket), `scripts/schuko_spike.py`
   (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
   tolerance sweep; `--film` for a filmstrip), `scripts/hub_swap.py` (robot
-  swaps a module at the hub in `models/hub_world.xml`), `scripts/hub_mission.py`
+  swaps a module at the hub in `models/hub_world.xml`),
+  `scripts/module_power.py` (module electrical interface: runs the errand and
+  saves `module_power.png` — filmstrip with the module painted live/dead plus
+  a per-pole continuity timeline; `--bare` for the faster hub_world version),
+  `scripts/hub_mission.py`
   (the milestone-8 story: navigate room_hub → fine-align → swap → return;
   `--view` opens the MuJoCo viewer and paces it to real time, `--fast` skips
   the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:

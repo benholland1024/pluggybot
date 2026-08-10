@@ -8,6 +8,38 @@ This document provides specs + model info for parts used in this project.
 
 ---
 
+## Scale — how big is any of this?
+
+**Measured off the models** (`room_hub.xml`, arm stowed), because the numbers
+are easy to misread: MJCF `size` values are **half**-extents, so the chassis
+line `size="0.12 0.09 0.03"` means a **24 × 18 × 6 cm** slab, not 12 × 9 × 3.
+
+| | Footprint | Height |
+|---|---|---|
+| **Robot** (over wheels, mast up) | 24 cm long × 22 cm wide | **50 cm** |
+| — chassis slab alone | 24 × 18 cm | 6 cm thick |
+| — track width (wheel centres) | 21 cm | wheels ⌀90 mm |
+| — battery bay | 13 × 4.6 × 2.6 cm | matches a real 5000 mAh 3S pack |
+| **Tool rack** | 99 cm wide × 17 cm deep | **55 cm** |
+
+So: a robot roughly the size of a shoebox with a 50 cm mast, and a rack about
+as wide as a bookshelf shelf. The rack is wider than it needs to be — the
+occupied span (two tool bays at 25 cm pitch plus the charge bay) is only
+~62 cm, so the side posts could come in to ~70 cm total without touching any
+bay geometry.
+
+**Build medium.** The rack does NOT fit a typical 220 × 220 mm print bed, and
+should not try to: print the *brackets, V-trays, tag plates and fork* (all
+small, all tolerance-critical), and make the **rail, posts and base from
+stock material** — wood is entirely reasonable, as is 2020 aluminium
+extrusion if you want the bay pitch to be adjustable later. Only the parts
+that touch the peg need print accuracy.
+
+**Electronics volume.** A Pi 5 is 85 × 56 mm and the Hailo M.2 HAT stacks on
+top of it rather than beside it, so an accelerator costs height (~15 mm), not
+floor area. The 24 × 18 cm chassis has room for Pi + HAT + motor driver +
+battery without growing.
+
 ## Drive system
 
 ### Motors — runner-up: 30:1 (not selected)
@@ -198,15 +230,25 @@ budget, and it works without any control loop.
 - Build, don't buy: commercial RCC units are industrial-scale and priced accordingly. Four compression springs plus a floating plate around the plug body is the standard hobby equivalent. Budget **≈ €10** in springs and printed parts.
 - Sim already models this: the spike's carrier uses 150 N/m lateral and 1 N·m/rad angular compliance. Those were guesses — measure the built part and update, since the whole tolerance envelope scales with them.
 
-### Alignment feelers — ⚠ SLATED FOR REMOVAL (Ben, Aug 2026)
+### Alignment feelers — ❌ REMOVED from the hub-era robot (Aug 2026)
 
-The feelers bake in an outlet-housing width that real outlets don't
+**Status, precisely** (the naming trips people up):
+
+| Model | Used by | Feelers? |
+|---|---|---|
+| `pluggybot.xml` (plug robot) | `world.xml`, `room_1.xml` | **yes** — frozen so milestone 6–7 measurements stay reproducible |
+| `pluggybot_fork.xml` (hub robot) | `world_fork.xml`, `hub_world.xml`, `room_hub.xml` | **no** |
+
+⚠ `pluggybot_fork.xml` *does* contain geoms named `fork_prong_l/r` — those are
+the **fork's tines** (part of the tool coupling), not alignment feelers. Only
+`prong_l` / `prong_r` are the feelers, and they exist solely in the plug robot.
+
+Why removed: they bake in an outlet-housing width that real outlets don't
 standardize (multi-gang rectangles defeat the straddle); the circular well is
 the only standard geometry, so the **well-centric plug-module redesign**
-supersedes them. Already removed from the fork robot (`pluggybot_fork.xml`) —
-at the hub they threaded between rack structures with mm margins, and the
-rule is remove-not-design-around. The plug ROBOT keeps them until that
-redesign so the milestone 6–7 measurements stay reproducible as recorded.
+supersedes them. At the hub they also threaded between rack structures with
+mm margins, and the rule is remove-not-design-around. They come back only if
+the plug-anywhere module is built, and then in well-centric form.
 
 ### Original feeler design (historical, still on the plug robot)
 
@@ -252,10 +294,11 @@ settles the yaw margin.**
 | Part | Route | Notes → sim |
 |---|---|---|
 | Hub shelf + V-trays + back wall | **3D-printed** (PETG; the trays see ~3 N loads) | tray geometry = `hub/coupling.py` constants |
-| Tool peg axles | **6 mm steel or alu rod**, cut to 150 mm (hardware store, ~€2) | printed pegs would flex/wear; the rod is the one loaded part |
+| Tool peg axles | **6 mm steel rod** (must be conductive — see below), 2× 63 mm sections on an insulating centre bush, 150 mm overall | printed pegs would flex/wear; the rod is the one loaded part **and now the electrical connector** — `hub/coupling.py` `PEG_INSUL_HALF` / `PEG_COND_HALF` |
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits (the plug becomes *a module*) | prong stance ±58 mm |
 | Module frames (plug module, LCD module) | 3D-printed plates, common peg interface | ≤150 g budget each (validated to 300 g) |
-| Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant |
+| Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. Modelled as a 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |
+| **Module power contacts** | **none to buy — the peg IS the connector** (Aug 2026) | Split peg + the fork's two V-notch pairs = a two-pole coupling with 0.43–0.49 N of gravity preload per plate, already there, self-wiping on the seating slide. Needs: conductive rod, an insulating centre bush, isolated V-plates (or one isolated side), and a **holding capacitor sized for a ~50 ms release transient** (measured — see SimNotes) |
 | Charge contacts | pogo-pin pairs (spring-loaded, ~€5) on the hub face, pads on the robot | gravity preload from the hang; the electrical-contact criterion carries over verbatim |
 | Hub power | 12.6 V CC/CV charger board (3S, ~€10–15) fed by a mains adapter; balance leads handled robot-side by a 3S BMS | replaces wall-outlet charging as the primary path |
 | LCD (first demo module) | small SPI/I2C display driven by the module's ESP32 | display-only; zero mechanical demands |

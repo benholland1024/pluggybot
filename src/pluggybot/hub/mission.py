@@ -35,15 +35,15 @@ from pluggybot.behavior.navigation import (
 )
 from pluggybot.control import wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X,
+  CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X, bay_tag_id,
 )
 from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
 from pluggybot.hub.tags import (
-  BAY_TAG_IDS, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
+  RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
 from pluggybot.hub.swap import (
-  ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT, PLUG_LATERAL, STANDOFF,
-  VERTEX_AHEAD_OF_AXLE, HubSwap,
+  ARM_EXT, CARRY_OFFSET, DROOP_COMP, FORK_MOUNT_RAISE, PICK_OVERSHOOT,
+  PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap,
 )
 from pluggybot.mapping.astar import astar
 from pluggybot.mapping.frontier import traversable_mask
@@ -209,7 +209,10 @@ class HubMission:
     d.qpos[1] = y + 0.08 * math.sin(yaw)
     d.qpos[2] = 0.045
     d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-    lift0 = HUB_PEG_Z - 0.145 - 0.016 + 0.008   # swap's preset (see swap.py)
+    # swap's lift preset. Imported, NOT re-typed: these were duplicated as
+    # bare 0.016/0.008 here, so raising the fork mount for the lean-pad would
+    # have silently left this copy pointing at the old geometry.
+    lift0 = HUB_PEG_Z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
     d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
     d.ctrl[self.model.actuator("lift").id] = lift0
     d.ctrl[self.model.actuator("arm").id] = 0.0     # stowed for driving
@@ -462,7 +465,7 @@ class HubMission:
     # offset, because the peg rides that far ahead of the vertex and it is
     # the PEG that must land over the tray line.
     travel = self._terminal_travel(station_y)
-    tag_id = BAY_TAG_IDS[0] if station_y == HUB_STATION_YS[0] else BAY_TAG_IDS[1]
+    tag_id = bay_tag_id(station_y)
     self.model.opt.timestep = SWAP_TIMESTEP
     try:
       if verb == "pick":

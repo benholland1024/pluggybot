@@ -189,7 +189,16 @@
                22 mm below the fork axis (FORK_DROP): the whole fork passes
                UNDER a module's peg on approach, then the lift raises it
                36 mm to take the tool. -->
-          <body name="tool_fork" pos="0.14 0 0" euler="0 0 180">
+          <!-- z=0.019 is the SECOND mount raise. The first (16 mm, baked
+               into the geom offsets below) fixed the parked right prong
+               interpenetrating the chassis. The lean-pad hangs 19 mm lower
+               than anything before it, so the whole fork moves up again by
+               that much rather than each geom being re-typed; total raise is
+               now 35 mm, which is what swap.FORK_MOUNT_RAISE records and the
+               lift preset absorbs. Parked clearances after the move: pad
+               bottom 7 mm above the chassis, fork top 6 mm below the scan
+               row -- both guarded by tests. -->
+          <body name="tool_fork" pos="0.14 0 0.019" euler="0 0 180">
             <joint name="fork_lat_y" type="slide" axis="0 1 0" range="-0.02 0.02"
                    stiffness="150" damping="4" armature="1e-5"/>
             <joint name="fork_lat_z" type="slide" axis="0 0 1" range="-0.02 0.02"
@@ -226,6 +235,57 @@
                   pos="-0.055 0.079 -0.002" mass="0.004" rgba="0.30 0.32 0.36 1"/>
             <geom name="fork_stop_r" type="box" size="0.006 0.004 0.012"
                   pos="-0.055 -0.079 -0.002" mass="0.004" rgba="0.30 0.32 0.36 1"/>
+            <!-- Lean-pad. A gravity latch cannot PUSH: the module's CoM
+                 hangs 22 mm below the peg, and 22 mm is ALSO the moment arm
+                 of a horizontal tool force about that peg. Equal arms, so
+                 0.1 N of pen force rotates the module 5.3 deg and 0.5 N
+                 flops it 51 deg onto the fork -- and it runs away past
+                 0.25 N, because rotating grows the disturbing arm faster
+                 than sin(theta) grows the restoring one (all measured; see
+                 SimNotes). The pad reacts that torque in COMPRESSION at a
+                 ~38 mm lever instead, which is why a motorised module needs
+                 it before it needs anything else.
+
+                 Two placement constraints, both measured rather than
+                 reasoned:
+                   * It must not foul the horizontal approach -- and it
+                     doesn't, because the fork runs 22 mm low (FORK_DROP) and
+                     rises 36 mm to latch. The pad's top (z=-0.030) clears
+                     the tray-hung module's bottom edge (z=-0.014 pre-lift)
+                     by 16 mm, so it is the LIFT that carries the pad into
+                     contact. Slide-in-then-lift, the coupling's own verb,
+                     doing one more job.
+                   * It must intrude past the module's SEATED back-face
+                     plane, x=-0.0458 -- which is safe to design against
+                     because the V self-centres the peg so completely that
+                     0 mm and 8 mm of approach overshoot seat identically to
+                     0.00 mm. The 2.7 mm intrusion leans the module ~4 deg
+                     onto the pad and gravity holds it there. Convenient
+                     sign: the pen's reaction rotates the module the same
+                     way, so drawing load only ever ADDS to the preload. -->
+                 Depth is bounded by the PARKED envelope, not by what the
+                 lever would like. Arm retracted, the fork tucks over the
+                 chassis, and there is only ~60 mm between the chassis top
+                 (0.12) and the scanner's centre row (0.18) -- a first
+                 version reaching to z=-0.056 sat its bracket ON the chassis
+                 and jacked the whole fork up into the scan row. So the pad
+                 stops at z=-0.036 (a ~29 mm lever below the peg) and the
+                 bracket routes BEHIND the module rather than under it.
+
+                 29 mm is also near the floor of what works, for a reason
+                 worth writing down: the pad force is (tool torque / lever),
+                 and it is reacted at the peg, which sits in a 45-degree V.
+                 Push the peg horizontally harder than its own weight
+                 (1.28 N) and it rides up the flank and out. At a 29 mm
+                 lever that caps tool force around 1.5 N -- comfortably past
+                 a marker's 0.5-1 N, but this is the number that shrinks if
+                 the pad is moved up. -->
+            <geom name="lean_pad" type="box" size="0.010 0.028 0.005"
+                  pos="-0.0385 0 -0.031" mass="0.012"
+                  rgba="0.24 0.26 0.30 1"/>
+            <geom name="lean_pad_post" type="box" size="0.007 0.008 0.016"
+                  pos="-0.023 0 -0.021" mass="0.008"
+                  rgba="0.30 0.32 0.36 1"/>
             <site name="fork_vertex" pos="-0.055 0 -0.006" size="0.002"/>
           </body>
         </body>

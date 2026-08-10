@@ -29,11 +29,13 @@ from typing import Literal
 import mujoco
 
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
-from pluggybot.hub.coupling import HUB_STATION_YS, rack_charge_contact
+from pluggybot.hub.coupling import (
+  HUB_STATION_YS, module_power_contact, rack_charge_contact,
+)
 from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
-from pluggybot.power import Battery
+from pluggybot.power import MODULE_IDLE_W, Battery
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "SWAP_PICK", "USE_TOOL",
                 "SWAP_RETURN", "DONE"]
@@ -60,8 +62,10 @@ class HubLifecycle:
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                battery_wh: float = DEMO_CAPACITY_WH,
-               errand: bool = True, rack: RackPose | None = None) -> None:
+               errand: bool = True, rack: RackPose | None = None,
+               module: str = "module_lcd") -> None:
     self.model, self.data = model, data
+    self.module = module
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack)
     self.battery = Battery(model, capacity_wh=battery_wh)
@@ -69,17 +73,28 @@ class HubLifecycle:
     self.state: State = "EXPLORE"
     self.errand_pending = errand
     self.charging_now = False
+    self.tool_powered = False
     self.charge_cycles = 0
     self.swaps_done = 0
+    self.tool_powered_s = 0.0
     self.log: list[str] = []
 
   # ---- power ---------------------------------------------------------------
 
   def _power_step(self) -> None:
-    """Drain (or charge) once per physics step, whatever phase is running."""
+    """Drain (or charge) once per physics step, whatever phase is running.
+
+    A coupled module is a load, gated on the coupling's own electrical
+    criterion rather than on "are we carrying it" -- the same reason charging
+    is gated on contact and not on position.
+    """
+    dt = self.model.opt.timestep
     self.charging_now = rack_charge_contact(self.model, self.data)
-    self.battery.update(self.data, self.model.opt.timestep,
-                        charging=self.charging_now)
+    self.tool_powered = module_power_contact(self.model, self.data, self.module)
+    if self.tool_powered:
+      self.tool_powered_s += dt
+    self.battery.update(self.data, dt, charging=self.charging_now,
+                        tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
 
   def _say(self, msg: str) -> None:
     line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
@@ -159,18 +174,18 @@ class HubLifecycle:
     """Fetch a tool, take it somewhere, and put it back."""
     self.state = "SWAP_PICK"
     self.mission.swap_at_bay(station_y, "pick")
-    carried = self.mission.swap.module_state("module_lcd")["on_fork"]
+    carried = self.mission.swap.module_state(self.module)["on_fork"]
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}")
 
     self.state = "USE_TOOL"
     self.mission.drive_to(*use_at, timeout=60.0)
-    still = self.mission.swap.module_state("module_lcd")["on_fork"]
+    still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: arrived{'' if still else ' -- BUT DROPPED THE TOOL'}")
 
     self.state = "SWAP_RETURN"
     self.mission.swap_at_bay(station_y, "return")
-    stowed = self.mission.swap.module_state("module_lcd")["hung"]
+    stowed = self.mission.swap.module_state(self.module)["hung"]
     self.swaps_done += 1
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
     self.errand_pending = False
@@ -223,7 +238,7 @@ class HubLifecycle:
     finally:
       self.mission.close()
 
-    module = self.mission.swap.module_state("module_lcd")
+    module = self.mission.swap.module_state(self.module)
     return {
       "state": self.state,
       "aborted": aborted,

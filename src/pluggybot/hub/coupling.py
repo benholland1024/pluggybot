@@ -60,6 +60,25 @@ LIFT_STEP = 0.036       # m raised during a pick: FORK_DROP + seating + enough
                         # the full push cap (measured 10 N; clean is ~2 N)
 TRAY_VERTEX_DROP = 0.008  # tray V vertex under the nominal peg line
 
+# -- the peg as the module's ELECTRICAL interface ----------------------------
+# Measured (SimNotes): the peg already sits in four V-notch plates carrying
+# 0.43-0.49 N each of gravity preload -- 4-9x what a lean-pad could ever
+# supply, because a lean-pad's preload is capped by the same weak 22 mm
+# geometry that made the pad necessary in the first place. So the power
+# contacts go where the force already is. Splitting the peg into two
+# conductors either side of an insulated centre makes the LEFT V-notch pair
+# and the RIGHT V-notch pair the two poles of a power-only coupling: no extra
+# parts, no extra alignment, and the seating slide wipes the contact clean.
+# The peg is also already the one metal part in the design (6 mm steel rod).
+PEG_INSUL_HALF = 0.012                            # insulated centre section
+PEG_COND_HALF = (PEG_HALF - PEG_INSUL_HALF) / 2   # each conductor
+PEG_COND_Y = PEG_INSUL_HALF + PEG_COND_HALF       # conductor centre offset
+# Which fork geoms are which pole. Left/right are the fork's own frame; a
+# module always presents the same face to the fork, so the pairing holds at
+# any rack yaw.
+FORK_POLE_GEOMS = {"l": ("fork_vl_a", "fork_vl_b"),
+                   "r": ("fork_vr_a", "fork_vr_b")}
+
 # -- carrier ("the robot", simplified) ---------------------------------------
 PUSH_FORCE = 10.0       # N cap on the approach axis
 LAT_STIFFNESS = 150.0   # N/m lateral compliance (same guess as schuko spike)
@@ -186,11 +205,75 @@ def module_xml(name: str, x: float, y: float, peg_z: float,
       <geom name="{name}_body" type="box"
             size="{TOOL_HALF_X} {TOOL_HALF_Y} {TOOL_HALF_Z}"
             mass="{mass - 0.02:.3f}" rgba="{rgba}"/>
-      <geom name="{name}_peg" type="cylinder" size="{PEG_R} {PEG_HALF}"
-            zaxis="0 1 0" pos="0 0 {PEG_ABOVE_BODY:.4f}" mass="0.02"
-            rgba="0.75 0.75 0.78 1"/>
+      {peg_xml(name)}
       {face}
     </body>"""
+
+
+def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
+  """The hang peg, built as two conductors around an insulated centre.
+
+  Mechanically this is still one 150 mm rod -- the sections are collinear and
+  the same radius, and the V-notches they seat in are far outboard of the
+  centre (fork plates at |y| 52-64 mm, tray plates at 32-48 mm), so the
+  insulator never touches anything and the latch behaves exactly as measured.
+  Electrically it is a two-pole connector that costs nothing to align,
+  because the alignment is the gravity latch that was already there.
+
+  (The RACK's trays are the same geometry, so a hub that wanted to power or
+  charge modules on the shelf could use the identical seam. Not modelled --
+  here the robot is what powers its tools.)
+  """
+  out = []
+  for lbl, s in (("l", 1), ("r", -1)):
+    out.append(
+      f'<geom name="{name}_peg_{lbl}" type="cylinder" '
+      f'size="{PEG_R} {PEG_COND_HALF:.4f}" zaxis="0 1 0" '
+      f'pos="0 {s * PEG_COND_Y:.4f} {z:.4f}" mass="0.008" '
+      f'rgba="0.75 0.75 0.78 1"/>')
+  out.append(
+    f'<geom name="{name}_peg_insul" type="cylinder" '
+    f'size="{PEG_R} {PEG_INSUL_HALF:.4f}" zaxis="0 1 0" '
+    f'pos="0 0 {z:.4f}" mass="0.004" rgba="0.12 0.12 0.14 1"/>')
+  return "\n      ".join(out)
+
+
+def module_power_state(model, data, name: str = "module_lcd") -> dict:
+  """Is this module's coupling conducting, and if not, which pole is open?
+
+  The rack-side sibling of `rack_charge_contact`, and the same lesson behind
+  both: an electrical criterion beats a positional one. Milestone 6 burned
+  four position-based seat detectors before the charging voltage settled it;
+  here the question "is the tool powered" has exactly one honest answer, and
+  it is the same one the hardware will have.
+
+  Reporting the poles separately is deliberate. A half-seated coupling --
+  one conductor on, one off -- is a real failure mode of a two-point latch
+  (the feelers taught this: one prong 39 mm short wrecked everything while
+  the other looked perfect), and a bare boolean would hide it as "off".
+  """
+  poles = {}
+  for side, plates in FORK_POLE_GEOMS.items():
+    try:
+      peg = model.geom(f"{name}_peg_{side}").id
+      plate_ids = {model.geom(g).id for g in plates}
+    except KeyError:
+      poles[side] = False
+      continue
+    touching = False
+    for i in range(data.ncon):
+      pair = {data.contact[i].geom1, data.contact[i].geom2}
+      if peg in pair and plate_ids & pair:
+        touching = True
+        break
+    poles[side] = touching
+  return {"left": poles["l"], "right": poles["r"],
+          "powered": poles["l"] and poles["r"]}
+
+
+def module_power_contact(model, data, name: str = "module_lcd") -> bool:
+  """Both poles conducting -- the module is coupled and powered."""
+  return module_power_state(model, data, name)["powered"]
 
 
 # ---- rack v2 layout (the "bike rack for tools", designed with Ben) ---------
@@ -201,7 +284,11 @@ RACK_BRACKET_X = 0.07     # tray brackets drop from the rail BEHIND the hang
                           # plane, so a lifted peg rises into free air
 RACK_RAIL_Z = 0.40        # rail height: carried peg tops out ~55 mm below
 HUB_PEG_Z = 0.30          # module peg height (mid lift range)
-HUB_STATION_YS = (0.125, -0.125)  # tool bays at 0.25 m pitch
+HUB_STATION_YS = (0.125, -0.125, 0.375)  # tool bays at 0.25 m pitch. Bay C
+                          # mirrors the charge bay's place at the far end, and
+                          # is APPENDED rather than inserted in y order: the
+                          # bay<->tag pairing is by index, and every demo and
+                          # test names its bay as HUB_STATION_YS[0].
 CHARGE_BAY_Y = -0.375     # charge bay continues the pitch at the rack's end
 RACK_HALF_W = 0.48        # side posts
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
@@ -212,6 +299,23 @@ CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
 # arm's length).
 RACK_PLATE_HALF = plate_half_extent(RACK_TAG_SIZE)
 SMALL_PLATE_HALF = plate_half_extent(SMALL_TAG_SIZE)
+
+
+def bay_tag_id(station_y: float) -> int:
+  """The AprilTag id of the bay nearest this station y.
+
+  Was a hardcoded two-bay equality check in mission.py -- fine while there
+  were exactly two bays and silently wrong the moment there were three.
+  Pairing is by INDEX into HUB_STATION_YS, so bays may sit anywhere.
+  """
+  i = min(range(len(HUB_STATION_YS)),
+          key=lambda k: abs(HUB_STATION_YS[k] - station_y))
+  return BAY_TAG_IDS[i]
+
+
+def bay_prefix(i: int) -> str:
+  """Geom-name prefix for bay i: baya_, bayb_, bayc_, ..."""
+  return f"bay{chr(ord('a') + i)}_"
 
 
 def rack_charge_contact(model, data) -> bool:
@@ -257,7 +361,6 @@ def _bay_xml(prefix: str, y: float, tag_id: int) -> str:
 def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
                    yaw_deg: float = 0.0) -> str:
   """The unified rack as ONE free body at an arbitrary room pose."""
-  ya, yb = HUB_STATION_YS
   return f"""<body name="rack" pos="{pos[0]:.4f} {pos[1]:.4f} {pos[2]:.4f}" euler="0 0 {yaw_deg:.1f}">
       <freejoint/>
       <!-- frame: side posts, rail, anti-tip feet, ballast/PSU shelf (1.5 kg
@@ -295,8 +398,8 @@ def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
       <geom name="rack_tag_mast" type="box" size="0.006 0.006 0.045"
             pos="{RACK_BRACKET_X:.4f} 0 {RACK_RAIL_Z + 0.045:.3f}" mass="0.02"
             rgba="0.50 0.52 0.55 1"/>
-      {_bay_xml("baya_", ya, BAY_TAG_IDS[0])}
-      {_bay_xml("bayb_", yb, BAY_TAG_IDS[1])}
+      {chr(10).join(f'      {_bay_xml(bay_prefix(i), y, BAY_TAG_IDS[i])}'
+                    for i, y in enumerate(HUB_STATION_YS))}
       <!-- charge bay: panel + two pogo pins at bumper height + its own tag
            (the terminal servo needs a mark here like anywhere else) -->
       <geom name="rack_charge_panel" type="box" size="0.008 0.06 0.05"
@@ -313,6 +416,27 @@ def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
             pos="0.114 {CHARGE_BAY_Y - 0.03:.4f} {CHARGE_PIN_Z:.3f}" mass="0.005"
             rgba="0.85 0.75 0.30 1"/>
     </body>"""
+
+
+# ---- the drawing module (milestone 8): a tool with its own actuated axis ---
+# The robot is nonholonomic: the base owns x and yaw, the lift owns z, the arm
+# owns reach, and NOTHING owns lateral. So a pen carriage running along the
+# module's own y axis -- parallel to the peg -- supplies the one DoF the robot
+# structurally lacks, and pairs with the existing lift to make an X-Y plotter
+# against a vertical board. The module is not cargo; it is a kinematic
+# extension the robot acquires by picking it up.
+PEN_TRAVEL = 0.055       # +/- along the peg axis: 110 mm of drawing width.
+                         # Bounded by the peg's own half-length (0.075) and the
+                         # fork's axial end-stops at 0.079 -- the rail must not
+                         # reach either.
+PEN_RAIL_Z = -0.025      # rail below the module body centre, i.e. 47 mm below
+                         # the peg: clear under the lean-pad (which stops
+                         # 36 mm below the peg) and under the rack's tray
+                         # brackets. Guarded by a clearance sweep, not by this
+                         # comment.
+PEN_LEN = 0.045          # pen protrusion past the module's business face
+PEN_CARRIAGE_MASS = 0.030
+PEN_RAIL_MASS = 0.020
 
 
 def _module_faces() -> tuple[str, str]:
@@ -337,7 +461,44 @@ def _module_faces() -> tuple[str, str]:
     f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
     f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
     f'material="tagmat{MODULE_TAG_IDS["module_plug"]}"/>')
-  return lcd_face, plug_face
+  pen_face = (
+    # Rail: the carriage's track, spanning further in y than the module plate
+    # so the pen can reach past the tool's own width.
+    f'<geom name="module_pen_rail" type="box" '
+    f'size="0.004 {PEN_TRAVEL + 0.012:.4f} 0.004" '
+    f'pos="0 0 {PEN_RAIL_Z:.4f}" mass="{PEN_RAIL_MASS}" '
+    f'rgba="0.55 0.57 0.60 1"/>'
+    f'\n      <geom name="module_pen_tag" type="box" '
+    f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
+    f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
+    f'material="tagmat{MODULE_TAG_IDS["module_pen"]}"/>'
+    # The actuated axis. A lead screw HOLDS position unpowered (the dryspin
+    # argument from Parts.md that milestone 7's power model already relies
+    # on), so a position servo parked at its target is the honest model of a
+    # module sitting unpowered on the rack.
+    f'\n      <body name="module_pen_carriage" pos="0 0 {PEN_RAIL_Z:.4f}">'
+    f'\n        <joint name="pen_carriage_joint" type="slide" axis="0 1 0" '
+    f'range="{-PEN_TRAVEL:.4f} {PEN_TRAVEL:.4f}" damping="2"/>'
+    f'\n        <geom name="module_pen_block" type="box" '
+    f'size="0.008 0.010 0.008" mass="{PEN_CARRIAGE_MASS}" '
+    f'rgba="0.30 0.32 0.36 1"/>'
+    f'\n        <geom name="module_pen_shaft" type="capsule" size="0.0025" '
+    f'fromto="{-TOOL_HALF_X:.4f} 0 0 {-(TOOL_HALF_X + PEN_LEN):.4f} 0 0" '
+    f'mass="0.006" rgba="0.90 0.30 0.25 1"/>'
+    f'\n        <site name="pen_tip" pos="{-(TOOL_HALF_X + PEN_LEN):.4f} 0 0" '
+    f'size="0.002" rgba="0.9 0.3 0.25 1"/>'
+    f'\n      </body>')
+  return lcd_face, plug_face, pen_face
+
+
+def pen_actuator_xml() -> str:
+  """The pen carriage's own actuator. Lives on the MODULE, not the robot --
+  which is the whole point of the drawing tool: it brings an axis the base
+  does not have."""
+  return (f'<position name="pen_carriage" joint="pen_carriage_joint" '
+          f'kp="120" kv="8" '
+          f'ctrlrange="{-PEN_TRAVEL:.4f} {PEN_TRAVEL:.4f}" '
+          f'forcerange="-15 15"/>')
 
 
 def write_hub_world(path: str = "models/hub_world.xml") -> None:
@@ -352,8 +513,8 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
   plates are AprilTag placeholders (rack pose, bay identity, module
   identity) until the perception pass.
   """
-  ya, yb = HUB_STATION_YS
-  lcd_face, plug_face = _module_faces()
+  ya, yb, yc = HUB_STATION_YS
+  lcd_face, plug_face, pen_face = _module_faces()
   tag_ids = write_tag_pngs()
   xml = f"""<!-- GENERATED by pluggybot.hub.coupling.write_hub_world().
      Regenerate: uv run python -m pluggybot.hub.coupling
@@ -379,9 +540,14 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
                 "0.20 0.45 0.75 1", face=lcd_face)}
     {module_xml("module_plug", RACK_HANG_X, yb, HUB_PEG_Z,
                 "0.25 0.27 0.30 1", face=plug_face)}
+    {module_xml("module_pen", RACK_HANG_X, yc, HUB_PEG_Z,
+                "0.65 0.35 0.30 1", face=pen_face)}
     <camera name="hub_watch" pos="0.85 -0.85 0.70"
             xyaxes="0.707 0.707 0 -0.32 0.32 0.89"/>
   </worldbody>
+  <actuator>
+    {pen_actuator_xml()}
+  </actuator>
 </mujoco>
 """
   with open(path, "w") as fh:
@@ -405,11 +571,12 @@ def rack_frame_to_world(x_local: float, y_local: float) -> tuple[float, float]:
 
 def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
   """The rack + modules as a room include, placed on room 1's north wall."""
-  ya, yb = HUB_STATION_YS
-  lcd_face, plug_face = _module_faces()
+  ya, yb, yc = HUB_STATION_YS
+  lcd_face, plug_face, pen_face = _module_faces()
   tag_ids = write_tag_pngs()
   ax, ay_ = rack_frame_to_world(RACK_HANG_X, ya)
   bx, by_ = rack_frame_to_world(RACK_HANG_X, yb)
+  cx, cy_ = rack_frame_to_world(RACK_HANG_X, yc)
   xml = f"""<!-- GENERATED by pluggybot.hub.coupling.write_hub_rack().
      Regenerate: uv run python -m pluggybot.hub.coupling
      The tool rack + hanging modules placed against room 1's north wall,
@@ -424,7 +591,12 @@ def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
                 "0.20 0.45 0.75 1", face=lcd_face, yaw_deg=RACK_ROOM_YAW)}
     {module_xml("module_plug", bx, by_, HUB_PEG_Z,
                 "0.25 0.27 0.30 1", face=plug_face, yaw_deg=RACK_ROOM_YAW)}
+    {module_xml("module_pen", cx, cy_, HUB_PEG_Z,
+                "0.65 0.35 0.30 1", face=pen_face, yaw_deg=RACK_ROOM_YAW)}
   </worldbody>
+  <actuator>
+    {pen_actuator_xml()}
+  </actuator>
 </mujocoinclude>
 """
   with open(path, "w") as fh:

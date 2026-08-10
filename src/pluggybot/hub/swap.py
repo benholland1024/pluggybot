@@ -28,11 +28,15 @@ ARM_EXT = 0.06            # arm extension for hub work: retracted, the fork
                           # slipping) -- the same reach problem the plug had
 DROOP_COMP = 0.008        # RCC droop of the fork line under gravity
                           # (measured 7 mm here; the plug's was 7.8)
-FORK_MOUNT_RAISE = 0.016  # the fork hangs this much higher on the wrist than
-                          # the spike carrier's: at the original drop the
-                          # right prong interpenetrated the chassis top by
-                          # 9 mm at zero lift (caught by the geometric sweep,
-                          # silent to contacts). The lift preset absorbs it.
+FORK_MOUNT_RAISE = 0.035  # the fork hangs this much higher on the wrist than
+                          # the spike carrier's, in two instalments. 16 mm:
+                          # at the original drop the right prong
+                          # interpenetrated the chassis top by 9 mm at zero
+                          # lift (caught by the geometric sweep, silent to
+                          # contacts). +19 mm: the lean-pad hangs below
+                          # everything else, and parked it sat ON the chassis
+                          # and jacked the fork into the scanner's row. The
+                          # lift preset absorbs the whole thing.
 VERTEX_AHEAD_OF_AXLE = 0.175 + ARM_EXT   # fork V vertex forward of the axle
                           # (carriage -0.10 + arm tip 0.14 + vertex 0.055
                           #  + axle offset 0.08 + extension)

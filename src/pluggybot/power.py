@@ -31,6 +31,13 @@ ELECTRONICS_W = 6.0     # Pi 5 + cameras + IMU, always on
 ACTUATOR_W = 5.0        # each lead-screw stepper, only while moving
 ACTUATOR_MOVING = 2e-3  # m/s: slower than this counts as holding (unpowered)
 CHARGE_W = 55.0         # ~1C into the 5 Ah pack
+MODULE_IDLE_W = 0.6     # a coupled tool module's own electronics: one
+                        # ESP32-class board per module (Parts.md), awake only
+                        # while the coupling conducts. Power-only coupling
+                        # with wireless data means the module is a load the
+                        # moment it is picked up, and dead the moment it is
+                        # hung back up -- so the errand has an energy cost the
+                        # milestone-7 battery model never had to carry.
 
 DEMO_CAPACITY_WH = 1.0  # scaled demo cell (see module docstring)
 
@@ -62,8 +69,13 @@ class Battery:
         p += ACTUATOR_W
     return p
 
-  def update(self, data, dt: float, charging: bool = False) -> None:
-    p = self.power_draw(data)
+  def update(self, data, dt: float, charging: bool = False,
+             tool_w: float = 0.0) -> None:
+    """tool_w is whatever a coupled module is drawing this step -- gated on
+    the ELECTRICAL criterion, not on "are we carrying something", so a tool
+    that is held but not conducting correctly costs nothing and a properly
+    seated one does."""
+    p = self.power_draw(data) + tool_w
     if charging:
       p -= CHARGE_W
     self.last_power_w = p

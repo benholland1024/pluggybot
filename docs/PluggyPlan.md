@@ -54,6 +54,78 @@ Each milestone is independently runnable and demoable.
 
 **Later experiments** (off the critical path): learned odometry (competing against the classical baseline), curiosity-driven exploration.
 
+## Road to hardware (open items, Aug 2026)
+
+The hardware MVP bar is **a physical robot swapping plug ↔ LCD at a real
+hub**. What stands between here and ordering parts:
+
+**Blocking**
+1. **Compute budget on the Pi 5.** Profile the real load. Note the hub pivot
+   changed this a lot: the hub loop needs only AprilTag detection + stereo
+   depth + mapping — **YOLO is only needed by the plug-anywhere module**, so
+   the MVP may not need an accelerator at all. Decide after measuring.
+2. **Third camera routing.** Two CSI ports, both used by the stereo pair; the
+   dock camera needs a CSI multiplexer or USB. Blocks the carriage design.
+3. **Sensor-realism pass in sim.** Replace ground-truth depth with real
+   stereo matching (SGBM), add gyro bias/drift and encoder quantization,
+   re-run explore + swap. Cheapest possible place to find these gaps.
+4. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
+   every physics threshold derived from the current model). Do this LAST,
+   after the other hardware choices settle.
+
+**Hub-specific (cheap, physical)**
+5. **Print-tolerance trial**: print the fork + one V-tray, measure the real
+   capture envelope by hand against the sim's ±4 mm / <2°. PLA is fine for
+   this (stiffer and more dimensionally accurate than PETG; the 150 g load
+   is nowhere near creep). PETG only matters if the rack lives somewhere hot.
+6. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
+   motion, recessed, dead-by-default with a hub-side handshake.
+7. ✅ **Lean-pad — built in sim (Aug 2026)**, on `pluggybot_fork.xml`.
+   **Re-scoped by measurement first**: its job is not damping sway, it is
+   letting the tool exert force *at all*. A peg-hung module gave out at
+   **0.1 N** of tool force (restoring and disturbing arms are both the peg's
+   22 mm) and ran away past 0.25 N, flopping 51° at 0.5 N; a marker wants
+   0.5–2 N. With the pad, 2 N holds the pen tip inside **0.26 mm** and the
+   response is linear. Shape was bounded by the *parked* envelope (~60 mm
+   between chassis top and the scanner row), not by the lever — see SimNotes.
+   ⚠ **The power contacts do NOT belong on it** (this list said they did): the
+   pad's gravity preload caps at 0.56 N and is realistically ~0.1 N, under
+   what a pogo pin needs. The **peg in its V-notches** already carries
+   0.43–0.47 N per plate, free, self-wiping, and already the one metal part
+   in the design — that is where the module electrical interface goes.
+8. ✅ **Module electrical interface — built in sim (Aug 2026)**. The peg is
+   the connector: split into two conductors around an insulated centre, the
+   fork's left and right V-notch pairs become the two poles of the power-only
+   coupling. No extra parts and no extra alignment, because the alignment is
+   the gravity latch that was already there. `module_power_state` reports each
+   pole separately (a half-seated coupling is a real failure mode); a coupled
+   module draws 0.6 W from the battery, gated on the electrical criterion
+   rather than on "are we carrying it". Measured over a full errand:
+   **0 brown-outs while carrying**, all interruptions confined to the
+   mating/release transitions, worst 50 ms at release — which is the number
+   that sizes the module's holding capacitor. Demo:
+   `scripts/module_power.py` (`--view` to watch it live).
+9. 🚧 **Drawing tool (pen carriage)** — groundwork done, controller next. The
+   rack now has a **third bay** (bays at 0.125 / −0.125 / 0.375; the bay↔tag
+   pairing is by index via `coupling.bay_tag_id`, replacing a hardcoded
+   two-bay check that would have steered every bay-C swap onto bay B's
+   marker). `module_pen` hangs there: a standard module frame plus a rail and
+   a **carriage on its own actuated slide joint along the peg axis**
+   (±55 mm), carrying a pen. That axis is the point — the base owns x/yaw,
+   the lift owns z, the arm owns reach, and *nothing* owns lateral, because a
+   differential drive cannot translate sideways. The module supplies the
+   missing DoF and pairs with the lift to make an X-Y plotter against a
+   vertical board. Verified: hangs, is picked, conducts through the coupling,
+   drives its carriage end-to-end without shaking off the fork, and its sweep
+   clears the robot. **Mass 182 g** (vs LCD 130 g, plug 156 g) — over the
+   150 g soft budget, inside the 300 g the latch was validated to.
+   Still to build: a drawing surface, the plot controller (module-y × lift-z),
+   a traced-path-vs-commanded error report, and a **veer re-measurement**,
+   since the y=+0.06 battery counterweight was tuned against a lighter tip.
+
+**Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
+igus stroke quote, chassis material, motor brackets).
+
 ## Tooling
 
 - **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
