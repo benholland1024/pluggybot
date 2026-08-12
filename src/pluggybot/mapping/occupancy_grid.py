@@ -31,13 +31,20 @@ class OccupancyGrid:
     world_y = ((y + 0.5) * self.resolution) + self.y_min
     return (world_x, world_y)
     
-  def update(self, pose, angles, ranges, max_range):   # pose = (x, y, theta)
-    """Update the occupancy map"""
-    px, py, theta = pose
+  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03)):
+    """Update the occupancy map. pose = (x, y, theta) at the AXLE midpoint.
 
-    # Scan origin = camera, sitting 0.03 fwd / 0.03 left of axle, rotated by heading
-    ox = px + 0.03 * math.cos(theta) - 0.03 * math.sin(theta)
-    oy = py + 0.03 * math.sin(theta) + 0.03 * math.cos(theta)
+    `origin` is where the sensor sits relative to that axle, in robot-frame
+    (forward, left) metres. It defaults to the head camera's offset, which is
+    what the plug-era Scanner uses; the hub robot's LIDAR sits elsewhere and
+    passes its own (perception.lidar.LIDAR_ORIGIN). Getting this wrong slides
+    the whole map by the difference, which is exactly the class of quiet
+    error the rack-frame verdict bug was.
+    """
+    px, py, theta = pose
+    fwd, left = origin
+    ox = px + fwd * math.cos(theta) - left * math.sin(theta)
+    oy = py + fwd * math.sin(theta) + left * math.cos(theta)
 
     rows, cols = self.grid.shape
     for angle, r in zip(angles,ranges):        # zip: merge two arrays in pairs

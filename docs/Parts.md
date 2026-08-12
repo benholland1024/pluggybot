@@ -94,11 +94,64 @@ Matches the original sim numbers exactly, but passed over in favor of the 50:1's
 
 ---
 
-## Vision
+## Vision & ranging
 
-Two viable routes — see Open decisions.
+### ✅ CHOSEN (Aug 2026): 2D LIDAR + ONE navigation camera — stereo dropped
 
-### ✅ CHOSEN — Option A: 2× Raspberry Pi Camera Module 3 (DIY stereo, July 2026)
+**Decision.** The hub-era robot ranges with a scanning LIDAR and sees with a
+single camera. The stereo pair is retired. Applied to `pluggybot_fork.xml`;
+`pluggybot.xml` (plug robot) keeps its pair, frozen for milestone 6–7
+reproducibility.
+
+**Why, measured** (docs/SimNotes.md). Real SGBM on this sim's own stereo pair,
+best case (perfectly parallel, coplanar, noise-free, unblurred cameras),
+scoring the mapper's scan row against ground truth:
+
+| pose | rays with disparity | median error |
+|---|---|---|
+| mid-room, facing a painted wall | **49.7 %** | **593 mm** |
+| corner, bare wall | 84.4 % | 218 mm |
+| close to the rack (AprilTags = texture) | 84.5 % | 64 mm |
+
+Against a 50 mm grid cell, and geometry agrees: σ_z is ±104 mm at 2 m and
+±649 mm at 5 m for a 60 mm baseline. Stereo cannot build this map. The one
+good pose is aimed at the only textured thing in the room.
+
+**What made it cheap.** `Scanner.scan()` always returned `(angles, ranges)` —
+a laser scan's interface — and was never actually stereo: it read a depth
+image from ONE camera and took the centre row. `right_eye` was vestigial;
+nothing algorithmic ever read it.
+
+| Part | Source | Price | Specs → sim |
+|---|---|---|---|
+| **2D LIDAR** — Slamtec RPLIDAR C1 (or A1M8) | Botland / EXP-Tech / Welectron | **≈ €65–100** | 360°, 10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W over USB/UART. Modelled in `perception/lidar.py`: 360 rays, ±10 mm + 1 % noise, 2 % dropout |
+| **Navigation camera** — 1× Pi Camera Module 3 | [Welectron](https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3) | €25,50 | AprilTags + (if the plug module is built) outlet detection |
+| **Docking camera** — 1× Pi Camera Module 3 | as above | €25,50 | on the lift carriage |
+
+**What it bought, beyond accuracy**
+- **Resolves the third-camera blocker.** Two cameras, two CSI ports, no
+  multiplexer. That open decision is closed by this one.
+- **Compute:** drops SGBM's ~60 ms/frame → the Pi 5 perception budget goes
+  ~138 ms → ~78 ms (7.3 → ~12.8 Hz).
+- **360° coverage fixes a measured, still-open defect**: the forward ±20°
+  safety reflex "fundamentally cannot protect a spin" (SimNotes, milestone 4).
+- Works in the dark and on textureless surfaces — i.e. on this room.
+
+**What it costs, honestly**
+- **~2.5 W continuous**, a 40 % rise in the electronics budget
+  (`power.ELECTRONICS_W` 6.0 → 8.5) that comes straight off run time.
+- **~110 g mounted high** (body-local z = 0.15) for a clear view.
+- **A 17° blind sector behind-right**, measured, where the mast stands in the
+  scan plane — centred at −153°, exactly `atan2(−0.05, −0.10)`. Self-hits are
+  dropped rather than reported as free space.
+- The outlet landmark projection loses its depth source and needs a
+  bearing + wall-intersection rewrite. Plug-anywhere path, not MVP-blocking.
+
+**Verified end to end on LIDAR:** full hub mission (rack found by tag at
+4 mm / 1.26°, tool picked and returned, 0 collisions) and the full hub
+lifecycle (2 swaps, 1 charge cycle 16 → 90 %, module stowed, 0 collisions).
+
+### Superseded — Option A: 2× Raspberry Pi Camera Module 3 (DIY stereo, July 2026)
 
 - Source: [Welectron](https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3) — **€25,50 each** (≈ €51 for the pair); also [BerryBase](https://www.berrybase.de/en/raspberry-pi-camera-module-3-12mp). Specs: [raspberrypi.com](https://www.raspberrypi.com/documentation/accessories/camera.html)
 
@@ -298,7 +351,7 @@ settles the yaw margin.**
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits (the plug becomes *a module*) | prong stance ±58 mm |
 | Module frames (plug module, LCD module) | 3D-printed plates, common peg interface | ≤150 g budget each (validated to 300 g) |
 | Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. Modelled as a 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |
-| **Module power contacts** | **none to buy — the peg IS the connector** (Aug 2026) | Split peg + the fork's two V-notch pairs = a two-pole coupling with 0.43–0.49 N of gravity preload per plate, already there, self-wiping on the seating slide. Needs: conductive rod, an insulating centre bush, isolated V-plates (or one isolated side), and a **holding capacitor sized for a ~50 ms release transient** (measured — see SimNotes) |
+| **Module power contacts** | **none to buy — the peg IS the connector** (Aug 2026) | Split peg + the fork's two V-notch pairs = a two-pole coupling with 0.43–0.49 N of gravity preload per plate, already there, self-wiping on the seating slide. Needs: conductive rod, an insulating centre bush, isolated V-plates (or one isolated side), and a **holding capacitor sized for ~200 ms** — measured worst outage 178 ms under hard driving once the peg carried honest μ=0.4 friction (see SimNotes; the earlier 50 ms figure came from the release transient alone) |
 | Charge contacts | pogo-pin pairs (spring-loaded, ~€5) on the hub face, pads on the robot | gravity preload from the hang; the electrical-contact criterion carries over verbatim |
 | Hub power | 12.6 V CC/CV charger board (3S, ~€10–15) fed by a mains adapter; balance leads handled robot-side by a 3S BMS | replaces wall-outlet charging as the primary path |
 | LCD (first demo module) | small SPI/I2C display driven by the module's ESP32 | display-only; zero mechanical demands |
@@ -342,7 +395,7 @@ them — re-run the suite after the model update, and expect to re-tune.
 
 ## Open decisions
 
-1. ~~Stereo camera~~ → **Decided (July 2026): 2× Camera Module 3** with a custom rigid 60 mm bracket. Rationale: 4× cheaper, exact baseline control, 41° fovy (applied to sim), and the OAK-D Lite's ~35 cm minimum depth is a bad fit for terminal docking approach.
+1. ~~Stereo camera~~ → **Superseded (Aug 2026): stereo dropped entirely** in favour of a 2D LIDAR + one navigation camera — see "Vision & ranging". The July decision (2× Camera Module 3 on a 60 mm bracket) was sound against the OAK-D Lite, but the question it never asked was whether *any* stereo pair could produce the mapper's scan. Measured: it cannot.
 2. ~~Wheel diameter~~ → **Decided (July 2026): 90×10 mm** (sim r = 0.045 applied).
 3. ~~Gear ratio~~ → **Decided (July 2026): 50:1 (#4753)** — docking push force over top speed (sim updated; see Motors section).
 4. Chassis material/supplier (Misumi/igus vs laser-cut) — blocked on motor-bracket choice.
@@ -352,8 +405,11 @@ them — re-run the suite after the model update, and expect to re-tune.
    blind approach. The mast is placed for forward docking (`pluggybot.xml`).
 6. **Battery pack** — specific 3S LiPo (or 4S LiFePO4) from a German retailer, with
    dimensions checked against the chassis plate. Position ~x = +0.05 and low.
-7. **Third camera routing** — Pi 5 has two CSI ports and both are used. CSI
-   multiplexer, or a USB camera for docking? Blocks the lift-carriage design.
+7. ~~Third camera routing~~ → **Closed (Aug 2026) by the LIDAR swap.** Dropping
+   stereo frees a CSI port: navigation camera + docking camera = two cameras
+   on two ports, no multiplexer, and the LIDAR goes on USB/UART. This had been
+   a *blocking* hardware item; it was resolved as a side effect of a decision
+   made for entirely different reasons.
 8. **Plug body diameter** — 35.5 mm (spike assumption) vs 36.7 mm (spec found for
    rewireable CEE 7/7). Confirm on a real datasheet, then re-run `schuko_spike.py`;
    the docking tolerance envelope depends on it.

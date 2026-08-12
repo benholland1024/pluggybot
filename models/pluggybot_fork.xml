@@ -60,10 +60,30 @@
                 image-right is body −y, image-up is body +z, 
                 which forces the viewing direction to be body +x
         -->
+        <!-- ONE navigation camera. The stereo pair is gone from the hub-era
+             robot: `right_eye` was vestigial (nothing algorithmic ever read
+             it) and the depth it was nominally there to produce cannot be
+             produced -- real SGBM on this sim's own stereo pair managed
+             disparity for 49.7 % of the scan row at 593 mm median error,
+             against a 50 mm grid cell (docs/SimNotes.md). Ranging is the
+             LIDAR's job now; this camera does AprilTags, and outlet
+             detection if the plug module is ever built.
+             The name is historical -- perception and mapping bake it in, and
+             renaming it buys nothing but churn. -->
         <camera name="left_eye" pos="0.03 0.03 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
-        <camera name="right_eye" pos="0.03 -0.03 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
 
       </body>
+
+      <!-- 2D scanning LIDAR (RPLIDAR C1 class: 360 deg, 10 Hz, 12 m, +/-30 mm,
+           ~110 g, ~2.5 W). Mounted forward of the mast and ABOVE the head, so
+           the scan plane at body-local z=0.178 clears the head mount (top
+           0.155) and the battery (top 0.105). The mast still stands in the
+           plane and always will -- that blind sector is measured, not
+           assumed, by Lidar.blind_fraction(). -->
+      <geom name="lidar_body" type="cylinder" size="0.028 0.022"
+            pos="0.02 0 0.150" mass="0.11" rgba="0.15 0.15 0.18 1"/>
+      <site name="lidar" pos="0.02 0 0.178" size="0.004"
+            rgba="0.9 0.2 0.2 1"/>
 
 
       <body name="left_wheel" pos="-0.08 0.105 0">

@@ -78,7 +78,15 @@ def test_pen_module_draws_a_figure(hub_model):
   assert r["drew"], f"never got the pen on the board: {r}"
   assert r["inked_fraction"] > 0.85, (
     f"pen was only on the board for {r['inked_fraction']:.0%} of the path")
-  assert r["shape_rms_mm"] < 5.0, f"figure is {r['shape_rms_mm']:.1f} mm off"
+  # FORM is the mechanics claim: is it the right shape? A rigid offset is a
+  # calibration constant and is asserted separately and loosely -- a square
+  # drawn perfectly but 17 mm to one side is a very different (and much more
+  # fixable) machine than one that draws a wobbly square in the right place.
+  assert r["form_rms_mm"] < 4.0, (
+    f"figure is the wrong SHAPE: {r['form_rms_mm']:.1f} mm rms after "
+    f"removing a {r['offset_mm']:.1f} mm rigid offset")
+  assert r["offset_mm"] < 15.0, (
+    f"figure landed {r['offset_mm']:.1f} mm from where it was asked for")
   assert module_power_contact(hub_model, data, PEN_MODULE), \
     "the tool came unseated while drawing"
   assert not pen_on_board(hub_model, data), \

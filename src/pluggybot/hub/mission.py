@@ -48,7 +48,7 @@ from pluggybot.hub.swap import (
 from pluggybot.mapping.astar import astar
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
-from pluggybot.perception.scanner import Scanner
+from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
 FACING_TOLERANCE = math.radians(0.5)
@@ -166,7 +166,8 @@ class HubMission:
     # not per phase, or a long terminal creep is free.
     self.step_hooks: list = []
     self.swap.on_step = self._on_step
-    self.scanner = Scanner(model)
+    self.lidar = Lidar(model)
+    self._next_scan = 0.0
     self.grid = OccupancyGrid(x_min=-3, y_min=-3, x_max=7, y_max=7, resolution=0.05)
     self.tags = TagSpotter(model)
     self.cruise_timestep = model.opt.timestep
@@ -244,12 +245,21 @@ class HubMission:
     if self.finder is not None and self.data.time >= self._next_look:
       self._next_look = self.data.time + LOOK_PERIOD
       self.finder.look(self.data, self.pose)
-    if self.step_count % 20 == 0:
-      angles, ranges = self.scanner.scan(self.data)
-      self.grid.update(self.pose, angles, ranges, self.scanner.max_range)
+    # Scan on a TIME cadence at the part's real rate. The camera scanner ran
+    # every 20 physics steps (50 Hz) because a depth render is free in sim; a
+    # spinning mirror is not, and pretending otherwise would let the mapper
+    # rely on data the hardware cannot deliver.
+    if self.data.time >= self._next_scan:
+      self._next_scan = self.data.time + LIDAR_PERIOD
+      angles, ranges = self.lidar.scan(self.data)
+      self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
+                       origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
         front = ranges[np.abs(angles) < 0.35]
-        if front.min() < FRONT_STOP_RANGE:
+        # front can be EMPTY: those bearings may all be self-occluded (the
+        # arm crosses the scan plane at some lift heights). No reading is not
+        # a clear path -- hold course rather than inventing one.
+        if front.size and front.min() < FRONT_STOP_RANGE:
           self.backoff_until = self.data.time + BACKOFF_TIME
     for i in range(self.data.ncon):
       c = self.data.contact[i]

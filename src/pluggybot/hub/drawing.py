@@ -64,6 +64,7 @@ PRESS_EXTRA = 0.010       # m of arm reach past first contact. With the soft
                           # arm's own 1200 N/m servo.
 PRESS_MAX = 0.19          # m of arm extension before giving up on the board
 LIFT_MIN, LIFT_MAX = 0.02, 0.30
+NOSLIP_ITERATIONS = 3     # see PenPlotter.__init__: cures contact creep
 BOARD_STANDOFF = 0.34     # m axle-to-board. MEASURED, not chosen: the pen tip
                           # rides 0.283 m ahead of the axle at the stowed-work
                           # extension, so a 0.42 m standoff left it 137 mm
@@ -328,8 +329,24 @@ class PenPlotter:
 
   # ---- drawing -------------------------------------------------------------
 
+  def contact_physics(self, on: bool) -> None:
+    """MuJoCo's `noslip` pass, on only while the pen is working.
+
+    A pen dragged across a board is a sustained tangential load, and MuJoCo's
+    regularized friction drifts under exactly that. Measured on a square:
+    ink 63 % -> 94 %, FORM error 2.14 -> 0.79 mm. The rigid offset barely
+    moves, which says the offset is a real calibration error and only shape
+    fidelity was being eaten by the solver.
+
+    Scoped for the same reason the claw scopes it: the pass BREAKS the tool
+    coupling, whose peg seats by sliding into its V (see
+    gripper.ClawTool.grasp_physics). Never leave it on across a swap.
+    """
+    self.model.opt.noslip_iterations = NOSLIP_ITERATIONS if on else 0
+
   def draw(self, path: list[tuple[float, float]]) -> dict:
     """Follow a board-space path, recording commanded vs actual every step."""
+    self.contact_physics(True)
     if not self.cal:
       self.calibrate()
     # Fit the loaded gain across the span this figure actually uses.
@@ -369,6 +386,7 @@ class PenPlotter:
         self.trace.append((float(self.data.time), py, pz, cy, cz,
                            pen_on_board(self.model, self.data)))
     self.lift_pen()
+    self.contact_physics(False)
     return {"drew": True, **self.error_stats()}
 
   def error_stats(self) -> dict:
@@ -391,14 +409,24 @@ class PenPlotter:
 
     pts = np.array([[t[1], t[2]] for t in inked])
     poly = np.array(self.commanded)
-    a, b = poly[:-1], poly[1:]
-    seg = b - a
-    denom = np.maximum((seg * seg).sum(1), 1e-12)
-    # Perpendicular distance to each segment, clamped to the segment ends.
-    rel = pts[:, None, :] - a[None, :, :]
-    t = np.clip((rel * seg[None, :, :]).sum(2) / denom[None, :], 0.0, 1.0)
-    proj = a[None, :, :] + t[:, :, None] * seg[None, :, :]
-    shape = np.sqrt(((pts[:, None, :] - proj) ** 2).sum(2)).min(1)
+    shape, _ = self._nearest(pts, poly)
+
+    # Decompose: is the figure the WRONG SHAPE, or the right shape in the
+    # wrong PLACE? Those are different problems with different fixes -- a
+    # rigid offset is a calibration constant, distortion is mechanics -- and
+    # lumping them together hides which one you have. (Ben spotted this
+    # looking at draw.png: "it drew a great square, it was just to the right
+    # of where we wanted it." The same decompose-before-you-fix lesson as the
+    # 33 deg standoff miss, which turned out to be 0.02 deg of odometry and
+    # all estimator.)
+    offset = np.zeros(2)
+    for _ in range(6):                       # translation-only ICP
+      _, proj_i = self._nearest(pts + offset, poly)
+      step = (proj_i - (pts + offset)).mean(axis=0)
+      offset = offset + step
+      if np.linalg.norm(step) < 1e-6:
+        break
+    form, _ = self._nearest(pts + offset, poly)
 
     return {
       "inked_fraction": len(inked) / len(self.trace),
@@ -406,5 +434,23 @@ class PenPlotter:
       "track_max_mm": max(track) * 1000,
       "shape_rms_mm": float(np.sqrt((shape ** 2).mean()) * 1000),
       "shape_max_mm": float(shape.max() * 1000),
+      "offset_mm": float(np.linalg.norm(offset) * 1000),
+      "offset_y_mm": float(-offset[0] * 1000),
+      "offset_z_mm": float(-offset[1] * 1000),
+      "form_rms_mm": float(np.sqrt((form ** 2).mean()) * 1000),
+      "form_max_mm": float(form.max() * 1000),
       "samples": len(self.trace),
     }
+
+  @staticmethod
+  def _nearest(pts: np.ndarray, poly: np.ndarray):
+    """(distance, closest point on the polyline) for each point."""
+    a, b = poly[:-1], poly[1:]
+    seg = b - a
+    denom = np.maximum((seg * seg).sum(1), 1e-12)
+    rel = pts[:, None, :] - a[None, :, :]
+    t = np.clip((rel * seg[None, :, :]).sum(2) / denom[None, :], 0.0, 1.0)
+    proj = a[None, :, :] + t[:, :, None] * seg[None, :, :]
+    d = np.sqrt(((pts[:, None, :] - proj) ** 2).sum(2))
+    k = d.argmin(1)
+    return d.min(1), proj[np.arange(len(pts)), k]

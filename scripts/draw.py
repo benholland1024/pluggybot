@@ -173,7 +173,12 @@ def main() -> None:
         f"after={r['seated_after']}")
   print(f"inked               {r['inked_fraction']:.0%} of the path")
   print(f"shape error         {r['shape_rms_mm']:.2f} mm rms, "
-        f"{r['shape_max_mm']:.2f} mm max   <- what the drawing looks like")
+        f"{r['shape_max_mm']:.2f} mm max   <- absolute, where it landed")
+  print(f"  rigid offset      {r['offset_mm']:.2f} mm "
+        f"(y {r['offset_y_mm']:+.2f}, z {r['offset_z_mm']:+.2f})"
+        f"   <- a calibration constant")
+  print(f"  FORM error        {r['form_rms_mm']:.2f} mm rms, "
+        f"{r['form_max_mm']:.2f} mm max   <- is it the right SHAPE")
   print(f"track error         {r['track_rms_mm']:.2f} mm rms, "
         f"{r['track_max_mm']:.2f} mm max   <- includes following lag")
   print(f"per axis (rms)      carriage {ey:.2f} mm, lift {ez:.2f} mm")
@@ -196,12 +201,19 @@ def main() -> None:
   for line, colour in (
       (f"{args.shape}, drawn by module_pen", INK),
       ("", INK),
-      (f"shape error   {r['shape_rms_mm']:6.2f} mm rms", GREEN),
-      (f"              {r['shape_max_mm']:6.2f} mm max", GREEN),
-      ("  distance from the commanded figure;", DIM),
-      ("  lag along the path does not count", DIM),
+      (f"FORM error    {r['form_rms_mm']:6.2f} mm rms", GREEN),
+      (f"              {r['form_max_mm']:6.2f} mm max", GREEN),
+      ("  is it the right SHAPE -- rigid", DIM),
+      ("  offset removed first", DIM),
       ("", INK),
-      (f"track error   {r['track_rms_mm']:6.2f} mm rms", BLUE),
+      (f"rigid offset  {r['offset_mm']:6.2f} mm", BLUE),
+      (f"   y {r['offset_y_mm']:+6.2f}  z {r['offset_z_mm']:+6.2f}", BLUE),
+      ("  where it landed. a calibration", DIM),
+      ("  constant, not a mechanics problem", DIM),
+      ("", INK),
+      (f"shape error   {r['shape_rms_mm']:6.2f} mm rms", INK),
+      ("  absolute: form + offset together", DIM),
+      (f"track error   {r['track_rms_mm']:6.2f} mm rms", INK),
       ("  same-instant error, includes lag", DIM),
       ("", INK),
       (f"carriage axis {ey:6.2f} mm rms", INK),

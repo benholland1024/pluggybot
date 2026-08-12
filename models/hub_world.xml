@@ -17,12 +17,16 @@
     <material name="tagmat2" texture="tagtex2" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex4" type="cube" file="tags/tag4.png"/>
     <material name="tagmat4" texture="tagtex4" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex5" type="cube" file="tags/tag5.png"/>
+    <material name="tagmat5" texture="tagtex5" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex10" type="cube" file="tags/tag10.png"/>
     <material name="tagmat10" texture="tagtex10" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex11" type="cube" file="tags/tag11.png"/>
     <material name="tagmat11" texture="tagtex11" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex12" type="cube" file="tags/tag12.png"/>
     <material name="tagmat12" texture="tagtex12" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex13" type="cube" file="tags/tag13.png"/>
+    <material name="tagmat13" texture="tagtex13" specular="0.05" shininess="0.05" reflectance="0"/>
   </asset>
   <worldbody>
     <light pos="0 0 3" dir="0 0 -1"/>
@@ -55,30 +59,30 @@
       <!-- frame: side posts, rail, anti-tip feet, ballast/PSU shelf (1.5 kg
            low -- the ballast IS the stability budget) -->
       <geom name="rack_post_l" type="box" size="0.012 0.012 0.200"
-            pos="0.0700 0.4800 0.200"
+            pos="0.0700 0.6800 0.200"
             mass="0.15" rgba="0.50 0.52 0.55 1"/>
       <geom name="rack_post_r" type="box" size="0.012 0.012 0.200"
-            pos="0.0700 -0.4800 0.200"
+            pos="0.0700 -0.6800 0.200"
             mass="0.15" rgba="0.50 0.52 0.55 1"/>
-      <geom name="rack_rail" type="box" size="0.012 0.480 0.012"
+      <geom name="rack_rail" type="box" size="0.012 0.680 0.012"
             pos="0.0700 0 0.400" mass="0.20"
             rgba="0.50 0.52 0.55 1"/>
       <geom name="rack_foot_l" type="box" size="0.070 0.015 0.010"
-            pos="0.10 0.4800 0.010" mass="0.10" friction="1.0"
+            pos="0.10 0.6800 0.010" mass="0.10" friction="1.0"
             rgba="0.35 0.37 0.40 1"/>
       <geom name="rack_foot_r" type="box" size="0.070 0.015 0.010"
-            pos="0.10 -0.4800 0.010" mass="0.10" friction="1.0"
+            pos="0.10 -0.6800 0.010" mass="0.10" friction="1.0"
             rgba="0.35 0.37 0.40 1"/>
-      <geom name="rack_shelf" type="box" size="0.030 0.460 0.012"
+      <geom name="rack_shelf" type="box" size="0.030 0.660 0.012"
             pos="0.08 0 0.032" mass="1.50" rgba="0.40 0.42 0.45 1"/>
       <!-- wall braces: the rack LEANS on the wall, so every robot press
            transfers straight into it -- without these it scooted 9.6 mm
            under a sustained charge-bay press (measured; free-body rack) -->
       <geom name="rack_brace_l" type="box" size="0.0350 0.010 0.010"
-            pos="0.0350 0.4800 0.35" mass="0.05"
+            pos="0.0350 0.6800 0.35" mass="0.05"
             rgba="0.50 0.52 0.55 1"/>
       <geom name="rack_brace_r" type="box" size="0.0350 0.010 0.010"
-            pos="0.0350 -0.4800 0.35" mass="0.05"
+            pos="0.0350 -0.6800 0.35" mass="0.05"
             rgba="0.50 0.52 0.55 1"/>
       <geom name="rack_tag" type="box"
             size="0.002 0.0750 0.0750"
@@ -114,6 +118,15 @@
       <geom name="bayc_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.3350 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
       <geom name="bayc_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.3350 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
       <geom name="bayc_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 0.3750 0.3550" contype="0" conaffinity="0" material="tagmat4"/>
+      <geom name="bayd_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.6650 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayd_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 0.6650 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayd_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.6650 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayd_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.6650 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayd_col_r" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.5850 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayd_foot_r" type="box" size="0.014 0.008 0.004" pos="0.0800 0.5850 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayd_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.5850 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayd_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.5850 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayd_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 0.6250 0.3550" contype="0" conaffinity="0" material="tagmat5"/>
       <!-- charge bay: panel + two pogo pins at bumper height + its own tag
            (the terminal servo needs a mark here like anywhere else) -->
       <geom name="rack_charge_panel" type="box" size="0.008 0.06 0.05"
@@ -137,8 +150,8 @@
       <geom name="module_lcd_body" type="box"
             size="0.01 0.02 0.03"
             mass="0.100" rgba="0.20 0.45 0.75 1"/>
-      <geom name="module_lcd_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
-      <geom name="module_lcd_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_lcd_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_lcd_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
       <geom name="module_lcd_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
       <geom name="module_lcd_screen" type="box" size="0.002 0.014 0.020" pos="-0.0100 0 0" contype="0" conaffinity="0" rgba="0.05 0.08 0.10 1"/>
       <geom name="module_lcd_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat10"/>
@@ -149,8 +162,8 @@
       <geom name="module_plug_body" type="box"
             size="0.01 0.02 0.03"
             mass="0.100" rgba="0.25 0.27 0.30 1"/>
-      <geom name="module_plug_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
-      <geom name="module_plug_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_plug_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_plug_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
       <geom name="module_plug_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
       <geom name="module_plug_barrel" type="cylinder" size="0.01775 0.015" zaxis="1 0 0" pos="-0.0230 0 0" contype="0" conaffinity="0" rgba="0.15 0.25 0.6 1"/>
       <geom name="module_plug_pin_l" type="capsule" size="0.0024" fromto="-0.0380 0.0095 0 -0.0540 0.0095 0" contype="0" conaffinity="0" rgba="0.75 0.75 0.78 1"/>
@@ -163,8 +176,8 @@
       <geom name="module_pen_body" type="box"
             size="0.01 0.02 0.03"
             mass="0.100" rgba="0.65 0.35 0.30 1"/>
-      <geom name="module_pen_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
-      <geom name="module_pen_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_pen_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_pen_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
       <geom name="module_pen_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
       <geom name="module_pen_rail" type="box" size="0.004 0.0670 0.004" pos="-0.0260 0 -0.0130" mass="0.02" rgba="0.55 0.57 0.60 1"/>
       <geom name="module_pen_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat12"/>
@@ -178,10 +191,42 @@
         </body>
       </body>
     </body>
+    
+    <body name="module_claw" pos="0.0900 0.6250 0.2730" euler="0 0 0.0">
+      <freejoint/>
+      <geom name="module_claw_body" type="box"
+            size="0.01 0.02 0.03"
+            mass="0.100" rgba="0.35 0.55 0.35 1"/>
+      <geom name="module_claw_peg_l" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_claw_peg_r" type="cylinder" size="0.003 0.0315" zaxis="0 1 0" pos="0 -0.0435 0.0220" mass="0.008" friction="0.4" priority="1" rgba="0.75 0.75 0.78 1"/>
+      <geom name="module_claw_peg_insul" type="cylinder" size="0.003 0.0120" zaxis="0 1 0" pos="0 0 0.0220" mass="0.004" rgba="0.12 0.12 0.14 1"/>
+      <geom name="module_claw_pendant" type="capsule" size="0.008" fromto="0 0 -0.0300 -0.0550 0 -0.1120" mass="0.045" rgba="0.45 0.47 0.50 1"/>
+      <camera name="claw_eye" pos="-0.0330 0.0300 -0.0790" xyaxes="-0.8064 0.5914 0.0000 -0.4840 -0.6600 0.5745" fovy="58"/>
+      <geom name="module_claw_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat13"/>
+      <body name="module_claw_jaw_l" pos="-0.0550 0.0350 -0.1320">
+        <joint name="claw_l" type="slide" axis="0 1 0" range="-0.0270 0" damping="1"/>
+        <geom name="module_claw_pad_l" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" rgba="0.30 0.32 0.36 1"/>
+      </body>
+      <body name="module_claw_jaw_r" pos="-0.0550 -0.0350 -0.1320">
+        <joint name="claw_r" type="slide" axis="0 -1 0" range="-0.0270 0" damping="1"/>
+        <geom name="module_claw_pad_r" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" rgba="0.30 0.32 0.36 1"/>
+      </body>
+      <site name="claw_grip" pos="-0.0550 0 -0.1320" size="0.003" rgba="0.9 0.6 0.2 1"/>
+    </body>
+
+    <!-- Something to pick up. A 26 mm, 60 g block on open floor: small enough
+         for a 70 mm jaw span, heavy enough that dropping it is visible. -->
+    <body name="pickup" pos="1.10 0.60 0.013">
+      <freejoint/>
+      <geom name="pickup_box" type="box" size="0.013 0.013 0.013" mass="0.06"
+            friction="1.2" rgba="0.90 0.60 0.20 1"/>
+    </body>
     <camera name="hub_watch" pos="0.85 -0.85 0.70"
             xyaxes="0.707 0.707 0 -0.32 0.32 0.89"/>
   </worldbody>
   <actuator>
     <position name="pen_carriage" joint="pen_carriage_joint" kp="2000" kv="80" ctrlrange="-0.0550 0.0550" forcerange="-15 15"/>
+    <position name="claw_l" joint="claw_l" kp="600.0" kv="6" ctrlrange="-0.0270 0" forcerange="-20 20"/>
+    <position name="claw_r" joint="claw_r" kp="600.0" kv="6" ctrlrange="-0.0270 0" forcerange="-20 20"/>
   </actuator>
 </mujoco>

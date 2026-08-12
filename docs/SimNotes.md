@@ -791,19 +791,324 @@ Two things that are design, not bugs:
   the good circle: 4.6 mm track, **2.2 mm shape**. Reporting only the first
   would condemn a drawing for being late.
 
+### Decompose a drawing error before believing it
+Ben, looking at `draw.png`: *"it drew a great square, it was just to the right
+of where we wanted it."* He was right, and the metric was hiding it. Fitting a
+rigid translation out of the trace (translation-only ICP against the commanded
+polyline) splits the error into **where it landed** and **what shape it is**:
+
+| figure | absolute | rigid offset | FORM (offset removed) |
+|---|---|---|---|
+| square | 10.35 mm | 17.47 mm (y −17.4) | **2.14 mm** |
+| circle | 2.18 mm | 1.73 mm | **1.80 mm** |
+
+So the plotter's *form* accuracy is ~2 mm for both figures — the square was
+never distorted, it was displaced. That matters because the two have different
+fixes and wildly different costs: an offset is one calibration constant, and
+distortion is mechanics. The earlier writeup called the square "worse" and
+went looking for a stiffness problem that was not there. Same lesson as the
+33° standoff miss, which turned out to be 0.02° of odometry and all
+estimator: **decompose before you fix.**
+
+### Veer with a tool aboard: the counterweight still holds
+Milestone 6's counterweight (battery at y=+0.06) was tuned against a measured
+26 cm veer over 4 m, and it predates carrying anything. A module hangs on the
+fork line (y=−0.05, ~0.28 m ahead of the axle), loading the same side the arm
+does, so the calibration had to be re-checked against the heavier pen module.
+Open-loop straight run, equal wheel-velocity commands, 2.69 m travelled:
+
+| carrying | mass | veer | heading |
+|---|---|---|---|
+| nothing | 2.334 kg | −9.7 mm | −0.35° |
+| LCD (130 g) | 2.464 kg | −13.6 mm | −0.49° |
+| pen (182 g) | 2.516 kg | −15.2 mm | −0.55° |
+
+The heaviest module costs **5.5 mm of extra veer over 2.7 m** — about 1.6× the
+bare robot's, and two orders off the 260 mm that motivated the counterweight
+in the first place. No re-tune needed; the tool-mass cap is bounded by the
+coupling and the tip-load budget, not by veer.
+
+(The first baseline run was invalid and worth recording: parked at y=0 it
+drove straight into the drawing board — 0.32 m travelled, 52° of heading
+change. Scenery in the test lane, the oldest hazard in this file, this time
+scenery that I had added myself two hours earlier.)
+
 Two measured facts left standing, characterised but not fixed:
 - **Calibrate under load — but know what it fixes.** Pressing the pen shifts
   its home position **10 mm** sideways (module + wrist deflect), and
   re-zeroing there is what took the circle from 9.2 mm to 2.2 mm. It does
   *not* fix the scale: the quasi-static gain barely moves (0.999 → 0.992). I
   asserted it did, and the measurement said otherwise.
-- **The real residual is kinetic.** Sweeping with the pen down, the tip
+- **The real residual is kinetic** ⚠ *(partly superseded — see "The grip that
+  leaked" below: much of this was MuJoCo's regularized-friction drift, and
+  `noslip_iterations` halves the form error. Re-measure before trusting the
+  numbers here.)* Sweeping with the pen down, the tip
   tracks the carriage at only **~0.81:1** against ~1:1 at rest — drag
   reverses with direction and yaws the module as it goes, so a calibration
-  that settles before each reading cannot see it by construction. It is why
-  a *square* still draws poorly (10.4 mm, 63 % inked) where a circle draws
-  well: a square holds an extreme carriage offset for a whole edge. Wants a
-  stiffer yaw constraint on the module, or a fit taken while sweeping.
+  that settles before each reading cannot see it by construction. It shows up
+  as the square's **17 mm rigid offset** against the circle's 1.7 mm — a
+  square holds an extreme carriage offset for a whole edge, so the
+  drag-induced displacement is one-sided and large. It does NOT distort the
+  figure: form error is ~2.1 mm either way. Wants a stiffer yaw constraint on
+  the module, or a calibration fit taken while sweeping rather than at rest.
+
+## Sensor-realism pass: can stereo actually produce the map's scan?
+
+The mapper has always been fed MuJoCo's ground-truth depth buffer. On hardware
+that has to come from matching two eyes, so: OpenCV SGBM on the ACTUAL
+rendered stereo pair from `room_hub`, centre row scored against the truth the
+mapper gets today. 640×480, 60 mm baseline, f = 642 px.
+
+Deliberately the **best case for stereo** — the two sim cameras are perfectly
+parallel, coplanar and identical, with no rectification error, calibration
+drift, exposure mismatch, noise or motion blur. This is an upper bound.
+
+| pose | rays with any disparity | median error | p90 | worse than 100 mm |
+|---|---|---|---|---|
+| mid-room, facing the rack wall | **49.7 %** | **593 mm** | 1881 mm | 80 % |
+| corner, facing a bare wall | 84.4 % | 218 mm | 1215 mm | 66 % |
+| close to the rack | 84.5 % | 64 mm | 64 mm | 0 % |
+
+And the geometry says the same thing without any images (σ_d = 1 px):
+
+| true range | stereo σ_z | vs the 50 mm grid cell |
+|---|---|---|
+| 1 m | ±26 mm | half a cell |
+| 2 m | ±104 mm | two cells |
+| 5 m (the scanner's max range) | ±649 mm | **thirteen cells** |
+
+So real stereo **cannot** produce the scan the occupancy grid is built from.
+Mid-room, half the rays do not exist at all and the survivors are 0.6 m out at
+the median — the mapper would paint walls a metre from where they are, which
+is precisely the odometry-slip "jail bar" corruption class documented above,
+arriving by a different route. The one good pose is the one aimed at the rack,
+because the rack is close and carries AprilTags: **texture**. The rest of the
+room is flat painted surfaces, the classic no-disparity case.
+
+Two structural facts that came out of the same look:
+- **`scanner.py` was never stereo.** It renders a depth image from ONE camera
+  (`left_eye`) and takes the centre row — 320 rays in a horizontal band. The
+  mapping has always been a 2D laser scan wearing a camera's clothes.
+- **`right_eye` is vestigial.** Nothing algorithmic reads it: only `viz.py`'s
+  screenshot panel, `stereo_snapshot.py`, and the parallax test in
+  `test_cameras.py`. The project has been carrying a second camera in its
+  parts list that no behaviour depends on.
+
+Meta-lesson, and an uncomfortable one: this gap survived seven milestones
+because ground-truth depth *always works*. A sensor that never fails cannot
+teach you which of your behaviours depend on it. Milestone 5 learned this
+about detector evaluation (`the generator's own val split cannot measure the
+detector`); the same trap had been sitting under the mapper the whole time,
+one layer lower and much better hidden.
+
+## The claw module (milestone 8): the fourth tool
+
+Design decided by measurement before anything was drawn, and the measurements
+overturned the intuition that prompted them. The idea started as a claw angled
+downward to reach under the chassis; the worry was mass and centre of mass.
+
+- **The chassis was never the limit.** 800 g hung at the tool peg drops
+  drive-wheel load only **15.0 → 12.6 N**; the robot's CoM sits ~68 mm ahead
+  of the axle against a caster at 180 mm, so static forward tipping needs
+  about **5 kg**. The obvious worry was the wrong one.
+- **The COUPLING is the limit, and it is a moment limit.** Unseating tracks
+  `W × L` almost exactly — 0.39 N·m holds, 0.59 N·m does not — so the gravity
+  latch takes about **0.45 N·m** of pitch moment, full stop:
+
+  | forward reach L | 200 g | 400 g | 800 g |
+  |---|---|---|---|
+  | 0 mm | ok | ok | **ok** |
+  | 100 mm | ok | ok | unseats |
+  | 150 mm | ok | unseats | — |
+
+  Reach is far more expensive than mass. Hence a pendant straight down the
+  peg's own axis (L = 0), not an angled arm. (Pre-measurement arithmetic said
+  ~25 g at 150 mm; the truth is 200 g. Modelling the pad force as capped by
+  the module's own weight was too crude — the four V-plates resist more.)
+- **The robot cannot see what it is picking up.** Nav camera 180 mm up, 41°
+  fovy → the floor leaves view inside **0.48 m**, while the grip point is
+  244 mm ahead of the axle. The grasp is necessarily open-loop from a
+  memorised pose, exactly as the socket vanishes from the dock camera at close
+  range. Finding floor objects is unsolved: the LIDAR plane is 223 mm up and
+  sees nothing on the floor at all.
+
+### Five failures building it, and three were the same lesson
+Verified end state (`scripts/pickup.py`): fetch the claw from bay D, power it
+through the coupling, aim to **1.9 mm lateral / 3.0 mm forward**, grip, and
+lift the block **99.6 mm** off the floor with the module still seated.
+
+- **The structure carrying a gripper must not occupy the gripper's space.**
+  The drop tube ran 28 mm INTO the grip zone: descending, it reached the block
+  first, shoved it 17 mm forward, and the jaws closed on air — while a graze
+  on the way past still read as "both pads in contact". Fixed, then broken
+  *again* when the pad height changed and the pendant constant did not follow.
+  It is derived from the pad height now, and pytest-guarded.
+- **Ramp every position setpoint. Every one.** Three separate axes, all the
+  same bug the pen carriage first taught: a 184 mm lift step threw the module
+  clean off the fork (both poles open); slamming the jaws shut batted the
+  block away before contact settled, running the closure to its full 27 mm
+  stop on a 26 mm object that should have halted it at 18 mm. `control.slew`
+  has existed for the wheels since milestone 1.
+- **Converge a height, do not correct it once.** The grip follows the lift
+  command at ~0.87:1 (droop and lean both change as the arm descends), so one
+  correction left the pads 11.6 mm high — a grip that *looked* right, held the
+  block by its top 12 mm, and lost it the moment the lift took the weight.
+- **Carry clearance is sized by SWING, not by static height.** 46 mm of
+  clearance was "clear of the floor" and was not: a 172 mm pendant swinging
+  the 10° a carried module was measured to swing moves its tip ~30 mm.
+
+### The grip that leaked: a solver artifact, and a bad inference
+The claw gripped and lifted but lost the block during the carry. I called it
+"not slipping", inferring that from *tripling the grip force changed nothing* —
+which does not follow, and I never plotted the block's height in the jaws'
+frame, the one measurement that settles it. **Ben watched the render and said
+the block was visibly creeping down and out.** He was right.
+
+Measured properly, block height relative to the grip during a lift: −9.2 →
+−13.6 → −20.2 → −27.9 mm, then gone. A steady creep of roughly **8 mm/s**.
+
+Two sweeps ruled out both obvious causes. Squeeze depth:
+
+| jaw command | clamp force | slip |
+|---|---|---|
+| −19 mm | 0.65 N | −99 mm (lost) |
+| −21 mm | 2.40 N | **−15.98 mm** |
+| −23 mm | 4.00 N | **−15.98 mm** |
+| −27 mm | 7.20 N | **−15.98 mm** |
+
+Identical to 0.01 mm across a 3× force range, against a friction capacity of
+10.8 N holding a 0.59 N block — an 18× margin. And lift speed:
+
+| lift speed | slip |
+|---|---|
+| 0.050 m/s | −15.98 mm (kept) |
+| 0.020 m/s | −99 mm (lost) |
+| 0.003 m/s | −99 mm (lost) |
+
+**Slower was worse**, which no real friction failure does: a fast lift simply
+finished before the block crept out.
+
+That is the signature of MuJoCo's **regularized friction**, which drifts under
+sustained load. `noslip_iterations` is the engine's post-solve pass for exactly
+this symptom: **3 iterations take the slip from −99 mm to +0.03 mm**, and 10 is
+no better. The physical design was adequate all along, and the apparent "lift
+ceiling" at 0.193 dissolved with it — it was never a ceiling, it was a clock
+measuring how long the grip had been held.
+
+**But it must be scoped to the hold, and not for the reason I first thought.**
+It is expensive (2.7× step time, 0.35 → 0.97 ms), which was the original
+argument — and then the full suite failed and gave the real one: **the pass
+BREAKS the tool coupling.** Measured on a claw pick:
+
+| | on fork | powered | bay error |
+|---|---|---|---|
+| noslip = 0 | True | **True** | 3.1 mm |
+| noslip = 3 | True | **False** | 5.0 mm |
+
+The module lands on the fork but never seats electrically. That is coherent
+rather than mysterious: **the peg seats by SLIDING into its V-notch** — the
+self-centring the entire gravity latch depends on — and this pass exists to
+suppress sliding. Grasping wants no slip; the coupling wants slip. Opposite
+requirements, and they must never be on at once.
+
+So it lives in `ClawTool.grasp_physics()` / `PenPlotter.contact_physics()`,
+enabled for the hold and cleared before any swap. Precedent — the codebase
+already tunes solver fidelity per phase, dropping the timestep to
+`SWAP_TIMESTEP` for mm-scale peg contacts and restoring it afterwards.
+
+⚠ Setting it in `__init__` looked equivalent and was not: a module-scoped
+pytest fixture carried the mutated model into a LATER test's coupling pick,
+which is how the conflict surfaced at all. A solver mode is global state; turn
+it on for a phase, not for an object's lifetime.
+
+### …and the conflict was a friction bug wearing a solver costume
+Ben asked whether toggling a solver mode per phase really represents physics.
+It does not, and asking was the right instinct — the toggle was covering an
+error. **The peg and V-notches were running on MuJoCo's DEFAULT friction of
+1.0**, whose friction angle is 45° — *exactly* the V's flank angle. The peg
+sat right on the sliding threshold and barely self-centred, so it depended on
+the solver's tangential drift to seat at all, and suppressing that drift broke
+it. Steel on printed plastic is μ≈0.4, and the coupling **spike has always set
+0.4** while the generated hub world silently used 1.0: the measured ±4 mm
+envelope was never the one in play.
+
+| peg μ | noslip | on fork | powered | bay error |
+|---|---|---|---|---|
+| 1.0 | 0 | ✓ | ✓ | 3.1 mm |
+| 1.0 | 3 | ✓ | **✗** | 5.0 mm |
+| 0.4 (honest) | 0 | ✓ | ✓ | 4.2 mm |
+| **0.4** | **3** | ✓ | **✓** | 3.5 mm |
+
+With honest friction there is no conflict in either direction. `priority="1"`
+on the peg is what makes it stick — MuJoCo combines pair friction as the
+elementwise MAX, so a low friction without priority does nothing at all. The
+caster lesson, third outing.
+
+**And it moved a hardware number.** A lower-friction peg genuinely shifts more
+in its V under hard driving, so electrical continuity got worse — honestly
+worse. Re-measured over 11.7 s of deliberately harsh maneuvering: 20 dropout
+spans, **worst 178 ms**, 289 ms total. The module's holding capacitor must
+therefore cover ~**200 ms**, not the 50 ms the release transient suggested.
+The regression test now judges the WORST OUTAGE rather than a percentage of
+steps, which is the metric `module_power.py` had already argued for and which
+the old test had not adopted.
+
+**And it was not only the claw.** The pen module drags a tip across a board,
+which is the same sustained tangential load. Final figures with the pass on:
+
+| figure | | ink | rigid offset | FORM error |
+|---|---|---|---|---|
+| square | before | 63 % | 17.47 mm | 2.14 mm |
+| square | **after** | **94 %** | 15.71 mm | **0.79 mm** |
+| circle | before | 98 % | 1.73 mm | 1.80 mm |
+| circle | after | 99 % | 1.30 mm | 1.84 mm |
+
+The SQUARE improves dramatically and the circle barely moves — which is exactly
+what a creep-under-sustained-load explanation predicts, because a square holds
+an extreme carriage offset for whole edges while a circle is always moving. The
+plotter's form accuracy is now **0.79 mm**. The rigid offset barely shifts, and
+that is the informative half: the offset is a genuine calibration error, and
+only shape fidelity was being eaten by the solver. The "kinetic gain loss"
+recorded against the pen module was largely this, not module yaw.
+
+Two meta-lessons, both uncomfortable:
+- **A negative result is not a diagnosis.** "More force didn't help, therefore
+  not friction" skipped the step where you look at the thing actually moving.
+  The fix came from someone watching the video.
+- **It nearly got tuned away instead.** The tempting move was to raise μ until
+  it stuck, which would have buried a solver bug under a dishonest friction
+  coefficient — the schuko-chamfer mistake in a new costume.
+
+### The angled arm and the tool's own eye
+Ben asked for the claw to angle down-forward after the coupling and to carry
+its own camera, keeping the dock camera free for looking ahead. Both landed:
+
+- **55 mm of forward angle costs 7 % of the coupling budget.** 60 g at 55 mm
+  is 0.032 N·m against 0.45 N·m. Reach is only expensive when it is LONG —
+  400 g at 150 mm was 0.59 N·m and unseated the module. What actually bounds
+  the angle is the RACK, not the moment: modules hang business-end-inward, so
+  the arm points at the wall when stowed, and there are exactly **80 mm**
+  between a racked module's front face and the wall.
+- **`claw_eye` is the first camera on a TOOL rather than the chassis**, and it
+  costs no CSI port: module data already crosses the coupling wirelessly, so
+  a tool camera is free where a fourth chassis camera would need a
+  multiplexer. Only the claw pays for it.
+- **Camera placement took three renders, not one calculation.** Mounted above
+  the arm's root it saw mostly its own arm and clipped the block once lowered;
+  moving 44 mm outboard helped; mounting it *partway down the arm* put the arm
+  BEHIND it and halved the working distance to ~65 mm. Aim is computed by a
+  `_look_at()` helper rather than hand-typed direction cosines — a camera
+  bolted to a swappable tool aims at a point fixed by other constants, and
+  hand-derived cosines rot silently when one of those constants moves.
+- **The angle has a cost worth recording:** it puts the grip 285 mm ahead of
+  the axle instead of 244, so any heading error is amplified 17 %. Measured
+  aim went from 2.0/3.5 mm to 9.3/13.0 mm (lateral/fore-aft). Still inside
+  capture, but the fore-aft margin is thin — the pads are only 28 mm deep.
+
+⚠ A test threshold moved for a good reason and it is worth being explicit: the
+aim assertion was a single 15 mm RADIAL tolerance, which hid that the jaws
+capture a 62 mm lateral gap but only 28 mm fore-aft. It is per-axis now. The
+grasp itself remains the real criterion.
 
 ## Debugging workflow that worked
 

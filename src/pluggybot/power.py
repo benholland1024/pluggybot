@@ -5,7 +5,9 @@ The POWER side is anchored to the real parts (docs/Parts.md):
     no-load. A brushed DC motor's current is proportional to torque, so
     I = I_noload·(speed) + I_stall·|τ|/τ_stall, and the sim knows each
     wheel's applied torque (actuator_force) and speed every step.
-  - Electronics: Pi 5 + cameras + IMU, a steady ~6 W.
+  - Electronics: Pi 5 + cameras + IMU + LIDAR, a steady ~8.5 W (was ~6 W
+    before the hub robot traded its stereo pair for a scanning LIDAR — the
+    unit costs ~2.5 W continuously, which is the real price of the swap).
   - Lift/arm: igus lead-screw steppers draw only while moving (the dryspin
     screw holds position unpowered — Parts.md), ~5 W each in motion.
   - Charging: ~1C on the 5 Ah 3S pack ≈ 55 W into the battery. The battery
@@ -27,7 +29,9 @@ STALL_A = 5.5           # per drive motor, at
 STALL_TORQUE = 2.06     # N·m (Pololu #4753)
 NOLOAD_A = 0.2          # per drive motor, spinning free
 NOLOAD_SPEED = 21.0     # rad/s: no-load current scales up to full speed
-ELECTRONICS_W = 6.0     # Pi 5 + cameras + IMU, always on
+ELECTRONICS_W = 8.5     # Pi 5 + cameras + IMU + LIDAR, always on. Was 6.0 for
+                        # the stereo era; the RPLIDAR C1-class unit adds ~2.5 W,
+                        # a 40 % increase that comes straight off run time.
 ACTUATOR_W = 5.0        # each lead-screw stepper, only while moving
 ACTUATOR_MOVING = 2e-3  # m/s: slower than this counts as holding (unpowered)
 CHARGE_W = 55.0         # ~1C into the 5 Ah pack

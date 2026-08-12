@@ -70,6 +70,19 @@ TRAY_VERTEX_DROP = 0.008  # tray V vertex under the nominal peg line
 # and the RIGHT V-notch pair the two poles of a power-only coupling: no extra
 # parts, no extra alignment, and the seating slide wipes the contact clean.
 # The peg is also already the one metal part in the design (6 mm steel rod).
+# Steel rod on printed V-notches. MuJoCo's DEFAULT is 1.0, whose friction
+# angle is 45 degrees -- exactly the V's flank angle, so the peg sat right on
+# the sliding threshold and barely self-centred. The coupling SPIKE that
+# measured the +/-4 mm envelope has always set 0.4; the generated hub world
+# was silently running the same coupling at 1.0, so the measured tolerances
+# were never the ones in use. `priority=1` because MuJoCo combines pair
+# friction as the elementwise MAX -- the caster lesson, again: setting a low
+# friction without priority does nothing at all.
+# This is also what removes a nasty conflict: at 1.0 the noslip pass needed
+# for grasping BROKE the coupling (peg on the fork but not electrically
+# seated), because the peg seats by sliding and noslip suppresses sliding. At
+# 0.4 the peg self-centres properly and both work together.
+PEG_FRICTION = 0.4
 PEG_INSUL_HALF = 0.012                            # insulated centre section
 PEG_COND_HALF = (PEG_HALF - PEG_INSUL_HALF) / 2   # each conductor
 PEG_COND_Y = PEG_INSUL_HALF + PEG_COND_HALF       # conductor centre offset
@@ -230,6 +243,7 @@ def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
       f'<geom name="{name}_peg_{lbl}" type="cylinder" '
       f'size="{PEG_R} {PEG_COND_HALF:.4f}" zaxis="0 1 0" '
       f'pos="0 {s * PEG_COND_Y:.4f} {z:.4f}" mass="0.008" '
+      f'friction="{PEG_FRICTION}" priority="1" '
       f'rgba="0.75 0.75 0.78 1"/>')
   out.append(
     f'<geom name="{name}_peg_insul" type="cylinder" '
@@ -284,13 +298,17 @@ RACK_BRACKET_X = 0.07     # tray brackets drop from the rail BEHIND the hang
                           # plane, so a lifted peg rises into free air
 RACK_RAIL_Z = 0.40        # rail height: carried peg tops out ~55 mm below
 HUB_PEG_Z = 0.30          # module peg height (mid lift range)
-HUB_STATION_YS = (0.125, -0.125, 0.375)  # tool bays at 0.25 m pitch. Bay C
+HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625)  # tool bays at 0.25 m pitch. C/D
                           # mirrors the charge bay's place at the far end, and
                           # is APPENDED rather than inserted in y order: the
                           # bay<->tag pairing is by index, and every demo and
                           # test names its bay as HUB_STATION_YS[0].
 CHARGE_BAY_Y = -0.375     # charge bay continues the pitch at the rack's end
-RACK_HALF_W = 0.48        # side posts
+RACK_HALF_W = 0.68        # side posts. Grew from 0.48 for the fourth tool
+                          # bay: four modules at 0.25 m pitch plus the charge
+                          # bay is 1.36 m of rail. Checked against the room --
+                          # the rack sits at world x=-0.9 and now spans
+                          # -1.58..-0.22, clear of room 1's west wall at -2.0.
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
 # Fiducial plates carry real tag36h11 AprilTags (hub/tags.py). Plate sizes
 # follow from the marker sizes, which are themselves a range decision: a
@@ -472,10 +490,92 @@ PEN_QUILL_STIFFNESS = 60.0   # N/m. SOFT and long-travel, which is the whole
 # (y = -PLUG_LATERAL for a robot heading +x at y=0), because the pen inherits
 # the fork's 5 cm lateral offset and a board centred on the chassis would put
 # every drawing off to one side.
+# ---- the claw module: reach DOWN, never forward -----------------------------
+# Measured (SimNotes): the fork-and-peg gravity latch takes about **0.45 N.m**
+# of pitch moment before the peg rides out of its V. A payload at forward
+# offset L costs W*L, so reach is far more expensive than mass: 800 g hangs
+# happily on the peg axis, and 400 g unseats the module at 150 mm out. Hence a
+# pendant straight down the peg's own axis (L = 0) rather than the angled arm
+# the idea started as. The chassis is nowhere near the limit -- 800 g at the
+# peg only drops wheel load 15.0 -> 12.6 N, and static tipping needs ~5 kg.
+CLAW_JAW_Z = -0.132       # jaw centre. Peg sits 172 mm up at lift 0, so this
+                          # puts the jaws astride an object on the floor with
+                          # the lift near its bottom stop.
+CLAW_JAW_OPEN = 0.035     # jaw stand-off from centre when open (70 mm span)
+CLAW_JAW_TRAVEL = 0.027   # inward travel to a 8 mm gap
+CLAW_PAD_HALF_H = 0.020   # pad half-height. 40 mm pads grip and lift
+                          # reliably (verified: 99.6 mm off the floor). They
+                          # do force the grip ~9 mm ABOVE a 26 mm block's
+                          # centre of mass, because pads cannot go below the
+                          # floor, and that offset is a lever -- the first
+                          # hard turn pivots the block out. Shortening them to
+                          # 24 mm to grip across the CoM was tried and made
+                          # the GRASP fail outright, so the tall pads stay
+                          # until that is understood. See docs/SimNotes.md:
+                          # carrying through a turn is an open item.
+CLAW_GRIP_KP = 600.0      # grip force = kp x squeeze past contact. 200 held
+                          # a static lift but lost the block during a TURN:
+                          # the pendant swings, and 1.8 N per pad was not
+                          # enough against that. 600 is an MG996R-class servo
+                          # (11 kg.cm) rather than a micro one -- a real part
+                          # choice, not a tuning knob.
+# The drop tube must STOP at the jaw tops. A first version ran it to -0.140,
+# which is 28 mm INTO the grip zone: descending on an object, the tube reached
+# the target first and shoved the block 17 mm forward and 3 mm up, and the
+# jaws then closed on empty air while a graze still read as "both pads in
+# contact". The structure that carries a gripper must not occupy the space
+# the gripper needs.
+CLAW_PENDANT_BOT = CLAW_JAW_Z + CLAW_PAD_HALF_H   # = the jaw tops
+CLAW_PENDANT_TOP = -TOOL_HALF_Z           # = the module plate's underside
+# The arm ANGLES FORWARD as it drops rather than hanging straight down. Two
+# reasons, and neither is reach for its own sake:
+#   * a straight pendant puts the grip directly under the module, so a
+#     module-mounted camera has to look down the shaft it is bolted to and
+#     sees its own arm. Angling forward opens a clear sightline.
+#   * it costs almost nothing. The coupling budget is 0.45 N.m, and 60 g at
+#     55 mm forward of the peg is 0.032 N.m -- 7 % of it. Reach is only
+#     expensive when it is LONG (400 g at 150 mm was 0.59 N.m and unseated
+#     the module).
+# Bounded by the RACK, not by the moment: modules hang business-end-inward, so
+# this arm points at the wall when stowed, and there are exactly 80 mm between
+# a racked module's front face and the wall.
+CLAW_REACH = 0.055        # forward offset of the grip from the module centre
+
 BOARD_X = 1.30
 BOARD_Y = -0.05
 BOARD_Z = 0.30
 BOARD_HALF = (0.010, 0.16, 0.13)
+
+
+# The claw's own camera. Mounted on the MODULE -- a first; every other camera
+# is on the chassis -- and offset to the SIDE so the arm does not block the
+# view of its own grip point. Module data crosses the coupling wirelessly like
+# every other module signal, which is why a tool camera costs no CSI port on
+# the Pi, unlike a fourth chassis camera would. Wide fovy: it works at ~140 mm.
+CLAW_EYE_POS = (0.033, 0.030, -0.079)     # (forward, lateral, vertical),
+                          # i.e. partway DOWN the arm rather than above its
+                          # root. Set by rendering, in three passes: mounted
+                          # high the arm filled the frame and clipped the
+                          # block; moving outboard helped; putting the camera
+                          # partway down the arm puts the arm BEHIND it and
+                          # halves the working distance to ~65 mm.
+
+
+def _look_at(pos, target, up=(0.0, 0.0, 1.0)) -> str:
+  """MJCF `xyaxes` for a camera at `pos` aimed at `target`.
+
+  Computed rather than hand-typed: a camera bolted to a swappable tool aims at
+  a point fixed by other constants, and hand-derived direction cosines are
+  exactly what rots silently when one of those constants moves.
+  """
+  z = np.array(pos, dtype=float) - np.array(target, dtype=float)
+  z /= np.linalg.norm(z)
+  x = np.cross(np.array(up, dtype=float), z)
+  if np.linalg.norm(x) < 1e-6:
+    x = np.array([1.0, 0.0, 0.0])
+  x /= np.linalg.norm(x)
+  y = np.cross(z, x)
+  return " ".join(f"{v:.4f}" for v in (*x, *y))
 
 
 def _module_faces() -> tuple[str, str]:
@@ -541,7 +641,49 @@ def _module_faces() -> tuple[str, str]:
     f'size="0.002" rgba="0.9 0.3 0.25 1"/>'
     f'\n        </body>'
     f'\n      </body>')
-  return lcd_face, plug_face, pen_face
+  eye = (-CLAW_EYE_POS[0], CLAW_EYE_POS[1], CLAW_EYE_POS[2])
+  eye_axes = _look_at(eye, (-CLAW_REACH, 0.0, CLAW_JAW_Z))
+  claw_face = (
+    # Drop tube on the peg's own axis (module x = 0). That is the whole
+    # design: L = 0 spends none of the 0.45 N.m coupling budget on reach.
+    f'<geom name="module_claw_pendant" type="capsule" size="0.008" '
+    f'fromto="0 0 {CLAW_PENDANT_TOP:.4f} '
+    f'{-CLAW_REACH:.4f} 0 {CLAW_PENDANT_BOT:.4f}" mass="0.045" '
+    f'rgba="0.45 0.47 0.50 1"/>'
+    f'\n      <camera name="claw_eye" pos="{eye[0]:.4f} {eye[1]:.4f} '
+    f'{eye[2]:.4f}" xyaxes="{eye_axes}" fovy="58"/>'
+    f'\n      <geom name="module_claw_tag" type="box" '
+    f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
+    f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
+    f'material="tagmat{MODULE_TAG_IDS["module_claw"]}"/>'
+    # Parallel jaws. Slides rather than pivots: a parallel gripper keeps the
+    # pads flat on the object through the whole closing stroke, so grip force
+    # does not fight a changing contact angle. High-friction pads with
+    # priority, because MuJoCo combines pair friction as the MAX and the
+    # floor's 1.0 would otherwise define the grip (the caster lesson).
+    + "".join(
+      f'\n      <body name="module_claw_jaw_{lbl}" '
+      f'pos="{-CLAW_REACH:.4f} {s * CLAW_JAW_OPEN:.4f} {CLAW_JAW_Z:.4f}">'
+      f'\n        <joint name="claw_{lbl}" type="slide" axis="0 {s} 0" '
+      f'range="{-CLAW_JAW_TRAVEL:.4f} 0" damping="1"/>'
+      f'\n        <geom name="module_claw_pad_{lbl}" type="box" '
+      f'size="0.014 0.004 {CLAW_PAD_HALF_H:.4f}" mass="0.020" '
+      f'friction="1.5" priority="1" '
+      f'rgba="0.30 0.32 0.36 1"/>'
+      f'\n      </body>'
+      for lbl, s in (("l", 1), ("r", -1)))
+    + f'\n      <site name="claw_grip" pos="{-CLAW_REACH:.4f} 0 {CLAW_JAW_Z:.4f}" size="0.003" '
+      f'rgba="0.9 0.6 0.2 1"/>')
+  return lcd_face, plug_face, pen_face, claw_face
+
+
+def claw_actuator_xml() -> str:
+  """Both jaws, driven together. The module's own ESP32 owns this servo --
+  power-only coupling, wireless data, exactly as the LCD and pen modules."""
+  return "\n    ".join(
+    f'<position name="claw_{lbl}" joint="claw_{lbl}" kp="{CLAW_GRIP_KP}" '
+    f'kv="6" ctrlrange="{-CLAW_JAW_TRAVEL:.4f} 0" forcerange="-20 20"/>'
+    for lbl in ("l", "r"))
 
 
 def pen_actuator_xml() -> str:
@@ -571,8 +713,8 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
   plates are AprilTag placeholders (rack pose, bay identity, module
   identity) until the perception pass.
   """
-  ya, yb, yc = HUB_STATION_YS
-  lcd_face, plug_face, pen_face = _module_faces()
+  ya, yb, yc, yd = HUB_STATION_YS
+  lcd_face, plug_face, pen_face, claw_face = _module_faces()
   tag_ids = write_tag_pngs()
   xml = f"""<!-- GENERATED by pluggybot.hub.coupling.write_hub_world().
      Regenerate: uv run python -m pluggybot.hub.coupling
@@ -619,11 +761,22 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
                 "0.25 0.27 0.30 1", face=plug_face)}
     {module_xml("module_pen", RACK_HANG_X, yc, HUB_PEG_Z,
                 "0.65 0.35 0.30 1", face=pen_face)}
+    {module_xml("module_claw", RACK_HANG_X, yd, HUB_PEG_Z,
+                "0.35 0.55 0.35 1", face=claw_face)}
+
+    <!-- Something to pick up. A 26 mm, 60 g block on open floor: small enough
+         for a 70 mm jaw span, heavy enough that dropping it is visible. -->
+    <body name="pickup" pos="1.10 0.60 0.013">
+      <freejoint/>
+      <geom name="pickup_box" type="box" size="0.013 0.013 0.013" mass="0.06"
+            friction="1.2" rgba="0.90 0.60 0.20 1"/>
+    </body>
     <camera name="hub_watch" pos="0.85 -0.85 0.70"
             xyaxes="0.707 0.707 0 -0.32 0.32 0.89"/>
   </worldbody>
   <actuator>
     {pen_actuator_xml()}
+    {claw_actuator_xml()}
   </actuator>
 </mujoco>
 """
@@ -648,12 +801,13 @@ def rack_frame_to_world(x_local: float, y_local: float) -> tuple[float, float]:
 
 def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
   """The rack + modules as a room include, placed on room 1's north wall."""
-  ya, yb, yc = HUB_STATION_YS
-  lcd_face, plug_face, pen_face = _module_faces()
+  ya, yb, yc, yd = HUB_STATION_YS
+  lcd_face, plug_face, pen_face, claw_face = _module_faces()
   tag_ids = write_tag_pngs()
   ax, ay_ = rack_frame_to_world(RACK_HANG_X, ya)
   bx, by_ = rack_frame_to_world(RACK_HANG_X, yb)
   cx, cy_ = rack_frame_to_world(RACK_HANG_X, yc)
+  dx, dy_ = rack_frame_to_world(RACK_HANG_X, yd)
   xml = f"""<!-- GENERATED by pluggybot.hub.coupling.write_hub_rack().
      Regenerate: uv run python -m pluggybot.hub.coupling
      The tool rack + hanging modules placed against room 1's north wall,
@@ -670,9 +824,12 @@ def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
                 "0.25 0.27 0.30 1", face=plug_face, yaw_deg=RACK_ROOM_YAW)}
     {module_xml("module_pen", cx, cy_, HUB_PEG_Z,
                 "0.65 0.35 0.30 1", face=pen_face, yaw_deg=RACK_ROOM_YAW)}
+    {module_xml("module_claw", dx, dy_, HUB_PEG_Z,
+                "0.35 0.55 0.35 1", face=claw_face, yaw_deg=RACK_ROOM_YAW)}
   </worldbody>
   <actuator>
     {pen_actuator_xml()}
+    {claw_actuator_xml()}
   </actuator>
 </mujocoinclude>
 """

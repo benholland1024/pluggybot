@@ -35,13 +35,14 @@ PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 # Tag identities. The whole point of real tags: these are decoded, not
 # inferred from where a blob happened to sit in the frame.
 RACK_TAG_ID = 0
-BAY_TAG_IDS = (1, 2, 4)  # bays A, B, C -- same ORDER as HUB_STATION_YS, which
+BAY_TAG_IDS = (1, 2, 4, 5)  # bays A-D -- same ORDER as HUB_STATION_YS, which
                          # is what pairs them (coupling.bay_tag_id). Not
                          # contiguous because 3 was already the charge bay and
                          # renumbering would invalidate every generated tag
                          # PNG and rack model for cosmetics.
 CHARGE_TAG_ID = 3
-MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12}
+MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
+                  "module_claw": 13}
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -105,6 +106,37 @@ def asset_xml(ids) -> str:
   return "\n    ".join(parts)
 
 
+_DETECTOR = None
+
+
+def _shared_detector():
+  """One AprilTag detector for the whole process.
+
+  Not an optimisation -- a crash fix. pupil-apriltags frees its tag family in
+  `Detector.__del__` (apriltag_detector_destroy -> clear_families ->
+  quick_decode_uninit), and a mission holds TWO detectors: one on the dock
+  camera and one in the RackFinder. When the second was collected the family
+  was freed twice and the process took SIGSEGV, inside `HubMission.close()`,
+  killing whole test runs at random.
+
+  Worth recording how nearly this was missed: the same crash had shown up
+  earlier as a stack dump printed AFTER pytest reported "120 passed", which
+  read like harmless interpreter-shutdown noise and got waved off as
+  cosmetic. It was the same double-free landing at a different moment. A
+  segfault is never cosmetic; a green summary line printed before one does
+  not mean the run was clean.
+
+  Detection here is synchronous and single-threaded, so one detector serves
+  every camera, and it is deliberately never destroyed: nothing frees it
+  twice if nothing frees it at all.
+  """
+  global _DETECTOR
+  if _DETECTOR is None:
+    from pupil_apriltags import Detector
+    _DETECTOR = Detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
+  return _DETECTOR
+
+
 class TagDetector:
   """Renders one camera and decodes the AprilTags in it.
 
@@ -115,7 +147,6 @@ class TagDetector:
   def __init__(self, model, camera_name: str, width: int = 1280,
                height: int = 720, tag_size: float = SMALL_TAG_SIZE) -> None:
     import mujoco
-    from pupil_apriltags import Detector
     self.renderer = mujoco.Renderer(model, height, width)
     self.camera_name = camera_name
     self.width, self.height = width, height
@@ -123,7 +154,7 @@ class TagDetector:
     fovy = float(model.camera(camera_name).fovy[0])
     f = (height / 2) / np.tan(np.radians(fovy) / 2)
     self.camera_params = (f, f, width / 2, height / 2)
-    self.detector = Detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
+    self.detector = _shared_detector()
 
   def detect(self, data) -> dict:
     """{tag_id: {"t": (x, y, z) in camera frame, "center": (u, v)}}.

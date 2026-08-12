@@ -4,7 +4,7 @@
 
 PluggyBot is a personal robotics project built in physics simulation ([MuJoCo](https://mujoco.org/)), with the long-term goal of a design faithful enough to real hardware components that it could eventually be built physically.
 
-The core idea: a small wheeled robot with stereo vision that explores its environment to build and maintain a spatial map, visually recognizes wall outlets, and - when its (simulated) battery runs low - navigates to an outlet and docks itself using a rigid, plug-tipped arm.
+The core idea: a small wheeled robot that explores its environment to build and maintain a spatial map, visually recognizes what it needs, and - when its (simulated) battery runs low - takes itself off to charge. Since the milestone-8 hub pivot the primary charge path is a purpose-built tool rack rather than a wall outlet, and the robot swaps its own tools there.
 
 ## Design Philosophy
 
@@ -15,7 +15,7 @@ The core idea: a small wheeled robot with stereo vision that explores its enviro
 ## Core Goals
 
 1. **Mobility** - a differential-drive wheeled base.
-2. **Binocular vision** - two cameras providing stereo depth perception.
+2. ~~**Binocular vision**~~ → **Ranging + vision**: a 2D scanning LIDAR for range, one camera for seeing. Stereo was dropped in Aug 2026 after measuring that real SGBM on this sim's own stereo pair produced disparity for only 49.7 % of the mapper's scan row at 593 mm median error, against a 50 mm grid cell. See Parts.md "Vision & ranging".
 3. **Spatial memory & exploration** - an internal map of the environment, plus a drive to explore: validating what it remembers and expanding into the unknown (active SLAM / frontier exploration).
 4. **Outlet recognition** - visually detecting wall outlets with a CNN trained on domain-randomized synthetic images from the simulator.
 5. **Self-docking** - plugging into a detected outlet using the rigid arm.
@@ -31,7 +31,7 @@ The core idea: a small wheeled robot with stereo vision that explores its enviro
 | Capability | Approach |
 |---|---|
 | Outlet detection | Supervised CNN, fine-tuned on synthetic labeled images rendered from the sim with domain randomization |
-| Depth perception | Ground-truth sim depth first; swap in real stereo matching (e.g. OpenCV SGBM or a learned stereo net) later |
+| Ranging | 2D scanning LIDAR (`perception/lidar.py`, `mj_ray` with noise + a self-filter). Was a ground-truth depth buffer read as a laser scan; stereo was measured and found unable to produce that scan at all |
 | Odometry | Classical dead reckoning from wheel encoders + IMU (EKF fusion); learned regression demoted to a later experiment |
 | Mapping & exploration | Occupancy grid + frontier-based exploration (classical baseline); learned/curiosity-driven exploration as a later experiment |
 | Docking | RL policy (or scripted visual servoing baseline) over relative outlet pose + arm state; contact-rich, dense-rewardable. Arm architecture inspired by Hello Robot Stretch: the base owns x/yaw, a prismatic lift owns z, the arm owns reach — three nearly-independent 1D alignment problems. Caveat from sim experience: a mast raises the center of mass and pitch inertia, so the lift design must come with a wider/heavier base (see SimNotes.md) |
@@ -60,18 +60,81 @@ The hardware MVP bar is **a physical robot swapping plug ↔ LCD at a real
 hub**. What stands between here and ordering parts:
 
 **Blocking**
-1. **Compute budget on the Pi 5.** Profile the real load. Note the hub pivot
-   changed this a lot: the hub loop needs only AprilTag detection + stereo
-   depth + mapping — **YOLO is only needed by the plug-anywhere module**, so
-   the MVP may not need an accelerator at all. Decide after measuring.
-2. **Third camera routing.** Two CSI ports, both used by the stereo pair; the
-   dock camera needs a CSI multiplexer or USB. Blocks the carriage design.
-3. **Sensor-realism pass in sim.** Replace ground-truth depth with real
-   stereo matching (SGBM), add gyro bias/drift and encoder quantization,
-   re-run explore + swap. Cheapest possible place to find these gaps.
-4. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
+1. ✅ **Compute budget on the Pi 5 — measured (Aug 2026), and the hub pivot's
+   bet pays off.** Profiled by separating costs that TRANSFER to hardware from
+   simulation artefacts (rendering is sim-only — a real robot is handed images
+   by its cameras). Desktop timings, scaled by a deliberately pessimistic 5×
+   for a Cortex-A76:
+
+   | stage | here | Pi 5 est | transfers? |
+   |---|---|---|---|
+   | AprilTag decode 1280×720 | 7.2 ms | 36 ms | yes |
+   | stereo SGBM 640×480 | 12.1 ms | 60 ms | yes — **not paid today** |
+   | occupancy grid update | 8.3 ms | 42 ms | yes |
+   | tag render / scanner | 2.1 ms | — | no (sim artefact) |
+
+   **~138 ms per perception cycle → 7.3 Hz**, against a loop that looks for a
+   tag every 0.3 s and drives at ≤0.25 m/s. So **the hub MVP does not need an
+   accelerator** — YOLO is only in the plug-anywhere path, which is exactly
+   what the pivot predicted, and that is ~€150 of Hailo HAT not spent.
+   Caveats worth keeping honest: the 5× penalty is an estimate, not a
+   measurement on real silicon; SGBM is untuned; all four Pi cores are
+   available, so pipelining has headroom. The surprise is the **occupancy
+   grid update costing as much as the tag decode** — pure numpy, and the
+   cheapest thing on this list to optimise if the budget ever tightens.
+2. ✅ **Third camera routing — closed (Aug 2026) by the LIDAR swap.** Dropping
+   stereo frees a CSI port: nav camera + dock camera on the Pi's two ports,
+   no multiplexer, LIDAR on USB/UART. A *blocking* item resolved as a side
+   effect of a decision taken for entirely different reasons.
+3. 🟡 **Sensor-realism pass — the ranging half is DONE (Aug 2026): stereo is
+   gone, replaced by a 2D LIDAR + one camera.** Measuring it is what killed
+   it: real SGBM on the sim's own stereo pair produced disparity for 49.7 % of
+   the mapper's scan row at 593 mm median error, against a 50 mm grid cell
+   (see Parts.md "Vision & ranging" and SimNotes). `perception/lidar.py` casts
+   360 rays via `mj_ray` with ±10 mm + 1 % noise, 2 % dropout and a real
+   self-filter; the hub mission and the full battery lifecycle both still
+   close on it, collision-free. Side effects: blocking item #2 below is now
+   closed, the Pi budget drops to ~78 ms/cycle, and `ELECTRONICS_W` rose
+   6.0 → 8.5 W for the unit's 2.5 W.
+   **Still open on this item:** gyro bias/drift and encoder quantization
+   (odometry is currently perfect-encoder), and camera realism for the tag
+   path — rendered tag images are noise-free, perfectly focused and perfectly
+   exposed, so the measured 4.5 m decode range will shrink under motion blur
+   and real optics.
+
+   *Original framing, kept because it is what drove the work:*
+   ⭐ **the single biggest sim-to-real risk.**
+   Replace ground-truth depth with real stereo matching (SGBM), add gyro
+   bias/drift and encoder quantization, re-run explore + swap. Cheapest
+   possible place to find these gaps, and the compute profile above already
+   priced the SGBM at 60 ms/frame so it is affordable.
+   Why it now leads the list: odometry and AprilTag decoding in this repo are
+   *honest* (real dead reckoning, real tag36h11 decode from rendered pixels),
+   but **every navigational behaviour rides on a ground-truth depth buffer** —
+   mapping, frontier exploration, and the safety reflex alike. The specific
+   thing to expect: real stereo needs texture, and `room_hub`'s walls are flat
+   painted surfaces, which is the classic no-disparity case. If that breaks
+   the map, it breaks explore, GO_CHARGE and the errand with it. Better found
+   now than after ordering.
+   Second-order but real: rendered tag images are noise-free, perfectly
+   focused and perfectly exposed, so the measured 4.5 m decode range will
+   shrink under motion blur and real optics.
+4. **The plotter's calibration has no hardware equivalent** *(found Aug 2026)*.
+   `drawing.calibrate()` reads the pen tip from `site_xpos` — ground truth.
+   A real robot has no pen-tip sensor, so the same two-point procedure needs
+   either a physical calibration jig or the dock camera watching the pen
+   against a fiducial. This is a *design* decision that changes what the pen
+   module needs, so it should be settled before the module is printed.
+5. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
    every physics threshold derived from the current model). Do this LAST,
    after the other hardware choices settle.
+6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed (Aug 2026).**
+   The y=+0.06 counterweight was tuned against a measured 26 cm veer over 4 m
+   and predates carrying anything. Open-loop straight runs: bare −9.7 mm,
+   LCD −13.6 mm, **pen module (182 g) −15.2 mm** over 2.69 m. The heaviest
+   module costs 5.5 mm more than the bare robot — two orders off what
+   motivated the counterweight. Tool mass is bounded by the coupling and the
+   tip-load budget, not by veer.
 
 **Hub-specific (cheap, physical)**
 5. **Print-tolerance trial**: print the fork + one V-tray, measure the real
@@ -125,16 +188,36 @@ hub**. What stands between here and ordering parts:
    in a drawing is integrated from wheel odometry. Calibration is measured
    two-point per axis, then re-zeroed with the pen pressed. Measured end to
    end — fetch the tool from bay C, carry it to a board, plot a figure:
-   **circle 2.2 mm RMS shape error, 98 % inked**, tool still electrically
-   seated afterwards. A *square* is worse (10.4 mm, 63 %) and that is the
-   informative part: it holds an extreme carriage offset for a whole edge,
-   and sweeping with the pen down loses ~19 % of commanded travel to module
-   yaw under drag. Demo: `scripts/draw.py` (`--view`, `--shape square`).
+   **form error 0.79 mm (square) / 1.84 mm (circle)**, 94-99 % inked,
+   tool still electrically seated afterwards. Error is reported decomposed:
+   a rigid offset (a calibration constant, still ~16 mm on the square) versus
+   FORM (is it the right shape). Much of what was first blamed on module yaw
+   under drag turned out to be MuJoCo's regularized-friction creep — the
+   `noslip` solver pass took square form error 2.14 -> 0.79 mm and ink
+   63 % -> 94 %. Demo: `scripts/draw.py` (`--view`, `--shape square`).
    Still to build: a stiffer yaw constraint (or a measured-while-sweeping
-   fit) for that residual, the drawing surface in `room_hub` so the errand
-   runs in the real room rather than the bare world, and a **veer
-   re-measurement**, since the y=+0.06 battery counterweight was tuned
-   against a lighter tip than the 182 g pen module.
+   fit) for that residual, and the drawing surface in `room_hub` so the errand
+   runs in the real room rather than the bare world.
+10. 🚧 **Claw module (the fourth tool)** — grasp and lift verified, carrying
+   open. A pendant straight down the peg axis, because the coupling takes
+   ~0.45 N·m of pitch moment and reach costs `W × L`: 800 g on the axis is
+   fine, 400 g at 150 mm out unseats the module. The chassis — the obvious
+   worry — was never close (800 g costs 2.4 N of wheel load; tipping needs
+   ~5 kg). The rack grew a fourth bay for it (rail now 1.36 m). Verified:
+   fetched from bay D, powered through the coupling, aimed to 1.9 mm, gripped
+   and lifted a 60 g block **99.6 mm** off the floor, module still seated.
+   Demo: `scripts/pickup.py`. The full pick-carry-place now works: gripped,
+   lifted **122 mm**, carried through a turn with zero dropouts, set down,
+   module still seated. Getting there needed MuJoCo's `noslip` pass — a
+   gripped object otherwise creeps out of the jaws at ~8 mm/s regardless of
+   clamp force (see SimNotes; it was degrading the pen module too).
+   The arm angles **55 mm forward** so the tool's own camera can see its grip
+   point — 0.03 N·m of the 0.45 N·m budget. **`claw_eye` is the first camera
+   on a TOOL rather than the chassis**, and costs no CSI port because module
+   data already crosses the coupling wirelessly. **Open:** nothing can yet
+   *find* a floor object autonomously — the LIDAR plane is 223 mm up and the
+   nav camera is blind to the floor inside 0.48 m, so the approach is still
+   driven from a known object pose.
 
 **Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
 igus stroke quote, chassis material, motor brackets).

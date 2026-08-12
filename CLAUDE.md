@@ -43,6 +43,9 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
   traced overlay + error stats. `--view` watches it live and skips the
   filmstrip, `--shape square` for the more diagnostic figure),
+  `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
+  the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
+  Grasp+lift verified; carrying through a turn is a known open item),
   `scripts/module_power.py` (module electrical interface: runs the errand and
   saves `module_power.png` — filmstrip with the module painted live/dead plus
   a per-pole continuity timeline; `--bare` for the faster hub_world version),
@@ -85,3 +88,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   test world.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy, ix]`.
 - Odometry tracks the axle midpoint; `qpos` tracks the body origin 8 cm ahead.
+- **Position setpoints are always RAMPED, never written across a gap.** A stiff
+  servo handed a step delivers it as an impulse: it has thrown a module off the
+  fork and batted a gripped block out of the jaws. `control.slew` does this for
+  wheels; `ClawTool.set_lift`/`jaws` and `PenPlotter.ramp` for the rest.
+- **`noslip_iterations` is phase-scoped, deliberately.** Holding contact
+  (grasping, drawing) needs it — MuJoCo's regularized friction otherwise creeps
+  ~8 mm/s under sustained load regardless of clamp force. The COUPLING needs it
+  OFF: the peg seats by sliding into its V. See `ClawTool.grasp_physics` /
+  `PenPlotter.contact_physics`. Never enable it globally.
+- Contact params combine as the elementwise **MAX** unless `priority` is set —
+  so a low `friction` without `priority="1"` does nothing. This has bitten the
+  caster, the pen pads and the coupling peg.
