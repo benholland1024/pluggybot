@@ -186,7 +186,7 @@
         <geom name="module_pen_block" type="box" size="0.008 0.010 0.014" pos="0 0 -0.0100" mass="0.03" rgba="0.30 0.32 0.36 1"/>
         <body name="module_pen_quill" pos="0 0 -0.0120">
           <joint name="pen_quill_joint" type="slide" axis="1 0 0" range="0 0.0200" stiffness="60.0" damping="2" armature="1e-6"/>
-          <geom name="module_pen_shaft" type="capsule" size="0.0025" fromto="-0.008 0 0 -0.0530 0 0" mass="0.006" friction="0.25" priority="1" rgba="0.90 0.30 0.25 1"/>
+          <geom name="module_pen_shaft" type="capsule" size="0.0025" fromto="-0.008 0 0 -0.0530 0 0" mass="0.006" friction="0.25" priority="1" solimp="0.99 0.999 0.0001" rgba="0.90 0.30 0.25 1"/>
           <site name="pen_tip" pos="-0.0530 0 0" size="0.002" rgba="0.9 0.3 0.25 1"/>
         </body>
       </body>
@@ -205,11 +205,11 @@
       <geom name="module_claw_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0100 0 0" contype="0" conaffinity="0" material="tagmat13"/>
       <body name="module_claw_jaw_l" pos="-0.0550 0.0350 -0.1320">
         <joint name="claw_l" type="slide" axis="0 1 0" range="-0.0270 0" damping="1"/>
-        <geom name="module_claw_pad_l" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" rgba="0.30 0.32 0.36 1"/>
+        <geom name="module_claw_pad_l" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" solimp="0.99 0.999 0.0001" rgba="0.30 0.32 0.36 1"/>
       </body>
       <body name="module_claw_jaw_r" pos="-0.0550 -0.0350 -0.1320">
         <joint name="claw_r" type="slide" axis="0 -1 0" range="-0.0270 0" damping="1"/>
-        <geom name="module_claw_pad_r" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" rgba="0.30 0.32 0.36 1"/>
+        <geom name="module_claw_pad_r" type="box" size="0.014 0.004 0.0200" mass="0.020" friction="1.5" priority="1" solimp="0.99 0.999 0.0001" rgba="0.30 0.32 0.36 1"/>
       </body>
       <site name="claw_grip" pos="-0.0550 0 -0.1320" size="0.003" rgba="0.9 0.6 0.2 1"/>
     </body>

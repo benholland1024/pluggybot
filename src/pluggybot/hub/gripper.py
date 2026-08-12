@@ -48,10 +48,10 @@ CARRY_LIFT = 0.160        # carrying height. Was 0.090 "clear of the floor,
                           # sized by its SWING, not by its static height.
                           # An apparent lift CEILING at ~0.193 (the block let
                           # go with no contact but the pads) turned out to be
-                          # the same solver creep cured by noslip below: the
-                          # higher the lift, the longer the grip was held and
-                          # the further the block had crept. Not a ceiling at
-                          # all -- a clock.
+                          # the same contact creep, now cured by the pads' hard
+                          # solimp: the higher the lift, the longer the grip
+                          # was held and the further the block had crept. Not a
+                          # ceiling at all -- a clock.
 JAW_HALF_H = 0.020        # pad half-height (mirrors coupling.CLAW_PAD_HALF_H)
 FLOOR_CLEARANCE = 0.002   # pad bottoms above the floor when closing. The grip
                           # target is set by the JAWS, not the object: aiming
@@ -69,7 +69,6 @@ JAW_SPEED = 0.030         # m/s ceiling on jaw SETPOINT motion
 LIFT_SPEED = 0.05         # m/s ceiling on lift SETPOINT motion (lead-screw
                           # class). See set_lift: a step command unseats the
                           # gravity-latched module.
-NOSLIP_ITERATIONS = 3     # see ClawTool.__init__: cures gripper creep
 SETTLE = 0.6
 
 
@@ -85,28 +84,17 @@ class ClawTool:
     self._jaw_gids = {model.geom(g).id for g in JAW_GEOMS}
     self.offset = (VERTEX_AHEAD_OF_AXLE, -PLUG_LATERAL)   # nominal until measured
 
-  def grasp_physics(self, on: bool) -> None:
-    """Turn MuJoCo's `noslip` post-solve pass on for holding, off otherwise.
+  def grasp_physics(self, on: bool = True) -> None:
+    """Deprecated no-op, kept so existing callers keep working.
 
-    WHY IT IS NEEDED. MuJoCo's friction is a REGULARIZED constraint that
-    drifts under sustained load, so a gripped block creeps out of the jaws at
-    ~8 mm/s regardless of clamp force -- measured, 7.2 N and an 18x friction
-    margin still lost a 60 g block, and the giveaway was that a SLOWER lift
-    did WORSE. Three iterations take the slip from -99 mm to +0.03 mm.
-
-    WHY IT MUST BE SCOPED. It is not merely expensive (2.7x step time); it
-    actively BREAKS the tool coupling. Measured on a claw pick: with the pass
-    on, the module lands on the fork but is **not powered** -- the peg fails
-    to seat against both V-notch pairs (bay error 3.1 -> 5.0 mm). That is
-    coherent rather than mysterious: the peg seats by SLIDING into its V, the
-    self-centring the whole gravity latch depends on, and this pass exists to
-    suppress sliding. Grasping wants no slip; the coupling wants slip. They
-    are opposite requirements and must never be on at once.
-
-    Found the hard way -- setting it in __init__ leaked through a
-    module-scoped test fixture into a later test's coupling pick.
+    Grip creep once needed MuJoCo's `noslip` post-solve pass, toggled ON for
+    holding and OFF for coupling -- two solver policies and a genuine
+    footgun. It is fixed at the source now: the jaw pads carry a HARD
+    contact constraint (`coupling.GRIP_SOLIMP`), which removes the drift
+    with no solver mode at all. Measured slip over a 100 mm lift:
+    -21.7 mm soft, -0.13 mm hard, against +0.28 mm for the noslip cure.
+    One policy everywhere, and ~3x faster.
     """
-    self.model.opt.noslip_iterations = NOSLIP_ITERATIONS if on else 0
 
   def calibrate(self) -> tuple[float, float]:
     """Measure where the grip point actually sits relative to the axle.
@@ -318,7 +306,6 @@ class ClawTool:
     """
     self.jaws(0.0)
     residual = self.lower_grip_to(GRIP_Z)
-    self.grasp_physics(True)
     self.jaws(1.0, settle=1.2)
     gripped = self.holding()
     self.set_lift(CARRY_LIFT, settle=1.5)
@@ -329,6 +316,5 @@ class ClawTool:
     """Lower until the object is back on the floor, release, retreat upward."""
     self.lower_grip_to(GRIP_Z)
     self.jaws(0.0, settle=1.0)
-    self.grasp_physics(False)       # the coupling needs its slide back
     self.set_lift(APPROACH_LIFT, settle=1.5)
     return {"released": not self.holding()}

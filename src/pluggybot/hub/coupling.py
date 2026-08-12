@@ -513,6 +513,23 @@ CLAW_PAD_HALF_H = 0.020   # pad half-height. 40 mm pads grip and lift
                           # the GRASP fail outright, so the tall pads stay
                           # until that is understood. See docs/SimNotes.md:
                           # carrying through a turn is an open item.
+# A HARD contact constraint on the pads, and this is what lets the whole robot
+# run one solver policy instead of two.
+#
+# MuJoCo's contact constraints are soft by default (solimp 0.9 0.95 0.001), and
+# a soft tangential constraint DRIFTS under sustained load: a gripped block
+# creeps out of the jaws at ~8 mm/s regardless of clamp force. The obvious cure
+# is the `noslip` post-solve pass, and it works -- but it costs 2.8x the step
+# time globally and had to be toggled per phase, which is a footgun.
+#
+# Stiffening the constraint on the two PADS fixes it at the source: slip over a
+# 100 mm lift goes -21.7 mm (soft, no noslip) -> -0.13 mm (hard, no noslip),
+# against +0.28 mm for the noslip cure. Same result, no solver mode, no toggle,
+# and 3x faster. It is also the more honest model -- a rigid printed pad on a
+# rigid block should not squash -- and it follows the house pattern of putting
+# contact behaviour on the specific geoms that need it (condim="1"
+# priority="1" on the caster; friction+priority on the peg).
+GRIP_SOLIMP = "0.99 0.999 0.0001"
 CLAW_GRIP_KP = 600.0      # grip force = kp x squeeze past contact. 200 held
                           # a static lift but lost the block during a TURN:
                           # the pendant swings, and 1.8 N per pad was not
@@ -636,7 +653,7 @@ def _module_faces() -> tuple[str, str]:
     f'\n          <geom name="module_pen_shaft" type="capsule" size="0.0025" '
     f'fromto="-0.008 0 0 {-(0.008 + PEN_LEN):.4f} 0 0" '
     f'mass="0.006" friction="0.25" priority="1" '
-    f'rgba="0.90 0.30 0.25 1"/>'
+    f'solimp="{GRIP_SOLIMP}" rgba="0.90 0.30 0.25 1"/>'
     f'\n          <site name="pen_tip" pos="{-(0.008 + PEN_LEN):.4f} 0 0" '
     f'size="0.002" rgba="0.9 0.3 0.25 1"/>'
     f'\n        </body>'
@@ -668,7 +685,7 @@ def _module_faces() -> tuple[str, str]:
       f'range="{-CLAW_JAW_TRAVEL:.4f} 0" damping="1"/>'
       f'\n        <geom name="module_claw_pad_{lbl}" type="box" '
       f'size="0.014 0.004 {CLAW_PAD_HALF_H:.4f}" mass="0.020" '
-      f'friction="1.5" priority="1" '
+      f'friction="1.5" priority="1" solimp="{GRIP_SOLIMP}" '
       f'rgba="0.30 0.32 0.36 1"/>'
       f'\n      </body>'
       for lbl, s in (("l", 1), ("r", -1)))

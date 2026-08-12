@@ -64,7 +64,7 @@ PRESS_EXTRA = 0.010       # m of arm reach past first contact. With the soft
                           # arm's own 1200 N/m servo.
 PRESS_MAX = 0.19          # m of arm extension before giving up on the board
 LIFT_MIN, LIFT_MAX = 0.02, 0.30
-NOSLIP_ITERATIONS = 3     # see PenPlotter.__init__: cures contact creep
+NOSLIP_ITERATIONS = 3     # see PenPlotter.contact_physics
 BOARD_STANDOFF = 0.34     # m axle-to-board. MEASURED, not chosen: the pen tip
                           # rides 0.283 m ahead of the axle at the stowed-work
                           # extension, so a 0.42 m standoff left it 137 mm
@@ -329,18 +329,24 @@ class PenPlotter:
 
   # ---- drawing -------------------------------------------------------------
 
-  def contact_physics(self, on: bool) -> None:
-    """MuJoCo's `noslip` pass, on only while the pen is working.
+  def contact_physics(self, on: bool = True) -> None:
+    """MuJoCo's `noslip` post-solve pass, on only while the pen is working.
 
-    A pen dragged across a board is a sustained tangential load, and MuJoCo's
-    regularized friction drifts under exactly that. Measured on a square:
-    ink 63 % -> 94 %, FORM error 2.14 -> 0.79 mm. The rigid offset barely
-    moves, which says the offset is a real calibration error and only shape
-    fidelity was being eaten by the solver.
+    Unlike the claw -- whose creep was cured outright by a hard contact
+    constraint on the jaw pads, no solver mode needed -- the plotter still
+    measurably needs this pass, and I could not find the contact-parameter
+    equivalent. Hardening the pen tip did nothing (square: 63 % inked either
+    way) and hardening the peg-in-V barely moved it (64 %, form 1.69 mm),
+    against 94 % inked and 0.79 mm form with the pass on. Whatever the pen is
+    losing, it is not concentrated in one contact pair.
 
-    Scoped for the same reason the claw scopes it: the pass BREAKS the tool
-    coupling, whose peg seats by sliding into its V (see
-    gripper.ClawTool.grasp_physics). Never leave it on across a swap.
+    ⚠ This is now purely a COST decision, not a correctness one. It used to
+    be a hard conflict -- the pass broke the tool coupling -- but that was a
+    friction bug: the peg was running on MuJoCo's default mu=1.0, whose
+    friction angle is exactly the V's 45 deg flank, so it depended on solver
+    drift to seat. At the honest mu=0.4 the coupling seats fine with the pass
+    on OR off. Nothing breaks if this is left enabled; it just costs ~3x the
+    step time, so the plotter turns it on for a drawing and off afterwards.
     """
     self.model.opt.noslip_iterations = NOSLIP_ITERATIONS if on else 0
 

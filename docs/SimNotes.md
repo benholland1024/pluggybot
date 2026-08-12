@@ -1110,6 +1110,38 @@ aim assertion was a single 15 mm RADIAL tolerance, which hid that the jaws
 capture a 62 mm lateral gap but only 28 mm fore-aft. It is per-axis now. The
 grasp itself remains the real criterion.
 
+### One solver policy, or two? (the toggle, revisited)
+Ben pushed back on the per-phase `noslip` toggle: is that unavoidable, or is
+there an implementation with one policy? Measuring it was worth it — the
+answer is mostly yes, and the reasoning I had written down was already stale.
+
+- **The conflict was gone and I had not noticed.** "The coupling needs noslip
+  OFF" was measured at the peg's *wrong* μ=1.0. At the honest μ=0.4 the
+  coupling picks, powers and returns correctly at noslip 0, 1 AND 3. So the
+  toggle stopped being a correctness requirement the moment the friction bug
+  was fixed; I left the old justification in CLAUDE.md, where a future session
+  would have believed it.
+- **The claw needs no solver mode at all.** A hard contact constraint on the
+  two jaw pads (`GRIP_SOLIMP = 0.99 0.999 0.0001`) removes the creep at the
+  source: slip over a 100 mm lift goes **−21.7 mm → −0.13 mm**, against
+  +0.28 mm for the noslip cure. It is also the better model — a rigid printed
+  pad on a rigid block should not squash — and it follows the house pattern of
+  putting contact behaviour on the geoms that need it (`condim="1"
+  priority="1"` on the caster; friction+priority on the peg).
+- **The plotter still needs the pass, and I could not find its equivalent.**
+  Hardening the pen tip changed nothing (square: 63 % inked either way) and
+  hardening the peg-in-V barely moved it (64 %, form 1.69 mm), against 94 %
+  inked / 0.79 mm form with the pass on. Whatever the pen loses is not
+  concentrated in one contact pair. Recorded as an open question rather than
+  papered over.
+- **Cost is binary, not per-iteration**: 0.333 ms/step off, 0.928 at noslip=1,
+  1.070 at noslip=3. Turning the pass on at all is the expense; extra
+  iterations are nearly free.
+
+Net: one policy for everything except drawing, and the drawing's use of it is
+now a cost trade rather than a correctness hack — nothing breaks if it is left
+enabled anywhere.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

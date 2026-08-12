@@ -45,7 +45,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   filmstrip, `--shape square` for the more diagnostic figure),
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
-  Grasp+lift verified; carrying through a turn is a known open item),
+  Full pick-carry-place verified),
   `scripts/module_power.py` (module electrical interface: runs the errand and
   saves `module_power.png` — filmstrip with the module painted live/dead plus
   a per-pole continuity timeline; `--bare` for the faster hub_world version),
@@ -92,11 +92,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   servo handed a step delivers it as an impulse: it has thrown a module off the
   fork and batted a gripped block out of the jaws. `control.slew` does this for
   wheels; `ClawTool.set_lift`/`jaws` and `PenPlotter.ramp` for the rest.
-- **`noslip_iterations` is phase-scoped, deliberately.** Holding contact
-  (grasping, drawing) needs it — MuJoCo's regularized friction otherwise creeps
-  ~8 mm/s under sustained load regardless of clamp force. The COUPLING needs it
-  OFF: the peg seats by sliding into its V. See `ClawTool.grasp_physics` /
-  `PenPlotter.contact_physics`. Never enable it globally.
+- **Contact creep: prefer a hard `solimp` on the specific geoms.** MuJoCo's
+  contact constraints are soft by default and DRIFT under sustained load — a
+  gripped block crept out of the jaws at ~8 mm/s regardless of clamp force.
+  The claw fixes this at the source with `coupling.GRIP_SOLIMP` on the two jaw
+  pads (slip −21.7 mm → −0.13 mm), needing no solver mode. The PLOTTER still
+  uses MuJoCo's `noslip` pass (`PenPlotter.contact_physics`) because no
+  contact-parameter equivalent was found for it; that is a **cost** choice
+  (~3× step time), not a correctness one — nothing breaks if it is left on.
 - Contact params combine as the elementwise **MAX** unless `priority` is set —
   so a low `friction` without `priority="1"` does nothing. This has bitten the
   caster, the pen pads and the coupling peg.
