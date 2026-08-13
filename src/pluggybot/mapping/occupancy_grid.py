@@ -47,24 +47,51 @@ class OccupancyGrid:
     oy = py + fwd * math.sin(theta) + left * math.cos(theta)
 
     rows, cols = self.grid.shape
-    for angle, r in zip(angles,ranges):        # zip: merge two arrays in pairs
-      a = theta + angle                        # ray direction in world frame
-      hit = r < max_range - 1e-6               # max-range rays hit nothing!
+    angles = np.asarray(angles, dtype=float)
+    ranges = np.asarray(ranges, dtype=float)
+    if angles.size == 0:
+      return
 
-      # -- free space: sample along the ray, stopping one cell short of the endpoint
-      free_len = r - self.resolution if hit else r
-      n = max(2, int(free_len / (self.resolution / 2)))
-      ts = np.linspace(0.0, free_len, n)
-      ixs = ((ox + ts * np.cos(a) - self.x_min) / self.resolution).astype(int)
-      iys = ((oy + ts * np.sin(a) - self.y_min) / self.resolution).astype(int)
-      valid = (ixs >= 0) & (ixs < cols) & (iys >= 0) & (iys < rows)    # No negative wrap arounds
-      self.grid[iys[valid], ixs[valid]] += L_FREE
+    a = theta + angles                         # ray directions in world frame
+    cos_a, sin_a = np.cos(a), np.sin(a)
+    hit = ranges < max_range - 1e-6            # max-range rays hit nothing!
 
-      # -- The hit itself
-      if hit:
-        ix, iy = self.world_to_cell(ox + r * math.cos(a), oy + r * math.sin(a))
-        if 0 <= ix < cols and 0 <= iy < rows:
-          self.grid[iy, ix] += L_OCC
+    # -- free space: sample along every ray at once, each stopping one cell
+    # short of its endpoint. Rays differ in length, so the (ray, sample) grid
+    # is sized for the longest and shorter rays mask off their tail.
+    free_len = np.where(hit, ranges - self.resolution, ranges)
+    n = np.maximum(2, (free_len / (self.resolution / 2)).astype(np.int32))
+    sample = np.arange(n.max(), dtype=np.int32)
+    ts = sample[None, :] * (free_len / (n - 1))[:, None]
+    ts[np.arange(len(n)), n - 1] = free_len    # pin each endpoint exactly
+    live = sample[None, :] < n[:, None]
+    ixs = ((ox + ts * cos_a[:, None] - self.x_min) / self.resolution).astype(np.int32)
+    iys = ((oy + ts * sin_a[:, None] - self.y_min) / self.resolution).astype(np.int32)
+    # One unsigned compare covers both bounds: a negative index wraps to a
+    # huge uint32, so < cols rejects it too. (No negative wrap-arounds.)
+    live &= (ixs.view(np.uint32) < cols) & (iys.view(np.uint32) < rows)
+
+    # A cell counts once per ray no matter how many samples land in it, but
+    # every ray crossing it counts separately. A straight ray never re-enters
+    # a cell, so within a ray the repeats are consecutive: keep a sample only
+    # where the cell differs from the previous live sample on the same ray.
+    cells = iys * cols + ixs
+    keep = live.copy()
+    keep[:, 1:] &= (cells[:, 1:] != cells[:, :-1]) | ~live[:, :-1]
+
+    # -- The hits themselves
+    hxs = ((ox + ranges * cos_a - self.x_min) / self.resolution).astype(np.int32)
+    hys = ((oy + ranges * sin_a - self.y_min) / self.resolution).astype(np.int32)
+    hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
+
+    # One weighted bincount accumulates all the evidence in a single pass
+    free_cells = cells[keep]
+    hit_cells = (hys * cols + hxs)[hin]
+    weights = np.concatenate([np.full(free_cells.size, L_FREE),
+                              np.full(hit_cells.size, L_OCC)])
+    evidence = np.bincount(np.concatenate([free_cells, hit_cells]),
+                           weights=weights, minlength=rows * cols)
+    self.grid += evidence.reshape(rows, cols)
 
     np.clip(self.grid, -5.0, 5.0, out=self.grid)
 

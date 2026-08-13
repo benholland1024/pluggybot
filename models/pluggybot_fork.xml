@@ -2,7 +2,7 @@
   <!-- FORK VARIANT of pluggybot.xml (milestone 8, hub era): the arm tip
        carries the tool-coupling FORK instead of the Schuko plug; the plug
        becomes a swappable module. Everything else is a verbatim copy of
-       pluggybot.xml -- keep the two in sync until the hub design fully
+       pluggybot.xml - keep the two in sync until the hub design fully
        supersedes the plug robot (then this file becomes canonical).
        Fork geometry mirrors hub/coupling.py's spike carrier exactly, via a
        180-degree body rotation so the spike-frame coordinates paste in

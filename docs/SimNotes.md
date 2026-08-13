@@ -1142,6 +1142,45 @@ Net: one policy for everything except drawing, and the drawing's use of it is
 now a cost trade rather than a correctness hack — nothing breaks if it is left
 enabled anywhere.
 
+## Vectorizing the occupancy-grid scan update (issue #2)
+
+The per-scan ray loop was the most expensive Python in the mission loop
+(~9.4 ms per 10 Hz scan, flagged in the Pi-budget profile as the cheapest
+thing to optimize). Rewritten as one (ray × sample) numpy batch — all rays'
+sample distances in a 2D array, shorter rays masking off their tail, one
+weighted `bincount` accumulating all the evidence. Measured on the recorded
+room_hub LIDAR fixture: **9.4 ms → 1.3 ms per scan, 7.4×** (guarded by
+`tests/test_grid_vectorization.py`, which keeps the old loop as its reference
+implementation and requires ≥5×).
+
+- **The old loop's semantics hid in a numpy footnote.** Its per-ray
+  `grid[iys, ixs] += L_FREE` used fancy indexing, and fancy-index `+=` counts
+  a duplicated index ONCE — so a cell sampled twice by the same ray (the res/2
+  oversampling guarantees this) got one vote per ray, while separate rays
+  accumulated normally. A naive vectorization that counts every sample doubles
+  most free evidence: 47.8 % of cells wrong, up to 3.6 log-odds. The
+  vectorized version reproduces the once-per-ray rule by deduping consecutive
+  samples — legitimate because a straight ray never re-enters a cell, so
+  repeats are always adjacent.
+- **"Identical" has a stated tolerance: the cells are bit-identical, the
+  values differ in ulps.** The batch picks exactly the same sample positions
+  and truncations as the loop (matching `linspace` term-for-term, endpoint
+  pinned), so the same cells get the same votes — but adding `k·L_FREE` once
+  is not bit-equal to adding `L_FREE` k times, so values differ at the 1e-15
+  level. The test asserts atol 1e-9 and exact equality of the thresholded
+  `to_image()`. End-to-end the difference vanishes: `explore.py --headless`
+  produces a byte-identical `map.png`, same 67.5 s termination, same 25 362
+  known cells, same 54 blacklisted frontiers; the full hub lifecycle still
+  closes (2 swaps, 1 charge, 0 chassis contacts).
+- Two micro-optimizations worth remembering (each ~0.3 ms here): int32
+  indices viewed as uint32 make one compare cover both bounds (a negative
+  index wraps to a huge unsigned value, so `< cols` rejects it too), and a
+  single weighted `bincount` replaces two count-then-scale passes over the
+  grid.
+- Pi-budget consequence: the 42 ms Pi-5 estimate for this stage drops to
+  ~6 ms, and the bigger PluggyWorld home world (~9× the cells, longer rays)
+  now scales through numpy instead of a Python loop.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

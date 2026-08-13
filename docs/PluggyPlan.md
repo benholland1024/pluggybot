@@ -70,7 +70,7 @@ hub**. What stands between here and ordering parts:
    |---|---|---|---|
    | AprilTag decode 1280×720 | 7.2 ms | 36 ms | yes |
    | stereo SGBM 640×480 | 12.1 ms | 60 ms | yes — **not paid today** |
-   | occupancy grid update | 8.3 ms | 42 ms | yes |
+   | occupancy grid update | ~~8.3 ms~~ 1.3 ms | ~~42 ms~~ ~6 ms | yes |
    | tag render / scanner | 2.1 ms | — | no (sim artefact) |
 
    **~138 ms per perception cycle → 7.3 Hz**, against a loop that looks for a
@@ -79,9 +79,10 @@ hub**. What stands between here and ordering parts:
    what the pivot predicted, and that is ~€150 of Hailo HAT not spent.
    Caveats worth keeping honest: the 5× penalty is an estimate, not a
    measurement on real silicon; SGBM is untuned; all four Pi cores are
-   available, so pipelining has headroom. The surprise is the **occupancy
-   grid update costing as much as the tag decode** — pure numpy, and the
-   cheapest thing on this list to optimise if the budget ever tightens.
+   available, so pipelining has headroom. The surprise was the **occupancy
+   grid update costing as much as the tag decode** — a per-ray Python loop,
+   and the cheapest thing on this list to optimise. Optimised (Aug 2026,
+   issue #2): numpy-vectorized to 1.3 ms/scan, 7.4× (SimNotes).
 2. ✅ **Third camera routing — closed (Aug 2026) by the LIDAR swap.** Dropping
    stereo frees a CSI port: nav camera + dock camera on the Pi's two ports,
    no multiplexer, LIDAR on USB/UART. A *blocking* item resolved as a side
