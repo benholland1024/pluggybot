@@ -98,3 +98,37 @@ is a callback on `HubMission.step_hooks` — the same per-physics-step seam
 the battery drains through. It decimates 500 Hz of steps to `hz` of frames
 and hands them to a writer thread; no serialization or file I/O ever runs
 inside a physics step.
+
+## The live stream (webserver v1)
+
+`scripts/serve.py` publishes the same objects over an outbound WebSocket
+(`WsPublisher`, `src/pluggybot/telemetry/publisher.py`) — the recorder and
+the publisher share one frame builder, so a live consumer and a replayed
+recording see identical data. Live-stream rules:
+
+- **Dispatch on `type`; no `type` means frame.** The header and the extra
+  message types below carry a `type` field; telemetry frames never do.
+  **Consumers must ignore message types they do not recognize** — new
+  low-frequency types are additive and do not bump `protocolVersion`
+  (only a change to the *shape* of an existing artifact does).
+- **Every connection opens with the header, then a keyframe.** Sparse
+  frames are deltas against what was previously sent, so whenever
+  continuity breaks — a (re)connect, or frames dropped because nobody was
+  draining the socket — the next frame re-ships every dynamic body. A
+  consumer joining mid-mission starts from nothing and is complete within
+  one frame interval.
+- Frames can drop under load; recordings are the lossless artifact.
+
+The two live-only message types:
+
+```jsonc
+// occupancy-grid belief, ~1 Hz per robot: base64 PNG, uint8 cells
+// (0 = wall, 255 = free, 127 = unknown), row 0 = y_min edge
+{"type": "grid", "t": 123.4, "robot": "pluggybot",
+ "extent": [-3, -3, 7, 7],        // [x_min, y_min, x_max, y_max], world m
+ "resolution": 0.05, "png": "iVBORw0..."}
+
+// lifecycle narration (the _say lines), as they happen
+{"type": "event", "t": 123.4, "robot": "pluggybot",
+ "line": "EXPLORE -> GO_CHARGE (battery low)"}
+```

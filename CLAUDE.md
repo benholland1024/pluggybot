@@ -58,7 +58,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:
   explore → fetch a tool → use it → stow it → charge at the hub; `--view`,
   `--battery-wh W`, `--record out.jsonl.gz` writes a PluggyWorld telemetry
-  recording — issue #4)
+  recording — issue #4), `scripts/serve.py --endpoint ws://host:port`
+  (webserver v1, issue #5: the hub lifecycle headless, paced to real time,
+  streaming protocol frames + grid PNGs + event lines over an outbound
+  WebSocket — the sim never blocks on the socket; `--rate X`, `--free-run`
+  measures the machine's real-time multiple; docs/Webserver.md),
+  `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
+  frame-gap stats)
 - PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED — the
   scene JSON + tag textures via `uv run python -m pluggybot.telemetry.scene`
   (rerun after changing any room_hub geometry — the fixture test fails when

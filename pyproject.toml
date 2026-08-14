@@ -19,6 +19,7 @@ dependencies = [
     "torch>=2.11.0",
     "torchvision>=0.26.0",
     "ultralytics>=8.4.114",
+    "websockets>=17.0.1",
 ]
 
 # PyPI's default torch is built for CUDA 13.0, which needs a 580+ NVIDIA driver.

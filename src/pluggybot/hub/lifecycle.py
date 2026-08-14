@@ -80,6 +80,9 @@ class HubLifecycle:
     self.tool_powered_s = 0.0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
+    # Callbacks fired with (sim_time, bare_message) on every _say line --
+    # the live publisher streams narration through here as event messages.
+    self.say_hooks: list = []
 
   # ---- power ---------------------------------------------------------------
 
@@ -103,6 +106,8 @@ class HubLifecycle:
     line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
     self.log.append(line)
     print(line, flush=True)
+    for hook in self.say_hooks:
+      hook(float(self.data.time), msg)
 
   def telemetry_status(self) -> dict:
     """The per-frame robot record for the telemetry recorder: lifecycle

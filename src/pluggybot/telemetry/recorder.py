@@ -20,6 +20,10 @@ rather than the previous step matters -- per-step creep smaller than the
 threshold still accumulates against the emitted pose and eventually
 crosses it, instead of hiding under the threshold forever. A replayer
 holds the last value it saw for any absent body.
+
+The frame-building lives in FrameBuilder so the live WebSocket publisher
+(webserver v1, telemetry/publisher.py) emits byte-identical frames: the
+recorder and the publisher are the same producer with different sinks.
 """
 
 import gzip
@@ -38,48 +42,53 @@ QUAT_EPS = 0.0005   # per-component, sign-normalized (q and -q are the
 NDIGITS = 4         # 0.1 mm -- below anything a viewer can see
 
 
-class TelemetryRecorder:
-  """Decimating JSONL recorder for one robot's mission.
+class FrameBuilder:
+  """Decimation + sparse-frame state for one robot's telemetry stream.
 
-  Append `step_hook` to HubMission.step_hooks; call `close()` when the
-  mission ends (it drains the queue and joins the writer). A path ending
-  in .gz records through gzip transparently. `status_fn`, if given, is
-  called once per emitted frame and its dict is merged into the robot's
-  record -- the lifecycle supplies state / status line / battery there.
+  build() returns the next due frame as a plain dict (or None between
+  frames); header() is the stream's opening message. Not thread-safe: call
+  both only from the physics thread. reset() clears the last-emitted poses
+  so the NEXT frame is a full keyframe again -- the recorder never needs
+  that, but a live consumer that reconnected (or missed dropped frames)
+  has lost the state sparse frames build on, and holds stale poses forever
+  unless the stream re-keys.
   """
 
-  def __init__(self, model, data, path: str, hz: float = FRAME_HZ,
+  def __init__(self, model, data, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None) -> None:
     self.model, self.data = model, data
     self.status_fn = status_fn
+    self.hz = hz
+    self.model_name = model_name
     self.frames = 0
     self._interval = 1.0 / hz
     self._next_t: float | None = None
     robot, world = body_census(model)
+    self.robot_names, self.world_names = robot, world
     self._robot = [(n, model.body(n).id) for n in robot]
     self._world = [(n, model.body(n).id) for n in world]
     self._last: dict[int, tuple[list[float], list[float]]] = {}
-    self._queue: queue.SimpleQueue = queue.SimpleQueue()
-    self._closed = False
-    self._queue.put({
+
+  def header(self) -> dict:
+    return {
       "type": "header",
       "protocolVersion": PROTOCOL_VERSION,
-      "model": model_name,
-      "hz": hz,
-      "robots": {ROBOT_ROOT: robot},
-      "world": world,
-    })
-    self._thread = threading.Thread(target=self._write, args=(path,),
-                                    daemon=True)
-    self._thread.start()
+      "model": self.model_name,
+      "hz": self.hz,
+      "robots": {ROBOT_ROOT: self.robot_names},
+      "world": self.world_names,
+    }
 
-  # ---- the hook (runs inside every physics step) ---------------------------
+  def reset(self) -> None:
+    """Make the next frame a keyframe (every dynamic body shipped)."""
+    self._last.clear()
 
-  def step_hook(self) -> None:
+  def build(self) -> dict | None:
+    """The next frame if one is due at this sim time, else None."""
     t = float(self.data.time)
     if self._next_t is not None and t < self._next_t:
-      return
+      return None
     self._next_t = t + self._interval
     self.frames += 1
     frame: dict = {"t": round(t, 3)}
@@ -101,7 +110,7 @@ class TelemetryRecorder:
         world[name] = pose
     if world:
       frame["world"] = world
-    self._queue.put(frame)
+    return frame
 
   def _pose_if_moved(self, bid: int) -> list[float] | None:
     """[x,y,z,qw,qx,qy,qz] world-frame, or None if within eps of the pose
@@ -119,6 +128,40 @@ class TelemetryRecorder:
     q = [float(xq[i]) for i in range(4)]
     self._last[bid] = (p, q)
     return [round(v, NDIGITS) for v in p + q]
+
+
+class TelemetryRecorder:
+  """Decimating JSONL recorder for one robot's mission.
+
+  Append `step_hook` to HubMission.step_hooks; call `close()` when the
+  mission ends (it drains the queue and joins the writer). A path ending
+  in .gz records through gzip transparently. `status_fn`, if given, is
+  called once per emitted frame and its dict is merged into the robot's
+  record -- the lifecycle supplies state / status line / battery there.
+  """
+
+  def __init__(self, model, data, path: str, hz: float = FRAME_HZ,
+               status_fn: Callable[[], dict] | None = None,
+               model_name: str | None = None) -> None:
+    self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
+                                 model_name=model_name)
+    self._queue: queue.SimpleQueue = queue.SimpleQueue()
+    self._closed = False
+    self._queue.put(self._builder.header())
+    self._thread = threading.Thread(target=self._write, args=(path,),
+                                    daemon=True)
+    self._thread.start()
+
+  @property
+  def frames(self) -> int:
+    return self._builder.frames
+
+  # ---- the hook (runs inside every physics step) ---------------------------
+
+  def step_hook(self) -> None:
+    frame = self._builder.build()
+    if frame is not None:
+      self._queue.put(frame)
 
   # ---- the writer (its own thread; owns all I/O) ---------------------------
 
