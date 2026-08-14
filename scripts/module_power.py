@@ -287,11 +287,11 @@ def run_room(view: bool = False, realtime: bool = True):
     mission.start_discovery()
     mission._spin()
     rec.mark("pick")
-    mission.swap_at_bay(HUB_STATION_YS[0], "pick")
+    mission.swap_at_bay(HUB_STATION_YS[0], "pick", module="module_lcd")
     rec.mark("carry")
     mission.drive_to(-1.2, 2.5)
     rec.mark("stow")
-    mission.swap_at_bay(HUB_STATION_YS[0], "return")
+    mission.swap_at_bay(HUB_STATION_YS[0], "return", module="module_lcd")
     state = mission.swap.module_state(MODULE)
   finally:
     mission.close()

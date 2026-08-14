@@ -1181,6 +1181,127 @@ implementation and requires ≥5×).
   ~6 ms, and the bigger PluggyWorld home world (~9× the cells, longer rays)
   now scales through numpy instead of a Python loop.
 
+## One always-on solver policy (issue #3): noslip loses, the wheels confess
+
+PluggyWorld puts two robots in one world, so solver settings can no longer be
+phase-scoped per robot — whatever `noslip_iterations` is, it is for everyone,
+all the time. The plan of record was "one realistic noslip policy, on all the
+time"; `scripts/noslip_spike.py` measured every behavior with a stake in it
+(coupling rig, schuko rig, jittered robot-driven swap, grip hold, pen square,
+step cost) under each candidate, and the plan of record was wrong in both
+halves. All figures are the SQUARE (the creep-sensitive figure); "robot swap"
+is a 9-point hand-off jitter grid (±3 mm × ±1°), open-loop from
+`place_at_standoff`:
+
+| noslip | rig cycle | schuko | robot swap clean | pen ink | pen form | ms/step (room_hub) |
+|---|---|---|---|---|---|---|
+| 0 (was shipped) | 5/7 | 5/5 | 5/9 | 63 % | 1.94 mm | 0.210 |
+| 1 | 5/7 | 5/5 | 3/9 | 72 % | 1.84 mm | 0.410 |
+| 2 | — | — | 3/9 | 92 % | 0.60 mm | ≈0.41 |
+| 3 | 6/7 | 5/5 | 1/9 | 93 % | 0.61 mm | 0.422 |
+| **0 + wheel brake** | 5/7 | 5/5 | **5/9** | **99 %** | **0.60 mm** | **0.210** |
+
+- **Always-on noslip is worse than useless at the system level.** The earlier
+  all-clear ("the coupling picks, powers and returns at noslip 0, 1 AND 3")
+  was measured ALIGNED, and it still holds there — but under ±3 mm of lateral
+  hand-off jitter every noslip ≥ 1 run produces the half-seat failure: module
+  on the fork, **not electrically powered**. At 3 iterations two corner cells
+  miss the tray by ~35 mm on the return. The peg seats by sliding, the pass
+  exists to suppress sliding, and honest friction only rescued the aligned
+  case. The bare rig said noslip 3 was *fine* (6/7, its best row) while the
+  robot said 1/9 — measure a solver policy on the full system, not the rig.
+- **The plotter never needed the solver — and mostly it was not solver drift
+  at all.** The clue was in the old note all along: "whatever the pen loses
+  is not concentrated in one contact pair." It is not in any contact — the
+  parked base **rolls**. A wheel velocity servo commanded 0 resists *speed*,
+  not force, so a sustained ~0.5 N of pen drag walks the whole robot
+  sideways a few mm per figure, and the pen starves of ink. The robot has no
+  parking brake — and the physical robot has one for free: gearbox Coulomb
+  friction. `frictionloss="0.05"` on the wheel joints (the static sibling of
+  the `damping="0.05"` that already models the 37D's 65 % efficiency) draws
+  a **better** square than the 2× step-cost noslip pass ever did: 99 %
+  inked / 0.60 mm form, at zero extra cost.
+- **A wrong fix taught the right lesson.** The first cure attempted was
+  hard `solimp` on the tire *contacts* (the claw-pad pattern). It fixed the
+  pen (90 % inked) — and then two mission tests failed, and the trail led
+  somewhere unexpected: mm-scale wheel slip is baked into the swap's
+  feed-forward travel constants. Hard tires slip ~0.7 mm less over an
+  approach, which pushed the front-heavy pen module's pick onto a knife
+  edge; and during the stow's LOWER phase the base rolled 9 mm forward
+  (wheels turning, believed and true advancing in lockstep — a genuinely
+  *rolling* walk, which is how the real mechanism was finally caught),
+  jamming the peg past the tray into the bracket crevice, where the retreat
+  then spun the wheels against the trapped fork for 583 "collision" steps.
+  The brake fixes the rolling at its source; the tires stay stock, and the
+  travel constants stay exactly as calibrated. `PICK_OVERSHOOT`'s comment
+  now warns that it implicitly contains wheel slip.
+- **The mission was rolling dice, and every physics tweak rerolled them.**
+  Across three configurations that differ by under a millimetre of wheel
+  behavior, the full mission failed three DIFFERENT ways: the return jam
+  above (hard tires), a pick whose tag-ranged terminal travel scattered
+  −5 to +11 mm against truth on otherwise identical runs (vs a ~±11 mm
+  capture window), and — the last one standing — the pick leg's `drive_to`
+  returning "no-route" four seconds in, because the opening look-around's
+  map coverage is pose-marginal and the planner ran out of known cells.
+  None of these are new defects; they are pre-existing single-attempt
+  fragilities that one lucky trajectory had been threading. The fix is the
+  repo's own doctrine applied one level up, twice: `swap_at_bay` now
+  VERIFIES its outcome (electrical seating for a pick, hung-in-bay for a
+  return — the criteria that already existed) and takes another run at it
+  with a freshly-ranged travel; and a route failure triggers a look-around
+  spin and a re-plan (milestone 4's rule, verbatim) instead of giving up.
+  A retried measurement is a new draw from the error distribution; a
+  retried constant is the same error again — retry the measurement.
+- **The verdict:** `noslip_iterations = 0`, always, everywhere; no code
+  mutates solver options at runtime (`contact_physics`/`grasp_physics` are
+  deprecated no-ops); creep under sustained load is fixed at its actual
+  source, per-part — `GRIP_SOLIMP` where a *contact* drifts (jaw pads),
+  `frictionloss` where a *joint* rolls (wheels). Guarded by
+  `tests/test_noslip_policy.py`: every world loads at 0, the old toggles are
+  inert, the wheels keep their brake, and a slow end-to-end square must ink
+  >85 % with no solver help (it inks 63 % without the brake — shown failing
+  first). The 2× step cost the always-on plan had budgeted for is simply
+  not spent.
+- **Discovered en route, recorded as open:** the open-loop hand-off envelope
+  is narrower and more asymmetric than the "±3 mm / 1°" note suggests —
+  −1° yaw picks fail at EVERY policy (the fork under-reaches the peg), and
+  the (−3 mm, +1°) return misses the tray by ~34 mm at noslip 0 and 3 alike.
+  This grid bypasses the tag-servo standoff refinement that real missions
+  run, so mission-level margins are better than these; but the yaw asymmetry
+  is real and pre-existing, and nobody had ever swept the corners before. A
+  mission-level jitter sweep is the follow-up if the margin ever matters.
+
+Meta-lesson, the second time in this file: a solver mode that "fixes" a
+behavior is a claim about WHICH part is misbehaving, and it does not name the
+part. The noslip pass fixed the drawing while the real motion was the wheels
+rolling under the chassis — exactly as it once "fixed" grasping while the
+real bug was the peg's friction coefficient. And the first replacement fix
+repeated the mistake one level down: hardening the tire contact treated the
+symptom's location, not its mechanism, and only the phase telemetry that
+showed believed-and-true advancing *in lockstep* (rolling, not slipping)
+named the true culprit. Decompose before you fix — and a velocity servo is
+not a position hold.
+
+### The brake's bill: static friction creates a control deadband
+Ben watched `pickup.py --view` and saw the robot fetch the tool, turn toward
+the block, and then *stall for most of a minute* before creeping in. Measured:
+`_face` took **55 s** of sim time to settle 0.23° on the braked wheels, 9.5 s
+before the brake. The mechanism is the flip side of the parking brake: the
+wheel servo's torque is `kv·(target − actual)`, so a commanded wheel speed
+under `frictionloss / kv` (= 0.1 rad/s here) cannot move a stopped wheel *at
+all* — and every P-turn controller in the repo shrinks its command toward
+zero as the error shrinks, parking itself squarely inside that deadband. The
+fix is what real motor drivers ship as deadband compensation:
+`control.turn_command` floors every nonzero turn command at `W_BREAKAWAY`
+(0.08 rad/s of body yaw, above the ~0.05 breakaway) — commanding less than
+breakaway is indistinguishable from commanding zero, so the floor costs
+nothing. `_face` is back to ~10 s and the whole claw approach went 76 → 19.5 s
+(the unbraked robot's figure is 17). Guarded by a unit test on the floor and
+a timed end-to-end facing test. Lesson: every honest piece of physics added
+to the model sends a bill to the controllers that were tuned without it —
+stiction's bill is a deadband, and it must be paid in the controller, not by
+removing the physics.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

@@ -33,9 +33,10 @@ import numpy as np
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
-from pluggybot.control import wheel_targets, wrap_angle
+from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
   CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X, bay_tag_id,
+  module_power_contact,
 )
 from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
 from pluggybot.hub.tags import (
@@ -376,7 +377,8 @@ class HubMission:
   def face(self, heading: float) -> None:
     while abs(wrap_angle(heading - self.pose[2])) > FACING_TOLERANCE:
       err = wrap_angle(heading - self.pose[2])
-      self._drive(self.model.opt.timestep, 0.0, max(-1.0, min(1.0, 2.5 * err)))
+      self._drive(self.model.opt.timestep, 0.0,
+                  turn_command(err, gain=2.5, limit=1.0))
     self._drive(0.5, 0.0, 0.0)
 
   # ---- the mission ---------------------------------------------------------
@@ -453,40 +455,79 @@ class HubMission:
                + (hy - self.pose[1]) * math.sin(self.pose[2]))
     return d_along - VERTEX_AHEAD_OF_AXLE
 
-  def swap_at_bay(self, station_y: float, verb: str) -> str:
-    """Navigate to a bay's hand-off pose and pick or return there."""
+  def swap_at_bay(self, station_y: float, verb: str,
+                  module: str | None = None, tries: int = 2) -> str:
+    """Navigate to a bay's hand-off pose and pick or return there.
+
+    module + tries: VERIFY the outcome and take another run at it. The
+    terminal travel is ranged off the rack tag, and that range scatters
+    several mm run to run (measured against truth: -5 to +11 mm on
+    otherwise identical missions) against a coupling capture window of
+    about +/-11 mm -- so a single blind attempt is a dice roll that any
+    mm-level physics change re-rolls (the issue-3 spike watched the same
+    pick pass and fail across configurations that differ by less than a
+    millimetre of wheel slip). The verdict is the criterion that already
+    exists -- ELECTRICAL seating for a pick, hung-in-bay for a return --
+    and the retry re-ranges the tag from the retreat pose, so the second
+    attempt is a fresh measurement, not a repeat of the first one's error.
+    Same doctrine as refine_standoff, one verb up: back up and take
+    another run at it.
+    """
     # Adopt whatever the tag has shown us so far, then aim at that. Driving
     # to the neighborhood is itself what buys line of sight, so the belief
     # is refreshed once more after arriving.
     self.refresh_rack()
     sx, sy, hd = bay_standoff(station_y, self.rack)
-    if not self.drive_to(sx, sy):
+    # A route failure this early usually means the planner ran out of KNOWN
+    # cells, not that the bay is unreachable -- the opening look-around's
+    # coverage is pose-dependent and marginal from some starts. The
+    # milestone-4 doctrine applies verbatim: when nothing is reachable, spin
+    # to buy map (and possibly the rack tag) and try again.
+    for _ in range(2):
+      if self.drive_to(sx, sy):
+        break
+      self._spin()
+      self.refresh_rack()
+      sx, sy, hd = bay_standoff(station_y, self.rack)
+    else:
       return "no-route"
     if self.refresh_rack() is not None:
       sx, sy, hd = bay_standoff(station_y, self.rack)
       self.drive_to(sx, sy, timeout=25.0)
-    self.face(hd)
-    self.refine_standoff(sx, sy, hd)
-    self.set_arm(ARM_EXT)                 # deploy only once lined up
-    # Travel computed from the BELIEVED distance to the hang plane -- fixed
-    # travels assume a perfect standoff, and arrival is only good to cm.
-    # Signs: picking OVERSHOOTS the peg line (the peg rides up the near
-    # flank and the lift centres it); returning STOPS SHORT by the carry
-    # offset, because the peg rides that far ahead of the vertex and it is
-    # the PEG that must land over the tray line.
-    travel = self._terminal_travel(station_y)
-    tag_id = bay_tag_id(station_y)
-    self.model.opt.timestep = SWAP_TIMESTEP
-    try:
+    why = "no-attempt"
+    for _ in range(max(tries, 1)):
+      self.face(hd)
+      self.refine_standoff(sx, sy, hd)
+      self.set_arm(ARM_EXT)               # deploy only once lined up
+      # Travel computed from the BELIEVED distance to the hang plane --
+      # fixed travels assume a perfect standoff, and arrival is only good
+      # to cm. Signs: picking OVERSHOOTS the peg line (the peg rides up the
+      # near flank and the lift centres it); returning STOPS SHORT by the
+      # carry offset, because the peg rides that far ahead of the vertex
+      # and it is the PEG that must land over the tray line.
+      travel = self._terminal_travel(station_y)
+      tag_id = bay_tag_id(station_y)
+      self.model.opt.timestep = SWAP_TIMESTEP
+      try:
+        if verb == "pick":
+          why = self.swap.pick(steer_fn=self.steer_fn(tag_id),
+                               dist=travel + PICK_OVERSHOOT)
+        else:
+          why = self.swap.put_back(steer_fn=self.steer_fn(tag_id),
+                                   dist=travel - CARRY_OFFSET)
+      finally:
+        self.model.opt.timestep = self.cruise_timestep
+      self.set_arm(0.0)                   # tuck it back before driving off
+      if module is None:
+        break
+      st = self.swap.module_state(module)
       if verb == "pick":
-        why = self.swap.pick(steer_fn=self.steer_fn(tag_id),
-                             dist=travel + PICK_OVERSHOOT)
+        ok = st["on_fork"] and module_power_contact(self.model, self.data,
+                                                    module)
       else:
-        why = self.swap.put_back(steer_fn=self.steer_fn(tag_id),
-                                 dist=travel - CARRY_OFFSET)
-    finally:
-      self.model.opt.timestep = self.cruise_timestep
-    self.set_arm(0.0)                     # tuck it back before driving off
+        ok = st["hung"]
+      if ok:
+        break
     return why
 
   def close(self) -> None:
@@ -524,13 +565,13 @@ def run_demo(start=(0.5, 3.0, math.pi / 2), station_y=HUB_STATION_YS[0],
       mission.start_discovery()              # watch for the tag from here on
     mission._spin()                          # seed the map
 
-    mission.swap_at_bay(station_y, "pick")
+    mission.swap_at_bay(station_y, "pick", module="module_lcd")
     found = mission.rack if mission.rack_discovered else None
     picked = mission.swap.module_state("module_lcd")
 
     mission.drive_to(*carry_to)              # take the tool somewhere
 
-    mission.swap_at_bay(station_y, "return")
+    mission.swap_at_bay(station_y, "return", module="module_lcd")
     returned = mission.swap.module_state("module_lcd")
   except MissionAborted:
     aborted = True

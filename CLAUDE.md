@@ -37,7 +37,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `--explore-budget N` remains as a timer override, and DOCK is real
   physics — plug seats in the socket), `scripts/schuko_spike.py`
   (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
-  tolerance sweep; `--film` for a filmstrip), `scripts/hub_swap.py` (robot
+  tolerance sweep; `--film` for a filmstrip), `scripts/noslip_spike.py`
+  (issue-3 solver-policy sweep: coupling/schuko seat, jittered robot swap,
+  grip creep, pen square, step cost under candidate `noslip_iterations`
+  values; `--no-brake` reproduces the before-fix rows), `scripts/hub_swap.py` (robot
   swaps a module at the hub in `models/hub_world.xml`),
   `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
@@ -92,14 +95,26 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   servo handed a step delivers it as an impulse: it has thrown a module off the
   fork and batted a gripped block out of the jaws. `control.slew` does this for
   wheels; `ClawTool.set_lift`/`jaws` and `PenPlotter.ramp` for the rest.
-- **Contact creep: prefer a hard `solimp` on the specific geoms.** MuJoCo's
-  contact constraints are soft by default and DRIFT under sustained load — a
-  gripped block crept out of the jaws at ~8 mm/s regardless of clamp force.
-  The claw fixes this at the source with `coupling.GRIP_SOLIMP` on the two jaw
-  pads (slip −21.7 mm → −0.13 mm), needing no solver mode. The PLOTTER still
-  uses MuJoCo's `noslip` pass (`PenPlotter.contact_physics`) because no
-  contact-parameter equivalent was found for it; that is a **cost** choice
-  (~3× step time), not a correctness one — nothing breaks if it is left on.
+- **One solver policy: `noslip_iterations` is 0, always and everywhere**
+  (issue #3; sweep table in SimNotes). Never phase-toggle solver modes:
+  always-on noslip ≥ 1 half-seats the jittered coupling (on the fork but not
+  electrically powered), and a runtime toggle is global state that leaks
+  across fixtures — and, in the shared PluggyWorld model, across robots.
+  Creep under sustained load is fixed at its actual source, per-part:
+  `coupling.GRIP_SOLIMP` where a **contact** drifts (the claw's jaw pads,
+  slip −21.7 mm → −0.13 mm), and wheel-joint `frictionloss` where a
+  **joint** rolls — a velocity servo commanded 0 resists speed, not force,
+  so without the gearbox's parking brake the parked base walks under tool
+  loads (the plotter's square: 63 % → 99 % inked, no solver pass, no cost).
+  ⚠ The swap's travel constants implicitly contain mm-scale wheel slip;
+  anything touching wheel contact or joint friction must re-verify the
+  bay-C pick and the mission stow. ⚠ The brake also creates a stiction
+  DEADBAND: wheel-speed commands under `frictionloss/kv` (0.1 rad/s) move a
+  stopped wheel not at all, so P-turn controllers must go through
+  `control.turn_command` (breakaway floor) — a raw `gain × err` command
+  crawls (55 s to settle 0.23°, measured). `PenPlotter.contact_physics` /
+  `ClawTool.grasp_physics` are deprecated no-ops;
+  `tests/test_noslip_policy.py` guards all of it.
 - Contact params combine as the elementwise **MAX** unless `priority` is set —
   so a low `friction` without `priority="1"` does nothing. This has bitten the
   caster, the pen pads and the coupling peg.

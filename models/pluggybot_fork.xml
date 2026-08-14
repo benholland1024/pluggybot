@@ -93,8 +93,23 @@
           axis="0 1 0"
           armature="0.012"
           damping="0.05"
+          frictionloss="0.05"
         />
+        <!-- frictionloss is the PARKING BRAKE the physical gearbox provides
+             for free: Coulomb friction reflected through the 50:1 reduction
+             (damping="0.05" is its viscous sibling, same 65%%-efficiency
+             physics). Without it the base has no position hold at all -- a
+             velocity servo commanded 0 resists speed, not force, so any
+             sustained push slowly ROLLS the robot: pen drag walked the
+             parked plotter sideways (square 63% inked, the figure starving
+             as the base crept), and the put_back's lower phase walked the
+             base 9 mm into the rack, jamming the peg past the tray (issue
+             #3, measured by scripts/noslip_spike.py). 0.05 N*m holds ~1 N
+             at the wheel rim, well under what a 37D gearbox resists when
+             backdriven. This is also what lets noslip_iterations stay 0
+             everywhere: the "solver" creep was mostly honest rolling. -->
         <geom
+          name="left_tire"
           type="cylinder"
           size="0.045 0.005"
           zaxis="0 1 0"
@@ -119,8 +134,11 @@
           axis="0 1 0"
           armature="0.012"
           damping="0.05"
+          frictionloss="0.05"
         />
+        <!-- frictionloss: the parking brake -- see left_wheel_joint. -->
         <geom
+          name="right_tire"
           type="cylinder"
           size="0.045 0.005"
           zaxis="0 1 0"

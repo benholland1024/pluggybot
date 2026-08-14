@@ -116,6 +116,12 @@ def test_loaded_calibration_moves_the_origin(hub_model):
     f"free-air gain should be ~1, got {free['dy_dcarriage']:.3f}"
   assert loaded["loaded"] is True
   shift = abs(loaded["y0"] - free["y0"])
-  assert shift > 0.004, (
+  # The original 10 mm shift was measured before the wheels had their
+  # parking brake (issue #3): part of "pressing displaces the pen" was the
+  # whole BASE rolling under the press. With the base held, the remaining
+  # ~4 mm is the genuine module + compliant-wrist deflection -- still real,
+  # still worth re-zeroing for, just no longer inflated by the robot
+  # quietly driving.
+  assert shift > 0.0025, (
     f"loaded calibration only moved the origin {shift * 1000:.1f} mm -- if "
     f"pressing does not displace the pen, this pass is dead weight")

@@ -49,7 +49,14 @@ PICK_OVERSHOOT = 0.004    # m of deliberate overdrive past the peg line, the
                           # the V's near flank and the LIFT self-centres it.
                           # 12 mm was tried and measured too greedy -- the peg
                           # caught the flank TIP, wedged between the fork V
-                          # and the tray V during the hand-off.
+                          # and the tray V during the hand-off. ⚠ This value
+                          # implicitly contains the wheels' mm-scale slip
+                          # over the approach: the issue-3 spike briefly
+                          # hardened the tire contact, the slip shrank
+                          # ~0.7 mm, and the front-heavy pen module's pick
+                          # went to a knife edge. Anything that changes wheel
+                          # contact or joint friction must re-verify the
+                          # bay-C pick.
 RETURN_CLEARANCE = 0.020  # m of extra lift while carrying a module INTO a
                           # bay, so the peg passes over the tray flanks
                           # (their tops sit above where a carried peg rides)

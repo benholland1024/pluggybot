@@ -116,12 +116,16 @@ def _v_notch_xml(prefix: str, pos: tuple[float, float, float],
 
 
 def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-              tool_mass: float = 0.12) -> str:
+              tool_mass: float = 0.12, noslip: int = 0) -> str:
   """Hub shelf + hanging tool at the origin; carrier approaching from +x.
 
   dy/dz: lateral/vertical offset of the carrier's approach line (m).
   yaw_deg: angular misalignment about z. tool_mass: the module's mass budget
   under test (the interface spec caps it -- confirm the latch holds it).
+  noslip: `noslip_iterations` for the run -- the peg seats by SLIDING into
+  its V, so the coupling is the behavior a global noslip policy is most
+  likely to break, and the spike must be able to measure it under that
+  policy (issue #3).
   """
   peg_len_color = "0.75 0.75 0.78 1"
   # The tool spawns HANGING: peg resting at the tray vertices (+ its radius).
@@ -150,7 +154,7 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
 
   return f"""
 <mujoco model="hub_coupling_spike">
-  <option timestep="0.001" integrator="implicitfast"/>
+  <option timestep="0.001" integrator="implicitfast" noslip_iterations="{noslip}"/>
   <visual><global offwidth="960" offheight="720"/></visual>
   <default>
     <geom friction="0.4" solref="0.005 1"/>
@@ -856,7 +860,7 @@ def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
 
 def run_pick(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
              tool_mass: float = 0.12, shake_accel: float = 0.0,
-             n_frames: int = 0) -> tuple[dict, list[np.ndarray]]:
+             n_frames: int = 0, noslip: int = 0) -> tuple[dict, list[np.ndarray]]:
   """One scripted pick: approach, lift, retreat (then optionally shake).
 
   Success = the tool left the trays and followed the carrier out. shake_accel
@@ -865,7 +869,7 @@ def run_pick(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   max contact force, and the tool's final peg seating error in the fork.
   """
   model = mujoco.MjModel.from_xml_string(
-    scene_xml(dy, dz, yaw_deg, tool_mass))
+    scene_xml(dy, dz, yaw_deg, tool_mass, noslip))
   data = mujoco.MjData(model)
   push = model.actuator("push").id
   lift = model.actuator("lift").id
@@ -926,7 +930,7 @@ def run_pick(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
 
 
 def run_cycle(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-              tool_mass: float = 0.12, n_frames: int = 0,
+              tool_mass: float = 0.12, n_frames: int = 0, noslip: int = 0,
               ) -> tuple[dict, list[np.ndarray]]:
   """Full pick-and-RETURN cycle: take the tool off the hub, carry it out,
   bring it back, hang it up, leave empty. The offsets apply to BOTH
@@ -936,7 +940,7 @@ def run_cycle(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   near its rest height, body near the hub centreline -- with the fork clear.
   """
   model = mujoco.MjModel.from_xml_string(
-    scene_xml(dy, dz, yaw_deg, tool_mass))
+    scene_xml(dy, dz, yaw_deg, tool_mass, noslip))
   data = mujoco.MjData(model)
   push = model.actuator("push").id
   lift = model.actuator("lift").id

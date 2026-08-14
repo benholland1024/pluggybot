@@ -30,7 +30,7 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import wheel_targets, wrap_angle
+from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
   BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, PEN_TRAVEL,
 )
@@ -64,7 +64,6 @@ PRESS_EXTRA = 0.010       # m of arm reach past first contact. With the soft
                           # arm's own 1200 N/m servo.
 PRESS_MAX = 0.19          # m of arm extension before giving up on the board
 LIFT_MIN, LIFT_MAX = 0.02, 0.30
-NOSLIP_ITERATIONS = 3     # see PenPlotter.contact_physics
 BOARD_STANDOFF = 0.34     # m axle-to-board. MEASURED, not chosen: the pen tip
                           # rides 0.283 m ahead of the axle at the stowed-work
                           # extension, so a 0.42 m standoff left it 137 mm
@@ -221,7 +220,7 @@ class PenPlotter:
     for _ in range(tries):
       while abs(wrap_angle(heading - self.swap.reckoner.theta)) > tol:
         err = wrap_angle(heading - self.swap.reckoner.theta)
-        tl, tr = wheel_targets(0.0, max(-0.5, min(0.5, 1.2 * err)))
+        tl, tr = wheel_targets(0.0, turn_command(err))
         self.swap._step_once(tl, tr)
       self.swap._run(0.6, 0.0)              # brake, let the slew unwind
       if abs(wrap_angle(heading - self.swap.reckoner.theta)) <= tol * 4:
@@ -330,29 +329,28 @@ class PenPlotter:
   # ---- drawing -------------------------------------------------------------
 
   def contact_physics(self, on: bool = True) -> None:
-    """MuJoCo's `noslip` post-solve pass, on only while the pen is working.
+    """Deprecated no-op, kept so existing callers keep working.
 
-    Unlike the claw -- whose creep was cured outright by a hard contact
-    constraint on the jaw pads, no solver mode needed -- the plotter still
-    measurably needs this pass, and I could not find the contact-parameter
-    equivalent. Hardening the pen tip did nothing (square: 63 % inked either
-    way) and hardening the peg-in-V barely moved it (64 %, form 1.69 mm),
-    against 94 % inked and 0.79 mm form with the pass on. Whatever the pen is
-    losing, it is not concentrated in one contact pair.
-
-    ⚠ This is now purely a COST decision, not a correctness one. It used to
-    be a hard conflict -- the pass broke the tool coupling -- but that was a
-    friction bug: the peg was running on MuJoCo's default mu=1.0, whose
-    friction angle is exactly the V's 45 deg flank, so it depended on solver
-    drift to seat. At the honest mu=0.4 the coupling seats fine with the pass
-    on OR off. Nothing breaks if this is left enabled; it just costs ~3x the
-    step time, so the plotter turns it on for a drawing and off afterwards.
+    The plotter once toggled MuJoCo's `noslip` post-solve pass on for a
+    drawing and off afterwards -- the last per-phase solver toggle in the
+    repo, and PluggyWorld's shared two-robot world cannot phase-scope solver
+    settings per robot. The spike that settled it (scripts/noslip_spike.py;
+    table in docs/SimNotes.md) found the pass was curing the wrong thing:
+    what moves under sustained pen drag is the PARKED BASE, and mostly it is
+    not solver drift at all -- the wheels ROLL, because a velocity servo
+    commanded 0 resists speed, not force. The wheel joints now carry
+    `frictionloss` (pluggybot_fork.xml), the parking brake the physical
+    gearbox provides for free, which draws a BETTER figure than the pass
+    ever did (99 % vs 93 % inked, form 0.60 vs 0.61 mm on the square) with
+    no solver mode, no toggle, and none of the 2x step cost.
+    `noslip_iterations` is 0 everywhere, guarded by
+    tests/test_noslip_policy.py -- and always-on noslip was measured WORSE
+    than useless: at >=1 iteration the jittered coupling half-seats (on the
+    fork, not powered), because the peg seats by sliding.
     """
-    self.model.opt.noslip_iterations = NOSLIP_ITERATIONS if on else 0
 
   def draw(self, path: list[tuple[float, float]]) -> dict:
     """Follow a board-space path, recording commanded vs actual every step."""
-    self.contact_physics(True)
     if not self.cal:
       self.calibrate()
     # Fit the loaded gain across the span this figure actually uses.
@@ -392,7 +390,6 @@ class PenPlotter:
         self.trace.append((float(self.data.time), py, pz, cy, cz,
                            pen_on_board(self.model, self.data)))
     self.lift_pen()
-    self.contact_physics(False)
     return {"drew": True, **self.error_stats()}
 
   def error_stats(self) -> dict:

@@ -152,12 +152,15 @@ def socket_body_xml(name: str, pos: tuple[float, float, float],
 
 
 def scene_xml(y_off: float = 0.0, z_off: float = 0.0, yaw_deg: float = 0.0,
-              chamfer_len: float = CHAMFER_LEN) -> str:
+              chamfer_len: float = CHAMFER_LEN, noslip: int = 0) -> str:
   """Socket at the origin facing +x; plug carrier approaching from +x.
 
   y_off/z_off: lateral offset of the approach line (m). yaw_deg: angular
   misalignment of the approach direction (rotation about z). chamfer_len:
-  axial length of the 45-degree entry bevel (see CHAMFER_LEN).
+  axial length of the 45-degree entry bevel (see CHAMFER_LEN). noslip:
+  `noslip_iterations` for the run -- the plug, like the hub peg, seats by
+  SLIDING down its entry chamfer, so a global noslip policy (issue #3) has
+  to be measured against it, not assumed safe.
   """
   socket = socket_geoms_xml(chamfer_len=chamfer_len)
 
@@ -174,7 +177,8 @@ def scene_xml(y_off: float = 0.0, z_off: float = 0.0, yaw_deg: float = 0.0,
 
   return f"""
 <mujoco model="schuko_spike">
-  <option timestep="0.001" integrator="implicitfast" gravity="0 0 0"/>
+  <option timestep="0.001" integrator="implicitfast" gravity="0 0 0"
+          noslip_iterations="{noslip}"/>
   <visual><global offwidth="960" offheight="720"/></visual>
   <default>
     <geom friction="0.3" solref="0.005 1"/>
@@ -226,7 +230,7 @@ def scene_xml(y_off: float = 0.0, z_off: float = 0.0, yaw_deg: float = 0.0,
 
 def run_trial(y_off: float = 0.0, z_off: float = 0.0, yaw_deg: float = 0.0,
               chamfer_len: float = CHAMFER_LEN,
-              sim_time: float = 4.0, n_frames: int = 0,
+              sim_time: float = 4.0, n_frames: int = 0, noslip: int = 0,
               ) -> tuple[dict, list[np.ndarray]]:
   """One scripted insertion. Returns (result, frames).
 
@@ -235,7 +239,7 @@ def run_trial(y_off: float = 0.0, z_off: float = 0.0, yaw_deg: float = 0.0,
   unstable (plug ever moved faster than 1.5 x the commanded speed x 10).
   """
   model = mujoco.MjModel.from_xml_string(
-    scene_xml(y_off, z_off, yaw_deg, chamfer_len))
+    scene_xml(y_off, z_off, yaw_deg, chamfer_len, noslip))
   data = mujoco.MjData(model)
   face_site = model.site("plug_face").id
   plug_dofs = [model.joint(n).dofadr[0]

@@ -173,7 +173,7 @@ class HubLifecycle:
   def run_errand(self, station_y: float, use_at: tuple[float, float]) -> None:
     """Fetch a tool, take it somewhere, and put it back."""
     self.state = "SWAP_PICK"
-    self.mission.swap_at_bay(station_y, "pick")
+    self.mission.swap_at_bay(station_y, "pick", module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}")
@@ -184,7 +184,7 @@ class HubLifecycle:
     self._say(f"USE_TOOL: arrived{'' if still else ' -- BUT DROPPED THE TOOL'}")
 
     self.state = "SWAP_RETURN"
-    self.mission.swap_at_bay(station_y, "return")
+    self.mission.swap_at_bay(station_y, "return", module=self.module)
     stowed = self.mission.swap.module_state(self.module)["hung"]
     self.swaps_done += 1
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")

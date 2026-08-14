@@ -31,7 +31,7 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import wheel_targets, wrap_angle
+from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import CLAW_JAW_TRAVEL
 from pluggybot.hub.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
 
@@ -201,7 +201,7 @@ class ClawTool:
     for _ in range(tries):
       while abs(wrap_angle(heading - self.swap.reckoner.theta)) > tol:
         err = wrap_angle(heading - self.swap.reckoner.theta)
-        tl, tr = wheel_targets(0.0, max(-0.5, min(0.5, 1.2 * err)))
+        tl, tr = wheel_targets(0.0, turn_command(err))
         self.swap._step_once(tl, tr)
       self.swap._run(SETTLE, 0.0)
       if abs(wrap_angle(heading - self.swap.reckoner.theta)) <= tol * 4:
