@@ -62,9 +62,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   (webserver v1, issue #5: the hub lifecycle headless, paced to real time,
   streaming protocol frames + grid PNGs + event lines over an outbound
   WebSocket — the sim never blocks on the socket; `--rate X`, `--free-run`
-  measures the machine's real-time multiple; docs/Webserver.md),
+  measures the machine's real-time multiple; `--token` / `$PLUGGYWORLD_TOKEN`
+  is the website's ingest secret; docs/Webserver.md),
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
-  frame-gap stats)
+  frame-gap stats + keyframe spacing; `--token` makes it refuse an
+  unauthenticated publisher, like the real ingest path)
 - PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED — the
   scene JSON + tag textures via `uv run python -m pluggybot.telemetry.scene`
   (rerun after changing any room_hub geometry — the fixture test fails when

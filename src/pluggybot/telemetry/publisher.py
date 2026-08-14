@@ -26,6 +26,18 @@ frame -- the hook resets the FrameBuilder, and the next frame is a full
 keyframe. Each connection also opens with the stream header, so a late
 consumer joins as if the stream had just begun.
 
+That covers OUR socket, but in production the far end is a relay hub
+(rooftop-media-2026 #22) with browsers behind it: a browser joining
+mid-mission is invisible to us -- we never reconnect, so we never re-key
+for it. Which is why keyframes also RECUR on a timer (FrameBuilder's
+keyframe_s), marked "key": true. The hub then needs to cache only the
+last keyframe plus the frames since it, and needs no knowledge of the
+body census to recognize one.
+
+The hub's ingest path is authenticated, so the publisher presents a
+shared secret as `Authorization: Bearer <token>` on connect. A dev sink
+(scripts/ws_sink.py) ignores it unless started with --token.
+
 Beyond frames, two lower-frequency message types ride the same socket
 (consumers must ignore types they do not know; frames are the messages
 with no "type" field):
@@ -46,7 +58,7 @@ from typing import Callable
 from PIL import Image
 
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.telemetry.recorder import FRAME_HZ, FrameBuilder
+from pluggybot.telemetry.recorder import FRAME_HZ, KEYFRAME_S, FrameBuilder
 
 GRID_HZ = 1.0          # occupancy-grid messages per sim-second
 QUEUE_MAX = 256        # ~13 s of frames at 20 Hz; beyond that, drop
@@ -61,17 +73,25 @@ class WsPublisher:
   lifecycle's say_hooks for narration lines; call `close()` at mission end.
   `grid`, if given, is an OccupancyGrid whose to_image() is shipped at
   grid_hz. `status_fn` is merged into every frame's robot record, exactly
-  as in the recorder.
+  as in the recorder. `token`, if given, is the ingest shared secret.
   """
 
   def __init__(self, model, data, endpoint: str, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
-               grid=None, grid_hz: float = GRID_HZ) -> None:
+               grid=None, grid_hz: float = GRID_HZ,
+               token: str | None = None,
+               keyframe_s: float = KEYFRAME_S) -> None:
+    if token is not None and not token.strip():
+      # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
+      # Falsy would silently mean "send no header at all", so the sim would
+      # publish unauthenticated and blame the server's 401.
+      raise ValueError("token is empty: unset it to publish unauthenticated")
     self.endpoint = endpoint
     self.grid = grid
+    self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
-                                 model_name=model_name)
+                                 model_name=model_name, keyframe_s=keyframe_s)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0
@@ -84,6 +104,7 @@ class WsPublisher:
     self.frames_dropped = 0
     self.events_dropped = 0
     self.connections = 0
+    self.last_error: str | None = None
     self._thread = threading.Thread(target=self._send_loop, daemon=True)
     self._thread.start()
 
@@ -128,8 +149,10 @@ class WsPublisher:
 
     while not self._stop.is_set():
       try:
-        with connect(self.endpoint, open_timeout=CONNECT_TIMEOUT) as ws:
+        with connect(self.endpoint, open_timeout=CONNECT_TIMEOUT,
+                     additional_headers=self._headers) as ws:
           self.connections += 1
+          self.last_error = None       # "error since the last good connect"
           # A fresh consumer starts from nothing: drain whatever went stale
           # while disconnected, open with the header, and have the hook cut
           # a keyframe so sparse frames have a base to build on.
@@ -150,9 +173,14 @@ class WsPublisher:
             ws.send(json.dumps(payload, separators=(",", ":")))
             if kind == "frame":
               self.frames_sent += 1
-      except Exception:
+      except Exception as e:
         # Connection refused, reset, timeout, handshake failure -- all the
         # same story: nobody is listening right now. The sim does not care.
+        # It is recorded, though, because one of those failures is a
+        # REJECTED TOKEN, and a silent 1 s retry loop looks identical to a
+        # server that is merely down. serve.py prints this when it never
+        # connected.
+        self.last_error = f"{type(e).__name__}: {e}"
         self._stop.wait(RECONNECT_DELAY)
 
   def _drain(self) -> None:

@@ -14,10 +14,17 @@ Usage:
   ... --rate 2.0        # sim seconds per wall second (default 1.0)
   ... --free-run        # no pacing: measure this machine's real-time multiple
   ... --record out.jsonl.gz   # also keep a v0 recording of the same run
+  ... --token SECRET    # ingest shared secret (default: $PLUGGYWORLD_TOKEN)
+
+The website's ingest path is authenticated; point --endpoint at
+ws://host/api/pluggyworld/ingest and give it the same secret the server
+holds. Prefer the environment variable to the flag -- an argument is
+visible in `ps` to every user on the box.
 """
 
 import argparse
 import math
+import os
 import time
 
 import mujoco
@@ -25,7 +32,7 @@ import mujoco
 from pluggybot.hub.lifecycle import DEMO_CAPACITY_WH, HubLifecycle
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.publisher import WsPublisher
-from pluggybot.telemetry.recorder import TelemetryRecorder
+from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 
 
 def main() -> None:
@@ -40,6 +47,12 @@ def main() -> None:
   parser.add_argument("--max-sim-time", type=float, default=600.0)
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
+  parser.add_argument("--token", default=os.environ.get("PLUGGYWORLD_TOKEN"),
+                      help="ingest shared secret (default $PLUGGYWORLD_TOKEN)")
+  parser.add_argument("--keyframe-s", type=float, default=KEYFRAME_S,
+                      metavar="S", help="sim seconds between full keyframes"
+                                        " (0 disables; late joiners then wait"
+                                        " forever)")
   args = parser.parse_args()
 
   model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
@@ -47,7 +60,8 @@ def main() -> None:
   life = HubLifecycle(model, data, battery_wh=args.battery_wh)
   publisher = WsPublisher(model, data, args.endpoint, model_name="room_hub",
                           status_fn=life.telemetry_status,
-                          grid=life.mission.grid)
+                          grid=life.mission.grid, token=args.token,
+                          keyframe_s=args.keyframe_s)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   pacer = None
@@ -58,7 +72,8 @@ def main() -> None:
   if args.record is not None:
     recorder = TelemetryRecorder(model, data, args.record,
                                  model_name="room_hub",
-                                 status_fn=life.telemetry_status)
+                                 status_fn=life.telemetry_status,
+                                 keyframe_s=args.keyframe_s)
     life.mission.step_hooks.append(recorder.step_hook)
 
   wall0 = time.monotonic()
@@ -83,6 +98,9 @@ def main() -> None:
   print(f"frames sent / dropped  : {publisher.frames_sent}"
         f" / {publisher.frames_dropped}"
         f"  (connections: {publisher.connections})")
+  if publisher.connections == 0 and publisher.last_error is not None:
+    # A rejected token retries exactly like a down server; say which.
+    print(f"never connected        : {publisher.last_error}")
 
 
 if __name__ == "__main__":

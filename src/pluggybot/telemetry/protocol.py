@@ -9,7 +9,12 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.1.0"
+PROTOCOL_VERSION = "0.2.0"
+# 0.2.0: frames may carry "key": true (a keyframe -- every dynamic body),
+#        and they now RECUR every header["keyframeS"] sim-seconds instead
+#        of happening only at t=0 and on a live reconnect. Additive, but a
+#        shape change to both artifacts, so the version moves and the
+#        website re-vendors. Rationale: rooftop-media-2026 #22.
 
 # Visual-hint vocabulary v1 (issue #6, co-designed with the website's
 # parametric assets -- rooftop-media-2026 issue #18). The generator's

@@ -190,11 +190,12 @@ def test_room_hub_coverage():
 
 # ---- recorder --------------------------------------------------------------
 
-def record(model, seconds=2.0, path=None, status_fn=None, tmp=None):
+def record(model, seconds=2.0, path=None, status_fn=None, tmp=None,
+           **kwargs):
   data = mujoco.MjData(model)
   path = path or str(tmp / "out.jsonl")
   rec = TelemetryRecorder(model, data, path, status_fn=status_fn,
-                          model_name="mini")
+                          model_name="mini", **kwargs)
   for _ in range(round(seconds / model.opt.timestep)):
     mujoco.mj_step(model, data)
     rec.step_hook()
@@ -203,6 +204,20 @@ def record(model, seconds=2.0, path=None, status_fn=None, tmp=None):
   with opener(path, "rt") as f:
     lines = [json.loads(line) for line in f]
   return rec, lines
+
+
+def test_recorder_honours_the_keyframe_cadence(mini_model, tmp_path):
+  """The recorder's keyframe_s must reach its builder: `serve.py --record`
+  writes a recording of the SAME run it streams, so a cadence that applied
+  to one and not the other would make the two artifacts disagree."""
+  rec, lines = record(mini_model, seconds=3.0, tmp=tmp_path, keyframe_s=0.5)
+  header, frames = lines[0], lines[1:]
+  assert header["keyframeS"] == 0.5
+  keys = [f for f in frames if f.get("key")]
+  assert len(keys) >= 5, f"expected ~6 keyframes over 3 s, got {len(keys)}"
+  for f in keys:
+    assert set(f["robots"]["pluggybot"]["bodies"]) == set(header["robots"]["pluggybot"])
+    assert set(f["world"]) == set(header["world"])
 
 
 def test_recorder_header_and_decimation(mini_model, tmp_path):
@@ -288,6 +303,21 @@ def test_telemetry_fixture_is_a_full_mission():
   first = frames[0]["robots"]["pluggybot"]
   assert set(first["bodies"]) == robot_names, "first frame must be a keyframe"
   assert set(frames[0]["world"]) == set(header["world"])
+
+  # Keyframes recur (0.2.0): the website's relay hub caches "last keyframe
+  # + frames since" to serve a browser that joins mid-mission, so a
+  # recording without them would be testing a stream shape we never send.
+  keys = [f for f in frames if f.get("key")]
+  assert frames[0].get("key") is True
+  assert len(keys) > 1, "the fixture must exercise RECURRING keyframes"
+  for f in keys:
+    assert set(f["robots"]["pluggybot"]["bodies"]) == robot_names
+    assert set(f["world"]) == set(header["world"])
+  gaps = [b["t"] - a["t"] for a, b in zip(keys, keys[1:])]
+  # the cadence re-anchors on the frame that carried the keyframe, so it can
+  # run one frame interval late -- but no more, or it has silently regressed
+  assert max(gaps) <= header["keyframeS"] + 2.0 / header["hz"], \
+    f"keyframe spacing drifted past the advertised cadence: max {max(gaps):.2f} s"
   times = [f["t"] for f in frames]
   assert all(b > a for a, b in zip(times, times[1:]))
   states = {f["robots"]["pluggybot"]["state"] for f in frames}

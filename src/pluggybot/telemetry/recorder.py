@@ -21,6 +21,15 @@ threshold still accumulates against the emitted pose and eventually
 crosses it, instead of hiding under the threshold forever. A replayer
 holds the last value it saw for any absent body.
 
+Keyframes RECUR, every KEYFRAME_S of sim time, and say so: a keyframe
+carries "key": true. Sparse frames are deltas against the whole history
+before them, so a consumer that joins mid-stream is stuck until the next
+keyframe -- and with a single keyframe at t=0 that never comes. Recurring
+keyframes bound the wait (and, for the website's relay hub, bound what it
+must cache to serve a late joiner: the last keyframe plus the frames
+since). The marker is what keeps that consumer PROTOCOL-DUMB: "is this a
+keyframe" is a field read, not a set comparison against the body census.
+
 The frame-building lives in FrameBuilder so the live WebSocket publisher
 (webserver v1, telemetry/publisher.py) emits byte-identical frames: the
 recorder and the publisher are the same producer with different sinks.
@@ -36,6 +45,10 @@ from pluggybot.telemetry.protocol import PROTOCOL_VERSION, ROBOT_ROOT, body_cens
 
 FRAME_HZ = 20.0     # the design point: 15-20 Hz reads smooth after
                     # client-side interpolation at 60 fps
+KEYFRAME_S = 5.0    # sim seconds between full keyframes: the worst-case
+                    # wait before a mid-stream joiner is complete, and the
+                    # depth of the relay hub's join cache. At 20 Hz that is
+                    # 1 frame in 100 -- a few percent of the byte budget.
 POS_EPS = 0.0005    # m: half a millimetre of world-frame motion
 QUAT_EPS = 0.0005   # per-component, sign-normalized (q and -q are the
                     # same rotation; xquat may hand us either)
@@ -48,22 +61,35 @@ class FrameBuilder:
   build() returns the next due frame as a plain dict (or None between
   frames); header() is the stream's opening message. Not thread-safe: call
   both only from the physics thread. reset() clears the last-emitted poses
-  so the NEXT frame is a full keyframe again -- the recorder never needs
-  that, but a live consumer that reconnected (or missed dropped frames)
-  has lost the state sparse frames build on, and holds stale poses forever
-  unless the stream re-keys.
+  so the NEXT frame is a full keyframe again -- on top of the every-
+  keyframe_s cadence, a live consumer that reconnected (or missed dropped
+  frames) needs one IMMEDIATELY: it has lost the state sparse frames build
+  on, and holds stale poses until the stream re-keys.
+
+  keyframe_s is sim seconds between periodic keyframes; 0 disables them
+  (the stream then re-keys only on reset(), which is the pre-0.2.0
+  behaviour and is what a from-the-top replay strictly needs).
   """
 
   def __init__(self, model, data, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
-               model_name: str | None = None) -> None:
+               model_name: str | None = None,
+               keyframe_s: float = KEYFRAME_S) -> None:
+    if keyframe_s < 0:
+      # A negative interval keys EVERY frame and advertises a negative
+      # cache depth (keyframeS x hz) to the hub. Fail at construction.
+      raise ValueError(f"keyframe_s must be >= 0, got {keyframe_s}")
     self.model, self.data = model, data
     self.status_fn = status_fn
     self.hz = hz
     self.model_name = model_name
+    self.keyframe_s = keyframe_s
     self.frames = 0
+    self.keyframes = 0
     self._interval = 1.0 / hz
     self._next_t: float | None = None
+    self._next_key: float | None = None
+    self._key_due = True             # frame 1 is always a keyframe
     robot, world = body_census(model)
     self.robot_names, self.world_names = robot, world
     self._robot = [(n, model.body(n).id) for n in robot]
@@ -76,6 +102,7 @@ class FrameBuilder:
       "protocolVersion": PROTOCOL_VERSION,
       "model": self.model_name,
       "hz": self.hz,
+      "keyframeS": self.keyframe_s,
       "robots": {ROBOT_ROOT: self.robot_names},
       "world": self.world_names,
     }
@@ -83,6 +110,7 @@ class FrameBuilder:
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
     self._last.clear()
+    self._key_due = True
 
   def build(self) -> dict | None:
     """The next frame if one is due at this sim time, else None."""
@@ -92,6 +120,17 @@ class FrameBuilder:
     self._next_t = t + self._interval
     self.frames += 1
     frame: dict = {"t": round(t, 3)}
+    if self.keyframe_s and (self._next_key is None or t >= self._next_key):
+      self._key_due = True
+    if self._key_due:
+      # Clearing the emitted-pose memory is what MAKES the frame a keyframe:
+      # every body then reads as moved, so every body ships.
+      self._last.clear()
+      self._key_due = False
+      if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
+        self._next_key = t + self.keyframe_s
+      self.keyframes += 1
+      frame["key"] = True
     robot_rec: dict = {}
     bodies = {}
     for name, bid in self._robot:
@@ -142,9 +181,10 @@ class TelemetryRecorder:
 
   def __init__(self, model, data, path: str, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
-               model_name: str | None = None) -> None:
+               model_name: str | None = None,
+               keyframe_s: float = KEYFRAME_S) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
-                                 model_name=model_name)
+                                 model_name=model_name, keyframe_s=keyframe_s)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())

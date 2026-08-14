@@ -8,11 +8,28 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.1.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.2.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+### 0.1.0 → 0.2.0 (keyframes recur, and say so)
+
+Additive; a 0.1.0 consumer reading a 0.2.0 stream needs no changes.
+
+- Frames that re-ship **every** dynamic body now carry `"key": true`.
+  Frames without it are sparse, exactly as before.
+- Those keyframes **recur**, every `keyframeS` sim-seconds (new header
+  field, 5.0), rather than occurring only at `t = 0` and after a live
+  reconnect.
+
+Why: a browser joining through the website's relay hub is invisible to
+the sim — no reconnect fires, so nothing re-keys for it, and every body
+that had settled before it arrived is missing from its world forever.
+Recurring keyframes bound that wait, and the marker means the hub can
+recognize a cache boundary with a field read instead of a set comparison
+against the body census.
 
 ## Files
 
@@ -31,7 +48,7 @@ files are already resolved. Top level:
 
 ```jsonc
 {
-  "protocolVersion": "0.1.0",
+  "protocolVersion": "0.2.0",
   "model": "room_hub",
   "upAxis": "z",              // see "conventions" below
   "bodies": [ ... ],
@@ -87,12 +104,14 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.1.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.2.0", "model": "room_hub", "hz": 20.0,
+ "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "world": ["rack", "module_lcd", ...]}                  // shared dynamic bodies
 
 // frame
 {"t": 123.45,                                  // sim seconds
+ "key": true,                                  // present only on keyframes
  "robots": {"pluggybot": {
    "bodies": {"pluggybot": [x, y, z, qw, qx, qy, qz], ...},   // world-frame
    "state": "EXPLORE",                         // lifecycle state machine
@@ -108,6 +127,12 @@ unchanged — a replayer holds the last value it saw. `bodies` and `world`
 are omitted entirely when empty; `state`/`status`/`battery` ride in every
 frame. Positions are rounded to 0.1 mm.
 
+**Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
+`"key": true`. A consumer that starts reading anywhere in the stream is
+complete within one such interval; one that starts at the top can ignore
+the marker entirely, since a keyframe is just a frame that happens to
+mention everything. At 20 Hz they are 1 frame in 100.
+
 The producer seam: `TelemetryRecorder` (`src/pluggybot/telemetry/recorder.py`)
 is a callback on `HubMission.step_hooks` — the same per-physics-step seam
 the battery drains through. It decimates 500 Hz of steps to `hz` of frames
@@ -118,8 +143,11 @@ inside a physics step.
 
 `scripts/serve.py` publishes the same objects over an outbound WebSocket
 (`WsPublisher`, `src/pluggybot/telemetry/publisher.py`) — the recorder and
-the publisher share one frame builder, so a live consumer and a replayed
-recording see identical data. Live-stream rules:
+the publisher build frames with the same `FrameBuilder` code (each owns an
+instance), so a live consumer and a replayed recording see identical data,
+provided both are configured alike: `serve.py --record` passes its
+`--keyframe-s` to both, which is the only setting that can make them
+disagree. Live-stream rules:
 
 - **Dispatch on `type`; no `type` means frame.** The header and the extra
   message types below carry a `type` field; telemetry frames never do.
@@ -129,10 +157,35 @@ recording see identical data. Live-stream rules:
 - **Every connection opens with the header, then a keyframe.** Sparse
   frames are deltas against what was previously sent, so whenever
   continuity breaks — a (re)connect, or frames dropped because nobody was
-  draining the socket — the next frame re-ships every dynamic body. A
-  consumer joining mid-mission starts from nothing and is complete within
-  one frame interval.
+  draining the socket — the next frame re-ships every dynamic body, marked
+  `"key": true`. A consumer joining mid-mission starts from nothing and is
+  complete within two frame intervals: the re-key is requested by the
+  sender thread and honoured by the next physics step, so one sparse frame
+  can slip out between the header and the keyframe. Applying it early is
+  harmless — the keyframe overwrites everything it touched.
+- **A relay hub only needs to cache the last keyframe and the frames
+  since it.** The sim connects outbound to the hub and stays connected;
+  browsers come and go behind it, invisibly. Nothing re-keys on their
+  behalf, which is what recurring keyframes are for. On a browser join,
+  replay the cached header, then the cached keyframe, then the frames
+  after it, then go live — the cache is bounded by `keyframeS` × `hz`
+  (≈100 frames). Also worth caching: the most recent `grid` message per
+  robot, so a joiner's map is not blank for a second.
 - Frames can drop under load; recordings are the lossless artifact.
+
+**The ingest connection is authenticated.** The publisher presents the
+shared secret as an `Authorization: Bearer <token>` request header at the
+WebSocket handshake (`scripts/serve.py --token`, or `$PLUGGYWORLD_TOKEN`);
+a server that dislikes it should refuse the handshake with `401`. A token
+in the URL query works too and needs no producer support — it is just part
+of `--endpoint` — but it lands in access logs, so the header is the
+default. Refusal is not fatal to the sim: it retries every second like any
+other unreachable endpoint, and reports the last failure at exit. Note that
+the header only beats the query param on *log* exposure — over plain `ws://`
+the bearer crosses the network in cleartext either way, so anything leaving
+the host wants `wss://`. An empty token is rejected at startup rather than
+sent as no header at all, because a blank `PLUGGYWORLD_TOKEN` would
+otherwise publish unauthenticated and read as a wrong secret.
 
 The two live-only message types:
 

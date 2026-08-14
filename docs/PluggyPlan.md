@@ -265,6 +265,15 @@ tracked as its own issues; landed so far:
   square on a wall whiteboard at **0.59 mm form error, 98 % inked**. Open
   item: stowing the pen after a navigated errand fails — and fails the same
   way in room_hub, so it is pre-existing (SimNotes).
+- **Protocol 0.2.0 — recurring keyframes + authenticated ingest** (producer
+  half of the website's live-hub issue, rooftop-media-2026 #22): keyframes
+  now recur every 5 sim-seconds and are marked `"key": true`, and the
+  publisher presents an `Authorization: Bearer` ingest secret. The old
+  stream re-keyed only when *our* socket broke, which never happens for a
+  browser joining behind the relay hub — so everything that had settled
+  before it arrived was missing from its world permanently. Costs 1 % of
+  frames, +1.3 % on a gzipped recording. **The website must re-vendor
+  `protocol/`** — a version bump is a deliberate two-repo event.
 
 ## Status
 
