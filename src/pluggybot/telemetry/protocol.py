@@ -11,6 +11,15 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 PROTOCOL_VERSION = "0.1.0"
 
+# Visual-hint vocabulary v1 (issue #6, co-designed with the website's
+# parametric assets -- rooftop-media-2026 issue #18). The generator's
+# sidecar may only emit these strings; the website renders a parametric
+# component per hint and falls back to raw primitives for anything else,
+# so ADDING a hint is additive (no version bump), while renaming one is a
+# breaking change (bump).
+VISUAL_HINTS = ("wall", "fence", "floor", "ground", "whiteboard", "rack",
+                "plant")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.

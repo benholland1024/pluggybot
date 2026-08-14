@@ -19,6 +19,8 @@ committed world or the committed version.
 | File | What | Regenerate with |
 |---|---|---|
 | `scene.room_hub.json` | Static scene description of `models/room_hub.xml` | `uv run python -m pluggybot.telemetry.scene` |
+| `scene.home_world.json` | The generated home world, with visual hints + zones + spawns (issue #6) | `uv run python -m pluggybot.telemetry.scene models/home_world.xml` |
+| `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission recording (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
 
@@ -40,10 +42,23 @@ files are already resolved. Top level:
 Per body: `name`, `parent` (body name, `null` for the world root),
 `dynamic` (whether telemetry will stream poses for it), `robot` (the owning
 robot's name, `null` for shared/world bodies), `visual` (the parametric
-visual hint slot — `null` until the park generator fills it), `pos` +
+visual hint — see below), `pos` +
 `quat` (**world-frame rest pose**, so a client renders with no
 kinematic-tree math: static bodies keep this pose forever, dynamic bodies
 get theirs overwritten by telemetry), and `geoms`.
+
+`visual` comes from the world generator's sidecar
+(`models/<world>.meta.json`, issue #6): the website renders a parametric
+component per hint and falls back to raw primitives for `null` or for a
+hint it does not know. Vocabulary v1 (`telemetry.protocol.VISUAL_HINTS`):
+`wall`, `fence`, `floor`, `ground`, `whiteboard`, `rack`, `plant`. Adding
+a hint is additive; renaming one is a two-repo breaking change. Hints ride
+in the sidecar and **never** in geom colors — the robot's cameras render
+rgba, so colour-as-encoding would couple perception to art direction.
+
+A generated world may also carry two optional top-level fields, likewise
+additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`)
+and `spawns` (`name → [x, y, yaw_rad]`).
 
 Per geom: `name`, `type` (`box | cylinder | capsule | sphere | plane`),
 `size`, `pos` + `quat` (body-local, constant), `rgba`, `texture` (name into

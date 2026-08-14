@@ -35,8 +35,8 @@ from pluggybot.behavior.navigation import (
 )
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X, bay_tag_id,
-  module_power_contact,
+  BAY_TAG_FACE_X, CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X,
+  bay_tag_id, module_power_contact,
 )
 from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
 from pluggybot.hub.tags import (
@@ -125,6 +125,24 @@ class TagSpotter:
       return None
     return found[RACK_TAG_ID]["t"][2]
 
+  def bay_range(self, data, tag_id: int) -> float | None:
+    """Perpendicular distance (m) to one BAY marker's plane, or None.
+
+    The rack's big tag hangs at the rack's centre, which only the two inner
+    bays can see from their standoff: bay C sits 0.375 m off the rack's
+    axis, outside the dock camera's view, so a bay-C mission silently fell
+    back to odometry -- whose +13..21 mm drift bias a PICK forgives (the V
+    self-centres on the lift) and a RETURN does not (the peg must land
+    within the V's ~8 mm of the tray line, or the retreat drags the module
+    back out; measured in home_world). The bay's own marker sits ON the
+    approach axis at every bay, so it is the better range source wherever
+    it decodes.
+    """
+    found = self.detector.detect(data)
+    if tag_id not in found:
+      return None
+    return found[tag_id]["t"][2]
+
   def close(self) -> None:
     self.detector.close()
 
@@ -147,7 +165,9 @@ class HubMission:
   VIEW_PERIOD = 0.02       # s of sim time between viewer syncs
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
-               rack: RackPose | None = None) -> None:
+               rack: RackPose | None = None,
+               grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
+               ) -> None:
     self.model, self.data = model, data
     self.swap = HubSwap(model, data)
     # What the robot believes about the rack. The prior is what a robot
@@ -169,7 +189,12 @@ class HubMission:
     self.swap.on_step = self._on_step
     self.lidar = Lidar(model)
     self._next_scan = 0.0
-    self.grid = OccupancyGrid(x_min=-3, y_min=-3, x_max=7, y_max=7, resolution=0.05)
+    # Bounds are per-WORLD (issue #6): room_hub keeps its historical box,
+    # home_world passes its own from the generator's meta -- a grid sized
+    # for one room silently truncates every scan beyond its edge.
+    gx0, gy0, gx1, gy1 = grid_bounds
+    self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
+                              resolution=0.05)
     self.tags = TagSpotter(model)
     self.cruise_timestep = model.opt.timestep
     self.backoff_until = 0.0
@@ -430,26 +455,40 @@ class HubMission:
     self.data.ctrl[self.model.actuator("arm").id] = extension
     self._drive(settle, 0.0, 0.0)
 
+  def _vertex_ahead_of_camera(self) -> float:
+    """Fork vertex forward of the dock camera, along the current heading."""
+    cam = self.data.cam_xpos[self._cam_id]
+    vtx = self.data.site_xpos[self.model.site("fork_vertex").id]
+    h = self.pose[2]
+    return ((float(vtx[0]) - float(cam[0])) * math.cos(h)
+            + (float(vtx[1]) - float(cam[1])) * math.sin(h))
+
   def _terminal_travel(self, station_y: float) -> float:
     """How far to creep so the fork vertex lands on the bay's hang line.
 
-    Preferred source is the dock camera's range to the RACK TAG -- absolute,
-    and immune to the odometry drift that accumulates over a mission (dead
-    reckoning was measured ~20 mm out on the return leg, twice the
-    coupling's capture window). Falls back to the believed rack pose plus
-    odometry when the tag is not in view.
+    Range sources, best first, all absolute (immune to the odometry drift
+    that accumulates over a mission -- dead reckoning was measured ~20 mm
+    out on the return leg, twice the coupling's capture window):
+
+      1. the BAY's own tag -- on the approach axis at every bay. This is
+         what made bays C and D missionable at all: the rack's centre tag
+         is outside the dock camera's view from their standoffs, and the
+         odometry fallback's +13..21 mm bias broke every RETURN there (a
+         pick self-centres on the lift; a release needs the peg within the
+         V's ~8 mm of the tray line or the retreat drags the module out --
+         measured in home_world).
+      2. the RACK's tag (the original source; still what a bay with an
+         occluded marker gets).
+      3. the believed rack pose plus odometry.
     """
+    seen_bay = self.tags.bay_range(self.data, bay_tag_id(station_y))
+    if seen_bay is not None:
+      to_hang = seen_bay + (BAY_TAG_FACE_X - RACK_HANG_X)
+      return to_hang - self._vertex_ahead_of_camera()
     seen = self.tags.rack_range(self.data)
     if seen is not None:
-      # Camera -> hang plane, then camera -> fork vertex, both along the
-      # approach axis; the difference is what the base still has to drive.
-      cam = self.data.cam_xpos[self._cam_id]
-      vtx = self.data.site_xpos[self.model.site("fork_vertex").id]
-      h = self.pose[2]
-      vertex_ahead = ((float(vtx[0]) - float(cam[0])) * math.cos(h)
-                      + (float(vtx[1]) - float(cam[1])) * math.sin(h))
       to_hang = seen - (TAG_LOCAL_X - RACK_HANG_X)
-      return to_hang - vertex_ahead
+      return to_hang - self._vertex_ahead_of_camera()
     hx, hy = self.rack.to_world(RACK_HANG_X, station_y)
     d_along = ((hx - self.pose[0]) * math.cos(self.pose[2])
                + (hy - self.pose[1]) * math.sin(self.pose[2]))
@@ -495,7 +534,16 @@ class HubMission:
       sx, sy, hd = bay_standoff(station_y, self.rack)
       self.drive_to(sx, sy, timeout=25.0)
     why = "no-attempt"
-    for _ in range(max(tries, 1)):
+    # The lift height a carried module rides at, captured BEFORE any
+    # attempt: a failed put_back leaves the lift at its RELEASE height,
+    # 50 mm low, and a retry entered from there carries the peg straight
+    # into the tray flanks (put_back computes every height relative to the
+    # lift it starts with). Restoring the entry height makes the second
+    # attempt an actual repeat of the first, not a different maneuver.
+    lift_entry = float(self.data.ctrl[self.model.actuator("lift").id])
+    for attempt in range(max(tries, 1)):
+      if attempt and verb != "pick":
+        self.swap._run(1.5, 0.0, lift_target=lift_entry)
       self.face(hd)
       self.refine_standoff(sx, sy, hd)
       self.set_arm(ARM_EXT)               # deploy only once lined up

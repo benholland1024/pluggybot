@@ -64,11 +64,14 @@ class HubLifecycle:
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                battery_wh: float = DEMO_CAPACITY_WH,
                errand: bool = True, rack: RackPose | None = None,
-               module: str = "module_lcd") -> None:
+               module: str = "module_lcd",
+               grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
+               low_battery_wh: float = LOW_BATTERY_WH) -> None:
     self.model, self.data = model, data
     self.module = module
+    self.low_battery_wh = low_battery_wh
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
-                              rack=rack)
+                              rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
     self.mission.step_hooks.append(self._power_step)
     self.state: State = "EXPLORE"
@@ -124,7 +127,10 @@ class HubLifecycle:
 
   @property
   def needs_charge(self) -> bool:
-    return self.battery.energy_wh < LOW_BATTERY_WH
+    # The reserve is a PARAMETER of the world, not of the pack (issue #6):
+    # the cost of getting home is set by the floor plan, and home_world's
+    # worst return trip is nearly twice room_hub's.
+    return self.battery.energy_wh < self.low_battery_wh
 
   # ---- phases --------------------------------------------------------------
 
@@ -273,27 +279,67 @@ class HubLifecycle:
     }
 
 
-def run_demo(start=(0.5, 3.0, math.pi / 2), view: bool = False,
-             realtime: bool = True, battery_wh: float = DEMO_CAPACITY_WH,
+def world_config(world: str) -> dict:
+  """Everything the lifecycle needs to know about a world, in one place.
+
+  room_hub keeps its historical constants; home_world's come from the
+  generator's own module, so the demo can never disagree with the world it
+  runs in (the sidecar and this dict are written from the same source).
+  """
+  if world == "home":
+    from pluggybot.home import world as home
+    return {
+      "model": "models/home_world.xml", "model_name": "home_world",
+      "rack": RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],
+                       math.radians(home.HOME_RACK_YAW)),
+      "grid_bounds": home.GRID_BOUNDS,
+      "start": tuple(home.SPAWNS["start"]),
+      "use_at": (1.5, 1.8),
+      "battery_wh": home.HOME_DEMO_CAPACITY_WH,
+      "low_battery_wh": home.HOME_LOW_BATTERY_WH,
+      "explore_budget": 240.0,
+    }
+  if world == "room_hub":
+    return {
+      "model": "models/room_hub.xml", "model_name": "room_hub",
+      "rack": None,                       # RackPose.prior() is this world's
+      "grid_bounds": (-3, -3, 7, 7),
+      "start": (0.5, 3.0, math.pi / 2),
+      "use_at": (-1.2, 2.5),
+      "battery_wh": DEMO_CAPACITY_WH,
+      "low_battery_wh": LOW_BATTERY_WH,
+      "explore_budget": 90.0,
+    }
+  raise ValueError(f"unknown world {world!r} (room_hub or home)")
+
+
+def run_demo(start=None, view: bool = False,
+             realtime: bool = True, battery_wh: float | None = None,
              max_sim_time: float = 600.0,
-             explore_budget: float = 90.0,
-             record: str | None = None) -> dict:
-  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+             explore_budget: float | None = None,
+             record: str | None = None,
+             world: str = "room_hub") -> dict:
+  cfg = world_config(world)
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
-                      battery_wh=battery_wh)
+                      battery_wh=battery_wh or cfg["battery_wh"],
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"])
   recorder = None
   if record is not None:
-    recorder = TelemetryRecorder(model, data, record, model_name="room_hub",
+    recorder = TelemetryRecorder(model, data, record,
+                                 model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status)
     life.mission.step_hooks.append(recorder.step_hook)
   try:
-    return life.run(start, max_sim_time=max_sim_time,
-                    explore_budget=explore_budget)
+    return life.run(start or cfg["start"], use_at=cfg["use_at"],
+                    max_sim_time=max_sim_time,
+                    explore_budget=explore_budget or cfg["explore_budget"])
   finally:
     if recorder is not None:
       recorder.close()

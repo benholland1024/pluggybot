@@ -15,9 +15,8 @@ Usage:
 """
 
 import argparse
-import math
 
-from pluggybot.hub.lifecycle import DEMO_CAPACITY_WH, run_demo
+from pluggybot.hub.lifecycle import run_demo
 
 
 def main() -> None:
@@ -25,17 +24,22 @@ def main() -> None:
   parser.add_argument("--view", action="store_true", help="open the viewer")
   parser.add_argument("--fast", action="store_true",
                       help="with --view: no real-time pacing")
-  parser.add_argument("--battery-wh", type=float, default=DEMO_CAPACITY_WH,
-                      help="battery capacity (demo cell by default)")
+  parser.add_argument("--battery-wh", type=float, default=None,
+                      help="battery capacity (per-world demo cell by default)")
+  parser.add_argument("--world", choices=("room_hub", "home"),
+                      default="room_hub",
+                      help="which world to run: room_hub (default) or the "
+                           "generated home world (issue #6)")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
   args = parser.parse_args()
 
-  r = run_demo(start=(0.5, 3.0, math.pi / 2), view=args.view,
+  r = run_demo(view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
-               max_sim_time=args.max_sim_time, record=args.record)
+               max_sim_time=args.max_sim_time, record=args.record,
+               world=args.world)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:

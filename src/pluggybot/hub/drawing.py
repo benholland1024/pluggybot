@@ -26,19 +26,51 @@ model would bake in exactly the kind of transform error that made
 """
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, PEN_TRAVEL,
+  BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, HUB_PEG_Z, LIFT_STEP, PEN_TRAVEL,
 )
 from pluggybot.hub.swap import (
   ARM_EXT, DROOP_COMP, FORK_MOUNT_RAISE, PLUG_LATERAL,
 )
 
 PEN_MODULE = "module_pen"
+
+
+@dataclass(frozen=True)
+class Board:
+  """A drawing surface the plotter can work against (issue #6).
+
+  The plotter was born against hub_world's one hardcoded board; the home
+  world hangs whiteboards on ARBITRARY walls, so the board became a spec:
+  where it is, which geom is its face (ink is a contact fact, so the geom
+  name matters), and `heading` -- the heading the robot squares up with,
+  i.e. facing INTO the board's outward normal. `half` is (depth, width,
+  height) in the board's own frame, whatever world axes the slab happens
+  to lie along.
+  """
+  geom: str
+  x: float
+  y: float
+  z: float
+  half: tuple[float, float, float]
+  heading: float
+
+  @classmethod
+  def hub(cls) -> "Board":
+    """hub_world's standing board (the constants every existing demo uses)."""
+    return cls("board", BOARD_X, BOARD_Y, BOARD_Z, BOARD_HALF, 0.0)
+
+  @classmethod
+  def from_meta(cls, spec: dict) -> "Board":
+    """A board from the home generator's meta sidecar entry."""
+    return cls(spec["geom"], *spec["pos"], tuple(spec["half"]),
+               spec["heading"])
 DRAW_SPEED = 0.020        # m/s along the drawn path. The lift carries the
                           # whole arm assembly and lagged 5-7 mm at 35 mm/s;
                           # a plotter has no reason to hurry.
@@ -76,12 +108,12 @@ PEN_BELOW_PEG = 0.072     # m the pen tip hangs below the peg line (measured).
                           # never in the nominal geometry.
 
 
-def pen_on_board(model, data) -> bool:
+def pen_on_board(model, data, board_geom: str = "board") -> bool:
   """Is the pen actually touching the board? The drawing equivalent of the
   electrical criterion: a commanded path is a belief, ink is a fact."""
   try:
     shaft = model.geom(f"{PEN_MODULE}_shaft").id
-    board = model.geom("board").id
+    board = model.geom(board_geom).id
   except KeyError:
     return False
   for i in range(data.ncon):
@@ -123,8 +155,9 @@ PATHS = {"square": square_path, "circle": circle_path}
 class PenPlotter:
   """Drives the pen module against the board and records what it drew."""
 
-  def __init__(self, model, data, swap) -> None:
+  def __init__(self, model, data, swap, board: Board | None = None) -> None:
     self.model, self.data, self.swap = model, data, swap
+    self.board = board or Board.hub()
     self.pen_act = model.actuator("pen_carriage").id
     self.lift_act = model.actuator("lift").id
     self.arm_act = model.actuator("arm").id
@@ -139,17 +172,26 @@ class PenPlotter:
     return np.array(self.data.site_xpos[self.pen_site], dtype=float)
 
   def pen_board(self) -> tuple[float, float]:
-    """Pen tip projected onto the board plane: (y, z) in board coordinates."""
+    """Pen tip projected onto the board plane: (lateral, height) in board
+    coordinates. Lateral is measured LEFT of the approach heading, which
+    reduces to the old world-y for hub_world's heading-0 board; the signs
+    come out in calibration either way (measured, not reasoned)."""
     p = self.pen_world()
-    return float(p[1] - BOARD_Y), float(p[2] - BOARD_Z)
+    b = self.board
+    dx, dy = float(p[0]) - b.x, float(p[1]) - b.y
+    lat = -dx * math.sin(b.heading) + dy * math.cos(b.heading)
+    return lat, float(p[2]) - b.z
 
   # ---- placement -----------------------------------------------------------
 
   def board_standoff(self, standoff: float = BOARD_STANDOFF) -> tuple[float, float]:
     """Axle pose the plotter works from: square to the board, and offset so
     the FORK line -- not the chassis centreline -- lands on the board's
-    centre."""
-    return BOARD_X - BOARD_HALF[0] - standoff, BOARD_Y + PLUG_LATERAL
+    centre. Left of the approach heading is (-sin h, cos h)."""
+    b = self.board
+    back = b.half[0] + standoff
+    return (b.x - math.cos(b.heading) * back - math.sin(b.heading) * PLUG_LATERAL,
+            b.y - math.sin(b.heading) * back + math.cos(b.heading) * PLUG_LATERAL)
 
   def drive_to_board(self, standoff: float = BOARD_STANDOFF,
                      timeout: float = 40.0) -> bool:
@@ -176,8 +218,8 @@ class PenPlotter:
       v, w = drive_toward(pose, (tx, ty))
       tl, tr = wheel_targets(v, w)
       self.swap._step_once(tl, tr)
-    self._face(0.0)                # board faces -x, so the robot heads +x
-    lift0 = BOARD_Z + PEN_BELOW_PEG - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
+    self._face(self.board.heading)
+    lift0 = self.board.z + PEN_BELOW_PEG - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
     self.data.ctrl[self.lift_act] = lift0
     self.data.ctrl[self.arm_act] = ARM_EXT
     self.swap._run(2.0, 0.0)
@@ -239,7 +281,7 @@ class PenPlotter:
       ext += PRESS_STEP
       self.data.ctrl[self.arm_act] = ext
       self.swap._run(0.12, 0.0)
-      if pen_on_board(self.model, self.data):
+      if pen_on_board(self.model, self.data, self.board.geom):
         self.data.ctrl[self.arm_act] = min(ext + PRESS_EXTRA, PRESS_MAX)
         self.swap._run(0.6, 0.0)
         return True
@@ -249,6 +291,19 @@ class PenPlotter:
     self.data.ctrl[self.arm_act] = max(
       float(self.data.ctrl[self.arm_act]) - by, 0.0)
     self.swap._run(0.5, 0.0)
+
+  def carry_config(self) -> None:
+    """Restore the CARRY configuration after a drawing, before driving off
+    to stow the tool. The figure leaves the lift wherever its last stroke
+    ended, and `put_back` computes every release height from the CURRENT
+    lift -- returning straight from drawing height set the module down at
+    the wrong altitude entirely (measured: correctly navigated stow,
+    module never hung). Carry height is the post-pick preset: the standoff
+    lift plus the pick's LIFT_STEP."""
+    carry = HUB_PEG_Z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP + LIFT_STEP
+    self.ramp(self.lift_act, carry, settle=1.0)
+    self.data.ctrl[self.arm_act] = 0.0     # stowed is the driving config
+    self.swap._run(1.5, 0.0)
 
   # ---- calibration ---------------------------------------------------------
 
@@ -388,7 +443,8 @@ class PenPlotter:
         self.swap._step_once(0.0, 0.0)
         py, pz = self.pen_board()
         self.trace.append((float(self.data.time), py, pz, cy, cz,
-                           pen_on_board(self.model, self.data)))
+                           pen_on_board(self.model, self.data,
+                                        self.board.geom)))
     self.lift_pen()
     return {"drew": True, **self.error_stats()}
 

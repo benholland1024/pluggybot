@@ -38,7 +38,7 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.telemetry.protocol import (
-  PROTOCOL_VERSION, ROBOT_ROOT, dynamic_flags, robot_body_ids,
+  PROTOCOL_VERSION, ROBOT_ROOT, VISUAL_HINTS, dynamic_flags, robot_body_ids,
 )
 
 GEOM_TYPE_NAMES = {
@@ -112,17 +112,29 @@ def _geom_appearance(model, gid: int) -> tuple[list[float], str | None]:
   return _round(model.mat_rgba[mid], 4), tex
 
 
-def scene_dict(model, model_name: str) -> dict:
+def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
   """The full scene description for one compiled model.
 
   Body poses are WORLD-frame rest poses (mj_forward at qpos0), so a client
   can render the scene with no kinematic-tree math at all: static bodies
   keep this pose forever, dynamic bodies get theirs overwritten by
   telemetry frames (also world-frame). `parent` is still shipped for
-  grouping and for the visual-hint layer to hang on. `visual` is the hint
-  slot the park generator will fill (tree, fence, whiteboard...); it is
-  null everywhere until then.
+  grouping.
+
+  `meta` is a generator sidecar (models/<name>.meta.json, issue #6): its
+  `visualHints` fill the per-body `visual` slots, and `zones`/`spawns`
+  pass through as ADDITIVE optional top-level fields -- consumers that
+  predate them ignore them, so no version bump. Hints ride in the sidecar
+  and never in geom colors: the robot's cameras render rgba, and
+  color-as-encoding would couple the tag detector to the website's art
+  direction.
   """
+  hints: dict = (meta or {}).get("visualHints", {})
+  unknown = set(hints.values()) - set(VISUAL_HINTS)
+  if unknown:
+    raise ValueError(f"unknown visual hints {sorted(unknown)} -- the "
+                     f"vocabulary is {VISUAL_HINTS} (bump it deliberately, "
+                     "in both repos, or fix the sidecar)")
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   dyn = dynamic_flags(model)
@@ -150,12 +162,13 @@ def scene_dict(model, model_name: str) -> dict:
         "rgba": rgba,
         "texture": tex,
       })
+    name = model.body(b).name or f"body_{b}"
     bodies.append({
-      "name": model.body(b).name or f"body_{b}",
+      "name": name,
       "parent": None if b == 0 else model.body(int(model.body_parentid[b])).name,
       "dynamic": dyn[b],
       "robot": ROBOT_ROOT if b in rob else None,
-      "visual": None,
+      "visual": hints.get(name),
       "pos": _round(data.xpos[b]),
       "quat": _round(data.xquat[b]),
       "geoms": geoms,
@@ -168,13 +181,18 @@ def scene_dict(model, model_name: str) -> dict:
     "height": int(model.tex_height[i]),
   } for i in range(model.ntex) if model.tex(i).name in used_textures]
 
-  return {
+  scene: dict = {
     "protocolVersion": PROTOCOL_VERSION,
     "model": model_name,
     "upAxis": "z",                     # the client rotates the root, not us
     "bodies": bodies,
     "textures": textures,
   }
+  if meta and "zones" in meta:
+    scene["zones"] = meta["zones"]
+  if meta and "spawns" in meta:
+    scene["spawns"] = meta["spawns"]
+  return scene
 
 
 def export_textures(model, out_dir: Path) -> list[Path]:
@@ -202,13 +220,19 @@ def main() -> None:
                       help="output JSON (default protocol/scene.<name>.json)")
   parser.add_argument("--textures", default=None,
                       help="texture PNG directory (default <out dir>/textures)")
+  parser.add_argument("--meta", default=None,
+                      help="generator sidecar with visualHints/zones/spawns "
+                           "(default: models/<name>.meta.json when it exists)")
   args = parser.parse_args()
 
   name = Path(args.model).stem
   model = mujoco.MjModel.from_xml_path(args.model)
+  meta_path = (Path(args.meta) if args.meta
+               else Path(args.model).with_suffix(".meta.json"))
+  meta = json.loads(meta_path.read_text()) if meta_path.exists() else None
   out = Path(args.out) if args.out else Path("protocol") / f"scene.{name}.json"
   out.parent.mkdir(parents=True, exist_ok=True)
-  scene = scene_dict(model, name)
+  scene = scene_dict(model, name, meta=meta)
   out.write_text(json.dumps(scene, indent=1) + "\n")
   tex_dir = Path(args.textures) if args.textures else out.parent / "textures"
   written = export_textures(model, tex_dir)

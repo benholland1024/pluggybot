@@ -72,6 +72,23 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz`.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
+- The HOME world is GENERATED (issue #6) — regenerate `models/home_world.xml`
+  + `models/home_world.meta.json` with `uv run python -m pluggybot.home.world`
+  after changing any layout constant in `src/pluggybot/home/world.py` (the
+  committed pair is tested against the generator, so a stale file fails).
+  Layout, visual hints, zones, spawns, board specs and the battery re-tune
+  all come from that ONE module. Run it: `--world home` on
+  `scripts/hub_lifecycle.py` (explore → errand → charge in the house), and
+  `scripts/home_draw.py` (fetch the pen → draw on a wall-mounted whiteboard
+  → try to stow; `--board whiteboard_b`, `--shape circle`, `--view`).
+  ⚠ The pen's STOW after a navigated errand is a known pre-existing failure
+  (it fails in room_hub too) — see SimNotes "The home world … and a stow gap".
+- **Visual hints are a two-repo contract.** `telemetry.protocol.VISUAL_HINTS`
+  is the vocabulary; the sidecar's `visualHints` may only use those strings,
+  and `scene_dict` raises on anything else. Adding a hint is additive (the
+  website falls back to raw primitives); renaming one is a breaking change in
+  both repos. NEVER encode hints as geom colors — the robot's cameras render
+  rgba, and colour-as-encoding couples the tag detector to the website's art.
 - Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
   `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
   changing any rack geometry. `models/room_1_scenery.xml` is the shared floor

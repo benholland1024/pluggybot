@@ -1,0 +1,121 @@
+{
+ "model": "home_world",
+ "visualHints": {
+  "wall_west": "wall",
+  "wall_south": "wall",
+  "wall_north": "wall",
+  "wall_east_0": "wall",
+  "wall_east_1": "wall",
+  "wall_divider_0": "wall",
+  "wall_divider_1": "wall",
+  "fence_south": "fence",
+  "fence_north": "fence",
+  "fence_east": "fence",
+  "home_floor": "floor",
+  "garden_ground": "ground",
+  "whiteboard_a": "whiteboard",
+  "whiteboard_b": "whiteboard",
+  "plant_0": "plant",
+  "plant_1": "plant",
+  "plant_2": "plant",
+  "plant_3": "plant",
+  "rack": "rack"
+ },
+ "zones": [
+  {
+   "name": "living",
+   "kind": "room",
+   "min": [
+    -2.0,
+    -2.0
+   ],
+   "max": [
+    5.0,
+    2.5
+   ]
+  },
+  {
+   "name": "bedroom",
+   "kind": "room",
+   "min": [
+    -2.0,
+    2.5
+   ],
+   "max": [
+    5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden",
+   "kind": "garden",
+   "min": [
+    5.0,
+    -2.0
+   ],
+   "max": [
+    10.0,
+    6.0
+   ]
+  }
+ ],
+ "spawns": {
+  "start": [
+   1.5,
+   0.5,
+   1.5707963267948966
+  ],
+  "garden": [
+   7.5,
+   2.0,
+   0.0
+  ]
+ },
+ "boards": {
+  "whiteboard_a": {
+   "geom": "board",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 3.141592653589793
+  },
+  "whiteboard_b": {
+   "geom": "board_b",
+   "pos": [
+    0.5,
+    5.970000000000001,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 1.5707963267948966
+  }
+ },
+ "rack": {
+  "pos": [
+   0.5,
+   -1.98
+  ],
+  "yaw_deg": 90.0
+ },
+ "gridBounds": [
+  -3.0,
+  -3.0,
+  11.0,
+  7.0
+ ],
+ "battery": {
+  "lowWh": 0.55,
+  "demoCapacityWh": 1.1
+ }
+}

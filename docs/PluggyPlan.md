@@ -254,6 +254,17 @@ tracked as its own issues; landed so far:
   (`hub_lifecycle.py --record`), plus the versioned protocol fixtures under
   `protocol/` that the website repo vendors for its tests. The wire format
   and its versioning rules live in `protocol/README.md`.
+- **Home world (issue #6)**: `src/pluggybot/home/world.py` generates
+  `models/home_world.xml` + `home_world.meta.json` — living room, bedroom,
+  fenced garden, two wall-mounted whiteboards (closing the milestone-8
+  "drawing surface in a room world" gap) and the tool rack, with per-body
+  visual hints, zones, spawns and a battery re-tune (`LOW_BATTERY_WH` 0.35 →
+  0.55) emitted from one source. Verified headless: the battery-driven
+  lifecycle runs explore → errand → charge there (2 charge cycles, module
+  stowed, **0 collisions**, 365 sim-seconds), and the pen module draws a
+  square on a wall whiteboard at **0.59 mm form error, 98 % inked**. Open
+  item: stowing the pen after a navigated errand fails — and fails the same
+  way in room_hub, so it is pre-existing (SimNotes).
 
 ## Status
 

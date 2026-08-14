@@ -1302,6 +1302,55 @@ to the model sends a bill to the controllers that were tuned without it —
 stiction's bill is a deadband, and it must be paid in the controller, not by
 removing the physics.
 
+## The home world (issue #6), and a stow gap it exposed
+
+The generated house+garden (`pluggybot.home.world` → `models/home_world.xml`
++ `home_world.meta.json`) is 12 × 8 m against room_hub's 8 × 8, with a
+second room, a fenced garden, two wall-mounted whiteboards and the rack on
+the living room's south wall. Three things it taught:
+
+**1. Put the origin inside a room.** The first layout ran the house from
+(0, 0) to (7, 8), which is tidy on paper and wrong in practice: a bare
+`MjData` spawns the robot at the origin, so every plain model load greeted
+us with the chassis wedged in the south wall — 78 contacts at settle.
+Shifting the plan to (−2, −2)…(5, 6) put the origin in open living-room
+floor. Guarded by `test_robot_spawns_clear_of_the_geometry`.
+
+**2. Bay C and D were never rangeable off the rack tag.**
+`_terminal_travel` preferred the RACK's marker, which hangs at the rack's
+centre — visible from the two inner bays and *outside the dock camera's
+view* from the outer ones. So bays C/D silently fell back to odometry,
+whose measured +13…21 mm drift a PICK forgives (the V self-centres during
+the lift) and a RETURN does not. Fix: range off the **bay's own** marker
+first, which sits on the approach axis at every bay
+(`TagSpotter.bay_range`). Measured at bay C: commanded travel vs truth went
+from 13–21 mm out to **≤ 2 mm**.
+
+**3. A failed `put_back` left the lift at RELEASE height, and the retry
+inherited it.** `put_back` computes every height relative to the lift it
+starts with, so attempt 2 began 50 mm low and drove the peg into the tray
+flanks. `swap_at_bay` now restores the entry lift before a retry — the
+retry is a repeat of the attempt, not a different maneuver.
+
+**⚠ Open item: the PEN module does not stow after a navigated errand.**
+With both fixes in, bay C's return still ends with the module on the fork
+(peg ~13 mm short of the tray line, riding the fork down through the
+release instead of transferring). The discriminating experiment:
+**it fails identically in `room_hub`** — same numbers to the millimetre —
+so this is *pre-existing*, not something the home world introduced. It was
+simply never exercised: `draw.py` works in the bare `hub_world` where there
+is no navigation, and `hub_lifecycle` stows at bay A. Deliberate overdrive
+(the pick's `PICK_OVERSHOOT` remedy) does **not** help — 6 mm and 12 mm of
+extra travel moved the final module position by 6 mm total, which says the
+robot is *bottoming out*, not stopping short. The prime suspect is the pen
+module's own geometry: unlike the LCD, it carries a rail/carriage/quill
+assembly standing ~26 mm proud of its plate (`PEN_MOUNT_X`), which is the
+face that goes toward the rack. Next step is a bare-world clearance sweep
+of a pen return (no navigation), the same shape as the original coupling
+spike. Until then: **fetching and drawing with the pen works end to end in
+the home world; stowing it afterwards does not**, and `scripts/home_draw.py`
+reports the stow honestly rather than claiming success.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
