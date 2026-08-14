@@ -57,7 +57,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `--view` opens the MuJoCo viewer and paces it to real time, `--fast` skips
   the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:
   explore → fetch a tool → use it → stow it → charge at the hub; `--view`,
-  `--battery-wh W`)
+  `--battery-wh W`, `--record out.jsonl.gz` writes a PluggyWorld telemetry
+  recording — issue #4)
+- PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED — the
+  scene JSON + tag textures via `uv run python -m pluggybot.telemetry.scene`
+  (rerun after changing any room_hub geometry — the fixture test fails when
+  stale), the telemetry recording via `MUJOCO_GL=egl uv run python
+  scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz`.
+  Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
+  is a deliberate two-repo event (the website repo vendors these fixtures).
 - Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
   `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
   changing any rack geometry. `models/room_1_scenery.xml` is the shared floor

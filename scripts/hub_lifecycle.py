@@ -10,6 +10,8 @@ Usage:
   uv run python scripts/hub_lifecycle.py --view           # watch it live
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py    # headless
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --battery-wh 0.8
+  MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record out.jsonl.gz
+    # PluggyWorld telemetry recording (protocol/README.md); .gz compresses
 """
 
 import argparse
@@ -26,11 +28,16 @@ def main() -> None:
   parser.add_argument("--battery-wh", type=float, default=DEMO_CAPACITY_WH,
                       help="battery capacity (demo cell by default)")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--record", default=None, metavar="PATH",
+                      help="write a PluggyWorld telemetry JSONL recording "
+                           "(.gz to compress; see protocol/README.md)")
   args = parser.parse_args()
 
   r = run_demo(start=(0.5, 3.0, math.pi / 2), view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
-               max_sim_time=args.max_sim_time)
+               max_sim_time=args.max_sim_time, record=args.record)
+  if args.record:
+    print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
     print("mission aborted (viewer closed)")
     return

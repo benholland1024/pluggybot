@@ -36,6 +36,7 @@ from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
 from pluggybot.power import MODULE_IDLE_W, Battery
+from pluggybot.telemetry.recorder import TelemetryRecorder
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "SWAP_PICK", "USE_TOOL",
                 "SWAP_RETURN", "DONE"]
@@ -78,6 +79,7 @@ class HubLifecycle:
     self.swaps_done = 0
     self.tool_powered_s = 0.0
     self.log: list[str] = []
+    self.status = ""                    # the latest _say message, bare
 
   # ---- power ---------------------------------------------------------------
 
@@ -97,9 +99,23 @@ class HubLifecycle:
                         tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
 
   def _say(self, msg: str) -> None:
+    self.status = msg
     line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
     self.log.append(line)
     print(line, flush=True)
+
+  def telemetry_status(self) -> dict:
+    """The per-frame robot record for the telemetry recorder: lifecycle
+    state, the _say narration, and the battery gauges. The bare message,
+    not the formatted log line -- t and battery already ride in the frame,
+    and the site wants "carrying the module", not a duplicate dashboard."""
+    return {
+      "state": self.state,
+      "status": self.status,
+      "battery": {"frac": round(self.battery.fraction, 4),
+                  "watts": round(self.battery.last_power_w, 2),
+                  "charging": self.charging_now},
+    }
 
   @property
   def needs_charge(self) -> bool:
@@ -255,7 +271,8 @@ class HubLifecycle:
 def run_demo(start=(0.5, 3.0, math.pi / 2), view: bool = False,
              realtime: bool = True, battery_wh: float = DEMO_CAPACITY_WH,
              max_sim_time: float = 600.0,
-             explore_budget: float = 90.0) -> dict:
+             explore_budget: float = 90.0,
+             record: str | None = None) -> dict:
   model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
   data = mujoco.MjData(model)
   viewer = None
@@ -264,9 +281,16 @@ def run_demo(start=(0.5, 3.0, math.pi / 2), view: bool = False,
     viewer = mj_viewer.launch_passive(model, data)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh)
+  recorder = None
+  if record is not None:
+    recorder = TelemetryRecorder(model, data, record, model_name="room_hub",
+                                 status_fn=life.telemetry_status)
+    life.mission.step_hooks.append(recorder.step_hook)
   try:
     return life.run(start, max_sim_time=max_sim_time,
                     explore_budget=explore_budget)
   finally:
+    if recorder is not None:
+      recorder.close()
     if viewer is not None:
       viewer.close()

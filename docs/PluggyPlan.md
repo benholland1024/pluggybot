@@ -243,6 +243,18 @@ pluggy/
 
 (`envs/` for Gymnasium wrappers gets added when RL work starts. The world/playground split is deliberate: tests run in the bare world, humans drive in the playground — scenery in the test lane once broke the drive test.)
 
+## PluggyWorld track (August 2026)
+
+The website side-project (design doc: `rooftop-media-2026/docs/pluggyworld.md`)
+streams this sim live to rooftop-media.org. pluggybot's share of that work is
+tracked as its own issues; landed so far:
+
+- **Webserver v0 (issue #4)**: `src/pluggybot/telemetry/` — the MJCF→JSON
+  scene transpiler and the `step_hooks` telemetry recorder
+  (`hub_lifecycle.py --record`), plus the versioned protocol fixtures under
+  `protocol/` that the website repo vendors for its tests. The wire format
+  and its versioning rules live in `protocol/README.md`.
+
 ## Status
 
 ✅ **Milestones 1–7 complete — the repo MVP.** August 2026: the loop that names the
