@@ -33,11 +33,9 @@ import numpy as np
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, HUB_PEG_Z, LIFT_STEP, PEN_TRAVEL,
+  BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, LIFT_STEP, PEN_TRAVEL,
 )
-from pluggybot.hub.swap import (
-  ARM_EXT, DROOP_COMP, FORK_MOUNT_RAISE, PLUG_LATERAL,
-)
+from pluggybot.hub.swap import ARM_EXT, PLUG_LATERAL, align_lift
 
 PEN_MODULE = "module_pen"
 
@@ -219,7 +217,7 @@ class PenPlotter:
       tl, tr = wheel_targets(v, w)
       self.swap._step_once(tl, tr)
     self._face(self.board.heading)
-    lift0 = self.board.z + PEN_BELOW_PEG - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
+    lift0 = align_lift(self.board.z + PEN_BELOW_PEG)
     self.data.ctrl[self.lift_act] = lift0
     self.data.ctrl[self.arm_act] = ARM_EXT
     self.swap._run(2.0, 0.0)
@@ -299,9 +297,27 @@ class PenPlotter:
     lift -- returning straight from drawing height set the module down at
     the wrong altitude entirely (measured: correctly navigated stow,
     module never hung). Carry height is the post-pick preset: the standoff
-    lift plus the pick's LIFT_STEP."""
-    carry = HUB_PEG_Z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP + LIFT_STEP
+    lift plus the pick's LIFT_STEP.
+
+    The CARRIAGE is centred here for the same reason, and it is the second
+    half of issue #10. A figure leaves the carriage wherever its last
+    stroke ended -- +37 mm after a square -- and that parks the carriage
+    block out in the y band where the bay's tray brackets hang, instead of
+    in the gap between them. Centred, the module clears its bay through a
+    15-39 mm lift window; parked off-centre the ceiling drops to 27 mm, and
+    the stow needs 31 (RETURN_CLEARANCE on top of the ~11 mm a carried peg
+    already rides above its hung rest). So the module drove in, jammed its
+    carriage on the bracket feet, and slipped its wheels: dead reckoning
+    counted the slip as progress, `_drive_until` reported "arrived", and
+    the peg was set down 25-31 mm short of the tray line.
+
+    That failure is invisible to a stow that never drew -- which is exactly
+    why this bug outlived the geometry half of the same issue. A tool with
+    a moving axis has a STOW POSE, and returning to it is part of putting
+    the tool away, like retracting the arm."""
+    carry = align_lift() + LIFT_STEP
     self.ramp(self.lift_act, carry, settle=1.0)
+    self.ramp(self.pen_act, 0.0, settle=0.5)   # centred is the stow pose
     self.data.ctrl[self.arm_act] = 0.0     # stowed is the driving config
     self.swap._run(1.5, 0.0)
 

@@ -484,9 +484,32 @@ PEN_MOUNT_X = -(TOOL_HALF_X + 0.016)   # rail/carriage stand off IN FRONT of
                          # The clearance sweep missed it because it checked
                          # the pen against the ROBOT, never against the
                          # module's own frame.
-PEN_RAIL_DZ = 0.012      # rail rides above the pen line, so a fully
+PEN_RAIL_DZ = -0.012     # rail rides BELOW the pen line, so a fully
                          # compressed quill retracts the shaft past the rail
-                         # rather than into it
+                         # rather than into it. The SIGN is issue #10's whole
+                         # fix, and it is a stow-clearance decision, not a
+                         # drawing one. Above the pen line, the rail and the
+                         # carriage that wraps it both topped out 16 mm under
+                         # the bay's bracket feet -- but setting a module down
+                         # needs the peg lifted 14.7 mm to pass over the tray
+                         # flanks, so the pen had a ~1 mm window between "peg
+                         # too low to clear the flanks" and "rail jammed under
+                         # the feet", and RETURN_CLEARANCE (20 mm) sits inside
+                         # the foul band. Every other module clears because
+                         # nothing of theirs reaches into the bracket band at
+                         # all. Below the pen line the tallest thing left is
+                         # the quill itself, the window opens to 14.7-28 mm,
+                         # and -- because the PEN LINE DOES NOT MOVE -- the
+                         # drawing geometry, the lift presets and the pen's
+                         # moment arm about the peg are all untouched. Sweep
+                         # table in SimNotes ("The pen would not stow").
+PEN_BLOCK_LO = PEN_RAIL_DZ - 0.006   # carriage block, relative to the pen
+PEN_BLOCK_HI = 0.004                 # line: wraps the rail at one end and
+                         # reaches over the quill at the other. It is sized
+                         # from the two things it joins because it is the
+                         # TALLEST part of the assembly whenever the rail is
+                         # not -- a block left at its old extent would have
+                         # kept the old ceiling with the rail already moved.
 PEN_CARRIAGE_MASS = 0.030
 PEN_RAIL_MASS = 0.020
 PEN_QUILL_TRAVEL = 0.020     # sprung pen holder: absorbs arm-position error
@@ -818,7 +841,8 @@ def _module_faces() -> tuple[str, str]:
     f'\n        <joint name="pen_carriage_joint" type="slide" axis="0 1 0" '
     f'range="{-PEN_TRAVEL:.4f} {PEN_TRAVEL:.4f}" damping="2"/>'
     f'\n        <geom name="module_pen_block" type="box" '
-    f'size="0.008 0.010 0.014" pos="0 0 {-PEN_RAIL_DZ + 0.002:.4f}" '
+    f'size="0.008 0.010 {(PEN_BLOCK_HI - PEN_BLOCK_LO) / 2:.4f}" '
+    f'pos="0 0 {(PEN_BLOCK_HI + PEN_BLOCK_LO) / 2 - PEN_RAIL_DZ:.4f}" '
     f'mass="{PEN_CARRIAGE_MASS}" rgba="0.30 0.32 0.36 1"/>'
     # SPRUNG QUILL. The plug's RCC lesson, one tool along: the wrist has
     # compliance in y, z, and both yaws, but NONE along the approach axis,

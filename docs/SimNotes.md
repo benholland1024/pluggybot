@@ -1347,9 +1347,129 @@ module's own geometry: unlike the LCD, it carries a rail/carriage/quill
 assembly standing ~26 mm proud of its plate (`PEN_MOUNT_X`), which is the
 face that goes toward the rack. Next step is a bare-world clearance sweep
 of a pen return (no navigation), the same shape as the original coupling
-spike. Until then: **fetching and drawing with the pen works end to end in
-the home world; stowing it afterwards does not**, and `scripts/home_draw.py`
-reports the stow honestly rather than claiming success.
+spike.
+
+**Closed by issue #10** — the suspicion above was half right and the sweep
+is below. Keep the paragraph: it is a fair record of what was known, and
+the half it got wrong is the instructive half. The rail *was* the problem,
+but not because it stands proud in x — because of where it sits in **z**.
+
+## The pen would not stow (issue #10): two clearances, and a tool's stow pose
+
+A set-down has to satisfy two clearances **at the same time**, and nobody
+had written the second one down:
+
+- **a floor.** To drop a peg into its tray V, the peg must first ride over
+  the tray FLANKS — measured **14.7 mm** above where it hangs.
+- **a ceiling.** Whatever else the module carries must stay clear of the
+  bracket **feet and columns**, which hang from the rail just under the
+  trays (feet at z 280–288 mm, columns 283 mm up).
+
+`put_back` raises the module by `RETURN_CLEARANCE` and drives in, so that
+raise has to land between the two. The bare-world sweep the open item asked
+for — a module hung at its bay, lifted in 1 mm steps, contacts counted —
+put the pen's ceiling at 16 mm against a 14.7 mm floor. **A window about
+1 mm wide**, with the stow's actual raise well outside it.
+
+| module | ceiling (first foul) | window above the 14.7 mm floor |
+|---|---|---|
+| LCD, plug, claw, seed | none below **80 mm** | wide open |
+| **pen, rail above the pen line** | **16 mm** (rail vs bracket feet) | **~1 mm** |
+| pen, rail below the pen line | 40 mm (same pair) | 15–39 mm |
+| pen, rail below, carriage parked out | 28 mm (block vs feet) | 15–27 mm |
+
+The other four clear because nothing of theirs reaches into the bracket
+band at all. The pen's rail and carriage did.
+
+**Fix 1: the rail moved below the pen line** (`PEN_RAIL_DZ` changed sign).
+The rail's stated job — keeping a fully retracted quill from driving the
+shaft into it — is satisfied equally well on either side, and *below* costs
+nothing that above was buying. What matters is what did NOT move: the pen
+line itself, and so `PEN_BELOW_PEG`, every lift preset, and the pen's
+moment arm about the peg (the lean-pad's ~1.5 N ceiling is set by that arm,
+and lowering the whole assembly to buy the same clearance would have spent
+25 % of it). The measured drawing came back unchanged: 0.98 inked, form RMS
+0.56 mm.
+
+**And it still failed** — which is the part worth keeping. `home_draw.py`
+went on reporting `STOW: FAILED` with the geometry fixed, while a navigated
+pick-and-return *with no drawing in between* passed in both worlds. That
+gap is the whole diagnosis: the difference is not the world and not the
+navigation, it is **the drawing**.
+
+**Fix 2: the carriage has a stow pose.** A figure leaves the carriage where
+its last stroke ended — **+37 mm** after a square. Centred, the carriage
+block sits in the y gap *between* the bay's two tray brackets; run out
+along the peg axis it swings into the band where they hang, and the ceiling
+drops from 39 mm to 27. The stow needs **31**:
+
+    RETURN_CLEARANCE (20 mm) + the ~11 mm a carried peg already rides
+    above its hung rest  =  31 mm
+
+so a centred carriage clears with 8 mm to spare and an off-centre one
+jams. `PenPlotter.carry_config` now centres the carriage, for exactly the
+reason it already restored the lift.
+
+**How it failed is a trap worth naming.** The module drove in, jammed its
+carriage on the bracket feet, and the wheels slipped — dead reckoning
+counted the slip as progress, `_drive_until` returned **"arrived"**, and
+the peg was released 25–31 mm short of the tray line. Every number in the
+report looked like a clean approach. `_drive_until`'s own docstring warns
+about this for the charge press; it applies to any drive that can end in
+contact, and a contact-sensing stop would have named the fault instantly
+instead of costing two traces.
+
+**Fix 3, and the one that justifies the repeat test: a pick INHERITED the
+lift a stow left behind.** With the pen stowing, `home_draw.py --cycles 2`
+promptly failed its second **fetch** — and then reported `stow OK` for a
+tool it had never picked up, because a module that never left the rack is
+still hanging in it. Both halves of that are the lesson.
+
+The lift preset is established once, in `start_at`. A stow ends at RELEASE
+height, `LIFT_STEP + RELEASE_DROP` = **50 mm** below where a pick must
+enter, and nothing put it back: `swap_at_bay` restored the entry lift only
+on a RETRY, and only for a return. So the second fetch slid the fork under
+the peg 50 mm low and came away with nothing. It survived this long for a
+simple reason — **every mission before this one fetched exactly once**, so
+no code path had ever picked after putting down.
+
+It also fails in the most expensive way available: the travel is ranged
+correctly, `_drive_until` returns **"arrived"**, and the only evidence is a
+module still in its bay. Measured, bay A with the LCD, so it was never
+about the pen: any tool inherited it. `swap_at_bay` now COMMANDS
+`align_lift()` before every pick instead of inheriting whatever the last
+manoeuvre left, and that expression — written out longhand in four files —
+finally has a name.
+
+Verified: three navigated fetch→stow cycles in room_hub and two full
+fetch→draw→stow cycles in home_world, unattended, all clean.
+
+**Two method notes**, both of which cost time here:
+
+- **`mj_geomDistance` does not measure box-box separation.** The first
+  sweep read gaps of `+0.0 mm` for pairs that were millimetres apart,
+  because MuJoCo's box collider reports penetration, not distance. Sweeping
+  **real contacts** (set the pose, `mj_forward`, count `data.ncon` pairs)
+  is the ground truth, and it is what the regression test uses.
+- **A repro that fails for its own reason cannot test a hypothesis.** A
+  bare-world "draw then stow" harness written to test the carriage idea
+  showed no difference between a parked and a centred carriage — and
+  looked like a clean refutation. It was a false negative: that harness
+  had no lateral servo, so it was already failing on a 17 mm standoff
+  error that swamped the effect. The A/B only became meaningful once the
+  harness was one that passed with the carriage centred.
+
+**And the shape of the whole thing.** Three independent faults sat in a
+row, each hidden behind the one in front of it: the rail (every stow), the
+carriage (only after drawing), the lift (only on a second fetch). Each was
+found by making the *previous* fix and re-running — never by predicting the
+next one. What made that tractable was a discriminating experiment at each
+step rather than a hypothesis: navigated-versus-bare and drawing-versus-not
+localised fault 2 to the drawing leg in a single comparison, and `--cycles`
+localised fault 3 by simply doing the thing twice. **A capability is not
+demonstrated until it has been demonstrated twice in a row** — the second
+cycle is a different test from the first, because it starts from the state
+the first one left.
 
 ## The seed dispenser (issue #7): the first tool built from the pattern doc
 

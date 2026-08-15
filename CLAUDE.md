@@ -119,9 +119,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   all come from that ONE module. Run it: `--world home` on
   `scripts/hub_lifecycle.py` (explore → errand → charge in the house), and
   `scripts/home_draw.py` (fetch the pen → draw on a wall-mounted whiteboard
-  → try to stow; `--board whiteboard_b`, `--shape circle`, `--view`).
-  ⚠ The pen's STOW after a navigated errand is a known pre-existing failure
-  (it fails in room_hub too) — see SimNotes "The home world … and a stow gap".
+  → stow it; `--board whiteboard_b`, `--shape circle`, `--view`, and
+  `--cycles N` to repeat the whole errand N times). The pen's stow works as
+  of issue #10 — three faults in a row, and the ONE that found the last two
+  was running the errand twice: a second fetch starts from the state the
+  first cycle left, which is a different test. Use `--cycles 2` before
+  believing any change to the swap/coupling stack. SimNotes, "The pen would
+  not stow".
 - **Visual hints are a two-repo contract.** `telemetry.protocol.VISUAL_HINTS`
   is the vocabulary; the sidecar's `visualHints` may only use those strings,
   and `scene_dict` raises on anything else. Adding a hint is additive (the

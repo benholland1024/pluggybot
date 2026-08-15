@@ -35,7 +35,7 @@ from pluggybot.behavior.navigation import (
 )
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  BAY_TAG_FACE_X, CHARGE_BAY_Y, HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X,
+  BAY_TAG_FACE_X, CHARGE_BAY_Y, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact,
 )
 from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
@@ -43,8 +43,8 @@ from pluggybot.hub.tags import (
   RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
 from pluggybot.hub.swap import (
-  ARM_EXT, CARRY_OFFSET, DROOP_COMP, FORK_MOUNT_RAISE, PICK_OVERSHOOT,
-  PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap,
+  ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
+  PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
 from pluggybot.mapping.astar import astar
 from pluggybot.mapping.frontier import traversable_mask
@@ -239,7 +239,7 @@ class HubMission:
     # swap's lift preset. Imported, NOT re-typed: these were duplicated as
     # bare 0.016/0.008 here, so raising the fork mount for the lean-pad would
     # have silently left this copy pointing at the old geometry.
-    lift0 = HUB_PEG_Z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
+    lift0 = align_lift()
     d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
     d.ctrl[self.model.actuator("lift").id] = lift0
     d.ctrl[self.model.actuator("arm").id] = 0.0     # stowed for driving
@@ -534,15 +534,31 @@ class HubMission:
       sx, sy, hd = bay_standoff(station_y, self.rack)
       self.drive_to(sx, sy, timeout=25.0)
     why = "no-attempt"
-    # The lift height a carried module rides at, captured BEFORE any
-    # attempt: a failed put_back leaves the lift at its RELEASE height,
-    # 50 mm low, and a retry entered from there carries the peg straight
-    # into the tray flanks (put_back computes every height relative to the
-    # lift it starts with). Restoring the entry height makes the second
-    # attempt an actual repeat of the first, not a different maneuver.
-    lift_entry = float(self.data.ctrl[self.model.actuator("lift").id])
+    # The lift a swap ENTERS at, which is never "whatever the last manoeuvre
+    # happened to leave".
+    #
+    # For a RETURN it is the height the module is being carried at, captured
+    # before any attempt: a failed put_back leaves the lift at its RELEASE
+    # height, 50 mm low, and a retry entered from there carries the peg
+    # straight into the tray flanks (put_back computes every height relative
+    # to the lift it starts with). Restoring it makes the second attempt an
+    # actual repeat of the first, not a different maneuver.
+    #
+    # For a PICK it is the align preset, and it must be commanded rather
+    # than inherited for the very same reason one verb along -- a stow ends
+    # at RELEASE height too, so the NEXT pick used to slide in 50 mm low and
+    # come away with nothing. That went unseen for as long as it did because
+    # nothing ever picked after stowing: the lift was preset once at
+    # start_at and every mission fetched exactly once. It is what broke the
+    # second cycle of the repeating errand in issue #10, and it fails
+    # silently -- the travel is correct, the approach reports "arrived", and
+    # the fork simply passes under the peg.
+    if verb == "pick":
+      lift_entry = align_lift()
+    else:
+      lift_entry = float(self.data.ctrl[self.model.actuator("lift").id])
     for attempt in range(max(tries, 1)):
-      if attempt and verb != "pick":
+      if verb == "pick" or attempt:
         self.swap._run(1.5, 0.0, lift_target=lift_entry)
       self.face(hd)
       self.refine_standoff(sx, sy, hd)

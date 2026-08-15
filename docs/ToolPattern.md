@@ -170,11 +170,17 @@ Geometry limits that have each already broken something:
   business-end-inward, so *whatever your tool sticks out the front points at
   the wall when stowed*. This is what bounds the claw's forward angle — the
   rack, not the moment budget.
-- **A module standing proud of its plate is a stow risk.** The pen's
-  rail/carriage/quill assembly stands ~26 mm proud (`PEN_MOUNT_X`), and it is
-  the prime suspect in the open pen-stow failure (§7). Keep the rack-facing
-  face flat if you possibly can, and if you cannot, run a bare-world return
-  clearance sweep *before* wiring the tool into a mission.
+- **The bracket band: z −30…−9 mm of the module's own frame is the rack's,
+  not yours.** ⓘ *Found by issue #10.* A set-down needs the module raised
+  **31 mm** — `RETURN_CLEARANCE` (20) plus the ~11 mm a carried peg already
+  rides above its hung rest — so anything your tool puts in that band
+  arrives under the bay's tray brackets and jams. Standing proud in **x** is
+  fine; the rack leaves that air empty. It is **height** that bites, which
+  is the same thing `-TOOL_HALF_Z` above is telling you. If a part must live
+  there, run a bare-world clearance sweep (raise the module 1 mm at a time
+  at its bay and count real contacts — `mj_geomDistance` will *not* tell you,
+  it does not measure box-box separation) *before* wiring the tool into a
+  mission.
 - **The parked envelope.** Arm retracted, the fork tucks over the chassis with
   only ~60 mm between the chassis top (z = 0.12) and the LIDAR's centre row
   (z = 0.18). A module part that hangs low enough to sit on the chassis jacks
@@ -194,6 +200,29 @@ Measured on a carried module over a net-zero maneuver:
   (46 mm of "clear of the floor" was not clear at all — a 172 mm pendant
   swinging 10° moves its tip ~30 mm, and the carried block struck the floor
   mid-turn and was knocked out of the jaws).
+
+### If the tool has a moving axis, it needs a STOW POSE
+
+ⓘ *Found by issue #10.* A tool that brings its own axis can be *left*
+anywhere on that axis when the job ends, and "wherever the last stroke
+finished" is not a pose anyone designed. The pen's carriage ends a square at
+**+37 mm**, and there it sits in the y band where the bay's tray brackets
+hang instead of in the gap between them — clear window 15–27 mm against a
+stow that needs 31. Centred, the window is 15–39 mm.
+
+So: **decide where your axis parks for a stow, and return it there as part
+of putting the tool away** — `PenPlotter.carry_config` does this alongside
+restoring the lift, and for the same reason. Two things make this trap
+expensive if you leave it for later:
+
+- **It is invisible to every test that does not run the job first.** A pick
+  and a return with no drawing in between passed in both worlds while
+  `home_draw.py` still failed. If your fetch/stow test never actuates the
+  tool, it is not testing the stow your mission does.
+- **It fails as a clean-looking approach.** The module jams, the wheels
+  slip, dead reckoning counts the slip as progress, and `_drive_until`
+  returns **"arrived"** having stopped 25–31 mm short. Nothing in the
+  report says "obstructed".
 
 ### If the tool carries a payload
 
@@ -671,24 +700,31 @@ rather than reimplements:
 Do not rediscover these; they are open, and they are not yours to fix unless
 your tool makes them worse.
 
-1. **The pen does not stow — and navigation has nothing to do with it.**
-   Building the dispenser produced the controlled experiment: same bare world,
-   same script, same default `put_back`, five different modules.
+1. ~~**The pen does not stow.**~~ **CLOSED by issue #10** — and the rule this
+   entry drew from it was pointing at the wrong axis, so read the correction
+   rather than the original. The controlled experiment (same bare world, same
+   script, same default `put_back`, five modules) was right:
 
    | module | hung after `put_back` | rack-frame x |
    |---|---|---|
    | lcd / plug / claw / **seed** | ✔ | 0.090–0.096 |
-   | **pen** | **✘ — still on the fork** | **0.444** |
+   | **pen** (before the fix) | **✘ — still on the fork** | **0.444** |
 
-   The pen fails from a hand-off pose that was *set*, not driven to, so this
-   is its own geometry, not odometry, arrival radius, or the home world. The
-   suspicion is now a measured rule: **a tool whose rack-facing face is flat
-   stows; the pen's rail/carriage/quill stands ~26 mm proud of its plate, at
-   plate height, and does not.** The dispenser is the control — it hangs a
-   100 mm tube and 12 g of loose payload and stows at 2.8 mm of bay error,
-   because all of it is *below* the plate, in air the rack never occupies.
-   **Keep your tool's parts below `-TOOL_HALF_Z` and you inherit none of
-   this.**
+   The conclusion drawn from it — "the pen's assembly stands ~26 mm proud of
+   its plate in **x**, and that is what fouls" — was wrong. Standing proud in
+   x is harmless; the rack leaves that air empty. What fouled was **z**: the
+   rail sat in the same height band as the bay's tray brackets, so the
+   module could not be raised the 31 mm a set-down needs without jamming
+   under them. See SimNotes, "The pen would not stow".
+
+   What survives, and is now *measured* rather than suspected, is this
+   entry's own last sentence: **keep your tool's parts below `-TOOL_HALF_Z`
+   and you inherit none of this.** The dispenser obeyed it and stows at
+   2.8 mm of bay error. The pen broke it in two places — the rail (fixed by
+   moving it below the plate, where the rule says it belongs) and the
+   carriage block, which *cannot* go there because it has to reach the quill
+   at the pen line. That leftover is why tools with a moving axis need a
+   stow pose (§2, "What a carried module does in transit").
 2. **Nothing can autonomously find a floor object.** The LIDAR plane is
    223 mm up and the nav camera is blind to the floor inside 0.48 m, while a
    grip point sits ~285 mm ahead of the axle. Grasps run open-loop from a
@@ -712,7 +748,9 @@ your tool makes them worse.
 [ ] moment / force / mass demands against §2, before drawing anything
 [ ] tolerance class: millimetre or centimetre? (decides the whole controller)
 [ ] payload, if any: retained by GRIP or by GEOMETRY?
-[ ] parts below -TOOL_HALF_Z where you can -- a proud face is a stow risk
+[ ] parts below -TOOL_HALF_Z where you can -- height, not x, is what jams a
+    stow: z -30..-9 mm of the module frame belongs to the bay's brackets
+[ ] a moving axis? decide its STOW POSE and return to it before stowing
 [ ] tolerance spike, only if it adds a new mating interface
 [ ] a free bay: five exist; a sixth means growing the rail AND re-checking
     the rack against both rooms

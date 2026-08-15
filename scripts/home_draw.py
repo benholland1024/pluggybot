@@ -87,6 +87,11 @@ def main() -> None:
   parser.add_argument("--size", type=float, default=0.075)
   parser.add_argument("--board", default="whiteboard_a",
                       choices=sorted(home.BOARDS))
+  parser.add_argument("--cycles", type=int, default=1,
+                      help="repeat fetch -> draw -> stow this many times. "
+                           "The point of >1 is the HAND-OFF: a stow that "
+                           "leaves the rack's believed state wrong shows up "
+                           "on the next fetch, not on the stow itself")
   args = parser.parse_args()
 
   model = mujoco.MjModel.from_xml_path("models/home_world.xml")
@@ -103,28 +108,35 @@ def main() -> None:
   meta = json.load(open("models/home_world.meta.json"))
   board = Board.from_meta(meta["boards"][args.board])
   aborted = False
+  cycles = []
   try:
     mission.start_at(*home.SPAWNS["start"])
     mission.start_discovery()
     mission._spin()
 
-    why = mission.swap_at_bay(PEN_BAY, "pick", module="module_pen")
-    picked = mission.swap.module_state("module_pen")["on_fork"]
-    powered = module_power_contact(model, data, "module_pen")
-    print(f"pick ({why}): on fork {picked}, powered {powered}")
+    for n in range(max(args.cycles, 1)):
+      if args.cycles > 1:
+        print(f"\n--- cycle {n + 1}/{args.cycles} ---")
+      why = mission.swap_at_bay(PEN_BAY, "pick", module="module_pen")
+      picked = mission.swap.module_state("module_pen")["on_fork"]
+      powered = module_power_contact(model, data, "module_pen")
+      print(f"pick ({why}): on fork {picked}, powered {powered}")
 
-    plotter = PenPlotter(model, data, mission.swap, board=board)
-    tx, ty = plotter.board_standoff()
-    mission.drive_to(tx, ty, timeout=90.0)
-    squared = plotter.drive_to_board()
-    print(f"at the board ({args.board}): {squared}")
-    result = plotter.draw(PATHS[args.shape](args.size))
-    photo = board_photo(model, data, board)
+      plotter = PenPlotter(model, data, mission.swap, board=board)
+      tx, ty = plotter.board_standoff()
+      mission.drive_to(tx, ty, timeout=90.0)
+      squared = plotter.drive_to_board()
+      print(f"at the board ({args.board}): {squared}")
+      result = plotter.draw(PATHS[args.shape](args.size))
+      photo = board_photo(model, data, board)
 
-    plotter.carry_config()
-    why2 = mission.swap_at_bay(PEN_BAY, "return", module="module_pen")
-    stowed = mission.swap.module_state("module_pen")["hung"]
-    print(f"stow ({why2}): hung {stowed}")
+      plotter.carry_config()
+      why2 = mission.swap_at_bay(PEN_BAY, "return", module="module_pen")
+      stowed = mission.swap.module_state("module_pen")["hung"]
+      print(f"stow ({why2}): hung {stowed}")
+      cycles.append({"picked": picked, "powered": powered, "stowed": stowed,
+                     "inked": result.get("inked_fraction"),
+                     "drew": result.get("drew")})
   except MissionAborted:
     aborted = True
   finally:
@@ -148,16 +160,26 @@ def main() -> None:
               "shape_rms_mm", "offset_mm"):
     if result.get(key) is not None:
       print(f"{key:16s} {result[key]:.2f}")
-  drew_ok = (picked and result.get("drew")
-             and result["inked_fraction"] > 0.9)
   print(f"sim time {data.time:.1f}s  collisions {mission.collision_steps}")
+  # A stow verdict only means anything if something was FETCHED first: a
+  # module that never left the rack is still hanging in it, and `hung` says
+  # True. The two-cycle run caught exactly that -- a failed second fetch
+  # followed by a "stow OK" for a tool the robot never had.
+  if len(cycles) > 1:
+    for n, c in enumerate(cycles):
+      stow = ("n/a" if not c["picked"] else "OK" if c["stowed"] else "FAILED")
+      print(f"cycle {n + 1}: fetch {'OK' if c['picked'] and c['powered'] else 'FAILED'}"
+            f"  draw {'OK' if c['drew'] and (c['inked'] or 0) > 0.9 else 'FAILED'}"
+            f"  stow {stow}")
+  # Fetch, draw and stow are still reported SEPARATELY, though the stow is
+  # no longer a known failure (issue #10). They fail for unrelated reasons
+  # and a single verdict would say which of them broke only by accident.
+  drew_ok = all(c["picked"] and c["drew"] and (c["inked"] or 0) > 0.9
+                for c in cycles)
+  exercised = [c for c in cycles if c["picked"]]
   print("FETCH + DRAW:", "OK" if drew_ok else "FAILED")
-  # Reported separately, and deliberately: the pen's stow after a navigated
-  # errand is a KNOWN pre-existing failure -- it fails the same way in
-  # room_hub (SimNotes, "The home world ... and a stow gap"). Rolling it
-  # into one verdict would either hide a working drawing behind a known
-  # bug or, worse, quietly redefine success to exclude it.
-  print("STOW:", "OK" if stowed else "FAILED (known open item -- SimNotes)")
+  print("STOW:", "n/a (nothing was fetched)" if not exercised
+        else "OK" if all(c["stowed"] for c in exercised) else "FAILED")
   print(f"-> {OUT}")
 
 

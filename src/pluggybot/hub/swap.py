@@ -76,6 +76,19 @@ APPROACH_DIST = STANDOFF - VERTEX_AHEAD_OF_AXLE + PICK_OVERSHOOT
 RETURN_DIST = RETREAT_DIST + PICK_OVERSHOOT - CARRY_OFFSET
 
 
+def align_lift(peg_z: float = HUB_PEG_Z) -> float:
+  """The lift setpoint that puts the FORK AXIS at `peg_z` -- the height a
+  pick must enter at, and the reference every other height is measured from.
+
+  Named because it was written out longhand in four places (the standoff
+  preset, the mission's start pose, the plotter's carry and board heights),
+  and one of those copies was already a bug once: they had been typed as
+  bare literals, so raising the fork mount for the lean-pad would have left
+  a copy pointing at the old geometry.
+  """
+  return peg_z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
+
+
 class HubSwap:
   """Scripted pick/return cycles for one robot in hub_world.xml."""
 
@@ -108,7 +121,7 @@ class HubSwap:
     d.qpos[1] = axle_y + 0.08 * math.sin(yaw)
     d.qpos[2] = 0.045
     d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-    lift0 = HUB_PEG_Z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
+    lift0 = align_lift()
     d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
     d.ctrl[self.lift_act] = lift0
     d.ctrl[self.model.actuator("arm").id] = ARM_EXT

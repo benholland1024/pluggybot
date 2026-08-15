@@ -262,9 +262,10 @@ tracked as its own issues; landed so far:
   0.55) emitted from one source. Verified headless: the battery-driven
   lifecycle runs explore → errand → charge there (2 charge cycles, module
   stowed, **0 collisions**, 365 sim-seconds), and the pen module draws a
-  square on a wall whiteboard at **0.59 mm form error, 98 % inked**. Open
-  item: stowing the pen after a navigated errand fails — and fails the same
-  way in room_hub, so it is pre-existing (SimNotes).
+  square on a wall whiteboard at **0.59 mm form error, 98 % inked**. Stowing
+  the pen afterwards failed here at first — and failed the same way in
+  room_hub, so it was pre-existing; closed by issue #10, and the errand now
+  repeats end to end (`--cycles 2`).
 - **Protocol 0.2.0 — recurring keyframes + authenticated ingest** (producer
   half of the website's live-hub issue, rooftop-media-2026 #22): keyframes
   now recur every 5 sim-seconds and are marked `"key": true`, and the
@@ -316,14 +317,18 @@ makes two robots in one shared world tractable.
   telemetry sink, not the activity, or two sinks eat each other's deltas.
 
 **Open items, in the order they matter:**
-1. **The pen does not stow — and it is the pen, not navigation.** Building the
-   dispenser gave the controlled experiment: same bare world, same script,
-   five modules, and only the pen rides away on the fork (rack-frame x 0.444
-   against 0.090–0.096 for the other four), from a hand-off pose that was
-   *set* rather than driven to. That exonerates odometry, arrival radius and
-   the home world, and confirms the pen module's own geometry — it stands
-   ~26 mm proud of its plate, at plate height. This still blocks any
-   *repeating* drawing loop. See SimNotes.
+1. ~~**The pen does not stow.**~~ **CLOSED (issue #10).** The controlled
+   experiment was right that it was the pen's own geometry, wrong about
+   which axis: standing proud in *x* is harmless, and what fouled was
+   *height* — the pen's rail sat in the same band as the bay's tray
+   brackets, so the module could not be raised the 31 mm a set-down needs.
+   Three faults in a row, each hidden by the one in front: the **rail**
+   (every stow), the **carriage** left where a figure ended (only after
+   drawing), and a **pick inheriting the lift a stow left** (only on a
+   second fetch — and never pen-specific; the LCD had it too). Verified
+   with `home_draw.py --cycles 2`: fetch → draw → stow, twice, unattended,
+   0 collisions. The repeating drawing loop is unblocked. See SimNotes,
+   "The pen would not stow".
 2. **Nothing can autonomously find a floor object** — the LIDAR plane is 223 mm
    up and the nav camera is blind inside 0.48 m, so the claw is driven from a
    *known* object pose. Marked delivery zones are the honest workaround; real

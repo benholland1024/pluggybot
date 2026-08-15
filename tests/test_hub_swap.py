@@ -369,6 +369,201 @@ def test_pen_carriage_sweep_clears_the_robot(hub_model):
   assert not hits, f"pen carriage sweeps through something: {sorted(hits)}"
 
 
+def _module_geoms(model, name):
+  """Every colliding geom of a module INCLUDING its sub-bodies. The pen's
+  rail is on the module plate but its carriage and quill are child bodies,
+  and it was a child-body geom that made this whole check necessary."""
+  bodies = [model.body(name).id]
+  changed = True
+  while changed:
+    changed = False
+    for b in range(model.nbody):
+      if model.body_parentid[b] in bodies and b not in bodies:
+        bodies.append(b)
+        changed = True
+  return [g for g in range(model.ngeom)
+          if model.geom_bodyid[g] in bodies and model.geom_contype[g]]
+
+
+def _bay_geoms(model, i):
+  from pluggybot.hub.coupling import bay_prefix
+  pre = bay_prefix(i)
+  return [g for g in range(model.ngeom)
+          if (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g) or "")
+          .startswith(pre) and model.geom_contype[g]]
+
+
+def _flank_clearance(model, data, bay):
+  """How far a peg must rise from its rest to pass over the tray flanks."""
+  from pluggybot.hub.coupling import HUB_PEG_Z, PEG_R, TRAY_VERTEX_DROP
+  mujoco.mj_forward(model, data)
+  flank_top = max(
+    float(data.geom_xpos[g][2]) + _world_half_extents(model, data, g)[2]
+    for g in bay
+    if "tray" in (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g)))
+  return flank_top - (HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R)
+
+
+def _stow_raise_band():
+  """How high above its HUNG rest the peg actually rides during a stow.
+
+  Two terms, and missing the first one is what made an early version of
+  this test pass while home_draw.py still failed: `put_back` adds
+  RETURN_CLEARANCE to the lift it is ALREADY carrying at, and a carried peg
+  settles into the fork's V some 9-18 mm above where it hangs (SimNotes;
+  measured at 11.2 mm on the home-world errand). So the real height is the
+  sum, not RETURN_CLEARANCE alone -- 29-38 mm rather than 20.
+
+  Read the pen's pass with that in mind: its ceiling is 39 mm, so the top
+  of this band clears by only 1 mm -- but 38 is itself the pessimistic end
+  of a range measured across ALL modules, and the pen's own raise is 31 mm
+  with ~8 mm in hand. The 1 mm is slack between two conservative bounds,
+  not the margin the robot actually flies with. If a heavier pen variant
+  ever pushes the carry rise toward 18 mm, buy the headroom back by moving
+  the rail further below the pen line (`PEN_RAIL_DZ`) -- that is free,
+  because the pen line does not move with it.
+  """
+  from pluggybot.hub.swap import RETURN_CLEARANCE
+  return RETURN_CLEARANCE + 0.009, RETURN_CLEARANCE + 0.018
+
+
+def _fouls(model, data, name, mod, bay, dz):
+  """Module<->bay contacts with the module raised dz above its hung rest.
+
+  The rest height comes from the coupling's own constants rather than from
+  data, so repeated calls cannot drift by reading back a height this
+  function itself set.
+  """
+  from pluggybot.hub.coupling import (
+    HUB_PEG_Z, PEG_ABOVE_BODY, PEG_R, TRAY_VERTEX_DROP,
+  )
+  adr = model.jnt_qposadr[model.body(name).jntadr[0]]
+  z0 = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R - PEG_ABOVE_BODY
+  data.qpos[adr + 2] = z0 + dz
+  mujoco.mj_forward(model, data)
+  hits = set()
+  for k in range(data.ncon):
+    c = data.contact[k]
+    pair = {c.geom1, c.geom2}
+    if pair & mod and pair & bay:
+      hits.add(tuple(sorted(
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g) for g in pair)))
+  return hits
+
+
+@pytest.mark.parametrize("i,name", list(enumerate(
+  ("module_lcd", "module_plug", "module_pen", "module_claw", "module_seed"))))
+def test_return_clearance_fits_inside_the_bay_window(hub_model, i, name):
+  """Issue #10. Setting a module down needs TWO clearances at once, and the
+  pen had no height that satisfied both.
+
+  To drop a peg into its tray V, the peg must first be carried over the tray
+  FLANKS -- 14.7 mm above its resting height here. That is the floor.
+  Whatever else the module carries must at the same time stay clear of the
+  bay's bracket feet and columns, which hang just under the trays. That is
+  the ceiling. `put_back` raises the module by RETURN_CLEARANCE and drives
+  in, so RETURN_CLEARANCE must land strictly between the two.
+
+  For four modules the ceiling is far away -- nothing of theirs reaches into
+  the bracket band. The pen's rail and carriage did: they topped out 16 mm
+  under the feet against a 14.7 mm floor, a window about 1 mm wide, and
+  RETURN_CLEARANCE (20 mm) sat inside the foul band. The module rode in,
+  jammed its rail on the bracket feet ~13 mm short of the tray line, and
+  rode back out on the fork -- in room_hub and home_world alike.
+
+  Swept geometrically rather than by running a stow, because that is what
+  makes the number legible: this asserts the WINDOW, so it also fails for
+  the sixth tool that hangs something new into the bracket band.
+  """
+  mod = set(_module_geoms(hub_model, name))
+  bay = set(_bay_geoms(hub_model, i))
+  assert mod and bay
+  data = mujoco.MjData(hub_model)
+  need = _flank_clearance(hub_model, data, bay)
+  lo, hi = _stow_raise_band()
+  assert lo > need, (
+    f"the stow lifts the peg {lo * 1000:.1f} mm at least, which does not "
+    f"clear the {name} bay's tray flanks ({need * 1000:.1f} mm)")
+  for dz in (need + 0.001, lo, (lo + hi) / 2, hi):
+    hits = _fouls(hub_model, data, name, mod, bay, dz)
+    assert not hits, (
+      f"{name} raised {dz * 1000:.1f} mm into its bay jams on it: "
+      f"{sorted(hits)} -- the stow uses {lo * 1000:.0f}-{hi * 1000:.0f} mm, "
+      f"so this height is one the robot actually passes through")
+
+
+# Where a square figure leaves the pen carriage (measured in home_draw).
+CARRIAGE_AFTER_A_FIGURE = 0.037
+
+
+def test_a_parked_carriage_would_jam_the_pen_stow(hub_model):
+  """The premise behind PenPlotter.carry_config centring the carriage.
+
+  Pinned as a test rather than left as a comment, for the same reason the
+  navigation tests pin the pure-pursuit orbit: if the bay ever grows enough
+  room for an off-centre carriage, this test fails and tells us the centring
+  is no longer load-bearing. Until then it documents WHY it is.
+
+  Centred, the carriage block sits in the gap BETWEEN the bay's two tray
+  brackets. Run out along the peg axis it swings into the y band where they
+  hang, and the ceiling of the clear window drops below the height the stow
+  actually uses.
+  """
+  mod = set(_module_geoms(hub_model, "module_pen"))
+  bay = set(_bay_geoms(hub_model, 2))
+  data = mujoco.MjData(hub_model)
+  car = hub_model.joint("pen_carriage_joint").qposadr[0]
+  _lo, hi = _stow_raise_band()
+  data.qpos[car] = CARRIAGE_AFTER_A_FIGURE
+  assert _fouls(hub_model, data, "module_pen", mod, bay, hi), (
+    "an off-centre carriage no longer fouls the bay -- carry_config's "
+    "centring may have stopped being necessary, or the bay changed")
+
+
+def test_pen_stows_back_into_its_bay_after_its_carriage_has_moved(hub_model):
+  """Issue #10 end to end, minus navigation and minus drawing.
+
+  Both halves of the bug in one run, because both end the same way -- the
+  module riding the fork back out instead of transferring to the trays:
+
+    1. the rail, which fouled the bracket at every stow, drawn or not;
+    2. the carriage left where a figure ended, which fouled it only after
+       a drawing -- which is why the geometry fix alone still left
+       home_draw.py reporting STOW: FAILED.
+
+  Displacing the carriage by hand stands in for the drawing: it is the
+  state a figure leaves behind, without paying for a figure.
+  """
+  from pluggybot.hub.drawing import PenPlotter
+  from pluggybot.hub.swap import ARM_EXT
+  data = mujoco.MjData(hub_model)
+  swap = HubSwap(hub_model, data)
+  swap.place_at_standoff(HUB_STATION_YS[2])
+  swap.pick()
+  assert swap.module_state("module_pen")["on_fork"], "pen pick failed"
+
+  car = hub_model.joint("pen_carriage_joint").qposadr[0]
+  plotter = PenPlotter(hub_model, data, swap)
+  plotter.ramp(plotter.pen_act, CARRIAGE_AFTER_A_FIGURE, settle=0.5)
+  plotter.carry_config()
+  assert abs(float(data.qpos[car])) < 0.003, (
+    f"carry_config left the carriage at {float(data.qpos[car]) * 1000:+.1f} mm "
+    f"-- centred is the stow pose")
+
+  # carry_config stows the arm for driving; the swap deploys it again on
+  # arrival, exactly as HubMission.swap_at_bay does.
+  data.ctrl[hub_model.actuator("arm").id] = ARM_EXT
+  swap._run(1.5, 0.0)
+
+  swap.put_back()
+  st = swap.module_state("module_pen")
+  assert st["hung"], (
+    f"the pen did not hang up: {st} -- rack-frame x/z off by "
+    f"{(st['rack_frame'][0] - 0.09) * 1000:+.1f}/"
+    f"{(st['rack_frame'][2] - 0.273) * 1000:+.1f} mm")
+  assert not st["on_fork"], "the pen hung but the fork did not let go"
+
+
 def test_charge_bay_press_connects(hub_model):
   """Nosing into the charge bay and pressing must land BOTH pogo pins on the
   bumper -- the rack-side charge criterion -- without shoving the rack."""
