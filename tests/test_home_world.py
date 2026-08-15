@@ -90,10 +90,16 @@ def test_hints_are_not_encoded_as_geom_colors(home_model, meta):
   hint classes are free to share a colour by checking the sidecar is the
   only thing that separates them."""
   hints = meta["visualHints"]
-  assert hints["wall_west"] == "wall" and hints["fence_east"] == "fence"
+  # Pick the segments by hint rather than by name: a wall run is SPLIT into
+  # numbered segments around every doorway, so `fence_east` became
+  # `fence_east_0`/`_1` the day the garden gained a gate (issue #8). The
+  # claim under test is about hints vs colour, not about segment counts.
+  wall = next(n for n, h in hints.items() if h == "wall" and n.startswith("wall_"))
+  fence = next(n for n, h in hints.items() if h == "fence")
+  assert hints[wall] == "wall" and hints[fence] == "fence"
   # both are plain boxes; nothing in the geom itself says which is which
-  wall_g = home_model.geom("wall_west_geom")
-  fence_g = home_model.geom("fence_east_geom")
+  wall_g = home_model.geom(f"{wall}_geom")
+  fence_g = home_model.geom(f"{fence}_geom")
   assert wall_g.type == fence_g.type
 
 

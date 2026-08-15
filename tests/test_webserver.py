@@ -273,9 +273,17 @@ def test_publisher_streams_protocol_messages(mini_model):
     time.sleep(0.2)                        # let the post-header re-key land
     step_seconds(mini_model, data, 2.0, pub.step_hook)
     pub.event(float(data.time), "the errand is done")
+    # Wait for the EVENT as well as the frames. `close()` drops whatever is
+    # still queued -- deliberately, since a live stream has no obligation to
+    # flush -- and a frame count says nothing about a message queued after
+    # those frames. Waiting only on frames made this test fail about 1 run
+    # in 5 (measured: 4/20), with the event assertion below reading an empty
+    # list. Wait for the thing you are about to assert on.
     assert wait_for(lambda: sink.sessions[0]
                     and sum(1 for m in sink.sessions[0]
-                            if "type" not in m) >= 30)
+                            if "type" not in m) >= 30
+                    and any(m.get("type") == "event"
+                            for m in sink.sessions[0]))
   finally:
     pub.close()
     sink.stop()

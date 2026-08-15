@@ -274,6 +274,49 @@ def test_two_sinks_over_one_activity_set_stay_independent(home_model):
     "the second sink lost a state change to the first"
 
 
+def test_a_real_gate_opening_reaches_a_telemetry_frame(home_model):
+  """End to end: robot presses plate -> flag flips -> the flip is on the wire.
+
+  Worth having as a test rather than trusting the committed recording. The
+  home lifecycle never happens to drive over the garden plate, so the
+  fixture shows `closed` for its whole length -- which proves activity
+  state is *carried* but not that a CHANGE propagates. This closes that gap
+  without inventing a fixture nobody replays.
+  """
+  data = mujoco.MjData(home_model)
+  acts = ActivitySet([PlateGate(home_model, data)])
+  fb = FrameBuilder(home_model, data, hz=20.0, model_name="home_world",
+                    activities=acts)
+  px, py = plate_center(home_model)
+  yaw = math.pi
+  data.qpos[0], data.qpos[1], data.qpos[2] = px + 1.2, py, 0.045
+  data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+  mujoco.mj_forward(home_model, data)
+  left = home_model.actuator("left_motor").id
+  right = home_model.actuator("right_motor").id
+  tl, tr = wheel_targets(0.25, 0.0)
+  seen = []
+  hook = acts.step_hook(home_model, data)
+  for _ in range(9000):
+    data.ctrl[left] = slew(data.ctrl[left], tl, home_model.opt.timestep)
+    data.ctrl[right] = slew(data.ctrl[right], tr, home_model.opt.timestep)
+    mujoco.mj_step(home_model, data)
+    hook()
+    frame = fb.build()
+    if frame is not None and "activities" in frame:
+      seen.append((frame["t"], frame["activities"]["garden_gate"]))
+
+  states = [f["state"] for _, f in seen if "state" in f]
+  assert states[0] == "closed"
+  assert "open" in states, "the gate opened in the sim but never on the wire"
+  # ...and it stays open in every later frame that mentions state at all
+  after = states[states.index("open"):]
+  assert set(after) == {"open"}, f"the wire un-opened the gate: {after}"
+  assert len(seen) < fb.frames * 0.35, (
+    f"activity flags shipped in {len(seen)}/{fb.frames} frames -- that is "
+    "not sparse; check the analogue-flag quantisation")
+
+
 def test_activity_set_snapshot_and_hook(home_model):
   data = mujoco.MjData(home_model)
   acts = ActivitySet([PlateGate(home_model, data)])

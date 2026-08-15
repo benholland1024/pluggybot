@@ -28,7 +28,28 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 
 ## Commands
 
-- Tests: `MUJOCO_GL=egl uv run pytest -q`; lint: `uv run ruff check src/ scripts/ tests/`
+- Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
+  **243 of 249 tests in ~4:10**, against **11:44** for everything. Five
+  whole-mission integration runs carry `@pytest.mark.slow` and are most of
+  the clock on their own (`test_full_hub_lifecycle[home]` is 37 % of the
+  suite by itself; the top two are 55 %).
+- Tests, before calling any work done: the **FULL** suite,
+  `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
+  the end — whenever the change touches something a whole mission exercises:
+  `models/` or a world generator (`home.world`, `hub.coupling`) · contact or
+  actuator params · `control.py` / `behavior/navigation.py` · the
+  swap/coupling/mission stack · the telemetry frame format or `protocol/`
+  fixtures. Those tests exist precisely because the two costliest bugs in
+  this repo (a frame-relative verdict, a sign on the return travel) were
+  invisible to every cheaper test, and a geometry change is exactly what
+  breaks them. Skipping them on that kind of edit is how the next one
+  reaches a commit.
+  ⚠ Their runtime is EMERGENT, not fixed: the mission runs until the battery
+  loop completes, so a world change reshuffles the whole trajectory. Adding
+  the garden pressure plate took the home lifecycle from 219.7 to 353.6
+  sim-seconds (1 → 2 charge cycles) while costing essentially no physics. A
+  slower suite is not by itself a regression.
+- Lint: `uv run ruff check src/ scripts/ tests/`
 - Demos: `scripts/teleop.py`, `scripts/map_teleop.py`, `scripts/explore.py [--headless]`
   (milestone-4 mapping demo — kept as the minimal repro; `lifecycle.py` is the
   full mission), `scripts/spot_outlets.py` (detector → landmarks),

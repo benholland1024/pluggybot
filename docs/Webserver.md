@@ -68,6 +68,16 @@ without knowing anything about bodies. Cost: 1 frame in 100. That is a
 protocol shape change — hence `protocolVersion` 0.2.0 and re-vendored
 fixtures.
 
+**Activities ride the same rails** (`protocolVersion` 0.3.0, issue #8).
+Frames may carry an `activities` block — the task state machines' discrete
+world state — sparse exactly as poses are, and re-shipped on every keyframe.
+That last part matters more here than for poses: an activity's visible
+effect usually lives on a **static** body (the reference gate is a mocap
+body that ships once in the scene description and never again), so for a
+change like that the flag is the *only* record anywhere in the stream. In
+the measured home mission the block costs **1.0 % of frames**. Another
+shape change, so another re-vendor; see `docs/ActivityPattern.md`.
+
 **The ingest socket is authenticated.** `--token` (or `$PLUGGYWORLD_TOKEN`)
 sends `Authorization: Bearer <token>` at the handshake. A refusal looks
 exactly like a server that is down — a 1 s retry loop — so the publisher
