@@ -1,3 +1,23 @@
 .venv/
 __pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Generated training data — deterministic, regenerate with:
+#   MUJOCO_GL=egl uv run python scripts/generate_outlet_dataset.py --count 1200
 datasets/
+
+# YOLO training output (weights, curves, val predictions) + downloaded checkpoints
+runs/
+yolo*.pt
+
+# Demo footage — derived, and far too big to keep every version of forever
+# (one GIF is ~6 MB against a 7 MB repo history). Regenerate with:
+#   MUJOCO_GL=egl uv run python scripts/draw.py --record draw.mp4 --record-speed 3
+#   MUJOCO_GL=egl uv run python scripts/pickup.py --record pickup.gif --record-speed 4
+# To embed one in the README, drag it into a GitHub issue comment and use the
+# CDN URL GitHub hands back — it renders inline at zero cost to the repo.
+*.mp4
+*.gif
