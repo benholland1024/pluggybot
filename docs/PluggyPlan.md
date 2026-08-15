@@ -238,7 +238,7 @@ pluggy/
 ├── src/pluggybot/     # perception/, odometry/, mapping/, docking/, behavior/
 ├── scripts/           # teleop.py, view.py, stereo_snapshot.py
 ├── tests/             # physics + camera regression tests (pytest)
-└── docs/              # this plan, Parts.md, SimNotes.md
+└── docs/              # this plan, Parts.md, SimNotes.md, ToolPattern.md
 ```
 
 (`envs/` for Gymnasium wrappers gets added when RL work starts. The world/playground split is deliberate: tests run in the bare world, humans drive in the playground — scenery in the test lane once broke the drive test.)
@@ -277,17 +277,51 @@ tracked as its own issues; landed so far:
 
 ## Status
 
-✅ **Milestones 1–7 complete — the repo MVP.** August 2026: the loop that names the
-project runs end to end in `scripts/lifecycle.py`: PluggyBot explores, remembers
-outlets, and when its (honestly modeled) battery runs low, drives to one, docks with
-real contact physics, charges through the plug, and gets back to work. The
-verification run had everything: a jam at the hard high outlet (benched), a phantom
-decoy landmark (caught by close-range verification and erased), a successful dock
-and 21 → 90 % charge at outlet B, and zero wall strikes. Milestone 6 closed with
-both docking controllers scored by one seeded protocol (scripted 33.3 %, RL 25 %
-end-to-end with complementary failure sets — see SimNotes for the four measured
-design findings the RL work surfaced). Next: the **hub pivot** (milestone 8) — the
-coupling spike first, then hub + tool modules in sim; the hardware MVP bar is a
-physical plug ↔ LCD swap at a real hub.
+✅ **Milestones 1–8 complete, and the PluggyWorld track is live.** August 2026:
+the sim streams itself to a browser. `scripts/serve.py` paces the hub lifecycle
+to real time and publishes poses + state over a WebSocket; the website renders
+the world in ThreeJS from the transpiled scene description, with a free camera
+per visitor and no video anywhere. Milestone 8 closed out along the way — the
+tool coupling (±4 mm / <2°), the fork robot, the generated rack, fiducial rack
+localization (9 mm / 0.00°), the module electrical interface, the claw's verified
+pick-carry-place, and finally the drawing surface in a room world: the pen module
+draws on a wall-mounted whiteboard in `home_world` at **0.59 mm form error,
+98 % inked**. Issue #3 also retired the phase-scoped solver toggling — there is
+now **one noslip policy, always** (see SimNotes and CLAUDE.md), which is what
+makes two robots in one shared world tractable.
+
+- **Tool-creation pattern (issue #7)**: `docs/ToolPattern.md` writes down the
+  recipe — coupling envelope, module anatomy, contact rules, the
+  spike→module→demo→pytest sequence, rack integration — and it is *validated*,
+  by building the fifth tool against it. `src/pluggybot/hub/dispenser.py` +
+  `scripts/dispense.py`: a **seed dispenser** whose slide-valve escapement
+  meters exactly one seed per cycle by geometry rather than timing. Verified
+  headless: fetched from the rack's new bay E, powered through the coupling,
+  three seeds sown at **14 / 14 / 27 mm** from target, module still seated,
+  and it **stows cleanly**. Four gaps the build exposed are folded back into
+  the doc, the largest being that a released sphere needs `condim="6"` rolling
+  friction — sliding friction does not slow a rolling ball by a millimetre.
+
+**Open items, in the order they matter:**
+1. **The pen does not stow — and it is the pen, not navigation.** Building the
+   dispenser gave the controlled experiment: same bare world, same script,
+   five modules, and only the pen rides away on the fork (rack-frame x 0.444
+   against 0.090–0.096 for the other four), from a hand-off pose that was
+   *set* rather than driven to. That exonerates odometry, arrival radius and
+   the home world, and confirms the pen module's own geometry — it stands
+   ~26 mm proud of its plate, at plate height. This still blocks any
+   *repeating* drawing loop. See SimNotes.
+2. **Nothing can autonomously find a floor object** — the LIDAR plane is 223 mm
+   up and the nav camera is blind inside 0.48 m, so the claw is driven from a
+   *known* object pose. Marked delivery zones are the honest workaround; real
+   floor perception is the milestone-9 question.
+3. **`home_world` has no wall outlets** — charging there is rack-only, so the
+   plug module currently has no job in the world the website shows. Either add
+   sockets back or give the module a different purpose.
+
+Next: the **living world** — drawing as a real lifecycle errand, an LLM overseer
+choosing what to do, a points/evaluation system that scores the tasks, and then
+the two-robot shared world (tick-style lifecycle refactor + `mjSpec` namespacing).
+Planning for all of it lives in `rooftop-media-2026/docs/pluggyworld.md`.
 
 Earlier — milestones 1–4 (July 2026): teleoperable diff-drive base with a physics regression suite; stereo pair rendering with a parallax test; classical dead-reckoning odometry (<2 % error, gyro-fused for heading); and full autonomous mapping — virtual laser scanner from ground-truth depth, log-odds occupancy grid, A* path planning, frontier exploration (`scripts/explore.py` maps both rooms of `room_1.xml` collision-free and terminates on its own). Hardware is anchored to real EU-purchasable parts in [Parts.md](Parts.md); simulation lessons live in [SimNotes.md](SimNotes.md). Next: outlet detector on synthetic data (milestone 5 — the machine learning begins) and the plug/socket contact spike.

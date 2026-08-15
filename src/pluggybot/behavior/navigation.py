@@ -35,6 +35,9 @@ MIN_FRONTIER_CELLS = 6   # ignore frontiers closer than this (0.3 m): a forward 
                          # can't observe the cells beside its own wheels -- chasing
                          # them deadlocks; they dissolve while driving to real goals
 W_SPIN = 1.0             # rad/s during a look-around spin
+TERMINAL_CONE = math.radians(25)   # a terminal approach translates only while
+                         # the destination is within this cone of dead ahead;
+                         # outside it, pivot in place. See drive_toward.
 
 
 def plan(grid: OccupancyGrid, pose: Pose,
@@ -86,13 +89,58 @@ def path_to_waypoints(grid: OccupancyGrid,
   return [grid.cell_to_world(ix, iy) for ix, iy in cells]
 
 
-def drive_toward(pose: Pose, waypoint: tuple[float, float]) -> tuple[float, float]:
-  """Proportional controller: (v, w) command toward a world waypoint."""
+def drive_toward(pose: Pose, waypoint: tuple[float, float],
+                 slow_radius: float | None = None) -> tuple[float, float]:
+  """Proportional controller: (v, w) command toward a world waypoint.
+
+  Default (`slow_radius=None`) is the pure-pursuit law every path-follower
+  uses: turn proportionally, and translate at a speed scaled by how nearly
+  the waypoint is ahead. That is the right shape for SWEEPING THROUGH a
+  chain of waypoints, which is what exploration and A* path-following do.
+
+  ⚠ It is the wrong shape for the last metre, and the failure is a limit
+  cycle rather than a wobble. Chasing a nearby destination, the robot
+  overshoots, the target ends up BESIDE it, and the law then settles into a
+  stable orbit: `w` saturates at W_MAX while `cos(heading_err)` keeps a
+  little forward speed alive, so the machine drives a small circle AROUND
+  the point it is trying to reach. Measured on a 0.20 m hop with the seed
+  dispenser: heading error pinned at 84-87 deg for ten solid seconds, three
+  full revolutions, escaping only when drift happened to drop it inside the
+  15 mm arrival radius. Roughly 900 deg of turning to cover 200 mm.
+
+  It bites SHORT HOPS specifically, which is why it stayed hidden: the
+  claw stages 0.45 m back and the plotter drives ~1 m to its board, and both
+  measure ~185 deg of turning for their approaches -- near the geometric
+  minimum. Nothing in the repo drove a 20 cm errand until the dispenser did.
+
+  Passing `slow_radius` switches to a TERMINAL approach, which is the fix
+  and which cannot orbit by construction:
+
+    * outside a +/-TERMINAL_CONE cone, `v` is exactly ZERO -- pivot in
+      place. The orbit lives on the sliver of speed that `cos(84 deg)` still
+      allows; a hard cone removes it. Turning on the spot also costs no
+      ground, so a badly-aimed approach is corrected rather than flown
+      around.
+    * inside the cone, speed tapers linearly to zero over the last
+      `slow_radius` metres, so the robot arrives instead of overshooting and
+      re-entering the chase.
+
+  Terminal speed stays clear of the wheels' stiction deadband at any sane
+  arrival radius (0.4 m/s x 15 mm / 0.25 m is 0.53 rad/s of wheel against a
+  0.1 rad/s floor), so this does not need `turn_command`'s breakaway
+  treatment. Path-followers are untouched: the parameter defaults to off.
+  """
   px, py, theta = pose
-  heading_err = wrap_angle(math.atan2(waypoint[1] - py, waypoint[0] - px) - theta)
+  dx, dy = waypoint[0] - px, waypoint[1] - py
+  heading_err = wrap_angle(math.atan2(dy, dx) - theta)
   w = max(-W_MAX, min(W_MAX, K_HEADING * heading_err))
-  v = V_MAX * max(0.0, math.cos(heading_err))   # pivot first, drive when aligned
-  return v, w
+  if slow_radius is None:
+    v = V_MAX * max(0.0, math.cos(heading_err))  # pivot first, drive when aligned
+    return v, w
+  if abs(heading_err) > TERMINAL_CONE:
+    return 0.0, w                                # pivot in place, cover no ground
+  taper = min(1.0, math.hypot(dx, dy) / max(slow_radius, 1e-6))
+  return V_MAX * taper * math.cos(heading_err), w
 
 
 PATH_COLOR = (60, 90, 220)          # blue: the planned route

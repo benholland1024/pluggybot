@@ -181,11 +181,16 @@ def test_room_hub_coverage():
   assert {g["type"] for g in geoms} == {"plane", "box", "cylinder",
                                         "capsule", "sphere"}
   referenced = {g["texture"] for g in geoms if g["texture"]}
-  assert len(referenced) == model.ntex        # all 10 tags in use
+  assert len(referenced) == model.ntex        # all 12 tags in use
   assert {t["name"] for t in scene["textures"]} == referenced
   robot, world = body_census(model)
-  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 16
-  assert len(robot) == 7 and "rack" in world and "module_lcd" in world
+  # 21 = 7 robot links + the rack + five modules + the pen's two moving
+  # parts + the dispenser's shuttle + three loose seeds. A census, so it
+  # fails whenever the world gains or loses a dynamic body -- which is
+  # the point: every one of them costs a pose in every keyframe.
+  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 21
+  assert len(robot) == 7
+  assert {"rack", "module_lcd", "module_seed", "seed_0"} <= set(world)
 
 
 # ---- recorder --------------------------------------------------------------

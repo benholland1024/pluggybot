@@ -45,7 +45,7 @@ import math
 
 from pluggybot.hub.coupling import (
   CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml, rack_frame_to_world,
-  claw_actuator_xml, pen_actuator_xml,
+  claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.hub.tags import asset_xml, write_tag_pngs
 
@@ -273,6 +273,7 @@ def build_home_world() -> tuple[str, dict]:
   <actuator>
     {pen_actuator_xml()}
     {claw_actuator_xml()}
+    {dispenser_actuator_xml()}
   </actuator>
 </mujoco>
 """

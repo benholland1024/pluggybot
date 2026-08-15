@@ -302,17 +302,26 @@ RACK_BRACKET_X = 0.07     # tray brackets drop from the rail BEHIND the hang
                           # plane, so a lifted peg rises into free air
 RACK_RAIL_Z = 0.40        # rail height: carried peg tops out ~55 mm below
 HUB_PEG_Z = 0.30          # module peg height (mid lift range)
-HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625)  # tool bays at 0.25 m pitch. C/D
-                          # mirrors the charge bay's place at the far end, and
-                          # is APPENDED rather than inserted in y order: the
-                          # bay<->tag pairing is by index, and every demo and
-                          # test names its bay as HUB_STATION_YS[0].
+HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
+                          # pitch. C/D/E mirror the charge bay's place at the
+                          # far end, and are APPENDED rather than inserted in
+                          # y order: the bay<->tag pairing is by index, and
+                          # every demo and test names its bay as
+                          # HUB_STATION_YS[0].
 CHARGE_BAY_Y = -0.375     # charge bay continues the pitch at the rack's end
-RACK_HALF_W = 0.68        # side posts. Grew from 0.48 for the fourth tool
-                          # bay: four modules at 0.25 m pitch plus the charge
-                          # bay is 1.36 m of rail. Checked against the room --
-                          # the rack sits at world x=-0.9 and now spans
-                          # -1.58..-0.22, clear of room 1's west wall at -2.0.
+RACK_HALF_W = 0.93        # side posts. Grew 0.48 -> 0.68 for the fourth tool
+                          # bay and 0.68 -> 0.93 for the fifth (the seed
+                          # dispenser): five modules at 0.25 m pitch plus the
+                          # charge bay is 1.86 m of rail. Re-checked against
+                          # BOTH rooms it stands in, which is the step a bay
+                          # addition must not skip -- the rail grows along a
+                          # wall and the far post is the thing that hits
+                          # something. room_hub: rack at world (-0.90, 5.99)
+                          # yaw -90, so the rail now spans x -1.83..0.03,
+                          # still clear of room 1's west wall at -2.0 (0.17 m
+                          # margin) and of the floor-box at (0, 4) (wrong y).
+                          # home_world: rack at (0.5, -1.98) yaw 90, rail
+                          # spans x -0.43..1.43 inside a house wall at -2.0.
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
 # Fiducial plates carry real tag36h11 AprilTags (hub/tags.py). Plate sizes
 # follow from the marker sizes, which are themselves a range decision: a
@@ -589,6 +598,167 @@ CLAW_EYE_POS = (0.033, 0.030, -0.079)     # (forward, lateral, vertical),
                           # halves the working distance to ~65 mm.
 
 
+# ---- the seed dispenser (the fifth tool): metering, not manipulation -------
+# The first tool built AGAINST docs/ToolPattern.md rather than the other way
+# round, and the doc's opening question -- which axis does this bring, and
+# which does it borrow? -- shaped it completely. A dispenser brings a
+# DISCRETE RELEASE: the robot can carry things and can grip things, but it
+# has no way to let go of exactly one of something. It borrows the lift for
+# height and the base for placement, and it needs no new axis at all.
+#
+# What the pattern's envelope check said before any of this was drawn:
+#   * moment: the whole assembly hangs on the peg's own axis (L = 0), so it
+#     spends NOTHING of the 0.45 N.m budget no matter what it holds. The
+#     claw's lesson (reach is expensive, mass is not) applied for free.
+#   * force: a dispenser RELEASES, it never presses, so unlike the pen it
+#     makes no demand at all on the lean-pad's ~1.5-2 N ceiling.
+#   * mass: tube + escapement + shelf come to ~58 g on top of the 120 g
+#     plate/peg budget, landing the module at ~178 g -- between the pen
+#     (182 g) and the plug (156 g), inside the class the lift preset and the
+#     RCC-wrist tuning assume.
+#   * geometry: the whole tool hangs BELOW the plate (z < -TOOL_HALF_Z),
+#     where the rack has nothing at all. The pen module stands 26 mm proud
+#     of its plate AT plate height and is the prime suspect in the open
+#     pen-stow failure; the pattern's advice is to keep the rack-facing face
+#     flat, and here it costs nothing to follow.
+#
+# The mechanism is a SLIDE-VALVE ESCAPEMENT, which is what a real seed meter
+# is: one actuator, one moving part, exactly one seed per cycle.
+#
+#   shuttle home (0)      a pocket sits under the tube mouth; the seed in it
+#                         rests on a fixed shelf. The blanking slab is parked
+#                         off to one side.
+#   shuttle out (STROKE)  the pocket -- seed and all -- has travelled past
+#                         the end of the shelf, so that ONE seed drops; and
+#                         the blanking slab has arrived under the tube mouth,
+#                         holding the rest of the stack up.
+#   home again            the slab retracts and the stack settles one seed
+#                         into the pocket, ready for the next cycle.
+#
+# Metering by geometry rather than by timing is deliberate: "open the gate
+# for 200 ms" is a controller that dispenses a different number of seeds on
+# a slower machine, and this repo has already been bitten once by a
+# choreography that assumed its own timing.
+SEED_R = 0.008            # 16 mm seed body. Sized UP from a literal seed: the
+                          # claw's grip physics is tuned for ~5 cm objects and
+                          # true seed-scale bodies are miserable contact work,
+                          # so this is a bean/bulb, the smallest thing worth
+                          # simulating rather than the smallest thing real.
+SEED_MASS = 0.004
+# A DROPPED SPHERE ROLLS FOREVER, and no amount of sliding friction stops it.
+# Measured on a seed released with 0.15 m/s of residual horizontal motion --
+# which is just the base's settle, nothing dramatic:
+#
+#   condim=3, friction 0.7                586 mm travelled, still doing 97 mm/s at 6 s
+#   condim=3, friction 1.0 priority=1     586 mm, 97 mm/s      (IDENTICAL)
+#   condim=6, friction 0.9 0.02 0.005      14 mm, stopped
+#
+# The middle row is the lesson. Sliding friction resists SLIDING, and a
+# rolling ball is not sliding -- so cranking mu does literally nothing, to
+# the millimetre. Rolling resistance is a different friction dimension and
+# needs `condim="6"` before MuJoCo will even solve for it. Exactly the shape
+# of the issue-3 wheel finding ("a velocity servo commanded 0 resists speed,
+# not force") and of the caster lesson, met on a third axis. Sowing accuracy
+# was 220 mm before this and is bounded by the drop, not the roll, after it.
+# `priority="1"` because pair friction combines as the elementwise MAX, so
+# the floor's default would otherwise define the contact.
+SEED_FRICTION = "0.9 0.02 0.005"     # sliding, torsional, rolling
+SEED_COUNT = 3            # a magazine, not a hopper: three is enough to prove
+                          # the escapement meters ONE per cycle (which one
+                          # seed cannot) and cheap in contacts.
+DISP_BORE = 0.010         # half-width of the square bore (20 mm), 4 mm of
+                          # slop around the seed
+DISP_WALL = 0.002
+DISP_TUBE_TOP = -TOOL_HALF_Z   # flush with the plate's underside: the PLATE is
+                          # the magazine's cap, and everything below it is in
+                          # air the rack never occupies
+DISP_MOUTH_Z = -0.118     # tube mouth. Leaves 88 mm of tube -- 5 seeds' worth
+                          # of room for a 3-seed load, so a bounced seed in
+                          # transit has somewhere to land that is still inside.
+DISP_POCKET_HALF_Z = 0.010     # pocket 20 mm deep: taller than the seed, so a
+                          # metered seed is caged on four sides and cannot be
+                          # shaken out of the pocket while the tool is carried
+DISP_STROKE = 0.024       # pocket -> exit travel. Must exceed the bore's full
+                          # width (20 mm) so the blanking slab covers the mouth
+                          # completely at the out position, and so the pocket
+                          # clears the shelf's end at the same moment.
+DISP_SHELF_END = 0.012    # the shelf stops here (+y); past it the pocket has
+                          # no floor. This single number IS the exit hole --
+                          # cheaper and more robust than a 4-box frame with a
+                          # hole in it, and it cannot be mis-decomposed.
+DISP_SHELF_HALF_Z = 0.002
+DISP_GATE_KP = 800.0      # a small linear servo, not a solenoid: metering
+                          # wants a POSITION, and the whole point of the
+                          # escapement is that the count comes from geometry
+                          # rather than from how long a coil stayed energised.
+DISP_SHELF_FRICTION = 0.30     # the seed slides across this shelf on its way
+                          # out, and MuJoCo combines pair friction as the
+                          # elementwise MAX -- so without `priority` the
+                          # seed's own value would win and the shelf would
+                          # drag. The caster lesson, fifth appearance.
+# Derived, never re-typed (the claw's pendant constant broke twice by being
+# typed rather than derived).
+DISP_POCKET_Z = DISP_MOUTH_Z - DISP_POCKET_HALF_Z          # pocket centre
+DISP_SHELF_TOP = DISP_MOUTH_Z - 2 * DISP_POCKET_HALF_Z     # pocket floor
+DISP_OUTLET_Z = DISP_SHELF_TOP - 0.0005 - 2 * DISP_SHELF_HALF_Z   # underside
+
+
+def seed_stack_zs(n: int = SEED_COUNT) -> list[float]:
+  """Module-local z of each loaded seed: one in the pocket, the rest stacked
+  in the tube above it. Spaced 1 mm over a seed diameter so the world loads
+  without interpenetration -- a stack that starts overlapping starts with an
+  impulse, and the first frame of a demo is a bad place to learn that."""
+  z0 = DISP_SHELF_TOP + SEED_R + 0.001
+  return [z0 + k * (2 * SEED_R + 0.001) for k in range(n)]
+
+
+def seed_bodies_xml(module_x: float, module_y: float, module_body_z: float,
+                    yaw_deg: float = 0.0, n: int = SEED_COUNT) -> str:
+  """The loaded seeds, as FREE bodies riding in the dispenser's magazine.
+
+  Free bodies rather than geoms on the module, and the reason is the whole
+  reason a dispenser is worth building: a dispensed seed must become a thing
+  in the world that the sim (and the website) can see fall, land and stay
+  put. It also gives the tool an honest physical criterion -- "a seed left
+  the tube and reached the floor" is a fact, where "the gate was commanded
+  open" is a belief.
+
+  They are retained by GEOMETRY, not by grip: a capped tube over a shelf,
+  with the only exit blocked by the shuttle unless it is deliberately
+  driven out. So unlike the claw's payload, a carried magazine needs no
+  swing analysis -- there is no pose in which the seeds have anywhere to go.
+  """
+  th = math.radians(yaw_deg)
+  c, s = math.cos(th), math.sin(th)
+  out = []
+  for k, z in enumerate(seed_stack_zs(n)):
+    # The magazine sits on the module's own axis (x = y = 0 module-local), so
+    # the yaw rotation is a no-op for position -- but it is written out
+    # anyway, because the next tool to load something off-axis will copy this
+    # and a silently-omitted rotation is exactly how the rack-frame verdict
+    # bug happened.
+    wx = module_x + 0.0 * c - 0.0 * s
+    wy = module_y + 0.0 * s + 0.0 * c
+    out.append(
+      f"""
+    <body name="seed_{k}" pos="{wx:.4f} {wy:.4f} {module_body_z + z:.4f}">
+      <freejoint/>
+      <geom name="seed_{k}_body" type="sphere" size="{SEED_R}" """
+      f"""mass="{SEED_MASS}" condim="6" friction="{SEED_FRICTION}" """
+      f"""priority="1" rgba="0.85 0.72 0.35 1"/>
+    </body>""")
+  return "".join(out)
+
+
+def dispenser_actuator_xml() -> str:
+  """The escapement's one actuator. Lives on the MODULE, like the pen
+  carriage and the claw's jaws -- driven by the module's own ESP32 across the
+  wireless data link, powered through the peg."""
+  return (f'<position name="seed_gate" joint="seed_gate_joint" '
+          f'kp="{DISP_GATE_KP}" kv="12" '
+          f'ctrlrange="0 {DISP_STROKE:.4f}" forcerange="-20 20"/>')
+
+
 def _look_at(pos, target, up=(0.0, 0.0, 1.0)) -> str:
   """MJCF `xyaxes` for a camera at `pos` aimed at `target`.
 
@@ -702,7 +872,65 @@ def _module_faces() -> tuple[str, str]:
       for lbl, s in (("l", 1), ("r", -1)))
     + f'\n      <site name="claw_grip" pos="{-CLAW_REACH:.4f} 0 {CLAW_JAW_Z:.4f}" size="0.003" '
       f'rgba="0.9 0.6 0.2 1"/>')
-  return lcd_face, plug_face, pen_face, claw_face
+  tube_bot = DISP_MOUTH_Z
+  tube_half_h = (DISP_TUBE_TOP - tube_bot) / 2
+  tube_z = (DISP_TUBE_TOP + tube_bot) / 2
+  shelf_z = DISP_SHELF_TOP - 0.0005 - DISP_SHELF_HALF_Z
+  seed_face = (
+    f'<geom name="module_seed_tag" type="box" '
+    f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
+    f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
+    f'material="tagmat{MODULE_TAG_IDS["module_seed"]}"/>'
+    # The magazine: a square tube of four walls, hanging entirely below the
+    # plate. Square rather than round because a box is a convex primitive and
+    # a tube is not -- the same decomposition the V-notches and the schuko
+    # recess needed.
+    + "".join(
+      f'\n      <geom name="module_seed_tube_{lbl}" type="box" '
+      f'size="{sx:.4f} {sy:.4f} {tube_half_h:.4f}" '
+      f'pos="{px:.4f} {py:.4f} {tube_z:.4f}" mass="0.008" '
+      f'rgba="0.50 0.42 0.30 1"/>'
+      for lbl, sx, sy, px, py in (
+        ("px", DISP_WALL, DISP_BORE + 2 * DISP_WALL, DISP_BORE + DISP_WALL, 0.0),
+        ("nx", DISP_WALL, DISP_BORE + 2 * DISP_WALL, -(DISP_BORE + DISP_WALL), 0.0),
+        ("py", DISP_BORE, DISP_WALL, 0.0, DISP_BORE + DISP_WALL),
+        ("ny", DISP_BORE, DISP_WALL, 0.0, -(DISP_BORE + DISP_WALL))))
+    # The shelf the metered seed rides out on. It simply STOPS at
+    # DISP_SHELF_END -- that absence is the exit hole.
+    + f'\n      <geom name="module_seed_shelf" type="box" '
+      f'size="{DISP_BORE + DISP_WALL:.4f} '
+      f'{(DISP_SHELF_END + DISP_BORE + 2 * DISP_WALL) / 2:.4f} '
+      f'{DISP_SHELF_HALF_Z:.4f}" '
+      f'pos="0 {(DISP_SHELF_END - DISP_BORE - 2 * DISP_WALL) / 2:.4f} '
+      f'{shelf_z:.4f}" mass="0.006" '
+      f'friction="{DISP_SHELF_FRICTION}" priority="1" '
+      f'rgba="0.50 0.42 0.30 1"/>'
+    f'\n      <site name="seed_outlet" pos="0 {DISP_SHELF_END + 0.010:.4f} '
+    f'{DISP_OUTLET_Z:.4f}" size="0.003" rgba="0.85 0.72 0.35 1"/>'
+    # The escapement shuttle: ONE moving part, on ONE joint. Its pocket and
+    # its blanking slab are DISP_STROKE apart, which is what makes "seed
+    # released" and "stack held" the same motion rather than two that have
+    # to be sequenced against each other.
+    f'\n      <body name="module_seed_shuttle" pos="0 0 {DISP_POCKET_Z:.4f}">'
+    f'\n        <joint name="seed_gate_joint" type="slide" axis="0 1 0" '
+    f'range="0 {DISP_STROKE:.4f}" damping="1"/>'
+    f'\n        <geom name="module_seed_blank" type="box" '
+    f'size="{DISP_BORE + 2 * DISP_WALL:.4f} {DISP_BORE + 2 * DISP_WALL:.4f} '
+    f'{DISP_POCKET_HALF_Z:.4f}" pos="0 {-DISP_STROKE:.4f} 0" mass="0.010" '
+    f'rgba="0.35 0.37 0.40 1"/>'
+    + "".join(
+      f'\n        <geom name="module_seed_pocket_{lbl}" type="box" '
+      f'size="{sx:.4f} {sy:.4f} {DISP_POCKET_HALF_Z:.4f}" '
+      f'pos="{px:.4f} {py:.4f} 0" mass="0.004" rgba="0.35 0.37 0.40 1"/>'
+      for lbl, sx, sy, px, py in (
+        ("py", DISP_BORE + 2 * DISP_WALL, DISP_WALL + 0.003,
+         0.0, DISP_BORE + DISP_WALL + 0.003),
+        ("px", DISP_WALL + 0.003, DISP_BORE + DISP_WALL + 0.003,
+         DISP_BORE + DISP_WALL + 0.003, 0.0),
+        ("nx", DISP_WALL + 0.003, DISP_BORE + DISP_WALL + 0.003,
+         -(DISP_BORE + DISP_WALL + 0.003), 0.0)))
+    + '\n      </body>')
+  return lcd_face, plug_face, pen_face, claw_face, seed_face
 
 
 def claw_actuator_xml() -> str:
@@ -741,8 +969,8 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
   plates are AprilTag placeholders (rack pose, bay identity, module
   identity) until the perception pass.
   """
-  ya, yb, yc, yd = HUB_STATION_YS
-  lcd_face, plug_face, pen_face, claw_face = _module_faces()
+  ya, yb, yc, yd, ye = HUB_STATION_YS
+  lcd_face, plug_face, pen_face, claw_face, seed_face = _module_faces()
   tag_ids = write_tag_pngs()
   xml = f"""<!-- GENERATED by pluggybot.hub.coupling.write_hub_world().
      Regenerate: uv run python -m pluggybot.hub.coupling
@@ -791,6 +1019,10 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
                 "0.65 0.35 0.30 1", face=pen_face)}
     {module_xml("module_claw", RACK_HANG_X, yd, HUB_PEG_Z,
                 "0.35 0.55 0.35 1", face=claw_face)}
+    {module_xml("module_seed", RACK_HANG_X, ye, HUB_PEG_Z,
+                "0.55 0.45 0.25 1", face=seed_face)}
+    {seed_bodies_xml(RACK_HANG_X, ye,
+                     HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R - PEG_ABOVE_BODY)}
 
     <!-- Something to pick up. A 26 mm, 60 g block on open floor: small enough
          for a 70 mm jaw span, heavy enough that dropping it is visible. -->
@@ -805,6 +1037,7 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
   <actuator>
     {pen_actuator_xml()}
     {claw_actuator_xml()}
+    {dispenser_actuator_xml()}
   </actuator>
 </mujoco>
 """
@@ -835,12 +1068,14 @@ def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float) -> str:
   """The rack body + its four hanging modules at an arbitrary room pose --
   the one worldbody snippet every world that has a hub shares (hub_world,
   room_hub via hub_rack.xml, home_world)."""
-  ya, yb, yc, yd = HUB_STATION_YS
-  lcd_face, plug_face, pen_face, claw_face = _module_faces()
+  ya, yb, yc, yd, ye = HUB_STATION_YS
+  lcd_face, plug_face, pen_face, claw_face, seed_face = _module_faces()
   ax, ay_ = rack_frame_to_world(RACK_HANG_X, ya, pos, yaw_deg)
   bx, by_ = rack_frame_to_world(RACK_HANG_X, yb, pos, yaw_deg)
   cx, cy_ = rack_frame_to_world(RACK_HANG_X, yc, pos, yaw_deg)
   dx, dy_ = rack_frame_to_world(RACK_HANG_X, yd, pos, yaw_deg)
+  ex, ey_ = rack_frame_to_world(RACK_HANG_X, ye, pos, yaw_deg)
+  body_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R - PEG_ABOVE_BODY
   return f"""{_rack_body_xml((pos[0], pos[1], 0.0), yaw_deg)}
     {module_xml("module_lcd", ax, ay_, HUB_PEG_Z,
                 "0.20 0.45 0.75 1", face=lcd_face, yaw_deg=yaw_deg)}
@@ -849,7 +1084,10 @@ def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float) -> str:
     {module_xml("module_pen", cx, cy_, HUB_PEG_Z,
                 "0.65 0.35 0.30 1", face=pen_face, yaw_deg=yaw_deg)}
     {module_xml("module_claw", dx, dy_, HUB_PEG_Z,
-                "0.35 0.55 0.35 1", face=claw_face, yaw_deg=yaw_deg)}"""
+                "0.35 0.55 0.35 1", face=claw_face, yaw_deg=yaw_deg)}
+    {module_xml("module_seed", ex, ey_, HUB_PEG_Z,
+                "0.55 0.45 0.25 1", face=seed_face, yaw_deg=yaw_deg)}
+    {seed_bodies_xml(ex, ey_, body_z, yaw_deg)}"""
 
 
 def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
@@ -869,6 +1107,7 @@ def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
   <actuator>
     {pen_actuator_xml()}
     {claw_actuator_xml()}
+    {dispenser_actuator_xml()}
   </actuator>
 </mujocoinclude>
 """

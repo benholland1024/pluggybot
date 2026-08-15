@@ -1351,6 +1351,185 @@ spike. Until then: **fetching and drawing with the pen works end to end in
 the home world; stowing it afterwards does not**, and `scripts/home_draw.py`
 reports the stow honestly rather than claiming success.
 
+## The seed dispenser (issue #7): the first tool built from the pattern doc
+
+`docs/ToolPattern.md` was written by mining the pen and the claw; the
+dispenser is the tool built *against* it, which is the only way to find out
+whether the recipe is a recipe or a memoir. Verified end state
+(`scripts/dispense.py`): fetch the module from the rack's new bay E, power it
+through the coupling, drive to each point of a row and meter out **exactly
+one seed per cycle**, three for three, landing **14 / 14 / 27 mm** from the
+target, module still electrically seated throughout — and, unlike the pen, it
+**stows cleanly afterwards**.
+
+**What the doc actually bought.** Stage 0 — measure the tool's demands against
+the envelope before drawing it — came out entirely on paper this time, and
+was right:
+
+- the magazine hangs on the peg's own axis (L = 0), so it spends **none** of
+  the 0.45 N·m moment budget however much it carries;
+- a dispenser *releases* and never presses, so the lean-pad's ~1.5–2 N ceiling
+  — the constraint that shaped the whole drawing tool — simply does not apply;
+- the assembly came to ~58 g on top of the 120 g plate/peg budget, landing the
+  module at a measured **185.6 g**, between the pen (182) and the claw (211);
+- it needed no tolerance spike, because it adds no new mating interface and
+  inherits the coupling envelope already measured.
+
+The escapement then worked **on the first run** — one seed per cycle, three
+cycles, no tuning. That is the result the doc was written for.
+
+**Four gaps it left, all folded back in.**
+
+- **Tolerance class was not one of the stage-0 questions, and it should have
+  been the second one asked.** A sown seed lands where it lands: centimetres
+  is the design target. Realising that up front is what let this controller
+  skip the claw's entire back-up-and-take-another-run-at-it refinement, whose
+  only purpose is squeezing a 26 mm block into a 62 × 28 mm capture window.
+  Matching control effort to tolerance class is a design decision, not an
+  omission — and getting it backwards would also have meant touching the
+  swap's travel constants, which implicitly contain mm-scale wheel slip.
+- **The doc had no notion of a PAYLOAD.** The pen and claw both act *on* the
+  world; this tool carries loose free bodies and lets them go. Retention here
+  is by **geometry** — a capped tube over a shelf whose only exit is blocked
+  by the shuttle — not by grip, so unlike the claw's block there is no pose in
+  which the payload has anywhere to go, and no carry-swing analysis is needed
+  at all.
+- **A dropped sphere rolls forever, and sliding friction does not touch it.**
+  This is the build's one real surprise and it cost 220 mm of sowing accuracy.
+  Measured, on a seed released with 0.15 m/s of residual motion — just the
+  base's settle:
+
+  | contact model | travelled in 6 s | still moving at 6 s |
+  |---|---|---|
+  | `condim=3`, friction 0.7 | 586 mm | 97 mm/s |
+  | `condim=3`, friction 1.0 `priority=1` | **586 mm** | **97 mm/s** |
+  | `condim=6`, friction 0.9 / 0.02 / 0.005 | **14 mm** | stopped |
+
+  The middle row is the whole lesson: cranking μ changed the answer by 0.0 mm,
+  because **a rolling ball is not sliding**. Rolling resistance is a different
+  friction dimension and MuJoCo will not even solve for it below `condim="6"`.
+  Exactly the shape of the issue-3 wheel finding ("a velocity servo commanded
+  0 resists speed, not force") and of the caster lesson, met on a third axis.
+  Placement went 220 mm → 14–27 mm, and is now bounded by the drop, not the
+  roll. `priority="1"` as always, or the floor's default defines the contact.
+- **Adding a tool is a telemetry event.** Five new dynamic bodies (the module,
+  its shuttle, three seeds) moved `test_room_hub_coverage`'s census 16 → 21
+  and made both committed scene fixtures stale. Every dynamic body costs a
+  pose in every keyframe, so this is a two-repo-visible change even though no
+  `protocolVersion` bump is involved (content changed, not shape).
+
+**A controlled run that advances the pen-stow open item.** The five modules
+now make a natural experiment: same bare world, same script, same default
+`put_back` choreography, five different faces.
+
+| module | picked | hung after `put_back` | rack-frame x |
+|---|---|---|---|
+| lcd | ✔ | ✔ | 0.090 |
+| plug | ✔ | ✔ | 0.095 |
+| **pen** | ✔ | **✘ (still on the fork)** | **0.444** |
+| claw | ✔ | ✔ | 0.096 |
+| seed | ✔ | ✔ | 0.090 |
+
+This is the bare-world return sweep SimNotes named as the next step, and the
+answer is sharper than expected: **the pen fails with no navigation anywhere
+in the picture**, riding away on the fork from a hand-off pose that was set by
+`place_at_standoff`, not driven to. So navigation is fully exonerated — the
+fault is the pen module's own geometry, as the "stands 26 mm proud of its
+plate" suspicion held. The dispenser is the control that makes it convincing:
+it is the heaviest-but-one module, it hangs a 100 mm tube below the plate, and
+it stows at 2.8 mm of bay error — because everything it carries is **below**
+plate height, in air the rack never occupies. The pattern's "keep the
+rack-facing face flat" advice is now a measured rule rather than a hunch.
+
+### Pure pursuit orbits a nearby target (the pirouettes)
+
+Ben watched `dispense.py --view` and asked why the robot spins in circles
+before each seed. It does, and it was two independent faults stacked — one a
+real bug in shared navigation code, one a demo-geometry choice. Total cost:
+**111 s and 3130° of turning** to sow three seeds 200 mm apart.
+
+**1. `drive_toward` cannot converge on a destination closer than about its
+own overshoot — it flies a circle around it.** Traced on a 0.20 m hop:
+
+| t (s) | dist to target (mm) | heading error | w | v |
+|---|---|---|---|---|
+| 2 | 64 | +70° | 1.50 (saturated) | 0.135 |
+| 5 | 31 | +84° | 1.50 | 0.045 |
+| 9 | 20 | +86° | 1.50 | 0.028 |
+| 12 | 16 | +87° | 1.50 | 0.022 |
+
+The heading error is *pinned* near 85° for ten seconds while the robot drives
+a ~25 mm circle around the point it is trying to reach, escaping only when
+drift drops it inside the 15 mm arrival radius. That is a stable limit cycle,
+not a wobble: overshoot puts the target beside the robot, `w` saturates, and
+`v = V_MAX·cos(85°)` keeps just enough forward speed alive to sustain the
+orbit. **~900° of turning to cover 200 mm.**
+
+It bites *short hops specifically*, which is why nothing caught it before —
+the claw stages 0.45 m back and drives straight in, the plotter drives ~1 m to
+its board, and both measure **183° / 194°** for their approaches, near the
+geometric minimum. Nothing in the repo had ever driven a 20 cm errand.
+
+Fix: a **terminal mode** on `drive_toward` (`slow_radius=`), opt-in so every
+path-follower is untouched. Two properties, and it needs both:
+
+- **a hard cone** — outside ±25° of dead ahead, `v` is exactly zero and the
+  robot pivots in place. The orbit lives on the sliver of speed `cos(85°)`
+  still permits, so a soft taper alone does not kill it (measured: the
+  distance taper by itself barely moved the numbers, because `v` in the orbit
+  is *already* only 0.03 m/s);
+- **a distance taper** — inside the cone, speed falls linearly to zero over
+  the last `slow_radius` metres, so the approach ends rather than overshooting
+  and restarting the chase.
+
+Terminal speed stays clear of the wheels' stiction deadband at any sane
+arrival radius (0.53 rad/s of wheel against a 0.1 rad/s floor), so unlike the
+P-turn controllers this needs no `turn_command` breakaway treatment.
+Guarded by `tests/test_navigation.py`, which integrates a kinematic unicycle
+rather than stepping MuJoCo — the limit cycle is a property of the **control
+law**, so it reproduces in milliseconds with no contacts in the way (939° in
+the kinematic model against ~900° measured in the sim). One of those tests
+asserts the *defect* still exists in the default law, so the fix's premise
+cannot rot silently.
+
+**2. Sowing ACROSS the row costs a pivot per seed.** The demo's row ran along
++y while the robot sowed facing +x, so every hop between points was a pure
+sideways translation — the one motion a differential drive cannot make. Even
+with the orbit fixed that is ~90° out and ~90° back, forever. Driving *along*
+the row makes each hop a straight run with no turn at all, which is how a real
+seed drill works. `SeedDispenser.row_heading()` now derives it, and `sow_at`
+defaults to it.
+
+| | sim time | turning | placement (mean / max) |
+|---|---|---|---|
+| original | 111 s | 3130° | 19 / 27 mm |
+| terminal approach only | 65 s | 611° | 26 / 39 mm |
+| + sowing along the row | **56 s** | **288°** | **17 / 20 mm** |
+
+**And the cube was innocent.** The obvious suspect — `pickup_box`, sitting at
+(1.10, 0.60) for the claw demo — was ruled out by measurement, not by eye:
+**zero** non-floor contacts with it across the whole errand, closest axle
+approach 217 mm, and it never moved by so much as a tenth of a millimetre.
+(The first version of that check counted *all* its contacts and reported a
+hit on 86 % of steps, which is just a cube resting on a floor. A contact
+census that does not exclude the ground measures gravity.)
+
+**Two process notes worth keeping.**
+
+- **A module-scoped fixture holding a consumable resource makes tests
+  order-dependent, and the file passes anyway.** The landing test passed in a
+  full run and failed when run alone: it was only ever seeing seeds an
+  *earlier* test had dispensed. Function-scoped now, at ~5 s a test, which is
+  the honest price. A fixture that carries mutated state between tests is a
+  shared world pretending to be a fresh one.
+- **The filmstrip-camera rule needed sharpening, having caught me anyway.**
+  The doc says sweep azimuth at the moment of contact; I reasoned first, and
+  produced six frames in which the tool was invisible. The sweep then showed
+  that a *tracking* camera on the module body is the wrong instrument
+  entirely — the tube sits behind the chassis and a 16 mm seed was invisible
+  in all eight azimuths. Aiming a **free** camera at the working point (the
+  outlet site, +90 mm, az 120) is what shows the job being done.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

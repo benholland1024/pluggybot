@@ -4,6 +4,9 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 - `docs/PluggyPlan.md` — goals, milestone status, architecture
 - `docs/SimNotes.md` — hard-won simulation lessons; read BEFORE touching `models/` or contact/actuator params
 - `docs/Parts.md` — locked hardware decisions and the sim parameters they feed
+- `docs/ToolPattern.md` — the recipe for adding a tool module (coupling
+  envelope, module anatomy, contact rules, build sequence, rack integration);
+  read BEFORE designing a new tool, and fold any gap it left back into it
 
 ## Working style
 
@@ -42,6 +45,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
   Full pick-carry-place verified),
+  `scripts/dispense.py` (the seed dispenser, the fifth tool and the first
+  built against `docs/ToolPattern.md`: fetch it from bay E, drive a row and
+  meter out exactly one seed per point; saves `dispense.png`. `--view`
+  watches live. The escapement meters by GEOMETRY, not by timing — and note
+  the seeds carry `condim="6"` rolling friction, without which a dropped
+  sphere rolls ~590 mm and *sliding* friction does not slow it at all),
   `scripts/module_power.py` (module electrical interface: runs the errand and
   saves `module_power.png` — filmstrip with the module painted live/dead plus
   a per-pole continuity timeline; `--bare` for the faster hub_world version),
@@ -91,7 +100,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   rgba, and colour-as-encoding couples the tag detector to the website's art.
 - Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
   `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
-  changing any rack geometry. `models/room_1_scenery.xml` is the shared floor
+  changing any rack geometry. The rack has **five tool bays** (A–E) plus the
+  charge bay; `HUB_STATION_YS` is APPENDED to, never reordered, because
+  bay↔tag pairing is by index. A sixth tool needs the rail to grow again and
+  a re-check against BOTH rooms the rack stands in (`docs/ToolPattern.md` §6). `models/room_1_scenery.xml` is the shared floor
   plan behind both `room_1.xml` (plug robot) and `room_hub.xml` (fork robot);
   edit scenery there, never in one room only.
 - `--views` on teleop.py / map_teleop.py / lifecycle.py saves `views.png`
@@ -157,7 +169,16 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   DEADBAND: wheel-speed commands under `frictionloss/kv` (0.1 rad/s) move a
   stopped wheel not at all, so P-turn controllers must go through
   `control.turn_command` (breakaway floor) — a raw `gain × err` command
-  crawls (55 s to settle 0.23°, measured). `PenPlotter.contact_physics` /
+  crawls (55 s to settle 0.23°, measured).
+- **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
+  does not.** The default pure-pursuit law cannot converge on a destination
+  closer than its own overshoot — it flies a stable ORBIT around it (measured:
+  ~900° of turning per 200 mm hop, heading error pinned at 85° with `w`
+  saturated). Terminal mode adds a hard ±25° cone (`v` exactly 0 outside it —
+  a soft taper alone does NOT kill the orbit) plus a distance taper. Only
+  short hops are affected, which is why the claw and plotter never showed it.
+  `tests/test_navigation.py` guards both halves, and pins the defect in the
+  default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
 - Contact params combine as the elementwise **MAX** unless `priority` is set —
