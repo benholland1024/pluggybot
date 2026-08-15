@@ -83,6 +83,10 @@ uv run python scripts/ws_sink.py --port 8765
 # terminal 2: the mission, live at 1x
 MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 
+# …in the generated house + garden, which is what the site serves (issue #9)
+MUJOCO_GL=osmesa uv run python scripts/serve.py --world home \
+  --endpoint ws://localhost:8765
+
 # …or rehearse the authenticated production path
 uv run python scripts/ws_sink.py --port 8765 --token s3cret
 PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
@@ -91,7 +95,12 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
 
 `serve.py --rate 2.0` runs faster than life; `--free-run` disables pacing
 to measure the machine's real-time multiple; `--record` keeps a v0
-recording of the same run; `--keyframe-s` tunes the keyframe cadence.
+recording of the same run; `--keyframe-s` tunes the keyframe cadence;
+`--world {room_hub,home}` picks the world, and picks it *whole* — model,
+scene name, rack pose, grid extent, battery size, start pose, errand
+destination and explore budget all come from `world_config()`, since a
+half-applied world fails silently (a short explore budget just stops
+filling the map; a stale errand destination just drives at a wall).
 `ws_sink.py` measures received frame *gaps* — the wall-clock spacing
 between frames — which is the consumer-side proof the stream is smooth,
 and reports keyframe spacing, which is the proof a late joiner converges.

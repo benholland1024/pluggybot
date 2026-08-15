@@ -56,15 +56,20 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   streaming protocol frames + grid PNGs + event lines over an outbound
   WebSocket — the sim never blocks on the socket; `--rate X`, `--free-run`
   measures the machine's real-time multiple; `--token` / `$PLUGGYWORLD_TOKEN`
-  is the website's ingest secret; docs/Webserver.md),
+  is the website's ingest secret; `--world {room_hub,home}` picks the world
+  (issue #9 — the site serves `home`); docs/Webserver.md),
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
   frame-gap stats + keyframe spacing; `--token` makes it refuse an
   unauthenticated publisher, like the real ingest path)
-- PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED — the
-  scene JSON + tag textures via `uv run python -m pluggybot.telemetry.scene`
-  (rerun after changing any room_hub geometry — the fixture test fails when
-  stale), the telemetry recording via `MUJOCO_GL=egl uv run python
-  scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz`.
+- PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED, and
+  there is one scene AND one recording **per world** — a replayer picks its
+  scene off the recording's `model` header, so a room_hub mission replayed
+  against the home scene drives through walls rather than erroring. Scene
+  JSON + tag textures: `uv run python -m pluggybot.telemetry.scene
+  [models/home_world.xml]` (rerun after changing ANY geometry in that world —
+  the fixture test fails when stale). Recordings: `MUJOCO_GL=egl uv run
+  python scripts/hub_lifecycle.py [--world home] --record
+  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz`.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
 - The HOME world is GENERATED (issue #6) — regenerate `models/home_world.xml`

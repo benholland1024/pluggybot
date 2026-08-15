@@ -39,7 +39,15 @@ against the body census.
 | `scene.home_world.json` | The generated home world, with visual hints + zones + spawns (issue #6) | `uv run python -m pluggybot.telemetry.scene models/home_world.xml` |
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
-| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission recording (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
+| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same mission in the **home world** (issue #9) — what the live site serves | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+
+**One recording per scene, and they are not interchangeable.** A replayer
+picks its scene off the header's `model` field, so playing the room_hub
+recording against the home scene poses the robot inside the wrong house —
+which renders as a robot driving through walls, not as an error.
+`tests/test_telemetry.py` checks each recording's `model` label and each
+scene against its committed world.
 
 ## Scene description (fetched once)
 

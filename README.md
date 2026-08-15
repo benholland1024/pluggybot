@@ -65,10 +65,25 @@ uv run pytest -vs
 In this project, start it like so:
 ```bash
 PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
-  uv run python scripts/serve.py --endpoint ws://localhost:3000/api/pluggyworld/ingest
+  uv run python scripts/serve.py --world home \
+    --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Then, in `rooftop-media-2026`, start it with `npm run dev`
+
+`--world home` serves the generated house + garden (issue #6) — the world
+the site is meant to show. Drop the flag to serve `room_hub` instead, the
+bare rack room the hub mechanics were built in. The flag picks *everything*
+the world implies (model, scene name, rack pose, grid extent, battery size,
+start pose, errand destination, explore budget) from one table,
+`hub.lifecycle.world_config()`, because every one of those getting out of
+step fails silently rather than loudly: the wrong explore budget just stops
+filling the map, and the wrong errand destination just drives at a wall.
+
+Whichever world you serve, the site must be showing the matching scene —
+the header's `model` field is what it selects on (`home_world` vs
+`room_hub`), and both scenes plus a recorded mission for each are committed
+under `protocol/`.
 
 # Outlet visual recognition with Yolo CNN
 

@@ -278,27 +278,56 @@ def test_recorder_status_fn_and_gzip(mini_model, tmp_path):
 # The same checks the website repo runs against its vendored copies: if these
 # fail, regenerate the fixtures or bump the protocol version deliberately.
 
-SCENE_FIXTURE = REPO / "protocol" / "scene.room_hub.json"
-TELEMETRY_FIXTURE = REPO / "protocol" / "telemetry.hub_lifecycle.jsonl.gz"
+PROTOCOL = REPO / "protocol"
+
+# Every world the website can render needs BOTH artifacts: a scene to build
+# and a recording to replay in it. Serving one world's telemetry against the
+# other's scene is the failure this table exists to make impossible.
+WORLDS = [
+  # (scene fixture, model, model name, generator sidecar, recording)
+  ("scene.room_hub.json", "room_hub.xml", "room_hub", None,
+   "telemetry.hub_lifecycle.jsonl.gz"),
+  ("scene.home_world.json", "home_world.xml", "home_world",
+   "home_world.meta.json", "telemetry.home_lifecycle.jsonl.gz"),
+]
+SCENE_CASES = [(w[0], w[1], w[2], w[3]) for w in WORLDS]
+TELEMETRY_CASES = [(w[4], w[2]) for w in WORLDS]
 
 
-def test_scene_fixture_current():
-  scene = json.loads(SCENE_FIXTURE.read_text())
+@pytest.mark.parametrize("fixture,world_xml,model_name,meta_file", SCENE_CASES,
+                         ids=[c[2] for c in SCENE_CASES])
+def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
+  """A committed scene must match the committed WORLD, not an old one.
+
+  home_world's is the one that rots fastest: the world is GENERATED, so a
+  layout constant changed in home/world.py and regenerated into models/
+  leaves this fixture describing last week's house -- and the website
+  renders walls where the robot no longer sees them.
+  """
+  path = PROTOCOL / fixture
+  scene = json.loads(path.read_text())
   assert scene["protocolVersion"] == PROTOCOL_VERSION
-  assert scene["model"] == "room_hub" and scene["upAxis"] == "z"
+  assert scene["model"] == model_name and scene["upAxis"] == "z"
   for tex in scene["textures"]:
-    assert (SCENE_FIXTURE.parent / "textures" / tex["file"]).exists()
-  # the committed fixture must match the committed WORLD, not an old one
-  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / "room_hub.xml"))
-  assert scene == scene_dict(model, "room_hub"), \
-    "stale fixture: uv run python -m pluggybot.telemetry.scene"
+    assert (path.parent / "textures" / tex["file"]).exists()
+  meta = (json.loads((REPO / "models" / meta_file).read_text())
+          if meta_file else None)
+  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / world_xml))
+  assert scene == scene_dict(model, model_name, meta=meta), \
+    f"stale fixture: uv run python -m pluggybot.telemetry.scene " \
+    f"models/{world_xml}"
 
 
-def test_telemetry_fixture_is_a_full_mission():
-  with gzip.open(TELEMETRY_FIXTURE, "rt") as f:
+@pytest.mark.parametrize("fixture,model_name", TELEMETRY_CASES,
+                         ids=[c[1] for c in TELEMETRY_CASES])
+def test_telemetry_fixture_is_a_full_mission(fixture, model_name):
+  with gzip.open(PROTOCOL / fixture, "rt") as f:
     lines = [json.loads(line) for line in f]
   header, frames = lines[0], lines[1:]
   assert header["protocolVersion"] == PROTOCOL_VERSION
+  # the header field the website selects its scene off -- a recording
+  # mislabelled here poses one world's robot inside the other's rooms
+  assert header["model"] == model_name
   robot_names = set(header["robots"]["pluggybot"])
   first = frames[0]["robots"]["pluggybot"]
   assert set(first["bodies"]) == robot_names, "first frame must be a keyframe"

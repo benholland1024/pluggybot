@@ -3,6 +3,7 @@
 import math
 
 import mujoco
+import numpy as np
 import pytest
 
 from pluggybot.hub.coupling import CHARGE_BAY_Y, HUB_STATION_YS
@@ -84,15 +85,50 @@ def test_low_battery_is_an_absolute_reserve(room_model):
 
 
 @pytest.mark.slow
-def test_full_hub_lifecycle():
+@pytest.mark.parametrize("world", ["room_hub", "home"])
+def test_full_hub_lifecycle(world):
   """The milestone-8 claim end to end: find the hub by looking, fetch a
   tool, use it elsewhere, stow it, then notice the battery and charge at
-  the hub -- collision-free."""
+  the hub -- collision-free.
+
+  The home arm (issue #9) is the one the website serves, and it is a
+  harder room than room_hub: the mission has to get through a door gap to
+  reach its use_at, so a bad world constant shows up here as a collision
+  or a dropped module rather than as an exception. Every constant comes
+  from world_config, so this is also the guard on that table.
+  """
   from pluggybot.hub.lifecycle import run_demo
-  r = run_demo(start=(0.5, 3.0, math.pi / 2))
+  r = run_demo(world=world)                # start pose from the world config
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
   assert r["module_stowed"], "the module was not put back"
   assert r["charge_cycles"] >= 1, "never charged at the hub"
   assert r["battery"] > 0.5, "ended flat"
   assert r["collision_steps"] == 0, "the robot hit something"
+
+
+@pytest.mark.parametrize("world", ["room_hub", "home"])
+def test_world_config_use_at_is_inside_its_own_world(world):
+  """The errand destination must be free floor in the world it belongs to.
+
+  room_hub's (-1.2, 2.5) sits inside wall_divider_0 in the home world
+  (DIV_Y = 2.5, and the door gap is only x in [1.0, 2.0]) -- inheriting it
+  there aims a 60 s drive at a wall, and nothing raises. This is a cheap
+  geometric check of the same thing the slow home arm proves by driving.
+  """
+  from pluggybot.hub.lifecycle import world_config
+  cfg = world_config(world)
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  # Look straight down at the destination from above: the first thing the
+  # ray meets must be the floor. A wall there stops it 1.2 m up.
+  x, y = cfg["use_at"]
+  hit = np.zeros(1, dtype=np.int32)
+  dist = mujoco.mj_ray(model, data, np.array([x, y, 3.0]),
+                       np.array([0.0, 0.0, -1.0]), None, 1, -1, hit)
+  assert dist >= 0, f"use_at {cfg['use_at']} for {world} has no floor under it"
+  top = 3.0 - float(dist)
+  assert top < 0.05, (
+    f"use_at {cfg['use_at']} for {world} is blocked by "
+    f"{model.geom(int(hit[0])).name} standing {top:.2f} m tall")

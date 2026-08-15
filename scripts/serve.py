@@ -11,6 +11,12 @@ Usage:
   MUJOCO_GL=egl    uv run python scripts/serve.py --endpoint ws://localhost:8765
   MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
     # CPU-only rendering, the deploy-server configuration
+  ... --world home      # the generated house + garden (issue #6); room_hub
+                        # is the default. Everything the world implies --
+                        # model, scene name, rack pose, grid extent, battery,
+                        # start pose, errand destination, explore budget --
+                        # comes from hub.lifecycle.world_config(), so this
+                        # flag can never half-apply.
   ... --rate 2.0        # sim seconds per wall second (default 1.0)
   ... --free-run        # no pacing: measure this machine's real-time multiple
   ... --record out.jsonl.gz   # also keep a v0 recording of the same run
@@ -23,13 +29,12 @@ visible in `ps` to every user on the box.
 """
 
 import argparse
-import math
 import os
 import time
 
 import mujoco
 
-from pluggybot.hub.lifecycle import DEMO_CAPACITY_WH, HubLifecycle
+from pluggybot.hub.lifecycle import HubLifecycle, world_config
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
@@ -39,11 +44,16 @@ def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
+  parser.add_argument("--world", choices=("room_hub", "home"),
+                      default="room_hub",
+                      help="which world to serve: room_hub (default) or the "
+                           "generated home world (issue #6)")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
                       help="disable pacing (real-time-multiple measurement)")
-  parser.add_argument("--battery-wh", type=float, default=DEMO_CAPACITY_WH)
+  parser.add_argument("--battery-wh", type=float, default=None,
+                      help="battery capacity (per-world demo cell by default)")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
@@ -55,10 +65,15 @@ def main() -> None:
                                         " forever)")
   args = parser.parse_args()
 
-  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  cfg = world_config(args.world)
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, battery_wh=args.battery_wh)
-  publisher = WsPublisher(model, data, args.endpoint, model_name="room_hub",
+  life = HubLifecycle(model, data,
+                      battery_wh=args.battery_wh or cfg["battery_wh"],
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"])
+  publisher = WsPublisher(model, data, args.endpoint,
+                          model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s)
@@ -71,14 +86,16 @@ def main() -> None:
   recorder = None
   if args.record is not None:
     recorder = TelemetryRecorder(model, data, args.record,
-                                 model_name="room_hub",
+                                 model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s)
     life.mission.step_hooks.append(recorder.step_hook)
 
   wall0 = time.monotonic()
   try:
-    r = life.run((0.5, 3.0, math.pi / 2), max_sim_time=args.max_sim_time)
+    r = life.run(cfg["start"], use_at=cfg["use_at"],
+                 max_sim_time=args.max_sim_time,
+                 explore_budget=cfg["explore_budget"])
   finally:
     publisher.close()
     if recorder is not None:

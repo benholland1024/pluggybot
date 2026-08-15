@@ -21,9 +21,14 @@ under guard:
     REPORTED rather than retried in silence.
 """
 
+import importlib.util
 import json
+import math
+import sys
 import threading
 import time
+import types
+from pathlib import Path
 
 import mujoco
 import pytest
@@ -463,3 +468,140 @@ def test_reconnect_resends_header_and_keyframe(mini_model):
   assert set(framed[0]["world"]) == {"ball"}
   assert framed[0].get("key") is True, \
     "the recovery keyframe must be MARKED, or the relay hub cannot see it"
+
+
+# ---- scripts/serve.py: the world the live demo actually serves --------------
+# serve.py is what visitors see, and every world-dependent constant it gets
+# wrong fails SILENTLY -- a short explore budget just stops mapping early, a
+# stale use_at just drives at a wall, a stale model_name just makes the site
+# render the other house. So the guard is the whole wiring, checked by
+# running main() with the heavy collaborators faked out: real argparse, real
+# world_config, real MjModel load, no physics.
+
+_SERVE = Path(__file__).parent.parent / "scripts" / "serve.py"
+
+
+def _load_serve():
+  spec = importlib.util.spec_from_file_location("serve", _SERVE)
+  mod = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(mod)
+  return mod
+
+
+class _FakeLife:
+  """Stands in for HubLifecycle: records how it was built and run."""
+
+  def __init__(self, model, data, **kw):
+    self.init_kwargs = kw
+    self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
+    self.say_hooks: list = []
+    self.run_args: tuple = ()
+    self.run_kwargs: dict = {}
+
+  def telemetry_status(self) -> dict:
+    return {}
+
+  def run(self, *a, **kw):
+    self.run_args, self.run_kwargs = a, kw
+    return {"state": "DONE", "swaps_done": 2, "charge_cycles": 1,
+            "module_stowed": True, "sim_time": 100.0}
+
+
+class _FakePublisher:
+  def __init__(self, model, data, endpoint, **kw):
+    self.init_kwargs = kw
+    self.frames_sent = self.frames_dropped = self.connections = 0
+    self.last_error = None
+
+  def step_hook(self) -> None:
+    pass
+
+  def event(self, t, msg) -> None:
+    pass
+
+  def close(self) -> None:
+    pass
+
+
+def _serve_wiring(monkeypatch, argv):
+  """Run serve.main() with fakes; return (fake life, fake publisher)."""
+  serve = _load_serve()
+  built: dict = {}
+
+  def life_factory(model, data, **kw):
+    built["life"] = _FakeLife(model, data, **kw)
+    built["model"] = model
+    return built["life"]
+
+  def pub_factory(model, data, endpoint, **kw):
+    built["pub"] = _FakePublisher(model, data, endpoint, **kw)
+    return built["pub"]
+
+  monkeypatch.setattr(serve, "HubLifecycle", life_factory)
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(sys, "argv", ["serve.py", *argv])
+  serve.main()
+  return built["life"], built["pub"], built["model"]
+
+
+@pytest.mark.parametrize("world", ["room_hub", "home"])
+def test_serve_takes_every_world_constant_from_world_config(monkeypatch, world):
+  """--world must thread the WHOLE config through, not just the model.
+
+  Both traps this test exists for are silent: serve.py used to pass no
+  explore_budget at all (home wants 240 s, the default is 90 s, so the map
+  simply stops filling), and it used to inherit room_hub's use_at of
+  (-1.2, 2.5) -- which in the home world is inside wall_divider_0, so the
+  errand drives at a wall instead of into the living room.
+  """
+  from pluggybot.hub.lifecycle import world_config
+  cfg = world_config(world)
+
+  life, pub, model = _serve_wiring(monkeypatch, ["--world", world, "--free-run"])
+
+  assert life.init_kwargs["battery_wh"] == cfg["battery_wh"]
+  assert life.init_kwargs["low_battery_wh"] == cfg["low_battery_wh"]
+  assert life.init_kwargs["grid_bounds"] == cfg["grid_bounds"]
+  assert life.init_kwargs["rack"] == cfg["rack"]
+  assert life.run_args[0] == cfg["start"]
+  assert life.run_kwargs["use_at"] == cfg["use_at"]
+  assert life.run_kwargs["explore_budget"] == cfg["explore_budget"], \
+    "serve.py must pass the world's explore budget, not run()'s default"
+  # the header field the website selects its scene off
+  assert pub.init_kwargs["model_name"] == cfg["model_name"]
+  # ...and the model really is that world, not just a matching label
+  assert model.body(f"{'wall_divider_0' if world == 'home' else 'rack'}").id > 0
+
+
+def test_serve_defaults_to_room_hub_unchanged(monkeypatch):
+  """The regression arm: no --world must behave exactly as webserver v1 did."""
+  life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert pub.init_kwargs["model_name"] == "room_hub"
+  assert life.run_args[0] == (0.5, 3.0, math.pi / 2)
+  assert life.run_kwargs["use_at"] == (-1.2, 2.5)
+  assert life.run_kwargs["explore_budget"] == 90.0
+  assert life.init_kwargs["rack"] is None
+
+
+def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
+  """--record writes the replay artifact; a room_hub label on a home-world
+  recording would pose the wrong scene on the website's replay path."""
+  serve = _load_serve()
+  seen: dict = {}
+  real_recorder = serve.TelemetryRecorder
+
+  def recorder_factory(model, data, path, **kw):
+    seen.update(kw)
+    return real_recorder(model, data, path, **kw)
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _FakeLife(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher",
+                      lambda model, data, endpoint, **kw:
+                      _FakePublisher(model, data, endpoint, **kw))
+  monkeypatch.setattr(serve, "TelemetryRecorder", recorder_factory)
+  monkeypatch.setattr(sys, "argv",
+                      ["serve.py", "--world", "home", "--free-run",
+                       "--record", str(tmp_path / "out.jsonl.gz")])
+  serve.main()
+  assert seen["model_name"] == "home_world"
