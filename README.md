@@ -39,6 +39,16 @@ uv run pytest -v
 uv run pytest -vs
 ```
 
+# Running Pluggyworld on rooftop-media.org
+
+In this project, start it like so:
+```bash
+PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
+  uv run python scripts/serve.py --endpoint ws://localhost:3000/api/pluggyworld/ingest
+```
+
+Then, in `rooftop-media-2026`, start it with `npm run dev`
+
 # Outlet visual recognition with Yolo CNN
 
 Regenerate the training data:
