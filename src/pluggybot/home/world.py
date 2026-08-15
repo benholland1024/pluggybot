@@ -47,6 +47,9 @@ from pluggybot.hub.coupling import (
   CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml, rack_frame_to_world,
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
+from pluggybot.activity.plate import (
+  GATE_HALF_LEN, plate_gate_xml,
+)
 from pluggybot.hub.tags import asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
@@ -89,6 +92,14 @@ BOARDS = {
 }
 
 PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
+
+# The reference ACTIVITY (issue #8): a pressure plate just inside the garden
+# doorway, latching a gate in the garden's outer fence. Placed there on
+# purpose -- the gate blocks no route the robot needs, so the world stays
+# exactly as navigable as it was while still demonstrating the whole
+# pattern. Gating a real passage is the same code with the geometry moved.
+PLATE_XY = (5.7, 0.7)
+GATE_Y = 3.1                  # centre of a 1 m gap in the east fence
 
 ZONES = (
   {"name": "living", "kind": "room",
@@ -208,7 +219,9 @@ def build_home_world() -> tuple[str, dict]:
     ("fence_north", _wall_run("fence_north", gx0, gx1, hy1, hy1,
                               FENCE_HALF_H, FENCE_RGBA)),
     ("fence_east", _wall_run("fence_east", gx1, gx1, hy0, hy1,
-                             FENCE_HALF_H, FENCE_RGBA)),
+                             FENCE_HALF_H, FENCE_RGBA,
+                             gaps=((GATE_Y - GATE_HALF_LEN,
+                                    GATE_Y + GATE_HALF_LEN),))),
   )
   for prefix, segments in walls:
     hint = "fence" if prefix.startswith("fence") else "wall"
@@ -241,6 +254,16 @@ def build_home_world() -> tuple[str, dict]:
         f'    </body>',
         f"plant_{i}", "plant")
 
+  # The reference activity. Its module owns BOTH the geometry and the state
+  # machine (activity/plate.py), so a world adds one by calling one function
+  # -- the same shape as hub/coupling.py owning the tool modules' faces.
+  # No visual hints: there is no `gate` or `plate` in the vocabulary, and the
+  # website falls back to raw primitives for an unhinted body. Adding one is
+  # additive whenever the site wants a parametric gate, but inventing hints
+  # ahead of a consumer is how a shared vocabulary rots.
+  act_body, act_sensor = plate_gate_xml(PLATE_XY, (gx1, GATE_Y), FENCE_HALF_H)
+  bodies.append(act_body)
+
   # Furniture: real obstacles, for exploration to have something to map.
   add(_box_body("furniture_couch", 3.2, 0.8, 0.25, 0.50, 0.35, 0.25,
                 "0.45 0.40 0.50 1"), "furniture_couch", None)
@@ -270,6 +293,9 @@ def build_home_world() -> tuple[str, dict]:
 
     {rack_and_modules_xml(HOME_RACK_POS, HOME_RACK_YAW)}
   </worldbody>
+  <sensor>
+    {act_sensor}
+  </sensor>
   <actuator>
     {pen_actuator_xml()}
     {claw_actuator_xml()}

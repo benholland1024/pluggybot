@@ -9,7 +9,21 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.2.0"
+PROTOCOL_VERSION = "0.3.0"
+# 0.3.0: frames may carry an "activities" block -- the task state machines'
+#        discrete world state (issue #8), e.g.
+#        {"garden_gate": {"state": "open", "pressed": false}}. Sparse like
+#        body poses (only activities whose flags changed) and re-shipped in
+#        full on every keyframe, so a mid-stream joiner is complete within
+#        one keyframe interval exactly as it is for poses. The header gains
+#        "activities": [names]. Additive -- a 0.2.0 consumer ignores the
+#        block -- but a shape change to both artifacts, so the version moves
+#        and the website re-vendors.
+#        ⚠ An activity's visible EFFECT is usually invisible to the pose
+#        stream by construction: a gate that opens by geom toggle sits on a
+#        STATIC body, which ships once in the scene and never again. The
+#        flag is not a convenience duplicating the poses -- for those
+#        changes it is the only channel there is.
 # 0.2.0: frames may carry "key": true (a keyframe -- every dynamic body),
 #        and they now RECUR every header["keyframeS"] sim-seconds instead
 #        of happening only at t=0 and on a live reconnect. Additive, but a

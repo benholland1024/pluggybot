@@ -1530,6 +1530,80 @@ census that does not exclude the ground measures gravity.)
   in all eight azimuths. Aiming a **free** camera at the working point (the
   outlet site, +90 mm, az 120) is what shows the job being done.
 
+## The activity layer (issue #8), and a silent MuJoCo trap
+
+The task-state-machine layer (`src/pluggybot/activity/`,
+`docs/ActivityPattern.md`) with its first consumer: a pressure plate that
+latches a garden gate open (`activity/plate.py`, demo `scripts/plate.py`).
+Verified end to end — the robot drives onto the plate, presses it **10.7 mm**
+against a 6 mm trigger, the gate drops and its lamp turns green, and driving
+off leaves `pressed` false with `state` still `open`.
+
+**The trap, and it is a genuinely silent one: `geom_pos` does nothing on
+static scenery.** The design doc says MuJoCo "can mutate
+`geom_pos`/`geom_size`/`geom_rgba` on the live model" — true, with a caveat
+that cost an afternoon. A body **welded to the world** (`body_weldid == 0`,
+which is every piece of scenery) has its geoms' world poses computed **once**,
+when `MjData` is created; `mj_kinematics` never revisits them. Measured, on
+the gate:
+
+| attempt | result |
+|---|---|
+| write `model.geom_pos`, then `mj_forward` | `geom_xpos` **unmoved** |
+| ...then `mj_step` | unmoved |
+| ...then `mj_setConst` | unmoved |
+| write `data.geom_xpos` directly, then step | overwritten back |
+
+The write lands in the model, nothing that anybody reads changes, and no
+error is raised — and the renderer draws `geom_xpos`. The fix is MuJoCo's own
+mechanism for moving un-simulated things: a **mocap body**. No joints, no
+dynamics, still collides, but its pose is an *input* re-read every forward
+pass. `rgba` and `size` were never affected (no world-pose cache in between),
+which is why the lamp worked while the gate did not — and why the discrepancy
+between the two took a while to read as a rule.
+
+Two corollaries worth keeping:
+- **A geom toggle is model-global; a mocap pose is per-`MjData`.** For the
+  planned two-robot shared world, the mocap one is the correct scope.
+- The bug hid behind a *working* half. When one of two toggles works, the
+  instinct is to look for a difference in the failing one's data, not for a
+  difference in kind between the two fields.
+
+**A caught-before-it-shipped telemetry bug worth recording**, because it is
+the same shape as several older ones. Activity flags are sparse, so something
+must remember what was already sent. Putting that memory on the Activity was
+the obvious choice and was wrong: `serve.py --record` runs a publisher AND a
+recorder over one physics, each owning its own `FrameBuilder` precisely so
+the sinks are independent — and they would have consumed each other's deltas,
+each shipping a random half of the state changes. The memory belongs to the
+sink, exactly where `_last` already holds poses. Guarded by
+`test_two_sinks_over_one_activity_set_stay_independent`, shown failing.
+
+**Two measured tuning rules the pattern doc now carries:**
+
+- **Hysteresis, measured.** One wheel crossing of the plate: a bare threshold
+  flips `pressed` **4** times, a hysteretic one (6 mm on / 3 mm off) **2** —
+  and 2 is the floor, being one press and one release.
+- **An analogue flag defeats sparseness.** `depressMm` over the same crossing
+  (300 frames): **38** telemetry deltas at 0.1 mm rounding, **15** at 1 mm.
+  No viewer can use a tenth of a millimetre; quantise to what a consumer can
+  act on, or keep it off the wire.
+
+**Filmstrip lessons, again, from someone who had just written them down.**
+The gate demo's first cut framed the fence as an undifferentiated brown wall
+in which the gate was invisible in *both* states — partly camera (not swept),
+partly that the gate was painted almost the fence's own brown. And the first
+working version photographed a *closed* gate under the caption "gate open":
+`sense()` selects the toggle, but a mocap pose only reaches `geom_xpos` on
+the next forward pass, so the grab has to come one step later.
+
+**Protocol 0.3.0.** Frames gained an `activities` block (sparse, re-shipped on
+keyframes) and the header an `activities` name list. Additive — a 0.2.0
+consumer ignores it — but a shape change, so the version moves and the
+website re-vendors. The block is not a convenience duplicating poses: the
+gate is a static body that ships once in the scene and never again, so for a
+change like that **the flag is the only record anywhere in the stream**.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

@@ -64,8 +64,11 @@
     <body name="fence_north" pos="7.5000 6.0000 0.4500">
       <geom name="fence_north_geom" type="box" size="2.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
-    <body name="fence_east" pos="10.0000 2.0000 0.4500">
-      <geom name="fence_east_geom" type="box" size="0.0200 4.0000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="fence_east_0" pos="10.0000 0.3000 0.4500">
+      <geom name="fence_east_0_geom" type="box" size="0.0200 2.3000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_east_1" pos="10.0000 4.8000 0.4500">
+      <geom name="fence_east_1_geom" type="box" size="0.0200 1.2000 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
     <body name="home_floor" pos="1.5000 2.0000 0.0010">
       <geom name="home_floor_geom" type="box" size="3.5000 4.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
@@ -90,6 +93,35 @@
     </body>
     <body name="plant_3" pos="9.2000 5.2000 0.15">
       <geom name="plant_3_geom" type="cylinder" size="0.04 0.15" rgba="0.35 0.50 0.30 1" contype="0" conaffinity="0"/>
+    </body>
+
+    <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
+         sensor; the pad is just what the wheel touches. -->
+    <body name="garden_plate" pos="5.7000 0.7000 0.0160">
+      <joint name="garden_plate_joint" type="slide" axis="0 0 1"
+             range="-0.0100 0" stiffness="1200.0"
+             damping="12.0" armature="1e-5"/>
+      <geom name="garden_plate_pad" type="box"
+            size="0.2000 0.2000 0.0050"
+            mass="0.15" rgba="0.42 0.44 0.48 1"/>
+    </body>
+    <!-- Gate panel. A MOCAP body: no joints and no dynamics, so its two
+         states are selected rather than simulated -- but mocap poses are
+         an INPUT that kinematics re-reads every step, which a welded
+         body's geom_pos is not (see activity/base.GeomToggle). It still
+         collides, so a closed gate is a real barrier. -->
+    <body name="garden_gate" mocap="true"
+          pos="10.0000 3.1000 0.4500">
+      <geom name="garden_gate_panel" type="box"
+            size="0.0200 0.5000 0.4500"
+            rgba="0.62 0.66 0.72 1"/>
+    </body>
+    <!-- Indicator lamp on the gate post: the same discrete state said in
+         colour, which is what makes the toggle legible in a filmstrip. -->
+    <body name="garden_lamp" pos="10.0000 3.6000 0.9500">
+      <geom name="garden_lamp_bulb" type="sphere" size="0.0500"
+            contype="0" conaffinity="0"
+            rgba="0.85 0.2 0.18 1.0"/>
     </body>
     <body name="furniture_couch" pos="3.2000 0.8000 0.2500">
       <geom name="furniture_couch_geom" type="box" size="0.5000 0.3500 0.2500" rgba="0.45 0.40 0.50 1"/>
@@ -303,6 +335,9 @@
       <geom name="seed_2_body" type="sphere" size="0.008" mass="0.004" condim="6" friction="0.9 0.02 0.005" priority="1" rgba="0.85 0.72 0.35 1"/>
     </body>
   </worldbody>
+  <sensor>
+    <jointpos name="garden_plate_pos" joint="garden_plate_joint"/>
+  </sensor>
   <actuator>
     <position name="pen_carriage" joint="pen_carriage_joint" kp="2000" kv="80" ctrlrange="-0.0550 0.0550" forcerange="-15 15"/>
     <position name="claw_l" joint="claw_l" kp="600.0" kv="6" ctrlrange="-0.0270 0" forcerange="-20 20"/>

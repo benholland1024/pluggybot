@@ -81,7 +81,8 @@ class WsPublisher:
                model_name: str | None = None,
                grid=None, grid_hz: float = GRID_HZ,
                token: str | None = None,
-               keyframe_s: float = KEYFRAME_S) -> None:
+               keyframe_s: float = KEYFRAME_S,
+               activities=None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -91,7 +92,8 @@ class WsPublisher:
     self.grid = grid
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
-                                 model_name=model_name, keyframe_s=keyframe_s)
+                                 model_name=model_name, keyframe_s=keyframe_s,
+                                 activities=activities)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0

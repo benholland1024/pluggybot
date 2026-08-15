@@ -8,11 +8,31 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.2.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.3.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+### 0.2.0 → 0.3.0 (activities join the frame)
+
+Additive; a 0.2.0 consumer ignores the new block and needs no changes.
+
+- Frames may carry an **`activities`** object: the task state machines'
+  discrete world state (issue #8), e.g.
+  `{"garden_gate": {"state": "open", "pressed": false, "depressMm": 1}}`.
+  Sparse like body poses — only activities whose flags changed appear, and
+  the block is omitted when nothing did — and re-shipped in full on every
+  keyframe, so a mid-stream joiner is complete within one keyframe interval
+  exactly as it is for poses.
+- The header gains **`"activities": [names]`**.
+
+Why it is not merely a convenience: an activity's visible effect usually
+lives on a **static body**. The reference gate is a mocap body that ships
+once in the scene description and never again, and its pose is not in the
+pose stream at all — so for a change like that the flag is the *only*
+record anywhere in the stream. Flag semantics are the activity's own; the
+website keys its visuals (a swing, a glow) off them and simulates none of it.
 
 ### 0.1.0 → 0.2.0 (keyframes recur, and say so)
 
@@ -56,7 +76,7 @@ files are already resolved. Top level:
 
 ```jsonc
 {
-  "protocolVersion": "0.2.0",
+  "protocolVersion": "0.3.0",
   "model": "room_hub",
   "upAxis": "z",              // see "conventions" below
   "bodies": [ ... ],
@@ -112,10 +132,11 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.2.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.3.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
- "world": ["rack", "module_lcd", ...]}                  // shared dynamic bodies
+ "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
+ "activities": ["garden_gate"]}                         // task state machines
 
 // frame
 {"t": 123.45,                                  // sim seconds
@@ -125,15 +146,17 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "state": "EXPLORE",                         // lifecycle state machine
    "status": "EXPLORE -> GO_CHARGE (battery low)",            // the _say line
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
- "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]}}
+ "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
+ "activities": {"garden_gate": {"state": "open", "pressed": false}}}
 ```
 
 **Frames are sparse.** The first frame is a keyframe carrying every dynamic
 body; later frames carry only bodies that moved > 0.5 mm (or the quat
 equivalent) since they were last emitted. A body absent from a frame is
-unchanged — a replayer holds the last value it saw. `bodies` and `world`
-are omitted entirely when empty; `state`/`status`/`battery` ride in every
-frame. Positions are rounded to 0.1 mm.
+unchanged — a replayer holds the last value it saw. `bodies`, `world` and
+`activities` are omitted entirely when empty; `state`/`status`/`battery`
+ride in every frame. **Activity flags are sparse on the same rule as poses**
+and re-ship on every keyframe (0.3.0). Positions are rounded to 0.1 mm.
 
 **Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
 `"key": true`. A consumer that starts reading anywhere in the stream is

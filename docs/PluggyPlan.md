@@ -302,6 +302,19 @@ makes two robots in one shared world tractable.
   the doc, the largest being that a released sphere needs `condim="6"` rolling
   friction — sliding friction does not slow a rolling ball by a millimetre.
 
+- **Activity pattern (issue #8)**: `docs/ActivityPattern.md` + a new
+  `src/pluggybot/activity/` layer — the task state machines that watch
+  contacts and joint sensors and own discrete world state, with pre-allocated
+  geom/mocap toggles for anything visible. Reference consumer:
+  `scripts/plate.py`, a pressure plate in the home garden that latches a gate
+  open (pressed 10.7 mm against a 6 mm trigger; live flag + latched flag).
+  Activity state joins the wire in **protocol 0.3.0** — an `activities` block
+  in each frame, sparse and re-shipped on keyframes, plus a header name list.
+  **The website must re-vendor `protocol/`.** Two findings the build paid for:
+  `geom_pos` is silently inert on any body welded to the world (all scenery —
+  use a mocap body), and the sparse-emission memory has to live on the
+  telemetry sink, not the activity, or two sinks eat each other's deltas.
+
 **Open items, in the order they matter:**
 1. **The pen does not stow — and it is the pen, not navigation.** Building the
    dispenser gave the controlled experiment: same bare world, same script,

@@ -279,6 +279,18 @@ class HubLifecycle:
     }
 
 
+def home_activities(model, data):
+  """The home world's task state machines (issue #8).
+
+  Built per model rather than per world-config, because an Activity binds to
+  sensor addresses and geom ids -- both of which belong to one compiled
+  MjModel and are meaningless against another.
+  """
+  from pluggybot.activity.base import ActivitySet
+  from pluggybot.activity.plate import PlateGate
+  return ActivitySet([PlateGate(model, data)])
+
+
 def world_config(world: str) -> dict:
   """Everything the lifecycle needs to know about a world, in one place.
 
@@ -298,6 +310,7 @@ def world_config(world: str) -> dict:
       "battery_wh": home.HOME_DEMO_CAPACITY_WH,
       "low_battery_wh": home.HOME_LOW_BATTERY_WH,
       "explore_budget": 240.0,
+      "activities": home_activities,
     }
   if world == "room_hub":
     return {
@@ -309,6 +322,7 @@ def world_config(world: str) -> dict:
       "battery_wh": DEMO_CAPACITY_WH,
       "low_battery_wh": LOW_BATTERY_WH,
       "explore_budget": 90.0,
+      "activities": None,      # room_hub has no activities yet
     }
   raise ValueError(f"unknown world {world!r} (room_hub or home)")
 
@@ -330,11 +344,18 @@ def run_demo(start=None, view: bool = False,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"])
+  # Activities poll on the SAME per-step seam the battery drains through and
+  # telemetry decimates from -- one hook for the whole world's state
+  # machines, whatever their number.
+  activities = cfg["activities"](model, data) if cfg["activities"] else None
+  if activities is not None:
+    life.mission.step_hooks.append(activities.step_hook(model, data))
   recorder = None
   if record is not None:
     recorder = TelemetryRecorder(model, data, record,
                                  model_name=cfg["model_name"],
-                                 status_fn=life.telemetry_status)
+                                 status_fn=life.telemetry_status,
+                                 activities=activities)
     life.mission.step_hooks.append(recorder.step_hook)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],

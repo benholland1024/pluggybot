@@ -74,13 +74,15 @@ class FrameBuilder:
   def __init__(self, model, data, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
-               keyframe_s: float = KEYFRAME_S) -> None:
+               keyframe_s: float = KEYFRAME_S,
+               activities=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
       raise ValueError(f"keyframe_s must be >= 0, got {keyframe_s}")
     self.model, self.data = model, data
     self.status_fn = status_fn
+    self.activities = activities
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -95,6 +97,10 @@ class FrameBuilder:
     self._robot = [(n, model.body(n).id) for n in robot]
     self._world = [(n, model.body(n).id) for n in world]
     self._last: dict[int, tuple[list[float], list[float]]] = {}
+    # Sparse-emission memory for activity flags -- this builder's own, so
+    # two sinks over one world (serve.py --record) never eat each other's
+    # deltas. Same reason `_last` holds poses here rather than on the bodies.
+    self._last_acts: dict[str, dict] = {}
 
   def header(self) -> dict:
     return {
@@ -105,11 +111,13 @@ class FrameBuilder:
       "keyframeS": self.keyframe_s,
       "robots": {ROBOT_ROOT: self.robot_names},
       "world": self.world_names,
+      "activities": self.activities.names if self.activities else [],
     }
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
     self._last.clear()
+    self._last_acts.clear()
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -126,6 +134,12 @@ class FrameBuilder:
       # Clearing the emitted-pose memory is what MAKES the frame a keyframe:
       # every body then reads as moved, so every body ships.
       self._last.clear()
+      # Activities re-ship on a keyframe for the same reason poses do: a
+      # consumer joining mid-stream has never seen them. It matters MORE
+      # here -- an activity's visible effect often lives on a STATIC body
+      # (a gate moved by geom toggle ships once in the scene and never
+      # again), so the flag is the only record of it anywhere in the stream.
+      self._last_acts.clear()
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -149,6 +163,13 @@ class FrameBuilder:
         world[name] = pose
     if world:
       frame["world"] = world
+    if self.activities is not None:
+      acts = {name: flags
+              for name, flags in self.activities.snapshot().items()
+              if self._last_acts.get(name) != flags}
+      if acts:
+        self._last_acts.update(acts)
+        frame["activities"] = acts
     return frame
 
   def _pose_if_moved(self, bid: int) -> list[float] | None:
@@ -182,9 +203,11 @@ class TelemetryRecorder:
   def __init__(self, model, data, path: str, hz: float = FRAME_HZ,
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
-               keyframe_s: float = KEYFRAME_S) -> None:
+               keyframe_s: float = KEYFRAME_S,
+               activities=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
-                                 model_name=model_name, keyframe_s=keyframe_s)
+                                 model_name=model_name, keyframe_s=keyframe_s,
+                                 activities=activities)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())

@@ -1,5 +1,5 @@
 {
- "protocolVersion": "0.2.0",
+ "protocolVersion": "0.3.0",
  "model": "home_world",
  "upAxis": "z",
  "bodies": [
@@ -1256,14 +1256,14 @@
    ]
   },
   {
-   "name": "fence_east",
+   "name": "fence_east_0",
    "parent": "world",
    "dynamic": false,
    "robot": null,
    "visual": "fence",
    "pos": [
     10.0,
-    2.0,
+    0.3,
     0.45
    ],
    "quat": [
@@ -1274,11 +1274,58 @@
    ],
    "geoms": [
     {
-     "name": "fence_east_geom",
+     "name": "fence_east_0_geom",
      "type": "box",
      "size": [
       0.04,
-      8.0,
+      4.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    4.8,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
       0.9
      ],
      "pos": [
@@ -1668,6 +1715,145 @@
       0.35,
       0.5,
       0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    5.7,
+    0.7,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_gate",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    10.0,
+    3.1,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_gate_panel",
+     "type": "box",
+     "size": [
+      0.04,
+      1.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.66,
+      0.72,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_lamp",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    10.0,
+    3.6,
+    0.95
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_lamp_bulb",
+     "type": "sphere",
+     "size": [
+      0.05
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.2,
+      0.18,
       1.0
      ],
      "texture": null

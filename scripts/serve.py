@@ -72,11 +72,17 @@ def main() -> None:
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"])
+  # The world's task state machines, polled on the same per-step seam
+  # everything else hangs off (issue #8). Their flags ride in the frames.
+  activities = cfg["activities"](model, data) if cfg["activities"] else None
+  if activities is not None:
+    life.mission.step_hooks.append(activities.step_hook(model, data))
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
                           grid=life.mission.grid, token=args.token,
-                          keyframe_s=args.keyframe_s)
+                          keyframe_s=args.keyframe_s,
+                          activities=activities)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   pacer = None
@@ -88,7 +94,8 @@ def main() -> None:
     recorder = TelemetryRecorder(model, data, args.record,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
-                                 keyframe_s=args.keyframe_s)
+                                 keyframe_s=args.keyframe_s,
+                                 activities=activities)
     life.mission.step_hooks.append(recorder.step_hook)
 
   wall0 = time.monotonic()

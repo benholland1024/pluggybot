@@ -7,6 +7,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 - `docs/ToolPattern.md` — the recipe for adding a tool module (coupling
   envelope, module anatomy, contact rules, build sequence, rack integration);
   read BEFORE designing a new tool, and fold any gap it left back into it
+- `docs/ActivityPattern.md` — the recipe for adding an ACTIVITY (task state
+  machine): sensed criteria, hysteresis + latching, pre-allocated geom/mocap
+  toggles, and how activity state reaches telemetry. Read BEFORE building a
+  puzzle, mechanism or gardening step
 
 ## Working style
 
@@ -45,6 +49,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
   Full pick-carry-place verified),
+  `scripts/plate.py` (the reference ACTIVITY, issue #8: the robot drives onto
+  a sprung pressure plate in the home world's garden and latches a gate open;
+  saves `plate.png`. `--view` watches live. Note the gate is a MOCAP body —
+  `geom_pos` mutation is silently inert on anything welded to the world, which
+  is all scenery; see docs/ActivityPattern.md §3.4),
   `scripts/dispense.py` (the seed dispenser, the fifth tool and the first
   built against `docs/ToolPattern.md`: fetch it from bay E, drive a row and
   meter out exactly one seed per point; saves `dispense.png`. `--view`
