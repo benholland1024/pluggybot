@@ -18,6 +18,7 @@ Usage:
   uv run python scripts/draw.py --view                  # watch it live
   MUJOCO_GL=egl uv run python scripts/draw.py           # headless + draw.png
   MUJOCO_GL=egl uv run python scripts/draw.py --shape circle
+  MUJOCO_GL=egl uv run python scripts/draw.py --record draw.mp4 --record-speed 3
 """
 
 import argparse
@@ -30,6 +31,7 @@ from PIL import Image, ImageDraw
 from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
 from pluggybot.hub.drawing import PATHS, PEN_MODULE, PenPlotter
 from pluggybot.hub.swap import HubSwap
+from pluggybot.viz import Recorder
 
 FRAME_W, FRAME_H = 400, 300
 PLOT = 900
@@ -43,7 +45,8 @@ RED = (232, 92, 84)
 BLUE = (99, 164, 255)
 
 
-def run(shape: str, view: bool, realtime: bool):
+def run(shape: str, view: bool, realtime: bool, record: str | None = None,
+        record_fps: int = 30, record_speed: float = 1.0):
   model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
   data = mujoco.MjData(model)
   swap = HubSwap(model, data)
@@ -51,6 +54,7 @@ def run(shape: str, view: bool, realtime: bool):
   viewer = None
   frames: list[tuple[str, np.ndarray]] = []
   renderer = cam = None
+  hooks = []
   if view:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
@@ -68,7 +72,7 @@ def run(shape: str, view: bool, realtime: bool):
         if ahead > 0:
           time.sleep(min(ahead, 0.05))
 
-    swap.on_step = hook
+    hooks.append(hook)
   else:
     renderer = mujoco.Renderer(model, FRAME_H, FRAME_W)
     cam = mujoco.MjvCamera()
@@ -76,21 +80,59 @@ def run(shape: str, view: bool, realtime: bool):
     cam.trackbodyid = model.body(PEN_MODULE).id
     cam.distance, cam.azimuth, cam.elevation = 0.85, 150, -12
 
+  # Recording is independent of --view: the video comes from its own offscreen
+  # renderer, so it is identical whether or not a window is open.
+  #
+  # The camera MOVES with the story, because no single azimuth covers this
+  # demo. az=150 (the filmstrip's angle) is right at the rack but sits BEHIND
+  # the board -- the board is a thin slab at x=1.30 and the pen draws on its
+  # -x face, so the entire drawing phase renders as a grey rectangle. az=60
+  # sees the face being written on but puts a wall through the lens back at
+  # the rack. Both angles were picked by sweeping azimuth at the moment the
+  # pen was confirmed in contact, not by reasoning about the geometry.
+  recorder = None
+  if record:
+    recorder = Recorder(model, record, track_body=PEN_MODULE, fps=record_fps,
+                        speed=record_speed, distance=0.85, azimuth=150,
+                        elevation=-12)
+    hooks.append(lambda: recorder.maybe_grab(data))
+
+  if hooks:
+    swap.on_step = lambda: [h() for h in hooks]
+
   def grab(label):
     if renderer is None:
       return
     renderer.update_scene(data, cam)
     frames.append((label, renderer.render().copy()))
 
+  def stage(text, **camera):
+    """Video caption for the phase about to run, plus an optional camera move.
+
+    The filmstrip's labels name the state just reached, which reads a beat
+    late over moving footage, so the video gets its own forward-looking ones.
+    """
+    if recorder is not None:
+      recorder.set_label(text)
+      if camera:
+        recorder.set_camera(**camera)
+
+  stage("approaching the rack")
   swap.place_at_standoff(HUB_STATION_YS[2])
   grab("at the rack")
+  stage("picking up the pen module")
   swap.pick()
   powered = module_power_contact(model, data, PEN_MODULE)
   grab("tool picked")
 
   plotter = PenPlotter(model, data, swap)
+  # Pan to the board-facing angle while the robot drives there -- the one
+  # moment in the demo when a camera move reads as intentional.
+  stage("carrying the pen to the board",
+        azimuth=60, elevation=-18, distance=1.0)
   arrived = plotter.drive_to_board()
   grab("at the board")
+  stage(f"drawing a {shape}")
   result = plotter.draw(PATHS[shape]())
   grab("drawn")
 
@@ -100,10 +142,19 @@ def run(shape: str, view: bool, realtime: bool):
     "seated_after": module_power_contact(model, data, PEN_MODULE),
     "sim_time": float(data.time),
   })
+  # AFTER the result dict: a hold on the finished figure so the clip does not
+  # cut on the last frame of motion. Recording must not move the numbers.
+  if recorder is not None:
+    stage(f"{shape} complete")
+    swap._run(1.5, 0.0)
+
   if viewer is not None:
     viewer.close()
   if renderer is not None:
     renderer.close()
+  if recorder is not None:
+    print(f"wrote {recorder.close()} "
+          f"({recorder.frames_written} frames, {record_fps} fps)")
   return plotter, result, frames
 
 
@@ -159,10 +210,19 @@ def main() -> None:
                   help="watch it live in the MuJoCo viewer; skips the filmstrip")
   ap.add_argument("--fast", action="store_true",
                   help="with --view: run flat out instead of real time")
+  ap.add_argument("--record", metavar="PATH",
+                  help="record the tracking camera to PATH (.mp4 or .gif); "
+                       "720p, independent of --view")
+  ap.add_argument("--record-fps", type=int, default=30,
+                  help="video frame rate (default 30)")
+  ap.add_argument("--record-speed", type=float, default=1.0,
+                  help="sim seconds per played second: 1.0 real time, "
+                       "3.0 timelapse, 0.25 slow motion (default 1.0)")
   args = ap.parse_args()
 
   try:
-    plotter, r, frames = run(args.shape, args.view, not args.fast)
+    plotter, r, frames = run(args.shape, args.view, not args.fast,
+                             args.record, args.record_fps, args.record_speed)
   except KeyboardInterrupt:
     print("aborted (viewer closed)")
     return

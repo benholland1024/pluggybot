@@ -27,6 +27,27 @@ MUJOCO_GL=egl uv run python scripts/module_power.py  # Tool power across the
 Headless (no window) runs want `MUJOCO_GL=egl` in front; `--view` runs want it
 left off.
 
+## Recording a demo
+
+`draw.py` and `pickup.py` take `--record PATH` (`.mp4` or `.gif`) and render
+720p video straight from the sim — no screen capture. The camera is the
+filmstrip's tracking camera, sampled on the **sim** clock, so playback speed
+is exact and `--record-speed` buys timelapse or slow motion for free:
+
+```bash
+MUJOCO_GL=egl uv run python scripts/draw.py --shape square \
+    --record draw.mp4 --record-speed 3        # 66 s of sim -> 22 s of video
+MUJOCO_GL=egl uv run python scripts/pickup.py \
+    --record pickup.gif --record-speed 4 --record-fps 20
+```
+
+`--record` works with or without `--view` (the video comes from its own
+offscreen renderer either way) and never changes what the demo reports.
+`pickup.py` carries `claw_eye` as a picture-in-picture — the camera on the
+tool itself, which no screen recording could reach. GIFs are downscaled to
+640 px and encoded through a single shared palette; for Reddit prefer `.mp4`,
+since it transcodes uploaded GIFs to video anyway.
+
 View the world:
 ```bash
 uv run python -m mujoco.viewer --mjcf=models/world.xml

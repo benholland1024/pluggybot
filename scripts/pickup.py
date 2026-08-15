@@ -26,6 +26,7 @@ finding the object is a separate, unsolved problem.
 Usage:
   uv run python scripts/pickup.py --view          # watch it live
   MUJOCO_GL=egl uv run python scripts/pickup.py   # headless + pickup.png
+  MUJOCO_GL=egl uv run python scripts/pickup.py --record pickup.mp4
 """
 
 import argparse
@@ -39,6 +40,7 @@ from PIL import Image, ImageDraw
 from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
 from pluggybot.hub.gripper import CLAW_MODULE, ClawTool
 from pluggybot.hub.swap import HubSwap
+from pluggybot.viz import Recorder
 
 FRAME_W, FRAME_H = 400, 300
 OUT = "pickup.png"
@@ -47,11 +49,13 @@ BG, PANEL, INK, DIM = (24, 26, 30), (38, 41, 47), (232, 234, 238), (120, 126, 13
 GREEN, RED = (61, 220, 132), (232, 92, 84)
 
 
-def run(view: bool, realtime: bool):
+def run(view: bool, realtime: bool, record: str | None = None,
+        record_fps: int = 30, record_speed: float = 1.0):
   model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
   data = mujoco.MjData(model)
   swap = HubSwap(model, data)
   frames, renderer, cam, viewer = [], None, None, None
+  hooks = []
 
   if view:
     from mujoco import viewer as mj_viewer
@@ -70,13 +74,27 @@ def run(view: bool, realtime: bool):
         if ahead > 0:
           time.sleep(min(ahead, 0.05))
 
-    swap.on_step = hook
+    hooks.append(hook)
   else:
     renderer = mujoco.Renderer(model, FRAME_H, FRAME_W)
     cam = mujoco.MjvCamera()
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     cam.trackbodyid = model.body("pickup").id
     cam.distance, cam.azimuth, cam.elevation = 0.95, 135, -18
+
+  # The video carries claw_eye as a picture-in-picture. That camera is bolted
+  # to the tool, so it is the one view a screen recording of the viewer could
+  # never produce -- and it is the view that shows the grasp, since the nav
+  # camera is blind to the floor inside 0.48 m.
+  recorder = None
+  if record:
+    recorder = Recorder(model, record, track_body="pickup", fps=record_fps,
+                        speed=record_speed, distance=0.95, azimuth=135,
+                        elevation=-18, inset_camera="claw_eye")
+    hooks.append(lambda: recorder.maybe_grab(data))
+
+  if hooks:
+    swap.on_step = lambda: [h() for h in hooks]
 
   eye = mujoco.Renderer(model, FRAME_H, FRAME_W) if not view else None
 
@@ -98,8 +116,16 @@ def run(view: bool, realtime: bool):
   def obj_z():
     return float(data.xpos[obj_bid][2])
 
+  def stage(text):
+    """Video caption for the phase about to run (the filmstrip's labels name
+    the state just reached, which reads a beat late over moving footage)."""
+    if recorder is not None:
+      recorder.set_label(text)
+
+  stage("approaching bay D")
   swap.place_at_standoff(HUB_STATION_YS[3])
   grab("claw in bay D")
+  stage("picking up the claw module")
   swap.pick()
   claw = ClawTool(model, data, swap)
   offset = claw.calibrate()
@@ -107,12 +133,14 @@ def run(view: bool, realtime: bool):
   grab("claw picked")
 
   obj0 = np.array(data.xpos[obj_bid], dtype=float)
+  stage("driving over the block")
   arrived = claw.drive_over((obj0[0], obj0[1]), 0.0)
   g = claw.grip_world()
   aim = (float(g[1] - obj0[1]), float(g[0] - obj0[0]))
   grab("over the block")
 
   grab_eye("claw eye: over it")
+  stage("gripping and lifting")
   picked = claw.pick_up()
   lifted_z = obj_z()
   grab_eye("claw eye: gripped")
@@ -122,6 +150,7 @@ def run(view: bool, realtime: bool):
   # swings and where the fork's axial hold was first found wanting.
   from pluggybot.behavior.navigation import drive_toward
   from pluggybot.control import wheel_targets
+  stage("carrying it through a turn")
   t0 = data.time
   held_steps = dropped = 0
   while data.time - t0 < 40.0:
@@ -138,6 +167,7 @@ def run(view: bool, realtime: bool):
   carried = claw.holding() and obj_z() > 0.03
   grab("carried")
 
+  stage("setting it down")
   placed = claw.set_down()
   swap._run(1.0, 0.0)
   grab("set down")
@@ -152,12 +182,21 @@ def run(view: bool, realtime: bool):
     "seated_after": module_power_contact(model, data, CLAW_MODULE),
     "sim_time": float(data.time), **picked,
   }
+  # AFTER the result dict: a hold on the finished placement so the clip does
+  # not cut on the last frame of motion. Recording must not move the numbers.
+  if recorder is not None:
+    stage("block placed")
+    swap._run(1.5, 0.0)
+
   if viewer is not None:
     viewer.close()
   if renderer is not None:
     renderer.close()
   if eye is not None:
     eye.close()
+  if recorder is not None:
+    print(f"wrote {recorder.close()} "
+          f"({recorder.frames_written} frames, {record_fps} fps)")
   return result, frames
 
 
@@ -167,9 +206,19 @@ def main() -> None:
                   help="watch it live in the MuJoCo viewer; skips the filmstrip")
   ap.add_argument("--fast", action="store_true",
                   help="with --view: run flat out instead of real time")
+  ap.add_argument("--record", metavar="PATH",
+                  help="record the tracking camera to PATH (.mp4 or .gif), "
+                       "with claw_eye as a picture-in-picture; 720p, "
+                       "independent of --view")
+  ap.add_argument("--record-fps", type=int, default=30,
+                  help="video frame rate (default 30)")
+  ap.add_argument("--record-speed", type=float, default=1.0,
+                  help="sim seconds per played second: 1.0 real time, "
+                       "3.0 timelapse, 0.25 slow motion (default 1.0)")
   args = ap.parse_args()
   try:
-    r, frames = run(args.view, not args.fast)
+    r, frames = run(args.view, not args.fast,
+                    args.record, args.record_fps, args.record_speed)
   except KeyboardInterrupt:
     print("aborted (viewer closed)")
     return

@@ -7,17 +7,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 
 ## Working style
 
-- **Claude builds by default, and explains afterward.** Ben is learning
-  robotics + Python (strong webdev background), so the explanation is the
-  deliverable as much as the code: what was built, why it is shaped that way,
-  what the measurements showed, and what surprised us. Do not offer to hand
-  work over — Ben will claim a piece himself when he has the time and focus,
-  and until he says so the default is Claude doing it.
 - Explain in prose, at the level of "a teammate catching up": name the
   concepts (running average, pinhole projection, convex decomposition) rather
   than assuming them, and say what a number means, not just what it is.
-- Ben may still claim ML training runs — he enjoys them — but Claude runs
-  them by default now like anything else.
+- Ben may still claim ML training runs, but Claude runs them by default now.
 - Verify physics claims empirically (headless probes, filmstrip renders via
   offscreen Renderer) rather than by reasoning alone; it has won every time.
   When a result looks good, try to break it before believing it — the MSAA
@@ -98,6 +91,20 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   edit scenery there, never in one room only.
 - `--views` on teleop.py / map_teleop.py / lifecycle.py saves `views.png`
   (stereo pair + map + dock camera, issue #1) alongside `map.png`; ~15 ms/save
+- **Demo video**: `--record PATH` (`.mp4`/`.gif`) on `scripts/draw.py` and
+  `scripts/pickup.py` renders 720p footage offscreen via `viz.Recorder`, with
+  `--record-fps` and `--record-speed` (sim seconds per played second).
+  Frames are STREAMED to the encoder, never buffered — a 90 s demo at 30 fps
+  is ~2700 frames, which is ~7 GB of 720p RGB if you hold them. Two rules the
+  tests guard (`tests/test_viz.py`): recording must never step the sim (an
+  end-of-clip "hold on the final pose" belongs AFTER the result dict, or it
+  silently shifts the reported settle state), and the render size must sit on
+  the 16-px macroblock grid or ffmpeg resamples the frames behind you.
+  ⚠ The recorder's camera is NOT always the filmstrip's: for `draw.py` the
+  filmstrip's az=150 sits BEHIND the board (a thin slab at x=1.30, drawn on
+  its -x face), so the whole drawing phase renders as a grey rectangle. The
+  video pans to az=60 during the drive. Pick angles by sweeping azimuth at the
+  moment of contact, not by reasoning about the geometry.
 - RL docking (milestone 6): train
   `MUJOCO_GL=egl uv run python scripts/train_docking.py` (SAC over
   `pluggybot.envs.DockEnv`; checkpoints under `runs/docking/`), score
