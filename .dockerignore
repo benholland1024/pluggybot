@@ -1,0 +1,28 @@
+# The serving image copies models/, src/, scripts/serve.py and deploy/ and
+# nothing else, so this file is about build-context SIZE: ~130 MB of
+# datasets, training runs, demo footage and detector weights would otherwise
+# be tarred up and handed to the daemon on every build.
+#
+# Patterns are ANCHORED (leading /) wherever they name an image artefact:
+# a bare `*.png` would also drop models/tags/*.png, which are the apriltag
+# textures the robot's cameras read -- the world loads, the tags are blank,
+# and the robot never finds the rack.
+.git/
+datasets/
+runs/
+protocol/
+tests/
+docs/
+e2e/
+/*.png
+/*.jpg
+/*.mp4
+/*.gif
+/*.pt
+/*.onnx
+/MUJOCO_LOG.TXT
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
