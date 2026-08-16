@@ -34,7 +34,8 @@ def main() -> None:
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
-  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "none"),
+  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
+                                          "dance", "showcase", "none"),
                       default="carry",
                       help="what the robot is FOR this run (issue #12): carry "
                            "(the milestone-8 LCD errand), draw (pen -> erase a "

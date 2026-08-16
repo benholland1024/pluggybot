@@ -799,9 +799,21 @@ def _look_at(pos, target, up=(0.0, 0.0, 1.0)) -> str:
   return " ".join(f"{v:.4f}" for v in (*x, *y))
 
 
+#: The LCD's display panel, half-extents (depth, width, height) in metres.
+#: 56 x 76 mm, deliberately OVERHANGING the 40 x 60 mm carrier plate: this
+#: is the module whose entire job is being looked at, and issue #28's
+#: acceptance is "legible at the distance a visitor's camera actually sits
+#: at" -- which a panel inset into the plate is not. Costs nothing anywhere:
+#: the geom is visual-only (contype/conaffinity 0), it clears the pegs in x
+#: (they span +/-3 mm about the plate centre plane, the panel sits 8-12 mm
+#: in front of it) and the fork plates in y (|y| 52-64 mm, panel 28 mm).
+LCD_SCREEN_HALF = (0.002, 0.028, 0.038)
+
+
 def _module_faces() -> tuple[str, str]:
   lcd_face = (f'<geom name="module_lcd_screen" type="box" '
-              f'size="0.002 0.014 0.020" pos="{-TOOL_HALF_X:.4f} 0 0" '
+              f'size="{LCD_SCREEN_HALF[0]} {LCD_SCREEN_HALF[1]} '
+              f'{LCD_SCREEN_HALF[2]}" pos="{-TOOL_HALF_X:.4f} 0 0" '
               f'contype="0" conaffinity="0" rgba="0.05 0.08 0.10 1"/>'
               f'\n      <geom name="module_lcd_tag" type="box" '
               f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '

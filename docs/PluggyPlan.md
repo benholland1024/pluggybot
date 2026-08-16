@@ -322,6 +322,47 @@ tracked as its own issues; landed so far:
     `type`, no `type` means frame. The home fixture is now a drawing mission,
     so the website has something to build its canvas against. **Re-vendor
     `protocol/`.**
+- **The LCD gets a job (issue #13)**: the last module with no purpose is now
+  the robot's FACE, and the first tool whose output is not physical.
+  - **A face costs an enum.** `hub/screen.py` streams `{mode, powered, face,
+    hint}` and the browser draws it (`FACE_STATES` / `SCREEN_HINTS` are a
+    two-repo vocabulary, like the visual hints). The sim never ticks an
+    animation: `hint` names a loop the browser runs, because a 150 ms blink
+    does not belong on a 20 Hz pose stream. `powered` is the coupling's own
+    electrical criterion, so a module in its bay is dark and so is a
+    half-seated one. The panel grew from 28 × 40 mm to 56 × 76 mm — it is
+    visual-only geometry, and the acceptance criterion is legibility at the
+    distance a visitor's camera actually sits at.
+  - **The census is the first task with HIDDEN ground truth.** The robot
+    surveys the garden, counts what its own occupancy grid says is standing
+    there, and puts the number on the screen; the evaluator reads the model.
+    Being lazy is a real way to be wrong, which no earlier criterion in this
+    repo could manage. Measured: 4/4 plants from real LIDAR, positions within
+    3 cm — and 3/4 from the first vantage point, which is the point.
+    ⚠ **The margin is load-bearing**: a scanned fence is a *dotted* line of
+    plant-sized fragments, and counting without excluding the zone's own
+    boundary reports 12 plants at 30 % dropout and 45 at 50 %.
+  - **The dance is scored on what can actually go wrong** — a move that did
+    not happen, and a routine that wandered. Which found a drivetrain fact:
+    **a reversal costs twice the ramp**, so the original shimmy delivered
+    0.35 of its commanded arc and three of nine moves "missed". Slower
+    reversals: 9/9, 0.07 m of drift.
+  - **A result shown for zero sim time was never shown.** The census computed
+    the right answer, put it on screen, and returned — and the recorded
+    mission carried it in *none* of 10 850 frames, because Python between two
+    physics steps costs no sim time and the next state's automatic face
+    overwrote it. Errands now hold a result for 5 s of standing still, and
+    the fixture test asserts it. The website renders the wire, not the return
+    value.
+  - **Protocol 0.5.0.** Frames gain a sparse `screens` block and the scene a
+    `screens` table (which geom carries each panel, with its outward normal).
+    A third typed message, `board_snapshot`, carries every stroke a board is
+    holding when a stream opens — the gap nothing else could fill, since
+    keyframes re-ship a board's counters but never its lines, and
+    `hub/boards.py` now persists the polylines so a restart walks into a
+    house whose drawings are still there. The home fixture runs the
+    **showcase** queue (draw + census), so one recording exercises both
+    streamed surfaces. **Re-vendor `protocol/`.**
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

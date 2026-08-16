@@ -397,6 +397,73 @@ def test_recorded_events_interleave_with_frames(mini_model, tmp_path):
   assert 0 < lines.index(events[0]) < len(lines) - 1
 
 
+def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
+                                                              tmp_path):
+  """0.5.0: a mission recorded against boards that survived a previous run
+  opens with the robot standing in front of a drawing it did not make.
+
+  Without the snapshot a replayer paints a blank wall while the `boards`
+  block insists the wall is 19 % full -- and nothing later in the stream
+  repairs it, because a keyframe re-ships the counters and never the lines.
+  """
+  from pluggybot.hub.boards import BoardBook, BoardRecord
+
+  data = mujoco.MjData(mini_model)
+  book = BoardBook([BoardRecord(name="whiteboard_a", reach=(0.11, 0.2))],
+                   clock=lambda: "2026-08-16T00:00:00")
+  book.stroke("whiteboard_a", "house", [(0.0, 0.0), (0.02, 0.0), (0.02, 0.02)])
+  path = str(tmp_path / "out.jsonl")
+  rec = TelemetryRecorder(mini_model, data, path, model_name="mini",
+                          boards=book)
+  step_seconds = round(0.2 / mini_model.opt.timestep)
+  for _ in range(step_seconds):
+    mujoco.mj_step(mini_model, data)
+    rec.step_hook()
+  rec.close()
+  lines = [json.loads(x) for x in open(path)]
+
+  assert lines[0]["type"] == "header"
+  snaps = [x for x in lines if x.get("type") == "board_snapshot"]
+  assert len(snaps) == 1, "the recording never said what was on the board"
+  assert lines.index(snaps[0]) == 1, "the snapshot must precede the frames"
+  assert snaps[0]["board"] == "whiteboard_a"
+  assert len(snaps[0]["strokes"]) == 1
+  assert snaps[0]["strokes"][0]["points"][0] == [0.0, 0.0]
+
+
+def test_screens_ride_the_same_sparse_rule_as_boards(mini_model, tmp_path):
+  """0.5.0, and the third block to follow one rule. What makes it worth
+  asserting separately: a face is not a pose either, so a screen missing
+  from a frame means "unchanged" and never "dark"."""
+  from pluggybot.hub.screen import ScreenSet
+
+  class FakeScreen:
+    name = "module_lcd"
+    flags = {"mode": "face", "powered": True, "face": "idle", "hint": "blink"}
+
+  data = mujoco.MjData(mini_model)
+  screens = ScreenSet([FakeScreen()])
+  path = str(tmp_path / "out.jsonl")
+  rec = TelemetryRecorder(mini_model, data, path, model_name="mini",
+                          keyframe_s=0.5, screens=screens)
+  for step in range(round(1.2 / mini_model.opt.timestep)):
+    mujoco.mj_step(mini_model, data)
+    if step == 100:
+      FakeScreen.flags = {"mode": "count", "powered": True, "face": "happy",
+                          "hint": "none", "count": 4, "label": "plants"}
+    rec.step_hook()
+  rec.close()
+  lines = [json.loads(x) for x in open(path)]
+  assert lines[0]["screens"] == ["module_lcd"]
+  frames = [x for x in lines[1:] if "type" not in x]
+  carrying = [f for f in frames if "screens" in f]
+  keyed = [f for f in frames if f.get("key")]
+  assert len(carrying) < len(frames), "an unchanged screen was re-sent"
+  assert all("screens" in f for f in keyed), "a keyframe skipped the screen"
+  counts = [f["screens"]["module_lcd"].get("count") for f in carrying]
+  assert 4 in counts
+
+
 # ---- the committed fixtures ------------------------------------------------
 # The same checks the website repo runs against its vendored copies: if these
 # fail, regenerate the fixtures or bump the protocol version deliberately.
@@ -442,6 +509,38 @@ def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
   assert scene == scene_dict(model, model_name, meta=meta), \
     f"stale fixture: uv run python -m pluggybot.telemetry.scene " \
     f"models/{world_xml}"
+
+
+def test_the_home_fixture_shows_the_census_answer():
+  """An errand's RESULT has to survive at least one frame (issue #13).
+
+  Python between two physics steps takes zero sim time, so a use-phase that
+  sets the screen and returns has its result overwritten by the next state's
+  automatic face before a single 20 Hz frame is built. The first version of
+  the census did exactly that: the recorded showcase mission carried the
+  right answer in its result dict and in NONE of its 10 850 frames, which is
+  the same as not having computed it -- the website renders the wire, not the
+  dict. Delete the `_drive(PRESENT_S, 0, 0)` hold and this is what fails.
+  """
+  with gzip.open(PROTOCOL / "telemetry.home_lifecycle.jsonl.gz", "rt") as f:
+    lines = [json.loads(line) for line in f]
+  frames = [x for x in lines[1:] if "type" not in x]
+  shown = [(fr["t"], s) for fr in frames
+           for s in (fr.get("screens") or {}).values()]
+  counts = [(t, s) for t, s in shown if s["mode"] == "count"]
+  assert counts, "the census answer never reached a frame"
+  assert counts[0][1]["label"] == "plants"
+  assert isinstance(counts[0][1]["count"], int)
+
+  # ...and it stayed up long enough to read. Measured as a DURATION, not as a
+  # frame count: the block is sparse, so a state that persists for five
+  # seconds appears once and is merely re-shipped on the next keyframe. The
+  # first version of this assertion counted frames and failed on a working
+  # fix, which is its own small lesson about sparse encodings.
+  first = counts[0][0]
+  after = [t for t, s in shown if t > first and s["mode"] != "count"]
+  held = (after[0] if after else frames[-1]["t"]) - first
+  assert held >= 4.0, f"the answer was on screen for {held:.1f} sim-seconds"
 
 
 @pytest.mark.parametrize("fixture,model_name,draws", TELEMETRY_CASES,

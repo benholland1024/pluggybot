@@ -8,11 +8,82 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.4.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.5.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+### 0.4.0 → 0.5.0 (the robot has a face, and a board can be caught up on)
+
+Two additions, both about surfaces the browser PAINTS rather than geometry
+MuJoCo carries (pluggybot #13, rooftop-media-2026 #28). Additive: a 0.4.0
+consumer that ignores both renders exactly what it rendered before.
+
+- Frames may carry a **`screens`** object: per display module, what it is
+  showing. Sparse and keyframe-refreshed on exactly the same rule as
+  `activities` and `boards`, and for the same reason — an LCD's content is
+  not a pose, so this block is the only record of it anywhere in the stream.
+  The header gains **`"screens": [names]`**, and the SCENE gains a top-level
+  **`screens`**: which geom on which body carries each display, plus the
+  panel's outward normal, so a client can place a face without deriving one
+  name from another.
+- A third typed message joins `draw` and `board_cleared`:
+  **`board_snapshot`**, every stroke a board is currently carrying, sent
+  when a stream OPENS.
+
+```jsonc
+// in a frame: what the LCD is showing
+"screens": {"module_lcd": {"mode": "face",        // off | face | text | count
+                           "powered": true,
+                           "face": "curious",     // FACE_STATES
+                           "hint": "blink"}}      // SCREEN_HINTS, a LOOP
+"screens": {"module_lcd": {"mode": "count", "powered": true, "face": "happy",
+                           "hint": "bounce", "count": 4, "label": "plants"}}
+"screens": {"module_lcd": {"mode": "off", "powered": false}}   // on the rack
+
+// in the scene: where to paint it
+"screens": {"module_lcd": {"geom": "module_lcd_screen", "body": "module_lcd",
+                           "size": [0.004, 0.056, 0.076],   // full extents
+                           "pos": [-0.01, 0, 0], "quat": [1, 0, 0, 0],
+                           "normal": [-1, 0, 0]}}   // body-local, OUTWARD
+
+// catching a late joiner up on ink (see below)
+{"type": "board_snapshot", "t": 0.0, "robot": "pluggybot",
+ "board": "whiteboard_a", "clearedAt": "...", "drawnAt": "...",
+ "dropped": 0,                                  // strokes aged out of the cap
+ "strokes": [{"program": "house", "stroke": 0, "points": [[lat, height], ...]}]}
+```
+
+**The vocabularies are a two-repo contract**, on the same terms as
+`VISUAL_HINTS`: `SCREEN_MODES`, `FACE_STATES` (`idle`, `happy`, `curious`,
+`determined`, `surprised`, `sleepy`, `worried`) and `SCREEN_HINTS` (`none`,
+`blink`, `bounce`, `shake`) live in `telemetry/protocol.py`. Adding a face is
+additive — an unknown one falls back to `idle` — and renaming one is a
+breaking change in both repos. `face`/`hint` are absent when `mode` is
+`off`; `text` and `count`/`label` appear only in their own modes.
+
+**`hint` is a LOOP, not an event.** The sim never ticks a blink: a 150 ms
+eyelid does not belong on a 20 Hz pose stream, and a dropped frame would
+stick the eyes shut. The browser owns the animation, as it owns everything
+organic.
+
+**`powered` is electrical, not positional.** It is the coupling's own
+criterion (`module_power_contact`, both poles conducting), so a module
+hanging in its bay is `off`, and so is a half-seated one on the fork.
+
+**Why `board_snapshot` had to exist.** Keyframes re-ship every board's
+counters, but no keyframe re-ships the LINES: a stroke is an event that
+happens once. So a browser that opens the page after the pen has moved on —
+or after the producer restarted onto a state file, since `hub/boards.py` now
+persists the polylines themselves — sees a board reporting 40 % fill with
+nothing painted on it. The snapshot is what closes that gap. It is sent when
+a stream opens (a recording carries it right after the header; the live
+publisher re-sends it on every connect), and a relay hub should cache the
+latest one per board plus the `draw` events since, dropping both on a
+`board_cleared`. `dropped` counts strokes aged out of the per-board cap
+(240): a snapshot missing the start of a long drawing says so rather than
+pretending to be complete.
 
 ### 0.3.0 → 0.4.0 (whiteboards are state, and ink is an event)
 
@@ -107,7 +178,7 @@ against the body census.
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) with a real **drawing errand** (issue #12) — what the live site serves, and the fixture the canvas-painting code is built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand draw --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --record protocol/telemetry.home_lifecycle.jsonl.gz` |
 
 **One recording per scene, and they are not interchangeable.** A replayer
 picks its scene off the header's `model` field, so playing the room_hub
@@ -192,12 +263,13 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.4.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.5.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
  "activities": ["garden_gate"],                         // task state machines
- "boards": ["whiteboard_a", "whiteboard_b"]}            // drawing surfaces
+ "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
+ "screens": ["module_lcd"]}                             // display modules
 
 // frame
 {"t": 123.45,                                  // sim seconds
@@ -214,7 +286,9 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
                              "fill": 0.191,          // of the pen's REACH
                              "clears": 1,
                              "clearedAt": "2026-08-16T08:01:09+00:00",
-                             "drawnAt": "2026-08-16T08:01:47+00:00"}}}
+                             "drawnAt": "2026-08-16T08:01:47+00:00"}},
+ "screens": {"module_lcd": {"mode": "face", "powered": true,
+                            "face": "curious", "hint": "blink"}}}
 ```
 
 **Frames are sparse.** The first frame is a keyframe carrying every dynamic
@@ -222,9 +296,9 @@ body; later frames carry only bodies that moved > 0.5 mm (or the quat
 equivalent) since they were last emitted. A body absent from a frame is
 unchanged — a replayer holds the last value it saw. `bodies`, `world` and
 `activities` are omitted entirely when empty; `state`/`status`/`battery`
-ride in every frame. **Activity flags and board state are sparse on the same
-rule as poses** and re-ship on every keyframe (0.3.0, 0.4.0). Positions are
-rounded to 0.1 mm.
+ride in every frame. **Activity flags, board state and screen content are
+sparse on the same rule as poses** and re-ship on every keyframe (0.3.0,
+0.4.0, 0.5.0). Positions are rounded to 0.1 mm.
 
 **Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
 `"key": true`. A consumer that starts reading anywhere in the stream is
@@ -269,7 +343,11 @@ disagree. Live-stream rules:
   replay the cached header, then the cached keyframe, then the frames
   after it, then go live — the cache is bounded by `keyframeS` × `hz`
   (≈100 frames). Also worth caching: the most recent `grid` message per
-  robot, so a joiner's map is not blank for a second.
+  robot, so a joiner's map is not blank for a second, and the ink: the
+  latest `board_snapshot` per board plus the `draw` events since it, both
+  dropped when a `board_cleared` for that board goes past (0.5.0). Nothing
+  else in the stream can rebuild a board — a keyframe carries its counters,
+  never its lines.
 - Frames can drop under load; recordings are the lossless artifact.
 
 **The ingest connection is authenticated.** The publisher presents the
@@ -288,8 +366,8 @@ otherwise publish unauthenticated and read as a wrong secret.
 
 The two live-only message types:
 
-(`draw` and `board_cleared` ride this socket too, and are the two types that
-also appear in recordings — see 0.4.0 above.)
+(`draw`, `board_cleared` and `board_snapshot` ride this socket too, and are
+the three types that also appear in recordings — see 0.4.0 and 0.5.0 above.)
 
 ```jsonc
 // occupancy-grid belief, ~1 Hz per robot: base64 PNG, uint8 cells

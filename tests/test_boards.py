@@ -214,6 +214,99 @@ def test_an_unreadable_state_version_is_loud(tmp_path):
     book(path)
 
 
+def test_an_older_state_file_still_loads(tmp_path):
+  """Newer refuses, OLDER loads -- and the deploy is what pays for it.
+
+  `/var/lib/pluggybot` outlives the image, so an upgrade that adds a field
+  must not crash the sim on start over a file whose old shape is a strict
+  subset of the new one. A version-1 file has statistics and no polylines,
+  which is exactly what it recorded.
+  """
+  path = tmp_path / "boards.json"
+  path.write_text(json.dumps({"version": 1, "boards": {
+    "whiteboard_a": {"reach": [0.11, 0.2], "strokes": 3, "programs": ["house"],
+                     "cells": [[0, 0], [1, 1]]},
+  }}))
+  b = book(path)
+  assert b["whiteboard_a"].strokes == 3
+  assert b["whiteboard_a"].lines == []
+  assert b.snapshots() == [], "a board with no remembered lines has no snapshot"
+
+
+# ---- catching a late viewer up (protocol 0.5.0) -----------------------------
+
+
+def test_the_polylines_themselves_survive_a_restart(tmp_path):
+  """Board STATISTICS surviving a restart is not enough, and this is the gap
+  that proves it: a viewer arriving after the producer restarted would see a
+  board reporting 19 % fill with nothing painted on it. Ink is not a body --
+  no keyframe re-ships it and no `draw` event will describe it again -- so
+  the lines have to live in the file too."""
+  path = tmp_path / "boards.json"
+  first = book(path)
+  first.stroke("whiteboard_a", "house", square())
+
+  second = book(path)
+  lines = second["whiteboard_a"].lines
+  assert len(lines) == 1 and lines[0]["program"] == "house"
+  assert lines[0]["points"] == first["whiteboard_a"].lines[0]["points"]
+
+
+def test_a_snapshot_carries_every_stroke_on_the_board():
+  b = book()
+  b.stroke("whiteboard_a", "house", square())
+  b.stroke("whiteboard_a", "house", square(size=0.03))
+  b.stroke("whiteboard_b", "tree", square(size=0.04))
+  snaps = {s["board"]: s for s in b.snapshots(t=12.5)}
+  assert set(snaps) == {"whiteboard_a", "whiteboard_b"}
+  assert snaps["whiteboard_a"]["type"] == "board_snapshot"
+  assert snaps["whiteboard_a"]["t"] == 12.5
+  assert [s["stroke"] for s in snaps["whiteboard_a"]["strokes"]] == [0, 1]
+  # ...and the points are the SAME polyline the `draw` event carried, or the
+  # catch-up would render a different drawing than the live viewer saw.
+  live = b.stroke("whiteboard_b", "tree", square(size=0.02))
+  assert b.snapshots()[1]["strokes"][-1]["points"] == live["points"]
+
+
+def test_a_blank_board_has_no_snapshot():
+  """Nothing to say is said with silence: a snapshot per blank board would
+  be pure overhead on every connect, and a joiner's canvas already starts
+  empty."""
+  b = book()
+  assert b.snapshots() == []
+  b.stroke("whiteboard_a", "house", square())
+  assert [s["board"] for s in b.snapshots()] == ["whiteboard_a"]
+
+
+def test_erasing_drops_the_remembered_lines_too():
+  """`board_cleared` means drop everything painted for that board -- and the
+  producer must agree, or the next snapshot would re-paint the drawing the
+  robot just erased."""
+  b = book()
+  b.stroke("whiteboard_a", "house", square())
+  b.clear("whiteboard_a")
+  assert b["whiteboard_a"].lines == []
+  assert b.snapshots() == []
+
+
+def test_the_remembered_lines_are_capped_and_say_so():
+  """An un-erased board must not grow an unbounded state file or an
+  unbounded join message. Oldest-first, and counted: a snapshot missing the
+  start of a long drawing reports how much it is missing."""
+  from pluggybot.hub.boards import MAX_LINES
+  b = book()
+  for _ in range(MAX_LINES + 5):
+    b.stroke("whiteboard_a", "house", square(size=0.01))
+  rec = b["whiteboard_a"]
+  assert len(rec.lines) == MAX_LINES and rec.dropped == 5
+  snap = b.snapshots()[0]
+  assert snap["dropped"] == 5
+  # Stroke indices stay ABSOLUTE across the eviction, so they still line up
+  # with the `stroke` field of the live events the viewer may also have.
+  assert snap["strokes"][0]["stroke"] == 5
+  assert rec.strokes == MAX_LINES + 5
+
+
 def test_a_save_is_atomic(tmp_path):
   """Written to a temp file and renamed over the target: a crash mid-write
   leaves the PREVIOUS state rather than a truncated file, which would load as

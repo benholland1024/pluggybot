@@ -112,6 +112,66 @@ def _geom_appearance(model, gid: int) -> tuple[list[float], str | None]:
   return _round(model.mat_rgba[mid], 4), tex
 
 
+#: Geoms whose name ends with this are DISPLAY PANELS -- the LCD module's
+#: face (issue #13). Named by convention rather than listed in a sidecar
+#: because the modules are generated (hub/coupling.py) and live in three
+#: worlds, only one of which has a sidecar at all.
+SCREEN_SUFFIX = "_screen"
+
+
+def _quat_rotate(q, v) -> list[float]:
+  """Rotate v by quaternion q, both (w,x,y,z) / (x,y,z)."""
+  w, x, y, z = q
+  # v' = v + 2 * cross(q_vec, cross(q_vec, v) + w * v)
+  tx = 2 * (y * v[2] - z * v[1])
+  ty = 2 * (z * v[0] - x * v[2])
+  tz = 2 * (x * v[1] - y * v[0])
+  return [v[0] + w * tx + (y * tz - z * ty),
+          v[1] + w * ty + (z * tx - x * tz),
+          v[2] + w * tz + (x * ty - y * tx)]
+
+
+def screen_map(model) -> dict:
+  """{body: where its display panel is} for every screen geom in the world.
+
+  The mapping a face needs, and the exact sibling of `boards`: telemetry says
+  `"screens": {"module_lcd": {"mode": "face", ...}}` and the geom carrying
+  that face is called `module_lcd_screen`. Shipping the pairing here means a
+  client never derives one name from the other, so renaming a geom is a
+  regenerate rather than a silently blank screen.
+
+  `normal` is the panel's OUTWARD direction in body-local coordinates -- the
+  thin axis of the slab, signed to point away from the body origin. A client
+  paints its canvas on that face; without the sign it has a 50 % chance of
+  drawing the face on the inside of the module.
+  """
+  screens: dict = {}
+  for g in range(model.ngeom):
+    name = model.geom(g).name
+    if not name or not name.endswith(SCREEN_SUFFIX):
+      continue
+    size = geom_size(int(model.geom_type[g]), model.geom_size[g])
+    pos = [float(v) for v in model.geom_pos[g]]
+    quat = [float(v) for v in model.geom_quat[g]]
+    thin = size.index(min(size))
+    axis = [0.0, 0.0, 0.0]
+    axis[thin] = 1.0
+    normal = _quat_rotate(quat, axis)
+    if sum(n * p for n, p in zip(normal, pos)) < 0:
+      normal = [-n for n in normal]
+    normal = [n + 0.0 if n else 0.0 for n in normal]   # never ship -0.0
+    body = model.body(int(model.geom_bodyid[g])).name
+    screens[body] = {
+      "geom": name,
+      "body": body,
+      "size": _round(size),
+      "pos": _round(pos),
+      "quat": _round(quat),
+      "normal": _round(normal),
+    }
+  return screens
+
+
 def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
   """The full scene description for one compiled model.
 
@@ -202,6 +262,11 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
     # `heading` is the outward normal the robot squares up to, so a canvas is
     # width x height and the polyline's +lat runs left across it.
     scene["boards"] = meta["boards"]
+  screens = screen_map(model)
+  if screens:
+    # Read off the COMPILED model rather than a sidecar: the display modules
+    # are generated into every world, and only home_world has a sidecar.
+    scene["screens"] = screens
   return scene
 
 

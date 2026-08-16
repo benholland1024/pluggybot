@@ -75,7 +75,7 @@ class FrameBuilder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None) -> None:
+               activities=None, boards=None, screens=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -88,6 +88,8 @@ class FrameBuilder:
     # here for the same reason activities are: a drawing has no body, so its
     # state reaches a viewer through this block or not at all.
     self.boards = boards
+    # ...and so does a face (issue #13). Third duck of the same shape.
+    self.screens = screens
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -107,6 +109,7 @@ class FrameBuilder:
     # deltas. Same reason `_last` holds poses here rather than on the bodies.
     self._last_acts: dict[str, dict] = {}
     self._last_boards: dict[str, dict] = {}
+    self._last_screens: dict[str, dict] = {}
 
   def header(self) -> dict:
     return {
@@ -119,6 +122,7 @@ class FrameBuilder:
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
+      "screens": self.screens.names if self.screens else [],
     }
 
   def reset(self) -> None:
@@ -126,6 +130,7 @@ class FrameBuilder:
     self._last.clear()
     self._last_acts.clear()
     self._last_boards.clear()
+    self._last_screens.clear()
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -149,6 +154,7 @@ class FrameBuilder:
       # again), so the flag is the only record of it anywhere in the stream.
       self._last_acts.clear()
       self._last_boards.clear()
+      self._last_screens.clear()
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -180,6 +186,10 @@ class FrameBuilder:
       boards = self._sparse(self.boards.snapshot(), self._last_boards)
       if boards:
         frame["boards"] = boards
+    if self.screens is not None:
+      screens = self._sparse(self.screens.snapshot(), self._last_screens)
+      if screens:
+        frame["screens"] = screens
     return frame
 
   @staticmethod
@@ -228,13 +238,22 @@ class TelemetryRecorder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None) -> None:
+               activities=None, boards=None, screens=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
-                                 activities=activities, boards=boards)
+                                 activities=activities, boards=boards,
+                                 screens=screens)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
+    # Whatever is already on the walls, before the first frame (0.5.0). A
+    # recording made against boards that survived a previous run opens with
+    # a robot standing in front of a drawing it did not make -- and without
+    # this, a replayer would show it standing in front of a blank wall while
+    # the `boards` block insisted the wall was full.
+    if boards is not None:
+      for snapshot in boards.snapshots(t=float(data.time)):
+        self._queue.put(snapshot)
     self._thread = threading.Thread(target=self._write, args=(path,),
                                     daemon=True)
     self._thread.start()

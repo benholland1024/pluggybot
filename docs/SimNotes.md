@@ -1773,6 +1773,71 @@ stroke, and they are mirror-symmetric.**
   would have shown the first line of text mirrored next to a photograph of it
   reading correctly.
 
+## The LCD's face and the census (issue #13): counting the fence
+
+The display module was the cheapest thing in the repo to give a job to —
+what travels the wire is an enum, and the browser draws the face — so all
+three lessons here are about the *task*, not about the panel.
+
+- **The census counts the FENCE unless you tell it not to.** The garden's
+  zone rectangle IS the fence line, and a fence is a run of occupied cells.
+  A solid one is harmless: it comes back as a single enormous connected
+  component and the span filter throws it away. But the real LIDAR loses
+  returns (dropout, and rays that fan out with range), so the boundary
+  arrives as a *dotted* line — and the dots are plant-sized in every
+  dimension the counter measures. Measured on a synthetic garden with the
+  four real plants in it:
+
+  | boundary returns dropped | objects counted, no margin | with a 0.4 m margin |
+  |---|---|---|
+  | 0 % | 4 | 4 |
+  | 30 % | 12 | 4 |
+  | 50 % | 45 | 4 |
+  | 70 % | 57 | 4 |
+
+  Nothing but the margin rejects those, and the failure is silent: the robot
+  reports 45 plants with a straight face. Ground truth has to exclude the
+  same border, or a plant sitting in it would be scored as *missed* when it
+  was never countable.
+
+- **A survey that finishes its route can finish the battery too.** The
+  four-vantage lawnmower answered correctly and the mission ended BATTERY
+  DEAD holding it — which is not a working robot. The garden reads 100 %
+  coverage from the *first* vantage (the LIDAR is 8 m and the garden is 5 × 8),
+  so the errand now stops on either of two conditions, coverage or
+  `needs_charge`, and reports the coverage it actually achieved. Same run
+  afterwards: correct count, module stowed, one charge cycle, mission
+  complete. **Coverage is not a decoration** — it is what separates a
+  surveyed answer from a lucky one, and a task that stops early has to say
+  which it got.
+
+- **A RESULT SHOWN FOR ZERO SIM TIME WAS NEVER SHOWN.** The census computed
+  the right number, put it on the screen, and returned — and the recorded
+  mission carried it in **none of 10 850 frames**. Python between two physics
+  steps costs no sim time at all, so `show_count()` followed by a `return`
+  reaches the screen and is overwritten by the next state's automatic face
+  before a single 20 Hz frame is built. The result dict was perfect
+  throughout, which is exactly why nothing else caught it: the website
+  renders the WIRE, not the return value. Errands now hold their result for
+  `PRESENT_S` (5 s) of real standing-still, and the fixture test asserts the
+  count appears in >20 frames. Generalises: **any state a viewer is meant to
+  see has to outlive a frame interval**, and the only way to know it did is
+  to look at the recording.
+
+- **A REVERSAL COSTS TWICE THE RAMP.** The dance routine's shimmy asked for
+  1.6 rad/s for 0.5 s, alternating direction. `control.slew` ramps the wheels
+  at 30 rad/s², so a turn starting from rest loses ~0.12 s to the ramp, while
+  one reversing an existing turn must cross the whole ±range — and the first
+  half of that crossing is still turning the wrong way. Back-to-back, as the
+  errand drives it: **0.35** of the commanded arc, against 0.86 for the
+  stationary-start spins. Three of nine moves "missed" in a real mission, and
+  they were exactly the three reversals. At 1.2 rad/s for 0.9 s it is 0.63
+  and all nine land. Worth stating as a rule: a move that reverses needs at
+  least twice the ramp time *before* the arc it is asking for. (And note the
+  probe that measured this the first time inserted a 0.4 s settle between
+  moves and saw nothing wrong — 0.72 across the board. The bug lives in the
+  TRANSITION, so a probe that pauses between moves cannot see it.)
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

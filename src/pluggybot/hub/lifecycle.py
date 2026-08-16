@@ -34,10 +34,14 @@ from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.hub.coupling import (
   HUB_STATION_YS, module_power_contact, rack_charge_contact,
 )
-from pluggybot.hub.errand import carry_errand, drawing_errand
+from pluggybot.hub.census import Zone
+from pluggybot.hub.errand import (
+  carry_errand, census_errand, dance_errand, drawing_errand,
+)
 from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
+from pluggybot.hub.screen import face_for
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.recorder import TelemetryRecorder
 
@@ -58,6 +62,8 @@ CHARGE_PRESS = 0.012        # m/s held press while charging: the milestone-7
                             # suspension relaxes and the circuit opens
 CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
 CHARGE_TIMEOUT = 400.0      # s of charging before calling it stuck
+SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
+                            # the robot is NOT carrying (issue #13)
 UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
 
 
@@ -70,7 +76,7 @@ class HubLifecycle:
                module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
-               errands=None, boards=None) -> None:
+               errands=None, boards=None, screen=None) -> None:
     self.model, self.data = model, data
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
@@ -79,6 +85,13 @@ class HubLifecycle:
     self.module = errands[0].module if errands else module
     self.low_battery_wh = low_battery_wh
     self.boards = boards
+    # The LCD module's display (issue #13). The lifecycle drives the resting
+    # face off its own state; an errand's use-phase may take the screen over
+    # (`Screen.held`) and gets it back automatically at the next state change.
+    self.screen = screen
+    self._face_state: str | None = None
+    self._face_shown: tuple[str, str] | None = None
+    self._next_screen_sense = 0.0
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
@@ -119,6 +132,42 @@ class HubLifecycle:
       self.tool_powered_s += dt
     self.battery.update(self.data, dt, charging=self.charging_now,
                         tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
+    self._screen_step()
+
+  def _screen_step(self) -> None:
+    """Keep the display's power reading current, and its resting face.
+
+    Two economies, both because this runs at 500-1000 Hz. The power scan is
+    O(ncon) in Python, so when the display IS the errand's module the answer
+    is already in hand (`tool_powered`) and is reused; otherwise the module
+    is hanging on the rack, where "did it just get power" is a question worth
+    asking ten times a second and not a thousand. And the automatic face is
+    recomputed only when the mission state has actually moved, which is also
+    the moment an errand's override is handed back.
+    """
+    if self.screen is None:
+      return
+    if self.screen.module == self.module:
+      self.screen.sense(self.model, self.data, powered=self.tool_powered)
+    elif self.data.time >= self._next_screen_sense:
+      self._next_screen_sense = self.data.time + SCREEN_SENSE_S
+      self.screen.sense(self.model, self.data)
+    if self.state != self._face_state:
+      self._face_state = self.state
+      self.screen.release()
+      self._face_shown = None
+    if self.screen.held:
+      # The errand owns the screen; forget what we last put there, so the
+      # resting face is re-applied the moment it hands the screen back --
+      # whether that is a state change or a direct `release()`.
+      self._face_shown = None
+      return
+    # Compare the pair BEFORE handing it over: `Screen.face` builds a dict and
+    # diffs it, which is cheap once and is not free a thousand times a second.
+    resting = face_for(self.state, self.battery.fraction)
+    if resting != self._face_shown:
+      self._face_shown = resting
+      self.screen.face(*resting)
 
   def _say(self, msg: str) -> None:
     self.status = msg
@@ -362,6 +411,20 @@ def board_book(world: str, state: str | None = None):
   return BoardBook.for_meta(meta, path=state)
 
 
+def world_screens(model, data):
+  """Every display module in this world, as one telemetry-shaped set (#13).
+
+  What counts as a display is decided in ONE place -- the `_screen` geom
+  suffix `telemetry.scene.screen_map` keys the scene's `screens` block off --
+  so the panel the website paints and the panel the sim drives can never be
+  two different lists.
+  """
+  from pluggybot.hub.screen import Screen, ScreenSet
+  from pluggybot.telemetry.scene import screen_map
+  return ScreenSet([Screen(model, data, module=body)
+                    for body in screen_map(model)])
+
+
 def errands_for(kind: str, world: str, book=None) -> list:
   """The named errand queues a demo or the website can ask for.
 
@@ -374,6 +437,20 @@ def errands_for(kind: str, world: str, book=None) -> list:
     return [carry_errand(use_at=cfg["use_at"])]
   if kind == "none":
     return []
+  if kind == "dance":
+    return [dance_errand(cfg["use_at"])]
+  if kind == "census":
+    zone = cfg.get("census_zone")
+    if zone is None:
+      raise ValueError(f"the {world} world has no zone to take a census of")
+    return [census_errand(Zone.from_meta(zone), entry=cfg.get("census_entry"))]
+  if kind == "showcase":
+    # What the SITE serves (rooftop-media-2026 #28): one errand that leaves
+    # ink on a board and one that puts a face on the screen, so a single
+    # recording exercises both streamed surfaces. The battery arbitration
+    # puts a charge between them without being asked -- that is the loop
+    # doing its job, not a scripted interlude.
+    return errands_for("draw", world, book) + errands_for("census", world)
   if kind in ("draw", "draw2"):
     if book is None or not len(book):
       raise ValueError(f"the {world} world has no whiteboards to draw on")
@@ -389,7 +466,7 @@ def errands_for(kind: str, world: str, book=None) -> list:
                            program_name=figures[i % len(figures)])
             for i, name in enumerate(names)]
   raise ValueError(f"unknown errand queue {kind!r} "
-                   "(carry, draw, draw2 or none)")
+                   "(carry, draw, draw2, census, dance, showcase or none)")
 
 
 def world_config(world: str) -> dict:
@@ -412,6 +489,12 @@ def world_config(world: str) -> dict:
       "low_battery_wh": home.HOME_LOW_BATTERY_WH,
       "explore_budget": 240.0,
       "activities": home_activities,
+      # The census's zone and the doorway it is entered by (issue #13). Off
+      # the generator's own ZONES, so the rectangle the robot surveys is the
+      # rectangle the website draws and the one the evaluator scores against.
+      "census_zone": next(z for z in home.ZONES if z["kind"] == "garden"),
+      "census_entry": (home.GARDEN_X[0] + 0.4,
+                       sum(home.DOOR_GARDEN_Y) / 2),
       # The generator sidecar, which is also where the BOARDS are described
       # (issue #12). One source again: the whiteboard the errand drives to is
       # the whiteboard the website renders.
@@ -428,6 +511,8 @@ def world_config(world: str) -> dict:
       "low_battery_wh": LOW_BATTERY_WH,
       "explore_budget": 90.0,
       "activities": None,      # room_hub has no activities yet
+      "census_zone": None,     # ...and nothing countable to survey
+      "census_entry": None,
       "meta": None,            # ...and no whiteboards: the standing board
                                # lives in the bare hub_world, which is not a
                                # navigated room
@@ -459,10 +544,14 @@ def run_demo(start=None, view: bool = False,
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
   book = board_book(world, state=board_state)
+  # Displays are a WORLD's, like activities and boards; the lifecycle drives
+  # the first one (there is one LCD) and telemetry streams the set.
+  screens = world_screens(model, data)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
+                      screen=next(iter(screens), None),
                       errands=errands_for(errand, world, book))
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
@@ -475,7 +564,8 @@ def run_demo(start=None, view: bool = False,
     recorder = TelemetryRecorder(model, data, record,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
-                                 activities=activities, boards=book)
+                                 activities=activities, boards=book,
+                                 screens=screens)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.

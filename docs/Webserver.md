@@ -96,6 +96,23 @@ so that line is missing from the canvas until the board is next erased.
 That is the accepted price of never blocking physics on a socket, and it is
 why recordings, not the live stream, are the lossless artifact.
 
+**A face and a catch-up channel** (`protocolVersion` 0.5.0, issue #13).
+Frames gain a sparse `screens` block — what each display module is showing,
+`{mode, powered, face, hint}` — on the same rule again, and for the same
+reason a third time: an LCD's content is not a pose. The sim streams an
+ENUM and the browser draws the face, which is what makes an expressive
+robot cost five short strings per change instead of a texture.
+
+And a third typed message, **`board_snapshot`**: every stroke a board is
+currently carrying, sent right after the header on every connect. It closes
+the one hole the mixed stream left. A keyframe re-ships each board's
+*counters* but never its *lines* — a `draw` happens once — so a browser
+that joins mid-mission, or a sim restarting onto its saved board state, had
+no way to learn what was already on the wall. `--boards` state now keeps the
+polylines themselves for exactly this. A relay hub should cache the latest
+snapshot per board plus the strokes since it, and drop both on a
+`board_cleared`.
+
 **The ingest socket is authenticated.** `--token` (or `$PLUGGYWORLD_TOKEN`)
 sends `Authorization: Bearer <token>` at the handshake. A refusal looks
 exactly like a server that is down — a 1 s retry loop — so the publisher
@@ -120,6 +137,12 @@ MUJOCO_GL=osmesa uv run python scripts/serve.py --world home \
 # drew across restarts; `--errand draw2` does two boards with a charge in
 # between.
 MUJOCO_GL=osmesa uv run python scripts/serve.py --world home --errand draw \
+  --boards var/boards.json --endpoint ws://localhost:8765
+
+# …or both streamed surfaces in one run (issue #13): draw a house, charge,
+# then fetch the LCD and take a census of the garden, reporting the count on
+# the robot's screen. This is the queue the site's fixture is recorded from.
+MUJOCO_GL=osmesa uv run python scripts/serve.py --world home --errand showcase \
   --boards var/boards.json --endpoint ws://localhost:8765
 
 # …or rehearse the authenticated production path
@@ -176,16 +199,20 @@ things about it are decisions rather than boilerplate:
   flag is visible in `ps`. Anything passed to the container is appended
   after the derived flags, so `docker run <image> --rate 2.0` still wins.
 
-`deploy/compose.pluggyworld.yaml` is the service block to paste into the
-website's `compose.yaml`. Two things it encodes: `/var/lib/pluggybot` is a
-named volume because board contents are **world** state — a mission ends
-when its errands do, `restart: unless-stopped` starts the next one, and the
-volume is what makes the robot walk into the house it left rather than a
-blank one. And `PLUGGY_BATTERY_WH` is 8.0 rather than the world's 1.1 Wh
-demo cell, which flattens in minutes: a watched world wants hours between
-charges. The low-battery reserve is deliberately *not* scaled with it — it
-is the absolute energy needed to reach the dock, not a fraction of
-capacity.
+**This repo owns the image; the website repo owns the deployment.** The
+`sim:` service lives in `rooftop-media-2026/compose.yaml` — one copy, not a
+snippet here that drifts from it. It builds from `context: ../pluggybot`
+(the two repos checked out side by side) and sits behind a `sim` compose
+profile, so `docker compose up` still works for someone who only has the
+website. Two things it encodes that are worth knowing from this side:
+`/var/lib/pluggybot` is a named volume because board contents are **world**
+state — a mission ends when its errands do, `restart: unless-stopped`
+starts the next one, and the volume is what makes the robot walk into the
+house it left rather than a blank one. And `PLUGGY_BATTERY_WH` is 8.0
+rather than the world's 1.1 Wh demo cell, which flattens in minutes: a
+watched world wants hours between charges. The low-battery reserve is
+deliberately *not* scaled with it — it is the absolute energy needed to
+reach the dock, not a fraction of capacity.
 
 What the image does **not** do is keep one continuous world alive: each
 restart is a fresh mission from the start pose, the "woke up at home" model

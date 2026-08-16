@@ -82,6 +82,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   watches live. The escapement meters by GEOMETRY, not by timing — and note
   the seeds carry `condim="6"` rolling friction, without which a dropped
   sphere rolls ~590 mm and *sliding* friction does not slow it at all),
+  `scripts/lcd.py` (the LCD module, issue #13 — the LAST module to get a job,
+  and the first whose output is not physical: fetch it from bay A and either
+  `--errand census` (survey the garden, count the plants the robot can
+  actually SEE, put the number on the screen — scored against hidden ground
+  truth read out of the model) or `--errand dance` (a fixed routine with an
+  expression per move). Saves `lcd.png`: a filmstrip of the module plus the
+  screen's whole state timeline. ⚠ The face is drawn in the BROWSER, so
+  MuJoCo renders a dark panel whatever the robot is feeling — the timeline
+  is the artifact, because it is exactly what goes on the wire),
   `scripts/module_power.py` (module electrical interface: runs the errand and
   saves `module_power.png` — filmstrip with the module painted live/dead plus
   a per-pole continuity timeline; `--bare` for the faster hub_world version),
@@ -91,8 +100,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:
   explore → fetch a tool → use it → stow it → charge at the hub; `--view`,
   `--battery-wh W`, `--record out.jsonl.gz` writes a PluggyWorld telemetry
-  recording — issue #4; `--errand {carry,draw,draw2,none}` picks what the
-  robot is FOR this run and `--boards PATH` keeps what it drew — issue #12),
+  recording — issue #4; `--errand {carry,draw,draw2,census,dance,showcase,
+  none}` picks what the robot is FOR this run and `--boards PATH` keeps what
+  it drew — issues #12 and #13. `showcase` is draw + census, the queue the
+  site's fixture is recorded from, so ONE recording exercises both streamed
+  surfaces — ink and a face),
   `scripts/serve.py --endpoint ws://host:port`
   (webserver v1, issue #5: the hub lifecycle headless, paced to real time,
   streaming protocol frames + grid PNGs + event lines over an outbound
@@ -120,9 +132,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   which is why `tests/test_deploy.py` blocks the omitted packages and then
   actually flies the robot. Adding a runtime dependency to the mission
   stack means adding it there too.
-  `deploy/compose.pluggyworld.yaml` is the service block for the website's
-  `compose.yaml`; `/var/lib/pluggybot` must be a volume, because boards are
-  world state and every mission end is a container restart.
+  This repo owns the IMAGE; the website repo owns the DEPLOYMENT — the
+  `sim:` service lives in `rooftop-media-2026/compose.yaml` (built from
+  `context: ../pluggybot`, behind a `sim` profile), and there is deliberately
+  no second copy here to drift from it. `/var/lib/pluggybot` must be a
+  volume: boards are world state and every mission end is a restart.
 - PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED, and
   there is one scene AND one recording **per world** — a replayer picks its
   scene off the recording's `model` header, so a room_hub mission replayed
@@ -130,10 +144,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   JSON + tag textures: `uv run python -m pluggybot.telemetry.scene
   [models/home_world.xml]` (rerun after changing ANY geometry in that world —
   the fixture test fails when stale). Recordings: `MUJOCO_GL=egl uv run
-  python scripts/hub_lifecycle.py [--world home --errand draw] --record
-  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — the HOME one is a
-  drawing mission (issue #12), so the website has a recording with `draw` /
-  `board_cleared` events to build its canvas against.
+  python scripts/hub_lifecycle.py [--world home --errand showcase] --record
+  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — the HOME one runs the
+  SHOWCASE queue (issues #12 + #13): a drawing errand and then a census on
+  the LCD, so the website has ONE recording carrying `draw` /
+  `board_cleared` events AND a `screens` block that changes, which are the
+  two surfaces it paints.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
 - **A recording is a MIXED stream as of protocol 0.4.0**: `draw` and
@@ -163,6 +179,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   first cycle left, which is a different test. Use `--cycles 2` before
   believing any change to the swap/coupling stack. SimNotes, "The pen would
   not stow".
+- **Face states are a two-repo contract too** (issue #13).
+  `telemetry.protocol.FACE_STATES` / `SCREEN_HINTS` / `SCREEN_MODES` are the
+  vocabulary the `screens` block may use; the website draws a parametric
+  face per name and falls back to `idle` for one it does not know, so ADDING
+  a face is additive and renaming one breaks both repos. The sim never ticks
+  an animation — `hint` names a LOOP the browser runs, because a 150 ms
+  blink does not belong on a 20 Hz pose stream. And `powered` is the
+  coupling's electrical criterion, never "am I carrying it": a module in its
+  bay is dark, and so is a half-seated one on the fork.
 - **Visual hints are a two-repo contract.** `telemetry.protocol.VISUAL_HINTS`
   is the vocabulary; the sidecar's `visualHints` may only use those strings,
   and `scene_dict` raises on anything else. Adding a hint is additive (the
@@ -260,7 +285,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   to make repeatable. The rule a use-phase must respect: **leave the tool in
   its CARRY configuration** — a stow computes its release heights from the
   lift it starts at, and a tool axis parked where the last stroke left it
-  fouls the bay's brackets.
+  fouls the bay's brackets. And **a result has to outlive a frame**: Python
+  between two physics steps costs ZERO sim time, so a use-phase that sets the
+  screen and returns has its answer overwritten by the next state's automatic
+  face before a single 20 Hz frame is built (measured: the census's count
+  appeared in none of 10 850 frames while the result dict was perfect). Hold
+  it — `_drive(PRESENT_S, 0, 0)` — and check the RECORDING, not the return
+  value.
 - **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
   the plotter never imports the content module** (issue #11). A *stroke
   program* is a named list of polylines in board coordinates, pen up between

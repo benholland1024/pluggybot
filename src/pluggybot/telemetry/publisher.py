@@ -82,7 +82,7 @@ class WsPublisher:
                grid=None, grid_hz: float = GRID_HZ,
                token: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None) -> None:
+               activities=None, boards=None, screens=None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -93,7 +93,8 @@ class WsPublisher:
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
-                                 activities=activities, boards=boards)
+                                 activities=activities, boards=boards,
+                                 screens=screens)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0
@@ -101,6 +102,13 @@ class WsPublisher:
     # Set by the sender (on connect) or the hook (on drop); cleared by the
     # hook once it has actually re-keyed the stream.
     self._need_keyframe = threading.Event()
+    # Set by the sender on CONNECT ONLY, and deliberately not on a dropped
+    # frame: a re-key is how the stream repairs itself under load, and
+    # answering congestion by enqueuing every stroke on every board would
+    # make the queue that just overflowed overflow harder. The boards are
+    # read on the physics thread, which is the thread that owns them.
+    self._need_boards = threading.Event()
+    self.boards = boards
     self._stop = threading.Event()
     self.frames_sent = 0
     self.frames_dropped = 0
@@ -113,6 +121,11 @@ class WsPublisher:
   # ---- the hook (runs inside every physics step; must never block) ---------
 
   def step_hook(self) -> None:
+    if self._need_boards.is_set() and not self._queue.full():
+      self._need_boards.clear()
+      if self.boards is not None:
+        for snapshot in self.boards.snapshots(t=float(self.data.time)):
+          self.message(snapshot)
     if self._need_keyframe.is_set() and not self._queue.full():
       # Re-key only when the keyframe has room to actually go out --
       # resetting into a full queue would just drop it and lose the reset.
@@ -174,6 +187,11 @@ class WsPublisher:
           self._drain()
           ws.send(json.dumps(self._builder.header(), separators=(",", ":")))
           self._need_keyframe.set()
+          # ...and catch the new consumer up on the ink already on the walls
+          # (0.5.0). No keyframe carries it: a stroke is an event that
+          # happened once, so without this a viewer who joined late watches
+          # a robot admire a blank board.
+          self._need_boards.set()
           while not self._stop.is_set():
             try:
               kind, payload = self._queue.get(timeout=0.25)

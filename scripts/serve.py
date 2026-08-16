@@ -40,7 +40,7 @@ import time
 import mujoco
 
 from pluggybot.hub.lifecycle import (
-  HubLifecycle, board_book, errands_for, world_config,
+  HubLifecycle, board_book, errands_for, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.publisher import WsPublisher
@@ -70,7 +70,8 @@ def main() -> None:
                       metavar="S", help="sim seconds between full keyframes"
                                         " (0 disables; late joiners then wait"
                                         " forever)")
-  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "none"),
+  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
+                                          "dance", "showcase", "none"),
                       default="carry",
                       help="what the robot is FOR this run (issue #12): carry "
                            "(the milestone-8 LCD errand), draw (fetch the pen, "
@@ -87,11 +88,15 @@ def main() -> None:
   # Board state is the world's, not the run's: loaded before the mission and
   # written back on every stroke, so a restart walks into the house it left.
   book = board_book(args.world, state=args.boards)
+  # The world's displays (issue #13): the lifecycle drives the LCD's face off
+  # its own state, and every screen's content rides in the frames.
+  screens = world_screens(model, data)
   life = HubLifecycle(model, data,
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
                       errands=errands_for(args.errand, args.world, book),
+                      screen=next(iter(screens), None),
                       boards=book)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
@@ -103,7 +108,8 @@ def main() -> None:
                           status_fn=life.telemetry_status,
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s,
-                          activities=activities, boards=book)
+                          activities=activities, boards=book,
+                          screens=screens)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
@@ -120,7 +126,8 @@ def main() -> None:
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
-                                 activities=activities, boards=book)
+                                 activities=activities, boards=book,
+                                 screens=screens)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
       book.on_event.append(recorder.emit)

@@ -63,8 +63,17 @@ MAX_POINTS = 400     # per stroke, after decimation: a hard ceiling on one
                      # websocket message, so a pathological figure degrades to
                      # a coarse polyline instead of stalling the sender thread.
 NDIGITS = 4          # 0.1 mm, as for poses
+MAX_LINES = 240      # strokes KEPT per board for the catch-up snapshot
+                     # (issue #13 / rooftop-media-2026 #28). A board that
+                     # deep is visually saturated long before it is full, and
+                     # the cap is what stops an un-erased board growing an
+                     # unbounded state file and an unbounded join message.
 
-STATE_VERSION = 1
+STATE_VERSION = 2    # 2 adds `lines`: the polylines themselves, so a board's
+                     # INK survives a restart and not merely its statistics.
+                     # A version-1 file still loads -- its boards come back
+                     # with their counters and no strokes to redraw, which is
+                     # exactly what they had recorded.
 
 
 def _now() -> str:
@@ -114,6 +123,15 @@ class BoardRecord:
   #: inked coverage cells, board-local indices. A set, so re-drawing over the
   #: same place does not inflate the fill.
   cells: set[tuple[int, int]] = field(default_factory=set)
+  #: the strokes THEMSELVES, {"program", "points"} each, oldest first. The
+  #: counters above describe a drawing; this is the drawing. Kept because ink
+  #: is not a body: no keyframe re-ships it, so a viewer who arrives after
+  #: the pen has moved on -- or after the producer restarted -- has no other
+  #: way to be told what is on the wall (protocol 0.5.0, `board_snapshot`).
+  lines: list[dict] = field(default_factory=list)
+  #: strokes dropped off the front by MAX_LINES. Reported rather than hidden:
+  #: a snapshot that is missing the start of the drawing should say so.
+  dropped: int = 0
 
   @property
   def fill(self) -> float:
@@ -144,7 +162,8 @@ class BoardRecord:
     return {"reach": list(self.reach), "programs": list(self.programs),
             "strokes": self.strokes, "inkM": self.ink_m,
             "clears": self.clears, "clearedAt": self.cleared_at,
-            "drawnAt": self.drawn_at,
+            "drawnAt": self.drawn_at, "dropped": self.dropped,
+            "lines": [dict(line) for line in self.lines],
             "cells": sorted([int(i), int(j)] for i, j in self.cells)}
 
   @classmethod
@@ -162,6 +181,12 @@ class BoardRecord:
       clears=int(spec.get("clears", 0)),
       cleared_at=spec.get("clearedAt"),
       drawn_at=spec.get("drawnAt"),
+      dropped=int(spec.get("dropped", 0)),
+      # A version-1 file has no `lines`, and that is not an error: the board
+      # comes back with its statistics and nothing to redraw.
+      lines=[{"program": str(line["program"]),
+              "points": [[float(a), float(b)] for a, b in line["points"]]}
+             for line in spec.get("lines", [])],
       cells={(int(i), int(j)) for i, j in spec.get("cells", [])},
     )
 
@@ -226,6 +251,32 @@ class BoardBook:
   def __getitem__(self, name: str) -> BoardRecord:
     return self.boards[name]
 
+  def snapshots(self, t: float = 0.0, by: str = ROBOT_ROOT) -> list[dict]:
+    """One `board_snapshot` message per board that is carrying ink.
+
+    The catch-up channel, and the reason it has to exist: a keyframe
+    re-ships every board's COUNTERS, but there is no keyframe for the lines
+    themselves -- ink is not a body, and a `draw` event happens once. So a
+    browser that opens the page after the pen has moved on, or after the
+    producer restarted onto a state file, sees a board reporting 40 % fill
+    with nothing painted on it. This is what closes that gap: sent when a
+    stream OPENS, cached by the relay hub, and skipped entirely for blank
+    boards (protocol 0.5.0).
+    """
+    out = []
+    for name, rec in self.boards.items():
+      if not rec.lines:
+        continue
+      out.append({
+        "type": "board_snapshot", "t": round(float(t), 3), "robot": by,
+        "board": name, "clearedAt": rec.cleared_at, "drawnAt": rec.drawn_at,
+        "dropped": rec.dropped,
+        "strokes": [{"program": line["program"], "stroke": i + rec.dropped,
+                     "points": [list(p) for p in line["points"]]}
+                    for i, line in enumerate(rec.lines)],
+      })
+    return out
+
   # ---- the actions ---------------------------------------------------------
 
   def clear(self, board: str, t: float = 0.0,
@@ -238,6 +289,8 @@ class BoardBook:
     rec = self.boards[board]
     rec.programs.clear()
     rec.cells.clear()
+    rec.lines.clear()
+    rec.dropped = 0
     rec.strokes = 0
     rec.ink_m = 0.0
     rec.drawn_at = None
@@ -268,9 +321,16 @@ class BoardBook:
     rec.ink_m += sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
     rec.drawn_at = self.clock()
     self._mark(rec, pts)
+    points = [[round(y, NDIGITS), round(z, NDIGITS)] for y, z in pts]
+    # Remembered, not just streamed: this is the only copy of the line that
+    # outlives the message. Oldest-first eviction at the cap, counted.
+    rec.lines.append({"program": program, "points": points})
+    if len(rec.lines) > MAX_LINES:
+      rec.dropped += len(rec.lines) - MAX_LINES
+      del rec.lines[:len(rec.lines) - MAX_LINES]
     msg = {"type": "draw", "t": round(float(t), 3), "robot": by,
            "board": board, "program": program, "stroke": rec.strokes - 1,
-           "points": [[round(y, NDIGITS), round(z, NDIGITS)] for y, z in pts]}
+           "points": points}
     self._emit(msg)
     return msg
 
@@ -323,15 +383,24 @@ class BoardBook:
     """Restore from a state file. Boards the file does not mention keep the
     blank state the world gave them; boards the WORLD does not have are
     dropped -- a state file outliving a layout change must not resurrect a
-    whiteboard that is no longer on any wall."""
+    whiteboard that is no longer on any wall.
+
+    OLDER versions load; newer ones refuse. The asymmetry is deliberate and
+    the deploy is what pays for it: `/var/lib/pluggybot` outlives the image,
+    so an upgrade that added a field would otherwise crash the sim on start
+    over a file whose old shape is a strict subset of the new one. A file
+    from the FUTURE is a different story -- that is a downgrade, and reading
+    it would silently drop whatever the newer version knew.
+    """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
       return self
     doc = json.loads(target.read_text())
-    if int(doc.get("version", 0)) != STATE_VERSION:
+    version = int(doc.get("version", 0))
+    if not 1 <= version <= STATE_VERSION:
       raise ValueError(
         f"{target}: board state version {doc.get('version')!r}, expected "
-        f"{STATE_VERSION} -- delete the file to start the boards blank")
+        f"1..{STATE_VERSION} -- delete the file to start the boards blank")
     for name, spec in doc.get("boards", {}).items():
       if name not in self.boards:
         continue

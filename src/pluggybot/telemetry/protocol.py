@@ -9,7 +9,30 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.4.0"
+PROTOCOL_VERSION = "0.5.0"
+# 0.5.0: the robot has a FACE, and a board can be caught up on (issue #13,
+#        rooftop-media-2026 #28). Two additions, both about surfaces the
+#        browser paints rather than geometry MuJoCo carries:
+#        Frames may carry a "screens" block -- per display module, what it
+#        is showing: {"module_lcd": {"mode": "face", "face": "curious",
+#        "hint": "blink", "powered": true}}. Sparse and keyframe-refreshed
+#        on exactly the same rule as "activities" and "boards", and for the
+#        same reason: an LCD's content is not a pose, so this block is the
+#        only record of it on the wire. Modes are "off" / "face" / "text" /
+#        "count"; the vocabularies are FACE_STATES / SCREEN_HINTS below and
+#        are a two-repo contract, like VISUAL_HINTS. The header gains
+#        "screens": [names], and the SCENE gains a top-level "screens" --
+#        which geom on which body carries each display, with the outward
+#        normal, so a client can place a face without name archaeology.
+#        A third typed message joins "draw" and "board_cleared":
+#        {"type": "board_snapshot", ...} -- every stroke a board is
+#        currently carrying, emitted when a stream OPENS. Ink is not a
+#        pose, so nothing else in the stream can catch a late joiner up:
+#        keyframes re-ship the "boards" counters but never the lines, and a
+#        board that survived a producer restart (hub/boards.py persists the
+#        polylines as of this version) has strokes no live "draw" event
+#        will ever describe again. Additive: a consumer that ignores it
+#        renders exactly what 0.4.0 rendered.
 # 0.4.0: whiteboards are world STATE, and ink is an event (issue #12).
 #        Frames may carry a "boards" block -- per drawing surface, which
 #        stroke programs are on it, how full the pen's reach is, and when it
@@ -56,6 +79,20 @@ PROTOCOL_VERSION = "0.4.0"
 # breaking change (bump).
 VISUAL_HINTS = ("wall", "fence", "floor", "ground", "whiteboard", "rack",
                 "plant")
+
+# The LCD module's display (issue #13). Three vocabularies on the same terms
+# as VISUAL_HINTS: the sim may only emit these strings, the website draws a
+# parametric component per face, and ADDING one is additive (an unknown face
+# falls back to `idle`) while renaming one is a breaking change in both
+# repos. The face is drawn in the browser and never rendered in MuJoCo --
+# layer 3 of the three-layer model, exactly like ink.
+SCREEN_MODES = ("off", "face", "text", "count")
+FACE_STATES = ("idle", "happy", "curious", "determined", "surprised",
+               "sleepy", "worried")
+# The animation the browser LOOPS under the face. A hint, not an event: the
+# sim never ticks a blink, because a 20 Hz pose stream is the wrong channel
+# for a 150 ms eyelid and the browser owns everything organic.
+SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then

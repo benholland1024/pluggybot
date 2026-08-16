@@ -32,9 +32,12 @@ brackets (docs/SimNotes.md, "The pen would not stow"). `PenPlotter.carry_config`
 is that for the pen; a tool without a moving axis has nothing to do.
 """
 
+import math
 from dataclasses import dataclass, field
 from typing import Callable
 
+from pluggybot.control import wrap_angle
+from pluggybot.hub.census import Zone, count_objects, score, survey_route, true_count
 from pluggybot.hub.coupling import HUB_STATION_YS
 from pluggybot.hub.drawing import Board, Envelope, PenPlotter, board_standoff
 from pluggybot.hub.strokes import StrokeProgram, from_cli
@@ -139,3 +142,208 @@ def drawing_errand(book, board_name: str, board: Board,
                 detail={"board": board_name, "figure": figure.name,
                         "strokes": len(figure.strokes),
                         "ink_m": figure.ink_length})
+
+
+# ---- the LCD's errands (issue #13) -----------------------------------------
+# Both leave the tool exactly as they found it: the LCD has no moving axis, so
+# "carry configuration" costs nothing to restore -- which is the whole reason
+# the display module is the right one to hang new task SHAPES off. Whatever
+# these errands get wrong, it is never the stow.
+
+#: sim seconds per slice of a dance move. Moves are driven in slices rather
+#: than in one `_drive` call so the yaw can be accumulated as it turns: a
+#: full revolution starts and ends at the same heading, and a before/after
+#: comparison would score a perfect 360 as no movement at all.
+DANCE_SLICE = 0.25
+
+#: (label, face, hint, v m/s, w rad/s, seconds). A routine, not a random
+#: walk -- the same sequence every time, so "did it dance" is a question with
+#: an answer. Faces are the point: the motion is what a two-wheel robot can
+#: do, the EXPRESSION is what makes it read as dancing rather than as a fault.
+DANCE_ROUTINE = (
+  ("wind-up",   "curious",    "blink",  0.00, -0.9, 1.2),
+  ("spin",      "surprised",  "bounce", 0.00,  1.3, 5.0),
+  ("shimmy-l",  "happy",      "shake",  0.00,  1.2, 0.9),
+  ("shimmy-r",  "happy",      "shake",  0.00, -1.2, 0.9),
+  ("shimmy-l2", "happy",      "shake",  0.00,  1.2, 0.9),
+  ("shimmy-r2", "happy",      "shake",  0.00, -1.2, 0.9),
+  ("approach",  "determined", "none",   0.22,  0.0, 1.5),
+  ("retreat",   "determined", "none",  -0.22,  0.0, 1.5),
+  ("finale",    "happy",      "bounce", 0.00, -1.3, 5.0),
+)
+# ⚠ A REVERSAL COSTS TWICE THE RAMP, and the shimmy is the move that finds
+# out. `control.slew` ramps the wheels at 30 rad/s^2 like a real motor
+# controller, so a turn that merely STARTS from rest loses ~0.12 s to the
+# ramp -- while one that reverses an existing turn must cross the whole
+# +/- range, and the first half of that crossing is still turning the wrong
+# way. Measured back-to-back, as the errand actually drives it:
+#
+#     shimmy at 1.6 rad/s for 0.5 s   ->  0.35 of the commanded arc  MISSED
+#     shimmy at 1.2 rad/s for 0.9 s   ->  0.63 of the commanded arc  ok
+#
+# The first version scored 6/9 in a real mission, and the three that missed
+# were exactly the three reversals. The fix is the CHOREOGRAPHY, not the
+# tolerance: a routine that asks for motion the drivetrain cannot deliver is
+# a badly written routine, and loosening the scorer until it passes would
+# throw away the only thing the score measures.
+
+#: Coverage at which a survey stops looking: the robot has seen the zone, and
+#: driving the rest of the route buys nothing. MEASURED, not guessed -- the
+#: garden reads 100 %% from the first vantage point, and the full four-point
+#: route spent the entire demo battery re-confirming it (the mission ended
+#: BATTERY DEAD with a correct answer, which is not a working robot).
+SURVEY_COVERED = 0.98
+#: ...but never off a single look. One vantage that happens to see everything
+#: is a lucky room, not a survey, and a zone with an occluding corner would
+#: report high coverage from inside the part it can see.
+SURVEY_MIN_VANTAGES = 2
+
+#: Sim seconds an errand HOLDS its result on screen before driving away.
+#:
+#: Not decoration -- without it the result is never seen by anyone. Python
+#: between two physics steps takes ZERO sim time, so a `show_count()` followed
+#: by a return lands on the screen and is overwritten by the next state's
+#: automatic face before a single 20 Hz frame is built. Measured on the
+#: recorded showcase mission: the census's answer appeared in exactly none of
+#: 10 850 frames, while every intermediate face appeared in dozens. A result
+#: that is not on the wire did not happen.
+PRESENT_S = 5.0
+
+#: A move counts as landed if it went the commanded WAY and got at least this
+#: much of the commanded distance. Not tighter, on purpose: the wheels ramp
+#: (control.slew) and the parking brake has a stiction deadband, so a 5 s
+#: spin cannot deliver its full commanded arc and never will.
+DANCE_LANDED_FRAC = 0.5
+
+
+def census_errand(zone: Zone, label: str = "plants",
+                  module: str = "module_lcd", station_y: float = LCD_BAY,
+                  entry: tuple[float, float] | None = None,
+                  prefix: str = "plant", timeout: float = 90.0,
+                  name: str | None = None) -> Errand:
+  """Fetch the LCD, survey a zone, count what is in it, show the number.
+
+  The first task with HIDDEN ground truth (design doc, "Evaluation"): the
+  count comes off the robot's own occupancy grid, the answer comes out of the
+  model, and they are compared by code. Being lazy is a real way to fail --
+  drive half the zone and the number on the screen is honestly, confidently
+  wrong.
+
+  The screen is claimed for the whole errand and updated at every vantage
+  point, so a viewer watches the tally climb rather than seeing one number
+  appear at the end. The lifecycle takes the screen back at the next state
+  change, which is the drive home.
+  """
+  points = survey_route(zone, entry=entry)
+
+  def use(life) -> dict:
+    screen = getattr(life, "screen", None)
+    if screen is not None:
+      screen.face("curious", "blink", hold=True)
+    tally: dict = {"count": 0, "objects": [], "coverage": 0.0}
+    stopped, vantages = "route", 0
+    for i, (wx, wy) in enumerate(points, start=1):
+      arrived = life.mission.drive_to(wx, wy, timeout=timeout)
+      life.mission._spin()          # a vantage point is only worth the look
+      vantages = i
+      tally = count_objects(life.mission.grid, zone)
+      if screen is not None:
+        screen.show_count(tally["count"], label, face="determined", hint="none")
+      life._say(f"USE_TOOL: vantage {i}/{len(points)}"
+                f"{'' if arrived else ' (short)'} -- counting "
+                f"{tally['count']} {label}, {tally['coverage']:.0%} of "
+                f"{zone.name} seen")
+      # Two reasons to stop early, and both are the errand being a good
+      # citizen of the arbitration loop rather than a script that runs to the
+      # end whatever it costs. Coverage first: there is nothing left to see.
+      if i >= SURVEY_MIN_VANTAGES and tally["coverage"] >= SURVEY_COVERED:
+        stopped = "covered"
+        break
+      # And the battery, which is the honest failure: the count that gets
+      # reported is the count off however much of the zone was surveyed, and
+      # `coverage` is what says so. A robot that dies in the garden holding a
+      # perfect answer has not done the task.
+      if life.needs_charge:
+        stopped = "battery"
+        life._say(f"USE_TOOL: breaking off the census at {vantages} vantage(s)"
+                  f" -- battery down to {life.battery.fraction:.0%}")
+        break
+
+    # The evaluator. Deliberately after the last look and deliberately not
+    # shown to the robot: `verdict["truth"]` never reaches the screen.
+    truth = true_count(life.model, zone, prefix=prefix)
+    verdict = score(tally["count"], truth, tally["coverage"])
+    if screen is not None:
+      screen.show_count(tally["count"], label,
+                        face="happy" if verdict["correct"] else "surprised",
+                        hint="bounce" if verdict["correct"] else "none")
+    life._say(f"USE_TOOL: census of {zone.name} -- reported "
+              f"{verdict['counted']} {label}, truth {verdict['truth']} "
+              f"({'CORRECT' if verdict['correct'] else 'wrong'}), "
+              f"{verdict['coverage']:.0%} of the zone surveyed")
+    # Stand still and SHOW it. See PRESENT_S: the alternative is a number
+    # that exists only inside this function.
+    life.mission._drive(PRESENT_S, 0.0, 0.0)
+    return {"census": verdict, "zone": zone.name, "label": label,
+            "objects": tally["objects"], "vantages": vantages,
+            "stopped": stopped}
+
+  return Errand(name=name or f"census:{zone.name}", module=module,
+                station_y=station_y, use_at=points[0], use=use,
+                detail={"zone": zone.name, "label": label,
+                        "vantages": len(points)})
+
+
+def dance_errand(at: tuple[float, float], module: str = "module_lcd",
+                 station_y: float = LCD_BAY,
+                 routine=DANCE_ROUTINE, name: str = "dance") -> Errand:
+  """Fetch the LCD, drive somewhere visible, and perform a routine with faces.
+
+  Auto-scored on the two things that can actually go wrong: a move that did
+  not happen (the wheels stalled, the robot ran into something), and a
+  routine that WANDERED -- a dance that ends three metres from where it
+  started has driven off, whatever its expressions said.
+  """
+
+  def use(life) -> dict:
+    screen = getattr(life, "screen", None)
+    mission = life.mission
+    x0, y0, _ = mission.pose
+    landed = []
+    for step, face, hint, v, w, seconds in routine:
+      if screen is not None:
+        screen.face(face, hint, hold=True)
+      turned = 0.0
+      travelled = 0.0
+      slices = max(1, round(seconds / DANCE_SLICE))
+      for _ in range(slices):
+        px, py, pth = mission.pose
+        mission._drive(seconds / slices, v, w)
+        nx, ny, nth = mission.pose
+        turned += wrap_angle(nth - pth)
+        travelled += math.hypot(nx - px, ny - py)
+      want_turn, want_travel = w * seconds, abs(v) * seconds
+      ok = True
+      if want_turn:
+        ok = ok and turned * want_turn > 0 \
+            and abs(turned) >= DANCE_LANDED_FRAC * abs(want_turn)
+      if want_travel:
+        ok = ok and travelled >= DANCE_LANDED_FRAC * want_travel
+      landed.append({"step": step, "landed": bool(ok),
+                     "turnedRad": round(turned, 3),
+                     "travelledM": round(travelled, 3)})
+
+    drift = math.hypot(mission.pose[0] - x0, mission.pose[1] - y0)
+    done = sum(1 for m in landed if m["landed"])
+    if screen is not None:
+      screen.face("happy" if done == len(landed) else "worried", "bounce")
+    life._say(f"USE_TOOL: danced {done}/{len(landed)} moves, "
+              f"{drift:.2f} m of drift")
+    mission._drive(PRESENT_S, 0.0, 0.0)     # hold the bow (see PRESENT_S)
+    return {"dance": {"moves": len(landed), "landed": done,
+                      "driftM": round(drift, 3),
+                      "complete": done == len(landed)},
+            "steps": landed}
+
+  return Errand(name=name, module=module, station_y=station_y, use_at=at,
+                use=use, detail={"moves": len(routine)})

@@ -478,6 +478,78 @@ def test_reconnect_resends_header_and_keyframe(mini_model):
     "the recovery keyframe must be MARKED, or the relay hub cannot see it"
 
 
+def test_every_connection_is_caught_up_on_the_ink(mini_model):
+  """0.5.0: a viewer joining a mission in progress must be told what is
+  already on the boards.
+
+  This is the half of rooftop-media-2026 #28 no keyframe can cover. Ink is
+  not a body: the `boards` block re-ships the counters on every keyframe,
+  but a `draw` event happens once and is gone. So a browser opening the page
+  after the pen has moved on gets a board that reports strokes and paints
+  none -- and a RECONNECT is the same problem, which is why the snapshot
+  rides every session rather than only the first.
+  """
+  from pluggybot.hub.boards import BoardBook, BoardRecord
+
+  mini_model.opt.gravity[:] = 0
+  data = mujoco.MjData(mini_model)
+  book = BoardBook([BoardRecord(name="whiteboard_a", reach=(0.11, 0.2))],
+                   clock=lambda: "2026-08-16T00:00:00")
+  book.stroke("whiteboard_a", "house", [(0.0, 0.0), (0.02, 0.0), (0.02, 0.02)])
+  sink = Sink()
+  port = sink.port
+  pub = WsPublisher(mini_model, data, sink.endpoint, model_name="mini",
+                    boards=book)
+  book.on_event.append(pub.message)
+  try:
+    assert wait_for(lambda: sink.sessions)
+    time.sleep(0.2)
+    step_seconds(mini_model, data, 0.5, pub.step_hook)
+    assert wait_for(lambda: any(m.get("type") == "board_snapshot"
+                                for m in sink.sessions[0]))
+    sink.stop()
+
+    # A second stroke lands while nobody is listening, then a viewer returns.
+    book.stroke("whiteboard_a", "house", [(0.03, 0.0), (0.05, 0.02)])
+    sink2 = Sink(port=port)
+    try:
+      assert wait_for(lambda: sink2.sessions, timeout=10.0)
+      time.sleep(0.2)
+      step_seconds(mini_model, data, 0.5, pub.step_hook)
+      assert wait_for(lambda: any(m.get("type") == "board_snapshot"
+                                  for m in sink2.sessions[0]))
+    finally:
+      sink2.stop()
+  finally:
+    pub.close()
+    sink.stop()
+
+  first = [m for m in sink.sessions[0] if m.get("type") == "board_snapshot"]
+  again = [m for m in sink2.sessions[0] if m.get("type") == "board_snapshot"]
+  assert len(first[0]["strokes"]) == 1
+  # The second session is caught up on BOTH strokes, including the one drawn
+  # while it was away -- which no `draw` event will ever mention again.
+  assert len(again[0]["strokes"]) == 2
+  assert again[0]["strokes"][1]["points"][0] == [0.03, 0.0]
+
+
+def test_a_publisher_without_boards_sends_no_snapshots(mini_model):
+  """room_hub has no whiteboards, and a world with nothing to say about ink
+  must not open every connection with an empty message."""
+  data = mujoco.MjData(mini_model)
+  sink = Sink()
+  pub = WsPublisher(mini_model, data, sink.endpoint, model_name="mini")
+  try:
+    assert wait_for(lambda: sink.sessions)
+    time.sleep(0.2)
+    step_seconds(mini_model, data, 0.5, pub.step_hook)
+    assert wait_for(lambda: pub.frames_sent >= 5)
+  finally:
+    pub.close()
+    sink.stop()
+  assert not [m for m in sink.sessions[0] if m.get("type") == "board_snapshot"]
+
+
 # ---- scripts/serve.py: the world the live demo actually serves --------------
 # serve.py is what visitors see, and every world-dependent constant it gets
 # wrong fails SILENTLY -- a short explore budget just stops mapping early, a

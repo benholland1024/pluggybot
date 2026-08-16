@@ -1,5 +1,5 @@
 {
- "protocolVersion": "0.4.0",
+ "protocolVersion": "0.5.0",
  "model": "room_hub",
  "upAxis": "z",
  "bodies": [
@@ -4009,8 +4009,8 @@
      "type": "box",
      "size": [
       0.004,
-      0.028,
-      0.04
+      0.056,
+      0.076
      ],
      "pos": [
       -0.01,
@@ -5458,5 +5458,32 @@
    "width": 240,
    "height": 240
   }
- ]
+ ],
+ "screens": {
+  "module_lcd": {
+   "geom": "module_lcd_screen",
+   "body": "module_lcd",
+   "size": [
+    0.004,
+    0.056,
+    0.076
+   ],
+   "pos": [
+    -0.01,
+    0.0,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "normal": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  }
+ }
 }
