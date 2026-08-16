@@ -76,7 +76,7 @@ class FrameBuilder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None) -> None:
+               ledger=None, accepts=()) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -95,6 +95,10 @@ class FrameBuilder:
     # than by world feature -- which is the only difference, and the frame
     # builder does not care.
     self.ledger = ledger
+    # Inbound message types this producer will act on (0.7.0, issue #16).
+    # Advertised in the header so the server can tell "the robot got it" from
+    # "the socket accepted it and nothing is listening".
+    self.accepts = tuple(accepts)
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -130,6 +134,13 @@ class FrameBuilder:
       "boards": self.boards.names if self.boards else [],
       "screens": self.screens.names if self.screens else [],
       "ledger": self.ledger.names if self.ledger else [],
+      # What this producer will ACT ON if the server sends it (0.7.0). Empty
+      # is the normal answer and the important one: a sim with no overseer
+      # reads nothing, so a website that marked a suggestion "delivered"
+      # because the socket accepted it would be reporting a conversation that
+      # is not happening. "Delivered" has to mean somebody who can hear you
+      # got it, which is why this is advertised rather than assumed.
+      "accepts": list(self.accepts),
     }
 
   def reset(self) -> None:
@@ -252,11 +263,12 @@ class TelemetryRecorder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None) -> None:
+               ledger=None, accepts=()) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
-                                 screens=screens, ledger=ledger)
+                                 screens=screens, ledger=ledger,
+                                 accepts=accepts)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())

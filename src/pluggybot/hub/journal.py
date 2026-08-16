@@ -37,6 +37,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from pluggybot.telemetry.protocol import ROBOT_ROOT
+
 STATE_VERSION = 1
 
 #: Notes kept on disk. The journal is a rolling memory, not an archive -- the
@@ -121,7 +123,11 @@ class Journal:
     text = " ".join(str(text).split())[:MAX_NOTE_CHARS]
     if not text:
       return None
-    entry = {"t": round(float(t), 3), "at": self.clock(), "text": text}
+    # `type` is part of the entry rather than added by the publisher, so the
+    # thing stored on disk and the thing on the wire are the same object
+    # (protocol 0.7.0). The same shape the boards and the ledger emit.
+    entry = {"type": "journal", "t": round(float(t), 3), "at": self.clock(),
+             "robot": ROBOT_ROOT, "text": text}
     if why:
       entry["why"] = " ".join(str(why).split())[:MAX_NOTE_CHARS]
     self.notes.append(entry)

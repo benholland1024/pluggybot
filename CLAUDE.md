@@ -177,6 +177,30 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   cycles, and no charging policy can save it, because the reserve is only
   checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
   demo cell grows or per-errand energy is actually modelled.
+- **The visitor channel** (`hub/inbox.py`, issue #16; protocol 0.7.0) makes the
+  ingest socket BIDIRECTIONAL — the first version where the sim reads its
+  socket at all. Inbound arrives on the publisher's own sender thread
+  (`recv(timeout=0)` between sends, so no reader thread and one thread owns
+  the connection) and lands in a bounded **drop-oldest** deque; the physics
+  thread drains it. Nothing is ever delivered to a dead socket, because the
+  poll lives inside the `with connect(...)` block.
+  The overseer answers at most ONE message per turn (`respond_to` / `outcome`
+  / `reply`) and the outcome goes back as a typed `visitor_reply` that closes
+  the website's row. **RATINGS NEVER REACH THE MODEL** — a rating moves a
+  balance, so `_visitor_step` drains those straight to the ledger; the
+  `artwork` task is what makes that path live rather than reserved.
+  ⚠ **The header advertises `accepts`**, and it is load-bearing: a sim with no
+  overseer never reads its socket, so a website that marked a suggestion
+  "delivered" because the socket took it would report a conversation that
+  never started. A robot that cannot hear you is treated as absent — the same
+  lesson as the charge criterion being electrical rather than positional.
+  ⚠ **Sanitising is NOT the security boundary.** Capping at 280 chars and
+  stripping control characters stops a forged narration line and does nothing
+  about "ignore your goals". What answers that is the framing (a labelled
+  report of what somebody WANTS, never a message role) plus the fact that the
+  model's only output is an action off a fixed menu — there is no free-text
+  path from a visitor to the robot's body. Both ends cap, because either alone
+  is a single point of failure.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`, rooftop-media-2026 #20) runs `serve.py` and nothing else, and
   is deliberately NOT the dev environment: it installs the six packages in
@@ -212,6 +236,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the LCD, so the website has ONE recording carrying `draw` /
   `board_cleared` events AND a `screens` block that changes, which are the
   two surfaces it paints.
+  ⚠ **The HOME recording takes TWO PASSES**: `--boards <state.json>` is
+  load-bearing, not decoration. A `board_snapshot` is only emitted for a board
+  ALREADY carrying ink when the stream opens, so a run against blank boards
+  emits none — and both repos' fixture specs require them. Lay the ink first
+  (`--errand draw --boards /tmp/pw_boards.json`, no `--record`), then record
+  against that same file. Dropping the flag costs a full regeneration cycle to
+  discover; it cost one.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
 - **A recording is a MIXED stream as of protocol 0.4.0**: `draw`,

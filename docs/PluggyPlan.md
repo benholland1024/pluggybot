@@ -470,6 +470,41 @@ tracked as its own issues; landed so far:
     measured properly. Note the obvious cheap fix is wrong too — breaking off
     on `needs_charge` (the census's pattern) fires on home as well, where the
     robot is legitimately at 31 % *while dancing in front of the rack*.
+- **The visitor channel (issue #16)**: the socket becomes two-way, and the
+  robot answers back. `hub/inbox.py`, protocol **0.7.0**, and the server half
+  is rooftop-media-2026 #29.
+  - **The publisher reads its own socket, on its own thread.**
+    `recv(timeout=0)` is a non-blocking poll, so the sender loop checks for
+    inbound between sends and the connection is only ever touched by one
+    thread — no reader thread, no lock, and no way for a reader to outlive
+    the socket it was reading. The poll lives inside the `with connect(...)`
+    block, which is what makes "nothing is delivered to a dead socket" a
+    property of the structure rather than a promise.
+  - **A bounded, drop-OLDEST queue.** A suggestion answered forty minutes
+    late has been ignored more rudely than one that was dropped, and an
+    unbounded queue is a memory leak with a public endpoint attached. Every
+    drop is counted, so an overloaded channel says so instead of degrading
+    quietly.
+  - **Ratings never reach the model.** A rating settles a deferred verdict,
+    which moves a balance — so they drain straight to the ledger and the
+    overseer is not consulted or even told. The `artwork` task (a drawing
+    offered for rating, banked at zero) is what makes that path live rather
+    than a reserved word; issue #14 designed the slot and this fills it.
+  - ⚠ **"Delivered" has to mean somebody who can HEAR you got it.** The
+    header advertises `accepts`, because a sim with no overseer never reads
+    its socket at all — and without the field the website would mark every
+    suggestion delivered because the socket took it, then hold a row open
+    forever for a conversation that never started. Same lesson as the charge
+    criterion being electrical rather than positional.
+  - ⚠ **Sanitising is not the security boundary, and the tests say so.**
+    Capping at 280 characters and stripping control characters stops a
+    forged narration line; it does nothing about "ignore your goals", and
+    nothing could. What answers that is the framing (a labelled report of
+    what somebody WANTS, never a message role) plus the model's only output
+    being an action off a fixed menu — there is no free-text path from a
+    visitor to the robot's body.
+    `test_a_prompt_injection_is_still_only_a_suggestion` lets the attack
+    arrive and then shows the menu refusing every action it asked for.
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

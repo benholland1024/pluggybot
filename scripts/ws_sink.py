@@ -13,12 +13,24 @@ secret), and the summary reports the KEYFRAME spacing -- the worst-case
 wait before a browser joining mid-stream is rendering a complete world,
 and the depth of cache the real hub must hold to spare it that wait.
 
+As of protocol 0.7.0 it talks BACK (issue #16): type a line and it goes
+down the socket as a visitor message, and the robot's `visitor_reply`
+comes back up. That makes this the smallest possible end-to-end test of
+the visitor channel -- no website, no database, no rate limiter, just you
+and the robot deciding whether to take your advice.
+
 Usage:
   uv run python scripts/ws_sink.py [--port 8765] [--quiet] [--token SECRET]
+  ... then type at it:
+      draw a tree on whiteboard_b        # a suggestion
+      ? what are you doing               # a question
+      rate 3 0.8                         # rate ledger entry 3 at 80 %
 """
 
 import argparse
 import json
+import sys
+import threading
 import time
 
 
@@ -41,8 +53,46 @@ def main() -> None:
       return connection.respond(401, "unauthorized\n")
     return None
 
+  def typed_lines(ws) -> None:
+    """stdin -> visitor messages, on this connection (issue #16).
+
+    A daemon thread per connection, and deliberately crude: it is a dev
+    tool, and the real sender is the website's relay. The ONE thing it takes
+    seriously is giving every message an id, because the id is what the
+    robot's answer comes back on.
+    """
+    n = 0
+    for line in sys.stdin:
+      line = line.strip()
+      if not line:
+        continue
+      n += 1
+      if line.startswith("?"):
+        msg = {"type": "question", "id": f"q{n}", "from": "console",
+               "text": line[1:].strip()}
+      elif line.startswith("rate "):
+        parts = line.split()
+        try:
+          msg = {"type": "rating", "id": f"r{n}", "seq": int(parts[1]),
+                 "quality": float(parts[2])}
+        except (IndexError, ValueError):
+          print("[sink] usage: rate <ledger seq> <0..1>")
+          continue
+      else:
+        msg = {"type": "suggestion", "id": f"s{n}", "from": "console",
+               "text": line}
+      try:
+        ws.send(json.dumps(msg))
+        print(f"[sink] -> {msg['type']} {msg['id']}")
+      except Exception as e:
+        print(f"[sink] could not send: {type(e).__name__}")
+        return
+
   def handle(ws) -> None:
     print(f"[sink] connection from {ws.remote_address}")
+    if not args.quiet:
+      print("[sink] type a suggestion, '? question', or 'rate <seq> <0..1>'")
+      threading.Thread(target=typed_lines, args=(ws,), daemon=True).start()
     counts: dict[str, int] = {}
     gaps: list[float] = []
     key_gaps: list[float] = []
@@ -68,6 +118,14 @@ def main() -> None:
             last_key_t = msg["t"]
         elif kind == "event" and not args.quiet:
           print(f"[sink] event t={msg['t']:7.1f}  {msg['line']}")
+        elif kind == "visitor_reply":
+          # The other half of the loop (issue #16): what the robot decided
+          # about something somebody said. Printed even when quiet -- it is
+          # the whole reason this direction exists.
+          print(f"[sink] <- {msg['outcome'].upper()} {msg['id']}: "
+                f"{msg.get('reply') or '(no reply)'}")
+        elif kind == "journal" and not args.quiet:
+          print(f"[sink] journal t={msg['t']:7.1f}  {msg['text']}")
     except Exception as e:
       print(f"[sink] connection ended: {type(e).__name__}")
     print(f"[sink] received: {counts}")

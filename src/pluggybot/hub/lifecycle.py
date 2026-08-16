@@ -45,6 +45,7 @@ from pluggybot.hub.overseer import THINK_SLICE_S
 from pluggybot.hub.screen import face_for
 from pluggybot.hub import scoring
 from pluggybot.power import MODULE_IDLE_W, Battery
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
@@ -83,6 +84,10 @@ DECIDED_IDLE_S = 4.0
 #: it back, forever -- perpetual motion paid in points. The forced charge is
 #: untouched: `needs_charge` fires on absolute reserve and never consults this.
 TOP_UP_BELOW = 0.75
+#: Visitor messages shown to the overseer at once (issue #16). Small: the
+#: robot answers at most one per turn, and a wall of them is input tokens
+#: spent on messages it is not going to get to -- the inbox keeps the rest.
+VISITORS_SHOWN = 5
 
 
 class HubLifecycle:
@@ -95,8 +100,17 @@ class HubLifecycle:
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
                errands=None, boards=None, screen=None, ledger=None,
-               overseer=None, journal=None, world: str = "room_hub") -> None:
+               overseer=None, journal=None, world: str = "room_hub",
+               inbox=None) -> None:
     self.model, self.data = model, data
+    # The visitor channel (issue #16). None -- the default -- means nobody can
+    # talk to this robot, which is every test, every demo and every recording
+    # except the served one.
+    self.inbox = inbox
+    self.replies: list[dict] = []
+    #: fired with each `visitor_reply` message; wire the publisher and the
+    #: recorder in, exactly as for boards, the ledger and the journal.
+    self.visitor_hooks: list = []
     # Which world this is, which the overseer needs to build an errand out of
     # a decision (issue #15) -- the same name `world_config` is keyed by, so
     # there is no second place a world can be named.
@@ -401,6 +415,64 @@ class HubLifecycle:
     self.errand_results.append(result)
     return result
 
+  # ---- the visitor channel (issue #16) -------------------------------------
+
+  def _visitor_step(self) -> None:
+    """Apply whatever needs no decision, and hold the rest for one.
+
+    Runs at the top of every arbitration pass. RATINGS are applied here and
+    not by the overseer, deliberately: a rating settles a deferred verdict,
+    and letting the model anywhere near that would hand it the "declare
+    victory" button the whole reward design exists to keep out of its reach
+    (issue #14). The rater supplies a 0..1 quality; `hub/rewards.json` turns
+    it into points; the robot is not consulted.
+    """
+    if self.inbox is None:
+      return
+    for msg in self.inbox.drain(("rating",)):
+      if self.ledger is None:
+        continue
+      try:
+        entry = self.ledger.settle(msg.seq, msg.quality,
+                                   t=float(self.data.time))
+      except (KeyError, ValueError) as e:
+        # A rating for an entry that is gone, already settled, or was never
+        # visitor-tiered. The website is allowed to be wrong about this --
+        # it is a different process holding a stale row -- so it is a
+        # narration line, not a crash.
+        self._say(f"VISITOR rating {msg.seq} ignored: {e}")
+        continue
+      self._say(f"VISITOR rated task {msg.seq} ({entry['task']}) "
+                f"{msg.quality:.0%} -- {entry['points']:+d} points, "
+                f"balance {entry['balance']}")
+
+  def _answer_visitor(self, decision) -> None:
+    """Send one accept/decline/answer back out, and retire the message.
+
+    The message is only taken off the queue once it has actually been
+    answered. A decision that came back scripted (the API was down) responds
+    to nobody, so the suggestion is still there for the next decision rather
+    than silently discarded by an outage.
+    """
+    if self.inbox is None or not decision.responds:
+      return
+    msg = self.inbox.take(decision.respond_to)
+    if msg is None:
+      return                                # already dealt with; nothing owed
+    reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
+             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "outcome": decision.outcome, "reply": decision.reply,
+             "action": decision.action if decision.outcome == "accepted"
+             else ""}
+    for hook in self.visitor_hooks:
+      hook(dict(reply))
+    self.replies.append(reply)
+    # Narrated as well as sent, because the two audiences are different: the
+    # typed message closes the database row the website is holding, and the
+    # event line is what a person watching the stream reads.
+    self._say(f"VISITOR {decision.outcome} {msg.who or 'a visitor'}'s "
+              f"{msg.kind}: {decision.reply or '(no reply)'}")
+
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
   def _decide(self) -> None:
@@ -433,6 +505,10 @@ class HubLifecycle:
                                 why=decision.reason)
       if entry is not None:
         self._say(f"JOURNAL {entry['text']}")
+    # ...and the answer to whoever asked, if it answered anyone (issue #16).
+    # Before the action runs, so a visitor whose suggestion was taken hears
+    # so at the moment it is taken rather than five minutes later.
+    self._answer_visitor(decision)
 
     if decision.action == "charge":
       # Topping up EARLY is a real choice and this honours it. Note what it is
@@ -503,6 +579,11 @@ class HubLifecycle:
       # to the task it existed for. Whatever the battery does mid-errand,
       # the next pass through here reacts to it.
       while self.data.time < max_sim_time and not self.battery.empty:
+        # Whatever visitors sent that needs no decision (issue #16). First,
+        # so a rating lands on the ledger before the next frame carries the
+        # balance -- and outside the priority order, because applying a
+        # rating is bookkeeping rather than something the robot does.
+        self._visitor_step()
         if self.needs_charge:
           self.state = "GO_CHARGE"
           if not self.go_charge():
@@ -563,6 +644,10 @@ class HubLifecycle:
       "decisions": list(self.decisions),
       "overseer": self.overseer.stats() if self.overseer is not None else {},
       "journal": (self.journal.recent() if self.journal is not None else []),
+      # What visitors said and what the robot said back (issue #16). Empty
+      # without an inbox, which is every caller that does not serve.
+      "visitors": self.inbox.stats() if self.inbox is not None else {},
+      "replies": list(self.replies),
     }
 
 
@@ -647,6 +732,17 @@ def errands_for(kind: str, world: str, book=None) -> list:
     # puts a charge between them without being asked -- that is the loop
     # doing its job, not a scripted interlude.
     return errands_for("draw", world, book) + errands_for("census", world)
+  if kind == "artwork":
+    # The visitor-judged tier (issue #14, made reachable by #16): the same
+    # drawing errand, scored as `artwork`. Code confirms ink landed and banks
+    # ZERO; the points arrive later, when somebody rates it over the inbound
+    # channel. Kept as its own queue name so the deferred path can be flown
+    # on demand rather than only when an overseer happens to pick it.
+    if book is None or not len(book) or not cfg["meta"]:
+      raise ValueError(f"the {world} world has no whiteboards to draw on")
+    meta = json.loads(Path(cfg["meta"]).read_text())
+    return [draw_errand_for(world, book, next(iter(meta["boards"])),
+                            program_name="robot", task="artwork")]
   if kind in ("draw", "draw2"):
     if book is None or not len(book):
       raise ValueError(f"the {world} world has no whiteboards to draw on")
@@ -665,7 +761,7 @@ def errands_for(kind: str, world: str, book=None) -> list:
 
 
 def draw_errand_for(world: str, book, board_name: str,
-                    program_name: str = "house"):
+                    program_name: str = "house", task: str = "draw"):
   """One drawing errand on a NAMED board with a NAMED figure.
 
   Split out of `errands_for` so the preset queue and the overseer's chosen
@@ -683,7 +779,7 @@ def draw_errand_for(world: str, book, board_name: str,
   from pluggybot.hub.drawing import Board
   return drawing_errand(book, board_name,
                         Board.from_meta(meta["boards"][board_name]),
-                        program_name=program_name)
+                        program_name=program_name, task=task)
 
 
 # ---- the overseer's seams (issue #15) ---------------------------------------
@@ -697,9 +793,14 @@ def errand_from(decision, world: str, book=None):
   to "I cannot do that" should be to ask again, not to end.
   """
   try:
-    if decision.action == "draw":
+    if decision.action in ("draw", "artwork"):
+      # Same errand, different TIER. `artwork` is the visitor-judged slot
+      # (issue #14): code confirms ink landed and banks zero, and the points
+      # arrive later when somebody rates it over the inbound channel. That is
+      # what makes `rating` a real path rather than a reserved word.
       return draw_errand_for(world, book, decision.board,
-                             program_name=decision.program or "house")
+                             program_name=decision.program or "house",
+                             task=decision.action)
     if decision.action in ("census", "dance", "carry"):
       return errands_for(decision.action, world, book)[0]
   except (ValueError, KeyError, IndexError):
@@ -718,9 +819,15 @@ def zone_centre(world: str, name: str) -> tuple[float, float]:
 
 def overseer_context(life) -> dict:
   """The volatile half of the overseer's prompt, plus the decision counter
-  the scripted fallback rotates on."""
+  the scripted fallback rotates on.
+
+  Visitor messages are PEEKED, not taken: a decision can fail, come back
+  scripted, or answer only one of several, and a suggestion is retired when it
+  has been answered rather than when it has been read (issue #16).
+  """
   from pluggybot.hub import overseer as ov
-  state = ov.context_for(life, life.journal)
+  visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
+  state = ov.context_for(life, life.journal, visitors=visitors)
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
 

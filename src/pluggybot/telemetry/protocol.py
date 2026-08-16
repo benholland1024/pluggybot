@@ -9,7 +9,42 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.6.0"
+PROTOCOL_VERSION = "0.7.0"
+# 0.7.0: the socket becomes BIDIRECTIONAL, and the robot answers back
+#        (pluggybot #16, rooftop-media-2026 #29). The first version where the
+#        sim reads its socket at all -- everything before this streamed and
+#        never listened.
+#        DOWNSTREAM (server -> sim), the new direction. Three types, listed in
+#        INBOUND_TYPES below; the sim drops anything else with a counter, so
+#        adding one is additive and a website ahead of its sim is a no-op:
+#          {"type": "suggestion", "id": "s_01", "from": "ada",
+#           "text": "draw a tree on whiteboard_b"}
+#          {"type": "question",   "id": "q_01", "from": "ada",
+#           "text": "what are you working on?"}
+#          {"type": "rating",     "id": "r_01", "seq": 3, "quality": 0.8}
+#        `id` is the SERVER's and the sim only echoes it back -- it is what
+#        lets an outcome land on the right database row. `rating` settles a
+#        deferred visitor-tier verdict (the slot 0.6.0 reserved), and the
+#        ledger re-emits that entry with "settled": true.
+#        ⚠ Visitor text is DATA, never instructions. The sim caps it at 280
+#        characters, strips control characters, collapses it to one line, and
+#        frames it to the overseer as something a person WANTS. The robot's
+#        freedom to decline is the defence; see hub/inbox.py.
+#        UPSTREAM, two new typed messages:
+#          {"type": "visitor_reply", "t": 412.5, "robot": "pluggybot",
+#           "id": "s_01", "kind": "suggestion", "outcome": "accepted",
+#           "reply": "good idea, doing it now", "action": "draw"}
+#           -- outcome is accepted | declined | answered. This is what closes
+#           the loop back to the row the website is holding.
+#          {"type": "journal", "t": 300.2, "robot": "pluggybot",
+#           "text": "whiteboard_a is nearly full", "why": "..."}
+#           -- a note the overseer wrote to itself (issue #15). Previously
+#           these reached the site only as narration `event` lines; the site's
+#           journal feed wants them structured.
+#        Additive in both directions: a 0.6.0 consumer that ignores the two
+#        new upstream types renders exactly what it rendered before, and a
+#        0.6.0 PRODUCER simply never reads its socket, which no server can
+#        tell apart from a robot that declines everything.
 # 0.6.0: the robot is SCORED, and the score is on the wire (issue #14).
 #        Frames may carry a "ledger" block -- per robot, what it has earned:
 #        {"pluggybot": {"balance": 34, "earned": 34, "spent": 0, "tasks": 3,
@@ -117,6 +152,25 @@ FACE_STATES = ("idle", "happy", "curious", "determined", "surprised",
 # sim never ticks a blink, because a 20 Hz pose stream is the wrong channel
 # for a 150 ms eyelid and the browser owns everything organic.
 SCREEN_HINTS = ("none", "blink", "bounce", "shake")
+
+# The visitor channel's vocabularies (issue #16). Two-repo contracts on the
+# same terms as VISUAL_HINTS and FACE_STATES: the website may only SEND these
+# inbound types, and may only receive these outcomes. Adding one is additive
+# (the sim counts and drops an unknown inbound type; a consumer ignores an
+# unknown outcome); renaming one breaks both repos.
+#
+# They live HERE rather than in hub/inbox.py, which is where the parsing is,
+# so the wire spec and the parser cannot disagree -- and in this direction,
+# because `hub` already imports `telemetry` and the reverse would invert the
+# layering for a tuple of strings.
+#
+# `move` and `clear_board` (tic-tac-toe) are named in issue #16 as LATER and
+# are deliberately absent: there is no board game yet, and a vocabulary entry
+# with nothing behind it is a promise the robot cannot keep.
+INBOUND_TYPES = ("suggestion", "question", "rating")
+
+#: What the robot may say back about one visitor message.
+VISITOR_OUTCOMES = ("accepted", "declined", "answered")
 
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then

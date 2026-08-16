@@ -348,7 +348,7 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   assert state["points"] == 0
   assert state["battery"]["fraction"] == pytest.approx(1.0, abs=0.01)
   assert state["tasksThisMission"] == ["census"]
-  assert state["visitorSuggestions"] == []      # the seat issue #16 sits in
+  assert state["visitorMessages"] == []         # nobody has said anything
   assert "truth" not in json.dumps(state)
 
 

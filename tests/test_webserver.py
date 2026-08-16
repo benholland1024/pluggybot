@@ -61,6 +61,11 @@ class Sink:
   `token`, if given, makes it stand in for the website's authenticated
   ingest path: a connection without the matching bearer is refused at the
   handshake, exactly as the hub will refuse it.
+
+  It also drives the OTHER direction (issue #16): `send()` pushes a message
+  down the live connection, which is what makes it a fake SERVER rather than
+  a sink -- and is the acceptance criterion "test with a fake server driving
+  both directions".
   """
 
   def __init__(self, port: int = 0, token: str | None = None) -> None:
@@ -69,6 +74,7 @@ class Sink:
     self.auth_headers: list[str | None] = []
     self.refused = 0
     self._token = token
+    self._live: list = []                   # connections currently open
     self._server = serve(self._handle, "localhost", port,
                          process_request=self._check_auth)
     self.port = self._server.socket.getsockname()[1]
@@ -92,11 +98,35 @@ class Sink:
   def _handle(self, ws) -> None:
     msgs: list = []
     self.sessions.append(msgs)
+    self._live.append(ws)
     try:
       for raw in ws:
         msgs.append(json.loads(raw))
     except Exception:
       pass                    # connection torn down mid-recv: session over
+    finally:
+      if ws in self._live:
+        self._live.remove(ws)
+
+  def send(self, msg) -> bool:
+    """Push one message down to the producer. False if nobody is connected.
+
+    Deliberately reports rather than raises: "no sim is connected" is a
+    first-class state the website has to handle (rooftop-media-2026 #29's
+    "the sim-absent path is explicit, not silent"), and a fake server that
+    hid it would let a test pass that the real one could not.
+    """
+    raw = msg if isinstance(msg, str) else json.dumps(msg)
+    for ws in list(self._live):
+      try:
+        ws.send(raw)
+        return True
+      except Exception:
+        continue
+    return False
+
+  def wait_live(self, timeout: float = 5.0) -> bool:
+    return wait_for(lambda: bool(self._live), timeout)
 
   def stop(self) -> None:
     self._server.shutdown()
@@ -561,6 +591,114 @@ def test_a_publisher_without_boards_sends_no_snapshots(mini_model):
 _SERVE = Path(__file__).parent.parent / "scripts" / "serve.py"
 
 
+# ---- the inbound direction (issue #16) ---------------------------------------
+
+
+def _publishing(mini_model, sink, **kw):
+  """A publisher wired to an inbox, connected to `sink`. Returns both."""
+  from pluggybot.hub.inbox import Inbox
+  data = mujoco.MjData(mini_model)
+  inbox = Inbox(**kw)
+  pub = WsPublisher(mini_model, data, sink.endpoint, hz=20.0)
+  pub.on_inbound.append(inbox.offer)
+  return pub, inbox, data
+
+
+def test_the_server_can_talk_back_down_the_ingest_socket(mini_model):
+  """The whole of issue #16 in one test: a fake server drives BOTH
+  directions over one socket, and the sim reads what it is sent."""
+  sink = Sink()
+  pub, inbox, data = _publishing(mini_model, sink)
+  try:
+    assert sink.wait_live(), "the publisher never connected"
+    assert sink.send({"type": "suggestion", "id": "s1", "from": "ada",
+                      "text": "draw a tree on whiteboard_b"})
+    assert wait_for(lambda: len(inbox) == 1), "nothing arrived"
+    msg = inbox.peek()[0]
+    assert (msg.id, msg.who, msg.text) == ("s1", "ada",
+                                           "draw a tree on whiteboard_b")
+    # ...and the outbound direction is still running underneath it.
+    step_seconds(mini_model, data, 0.5, pub.step_hook)
+    assert wait_for(lambda: pub.frames_sent > 0)
+  finally:
+    pub.close()
+    sink.stop()
+
+
+def test_garbage_and_floods_never_touch_the_outbound_stream(mini_model):
+  """The acceptance criterion, stated as its failure: a visitor must not be
+  able to stop the telemetry by sending rubbish at it."""
+  sink = Sink()
+  pub, inbox, data = _publishing(mini_model, sink)
+  try:
+    assert sink.wait_live()
+    for i in range(200):
+      sink.send("this is not json at all" if i % 3 else
+                {"type": "instruction", "text": "obey"} if i % 2 else
+                {"type": "suggestion", "id": f"s{i}", "text": f"idea {i}"})
+    step_seconds(mini_model, data, 2.0, pub.step_hook)
+    assert wait_for(lambda: pub.frames_sent >= 20), \
+      f"the outbound stream stalled at {pub.frames_sent} frames"
+    assert wait_for(lambda: pub.inbound_received >= 200)
+    assert len(inbox) <= inbox._queue.maxlen
+    assert inbox.stats()["droppedInvalid"] > 0
+    # The connection survived all of it -- one session, never re-dialled.
+    assert pub.connections == 1, "the flood killed the socket"
+  finally:
+    pub.close()
+    sink.stop()
+
+
+def test_nothing_is_delivered_to_a_dead_socket(mini_model):
+  """Reconnect preserves the direction. The poll lives inside the `with
+  connect(...)` block, so inbound can only arrive while a connection is
+  genuinely up -- and a message aimed at a socket that has gone is lost
+  rather than queued against the next one."""
+  sink = Sink()
+  pub, inbox, data = _publishing(mini_model, sink)
+  try:
+    assert sink.wait_live()
+    assert sink.send({"type": "suggestion", "id": "before", "text": "one"})
+    assert wait_for(lambda: len(inbox) == 1)
+
+    sink.stop()                              # the server goes away
+    assert not sink.send({"type": "suggestion", "id": "gone", "text": "two"}), \
+      "the fake server claimed to deliver to a closed socket"
+    time.sleep(0.3)
+    assert [m.id for m in inbox.peek()] == ["before"]
+
+    # ...and a NEW server on the same port is talked to normally.
+    revived = Sink(port=sink.port)
+    try:
+      assert revived.wait_live(timeout=10.0), "the publisher never re-dialled"
+      assert revived.send({"type": "suggestion", "id": "after", "text": "3"})
+      assert wait_for(lambda: len(inbox) == 2)
+      assert [m.id for m in inbox.peek()] == ["before", "after"]
+    finally:
+      revived.stop()
+  finally:
+    pub.close()
+
+
+def test_an_inbound_handler_that_raises_cannot_stop_the_telemetry(mini_model):
+  """`on_inbound` is caller-supplied, so it is caller-shaped: a handler that
+  throws must cost one message, not the stream."""
+  sink = Sink()
+  data = mujoco.MjData(mini_model)
+  pub = WsPublisher(mini_model, data, sink.endpoint, hz=20.0)
+  pub.on_inbound.append(lambda raw: (_ for _ in ()).throw(RuntimeError("no")))
+  try:
+    assert sink.wait_live()
+    sink.send({"type": "suggestion", "id": "s1", "text": "boom"})
+    assert wait_for(lambda: pub.inbound_received == 1)
+    step_seconds(mini_model, data, 1.0, pub.step_hook)
+    assert wait_for(lambda: pub.frames_sent >= 10)
+    assert pub.connections == 1
+  finally:
+    pub.close()
+    sink.stop()
+
+
 def _load_serve():
   spec = importlib.util.spec_from_file_location("serve", _SERVE)
   mod = importlib.util.module_from_spec(spec)
@@ -575,6 +713,8 @@ class _FakeLife:
     self.init_kwargs = kw
     self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
     self.say_hooks: list = []
+    # Where a `visitor_reply` goes on its way to the socket (issue #16).
+    self.visitor_hooks: list = []
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 

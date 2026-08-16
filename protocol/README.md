@@ -8,11 +8,123 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.6.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.7.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+⚠ **Regenerating the HOME recording takes two passes.** A `board_snapshot`
+is only emitted for a board already carrying ink when the stream opens, so a
+run against blank boards emits none — and both repos' fixture specs require
+them, since catching a late joiner up on the ink is what 0.5.0 added. Lay the
+ink first, then record against the same state file:
+
+```sh
+MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
+  --errand draw --boards /tmp/pw_boards.json                      # pass 1
+MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
+  --errand showcase --boards /tmp/pw_boards.json \
+  --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
+```
+
+### 0.6.0 → 0.7.0 (the socket becomes two-way, and the robot answers back)
+
+The first version in which the sim **reads its socket at all** (pluggybot
+#16, rooftop-media-2026 #29). Everything before this streamed and never
+listened, and the website could say nothing to the robot.
+
+Additive in both directions, and note what that means for a mixed-version
+pair: a 0.6.0 **consumer** ignores the two new upstream message types and
+renders exactly what it rendered before, and a 0.6.0 **producer** simply
+never reads its socket — which no server can distinguish from a robot that
+declines everything. Neither combination breaks; the older half just does
+less.
+
+#### Downstream: server → sim (the new direction)
+
+Sent over the same authenticated ingest connection the producer dialled
+out on. There is still no inbound port anywhere: the sim reads the socket
+it opened, and a message can only arrive while that connection is up.
+
+```jsonc
+{"type": "suggestion", "id": "s_01", "from": "ada",
+ "text": "draw a tree on whiteboard_b"}
+{"type": "question",   "id": "q_01", "from": "ada",
+ "text": "what are you working on?"}
+{"type": "rating",     "id": "r_01", "seq": 3, "quality": 0.8}
+```
+
+- **`id` is the SERVER's**, and the sim only ever echoes it back. It is the
+  correlation handle that lets an outcome land on the right database row.
+  A repeated id is dropped: the website resends on *its* reconnect (it
+  cannot know whether the first copy arrived), and acting on a suggestion
+  twice is still acting on it twice.
+- **`rating` settles the deferred verdict slot** 0.6.0 reserved. `seq` is a
+  ledger entry, `quality` is 0..1, and `hub/rewards.json` — not the rater
+  and not the robot — turns it into points. The ledger then re-emits that
+  entry with `"settled": true`. The `artwork` task now actually produces
+  one, so this is a live path rather than a reserved word.
+- **Unknown types are dropped and counted**, so adding one is additive and
+  a website ahead of its sim is a no-op rather than a crash. `move` and
+  `clear_board` (tic-tac-toe) are named in the issue as later work and are
+  deliberately *not* in the vocabulary yet: an entry with nothing behind it
+  is a promise the robot cannot keep.
+
+⚠ **Visitor text is DATA, never instructions.** The sim caps it at 280
+characters, strips control characters (newlines included — a multi-line
+suggestion is how a narration line gets forged), collapses it to one line,
+and presents it to the LLM overseer inside a `visitorMessages` list under a
+rule saying these are things people *want*. The robot's freedom to decline
+is the defence. **Sanitising is not the security boundary and must not be
+mistaken for one**: it stops a forged log line and does nothing about
+"ignore your goals", which is answered instead by the fact that the model's
+only output is an action off a fixed menu — there is no free-text path from
+a visitor to the robot's body. Both ends cap length, because either one
+alone is a single point of failure.
+
+#### The header gains `accepts`
+
+```jsonc
+{"type": "header", "protocolVersion": "0.7.0", ..., "accepts": []}
+```
+
+What this producer will **act on** if you send it. Empty is the normal
+answer and the important one: a sim running without an overseer never reads
+its socket at all, so a server that marked a suggestion `delivered` because
+the socket accepted it would be reporting a conversation that is not
+happening. **"Delivered" has to mean somebody who can hear you got it** —
+which is why this is advertised rather than assumed, and why a robot that
+cannot hear you is treated exactly like a robot that is not there. A 0.6.0
+producer has no field here at all, which reads as an empty list: correct,
+since it cannot hear anything either.
+
+#### Upstream: two new typed messages
+
+```jsonc
+// what the robot decided about something somebody said
+{"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "s_01",
+ "kind": "suggestion", "outcome": "accepted",       // accepted|declined|answered
+ "reply": "good idea, doing it now", "action": "draw"}
+
+// a note the overseer wrote to itself (issue #15)
+{"type": "journal", "t": 300.2, "robot": "pluggybot", "at": "2026-08-16T…",
+ "text": "whiteboard_a is nearly full", "why": "chose b instead"}
+```
+
+`visitor_reply` is what closes the row the website is holding open.
+`action` is filled only when the outcome is `accepted` — the robot is doing
+the thing *now* — and is empty otherwise. Both messages are also narrated
+as ordinary `event` lines, because the two audiences differ: the typed
+message updates a database row, the event line is what a person watching
+the stream reads.
+
+⚠ **An outcome can be lost, and the server must expect it.** The publisher
+drops queued messages on a reconnect (a live stream has no obligation to
+flush — that is what recordings are for), so a `visitor_reply` generated
+while the socket was down never arrives. Treat `delivered` as "sent,
+awaiting an outcome" and let it time out; do not treat the absence of a
+reply as a decline.
 
 ### 0.5.0 → 0.6.0 (the robot is scored, and the score is on the wire)
 

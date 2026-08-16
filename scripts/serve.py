@@ -42,11 +42,13 @@ import time
 import mujoco
 
 from pluggybot.hub import overseer
+from pluggybot.hub.inbox import Inbox
 from pluggybot.hub.lifecycle import (
   HubLifecycle, board_book, errands_for, points_ledger, world_config,
   world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
+from pluggybot.telemetry.protocol import INBOUND_TYPES
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 
@@ -75,7 +77,8 @@ def main() -> None:
                                         " (0 disables; late joiners then wait"
                                         " forever)")
   parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
-                                          "dance", "showcase", "none"),
+                                          "dance", "artwork", "showcase",
+                                          "none"),
                       default="carry",
                       help="what the robot is FOR this run (issue #12): carry "
                            "(the milestone-8 LCD errand), draw (fetch the pen, "
@@ -128,7 +131,11 @@ def main() -> None:
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
                                  journal_path=args.journal, **overseer_kw)
-  life = HubLifecycle(model, data,
+  # The visitor channel (issue #16). Only where there is somebody to hear it:
+  # without an overseer nothing reads a suggestion, so accepting one would be
+  # a promise the robot has no way to keep.
+  inbox = Inbox() if boss is not None else None
+  life = HubLifecycle(model, data, inbox=inbox,
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
@@ -147,7 +154,12 @@ def main() -> None:
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
-                          screens=screens, ledger=ledger)
+                          screens=screens, ledger=ledger,
+                          # What this run can actually HEAR (issue #16). Empty
+                          # without an overseer, and the website reads it: a
+                          # suggestion is only "delivered" if somebody who can
+                          # act on it got it.
+                          accepts=INBOUND_TYPES if inbox is not None else ())
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
@@ -157,6 +169,15 @@ def main() -> None:
   # An award is an event on the same terms (issue #14): the balance rides in
   # the frames, and each `earned` message carries the verdict behind it.
   ledger.on_event.append(publisher.message)
+  # ...and so are the robot's notes and its answers to visitors (#15, #16).
+  if journal is not None:
+    journal.on_event.append(publisher.message)
+  life.visitor_hooks.append(publisher.message)
+  if inbox is not None:
+    # THE OTHER DIRECTION. `offer` runs on the publisher's socket thread and
+    # does nothing but validate and enqueue -- see hub/inbox.py for why that
+    # is the whole of what it is allowed to do.
+    publisher.on_inbound.append(inbox.offer)
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
@@ -173,6 +194,9 @@ def main() -> None:
     if book is not None:
       book.on_event.append(recorder.emit)
     ledger.on_event.append(recorder.emit)
+    if journal is not None:
+      journal.on_event.append(recorder.emit)
+    life.visitor_hooks.append(recorder.emit)
 
   wall0 = time.monotonic()
   try:
@@ -214,6 +238,17 @@ def main() -> None:
       # A run that was scripted all along looks identical to a thoughtful one
       # from the outside unless this is printed.
       print(f"overseer fell back on  : {err}")
+  if r.get("visitors"):
+    v = r["visitors"]
+    print(f"visitors               : {v['received']} message(s), "
+          f"{v['delivered']} answered, {v['queued']} still waiting")
+    if v["droppedInvalid"] or v["droppedFull"]:
+      # Both are normal in small numbers and a story in large ones: garbage
+      # is somebody probing, a full queue is the channel outrunning the robot.
+      print(f"visitors dropped       : {v['droppedInvalid']} malformed, "
+            f"{v['droppedFull']} overflowed the queue")
+    for reply in r.get("replies", ()):
+      print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
   if pacer is not None:

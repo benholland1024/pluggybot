@@ -46,6 +46,22 @@ with no "type" field):
                            PNG, ~1 Hz. The hook snapshots the uint8 image
                            (cheap numpy); the sender encodes it.
   {"type": "event", ...}   lifecycle narration lines (_say), as they occur.
+
+INBOUND (issue #16). The socket is bidirectional as of protocol 0.7.0: the
+server may send visitor suggestions, questions and ratings back down it. Two
+deliberate choices about how:
+
+  IT IS THE SAME THREAD, not a reader thread. `recv(timeout=0)` is a
+  non-blocking poll, so the sender loop checks for inbound between sends and
+  the connection is only ever touched by one thread. No lock, no second
+  failure mode, and no way for a reader to outlive the socket it was reading.
+
+  NOTHING IS DELIVERED TO A DEAD SOCKET. The poll lives inside the `with
+  connect(...)` block, so a message can only arrive while a connection is
+  genuinely up; a reconnect starts a fresh poll against the fresh socket, and
+  anything in flight when the old one broke is simply gone. `on_inbound` is
+  called on this thread and must never block or touch the sim -- it hands the
+  message to `hub.inbox.Inbox`, which is a bounded deque and nothing else.
 """
 
 import base64
@@ -64,6 +80,7 @@ GRID_HZ = 1.0          # occupancy-grid messages per sim-second
 QUEUE_MAX = 256        # ~13 s of frames at 20 Hz; beyond that, drop
 RECONNECT_DELAY = 1.0  # wall-seconds between connection attempts
 CONNECT_TIMEOUT = 2.0  # wall-seconds before a connection attempt fails
+INBOUND_PER_PASS = 8   # inbound messages taken per send-loop pass (issue #16)
 
 
 class WsPublisher:
@@ -83,7 +100,7 @@ class WsPublisher:
                token: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None) -> None:
+               ledger=None, accepts=()) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -95,7 +112,8 @@ class WsPublisher:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
-                                 screens=screens, ledger=ledger)
+                                 screens=screens, ledger=ledger,
+                                 accepts=accepts)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0
@@ -116,6 +134,11 @@ class WsPublisher:
     self.events_dropped = 0
     self.connections = 0
     self.last_error: str | None = None
+    # Called with each raw inbound message, on the SENDER thread (issue #16).
+    # Wire `hub.inbox.Inbox.offer` into it. Must not block: whatever it does
+    # happens between two outbound sends.
+    self.on_inbound: list[Callable[[object], None]] = []
+    self.inbound_received = 0
     self._thread = threading.Thread(target=self._send_loop, daemon=True)
     self._thread.start()
 
@@ -194,6 +217,7 @@ class WsPublisher:
           # a robot admire a blank board.
           self._need_boards.set()
           while not self._stop.is_set():
+            self._poll_inbound(ws)
             try:
               kind, payload = self._queue.get(timeout=0.25)
             except queue.Empty:
@@ -216,6 +240,39 @@ class WsPublisher:
         # connected.
         self.last_error = f"{type(e).__name__}: {e}"
         self._stop.wait(RECONNECT_DELAY)
+
+  def _poll_inbound(self, ws) -> None:
+    """Take whatever the server has sent, without waiting for it (issue #16).
+
+    `timeout=0` is "is there one already?", so this costs a queue check per
+    loop and never delays a frame. Bounded per pass: a server that floods must
+    not be able to keep the sender from ever sending again -- the rest waits
+    for the next pass, or is dropped by the inbox's own bound. That is the
+    acceptance criterion "flooding input is dropped without affecting the
+    outbound stream", and this loop is the half of it the inbox cannot do.
+
+    ConnectionClosed is left to propagate: it means the socket is gone, which
+    is the sender loop's business and its reconnect.
+    """
+    from websockets.exceptions import ConnectionClosed
+    for _ in range(INBOUND_PER_PASS):
+      try:
+        raw = ws.recv(timeout=0)
+      except ConnectionClosed:
+        raise
+      except Exception:                     # noqa: BLE001
+        # TimeoutError -- nothing waiting, which is the common case. Anything
+        # else on a live socket is a malformed frame, and dropping it is the
+        # same answer.
+        return
+      self.inbound_received += 1
+      for hook in self.on_inbound:
+        try:
+          hook(raw)
+        except Exception:                   # noqa: BLE001
+          # A handler that raises must never take the OUTBOUND stream down
+          # with it -- that would let a visitor message stop the telemetry.
+          pass
 
   def _drain(self) -> None:
     try:
