@@ -113,6 +113,27 @@ polylines themselves for exactly this. A relay hub should cache the latest
 snapshot per board plus the strokes since it, and drop both on a
 `board_cleared`.
 
+### 0.6.0 — the robot is scored
+
+Frames gain a sparse `ledger` block (balance, totals, the last few earnings)
+and a fourth typed message, **`earned`**, carrying one finished task's verdict
+as the sim banks it. Same sparse + keyframe rule as the three blocks before it,
+with one difference that saves the relay hub a cache: `recent` rides in every
+keyframe, so a late joiner needs no snapshot message for points the way it
+needs one for ink.
+
+Everything about it is a READOUT. Points are awarded by a deterministic
+evaluator in the sim (`hub/scoring.py`), priced by a data table
+(`hub/rewards.json`), and banked by a ledger that re-derives the payout before
+accepting it. Nothing on the socket can move a balance, in either direction —
+including, when it lands, the LLM overseer, which sees its score and cannot
+touch it. `--ledger PATH` (or `$PLUGGY_LEDGER`) is where the balance lives
+between runs, exactly as `--boards` is for ink.
+
+⚠ **A hidden-truth task publishes its verdict without its answer.** The
+census's real count is redacted from the message's `metrics` and its `reason`,
+because this stream reaches both the website and the robot's own context.
+
 **The ingest socket is authenticated.** `--token` (or `$PLUGGYWORLD_TOKEN`)
 sends `Authorization: Bearer <token>` at the handshake. A refusal looks
 exactly like a server that is down — a 1 s retry loop — so the publisher
@@ -194,7 +215,8 @@ things about it are decisions rather than boilerplate:
   redeployed underneath it.
 - **Config is environment, not a command line** (`deploy/entrypoint.sh`):
   `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`,
-  `PLUGGY_BATTERY_WH`, `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`. The ingest
+  `PLUGGY_BATTERY_WH`, `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`,
+  `PLUGGY_LEDGER`. The ingest
   secret stays `$PLUGGYWORLD_TOKEN`, read by `serve.py` itself, because a
   flag is visible in `ps`. Anything passed to the container is appended
   after the derived flags, so `docker run <image> --rate 2.0` still wins.

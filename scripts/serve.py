@@ -22,6 +22,8 @@ Usage:
                         # strokes stream as `draw` events for the browser to
                         # paint -- they are never MuJoCo geometry.
   ... --boards state.json     # whiteboard contents that survive a restart
+  ... --ledger points.json    # the points ledger, likewise (issue #14): the
+                              # balance and the earnings log the site shows
   ... --rate 2.0        # sim seconds per wall second (default 1.0)
   ... --free-run        # no pacing: measure this machine's real-time multiple
   ... --record out.jsonl.gz   # also keep a v0 recording of the same run
@@ -40,7 +42,8 @@ import time
 import mujoco
 
 from pluggybot.hub.lifecycle import (
-  HubLifecycle, board_book, errands_for, world_config, world_screens,
+  HubLifecycle, board_book, errands_for, points_ledger, world_config,
+  world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.publisher import WsPublisher
@@ -80,6 +83,9 @@ def main() -> None:
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
+  parser.add_argument("--ledger", default=None, metavar="PATH",
+                      help="JSON file the points ledger lives in between runs "
+                           "(issue #14; default: the robot starts at zero)")
   args = parser.parse_args()
 
   cfg = world_config(args.world)
@@ -91,13 +97,18 @@ def main() -> None:
   # The world's displays (issue #13): the lifecycle drives the LCD's face off
   # its own state, and every screen's content rides in the frames.
   screens = world_screens(model, data)
+  # Points are world state too (issue #14), and the ROBOT's rather than the
+  # room's: a balance that resets whenever the container cycles is not a
+  # scoreboard. Every mission end is a restart, so the site's rivalry only
+  # exists if this file does.
+  ledger = points_ledger(args.ledger)
   life = HubLifecycle(model, data,
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
-                      boards=book)
+                      boards=book, ledger=ledger)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -109,13 +120,16 @@ def main() -> None:
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
-                          screens=screens)
+                          screens=screens, ledger=ledger)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
     # Strokes reach the browser as `draw` messages, never as geometry: the
     # website paints them into the board's canvas texture.
     book.on_event.append(publisher.message)
+  # An award is an event on the same terms (issue #14): the balance rides in
+  # the frames, and each `earned` message carries the verdict behind it.
+  ledger.on_event.append(publisher.message)
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
@@ -127,10 +141,11 @@ def main() -> None:
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
-                                 screens=screens)
+                                 screens=screens, ledger=ledger)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
       book.on_event.append(recorder.emit)
+    ledger.on_event.append(recorder.emit)
 
   wall0 = time.monotonic()
   try:
@@ -152,6 +167,8 @@ def main() -> None:
              if e.get("board") else "")
     print(f"errand {e['errand']:<20s}: picked={e['picked']}"
           f" stowed={e['stowed']}{extra}")
+  print(f"points balance         : {r['points']}"
+        f" ({r['earned']} earned over {len(r['verdicts'])} scored task(s))")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
   if pacer is not None:

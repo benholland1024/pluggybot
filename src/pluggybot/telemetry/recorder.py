@@ -75,7 +75,8 @@ class FrameBuilder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None, screens=None) -> None:
+               activities=None, boards=None, screens=None,
+               ledger=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -90,6 +91,10 @@ class FrameBuilder:
     self.boards = boards
     # ...and so does a face (issue #13). Third duck of the same shape.
     self.screens = screens
+    # ...and so does a balance (issue #14). Fourth, keyed by ROBOT rather
+    # than by world feature -- which is the only difference, and the frame
+    # builder does not care.
+    self.ledger = ledger
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -110,6 +115,7 @@ class FrameBuilder:
     self._last_acts: dict[str, dict] = {}
     self._last_boards: dict[str, dict] = {}
     self._last_screens: dict[str, dict] = {}
+    self._last_ledger: dict[str, dict] = {}
 
   def header(self) -> dict:
     return {
@@ -123,6 +129,7 @@ class FrameBuilder:
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
       "screens": self.screens.names if self.screens else [],
+      "ledger": self.ledger.names if self.ledger else [],
     }
 
   def reset(self) -> None:
@@ -131,6 +138,7 @@ class FrameBuilder:
     self._last_acts.clear()
     self._last_boards.clear()
     self._last_screens.clear()
+    self._last_ledger.clear()
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -155,6 +163,7 @@ class FrameBuilder:
       self._last_acts.clear()
       self._last_boards.clear()
       self._last_screens.clear()
+      self._last_ledger.clear()
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -190,6 +199,10 @@ class FrameBuilder:
       screens = self._sparse(self.screens.snapshot(), self._last_screens)
       if screens:
         frame["screens"] = screens
+    if self.ledger is not None:
+      points = self._sparse(self.ledger.snapshot(), self._last_ledger)
+      if points:
+        frame["ledger"] = points
     return frame
 
   @staticmethod
@@ -238,11 +251,12 @@ class TelemetryRecorder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None, screens=None) -> None:
+               activities=None, boards=None, screens=None,
+               ledger=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
-                                 screens=screens)
+                                 screens=screens, ledger=ledger)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())

@@ -145,7 +145,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   offscreen frame, so headless GL is a red build rather than a mission that
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
   `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_BATTERY_WH`,
-  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`; the secret stays
+  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`; the secret stays
   `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public).
   ⚠ **A lazy import is the failure mode here**: the detector comes in
   inside `hub.tags._shared_detector`, so nothing an import scan can see —
@@ -156,7 +156,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `sim:` service lives in `rooftop-media-2026/compose.yaml` (built from
   `context: ../pluggybot`, behind a `sim` profile), and there is deliberately
   no second copy here to drift from it. `/var/lib/pluggybot` must be a
-  volume: boards are world state and every mission end is a restart.
+  volume: boards AND the points ledger are world state, and every mission end
+  is a restart.
 - PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED, and
   there is one scene AND one recording **per world** — a replayer picks its
   scene off the recording's `model` header, so a room_hub mission replayed
@@ -172,8 +173,9 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   two surfaces it paints.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
-- **A recording is a MIXED stream as of protocol 0.4.0**: `draw` and
-  `board_cleared` lines ride between the frames. Dispatch on `type`; no
+- **A recording is a MIXED stream as of protocol 0.4.0**: `draw`,
+  `board_cleared` and (0.6.0) `earned` lines ride between the frames. Dispatch
+  on `type`; no
   `type` means frame. Ink is NEVER MuJoCo geometry — a stroke is a `draw`
   event carrying the polyline the pen actually inked, and the browser paints
   it into a canvas texture (the three-layer rule from ActivityPattern.md).
@@ -312,6 +314,27 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   appeared in none of 10 850 frames while the result dict was perfect). Hold
   it — `_drive(PRESENT_S, 0, 0)` — and check the RECORDING, not the return
   value.
+- **A task is scored by CODE, and nothing awards itself points** (issue #14).
+  Three files, and the split is the whole design: `hub/scoring.py` MEASURES a
+  finished task off the sim and judges it (`EVALUATORS`, one per task, pure
+  and unit-testable); `hub/rewards.json` is DATA saying what it pays (base +
+  bonus × quality curves — a 0.6 mm drawing beats a 3 mm one, and re-tuning a
+  payout is a JSON edit, `$PLUGGY_REWARDS` to override); `hub/ledger.py` banks
+  it. A `Verdict` can only be built by `scoring.evaluate`, and `Ledger.award`
+  re-derives the points from the table before accepting one. The overseer
+  (issue #15) will SEE its balance and the reward table and be able to move
+  neither — an agent that can score its own work learns to declare victory.
+  Three rules that follow, all guarded in `tests/test_rewards.py`:
+  - **Measure the world, not the report.** A drawing is scored on the strokes
+    the pen wrote into the BOARD BOOK, a carry on `module_state`, a charge on
+    the battery's own energy. An errand's `use` is arbitrary caller code, so
+    what it says about itself is a claim.
+  - **A missing measurement is not a passing one.** The census defaulting its
+    absent count and truth to 0 and 0 would have scored a task that never ran
+    as CORRECT — the shape of bug the whole module exists to prevent.
+  - **A hidden-truth task never publishes its answer.** `secret` metrics are
+    redacted from the ledger entry, the wire and the `reason` line, because
+    the stream reaches both the site and the overseer's context.
 - **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
   the plotter never imports the content module** (issue #11). A *stroke
   program* is a named list of polylines in board coordinates, pen up between

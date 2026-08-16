@@ -42,6 +42,7 @@ from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
 from pluggybot.hub.screen import face_for
+from pluggybot.hub import scoring
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.recorder import TelemetryRecorder
 
@@ -76,7 +77,7 @@ class HubLifecycle:
                module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
-               errands=None, boards=None, screen=None) -> None:
+               errands=None, boards=None, screen=None, ledger=None) -> None:
     self.model, self.data = model, data
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
@@ -85,6 +86,12 @@ class HubLifecycle:
     self.module = errands[0].module if errands else module
     self.low_battery_wh = low_battery_wh
     self.boards = boards
+    # The points ledger (issue #14). Optional: a physics test or a spike has
+    # nothing to score against and wants no state file. When it IS here, every
+    # finished task is evaluated by hub/scoring.py and the verdict is banked
+    # through it -- the lifecycle measures nothing and pays nothing itself.
+    self.ledger = ledger
+    self.verdicts: list[dict] = []
     # The LCD module's display (issue #13). The lifecycle drives the resting
     # face off its own state; an errand's use-phase may take the screen over
     # (`Screen.held`) and gets it back automatically at the next state change.
@@ -190,6 +197,32 @@ class HubLifecycle:
                   "charging": self.charging_now},
     }
 
+  # ---- scoring (issue #14) -------------------------------------------------
+
+  def _bank(self, verdict) -> dict | None:
+    """Narrate an evaluator's verdict and hand it to the ledger.
+
+    This is the lifecycle's ENTIRE role in scoring: it runs the tasks and it
+    asks hub/scoring.py to judge the finished one. It never decides a verdict
+    and never moves a balance -- scoring.py measures and judges, ledger.py
+    pays, and neither will take an answer from the task itself.
+
+    `None` means the task is not scoreable (no evaluator, or a hand-built
+    errand with no task), which is one of the four tiers and not an error.
+    """
+    if verdict is None:
+      return None
+    self.verdicts.append(verdict.as_dict())
+    if self.ledger is None:
+      self._say(f"SCORE {verdict.task}: {verdict.reason} (no ledger)")
+      return None
+    entry = self.ledger.award(verdict, t=float(self.data.time))
+    tail = " (pending a rating)" if entry["pending"] else ""
+    self._say(f"SCORE {verdict.task}: {verdict.reason} -- "
+              f"{entry['points']:+d} points{tail}, "
+              f"balance {entry['balance']}")
+    return entry
+
   @property
   def needs_charge(self) -> bool:
     # The reserve is a PARAMETER of the world, not of the pack (issue #6):
@@ -249,6 +282,12 @@ class HubLifecycle:
   def charge(self) -> None:
     """Hold the press until full, then back off."""
     t0 = self.data.time
+    # What the evaluator measures this cycle against (issue #14). Read BEFORE
+    # the press, because "charged" is a gain in a real quantity -- a cycle
+    # that sat on the pins conducting nothing has an end fraction and no
+    # energy behind it.
+    before = {"t": t0, "frac": self.battery.fraction,
+              "wh": self.battery.energy_wh}
     while (self.battery.fraction < CHARGED
            and self.data.time - t0 < CHARGE_TIMEOUT):
       self.mission._drive(0.25, CHARGE_PRESS, 0.0)
@@ -257,9 +296,11 @@ class HubLifecycle:
         self.mission._drive(1.0, CHARGE_CREEP, 0.0)
         if not self.charging_now:
           self._say("CHARGE: lost the pins")
+          self._bank(scoring.score_charge(self, before))
           return
     self.charge_cycles += 1
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
+    self._bank(scoring.score_charge(self, before))
     self.mission.swap._drive_until(UNDOCK_REVERSE, -0.08, stall_stop=False)
 
   def run_errand(self, errand) -> dict:
@@ -288,6 +329,10 @@ class HubLifecycle:
     self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: arrived{'' if still else ' -- BUT DROPPED THE TOOL'}")
+    # What the board looked like before this errand touched it (issue #14).
+    # The evaluator counts the strokes that landed HERE, so a second drawing
+    # on an un-erased board is not scored on the first one's ink.
+    before = scoring.board_before(self, errand)
     used: dict = {}
     if errand.use is not None and still:
       try:
@@ -305,6 +350,15 @@ class HubLifecycle:
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
     result = {"errand": errand.name, "module": errand.module,
               "picked": carried, "stowed": stowed, **used}
+    # And the verdict, LAST: an errand is judged on the finished job, which
+    # includes putting the tool back. Measured off the sim by hub/scoring.py,
+    # never off `used` alone -- see sample_draw, which counts the strokes the
+    # pen actually wrote into the board book.
+    verdict = scoring.score_errand(self, errand, result, before)
+    entry = self._bank(verdict)
+    if verdict is not None:
+      result["verdict"] = verdict.as_dict()
+      result["points"] = entry["points"] if entry is not None else 0
     self.errand_results.append(result)
     return result
 
@@ -376,6 +430,12 @@ class HubLifecycle:
       "errands": list(self.errand_results),
       "errands_left": len(self.errands),
       "boards": self.boards.snapshot() if self.boards is not None else {},
+      # Every verdict this mission earned, in order, and what the robot is
+      # worth afterwards (issue #14). The verdicts are here even without a
+      # ledger -- a test or a spike wants the evaluation without a state file.
+      "verdicts": list(self.verdicts),
+      "points": self.ledger.balance() if self.ledger is not None else 0,
+      "earned": sum(v["points"] for v in self.verdicts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
       "sim_time": float(self.data.time),
@@ -409,6 +469,18 @@ def board_book(world: str, state: str | None = None):
     return None
   meta = json.loads(Path(cfg["meta"]).read_text())
   return BoardBook.for_meta(meta, path=state)
+
+
+def points_ledger(state: str | None = None, table=None):
+  """The robots' points ledger (issue #14).
+
+  `state` is a JSON file the balances and the earnings log live in ACROSS
+  runs -- the same treatment the boards get, and for the same reason: points
+  are world state, and every mission end is a restart. Without one the ledger
+  is per-run, which is what tests and one-off demos want.
+  """
+  from pluggybot.hub.ledger import Ledger
+  return Ledger(path=state, table=table)
 
 
 def world_screens(model, data):
@@ -526,7 +598,8 @@ def run_demo(start=None, view: bool = False,
              explore_budget: float | None = None,
              record: str | None = None,
              world: str = "room_hub",
-             errand: str = "carry", board_state: str | None = None) -> dict:
+             errand: str = "carry", board_state: str | None = None,
+             ledger_state: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -547,11 +620,14 @@ def run_demo(start=None, view: bool = False,
   # Displays are a WORLD's, like activities and boards; the lifecycle drives
   # the first one (there is one LCD) and telemetry streams the set.
   screens = world_screens(model, data)
+  # The ledger is the ROBOTS', not the world's -- it is the one piece of
+  # persistent state that follows them between rooms.
+  ledger = points_ledger(ledger_state)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
-                      screen=next(iter(screens), None),
+                      screen=next(iter(screens), None), ledger=ledger,
                       errands=errands_for(errand, world, book))
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
@@ -565,12 +641,14 @@ def run_demo(start=None, view: bool = False,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  activities=activities, boards=book,
-                                 screens=screens)
+                                 screens=screens, ledger=ledger)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.
     if book is not None:
       book.on_event.append(recorder.emit)
+    # ...and so is an award: points are not a pose either (issue #14).
+    ledger.on_event.append(recorder.emit)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],
                     max_sim_time=max_sim_time,

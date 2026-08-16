@@ -63,6 +63,16 @@ class Errand:
   use: Callable[["object"], dict | None] | None = None
   #: free-form, for the demo scripts and the overseer's ledger
   detail: dict = field(default_factory=dict)
+  #: which EVALUATOR judges this errand and which reward-table row pays for
+  #: it (issue #14) -- "draw", "census", "dance", "carry". Defaulted off the
+  #: name's prefix, since every errand here is already named `task:where`,
+  #: and an errand whose task has no evaluator is simply never scored
+  #: (hub/scoring.py: nothing awards points without one).
+  task: str = ""
+
+  def __post_init__(self) -> None:
+    if not self.task:
+      self.task = self.name.split(":", 1)[0]
 
 
 def carry_errand(module: str = "module_lcd", station_y: float = LCD_BAY,
@@ -75,7 +85,8 @@ def carry_errand(module: str = "module_lcd", station_y: float = LCD_BAY,
   a drawing errand fails this is how you find out whether the pick broke or the
   pen did.
   """
-  return Errand(name=name, module=module, station_y=station_y, use_at=use_at)
+  return Errand(name=name, module=module, station_y=station_y, use_at=use_at,
+                task="carry")
 
 
 def drawing_errand(book, board_name: str, board: Board,
@@ -83,7 +94,8 @@ def drawing_errand(book, board_name: str, board: Board,
                    program_name: str = "house",
                    size: float | None = None, text: str | None = None,
                    erase: bool = True, station_y: float = PEN_BAY,
-                   module: str = "module_pen", on_drawn=None) -> Errand:
+                   module: str = "module_pen", on_drawn=None,
+                   task: str = "draw") -> Errand:
   """Fetch the pen, square up to a board, erase it, draw, restore the carry pose.
 
   `use_at` is the plotter's own board standoff, so the mission's A* takes the
@@ -139,6 +151,7 @@ def drawing_errand(book, board_name: str, board: Board,
 
   return Errand(name=f"draw:{board_name}", module=module,
                 station_y=station_y, use_at=board_standoff(board), use=use,
+                task=task,
                 detail={"board": board_name, "figure": figure.name,
                         "strokes": len(figure.strokes),
                         "ink_m": figure.ink_length})
@@ -289,7 +302,7 @@ def census_errand(zone: Zone, label: str = "plants",
             "stopped": stopped}
 
   return Errand(name=name or f"census:{zone.name}", module=module,
-                station_y=station_y, use_at=points[0], use=use,
+                station_y=station_y, use_at=points[0], use=use, task="census",
                 detail={"zone": zone.name, "label": label,
                         "vantages": len(points)})
 
@@ -346,4 +359,4 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
             "steps": landed}
 
   return Errand(name=name, module=module, station_y=station_y, use_at=at,
-                use=use, detail={"moves": len(routine)})
+                use=use, task="dance", detail={"moves": len(routine)})

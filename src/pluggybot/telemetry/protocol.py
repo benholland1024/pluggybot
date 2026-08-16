@@ -9,7 +9,31 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.5.0"
+PROTOCOL_VERSION = "0.6.0"
+# 0.6.0: the robot is SCORED, and the score is on the wire (issue #14).
+#        Frames may carry a "ledger" block -- per robot, what it has earned:
+#        {"pluggybot": {"balance": 34, "earned": 34, "spent": 0, "tasks": 3,
+#        "pending": 0, "recent": [{"seq", "task", "points", "ok", "t"}]}}.
+#        Sparse and keyframe-refreshed on exactly the same rule as
+#        "activities", "boards" and "screens", and for the same reason: a
+#        balance is not a pose, so this block is the only record of it in the
+#        stream. The header gains "ledger": [robot names].
+#        A fourth typed message joins the three board ones:
+#        {"type": "earned", ...} -- one finished task's VERDICT, as it is
+#        banked: task, tier, ok, points, quality, the evaluator's reason and
+#        its (public) metrics, plus the balance afterwards. Unlike a stroke,
+#        it needs no snapshot message to catch a late joiner up: `recent` in
+#        the block does that job on the keyframe cadence.
+#        A settled visitor rating re-emits the same entry with
+#        "settled": true (the deferred-verdict slot; nothing produces one
+#        until the inbound channel lands, issue #16).
+#        Additive: a 0.5.0 consumer that ignores both renders what it did.
+#        ⚠ What is NOT on the wire is as deliberate as what is: a hidden
+#        ground-truth task publishes its verdict without its ANSWER (the
+#        census's `truth` is redacted by hub/scoring.py), because the ledger
+#        is streamed to the site AND shown to the LLM overseer as context --
+#        and a task the robot is supposed to discover must not arrive
+#        pre-solved in its own scoreboard.
 # 0.5.0: the robot has a FACE, and a board can be caught up on (issue #13,
 #        rooftop-media-2026 #28). Two additions, both about surfaces the
 #        browser paints rather than geometry MuJoCo carries:

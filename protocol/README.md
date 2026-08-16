@@ -8,11 +8,70 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.5.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.6.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+### 0.5.0 → 0.6.0 (the robot is scored, and the score is on the wire)
+
+Tasks now end in a deterministic verdict and a points award (pluggybot #14;
+the site's scoreboard is rooftop-media-2026 #30). Additive: a 0.5.0 consumer
+that ignores both renders exactly what it rendered before.
+
+- Frames may carry a **`ledger`** object, keyed by ROBOT: the balance, the
+  totals, and the last few earnings. Sparse and keyframe-refreshed on exactly
+  the same rule as `activities`, `boards` and `screens` — a balance is not a
+  pose, so this block is the only record of it in the stream. The header gains
+  **`"ledger": [robot names]`**.
+- A fourth typed message joins the three board ones: **`earned`**, one
+  finished task's verdict as it is banked. Unlike a stroke it needs no
+  snapshot message to catch a late joiner up — `recent` in the block does that
+  job on the keyframe cadence, which is why the block carries a list at all.
+
+```jsonc
+// in a frame: what this robot is worth
+"ledger": {"pluggybot": {"balance": 39, "earned": 39, "spent": 0,
+                         "tasks": 3, "pending": 0,
+                         "recent": [{"seq": 3, "task": "census",
+                                     "points": 20, "ok": true, "t": 412.5}]}}
+
+// between the frames: the verdict behind one of those lines
+{"type": "earned", "t": 412.5, "robot": "pluggybot", "seq": 3,
+ "task": "census", "tier": "auto",       // auto | hidden | visitor | narrative
+ "ok": true, "points": 20, "quality": 0.98,
+ "reason": "reported 4 in garden (correct), 99% of the zone surveyed",
+ "metrics": {"counted": 4, "coverage": 0.99, "vantages": 2, "zone": "garden"},
+ "pending": false, "balance": 39, "at": "2026-08-16T12:00:00+00:00"}
+```
+
+**Only code awards points.** The verdict comes from a deterministic evaluator
+(`pluggybot/hub/scoring.py`) that measures the finished task off the sim; what
+it is worth comes from a data table (`hub/rewards.json`); the ledger re-derives
+the payout from both before banking it. The robot — and, when it lands, the LLM
+overseer — *sees* its balance and the reward table, and can move neither. An
+agent that can score its own work learns to declare victory instead of doing
+the task, so this is a structural rule rather than a policy.
+
+**A hidden-truth task publishes its verdict without its ANSWER.** The census
+knows how many plants are really in the garden; that number is redacted from
+`metrics` and from `reason`, because this stream reaches both the website and
+the overseer's context, and a task the robot is supposed to *discover* must not
+arrive pre-solved in its own scoreboard. `ok` says whether the answer was right
+and nothing says what it was.
+
+**`pending` is the deferred (visitor-judged) slot.** An aesthetic call cannot
+be made by code, so the evaluator confirms the work happened and banks zero;
+when the rating arrives over the inbound channel (pluggybot #16) the same entry
+is re-emitted with `"settled": true` and its points filled in. Nothing produces
+one yet — no task in the shipped reward table is visitor-tiered except
+`artwork`, which nothing builds — so a consumer may treat it as reserved.
+
+**`spent` is always 0 today.** Spending is designed and deliberately not
+implemented: when it lands it buys cosmetic and capability unlocks only (face
+styles, figures, zone or tool access) and never anything the survival loop
+depends on. The field is here so ledgers written now stay readable then.
 
 ### 0.4.0 → 0.5.0 (the robot has a face, and a board can be caught up on)
 
@@ -178,7 +237,15 @@ against the body census.
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+
+⚠ **Record the home fixture TWICE against the same `--boards state.json`, and
+keep the second.** A board that survived a previous run is what makes the
+recording open with a `board_snapshot` (0.5.0), which is the one case no other
+message in the stream can rebuild — so a fixture recorded onto blank boards
+quietly stops covering it. The ledger needs no such warm-up: a run starts the
+robot at zero and the balance climbs on the wire, which is what the site's
+scoreboard renders.
 
 **One recording per scene, and they are not interchangeable.** A replayer
 picks its scene off the header's `model` field, so playing the room_hub
@@ -263,13 +330,14 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.5.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.6.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
  "activities": ["garden_gate"],                         // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
- "screens": ["module_lcd"]}                             // display modules
+ "screens": ["module_lcd"],                             // display modules
+ "ledger": ["pluggybot"]}                               // robots with a balance
 
 // frame
 {"t": 123.45,                                  // sim seconds
@@ -288,7 +356,11 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
                              "clearedAt": "2026-08-16T08:01:09+00:00",
                              "drawnAt": "2026-08-16T08:01:47+00:00"}},
  "screens": {"module_lcd": {"mode": "face", "powered": true,
-                            "face": "curious", "hint": "blink"}}}
+                            "face": "curious", "hint": "blink"}},
+ "ledger": {"pluggybot": {"balance": 39, "earned": 39, "spent": 0,
+                          "tasks": 3, "pending": 0,
+                          "recent": [{"seq": 3, "task": "census", "points": 20,
+                                      "ok": true, "t": 412.5}]}}}
 ```
 
 **Frames are sparse.** The first frame is a keyframe carrying every dynamic
@@ -296,9 +368,9 @@ body; later frames carry only bodies that moved > 0.5 mm (or the quat
 equivalent) since they were last emitted. A body absent from a frame is
 unchanged — a replayer holds the last value it saw. `bodies`, `world` and
 `activities` are omitted entirely when empty; `state`/`status`/`battery`
-ride in every frame. **Activity flags, board state and screen content are
-sparse on the same rule as poses** and re-ship on every keyframe (0.3.0,
-0.4.0, 0.5.0). Positions are rounded to 0.1 mm.
+ride in every frame. **Activity flags, board state, screen content and the
+points ledger are sparse on the same rule as poses** and re-ship on every
+keyframe (0.3.0, 0.4.0, 0.5.0, 0.6.0). Positions are rounded to 0.1 mm.
 
 **Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
 `"key": true`. A consumer that starts reading anywhere in the stream is
@@ -366,8 +438,10 @@ otherwise publish unauthenticated and read as a wrong secret.
 
 The two live-only message types:
 
-(`draw`, `board_cleared` and `board_snapshot` ride this socket too, and are
-the three types that also appear in recordings — see 0.4.0 and 0.5.0 above.)
+(`draw`, `board_cleared`, `board_snapshot` and `earned` ride this socket too,
+and are the four types that also appear in recordings — see 0.4.0, 0.5.0 and
+0.6.0 above. An `earned` message needs no hub cache of its own: the balance
+and the last few earnings re-ship in every keyframe.)
 
 ```jsonc
 // occupancy-grid belief, ~1 Hz per robot: base64 PNG, uint8 cells

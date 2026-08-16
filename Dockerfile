@@ -49,8 +49,10 @@ COPY src/ src/
 COPY scripts/serve.py scripts/
 COPY deploy/entrypoint.sh deploy/
 
-# Board contents are WORLD state, not run state (issue #12): mount a volume
-# here and the whiteboards survive the restart that ends every mission.
+# Board contents and the points ledger are WORLD state, not run state
+# (issues #12 and #14): mount a volume here and the whiteboards -- and the
+# balance the site puts on its scoreboard -- survive the restart that ends
+# every mission.
 #
 # The user gets a real home directory: mesa writes its shader cache there,
 # and without one every osmesa context logs "Failed to create /home/pluggy
@@ -60,6 +62,7 @@ RUN mkdir -p /var/lib/pluggybot \
  && chown pluggy /var/lib/pluggybot
 USER pluggy
 ENV HOME=/home/pluggy \
-    PLUGGY_BOARDS=/var/lib/pluggybot/boards.json
+    PLUGGY_BOARDS=/var/lib/pluggybot/boards.json \
+    PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json
 
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]

@@ -585,7 +585,8 @@ class _FakeLife:
     self.run_args, self.run_kwargs = a, kw
     return {"state": "DONE", "swaps_done": 2, "charge_cycles": 1,
             "module_stowed": True, "sim_time": 100.0,
-            "errands": [], "boards": {}}
+            "errands": [], "boards": {}, "verdicts": [], "points": 0,
+            "earned": 0}
 
 
 class _FakePublisher:
@@ -692,6 +693,31 @@ def test_serve_wires_the_drawing_errand_and_its_boards(monkeypatch, tmp_path):
     "the publisher and the lifecycle must share ONE book"
   assert book.path == state
   assert pub.message in book.on_event, "strokes never reach the socket"
+
+
+def test_serve_wires_the_ledger_to_the_lifecycle_and_the_socket(monkeypatch,
+                                                                tmp_path):
+  """`--ledger` has the same three-places problem as `--boards` (issue #14).
+
+  The lifecycle needs the ledger to bank verdicts into, the publisher needs
+  the SAME one so the balance rides in the frames, and it needs the event
+  hook or no `earned` message ever reaches the site. Any one missing looks
+  like success from the terminal -- the robot still does the work and the
+  log still prints the score -- while the site's scoreboard sits at zero.
+  """
+  state = tmp_path / "ledger.json"
+  life, pub, _ = _serve_wiring(
+    monkeypatch, ["--free-run", "--ledger", str(state)])
+  ledger = life.init_kwargs["ledger"]
+  assert ledger is pub.init_kwargs["ledger"], \
+    "the publisher and the lifecycle must share ONE ledger"
+  assert ledger.path == state, "points would not survive the restart"
+  assert pub.message in ledger.on_event, "awards never reach the socket"
+  # ...and a run without the flag still scores, it just does not remember:
+  # a ledger is not optional the way a board book is, because every world
+  # charges.
+  bare, _, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert bare.init_kwargs["ledger"].path is None
 
 
 def test_serve_without_boards_is_the_pre_0_4_0_wiring(monkeypatch):

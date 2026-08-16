@@ -105,6 +105,13 @@ def test_full_hub_lifecycle(world):
   assert r["charge_cycles"] >= 1, "never charged at the hub"
   assert r["battery"] > 0.5, "ended flat"
   assert r["collision_steps"] == 0, "the robot hit something"
+  # ...and it was PAID for the work, by code (issue #14). Both tasks a bare
+  # mission performs are scoreable, and the verdicts come from evaluators
+  # that measured the sim -- the lifecycle awards nothing itself.
+  tasks = {v["task"] for v in r["verdicts"]}
+  assert {"carry", "charge"} <= tasks, f"unscored mission: {tasks}"
+  assert all(v["ok"] for v in r["verdicts"]), r["verdicts"]
+  assert r["points"] == r["earned"] > 0
 
 
 @pytest.mark.parametrize("world", ["room_hub", "home"])

@@ -363,6 +363,49 @@ tracked as its own issues; landed so far:
     house whose drawings are still there. The home fixture runs the
     **showcase** queue (draw + census), so one recording exercises both
     streamed surfaces. **Re-vendor `protocol/`.**
+- **Task evaluation + the points ledger (issue #14)**: the robot now has
+  reasons, and they are not its own. Three pieces, deliberately split:
+  - **The evaluator is code.** `hub/scoring.py` MEASURES a finished task off
+    the sim and judges it — one pure function per task (`draw`, `census`,
+    `dance`, `charge`, `carry`), unit-testable without a physics world. What
+    it measures is chosen to be un-claimable: a drawing is scored on the
+    strokes the pen wrote into the *board book*, a carry on the coupling's
+    own `module_state`, a charge on energy the battery actually gained. An
+    errand's `use` is arbitrary caller code, so its report of itself is a
+    claim — `tests/test_rewards.py` runs a perfect report over a blank board
+    and asserts it pays nothing.
+  - **What a task is worth is DATA.** `hub/rewards.json`: base + bonus ×
+    quality, where quality is a weighted mean of curves over named metrics
+    (`formMm` best 0.6 / worst 3.0 — the design doc's "a 0.6 mm drawing beats
+    a 3 mm one", now a number in a file). Re-tuning a payout is a JSON edit,
+    `$PLUGGY_REWARDS` overrides it per deploy, and it can never change a
+    verdict — pass/fail thresholds stay in code, or re-tuning money could
+    quietly promote a failure.
+  - **Nothing awards itself points.** `Ledger.award` takes a `Verdict` and
+    nothing else; a `Verdict` can only be built by `scoring.evaluate` (the
+    token is cleared on the way out, so `dataclasses.replace` cannot launder
+    one); and the ledger re-derives the payout from the table before banking
+    it. Three locks on one door, because an agent that can score its own work
+    learns to declare victory instead of doing the task — and issue #15 is
+    about to put an LLM behind that door. It *sees* its balance and the
+    reward table; it can move neither.
+  - **A missing measurement is not a passing one.** The census defaulting an
+    absent count and truth to 0 and 0 would have scored a task that never ran
+    as CORRECT — the exact bug shape the module exists to prevent, caught by
+    writing the guard before the first mission ran.
+  - **A hidden-truth task never publishes its answer.** `secret` metrics are
+    redacted from the ledger entry, the wire and the narration line, because
+    the stream feeds both the website and (issue #15) the robot's own
+    context. A census that shipped `truth` would arrive pre-solved next time.
+  - **Protocol 0.6.0.** Frames gain a sparse `ledger` block per robot and a
+    fourth typed message, `earned`. No snapshot message needed, unlike ink:
+    `recent` re-ships on the keyframe cadence. Points persist beside the
+    boards (`--ledger`, `PLUGGY_LEDGER`, `/var/lib/pluggybot`) — every mission
+    end is a restart, and a balance that resets is not a scoreboard.
+    **Re-vendor `protocol/`.**
+  - Spending is designed and deliberately unimplemented: cosmetic and
+    capability unlocks only, never anything the survival loop depends on. A
+    robot that can spend itself into a brick will.
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

@@ -1,5 +1,5 @@
 {
- "protocolVersion": "0.5.0",
+ "protocolVersion": "0.6.0",
  "model": "home_world",
  "upAxis": "z",
  "bodies": [

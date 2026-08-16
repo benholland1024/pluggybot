@@ -464,6 +464,48 @@ def test_screens_ride_the_same_sparse_rule_as_boards(mini_model, tmp_path):
   assert 4 in counts
 
 
+def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
+    mini_model, tmp_path):
+  """0.6.0, and the fourth block to follow one rule (issue #14).
+
+  Two claims in one recording, because they are the two halves of the
+  streaming acceptance criterion. The BALANCE rides in the frames -- sparse,
+  re-shipped on every keyframe -- so a browser that joins late is caught up
+  without a snapshot message of its own; and each award also arrives as an
+  `earned` message carrying the verdict behind it, interleaved with the
+  frames exactly as `draw` is.
+  """
+  from pluggybot.hub.ledger import Ledger
+  from pluggybot.hub.scoring import evaluate
+
+  data = mujoco.MjData(mini_model)
+  ledger = Ledger()
+  path = str(tmp_path / "out.jsonl")
+  rec = TelemetryRecorder(mini_model, data, path, model_name="mini",
+                          keyframe_s=0.5, ledger=ledger)
+  ledger.on_event.append(rec.emit)
+  for step in range(round(1.2 / mini_model.opt.timestep)):
+    mujoco.mj_step(mini_model, data)
+    if step == 100:
+      ledger.award(evaluate("carry", {"picked": True, "stowed": True,
+                                      "module": "module_lcd"}),
+                   t=float(data.time))
+    rec.step_hook()
+  rec.close()
+  lines = [json.loads(x) for x in open(path)]
+  assert lines[0]["ledger"] == ["pluggybot"]
+  frames = [x for x in lines[1:] if "type" not in x]
+  carrying = [f for f in frames if "ledger" in f]
+  keyed = [f for f in frames if f.get("key")]
+  assert len(carrying) < len(frames), "an unchanged balance was re-sent"
+  assert all("ledger" in f for f in keyed), "a keyframe skipped the balance"
+  balances = [f["ledger"]["pluggybot"]["balance"] for f in carrying]
+  assert balances[0] == 0 and balances[-1] == ledger.balance() > 0
+  earned = [x for x in lines[1:] if x.get("type") == "earned"]
+  assert len(earned) == 1 and earned[0]["task"] == "carry"
+  assert earned[0]["points"] == ledger.balance() and earned[0]["reason"]
+
+
 # ---- the committed fixtures ------------------------------------------------
 # The same checks the website repo runs against its vendored copies: if these
 # fail, regenerate the fixtures or bump the protocol version deliberately.
@@ -583,6 +625,32 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
           "SWAP_PICK", "USE_TOOL", "SWAP_RETURN"} <= states, \
     "the fixture must cover the full battery-driven mission"
 
+  # The scoreboard half (0.6.0). Every mission charges, and charging is a
+  # scored task, so BOTH worlds' fixtures must carry a ledger that moves --
+  # this is what the site's scoreboard is built against, and the balance is
+  # the only part of it that survives a mid-mission join (there is no
+  # snapshot message for points; `recent` in the keyframe is the catch-up).
+  events = [x for x in lines[1:] if "type" in x]
+  assert header["ledger"] == ["pluggybot"]
+  banked = [e for e in events if e["type"] == "earned"]
+  assert banked, "a whole mission earned nothing: no task was ever evaluated"
+  assert {"charge"} <= {e["task"] for e in banked}
+  for e in banked:
+    assert e["reason"] and e["tier"] in ("auto", "hidden", "visitor")
+    # A hidden-truth task must not publish its answer: this stream reaches
+    # both the website and (issue #15) the robot's own context.
+    assert "truth" not in e["metrics"]
+  with_ledger = [f for f in frames if "ledger" in f]
+  assert len(with_ledger) < len(frames), "an unchanged balance was re-sent"
+  # ...and the block agrees with the events it summarizes. Not necessarily
+  # with the LAST one: a mission whose final award lands on its final physics
+  # step ends before another frame is built, and a fixture is not a worse
+  # fixture for that.
+  final = with_ledger[-1]["ledger"]["pluggybot"]
+  assert 0 < final["balance"] <= banked[-1]["balance"]
+  assert final["balance"] in {e["balance"] for e in banked}
+  assert final["recent"] and final["tasks"] >= len(final["recent"])
+
   if not draws:
     return
   # The drawing half (0.4.0): the board is erased, then inked, and BOTH facts
@@ -592,6 +660,12 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   events = [x for x in lines[1:] if "type" in x]
   cleared = [e for e in events if e["type"] == "board_cleared"]
   drawn = [e for e in events if e["type"] == "draw"]
+  # The drawing errand is scored too, and on a real mission rather than on a
+  # measurement handed in by a test: the strokes that paid are the ones the
+  # pen wrote into the board book (issue #14).
+  draw_award = next(e for e in banked if e["task"] == "draw")
+  assert draw_award["ok"] and draw_award["points"] > 0
+  assert draw_award["metrics"]["strokesInked"] == len(drawn)
   assert cleared, "no board_cleared event: the errand must erase before it draws"
   assert len(drawn) > 1, f"only {len(drawn)} draw events in a whole drawing"
   assert set(header["boards"]), "the header must name the world's boards"

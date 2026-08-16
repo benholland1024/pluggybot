@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "note": [
+    "The PluggyWorld reward table (pluggybot issue #14). DATA, not code: what",
+    "a task is WORTH lives here so a payout can be re-tuned without touching",
+    "an evaluator, and so the whole table can be shown to the LLM overseer as",
+    "context (issue #15). What a task ACHIEVED is never decided here -- the",
+    "pass/fail rule is a deterministic evaluator in hub/scoring.py, and the",
+    "robot never awards itself anything.",
+    "",
+    "points = base + bonus * quality, when the evaluator says the task passed;",
+    "0 when it did not. `quality` is the weighted mean of the curves below,",
+    "each of which maps ONE named metric to 0..1: `best` scores 1, `worst`",
+    "scores 0, and the value is clamped between them. best > worst and",
+    "best < worst are both fine -- a form error of 0.6 mm is better than 3 mm,",
+    "an inked fraction of 0.98 is better than 0.6, and the same formula covers",
+    "both. A metric an evaluator did not measure is skipped rather than scored",
+    "as zero.",
+    "",
+    "`secret` names metrics that must NOT be published: the census's ground",
+    "truth is the answer to a task the robot is supposed to discover, and the",
+    "ledger is streamed to the site and shown to the overseer. The verdict",
+    "keeps them (they are what `ok` was computed from); the ledger entry does",
+    "not.",
+    "",
+    "Override the whole file with $PLUGGY_REWARDS=/path/to/rewards.json --",
+    "which is how the deploy re-tunes payouts on a mounted volume without a",
+    "rebuild. Adding a task here does nothing on its own: a task with no",
+    "evaluator in hub/scoring.py cannot be scored, and that is deliberate."
+  ],
+  "tasks": {
+    "draw": {
+      "tier": "auto",
+      "base": 8,
+      "bonus": 12,
+      "detail": "Draw a stroke program on a whiteboard.",
+      "quality": [
+        {"metric": "completeness", "best": 1.0, "worst": 0.5, "weight": 2.0},
+        {"metric": "formMm", "best": 0.6, "worst": 3.0, "weight": 2.0},
+        {"metric": "inkedFraction", "best": 0.98, "worst": 0.6, "weight": 1.0}
+      ]
+    },
+    "census": {
+      "tier": "hidden",
+      "base": 10,
+      "bonus": 10,
+      "detail": "Survey a zone and report how many objects are standing in it.",
+      "secret": ["truth", "error"],
+      "quality": [
+        {"metric": "coverage", "best": 1.0, "worst": 0.5}
+      ]
+    },
+    "dance": {
+      "tier": "auto",
+      "base": 4,
+      "bonus": 6,
+      "detail": "Perform the routine, on the spot, with an expression per move.",
+      "quality": [
+        {"metric": "landedFraction", "best": 1.0, "worst": 0.6, "weight": 2.0},
+        {"metric": "driftM", "best": 0.15, "worst": 1.5, "weight": 1.0}
+      ]
+    },
+    "charge": {
+      "tier": "auto",
+      "base": 3,
+      "bonus": 2,
+      "detail": "Reach the hub's charge bay and fill the pack.",
+      "quality": [
+        {"metric": "endFrac", "best": 0.95, "worst": 0.7}
+      ]
+    },
+    "carry": {
+      "tier": "auto",
+      "base": 2,
+      "bonus": 0,
+      "detail": "Fetch a module, take it somewhere, and hang it back up."
+    },
+    "artwork": {
+      "tier": "visitor",
+      "base": 0,
+      "bonus": 20,
+      "detail": "A drawing offered for visitors to rate. The evaluator only checks that ink landed; the RATING arrives later over the inbound channel (issue #16) and settles the entry. Nothing produces this task yet -- it is the deferred slot, kept real so the ledger's pending path is exercised rather than imagined."
+    }
+  }
+}

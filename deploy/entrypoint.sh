@@ -20,6 +20,9 @@ set -- --endpoint "${PLUGGY_ENDPOINT:-ws://localhost:8765}" \
 if [ -n "${PLUGGY_BOARDS:-}" ]; then
   set -- --boards "${PLUGGY_BOARDS}" "$@"
 fi
+if [ -n "${PLUGGY_LEDGER:-}" ]; then
+  set -- --ledger "${PLUGGY_LEDGER}" "$@"
+fi
 if [ -n "${PLUGGY_BATTERY_WH:-}" ]; then
   set -- --battery-wh "${PLUGGY_BATTERY_WH}" "$@"
 fi

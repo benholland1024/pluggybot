@@ -44,13 +44,16 @@ def main() -> None:
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
+  parser.add_argument("--ledger", default=None, metavar="PATH",
+                      help="JSON file the points ledger lives in between runs "
+                           "(issue #14; default: the robot starts at zero)")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
                max_sim_time=args.max_sim_time, record=args.record,
                world=args.world, errand=args.errand,
-               board_state=args.boards)
+               board_state=args.boards, ledger_state=args.ledger)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -73,6 +76,13 @@ def main() -> None:
   for name, b in r["boards"].items():
     print(f"board {name:<17s}: {b['strokes']} strokes, {b['fill']:.0%} full, "
           f"{b['clears']} clear(s), programs {b['programs'] or '-'}")
+  # What the robot EARNED, and why (issue #14). Every line here came out of a
+  # deterministic evaluator in hub/scoring.py -- the mission awards nothing.
+  for v in r["verdicts"]:
+    print(f"score  {v['task']:<16s}: {v['points']:+d}"
+          f"{' PENDING' if v['pending'] else ''}"
+          f"  {'ok ' if v['ok'] else 'FAIL'}  {v['reason']}")
+  print(f"points balance         : {r['points']} ({r['earned']} this mission)")
   # Every errand's OWN verdict, not just the last module's: a queue where the
   # first errand silently failed and the second stowed cleanly would report a
   # perfect mission off `module_stowed` alone.
