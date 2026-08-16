@@ -27,4 +27,22 @@ if [ -n "${PLUGGY_BATTERY_WH:-}" ]; then
   set -- --battery-wh "${PLUGGY_BATTERY_WH}" "$@"
 fi
 
+# The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY is
+# NOT turned into a flag -- serve.py never sees it and the SDK reads it from
+# the environment, so it stays out of `ps`. PLUGGY_OVERSEER is read by
+# `hub.overseer.build` directly, but the flag is passed anyway so that a run
+# with it on says so in its own argv.
+if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
+  set -- --overseer "$@"
+  if [ -n "${PLUGGY_GOALS:-}" ]; then
+    set -- --goals "${PLUGGY_GOALS}" "$@"
+  fi
+  if [ -n "${PLUGGY_JOURNAL:-}" ]; then
+    set -- --journal "${PLUGGY_JOURNAL}" "$@"
+  fi
+  if [ -n "${PLUGGY_OVERSEER_BUDGET:-}" ]; then
+    set -- --overseer-budget "${PLUGGY_OVERSEER_BUDGET}" "$@"
+  fi
+fi
+
 exec python scripts/serve.py "$@"

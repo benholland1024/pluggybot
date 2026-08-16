@@ -121,6 +121,7 @@ class Blocked:
 sys.meta_path.insert(0, Blocked(set(sys.argv[1].split(","))))
 
 import mujoco
+from pluggybot.hub import overseer as ov
 from pluggybot.hub.lifecycle import (
   HubLifecycle, board_book, errands_for, world_config,
 )
@@ -130,9 +131,17 @@ cfg = world_config("home")
 model = mujoco.MjModel.from_xml_path(cfg["model"])
 data = mujoco.MjData(model)
 book = board_book("home", state=None)
+# The overseer is built and its client is resolved (issue #15): `anthropic`
+# is a real runtime dependency of the serve path, and `Menu.for_world` drags
+# in the stroke library and the drawing stack behind it. Enabled explicitly
+# rather than off $PLUGGY_OVERSEER, so this exercises the path the deploy
+# runs and not the one it happens to be configured for today.
+boss, journal = ov.build("home", book, enabled=True)
+assert boss.client is not None, boss.usage.errors
 life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                    low_battery_wh=cfg["low_battery_wh"],
+                    low_battery_wh=cfg["low_battery_wh"], world="home",
+                    overseer=boss, journal=journal,
                     errands=errands_for("draw", "home", book), boards=book)
 activities = cfg["activities"](model, data)
 life.mission.step_hooks.append(activities.step_hook(model, data))

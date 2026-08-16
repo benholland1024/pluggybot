@@ -11,6 +11,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   machine): sensed criteria, hysteresis + latching, pre-allocated geom/mocap
   toggles, and how activity state reaches telemetry. Read BEFORE building a
   puzzle, mechanism or gardening step
+- `docs/Overseer.md` — the LLM overseer (issue #15): the ONE branch of the
+  arbitration loop an LLM may replace, the action vocabulary, the three things
+  it structurally cannot do, the scripted fallback, the call budget, and the
+  measured battery limit. Read BEFORE touching `hub/overseer.py`, the decision
+  vocabulary, or anything that changes what the model is shown
 
 ## Working style
 
@@ -46,12 +51,16 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **343 of 351 tests in ~1:13** (4:23 serial), against **6:34** for
-  everything (11:55 serial). Eight whole-mission integration runs carry
+  **430 of 439 tests in ~1:18**, against **~6:22** for everything (the
+  figures before issues #13–#15 were 343/351 in 1:13 and 6:34, i.e. ninety
+  more tests for no wall-clock). Nine whole-mission integration runs carry
   `@pytest.mark.slow` and are most of the serial clock on their own
   (`test_full_hub_lifecycle[home]` is 22 % of the suite by itself; the top
   two are 40 %) — but only ~3:20 of marginal wall-clock in parallel, since
   they run alongside everything else. That margin is why they stay.
+  The ninth is `test_charge_priority_survives_an_overseer_that_never_charges`
+  (issue #15, 153 s alone): the only way to prove an LLM cannot skip charging
+  is to fly a mission with one that keeps trying.
 - Tests, before calling any work done: the **FULL** suite,
   `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
   the end — whenever the change touches something a whole mission exercises:
@@ -135,7 +144,39 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   site can watch a real drawing errand; docs/Webserver.md),
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
   frame-gap stats + keyframe spacing; `--token` makes it refuse an
-  unauthenticated publisher, like the real ingest path)
+  unauthenticated publisher, like the real ingest path),
+  `scripts/overseer_probe.py` (issue #15: makes REAL Haiku 4.5 calls against a
+  synthetic robot state and reports tokens, cost per sim-hour and the prompt-
+  cache hit rate. `--tokens-only` counts the stable prefix and stops, billing
+  no tokens — the number that matters, because Haiku 4.5 does not cache a
+  prefix under 4096 tokens and the marker is silently inert below it. ⚠ Both
+  modes need `$ANTHROPIC_API_KEY`: `count_tokens` is a free endpoint, not a
+  local tokenizer, and there is no offline Claude token count worth trusting)
+- **The LLM overseer** (`--overseer` on `serve.py` / `hub_lifecycle.py`, issue
+  #15; `docs/Overseer.md`) replaces **exactly one branch** of
+  `HubLifecycle.run()`: which errand, when the battery is fine and nothing is
+  queued. It is OFF by default and the loop is unchanged without it.
+  **CHARGE PRIORITY STAYS IN CODE** — `needs_charge` is checked before the
+  overseer is reached and no action suppresses it, because an LLM that can
+  decline to charge bricks the world overnight. Same rule from the other end:
+  it *sees* the reward table and its balance and can move neither, and the
+  census's ground truth is redacted out of its context. A *chosen* `charge`
+  also needs the pack below `TOP_UP_BELOW` (75 %): charging is a scored task
+  and the trip costs energy, so an unconditional one is perpetual motion paid
+  in points. Every failure
+  (timeout, error, malformed answer, spent budget) resolves to a scripted
+  rotation tagged `fallback:<why>`, because "the robot chose to explore" and
+  "the API was down" must not look the same on the wire. Memory is two files
+  in `/var/lib/pluggybot`: `goals.md` is read and human-edited, `journal.json`
+  is written and never edited.
+  ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
+  outputs are, and are what the decision uses.
+  ⚠ **A chosen errand can cost more than the whole pack.** Measured: one dance
+  is ~0.76 Wh, which fits home's 1.1 Wh cell (ends at 31 %) and exceeds
+  room_hub's 0.7 Wh cell outright — the robot dies mid-errand with zero charge
+  cycles, and no charging policy can save it, because the reserve is only
+  checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
+  demo cell grows or per-errand energy is actually modelled.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`, rooftop-media-2026 #20) runs `serve.py` and nothing else, and
   is deliberately NOT the dev environment: it installs the six packages in

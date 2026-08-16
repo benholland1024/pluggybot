@@ -47,13 +47,26 @@ def main() -> None:
   parser.add_argument("--ledger", default=None, metavar="PATH",
                       help="JSON file the points ledger lives in between runs "
                            "(issue #14; default: the robot starts at zero)")
+  parser.add_argument("--overseer", action="store_true",
+                      help="let an LLM choose the errands once --errand's "
+                           "queue is empty (issue #15). Needs $ANTHROPIC_API_"
+                           "KEY; without one it runs the scripted fallback "
+                           "and says so")
+  parser.add_argument("--goals", default=None, metavar="PATH",
+                      help="the overseer's long-term goals, as prose "
+                           "(human-editable; $PLUGGY_GOALS)")
+  parser.add_argument("--journal", default=None, metavar="PATH",
+                      help="JSON file the overseer's notes-to-self live in "
+                           "between runs ($PLUGGY_JOURNAL)")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
                max_sim_time=args.max_sim_time, record=args.record,
                world=args.world, errand=args.errand,
-               board_state=args.boards, ledger_state=args.ledger)
+               board_state=args.boards, ledger_state=args.ledger,
+               overseer=args.overseer or None, goals=args.goals,
+               journal_state=args.journal)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -83,6 +96,24 @@ def main() -> None:
           f"{' PENDING' if v['pending'] else ''}"
           f"  {'ok ' if v['ok'] else 'FAIL'}  {v['reason']}")
   print(f"points balance         : {r['points']} ({r['earned']} this mission)")
+  # What the overseer chose, and what the choosing cost (issue #15). `source`
+  # is on every line because "the robot chose to explore" and "the API was
+  # down so the robot explored" look identical from outside.
+  for d in r.get("decisions", ()):
+    print(f"decide {d['action']:<16s}: {d['reason']} [{d['source']}]")
+  for n in r.get("journal", ()):
+    print(f"journal t={n['t']:<12.1f}: {n['text']}")
+  if r.get("overseer"):
+    o = r["overseer"]
+    per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
+    print(f"overseer ({o['model']}): {o['llmCalls']} call(s), "
+          f"{o['fallbacks']} fallback(s), budget {o['budgetLeft']}/"
+          f"{o['callsPerHour']} left")
+    print(f"overseer cost          : ${o['usd']:.5f} this run "
+          f"(${per_hour:.4f}/sim-hour), cache hit rate "
+          f"{o['cacheHitRate']:.0%}")
+    for err in o["errors"]:
+      print(f"overseer note          : {err}")
   # Every errand's OWN verdict, not just the last module's: a queue where the
   # first errand silently failed and the second stowed cleanly would report a
   # perfect mission off `module_stowed` alone.

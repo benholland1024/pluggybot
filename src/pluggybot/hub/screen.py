@@ -230,6 +230,12 @@ def face_for(state: str, battery_frac: float = 1.0) -> tuple[str, str]:
     # Low enough to be interesting is low enough to be nervous about.
     return ("worried", "shake") if battery_frac < ANXIOUS_FRAC \
         else ("determined", "none")
+  if state == "DECIDE":
+    # Thinking about what to do next (issue #15). Deliberately distinct from
+    # EXPLORE's curious/blink, and deliberately not a new vocabulary entry:
+    # FACE_STATES and SCREEN_HINTS are a two-repo contract, so a new
+    # expression is a pair of existing words before it is a new word.
+    return "curious", "bounce"
   if state == "EXPLORE":
     return "curious", "blink"
   if state in ("SWAP_PICK", "SWAP_RETURN"):

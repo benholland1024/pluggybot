@@ -41,6 +41,7 @@ import time
 
 import mujoco
 
+from pluggybot.hub import overseer
 from pluggybot.hub.lifecycle import (
   HubLifecycle, board_book, errands_for, points_ledger, world_config,
   world_screens,
@@ -86,6 +87,21 @@ def main() -> None:
   parser.add_argument("--ledger", default=None, metavar="PATH",
                       help="JSON file the points ledger lives in between runs "
                            "(issue #14; default: the robot starts at zero)")
+  parser.add_argument("--overseer", action="store_true",
+                      help="let an LLM choose what to do next once --errand's "
+                           "queue is empty (issue #15; $PLUGGY_OVERSEER). "
+                           "Needs $ANTHROPIC_API_KEY -- without one the robot "
+                           "runs the scripted fallback and the run reports it")
+  parser.add_argument("--goals", default=None, metavar="PATH",
+                      help="the overseer's long-term goals, as prose. Mount it "
+                           "and edit it to change what the robot is for, no "
+                           "redeploy ($PLUGGY_GOALS)")
+  parser.add_argument("--journal", default=None, metavar="PATH",
+                      help="JSON file the overseer's notes-to-self live in "
+                           "between runs ($PLUGGY_JOURNAL)")
+  parser.add_argument("--overseer-budget", type=int, default=None,
+                      metavar="N", help="hard cap on LLM calls per rolling "
+                                        "hour (default 60)")
   args = parser.parse_args()
 
   cfg = world_config(args.world)
@@ -102,12 +118,23 @@ def main() -> None:
   # scoreboard. Every mission end is a restart, so the site's rivalry only
   # exists if this file does.
   ledger = points_ledger(args.ledger)
+  # The overseer decides what to do next once the preset queue is empty
+  # (issue #15). Off unless asked for, and its memory is two more files in
+  # the same volume the boards and the ledger live in: goals are read (and
+  # human-edited between runs), the journal is written.
+  overseer_kw = ({"calls_per_hour": args.overseer_budget}
+                 if args.overseer_budget else {})
+  boss, journal = overseer.build(args.world, book,
+                                 enabled=args.overseer or None,
+                                 goals_path=args.goals,
+                                 journal_path=args.journal, **overseer_kw)
   life = HubLifecycle(model, data,
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
+                      overseer=boss, journal=journal, world=args.world,
                       boards=book, ledger=ledger)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
@@ -169,6 +196,24 @@ def main() -> None:
           f" stowed={e['stowed']}{extra}")
   print(f"points balance         : {r['points']}"
         f" ({r['earned']} earned over {len(r['verdicts'])} scored task(s))")
+  # `.get`, not `[...]`: this is a SUMMARY, and a summary line must never be
+  # the thing that fails a run. tests/test_webserver.py drives this path with
+  # a stubbed result dict, which is exactly the shape a caller on an older
+  # lifecycle would hand it.
+  if r.get("overseer"):
+    o = r["overseer"]
+    # Cost per SIM-hour, which is the number that matters for a box that runs
+    # paced to real time: at --rate 1.0 a sim-hour is an hour of electricity.
+    per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
+    print(f"overseer               : {o['llmCalls']} LLM call(s), "
+          f"{o['fallbacks']} scripted, budget {o['budgetLeft']}/"
+          f"{o['callsPerHour']} left, cache hit {o['cacheHitRate']:.0%}")
+    print(f"overseer cost          : ${o['usd']:.5f}"
+          f"  (${per_hour:.4f} per sim-hour, {o['model']})")
+    for err in o["errors"]:
+      # A run that was scripted all along looks identical to a thoughtful one
+      # from the outside unless this is printed.
+      print(f"overseer fell back on  : {err}")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
   if pacer is not None:

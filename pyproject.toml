@@ -8,6 +8,11 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    # The LLM overseer's client (issue #15). A RUNTIME dependency of the serve
+    # path, so it is pinned in deploy/requirements-serve.txt too -- but the
+    # overseer imports it lazily and falls back to scripted errands when it is
+    # missing, so a sim without it still flies.
+    "anthropic>=0.75.0",
     "gymnasium>=1.3.0",
     "imageio>=2.37.4",
     "imageio-ffmpeg>=0.6.0",

@@ -406,6 +406,70 @@ tracked as its own issues; landed so far:
   - Spending is designed and deliberately unimplemented: cosmetic and
     capability unlocks only, never anything the survival loop depends on. A
     robot that can spend itself into a brick will.
+- **The LLM overseer (issue #15)**: the robot now decides what it is *for*,
+  inside a fence built before the door was opened. `hub/overseer.py` +
+  `hub/journal.py`, full design in `docs/Overseer.md`.
+  - **It replaces exactly one branch.** `HubLifecycle.run()` was already a
+    priority loop; the overseer takes the "battery is fine and nothing is
+    queued" arm and nothing else. **Charge priority stays in code** and is
+    checked first, and no action in the vocabulary suppresses it — `charge`
+    lets the robot top up *early*, never put it off. Off by default, so every
+    demo, mission test and recording behaves exactly as before.
+  - **The vocabulary is coarser than the issue sketched, on purpose.** An
+    action names a whole errand (`draw`, `census`, `dance`, `carry`), never a
+    step of one: bare `fetch_tool`/`stow_tool` are not offered, because the
+    fetch/carry/stow half took two issues to make repeatable and a stow
+    computes its release heights from the lift it starts at. `Menu.for_world`
+    also drops what a world cannot do, so `draw` is not on room_hub's menu at
+    all — offering an impossible action is how a decision loop finds a dead
+    end by driving into it.
+  - **It cannot farm points by charging.** `charge` is itself a scored task
+    and the trip to the rack costs energy, so an unconditional `charge` action
+    is perpetual motion paid in points — spend battery driving out, earn
+    points putting it back. A *chosen* charge needs the pack below 75 %; the
+    forced one is untouched, since `needs_charge` is absolute energy against
+    the worst return trip.
+  - ⚠ **Publishing the answer and releasing the in-flight flag are ONE
+    critical section.** `result()` returns the moment the slot is set, so
+    anything between that and clearing the flag is a window where the caller
+    has its answer and the next `start()` still thinks a call is running — and
+    silently declines to make one. The first version separated them by a
+    `_meter()` call and a lock re-acquisition. Measured under GIL contention:
+    **1 of 40** decisions reached the model, 39 came back scripted, and a
+    serial run passed every time. It surfaced only when the full suite ran
+    parallel, which is the second time this repo has been caught by a bug that
+    is invisible without load.
+  - **Never blocks the physics.** The call runs on a worker thread and
+    `_decide` keeps *stepping the sim* while it flies, so a slow API is a
+    robot pausing with the stream still live rather than a frozen world —
+    and `pending` is released by the clock, not the call, so a request that
+    never returns still releases the loop.
+  - **Every failure is a scripted decision, tagged with why.** Timeout,
+    error, malformed answer, spent budget, dead endpoint: all resolve to a
+    deterministic rotation whose `source` says `fallback:<why>`, because "the
+    robot chose to explore" and "the API was down" must not look identical on
+    the wire. A hard client-side budget (60 calls/rolling hour) from day one,
+    plus a cool-off — a missing key does **not** fail at client construction
+    (measured), so without one, "kill the API and the robot keeps working"
+    would also mean "and hammers a doomed endpoint forever".
+  - **Memory is local files, not a round trip to the site.** `goals.md` is
+    read and human-edited (change what the robot is for with no redeploy);
+    `journal.json` is written and never edited. The site runs on a different
+    box and gets both as event lines. **No protocol bump** — decisions and
+    journal entries ride the existing narration channel, and the *structured*
+    journal surface the site's UI wants lands with issue #16, which has to
+    bump for the inbound direction anyway. One two-repo event instead of two.
+  - ⚠ **A chosen errand can cost more than the whole pack.** Found by the
+    charge-priority test on its first run. Measured: one dance ≈ **0.76 Wh**,
+    which fits home's 1.1 Wh cell (finishes at 31 %, then charges) and
+    exceeds room_hub's 0.7 Wh cell outright — the robot dies mid-errand with
+    zero charge cycles, and no charging policy saves it, because the reserve
+    is only checked *between* errands. World tuning, not a code defect, and
+    deliberately not papered over with a guessed energy model: `--overseer`
+    belongs on `home` until room_hub's demo cell grows or per-errand energy is
+    measured properly. Note the obvious cheap fix is wrong too — breaking off
+    on `needs_charge` (the census's pattern) fires on home as well, where the
+    robot is legitimately at 31 % *while dancing in front of the rack*.
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

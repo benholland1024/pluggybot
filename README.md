@@ -96,6 +96,36 @@ the header's `model` field is what it selects on (`home_world` vs
 `room_hub`), and both scenes plus a recorded mission for each are committed
 under `protocol/`.
 
+## Letting the robot choose its own errands
+
+Add `--overseer` and an API key, and an LLM (Claude Haiku 4.5) picks what the
+robot does next once the `--errand` queue is empty:
+
+```bash
+PLUGGYWORLD_TOKEN=dev-token-change-me ANTHROPIC_API_KEY=... MUJOCO_GL=osmesa \
+  uv run python scripts/serve.py --world home --errand none --overseer \
+    --endpoint ws://localhost:3000/api/pluggyworld/ingest
+```
+
+It replaces **exactly one branch** of the mission loop — which errand, when
+the battery is fine and nothing is queued. Charging stays in code and outranks
+it, because an LLM that can decline to charge is one that bricks the world
+overnight. Every failure (no key, timeout, rate limit, a malformed answer, a
+spent call budget) falls back to a scripted rotation and says so on the wire,
+so the robot keeps working with the API unplugged — that is a tested property,
+not a hope. Its memory is two files in `/var/lib/pluggybot`: `goals.md`, which
+you write and it reads, and `journal.json`, which it writes and you read.
+
+Full design, the action vocabulary, the cost numbers and the measured battery
+limit: `docs/Overseer.md`. To see what a decision actually costs before
+wiring it into a long run:
+
+```bash
+# both need a key; --tokens-only makes no decisions and bills no tokens
+ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
+ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
+```
+
 # Outlet visual recognition with Yolo CNN
 
 Regenerate the training data:

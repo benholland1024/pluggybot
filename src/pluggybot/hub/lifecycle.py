@@ -41,13 +41,14 @@ from pluggybot.hub.errand import (
 from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
+from pluggybot.hub.overseer import THINK_SLICE_S
 from pluggybot.hub.screen import face_for
 from pluggybot.hub import scoring
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.recorder import TelemetryRecorder
 
-State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "SWAP_PICK", "USE_TOOL",
-                "SWAP_RETURN", "DONE"]
+State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
+                "USE_TOOL", "SWAP_RETURN", "DONE"]
 
 # Reserve is absolute energy, not a fraction of the pack -- the milestone-7
 # lesson: the cost of getting home is set by the ROOM, not by the battery.
@@ -66,6 +67,22 @@ CHARGE_TIMEOUT = 400.0      # s of charging before calling it stuck
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
+#: Sim seconds an overseer-chosen `explore` runs for before the arbitration
+#: loop gets to reconsider (issue #15). Bounded on purpose: without it one
+#: `explore` decision eats the whole mission, and the point of an overseer is
+#: that it decides repeatedly.
+DECIDED_EXPLORE_S = 45.0
+#: ...and how long `idle` stands still for. Long enough to read on the stream
+#: as a deliberate pause, short enough not to be a way of doing nothing all day.
+DECIDED_IDLE_S = 4.0
+#: Battery fraction below which a CHOSEN `charge` is worth making the trip for.
+#:
+#: ⚠ This closes a points farm, not a physics problem. `charge` is a scored
+#: task (issue #14) and the drive to the rack costs energy, so without a floor
+#: an overseer can spend battery driving out and then earn points for putting
+#: it back, forever -- perpetual motion paid in points. The forced charge is
+#: untouched: `needs_charge` fires on absolute reserve and never consults this.
+TOP_UP_BELOW = 0.75
 
 
 class HubLifecycle:
@@ -77,8 +94,19 @@ class HubLifecycle:
                module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
-               errands=None, boards=None, screen=None, ledger=None) -> None:
+               errands=None, boards=None, screen=None, ledger=None,
+               overseer=None, journal=None, world: str = "room_hub") -> None:
     self.model, self.data = model, data
+    # Which world this is, which the overseer needs to build an errand out of
+    # a decision (issue #15) -- the same name `world_config` is keyed by, so
+    # there is no second place a world can be named.
+    self.world = world
+    # The LLM overseer, or None. None is the DEFAULT and the whole arbitration
+    # loop below is unchanged without it: every existing demo, mission test and
+    # recording has to behave exactly as it did.
+    self.overseer = overseer
+    self.journal = journal
+    self.decisions: list[dict] = []
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
     # different tool in each phase, and the coupling criterion has to be asked
@@ -232,17 +260,28 @@ class HubLifecycle:
 
   # ---- phases --------------------------------------------------------------
 
-  def explore(self) -> None:
+  def explore(self, budget: float | None = None,
+              mark_done: bool = True) -> None:
     """Frontier-drive the map until the battery calls, or the map is done.
 
     The rack's fiducial is watched for throughout (mission.start_discovery),
     so exploring is also how the robot learns where its hub is -- the same
     trip that maps the room localizes the dock.
+
+    `budget` bounds ONE call (issue #15): an overseer that chose to explore
+    gets a slice and then the arbitration loop reconsiders, rather than one
+    decision consuming the mission. `mark_done=False` goes with it, because a
+    slice running out is not the same fact as the map being finished -- and
+    conflating them would let the first overseer explore permanently retire
+    the branch. Running out of FRONTIERS still marks it done under either
+    setting: that one really is "there is nothing left to see".
     """
     strikes = 0
+    deadline = (self.data.time + budget if budget is not None
+                else self.explore_deadline)
     while not self.needs_charge and self.data.time < self.max_sim_time:
-      if self.data.time > self.explore_deadline:
-        self.map_done = True
+      if self.data.time > deadline:
+        self.map_done = mark_done
         self._say("EXPLORE: budget spent, stopping")
         return
       path, status = plan(self.mission.grid, self.mission.pose, self.blacklist)
@@ -362,6 +401,80 @@ class HubLifecycle:
     self.errand_results.append(result)
     return result
 
+  # ---- the one branch an LLM may replace (issue #15) ------------------------
+
+  def _decide(self) -> None:
+    """Ask the overseer what to do next, and do it.
+
+    Reached ONLY when the battery is fine and the errand queue is empty --
+    `run()` checks `needs_charge` first and always will. The overseer cannot
+    reach this method's caller and has no action that suppresses charging.
+
+    The `while pending` loop is the load-bearing line: it STEPS THE SIM while
+    the API call is in flight, so the world keeps running and the telemetry
+    stream keeps flowing during the pause. Blocking here instead would freeze
+    every viewer for the length of an HTTP request -- and the pacer would then
+    try to catch the missed sim time up in a burst, which is worse than the
+    pause it was avoiding.
+    """
+    self.state = "DECIDE"
+    state = overseer_context(self)
+    self.overseer.start(state)
+    while self.overseer.pending:
+      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
+    decision = self.overseer.result(state)
+    self.decisions.append(decision.as_dict())
+    self._say(f"DECIDE {decision.summary()}")
+    # A note is written whatever the action was: "I chose X because Y" is
+    # worth remembering regardless of what X turned out to be, and the model
+    # may attach one to any decision.
+    if decision.note and self.journal is not None:
+      entry = self.journal.note(decision.note, t=float(self.data.time),
+                                why=decision.reason)
+      if entry is not None:
+        self._say(f"JOURNAL {entry['text']}")
+
+    if decision.action == "charge":
+      # Topping up EARLY is a real choice and this honours it. Note what it is
+      # not: there is no action that declines to charge, because `needs_charge`
+      # was already checked before this method was ever called.
+      if self.battery.fraction >= TOP_UP_BELOW:
+        # ...but "top up" has to mean there is something to top up. See
+        # TOP_UP_BELOW: charging is a scored task, so an unconditional trip to
+        # the rack is a points farm rather than a decision.
+        self._say(f"DECIDE: already at {self.battery.fraction:.0%}, "
+                  "not worth a trip to the rack")
+        self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+        return
+      self.state = "GO_CHARGE"
+      if self.go_charge():
+        self.state = "CHARGE"
+        self.charge()
+      return
+    if decision.action == "explore":
+      self.state = "EXPLORE"
+      if decision.zone:
+        wx, wy = zone_centre(self.world, decision.zone)
+        self._say(f"EXPLORE: heading for {decision.zone}")
+        self.mission.drive_to(wx, wy, timeout=60.0)
+      self.explore(budget=DECIDED_EXPLORE_S, mark_done=False)
+      return
+    if decision.action in ("idle", "journal"):
+      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      return
+    errand = errand_from(decision, self.world, self.boards)
+    if errand is None:
+      # Vocabulary and world agreed on an action nothing can build. Not an
+      # exception: the loop's next pass asks again, and the overseer's
+      # consecutive-idle cap stops that becoming a spin.
+      self._say(f"DECIDE: nothing to build for {decision.action!r}")
+      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      return
+    # Queued rather than run inline, so the errand goes through the SAME
+    # arbitration the scripted queue does -- if the decision itself dropped
+    # the battery below the reserve, the next pass charges first.
+    self.errands.append(errand)
+
   # ---- the loop ------------------------------------------------------------
 
   def run(self, start: tuple[float, float, float],
@@ -401,6 +514,11 @@ class HubLifecycle:
           # forever, and a queue that only shortens on success is an infinite
           # loop dressed as a task list.
           self.run_errand(self.errands.pop(0))
+        elif self.overseer is not None:
+          # THE ONE BRANCH THE LLM REPLACES (issue #15). Note where it sits:
+          # after charging, which it cannot reach, and after the errand queue,
+          # so an explicit order still outranks a chosen one.
+          self._decide()
         elif not self.map_done:
           self.state = "EXPLORE"
           self.explore()
@@ -439,6 +557,12 @@ class HubLifecycle:
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
       "sim_time": float(self.data.time),
+      # What the overseer chose and what it cost (issue #15). Empty without
+      # one, so every existing caller's dict is unchanged in every value it
+      # already read.
+      "decisions": list(self.decisions),
+      "overseer": self.overseer.stats() if self.overseer is not None else {},
+      "journal": (self.journal.recent() if self.journal is not None else []),
     }
 
 
@@ -526,7 +650,6 @@ def errands_for(kind: str, world: str, book=None) -> list:
   if kind in ("draw", "draw2"):
     if book is None or not len(book):
       raise ValueError(f"the {world} world has no whiteboards to draw on")
-    from pluggybot.hub.drawing import Board
     meta = json.loads(Path(cfg["meta"]).read_text())
     # Two boards, two different figures: the acceptance test for issue #12 is
     # "two drawings on two boards with charging in between", and drawing the
@@ -534,11 +657,72 @@ def errands_for(kind: str, world: str, book=None) -> list:
     # accident.
     names = list(meta["boards"])[:2 if kind == "draw2" else 1]
     figures = ("house", "tree", "sun", "robot")
-    return [drawing_errand(book, name, Board.from_meta(meta["boards"][name]),
-                           program_name=figures[i % len(figures)])
+    return [draw_errand_for(world, book, name,
+                            program_name=figures[i % len(figures)])
             for i, name in enumerate(names)]
   raise ValueError(f"unknown errand queue {kind!r} "
                    "(carry, draw, draw2, census, dance, showcase or none)")
+
+
+def draw_errand_for(world: str, book, board_name: str,
+                    program_name: str = "house"):
+  """One drawing errand on a NAMED board with a NAMED figure.
+
+  Split out of `errands_for` so the preset queue and the overseer's chosen
+  drawing (issue #15) build the errand through the same code -- a chosen
+  drawing that took a different path would be a second drawing stack, which is
+  the exact thing issue #12 spent itself removing.
+  """
+  cfg = world_config(world)
+  if book is None or not len(book) or not cfg["meta"]:
+    raise ValueError(f"the {world} world has no whiteboards to draw on")
+  meta = json.loads(Path(cfg["meta"]).read_text())
+  if board_name not in meta["boards"]:
+    raise ValueError(f"{world} has no board {board_name!r} "
+                     f"(have: {', '.join(meta['boards'])})")
+  from pluggybot.hub.drawing import Board
+  return drawing_errand(book, board_name,
+                        Board.from_meta(meta["boards"][board_name]),
+                        program_name=program_name)
+
+
+# ---- the overseer's seams (issue #15) ---------------------------------------
+
+
+def errand_from(decision, world: str, book=None):
+  """An overseer decision -> an errand, or None if this world cannot build it.
+
+  None rather than an exception: a decision is untrusted input in exactly the
+  way a visitor message will be (issue #16), and the mission loop's response
+  to "I cannot do that" should be to ask again, not to end.
+  """
+  try:
+    if decision.action == "draw":
+      return draw_errand_for(world, book, decision.board,
+                             program_name=decision.program or "house")
+    if decision.action in ("census", "dance", "carry"):
+      return errands_for(decision.action, world, book)[0]
+  except (ValueError, KeyError, IndexError):
+    return None
+  return None
+
+
+def zone_centre(world: str, name: str) -> tuple[float, float]:
+  """The middle of a named zone, for a `explore(zone)` decision."""
+  for zone in world_config(world)["zones"]:
+    if zone["name"] == name:
+      return ((zone["min"][0] + zone["max"][0]) / 2.0,
+              (zone["min"][1] + zone["max"][1]) / 2.0)
+  raise ValueError(f"{world} has no zone {name!r}")
+
+
+def overseer_context(life) -> dict:
+  """The volatile half of the overseer's prompt, plus the decision counter
+  the scripted fallback rotates on."""
+  from pluggybot.hub import overseer as ov
+  state = ov.context_for(life, life.journal)
+  state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
+  return state
 
 
 def world_config(world: str) -> dict:
@@ -567,6 +751,10 @@ def world_config(world: str) -> dict:
       "census_zone": next(z for z in home.ZONES if z["kind"] == "garden"),
       "census_entry": (home.GARDEN_X[0] + 0.4,
                        sum(home.DOOR_GARDEN_Y) / 2),
+      # Every named region, for an overseer's `explore(zone)` (issue #15).
+      # Off the generator's own ZONES, like the census zone above -- the
+      # region the LLM can name is the region the website draws.
+      "zones": [dict(z) for z in home.ZONES],
       # The generator sidecar, which is also where the BOARDS are described
       # (issue #12). One source again: the whiteboard the errand drives to is
       # the whiteboard the website renders.
@@ -585,6 +773,7 @@ def world_config(world: str) -> dict:
       "activities": None,      # room_hub has no activities yet
       "census_zone": None,     # ...and nothing countable to survey
       "census_entry": None,
+      "zones": [],             # ...and one undivided room, so nothing to name
       "meta": None,            # ...and no whiteboards: the standing board
                                # lives in the bare hub_world, which is not a
                                # navigated room
@@ -599,7 +788,9 @@ def run_demo(start=None, view: bool = False,
              record: str | None = None,
              world: str = "room_hub",
              errand: str = "carry", board_state: str | None = None,
-             ledger_state: str | None = None) -> dict:
+             ledger_state: str | None = None,
+             overseer: bool | None = None, goals: str | None = None,
+             journal_state: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -623,11 +814,17 @@ def run_demo(start=None, view: bool = False,
   # The ledger is the ROBOTS', not the world's -- it is the one piece of
   # persistent state that follows them between rooms.
   ledger = points_ledger(ledger_state)
+  # The overseer chooses what to do once the queue below is empty (issue #15);
+  # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
+  from pluggybot.hub import overseer as ov
+  boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
+                           journal_path=journal_state)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
+                      overseer=boss, journal=journal, world=world,
                       errands=errands_for(errand, world, book))
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state

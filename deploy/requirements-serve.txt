@@ -11,6 +11,12 @@
 # file drifts from it or if the serve path grows an import that is not here --
 # the failure mode otherwise is a green test suite and a container that
 # crashes on the server.
+# The LLM overseer's client (issue #15). It is imported LAZILY and the
+# overseer falls back to a scripted rotation when the import or the call
+# fails, so the image would run without it -- but a deploy that quietly ran
+# scripted forever because a package was missing is exactly the silent
+# degradation this file exists to prevent, so it is installed.
+anthropic==0.122.0
 mujoco==3.10.0
 numpy==2.5.1
 pillow==12.3.0

@@ -49,10 +49,12 @@ COPY src/ src/
 COPY scripts/serve.py scripts/
 COPY deploy/entrypoint.sh deploy/
 
-# Board contents and the points ledger are WORLD state, not run state
-# (issues #12 and #14): mount a volume here and the whiteboards -- and the
-# balance the site puts on its scoreboard -- survive the restart that ends
-# every mission.
+# Board contents, the points ledger and the overseer's memory are WORLD state,
+# not run state (issues #12, #14 and #15): mount a volume here and the
+# whiteboards, the balance the site puts on its scoreboard, and the robot's
+# journal all survive the restart that ends every mission. `goals.md` lives in
+# the same volume and is the one file a HUMAN writes -- editing it changes what
+# the robot is for, with no redeploy and no code change.
 #
 # The user gets a real home directory: mesa writes its shader cache there,
 # and without one every osmesa context logs "Failed to create /home/pluggy
@@ -63,6 +65,8 @@ RUN mkdir -p /var/lib/pluggybot \
 USER pluggy
 ENV HOME=/home/pluggy \
     PLUGGY_BOARDS=/var/lib/pluggybot/boards.json \
-    PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json
+    PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json \
+    PLUGGY_JOURNAL=/var/lib/pluggybot/journal.json \
+    PLUGGY_GOALS=/var/lib/pluggybot/goals.md
 
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]
