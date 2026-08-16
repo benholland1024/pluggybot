@@ -13,7 +13,9 @@ commanded-vs-inked trace in board coordinates.
 Usage:
   MUJOCO_GL=egl uv run python scripts/home_draw.py             # headless
   uv run python scripts/home_draw.py --view                    # watch live
-  MUJOCO_GL=egl uv run python scripts/home_draw.py --shape circle
+  MUJOCO_GL=egl uv run python scripts/home_draw.py --program circle
+  MUJOCO_GL=egl uv run python scripts/home_draw.py --program text \
+      --text "GOOD MORNING"
   MUJOCO_GL=egl uv run python scripts/home_draw.py --board whiteboard_b
 """
 
@@ -26,7 +28,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.drawing import PATHS, Board, PenPlotter
+from pluggybot.hub.drawing import Board, Envelope, PenPlotter
+from pluggybot.hub.strokes import PROGRAMS, from_cli
 from pluggybot.hub.localize import RackPose
 from pluggybot.hub.mission import HubMission, MissionAborted
 from pluggybot.home import world as home
@@ -56,24 +59,34 @@ def board_photo(model, data, board: Board, w: int = 480, h: int = 640):
 
 
 def trace_panel(plotter, size: int = 640) -> Image.Image:
-  """Commanded figure vs inked path, board coordinates."""
+  """Commanded figure vs inked path, board coordinates.
+
+  Rendered the way SOMEBODY STANDING AT THE BOARD sees it: board `lat` is
+  measured to the left of the robot's approach, so the panel's x axis is
+  flipped. That was invisible while every figure was a square or a circle --
+  both are mirror-symmetric -- and would have shown the first line of Hershey
+  text back to front next to a photo of it reading correctly, which is a
+  spectacular way to spend an afternoon debugging a font.
+  """
   img = Image.new("RGB", (size, size), BG)
   d = ImageDraw.Draw(img)
-  pts = plotter.commanded
-  half = max(max(abs(y), abs(z)) for y, z in
-             ((p[0] - plotter.cal["y0"], p[1] - plotter.cal["z0"])
-              for p in pts)) + 0.02
   cy0, cz0 = plotter.cal["y0"], plotter.cal["z0"]
+  half = max(max(abs(y - cy0), abs(z - cz0))
+             for stroke in plotter.commanded for y, z in stroke) + 0.02
 
   def to_px(by, bz):
-    return (size / 2 + (by - cy0) / half * size / 2.4,
+    return (size / 2 - (by - cy0) / half * size / 2.4,
             size / 2 - (bz - cz0) / half * size / 2.4)
 
-  d.line([to_px(y, z) for y, z in pts], fill=DIM, width=2)
-  inked = [(t[1], t[2]) for t in plotter.trace if t[5]]
-  for by, bz in inked:
-    px, py = to_px(by, bz)
-    d.ellipse([px - 1, py - 1, px + 1, py + 1], fill=RED)
+  for stroke in plotter.commanded:
+    d.line([to_px(y, z) for y, z in stroke], fill=DIM, width=2)
+  for t in plotter.trace:
+    if not t[5]:
+      continue
+    px, py = to_px(t[1], t[2])
+    # Ink laid down between strokes is a fault, not a drawing: colour it.
+    d.ellipse([px - 1, py - 1, px + 1, py + 1],
+              fill=RED if t[6] >= 0 else BLUE)
   d.text((12, 10), "commanded (grey) vs inked (red)", fill=INK)
   return img
 
@@ -83,8 +96,14 @@ def main() -> None:
   parser.add_argument("--view", action="store_true", help="open the viewer")
   parser.add_argument("--fast", action="store_true",
                       help="with --view: no real-time pacing")
-  parser.add_argument("--shape", choices=sorted(PATHS), default="square")
-  parser.add_argument("--size", type=float, default=0.075)
+  parser.add_argument("--program", "--shape", dest="program",
+                      choices=sorted(PROGRAMS), default="square",
+                      help="what to draw (issue #11): square and circle are "
+                           "the diagnostics, the rest are content")
+  parser.add_argument("--text", default=None,
+                      help="what --program text writes")
+  parser.add_argument("--size", type=float, default=None,
+                      help="figure box in metres -- cap height, for text")
   parser.add_argument("--board", default="whiteboard_a",
                       choices=sorted(home.BOARDS))
   parser.add_argument("--cycles", type=int, default=1,
@@ -107,6 +126,19 @@ def main() -> None:
                        rack=rack, grid_bounds=home.GRID_BOUNDS)
   meta = json.load(open("models/home_world.meta.json"))
   board = Board.from_meta(meta["boards"][args.board])
+  # Size the figure against what the PEN can reach, which is nothing like the
+  # board: 320 mm of whiteboard, 110 mm of carriage travel, base parked.
+  envelope = Envelope.for_board(board)
+  figure = from_cli(args.program, args.size, args.text)
+  if not figure.fits(envelope):
+    print(f"{figure.name} is {figure.size[0] * 1000:.0f} x "
+          f"{figure.size[1] * 1000:.0f} mm; the pen can reach "
+          f"{envelope.size[0] * 1000:.0f} x {envelope.size[1] * 1000:.0f} mm "
+          f"-- shrinking to fit")
+    figure = figure.fitted(envelope)
+  print(f"{figure.name}: {len(figure.strokes)} strokes, "
+        f"{figure.size[0] * 1000:.0f} x {figure.size[1] * 1000:.0f} mm, "
+        f"{figure.ink_length:.2f} m of ink")
   aborted = False
   cycles = []
   try:
@@ -127,7 +159,7 @@ def main() -> None:
       mission.drive_to(tx, ty, timeout=90.0)
       squared = plotter.drive_to_board()
       print(f"at the board ({args.board}): {squared}")
-      result = plotter.draw(PATHS[args.shape](args.size))
+      result = plotter.draw_program(figure)
       photo = board_photo(model, data, board)
 
       plotter.carry_config()
@@ -156,8 +188,8 @@ def main() -> None:
   out.save(OUT)
 
   print()
-  for key in ("inked_fraction", "form_rms_mm", "form_max_mm",
-              "shape_rms_mm", "offset_mm"):
+  for key in ("inked_fraction", "travel_ink_fraction", "form_rms_mm",
+              "form_max_mm", "shape_rms_mm", "offset_mm"):
     if result.get(key) is not None:
       print(f"{key:16s} {result[key]:.2f}")
   print(f"sim time {data.time:.1f}s  collisions {mission.collision_steps}")

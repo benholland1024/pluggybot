@@ -1724,6 +1724,55 @@ website re-vendors. The block is not a convenience duplicating poses: the
 gate is a static body that ships once in the scene and never again, so for a
 change like that **the flag is the only record anywhere in the stream**.
 
+## Stroke programs (issue #11): a press is a measurement, and it moves
+
+Splitting *what to draw* from *how to draw* (`hub/strokes.py` vs
+`hub/drawing.py`) was meant to be pure content work — a registry, a vendored
+Hershey font, a figure library, no physics. Two of the three lessons were
+physics anyway, and both were invisible to every figure the plotter had drawn
+before, for the same structural reason: **a square and a circle are one closed
+stroke, and they are mirror-symmetric.**
+
+- **Every stroke re-presses, and each press seats the module differently.**
+  `press()` extends the arm until contact, and the press deflects the module
+  and the compliant wrist — `calibrate_loaded` already knew that, and re-zeros
+  for it *once*. A one-stroke figure therefore carries a single rigid offset,
+  which the error stats already separate out and forgive. An eleven-stroke
+  word carries eleven of them, and eleven different offsets is not an offset,
+  it is **distortion**. Measured on "PLUG" at a 25 mm cap: per-stroke lateral
+  offsets from −4.55 mm (the G, at one end of the carriage) to +2.78 mm (the
+  L), a 7.3 mm spread. On the board that is a G whose crossbar floats clear of
+  its arc, and a P whose stem misses its bowl.
+  The fix is the same shape as every other measured calibration here: after
+  each press, read where the pen actually is, and correct that stroke back to
+  the bias the **first** press established — lifting to move, because sliding
+  a pressed pen 4 mm sideways draws the correction. Spread 7.3 → 4.7 mm, form
+  error 1.91 → 1.10 mm, at one extra press per stroke (~1.8 s of sim). The
+  residual is what sets the **text size floor**: at 18 mm caps 1.1 mm is 6 %
+  of a letter's height and the word reads; at the 12 mm caps that first looked
+  reasonable it is 9 % and it does not. Legibility sets the size, not the line
+  width — which is the opposite of what a typographer would guess.
+  The first stroke is deliberately left uncorrected, so a single-stroke figure
+  is bit-identical to before: the home-world square measured 0.57 mm form /
+  1.61 max / 5.10 shape / 7.23 offset / 154.0 s at HEAD **and** after the
+  change, digit for digit.
+- **The board is 320 mm wide and the robot can reach 110 mm of it.** The
+  carriage is ±55 mm and the base is parked for the whole drawing, so the
+  slab's width is scenery, not reach. This is worth an explicit `Envelope`
+  because `targets_for` **clips** its commands: an oversized figure comes out
+  flattened against the travel limit while `track_rms` reports the pen
+  followed its commands beautifully. It did. They were the wrong commands.
+- **A mirrored figure is invisible to every number.** Board `lat` is measured
+  left of the approach heading, so text has to advance toward −lat. Flip it
+  and the bounds, the ink length, the inked fraction and the form error are
+  all *identical* — a square drawn backwards is a square. The first thing that
+  can catch it is a letter, so the sign convention gets a unit test of its own
+  (`test_text_advances_away_from_the_viewers_left`) rather than trusting the
+  integration run. The same bug was already sitting in `home_draw.py`'s
+  overlay panel, which had plotted +lat rightward since it was written, and
+  would have shown the first line of text mirrored next to a photograph of it
+  reading correctly.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

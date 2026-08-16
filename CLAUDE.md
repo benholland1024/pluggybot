@@ -66,7 +66,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
   traced overlay + error stats. `--view` watches it live and skips the
-  filmstrip, `--shape square` for the more diagnostic figure),
+  filmstrip, `--program square` for the more diagnostic figure, `--program
+  text --text "HELLO"` for Hershey lettering),
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
   Full pick-carry-place verified),
@@ -119,7 +120,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   all come from that ONE module. Run it: `--world home` on
   `scripts/hub_lifecycle.py` (explore → errand → charge in the house), and
   `scripts/home_draw.py` (fetch the pen → draw on a wall-mounted whiteboard
-  → stow it; `--board whiteboard_b`, `--shape circle`, `--view`, and
+  → stow it; `--board whiteboard_b`, `--program circle`, `--view`, and
   `--cycles N` to repeat the whole errand N times). The pen's stow works as
   of issue #10 — three faults in a row, and the ONE that found the last two
   was running the errand twice: a second fetch starts from the state the
@@ -215,6 +216,25 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
+  the plotter never imports the content module** (issue #11). A *stroke
+  program* is a named list of polylines in board coordinates, pen up between
+  them. Three rules the build paid for:
+  - **The board is not the reach.** A figure is sized to `Envelope.for_board`
+    — carriage travel (±55 mm) ∩ lift range ∩ board face — not to the 320 ×
+    260 mm slab. `targets_for` CLIPS, so an oversized figure draws flattened
+    against the travel limit and reports a *perfect* trace, because the pen
+    went exactly where it was told.
+  - **+lat is the viewer's LEFT**, so text advances toward −lat. Figures that
+    are not mirror-symmetric are authored in the reading frame and flipped
+    once (`strokes._from_unit`, `strokes.text`). Both diagnostics are
+    symmetric, so nothing before Hershey text could catch a mirrored figure —
+    bounds, ink length and form error are all identical under the flip.
+  - **Each stroke re-presses, and each press seats the module differently**
+    (−4.55 to +2.78 mm across one word). `draw_program` re-zeros every stroke
+    against the FIRST press's bias; the first stroke is untouched, which is
+    why single-stroke figures are bit-identical to before and the square's
+    0.57 mm baseline still holds.
 - Contact params combine as the elementwise **MAX** unless `priority` is set —
   so a low `friction` without `priority="1"` does nothing. This has bitten the
   caster, the pen pads and the coupling peg.

@@ -17,7 +17,8 @@ commanded path is a belief, contact is a fact.
 Usage:
   uv run python scripts/draw.py --view                  # watch it live
   MUJOCO_GL=egl uv run python scripts/draw.py           # headless + draw.png
-  MUJOCO_GL=egl uv run python scripts/draw.py --shape circle
+  MUJOCO_GL=egl uv run python scripts/draw.py --program circle
+  MUJOCO_GL=egl uv run python scripts/draw.py --program text --text "HELLO"
   MUJOCO_GL=egl uv run python scripts/draw.py --record draw.mp4 --record-speed 3
 """
 
@@ -29,7 +30,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.drawing import PATHS, PEN_MODULE, PenPlotter
+from pluggybot.hub.drawing import PEN_MODULE, PenPlotter
+from pluggybot.hub.strokes import PROGRAMS, from_cli
 from pluggybot.hub.swap import HubSwap
 from pluggybot.viz import Recorder
 
@@ -45,7 +47,7 @@ RED = (232, 92, 84)
 BLUE = (99, 164, 255)
 
 
-def run(shape: str, view: bool, realtime: bool, record: str | None = None,
+def run(figure, view: bool, realtime: bool, record: str | None = None,
         record_fps: int = 30, record_speed: float = 1.0):
   model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
   data = mujoco.MjData(model)
@@ -132,8 +134,8 @@ def run(shape: str, view: bool, realtime: bool, record: str | None = None,
         azimuth=60, elevation=-18, distance=1.0)
   arrived = plotter.drive_to_board()
   grab("at the board")
-  stage(f"drawing a {shape}")
-  result = plotter.draw(PATHS[shape]())
+  stage(f"drawing a {figure.name}")
+  result = plotter.draw_program(figure)
   grab("drawn")
 
   result.update({
@@ -145,7 +147,7 @@ def run(shape: str, view: bool, realtime: bool, record: str | None = None,
   # AFTER the result dict: a hold on the finished figure so the clip does not
   # cut on the last frame of motion. Recording must not move the numbers.
   if recorder is not None:
-    stage(f"{shape} complete")
+    stage(f"{figure.name} complete")
     swap._run(1.5, 0.0)
 
   if viewer is not None:
@@ -159,7 +161,7 @@ def run(shape: str, view: bool, realtime: bool, record: str | None = None,
 
 
 def axis_errors(plotter) -> tuple[float, float]:
-  inked = [t for t in plotter.trace if t[5]]
+  inked = [t for t in plotter.trace if t[5] and t[6] >= 0]
   if not inked:
     return 0.0, 0.0
   dy = np.array([t[1] - t[3] for t in inked])
@@ -172,8 +174,7 @@ def draw_plot(img: Image.Image, plotter, x0: int, y0: int, size: int) -> None:
   """Commanded figure vs the ink the pen actually laid down."""
   d = ImageDraw.Draw(img)
   d.rectangle([x0, y0, x0 + size, y0 + size], fill=PANEL)
-  cmd = np.array(plotter.commanded)
-  inked = [t for t in plotter.trace if t[5]]
+  cmd = np.array([p for stroke in plotter.commanded for p in stroke])
   lifted = [t for t in plotter.trace if not t[5]]
   cy, cz = cmd[:, 0].mean(), cmd[:, 1].mean()
   span = max(np.ptp(cmd[:, 0]), np.ptp(cmd[:, 1])) * 1.45 or 0.1
@@ -189,13 +190,19 @@ def draw_plot(img: Image.Image, plotter, x0: int, y0: int, size: int) -> None:
     g = k * 0.025
     d.line([px(g, -span), px(g, span)], fill=(52, 56, 62))
     d.line([px(-span, g), px(span, g)], fill=(52, 56, 62))
-  d.line([px(p[0], p[1]) for p in cmd], fill=DIM, width=3)
+  for stroke in plotter.commanded:
+    d.line([px(y, z) for y, z in stroke], fill=DIM, width=3)
   if lifted:
     for t in lifted[::4]:
       x, y = px(t[1], t[2])
       d.point((x, y), fill=RED)
-  if inked:
-    d.line([px(t[1], t[2]) for t in inked], fill=GREEN, width=2)
+  # Grouped by stroke: joining every inked sample would draw the pen-up
+  # travel as ink, which is the one thing a multi-stroke figure must not do
+  # and the one thing this panel exists to show.
+  for i in range(len(plotter.commanded)):
+    run = [t for t in plotter.trace if t[5] and t[6] == i]
+    if len(run) > 1:
+      d.line([px(t[1], t[2]) for t in run], fill=GREEN, width=2)
   d.text((x0 + 12, y0 + 10), "commanded", fill=DIM)
   d.text((x0 + 12, y0 + 26), "traced (pen down)", fill=GREEN)
   d.text((x0 + 12, y0 + 42), "pen lifted off", fill=RED)
@@ -203,9 +210,15 @@ def draw_plot(img: Image.Image, plotter, x0: int, y0: int, size: int) -> None:
 
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__)
-  ap.add_argument("--shape", choices=sorted(PATHS), default="circle",
+  ap.add_argument("--program", "--shape", dest="program",
+                  choices=sorted(PROGRAMS), default="circle",
                   help="circle exercises both axes continuously; square holds "
-                       "each axis at an extreme, which is more diagnostic")
+                       "each axis at an extreme, which is more diagnostic; the "
+                       "rest are content rather than diagnostics")
+  ap.add_argument("--text", default=None,
+                  help="what --program text writes")
+  ap.add_argument("--size", type=float, default=None,
+                  help="figure box in metres -- cap height, for --program text")
   ap.add_argument("--view", action="store_true",
                   help="watch it live in the MuJoCo viewer; skips the filmstrip")
   ap.add_argument("--fast", action="store_true",
@@ -220,15 +233,20 @@ def main() -> None:
                        "3.0 timelapse, 0.25 slow motion (default 1.0)")
   args = ap.parse_args()
 
+  figure = from_cli(args.program, args.size, args.text)
+  print(f"{figure.name}: {len(figure.strokes)} strokes, "
+        f"{figure.size[0] * 1000:.0f} x {figure.size[1] * 1000:.0f} mm, "
+        f"{figure.ink_length:.2f} m of ink")
+
   try:
-    plotter, r, frames = run(args.shape, args.view, not args.fast,
+    plotter, r, frames = run(figure, args.view, not args.fast,
                              args.record, args.record_fps, args.record_speed)
   except KeyboardInterrupt:
     print("aborted (viewer closed)")
     return
 
   ey, ez = axis_errors(plotter)
-  print(f"\nshape               {args.shape}")
+  print(f"\nprogram             {args.program}")
   print(f"tool powered        pick={r['powered_at_pick']} "
         f"after={r['seated_after']}")
   print(f"inked               {r['inked_fraction']:.0%} of the path")
@@ -259,7 +277,7 @@ def main() -> None:
   tx = PLOT + 60
   ty = top + 40
   for line, colour in (
-      (f"{args.shape}, drawn by module_pen", INK),
+      (f"{figure.name}, drawn by module_pen", INK),
       ("", INK),
       (f"FORM error    {r['form_rms_mm']:6.2f} mm rms", GREEN),
       (f"              {r['form_max_mm']:6.2f} mm max", GREEN),

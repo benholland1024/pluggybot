@@ -104,6 +104,63 @@ PEN_BELOW_PEG = 0.072     # m the pen tip hangs below the peg line (measured).
                           # difference is the module's lean onto the lean-pad
                           # plus RCC droop, i.e. exactly the terms that are
                           # never in the nominal geometry.
+REZERO_DEADBAND = 0.0005  # m. Below this a stroke is not re-seated: a second
+                          # press costs ~1.8 s of sim and the plotter's own
+                          # form error is ~0.6 mm, so chasing 0.5 mm buys
+                          # nothing and spends the errand's clock.
+HOME_ALLOWANCE = 0.030    # m of slop between the pen's HOME and the board's
+                          # centre. A figure is centred on where the pen
+                          # actually is (see `draw`), and the base parks to a
+                          # few cm while the pen inherits the fork's lateral
+                          # offset -- measured, the home sat 23 mm off centre.
+                          # So the board's own face has to be discounted by
+                          # this much before it can be treated as reach.
+
+
+@dataclass(frozen=True)
+class Envelope:
+  """Where on the board a figure may actually go, in board-local metres
+  relative to the pen's home (issue #11).
+
+  The honest answer is an INTERSECTION of three different limits, and the
+  smallest one is nothing to do with the board:
+
+    lateral    the carriage's +/-55 mm of travel. The base is parked for the
+               whole drawing, so 110 mm is the widest mark the robot can make.
+               The home world's boards are 320 mm wide; that width is not
+               reach, it is scenery.
+    vertical   the lift's ctrl range, which `targets_for` CLIPS to. Clipping
+               is the failure mode this class exists to prevent: a clipped
+               command draws a flattened figure and reports no error at all,
+               because the pen went exactly where it was told to go.
+    the face   the board's own extent, less HOME_ALLOWANCE -- ink off the edge
+               of the slab is not ink.
+  """
+  lat_min: float
+  lat_max: float
+  z_min: float
+  z_max: float
+
+  @classmethod
+  def for_board(cls, board: "Board") -> "Envelope":
+    lift0 = align_lift(board.z + PEN_BELOW_PEG)
+    face_lat = board.half[1] - HOME_ALLOWANCE
+    face_z = board.half[2] - HOME_ALLOWANCE
+    return cls(
+      lat_min=max(-PEN_TRAVEL, -face_lat),
+      lat_max=min(PEN_TRAVEL, face_lat),
+      z_min=max(LIFT_MIN - lift0, -face_z),
+      z_max=min(LIFT_MAX - lift0, face_z),
+    )
+
+  def contains(self, lat_min: float, lat_max: float,
+               z_min: float, z_max: float) -> bool:
+    return (lat_min >= self.lat_min and lat_max <= self.lat_max
+            and z_min >= self.z_min and z_max <= self.z_max)
+
+  @property
+  def size(self) -> tuple[float, float]:
+    return self.lat_max - self.lat_min, self.z_max - self.z_min
 
 
 def pen_on_board(model, data, board_geom: str = "board") -> bool:
@@ -147,7 +204,11 @@ def circle_path(size: float = 0.075, n: int = 240) -> list[tuple[float, float]]:
           for k in range(n + 1)]
 
 
-PATHS = {"square": square_path, "circle": circle_path}
+# `PATHS` used to live here as the figure menu. It is gone: `hub/strokes.py`
+# owns the registry now, and a second menu that only knows two of the seven
+# programs is a trap rather than a convenience. The two path functions stay --
+# they ARE the diagnostics, and the plotter's own tests reach for them
+# directly without wanting a program wrapper.
 
 
 class PenPlotter:
@@ -161,8 +222,13 @@ class PenPlotter:
     self.arm_act = model.actuator("arm").id
     self.pen_site = model.site("pen_tip").id
     self.cal: dict = {}
-    # (t, board_y, board_z, commanded_y, commanded_z, touching)
-    self.trace: list[tuple[float, float, float, float, float, bool]] = []
+    # (t, board_y, board_z, commanded_y, commanded_z, touching, stroke)
+    # `stroke` indexes the program's polylines, and is -1 while the pen is
+    # TRAVELLING between two of them. Those rows are what make "the pen lifted
+    # between strokes" a checkable claim rather than an assumption: ink on a
+    # travel row is a line nobody asked for, drawn across the figure.
+    self.trace: list[tuple[float, float, float, float, float, bool, int]] = []
+    self.commanded: tuple[tuple[tuple[float, float], ...], ...] = ()
 
   # ---- geometry ------------------------------------------------------------
 
@@ -225,19 +291,32 @@ class PenPlotter:
                       ty - self.swap.reckoner.y) < 0.06
 
   def ramp(self, act: int, target: float, speed: float = CARRIAGE_SPEED,
-           settle: float = 0.0) -> None:
+           settle: float = 0.0, record: int | None = None) -> None:
     """Walk an actuator's SETPOINT to a target at a bounded speed.
 
     Never write a position setpoint directly across a gap -- see
     CARRIAGE_SPEED. This is `control.slew` for position actuators.
+
+    `record` tags every step into `trace` under that stroke index; multi-stroke
+    programs pass -1 so the travel between strokes is observed rather than
+    assumed to be clean.
     """
     cur = float(self.data.ctrl[act])
     steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
     for k in range(steps):
       self.data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
       self.swap._step_once(0.0, 0.0)
+      if record is not None:
+        self._trace(record)
     if settle:
       self.swap._run(settle, 0.0)
+
+  def _trace(self, stroke: int, cy: float = math.nan,
+             cz: float = math.nan) -> None:
+    py, pz = self.pen_board()
+    self.trace.append((float(self.data.time), py, pz, cy, cz,
+                       pen_on_board(self.model, self.data, self.board.geom),
+                       stroke))
 
   def _face(self, heading: float, tol: float = 0.004,
             tries: int = 6) -> float:
@@ -421,11 +500,45 @@ class PenPlotter:
     """
 
   def draw(self, path: list[tuple[float, float]]) -> dict:
-    """Follow a board-space path, recording commanded vs actual every step."""
+    """Follow a single board-space path. A one-stroke program (issue #11)."""
+    return self.draw_program([path])
+
+  def _reseat(self, target) -> bool:
+    """Lift, move to a corrected start, and press again. Returns whether the
+    board was found.
+
+    The move happens with the pen UP because the whole point is not to draw
+    it: correcting a 4 mm bias by sliding the pressed pen sideways would add a
+    4 mm tick to the start of every stroke, which is exactly the kind of mark
+    nobody commanded that this class keeps trying to eliminate.
+    """
+    self.lift_pen()
+    carriage, lift = self.targets_for(*target)
+    self.ramp(self.pen_act, carriage, record=-1)
+    self.ramp(self.lift_act, lift, settle=0.5, record=-1)
+    return self.press()
+
+  def draw_program(self, program) -> dict:
+    """Draw a stroke program: polylines in board coordinates, pen UP between
+    them (issue #11).
+
+    Accepts a `strokes.StrokeProgram` or any iterable of polylines -- the
+    plotter deliberately does not import the content module, so that what to
+    draw stays testable without a physics engine anywhere near it.
+
+    The pen is lifted, moved and re-PRESSED for each stroke rather than
+    dragged. Re-pressing is not paranoia: the press is what references the
+    board's depth, and depth drifts across a figure as the lift rises and the
+    module droops -- which is exactly why the arm probes for contact instead
+    of extending to a believed distance.
+    """
+    strokes = [list(s) for s in getattr(program, "strokes", program)]
+    if not strokes:
+      return {"drew": False, "reason": "the program draws nothing"}
     if not self.cal:
       self.calibrate()
     # Fit the loaded gain across the span this figure actually uses.
-    half = max(abs(py) for py, _ in path) or PEN_TRAVEL * 0.6
+    half = max(abs(py) for s in strokes for py, _ in s) or PEN_TRAVEL * 0.6
     self.calibrate_loaded(half / abs(self.cal["dy_dcarriage"]))
     # Centre the figure on where the pen ACTUALLY is, not on the board's
     # middle. The base parks to a few cm and the pen inherits the fork's
@@ -435,34 +548,61 @@ class PenPlotter:
     # edge where the carriage was not asked to move at all. A machine homes
     # and then works in its own coordinates; so does this.
     oy, oz = self.cal["y0"], self.cal["z0"]
-    path = [(py + oy, pz + oz) for py, pz in path]
-    self.commanded = path
-    # Move to the start with the pen clear, then press: dragging the pen to
-    # the start would draw a line that is not part of the figure.
-    self.lift_pen()
-    c0, l0 = self.targets_for(*path[0])
-    self.ramp(self.pen_act, c0)
-    self.ramp(self.lift_act, l0, settle=1.0)
-    if not self.press():
-      return {"drew": False, "reason": "never reached the board"}
+    strokes = [[(py + oy, pz + oz) for py, pz in s] for s in strokes]
+    self.commanded = tuple(tuple(s) for s in strokes)
 
     ts = self.model.opt.timestep
-    for (ay, az), (by, bz) in zip(path, path[1:]):
-      seg = math.hypot(by - ay, bz - az)
-      steps = max(int(seg / DRAW_SPEED / ts), 1)
-      for k in range(steps):
-        f = (k + 1) / steps
-        cy, cz = ay + (by - ay) * f, az + (bz - az) * f
-        carriage, lift = self.targets_for(cy, cz)
-        self.data.ctrl[self.pen_act] = carriage
-        self.data.ctrl[self.lift_act] = lift
-        self.swap._step_once(0.0, 0.0)
-        py, pz = self.pen_board()
-        self.trace.append((float(self.data.time), py, pz, cy, cz,
-                           pen_on_board(self.model, self.data,
-                                        self.board.geom)))
+    drawn = 0
+    ref = None                         # the first press's bias -- how far that
+                                       # press displaced the pen from where it
+                                       # was commanded. It defines the figure's
+                                       # origin, and every later stroke is
+                                       # brought back to it rather than to
+                                       # nominal: the offset a single-stroke
+                                       # figure has always carried is left
+                                       # exactly as it was, and only the
+                                       # stroke-to-stroke DRIFT is removed.
+    for i, path in enumerate(strokes):
+      # Move to the start with the pen clear, then press: dragging the pen to
+      # the start would draw a line that is not part of the figure.
+      self.lift_pen()
+      c0, l0 = self.targets_for(*path[0])
+      # The FIRST approach is not recorded, which keeps a one-stroke program's
+      # trace byte-identical to what it was before programs existed -- the
+      # square's 0.57 mm baseline is measured off these samples.
+      travel = None if i == 0 else -1
+      self.ramp(self.pen_act, c0, record=travel)
+      self.ramp(self.lift_act, l0, settle=1.0, record=travel)
+      if not self.press():
+        if i == 0:
+          return {"drew": False, "reason": "never reached the board"}
+        continue                       # a stroke that missed is a gap, not a
+                                       # reason to abandon the whole figure
+      bias = np.subtract(self.pen_board(), path[0])
+      if ref is None:
+        ref, corr = bias, np.zeros(2)
+      else:
+        corr = ref - bias
+        if np.linalg.norm(corr) > REZERO_DEADBAND and not self._reseat(
+            path[0] + corr):
+          continue
+      drawn += 1
+      for (ay, az), (by, bz) in zip(path, path[1:]):
+        seg = math.hypot(by - ay, bz - az)
+        steps = max(int(seg / DRAW_SPEED / ts), 1)
+        for k in range(steps):
+          f = (k + 1) / steps
+          cy, cz = ay + (by - ay) * f, az + (bz - az) * f
+          # Commanded WITH the correction, recorded WITHOUT it: the figure
+          # asked for is the figure scored against.
+          carriage, lift = self.targets_for(cy + corr[0], cz + corr[1])
+          self.data.ctrl[self.pen_act] = carriage
+          self.data.ctrl[self.lift_act] = lift
+          self.swap._step_once(0.0, 0.0)
+          self._trace(i, cy, cz)
     self.lift_pen()
-    return {"drew": True, **self.error_stats()}
+    return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,
+            **self.error_stats()}
 
   def error_stats(self) -> dict:
     """Two different questions, and they deserve two different numbers.
@@ -477,13 +617,15 @@ class PenPlotter:
     at the board can tell. Reporting only the first would condemn a perfect
     figure for being late.
     """
-    inked = [t for t in self.trace if t[5]]
-    if not inked or not getattr(self, "commanded", None):
+    drawing = [t for t in self.trace if t[6] >= 0]
+    travel = [t for t in self.trace if t[6] < 0]
+    inked = [t for t in drawing if t[5]]
+    if not inked or not self.commanded:
       return {"inked_fraction": 0.0, "track_rms_mm": None, "shape_rms_mm": None}
-    track = [math.hypot(py - cy, pz - cz) for _, py, pz, cy, cz, _ in inked]
+    track = [math.hypot(py - cy, pz - cz) for _, py, pz, cy, cz, _, _ in inked]
 
     pts = np.array([[t[1], t[2]] for t in inked])
-    poly = np.array(self.commanded)
+    poly = self.commanded
     shape, _ = self._nearest(pts, poly)
 
     # Decompose: is the figure the WRONG SHAPE, or the right shape in the
@@ -504,7 +646,13 @@ class PenPlotter:
     form, _ = self._nearest(pts + offset, poly)
 
     return {
-      "inked_fraction": len(inked) / len(self.trace),
+      "inked_fraction": len(inked) / len(drawing),
+      # Ink laid down while TRAVELLING between strokes: a line across the
+      # figure that nothing commanded. Reported separately rather than folded
+      # into the shape error, because it is a different fault -- the pen
+      # failed to lift, which no amount of calibration fixes.
+      "travel_ink_fraction": (sum(t[5] for t in travel) / len(travel)
+                              if travel else 0.0),
       "track_rms_mm": math.sqrt(sum(e * e for e in track) / len(track)) * 1000,
       "track_max_mm": max(track) * 1000,
       "shape_rms_mm": float(np.sqrt((shape ** 2).mean()) * 1000),
@@ -518,9 +666,16 @@ class PenPlotter:
     }
 
   @staticmethod
-  def _nearest(pts: np.ndarray, poly: np.ndarray):
-    """(distance, closest point on the polyline) for each point."""
-    a, b = poly[:-1], poly[1:]
+  def _nearest(pts: np.ndarray, polys):
+    """(distance, closest point on the figure) for each point.
+
+    The figure is a LIST of polylines, and the segment list is built per
+    polyline: concatenating the points first would invent a segment joining
+    the end of one stroke to the start of the next, and ink measured against
+    a line the pen was never asked to draw scores as a good drawing.
+    """
+    a = np.concatenate([np.asarray(p, dtype=float)[:-1] for p in polys])
+    b = np.concatenate([np.asarray(p, dtype=float)[1:] for p in polys])
     seg = b - a
     denom = np.maximum((seg * seg).sum(1), 1e-12)
     rel = pts[:, None, :] - a[None, :, :]

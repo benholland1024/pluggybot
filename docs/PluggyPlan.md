@@ -262,10 +262,35 @@ tracked as its own issues; landed so far:
   0.55) emitted from one source. Verified headless: the battery-driven
   lifecycle runs explore → errand → charge there (2 charge cycles, module
   stowed, **0 collisions**, 365 sim-seconds), and the pen module draws a
-  square on a wall whiteboard at **0.59 mm form error, 98 % inked**. Stowing
+  square on a wall whiteboard at **0.57 mm form error, 98 % inked**. Stowing
   the pen afterwards failed here at first — and failed the same way in
   room_hub, so it was pre-existing; closed by issue #10, and the errand now
   repeats end to end (`--cycles 2`).
+- **Stroke programs (issue #11)**: `src/pluggybot/hub/strokes.py` separates
+  *what to draw* from *how to draw it*. A **stroke program** is a named list
+  of polylines in board coordinates, pen up between them; `PenPlotter.draw_program`
+  consumes one, and the old single-path `draw` is now a one-stroke program.
+  Ships the registry (`square`, `circle`, `text`, `house`, `tree`, `sun`,
+  `robot`), the vendored **Hershey** single-stroke font (`hub/hershey.py`,
+  the `futural` face — public domain, attribution in the module), word wrap
+  with a shrink-to-fit pass, and a hand-authored figure library. Content is
+  pure: `tests/test_strokes.py` is 18 assertions in 0.2 s with no MuJoCo in
+  sight. `home_draw.py --program <name> [--text ...]`, likewise `draw.py`.
+  Two things the build measured rather than assumed:
+  - **The board is not the reach.** The home boards are 320 × 260 mm; the
+    carriage has 110 mm of travel and the base is parked for the whole
+    drawing, so 110 mm is the widest mark the robot can make. `Envelope.for_board`
+    intersects carriage travel, lift range and board face — and it matters
+    because `targets_for` *clips*, so an oversized figure comes out flattened
+    against the travel limit while the error stats report a perfect trace.
+  - **Every stroke re-presses, and each press seats the module differently.**
+    Measured on "PLUG": lateral offsets from −4.55 mm to +2.78 mm, a 7.3 mm
+    spread across a 25 mm-high word, with the G's crossbar floating clear of
+    its arc. Re-zeroing each stroke against the *first* press's bias took the
+    spread to 4.7 mm and form error 1.91 → **1.10 mm**. That residual is what
+    sets the text size floor (18 mm caps ≈ 6 % of cap height), not the
+    line width. Single-stroke figures are untouched by the re-zero, so the
+    square's baseline is bit-identical: **0.57 mm form, 98 % inked**.
 - **Protocol 0.2.0 — recurring keyframes + authenticated ingest** (producer
   half of the website's live-hub issue, rooftop-media-2026 #22): keyframes
   now recur every 5 sim-seconds and are marked `"key": true`, and the
@@ -286,7 +311,7 @@ per visitor and no video anywhere. Milestone 8 closed out along the way — the
 tool coupling (±4 mm / <2°), the fork robot, the generated rack, fiducial rack
 localization (9 mm / 0.00°), the module electrical interface, the claw's verified
 pick-carry-place, and finally the drawing surface in a room world: the pen module
-draws on a wall-mounted whiteboard in `home_world` at **0.59 mm form error,
+draws on a wall-mounted whiteboard in `home_world` at **0.57 mm form error,
 98 % inked**. Issue #3 also retired the phase-scoped solver toggling — there is
 now **one noslip policy, always** (see SimNotes and CLAUDE.md), which is what
 makes two robots in one shared world tractable.

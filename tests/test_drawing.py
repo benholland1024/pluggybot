@@ -5,6 +5,7 @@ import math
 import mujoco
 import pytest
 
+from pluggybot.hub import strokes
 from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
 from pluggybot.hub.drawing import (
   PEN_MODULE, PenPlotter, circle_path, pen_on_board, square_path,
@@ -91,6 +92,71 @@ def test_pen_module_draws_a_figure(hub_model):
     "the tool came unseated while drawing"
   assert not pen_on_board(hub_model, data), \
     "the pen was left down on the board after finishing the figure"
+
+
+@pytest.mark.slow
+def test_multi_stroke_program_lifts_between_strokes(hub_model):
+  """The one physical claim stroke programs add (issue #11): between two
+  polylines the pen comes OFF the board.
+
+  A figure of one closed loop -- which is both diagnostics and every figure
+  the plotter had drawn until now -- cannot test this, because there is
+  nowhere for the pen to travel to. Get it wrong and the drawing gains a
+  line straight through itself from the end of each stroke to the start of
+  the next, while `inked_fraction` goes UP and the shape error barely moves:
+  the fault flatters every number already being watched. Hence the travel
+  rows in `trace`, and hence checking that they exist before believing the
+  verdict computed from them.
+
+  The second claim, and the one that took measuring: every stroke re-presses,
+  and each press seats the module slightly differently, so the strokes land in
+  DIFFERENT PLACES. Measured on this exact word before the per-stroke re-zero:
+  lateral offsets ran from -4.55 mm on the 'G' to +2.78 mm on the 'L', a
+  7.3 mm spread across a 25 mm-high word -- letters whose parts miss each
+  other, with the G's crossbar floating clear of its arc. Re-zeroing each
+  stroke against the first press's bias took that to 4.7 mm and the form error
+  from 1.91 to 1.10 mm. Both thresholds below fail on the un-re-zeroed run.
+
+  "PLUG" rather than a single letter because the effect is POSITION dependent:
+  it only shows when strokes sit at opposite ends of the carriage's travel.
+  """
+  data = mujoco.MjData(hub_model)
+  swap = HubSwap(hub_model, data)
+  swap.place_at_standoff(HUB_STATION_YS[2])
+  swap.pick()
+  plotter = PenPlotter(hub_model, data, swap)
+  assert plotter.drive_to_board(), "never reached the board"
+
+  program = strokes.program("text", text="PLUG", cap_height=0.025)
+  assert len(program.strokes) == 7
+  r = plotter.draw_program(program)
+
+  assert r["drew"], f"never got the pen on the board: {r}"
+  assert r["strokes_drawn"] == 7, (
+    f"only {r['strokes_drawn']} of 7 strokes found the board -- a stroke that "
+    f"misses is a gap in a letter")
+  travel = [t for t in plotter.trace if t[6] < 0]
+  assert travel, ("no inter-stroke travel was recorded, so the pen-lift check "
+                  "below is vacuous")
+  assert r["travel_ink_fraction"] == 0.0, (
+    f"the pen inked on {r['travel_ink_fraction']:.0%} of the travel between "
+    f"strokes -- the word has lines through it that nobody drew")
+  assert r["inked_fraction"] > 0.85, (
+    f"pen was only down for {r['inked_fraction']:.0%} of the strokes")
+  assert r["form_rms_mm"] < 1.5, (
+    f"word is the wrong SHAPE: {r['form_rms_mm']:.2f} mm rms "
+    f"(1.91 mm without the per-stroke re-zero, 1.10 with)")
+
+  offsets = []
+  for i in range(len(program.strokes)):
+    ink = [t for t in plotter.trace if t[5] and t[6] == i]
+    offsets.append(sum(t[1] - t[3] for t in ink) / len(ink))
+  spread = (max(offsets) - min(offsets)) * 1000
+  assert spread < 6.0, (
+    f"strokes landed {spread:.1f} mm apart laterally (measured 7.3 mm without "
+    f"the re-zero, 4.7 with) -- the parts of a letter miss each other")
+  assert module_power_contact(hub_model, data, PEN_MODULE), \
+    "the tool came unseated while drawing"
 
 
 @pytest.mark.slow
