@@ -106,21 +106,39 @@ def test_vectorized_update_matches_reference_on_synthetic_edge_cases():
 def test_vectorized_update_is_5x_faster():
   """The issue-#2 acceptance bar. Relative (both timed here, same machine,
   best-of-5) so machine speed cancels; fails against the old implementation
-  by construction, since the reference IS the old implementation."""
+  by construction, since the reference IS the old implementation.
+
+  The two are timed INTERLEAVED (ref, vec, ref, vec, ...) rather than in two
+  blocks, because the suite runs in parallel and its load varies over time: a
+  mission test starting during a solid block of vectorized reps penalises
+  that half alone and deflates the ratio. Measured 6.8-7.1x on a quiet
+  machine and 6.2x under six steady CPU burners, but a blocked measurement
+  read 4.9x once inside the real suite -- a false alarm, since the regression
+  this guards (the loop coming back) reads ~1x. Interleaving costs nothing
+  and puts both halves in the same load window. Note that timing by
+  `process_time` instead does NOT help: the contention is real
+  memory-bandwidth cost, not scheduler preemption (7.16x vs 7.04x quiet,
+  6.34x vs 6.18x loaded), so the clock is not the lever.
+  """
   scans, max_range, origin = load_scans()
 
-  def best_of(fn, reps=5):
-    best = math.inf
-    for _ in range(reps):
-      grid = make_grid()
-      t0 = time.perf_counter()
-      for pose, angles, ranges in scans:
-        fn(grid, pose, angles, ranges)
-      best = min(best, time.perf_counter() - t0)
-    return best
+  def time_one(fn):
+    grid = make_grid()
+    t0 = time.perf_counter()
+    for pose, angles, ranges in scans:
+      fn(grid, pose, angles, ranges)
+    return time.perf_counter() - t0
 
-  t_ref = best_of(lambda g, p, a, r: reference_update(g, p, a, r, max_range, origin=origin))
-  t_vec = best_of(lambda g, p, a, r: g.update(p, a, r, max_range, origin=origin))
+  def ref_fn(g, p, a, r):
+    reference_update(g, p, a, r, max_range, origin=origin)
+
+  def vec_fn(g, p, a, r):
+    g.update(p, a, r, max_range, origin=origin)
+
+  t_ref = t_vec = math.inf
+  for _ in range(5):
+    t_ref = min(t_ref, time_one(ref_fn))
+    t_vec = min(t_vec, time_one(vec_fn))
   speedup = t_ref / t_vec
   print(f"\nper-scan: reference {t_ref / len(scans) * 1e3:.2f} ms, "
         f"vectorized {t_vec / len(scans) * 1e3:.2f} ms  ({speedup:.1f}x)")

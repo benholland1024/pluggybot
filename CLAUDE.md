@@ -28,11 +28,30 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 
 ## Commands
 
+- **The suite runs in PARALLEL by default** (`addopts = "-n auto --dist
+  worksteal"`, pytest-xdist). Nothing to remember and nothing to pass — the
+  numbers below are what you get. `-n0` runs in-process, which is what you
+  want for a single test, for `--pdb`, and any time you need readable live
+  output; six workers for one test is a net loss.
+  Scaling is ~1.8× on the full suite, not 6×, and that is a real ceiling
+  rather than a tuning problem: the mission tests contend for memory/GPU
+  bandwidth and each runs ~36 % slower under load, so `--dist worksteal`
+  measured identical to `load`. `test_full_hub_lifecycle[home]` takes 157 s
+  on its own and no worker count beats that.
+  ⚠ **A wall-clock benchmark must time its two sides INTERLEAVED**, never as
+  two blocks: suite load VARIES over time, so a mission test starting during
+  a solid block of one implementation's reps penalises that half alone.
+  Going parallel is what exposed this — `test_vectorized_update_is_5x_faster`
+  read 4.9x against a 5.0 bar it clears at 6.8-7.1x quiet. Timing by
+  `process_time` is NOT the fix (the contention is memory bandwidth, not
+  preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **243 of 249 tests in ~4:10**, against **11:44** for everything. Five
-  whole-mission integration runs carry `@pytest.mark.slow` and are most of
-  the clock on their own (`test_full_hub_lifecycle[home]` is 37 % of the
-  suite by itself; the top two are 55 %).
+  **343 of 351 tests in ~1:13** (4:23 serial), against **6:34** for
+  everything (11:55 serial). Eight whole-mission integration runs carry
+  `@pytest.mark.slow` and are most of the serial clock on their own
+  (`test_full_hub_lifecycle[home]` is 22 % of the suite by itself; the top
+  two are 40 %) — but only ~3:20 of marginal wall-clock in parallel, since
+  they run alongside everything else. That margin is why they stay.
 - Tests, before calling any work done: the **FULL** suite,
   `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
   the end — whenever the change touches something a whole mission exercises:
@@ -43,7 +62,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   this repo (a frame-relative verdict, a sign on the return travel) were
   invisible to every cheaper test, and a geometry change is exactly what
   breaks them. Skipping them on that kind of edit is how the next one
-  reaches a commit.
+  reaches a commit. At 6:34 it does not have to be dead time either — start
+  it in the background and write the commit message while it runs.
   ⚠ Their runtime is EMERGENT, not fixed: the mission runs until the battery
   loop completes, so a world change reshuffles the whole trajectory. Adding
   the garden pressure plate took the home lifecycle from 219.7 to 353.6

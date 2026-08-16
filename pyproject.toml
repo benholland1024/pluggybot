@@ -42,6 +42,16 @@ requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
+# Parallel by DEFAULT, because the failure mode this fixes is a run that is
+# slow unless someone remembers a flag. Measured on a 6-core box: full suite
+# 11:55 -> 6:34, `-m "not slow"` 4:23 -> 1:13, all 351 tests passing either
+# way. Scaling is ~1.8x rather than 6x -- the mission tests contend for
+# memory/GPU bandwidth, and each one runs ~36 % slower under load, so
+# `--dist worksteal` measured identical to `load` (the limit is contention,
+# not scheduling). The floor is test_full_hub_lifecycle[home] at 157 s alone.
+# Pass `-n0` to run in-process: single tests, `--pdb`, and readable live
+# output all want it, and spawning six workers for one test is a net loss.
+addopts = "-n auto --dist worksteal"
 markers = [
     # Whole-mission runs (~90 s sim each). They stay in the default suite —
     # the two lessons that cost the most here (a frame-relative verdict, a
@@ -52,5 +62,6 @@ markers = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.15.21",
 ]
