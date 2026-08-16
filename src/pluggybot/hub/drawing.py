@@ -163,6 +163,25 @@ class Envelope:
     return self.lat_max - self.lat_min, self.z_max - self.z_min
 
 
+def board_standoff(board: Board,
+                   standoff: float = BOARD_STANDOFF) -> tuple[float, float]:
+  """Axle pose a drawing works from: square to the board, and offset so the
+  FORK line -- not the chassis centreline -- lands on the board's centre.
+  Left of the approach heading is (-sin h, cos h).
+
+  A free function as well as a `PenPlotter` method, because an ERRAND needs
+  this before there is a plotter to ask: the destination is part of the
+  errand's definition and the plotter cannot exist until the tool is on the
+  fork (issue #12). One implementation -- a second copy of this formula that
+  disagreed by PLUG_LATERAL would put every drawing half a chassis off centre.
+  """
+  back = board.half[0] + standoff
+  return (board.x - math.cos(board.heading) * back
+          - math.sin(board.heading) * PLUG_LATERAL,
+          board.y - math.sin(board.heading) * back
+          + math.cos(board.heading) * PLUG_LATERAL)
+
+
 def pen_on_board(model, data, board_geom: str = "board") -> bool:
   """Is the pen actually touching the board? The drawing equivalent of the
   electrical criterion: a commanded path is a belief, ink is a fact."""
@@ -214,9 +233,21 @@ def circle_path(size: float = 0.075, n: int = 240) -> list[tuple[float, float]]:
 class PenPlotter:
   """Drives the pen module against the board and records what it drew."""
 
-  def __init__(self, model, data, swap, board: Board | None = None) -> None:
+  def __init__(self, model, data, swap, board: Board | None = None,
+               on_stroke=None) -> None:
+    """`on_stroke(index, points, program)` fires as each stroke FINISHES, with
+    the board-local polyline the pen actually inked (issue #12).
+
+    Per stroke rather than per figure, because that is what makes a drawing
+    watchable: the website paints each line into the board's canvas as it is
+    drawn, and a viewer who joins mid-figure sees the same partial drawing the
+    robot is looking at. The plotter still knows nothing about boards as STATE
+    -- it hands over a polyline and a name, and `hub/boards.py` decides what
+    that means.
+    """
     self.model, self.data, self.swap = model, data, swap
     self.board = board or Board.hub()
+    self.on_stroke = on_stroke
     self.pen_act = model.actuator("pen_carriage").id
     self.lift_act = model.actuator("lift").id
     self.arm_act = model.actuator("arm").id
@@ -249,13 +280,7 @@ class PenPlotter:
   # ---- placement -----------------------------------------------------------
 
   def board_standoff(self, standoff: float = BOARD_STANDOFF) -> tuple[float, float]:
-    """Axle pose the plotter works from: square to the board, and offset so
-    the FORK line -- not the chassis centreline -- lands on the board's
-    centre. Left of the approach heading is (-sin h, cos h)."""
-    b = self.board
-    back = b.half[0] + standoff
-    return (b.x - math.cos(b.heading) * back - math.sin(b.heading) * PLUG_LATERAL,
-            b.y - math.sin(b.heading) * back + math.cos(b.heading) * PLUG_LATERAL)
+    return board_standoff(self.board, standoff)
 
   def drive_to_board(self, standoff: float = BOARD_STANDOFF,
                      timeout: float = 40.0) -> bool:
@@ -600,9 +625,23 @@ class PenPlotter:
           self.data.ctrl[self.lift_act] = lift
           self.swap._step_once(0.0, 0.0)
           self._trace(i, cy, cz)
+      if self.on_stroke is not None:
+        self.on_stroke(i, self.inked_polyline(i),
+                       getattr(program, "name", None))
     self.lift_pen()
     return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,
             **self.error_stats()}
+
+  def inked_polyline(self, stroke: int) -> list[tuple[float, float]]:
+    """Where the pen was, board-local, for the samples of `stroke` that were
+    actually TOUCHING -- the mark this stroke left, not the one it was asked
+    to leave.
+
+    Filtering on contact is what makes it ink rather than a plan. A stroke
+    that lost the board halfway (the module droops as the lift rises) comes
+    back as the shorter line the viewer can see, and the gap is real.
+    """
+    return [(t[1], t[2]) for t in self.trace if t[6] == stroke and t[5]]
 
   def error_stats(self) -> dict:
     """Two different questions, and they deserve two different numbers.

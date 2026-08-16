@@ -1,5 +1,5 @@
 {
- "protocolVersion": "0.3.0",
+ "protocolVersion": "0.4.0",
  "model": "home_world",
  "upAxis": "z",
  "bodies": [
@@ -5192,5 +5192,35 @@
    2.0,
    0.0
   ]
+ },
+ "boards": {
+  "whiteboard_a": {
+   "geom": "board",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 3.141592653589793
+  },
+  "whiteboard_b": {
+   "geom": "board_b",
+   "pos": [
+    0.5,
+    5.970000000000001,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 1.5707963267948966
+  }
  }
 }

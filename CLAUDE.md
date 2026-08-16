@@ -91,16 +91,38 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the pacing), `scripts/hub_lifecycle.py` (the hub-era battery-driven loop:
   explore → fetch a tool → use it → stow it → charge at the hub; `--view`,
   `--battery-wh W`, `--record out.jsonl.gz` writes a PluggyWorld telemetry
-  recording — issue #4), `scripts/serve.py --endpoint ws://host:port`
+  recording — issue #4; `--errand {carry,draw,draw2,none}` picks what the
+  robot is FOR this run and `--boards PATH` keeps what it drew — issue #12),
+  `scripts/serve.py --endpoint ws://host:port`
   (webserver v1, issue #5: the hub lifecycle headless, paced to real time,
   streaming protocol frames + grid PNGs + event lines over an outbound
   WebSocket — the sim never blocks on the socket; `--rate X`, `--free-run`
   measures the machine's real-time multiple; `--token` / `$PLUGGYWORLD_TOKEN`
   is the website's ingest secret; `--world {room_hub,home}` picks the world
-  (issue #9 — the site serves `home`); docs/Webserver.md),
+  (issue #9 — the site serves `home`); `--errand`/`--boards` as above, so the
+  site can watch a real drawing errand; docs/Webserver.md),
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
   frame-gap stats + keyframe spacing; `--token` makes it refuse an
   unauthenticated publisher, like the real ingest path)
+- **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
+  `deploy/`, rooftop-media-2026 #20) runs `serve.py` and nothing else, and
+  is deliberately NOT the dev environment: it installs the six packages in
+  `deploy/requirements-serve.txt` (pinned to `uv.lock`) rather than
+  uv-syncing a project whose torch is a ~3 GB CUDA wheel with no place on a
+  GPU-less box. `MUJOCO_GL=osmesa` is baked in and the build renders one
+  offscreen frame, so headless GL is a red build rather than a mission that
+  dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
+  `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_BATTERY_WH`,
+  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`; the secret stays
+  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public).
+  ⚠ **A lazy import is the failure mode here**: the detector comes in
+  inside `hub.tags._shared_detector`, so nothing an import scan can see —
+  which is why `tests/test_deploy.py` blocks the omitted packages and then
+  actually flies the robot. Adding a runtime dependency to the mission
+  stack means adding it there too.
+  `deploy/compose.pluggyworld.yaml` is the service block for the website's
+  `compose.yaml`; `/var/lib/pluggybot` must be a volume, because boards are
+  world state and every mission end is a container restart.
 - PluggyWorld protocol fixtures (`protocol/`, issue #4) are GENERATED, and
   there is one scene AND one recording **per world** — a replayer picks its
   scene off the recording's `model` header, so a room_hub mission replayed
@@ -108,10 +130,21 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   JSON + tag textures: `uv run python -m pluggybot.telemetry.scene
   [models/home_world.xml]` (rerun after changing ANY geometry in that world —
   the fixture test fails when stale). Recordings: `MUJOCO_GL=egl uv run
-  python scripts/hub_lifecycle.py [--world home] --record
-  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz`.
+  python scripts/hub_lifecycle.py [--world home --errand draw] --record
+  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — the HOME one is a
+  drawing mission (issue #12), so the website has a recording with `draw` /
+  `board_cleared` events to build its canvas against.
   Format + versioning rules in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event (the website repo vendors these fixtures).
+- **A recording is a MIXED stream as of protocol 0.4.0**: `draw` and
+  `board_cleared` lines ride between the frames. Dispatch on `type`; no
+  `type` means frame. Ink is NEVER MuJoCo geometry — a stroke is a `draw`
+  event carrying the polyline the pen actually inked, and the browser paints
+  it into a canvas texture (the three-layer rule from ActivityPattern.md).
+  Board state (`hub/boards.py`) is world state, not run state: it survives a
+  restart in a JSON file written on every stroke, and its `fill` is measured
+  against the pen's REACH (110 × 200 mm — carriage travel with the base
+  parked) rather than the 320 × 260 mm slab.
 - The HOME world is GENERATED (issue #6) — regenerate `models/home_world.xml`
   + `models/home_world.meta.json` with `uv run python -m pluggybot.home.world`
   after changing any layout constant in `src/pluggybot/home/world.py` (the
@@ -119,9 +152,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   Layout, visual hints, zones, spawns, board specs and the battery re-tune
   all come from that ONE module. Run it: `--world home` on
   `scripts/hub_lifecycle.py` (explore → errand → charge in the house), and
-  `scripts/home_draw.py` (fetch the pen → draw on a wall-mounted whiteboard
-  → stow it; `--board whiteboard_b`, `--program circle`, `--view`, and
-  `--cycles N` to repeat the whole errand N times). The pen's stow works as
+  `scripts/home_draw.py` (fetch the pen → erase the board → draw on a
+  wall-mounted whiteboard → stow it; `--board whiteboard_b`, `--program
+  circle`, `--view`, `--boards PATH`, `--no-erase`, and `--cycles N` to
+  repeat the whole errand N times. Since issue #12 it is a THIN CALLER of
+  `HubLifecycle.run_errand` rather than a second mission stack — add
+  behaviour to `hub/errand.py`, never here). The pen's stow works as
   of issue #10 — three faults in a row, and the ONE that found the last two
   was running the errand twice: a second fetch starts from the state the
   first cycle left, which is a different test. Use `--cycles 2` before
@@ -216,6 +252,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **An ERRAND is a tool, a place and a use-phase** (`hub/errand.py`, issue
+  #12). `HubLifecycle` carries a QUEUE of them, arbitrated against the
+  battery by the same loop as everything else, so a repeat is a list rather
+  than a flag. Anything the robot does with a tool goes in a use-phase, and
+  the fetch/carry/stow half stays the one implementation it took two issues
+  to make repeatable. The rule a use-phase must respect: **leave the tool in
+  its CARRY configuration** — a stow computes its release heights from the
+  lift it starts at, and a tool axis parked where the last stroke left it
+  fouls the bay's brackets.
 - **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
   the plotter never imports the content module** (issue #11). A *stroke
   program* is a named list of polylines in board coordinates, pen up between

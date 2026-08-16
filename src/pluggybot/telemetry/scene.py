@@ -192,6 +192,16 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
     scene["zones"] = meta["zones"]
   if meta and "spawns" in meta:
     scene["spawns"] = meta["spawns"]
+  if meta and "boards" in meta:
+    # The drawing surfaces, by the name the telemetry uses (issue #12). The
+    # geoms are already in `bodies`; what this adds is the MAPPING -- a `draw`
+    # event says `"board": "whiteboard_a"` and gives points in that board's
+    # own frame, and without this the client has a polyline it cannot place:
+    # the board's telemetry name is the generator's, while the geom is called
+    # `board_b`. `half` is (depth, width, height) in the board's frame and
+    # `heading` is the outward normal the robot squares up to, so a canvas is
+    # width x height and the polyline's +lat runs left across it.
+    scene["boards"] = meta["boards"]
   return scene
 
 

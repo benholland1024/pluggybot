@@ -222,7 +222,7 @@ def test_header_advertises_activities(builder_pair):
   _, _, _, fb = builder_pair
   h = fb.header()
   assert h["activities"] == ["fake"]
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.3.0"
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.4.0"
 
 
 def test_activity_flags_ride_in_frames_and_are_sparse(builder_pair):

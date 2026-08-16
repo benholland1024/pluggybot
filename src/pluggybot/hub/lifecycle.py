@@ -23,7 +23,9 @@ the fork is carrying, and it is the same seam the plug module will use when
 it charges away from the hub.
 """
 
+import json
 import math
+from pathlib import Path
 from typing import Literal
 
 import mujoco
@@ -32,6 +34,7 @@ from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.hub.coupling import (
   HUB_STATION_YS, module_power_contact, rack_charge_contact,
 )
+from pluggybot.hub.errand import carry_errand, drawing_errand
 from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
@@ -66,16 +69,29 @@ class HubLifecycle:
                errand: bool = True, rack: RackPose | None = None,
                module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
-               low_battery_wh: float = LOW_BATTERY_WH) -> None:
+               low_battery_wh: float = LOW_BATTERY_WH,
+               errands=None, boards=None) -> None:
     self.model, self.data = model, data
-    self.module = module
+    # The module whose electrical seating the power model watches. It follows
+    # the errand queue -- a robot that draws and then grips is carrying a
+    # different tool in each phase, and the coupling criterion has to be asked
+    # about the one actually on the fork.
+    self.module = errands[0].module if errands else module
     self.low_battery_wh = low_battery_wh
+    self.boards = boards
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
     self.mission.step_hooks.append(self._power_step)
     self.state: State = "EXPLORE"
-    self.errand_pending = errand
+    # A QUEUE, not a flag: "two drawings on two boards with charging in
+    # between" is the acceptance test for issue #12, and a boolean cannot
+    # express it. `errands=None` with `errand=True` keeps the milestone-8
+    # call shape -- run() then builds the one carry errand out of its own
+    # station_y / use_at arguments.
+    self.errands: list = list(errands) if errands is not None else []
+    self.want_default_errand = errand and errands is None
+    self.errand_results: list[dict] = []
     self.charging_now = False
     self.tool_powered = False
     self.charge_cycles = 0
@@ -197,25 +213,51 @@ class HubLifecycle:
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
     self.mission.swap._drive_until(UNDOCK_REVERSE, -0.08, stall_stop=False)
 
-  def run_errand(self, station_y: float, use_at: tuple[float, float]) -> None:
-    """Fetch a tool, take it somewhere, and put it back."""
+  def run_errand(self, errand) -> dict:
+    """Fetch a tool, take it somewhere, DO something, and put it back.
+
+    The middle is the errand's own `use` callable (hub/errand.py). Everything
+    around it -- which bay, verifying the pick electrically, verifying the
+    stow by hanging, restoring the arm -- is identical whatever the tool is,
+    which is exactly why it lives here and only here.
+
+    A use-phase that raises is caught and reported: the tool is still on the
+    fork, and driving it back to its bay is strictly better than abandoning a
+    module in the middle of the living room. `MissionAborted` (the viewer
+    closing) is deliberately NOT caught -- that is a request to stop, not a
+    failure to recover from.
+    """
+    self.module = errand.module
     self.state = "SWAP_PICK"
-    self.mission.swap_at_bay(station_y, "pick", module=self.module)
+    self.mission.swap_at_bay(errand.station_y, "pick", module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
     self.swaps_done += 1
-    self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}")
+    self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
+              f" ({errand.name})")
 
     self.state = "USE_TOOL"
-    self.mission.drive_to(*use_at, timeout=60.0)
+    self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: arrived{'' if still else ' -- BUT DROPPED THE TOOL'}")
+    used: dict = {}
+    if errand.use is not None and still:
+      try:
+        used = errand.use(self) or {}
+      except MissionAborted:
+        raise
+      except Exception as e:                      # noqa: BLE001 -- see docstring
+        used = {"error": f"{type(e).__name__}: {e}"}
+        self._say(f"USE_TOOL FAILED: {used['error']} -- stowing the tool anyway")
 
     self.state = "SWAP_RETURN"
-    self.mission.swap_at_bay(station_y, "return", module=self.module)
+    self.mission.swap_at_bay(errand.station_y, "return", module=self.module)
     stowed = self.mission.swap.module_state(self.module)["hung"]
     self.swaps_done += 1
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
-    self.errand_pending = False
+    result = {"errand": errand.name, "module": errand.module,
+              "picked": carried, "stowed": stowed, **used}
+    self.errand_results.append(result)
+    return result
 
   # ---- the loop ------------------------------------------------------------
 
@@ -228,6 +270,8 @@ class HubLifecycle:
     self.blacklist: set = set()
     self.map_done = False
     aborted = False
+    if self.want_default_errand:
+      self.errands = [carry_errand(self.module, station_y, use_at)]
     try:
       self.mission.start_at(*start)
       self.mission.start_discovery()
@@ -249,8 +293,11 @@ class HubLifecycle:
             break
           self.state = "CHARGE"
           self.charge()
-        elif self.errand_pending:
-          self.run_errand(station_y, use_at)
+        elif self.errands:
+          # Pop BEFORE running: an errand that raises must not be retried
+          # forever, and a queue that only shortens on success is an infinite
+          # loop dressed as a task list.
+          self.run_errand(self.errands.pop(0))
         elif not self.map_done:
           self.state = "EXPLORE"
           self.explore()
@@ -272,7 +319,14 @@ class HubLifecycle:
       "charge_cycles": self.charge_cycles,
       "swaps_done": self.swaps_done,
       "battery": self.battery.fraction,
+      # The module the LAST errand carried. With a queue of errands over
+      # different tools, "is it stowed" is per errand -- `errands` carries
+      # each one's verdict, and this stays the single-errand summary the
+      # milestone-8 demos print.
       "module_stowed": module["hung"],
+      "errands": list(self.errand_results),
+      "errands_left": len(self.errands),
+      "boards": self.boards.snapshot() if self.boards is not None else {},
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
       "sim_time": float(self.data.time),
@@ -289,6 +343,53 @@ def home_activities(model, data):
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.plate import PlateGate
   return ActivitySet([PlateGate(model, data)])
+
+
+def board_book(world: str, state: str | None = None):
+  """The world's drawing surfaces as persistent state (issue #12), or None
+  for a world with no boards in it.
+
+  `state` is a JSON file the boards live in ACROSS runs. Without one they are
+  blank at every mission start, which is what tests and one-off demos want;
+  with one, the site's robot walks into a house whose whiteboards still carry
+  yesterday's drawing.
+  """
+  from pluggybot.hub.boards import BoardBook
+  cfg = world_config(world)
+  if not cfg["meta"]:
+    return None
+  meta = json.loads(Path(cfg["meta"]).read_text())
+  return BoardBook.for_meta(meta, path=state)
+
+
+def errands_for(kind: str, world: str, book=None) -> list:
+  """The named errand queues a demo or the website can ask for.
+
+  This is the menu an overseer will eventually choose from (issue #15), which
+  is why it is a lookup by NAME rather than a pile of flags: adding "draw a
+  house on whiteboard_b" must not mean adding an argument to serve.py.
+  """
+  cfg = world_config(world)
+  if kind == "carry":
+    return [carry_errand(use_at=cfg["use_at"])]
+  if kind == "none":
+    return []
+  if kind in ("draw", "draw2"):
+    if book is None or not len(book):
+      raise ValueError(f"the {world} world has no whiteboards to draw on")
+    from pluggybot.hub.drawing import Board
+    meta = json.loads(Path(cfg["meta"]).read_text())
+    # Two boards, two different figures: the acceptance test for issue #12 is
+    # "two drawings on two boards with charging in between", and drawing the
+    # same figure twice would not catch a board id threaded through by
+    # accident.
+    names = list(meta["boards"])[:2 if kind == "draw2" else 1]
+    figures = ("house", "tree", "sun", "robot")
+    return [drawing_errand(book, name, Board.from_meta(meta["boards"][name]),
+                           program_name=figures[i % len(figures)])
+            for i, name in enumerate(names)]
+  raise ValueError(f"unknown errand queue {kind!r} "
+                   "(carry, draw, draw2 or none)")
 
 
 def world_config(world: str) -> dict:
@@ -311,6 +412,10 @@ def world_config(world: str) -> dict:
       "low_battery_wh": home.HOME_LOW_BATTERY_WH,
       "explore_budget": 240.0,
       "activities": home_activities,
+      # The generator sidecar, which is also where the BOARDS are described
+      # (issue #12). One source again: the whiteboard the errand drives to is
+      # the whiteboard the website renders.
+      "meta": "models/home_world.meta.json",
     }
   if world == "room_hub":
     return {
@@ -323,6 +428,9 @@ def world_config(world: str) -> dict:
       "low_battery_wh": LOW_BATTERY_WH,
       "explore_budget": 90.0,
       "activities": None,      # room_hub has no activities yet
+      "meta": None,            # ...and no whiteboards: the standing board
+                               # lives in the bare hub_world, which is not a
+                               # navigated room
     }
   raise ValueError(f"unknown world {world!r} (room_hub or home)")
 
@@ -332,7 +440,17 @@ def run_demo(start=None, view: bool = False,
              max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              record: str | None = None,
-             world: str = "room_hub") -> dict:
+             world: str = "room_hub",
+             errand: str = "carry", board_state: str | None = None) -> dict:
+  """Run a whole mission. `errand` names a queue off the menu (errands_for).
+
+  Callers that want to hand in errands they built themselves -- the overseer,
+  once issue #15 has it choosing rather than picking a preset -- should build
+  the HubLifecycle directly, as scripts/home_draw.py does. The book has to
+  travel WITH them: a drawing errand closes over the book it was built
+  against, so a second one opened here would have the robot drawing into one
+  book while telemetry reported the other.
+  """
   cfg = world_config(world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
@@ -340,10 +458,12 @@ def run_demo(start=None, view: bool = False,
   if view:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
+  book = board_book(world, state=board_state)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
+                      low_battery_wh=cfg["low_battery_wh"], boards=book,
+                      errands=errands_for(errand, world, book))
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
@@ -355,8 +475,12 @@ def run_demo(start=None, view: bool = False,
     recorder = TelemetryRecorder(model, data, record,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
-                                 activities=activities)
+                                 activities=activities, boards=book)
     life.mission.step_hooks.append(recorder.step_hook)
+    # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
+    # recording without these lines replays a robot miming at a blank wall.
+    if book is not None:
+      book.on_event.append(recorder.emit)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],
                     max_sim_time=max_sim_time,

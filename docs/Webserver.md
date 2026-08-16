@@ -78,6 +78,24 @@ change like that the flag is the *only* record anywhere in the stream. In
 the measured home mission the block costs **1.0 % of frames**. Another
 shape change, so another re-vendor; see `docs/ActivityPattern.md`.
 
+**Drawings ride it as events, not as poses** (`protocolVersion` 0.4.0,
+issue #12). A stroke is not a per-tick quantity — decimating one to 20 Hz
+would mean shipping the same polyline a hundred times or dropping it — so
+each finished stroke goes out as its own `draw` message (board id plus the
+polyline the pen *actually inked*), and erasing a board as `board_cleared`.
+The browser paints them into a canvas texture; ink is never MuJoCo
+geometry. Frames additionally carry a sparse `boards` block — programs,
+strokes, fill, last cleared — on exactly the activities rule, and for
+exactly the activities reason: a drawing has no body, so nothing about it
+appears in the pose stream at all.
+
+Two consequences worth knowing before writing a consumer. **Recordings are
+now a mixed stream**: dispatch on `type`, and no `type` means frame. And a
+dropped `draw` is unlike a dropped frame — no later message supersedes it,
+so that line is missing from the canvas until the board is next erased.
+That is the accepted price of never blocking physics on a socket, and it is
+why recordings, not the live stream, are the lossless artifact.
+
 **The ingest socket is authenticated.** `--token` (or `$PLUGGYWORLD_TOKEN`)
 sends `Authorization: Bearer <token>` at the handshake. A refusal looks
 exactly like a server that is down — a 1 s retry loop — so the publisher
@@ -97,6 +115,13 @@ MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 MUJOCO_GL=osmesa uv run python scripts/serve.py --world home \
   --endpoint ws://localhost:8765
 
+# …with the robot actually doing something: fetch the pen, erase a
+# whiteboard, draw on it, stow the pen (issue #12). `--boards` keeps what it
+# drew across restarts; `--errand draw2` does two boards with a charge in
+# between.
+MUJOCO_GL=osmesa uv run python scripts/serve.py --world home --errand draw \
+  --boards var/boards.json --endpoint ws://localhost:8765
+
 # …or rehearse the authenticated production path
 uv run python scripts/ws_sink.py --port 8765 --token s3cret
 PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
@@ -114,6 +139,58 @@ filling the map; a stale errand destination just drives at a wall).
 `ws_sink.py` measures received frame *gaps* — the wall-clock spacing
 between frames — which is the consumer-side proof the stream is smooth,
 and reports keyframe spacing, which is the proof a late joiner converges.
+
+## Deploying it (rooftop-media-2026 #20)
+
+```
+docker build -t pluggyworld-sim .          # from the repo root
+docker run --rm -e PLUGGY_ENDPOINT=ws://host.docker.internal:8765 \
+  pluggyworld-sim                          # against a local ws_sink.py
+```
+
+The image (`Dockerfile`, `deploy/`) runs `serve.py` and nothing else. Four
+things about it are decisions rather than boilerplate:
+
+- **It is not the dev environment.** The serve path imports mujoco, numpy,
+  scipy, pillow and websockets — no torch, no ultralytics, no SB3. Those
+  belong to training, dataset generation and the detector, none of which
+  run on a serving box, and installing them would put a ~3 GB CUDA wheel
+  on a machine with no GPU. So the image installs
+  `deploy/requirements-serve.txt`, pinned to `uv.lock`, and
+  `tests/test_deploy.py` fails if either the pins drift from the lock or
+  the mission stack grows an import the image omits. Both of those
+  otherwise fail *silently* — green suite here, dead container there.
+- **osmesa, and only osmesa.** `libosmesa6` is the whole GL story;
+  `MUJOCO_GL=osmesa` is baked into the image. The Dockerfile renders one
+  offscreen frame at BUILD time, so "headless GL works on this machine" is
+  answered by `docker build` on the server rather than by a mission that
+  falls over ten minutes in.
+- **No ports, no `depends_on`.** The sim is an outbound WebSocket client
+  that retries every second, so it needs no inbound rule and no place in
+  the reverse proxy, and it survives the website being restarted or
+  redeployed underneath it.
+- **Config is environment, not a command line** (`deploy/entrypoint.sh`):
+  `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`,
+  `PLUGGY_BATTERY_WH`, `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`. The ingest
+  secret stays `$PLUGGYWORLD_TOKEN`, read by `serve.py` itself, because a
+  flag is visible in `ps`. Anything passed to the container is appended
+  after the derived flags, so `docker run <image> --rate 2.0` still wins.
+
+`deploy/compose.pluggyworld.yaml` is the service block to paste into the
+website's `compose.yaml`. Two things it encodes: `/var/lib/pluggybot` is a
+named volume because board contents are **world** state — a mission ends
+when its errands do, `restart: unless-stopped` starts the next one, and the
+volume is what makes the robot walk into the house it left rather than a
+blank one. And `PLUGGY_BATTERY_WH` is 8.0 rather than the world's 1.1 Wh
+demo cell, which flattens in minutes: a watched world wants hours between
+charges. The low-battery reserve is deliberately *not* scaled with it — it
+is the absolute energy needed to reach the dock, not a fraction of
+capacity.
+
+What the image does **not** do is keep one continuous world alive: each
+restart is a fresh mission from the start pose, the "woke up at home" model
+the design doc allows. Boards persist; the map, the battery level and the
+pose do not. A standing world is the tick refactor's job, not this issue's.
 
 ## Measured (dev machine, 2026-08-14; protocol 0.1.0)
 
@@ -157,3 +234,35 @@ committed code until this regeneration. Unlike the scene fixture, nothing
 tests the recording against current behaviour (re-running a full mission
 inside pytest is too expensive), so **regenerate it whenever mission
 behaviour changes**, not only when the protocol does.
+
+### The world the site actually serves (2026-08-16; protocol 0.4.0)
+
+Every number above is `room_hub` carrying an LCD. The site serves the
+house, drawing (issue #9, #12), and that is a heavier world: more geometry
+for the lidar and the tag cameras, a plotting errand, 308 s of mission
+instead of 178, and 6095 frames instead of 3500. Measured the same way —
+`MUJOCO_GL=osmesa --free-run`, `taskset -c 0-3`, `--world home --errand
+draw`:
+
+| Configuration | Result |
+|---|---|
+| `--free-run`, `taskset -c 0-3` | **1.07× real time** (308.3 s sim / 287.1 s wall), 6095 frames, **0 dropped**, peak RSS 621 MB, ~1.9 cores busy |
+
+So the answer to the Phase-0 question is still yes, but the margin is 7 %,
+not the 30 % `room_hub` showed. Read that as **four dedicated cores is the
+floor for the served world, not a comfortable choice** — the shared-vCPU
+budget probe from the design doc's ladder is off the table, and a second
+robot in the shared world will need this measured again rather than
+assumed.
+
+**Paced 1× could not be validated on this machine, and the reason is
+worth writing down.** The paced run came back at 0.71× with −123 s of
+drift, which contradicts a 1.07× free-run capability. The obvious suspect
+is the pacer's own sleeping, and it is not: 1000 × 20 ms sleeps under the
+same load overshot by 0.200 ms each (worst 8.8 ms), which is ~3 s over a
+whole mission, not 123. What actually happened is that a full-mission
+`pytest` run started on the box at the same moment and took roughly a core
+for the duration. This is a *dev-machine* result, not a property of the
+sim — and it is exactly the stutter the design doc predicts for shared
+cores. The decisive run is the one on the server, which is also the
+issue's third acceptance box.

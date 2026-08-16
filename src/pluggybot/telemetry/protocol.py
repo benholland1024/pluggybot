@@ -9,7 +9,25 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.3.0"
+PROTOCOL_VERSION = "0.4.0"
+# 0.4.0: whiteboards are world STATE, and ink is an event (issue #12).
+#        Frames may carry a "boards" block -- per drawing surface, which
+#        stroke programs are on it, how full the pen's reach is, and when it
+#        was last cleared. Sparse and keyframe-refreshed on exactly the same
+#        rule as "activities", and for the same reason: ink is not a body, so
+#        nothing about a drawing appears in the pose stream. The header gains
+#        "boards": [names].
+#        RECORDINGS now interleave two typed messages with the frames --
+#        {"type": "draw", ...} (board id + the polyline the pen actually
+#        traced, board-local metres) and {"type": "board_cleared", ...}.
+#        That is the part that is NOT backward compatible in practice: a
+#        0.3.0 replayer that assumed every line after the header is a frame
+#        will trip over them. Dispatch on "type"; no "type" means frame --
+#        the rule the live stream already had, now true of recordings too.
+#        The SCENE gains an optional top-level "boards" (geom, world pose and
+#        half-extents per drawing surface, keyed by the name the events use).
+#        Without it a `draw` polyline cannot be placed at all: the event
+#        names "whiteboard_a" while the geom it lives on is called "board_b".
 # 0.3.0: frames may carry an "activities" block -- the task state machines'
 #        discrete world state (issue #8), e.g.
 #        {"garden_gate": {"state": "open", "pressed": false}}. Sparse like

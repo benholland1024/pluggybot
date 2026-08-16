@@ -19,7 +19,7 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION, body_census, dynamic_flags
-from pluggybot.telemetry.recorder import TelemetryRecorder
+from pluggybot.telemetry.recorder import FrameBuilder, TelemetryRecorder
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
 
 REPO = Path(__file__).parent.parent
@@ -279,6 +279,124 @@ def test_recorder_status_fn_and_gzip(mini_model, tmp_path):
   assert frames[0]["robots"]["pluggybot"]["battery"]["watts"] == 8.5
 
 
+# ---- board state and the mixed stream (0.4.0, issue #12) -------------------
+
+
+def test_the_scene_maps_board_names_to_their_geometry():
+  """A `draw` event names a BOARD ("whiteboard_a") and gives points in that
+  board's own frame. The geom it lives on is called "board_b". Without the
+  scene's board table the client has a polyline it cannot place, and every
+  other test here would still pass -- the geometry is present, it is just
+  unreachable by the name the events use."""
+  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / "home_world.xml"))
+  meta = json.loads((REPO / "models" / "home_world.meta.json").read_text())
+  scene = scene_dict(model, "home_world", meta=meta)
+  geoms = {g["name"] for b in scene["bodies"] for g in b["geoms"]}
+  assert scene["boards"], "the home world's drawing surfaces are missing"
+  for name, spec in scene["boards"].items():
+    assert spec["geom"] in geoms, f"{name} points at a geom nobody renders"
+    assert len(spec["half"]) == 3 and len(spec["pos"]) == 3
+
+
+class FakeBook:
+  """The duck type the frame builder wants: `names` + `snapshot()`.
+
+  A stand-in rather than a real BoardBook, because what is under test here is
+  the SPARSE-EMISSION contract, not the drawing -- and the contract has to
+  hold for whatever the flags happen to be.
+  """
+
+  def __init__(self, **boards):
+    self.boards = boards
+
+  @property
+  def names(self):
+    return list(self.boards)
+
+  def snapshot(self):
+    return {k: dict(v) for k, v in self.boards.items()}
+
+
+def test_board_flags_are_sparse_and_re_ship_on_keyframes(mini_model, tmp_path):
+  """Ink has no body, so the pose stream says nothing about a drawing at all.
+
+  That makes the boards block the ONLY channel there is -- exactly the
+  argument that put activities in the frame -- so it has to obey both halves
+  of the rule: quiet when nothing changed, and complete again on every
+  keyframe, or a browser that joined mid-mission never learns what is on the
+  wall.
+  """
+  book = FakeBook(whiteboard_a={"strokes": 0, "fill": 0.0})
+  data = mujoco.MjData(mini_model)
+  builder = FrameBuilder(mini_model, data, model_name="mini", boards=book,
+                         keyframe_s=0.5)
+  assert builder.header()["boards"] == ["whiteboard_a"]
+
+  frames = []
+  for _ in range(round(2.0 / mini_model.opt.timestep)):
+    mujoco.mj_step(mini_model, data)
+    if float(data.time) > 0.9:
+      book.boards["whiteboard_a"] = {"strokes": 3, "fill": 0.21}
+    f = builder.build()
+    if f is not None:
+      frames.append(f)
+
+  assert "boards" in frames[0], "the first frame must carry the whole board"
+  quiet = [f for f in frames[1:6] if "boards" in f]
+  assert not quiet, f"an unchanged board was re-shipped: {quiet}"
+  changed = [f for f in frames if f.get("boards", {}).get(
+    "whiteboard_a", {}).get("strokes") == 3]
+  assert changed, "a board that changed was never shipped"
+  # ...and every keyframe carries it again, whether or not it changed
+  for f in [f for f in frames if f.get("key")]:
+    assert "boards" in f, f"keyframe at t={f['t']} dropped the board state"
+
+
+def test_two_sinks_over_one_world_do_not_eat_each_others_deltas(mini_model):
+  """`serve.py --record` runs a publisher AND a recorder over one book. The
+  already-emitted memory therefore lives on the BUILDER, never on the board --
+  shared, each sink would ship a random half of the changes."""
+  book = FakeBook(whiteboard_a={"strokes": 0})
+  data = mujoco.MjData(mini_model)
+  a = FrameBuilder(mini_model, data, model_name="mini", boards=book)
+  b = FrameBuilder(mini_model, data, model_name="mini", boards=book)
+  assert "boards" in a.build() and "boards" in b.build()
+  mujoco.mj_step(mini_model, data)
+  book.boards["whiteboard_a"] = {"strokes": 1}
+  for _ in range(round(0.1 / mini_model.opt.timestep)):
+    mujoco.mj_step(mini_model, data)
+  fa, fb = a.build(), b.build()
+  assert fa["boards"] == fb["boards"] == {"whiteboard_a": {"strokes": 1}}
+
+
+def test_recorded_events_interleave_with_frames(mini_model, tmp_path):
+  """A stroke is not a per-tick quantity: decimating one to 20 Hz would mean
+  shipping the same polyline a hundred times or dropping it. So it rides as
+  its own line, and a recording becomes a MIXED stream -- which is the part of
+  0.4.0 a 0.3.0 replayer trips over, since it assumed every line after the
+  header was a frame."""
+  data = mujoco.MjData(mini_model)
+  path = str(tmp_path / "out.jsonl")
+  rec = TelemetryRecorder(mini_model, data, path, model_name="mini")
+  for step in range(round(1.0 / mini_model.opt.timestep)):
+    mujoco.mj_step(mini_model, data)
+    rec.step_hook()
+    if step == 200:
+      rec.emit({"type": "draw", "t": round(float(data.time), 3),
+                "board": "whiteboard_a", "points": [[0.0, 0.0], [0.01, 0.0]]})
+  rec.close()
+  with open(path) as f:
+    lines = [json.loads(x) for x in f]
+
+  frames = [x for x in lines[1:] if "type" not in x]
+  events = [x for x in lines[1:] if x.get("type") == "draw"]
+  assert len(events) == 1 and frames, "the event replaced the frames"
+  assert all(b["t"] >= a["t"] for a, b in zip(lines[1:], lines[2:])), \
+    "the stream must stay ordered in sim time across both message kinds"
+  # the event landed in the middle, not flushed to the end at close()
+  assert 0 < lines.index(events[0]) < len(lines) - 1
+
+
 # ---- the committed fixtures ------------------------------------------------
 # The same checks the website repo runs against its vendored copies: if these
 # fail, regenerate the fixtures or bump the protocol version deliberately.
@@ -289,14 +407,17 @@ PROTOCOL = REPO / "protocol"
 # and a recording to replay in it. Serving one world's telemetry against the
 # other's scene is the failure this table exists to make impossible.
 WORLDS = [
-  # (scene fixture, model, model name, generator sidecar, recording)
+  # (scene fixture, model, model name, generator sidecar, recording, draws?)
+  # `draws` marks the recording that must exercise the DRAWING errand: the
+  # home world is the one the website serves, so its fixture is what the
+  # canvas-painting code on the other side is built against (issue #12).
   ("scene.room_hub.json", "room_hub.xml", "room_hub", None,
-   "telemetry.hub_lifecycle.jsonl.gz"),
+   "telemetry.hub_lifecycle.jsonl.gz", False),
   ("scene.home_world.json", "home_world.xml", "home_world",
-   "home_world.meta.json", "telemetry.home_lifecycle.jsonl.gz"),
+   "home_world.meta.json", "telemetry.home_lifecycle.jsonl.gz", True),
 ]
 SCENE_CASES = [(w[0], w[1], w[2], w[3]) for w in WORLDS]
-TELEMETRY_CASES = [(w[4], w[2]) for w in WORLDS]
+TELEMETRY_CASES = [(w[4], w[2], w[5]) for w in WORLDS]
 
 
 @pytest.mark.parametrize("fixture,world_xml,model_name,meta_file", SCENE_CASES,
@@ -323,12 +444,16 @@ def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
     f"models/{world_xml}"
 
 
-@pytest.mark.parametrize("fixture,model_name", TELEMETRY_CASES,
+@pytest.mark.parametrize("fixture,model_name,draws", TELEMETRY_CASES,
                          ids=[c[1] for c in TELEMETRY_CASES])
-def test_telemetry_fixture_is_a_full_mission(fixture, model_name):
+def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   with gzip.open(PROTOCOL / fixture, "rt") as f:
     lines = [json.loads(line) for line in f]
-  header, frames = lines[0], lines[1:]
+  # Dispatch on "type"; no "type" means frame (0.4.0). A recording is a MIXED
+  # stream now -- `draw` and `board_cleared` events ride between the frames,
+  # because a stroke is not a per-tick quantity.
+  header = lines[0]
+  frames = [x for x in lines[1:] if "type" not in x]
   assert header["protocolVersion"] == PROTOCOL_VERSION
   # the header field the website selects its scene off -- a recording
   # mislabelled here poses one world's robot inside the other's rooms
@@ -358,6 +483,27 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name):
   assert {"EXPLORE", "GO_CHARGE", "CHARGE",
           "SWAP_PICK", "USE_TOOL", "SWAP_RETURN"} <= states, \
     "the fixture must cover the full battery-driven mission"
+
+  if not draws:
+    return
+  # The drawing half (0.4.0): the board is erased, then inked, and BOTH facts
+  # reach a consumer only through these lines and the boards block. There is
+  # no body to watch -- a fixture that lost them replays a robot miming at a
+  # blank wall, and every assertion above would still pass.
+  events = [x for x in lines[1:] if "type" in x]
+  cleared = [e for e in events if e["type"] == "board_cleared"]
+  drawn = [e for e in events if e["type"] == "draw"]
+  assert cleared, "no board_cleared event: the errand must erase before it draws"
+  assert len(drawn) > 1, f"only {len(drawn)} draw events in a whole drawing"
+  assert set(header["boards"]), "the header must name the world's boards"
+  for e in drawn:
+    assert e["board"] in header["boards"]
+    assert len(e["points"]) >= 2 and all(len(p) == 2 for p in e["points"])
+  assert cleared[0]["t"] < drawn[0]["t"], "drew before erasing"
+  # ...and the board state itself moved off blank, in the frames
+  final = [f for f in frames if "boards" in f][-1]["boards"]
+  assert any(b["strokes"] > 0 and b["fill"] > 0 for b in final.values()), \
+    "the boards block never showed any ink"
   for f in frames:
     bat = f["robots"]["pluggybot"]["battery"]
     assert 0.0 <= bat["frac"] <= 1.0

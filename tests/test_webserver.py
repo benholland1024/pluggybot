@@ -512,12 +512,14 @@ class _FakeLife:
   def run(self, *a, **kw):
     self.run_args, self.run_kwargs = a, kw
     return {"state": "DONE", "swaps_done": 2, "charge_cycles": 1,
-            "module_stowed": True, "sim_time": 100.0}
+            "module_stowed": True, "sim_time": 100.0,
+            "errands": [], "boards": {}}
 
 
 class _FakePublisher:
   def __init__(self, model, data, endpoint, **kw):
     self.init_kwargs = kw
+    self.messages: list = []
     self.frames_sent = self.frames_dropped = self.connections = 0
     self.last_error = None
 
@@ -526,6 +528,10 @@ class _FakePublisher:
 
   def event(self, t, msg) -> None:
     pass
+
+  def message(self, msg) -> None:
+    # `draw` / `board_cleared` reach the browser through here (issue #12)
+    self.messages.append(msg)
 
   def close(self) -> None:
     pass
@@ -589,6 +595,39 @@ def test_serve_defaults_to_room_hub_unchanged(monkeypatch):
   assert life.run_kwargs["use_at"] == (-1.2, 2.5)
   assert life.run_kwargs["explore_budget"] == 90.0
   assert life.init_kwargs["rack"] is None
+
+
+def test_serve_wires_the_drawing_errand_and_its_boards(monkeypatch, tmp_path):
+  """`--errand draw` has to reach three places or it half-applies silently
+  (issue #12): the lifecycle needs the errand QUEUE, the lifecycle and the
+  publisher both need the same BOOK -- one so the boards block is in the
+  frames, the other so `draw` events reach the browser at all -- and the
+  book needs the state file, or a restart forgets the drawing.
+
+  Missing any one of them looks like success from the terminal: the robot
+  still fetches the pen and still draws. The website just shows a blank
+  wall, which is not something this repo's tests can see from here.
+  """
+  state = tmp_path / "boards.json"
+  life, pub, _ = _serve_wiring(
+    monkeypatch, ["--world", "home", "--free-run", "--errand", "draw",
+                  "--boards", str(state)])
+  errands = life.init_kwargs["errands"]
+  assert [e.name for e in errands] == ["draw:whiteboard_a"]
+  assert errands[0].module == "module_pen" and errands[0].use is not None
+  book = life.init_kwargs["boards"]
+  assert book is pub.init_kwargs["boards"], \
+    "the publisher and the lifecycle must share ONE book"
+  assert book.path == state
+  assert pub.message in book.on_event, "strokes never reach the socket"
+
+
+def test_serve_without_boards_is_the_pre_0_4_0_wiring(monkeypatch):
+  """room_hub has no whiteboards, so there is no book -- and every board hook
+  has to tolerate that rather than being wired to None."""
+  life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert life.init_kwargs["boards"] is None
+  assert pub.init_kwargs["boards"] is None
 
 
 def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):

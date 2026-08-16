@@ -1,0 +1,53 @@
+# The sim as the website's third compose service (rooftop-media-2026 #20).
+#
+# This file is a SNIPPET to paste into rooftop-media-2026's `compose.yaml`
+# alongside `web` and `db`, not a stack you run from this repo -- it has no
+# database and its endpoint points at a service that lives over there. It is
+# kept here because the image is built here, so the two move together.
+#
+#   1. clone this repo next to the website (or set `build.context` to
+#      wherever it lives on the server);
+#   2. paste the `sim:` block into the website's compose.yaml services;
+#   3. paste the `pluggy_state:` volume into its volumes block;
+#   4. put PLUGGYWORLD_TOKEN in the website's .env -- the SAME secret the
+#      ingest route checks.
+#
+# There is no `ports:` and no `depends_on: web`. The sim is an outbound
+# WebSocket client that retries once a second, so it survives the website
+# being down, restarted or deployed under it -- which is also why it never
+# needs an inbound rule or a place in the reverse proxy.
+
+services:
+  sim:
+    build:
+      context: ../pluggybot
+    environment:
+      # Container-to-container: `web` is the service name on the compose
+      # network, 3000 its in-container port (the 8080 mapping is host-side).
+      # Plain ws:// is right here -- this hop never leaves the docker
+      # network; TLS terminates in front of the website for browsers.
+      PLUGGY_ENDPOINT: ws://web:3000/api/pluggyworld/ingest
+      PLUGGYWORLD_TOKEN: ${PLUGGYWORLD_TOKEN:?set the ingest secret}
+      PLUGGY_WORLD: home           # the house + garden the site serves (#9)
+      PLUGGY_ERRAND: draw          # so the stream carries real `draw` events
+      PLUGGY_RATE: "1.0"           # sim seconds per wall second
+      # The demo cell (1.1 Wh) flattens in minutes, which reads as a robot
+      # that does nothing but charge. A watched world wants hours between
+      # charges. The low-battery reserve is deliberately NOT scaled with it:
+      # it is the absolute energy needed to reach the dock, not a fraction.
+      PLUGGY_BATTERY_WH: "8.0"
+      # A mission ends when its errands are done; `restart: unless-stopped`
+      # starts the next one, and the boards volume means it walks into the
+      # house it left. This ceiling only bounds a mission that gets stuck.
+      PLUGGY_MAX_SIM_TIME: "3600"
+    volumes:
+      - pluggy_state:/var/lib/pluggybot
+    restart: unless-stopped
+    # Four cores is the measured shape (docs/Webserver.md): osmesa keeps a
+    # paced 1x stream with headroom there. On a CCX23 this leaves a core for
+    # Node and Postgres.
+    cpus: "4.0"
+    mem_limit: 2g
+
+volumes:
+  pluggy_state:

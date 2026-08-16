@@ -291,6 +291,70 @@ tracked as its own issues; landed so far:
     sets the text size floor (18 mm caps ≈ 6 % of cap height), not the
     line width. Single-stroke figures are untouched by the re-zero, so the
     square's baseline is bit-identical: **0.57 mm form, 98 % inked**.
+- **Drawing as a lifecycle errand + board state (issue #12)**: the robot now
+  *draws for a living* rather than in a script. Three parts:
+  - **`run_errand` is general.** An **errand** (`hub/errand.py`) is a tool, a
+    place and a *use-phase callable*, and `USE_TOOL` finally does work. The
+    lifecycle carries a **queue** of them, arbitrated against the battery by
+    the same loop as everything else, so "two drawings on two boards with a
+    charge in between" is a list rather than a special case.
+    `scripts/home_draw.py` is now a thin caller of that path instead of a
+    second copy of the mission stack — the copy was how a fix to one could
+    silently miss the other. Measured in the house: fetch → navigate →
+    erase → draw a house → stow, **7/7 strokes, 98 % inked, 1.14 mm form
+    rms, 0 collisions**.
+  - **Boards are persistent state** (`hub/boards.py`), not scenery: which
+    stroke programs are on each one, how much of the pen's reach is inked,
+    when it was last cleared — surviving a restart in a JSON state file
+    written on every stroke (`--boards PATH`). *Fill is measured against the
+    **reach**, 110 × 200 mm, not the 320 × 260 mm slab* — the base is parked
+    for the whole drawing, so scoring against the slab would report a board
+    the robot cannot fill as 12 % after its best possible effort.
+  - **Ink is an event, never geometry.** Strokes stream as `draw` messages
+    (board id + the polyline the pen *actually inked*, off the trace) for the
+    browser to paint into a canvas texture, and erasing is a first-class
+    action emitting `board_cleared`. That is the three-layer rule from the
+    activity work applied to drawing: MuJoCo cannot add geometry to a
+    compiled model anyway, and a geom per stroke would put thousands of
+    collision-eligible slabs into a room the robot drives through.
+  - **Protocol 0.4.0.** Frames gain a sparse `boards` block; recordings gain
+    the two event types and are therefore a **mixed stream** — dispatch on
+    `type`, no `type` means frame. The home fixture is now a drawing mission,
+    so the website has something to build its canvas against. **Re-vendor
+    `protocol/`.**
+- **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
+  the sim as a deployable container, so it can join the website's compose
+  stack as a third service alongside `web` and `db`. It runs `serve.py` and
+  nothing else: no ports (the publisher is an outbound client),
+  `MUJOCO_GL=osmesa` baked in, one offscreen render at *build* time so
+  "headless GL works here" is answered by `docker build` on the server,
+  configuration by environment, and `/var/lib/pluggybot` as a volume because
+  boards are world state and every mission end is a container restart.
+  Verified by running it: the container fetches the pen, erases a
+  whiteboard, draws the house, stows the pen and streams the whole mission —
+  3993 frames, 0 dropped — to a sink on the host.
+  Re-measured the real-time multiple for the world the site *serves* rather
+  than the `room_hub` demo it was first taken on: **1.07×** free-run on four
+  pinned cores under osmesa (308.3 s sim / 287.1 s wall, 6095 frames, 0
+  dropped, peak RSS 621 MB), against 1.30× for room_hub. The house plus a
+  drawing errand is the heavier world, so the margin at 1× is 7 % rather
+  than 30 % — four **dedicated** cores is the floor for it, and the design
+  doc's shared-vCPU budget probe is off the table. Details and the paced-1×
+  caveat in docs/Webserver.md.
+  Two things it deliberately is not. It is **not the dev environment**: the
+  serve path needs six packages, and installing the rest would put a ~3 GB
+  CUDA torch wheel on a box with no GPU. And it does **not** keep one
+  continuous world alive — each restart is a fresh mission from the start
+  pose ("woke up at home"), with only the boards persisting. A standing
+  world is the tick refactor's job.
+  The lesson, which cost the first two builds: **a lazy import is invisible
+  to an import scan.** The apriltag detector arrives inside
+  `hub.tags._shared_detector`, so a module-graph scan of the serve path came
+  back clean and the container died at `HubMission.__init__`. The guard that
+  replaced it (`tests/test_deploy.py`) makes the omitted packages
+  unimportable and then *flies the robot* — and the first version of that
+  guard was itself decor, passing with the pin deleted because it compared
+  `pupil-apriltags` to `pupil_apriltags`.
 - **Protocol 0.2.0 — recurring keyframes + authenticated ingest** (producer
   half of the website's live-hub issue, rooftop-media-2026 #22): keyframes
   now recur every 5 sim-seconds and are marked `"key": true`, and the

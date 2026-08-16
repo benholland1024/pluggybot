@@ -8,11 +8,58 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.3.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.4.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
+
+### 0.3.0 → 0.4.0 (whiteboards are state, and ink is an event)
+
+Boards became persistent world state the sim owns and streams (issue #12).
+**Mostly additive, with one thing to fix in a replayer** — see the second
+bullet.
+
+- Frames may carry a **`boards`** object: per drawing surface, which stroke
+  programs are on it, how much of the pen's reach carries ink, and when it
+  was last cleared. Sparse and keyframe-refreshed on exactly the same rule
+  as `activities`. The header gains **`"boards": [names]`**.
+- **Recordings are now a mixed stream.** Two typed messages ride *between*
+  the frames — `draw` and `board_cleared` (below) — where before, every
+  line after the header was a frame. **Dispatch on `type`; no `type` means
+  frame.** That rule already governed the live stream; it is now true of
+  `.jsonl` recordings too, and a 0.3.0 replayer that assumed otherwise
+  trips over the new lines.
+
+```jsonc
+// one stroke, emitted as the pen finishes it
+{"type": "draw", "t": 123.4, "robot": "pluggybot", "board": "whiteboard_a",
+ "program": "house", "stroke": 3,
+ "points": [[lat, height], ...]}     // board-local metres, +lat = viewer's LEFT
+
+// the board was erased (start of a drawing errand, or an explicit action)
+{"type": "board_cleared", "t": 120.0, "robot": "pluggybot",
+ "board": "whiteboard_a", "clearedAt": "2026-08-16T08:01:09+00:00"}
+```
+
+**Strokes are never geometry.** Ink is layer 3 of the three-layer model
+(rigid bodies in MuJoCo · discrete state in Python · everything organic in
+the browser): the site paints these polylines into a canvas texture on the
+board mesh. Nothing about a drawing appears in the pose stream, so these
+messages plus the `boards` block are the *only* record of it — the same
+argument that put `activities` on the wire in 0.3.0.
+
+**Consumer notes.** `points` are in the board's own frame, origin at the
+board's centre, metres, rounded to 0.1 mm — the board's pose and half-extents
+come from the scene description. `lat` is measured to the LEFT of the robot's
+approach, so a canvas drawn in screen coordinates flips it once. The polyline
+is what the pen actually **inked**, not what it was commanded, so it carries
+the robot's real ~1 mm of form error and a stroke that lost the board comes
+through short. `board_cleared` means *drop everything you have painted for
+that board*; a `draw` event whose board you have no canvas for is safe to
+ignore. Board `fill` is measured against the window the pen can reach with
+the base parked (110 × 200 mm on the home boards), not against the whole
+slab.
 
 ### 0.2.0 → 0.3.0 (activities join the frame)
 
@@ -60,7 +107,7 @@ against the body census.
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same mission in the **home world** (issue #9) — what the live site serves | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) with a real **drawing errand** (issue #12) — what the live site serves, and the fixture the canvas-painting code is built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand draw --record protocol/telemetry.home_lifecycle.jsonl.gz` |
 
 **One recording per scene, and they are not interchangeable.** A replayer
 picks its scene off the header's `model` field, so playing the room_hub
@@ -101,9 +148,22 @@ a hint is additive; renaming one is a two-repo breaking change. Hints ride
 in the sidecar and **never** in geom colors — the robot's cameras render
 rgba, so colour-as-encoding would couple perception to art direction.
 
-A generated world may also carry two optional top-level fields, likewise
-additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`)
-and `spawns` (`name → [x, y, yaw_rad]`).
+A generated world may also carry three optional top-level fields, likewise
+additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`),
+`spawns` (`name → [x, y, yaw_rad]`), and `boards` — the drawing surfaces, by
+the name telemetry uses:
+
+```jsonc
+"boards": {"whiteboard_a": {"geom": "board",          // the geom in `bodies`
+                            "pos": [-1.97, 1.0, 0.3], // world frame, m
+                            "half": [0.01, 0.16, 0.13],  // depth,width,height
+                            "heading": 3.14159}}      // outward normal, rad
+```
+
+This is what places a `draw` event's polyline: the event names the *board*
+(`whiteboard_a`), the scene says which geom that is and how big its face is,
+so a canvas is `2 × half[1]` by `2 × half[2]` metres with the polyline's
+origin at its centre.
 
 Per geom: `name`, `type` (`box | cylinder | capsule | sphere | plane`),
 `size`, `pos` + `quat` (body-local, constant), `rgba`, `texture` (name into
@@ -132,11 +192,12 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.3.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.4.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
- "activities": ["garden_gate"]}                         // task state machines
+ "activities": ["garden_gate"],                         // task state machines
+ "boards": ["whiteboard_a", "whiteboard_b"]}            // drawing surfaces
 
 // frame
 {"t": 123.45,                                  // sim seconds
@@ -147,7 +208,13 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "status": "EXPLORE -> GO_CHARGE (battery low)",            // the _say line
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
  "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
- "activities": {"garden_gate": {"state": "open", "pressed": false}}}
+ "activities": {"garden_gate": {"state": "open", "pressed": false}},
+ "boards": {"whiteboard_a": {"programs": ["house"], "strokes": 7,
+                             "inkM": 0.459,          // metres of ink laid down
+                             "fill": 0.191,          // of the pen's REACH
+                             "clears": 1,
+                             "clearedAt": "2026-08-16T08:01:09+00:00",
+                             "drawnAt": "2026-08-16T08:01:47+00:00"}}}
 ```
 
 **Frames are sparse.** The first frame is a keyframe carrying every dynamic
@@ -155,8 +222,9 @@ body; later frames carry only bodies that moved > 0.5 mm (or the quat
 equivalent) since they were last emitted. A body absent from a frame is
 unchanged — a replayer holds the last value it saw. `bodies`, `world` and
 `activities` are omitted entirely when empty; `state`/`status`/`battery`
-ride in every frame. **Activity flags are sparse on the same rule as poses**
-and re-ship on every keyframe (0.3.0). Positions are rounded to 0.1 mm.
+ride in every frame. **Activity flags and board state are sparse on the same
+rule as poses** and re-ship on every keyframe (0.3.0, 0.4.0). Positions are
+rounded to 0.1 mm.
 
 **Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
 `"key": true`. A consumer that starts reading anywhere in the stream is
@@ -219,6 +287,9 @@ sent as no header at all, because a blank `PLUGGYWORLD_TOKEN` would
 otherwise publish unauthenticated and read as a wrong secret.
 
 The two live-only message types:
+
+(`draw` and `board_cleared` ride this socket too, and are the two types that
+also appear in recordings — see 0.4.0 above.)
 
 ```jsonc
 // occupancy-grid belief, ~1 Hz per robot: base64 PNG, uint8 cells

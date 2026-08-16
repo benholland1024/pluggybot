@@ -1,0 +1,24 @@
+# The serving image's dependencies -- deliberately NOT the project's.
+#
+# `scripts/serve.py` imports mujoco, numpy, scipy, pillow and websockets and
+# nothing else; the rest of pyproject.toml (torch, ultralytics,
+# stable-baselines3, gymnasium, the apriltag libraries) belongs to training,
+# dataset generation and the detector, none of which run on the serving box.
+# Installing it there would pull a ~3 GB CUDA torch wheel onto a machine with
+# no GPU.
+#
+# Versions are the ones in uv.lock, and `tests/test_deploy.py` fails if this
+# file drifts from it or if the serve path grows an import that is not here --
+# the failure mode otherwise is a green test suite and a container that
+# crashes on the server.
+mujoco==3.10.0
+numpy==2.5.1
+pillow==12.3.0
+# The apriltag DETECTOR (moms-apriltag, which only generates the textures,
+# stays out). It is imported inside `hub.tags._shared_detector`, so no
+# module-level import scan finds it -- the first build of this image died on
+# it at `HubMission.__init__`, which is why the test runs a real mission
+# with these five and nothing else importable.
+pupil-apriltags==1.0.4.post11
+scipy==1.18.0
+websockets==17.0.1

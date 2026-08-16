@@ -82,7 +82,7 @@ class WsPublisher:
                grid=None, grid_hz: float = GRID_HZ,
                token: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None) -> None:
+               activities=None, boards=None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -93,7 +93,7 @@ class WsPublisher:
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
-                                 activities=activities)
+                                 activities=activities, boards=boards)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0
@@ -138,9 +138,22 @@ class WsPublisher:
 
   def event(self, t: float, line: str) -> None:
     """Queue a narration line (wire into HubLifecycle.say_hooks)."""
+    self.message({"type": "event", "t": round(t, 3),
+                  "robot": ROBOT_ROOT, "line": line})
+
+  def message(self, msg: dict) -> None:
+    """Queue any typed low-frequency message (wire into BoardBook.on_event
+    for `draw` / `board_cleared`).
+
+    Dropped rather than blocking, like everything else here -- but a dropped
+    STROKE is not like a dropped frame: there is no later message that
+    supersedes it, so the browser's canvas is missing that line until the
+    board is next erased. That is the accepted cost of never blocking the
+    physics on a socket, and it is why recordings, not the live stream, are
+    the lossless artifact. `events_dropped` counts it.
+    """
     try:
-      self._queue.put_nowait(("event", {"type": "event", "t": round(t, 3),
-                                        "robot": ROBOT_ROOT, "line": line}))
+      self._queue.put_nowait(("event", dict(msg)))
     except queue.Full:
       self.events_dropped += 1
 

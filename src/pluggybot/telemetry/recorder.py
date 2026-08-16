@@ -75,7 +75,7 @@ class FrameBuilder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None) -> None:
+               activities=None, boards=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -83,6 +83,11 @@ class FrameBuilder:
     self.model, self.data = model, data
     self.status_fn = status_fn
     self.activities = activities
+    # Boards present the same duck type an ActivitySet does (`names` +
+    # `snapshot()`), so they diff through the same code below -- and they are
+    # here for the same reason activities are: a drawing has no body, so its
+    # state reaches a viewer through this block or not at all.
+    self.boards = boards
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -101,6 +106,7 @@ class FrameBuilder:
     # two sinks over one world (serve.py --record) never eat each other's
     # deltas. Same reason `_last` holds poses here rather than on the bodies.
     self._last_acts: dict[str, dict] = {}
+    self._last_boards: dict[str, dict] = {}
 
   def header(self) -> dict:
     return {
@@ -112,12 +118,14 @@ class FrameBuilder:
       "robots": {ROBOT_ROOT: self.robot_names},
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
+      "boards": self.boards.names if self.boards else [],
     }
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
     self._last.clear()
     self._last_acts.clear()
+    self._last_boards.clear()
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -140,6 +148,7 @@ class FrameBuilder:
       # (a gate moved by geom toggle ships once in the scene and never
       # again), so the flag is the only record of it anywhere in the stream.
       self._last_acts.clear()
+      self._last_boards.clear()
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -164,13 +173,28 @@ class FrameBuilder:
     if world:
       frame["world"] = world
     if self.activities is not None:
-      acts = {name: flags
-              for name, flags in self.activities.snapshot().items()
-              if self._last_acts.get(name) != flags}
+      acts = self._sparse(self.activities.snapshot(), self._last_acts)
       if acts:
-        self._last_acts.update(acts)
         frame["activities"] = acts
+    if self.boards is not None:
+      boards = self._sparse(self.boards.snapshot(), self._last_boards)
+      if boards:
+        frame["boards"] = boards
     return frame
+
+  @staticmethod
+  def _sparse(snapshot: dict, last: dict) -> dict:
+    """Whatever changed since it was last emitted, remembering it.
+
+    `last` lives on the BUILDER, never on the activity or the board:
+    `serve.py --record` runs a publisher and a recorder over one world, each
+    with its own builder, and a shared memory would have the two sinks eating
+    each other's deltas -- each shipping a random half of the changes.
+    """
+    changed = {name: flags for name, flags in snapshot.items()
+               if last.get(name) != flags}
+    last.update({k: dict(v) for k, v in changed.items()})
+    return changed
 
   def _pose_if_moved(self, bid: int) -> list[float] | None:
     """[x,y,z,qw,qx,qy,qz] world-frame, or None if within eps of the pose
@@ -204,10 +228,10 @@ class TelemetryRecorder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None) -> None:
+               activities=None, boards=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
-                                 activities=activities)
+                                 activities=activities, boards=boards)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
@@ -225,6 +249,23 @@ class TelemetryRecorder:
     frame = self._builder.build()
     if frame is not None:
       self._queue.put(frame)
+
+  # ---- out-of-band messages ------------------------------------------------
+
+  def emit(self, message: dict) -> None:
+    """Write a typed message into the stream between frames (0.4.0).
+
+    The `draw` and `board_cleared` events go through here. They cannot ride
+    in a frame: a stroke is not a per-tick quantity, and decimating one to
+    20 Hz would mean either shipping the same polyline a hundred times or
+    dropping it. So the recording becomes a mixed stream, and a reader
+    dispatches on "type" -- no "type" means frame.
+
+    Ordering with frames is by queue arrival, which is by sim time, because
+    both come off the physics thread. A consumer replaying in `t` order gets
+    the stroke at the moment the pen finished it.
+    """
+    self._queue.put(dict(message))
 
   # ---- the writer (its own thread; owns all I/O) ---------------------------
 

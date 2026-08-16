@@ -17,6 +17,11 @@ Usage:
                         # start pose, errand destination, explore budget --
                         # comes from hub.lifecycle.world_config(), so this
                         # flag can never half-apply.
+  ... --errand draw     # a real drawing errand (issue #12): fetch the pen,
+                        # navigate to a whiteboard, erase it, draw, stow. The
+                        # strokes stream as `draw` events for the browser to
+                        # paint -- they are never MuJoCo geometry.
+  ... --boards state.json     # whiteboard contents that survive a restart
   ... --rate 2.0        # sim seconds per wall second (default 1.0)
   ... --free-run        # no pacing: measure this machine's real-time multiple
   ... --record out.jsonl.gz   # also keep a v0 recording of the same run
@@ -34,7 +39,9 @@ import time
 
 import mujoco
 
-from pluggybot.hub.lifecycle import HubLifecycle, world_config
+from pluggybot.hub.lifecycle import (
+  HubLifecycle, board_book, errands_for, world_config,
+)
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
@@ -63,15 +70,29 @@ def main() -> None:
                       metavar="S", help="sim seconds between full keyframes"
                                         " (0 disables; late joiners then wait"
                                         " forever)")
+  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "none"),
+                      default="carry",
+                      help="what the robot is FOR this run (issue #12): carry "
+                           "(the milestone-8 LCD errand), draw (fetch the pen, "
+                           "erase a whiteboard and draw on it), draw2 (two "
+                           "boards, charging in between), none")
+  parser.add_argument("--boards", default=None, metavar="PATH",
+                      help="JSON file the whiteboards' contents live in "
+                           "between runs (default: blank boards every start)")
   args = parser.parse_args()
 
   cfg = world_config(args.world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
+  # Board state is the world's, not the run's: loaded before the mission and
+  # written back on every stroke, so a restart walks into the house it left.
+  book = board_book(args.world, state=args.boards)
   life = HubLifecycle(model, data,
                       battery_wh=args.battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
+                      low_battery_wh=cfg["low_battery_wh"],
+                      errands=errands_for(args.errand, args.world, book),
+                      boards=book)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -82,9 +103,13 @@ def main() -> None:
                           status_fn=life.telemetry_status,
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s,
-                          activities=activities)
+                          activities=activities, boards=book)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
+  if book is not None:
+    # Strokes reach the browser as `draw` messages, never as geometry: the
+    # website paints them into the board's canvas texture.
+    book.on_event.append(publisher.message)
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
@@ -95,8 +120,10 @@ def main() -> None:
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
-                                 activities=activities)
+                                 activities=activities, boards=book)
     life.mission.step_hooks.append(recorder.step_hook)
+    if book is not None:
+      book.on_event.append(recorder.emit)
 
   wall0 = time.monotonic()
   try:
@@ -113,6 +140,11 @@ def main() -> None:
   print(f"mission state          : {r['state']}"
         f" (swaps={r['swaps_done']}, charges={r['charge_cycles']},"
         f" stowed={r['module_stowed']})")
+  for e in r["errands"]:
+    extra = (f"  {e['figure']} on {e['board']}, board {e['fill']:.0%} full"
+             if e.get("board") else "")
+    print(f"errand {e['errand']:<20s}: picked={e['picked']}"
+          f" stowed={e['stowed']}{extra}")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
   if pacer is not None:

@@ -1,14 +1,20 @@
-"""The home-world drawing errand (issue #6): fetch the pen, draw, stow.
+"""The home-world drawing errand: fetch the pen, erase a board, draw, stow.
 
-The milestone-8 gap this closes: the pen only ever drew in the bare
-hub_world, because no room world had a drawing surface. The generated home
-world hangs whiteboards on real walls, so the full errand now runs in a
-navigated world: pick the pen module from bay C, A* across the living room,
-square up to a wall-mounted board, plot a figure through the sprung quill,
-restore the carry configuration, drive back and hang the tool up.
+As of issue #12 this script is a THIN CALLER of the lifecycle's own errand
+path (`hub/errand.py` + `HubLifecycle.run_errand`) rather than a second copy
+of the mission stack. What it adds over `hub_lifecycle.py --errand draw` is
+diagnostics, not behaviour: a photo of the board taken while the robot is
+still standing at it, and the commanded-vs-inked overlay in board
+coordinates. The robot does exactly what it does when the website is
+watching -- including erasing the board first, because a task should not have
+to share a board with whatever was there before.
 
-Writes home_draw.png: a photo of the board with the robot at work, plus the
-commanded-vs-inked trace in board coordinates.
+That matters more than it sounds: the previous version drove, drew and stowed
+through its own hand-rolled sequence, so a fix to the errand (the carry-pose
+stow of issue #10, say) had to be made twice or it silently only landed in
+one of them.
+
+Writes home_draw.png: the board with the robot at work, plus the trace panel.
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/home_draw.py             # headless
@@ -17,6 +23,8 @@ Usage:
   MUJOCO_GL=egl uv run python scripts/home_draw.py --program text \
       --text "GOOD MORNING"
   MUJOCO_GL=egl uv run python scripts/home_draw.py --board whiteboard_b
+  MUJOCO_GL=egl uv run python scripts/home_draw.py --boards boards.json
+    # keep the board state across runs (issue #12)
 """
 
 import argparse
@@ -27,15 +35,21 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.drawing import Board, Envelope, PenPlotter
-from pluggybot.hub.strokes import PROGRAMS, from_cli
+from pluggybot.hub.boards import BoardBook
+from pluggybot.hub.drawing import Board
+from pluggybot.hub.errand import drawing_errand
+from pluggybot.hub.lifecycle import HubLifecycle
 from pluggybot.hub.localize import RackPose
-from pluggybot.hub.mission import HubMission, MissionAborted
+from pluggybot.hub.mission import MissionAborted
+from pluggybot.hub.strokes import PROGRAMS, from_cli
 from pluggybot.home import world as home
 
 OUT = "home_draw.png"
-PEN_BAY = HUB_STATION_YS[2]     # bay C, same as draw.py
+BIG_BATTERY_WH = 8.0    # this demo is about the drawing, not the battery loop:
+                        # a pack that cannot run flat keeps a failed cycle
+                        # reading as a DRAWING failure instead of turning into
+                        # a charge detour. hub_lifecycle.py --errand draw is
+                        # the battery-driven version.
 
 BG = (24, 26, 30)
 INK = (232, 234, 238)
@@ -106,6 +120,10 @@ def main() -> None:
                       help="figure box in metres -- cap height, for text")
   parser.add_argument("--board", default="whiteboard_a",
                       choices=sorted(home.BOARDS))
+  parser.add_argument("--boards", default=None, metavar="PATH",
+                      help="JSON file the board contents live in between runs")
+  parser.add_argument("--no-erase", action="store_true",
+                      help="draw over whatever is already on the board")
   parser.add_argument("--cycles", type=int, default=1,
                       help="repeat fetch -> draw -> stow this many times. "
                            "The point of >1 is the HAND-OFF: a stow that "
@@ -120,65 +138,49 @@ def main() -> None:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
 
+  meta = json.load(open("models/home_world.meta.json"))
+  book = BoardBook.for_meta(meta, path=args.boards)
+  board = Board.from_meta(meta["boards"][args.board])
+  figure = from_cli(args.program, args.size, args.text)
+
   rack = RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],
                   math.radians(home.HOME_RACK_YAW))
-  mission = HubMission(model, data, viewer=viewer, realtime=not args.fast,
-                       rack=rack, grid_bounds=home.GRID_BOUNDS)
-  meta = json.load(open("models/home_world.meta.json"))
-  board = Board.from_meta(meta["boards"][args.board])
-  # Size the figure against what the PEN can reach, which is nothing like the
-  # board: 320 mm of whiteboard, 110 mm of carriage travel, base parked.
-  envelope = Envelope.for_board(board)
-  figure = from_cli(args.program, args.size, args.text)
-  if not figure.fits(envelope):
-    print(f"{figure.name} is {figure.size[0] * 1000:.0f} x "
-          f"{figure.size[1] * 1000:.0f} mm; the pen can reach "
-          f"{envelope.size[0] * 1000:.0f} x {envelope.size[1] * 1000:.0f} mm "
-          f"-- shrinking to fit")
-    figure = figure.fitted(envelope)
-  print(f"{figure.name}: {len(figure.strokes)} strokes, "
-        f"{figure.size[0] * 1000:.0f} x {figure.size[1] * 1000:.0f} mm, "
-        f"{figure.ink_length:.2f} m of ink")
-  aborted = False
-  cycles = []
-  try:
-    mission.start_at(*home.SPAWNS["start"])
-    mission.start_discovery()
-    mission._spin()
+  life = HubLifecycle(model, data, viewer=viewer, realtime=not args.fast,
+                      battery_wh=BIG_BATTERY_WH, rack=rack,
+                      grid_bounds=home.GRID_BOUNDS, errands=[], boards=book)
 
+  shots: list = []
+
+  def snapshot(life_, plotter, result):
+    """Photograph the board while the robot is still standing at it."""
+    shots.append((board_photo(model, data, board), plotter, result))
+
+  aborted = False
+  cycles: list[dict] = []
+  try:
+    life.mission.start_at(*home.SPAWNS["start"])
+    life.mission.start_discovery()
+    life.mission._spin()
     for n in range(max(args.cycles, 1)):
       if args.cycles > 1:
         print(f"\n--- cycle {n + 1}/{args.cycles} ---")
-      why = mission.swap_at_bay(PEN_BAY, "pick", module="module_pen")
-      picked = mission.swap.module_state("module_pen")["on_fork"]
-      powered = module_power_contact(model, data, "module_pen")
-      print(f"pick ({why}): on fork {picked}, powered {powered}")
-
-      plotter = PenPlotter(model, data, mission.swap, board=board)
-      tx, ty = plotter.board_standoff()
-      mission.drive_to(tx, ty, timeout=90.0)
-      squared = plotter.drive_to_board()
-      print(f"at the board ({args.board}): {squared}")
-      result = plotter.draw_program(figure)
-      photo = board_photo(model, data, board)
-
-      plotter.carry_config()
-      why2 = mission.swap_at_bay(PEN_BAY, "return", module="module_pen")
-      stowed = mission.swap.module_state("module_pen")["hung"]
-      print(f"stow ({why2}): hung {stowed}")
-      cycles.append({"picked": picked, "powered": powered, "stowed": stowed,
-                     "inked": result.get("inked_fraction"),
-                     "drew": result.get("drew")})
+      cycles.append(life.run_errand(drawing_errand(
+        book, args.board, board, program=figure, erase=not args.no_erase,
+        on_drawn=snapshot)))
   except MissionAborted:
     aborted = True
   finally:
-    mission.close()
+    life.mission.close()
     if viewer is not None:
       viewer.close()
   if aborted:
     print("aborted (viewer closed)")
     return
+  if not shots:
+    print("never drew anything -- see the SWAP_PICK / USE_TOOL lines above")
+    return
 
+  photo, plotter, result = shots[-1]
   panel = trace_panel(plotter)
   photo_img = Image.fromarray(np.asarray(photo))
   out = Image.new("RGB", (photo_img.width + panel.width,
@@ -192,7 +194,11 @@ def main() -> None:
               "form_max_mm", "shape_rms_mm", "offset_mm"):
     if result.get(key) is not None:
       print(f"{key:16s} {result[key]:.2f}")
-  print(f"sim time {data.time:.1f}s  collisions {mission.collision_steps}")
+  rec = book[args.board]
+  print(f"board state      {rec.strokes} strokes, {rec.ink_m * 1000:.0f} mm of "
+        f"ink, {rec.fill:.0%} of the pen's reach, {rec.clears} clear(s), "
+        f"programs {rec.programs}")
+  print(f"sim time {data.time:.1f}s  collisions {life.mission.collision_steps}")
   # A stow verdict only means anything if something was FETCHED first: a
   # module that never left the rack is still hanging in it, and `hung` says
   # True. The two-cycle run caught exactly that -- a failed second fetch
@@ -200,14 +206,14 @@ def main() -> None:
   if len(cycles) > 1:
     for n, c in enumerate(cycles):
       stow = ("n/a" if not c["picked"] else "OK" if c["stowed"] else "FAILED")
-      print(f"cycle {n + 1}: fetch {'OK' if c['picked'] and c['powered'] else 'FAILED'}"
-            f"  draw {'OK' if c['drew'] and (c['inked'] or 0) > 0.9 else 'FAILED'}"
+      print(f"cycle {n + 1}: fetch {'OK' if c['picked'] else 'FAILED'}"
+            f"  draw {'OK' if c.get('drew') and (c.get('inked_fraction') or 0) > 0.9 else 'FAILED'}"
             f"  stow {stow}")
   # Fetch, draw and stow are still reported SEPARATELY, though the stow is
   # no longer a known failure (issue #10). They fail for unrelated reasons
   # and a single verdict would say which of them broke only by accident.
-  drew_ok = all(c["picked"] and c["drew"] and (c["inked"] or 0) > 0.9
-                for c in cycles)
+  drew_ok = all(c["picked"] and c.get("drew")
+                and (c.get("inked_fraction") or 0) > 0.9 for c in cycles)
   exercised = [c for c in cycles if c["picked"]]
   print("FETCH + DRAW:", "OK" if drew_ok else "FAILED")
   print("STOW:", "n/a (nothing was fetched)" if not exercised

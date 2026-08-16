@@ -34,12 +34,22 @@ def main() -> None:
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
+  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "none"),
+                      default="carry",
+                      help="what the robot is FOR this run (issue #12): carry "
+                           "(the milestone-8 LCD errand), draw (pen -> erase a "
+                           "whiteboard -> draw), draw2 (two boards, charging "
+                           "in between), none")
+  parser.add_argument("--boards", default=None, metavar="PATH",
+                      help="JSON file the whiteboards' contents live in "
+                           "between runs (default: blank boards every start)")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
                max_sim_time=args.max_sim_time, record=args.record,
-               world=args.world)
+               world=args.world, errand=args.errand,
+               board_state=args.boards)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -53,8 +63,22 @@ def main() -> None:
   print(f"battery at end         : {r['battery']:.0%}")
   print(f"chassis-contact steps  : {r['collision_steps']} (should be 0)")
   print(f"sim time               : {r['sim_time']:.1f} s")
-  ok = (r["charge_cycles"] >= 1 and r["swaps_done"] == 2
-        and r["module_stowed"] and r["collision_steps"] == 0)
+  for e in r["errands"]:
+    extra = (f"  {e['figure']}, {e.get('inked_fraction', 0):.0%} inked,"
+             f" form {e.get('form_rms_mm') or float('nan'):.2f} mm"
+             if e.get("board") else "")
+    print(f"errand {e['errand']:<16s}: picked={e['picked']}"
+          f" stowed={e['stowed']}{extra}")
+  for name, b in r["boards"].items():
+    print(f"board {name:<17s}: {b['strokes']} strokes, {b['fill']:.0%} full, "
+          f"{b['clears']} clear(s), programs {b['programs'] or '-'}")
+  # Every errand's OWN verdict, not just the last module's: a queue where the
+  # first errand silently failed and the second stowed cleanly would report a
+  # perfect mission off `module_stowed` alone.
+  errands_ok = all(e["picked"] and e["stowed"] and not e.get("error")
+                   for e in r["errands"])
+  ok = (r["charge_cycles"] >= 1 and errands_ok and not r["errands_left"]
+        and r["collision_steps"] == 0)
   print("LIFECYCLE:", "OK" if ok else "INCOMPLETE")
 
 
