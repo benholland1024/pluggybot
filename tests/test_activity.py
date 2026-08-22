@@ -227,7 +227,9 @@ def test_header_advertises_activities(builder_pair):
   # 0.6.0 with the ledger block and `earned` messages (issue #14), and
   # 0.6.0 -> 0.7.0 when the socket became two-way (issue #16): visitor
   # suggestions, questions and ratings DOWN, `visitor_reply` and `journal` UP.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.7.0"
+  # 0.7.0 -> 0.8.0 for the `goals` message (rooftop-media-2026 #30): what the
+  # robot is FOR, sent when a stream opens, so the site can show it.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.8.0"
 
 
 def test_activity_flags_ride_in_frames_and_are_sparse(builder_pair):

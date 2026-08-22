@@ -352,6 +352,20 @@ Upstream now also carries `visitor_reply` (`{id, kind, outcome, reply,
 action}`) and `journal` (`{robot, t, at, text, why?}`). Both additive: a 0.6.0
 consumer that ignores them renders exactly what it rendered before.
 
+**Protocol 0.8.0** adds `goals` (`{robot, t, text, steering}`), emitted when
+a stream opens, so the site can show what the robot is FOR
+(rooftop-media-2026 #30). The prose is `read_goals` verbatim — the same
+mounted file the stable prompt prefix is built from, streamed as a mirror
+rather than stored anywhere else.
+
+⚠ `steering` is the honest half, and it is why the goals file is read by
+`overseer.goals_text` on **every** run rather than coming out of `build`.
+`build` answers `(None, None)` when the overseer is off, but the goals still
+describe what the robot is for; what changes is that nothing is *reading*
+them, because the scripted rotation does not consult a word of this file. A
+site shown the prose with no such flag would report a robot following goals
+that are steering nothing — the `accepts` mistake, one loop over.
+
 The mission result dict gains `decisions`, `journal` and `overseer` (the
 stats block: calls, fallbacks, tokens, cache hit rate, USD, budget left). All
 empty without an overseer, so nothing an existing caller reads has changed.

@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.7.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.8.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -27,6 +27,45 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand showcase --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+### 0.7.0 → 0.8.0 (the robot says what it is for)
+
+One new upstream message, and nothing else changes (rooftop-media-2026 #30).
+A 0.7.0 consumer ignores the type and renders exactly what it rendered
+before.
+
+```jsonc
+{"type": "goals", "t": 0.0, "robot": "pluggybot",
+ "text": "Keep the house in good order and make yourself useful.\n\n- Draw …",
+ "steering": false}
+```
+
+- **It is emitted when a stream OPENS**, which is the `board_snapshot` slot
+  and the `board_snapshot` argument: goals are not a pose, no keyframe
+  re-ships them, and the relay hub caches "last keyframe + frames since" —
+  so a browser that opens the page an hour into a mission would never learn
+  them. A recording carries it right after the header; the live publisher
+  re-sends it on **every connect**.
+- **`text` is `hub/journal.py`'s `read_goals` verbatim**: the mounted
+  `goals.md` a human edits (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md`
+  in the deploy), or the built-in defaults when there is no file. It is
+  read-only in every direction — there is no inbound message that can
+  change it, and the file beside the sim stays the ONE copy. This is a
+  mirror on the wire, like the journal, and deliberately not a second place
+  goals live (`rooftop-media-2026/docs/pluggyworld.md` explains why
+  `pw_goals` was never built).
+- ⚠ **`steering` is the `accepts` lesson from the other end.** The goals
+  file is read on every run, but only an **overseer** decides anything with
+  it. Without one the robot flies a scripted rotation and the goals are a
+  statement of purpose rather than the thing choosing its next errand.
+  Reporting both identically would let a website say "following its goals"
+  about a robot with nothing reading them — the same mistake as marking a
+  suggestion `delivered` because the socket accepted it. Both committed
+  fixtures carry `"steering": false`, because both were recorded without an
+  overseer.
+- **A run with no goals at all emits no message.** Absent means "nothing to
+  say", which a consumer can render honestly; an empty string would render
+  as a robot that wants nothing.
 
 ### 0.6.0 → 0.7.0 (the socket becomes two-way, and the robot answers back)
 
