@@ -9,7 +9,30 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.7.0"
+PROTOCOL_VERSION = "0.8.0"
+# 0.8.0: the robot says what it is FOR (rooftop-media-2026 #30). One new
+#        upstream message, emitted when a stream OPENS -- exactly like
+#        `board_snapshot`, and for exactly the same reason: goals are not a
+#        pose and no keyframe re-ships them, so a viewer who joined late
+#        would never learn them.
+#          {"type": "goals", "t": 0.0, "robot": "pluggybot",
+#           "text": "Keep the house in good order...", "steering": true}
+#        `text` is hub/journal.py's `read_goals` verbatim -- the mounted
+#        goals.md Ben edits, or the built-in defaults when there is no file.
+#        The site displays it; it is READ-ONLY in every direction, and there
+#        is no inbound message that can change it. The file beside the sim
+#        stays the one copy (docs/pluggyworld.md is explicit that `pw_goals`
+#        was deliberately never built): this is a mirror on the wire, like
+#        the journal, not a second place goals live.
+#        ⚠ `steering` is the `accepts` lesson again -- ask whether the thing
+#        is actually happening, not whether the usual cause is present. The
+#        goals file is read on EVERY run, but only an overseer decides
+#        anything with it; without one the robot flies a scripted rotation
+#        and these are a statement of purpose rather than the thing choosing
+#        its next errand. A site that showed them identically either way
+#        would be claiming a robot is following its goals when nothing is
+#        reading them.
+#        Additive: a 0.7.0 consumer ignores the type and renders what it did.
 # 0.7.0: the socket becomes BIDIRECTIONAL, and the robot answers back
 #        (pluggybot #16, rooftop-media-2026 #29). The first version where the
 #        sim reads its socket at all -- everything before this streamed and

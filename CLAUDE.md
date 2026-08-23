@@ -177,6 +177,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   cycles, and no charging policy can save it, because the reserve is only
   checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
   demo cell grows or per-errand energy is actually modelled.
+- **Goals are STREAMED as of protocol 0.8.0** (rooftop-media-2026 #30): one
+  `goals` message when a stream opens, carrying `read_goals` verbatim, so the
+  site can show what the robot is FOR. It rides the `board_snapshot` slot for
+  the `board_snapshot` reason — no keyframe re-ships it, so a browser joining
+  mid-mission would otherwise never learn them. The mounted file stays the
+  ONE copy; this is a mirror on the wire, like the journal.
+  ⚠ `steering` says whether an OVERSEER is reading them, and it is why
+  `overseer.goals_text` exists apart from `overseer.build`: `build` answers
+  `(None, None)` when disabled, but a scripted rotation still has a purpose
+  to display. Streaming the prose without the flag would let the site report
+  "following its goals" about a robot with nothing reading them — the
+  `accepts` mistake from the other end of the same loop.
 - **The visitor channel** (`hub/inbox.py`, issue #16; protocol 0.7.0) makes the
   ingest socket BIDIRECTIONAL — the first version where the sim reads its
   socket at all. Inbound arrives on the publisher's own sender thread

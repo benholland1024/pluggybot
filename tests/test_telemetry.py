@@ -11,6 +11,8 @@ keyframe-then-sparse frames, and everything queued reaching the file.
 
 import gzip
 import json
+import queue
+import threading
 from pathlib import Path
 
 import mujoco
@@ -506,6 +508,117 @@ def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
   assert earned[0]["points"] == ledger.balance() and earned[0]["reason"]
 
 
+# ---- what the robot is for (0.8.0, rooftop-media-2026 #30) -----------------
+
+def test_a_recording_opens_by_saying_what_the_robot_is_for(mini_model,
+                                                            tmp_path):
+  """0.8.0: the goals prose rides the `board_snapshot` slot, for its reason.
+
+  Goals are not a pose and no keyframe re-ships them, so this one line is
+  the only place in the whole stream a reader can learn them. A recording
+  that emits it after the frames, or not at all, leaves the site's goals
+  panel permanently blank.
+  """
+  rec, lines = record(mini_model, seconds=0.4, tmp=tmp_path,
+                      goals="Keep the house in good order.", steering=True)
+  goals = [x for x in lines if x.get("type") == "goals"]
+  assert len(goals) == 1, "the recording never said what the robot is for"
+  assert lines.index(goals[0]) == 1, "goals must precede the frames"
+  assert goals[0]["text"] == "Keep the house in good order."
+  assert goals[0]["robot"] == "pluggybot"
+  assert goals[0]["steering"] is True
+  # It is emitted ONCE. A per-frame block would put up to MAX_GOALS_CHARS of
+  # unchanging prose on the wire twenty times a second.
+  assert all("goals" not in f for f in lines if "type" not in f)
+
+
+def test_goals_say_whether_anything_is_actually_reading_them(mini_model,
+                                                             tmp_path):
+  """The `accepts` lesson, applied to the other end of the same loop.
+
+  The goals file is read on EVERY run, overseer or not -- so a producer that
+  streamed the prose without saying which of the two this is lets the site
+  report "following its goals" about a robot flying a scripted rotation with
+  nothing reading them. `steering` is the whole difference, and it defaults
+  to the honest answer.
+  """
+  _, scripted = record(mini_model, seconds=0.4, tmp=tmp_path,
+                       goals="Water the garden.")
+  msg = next(x for x in scripted if x.get("type") == "goals")
+  assert msg["steering"] is False, \
+    "a scripted rotation claimed an overseer was steering by these"
+
+  # ...and a run with no goals at all emits no message, rather than an empty
+  # one a consumer would render as a robot that wants nothing.
+  _, silent = record(mini_model, seconds=0.4, tmp=tmp_path, goals="")
+  assert not [x for x in silent if x.get("type") == "goals"]
+
+
+def test_the_goals_file_is_read_whether_or_not_an_overseer_runs():
+  """`overseer.build` answers (None, None) when disabled, which is why the
+  telemetry path cannot get its prose from there. It reads the file itself.
+  """
+  from pluggybot.hub import overseer as ov
+
+  assert ov.build("home", enabled=False) == (None, None)
+  # ...and yet there is prose to stream, which is the whole point of the
+  # helper: a scripted mission still has a purpose to display.
+  assert ov.goals_text(None).strip()
+
+
+def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
+  """A goals message per CONNECT, not per stream.
+
+  Same argument as the board snapshots beside it: a browser that opens the
+  page an hour into a mission has missed the only line that carried them,
+  and the hub relays rather than re-keys on its behalf. So the publisher
+  re-sends on connect -- and the flag lives on the physics thread, because
+  that is the thread that owns the clock the message is stamped with.
+  """
+  from pluggybot.telemetry.publisher import WsPublisher
+
+  data = mujoco.MjData(mini_model)
+  pub = WsPublisher.__new__(WsPublisher)          # no socket, no sender thread
+  pub._builder = FrameBuilder(mini_model, data, model_name="mini",
+                              goals="Tidy the blocks.", steering=False)
+  pub.data = data
+  pub._queue = queue.Queue(maxsize=64)
+  pub._need_goals = threading.Event()
+  pub._need_boards = threading.Event()
+  pub._need_keyframe = threading.Event()
+  pub.boards = None
+  pub.grid = None
+  pub.frames_dropped = 0
+  pub.events_dropped = 0
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "goals"), "goals went out with nobody connected"
+
+  pub._need_goals.set()                            # ...as the sender does on connect
+  pub.step_hook()
+  first = _typed(pub._queue, "goals")
+  assert len(first) == 1 and first[0]["text"] == "Tidy the blocks."
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "goals"), "goals repeat on every physics step"
+
+  pub._need_goals.set()                            # ...and a reconnect
+  pub.step_hook()
+  assert len(_typed(pub._queue, "goals")) == 1
+
+
+def _typed(q, kind):
+  """Drain a publisher queue, returning the typed messages of one kind."""
+  out = []
+  while True:
+    try:
+      k, payload = q.get_nowait()
+    except queue.Empty:
+      return out
+    if k == "event" and payload.get("type") == kind:
+      out.append(payload)
+
+
 # ---- the committed fixtures ------------------------------------------------
 # The same checks the website repo runs against its vendored copies: if these
 # fail, regenerate the fixtures or bump the protocol version deliberately.
@@ -624,6 +737,20 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   assert {"EXPLORE", "GO_CHARGE", "CHARGE",
           "SWAP_PICK", "USE_TOOL", "SWAP_RETURN"} <= states, \
     "the fixture must cover the full battery-driven mission"
+
+  # What the robot is FOR (0.8.0). The site opens on a recording rather than
+  # on a live sim -- that is what `replay` is for -- so if the fixtures do not
+  # carry this line the goals panel is blank in the case a visitor actually
+  # meets. It is also the one message with no keyframe behind it: lose it and
+  # nothing later in the stream repairs it.
+  events = [x for x in lines[1:] if "type" in x]
+  goals = [e for e in events if e["type"] == "goals"]
+  assert len(goals) == 1, "the fixture never says what the robot is for"
+  assert goals[0]["text"].strip(), "an empty statement of purpose"
+  # ...and it says so honestly: these missions run the scripted rotation, so
+  # nothing is reading the goals and the fixture must not claim otherwise.
+  assert goals[0]["steering"] is False
+  assert lines.index(goals[0]) <= 2, "goals must precede the frames"
 
   # The scoreboard half (0.6.0). Every mission charges, and charging is a
   # scored task, so BOTH worlds' fixtures must carry a ledger that moves --
