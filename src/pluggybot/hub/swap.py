@@ -102,6 +102,22 @@ class HubSwap:
     self.right_adr = m.joint("right_wheel_joint").qposadr[0]
     self.gyro_adr = m.sensor("imu_gyro").adr[0]
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
+    #: PRESSED AGAINST SOMETHING THAT WILL NOT MOVE. While this is set, dead
+    #: reckoning stops integrating TRAVEL -- the heading still comes off the
+    #: gyro, which is not lying about anything.
+    #:
+    #: ⚠ Measured, and it is the most expensive thing in this file to get
+    #: wrong: a charge press holds CHARGE_PRESS against the rack's pins for
+    #: ~130 s, the wheels turn the whole time, the robot does not move, and
+    #: the reckoner counted 828 mm of travel that never happened. Everything
+    #: downstream is computed in that frame -- so the robot drove to a bay
+    #: standoff it believed it had reached and was physically a metre away,
+    #: the bay tag honestly ranged 1.25 m, and the fetch came away empty.
+    #: `hub/mission.py`'s `_drive_until` docstring has always said that
+    #: pressing slips the wheels and dead reckoning counts it as progress;
+    #: this is the other half of that sentence, and the half that survives
+    #: the drive being over.
+    self.pinned = False
     # Optional per-step callback. Every phase of both the swap and the
     # mission bottoms out in _step_once, so one hook here is enough to
     # drive a viewer (or any telemetry) through the whole run.
@@ -138,10 +154,17 @@ class HubSwap:
     d.ctrl[self.left_act] = slew(d.ctrl[self.left_act], tl, ts)
     d.ctrl[self.right_act] = slew(d.ctrl[self.right_act], tr, ts)
     mujoco.mj_step(m, d)
+    held = (self.reckoner.x, self.reckoner.y) if self.pinned else None
     self.reckoner.update(float(d.qpos[self.left_adr]),
                          float(d.qpos[self.right_adr]),
                          gyro_yaw_rate=float(d.sensordata[self.gyro_adr + 2]),
                          dt=ts)
+    if held is not None:
+      # The wheel counts still advance -- they have to, the encoders are real
+      # -- and the POSITION they would imply is discarded. Heading is kept:
+      # a pinned robot can still be rotated, and the gyro measures that
+      # directly rather than inferring it from wheels that are slipping.
+      self.reckoner.x, self.reckoner.y = held
     if self.on_step is not None:
       self.on_step()
 

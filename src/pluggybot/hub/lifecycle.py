@@ -371,16 +371,28 @@ class HubLifecycle:
     # energy behind it.
     before = {"t": t0, "frac": self.battery.fraction,
               "wh": self.battery.energy_wh}
-    while (self.battery.fraction < CHARGED
-           and self.data.time - t0 < CHARGE_TIMEOUT):
-      self.mission._drive(0.25, CHARGE_PRESS, 0.0)
-      if not self.charging_now:
-        # contact dropped: press again briefly, then give up on this attempt
-        self.mission._drive(1.0, CHARGE_CREEP, 0.0)
+    # ⚠ THE PRESS IS NOT TRAVEL. The robot is held against the rack's pins
+    # for the whole cycle -- minutes of it -- with the wheels turning and the
+    # chassis stationary. Left to integrate that, dead reckoning gained
+    # 828 mm of imaginary progress, and every pose downstream was computed in
+    # the wrong frame: the next tool fetch drove to a standoff it believed it
+    # had reached, a metre from the bay, and came away with nothing.
+    # See `HubSwap.pinned`.
+    self.mission.swap.pinned = True
+    try:
+      while (self.battery.fraction < CHARGED
+             and self.data.time - t0 < CHARGE_TIMEOUT):
+        self.mission._drive(0.25, CHARGE_PRESS, 0.0)
         if not self.charging_now:
-          self._say("CHARGE: lost the pins")
-          self._bank(scoring.score_charge(self, before))
-          return
+          # contact dropped: press again briefly, then give up on this attempt
+          self.mission._drive(1.0, CHARGE_CREEP, 0.0)
+          if not self.charging_now:
+            self._say("CHARGE: lost the pins")
+            self._bank(scoring.score_charge(self, before))
+            return
+    finally:
+      # Cleared before the undock, which is REAL travel and must be counted.
+      self.mission.swap.pinned = False
     self.charge_cycles += 1
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
     self._bank(scoring.score_charge(self, before))

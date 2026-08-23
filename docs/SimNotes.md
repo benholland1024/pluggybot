@@ -1888,6 +1888,63 @@ apart the things you need to tell apart actually are, in the units your
 machine's error is measured in.** Two of the three numbers above would have
 looked fine in a docstring.
 
+## The charge press is an odometry pump (issue #22's acceptance test)
+
+The second tool fetch of a mission failed — `SWAP_PICK FAILED`, module still
+on its bracket, ~100 s and 42 % of the pack spent grinding into the rack.
+Found by the first thing in this repo that ever fetched the SAME tool twice
+with a charge cycle in between; `home_draw.py --cycles 2` fetches the pen
+twice with no charge, and the home lifecycle picks a DIFFERENT module after
+charging, so nothing had walked this path before.
+
+**The robot was not where it thought it was, by 828 mm.** At the failing
+pick, believed pose `(+0.171, −1.456)`; true fork vertex `y = −0.863`. The
+cause is the charge press: `charge()` holds `CHARGE_PRESS` against the rack's
+pins for the whole cycle — 132 s here — the wheels turn, the chassis does not
+move, and `DeadReckoner` integrates every slipping revolution as travel.
+`_drive_until`'s docstring had said this for two milestones ("pressing
+against the rack slips the wheels, dead reckoning counts the slip as
+progress"); what was fixed then was the *stopping*, with a sensed `stop_fn`.
+The *integration* was the half that outlives the drive.
+
+Everything downstream is computed in that shifted frame, which is why it
+presents as a hardware problem and not a localisation one:
+
+- `drive_to` "arrives" at a bay standoff the robot is physically a metre from
+- the bay tag then honestly ranges 1.25 m instead of ~0.42 m
+- the terminal creep, computed from that, asks for 0.93 m — 4× nominal, and
+  just under the 1.0 m a 20 s creep can cover at `APPROACH_V`, so it does not
+  even stop early. It drives into the rack and grinds for the full 20 s,
+  twice, with wheel slip counting as progress the whole way.
+
+Three lessons, and only the first is the fix:
+
+- **A press is not travel.** `HubSwap.pinned` keeps the encoders counting and
+  discards the position they imply; heading still comes off the gyro, which
+  is not slipping. Set for the duration of the press and cleared before the
+  undock, which is real travel.
+- **A plausibility guard can reject the truth.** The first fix attempted here
+  was `plausible_travel`, which refuses a terminal creep far from the 0.215 m
+  a hand-off pose implies. It stopped the furniture-shoving (59 s and 24 % of
+  pack, down from 102 s and 42 %) and the pick still failed — because it was
+  rejecting the *tag*, which was right, in favour of *odometry*, which was
+  wrong. Worth keeping as a damage limiter; it was never the bug. When a
+  guard "fixes" the symptom and not the outcome, the model of the fault is
+  wrong.
+- **More map can make an estimate worse.** `RackFinder` took the rack's
+  facing from `wall_normal`, whose own docstring warns that a free-standing
+  partition's free-space sums nearly cancel. Driving behind the rack to
+  charge turns the rack into exactly that: measured on a synthetic grid, the
+  conditioning falls 0.824 → 0.077 and the surviving direction swings to 170°
+  from a true 90°. A rack does not turn round, so a facing is now KEPT once
+  it comes off a well-conditioned look — more sightings improve a landmark's
+  position, not a facing whose input is the shape of mapped free space.
+
+And the workflow lesson, which is the one that actually found it: **compare
+the believed pose against `data` before theorising.** Two rounds of plausible
+reasoning went into the rack belief and the tag ranges; one line printing the
+fork vertex's true position next to the odometry pose ended it.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

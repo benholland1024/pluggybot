@@ -51,9 +51,9 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **554 of 565 tests in ~1:57**, against **~10:39** for everything (the
+  **570 of 583 tests in ~2:00**, against **~10:30** for everything (the
   figures before issues #21–#22 were 430/439 in 1:18 and ~6:22, and before
-  #13–#15, 343/351 in 1:13 and 6:34). ELEVEN whole-mission integration runs
+  #13–#15, 343/351 in 1:13 and 6:34). THIRTEEN whole-mission integration runs
   carry `@pytest.mark.slow` and are most of the serial clock on their own
   (`test_full_hub_lifecycle[home]` alone is ~157 s) — ~8:40 of marginal
   wall-clock in parallel, since they run alongside everything else. That
@@ -399,6 +399,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **A PRESS IS NOT TRAVEL** (`HubSwap.pinned`, found by issue #22). Holding
+  the wheels against something immovable makes dead reckoning integrate every
+  slipping revolution: the charge press runs minutes long and pumped **828 mm**
+  of imaginary travel into the pose. Everything downstream is then in the
+  wrong frame — the next fetch "arrives" at a bay standoff a metre from the
+  bay, the bay tag honestly ranges 1.25 m, and the terminal creep computed
+  from it drives into the rack. `charge()` sets `pinned` for the press and
+  clears it before the undock, which is real travel. Anything else that ends
+  in a sustained press against a hard stop needs the same treatment.
+  Two more lessons from the same hunt, both in SimNotes: **a plausibility
+  guard can reject the truth** (`mission.plausible_travel` refused the tag,
+  which was right, in favour of odometry, which was wrong — keep it as a
+  damage limiter, but a guard that fixes the symptom and not the outcome
+  means the model of the fault is wrong), and **more map can make an estimate
+  worse** (`RackFinder` now KEEPS a facing that came off a well-conditioned
+  free-space sum, because driving behind the rack turns it into the
+  free-standing partition `wall_normal` warns about — conditioning 0.824 →
+  0.077, direction off by 80°).
 - **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —

@@ -93,7 +93,36 @@ def wall_normal(grid, x: float, y: float,
        must lie in the hemisphere it was seen from; when the map disagrees,
        its axis is kept and the sign is flipped.
   """
+  nx, ny, _ = wall_normal_conf(grid, x, y, fallback, radii, n_dirs)
+  return nx, ny
+
+
+def wall_normal_conf(grid, x: float, y: float,
+                     fallback: tuple[float, float] = (1.0, 0.0),
+                     radii: tuple[float, ...] = (0.25, 0.35, 0.45),
+                     n_dirs: int = 48) -> tuple[float, float, float]:
+  """`wall_normal`, plus HOW WELL CONDITIONED that answer is (0..1).
+
+  The confidence is the free-space sum's magnitude divided by the number of
+  free cells it summed: 1 means every free cell lies on one side, 0 means
+  they cancel exactly. A wall blocks about half the circle, and the sum of a
+  half-circle of unit vectors is 2/pi ~ 0.64 of its count -- so a real wall
+  reads around 0.6 and a landmark with open space all round reads near 0.
+
+  It exists because a nearly-cancelling sum is not a bad measurement, it is
+  NOT A MEASUREMENT: the direction that survives is whatever noise was left
+  over, and it can be tens of degrees from the wall it is supposed to
+  describe. The docstring above has always said so about free-standing
+  partitions; this is the number that lets a caller act on it.
+
+  ⚠ It is not the same check as the sign flip. That one fixes a normal
+  pointing at the wrong FACE of a correctly-found axis; this one says the
+  axis itself is not there to be found. A caller that has a better answer
+  already -- a remembered pose, a prior -- should keep it rather than adopt
+  one of these (hub/localize.py, `RackFinder.estimate`).
+  """
   fx = fy = 0.0
+  free = 0
   rows, cols = grid.grid.shape
   for r in radii:
     for k in range(n_dirs):
@@ -102,13 +131,14 @@ def wall_normal(grid, x: float, y: float,
       if 0 <= ix < cols and 0 <= iy < rows and grid.grid[iy, ix] < FREE_THRESH:
         fx += math.cos(a)
         fy += math.sin(a)
+        free += 1
   norm = math.hypot(fx, fy)
   if norm <= 1e-6:
-    return fallback
+    return fallback[0], fallback[1], 0.0
   nx, ny = fx / norm, fy / norm
   if nx * fallback[0] + ny * fallback[1] < 0.0:
     nx, ny = -nx, -ny            # right wall, wrong face: flip to the seen side
-  return nx, ny
+  return nx, ny, norm / free if free else 0.0
 
 
 class LandmarkStore:

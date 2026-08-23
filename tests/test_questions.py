@@ -568,19 +568,16 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   that lost a race with a house would make this test flaky rather than
   informative.
 
-  ⚠ AND THE PACK IS OVERSIZED, on purpose, to keep a charge cycle out of the
-  middle. That is not the battery being inconvenient -- it is dodging a
-  SEPARATE, PRE-EXISTING DEFECT this test found: **a second pen fetch
-  immediately after a charge cycle fails**, `SWAP_PICK FAILED` with the
-  module left on its bracket, ~100 s and 42 % of the pack spent driving.
-  Reproduced with the second errand replaced by an ordinary house drawing
-  (`picked=False` there too), so it is the swap stack after undocking and has
-  nothing to do with answers. Nothing else exercises the sequence: the home
-  lifecycle picks a DIFFERENT module after charging (draw, then the LCD for
-  the census), and `home_draw.py --cycles 2` fetches the pen twice with no
-  charge between. It wants its own issue and its own test; what this one is
-  for is the question, twice, and a charge in the middle would only ever tell
-  us about the other bug.
+  ⚠ AND IT RUNS ON THE HOUSE'S OWN 1.1 Wh CELL, so a CHARGE CYCLE lands
+  between the two questions -- an answer errand costs ~0.74 Wh here, so two
+  of them cannot fit in one pack and the arbitration loop has to go to the
+  rack in the middle. That is not incidental: this test is the first thing in
+  the repo to fetch the SAME tool twice across a charge, and the first time
+  it ran it found a defect nothing else could (`tests/test_rack_belief.py`) --
+  the charge trip drives behind the rack, the free-space sum it takes the
+  rack's FACING from stops being conditioned, and the bay standoff computed
+  from a 20 deg-rotated rack sat a metre from the bay. Give this test a
+  bigger battery and that whole path stops being exercised.
   """
   import mujoco
   from pluggybot.hub.journal import Journal
@@ -600,10 +597,6 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
     low_battery_wh=cfg["low_battery_wh"], boards=book, ledger=ledger,
     tasks=tasks, overseer=boss, journal=Journal(), errand=False)
-  # ~0.74 Wh per answer errand, measured on this world; home's demo cell is
-  # 1.1 Wh and would force a charge between the two. See the warning above.
-  life.battery.capacity_wh = 2.6
-  life.battery.energy_wh = 2.6
   # Two DIFFERENT questions, on the same board, both standing until taken.
   board_name = next(iter(book.names))
   asked = [tasks.offer("whiteboard_answer", board_name,
