@@ -1,0 +1,38 @@
+# Deploys the PluggyWorld sim to the netcup host that serves rooftop-media.org.
+#
+# `main` only. `staging` is this repo's default branch but is not hosted --
+# there is one sim and it belongs to production, because the website's ingest
+# endpoint takes one producer at a time and a second one would evict the first.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # The sim's own lifecycle is independent of the website's, so it needs a way
+  # to be redeployed without a commit -- after a host reboot, say.
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-sim
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy sim
+    runs-on: [self-hosted, rooftop]
+    environment: production
+    # The image installs mujoco and renders an offscreen smoke test during the
+    # build, which is minutes from a cold cache -- well above the website's.
+    timeout-minutes: 45
+
+    steps:
+      # No actions/checkout: pluggybot-deploy updates the real checkout at
+      # /srv/rooftop/prod/pluggybot, which sits beside the website's checkout
+      # because compose.yaml over there builds this repo as `../pluggybot`.
+      #
+      # It rebuilds only the `sim` service, waits for the website's hub to
+      # report a live producer -- a container that starts but never dials in
+      # looks healthy to docker and is invisible on the site -- and rolls back
+      # to the previous commit if it does not appear.
+      - name: Deploy
+        run: /usr/local/bin/pluggybot-deploy
