@@ -926,6 +926,11 @@ def run_demo(start=None, view: bool = False,
   from pluggybot.hub import overseer as ov
   boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
                            journal_path=journal_state)
+  # Read for the STREAM whether or not an overseer reads it for decisions
+  # (0.8.0): the goals panel on the site shows what the robot is for, and a
+  # scripted rotation has a purpose too. `steering` is what keeps that
+  # honest -- see FrameBuilder.goals_message.
+  goals_prose = ov.goals_text(goals)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or cfg["battery_wh"],
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
@@ -945,7 +950,9 @@ def run_demo(start=None, view: bool = False,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger)
+                                 screens=screens, ledger=ledger,
+                                 goals=goals_prose,
+                                 steering=boss is not None)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.

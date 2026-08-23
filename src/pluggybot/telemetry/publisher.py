@@ -100,7 +100,8 @@ class WsPublisher:
                token: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=()) -> None:
+               ledger=None, accepts=(), goals: str = "",
+               steering: bool = False) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -113,7 +114,8 @@ class WsPublisher:
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger,
-                                 accepts=accepts)
+                                 accepts=accepts, goals=goals,
+                                 steering=steering)
     self.data = data
     self._grid_interval = 1.0 / grid_hz
     self._next_grid = 0.0
@@ -127,6 +129,10 @@ class WsPublisher:
     # make the queue that just overflowed overflow harder. The boards are
     # read on the physics thread, which is the thread that owns them.
     self._need_boards = threading.Event()
+    # ...and on the same terms, what the robot is FOR (0.8.0). Set on connect
+    # only: goals do not change during a run, but a NEW consumer has never
+    # seen them and no keyframe carries them.
+    self._need_goals = threading.Event()
     self.boards = boards
     self._stop = threading.Event()
     self.frames_sent = 0
@@ -145,6 +151,11 @@ class WsPublisher:
   # ---- the hook (runs inside every physics step; must never block) ---------
 
   def step_hook(self) -> None:
+    if self._need_goals.is_set() and not self._queue.full():
+      self._need_goals.clear()
+      goals = self._builder.goals_message(float(self.data.time))
+      if goals is not None:
+        self.message(goals)
     if self._need_boards.is_set() and not self._queue.full():
       self._need_boards.clear()
       if self.boards is not None:
@@ -211,6 +222,9 @@ class WsPublisher:
           self._drain()
           ws.send(json.dumps(self._builder.header(), separators=(",", ":")))
           self._need_keyframe.set()
+          # ...and on what the robot is for (0.8.0), which is likewise in no
+          # keyframe: a viewer who joins an hour in still has to be told.
+          self._need_goals.set()
           # ...and catch the new consumer up on the ink already on the walls
           # (0.5.0). No keyframe carries it: a stroke is an event that
           # happened once, so without this a viewer who joined late watches

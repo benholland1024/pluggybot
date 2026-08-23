@@ -131,6 +131,11 @@ def main() -> None:
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
                                  journal_path=args.journal, **overseer_kw)
+  # The goals file is read on every run, overseer or not: the site's goals
+  # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
+  # as true of a scripted rotation as of a chosen errand. What is NOT the
+  # same is whether anything is reading them, which is what `steering` says.
+  goals_prose = overseer.goals_text(args.goals)
   # The visitor channel (issue #16). Only where there is somebody to hear it:
   # without an overseer nothing reads a suggestion, so accepting one would be
   # a promise the robot has no way to keep.
@@ -159,7 +164,8 @@ def main() -> None:
                           # without an overseer, and the website reads it: a
                           # suggestion is only "delivered" if somebody who can
                           # act on it got it.
-                          accepts=INBOUND_TYPES if inbox is not None else ())
+                          accepts=INBOUND_TYPES if inbox is not None else (),
+                          goals=goals_prose, steering=boss is not None)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
@@ -189,7 +195,9 @@ def main() -> None:
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger)
+                                 screens=screens, ledger=ledger,
+                                 goals=goals_prose,
+                                 steering=boss is not None)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
       book.on_event.append(recorder.emit)

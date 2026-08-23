@@ -76,7 +76,8 @@ class FrameBuilder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=()) -> None:
+               ledger=None, accepts=(), goals: str = "",
+               steering: bool = False) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -99,6 +100,13 @@ class FrameBuilder:
     # Advertised in the header so the server can tell "the robot got it" from
     # "the socket accepted it and nothing is listening".
     self.accepts = tuple(accepts)
+    # What the robot is FOR, as prose, and whether anything is actually
+    # reading it (0.8.0, rooftop-media-2026 #30). Not a header field and not
+    # a frame block: it is up to MAX_GOALS_CHARS of text that never changes
+    # during a run, so it goes out once per stream as its own message -- the
+    # `board_snapshot` shape, for the `board_snapshot` reason.
+    self.goals = goals
+    self.steering = bool(steering)
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -142,6 +150,26 @@ class FrameBuilder:
       # got it, which is why this is advertised rather than assumed.
       "accepts": list(self.accepts),
     }
+
+  def goals_message(self, t: float) -> dict | None:
+    """The stream's opening statement of purpose, or None when there is none.
+
+    Emitted once per stream rather than per frame, and NOT folded into the
+    header, because the header describes the stream's shape while this is
+    content -- and content a viewer joining an hour in still needs, which is
+    why the live publisher re-sends it on every connect.
+
+    `steering` is the honest half. The goals file is read on every run, but
+    only an overseer decides anything with it; a scripted rotation is living
+    by these in the sense that they were chosen with it in mind, and in no
+    other sense. Reporting both identically would be the `accepts` mistake
+    over again -- a website saying "following its goals" about a robot with
+    nothing reading them.
+    """
+    if not self.goals:
+      return None
+    return {"type": "goals", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+            "text": self.goals, "steering": self.steering}
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
@@ -263,15 +291,23 @@ class TelemetryRecorder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=()) -> None:
+               ledger=None, accepts=(), goals: str = "",
+               steering: bool = False) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger,
-                                 accepts=accepts)
+                                 accepts=accepts, goals=goals,
+                                 steering=steering)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
+    # What the robot is for, before the first frame (0.8.0). Same slot the
+    # board snapshots below use, and the same argument: no keyframe re-ships
+    # it, so a reader that missed this line never learns it at all.
+    goals_msg = self._builder.goals_message(float(data.time))
+    if goals_msg is not None:
+      self._queue.put(goals_msg)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without

@@ -834,6 +834,19 @@ GOALS_ENV = "PLUGGY_GOALS"
 JOURNAL_ENV = "PLUGGY_JOURNAL"
 
 
+def goals_text(goals_path: str | None = None) -> str:
+  """The prose this run is living by, whether or not an overseer reads it.
+
+  Split out of `build` because the two callers want it on different terms.
+  The overseer wants it as the stable half of its prompt and only when it is
+  enabled; TELEMETRY wants it on every run, because the site's goals panel
+  (rooftop-media-2026 #30) shows what the robot is FOR and that is true of a
+  scripted rotation too. `build` returning (None, None) when disabled is what
+  makes this a separate function rather than a third element of that tuple.
+  """
+  return read_goals(goals_path or os.environ.get(GOALS_ENV) or None)
+
+
 def build(world: str, book=None, enabled: bool | None = None,
           goals_path: str | None = None, journal_path: str | None = None,
           table: RewardTable | None = None, client=None,
@@ -852,7 +865,7 @@ def build(world: str, book=None, enabled: bool | None = None,
   if not enabled:
     return None, None
   journal = Journal(journal_path or os.environ.get(JOURNAL_ENV) or None)
-  goals = read_goals(goals_path or os.environ.get(GOALS_ENV) or None)
+  goals = goals_text(goals_path)
   overseer = Overseer(Menu.for_world(world, book), goals=goals, table=table,
                       journal=journal, client=client, model=model,
                       calls_per_hour=calls_per_hour)
