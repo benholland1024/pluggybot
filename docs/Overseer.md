@@ -44,7 +44,7 @@ passing test, or to a branch the lifecycle already had:
 
 | action | what happens | parameters |
 |---|---|---|
-| `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
+| `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task`, and `answer` if the job asks a question (#22) |
 | `draw` | fetch the pen, drive to a board, erase it, draw a figure, stow | `board`, `program` |
 | `census` | fetch the LCD, survey the garden, count the plants, show the number | — |
 | `dance` | fetch the LCD, drive somewhere visible, perform the routine | — |
@@ -66,12 +66,42 @@ without it, here the id **is** the action, so there is nothing left to keep and
 it degrades to a scripted decision. The scripted policy will then take an
 offered job itself, which is the same promise the fallback exists to keep.
 
+### The one thing only the overseer can do (issue #22)
+
+A `whiteboard_answer` job poses a question — `"Draw the answer to this
+question on whiteboard_a: 2 + 3"` — and taking it means putting the answer in
+`answer`. **Code never computes it.** The offer says `needsAnswer: true`, a
+`take_task` without an answer is a malformed answer, and the scripted
+fallback skips those offers entirely: a question stands until something that
+can think comes past, and lapses honestly as `expired` if nothing does.
+
+That is deliberate, and it is the first thing in this design that the LLM is
+not merely *allowed* to do but is the *only* thing that can. The two ways
+code could supply an answer are both worse than leaving the job alone —
+reading it out of `hub/questions.json` is the sim marking its own homework,
+and guessing puts a confident wrong number on a wall — and a weaker backend
+(issue #19) getting one wrong in public, on a whiteboard, is exactly the
+honest difference the kind exists to show.
+
+The answer is **frozen at claim time and never revised**. Correctness is
+decided against it (`wrote == expected`), so a commitment that could be
+edited once the ink was down would not be a commitment. The errand that
+goes and draws it is handed the *glyphs* and is never told the question or
+the right answer.
+
+`answer` is also the one string a model chooses that ends up drawn a metre
+wide on a wall a stranger is watching, which is why `text` is still off the
+figure menu and this is not a way back onto it: `questions.clean_answer`
+reduces it to at most two characters from `0-9` before a single stroke
+exists. There is no free-text path from the model to the board.
+
 What the overseer cannot do with a task is the usual list, one notch further
 out: it cannot price one (the payout is looked up from `hub/rewards.json`
 every time the offer is read), it cannot close one (`TaskBoard.resolve` takes a
 `scoring.Verdict` and nothing that merely looks like one), and it cannot see a
 task's answer (`Task.secret` is in no context dict, no snapshot and no wire
-message). It also cannot take a job it has no energy for: `claimable` is
+message — it is written to the state file, which is not the wire, so an
+offer survives a restart with something to be graded against). It also cannot take a job it has no energy for: `claimable` is
 computed in code before the offer is ever shown, because "can I afford this"
 is arithmetic with a right answer.
 

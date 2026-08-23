@@ -33,10 +33,12 @@ Four rules, and the first two are the ones worth breaking a build over.
   surveyed board id is infrastructure, like the charging rack. The ANSWER to
   a task is neither. `Task.secret` is the slot that holds one: it is never in
   `as_dict`, never in `snapshot`, never in `as_context`, so it reaches the
-  wire and the model through no path at all. Nothing fills it yet -- the
-  first task kind that needs it is the whiteboard question (issue #22) -- and
-  it is here now because the alternative is discovering in that issue that
-  the wire format has nowhere to put an unpublished half.
+  wire and the model through no path at all. `whiteboard_answer` (issue #22)
+  is what fills it -- a question with a checkable answer -- and it is where
+  the one exception lives: `as_state` writes it to the state FILE, because an
+  offer that came back from a restart with no right answer behind it could
+  never be graded. The file is not the wire; it sits in /var/lib/pluggybot
+  beside the reward table, which also decides what things are worth.
 
   EXPIRY IS AN OUTCOME, NOT A DELETION. A task that lapses ends in `expired`
   and stays visible as such, because "nobody got round to it" is a true and
@@ -62,6 +64,7 @@ from pathlib import Path
 from typing import Callable
 
 from pluggybot.hub.inbox import clean
+from pluggybot.hub.questions import clean_answer
 from pluggybot.hub.scoring import EVALUATORS, RewardTable, Verdict, default_table
 from pluggybot.telemetry.protocol import ROBOT_ROOT, TASK_SOURCES, TASK_STATES
 
@@ -138,6 +141,12 @@ class TaskKind:
   #: sentence template; `{target}` and any `params` key may appear in it
   template: str
   estimate_wh: float = 0.2
+  #: this job has a RIGHT ANSWER, and whoever takes it has to supply one
+  #: (issue #22). It is the difference between a job a body can do and a job
+  #: that needs a mind: `TaskBoard.claim` refuses one without an answer, so
+  #: the scripted rotation leaves a question standing and it lapses honestly
+  #: rather than being attempted by something that cannot think.
+  needs_answer: bool = False
 
   def describe(self, target: str, params: dict) -> str:
     try:
@@ -161,6 +170,17 @@ KINDS: dict[str, TaskKind] = {
     "count_plants", task="census", target_kind="zone",
     template="Survey {target} and put the number of plants on your face.",
     estimate_wh=0.87),
+  "whiteboard_answer": TaskKind(
+    "whiteboard_answer", task="answer", target_kind="board",
+    # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
+    # Draw the answer to..." and the number is deliberately not here: a
+    # description is written once and frozen, `reward` is looked up from
+    # hub/rewards.json on every read, and a job that quoted its own price in
+    # prose would go stale the first time the table was re-tuned -- with the
+    # stale figure being the half a person reads. The wire carries both, side
+    # by side, and only one of them is derived.
+    template="Draw the answer to this question on {target}: {question}",
+    estimate_wh=0.93, needs_answer=True),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
@@ -213,6 +233,13 @@ class Task:
   #: the evaluator's verdict, as `Verdict.as_dict()` -- already redacted
   verdict: dict | None = None
   points: int = 0
+  #: WHAT THE ROBOT SAID THE ANSWER IS (issue #22), set when the job is
+  #: claimed and never afterwards. It comes from whatever is deciding for the
+  #: robot; code never computes it, and the errand that goes and draws it
+  #: never sees `secret`. That split is what makes "did it get the question
+  #: right" a question with an honest answer: the commitment is frozen before
+  #: a wheel turns, so nothing downstream can revise it once the ink is down.
+  answer: str = ""
   #: NEVER PUBLISHED. See the module docstring: the answer to a task is not
   #: sensor data, but it is not a work order either, and there is no path
   #: from here to the wire or to the model's context.
@@ -258,6 +285,10 @@ class Task:
   @property
   def target_kind(self) -> str:
     return KINDS[self.kind].target_kind
+
+  @property
+  def needs_answer(self) -> bool:
+    return KINDS[self.kind].needs_answer if self.kind in KINDS else False
 
   @property
   def open(self) -> bool:
@@ -326,6 +357,20 @@ class Task:
       out["verdict"] = dict(self.verdict)
     return out
 
+  def as_state(self) -> dict:
+    """The task as the STATE FILE carries it: `as_dict` plus the two halves
+    that never go on the wire.
+
+    The file is not the wire, and this is the line that says so. A question's
+    answer lives in /var/lib/pluggybot beside the board book and the points
+    ledger -- the same trust domain as hub/rewards.json, which also decides
+    what things are worth and is also not published. Leaving it out instead
+    would mean a restart brought back an offer that could never be graded:
+    a job standing on the board with no right answer behind it, which is a
+    worse kind of secret-keeping than writing it down.
+    """
+    return {**self.as_dict(), "answer": self.answer, "secret": dict(self.secret)}
+
   def snapshot(self, table: RewardTable | None = None) -> dict:
     """The task as a telemetry frame carries it: `as_dict` plus the payout
     the table currently says it is worth."""
@@ -345,6 +390,11 @@ class Task:
             "description": self.description, "state": self.state,
             "from": self.source, "pays": reward["base"] + reward["bonus"],
             "tier": reward["tier"], "estimateWh": round(self.estimate_wh, 3),
+            # ...and whether taking it means answering something. The model
+            # is told, rather than left to infer it from the sentence: an
+            # `answer` it forgets to fill in is a claim that gets refused,
+            # and a refusal costs a whole decision.
+            "needsAnswer": self.needs_answer,
             "claimable": self.claimable(now, pack_wh),
             "expiresInS": (None if self.deadline is None
                            else round(self.deadline - float(now), 1))}
@@ -374,6 +424,10 @@ class Task:
       claimed_by=str(spec.get("claimedBy", "")),
       verdict=(dict(spec["verdict"]) if spec.get("verdict") else None),
       points=int(spec.get("points") or 0),
+      answer=str(spec.get("answer", "")),
+      # Absent from anything that came off the wire, and that is fine: only
+      # `as_state` writes it, and only the state file is ever read back.
+      secret=dict(spec.get("secret") or {}),
     )
 
 
@@ -506,18 +560,28 @@ class TaskBoard:
   # ---- transitions ---------------------------------------------------------
 
   def claim(self, task_id: str, robot: str = ROBOT_ROOT, t: float = 0.0,
-            pack_wh: float | None = None) -> Task | None:
+            pack_wh: float | None = None, answer: str = "") -> Task | None:
     """Take a job on. `None` if it is gone, taken, lapsed or unaffordable.
 
     None rather than an exception: the caller is a mission loop acting on an
     LLM's answer or on a race with the expiry sweep, and "that one is not
     available" is an ordinary outcome of asking, not a fault.
+
+    ⚠ A job that NEEDS AN ANSWER cannot be claimed without one (issue #22),
+    and the refusal is here rather than in the caller because it is a fact
+    about the job. `answer` is sanitised on the way in: it is the one string
+    a model chooses that ends up drawn on a wall, so it is capped and
+    filtered to a fixed alphabet exactly as a visitor's message is, and an
+    answer that survives as "" is no answer.
     """
     task = self.tasks.get(task_id)
     if task is None or not task.claimable(t, pack_wh):
       return None
+    said = clean_answer(answer) if task.needs_answer else ""
+    if task.needs_answer and not said:
+      return None
     return self._move(replace(task, state="claimed", claimed_by=robot,
-                              claimed_t=round(float(t), 3)),
+                              claimed_t=round(float(t), 3), answer=said),
                       "task_claimed", t)
 
   def start(self, task_id: str, t: float = 0.0) -> Task | None:
@@ -614,7 +678,7 @@ class TaskBoard:
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text(json.dumps(
       {"version": STATE_VERSION, "seq": self.seq, "dropped": self.dropped,
-       "tasks": [t.as_dict() for t in self.tasks.values()]}, indent=1) + "\n")
+       "tasks": [t.as_state() for t in self.tasks.values()]}, indent=1) + "\n")
     # Rename over the target: a crash mid-write leaves the previous board
     # intact rather than a truncated file that loads as an empty world.
     os.replace(tmp, target)

@@ -90,6 +90,14 @@ that reaches neither this block nor the robot's own context — the same
 treatment the census's ground truth has had since 0.6.0. Worked examples and
 the perception ladder live in pluggybot's `docs/TaskPattern.md`.
 
+`whiteboard_answer` is the kind that makes this concrete (pluggybot #22): the
+question — `"Draw the answer to this question on whiteboard_a: 2 + 3"` — is
+in the description and crosses the wire; the answer is in `Task.secret` and
+crosses nothing. What the robot *said* the answer was appears when the job
+resolves, in the verdict's `wrote` metric, because by then it is inked on a
+board the stream is already showing. `expected` is redacted from that verdict
+whether the robot got it right or not.
+
 #### The state machine
 
 ```
@@ -109,7 +117,8 @@ a licence to abandon a job mid-errand with a module still on the fork.
 #### The header gains `taskKinds`
 
 ```jsonc
-{"taskKinds": ["draw_figure", "rate_artwork", "count_plants", "fetch_module"]}
+{"taskKinds": ["draw_figure", "rate_artwork", "whiteboard_answer",
+               "count_plants", "fetch_module"]}
 ```
 
 Not the task ids: unlike every other block, this one's keys are created and

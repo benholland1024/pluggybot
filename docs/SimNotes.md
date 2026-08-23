@@ -1838,6 +1838,56 @@ three lessons here are about the *task*, not about the panel.
   moves and saw nothing wrong — 0.72 across the board. The bug lives in the
   TRANSITION, so a probe that pauses between moves cannot see it.)
 
+## The whiteboard question (issue #22): a grader that could not read
+
+The first task kind with a right answer, and the design changed shape at the
+first measurement — which is the only reason it is worth writing down.
+
+**The plan was to read the board.** Render the correct answer's glyphs,
+compare them to the polylines the pen actually inked, call it right or wrong.
+It reads well, it satisfies "measure the world, not the report", and it does
+not work. Symmetric mean nearest-neighbour distance between Hershey `futural`
+digits, at the cap heights the 110 mm carriage can reach:
+
+| cap | 6 vs 8 | 6 vs 5 | the robot's own form error |
+|---|---|---|---|
+| 18 mm | 0.55 mm | 0.86 mm | 1.10 mm (multi-stroke, issue #11) |
+| 55 mm | 1.70 mm | 2.57 mm | 1.10 mm |
+| 75 mm | 2.31 mm | 3.44 mm | 1.10 mm |
+
+**A 6 and an 8 are closer to each other than a correctly drawn 6 is to its own
+ideal, at every size the robot can draw.** Scaling up does not help: the
+distances scale with the glyph, the mechanical error does not, but the ratio
+only reaches ~2× at a size where two digits no longer fit the line. Coverage
+at a tolerance was worse — at 2 mm, a drawn 6 covers 97 % of an 8. So a
+grader that classified the ink would have failed correct drawings and passed
+wrong ones, roughly at random, on exactly the pairs arithmetic produces.
+
+The fix is a split rather than a better metric. **Correctness** is decided
+against the answer the *mind* committed to when it took the job on — exact,
+unfakeable, and frozen before a wheel turns. **Fidelity** is the ink against
+the glyphs of that commitment, and it is a check for wrong WORK: a caller
+that draws a house, or nothing, or scribbles, cannot score by reporting that
+it wrote a 5. Where the commitment is right, those are the glyphs of the
+right answer, which is what the issue asked for; where it is wrong, the job
+has already failed.
+
+**And the fidelity bar had to be measured too, because the synthetic number
+was wrong by nearly a factor of two.** Set at 8.0 mm from rendered figures,
+it passed the `robot` figure drawn instead of a "5", which measures **5.05 mm**
+with the real pen — not the 20 mm two such different figures suggest, because
+a busy figure *covers* the glyph it is standing in for. Its glyph→ink
+direction reads 1.5 mm; only ink→glyph notices. Hence a symmetric figure, a
+bar at 4.0 mm (a correct answer measures 0.8–1.2 mm), and an ink-length ratio
+as a second gate — the robot figure uses 2.76× the ink a "5" needs.
+`scripts/answer_spike.py` is the measurement; re-run it if the pen, the board
+or the cap height moves.
+
+Generalises past drawing: **before building a recogniser, measure how far
+apart the things you need to tell apart actually are, in the units your
+machine's error is measured in.** Two of the three numbers above would have
+looked fine in a docstring.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

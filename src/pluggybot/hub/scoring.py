@@ -77,6 +77,12 @@ DRAW_MIN_STROKES = 1
 #: (the pen failed to lift), and past this much of it the figure is scribbled
 #: through rather than merely imperfect.
 DRAW_MAX_TRAVEL_INK = 0.25
+# A written answer's two bars -- how far the ink may sit from the glyphs, and
+# how much ink it may be written with -- are `questions.ANSWER_MATCH_MM` and
+# `questions.INK_RATIO`, and they stay there rather than here: both were
+# measured with the real pen (`scripts/answer_spike.py`), and a second copy
+# would be a second, slowly diverging opinion about the same drawing.
+
 #: The charge cycle stops at lifecycle.CHARGED (0.90) or times out. Below this
 #: it timed out, which is a failed charge however long the robot sat there.
 CHARGE_OK_FRAC = 0.85
@@ -372,6 +378,86 @@ def eval_census(m: dict) -> tuple[bool, dict, str]:
                        f"{coverage:.0%} of the zone surveyed")
 
 
+def eval_answer(m: dict) -> tuple[bool, dict, str]:
+  """Did the robot answer the question, and does the board show it? (#22)
+
+  TWO different claims, checked against two different things, and keeping
+  them apart is the whole design:
+
+    CORRECTNESS is `wrote == expected`. `wrote` is what the MIND committed to
+    when it took the job on, frozen into the task before the robot moved;
+    `expected` comes out of `Task.secret`, which the errand never sees. So
+    this half cannot be influenced by anything that happens on the way to the
+    board, and it fails cleanly -- a robot that says 6 for "2 + 3" gets
+    nothing, which is the point of the task kind.
+
+    FIDELITY is the ink, off the BOARD BOOK, against the glyphs of the answer
+    that was committed. Where the commitment is right those are the glyphs of
+    the RIGHT answer, which is what issue #22 asks for; where it is wrong the
+    job has already failed and the ink cannot rescue it. This is the half
+    that stops a caller scoring by REPORTING that it wrote a 5.
+
+  ⚠ It is deliberately NOT handwriting recognition, and it must not be
+  tightened into an attempt at it. Measured, a Hershey 6 and 8 sit 1.7 mm
+  apart at this cap height while a correctly drawn answer sits 1.2 mm from
+  its own ideal -- so a grader that classified the ink would fail correct
+  drawings and pass wrong ones, on exactly the pairs arithmetic produces.
+  The reasoning and the numbers are in hub/questions.py.
+
+  NO PARTIAL CREDIT for a legible wrong answer, and that is a decision rather
+  than an omission (issue #22 asks for it to be made explicitly). It follows
+  the rule the whole table already runs on -- `TaskReward.points` pays zero
+  for a failure, because a consolation payout for showing up is the gradient
+  that teaches a robot to attempt the cheapest task it can fail at. Beautiful
+  handwriting scales the BONUS on a right answer; it cannot buy a wrong one.
+  """
+  from pluggybot.hub import questions
+  wrote = str(m.get("wrote") or "")
+  expected = str(m.get("expected") or "")
+  inked = int(m.get("strokesInked") or 0)
+  match = m.get("matchMm")
+  ratio = m.get("inkRatio")
+  metrics = {
+    "question": m.get("question"), "board": m.get("board"),
+    "wrote": wrote, "expected": expected,
+    "correct": bool(wrote) and wrote == expected,
+    "strokes": int(m.get("strokes") or 0), "strokesInked": inked,
+    "matchMm": round(float(match), 2) if match is not None else None,
+    "inkRatio": round(float(ratio), 3) if ratio is not None else None,
+    "formMm": (round(float(m["formMm"]), 2)
+               if m.get("formMm") is not None else None),
+  }
+  # A missing measurement is not a passing one. A use-phase that raised, a
+  # task claimed before this kind existed, a board that vanished: all of them
+  # arrive here as an absence, and an absence that compared EQUAL would score
+  # a question nobody answered as correct.
+  if not expected or not wrote:
+    return False, metrics, (f"no answer was written on {metrics['board']}"
+                            if not wrote else
+                            "this job has no answer to be checked against")
+  if not metrics["correct"]:
+    # The reason line is streamed and shown to the overseer, so it says the
+    # answer was wrong without saying what the right one was -- same rule as
+    # the census, and the same reason.
+    return False, metrics, (f"wrote {wrote} on {metrics['board']} in answer "
+                            f"to \"{metrics['question']}\" -- wrong")
+  if inked < DRAW_MIN_STROKES or match is None:
+    return False, metrics, f"no ink reached {metrics['board']}"
+  if float(match) > questions.ANSWER_MATCH_MM:
+    return False, metrics, (
+      f"{wrote} was the right answer, but the board does not show it: the "
+      f"ink is {float(match):.1f} mm from those glyphs "
+      f"(bar {questions.ANSWER_MATCH_MM:.0f} mm)")
+  low, high = questions.INK_RATIO
+  if ratio is not None and not low <= float(ratio) <= high:
+    return False, metrics, (
+      f"{wrote} was the right answer, but {float(ratio):.1f}x its ink is on "
+      f"{metrics['board']} -- that is not what got drawn")
+  return True, metrics, (f"wrote {wrote} on {metrics['board']} in answer to "
+                         f"\"{metrics['question']}\" -- correct, "
+                         f"{float(match):.1f} mm from the glyphs")
+
+
 def eval_dance(m: dict) -> tuple[bool, dict, str]:
   moves = int(m.get("moves") or 0)
   landed = int(m.get("landed") or 0)
@@ -434,6 +520,7 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "charge": eval_charge,
   "carry": eval_carry,
   "artwork": eval_artwork,
+  "answer": eval_answer,
 }
 
 
@@ -480,7 +567,11 @@ def board_before(life, errand) -> dict:
   if book is None or board is None or board not in book:
     return {}
   rec = book[board]
-  return {"board": board, "strokes": rec.strokes, "clears": rec.clears}
+  # `lines` as well as `strokes`, because a written answer is scored on the
+  # POLYLINES rather than on a count (issue #22) and the same "what was
+  # already there" question has to be answerable about both.
+  return {"board": board, "strokes": rec.strokes, "clears": rec.clears,
+          "lines": len(rec.lines)}
 
 
 def sample_draw(life, errand, result: dict, before: dict) -> dict:
@@ -510,6 +601,60 @@ def sample_draw(life, errand, result: dict, before: dict) -> dict:
   }
 
 
+def _errand_lines(life, board: str, before: dict) -> list:
+  """The polylines THIS errand put on a board, off the board book.
+
+  Same delta rule as `sample_draw`'s stroke count and for the same reason: an
+  errand that did not erase must not be scored on what was already there. A
+  clear during the use-phase resets the record, so everything on the board is
+  this errand's; otherwise take the tail.
+  """
+  book = getattr(life, "boards", None)
+  if book is None or not board or board not in book:
+    return []
+  rec = book[board]
+  fresh = rec.clears > before.get("clears", 0)
+  added = len(rec.lines) if fresh else len(rec.lines) - before.get("lines", 0)
+  lines = rec.lines[len(rec.lines) - max(added, 0):] if added > 0 else []
+  return [line["points"] for line in lines]
+
+
+def sample_answer(life, errand, result: dict, before: dict) -> dict:
+  """Measure a written answer: the commitment off the TASK, the ink off the
+  BOARD, and nothing at all off the errand's report of itself (issue #22).
+
+  Note where the two halves come from. `wrote` and `expected` are read out of
+  the task board -- the frozen claim the mind made when it took the job on,
+  and the answer that was never published -- so an errand's `use` cannot
+  reach either: it is handed a stroke program and never told what the
+  question was. The ink is the polylines the pen traced into the board book.
+  Between them there is no path by which the thing being graded supplies a
+  measurement.
+  """
+  from pluggybot.hub import questions
+  base = sample_draw(life, errand, result, before)
+  board = base.get("board")
+  task = None
+  tasks = getattr(life, "tasks", None)
+  if tasks is not None and getattr(errand, "task_id", ""):
+    task = tasks.get(errand.task_id)
+  wrote = getattr(task, "answer", "") if task is not None else ""
+  # Both absences are left as absences rather than defaulted: `eval_answer`
+  # is what turns "nobody wrote anything" into a failure, and a default here
+  # would make it a pass.
+  measured = {**base, "wrote": wrote,
+              "expected": (task.secret.get("answer", "")
+                           if task is not None else ""),
+              "question": (task.params.get("question", "")
+                           if task is not None else "")}
+  if wrote:
+    match = questions.ink_match(_errand_lines(life, board, before), wrote)
+    if match is not None:
+      measured.update({"matchMm": match["matchMm"],
+                       "inkRatio": match["inkRatio"]})
+  return measured
+
+
 def sample_census(life, errand, result: dict, before: dict) -> dict:
   census = result.get("census") or {}
   return {"counted": census.get("counted"), "truth": census.get("truth"),
@@ -537,6 +682,7 @@ def sample_carry(life, errand, result: dict, before: dict) -> dict:
 SAMPLERS: dict[str, Callable[..., dict]] = {
   "draw": sample_draw,
   "artwork": sample_draw,
+  "answer": sample_answer,
   "census": sample_census,
   "dance": sample_dance,
   "carry": sample_carry,

@@ -42,8 +42,9 @@ from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
 from pluggybot.hub.overseer import THINK_SLICE_S
+from pluggybot.hub.questions import clean_answer, default_bank
 from pluggybot.hub.screen import face_for
-from pluggybot.hub import scoring
+from pluggybot.hub import scoring, strokes
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder
@@ -544,7 +545,7 @@ class HubLifecycle:
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
 
-  def _claim_task(self, task_id: str) -> bool:
+  def _claim_task(self, task_id: str, answer: str = "") -> bool:
     """Take one offered job on and queue the errand that discharges it.
 
     False for every ordinary way this can not happen -- the offer is gone,
@@ -558,6 +559,12 @@ class HubLifecycle:
     only checked BETWEEN errands and a robot that starts a job it cannot
     finish dies holding the tool (CLAUDE.md, "A chosen errand can cost more
     than the whole pack").
+
+    `answer` is what the MIND says the answer is, for a job that asks a
+    question (issue #22). It is frozen into the task by `TaskBoard.claim` and
+    read back out by the evaluator; the errand is handed the glyphs and never
+    told what the question was, so nothing on the way to the board can revise
+    what the robot committed to.
     """
     if self.tasks is None:
       return False
@@ -566,17 +573,27 @@ class HubLifecycle:
     if task is None or not task.claimable(now, self.spendable_wh):
       self._say(f"TASK {task_id}: not available")
       return False
-    errand = errand_for_task(task, self.world, self.boards)
+    said = clean_answer(answer) if task.needs_answer else ""
+    if task.needs_answer and not said:
+      # Not a fault and not a failure of the task: a question is a job for a
+      # mind, and the scripted rotation is not one. Left offered, so it
+      # lapses honestly rather than being marked failed by a robot that never
+      # touched it.
+      self._say(f"TASK {task.id}: asks a question and nobody answered it")
+      return False
+    errand = errand_for_task(task, self.world, self.boards, answer=said)
     if errand is None:
       # Offered in a world that cannot build it. Not fatal and not a claim:
       # leaving it offered lets it lapse honestly rather than be marked
       # failed by a robot that never touched it.
       self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
       return False
-    if self.tasks.claim(task.id, t=now, pack_wh=self.spendable_wh) is None:
+    if self.tasks.claim(task.id, t=now, pack_wh=self.spendable_wh,
+                        answer=said) is None:
       return False
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed: {task.description}")
+    self._say(f"TASK {task.id} claimed: {task.description}"
+              + (f" -- answering {said}" if said else ""))
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
     # through the loop charges first.
@@ -594,6 +611,12 @@ class HubLifecycle:
     if self.tasks is None:
       return False
     for task in self.tasks.claimable(float(self.data.time), self.spendable_wh):
+      # A question is skipped rather than attempted (issue #22): there is
+      # nobody here to work the answer out, and the two ways code could
+      # supply one -- reading it out of the bank, or guessing -- are the sim
+      # marking its own homework and a confident wrong number on a wall.
+      if task.needs_answer:
+        continue
       if self._claim_task(task.id):
         return True
     return False
@@ -640,7 +663,7 @@ class HubLifecycle:
       # this sits: after `needs_charge`, like every other action, and behind
       # the same claimability gate the scripted path uses -- an LLM cannot
       # take on a task the energy budget refuses.
-      if not self._claim_task(decision.task):
+      if not self._claim_task(decision.task, decision.answer):
         self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
       return
     if decision.action == "charge":
@@ -872,19 +895,29 @@ def seed_tasks(board, world: str, book=None, t: float = 0.0,
   """
   from pluggybot.hub.tasks import KINDS
   cfg = world_config(world)
-  specs: list[tuple[str, str, dict]] = []
+  specs: list[tuple[str, str, dict, dict]] = []
   if book is not None and len(book):
     names = list(book.names)
-    specs.append(("draw_figure", names[0], {"program": "house"}))
+    specs.append(("draw_figure", names[0], {"program": "house"}, {}))
     if len(names) > 1:
-      specs.append(("rate_artwork", names[1], {"program": "robot"}))
+      specs.append(("rate_artwork", names[1], {"program": "robot"}, {}))
+    # ...and one job with a RIGHT ANSWER (issue #22). The question is drawn
+    # off the board's own sequence number, which survives a restart, so a
+    # deployed robot works through the bank instead of being asked the same
+    # thing every morning -- and a test that seeds a fresh board gets the
+    # same question every time, which is what makes the mission tests
+    # reproducible.
+    question = default_bank().pick(board.seq)
+    specs.append(("whiteboard_answer", names[0],
+                  {"question": question.ask, "template": question.id},
+                  {"answer": question.answer}))
   if cfg.get("census_zone"):
-    specs.append(("count_plants", cfg["census_zone"]["name"], {}))
+    specs.append(("count_plants", cfg["census_zone"]["name"], {}, {}))
   if not specs:
     # room_hub has neither boards nor anything countable, so the one job it
     # can offer is the carry. Better than an empty board: the bare world is
     # where the swap stack gets exercised on its own.
-    specs.append(("fetch_module", "module_lcd", {}))
+    specs.append(("fetch_module", "module_lcd", {}, {}))
   # THE CHEAPEST JOB IS THE ONE LEFT STANDING, and the rest lapse -- see
   # SEED_STANDING_TTL_S. Cheapest rather than first because one errand costs
   # roughly one full pack (hub/tasks.py's measurements), so which job is
@@ -892,10 +925,10 @@ def seed_tasks(board, world: str, book=None, t: float = 0.0,
   # Leaving the priciest one standing is leaving up the job the robot is
   # least able to take.
   cheapest = min(specs, key=lambda spec: KINDS[spec[0]].estimate_wh)
-  offered = [board.offer(kind, target, params=params, t=t,
+  offered = [board.offer(kind, target, params=params, t=t, secret=secret,
                          ttl=(standing_ttl if standing_ttl is not None else ttl)
                          if spec is cheapest else ttl)
-             for spec in specs for kind, target, params in (spec,)]
+             for spec in specs for kind, target, params, secret in (spec,)]
   return [o for o in offered if o is not None]
 
 
@@ -968,7 +1001,8 @@ def errands_for(kind: str, world: str, book=None) -> list:
 
 
 def draw_errand_for(world: str, book, board_name: str,
-                    program_name: str = "house", task: str = "draw"):
+                    program_name: str = "house", task: str = "draw",
+                    program=None):
   """One drawing errand on a NAMED board with a NAMED figure.
 
   Split out of `errands_for` so the preset queue and the overseer's chosen
@@ -986,7 +1020,7 @@ def draw_errand_for(world: str, book, board_name: str,
   from pluggybot.hub.drawing import Board
   return drawing_errand(book, board_name,
                         Board.from_meta(meta["boards"][board_name]),
-                        program_name=program_name, task=task)
+                        program=program, program_name=program_name, task=task)
 
 
 # ---- the overseer's seams (issue #15) ---------------------------------------
@@ -1015,7 +1049,7 @@ def errand_from(decision, world: str, book=None):
   return None
 
 
-def errand_for_task(task, world: str, book=None):
+def errand_for_task(task, world: str, book=None, answer: str = ""):
   """A claimed TASK -> the errand that discharges it, or None (issue #21).
 
   The sibling of `errand_from` and deliberately the same shape: a task is
@@ -1026,16 +1060,26 @@ def errand_for_task(task, world: str, book=None):
   Note what is threaded through and what is not. The errand carries
   `task_id`, so the verdict that pays for the finished job also closes the
   offer -- one evaluation, two consumers. It does NOT carry the task's
-  `secret`: no kind needs one yet (issue #22 is the first), and the errand
-  layer is the wrong place to learn an answer, since a use-phase's result is
-  arbitrary caller code and scoring measures the world instead.
+  `secret`, and `whiteboard_answer` (issue #22) is what makes that load-
+  bearing rather than merely tidy: the errand is handed the GLYPHS of the
+  answer the mind committed to and is never told the question or the right
+  answer. A use-phase is arbitrary caller code, so the less of the task it
+  can see, the less there is for it to be wrong about -- and scoring reads
+  the board and the frozen commitment instead.
   """
   from pluggybot.hub.tasks import KINDS
   spec = KINDS.get(task.kind)
   if spec is None:
     return None
   try:
-    if task.kind in ("draw_figure", "rate_artwork"):
+    if task.kind == "whiteboard_answer":
+      # A drawing errand like any other; only the figure is different. The
+      # `answer` program is the one door text has into the plotter, and what
+      # goes through it has already been through `questions.clean_answer`.
+      errand = draw_errand_for(world, book, task.target, task="answer",
+                               program=strokes.program(
+                                 "answer", text=answer or task.answer))
+    elif task.kind in ("draw_figure", "rate_artwork"):
       errand = draw_errand_for(world, book, task.target,
                                program_name=task.params.get("program")
                                or "house", task=spec.task)
