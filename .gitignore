@@ -21,3 +21,10 @@ yolo*.pt
 # CDN URL GitHub hands back — it renders inline at zero cost to the repo.
 *.mp4
 *.gif
+
+# Local secrets: the ingest token, DB password, session secret. NEVER commit
+# these -- this repo is intended to be open-sourced, and an untracked .env is
+# one `git add -A` away from being public forever.
+.env
+.env.*
+!.env-example
