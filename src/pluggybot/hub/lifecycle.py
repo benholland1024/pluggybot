@@ -88,6 +88,28 @@ TOP_UP_BELOW = 0.75
 #: robot answers at most one per turn, and a wall of them is input tokens
 #: spent on messages it is not going to get to -- the inbox keeps the rest.
 VISITORS_SHOWN = 5
+#: ...and offered tasks shown at once (issue #21). Small for the same reason:
+#: the robot takes at most one per turn, and a wall of offers is input tokens
+#: spent on jobs it will not reach.
+TASKS_SHOWN = 5
+#: Sim seconds a seeded offer stands before it lapses. A PLACEHOLDER, like
+#: `seed_tasks` itself -- issue #23 owns cadence, caps and expiry, and owns
+#: making them configuration. Chosen against the home mission's own clock
+#: rather than against wall-clock intuition: a charge-to-charge cycle there is
+#: ~365 sim-seconds, so this is long enough that a job the robot means to do
+#: survives a charge interrupting it, and short enough that a job it never
+#: gets to visibly lapses instead of standing forever.
+SEED_TTL_S = 420.0
+#: ...and the FIRST seeded offer stands this much longer.
+#:
+#: ⚠ Not a tuning knob -- a deliberately MIXED board, and the fixtures are why.
+#: A preset errand queue outranks the task branch, so with one ttl for
+#: everything the home recording came back with all three offers `expired`:
+#: an honest mission that exercised the expiry path and nothing else, and no
+#: use at all to a website building markers for a job being taken on. One
+#: standing offer plus two that lapse gives both outcomes in one recording,
+#: which is also the mix issue #23's acceptance asks a long run to show.
+SEED_STANDING_TTL_S = 900.0
 
 
 class HubLifecycle:
@@ -101,7 +123,7 @@ class HubLifecycle:
                low_battery_wh: float = LOW_BATTERY_WH,
                errands=None, boards=None, screen=None, ledger=None,
                overseer=None, journal=None, world: str = "room_hub",
-               inbox=None) -> None:
+               inbox=None, tasks=None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -134,6 +156,13 @@ class HubLifecycle:
     # through it -- the lifecycle measures nothing and pays nothing itself.
     self.ledger = ledger
     self.verdicts: list[dict] = []
+    # The task board (issue #21). Optional, like the ledger and for the same
+    # reason: a physics test has nobody offering it work. When it IS here the
+    # loop sweeps it for lapsed offers, takes claimable ones when it has
+    # nothing else to do, and closes each one with the SAME verdict that pays
+    # for it -- there is no second judgement of a task anywhere.
+    self.tasks = tasks
+    self.claimed: list[str] = []
     # The LCD module's display (issue #13). The lifecycle drives the resting
     # face off its own state; an errand's use-phase may take the screen over
     # (`Screen.held`) and gets it back automatically at the next state change.
@@ -371,6 +400,11 @@ class HubLifecycle:
     failure to recover from.
     """
     self.module = errand.module
+    # The job this errand discharges is now genuinely under way (issue #21) --
+    # `claimed` means taken, `active` means started, and the difference is
+    # what a marker on the website shows.
+    if errand.task_id and self.tasks is not None:
+      self.tasks.start(errand.task_id, t=float(self.data.time))
     self.state = "SWAP_PICK"
     self.mission.swap_at_bay(errand.station_y, "pick", module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
@@ -412,6 +446,16 @@ class HubLifecycle:
     if verdict is not None:
       result["verdict"] = verdict.as_dict()
       result["points"] = entry["points"] if entry is not None else 0
+      # ...and the same verdict closes the OFFER, if this errand was one
+      # (issue #21). The same object, deliberately: a task graded separately
+      # from the errand that discharged it is a second scorer, and there is
+      # only meant to be one.
+      if errand.task_id and self.tasks is not None:
+        closed = self.tasks.resolve(errand.task_id, verdict,
+                                    t=float(self.data.time))
+        if closed is not None:
+          result["task_id"] = closed.id
+          self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
     self.errand_results.append(result)
     return result
 
@@ -473,6 +517,87 @@ class HubLifecycle:
     self._say(f"VISITOR {decision.outcome} {msg.who or 'a visitor'}'s "
               f"{msg.kind}: {decision.reply or '(no reply)'}")
 
+  # ---- tasks (issue #21) ----------------------------------------------------
+
+  @property
+  def spendable_wh(self) -> float:
+    """What is in the pack, which is what a job's cost is compared against.
+
+    THE WHOLE CHARGE, not the part above the reserve, and the distinction was
+    worth a wrong fixture to learn. The reserve is a RETURN-TRIP margin: an
+    errand is allowed to spend into it, which is how this loop has always
+    worked -- `needs_charge` is checked BETWEEN errands and never during one.
+    Measured off the committed recordings, one errand costs roughly one full
+    pack in both worlds (0.487-0.570 Wh in room_hub against a 0.700 Wh cell,
+    0.866-0.929 Wh in home against 1.100 Wh), while the energy ABOVE the
+    reserve is 0.28 and 0.44 Wh. Gating on that would refuse every job in
+    every world forever -- a task system that silently does nothing.
+    """
+    return max(0.0, self.battery.energy_wh)
+
+  def _task_step(self) -> None:
+    """Lapse whatever nobody got to. Runs at the top of every arbitration
+    pass, beside the visitor drain, and for the same reason: it is
+    bookkeeping about the world rather than something the robot does."""
+    if self.tasks is None:
+      return
+    for task in self.tasks.expire_due(float(self.data.time)):
+      self._say(f"TASK {task.id} expired: {task.description}")
+
+  def _claim_task(self, task_id: str) -> bool:
+    """Take one offered job on and queue the errand that discharges it.
+
+    False for every ordinary way this can not happen -- the offer is gone,
+    somebody took it, it lapsed, it costs more than the pack has left, or
+    this world cannot build an errand for it. False rather than an exception
+    because the caller is a mission loop acting on an LLM's answer, and "that
+    one is not available" is an answer.
+
+    ⚠ The energy gate lives HERE and not in the errand: a task that cannot be
+    afforded must not be claimable in the first place, because the reserve is
+    only checked BETWEEN errands and a robot that starts a job it cannot
+    finish dies holding the tool (CLAUDE.md, "A chosen errand can cost more
+    than the whole pack").
+    """
+    if self.tasks is None:
+      return False
+    now = float(self.data.time)
+    task = self.tasks.get(task_id)
+    if task is None or not task.claimable(now, self.spendable_wh):
+      self._say(f"TASK {task_id}: not available")
+      return False
+    errand = errand_for_task(task, self.world, self.boards)
+    if errand is None:
+      # Offered in a world that cannot build it. Not fatal and not a claim:
+      # leaving it offered lets it lapse honestly rather than be marked
+      # failed by a robot that never touched it.
+      self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
+      return False
+    if self.tasks.claim(task.id, t=now, pack_wh=self.spendable_wh) is None:
+      return False
+    self.claimed.append(task.id)
+    self._say(f"TASK {task.id} claimed: {task.description}")
+    # Queued rather than run inline, exactly as an overseer's chosen errand
+    # is: if taking it dropped the battery below the reserve, the next pass
+    # through the loop charges first.
+    self.errands.append(errand)
+    return True
+
+  def _claim_next_task(self) -> bool:
+    """Take the oldest claimable job, if there is one.
+
+    This is the branch that makes tasks work WITHOUT an overseer. A world
+    that only hands out work to a robot with an LLM attached would have no
+    tasks in either committed recording and none on the deployed sim, which
+    is off by default -- and a job offer nobody can accept is scenery.
+    """
+    if self.tasks is None:
+      return False
+    for task in self.tasks.claimable(float(self.data.time), self.spendable_wh):
+      if self._claim_task(task.id):
+        return True
+    return False
+
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
   def _decide(self) -> None:
@@ -510,6 +635,14 @@ class HubLifecycle:
     # so at the moment it is taken rather than five minutes later.
     self._answer_visitor(decision)
 
+    if decision.action == "take_task":
+      # The overseer accepting a job somebody offered (issue #21). Note where
+      # this sits: after `needs_charge`, like every other action, and behind
+      # the same claimability gate the scripted path uses -- an LLM cannot
+      # take on a task the energy budget refuses.
+      if not self._claim_task(decision.task):
+        self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      return
     if decision.action == "charge":
       # Topping up EARLY is a real choice and this honours it. Note what it is
       # not: there is no action that declines to charge, because `needs_charge`
@@ -584,6 +717,10 @@ class HubLifecycle:
         # balance -- and outside the priority order, because applying a
         # rating is bookkeeping rather than something the robot does.
         self._visitor_step()
+        # ...and whatever lapsed while the robot was busy (issue #21). Also
+        # outside the priority order: an offer expiring is something that
+        # happens TO the world, not a thing the robot chose.
+        self._task_step()
         if self.needs_charge:
           self.state = "GO_CHARGE"
           if not self.go_charge():
@@ -600,6 +737,13 @@ class HubLifecycle:
           # after charging, which it cannot reach, and after the errand queue,
           # so an explicit order still outranks a chosen one.
           self._decide()
+        elif self._claim_next_task():
+          # An offered job, taken by the loop itself (issue #21). Unreachable
+          # with an overseer, which is correct: a robot with a mind chooses
+          # for itself and `take_task` is one of the things it may choose.
+          # Without one, work still gets done -- and it outranks exploring for
+          # the reason the errand queue does, because somebody asked for it.
+          continue
         elif not self.map_done:
           self.state = "EXPLORE"
           self.explore()
@@ -648,6 +792,12 @@ class HubLifecycle:
       # without an inbox, which is every caller that does not serve.
       "visitors": self.inbox.stats() if self.inbox is not None else {},
       "replies": list(self.replies),
+      # The jobs this world offered and what became of them (issue #21).
+      # Empty without a task board, which is every caller that does not ask
+      # for one.
+      "tasks": self.tasks.snapshot() if self.tasks is not None else {},
+      "task_stats": self.tasks.stats() if self.tasks is not None else {},
+      "tasks_claimed": list(self.claimed),
     }
 
 
@@ -690,6 +840,63 @@ def points_ledger(state: str | None = None, table=None):
   """
   from pluggybot.hub.ledger import Ledger
   return Ledger(path=state, table=table)
+
+
+def task_board(state: str | None = None, table=None):
+  """The world's job offers as persistent state (issue #21).
+
+  `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
+  the boards and the ledger get, and for the same reason: an offer is world
+  state, and every mission end is a restart. A task that vanished because the
+  container cycled would be a job somebody asked for and nobody ever declined.
+  """
+  from pluggybot.hub.tasks import TaskBoard
+  return TaskBoard(path=state, table=table)
+
+
+def seed_tasks(board, world: str, book=None, t: float = 0.0,
+               ttl: float | None = None,
+               standing_ttl: float | None = None) -> list:
+  """Put a starter set of jobs into the world, once, at mission start.
+
+  A PLACEHOLDER for issue #23, and deliberately a small and obvious one: how
+  often tasks appear, how long an offer stands, and the per-target cooldown
+  are that issue's, and they are meant to be configuration rather than the
+  literal list below. What this exists for is the end-to-end path -- a task
+  that can be created, offered, claimed, executed, graded and paid -- which
+  needs something to have been offered.
+
+  Built off the WORLD's own furniture (`world_config`, the boards' own names)
+  rather than hardcoded ids, so a world without whiteboards simply gets fewer
+  offers instead of an offer nothing can build.
+  """
+  from pluggybot.hub.tasks import KINDS
+  cfg = world_config(world)
+  specs: list[tuple[str, str, dict]] = []
+  if book is not None and len(book):
+    names = list(book.names)
+    specs.append(("draw_figure", names[0], {"program": "house"}))
+    if len(names) > 1:
+      specs.append(("rate_artwork", names[1], {"program": "robot"}))
+  if cfg.get("census_zone"):
+    specs.append(("count_plants", cfg["census_zone"]["name"], {}))
+  if not specs:
+    # room_hub has neither boards nor anything countable, so the one job it
+    # can offer is the carry. Better than an empty board: the bare world is
+    # where the swap stack gets exercised on its own.
+    specs.append(("fetch_module", "module_lcd", {}))
+  # THE CHEAPEST JOB IS THE ONE LEFT STANDING, and the rest lapse -- see
+  # SEED_STANDING_TTL_S. Cheapest rather than first because one errand costs
+  # roughly one full pack (hub/tasks.py's measurements), so which job is
+  # affordable at all is decided by its energy estimate and nothing else.
+  # Leaving the priciest one standing is leaving up the job the robot is
+  # least able to take.
+  cheapest = min(specs, key=lambda spec: KINDS[spec[0]].estimate_wh)
+  offered = [board.offer(kind, target, params=params, t=t,
+                         ttl=(standing_ttl if standing_ttl is not None else ttl)
+                         if spec is cheapest else ttl)
+             for spec in specs for kind, target, params in (spec,)]
+  return [o for o in offered if o is not None]
 
 
 def world_screens(model, data):
@@ -808,6 +1015,47 @@ def errand_from(decision, world: str, book=None):
   return None
 
 
+def errand_for_task(task, world: str, book=None):
+  """A claimed TASK -> the errand that discharges it, or None (issue #21).
+
+  The sibling of `errand_from` and deliberately the same shape: a task is
+  untrusted input in exactly the way an overseer decision is (it can come
+  from a visitor), so a world that cannot build one answers None and the loop
+  leaves the offer alone rather than ending.
+
+  Note what is threaded through and what is not. The errand carries
+  `task_id`, so the verdict that pays for the finished job also closes the
+  offer -- one evaluation, two consumers. It does NOT carry the task's
+  `secret`: no kind needs one yet (issue #22 is the first), and the errand
+  layer is the wrong place to learn an answer, since a use-phase's result is
+  arbitrary caller code and scoring measures the world instead.
+  """
+  from pluggybot.hub.tasks import KINDS
+  spec = KINDS.get(task.kind)
+  if spec is None:
+    return None
+  try:
+    if task.kind in ("draw_figure", "rate_artwork"):
+      errand = draw_errand_for(world, book, task.target,
+                               program_name=task.params.get("program")
+                               or "house", task=spec.task)
+    elif task.kind == "count_plants":
+      cfg = world_config(world)
+      zone = cfg.get("census_zone")
+      if zone is None or zone["name"] != task.target:
+        return None
+      errand = census_errand(Zone.from_meta(zone), entry=cfg.get("census_entry"))
+    elif task.kind == "fetch_module":
+      errand = carry_errand(module=task.target,
+                            use_at=world_config(world)["use_at"])
+    else:
+      return None
+  except (ValueError, KeyError, IndexError):
+    return None
+  errand.task_id = task.id
+  return errand
+
+
 def zone_centre(world: str, name: str) -> tuple[float, float]:
   """The middle of a named zone, for a `explore(zone)` decision."""
   for zone in world_config(world)["zones"]:
@@ -827,7 +1075,16 @@ def overseer_context(life) -> dict:
   """
   from pluggybot.hub import overseer as ov
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
-  state = ov.context_for(life, life.journal, visitors=visitors)
+  # The offers on the board, framed the way `TaskReward.as_context` frames a
+  # payout: what the job is, what it pays, and whether it can be taken RIGHT
+  # NOW given what is left in the pack. The claimability flag is computed
+  # here rather than left to the model, because "can I afford this" is an
+  # arithmetic question with a right answer and nothing is gained by asking
+  # an LLM to do it (issue #21).
+  offers = (life.tasks.context(float(life.data.time), life.spendable_wh,
+                               limit=TASKS_SHOWN)
+            if life.tasks is not None else [])
+  state = ov.context_for(life, life.journal, visitors=visitors, tasks=offers)
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
 
@@ -897,7 +1154,8 @@ def run_demo(start=None, view: bool = False,
              errand: str = "carry", board_state: str | None = None,
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
-             journal_state: str | None = None) -> dict:
+             journal_state: str | None = None,
+             tasks: bool = False, tasks_state: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -921,6 +1179,11 @@ def run_demo(start=None, view: bool = False,
   # The ledger is the ROBOTS', not the world's -- it is the one piece of
   # persistent state that follows them between rooms.
   ledger = points_ledger(ledger_state)
+  # Job offers (issue #21). OFF by default and staying that way: a task board
+  # adds errands to a mission, which reshuffles the whole trajectory, and
+  # every existing demo and mission test has to behave exactly as it did
+  # unless somebody asks for tasks by name. A state path implies "yes".
+  board = task_board(tasks_state) if (tasks or tasks_state) else None
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.hub import overseer as ov
@@ -937,7 +1200,7 @@ def run_demo(start=None, view: bool = False,
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, world=world,
-                      errands=errands_for(errand, world, book))
+                      errands=errands_for(errand, world, book), tasks=board)
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
@@ -950,7 +1213,7 @@ def run_demo(start=None, view: bool = False,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger,
+                                 screens=screens, ledger=ledger, tasks=board,
                                  goals=goals_prose,
                                  steering=boss is not None)
     life.mission.step_hooks.append(recorder.step_hook)
@@ -960,6 +1223,21 @@ def run_demo(start=None, view: bool = False,
       book.on_event.append(recorder.emit)
     # ...and so is an award: points are not a pose either (issue #14).
     ledger.on_event.append(recorder.emit)
+    # ...and so is a job being offered, taken or resolved (issue #21). The
+    # `tasks` block catches a late joiner up; these lines are the MOMENTS,
+    # which is what the site animates a marker on.
+    if board is not None:
+      board.on_event.append(recorder.emit)
+  # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
+  # `task_offered` the moment it is called, so seeding at construction time
+  # put the offers on the floor before the recorder existed -- a recording
+  # whose tasks block was populated and whose offer events were missing. The
+  # `board_snapshot` lesson, arriving through a different door. Seeded only
+  # when nothing is already outstanding, so a restart against a persisted
+  # board resumes the jobs it left rather than re-offering them all.
+  if board is not None and not board.open_tasks():
+    seed_tasks(board, world, book, ttl=SEED_TTL_S,
+               standing_ttl=SEED_STANDING_TTL_S)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],
                     max_sim_time=max_sim_time,

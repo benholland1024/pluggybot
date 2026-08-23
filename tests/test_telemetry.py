@@ -778,6 +778,61 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   assert final["balance"] in {e["balance"] for e in banked}
   assert final["recent"] and final["tasks"] >= len(final["recent"])
 
+  # The task half (0.9.0, issue #21): the world OFFERED work, the robot took
+  # it, and code judged the result. All three reach a consumer only through
+  # these lines and the tasks block -- a job offer has no body either.
+  assert header["taskKinds"], "the header must advertise what jobs it offers"
+  put_up = [e for e in events if e["type"] == "task_offered"]
+  taken = [e for e in events if e["type"] == "task_claimed"]
+  closed = [e for e in events if e["type"] == "task_resolved"]
+  assert put_up, "no job was ever offered"
+  assert taken, "no job was ever taken on: the claim path is untested"
+  assert closed, "no job ever resolved"
+  for e in put_up:
+    assert e["task"]["kind"] in header["taskKinds"]
+    # A task names an evaluator and a row of the reward table; what it PAYS
+    # is looked up from that table, and there is no path by which whoever
+    # created it could have set the number.
+    #
+    # base + bonus, not base: the VISITOR tier banks zero on completion by
+    # design and its points arrive later with a rating, so `rate_artwork`
+    # legitimately advertises base 0. What no job may be is worth nothing at
+    # all -- that would be a job offer nobody could ever be paid for.
+    reward = e["task"]["reward"]
+    assert reward["base"] + reward["bonus"] > 0
+    assert (reward["base"] == 0) == (reward["tier"] == "visitor")
+    assert e["task"]["state"] == "offered" and e["task"]["points"] == 0
+  # ...and at least one job went the whole way, which is what makes this
+  # fixture the end-to-end evidence rather than a screenshot of an offer.
+  finished = [e for e in closed if e["state"] in ("done", "failed")]
+  assert finished, "every offered job merely lapsed: nothing was executed"
+  assert all(e["verdict"] is not None for e in finished)
+  assert all("truth" not in json.dumps(e["verdict"]) for e in finished)
+  # The verdict that closed the task is the one that PAID for the errand --
+  # one evaluation with two consumers, never a second judgement.
+  for e in finished:
+    assert any(b["reason"] == e["verdict"]["reason"] for b in banked), \
+      "a task was judged by something other than the evaluator that paid"
+
+  # ⚠ THE TASKS BLOCK IS WHOLE, NOT A DELTA. This is the assertion that pins
+  # the one place the protocol's sparse-block rule does not apply: a task can
+  # cease to exist, and a per-key delta has no way to say "gone", so a
+  # consumer that merged would keep a stale marker forever. Every block must
+  # therefore carry every task offered up to that moment.
+  with_tasks = [f for f in frames if "tasks" in f]
+  assert with_tasks, "the tasks block never appeared in a frame"
+  assert len(with_tasks) < len(frames), "an unchanged board was re-sent"
+  for f in with_tasks:
+    so_far = {e["task"]["id"] for e in put_up if e["t"] <= f["t"]}
+    assert so_far <= set(f["tasks"]), \
+      f"the block at t={f['t']} is a delta, not the whole board"
+  # ...and it replays to the same state the events describe.
+  last = with_tasks[-1]["tasks"]
+  for e in closed:
+    if e["t"] <= with_tasks[-1]["t"]:
+      assert last[e["id"]]["state"] == e["state"]
+      assert last[e["id"]]["points"] == e["points"]
+
   if not draws:
     return
   # The drawing half (0.4.0): the board is erased, then inked, and BOTH facts

@@ -48,6 +48,13 @@ def main() -> None:
   parser.add_argument("--ledger", default=None, metavar="PATH",
                       help="JSON file the points ledger lives in between runs "
                            "(issue #14; default: the robot starts at zero)")
+  parser.add_argument("--tasks", action="store_true",
+                      help="offer the robot JOBS this run (issue #21): each "
+                           "one has a description, a target, a reward off "
+                           "hub/rewards.json and a deadline. Off by default")
+  parser.add_argument("--task-state", default=None, metavar="PATH",
+                      help="JSON file the task board lives in between runs "
+                           "($PLUGGY_TASKS; implies --tasks)")
   parser.add_argument("--overseer", action="store_true",
                       help="let an LLM choose the errands once --errand's "
                            "queue is empty (issue #15). Needs $ANTHROPIC_API_"
@@ -67,7 +74,8 @@ def main() -> None:
                world=args.world, errand=args.errand,
                board_state=args.boards, ledger_state=args.ledger,
                overseer=args.overseer or None, goals=args.goals,
-               journal_state=args.journal)
+               journal_state=args.journal,
+               tasks=args.tasks, tasks_state=args.task_state)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:

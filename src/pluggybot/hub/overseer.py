@@ -101,8 +101,8 @@ CACHE_WRITE_MULTIPLIER = 1.25
 #: to an errand this repo has a demo and a passing test for, or to a branch the
 #: lifecycle already had. Anything not in this tuple is not offered, and an
 #: answer outside it is a malformed answer.
-ACTIONS = ("draw", "artwork", "census", "dance", "carry", "explore", "charge",
-           "idle", "journal")
+ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
+           "explore", "charge", "idle", "journal")
 
 #: Consecutive failed calls before the overseer stops asking for a while.
 #: ⚠ Needed because a missing API key does NOT fail at client construction --
@@ -150,6 +150,12 @@ class Decision:
   respond_to: str = ""
   outcome: str = ""
   reply: str = ""
+  #: The task board (issue #21). Which offered job `take_task` means, by the
+  #: id the SIM gave it. Like `respond_to`, and for the same reason: the
+  #: offers change every call, and an enum that changes every call misses the
+  #: server-side schema cache and buys nothing -- it is checked against the
+  #: board in `validate` instead.
+  task: str = ""
   source: str = "llm"
 
   @property
@@ -164,13 +170,13 @@ class Decision:
     return {"action": self.action, "reason": self.reason, "board": self.board,
             "program": self.program, "zone": self.zone, "note": self.note,
             "respondTo": self.respond_to, "outcome": self.outcome,
-            "reply": self.reply, "source": self.source}
+            "reply": self.reply, "task": self.task, "source": self.source}
 
   def summary(self) -> str:
     """The one-line narration that reaches the event stream."""
     what = self.action
     detail = self.program and self.board and f"{self.program} on {self.board}"
-    detail = detail or self.board or self.program or self.zone
+    detail = detail or self.board or self.program or self.zone or self.task
     if detail:
       what = f"{what} ({detail})"
     tail = f" [{self.source}]" if self.scripted else ""
@@ -217,7 +223,13 @@ class Menu:
     countable is not offered `census`. Offering an action the world cannot
     perform is how a decision loop discovers a dead end by driving into it.
     """
-    out = ["carry", "dance", "idle", "journal", "charge"]
+    # `take_task` is offered unconditionally, and unlike the entries below
+    # that is not a claim that there IS a task -- it is a claim that this
+    # world can have them, which is true of every world. Whether any offer is
+    # actually takeable is volatile state (it changes between calls, and with
+    # the battery), so it is checked in `validate` against the board rather
+    # than baked into a schema that has to stay byte-stable to stay cached.
+    out = ["take_task", "carry", "dance", "idle", "journal", "charge"]
     if self.boards:
       out += ["draw", "artwork"]
     if self.census_zone:
@@ -240,7 +252,7 @@ class Menu:
       "type": "object",
       "additionalProperties": False,
       "required": ["action", "reason", "board", "program", "zone", "note",
-                   "respond_to", "outcome", "reply"],
+                   "respond_to", "outcome", "reply", "task"],
       "properties": {
         "action": {"type": "string", "enum": list(self.available())},
         "board": enum(self.boards),
@@ -257,10 +269,13 @@ class Menu:
         "respond_to": {"type": "string"},
         "outcome": enum(VISITOR_OUTCOMES),
         "reply": {"type": "string"},
+        # ...and the task id, a free string for the same reason (issue #21).
+        "task": {"type": "string"},
       },
     }
 
-  def validate(self, raw: dict, waiting: tuple[str, ...] = ()) -> Decision:
+  def validate(self, raw: dict, waiting: tuple[str, ...] = (),
+               offered: tuple[str, ...] = ()) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
 
     Structured outputs make most of this unreachable, which is the point of
@@ -273,6 +288,12 @@ class Menu:
     load-bearing half of the decision, and throwing a good `draw` away because
     the model also answered a message that has already been dealt with would
     be the fallback punishing the robot for the website's timing.
+
+    `offered` is the ids of the CLAIMABLE tasks (issue #21), and it is
+    handled the other way round -- a `take_task` naming a job that is not on
+    the board is RAISED on, because there the id is the action's whole
+    content. There is nothing left of the decision to keep, so it degrades to
+    a scripted one, which will itself take an offered task if there is one.
     """
     action = str(raw.get("action", "")).strip()
     if action not in self.available():
@@ -291,6 +312,10 @@ class Menu:
       board = self.boards[0]
     if action == "draw" and not program:
       program = self.programs[0]
+    task = clean(raw.get("task"), MAX_ID)
+    if action == "take_task" and task not in offered:
+      raise ValueError(f"task {task!r} is not on offer "
+                       f"(claimable: {', '.join(offered) or 'nothing'})")
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     reply = clean(raw.get("reply"), MAX_REPLY)
@@ -299,7 +324,8 @@ class Menu:
     return Decision(action=action, reason=str(raw.get("reason", "")).strip(),
                     board=board, program=program, zone=zone,
                     note=str(raw.get("note", "") or "").strip(),
-                    respond_to=respond_to, outcome=outcome, reply=reply)
+                    respond_to=respond_to, outcome=outcome, reply=reply,
+                    task=task if action == "take_task" else "")
 
 
 # ---- the scripted policy (also the fallback) --------------------------------
@@ -316,6 +342,18 @@ def scripted(menu: Menu, state: dict, why: str) -> Decision:
   "the highest-paying task", because a scripted policy that optimises the
   reward table is a second scorer, and there is only meant to be one.
   """
+  # A job somebody actually asked for outranks the rotation (issue #21).
+  # Not an optimisation over the reward table -- the OLDEST claimable offer,
+  # not the best-paying one -- because a scripted policy that maximised the
+  # payout would be a second scorer, and there is only meant to be one. It is
+  # here so that the task loop works with the API down, which is the same
+  # promise the rest of this function exists to keep.
+  offers = [t for t in (state.get("offeredTasks") or ())
+            if isinstance(t, dict) and t.get("claimable") and t.get("id")]
+  if offers and "take_task" in menu.available():
+    return Decision(action="take_task", task=str(offers[0]["id"]),
+                    reason="taking the job that has been waiting longest",
+                    source=f"fallback:{why}")
   done = set(state.get("tasksThisMission") or ())
   for action in ("draw", "census", "dance", "carry"):
     if action in menu.available() and action not in done:
@@ -377,6 +415,14 @@ what things pay.
 - Some tasks have an answer you are supposed to go and find out. You are never \
 told that answer. Guessing scores nothing; going and looking scores.
 - A task you start gets finished, including putting the tool back.
+- Sometimes there is WORK ON OFFER: jobs the house or a visitor has put up, \
+listed in `offeredTasks` with what each one pays. Taking one is `take_task` \
+with its `id`. Nobody makes you take a job -- an offer you leave alone \
+eventually lapses, and that is a real thing you are allowed to let happen -- \
+but a job somebody asked for is usually worth more than something you thought \
+of yourself, and it is the closest thing you have to being useful to a \
+person. You may only take one marked `claimable`: the others cost more energy \
+than you have to spend before your next charge.
 - `journal` writes a note to yourself that you will see next time and that \
 people watching you can read. It earns nothing and costs a moment. Use it when \
 something is worth remembering, not to fill a turn.
@@ -436,6 +482,9 @@ def system_prompt(goals: str, menu: Menu, table: RewardTable) -> list[dict]:
                "Simple, reliable, worth little.",
       "explore": "drive around mapping what you have not seen. Optional "
                  "`zone` names where to concentrate.",
+      "take_task": "accept a job from `offeredTasks` and do it. Needs "
+                   "`task`, the offer's `id`. The job says which tool and "
+                   "which place; you do not have to work that out.",
       "charge": "go to the rack and top up now, before you have to.",
       "idle": "stand still and look around for a moment.",
       "journal": "write a note to yourself. Needs `note`.",
@@ -465,7 +514,7 @@ def system_prompt(goals: str, menu: Menu, table: RewardTable) -> list[dict]:
 
 
 def context_for(life, journal: Journal | None = None,
-                visitors=()) -> dict:
+                visitors=(), tasks=()) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
@@ -505,6 +554,12 @@ def context_for(life, journal: Journal | None = None,
     # REPORTS rather than as conversation turns, so nothing in here can look
     # like the operator talking. The rules block above is the other half.
     "visitorMessages": [m.as_context() for m in visitors],
+    # The jobs on offer (issue #21). Already framed by `Task.as_context`:
+    # what the job is, what it pays off the reward table, and whether it can
+    # be afforded right now. A task kind with an ANSWER keeps it in
+    # `Task.secret`, which has no path into this dict -- the census's
+    # redacted ground truth, one layer up.
+    "offeredTasks": list(tasks),
   }
 
 
@@ -748,7 +803,10 @@ class Overseer:
       )
       waiting = tuple(m.get("id", "") for m in state.get("visitorMessages", ())
                       if isinstance(m, dict))
-      decision = self.menu.validate(_extract_json(response), waiting=waiting)
+      offered = tuple(t.get("id", "") for t in state.get("offeredTasks", ())
+                      if isinstance(t, dict) and t.get("claimable"))
+      decision = self.menu.validate(_extract_json(response), waiting=waiting,
+                                    offered=offered)
       self._meter(response)                 # before publishing; see below
       slot = {"decision": decision}
     except Exception as e:                  # noqa: BLE001

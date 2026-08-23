@@ -69,6 +69,12 @@ class Errand:
   #: and an errand whose task has no evaluator is simply never scored
   #: (hub/scoring.py: nothing awards points without one).
   task: str = ""
+  #: the TASK this errand was built to discharge (issue #21), or "" for one
+  #: nobody asked for. The errand still runs the same way -- the id is what
+  #: lets the finished job's verdict close the offer that produced it, so
+  #: that "the robot drew a house" and "the robot did the job it took on"
+  #: are the same event rather than two.
+  task_id: str = ""
 
   def __post_init__(self) -> None:
     if not self.task:

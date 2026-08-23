@@ -23,6 +23,13 @@ fi
 if [ -n "${PLUGGY_LEDGER:-}" ]; then
   set -- --ledger "${PLUGGY_LEDGER}" "$@"
 fi
+# Job offers (issue #21). A path implies the board is on, exactly as for the
+# boards and the ledger, and for the same reason: /var/lib/pluggybot is a
+# volume and an offer is world state, so a restart resumes the jobs the last
+# mission left standing rather than re-offering them.
+if [ -n "${PLUGGY_TASKS:-}" ]; then
+  set -- --task-state "${PLUGGY_TASKS}" "$@"
+fi
 if [ -n "${PLUGGY_BATTERY_WH:-}" ]; then
   set -- --battery-wh "${PLUGGY_BATTERY_WH}" "$@"
 fi

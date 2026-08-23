@@ -9,7 +9,60 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.8.0"
+PROTOCOL_VERSION = "0.9.0"
+# 0.9.0: the robot is GIVEN WORK, and the work is on the wire (pluggybot #21,
+#        rooftop-media-2026 #77). A task is a JOB OFFER -- a description, a
+#        target, a reward, a deadline and a verdict -- as distinct from an
+#        errand (machinery) and an activity (a mechanism owning world state).
+#        Frames may carry a "tasks" block, keyed by task id:
+#          {"t_0001": {"id": "t_0001", "kind": "draw_figure", "task": "draw",
+#                      "target": "whiteboard_a", "targetKind": "board",
+#                      "description": "Draw a house on whiteboard_a.",
+#                      "params": {"program": "house"}, "state": "offered",
+#                      "source": "system", "deadline": 420.0,
+#                      "estimateWh": 0.35, "createdT": 60.0,
+#                      "claimedT": null, "resolvedT": null, "claimedBy": "",
+#                      "points": 0,
+#                      "reward": {"task": "draw", "tier": "auto",
+#                                 "base": 6, "bonus": 6}}}
+#        ⚠ UNLIKE "activities", "boards", "screens" and "ledger", THIS BLOCK
+#        IS SHIPPED WHOLE, not per-key diffed. Those blocks describe things
+#        with fixed names that exist for the whole run, so shipping only the
+#        changed keys is safe. A TASK CAN CEASE TO EXIST -- resolved ones age
+#        out of a bounded board -- and a per-key diff has no way to say
+#        "gone", so a consumer merging deltas would keep a stale marker on
+#        screen forever. Present means COMPLETE: replace the block, do not
+#        merge it. It is still sparse in time (emitted only when something
+#        changed) and still re-shipped on every keyframe.
+#        The header gains "taskKinds": the kind vocabulary this producer can
+#        offer (`pluggybot.hub.tasks.KINDS`), empty for a run with no task
+#        board. A two-repo contract on the same terms as FACE_STATES: adding
+#        a kind is additive (draw a generic marker for one you do not know),
+#        renaming one breaks both repos.
+#        Three typed messages join the existing ones:
+#          {"type": "task_offered", "t": 60.0, "task": {...as above...}}
+#          {"type": "task_claimed", "t": 61.2, "id": "t_0001",
+#           "state": "claimed", "robot": "pluggybot"}
+#           -- `state` is "claimed" when a robot takes the job on and
+#           "active" when it actually starts working on it.
+#          {"type": "task_resolved", "t": 190.4, "id": "t_0001",
+#           "state": "done", "robot": "pluggybot", "points": 11,
+#           "verdict": {...}, "task": {...}}
+#           -- `state` is "done" (finished, judged good), "failed" (finished,
+#           judged bad) or "expired" (the offer lapsed untaken). Expiry is an
+#           OUTCOME, not a deletion: the site shows a task lapsing rather
+#           than a marker vanishing.
+#        ⚠ What a task does NOT carry is the point of the design. It has no
+#        points figure of its own -- `reward` is looked up from
+#        hub/rewards.json every time the block is built, so nothing that can
+#        create a task (a visitor, an LLM) can price one. And the honesty
+#        rule the whole milestone is governed by applies here first: the wire
+#        may carry anything a network could carry (a work order, a surveyed
+#        board id) and nothing a sensor would have to discover. A task kind
+#        with an ANSWER keeps it in `Task.secret`, which reaches neither this
+#        block nor the model's context by any path.
+#        Additive: a 0.8.0 consumer that ignores the block and the three
+#        types renders exactly what it rendered before.
 # 0.8.0: the robot says what it is FOR (rooftop-media-2026 #30). One new
 #        upstream message, emitted when a stream OPENS -- exactly like
 #        `board_snapshot`, and for exactly the same reason: goals are not a
@@ -191,6 +244,30 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 # are deliberately absent: there is no board game yet, and a vocabulary entry
 # with nothing behind it is a promise the robot cannot keep.
 INBOUND_TYPES = ("suggestion", "question", "rating")
+
+# The task system's vocabularies (issue #21). Two-repo contracts on the same
+# terms as the three above. They live here rather than in hub/tasks.py, which
+# is where the state machine is, so the wire spec and the implementation
+# cannot disagree -- and in this direction, because `hub` already imports
+# `telemetry`.
+#
+# The KINDS themselves are not here: they are `hub.tasks.KINDS`, because a
+# kind carries an evaluator name, a target type and an energy estimate, which
+# are sim-side facts rather than wire vocabulary. The header advertises the
+# names of whatever this producer knows.
+#
+# `offered` -> `claimed` -> `active` -> `done` | `failed` | `expired`. The
+# three terminal states are deliberately distinguishable: the website draws a
+# lapsed offer differently from a job the robot tried and got wrong, and
+# collapsing them would hide the most interesting line in a robot's day.
+TASK_STATES = ("offered", "claimed", "active", "done", "failed", "expired")
+
+#: Who put a task into the world. `system` is the scheduler, `visitor` is the
+#: inbound channel (issue #23), `overseer` is the robot proposing its own work
+#: (later still). Carried on the wire because "the robot chose this itself"
+#: and "somebody asked for this" are not the same event -- the `source`
+#: lesson from `Decision.source`, one layer up.
+TASK_SOURCES = ("system", "visitor", "overseer")
 
 #: What the robot may say back about one visitor message.
 VISITOR_OUTCOMES = ("accepted", "declined", "answered")

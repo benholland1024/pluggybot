@@ -44,6 +44,7 @@ passing test, or to a branch the lifecycle already had:
 
 | action | what happens | parameters |
 |---|---|---|
+| `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
 | `draw` | fetch the pen, drive to a board, erase it, draw a figure, stow | `board`, `program` |
 | `census` | fetch the LCD, survey the garden, count the plants, show the number | — |
 | `dance` | fetch the LCD, drive somewhere visible, perform the routine | — |
@@ -52,6 +53,27 @@ passing test, or to a branch the lifecycle already had:
 | `charge` | go and top up **now**, before the reserve forces it (only below 75 %) | — |
 | `idle` | stand still for a moment | — |
 | `journal` | write a note to yourself | `note` |
+
+`take_task` is the one whose parameter is not an enum. Boards, figures and
+zones are fixed properties of a world, so they are constrained by the
+structured-output schema itself; **task ids are created and retired during the
+run**, and a schema that changed every call would miss the server-side
+compilation cache and buy nothing. It is checked against the board in
+`Menu.validate` instead — which is where every other piece of untrusted input
+in that file is checked. Naming a job that is not on offer is a *malformed
+answer*, not a dropped field: unlike `respond_to`, where the action survives
+without it, here the id **is** the action, so there is nothing left to keep and
+it degrades to a scripted decision. The scripted policy will then take an
+offered job itself, which is the same promise the fallback exists to keep.
+
+What the overseer cannot do with a task is the usual list, one notch further
+out: it cannot price one (the payout is looked up from `hub/rewards.json`
+every time the offer is read), it cannot close one (`TaskBoard.resolve` takes a
+`scoring.Verdict` and nothing that merely looks like one), and it cannot see a
+task's answer (`Task.secret` is in no context dict, no snapshot and no wire
+message). It also cannot take a job it has no energy for: `claimable` is
+computed in code before the offer is ever shown, because "can I afford this"
+is arithmetic with a right answer.
 
 Two things the issue sketched that are deliberately **not** offered:
 

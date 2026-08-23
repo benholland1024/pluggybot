@@ -242,8 +242,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   JSON + tag textures: `uv run python -m pluggybot.telemetry.scene
   [models/home_world.xml]` (rerun after changing ANY geometry in that world —
   the fixture test fails when stale). Recordings: `MUJOCO_GL=egl uv run
-  python scripts/hub_lifecycle.py [--world home --errand showcase] --record
-  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — the HOME one runs the
+  python scripts/hub_lifecycle.py [--world home --errand showcase] --tasks
+  --record protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — ⚠ `--tasks` is
+  load-bearing as of protocol 0.9.0 (issue #21): job offers are OFF by
+  default, so a recording made without it carries no `tasks` block at all and
+  the website's marker code (rooftop-media-2026 #77) has nothing to build
+  against. The HOME one runs the
   SHOWCASE queue (issues #12 + #13): a drawing errand and then a census on
   the LCD, so the website has ONE recording carrying `draw` /
   `board_cleared` events AND a `screens` block that changes, which are the
@@ -383,6 +387,56 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
+  #21). An errand is a tool, a place and a use-phase — *machinery*. An
+  activity is a mechanism watching contacts and owning discrete world state —
+  *scenery that reacts*. A task is something the house or a visitor puts up:
+  a description, a target, a reward, a deadline, and a verdict once it is
+  over. An errand is HOW a task gets done; the task is WHY.
+  - **A task never carries its own payout.** It names an evaluator
+    (`hub/scoring.py`) and a reward-table row; what it PAYS is looked up from
+    `hub/rewards.json` on every read. That is issue #14's rule arriving from
+    the direction a visitor and (later) the model can both reach — anything
+    that could set a number could pay itself. `Task.create` refuses a kind
+    whose evaluator does not exist, so the unscoreable task cannot be built.
+  - **The wire may carry anything a NETWORK could carry; it may not carry
+    anything a SENSOR would have to discover.** A description is a work order
+    and a surveyed board id is infrastructure; the ANSWER to a task is
+    neither, and lives in `Task.secret`, which is in no `as_dict`, no
+    snapshot and no model context. Nothing fills it until issue #22.
+  - **A job's energy estimate is MEASURED, and gated against the WHOLE
+    pack.** One errand costs roughly one full pack in both worlds (0.487–
+    0.570 Wh in room_hub against a 0.700 Wh cell; 0.866–0.929 Wh in home
+    against 1.100 Wh — read off the committed recordings, SWAP_PICK to end of
+    SWAP_RETURN). So the reserve is a RETURN-TRIP margin an errand is allowed
+    to spend into, and gating on energy *above* it (0.28 / 0.44 Wh) refuses
+    every job in every world forever — a task system that silently does
+    nothing. Guessing cost a fixture: 0.35 Wh guessed for a drawing that
+    measures 0.929, and the home recording caught a robot claiming it at 88 %
+    and dying mid-stroke with nothing inked and the pen still on the fork.
+    Do not inflate the numbers for safety either; the headroom does not
+    exist. Per-errand energy is M10.
+  - **Charge priority is untouched, and the test that proves it is subtle.**
+    Claiming only QUEUES an errand, and the errand queue already sits below
+    `needs_charge` — so an inverted branch order still charges before it
+    drives anywhere, and a test watching the swap states passes either way
+    (measured). What moves is the moment the robot ACCEPTS the work, which
+    is what `tests/test_tasks.py` asserts against the battery clock.
+  - **Expiry is an outcome, not a deletion**: a lapsed offer stays on the
+    board saying `expired`, because a marker that silently vanishes reads as
+    a bug. Only OFFERED tasks expire — a deadline is how long an offer
+    stands, never a licence to abandon a job with a module on the fork.
+  - Off by default (`--tasks` / `--task-state PATH`, `$PLUGGY_TASKS`): a task
+    board adds errands, which reshuffles a whole mission. Cadence, caps and
+    expiry policy are issue #23; `lifecycle.seed_tasks` is the placeholder.
+- **The `tasks` block is the ONE wire block that is not a per-key delta**
+  (protocol 0.9.0). `activities` / `boards` / `screens` / `ledger` describe
+  things with fixed names that live for the whole run, so shipping the
+  changed keys is safe. A TASK CAN CEASE TO EXIST — resolved ones age out of
+  a bounded board — and a delta has no way to say "gone", so a consumer
+  merging would keep a stale marker forever. Present means COMPLETE. The
+  header advertises `taskKinds` (the vocabulary) rather than the ids, which
+  are stale before the first frame.
 - **An ERRAND is a tool, a place and a use-phase** (`hub/errand.py`, issue
   #12). `HubLifecycle` carries a QUEUE of them, arbitrated against the
   battery by the same loop as everything else, so a repeat is a list rather

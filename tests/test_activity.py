@@ -228,8 +228,14 @@ def test_header_advertises_activities(builder_pair):
   # 0.6.0 -> 0.7.0 when the socket became two-way (issue #16): visitor
   # suggestions, questions and ratings DOWN, `visitor_reply` and `journal` UP.
   # 0.7.0 -> 0.8.0 for the `goals` message (rooftop-media-2026 #30): what the
-  # robot is FOR, sent when a stream opens, so the site can show it.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.8.0"
+  # robot is FOR, sent when a stream opens, so the site can show it. 0.8.0 ->
+  # 0.9.0 for the `tasks` block and its three messages (issue #21): the robot
+  # is GIVEN work, and the block is the one that ships WHOLE rather than as a
+  # per-key delta, because a task can cease to exist.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.9.0"
+  # ...and this builder has no task board, so it must say so rather than
+  # advertise a vocabulary it will never use -- the `accepts` rule.
+  assert h["taskKinds"] == []
 
 
 def test_activity_flags_ride_in_frames_and_are_sparse(builder_pair):
