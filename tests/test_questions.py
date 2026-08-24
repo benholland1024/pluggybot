@@ -471,15 +471,22 @@ def test_the_kind_is_scoreable_and_prices_nothing_itself():
 
 def test_the_question_rotates_across_restarts():
   """A deployed robot works through the bank instead of being asked the same
-  thing every morning. `seed_tasks` picks off the board's own sequence
+  thing every morning. The question is picked off the BOARD's own sequence
   number, which is what survives in the state file -- so the rotation is a
-  property of the WORLD's history, not of a counter that resets on boot."""
+  property of the WORLD's history, not of a counter that resets on boot.
+
+  ⚠ The picking moved out of `lifecycle.seed_tasks` and into
+  `cadence.TaskProducer` with issue #23, and it moved because that placeholder
+  put a starter set up once and nothing ever asked again. What did NOT move is
+  which counter decides -- keep this test pointed at the seq, not at the
+  producer, and it goes on being true wherever the picking lives.
+  """
   book = lc.board_book("home")
   asked = []
   for seq in range(3):
     b = board()
     b.seq = seq * 10                      # ...as a board with a past would be
-    lc.seed_tasks(b, "home", book, ttl=420.0)
+    lc.task_producer(b, "home", book).seed(0.0)
     asked += [t.params["question"] for t in b.tasks.values()
               if t.kind == "whiteboard_answer"]
   assert len(set(asked)) == 3, f"the world asked {asked} three mornings running"
@@ -489,7 +496,7 @@ def test_the_home_world_asks_a_question():
   """End of the wiring: the world puts one up on its own."""
   book = lc.board_book("home")
   b = board()
-  lc.seed_tasks(b, "home", book, ttl=420.0, standing_ttl=900.0)
+  lc.task_producer(b, "home", book).seed(0.0)
   asked = [t for t in b.tasks.values() if t.kind == "whiteboard_answer"]
   assert len(asked) == 1
   task = asked[0]
