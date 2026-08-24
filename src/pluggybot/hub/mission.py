@@ -79,6 +79,35 @@ def charge_standoff(rack: RackPose | None = None,
   return bx + nx * distance, by + ny * distance, r.heading
 
 
+#: The terminal creep's nominal length: what a robot standing at a correct
+#: hand-off pose has to travel to put the fork vertex on the hang line.
+NOMINAL_TRAVEL = STANDOFF - VERTEX_AHEAD_OF_AXLE
+#: ...and how far either side of it a MEASURED range may land before it stops
+#: being a measurement of a hand-off pose at all.
+#:
+#: `drive_to` arrives within 80 mm and `refine_standoff` kills the LATERAL
+#: half of that, not the longitudinal, so ~100 mm of honest variation plus the
+#: tag's own -5..+11 mm of range scatter is the width of the real
+#: distribution. Anything outside it is the robot being somewhere else.
+TRAVEL_SLACK = 0.14
+
+
+def plausible_travel(travel: float) -> bool:
+  """Could a robot at a hand-off pose really be this far from the hang line?
+
+  A terminal creep is a 0.22 m move that ends in a +/-11 mm capture window.
+  Asked for much more than that it stops being a creep and becomes a DRIVE --
+  and the thing it drives into is the rack.
+
+  Measured, in the failure this exists to prevent: a bay tag read at 1.09 m
+  produced a 0.93 m travel, which is 4x nominal and just under the 1.0 m a
+  20 s creep can cover at APPROACH_V -- so it did not even stop early. The
+  robot ground into the rack for 20 s, twice, and came away with nothing
+  (`why='timeout'`, wheel slip counting as odometry progress the whole way).
+  """
+  return abs(travel - NOMINAL_TRAVEL) <= TRAVEL_SLACK
+
+
 def bay_standoff(station_y: float,
                  rack: RackPose | None = None) -> tuple[float, float, float]:
   """(axle_x, axle_y, heading) of the hand-off pose for one bay.
@@ -176,6 +205,10 @@ class HubMission:
     self.rack = rack or RackPose.prior()
     self.finder: RackFinder | None = None
     self.rack_discovered = False
+    #: which range source answered the last terminal creep --
+    #: "bay", "rack", "odometry", or "nominal" for a creep that
+    #: had no plausible measurement at all (`_terminal_travel`).
+    self.travel_source = ""
     self._next_look = 0.0
     self.viewer = viewer
     self.realtime = realtime
@@ -466,6 +499,12 @@ class HubMission:
   def _terminal_travel(self, station_y: float) -> float:
     """How far to creep so the fork vertex lands on the bay's hang line.
 
+    Every source is checked by `plausible_travel` before it is believed, and
+    an implausible one FALLS THROUGH to the next: a range that does not
+    describe a hand-off pose is not a better measurement than the one below
+    it, it is a different pose being measured. `self.travel_source` records
+    which one answered.
+
     Range sources, best first, all absolute (immune to the odometry drift
     that accumulates over a mission -- dead reckoning was measured ~20 mm
     out on the return leg, twice the coupling's capture window):
@@ -483,16 +522,33 @@ class HubMission:
     """
     seen_bay = self.tags.bay_range(self.data, bay_tag_id(station_y))
     if seen_bay is not None:
-      to_hang = seen_bay + (BAY_TAG_FACE_X - RACK_HANG_X)
-      return to_hang - self._vertex_ahead_of_camera()
+      travel = (seen_bay + (BAY_TAG_FACE_X - RACK_HANG_X)
+                - self._vertex_ahead_of_camera())
+      if plausible_travel(travel):
+        self.travel_source = "bay"
+        return travel
     seen = self.tags.rack_range(self.data)
     if seen is not None:
-      to_hang = seen - (TAG_LOCAL_X - RACK_HANG_X)
-      return to_hang - self._vertex_ahead_of_camera()
+      travel = (seen - (TAG_LOCAL_X - RACK_HANG_X)
+                - self._vertex_ahead_of_camera())
+      if plausible_travel(travel):
+        self.travel_source = "rack"
+        return travel
     hx, hy = self.rack.to_world(RACK_HANG_X, station_y)
     d_along = ((hx - self.pose[0]) * math.cos(self.pose[2])
                + (hy - self.pose[1]) * math.sin(self.pose[2]))
-    return d_along - VERTEX_AHEAD_OF_AXLE
+    travel = d_along - VERTEX_AHEAD_OF_AXLE
+    if plausible_travel(travel):
+      self.travel_source = "odometry"
+      return travel
+    # NOTHING here is measuring a hand-off pose, so creep the distance one
+    # WOULD be -- the blind travel every swap used before there were tags. It
+    # will not reach the peg from wherever this is, and `swap_at_bay`'s
+    # verified retry gets another go; what it will not do is drive a metre
+    # into the rack because a range said so. Recorded rather than narrated
+    # because this layer has no event stream: the lifecycle above it does.
+    self.travel_source = "nominal"
+    return NOMINAL_TRAVEL
 
   def swap_at_bay(self, station_y: float, verb: str,
                   module: str | None = None, tries: int = 2) -> str:

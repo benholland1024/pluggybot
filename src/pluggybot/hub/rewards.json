@@ -40,6 +40,17 @@
         {"metric": "inkedFraction", "best": 0.98, "worst": 0.6, "weight": 1.0}
       ]
     },
+    "answer": {
+      "tier": "auto",
+      "base": 10,
+      "bonus": 10,
+      "detail": "Answer a question by writing the answer on a whiteboard. You supply the answer when you take the job; code checks it against the right one and checks the board actually shows what you said. A wrong answer pays nothing, however neatly it is written.",
+      "secret": ["expected"],
+      "quality": [
+        {"metric": "matchMm", "best": 1.0, "worst": 4.0, "weight": 2.0},
+        {"metric": "formMm", "best": 0.6, "worst": 3.0, "weight": 1.0}
+      ]
+    },
     "census": {
       "tier": "hidden",
       "base": 10,

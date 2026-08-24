@@ -38,7 +38,7 @@ import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from pluggybot.hub import hershey
+from pluggybot.hub import hershey, questions
 from pluggybot.hub.drawing import Envelope, circle_path, square_path
 
 Point = tuple[float, float]
@@ -274,6 +274,26 @@ def hershey_text(text: str = "HELLO", cap_height: float = TEXT_CAP,
   # Reading frame -> board: +lat is the viewer's LEFT, so text advances -lat.
   return StrokeProgram("text", tuple(tuple((-x, y) for x, y in s)
                                      for s in polys))
+
+
+@register("answer")
+def answer(text: str = "0") -> StrokeProgram:
+  """The answer to a question, written big enough to read across a room.
+
+  A THIN WRAPPER, and deliberately so: the polylines come from
+  `hub/questions.py`, which is also what the evaluator renders to compare
+  against the ink (issue #22). Two renderings that could drift apart would be
+  a grader marking against a figure the robot was never asked to draw, so
+  there is one of them and this is the plotter's door to it.
+
+  Note what this is NOT: a second `text` program. `text` takes arbitrary
+  caller text and is kept off the overseer's menu for exactly that reason
+  (`hub/overseer.py`, `Menu.for_world`). An answer is at most two characters
+  from a fixed alphabet, sanitised by `questions.clean_answer` before a
+  single stroke exists -- which is what makes this the one place a model's
+  own words may reach a wall a stranger is watching.
+  """
+  return StrokeProgram("answer", questions.answer_strokes(text))
 
 
 # ---- the curated figure library --------------------------------------------

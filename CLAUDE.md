@@ -51,16 +51,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **430 of 439 tests in ~1:18**, against **~6:22** for everything (the
-  figures before issues #13–#15 were 343/351 in 1:13 and 6:34, i.e. ninety
-  more tests for no wall-clock). Nine whole-mission integration runs carry
-  `@pytest.mark.slow` and are most of the serial clock on their own
-  (`test_full_hub_lifecycle[home]` is 22 % of the suite by itself; the top
-  two are 40 %) — but only ~3:20 of marginal wall-clock in parallel, since
-  they run alongside everything else. That margin is why they stay.
-  The ninth is `test_charge_priority_survives_an_overseer_that_never_charges`
-  (issue #15, 153 s alone): the only way to prove an LLM cannot skip charging
-  is to fly a mission with one that keeps trying.
+  **570 of 583 tests in ~2:00**, against **~10:30** for everything (the
+  figures before issues #21–#22 were 430/439 in 1:18 and ~6:22, and before
+  #13–#15, 343/351 in 1:13 and 6:34). THIRTEEN whole-mission integration runs
+  carry `@pytest.mark.slow` and are most of the serial clock on their own
+  (`test_full_hub_lifecycle[home]` alone is ~157 s) — ~8:40 of marginal
+  wall-clock in parallel, since they run alongside everything else. That
+  margin is why they stay.
+  Two of them are the same argument twice over:
+  `test_charge_priority_survives_an_overseer_that_never_charges` (issue #15,
+  153 s alone) is the only way to prove an LLM cannot skip charging, and
+  `test_a_question_is_asked_answered_and_graded_twice_unattended` (issue #22,
+  196 s) is the only way to prove a robot can be asked something, answer it,
+  and be marked on the board — twice, with nobody watching.
+  ⚠ **A mission test should END when its claim is settled**, not when its
+  budget runs out. The issue-22 one raises `MissionAborted` from a step hook
+  the moment the second verdict lands; without that it ran 10:35 instead of
+  3:16, because a battery-driven loop with no work left spends the rest of
+  its budget honestly deciding what to do with its afternoon.
 - Tests, before calling any work done: the **FULL** suite,
   `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
   the end — whenever the change touches something a whole mission exercises:
@@ -87,7 +95,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `--explore-budget N` remains as a timer override, and DOCK is real
   physics — plug seats in the socket), `scripts/schuko_spike.py`
   (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
-  tolerance sweep; `--film` for a filmstrip), `scripts/noslip_spike.py`
+  tolerance sweep; `--film` for a filmstrip),
+  `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
+  with the REAL pen and reports how far the ink sits from each candidate
+  answer's glyphs, plus the ink-length ratio — re-run it if the pen, the
+  board or `questions.ANSWER_CAP` moves), `scripts/noslip_spike.py`
   (issue-3 solver-policy sweep: coupling/schuko seat, jittered robot swap,
   grip creep, pen square, step cost under candidate `noslip_iterations`
   values; `--no-brake` reproduces the before-fix rows), `scripts/hub_swap.py` (robot
@@ -387,6 +399,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **A PRESS IS NOT TRAVEL** (`HubSwap.pinned`, found by issue #22). Holding
+  the wheels against something immovable makes dead reckoning integrate every
+  slipping revolution: the charge press runs minutes long and pumped **828 mm**
+  of imaginary travel into the pose. Everything downstream is then in the
+  wrong frame — the next fetch "arrives" at a bay standoff a metre from the
+  bay, the bay tag honestly ranges 1.25 m, and the terminal creep computed
+  from it drives into the rack. `charge()` sets `pinned` for the press and
+  clears it before the undock, which is real travel. Anything else that ends
+  in a sustained press against a hard stop needs the same treatment.
+  Two more lessons from the same hunt, both in SimNotes: **a plausibility
+  guard can reject the truth** (`mission.plausible_travel` refused the tag,
+  which was right, in favour of odometry, which was wrong — keep it as a
+  damage limiter, but a guard that fixes the symptom and not the outcome
+  means the model of the fault is wrong), and **more map can make an estimate
+  worse** (`RackFinder` now KEEPS a facing that came off a well-conditioned
+  free-space sum, because driving behind the rack turns it into the
+  free-standing partition `wall_normal` warns about — conditioning 0.824 →
+  0.077, direction off by 80°).
 - **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —
@@ -403,7 +433,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     anything a SENSOR would have to discover.** A description is a work order
     and a surveyed board id is infrastructure; the ANSWER to a task is
     neither, and lives in `Task.secret`, which is in no `as_dict`, no
-    snapshot and no model context. Nothing fills it until issue #22.
+    snapshot and no model context — `whiteboard_answer` (issue #22) is what
+    fills it. The one exception is the STATE FILE (`Task.as_state`): an
+    offer that came back from a restart with no right answer behind it could
+    never be graded, and `/var/lib/pluggybot` is where the reward table
+    lives too. The file is not the wire.
   - **A job's energy estimate is MEASURED, and gated against the WHOLE
     pack.** One errand costs roughly one full pack in both worlds (0.487–
     0.570 Wh in room_hub against a 0.700 Wh cell; 0.866–0.929 Wh in home
@@ -429,6 +463,45 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - Off by default (`--tasks` / `--task-state PATH`, `$PLUGGY_TASKS`): a task
     board adds errands, which reshuffles a whole mission. Cadence, caps and
     expiry policy are issue #23; `lifecycle.seed_tasks` is the placeholder.
+- **A QUESTION is a job for a MIND** (`hub/questions.py` + `questions.json`,
+  issue #22). The `whiteboard_answer` kind poses a question with a checkable
+  answer — "Draw the answer to this question on whiteboard_a: 2 + 3" — and
+  the robot discharges it as an ordinary drawing errand with the answer as
+  the figure. Everything new is in the two halves of "did it do the job":
+  - **Code never computes the answer.** It comes from the overseer
+    (`Decision.answer`), is frozen into the task at CLAIM time and never
+    revised, and the errand that goes and draws it is handed the glyphs and
+    never told the question. So the scripted rotation cannot take one:
+    `TaskBoard.claim` refuses a `needs_answer` job with no answer, and both
+    the fallback policy and `_claim_next_task` skip those offers. A question
+    stands until something that can think comes past, and lapses honestly as
+    `expired` if nothing does. The alternatives are worse — reading the
+    answer out of the bank is the sim marking its own homework, and guessing
+    puts a confident wrong number on a wall.
+  - ⚠ **The ink is a FIDELITY check, NOT handwriting recognition, and this
+    is measured rather than assumed.** Symmetric nearest-neighbour distance
+    between Hershey digits: a **6 and an 8 are 1.7 mm apart** at the 50 mm
+    cap an answer is written at, while a correctly drawn answer sits
+    **1.2 mm** from its own ideal (real pen, `scripts/answer_spike.py`).
+    Tolerance-based coverage is no better — a drawn 6 covers 97 % of an 8.
+    So a grader that classified the ink would fail correct drawings and pass
+    wrong ones, at random, on exactly the pairs arithmetic produces.
+    CORRECTNESS is therefore decided against the committed answer; the ink
+    only has to SHOW that answer, and the bar (`ANSWER_MATCH_MM` 4.0 mm plus
+    an ink-length ratio) is set to catch wrong WORK. It was 8.0 mm from
+    synthetic renderings and the `robot` figure drawn instead of a "5" went
+    straight through it at 5.05 mm — a busy figure covers the glyph it
+    stands in for, so only the ink→glyph direction notices.
+  - **No partial credit for a legible wrong answer**, decided explicitly: a
+    consolation payout for showing up is the gradient that teaches a robot
+    to attempt the cheapest task it can fail at. Legibility scales the
+    BONUS on a right answer and cannot buy a wrong one.
+  - **The bank is data** (`hub/questions.json`, `$PLUGGY_QUESTIONS`): a flat
+    list of questions and their answers, with **no expression evaluator** —
+    a data file that can compute is one that can be made to compute
+    something else. Answers are at most **two digits**, which is the pen's
+    100 mm line and not a preference; a longer one is refused at load.
+    Questions rotate on the task board's own `seq`, which survives a restart.
 - **The `tasks` block is the ONE wire block that is not a per-key delta**
   (protocol 0.9.0). `activities` / `boards` / `screens` / `ledger` describe
   things with fixed names that live for the whole run, so shipping the

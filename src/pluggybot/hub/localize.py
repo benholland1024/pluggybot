@@ -32,7 +32,7 @@ from pluggybot.hub.coupling import (
   RACK_BRACKET_X, RACK_HANG_X, RACK_RAIL_Z, RACK_ROOM_POS, RACK_ROOM_YAW,
 )
 from pluggybot.hub.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
-from pluggybot.mapping.landmarks import LandmarkStore, wall_normal
+from pluggybot.mapping.landmarks import LandmarkStore, wall_normal_conf
 from pluggybot.perception.outlet_spotter import pixel_to_world
 
 # Where the rack tag sits in the rack's own frame (generator constants).
@@ -44,6 +44,19 @@ TAG_Z = RACK_RAIL_Z + 0.075
 # room's pale plates out; that reasoning is simply gone.)
 MAX_RANGE = 5.0
 MIN_SIGHTINGS = 3        # the milestone-5 lesson: one sighting is a rumor
+#: How well conditioned the free-space sum must be before its direction is
+#: believed as the rack's FACING (landmarks.wall_normal_conf).
+#:
+#: ⚠ MEASURED, and it exists because more map can make this estimate WORSE.
+#: The rack stands against a wall, so early in a mission the free cells round
+#: it all lie on one side and the sum is unambiguous. Drive BEHIND it -- which
+#: the trip to the charge bay does -- and it becomes the free-standing
+#: partition `wall_normal` warns about: the two sides nearly cancel, and the
+#: direction that survives is leftover noise. Measured on the home world, a
+#: charge trip moved the believed yaw by ~20 deg, which at the 0.63 m
+#: standoff radius throws the hand-off pose ~0.2 m and points the approach
+#: heading into the rack's flank.
+MIN_FACING_CONF = 0.35
 
 
 @dataclass(frozen=True)
@@ -132,6 +145,10 @@ class RackFinder:
   def __init__(self, model, camera_name: str = "left_eye") -> None:
     self.spotter = RackSpotter(model, camera_name)
     self.landmarks = LandmarkStore()
+    #: the last facing that came off a well-conditioned free-space sum. The
+    #: rack does not turn round, so a good answer stays good -- and keeping
+    #: it is the whole fix for a later, worse look (see MIN_FACING_CONF).
+    self.facing: float | None = None
 
   def look(self, data, pose: tuple[float, float, float]) -> int:
     """One look; returns how many tag sightings it added."""
@@ -148,6 +165,21 @@ class RackFinder:
     it does for outlets: the rack stands against a wall, so the free-space
     sum points out of it. A real AprilTag gives this directly from its pose
     -- and better -- but the grid version needs no new perception.
+
+    ⚠ AND A FACING IS KEPT ONCE IT IS KNOWN. The position keeps improving
+    with every sighting, which is what more looks are for; the FACING does
+    not, because its input is the shape of the mapped free space rather than
+    the number of times the tag was seen. Once the robot has driven behind
+    the rack -- which is what going to the charge bay does -- the sum has
+    free cells on both sides, nearly cancels, and returns noise. A rack does
+    not turn round, so the honest response to a badly conditioned look is to
+    keep the answer from the well conditioned one.
+
+    Found the hard way: the SECOND tool fetch of a mission failed, because
+    the charge trip in between rotated the believed rack by ~20 deg and the
+    bay standoff computed from it sat 0.2 m off the approach axis and a
+    metre from the bay. Nothing else exercised the sequence -- the first
+    fetch of a mission happens before the robot has been round the back.
     """
     best = None
     for lm in self.landmarks.landmarks:
@@ -157,10 +189,12 @@ class RackFinder:
         best = lm
     if best is None:
       return None
-    nx, ny = wall_normal(grid, best.x, best.y,
-                         fallback=(best.seen_from_x - best.x,
-                                   best.seen_from_y - best.y))
-    return RackPose.from_tag(best.x, best.y, math.atan2(ny, nx))
+    nx, ny, conf = wall_normal_conf(grid, best.x, best.y,
+                                    fallback=(best.seen_from_x - best.x,
+                                              best.seen_from_y - best.y))
+    if conf >= MIN_FACING_CONF or self.facing is None:
+      self.facing = math.atan2(ny, nx)
+    return RackPose.from_tag(best.x, best.y, self.facing)
 
   def close(self) -> None:
     self.spotter.close()

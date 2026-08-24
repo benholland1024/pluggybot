@@ -1838,6 +1838,113 @@ three lessons here are about the *task*, not about the panel.
   moves and saw nothing wrong — 0.72 across the board. The bug lives in the
   TRANSITION, so a probe that pauses between moves cannot see it.)
 
+## The whiteboard question (issue #22): a grader that could not read
+
+The first task kind with a right answer, and the design changed shape at the
+first measurement — which is the only reason it is worth writing down.
+
+**The plan was to read the board.** Render the correct answer's glyphs,
+compare them to the polylines the pen actually inked, call it right or wrong.
+It reads well, it satisfies "measure the world, not the report", and it does
+not work. Symmetric mean nearest-neighbour distance between Hershey `futural`
+digits, at the cap heights the 110 mm carriage can reach:
+
+| cap | 6 vs 8 | 6 vs 5 | the robot's own form error |
+|---|---|---|---|
+| 18 mm | 0.55 mm | 0.86 mm | 1.10 mm (multi-stroke, issue #11) |
+| 55 mm | 1.70 mm | 2.57 mm | 1.10 mm |
+| 75 mm | 2.31 mm | 3.44 mm | 1.10 mm |
+
+**A 6 and an 8 are closer to each other than a correctly drawn 6 is to its own
+ideal, at every size the robot can draw.** Scaling up does not help: the
+distances scale with the glyph, the mechanical error does not, but the ratio
+only reaches ~2× at a size where two digits no longer fit the line. Coverage
+at a tolerance was worse — at 2 mm, a drawn 6 covers 97 % of an 8. So a
+grader that classified the ink would have failed correct drawings and passed
+wrong ones, roughly at random, on exactly the pairs arithmetic produces.
+
+The fix is a split rather than a better metric. **Correctness** is decided
+against the answer the *mind* committed to when it took the job on — exact,
+unfakeable, and frozen before a wheel turns. **Fidelity** is the ink against
+the glyphs of that commitment, and it is a check for wrong WORK: a caller
+that draws a house, or nothing, or scribbles, cannot score by reporting that
+it wrote a 5. Where the commitment is right, those are the glyphs of the
+right answer, which is what the issue asked for; where it is wrong, the job
+has already failed.
+
+**And the fidelity bar had to be measured too, because the synthetic number
+was wrong by nearly a factor of two.** Set at 8.0 mm from rendered figures,
+it passed the `robot` figure drawn instead of a "5", which measures **5.05 mm**
+with the real pen — not the 20 mm two such different figures suggest, because
+a busy figure *covers* the glyph it is standing in for. Its glyph→ink
+direction reads 1.5 mm; only ink→glyph notices. Hence a symmetric figure, a
+bar at 4.0 mm (a correct answer measures 0.8–1.2 mm), and an ink-length ratio
+as a second gate — the robot figure uses 2.76× the ink a "5" needs.
+`scripts/answer_spike.py` is the measurement; re-run it if the pen, the board
+or the cap height moves.
+
+Generalises past drawing: **before building a recogniser, measure how far
+apart the things you need to tell apart actually are, in the units your
+machine's error is measured in.** Two of the three numbers above would have
+looked fine in a docstring.
+
+## The charge press is an odometry pump (issue #22's acceptance test)
+
+The second tool fetch of a mission failed — `SWAP_PICK FAILED`, module still
+on its bracket, ~100 s and 42 % of the pack spent grinding into the rack.
+Found by the first thing in this repo that ever fetched the SAME tool twice
+with a charge cycle in between; `home_draw.py --cycles 2` fetches the pen
+twice with no charge, and the home lifecycle picks a DIFFERENT module after
+charging, so nothing had walked this path before.
+
+**The robot was not where it thought it was, by 828 mm.** At the failing
+pick, believed pose `(+0.171, −1.456)`; true fork vertex `y = −0.863`. The
+cause is the charge press: `charge()` holds `CHARGE_PRESS` against the rack's
+pins for the whole cycle — 132 s here — the wheels turn, the chassis does not
+move, and `DeadReckoner` integrates every slipping revolution as travel.
+`_drive_until`'s docstring had said this for two milestones ("pressing
+against the rack slips the wheels, dead reckoning counts the slip as
+progress"); what was fixed then was the *stopping*, with a sensed `stop_fn`.
+The *integration* was the half that outlives the drive.
+
+Everything downstream is computed in that shifted frame, which is why it
+presents as a hardware problem and not a localisation one:
+
+- `drive_to` "arrives" at a bay standoff the robot is physically a metre from
+- the bay tag then honestly ranges 1.25 m instead of ~0.42 m
+- the terminal creep, computed from that, asks for 0.93 m — 4× nominal, and
+  just under the 1.0 m a 20 s creep can cover at `APPROACH_V`, so it does not
+  even stop early. It drives into the rack and grinds for the full 20 s,
+  twice, with wheel slip counting as progress the whole way.
+
+Three lessons, and only the first is the fix:
+
+- **A press is not travel.** `HubSwap.pinned` keeps the encoders counting and
+  discards the position they imply; heading still comes off the gyro, which
+  is not slipping. Set for the duration of the press and cleared before the
+  undock, which is real travel.
+- **A plausibility guard can reject the truth.** The first fix attempted here
+  was `plausible_travel`, which refuses a terminal creep far from the 0.215 m
+  a hand-off pose implies. It stopped the furniture-shoving (59 s and 24 % of
+  pack, down from 102 s and 42 %) and the pick still failed — because it was
+  rejecting the *tag*, which was right, in favour of *odometry*, which was
+  wrong. Worth keeping as a damage limiter; it was never the bug. When a
+  guard "fixes" the symptom and not the outcome, the model of the fault is
+  wrong.
+- **More map can make an estimate worse.** `RackFinder` took the rack's
+  facing from `wall_normal`, whose own docstring warns that a free-standing
+  partition's free-space sums nearly cancel. Driving behind the rack to
+  charge turns the rack into exactly that: measured on a synthetic grid, the
+  conditioning falls 0.824 → 0.077 and the surviving direction swings to 170°
+  from a true 90°. A rack does not turn round, so a facing is now KEPT once
+  it comes off a well-conditioned look — more sightings improve a landmark's
+  position, not a facing whose input is the shape of mapped free space.
+
+And the workflow lesson, which is the one that actually found it: **compare
+the believed pose against `data` before theorising.** Two rounds of plausible
+reasoning went into the rack belief and the tag ranges; one line printing the
+fork vertex's true position next to the odometry pose ended it.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
