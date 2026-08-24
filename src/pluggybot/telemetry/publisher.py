@@ -64,19 +64,16 @@ deliberate choices about how:
   message to `hub.inbox.Inbox`, which is a bounded deque and nothing else.
 """
 
-import base64
-import io
 import json
 import queue
 import threading
 from typing import Callable
 
-from PIL import Image
-
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.telemetry.recorder import FRAME_HZ, KEYFRAME_S, FrameBuilder
+from pluggybot.telemetry.recorder import (FRAME_HZ, GRID_HZ, KEYFRAME_S,
+                                          FrameBuilder, GridSampler,
+                                          encode_grid_png)
 
-GRID_HZ = 1.0          # occupancy-grid messages per sim-second
 QUEUE_MAX = 256        # ~13 s of frames at 20 Hz; beyond that, drop
 RECONNECT_DELAY = 1.0  # wall-seconds between connection attempts
 CONNECT_TIMEOUT = 2.0  # wall-seconds before a connection attempt fails
@@ -108,7 +105,11 @@ class WsPublisher:
       # publish unauthenticated and blame the server's 401.
       raise ValueError("token is empty: unset it to publish unauthenticated")
     self.endpoint = endpoint
-    self.grid = grid
+    # dedupe=False: the hub caches the most recent grid per robot for late
+    # joiners, so the last message sent is what a new browser is handed --
+    # and a live stream that fell silent because the map stopped changing
+    # would look exactly like one whose grid path had broken.
+    self._grid = GridSampler(grid, hz=grid_hz, dedupe=False)
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
@@ -117,8 +118,6 @@ class WsPublisher:
                                  tasks=tasks, accepts=accepts, goals=goals,
                                  steering=steering)
     self.data = data
-    self._grid_interval = 1.0 / grid_hz
-    self._next_grid = 0.0
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)
     # Set by the sender (on connect) or the hook (on drop); cleared by the
     # hook once it has actually re-keyed the stream.
@@ -173,14 +172,10 @@ class WsPublisher:
       except queue.Full:
         self.frames_dropped += 1
         self._need_keyframe.set()
-      if self.grid is not None and frame["t"] >= self._next_grid:
-        self._next_grid = frame["t"] + self._grid_interval
-        msg = {"type": "grid", "t": frame["t"], "robot": ROBOT_ROOT,
-               "extent": [self.grid.x_min, self.grid.y_min,
-                          self.grid.x_max, self.grid.y_max],
-               "resolution": self.grid.resolution}
+      sample = self._grid.due(frame["t"])
+      if sample is not None:
         try:                                  # PNG encoding is the SENDER's job
-          self._queue.put_nowait(("grid", (msg, self.grid.to_image())))
+          self._queue.put_nowait(("grid", sample))
         except queue.Full:
           pass                                # next second's grid supersedes it
 
@@ -238,9 +233,7 @@ class WsPublisher:
               continue
             if kind == "grid":
               msg, img = payload
-              buf = io.BytesIO()
-              Image.fromarray(img).save(buf, format="PNG")
-              msg["png"] = base64.b64encode(buf.getvalue()).decode("ascii")
+              msg["png"] = encode_grid_png(img)
               payload = msg
             ws.send(json.dumps(payload, separators=(",", ":")))
             if kind == "frame":

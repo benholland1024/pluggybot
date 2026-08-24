@@ -1271,7 +1271,13 @@ def run_demo(start=None, view: bool = False,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=board,
                                  goals=goals_prose,
-                                 steering=boss is not None)
+                                 steering=boss is not None,
+                                 # The occupancy map is a BELIEF, and a
+                                 # recording that omits it replays a robot
+                                 # that never had one -- which is what the
+                                 # website's map panel was reading until
+                                 # rooftop-media-2026 #78.
+                                 grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.

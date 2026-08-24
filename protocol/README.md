@@ -719,12 +719,41 @@ the host wants `wss://`. An empty token is rejected at startup rather than
 sent as no header at all, because a blank `PLUGGYWORLD_TOKEN` would
 otherwise publish unauthenticated and read as a wrong secret.
 
-The two live-only message types:
+The lower-frequency message types:
 
 (`draw`, `board_cleared`, `board_snapshot` and `earned` ride this socket too,
-and are the four types that also appear in recordings — see 0.4.0, 0.5.0 and
-0.6.0 above. An `earned` message needs no hub cache of its own: the balance
-and the last few earnings re-ship in every keyframe.)
+and are four of the types that also appear in recordings — see 0.4.0, 0.5.0
+and 0.6.0 above. An `earned` message needs no hub cache of its own: the
+balance and the last few earnings re-ship in every keyframe.)
+
+⚠ **`grid` is no longer live-only** (rooftop-media-2026 #78). It was, from
+0.2.0 until the map was rendered: the publisher shipped it and the recorder
+did not. But the website's *default* view is a recording — live falls back to
+one whenever no sim is publishing — so a map panel fed only by the live
+stream is blank for almost every visitor, and a replayed mission was of a
+robot that never had a belief about where it was. A recording now carries the
+map too. `event` remains live-only; a recording's narration is in each
+frame's `status` line.
+
+This is **additive and not a version bump**: the message's shape is
+unchanged, and a consumer that dispatches on `type` (the rule since 0.4.0)
+ignores a line it has no use for. A recording written before this change
+simply has no `grid` lines, and a map panel must render *that* as "no map was
+published", never as "nothing was mapped".
+
+Two differences between the recorded map and the live one, both deliberate
+(`telemetry/recorder.GridSampler`):
+
+- **Cadence.** Live is 1 Hz; a recording is 0.2 Hz. A recording is watched
+  from the top, so what matters is seeing the map fill in, not that it is at
+  most a second stale — and these bytes are permanent and vendored into the
+  website's bundle, where every visitor pays for them on page load.
+- **A recording skips an unchanged map.** The belief stops moving for minutes
+  at a time — through a charge, through a drawing — and a byte-identical PNG
+  written every interval is pure weight. The live stream does *not* skip:
+  the hub caches the most recent `grid` per robot for late joiners, so a
+  stream that fell silent because nothing changed would look exactly like one
+  whose grid path had broken.
 
 ```jsonc
 // occupancy-grid belief, ~1 Hz per robot: base64 PNG, uint8 cells
