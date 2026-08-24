@@ -43,8 +43,9 @@ import mujoco
 
 from pluggybot.hub import overseer
 from pluggybot.hub.inbox import Inbox
+from pluggybot.hub.cadence import default_cadence
 from pluggybot.hub.lifecycle import (
-  SEED_STANDING_TTL_S, SEED_TTL_S, HubLifecycle, board_book, errands_for, points_ledger, seed_tasks,
+  HubLifecycle, board_book, errands_for, points_ledger, task_producer,
   task_board, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
@@ -98,7 +99,10 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. Off by default")
+                           "hub/rewards.json and a deadline. More arrive on "
+                           "the cadence in hub/cadence.json as the run goes "
+                           "on (issue #23; $PLUGGY_CADENCE re-points it). "
+                           "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
@@ -131,8 +135,17 @@ def main() -> None:
   # Job offers (issue #21), and world state on exactly the terms the boards
   # and the ledger are: a task that vanished because the container cycled is
   # a job somebody asked for and nobody ever declined. Off unless asked for.
-  tasks = (task_board(args.task_state)
+  # ...on the timing policy in hub/cadence.json (issue #23): how often work
+  # appears, how long an offer stands, how much may stand at once and how long
+  # a target rests. Configuration rather than constants, and $PLUGGY_CADENCE
+  # re-tunes how busy a deployed world is without a rebuild.
+  beat = default_cadence(args.world) if (args.tasks or args.task_state) else None
+  tasks = (task_board(args.task_state, cadence=beat)
            if (args.tasks or args.task_state) else None)
+  # ...and the thing that keeps putting work up, rather than a starter set
+  # that never grows back.
+  maker = (task_producer(tasks, args.world, book, beat)
+           if tasks is not None else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for, and its memory is two more files in
   # the same volume the boards and the ledger live in: goals are read (and
@@ -159,7 +172,8 @@ def main() -> None:
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
                       overseer=boss, journal=journal, world=args.world,
-                      boards=book, ledger=ledger, tasks=tasks)
+                      boards=book, ledger=ledger, tasks=tasks,
+                      producer=maker)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -227,9 +241,8 @@ def main() -> None:
   # `task_offered` immediately, so seeding earlier drops those lines on the
   # floor -- see the note in `lifecycle.run_demo`. Only when nothing is
   # outstanding, so a restart resumes the jobs the last mission left.
-  if tasks is not None and not tasks.open_tasks():
-    seed_tasks(tasks, args.world, book, ttl=SEED_TTL_S,
-               standing_ttl=SEED_STANDING_TTL_S)
+  if maker is not None and not tasks.open_tasks():
+    maker.seed(pack_wh=life.fundable_wh)
 
   wall0 = time.monotonic()
   try:

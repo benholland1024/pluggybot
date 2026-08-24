@@ -51,7 +51,10 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. Off by default")
+                           "hub/rewards.json and a deadline. More arrive on "
+                           "the cadence in hub/cadence.json as the run goes "
+                           "on (issue #23; $PLUGGY_CADENCE re-points it). "
+                           "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
