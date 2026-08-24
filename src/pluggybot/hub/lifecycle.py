@@ -447,6 +447,13 @@ class HubLifecycle:
     # A robot that could not get there is a different thing from a robot that
     # got there and drew badly, and only one of them is a bug -- but they
     # must BOTH end with the module on the rack.
+    #
+    # ⚠ THE GATE IS PER-ERRAND, not universal (`Errand.needs_use_pose`). An
+    # errand that DOES ITS OWN NAVIGATION does not need this drive to have
+    # arrived -- the census's `use_at` is the first point of the survey route
+    # its use-phase drives itself. Gating it too cost the recorded showcase
+    # mission its census answer: the drive stopped 1.96 m short and the robot,
+    # which could still see the whole garden from there, was sent home.
     arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"
@@ -456,7 +463,7 @@ class HubLifecycle:
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if errand.use is not None and not arrived:
+    if errand.use is not None and not arrived and errand.needs_use_pose:
       used = {"error": "never reached the use pose"}
     elif errand.use is not None and still:
       try:

@@ -197,6 +197,22 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   cycles, and no charging policy can save it, because the reserve is only
   checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
   demo cell grows or per-errand energy is actually modelled.
+- **A recording carries the robot's MAP** (rooftop-media-2026 #78). `grid` was
+  live-only from 0.2.0 until the website drew it, and the site's default view
+  is a recording — so the map panel would have been blank for almost every
+  visitor. `TelemetryRecorder` takes the mission's grid; `GridSampler` is the
+  one implementation both sinks share, differing in a single argument.
+  A RECORDING skips an image identical to the last one it wrote (the belief
+  stops moving for minutes through a charge, and these bytes are vendored into
+  the website's bundle) and writes at 0.2 Hz rather than 1 Hz. The LIVE stream
+  does NEITHER: the hub caches the newest grid per robot for late joiners, so
+  a stream that fell silent because nothing changed would be indistinguishable
+  from one whose grid path had broken — the `accepts` lesson again.
+  Additive, not a version bump: the message is unchanged and the dispatch rule
+  has been "ignore a type you do not know" since 0.4.0.
+  ⚠ **Row 0 of the PNG is the y_min edge** — the bottom of the world, and the
+  opposite of a canvas. Invisible until it is wrong, and a symmetric room
+  hides it completely; `tests/test_telemetry.py` pins it.
 - **Goals are STREAMED as of protocol 0.8.0** (rooftop-media-2026 #30): one
   `goals` message when a stream opens, carrying `read_goals` verbatim, so the
   site can show what the robot is FOR. It rides the `board_snapshot` slot for
@@ -275,6 +291,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the LCD, so the website has ONE recording carrying `draw` /
   `board_cleared` events AND a `screens` block that changes, which are the
   two surfaces it paints.
+  ⚠ **THE ARRIVAL GATE IS PER-ERRAND** (`Errand.needs_use_pose`), and the
+  home recording is what proves why. Issue #23 rightly stopped a use-phase
+  running after a `drive_to` that gave up — a pen must be at its board — but
+  gating EVERY errand that way silently deleted the census: its `use_at` is
+  the first point of the survey route its own use-phase drives, so the
+  pre-positioning drive is redundant by construction. Measured: the drive
+  stops 1.96 m short and the robot sees 100 % of the garden from there,
+  counting 4 of 4 for +20. With one gate for everything the recorded showcase
+  mission carried no `count` mode at all, which
+  `test_the_home_fixture_shows_the_census_answer` catches. An errand that does
+  its own navigation sets the flag False; everything else must not.
   ⚠ **The HOME recording takes TWO PASSES**: `--boards <state.json>` is
   load-bearing, not decoration. A `board_snapshot` is only emitted for a board
   ALREADY carrying ink when the stream opens, so a run against blank boards
