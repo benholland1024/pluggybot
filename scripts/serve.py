@@ -44,8 +44,8 @@ import mujoco
 from pluggybot.hub import overseer
 from pluggybot.hub.inbox import Inbox
 from pluggybot.hub.lifecycle import (
-  HubLifecycle, board_book, errands_for, points_ledger, world_config,
-  world_screens,
+  SEED_STANDING_TTL_S, SEED_TTL_S, HubLifecycle, board_book, errands_for, points_ledger, seed_tasks,
+  task_board, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import INBOUND_TYPES
@@ -95,6 +95,13 @@ def main() -> None:
                            "queue is empty (issue #15; $PLUGGY_OVERSEER). "
                            "Needs $ANTHROPIC_API_KEY -- without one the robot "
                            "runs the scripted fallback and the run reports it")
+  parser.add_argument("--tasks", action="store_true",
+                      help="offer the robot JOBS this run (issue #21): each "
+                           "one has a description, a target, a reward off "
+                           "hub/rewards.json and a deadline. Off by default")
+  parser.add_argument("--task-state", default=None, metavar="PATH",
+                      help="JSON file the task board lives in between runs "
+                           "($PLUGGY_TASKS; implies --tasks)")
   parser.add_argument("--goals", default=None, metavar="PATH",
                       help="the overseer's long-term goals, as prose. Mount it "
                            "and edit it to change what the robot is for, no "
@@ -121,6 +128,11 @@ def main() -> None:
   # scoreboard. Every mission end is a restart, so the site's rivalry only
   # exists if this file does.
   ledger = points_ledger(args.ledger)
+  # Job offers (issue #21), and world state on exactly the terms the boards
+  # and the ledger are: a task that vanished because the container cycled is
+  # a job somebody asked for and nobody ever declined. Off unless asked for.
+  tasks = (task_board(args.task_state)
+           if (args.tasks or args.task_state) else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for, and its memory is two more files in
   # the same volume the boards and the ledger live in: goals are read (and
@@ -147,7 +159,7 @@ def main() -> None:
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
                       overseer=boss, journal=journal, world=args.world,
-                      boards=book, ledger=ledger)
+                      boards=book, ledger=ledger, tasks=tasks)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -159,7 +171,7 @@ def main() -> None:
                           grid=life.mission.grid, token=args.token,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
-                          screens=screens, ledger=ledger,
+                          screens=screens, ledger=ledger, tasks=tasks,
                           # What this run can actually HEAR (issue #16). Empty
                           # without an overseer, and the website reads it: a
                           # suggestion is only "delivered" if somebody who can
@@ -175,6 +187,9 @@ def main() -> None:
   # An award is an event on the same terms (issue #14): the balance rides in
   # the frames, and each `earned` message carries the verdict behind it.
   ledger.on_event.append(publisher.message)
+  # ...and so is a job being offered, taken or resolved (issue #21).
+  if tasks is not None:
+    tasks.on_event.append(publisher.message)
   # ...and so are the robot's notes and its answers to visitors (#15, #16).
   if journal is not None:
     journal.on_event.append(publisher.message)
@@ -195,16 +210,26 @@ def main() -> None:
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger,
+                                 screens=screens, ledger=ledger, tasks=tasks,
                                  goals=goals_prose,
                                  steering=boss is not None)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
       book.on_event.append(recorder.emit)
     ledger.on_event.append(recorder.emit)
+    if tasks is not None:
+      tasks.on_event.append(recorder.emit)
     if journal is not None:
       journal.on_event.append(recorder.emit)
     life.visitor_hooks.append(recorder.emit)
+
+  # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
+  # `task_offered` immediately, so seeding earlier drops those lines on the
+  # floor -- see the note in `lifecycle.run_demo`. Only when nothing is
+  # outstanding, so a restart resumes the jobs the last mission left.
+  if tasks is not None and not tasks.open_tasks():
+    seed_tasks(tasks, args.world, book, ttl=SEED_TTL_S,
+               standing_ttl=SEED_STANDING_TTL_S)
 
   wall0 = time.monotonic()
   try:

@@ -66,6 +66,7 @@ USER pluggy
 ENV HOME=/home/pluggy \
     PLUGGY_BOARDS=/var/lib/pluggybot/boards.json \
     PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json \
+    PLUGGY_TASKS=/var/lib/pluggybot/tasks.json \
     PLUGGY_JOURNAL=/var/lib/pluggybot/journal.json \
     PLUGGY_GOALS=/var/lib/pluggybot/goals.md
 

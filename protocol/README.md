@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.8.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.9.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -24,9 +24,127 @@ ink first, then record against the same state file:
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand draw --boards /tmp/pw_boards.json                      # pass 1
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
-  --errand showcase --boards /tmp/pw_boards.json \
+  --errand showcase --tasks --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+### 0.8.0 → 0.9.0 (the robot is given work, and the work is on the wire)
+
+The producer half of **M9 — Tasks** (pluggybot #21, rooftop-media-2026 #77).
+A **task** is a *job offer*, and it is a third thing alongside the two
+patterns that already exist: an **errand** is a tool, a place and a
+use-phase (machinery), an **activity** is a mechanism watching contacts and
+owning discrete world state (scenery that reacts), and a **task** is
+something the house or a visitor puts up — a description, a target, a
+reward, a deadline, and a verdict once it is over. An errand is *how* a task
+gets done; the task is *why*.
+
+Additive: a 0.8.0 consumer that ignores the new block and the three new
+message types renders exactly what it rendered before.
+
+#### The `tasks` block
+
+```jsonc
+{"tasks": {
+  "t_0001": {"id": "t_0001", "kind": "draw_figure", "task": "draw",
+             "target": "whiteboard_a", "targetKind": "board",
+             "description": "Draw a house on whiteboard_a.",
+             "params": {"program": "house"},
+             "state": "offered",          // see the state machine below
+             "source": "system",          // system | visitor | overseer
+             "deadline": 420.0,           // sim seconds; null = stands forever
+             "estimateWh": 0.35,          // what taking it is expected to cost
+             "createdT": 0.0, "claimedT": null, "resolvedT": null,
+             "claimedBy": "", "points": 0,
+             "reward": {"task": "draw", "tier": "auto",
+                        "base": 8, "bonus": 12}}}}
+```
+
+⚠ **This block is shipped WHOLE, not per-key diffed** — the one place the
+protocol's sparse-block rule does not apply, and the difference is
+load-bearing. `activities`, `boards`, `screens` and `ledger` describe things
+with fixed names that exist for the whole run, so shipping only the changed
+keys is safe: a consumer merges. **A task can cease to exist** — resolved
+ones age out of a bounded board — and a per-key delta has no way to say
+"gone", so a consumer merging deltas would keep a stale marker on screen
+forever. *Present means complete: replace the block, do not merge it.* It is
+still sparse in time (emitted only when something changed) and still
+re-shipped on every keyframe.
+
+**`reward` is looked up, never carried.** A task names an evaluator
+(`hub/scoring.py`) and a reward-table row (`hub/rewards.json`); what it pays
+is read off that table every time the block is built. Nothing that can
+create a task — a visitor, and later the robot itself — can price one. This
+is 0.6.0's rule ("only code awards points") arriving from the direction a
+stranger can reach.
+
+**What a task does not carry** is the milestone's governing rule:
+
+> The wire may carry anything a network could carry. It may not carry
+> anything a sensor would have to discover.
+
+A description is a work order and real robots receive those over WiFi; a
+board id is surveyed infrastructure, like the charging rack. The *answer* to
+a task is neither, and a task kind that has one keeps it in a sim-side field
+that reaches neither this block nor the robot's own context — the same
+treatment the census's ground truth has had since 0.6.0. Worked examples and
+the perception ladder live in pluggybot's `docs/TaskPattern.md`.
+
+`whiteboard_answer` is the kind that makes this concrete (pluggybot #22): the
+question — `"Draw the answer to this question on whiteboard_a: 2 + 3"` — is
+in the description and crosses the wire; the answer is in `Task.secret` and
+crosses nothing. What the robot *said* the answer was appears when the job
+resolves, in the verdict's `wrote` metric, because by then it is inked on a
+board the stream is already showing. `expected` is redacted from that verdict
+whether the robot got it right or not.
+
+#### The state machine
+
+```
+offered ──claim──▶ claimed ──start──▶ active ──verdict──▶ done | failed
+   │
+   └──deadline──▶ expired
+```
+
+Three terminal states, deliberately distinguishable: `done` was finished and
+judged good, `failed` was finished and judged **bad**, `expired` was never
+attempted at all. **Expiry is an outcome, not a deletion** — an offer that
+lapses stays on the board saying so, because a marker that silently vanishes
+reads as a bug, and "nobody got round to it" is a true thing about a robot's
+day. Only *offered* tasks expire: a deadline is how long an offer stands, not
+a licence to abandon a job mid-errand with a module still on the fork.
+
+#### The header gains `taskKinds`
+
+```jsonc
+{"taskKinds": ["draw_figure", "rate_artwork", "whiteboard_answer",
+               "count_plants", "fetch_module"]}
+```
+
+Not the task ids: unlike every other block, this one's keys are created and
+retired during the run, so a list of them in the header would be stale before
+the first frame. What is stable is the **vocabulary**, and it is a two-repo
+contract on the same terms as `FACE_STATES` — adding a kind is additive (draw
+a generic marker for one you do not know), renaming one breaks both repos.
+An empty list is the honest answer for a run with no task board, on the same
+terms as `accepts`.
+
+#### Three typed messages
+
+```jsonc
+{"type": "task_offered", "t": 60.0, "task": { /* as in the block */ }}
+{"type": "task_claimed", "t": 61.2, "id": "t_0001", "state": "claimed",
+ "robot": "pluggybot"}
+{"type": "task_resolved", "t": 190.4, "id": "t_0001", "state": "done",
+ "robot": "pluggybot", "points": 11, "verdict": { /* redacted */ },
+ "task": { /* the final task */ }}
+```
+
+`task_claimed` carries the new state: `claimed` when a robot takes the job on
+and `active` when it actually starts working on it. The block catches a late
+joiner up; these are the **moments**, which is what a marker animates on.
+`verdict` is the same redacted object `earned` carries — one evaluation with
+two consumers, never a second judgement.
 
 ### 0.7.0 → 0.8.0 (the robot says what it is for)
 
@@ -387,8 +505,13 @@ against the body census.
 | `scene.home_world.json` | The generated home world, with visual hints + zones + spawns (issue #6) | `uv run python -m pluggybot.telemetry.scene models/home_world.xml` |
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
-| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+
+⚠ **`--tasks` is load-bearing on both recordings** (0.9.0). Job offers are
+off by default — a task board adds errands, which reshuffles a whole mission
+— so a recording made without the flag carries no `tasks` block at all and
+the website's marker code has nothing to build against.
 
 ⚠ **Record the home fixture TWICE against the same `--boards state.json`, and
 keep the second.** A board that survived a previous run is what makes the
@@ -488,7 +611,9 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "activities": ["garden_gate"],                         // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
  "screens": ["module_lcd"],                             // display modules
- "ledger": ["pluggybot"]}                               // robots with a balance
+ "ledger": ["pluggybot"],                               // robots with a balance
+ "taskKinds": ["draw_figure", "count_plants"],          // jobs it can offer
+ "accepts": ["suggestion", "question", "rating"]}       // what it will act on
 
 // frame
 {"t": 123.45,                                  // sim seconds
@@ -511,7 +636,9 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "ledger": {"pluggybot": {"balance": 39, "earned": 39, "spent": 0,
                           "tasks": 3, "pending": 0,
                           "recent": [{"seq": 3, "task": "census", "points": 20,
-                                      "ok": true, "t": 412.5}]}}}
+                                      "ok": true, "t": 412.5}]}},
+ "tasks": {"t_0001": {"id": "t_0001", "kind": "draw_figure",
+                      "state": "done", ...}}}   // WHOLE, not merged
 ```
 
 **Frames are sparse.** The first frame is a keyframe carrying every dynamic
@@ -522,6 +649,11 @@ unchanged — a replayer holds the last value it saw. `bodies`, `world` and
 ride in every frame. **Activity flags, board state, screen content and the
 points ledger are sparse on the same rule as poses** and re-ship on every
 keyframe (0.3.0, 0.4.0, 0.5.0, 0.6.0). Positions are rounded to 0.1 mm.
+
+**`tasks` is the exception**, and the only one: it is sparse in *time* like
+the rest, but when present it is the **complete** board rather than a delta
+— replace it, do not merge it. A task can cease to exist, and a per-key
+delta cannot say so (0.9.0).
 
 **Keyframes recur** every `keyframeS` sim-seconds (5.0) and are marked
 `"key": true`. A consumer that starts reading anywhere in the stream is

@@ -76,7 +76,7 @@ class FrameBuilder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=(), goals: str = "",
+               ledger=None, tasks=None, accepts=(), goals: str = "",
                steering: bool = False) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
@@ -96,6 +96,12 @@ class FrameBuilder:
     # than by world feature -- which is the only difference, and the frame
     # builder does not care.
     self.ledger = ledger
+    # ...and so does a job offer (issue #21) -- but this one is NOT diffed
+    # per key. A task can cease to exist (resolved ones age out of a bounded
+    # board) and a per-key delta has no way to say "gone", so the block ships
+    # WHOLE whenever it differs from the last one emitted. Sparse in time,
+    # complete in content; see the 0.9.0 note in protocol.py.
+    self.tasks = tasks
     # Inbound message types this producer will act on (0.7.0, issue #16).
     # Advertised in the header so the server can tell "the robot got it" from
     # "the socket accepted it and nothing is listening".
@@ -128,6 +134,10 @@ class FrameBuilder:
     self._last_boards: dict[str, dict] = {}
     self._last_screens: dict[str, dict] = {}
     self._last_ledger: dict[str, dict] = {}
+    # ...and the whole tasks block, as one value. `None` rather than `{}` so
+    # a board that is genuinely empty still ships once, which is what tells a
+    # consumer "no tasks" apart from "no tasks block in this frame".
+    self._last_tasks: dict | None = None
 
   def header(self) -> dict:
     return {
@@ -142,6 +152,13 @@ class FrameBuilder:
       "boards": self.boards.names if self.boards else [],
       "screens": self.screens.names if self.screens else [],
       "ledger": self.ledger.names if self.ledger else [],
+      # The task KINDS this producer can offer (0.9.0, issue #21). Not the
+      # task ids: unlike every other block above, the tasks block's keys are
+      # created and retired during the run, so a list of them in the header
+      # would be stale before the first frame. What is stable is the
+      # vocabulary -- and an empty list is the honest answer for a run with
+      # no task board, on the same terms as `accepts` below.
+      "taskKinds": list(self.tasks.kinds) if self.tasks is not None else [],
       # What this producer will ACT ON if the server sends it (0.7.0). Empty
       # is the normal answer and the important one: a sim with no overseer
       # reads nothing, so a website that marked a suggestion "delivered"
@@ -178,6 +195,7 @@ class FrameBuilder:
     self._last_boards.clear()
     self._last_screens.clear()
     self._last_ledger.clear()
+    self._last_tasks = None
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -203,6 +221,7 @@ class FrameBuilder:
       self._last_boards.clear()
       self._last_screens.clear()
       self._last_ledger.clear()
+      self._last_tasks = None
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -242,6 +261,14 @@ class FrameBuilder:
       points = self._sparse(self.ledger.snapshot(), self._last_ledger)
       if points:
         frame["ledger"] = points
+    if self.tasks is not None:
+      # Whole-block, not `_sparse`: see the note on `self.tasks` above. The
+      # comparison is against the LAST BLOCK EMITTED, so an unchanged board
+      # costs one dict compare per frame and no bytes at all.
+      board = self.tasks.snapshot()
+      if board != self._last_tasks:
+        self._last_tasks = board
+        frame["tasks"] = board
     return frame
 
   @staticmethod
@@ -291,12 +318,12 @@ class TelemetryRecorder:
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=(), goals: str = "",
+               ledger=None, tasks=None, accepts=(), goals: str = "",
                steering: bool = False) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
-                                 screens=screens, ledger=ledger,
+                                 screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
                                  steering=steering)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()

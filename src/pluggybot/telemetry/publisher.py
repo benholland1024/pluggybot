@@ -100,7 +100,7 @@ class WsPublisher:
                token: str | None = None,
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
-               ledger=None, accepts=(), goals: str = "",
+               ledger=None, tasks=None, accepts=(), goals: str = "",
                steering: bool = False) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
@@ -114,7 +114,7 @@ class WsPublisher:
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger,
-                                 accepts=accepts, goals=goals,
+                                 tasks=tasks, accepts=accepts, goals=goals,
                                  steering=steering)
     self.data = data
     self._grid_interval = 1.0 / grid_hz

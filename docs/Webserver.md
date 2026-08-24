@@ -130,6 +130,13 @@ including, when it lands, the LLM overseer, which sees its score and cannot
 touch it. `--ledger PATH` (or `$PLUGGY_LEDGER`) is where the balance lives
 between runs, exactly as `--boards` is for ink.
 
+`--tasks` / `--task-state PATH` (or `$PLUGGY_TASKS`, which implies both) turn
+on the **job board** (issue #21): work the house or a visitor puts up, which
+the robot may take, and which is graded and paid through exactly the machinery
+above — a task names an evaluator and a reward-table row and carries no payout
+of its own, so nothing that can create a job can price one. Off by default,
+because a task board adds errands and reshuffles a whole mission.
+
 ⚠ **A hidden-truth task publishes its verdict without its answer.** The
 census's real count is redacted from the message's `metrics` and its `reason`,
 because this stream reaches both the website and the robot's own context.
@@ -216,7 +223,7 @@ things about it are decisions rather than boilerplate:
 - **Config is environment, not a command line** (`deploy/entrypoint.sh`):
   `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`,
-  `PLUGGY_LEDGER`. The ingest
+  `PLUGGY_LEDGER`, `PLUGGY_TASKS`. The ingest
   secret stays `$PLUGGYWORLD_TOKEN`, read by `serve.py` itself, because a
   flag is visible in `ps`. Anything passed to the container is appended
   after the derived flags, so `docker run <image> --rate 2.0` still wins.
