@@ -41,8 +41,9 @@ from pluggybot.hub.errand import (
 from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
+from pluggybot.hub.cadence import CHECK_S
 from pluggybot.hub.overseer import THINK_SLICE_S
-from pluggybot.hub.questions import clean_answer, default_bank
+from pluggybot.hub.questions import clean_answer
 from pluggybot.hub.screen import face_for
 from pluggybot.hub import scoring, strokes
 from pluggybot.power import MODULE_IDLE_W, Battery
@@ -77,6 +78,11 @@ DECIDED_EXPLORE_S = 45.0
 #: ...and how long `idle` stands still for. Long enough to read on the stream
 #: as a deliberate pause, short enough not to be a way of doing nothing all day.
 DECIDED_IDLE_S = 4.0
+#: ...and how long the loop stands by when a PRODUCER world has momentarily
+#: run out of work (issue #23). Short, because the only reason to bound it is
+#: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
+#: an idle moment.
+WAIT_FOR_WORK_S = 5.0
 #: Battery fraction below which a CHOSEN `charge` is worth making the trip for.
 #:
 #: ⚠ This closes a points farm, not a physics problem. `charge` is a scored
@@ -93,24 +99,13 @@ VISITORS_SHOWN = 5
 #: the robot takes at most one per turn, and a wall of offers is input tokens
 #: spent on jobs it will not reach.
 TASKS_SHOWN = 5
-#: Sim seconds a seeded offer stands before it lapses. A PLACEHOLDER, like
-#: `seed_tasks` itself -- issue #23 owns cadence, caps and expiry, and owns
-#: making them configuration. Chosen against the home mission's own clock
-#: rather than against wall-clock intuition: a charge-to-charge cycle there is
-#: ~365 sim-seconds, so this is long enough that a job the robot means to do
-#: survives a charge interrupting it, and short enough that a job it never
-#: gets to visibly lapses instead of standing forever.
-SEED_TTL_S = 420.0
-#: ...and the FIRST seeded offer stands this much longer.
-#:
-#: ⚠ Not a tuning knob -- a deliberately MIXED board, and the fixtures are why.
-#: A preset errand queue outranks the task branch, so with one ttl for
-#: everything the home recording came back with all three offers `expired`:
-#: an honest mission that exercised the expiry path and nothing else, and no
-#: use at all to a website building markers for a job being taken on. One
-#: standing offer plus two that lapse gives both outcomes in one recording,
-#: which is also the mix issue #23's acceptance asks a long run to show.
-SEED_STANDING_TTL_S = 900.0
+#: ⚠ How long an offer stands, how often one appears, how many may stand at
+#: once and how long a target rests are NO LONGER HERE. They are configuration
+#: -- hub/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
+#: issue #23's last acceptance line asks for exactly that, and because they
+#: want re-tuning against a mission's own clock by somebody who is not editing
+#: Python. `SEED_TTL_S` and `SEED_STANDING_TTL_S` are gone with the placeholder
+#: `seed_tasks` they belonged to; see `hub/cadence.py`.
 
 
 class HubLifecycle:
@@ -124,7 +119,7 @@ class HubLifecycle:
                low_battery_wh: float = LOW_BATTERY_WH,
                errands=None, boards=None, screen=None, ledger=None,
                overseer=None, journal=None, world: str = "room_hub",
-               inbox=None, tasks=None) -> None:
+               inbox=None, tasks=None, producer=None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -163,7 +158,13 @@ class HubLifecycle:
     # nothing else to do, and closes each one with the SAME verdict that pays
     # for it -- there is no second judgement of a task anywhere.
     self.tasks = tasks
+    # ...and the thing that PUTS jobs on it (issue #23). Optional again, and
+    # separately from the board: a test that hands in three offers of its own
+    # wants the board without a world generating more behind its back, and a
+    # restart against a persisted board resumes work rather than re-seeding.
+    self.producer = producer
     self.claimed: list[str] = []
+    self._next_task_check = 0.0
     # The LCD module's display (issue #13). The lifecycle drives the resting
     # face off its own state; an errand's use-phase may take the screen over
     # (`Screen.held`) and gets it back automatically at the next state change.
@@ -175,6 +176,11 @@ class HubLifecycle:
                               rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
     self.mission.step_hooks.append(self._power_step)
+    # The world's own clock (issue #23): offers appear and lapse on the same
+    # per-step seam the battery drains through, so a job put up while the
+    # robot is halfway through an errand is put up THEN and not on whichever
+    # arbitration pass happens next. See `_task_step`.
+    self.mission.step_hooks.append(self._task_step)
     self.state: State = "EXPLORE"
     # A QUEUE, not a flag: "two drawings on two boards with charging in
     # between" is the acceptance test for issue #12, and a boolean cannot
@@ -426,15 +432,33 @@ class HubLifecycle:
               f" ({errand.name})")
 
     self.state = "USE_TOOL"
-    self.mission.drive_to(*errand.use_at, timeout=60.0)
+    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to` returns
+    # False when it stagnated or could not plan at all, and a use-phase run
+    # anyway is a pen pressing at empty air: found by issue #23, whose
+    # producer is the first thing that offers work on the FAR whiteboard, 7 m
+    # away through a doorway the robot has not mapped yet. The drive gave up,
+    # the loop narrated "arrived", the erase probe searched for a board that
+    # was not there, and the mission hung until the battery died -- ten
+    # minutes of wall clock with nothing in the log after `USE_TOOL: arrived`.
+    #
+    # Not reaching the board is an ordinary outcome, so it is reported and
+    # not raised on: the tool still goes back to its bay, the evaluator still
+    # measures the world (it will find no ink) and the job closes `failed`.
+    # A robot that could not get there is a different thing from a robot that
+    # got there and drew badly, and only one of them is a bug -- but they
+    # must BOTH end with the module on the rack.
+    arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
-    self._say(f"USE_TOOL: arrived{'' if still else ' -- BUT DROPPED THE TOOL'}")
+    self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"
+              f"{'' if still else ' -- BUT DROPPED THE TOOL'}")
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if errand.use is not None and still:
+    if errand.use is not None and not arrived:
+      used = {"error": "never reached the use pose"}
+    elif errand.use is not None and still:
       try:
         used = errand.use(self) or {}
       except MissionAborted:
@@ -548,14 +572,44 @@ class HubLifecycle:
     """
     return max(0.0, self.battery.energy_wh)
 
+  @property
+  def fundable_wh(self) -> float:
+    """What a CHARGED pack holds here -- what the WORLD can fund, as opposed
+    to what the robot can afford this second.
+
+    This is what the producer offers against (issue #23), and the difference
+    from `spendable_wh` is the difference between "this world cannot pay for
+    that job" and "the robot should charge first". Only the first is a reason
+    not to put a job up; the second is what `Task.claimable` says about an
+    offer that is already standing, and it says it every time anybody asks.
+    """
+    return self.battery.capacity_wh * CHARGED
+
   def _task_step(self) -> None:
-    """Lapse whatever nobody got to. Runs at the top of every arbitration
-    pass, beside the visitor drain, and for the same reason: it is
-    bookkeeping about the world rather than something the robot does."""
-    if self.tasks is None:
+    """Put up whatever is due and lapse whatever nobody got to.
+
+    ⚠ THIS HANGS OFF THE PHYSICS SEAM, not off the arbitration loop, and that
+    is issue #23's whole difference from #21. A mission pass happens between
+    errands, so a producer ticked there could only offer work while the robot
+    was standing still -- and an offer would only be seen to lapse minutes
+    after it did, on whichever pass happened next. The world puts work up and
+    takes it down on its own clock; the loop reacts to the board when it next
+    looks at it. Throttled to `CHECK_S`, because sweeping forty tasks at
+    500 Hz is Python spent to learn nothing.
+
+    It is deliberately incapable of doing anything the robot does: it offers
+    and it expires. Nothing here touches `state`, `errands` or the battery,
+    which is what makes "a task never delays a charge" a property of the
+    seam rather than of the numbers in hub/cadence.json.
+    """
+    if self.tasks is None or self.data.time < self._next_task_check:
       return
+    self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    if self.producer is not None:
+      for task in self.producer.tick(float(self.data.time), self.fundable_wh):
+        self._say(f"TASK {task.id} offered: {task.description}")
 
   def _claim_task(self, task_id: str, answer: str = "") -> bool:
     """Take one offered job on and queue the errand that discharges it.
@@ -752,9 +806,12 @@ class HubLifecycle:
         # balance -- and outside the priority order, because applying a
         # rating is bookkeeping rather than something the robot does.
         self._visitor_step()
-        # ...and whatever lapsed while the robot was busy (issue #21). Also
-        # outside the priority order: an offer expiring is something that
-        # happens TO the world, not a thing the robot chose.
+        # ...and whatever the world put up or took down while the robot was
+        # busy (issues #21, #23). Outside the priority order, because a job
+        # appearing or lapsing is something that happens TO the world rather
+        # than a thing the robot chose -- and mostly a no-op here, since the
+        # same sweep runs on the physics seam. Kept so a lifecycle driven
+        # without `mission` stepping still keeps its board honest.
         self._task_step()
         if self.needs_charge:
           self.state = "GO_CHARGE"
@@ -782,6 +839,22 @@ class HubLifecycle:
         elif not self.map_done:
           self.state = "EXPLORE"
           self.explore()
+        elif self.producer is not None:
+          # WAITING FOR WORK IS NOT BEING FINISHED (issue #23). The loop used
+          # to break the moment it had nothing to do, which was right when
+          # the only work was a preset queue -- that queue never grows. A
+          # world with a PRODUCER in it does: measured, a home run mapped the
+          # house, did both the jobs it could reach and ended at t=410 with
+          # the next offer due at t=480. Seventy seconds early, and it called
+          # that a completed mission.
+          #
+          # Standing by rather than ending, in bounded slices so the loop
+          # keeps re-checking `needs_charge` -- and deliberately without a
+          # state of its own: `State` is a two-repo vocabulary the website
+          # draws off, and "the robot paused" is what `idle` already looks
+          # like from the outside. `max_sim_time` is still the thing that
+          # ends the day.
+          self.mission._drive(WAIT_FOR_WORK_S, 0.0, 0.0)
         else:
           break
 
@@ -877,71 +950,65 @@ def points_ledger(state: str | None = None, table=None):
   return Ledger(path=state, table=table)
 
 
-def task_board(state: str | None = None, table=None):
+def task_board(state: str | None = None, table=None, cadence=None):
   """The world's job offers as persistent state (issue #21).
 
   `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
   the boards and the ledger get, and for the same reason: an offer is world
   state, and every mission end is a restart. A task that vanished because the
   container cycled would be a job somebody asked for and nobody ever declined.
+
+  The two CAPS come from `cadence` (issue #23) rather than from `hub/tasks.py`
+  defaults, so how much work may stand at once is configuration like the rest
+  of the timing policy. Without one the board keeps its own conservative
+  defaults, which is what a unit test wants.
   """
   from pluggybot.hub.tasks import TaskBoard
-  return TaskBoard(path=state, table=table)
+  if cadence is None:
+    return TaskBoard(path=state, table=table)
+  return TaskBoard(path=state, table=table, max_tasks=cadence.max_tasks,
+                   max_offered=cadence.max_offered)
 
 
-def seed_tasks(board, world: str, book=None, t: float = 0.0,
-               ttl: float | None = None,
-               standing_ttl: float | None = None) -> list:
-  """Put a starter set of jobs into the world, once, at mission start.
+def world_targets(world: str, book=None) -> dict:
+  """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
 
-  A PLACEHOLDER for issue #23, and deliberately a small and obvious one: how
-  often tasks appear, how long an offer stands, and the per-target cooldown
-  are that issue's, and they are meant to be configuration rather than the
-  literal list below. What this exists for is the end-to-end path -- a task
-  that can be created, offered, claimed, executed, graded and paid -- which
-  needs something to have been offered.
-
-  Built off the WORLD's own furniture (`world_config`, the boards' own names)
-  rather than hardcoded ids, so a world without whiteboards simply gets fewer
-  offers instead of an offer nothing can build.
+  The seam that keeps `hub/cadence.py` from knowing what a world is: the
+  producer is handed the furniture and rotates over it, and a kind whose
+  target_kind is missing here is simply not offered. Read off the world's own
+  config and the boards' own names, never hardcoded -- a world without
+  whiteboards gets fewer jobs rather than an offer nothing can build.
   """
-  from pluggybot.hub.tasks import KINDS
   cfg = world_config(world)
-  specs: list[tuple[str, str, dict, dict]] = []
+  targets: dict[str, list[str]] = {}
   if book is not None and len(book):
-    names = list(book.names)
-    specs.append(("draw_figure", names[0], {"program": "house"}, {}))
-    if len(names) > 1:
-      specs.append(("rate_artwork", names[1], {"program": "robot"}, {}))
-    # ...and one job with a RIGHT ANSWER (issue #22). The question is drawn
-    # off the board's own sequence number, which survives a restart, so a
-    # deployed robot works through the bank instead of being asked the same
-    # thing every morning -- and a test that seeds a fresh board gets the
-    # same question every time, which is what makes the mission tests
-    # reproducible.
-    question = default_bank().pick(board.seq)
-    specs.append(("whiteboard_answer", names[0],
-                  {"question": question.ask, "template": question.id},
-                  {"answer": question.answer}))
+    targets["board"] = list(book.names)
   if cfg.get("census_zone"):
-    specs.append(("count_plants", cfg["census_zone"]["name"], {}, {}))
-  if not specs:
-    # room_hub has neither boards nor anything countable, so the one job it
-    # can offer is the carry. Better than an empty board: the bare world is
-    # where the swap stack gets exercised on its own.
-    specs.append(("fetch_module", "module_lcd", {}, {}))
-  # THE CHEAPEST JOB IS THE ONE LEFT STANDING, and the rest lapse -- see
-  # SEED_STANDING_TTL_S. Cheapest rather than first because one errand costs
-  # roughly one full pack (hub/tasks.py's measurements), so which job is
-  # affordable at all is decided by its energy estimate and nothing else.
-  # Leaving the priciest one standing is leaving up the job the robot is
-  # least able to take.
-  cheapest = min(specs, key=lambda spec: KINDS[spec[0]].estimate_wh)
-  offered = [board.offer(kind, target, params=params, t=t, secret=secret,
-                         ttl=(standing_ttl if standing_ttl is not None else ttl)
-                         if spec is cheapest else ttl)
-             for spec in specs for kind, target, params, secret in (spec,)]
-  return [o for o in offered if o is not None]
+    targets["zone"] = [cfg["census_zone"]["name"]]
+  # One module, and deliberately the one every world has on its rack: the
+  # carry is the job a bare room can still offer, and it is where the swap
+  # stack gets exercised on its own.
+  targets["module"] = ["module_lcd"]
+  return targets
+
+
+def task_producer(board, world: str, book=None, cadence=None):
+  """The thing that keeps putting work into a world (issue #23).
+
+  Replaces the `seed_tasks` placeholder. That one put up a starter set once
+  and nothing ever added another, so a robot that worked through the board
+  spent the rest of a multi-hour run with nothing asked of it -- and the
+  three numbers behind it (how long an offer stands, how many, how often)
+  were constants in this module rather than something a deploy could re-tune.
+  Both halves are what issue #23 is.
+
+  ⚠ `TaskProducer.seed` is still a separate call, and it must be made AFTER
+  every hook is attached: `TaskBoard.offer` emits a `task_offered` the moment
+  it is called.
+  """
+  from pluggybot.hub.cadence import TaskProducer, default_cadence
+  return TaskProducer(board, cadence or default_cadence(world),
+                      world_targets(world, book))
 
 
 def world_screens(model, data):
@@ -1239,7 +1306,13 @@ def run_demo(start=None, view: bool = False,
   # adds errands to a mission, which reshuffles the whole trajectory, and
   # every existing demo and mission test has to behave exactly as it did
   # unless somebody asks for tasks by name. A state path implies "yes".
-  board = task_board(tasks_state) if (tasks or tasks_state) else None
+  # ...and how often the world puts work up, how long it stands and how much
+  # may stand at once (issue #23): hub/cadence.json, per world.
+  from pluggybot.hub.cadence import default_cadence
+  beat = default_cadence(world) if (tasks or tasks_state) else None
+  board = (task_board(tasks_state, cadence=beat)
+           if (tasks or tasks_state) else None)
+  maker = task_producer(board, world, book, beat) if board is not None else None
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.hub import overseer as ov
@@ -1256,7 +1329,8 @@ def run_demo(start=None, view: bool = False,
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, world=world,
-                      errands=errands_for(errand, world, book), tasks=board)
+                      errands=errands_for(errand, world, book), tasks=board,
+                      producer=maker)
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
@@ -1297,9 +1371,8 @@ def run_demo(start=None, view: bool = False,
   # `board_snapshot` lesson, arriving through a different door. Seeded only
   # when nothing is already outstanding, so a restart against a persisted
   # board resumes the jobs it left rather than re-offering them all.
-  if board is not None and not board.open_tasks():
-    seed_tasks(board, world, book, ttl=SEED_TTL_S,
-               standing_ttl=SEED_STANDING_TTL_S)
+  if maker is not None and not board.open_tasks():
+    maker.seed(pack_wh=life.fundable_wh)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],
                     max_sim_time=max_sim_time,
