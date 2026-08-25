@@ -11,6 +11,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   machine): sensed criteria, hysteresis + latching, pre-allocated geom/mocap
   toggles, and how activity state reaches telemetry. Read BEFORE building a
   puzzle, mechanism or gardening step
+- `docs/TaskPattern.md` — the recipe for adding a TASK KIND (a job offer):
+  the honesty rule (the wire may carry anything a network could carry, never
+  anything a sensor would have to discover), the perception ladder for object
+  tasks, code-side grading, and how tasks, errands and activities compose.
+  Read BEFORE adding a task kind or touching `hub/tasks.py`,
+  `hub/scoring.py` or `hub/cadence.py` — and fold any gap it left back in
 - `docs/Overseer.md` — the LLM overseer (issue #15): the ONE branch of the
   arbitration loop an LLM may replace, the action vocabulary, the three things
   it structurally cannot do, the scripted fallback, the call budget, and the
