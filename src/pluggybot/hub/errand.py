@@ -75,6 +75,23 @@ class Errand:
   #: that "the robot drew a house" and "the robot did the job it took on"
   #: are the same event rather than two.
   task_id: str = ""
+  #: does the use-phase need the pre-positioning drive to have ARRIVED?
+  #:
+  #: True for everything that works on a fixed thing at a fixed place -- a pen
+  #: at a board, a claw at a block -- and issue #23 is why the question is
+  #: asked at all: a use-phase run after a drive that gave up is a pen pressing
+  #: at empty air, and the mission hung there until the battery died.
+  #:
+  #: ⚠ FALSE FOR AN ERRAND THAT DOES ITS OWN NAVIGATION, and the census is
+  #: exactly that: `use_at` is the FIRST POINT OF THE SURVEY ROUTE the use
+  #: phase then drives itself, so the pre-positioning drive is redundant by
+  #: construction and gating on it throws away work the robot can still do.
+  #: Measured: the home mission's drive stopped 1.96 m short, and the census
+  #: went on to see 100 % of the garden and count 4 of 4 plants from there.
+  #: One gate for every errand cost the recorded mission its census answer,
+  #: which `tests/test_telemetry.py` guards and which is half of what the
+  #: showcase recording exists to show.
+  needs_use_pose: bool = True
 
   def __post_init__(self) -> None:
     if not self.task:
@@ -307,8 +324,13 @@ def census_errand(zone: Zone, label: str = "plants",
             "objects": tally["objects"], "vantages": vantages,
             "stopped": stopped}
 
+  # `use_at` is `points[0]` -- the first vantage of the route `use` drives
+  # itself -- so this errand does not need the pre-positioning drive to have
+  # arrived, and must not be skipped when it falls short. See
+  # `Errand.needs_use_pose`.
   return Errand(name=name or f"census:{zone.name}", module=module,
                 station_y=station_y, use_at=points[0], use=use, task="census",
+                needs_use_pose=False,
                 detail={"zone": zone.name, "label": label,
                         "vantages": len(points)})
 

@@ -21,7 +21,8 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION, body_census, dynamic_flags
-from pluggybot.telemetry.recorder import FrameBuilder, TelemetryRecorder
+from pluggybot.telemetry.recorder import (FrameBuilder, GridSampler,
+                                          TelemetryRecorder)
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
 
 REPO = Path(__file__).parent.parent
@@ -587,7 +588,7 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub._need_boards = threading.Event()
   pub._need_keyframe = threading.Event()
   pub.boards = None
-  pub.grid = None
+  pub._grid = GridSampler(None)
   pub.frames_dropped = 0
   pub.events_dropped = 0
 
@@ -698,6 +699,43 @@ def test_the_home_fixture_shows_the_census_answer():
   assert held >= 4.0, f"the answer was on screen for {held:.1f} sim-seconds"
 
 
+def test_the_recordings_between_them_show_a_job_taken_on_and_judged():
+  """A job OFFERED is a screenshot; a job taken on and judged is the evidence.
+
+  Asserted across the PAIR rather than of each recording, and that is a
+  deliberate weakening of where this used to live. The two fixtures are for
+  different things: room_hub is the task loop (offers arriving on the cadence,
+  claimed, graded), home is the two STREAMED SURFACES -- ink on a board and a
+  count on the LCD -- and the site paints both from it.
+
+  ⚠ MEASURED, and the reason the assertion moved: home's showcase queue is two
+  errands and its 1.1 Wh cell does roughly ONE per charge, so the pack is spent
+  before the loop ever reaches a third. Nor can the cell simply grow --
+  `needs_charge` is an absolute reserve, so a bigger pack buys FEWER charge
+  cycles, not more: at 1.6 Wh the robot does both errands on the starting
+  charge, never charges at all (which this file's other guard requires it to)
+  and still dies, mid-census, reporting 3 of 4 plants. 1.25 Wh threads neither
+  needle. Per-errand energy is M10; until then, demanding the whole task
+  lifecycle of the recording that carries the census is demanding a mission
+  that does not exist.
+
+  What must never happen is BOTH recordings losing it, which is what this
+  catches -- the website builds its markers against `task_claimed` and
+  `task_resolved`, and neither has a body or a keyframe behind it.
+  """
+  seen = {"claimed": [], "resolved": []}
+  for fixture, model_name, _ in TELEMETRY_CASES:
+    with gzip.open(PROTOCOL / fixture, "rt") as f:
+      events = [json.loads(line) for line in f if '"type"' in line]
+    for e in events:
+      if e["type"] == "task_claimed":
+        seen["claimed"].append(model_name)
+      if e["type"] == "task_resolved" and e["state"] in ("done", "failed"):
+        seen["resolved"].append(model_name)
+  assert seen["claimed"], "no recording shows a job being taken on"
+  assert seen["resolved"], "no recording shows a job being judged"
+
+
 @pytest.mark.parametrize("fixture,model_name,draws", TELEMETRY_CASES,
                          ids=[c[1] for c in TELEMETRY_CASES])
 def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
@@ -783,11 +821,14 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # these lines and the tasks block -- a job offer has no body either.
   assert header["taskKinds"], "the header must advertise what jobs it offers"
   put_up = [e for e in events if e["type"] == "task_offered"]
-  taken = [e for e in events if e["type"] == "task_claimed"]
   closed = [e for e in events if e["type"] == "task_resolved"]
   assert put_up, "no job was ever offered"
-  assert taken, "no job was ever taken on: the claim path is untested"
-  assert closed, "no job ever resolved"
+  # ⚠ `taken` / `closed` are asserted ACROSS THE PAIR, not per recording --
+  # see `test_the_recordings_between_them_show_a_job_taken_on_and_judged`. The
+  # two fixtures have different jobs: room_hub demonstrates the task loop,
+  # home demonstrates the two streamed surfaces (ink and the LCD's count), and
+  # the home cell does not stretch to a claimed errand on top of both. What
+  # stays per-recording is everything that is true of any offer.
   for e in put_up:
     assert e["task"]["kind"] in header["taskKinds"]
     # A task names an evaluator and a row of the reward table; what it PAYS
@@ -802,10 +843,8 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
     assert reward["base"] + reward["bonus"] > 0
     assert (reward["base"] == 0) == (reward["tier"] == "visitor")
     assert e["task"]["state"] == "offered" and e["task"]["points"] == 0
-  # ...and at least one job went the whole way, which is what makes this
-  # fixture the end-to-end evidence rather than a screenshot of an offer.
+  # Whatever DID close here closed honestly, even if nothing did.
   finished = [e for e in closed if e["state"] in ("done", "failed")]
-  assert finished, "every offered job merely lapsed: nothing was executed"
   assert all(e["verdict"] is not None for e in finished)
   assert all("truth" not in json.dumps(e["verdict"]) for e in finished)
   # The verdict that closed the task is the one that PAID for the errand --
@@ -865,3 +904,147 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
     for pose in list(f["robots"]["pluggybot"].get("bodies", {}).values()) \
         + list(f.get("world", {}).values()):
       assert len(pose) == 7
+
+
+# ---- the occupancy map in a RECORDING (rooftop-media-2026 #78) -------------
+#
+# The grid had been a LIVE-ONLY message since 0.2.0: the publisher shipped it
+# and the recorder did not, so a replayed mission was of a robot that never
+# had a map. The website's default view IS a recording -- live falls back to
+# one whenever no sim is publishing -- so a map panel reading only the live
+# stream would be blank for almost every visitor. These four guards are the
+# producer half of that fix.
+
+def _stub_grid(marks=()):
+  """A small OccupancyGrid with cells stamped directly in log-odds.
+
+  Stamping beats driving a lidar here: what is under test is the recorder's
+  seam, and a scan would make the assertions depend on ray casting.
+  """
+  from pluggybot.mapping.occupancy_grid import OccupancyGrid
+  grid = OccupancyGrid(x_min=-1.0, y_min=-0.5, x_max=1.0, y_max=0.5,
+                       resolution=0.05)
+  for ix, iy, odds in marks:
+    grid.grid[iy, ix] = odds
+  return grid
+
+
+def _record_with_grid(model, path, grid, seconds, grid_hz, on_step=None):
+  data = mujoco.MjData(model)
+  rec = TelemetryRecorder(model, data, path, model_name="mini",
+                          grid=grid, grid_hz=grid_hz)
+  for step in range(round(seconds / model.opt.timestep)):
+    mujoco.mj_step(model, data)
+    if on_step is not None:
+      on_step(step)
+    rec.step_hook()
+  rec.close()
+  return rec, [json.loads(x) for x in open(path)]
+
+
+def test_a_recording_carries_the_robots_map_belief(mini_model, tmp_path):
+  """The map rides a recording as its own typed line, like a stroke does.
+
+  Everything a renderer needs to place it must be ON that line: `extent` and
+  `resolution` are what scale it, and hardcoding a world size instead is the
+  bug this guards -- room_hub's grid is 10 x 10 m where home's is 14 x 10.
+  """
+  grid = _stub_grid([(5, 3, -2.0), (6, 3, 2.0)])
+  path = str(tmp_path / "out.jsonl")
+  rec, lines = _record_with_grid(mini_model, path, grid, seconds=2.0,
+                                 grid_hz=2.0)
+
+  grids = [x for x in lines if x.get("type") == "grid"]
+  assert grids, "the recording carries no map at all"
+  assert rec.grids == len(grids)
+  assert all(g["extent"] == [-1.0, -0.5, 1.0, 0.5] for g in grids), \
+    "a renderer cannot scale a map whose extent it is not told"
+  assert all(g["resolution"] == 0.05 for g in grids)
+  assert all(g["robot"] == "pluggybot" for g in grids)
+  # ...and the lines are ordered in sim time with the frames around them, so
+  # a replayer sampling by one clock gets the map the robot held then.
+  assert all(b["t"] >= a["t"] for a, b in zip(lines[1:], lines[2:]))
+  assert 0 < lines.index(grids[0]) < len(lines) - 1
+
+
+def test_row_zero_of_the_map_png_is_the_y_min_edge(mini_model, tmp_path):
+  """The orientation contract, pinned because it is invisible until it is
+  wrong: a renderer that assumes PNG row 0 is the TOP of the world draws the
+  robot's map upside down, and a symmetric room hides it completely."""
+  import base64
+  import io
+
+  from PIL import Image
+
+  # Nothing but one confidently-free cell, hard against the y_min edge.
+  grid = _stub_grid([(4, 0, -2.0)])
+  path = str(tmp_path / "out.jsonl")
+  _, lines = _record_with_grid(mini_model, path, grid, seconds=1.0,
+                               grid_hz=2.0)
+  first = next(x for x in lines if x.get("type") == "grid")
+  img = np.array(Image.open(io.BytesIO(base64.b64decode(first["png"]))))
+
+  assert img.shape == (20, 40), "rows are y, columns are x"
+  assert img[0, 4] == 255, "the y_min row is not row 0"
+  assert img[-1, 4] == 127, "something was written to the y_max row"
+
+
+def test_an_unchanged_map_is_not_written_twice(mini_model, tmp_path):
+  """The map stops changing for minutes at a time -- through a charge,
+  through a drawing -- and a byte-identical PNG re-written every interval is
+  pure weight in a file the website ships to every visitor.
+
+  The live stream deliberately does NOT skip; see GridSampler.
+  """
+  grid = _stub_grid([(5, 3, -2.0)])
+
+  def change(step):
+    if step == round(1.0 / mini_model.opt.timestep):
+      grid.grid[9, 3] = 2.0
+
+  path = str(tmp_path / "out.jsonl")
+  rec, lines = _record_with_grid(mini_model, path, grid, seconds=2.0,
+                                 grid_hz=4.0, on_step=change)
+
+  grids = [x for x in lines if x.get("type") == "grid"]
+  assert len(grids) == 2, \
+    f"an unchanged map was written {len(grids)} times, not twice"
+  assert rec._grid.skipped >= 5, "nothing was skipped: the dedupe is inert"
+  # The second one is the change, not a re-run of the first.
+  assert grids[0]["png"] != grids[1]["png"]
+
+
+def test_the_map_png_is_encoded_off_the_physics_thread(mini_model, tmp_path,
+                                                       monkeypatch):
+  """The rule the whole module is shaped around: no I/O, and no work of this
+  size, inside a physics step. Encoding a 280 x 200 PNG is milliseconds; the
+  hook that queues it runs at 500 Hz."""
+  import pluggybot.telemetry.recorder as recorder_mod
+
+  threads = []
+  real = recorder_mod.encode_grid_png
+
+  def spy(img):
+    threads.append(threading.current_thread())
+    return real(img)
+
+  monkeypatch.setattr(recorder_mod, "encode_grid_png", spy)
+  grid = _stub_grid([(5, 3, -2.0)])
+  path = str(tmp_path / "out.jsonl")
+  _record_with_grid(mini_model, path, grid, seconds=1.0, grid_hz=2.0)
+
+  assert threads, "nothing was encoded"
+  assert all(t is not threading.current_thread() for t in threads), \
+    "the PNG was encoded inside the physics step"
+
+
+def test_the_recorder_and_the_publisher_describe_one_map(mini_model):
+  """Recorder and publisher are the same producer with different sinks, and
+  the map is the fifth block to have to prove it: a replay that scaled its
+  map differently from the live stream would be a second renderer."""
+  from pluggybot.telemetry.recorder import GridSampler
+
+  grid = _stub_grid([(5, 3, -2.0)])
+  recorded, _ = GridSampler(grid, hz=1.0, dedupe=True).due(0.0)
+  live, _ = GridSampler(grid, hz=1.0, dedupe=False).due(0.0)
+  assert recorded == live

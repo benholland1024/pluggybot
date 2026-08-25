@@ -51,13 +51,21 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **570 of 583 tests in ~2:00**, against **~10:30** for everything (the
-  figures before issues #21–#22 were 430/439 in 1:18 and ~6:22, and before
-  #13–#15, 343/351 in 1:13 and 6:34). THIRTEEN whole-mission integration runs
-  carry `@pytest.mark.slow` and are most of the serial clock on their own
-  (`test_full_hub_lifecycle[home]` alone is ~157 s) — ~8:40 of marginal
-  wall-clock in parallel, since they run alongside everything else. That
-  margin is why they stay.
+  **596 of 607 tests in ~2:15**, against **~13:10** for everything (before
+  issue #23 it was 570/583 and ~10:30; before #21–#22, 430/439 in 1:18 and
+  ~6:22; before #13–#15, 343/351 in 1:13 and 6:34). ELEVEN whole-mission
+  integration runs carry `@pytest.mark.slow` and are ALL of the serial clock:
+  `-m slow` alone measured 844 s against a full suite's 844 s, so every fast
+  test is absorbed into their shadow and the marginal cost of the other 596
+  is close to zero.
+  ⚠ **The wall-clock figures track the MACHINE, not the repo.** The 10:30
+  and the 13:10 above are very nearly the same tests: `test_full_hub_lifecycle
+  [home]` measured **250 s** alone here on the same commit that documented it
+  at 157 s, and 249.8 vs 250.2 s across the issue-23 change (stashed and
+  unstashed, back to back) — a 0.2 % difference on a test that touches none
+  of it. Before believing a slower suite, time ONE unchanged mission test
+  `-n0` on both sides; a number in this file is evidence about the day it was
+  written.
   Two of them are the same argument twice over:
   `test_charge_priority_survives_an_overseer_that_never_charges` (issue #15,
   153 s alone) is the only way to prove an LLM cannot skip charging, and
@@ -189,6 +197,22 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   cycles, and no charging policy can save it, because the reserve is only
   checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
   demo cell grows or per-errand energy is actually modelled.
+- **A recording carries the robot's MAP** (rooftop-media-2026 #78). `grid` was
+  live-only from 0.2.0 until the website drew it, and the site's default view
+  is a recording — so the map panel would have been blank for almost every
+  visitor. `TelemetryRecorder` takes the mission's grid; `GridSampler` is the
+  one implementation both sinks share, differing in a single argument.
+  A RECORDING skips an image identical to the last one it wrote (the belief
+  stops moving for minutes through a charge, and these bytes are vendored into
+  the website's bundle) and writes at 0.2 Hz rather than 1 Hz. The LIVE stream
+  does NEITHER: the hub caches the newest grid per robot for late joiners, so
+  a stream that fell silent because nothing changed would be indistinguishable
+  from one whose grid path had broken — the `accepts` lesson again.
+  Additive, not a version bump: the message is unchanged and the dispatch rule
+  has been "ignore a type you do not know" since 0.4.0.
+  ⚠ **Row 0 of the PNG is the y_min edge** — the bottom of the world, and the
+  opposite of a canvas. Invisible until it is wrong, and a symmetric room
+  hides it completely; `tests/test_telemetry.py` pins it.
 - **Goals are STREAMED as of protocol 0.8.0** (rooftop-media-2026 #30): one
   `goals` message when a stream opens, carrying `read_goals` verbatim, so the
   site can show what the robot is FOR. It rides the `board_snapshot` slot for
@@ -235,7 +259,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
   `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_BATTERY_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`; the secret stays
-  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public).
+  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The three DATA files
+  are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
+  (what a job pays), `$PLUGGY_QUESTIONS` (the question bank) and
+  `$PLUGGY_CADENCE` (how busy the world is) — mount a file, no rebuild.
   ⚠ **A lazy import is the failure mode here**: the detector comes in
   inside `hub.tags._shared_detector`, so nothing an import scan can see —
   which is why `tests/test_deploy.py` blocks the omitted packages and then
@@ -264,6 +291,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the LCD, so the website has ONE recording carrying `draw` /
   `board_cleared` events AND a `screens` block that changes, which are the
   two surfaces it paints.
+  ⚠ **THE ARRIVAL GATE IS PER-ERRAND** (`Errand.needs_use_pose`), and the
+  home recording is what proves why. Issue #23 rightly stopped a use-phase
+  running after a `drive_to` that gave up — a pen must be at its board — but
+  gating EVERY errand that way silently deleted the census: its `use_at` is
+  the first point of the survey route its own use-phase drives, so the
+  pre-positioning drive is redundant by construction. Measured: the drive
+  stops 1.96 m short and the robot sees 100 % of the garden from there,
+  counting 4 of 4 for +20. With one gate for everything the recorded showcase
+  mission carried no `count` mode at all, which
+  `test_the_home_fixture_shows_the_census_answer` catches. An errand that does
+  its own navigation sets the flag False; everything else must not.
   ⚠ **The HOME recording takes TWO PASSES**: `--boards <state.json>` is
   load-bearing, not decoration. A `board_snapshot` is only emitted for a board
   ALREADY carrying ink when the stream opens, so a run against blank boards
@@ -461,8 +499,86 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     a bug. Only OFFERED tasks expire — a deadline is how long an offer
     stands, never a licence to abandon a job with a module on the fork.
   - Off by default (`--tasks` / `--task-state PATH`, `$PLUGGY_TASKS`): a task
-    board adds errands, which reshuffles a whole mission. Cadence, caps and
-    expiry policy are issue #23; `lifecycle.seed_tasks` is the placeholder.
+    board adds errands, which reshuffles a whole mission.
+- **WHEN work appears is `hub/cadence.py` + `cadence.json`, and it is DATA**
+  (issue #23; `$PLUGGY_CADENCE` overrides, per world). Three files now divide
+  the task system cleanly and they are meant to be re-tuned one at a time:
+  `tasks.py` says what a job IS, `rewards.json` says what it PAYS,
+  `cadence.json` says when it TURNS UP. `TaskProducer` replaced
+  `lifecycle.seed_tasks`, which put a starter set up once and never asked
+  again — a world that only offers work in its first second is a demo.
+  Measured end-to-end (`hub_lifecycle.py --world home --errand none --tasks
+  --max-sim-time 1800`): 5 jobs, **2 done, 1 failed, 1 expired, 1 still
+  standing** across 3 charge cycles, every claim landing in the seconds after
+  a charge completed — issue #23's "healthy mix" acceptance, on real physics.
+  The four-sim-hour bound is asserted synthetically in `tests/test_cadence.py`
+  instead, because a real one is half a day of wall clock.
+  - **It ticks on the PHYSICS seam, not on the arbitration loop**
+    (`HubLifecycle._task_step`, throttled to `cadence.CHECK_S` = 1 s). A
+    mission pass only happens between errands, so a producer ticked there
+    could only offer work while the robot stood still, and an offer would be
+    seen to lapse minutes after it did. The seam is deliberately incapable of
+    anything the robot does — it offers and it expires, and it touches
+    `state`, `errands` and the battery not at all. That is what keeps "a task
+    never delays a charge" true now that the world's clock runs *during* a
+    charge; `tests/test_cadence.py` pins it, and the branch-order claim stays
+    where it was in `tests/test_tasks.py`.
+  - ⚠ **THE ENERGY GATE IS MEASURED AGAINST A CHARGED PACK, NOT THE CELL RIGHT
+    NOW**, and this is a deliberate departure from the issue's literal words.
+    Gating each tick on the instantaneous charge takes home from **58 offers
+    in four sim-hours to 14**, with 46 deferrals — fewer jobs than the robot
+    can complete, which is the empty world the module exists to prevent
+    arriving dressed as a safety feature. The arithmetic is the same one from
+    issue #21: one errand costs roughly one full pack, so the window in which
+    a home cell is above any errand's estimate is the minute after a charge,
+    and a 240 s tick mostly misses it. Deferring until after a charge is real
+    and already lives in `Task.claimable` — the offer simply stands,
+    unclaimable, until the pack is legal again. `HubLifecycle.fundable_wh`
+    (capacity × `CHARGED`) is what the producer sees; `spendable_wh` is still
+    what a claim sees.
+  - **A passed-over kind KEEPS THE HEAD OF THE QUEUE**; only a kind that was
+    actually offered gives its turn up. home has three board-shaped kinds and
+    two whiteboards, so one of them cannot be placed on any cycle — with a
+    cursor that simply advanced past whatever it placed, the same two won
+    every time and `rate_artwork` (the whole visitor-rated tier) was offered
+    **zero** times in four sim-hours, measured.
+  - **One offer per tick and no catch-up.** A tick that cannot place a job
+    waits for the next one rather than banking credit, or a robot that spent
+    twenty minutes on an errand walks back into eight new jobs — the
+    unbounded backlog, arriving through the front door.
+  - Targets are picked **least-recently-offered**, never first (with "first",
+    the second whiteboard is scenery), and a target carrying an open task or
+    still inside `cooldownS` is not offered at all. Nothing is random:
+    `hub_lifecycle.py --tasks` twice in a row offers the same jobs at the same
+    sim-seconds, for the reason `QuestionBank.pick` rotates on a counter.
+  - ⚠ **Two mission-loop defects fell out of this, and NEITHER is about
+    cadence** — both were invisible until something offered work the old
+    starter set never did.
+    - **`run_errand` threw away `drive_to`'s answer** and narrated "arrived"
+      whatever happened. A drawing job on the FAR whiteboard (7 m away,
+      through a doorway the robot has not mapped) fails to plan, and the pen
+      then probed for a board that was not there until the battery died — ten
+      minutes of wall clock with nothing in the log after `USE_TOOL:
+      arrived`. Now the use-phase is skipped, the tool still goes back to its
+      bay, and the evaluator finds no ink and fails the job honestly. Not
+      reaching a board and drawing badly at one are different events; both
+      must end with the module on the rack. `scripts/home_draw.py --board
+      whiteboard_b` is the one-line repro and it hangs on the old code.
+    - **The loop ended the day the moment it was momentarily idle.** Right
+      for a preset queue, which never grows back; wrong for a world with a
+      producer. Measured: a home run mapped the house, did both jobs it could
+      reach and reported "mission complete" at t=410 with the next offer due
+      at t=480. It now stands by in `WAIT_FOR_WORK_S` slices — only where a
+      producer is attached, so every preset-errand mission test ends exactly
+      as it did, and `needs_charge` is still re-checked every few seconds.
+  - ⚠ **`estimate_wh` is per-KIND, and the far board costs more than the near
+    one.** The 0.929 Wh drawing figure was measured on `whiteboard_a`; the
+    acceptance run claimed an `artwork` job on `whiteboard_b` at 88 %
+    (0.968 Wh against a 0.93 estimate), drew it perfectly and **died at 0 %
+    on the way back**. Honest, pre-existing and exactly issue #15's territory
+    — the reserve is only checked BETWEEN errands and a per-kind estimate
+    cannot know which end of the house it is being asked about. Do not
+    "fix" it by padding the table: see the note under TASK above.
 - **A QUESTION is a job for a MIND** (`hub/questions.py` + `questions.json`,
   issue #22). The `whiteboard_answer` kind poses a question with a checkable
   answer — "Draw the answer to this question on whiteboard_a: 2 + 3" — and

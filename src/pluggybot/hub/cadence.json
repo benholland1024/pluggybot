@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "note": [
+    "How often the world puts up work, how long an offer stands, and how much",
+    "may stand at once (pluggybot issue #23). DATA, not code, on exactly the",
+    "terms hub/rewards.json is: this is policy about a world, it wants",
+    "re-tuning against a mission's own clock rather than against wall-clock",
+    "intuition, and a deploy has to be able to change it on a mounted volume",
+    "without a rebuild -- $PLUGGY_CADENCE=/path/to/cadence.json.",
+    "",
+    "What a task IS lives in hub/tasks.py; what it PAYS lives in",
+    "hub/rewards.json; WHEN one appears is here, and the three are separate",
+    "so that re-tuning any of them touches one file.",
+    "",
+    "READ THE NUMBERS AGAINST THE MISSION, NOT AGAINST A CLOCK ON A WALL. A",
+    "home charge-to-charge cycle is ~365 sim-seconds and one errand costs",
+    "roughly one full pack, so the robot finishes about one job per cycle.",
+    "`everyS` below is deliberately a little FASTER than that: offers have to",
+    "outpace completion or nothing ever lapses, and a board on which every",
+    "job gets done is a board that was never really a queue. `ttlS` is longer",
+    "than a cycle for the opposite reason -- a job the robot means to do must",
+    "survive a charge interrupting it.",
+    "",
+    "  firstAtS   sim seconds before the first cadenced offer after the seed",
+    "  everyS     sim seconds between offers. One offer per tick at most:",
+    "             a tick that cannot place one (capped, every target booked,",
+    "             or the pack cannot fund the job) waits for the next one",
+    "             rather than catching up in a burst",
+    "  ttlS       how long an offer stands before it lapses as `expired`.",
+    "             null means it stands until the board fills",
+    "  cooldownS  how long a target rests after being named by an offer, so",
+    "             the same whiteboard is not booked back-to-back forever",
+    "  maxOffered how many offers may stand at once",
+    "  maxTasks   how many tasks the board holds at all; resolved ones age",
+    "             out oldest-first and open ones are never dropped",
+    "  initial    offers put up at mission start, before the cadence begins",
+    "  kinds      which jobs this world offers, IN ROTATION ORDER, and the",
+    "             params each is built with. A kind whose target_kind this",
+    "             world has nothing for is skipped, so a world with no",
+    "             whiteboards simply offers fewer jobs. `programs` rotates",
+    "             the figure across successive offers of the same kind",
+    "",
+    "A world block overrides the default block key by key."
+  ],
+  "default": {
+    "firstAtS": 300.0,
+    "everyS": 300.0,
+    "ttlS": 600.0,
+    "cooldownS": 600.0,
+    "maxOffered": 5,
+    "maxTasks": 40,
+    "initial": 3,
+    "kinds": {
+      "whiteboard_answer": {},
+      "draw_figure": {"programs": ["house", "tree", "sun"]},
+      "rate_artwork": {"programs": ["robot", "sun"]},
+      "count_plants": {},
+      "fetch_module": {}
+    }
+  },
+  "worlds": {
+    "home": {
+      "firstAtS": 240.0,
+      "everyS": 240.0,
+      "ttlS": 720.0,
+      "cooldownS": 480.0,
+      "maxOffered": 5,
+      "initial": 4,
+      "kinds": {
+        "whiteboard_answer": {},
+        "draw_figure": {"programs": ["house", "tree", "sun"]},
+        "rate_artwork": {"programs": ["robot", "sun"]},
+        "count_plants": {}
+      }
+    },
+    "room_hub": {
+      "firstAtS": 150.0,
+      "everyS": 150.0,
+      "ttlS": 420.0,
+      "cooldownS": 300.0,
+      "maxOffered": 3,
+      "initial": 1,
+      "kinds": {
+        "fetch_module": {}
+      }
+    }
+  }
+}

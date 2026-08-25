@@ -35,11 +35,15 @@ The frame-building lives in FrameBuilder so the live WebSocket publisher
 recorder and the publisher are the same producer with different sinks.
 """
 
+import base64
 import gzip
+import io
 import json
 import queue
 import threading
 from typing import Callable
+
+from PIL import Image
 
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION, ROBOT_ROOT, body_census
 
@@ -53,6 +57,15 @@ POS_EPS = 0.0005    # m: half a millimetre of world-frame motion
 QUAT_EPS = 0.0005   # per-component, sign-normalized (q and -q are the
                     # same rotation; xquat may hand us either)
 NDIGITS = 4         # 0.1 mm -- below anything a viewer can see
+GRID_HZ = 1.0       # LIVE occupancy-grid messages per sim-second
+RECORD_GRID_HZ = 0.2  # ...and in a RECORDING: one every five sim-seconds.
+                    # A recording is watched from the top, so what matters is
+                    # that the map is seen FILLING IN, not that it is at most
+                    # a second stale -- and unlike the live stream these bytes
+                    # are permanent and vendored into the website's bundle,
+                    # where every visitor pays for them on page load. 138
+                    # samples across the home mission is plenty of steps to
+                    # watch, at a fifth of the size.
 
 
 class FrameBuilder:
@@ -303,6 +316,68 @@ class FrameBuilder:
     return [round(v, NDIGITS) for v in p + q]
 
 
+def encode_grid_png(img) -> str:
+  """Base64 PNG of a uint8 occupancy image. Called on a SINK thread only.
+
+  Never from a physics step: encoding a 280 x 200 image is milliseconds, and
+  milliseconds inside a step are the one cost this whole module is shaped to
+  avoid. Both sinks snapshot the array in the hook (a cheap numpy copy) and
+  call this on the thread that owns the I/O.
+  """
+  buf = io.BytesIO()
+  Image.fromarray(img).save(buf, format="PNG")
+  return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+class GridSampler:
+  """Decimation -- and, for a recording, change detection -- for the robot's
+  occupancy-grid BELIEF, shared by the recorder and the live publisher.
+
+  `due(t)` answers the message that is owed at sim time `t`, as a (message,
+  image) pair with no "png" key yet: the PNG is the sink thread's job. None
+  means nothing is owed.
+
+  The two sinks differ in exactly one way, and it is `dedupe`. A RECORDING
+  skips an image identical to the one it last wrote, because the map stops
+  changing for minutes at a time -- through a charge, through a drawing --
+  and a byte-identical PNG re-written every interval is pure weight in a file
+  the website ships to every visitor. The LIVE stream does not skip: the
+  relay hub caches the most recent grid per robot and replays it to a browser
+  that joins later (protocol/README.md), so the last message sent is the one
+  a joiner gets, and a stream that fell silent because nothing changed would
+  be indistinguishable from one whose grid path is broken.
+  """
+
+  def __init__(self, grid, hz: float = GRID_HZ, dedupe: bool = False) -> None:
+    self.grid = grid
+    self.dedupe = dedupe
+    self.emitted = 0
+    self.skipped = 0
+    self._interval = 1.0 / hz
+    self._next = 0.0
+    self._last: bytes | None = None
+
+  def due(self, t: float) -> tuple[dict, object] | None:
+    if self.grid is None or t < self._next:
+      return None
+    self._next = t + self._interval
+    img = self.grid.to_image()
+    if self.dedupe:
+      # Compared as bytes rather than with numpy so this module keeps its
+      # dependency-free import list; a 56 KB memcmp every five sim-seconds
+      # costs nothing measurable next to the PNG it avoids.
+      raw = img.tobytes()
+      if raw == self._last:
+        self.skipped += 1
+        return None
+      self._last = raw
+    self.emitted += 1
+    return ({"type": "grid", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+             "extent": [self.grid.x_min, self.grid.y_min,
+                        self.grid.x_max, self.grid.y_max],
+             "resolution": self.grid.resolution}, img)
+
+
 class TelemetryRecorder:
   """Decimating JSONL recorder for one robot's mission.
 
@@ -311,6 +386,10 @@ class TelemetryRecorder:
   in .gz records through gzip transparently. `status_fn`, if given, is
   called once per emitted frame and its dict is merged into the robot's
   record -- the lifecycle supplies state / status line / battery there.
+  `grid`, if given, is the mission's OccupancyGrid: its belief is written
+  into the stream at grid_hz, skipping an image identical to the last one
+  (GridSampler). Passing it is what lets a REPLAY draw the map, and not
+  passing it is why no recording made before rooftop-media-2026 #78 can.
   """
 
   def __init__(self, model, data, path: str, hz: float = FRAME_HZ,
@@ -319,13 +398,15 @@ class TelemetryRecorder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               steering: bool = False) -> None:
+               steering: bool = False,
+               grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
                                  steering=steering)
+    self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
@@ -351,12 +432,25 @@ class TelemetryRecorder:
   def frames(self) -> int:
     return self._builder.frames
 
+  @property
+  def grids(self) -> int:
+    """Occupancy-grid images actually written (see GridSampler.skipped for
+    the ones the dedupe swallowed)."""
+    return self._grid.emitted
+
   # ---- the hook (runs inside every physics step) ---------------------------
 
   def step_hook(self) -> None:
     frame = self._builder.build()
     if frame is not None:
       self._queue.put(frame)
+      # Off the FRAME's clock, not the raw sim time, so a grid line always
+      # sits between two frames whose timestamps bracket it -- a replayer
+      # samples the map by the same clock it samples poses by. The pair goes
+      # on the queue unencoded; the writer thread turns it into a PNG.
+      sample = self._grid.due(frame["t"])
+      if sample is not None:
+        self._queue.put(sample)
 
   # ---- out-of-band messages ------------------------------------------------
 
@@ -384,6 +478,10 @@ class TelemetryRecorder:
         item = self._queue.get()
         if item is None:
           return
+        if isinstance(item, tuple):    # a grid sample: encode it HERE
+          message, img = item
+          message["png"] = encode_grid_png(img)
+          item = message
         f.write(json.dumps(item, separators=(",", ":")) + "\n")
 
   def close(self) -> None:
