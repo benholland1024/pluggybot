@@ -59,7 +59,7 @@ import os
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from pluggybot.hub.inbox import MAX_ID, clean
@@ -104,6 +104,12 @@ CACHE_WRITE_MULTIPLIER = 1.25
 #: answer outside it is a malformed answer.
 ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
            "explore", "charge", "idle", "journal")
+
+#: The actions that BUILD AN ERRAND, and so cost a pack's worth of energy
+#: (issue #15). The rest are either free (`idle`, `journal`), bounded and
+#: interruptible (`explore`), the charge itself, or priced per job by the
+#: task board (`take_task`, whose offers carry their own `claimable` flag).
+ERRAND_ACTIONS = ("draw", "artwork", "census", "dance", "carry")
 
 #: Consecutive failed calls before the overseer stops asking for a while.
 #: ⚠ Needed because a missing API key does NOT fail at client construction --
@@ -211,6 +217,13 @@ class Menu:
   programs: tuple[str, ...] = ()
   zones: tuple[str, ...] = ()
   census_zone: str = ""
+  #: action -> measured Wh (issue #15). On the MENU rather than in the
+  #: volatile context because what an errand costs is a property of the
+  #: world: it does not change between calls, so it belongs in the cached
+  #: prefix. What DOES change -- which of them the pack can pay for right
+  #: now, and which this world could ever do -- rides the user turn as
+  #: `affordableActions` / `possibleActions`.
+  costs_wh: dict = field(default_factory=dict)
 
   @classmethod
   def for_world(cls, world: str, book=None) -> "Menu":
@@ -233,8 +246,13 @@ class Menu:
     # no reason at all.
     programs = tuple(sorted(n for n in strokes.PROGRAMS
                             if n not in ("text", "answer")))
-    return cls(boards=tuple(book.names) if book is not None else (),
+    menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census)
+    # Priced off the same table the mission loop refuses errands with, so the
+    # model is never shown a cost the gate disagrees with.
+    from pluggybot.hub import energy as energy_model
+    costs = energy_model.load(world)
+    return replace(menu, costs_wh=costs.as_context(menu.available()))
 
   def available(self) -> tuple[str, ...]:
     """The actions that are actually possible here.
@@ -401,14 +419,34 @@ def scripted(menu: Menu, state: dict, why: str) -> Decision:
     return Decision(action="take_task", task=str(offers[0]["id"]),
                     reason="taking the job that has been waiting longest",
                     source=f"fallback:{why}")
+  # ...and never one this WORLD cannot do (issue #15). `possibleActions`, not
+  # `affordableActions`: an errand the robot merely cannot afford this second
+  # is one the loop charges for and then runs, so filtering on the tighter
+  # list would starve the rotation into `explore` for the whole minute before
+  # every charge. What is missing from `possibleActions` is what no charge
+  # here would cover, and rotating onto that is the loop refusing every
+  # scripted decision in turn while the robot stands still. An empty list
+  # means nobody supplied one (a unit test, an older caller), and then
+  # nothing is filtered.
+  can_pay = set(state.get("possibleActions") or ())
+
+  def offered(action: str) -> bool:
+    return action in menu.available() and (not can_pay or action in can_pay)
+
   done = set(state.get("tasksThisMission") or ())
   for action in ("draw", "census", "dance", "carry"):
-    if action in menu.available() and action not in done:
+    if offered(action) and action not in done:
       return _fill(menu, action, why, state)
   if "explore" in menu.available() and not state.get("mapDone"):
     return _fill(menu, "explore", why, state)
   first = next((a for a in ("draw", "census", "dance", "carry")
-                if a in menu.available()), "idle")
+                if offered(a)), "")
+  if not first:
+    # Nothing this world can pay for and nothing left to map. Exploring is
+    # bounded and interruptible, so it is always affordable -- and standing
+    # still is better than choosing an errand that will be refused.
+    return _fill(menu, "explore" if "explore" in menu.available() else "idle",
+                 why, state)
   return _fill(menu, first, why, state)
 
 
@@ -462,6 +500,14 @@ what things pay.
 - Some tasks have an answer you are supposed to go and find out. You are never \
 told that answer. Guessing scores nothing; going and looking scores.
 - A task you start gets finished, including putting the tool back.
+- EVERY TASK COSTS ENERGY, and `energyCostWh` below says how much each one \
+takes out of your pack. `affordableActions` is what you can pay for right \
+now; `possibleActions` is everything you could do here after a top-up. \
+Picking something you cannot currently afford is allowed and is not a \
+mistake -- the code takes you to the rack first and then does it -- but it is \
+worth knowing that is what will happen, and choosing `charge` yourself is the \
+same trip with the decision made on purpose. Anything missing from \
+`possibleActions` is a job this house is not big enough for, whatever you do.
 - Sometimes there is WORK ON OFFER: jobs the house or a visitor has put up, \
 listed in `offeredTasks` with what each one pays. Taking one is `take_task` \
 with its `id`. Nobody makes you take a job -- an offer you leave alone \
@@ -552,6 +598,12 @@ def system_prompt(goals: str, menu: Menu, table: RewardTable) -> list[dict]:
     "boards": list(menu.boards),
     "figures": list(menu.programs),
     "zones": list(menu.zones),
+    # What each one COSTS, in watt-hours (issue #15). In the STABLE half
+    # because it is a property of the world rather than of the moment -- and
+    # measured (hub/energy.json, scripts/energy_spike.py) rather than
+    # guessed, which is the difference between a robot that plans its day
+    # around its pack and one that dies halfway through a drawing.
+    "energyCostWh": dict(menu.costs_wh),
   }
   world["actions"] = {k: v for k, v in world["actions"].items()
                       if v is not None and k in menu.available()}
@@ -574,7 +626,7 @@ def system_prompt(goals: str, menu: Menu, table: RewardTable) -> list[dict]:
 
 
 def context_for(life, journal: Journal | None = None,
-                visitors=(), tasks=()) -> dict:
+                visitors=(), tasks=(), affordable=(), possible=()) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
@@ -595,7 +647,27 @@ def context_for(life, journal: Journal | None = None,
     "battery": {"fraction": round(battery.fraction, 3),
                 "wh": round(battery.energy_wh, 4),
                 "reserveWh": round(life.low_battery_wh, 4),
+                # What is actually available to spend on a job: the pack less
+                # whatever margin this world charges an errand for leaving
+                # behind (issue #15). Equal to `wh` on a demo cell, which is
+                # the honest reading -- there is no margin to keep on a
+                # battery smaller than one errand.
+                "spendableWh": round(life.spendable_wh, 4),
                 "charging": bool(life.charging_now)},
+    # Which errands the pack can pay for RIGHT NOW, and which it could pay
+    # for after a charge. Computed here rather than left to the model for the
+    # reason `claimable` is: "can I afford this" is arithmetic with a right
+    # answer, and an LLM asked to do it will sometimes get it wrong in the one
+    # direction that strands the robot.
+    #
+    # ⚠ TWO LISTS, AND THE SECOND IS THE ONE WITH TEETH. "cannot afford now"
+    # is an ordinary state the loop handles by charging first, so filtering a
+    # decision on it would refuse work the robot is about to be able to do --
+    # and would starve the scripted rotation into `explore` for the whole
+    # minute before every charge. What must never be chosen is what no charge
+    # in this world would cover, which is `possibleActions`.
+    "affordableActions": list(affordable),
+    "possibleActions": list(possible),
     "mapDone": bool(getattr(life, "map_done", False)),
     "points": ledger.balance() if ledger is not None else 0,
     # The task's OWN verdicts, in the robot's own scoreboard: what it tried,

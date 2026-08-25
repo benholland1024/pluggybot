@@ -30,6 +30,17 @@ def main() -> None:
                       default="room_hub",
                       help="which world to run: room_hub (default) or the "
                            "generated home world (issue #6)")
+  parser.add_argument("--pack", choices=("demo", "hosting"), default="demo",
+                      help="which cell to fly on (issue #15). `demo` is the "
+                           "minutes-long cell every mission test and both "
+                           "recordings use; `hosting` is the hours-long one "
+                           "a watched world runs on, where the return-trip "
+                           "margin becomes real. --battery-wh overrides "
+                           "either")
+  parser.add_argument("--reserve-wh", type=float, default=None,
+                      help="override the world's go-charge reserve, in Wh. "
+                           "Absolute energy, not a fraction of the pack -- "
+                           "the cost of getting home is set by the ROOM")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
@@ -78,7 +89,8 @@ def main() -> None:
                board_state=args.boards, ledger_state=args.ledger,
                overseer=args.overseer or None, goals=args.goals,
                journal_state=args.journal,
-               tasks=args.tasks, tasks_state=args.task_state)
+               tasks=args.tasks, tasks_state=args.task_state,
+               pack=args.pack, reserve_wh=args.reserve_wh)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:

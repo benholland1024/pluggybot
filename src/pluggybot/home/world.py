@@ -128,6 +128,20 @@ GRID_BOUNDS = (-3.0, -3.0, 11.0, 7.0)
 # errand still runs the pack down and the loop still has to charge.
 HOME_LOW_BATTERY_WH = 0.55
 HOME_DEMO_CAPACITY_WH = 1.1
+#: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
+#: in minutes by design, which is right for a test and reads as a robot that
+#: only ever charges; a hosting-sized one gives the hours-long work/charge
+#: rhythm the site wants. `--pack hosting`, `$PLUGGY_PACK=hosting`, or
+#: `--battery-wh` for anything else -- and it is what the deployment has
+#: actually been running since rooftop-media-2026 #20.
+#:
+#: ⚠ THE RESERVE IS NOT SCALED WITH IT, deliberately. It is the absolute
+#: energy needed to reach the dock -- a property of the FLOOR PLAN, not a
+#: fraction of the pack (the milestone-7 lesson) -- so it is the same 0.55 Wh
+#: on either cell. What changes on a hosting pack is that the reserve becomes
+#: a margin the robot can afford to KEEP: hub/energy.py then requires every
+#: errand to finish with it intact, which is what stops a mid-errand death.
+HOME_HOSTING_CAPACITY_WH = 8.0
 
 WALL_RGBA = "0.78 0.75 0.70 1"
 FENCE_RGBA = "0.55 0.45 0.35 1"
@@ -315,7 +329,12 @@ def build_home_world() -> tuple[str, dict]:
     "rack": {"pos": list(HOME_RACK_POS), "yaw_deg": HOME_RACK_YAW},
     "gridBounds": list(GRID_BOUNDS),
     "battery": {"lowWh": HOME_LOW_BATTERY_WH,
-                "demoCapacityWh": HOME_DEMO_CAPACITY_WH},
+                "demoCapacityWh": HOME_DEMO_CAPACITY_WH,
+                # What a WATCHED run uses (issue #15). In the sidecar because
+                # the website reads this file to know what world it is
+                # drawing, and "the robot charges twice an hour" and "the
+                # robot charges twice a minute" are different worlds.
+                "hostingCapacityWh": HOME_HOSTING_CAPACITY_WH},
   }
   return xml, meta
 

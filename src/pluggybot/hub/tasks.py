@@ -140,6 +140,21 @@ class TaskKind:
   target_kind: str
   #: sentence template; `{target}` and any `params` key may appear in it
   template: str
+  #: What this job takes out of the pack, Wh. MEASURED, and the source of
+  #: truth is hub/energy.json (`scripts/energy_spike.py`) -- this is the
+  #: per-KIND copy, which is strictly better information than the per-action
+  #: one because it knows which target was asked for. It must never sit BELOW
+  #: the measured cost of the errand that discharges it: `Task.claimable` and
+  #: `HubLifecycle.affords` both trust it, and a job under-priced here is a
+  #: robot that starts something it cannot finish (issue #15).
+  #: `tests/test_energy.py::test_a_task_kind_is_never_priced_below_the_errand
+  #: _that_discharges_it` is the drift guard.
+  #:
+  #: ⚠ It is a FALLBACK, not the number that gets used. `TaskBoard` prices an
+  #: offer off hub/energy.json for the world AND the target it names, which
+  #: is why the drawing figures here read like the FAR whiteboard: this is
+  #: what an unmeasured world is charged, and being dear there is the cheap
+  #: direction to be wrong in.
   estimate_wh: float = 0.2
   #: this job has a RIGHT ANSWER, and whoever takes it has to supply one
   #: (issue #22). It is the difference between a job a body can do and a job
@@ -161,15 +176,21 @@ class TaskKind:
 KINDS: dict[str, TaskKind] = {
   "draw_figure": TaskKind(
     "draw_figure", task="draw", target_kind="board",
-    template="Draw a {program} on {target}.", estimate_wh=0.93),
+    template="Draw a {program} on {target}.", estimate_wh=1.15),
   "rate_artwork": TaskKind(
     "rate_artwork", task="artwork", target_kind="board",
     template="Draw a {program} on {target} for people to rate.",
-    estimate_wh=0.93),
+    estimate_wh=1.15),
   "count_plants": TaskKind(
     "count_plants", task="census", target_kind="zone",
     template="Survey {target} and put the number of plants on your face.",
-    estimate_wh=0.87),
+    # ⚠ 0.87 until issue #15 measured it. The census is the DEAREST errand in
+    # home and it was the cheapest number on this table -- caught in the wild
+    # by the new `ENERGY ... hub/energy.json is low` line, on a real run:
+    # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
+    # touch above hub/energy.json's 1.141, because this is the FALLBACK for a
+    # world nobody has measured and being dear there is the cheap direction.
+    estimate_wh=1.15),
   "whiteboard_answer": TaskKind(
     "whiteboard_answer", task="answer", target_kind="board",
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
@@ -180,11 +201,13 @@ KINDS: dict[str, TaskKind] = {
     # stale figure being the half a person reads. The wire carries both, side
     # by side, and only one of them is derived.
     template="Draw the answer to this question on {target}: {question}",
-    estimate_wh=0.93, needs_answer=True),
+    estimate_wh=1.15, needs_answer=True),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
-    estimate_wh=0.57),
+    # 0.57 is room_hub's figure; home's floor plan is bigger and the table is
+    # world-agnostic, so it carries the dearer of the two.
+    estimate_wh=0.69),
 }
 
 
@@ -249,7 +272,8 @@ class Task:
   def create(cls, kind: str, target: str, task_id: str,
              params: dict | None = None, description: str = "",
              deadline: float | None = None, source: str = "system",
-             t: float = 0.0, secret: dict | None = None) -> "Task":
+             t: float = 0.0, secret: dict | None = None,
+             estimate_wh: float | None = None) -> "Task":
     """Build an offered task, or raise.
 
     Refuses three things, and each refusal is a rule from the module
@@ -277,7 +301,9 @@ class Task:
     return cls(id=task_id, kind=kind, target=target,
                description=clean(text, MAX_DESCRIPTION), task=spec.task,
                params=params, deadline=deadline,
-               estimate_wh=spec.estimate_wh, source=source, state="offered",
+               estimate_wh=(spec.estimate_wh if estimate_wh is None
+                            else float(estimate_wh)),
+               source=source, state="offered",
                created_t=round(float(t), 3), secret=dict(secret or {}))
 
   # ---- what it is worth (looked up, never stored) --------------------------
@@ -451,8 +477,16 @@ class TaskBoard:
   def __init__(self, path: str | os.PathLike | None = None,
                table: RewardTable | None = None,
                max_tasks: int = MAX_TASKS, max_offered: int = MAX_OFFERED,
-               clock: Callable[[], str] = _now) -> None:
+               clock: Callable[[], str] = _now, energy=None) -> None:
     self.table = table if table is not None else default_table()
+    # What a job COSTS in THIS world (issue #15). Optional, and the fallback
+    # is `TaskKind.estimate_wh` -- a world nobody has measured still offers
+    # work, priced at the kind's conservative figure. Where a measurement
+    # DOES exist it wins, because the kind's number is world-agnostic and a
+    # world's is not: room_hub's carry is 0.570 Wh and home's is 0.689, so a
+    # single number is either under-pricing home (a robot that takes on a job
+    # it cannot finish) or refusing room_hub a job it does perfectly well.
+    self.energy = energy
     self.path = Path(path) if path is not None else None
     self.clock = clock
     self.max_tasks = max_tasks
@@ -531,6 +565,32 @@ class TaskBoard:
 
   # ---- offering ------------------------------------------------------------
 
+  def estimate_for(self, kind: str, target: str = "") -> float | None:
+    """What a job of this kind, on this target, costs HERE -- or None to use
+    the kind's own figure.
+
+    None rather than a number when nothing has been measured, so that
+    "hub/energy.json has a row for this" and "fall back to the conservative
+    world-agnostic estimate" stay distinguishable -- `EnergyModel.cost` will
+    answer for any name, and taking its dearest-measured fallback here would
+    price a `carry` as a `census`.
+
+    ⚠ TARGET FIRST. This is the answer to the defect CLAUDE.md records under
+    issue #21: the estimate was per KIND, home's far whiteboard costs 0.14 Wh
+    more than its near one, and a job claimed at 88 %% drew perfectly and then
+    died on the way back. The note there says not to fix it by padding the
+    table, and this is why -- padding deletes the near board from the demo
+    cell, while a second measured row costs nothing and is true.
+    """
+    spec = KINDS.get(kind)
+    if spec is None or self.energy is None:
+      return None
+    rows = self.energy.errand_wh
+    measured = rows.get(f"{spec.task}:{target}") if target else None
+    if measured is None:
+      measured = rows.get(spec.task)
+    return None if measured is None else float(measured)
+
   def next_id(self) -> str:
     self.seq += 1
     return f"t_{self.seq:04d}"
@@ -550,7 +610,8 @@ class TaskBoard:
     task = Task.create(kind=kind, target=target, task_id=self.next_id(),
                        params=params, description=description,
                        deadline=None if ttl is None else round(float(t) + ttl, 3),
-                       source=source, t=t, secret=secret)
+                       source=source, t=t, secret=secret,
+                       estimate_wh=self.estimate_for(kind, target))
     self.tasks[task.id] = task
     self._trim()
     self._emit({"type": "task_offered", "t": round(float(t), 3),

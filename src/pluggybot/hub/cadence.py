@@ -272,7 +272,24 @@ class TaskProducer:
       index = (self.cursor + step) % n
       kind = self.kinds[index]
       spec = KINDS[kind]
-      if pack_wh is not None and spec.estimate_wh > float(pack_wh):
+      # ⚠ THE TARGET IS PICKED BEFORE THE ENERGY GATE (issue #15), because
+      # what a job costs depends on WHICH whiteboard it names: home's far one
+      # is 7 m away through a doorway and measures 0.14 Wh more than its near
+      # one. Gating the kind first would refuse `draw_figure` outright in a
+      # world that can draw on one of its two boards perfectly well.
+      target = self._pick_target(spec.target_kind, booked, t)
+      if target is None:
+        passed = index if passed is None else passed
+        continue
+      # Priced by the BOARD, which knows this world's measured costs;
+      # `spec.estimate_wh` is the fallback for a world nobody has measured. A
+      # world-agnostic figure here refused room_hub every `fetch_module` it
+      # can do perfectly well, because home's carry is 0.12 Wh dearer and one
+      # number cannot be both.
+      estimate = self.board.estimate_for(kind, target)
+      if estimate is None:
+        estimate = spec.estimate_wh
+      if pack_wh is not None and estimate > float(pack_wh):
         # THE WORLD'S ENERGY GATE, and read what it is measured against.
         #
         # `pack_wh` here is what a CHARGED pack holds in this world, not what
@@ -299,10 +316,6 @@ class TaskProducer:
         # `_claim_next_task` consults. That is the gate with the teeth; this
         # one only keeps a world from advertising work it could never fund.
         starved = True
-        passed = index if passed is None else passed
-        continue
-      target = self._pick_target(spec.target_kind, booked, t)
-      if target is None:
         passed = index if passed is None else passed
         continue
       self.cursor = passed if passed is not None else (index + 1) % n
