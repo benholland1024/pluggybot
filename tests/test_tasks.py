@@ -156,15 +156,22 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   """The reserve is only checked BETWEEN errands, so a job the robot cannot
   afford has to be refused before it is started, not during.
 
-  The numbers are the ones that matter here. `draw_figure` is estimated at
-  0.93 Wh, MEASURED off the committed home recording, against a 1.100 Wh cell
-  that charges to 90 % -- so a freshly-charged robot can just take it and a
-  half-empty one cannot, which is the whole behaviour. The first version of
+  The numbers are the ones that matter here. A `draw_figure` on
+  `whiteboard_a` is priced at 0.929 Wh -- MEASURED, hub/energy.json, and
+  cross-checked against the committed home recording -- against a 1.100 Wh
+  cell that charges to 90 %, so a freshly-charged robot can just take it and
+  a half-empty one cannot, which is the whole behaviour. The first version of
   this table guessed 0.35 Wh and the fixture recorded a robot dying mid-
   stroke with the pen still on the fork.
+
+  ⚠ The board is given home's energy table, because that is what production
+  does (issue #15) and the price is now per WORLD and per TARGET: a bare
+  board falls back to `TaskKind.estimate_wh`, which is deliberately the FAR
+  whiteboard's figure and would not fit the cell at all.
   """
-  b = board()
-  task = offered(b)                       # draw_figure: 0.93 Wh, measured
+  from pluggybot.hub.energy import load as load_energy
+  b = board(energy=load_energy("home"))
+  task = offered(b)                       # draw_figure on whiteboard_a: 0.929
   assert task.claimable(0.0, pack_wh=0.99)      # home, just after a charge
   assert not task.claimable(0.0, pack_wh=0.55)  # home, at half
   assert b.claim(task.id, t=0.0, pack_wh=0.55) is None
@@ -192,11 +199,27 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
       "it pins has changed")
   # ...and every kind IS affordable off a full pack, or it could never be
   # taken at all and offering it would be a lie about what the robot can do.
+  #
+  # ⚠ Priced PER WORLD as of issue #15 (`TaskBoard.estimate_for`), and this
+  # test is what made that necessary: room_hub's carry measures 0.570 Wh and
+  # home's 0.689, so the one world-agnostic number that used to be here was
+  # either under-pricing home or refusing room_hub a job it does perfectly
+  # well. `count_plants` is left out of the home row for the reason
+  # hub/energy.py calls `overspend`: home's census genuinely outgrows its
+  # 1.1 Wh demo cell, which the committed recording shows the robot doing
+  # anyway.
+  from pluggybot.hub.energy import load as load_energy
   for world, cap in (("room_hub", 0.700), ("home", 1.100)):
+    board = TaskBoard(energy=load_energy(world))
     for name, kind in KINDS.items():
       if world == "room_hub" and kind.target_kind in ("board", "zone"):
         continue                          # room_hub has neither
-      assert kind.estimate_wh <= cap * 0.9, f"{world}/{name}"
+      if world == "home" and name == "count_plants":
+        continue                          # see above: measured `overspend`
+      priced = board.estimate_for(name)
+      if priced is None:
+        priced = kind.estimate_wh
+      assert priced <= cap * 0.9, f"{world}/{name}: {priced} Wh"
 
 
 def test_a_lapsed_offer_cannot_be_claimed_and_a_taken_one_cannot_be_retaken():

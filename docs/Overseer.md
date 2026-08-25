@@ -220,37 +220,159 @@ working" would also mean "and hammers a doomed endpoint sixty times an hour,
 forever". Three consecutive failures buys five minutes of quiet, doubling to an
 hour, and one success clears it.
 
-## 5. ⚠ A chosen task can be bigger than the battery
+## 5. What an errand costs, and the pack that has to pay for it
 
-Found by the charge-priority test on its first run, and worth writing down
-because it is the one way an overseer can still strand the robot.
+Found by the charge-priority test on its first run, and for a while the one
+way an overseer could still strand the robot. `needs_charge` is checked
+*between* errands and never inside one, so an errand that costs more than what
+is left in the pack cannot be survived by **any** charging policy: the robot
+leaves the rack, works, and dies holding the tool. The committed home
+recording is that, in three lines:
 
-**Measured, both worlds, one dance errand from a full pack:**
+```
+errand  t=   7.3-> 203.1  frac 0.968->0.123  = 0.9292 Wh   (a drawing)
+CHARGE  t= 218.7-> 308.6  frac 0.051->0.884
+errand  t= 308.6-> 459.9  frac 0.883->0.000  = 0.9718 Wh   (a census)
+                                       ^^^^^ nothing left
+```
 
-| world | cell | reserve | dance costs | outcome |
-|---|---|---|---|---|
-| `home` | 1.10 Wh | 0.55 Wh | ~0.76 Wh | finishes at 31 %, then charges — fine |
-| `room_hub` | 0.70 Wh | 0.35 Wh | ~0.76 Wh | **BATTERY DEAD mid-errand, 0 charge cycles** |
+`hub/energy.py` + `hub/energy.json` are the answer, and they are the fourth
+member of the set `hub/tasks.py` opened: what a job **is**, what it **pays**
+(`rewards.json`), when it **turns up** (`cadence.json`), and now what it
+**costs**. Data, per world, `$PLUGGY_ENERGY` to re-point.
 
-The reserve is checked *between* errands, not inside one, so an errand that
-costs more than a full pack cannot be survived by any charging policy — the
-robot leaves the rack at 90 % and dies before it gets back. That was always
-true; the overseer just makes it reachable, because the scripted preset for
-`room_hub` was the short `carry` errand and an overseer will happily pick
-`dance`.
+### The numbers are measured
 
-This is **world tuning, not a code defect**: `room_hub`'s 0.7 Wh cell is a
-milestone-8 constant sized for the carry errand, and the deployed world is
-`home`, where every task fits with room to spare. Deliberately *not* fixed
-with a guessed energy model — the two honest fixes are to grow `room_hub`'s
-demo cell or to measure per-errand cost properly, and both are their own piece
-of work. Until then: **`--overseer` belongs on `home`.**
+`scripts/energy_spike.py` flies each errand once on an oversized pack and
+reports SWAP_PICK to the end of SWAP_RETURN — the span the arbitration loop
+cannot interrupt, which is exactly why it is the span worth pricing. The pack
+is oversized on purpose: measuring on a demo cell measures where the robot
+*died*, not what the job costs.
 
-Note also why the obvious cheap fix is wrong. Breaking a dance off on
-`needs_charge` (the pattern the census errand uses) would fire on `home` too —
-the robot is at 31 % *while dancing in front of the rack*, below the 0.55 Wh
-reserve that is sized for the worst return trip — so a task that completes
-perfectly today would start scoring as abandoned.
+| world | carry | draw | census | dance | explore |
+|---|---|---|---|---|---|
+| `home` | 0.689 | 0.929 (`whiteboard_b`: 1.113) | 1.141 | 0.584 | 7.7 mWh/s |
+| `room_hub` | 0.570 | — | — | 0.528 | 6.2 mWh/s |
+
+⚠ **A key may name a TARGET**, and `whiteboard_b` is why. It is 7 m away
+through a doorway the robot has to have mapped, and it costs 0.18 Wh more than
+the near board — so `draw:whiteboard_b` wins over `draw` when there is a row
+for it. That is the defect CLAUDE.md records under issue #21 ("`estimate_wh`
+is per-KIND, and the far board costs more than the near one"), and the note
+there says not to fix it by padding: padding prices the *near* board off the
+demo cell, which draws on it every run. A second measured row costs nothing
+and is true.
+
+⚠ **Where two honest measurements disagree, the table carries the dearer.**
+An errand's cost depends on where the robot is standing *and on how much of
+the map it already has*: home's drawing measures 0.849 Wh from beside the rack
+and 0.929 Wh from the spawn pose, and the census read 1.104, 1.131, 1.141 and
+**1.245 Wh** across four runs — the dearest being the first errand of a
+mission, planning through space nobody has explored yet. The failure
+directions are not symmetric: an over-estimate is a charge the robot did not
+strictly need, an under-estimate is a robot dead in the garden holding the
+LCD.
+
+**The estimate may still be exceeded, and the margin is what absorbs it.**
+That is the invariant, not "never exceeded" — an overrun smaller than the
+return trip cannot strand the robot. One larger than it means the table has
+gone stale, and the loop narrates that
+(`ENERGY <errand> cost X against an estimate of Y — hub/energy.json is low`,
+fired at 10 % over so a few percent of trajectory variance is not noise). That
+line is how `count_plants` was caught at 0.87 Wh against a measured 1.14.
+
+⚠ **`dance` is not 0.76 Wh**, which is what this section used to say. That
+figure was a whole first cycle — spawn, explore, fetch, dance, stow — read off
+the ending battery fraction. The errand alone is 0.53–0.58 Wh in both worlds.
+Measuring a cycle and calling it an errand is how the wrong world got blamed.
+
+### Four answers, three behaviours
+
+`EnergyModel.afford` returns one of four states, and the mission loop does
+three different things with them. Collapsing any pair writes a real bug:
+
+| state | when | the loop |
+|---|---|---|
+| `ok` | it fits | run it |
+| `charge_first` | it fits a full pack, not this one | **defer**, charge, retry |
+| `beyond` | it does not fit a full pack in a world that funds margins | drop it, say so |
+| `overspend` | it does not fit a full pack in a world with no margin to fund | run it, say so |
+
+`charge_first` returned as `beyond` refuses work a top-up would allow.
+`beyond` returned as `charge_first` is the loop charging and retrying forever.
+And `overspend` returned as `beyond` deletes home's census — 1.14 Wh against a
+0.99 Wh charged demo cell — from every mission that has ever run one,
+including the recording above, where the robot completes the survey and stows
+the LCD before it runs flat. A guard that deletes a capability the fixture
+proves exists is not a guard.
+
+Nothing spins either way: an errand deferred `MAX_ERRAND_DEFERRALS` times is
+given up on, because at that point charging is what is broken.
+
+### ⚠ The margin is all-or-nothing, and that is the design
+
+The margin is the return-trip reserve — the energy an errand must be expected
+to **leave behind**. Charging it for every errand is what stops a mid-errand
+death. Charge it on a demo cell and every errand in every world is refused
+forever, because one errand costs roughly one full pack there. So:
+
+```
+margin = reserve   if  dearest errand + reserve <= a charged pack
+         0         otherwise
+```
+
+One number for the world, so `Task.claimable`, the producer's `fundable_wh`
+and the errand gate are the same arithmetic rather than three near-misses. On
+both demo cells it is **zero**, which is what makes "every existing mission,
+demo and recording behaves exactly as it did" true. On a hosting-sized pack it
+is the reserve, and the death stops being reachable.
+
+### The hosting pack
+
+`--pack hosting` (`$PLUGGY_PACK`, `--battery-wh` still overrides) — 8 Wh on
+`home`, 6 Wh on `room_hub`. The demo cells flatten in minutes by design, which
+is right for a test and reads on a watched stream as a robot that only ever
+charges; a hosting pack gives the hours-long work/charge rhythm the site
+wants, and is what the deployment has been running since rooftop-media-2026
+\#20.
+
+⚠ **The reserve is NOT scaled with it.** It is the absolute energy needed to
+reach the dock — a property of the floor plan, not a fraction of the pack (the
+milestone-7 lesson) — so `home` keeps 0.55 Wh on either cell. What changes is
+that it becomes a margin the robot can afford to keep. `--reserve-wh` /
+`$PLUGGY_RESERVE_WH` exist for tuning it against a different room, not for
+tuning it against a different battery.
+
+⚠ **A timeout in seconds is a timeout in watt-hours.** `CHARGE_TIMEOUT` was a
+flat 400 s sized against a 0.7 Wh cell. The deployed 8 Wh one needs ~1340 s at
+the measured rate, so every cycle hit the cap partway up and narrated
+`CHARGE complete (79 %)`. `charge_timeout` now scales with the pack, and stays
+at 400 s for both demo cells — where the arithmetic asks for less, so nothing
+about an existing mission moves.
+
+⚠ **`chargeW` is the SLOWEST press, not the best one.** Measured net rate into
+the pack: **19.4 W** on one approach, **39.6 W** on another, 35–37 W over the
+whole cycles in the two committed recordings. The spread is *geometry* — how
+squarely the bumper meets the pins decides how hard the wheels stall against
+them, and the draw was a flat 28.6 W through the slow one. The timeout's job
+is to catch a robot pressing on pins that conduct nothing; sizing it off a
+good approach makes it fire on a slow charge that is working, which is the one
+thing it must not do.
+
+### What the model sees
+
+Costs ride the **cached prefix** (`energyCostWh` in the world block) because
+they are a property of the world and do not change between calls. What the
+pack can pay for right now — `affordableActions`, `battery.spendableWh` —
+rides the volatile turn. Only measured rows are shown: `cost()` will price an
+unmeasured errand as the dearest one so the *gate* has a number, but printing
+that to the model would say `idle` costs 0.97 Wh, which is false and exactly
+the kind of confident wrong number the rest of this design keeps out of the
+prompt.
+
+The scripted fallback obeys the same list, so an outage does not mean the
+robot proposing an errand the loop refuses, over and over, until the budget
+runs out.
 
 ## 6. Cost, and the call budget
 
@@ -315,6 +437,16 @@ robot writing "I did great today" earns nothing by writing it.
 ANTHROPIC_API_KEY=... MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py \
     --world home --errand none --overseer --max-sim-time 900
 
+# ...and the unattended shape: a hosting pack, work turning up on a cadence,
+# and hours of it. This is the acceptance run -- a demo cell would spend the
+# whole thing charging.
+ANTHROPIC_API_KEY=... MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py \
+    --world home --pack hosting --errand none --tasks --overseer \
+    --fast --max-sim-time 14400
+
+# re-measure what each errand costs, after anything that changes one
+MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home --write
+
 # measure what it costs and whether the cache engaged (real API calls)
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
 # ...or just size the cached prefix: no decisions, no tokens billed. Still
@@ -328,7 +460,7 @@ PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
 
 Environment (the deploy configures with `environment:` alone):
 `PLUGGY_OVERSEER`, `PLUGGY_GOALS`, `PLUGGY_JOURNAL`,
-`PLUGGY_OVERSEER_BUDGET`. `ANTHROPIC_API_KEY` is deliberately **not** turned
+`PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`, `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` is deliberately **not** turned
 into a flag — the SDK reads it from the environment and it stays out of `ps`,
 exactly like `PLUGGYWORLD_TOKEN`.
 
