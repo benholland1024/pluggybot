@@ -226,7 +226,8 @@ def main() -> None:
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  goals=goals_prose,
-                                 steering=boss is not None)
+                                 steering=boss is not None,
+                                 grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
       book.on_event.append(recorder.emit)

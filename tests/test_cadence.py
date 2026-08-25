@@ -454,6 +454,64 @@ def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
   assert result["stowed"], "the tool was abandoned instead of being put back"
 
 
+def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
+  """...and the OTHER half of that gate, which the first version did not have.
+
+  Skipping the use-phase is right for a pen, which must be at the board. It is
+  wrong for an errand that does its own navigation: the census's `use_at` is
+  the FIRST POINT OF THE SURVEY ROUTE its use-phase then drives itself, so the
+  pre-positioning drive is redundant by construction.
+
+  ⚠ MEASURED, and it cost a fixture. With one gate for every errand, the home
+  showcase recording's drive stopped 1.96 m short of the garden vantage and
+  the census was sent home -- from a spot it had previously surveyed 100 % of
+  the zone from, counting 4 of 4 plants for +20. No committed recording then
+  showed the LCD in `count` mode, which `test_the_home_fixture_shows_the_
+  census_answer` guards and which is half of what the showcase queue exists to
+  show. Set `needs_use_pose` back to True for every errand and that fixture
+  test is what fails.
+  """
+  import mujoco
+  from pluggybot.hub.errand import Errand
+  cfg = lc.world_config("room_hub")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                         world="room_hub", errand=False,
+                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                         grid_bounds=cfg["grid_bounds"],
+                         low_battery_wh=cfg["low_battery_wh"])
+  ran: list[bool] = []
+
+  def use(_life):
+    ran.append(True)
+    return {"counted": 4, "truth": 4}
+
+  errand = Errand(name="census:garden", module="module_lcd", station_y=0.0,
+                  use_at=(500.0, 500.0), use=use, needs_use_pose=False)
+  life.mission.drive_to = lambda *a, **kw: False      # the drive gave up
+  life.mission.swap_at_bay = lambda *a, **kw: None
+  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
+                                                     "hung": True}
+  result = life.run_errand(errand)
+  assert ran, "an errand that navigates itself was skipped for a short drive"
+  assert "error" not in result
+  assert result["counted"] == 4
+  assert result["stowed"]
+
+
+def test_the_real_census_errand_navigates_itself():
+  """The flag is only worth anything if the errand that needs it carries it,
+  and a default of True means forgetting is silent. Asserted on the errand the
+  home mission actually builds rather than on one written here."""
+  census = [e for e in lc.errands_for("census", "home", None)
+            if e.task == "census"]
+  assert census, "the home world builds no census errand"
+  assert all(e.needs_use_pose is False for e in census)
+  # ...and the flag is not simply False everywhere: a pen MUST be at a board,
+  # which is the case the gate was added for in the first place.
+  assert all(e.needs_use_pose for e in lc.errands_for("carry", "room_hub", None))
+
+
 def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
   """⚠ MEASURED, and it is the difference between a mission and a world.
 

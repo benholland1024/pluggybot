@@ -447,6 +447,13 @@ class HubLifecycle:
     # A robot that could not get there is a different thing from a robot that
     # got there and drew badly, and only one of them is a bug -- but they
     # must BOTH end with the module on the rack.
+    #
+    # ⚠ THE GATE IS PER-ERRAND, not universal (`Errand.needs_use_pose`). An
+    # errand that DOES ITS OWN NAVIGATION does not need this drive to have
+    # arrived -- the census's `use_at` is the first point of the survey route
+    # its use-phase drives itself. Gating it too cost the recorded showcase
+    # mission its census answer: the drive stopped 1.96 m short and the robot,
+    # which could still see the whole garden from there, was sent home.
     arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"
@@ -456,7 +463,7 @@ class HubLifecycle:
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if errand.use is not None and not arrived:
+    if errand.use is not None and not arrived and errand.needs_use_pose:
       used = {"error": "never reached the use pose"}
     elif errand.use is not None and still:
       try:
@@ -1345,7 +1352,13 @@ def run_demo(start=None, view: bool = False,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=board,
                                  goals=goals_prose,
-                                 steering=boss is not None)
+                                 steering=boss is not None,
+                                 # The occupancy map is a BELIEF, and a
+                                 # recording that omits it replays a robot
+                                 # that never had one -- which is what the
+                                 # website's map panel was reading until
+                                 # rooftop-media-2026 #78.
+                                 grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.
