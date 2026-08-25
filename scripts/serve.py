@@ -66,8 +66,17 @@ def main() -> None:
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
                       help="disable pacing (real-time-multiple measurement)")
+  parser.add_argument("--pack", choices=("demo", "hosting"), default="demo",
+                      help="which cell to serve on (issue #15). `demo` is the "
+                           "minutes-long cell the mission tests use; "
+                           "`hosting` is the hours-long one a watched world "
+                           "wants, where hub/energy.py's return-trip margin "
+                           "becomes real and an errand is deferred rather "
+                           "than started on a pack that cannot finish it")
   parser.add_argument("--battery-wh", type=float, default=None,
-                      help="battery capacity (per-world demo cell by default)")
+                      help="battery capacity (overrides --pack)")
+  parser.add_argument("--reserve-wh", type=float, default=None,
+                      help="override the world's go-charge reserve, in Wh")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
@@ -140,7 +149,7 @@ def main() -> None:
   # a target rests. Configuration rather than constants, and $PLUGGY_CADENCE
   # re-tunes how busy a deployed world is without a rebuild.
   beat = default_cadence(args.world) if (args.tasks or args.task_state) else None
-  tasks = (task_board(args.task_state, cadence=beat)
+  tasks = (task_board(args.task_state, cadence=beat, world=args.world)
            if (args.tasks or args.task_state) else None)
   # ...and the thing that keeps putting work up, rather than a starter set
   # that never grows back.
@@ -165,10 +174,20 @@ def main() -> None:
   # without an overseer nothing reads a suggestion, so accepting one would be
   # a promise the robot has no way to keep.
   inbox = Inbox() if boss is not None else None
+  # The demo cell flattens in minutes, which reads on a watched stream as a
+  # robot that only ever charges; `--pack hosting` is the hours-long one
+  # (issue #15). The RESERVE is not scaled with it -- it is the absolute
+  # energy needed to reach the dock, a property of the floor plan -- but on a
+  # hosting pack it becomes a margin every errand must leave intact, which is
+  # what hub/energy.py enforces and what stops a mid-errand death.
+  pack_wh = (cfg["battery_wh"] if args.pack == "demo"
+             else cfg["hosting_battery_wh"])
   life = HubLifecycle(model, data, inbox=inbox,
-                      battery_wh=args.battery_wh or cfg["battery_wh"],
+                      battery_wh=args.battery_wh or pack_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"],
+                      low_battery_wh=(args.reserve_wh
+                                      if args.reserve_wh is not None
+                                      else cfg["low_battery_wh"]),
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
                       overseer=boss, journal=journal, world=args.world,

@@ -42,6 +42,7 @@ from pluggybot.hub.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
 from pluggybot.hub.cadence import CHECK_S
+from pluggybot.hub import energy as energy_model
 from pluggybot.hub.overseer import THINK_SLICE_S
 from pluggybot.hub.questions import clean_answer
 from pluggybot.hub.screen import face_for
@@ -60,13 +61,35 @@ CHARGED = 0.90
 DEMO_CAPACITY_WH = 0.7      # scaled demo cell: honest power draw, capacity
                             # sized so one explore + one errand actually
                             # runs the pack down and the loop has to charge
+#: ...and the pack a WATCHED world runs on (issue #15, `--pack hosting`).
+#: Sized from the measured errand costs rather than picked: room_hub's dearest
+#: job is 0.57 Wh, so ~10 errands to a charge and a rhythm measured in hours
+#: rather than minutes. See `home.HOME_HOSTING_CAPACITY_WH` for why the
+#: reserve does NOT scale alongside it.
+HOSTING_CAPACITY_WH = 6.0
 
 CHARGE_CREEP = 0.04         # m/s nosing into the pins
 CHARGE_PRESS = 0.012        # m/s held press while charging: the milestone-7
                             # lesson -- contacts need sustained press, or the
                             # suspension relaxes and the circuit opens
 CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
-CHARGE_TIMEOUT = 400.0      # s of charging before calling it stuck
+#: Sim seconds of charging before calling it stuck, on a DEMO cell.
+#:
+#: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
+#: against a 0.7 Wh pack. The deployed sim runs an 8 Wh one, which at the
+#: measured rate (hub/energy.json, `chargeW`) needs ~1340 s to refill -- so
+#: the fixed 400 s cap silently ended every charge partway up and narrated
+#: "CHARGE complete (79 %)". `charge_timeout` below scales it with the pack.
+#: It still computes 400 s on BOTH demo cells, where the arithmetic asks for
+#: less, so nothing about an existing mission moves.
+CHARGE_TIMEOUT = 400.0
+#: ...and the floor under that scaling, so a tiny pack still gets long enough
+#: to seat the pins and be believed.
+CHARGE_TIMEOUT_MIN = 400.0
+#: How much longer than the arithmetic says: the press is not perfectly
+#: efficient, contact can drop and be re-made, and a cycle that times out one
+#: second short of full is a charge that did not happen.
+CHARGE_TIMEOUT_SLACK = 1.4
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
@@ -91,6 +114,13 @@ WAIT_FOR_WORK_S = 5.0
 #: it back, forever -- perpetual motion paid in points. The forced charge is
 #: untouched: `needs_charge` fires on absolute reserve and never consults this.
 TOP_UP_BELOW = 0.75
+#: How many times one errand may be put back for a charge before it is given
+#: up on (issue #15). The gate below is "charge, then try again", and a charge
+#: that does not raise the pack -- lost pins, a timeout, a rack that cannot be
+#: reached -- would otherwise turn that into a spin. Two, because the first
+#: retry is the ordinary case (the charge worked) and the second is already
+#: evidence that charging is not what is wrong.
+MAX_ERRAND_DEFERRALS = 2
 #: Visitor messages shown to the overseer at once (issue #16). Small: the
 #: robot answers at most one per turn, and a wall of them is input tokens
 #: spent on messages it is not going to get to -- the inbox keeps the rest.
@@ -119,7 +149,8 @@ class HubLifecycle:
                low_battery_wh: float = LOW_BATTERY_WH,
                errands=None, boards=None, screen=None, ledger=None,
                overseer=None, journal=None, world: str = "room_hub",
-               inbox=None, tasks=None, producer=None) -> None:
+               inbox=None, tasks=None, producer=None,
+               energy=None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -175,6 +206,13 @@ class HubLifecycle:
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
+    # What an errand COSTS here, measured (issue #15). Read per world from
+    # hub/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
+    # unlike the ledger or the task board: "can I finish this before the pack
+    # runs out" is a question every mission asks, including the ones with
+    # nobody scoring them.
+    self.energy = energy or energy_model.load(world)
+    self._deferrals: dict[str, int] = {}
     self.mission.step_hooks.append(self._power_step)
     # The world's own clock (issue #23): offers appear and lapse on the same
     # per-step seam the battery drains through, so a job put up while the
@@ -308,6 +346,28 @@ class HubLifecycle:
     # worst return trip is nearly twice room_hub's.
     return self.battery.energy_wh < self.low_battery_wh
 
+  @property
+  def charge_timeout(self) -> float:
+    """How long a charge cycle is given, sized against THIS pack.
+
+    A fixed 400 s was right for a 0.7 Wh demo cell and quietly wrong for the
+    deployed 8 Wh one: at the measured rate it takes ~1340 s to refill, so
+    every cycle hit the cap partway up and reported itself complete. The
+    timeout is meant to catch a robot pressing on pins that are not
+    conducting, which is a fault; it should never be what ends a charge that
+    is working.
+
+    ⚠ The rate it is sized against is the SLOWEST press measured, not the
+    best one -- 19.4 W against 39.6 W on a different approach -- because the
+    spread is geometry: how squarely the bumper meets the pins decides how
+    hard the wheels stall against them. See hub/energy.json.
+    """
+    rate = self.energy.charge_w
+    if rate <= 0.0:
+      return CHARGE_TIMEOUT
+    need = self.charged_wh * 3600.0 / rate * CHARGE_TIMEOUT_SLACK
+    return max(CHARGE_TIMEOUT_MIN, need)
+
   # ---- phases --------------------------------------------------------------
 
   def explore(self, budget: float | None = None,
@@ -386,8 +446,9 @@ class HubLifecycle:
     # See `HubSwap.pinned`.
     self.mission.swap.pinned = True
     try:
+      timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
-             and self.data.time - t0 < CHARGE_TIMEOUT):
+             and self.data.time - t0 < timeout):
         self.mission._drive(0.25, CHARGE_PRESS, 0.0)
         if not self.charging_now:
           # contact dropped: press again briefly, then give up on this attempt
@@ -425,6 +486,14 @@ class HubLifecycle:
     if errand.task_id and self.tasks is not None:
       self.tasks.start(errand.task_id, t=float(self.data.time))
     self.state = "SWAP_PICK"
+    # What this errand actually took, measured (issue #15). Recorded on every
+    # errand and not only in the spike, because an estimate that is never
+    # compared against an outcome is a number nobody can tell has gone stale
+    # -- and because SWAP_PICK to the end of SWAP_RETURN is exactly the span
+    # the arbitration loop cannot interrupt, which is what makes it the span
+    # worth pricing. `scripts/energy_spike.py` reads the same figure.
+    spent_from = self.battery.energy_wh
+    began_at = float(self.data.time)
     self.mission.swap_at_bay(errand.station_y, "pick", module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
     self.swaps_done += 1
@@ -479,8 +548,25 @@ class HubLifecycle:
     stowed = self.mission.swap.module_state(self.module)["hung"]
     self.swaps_done += 1
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
+    spent = max(0.0, spent_from - self.battery.energy_wh)
+    estimated = self.affords(errand).cost_wh
     result = {"errand": errand.name, "module": errand.module,
-              "picked": carried, "stowed": stowed, **used}
+              "picked": carried, "stowed": stowed,
+              # Measured against what hub/energy.json said it would be. Both,
+              # deliberately: the estimate alone is a claim, and the two side
+              # by side are what says the table still describes the world.
+              "energyWh": round(spent, 4),
+              "estimateWh": round(estimated, 4),
+              "energySeconds": round(float(self.data.time) - began_at, 2),
+              **used}
+    if estimated > 0.0 and spent > estimated * energy_model.WARN_OVER:
+      # Not a failure -- the errand finished -- but the table is the only
+      # thing standing between an overseer and a mid-errand death, so an
+      # under-estimate is said out loud rather than left in a dict.
+      self._say(f"ENERGY {errand.name} cost {spent:.3f} Wh against an "
+                f"estimate of {estimated:.3f} -- hub/energy.json is low "
+                f"(scripts/energy_spike.py re-measures it)")
+    self._deferrals.pop(errand.name, None)
     # And the verdict, LAST: an errand is judged on the finished job, which
     # includes putting the tool back. Measured off the sim by hub/scoring.py,
     # never off `used` alone -- see sample_draw, which counts the strokes the
@@ -502,6 +588,85 @@ class HubLifecycle:
           self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
     self.errand_results.append(result)
     return result
+
+  # ---- the energy gate (issue #15) -----------------------------------------
+
+  def _afford_next(self) -> bool:
+    """True if the head of the queue can be started RIGHT NOW.
+
+    False means exactly one thing to the caller -- go and charge, then ask
+    again -- and everything that is not that has already been dealt with
+    here: an errand no pack in this world could ever cover is dropped, and so
+    is one that has been put back for a charge too many times. Leaving either
+    of those on the queue would make "charge and retry" a spin, which is the
+    failure mode a guard like this invites.
+
+    Draining the queue of unrunnable errands rather than reporting on just
+    the head, because the caller's next branch pops whatever is in front and
+    a head this method silently disliked would be run un-gated.
+    """
+    while self.errands:
+      errand = self.errands[0]
+      fit = self.affords(errand)
+      if fit.state == energy_model.OVERSPEND:
+        # A demo cell being honest about itself: the job is bigger than any
+        # charge this world can give it, and it is run anyway because that is
+        # what a cell sized smaller than its jobs means. Said out loud, once,
+        # because "the robot ran flat" and "the robot was always going to run
+        # flat" are different events and only the second is world tuning.
+        self._say(f"ENERGY {errand.name}: {fit.why()}")
+        return True
+      if fit.ok:
+        return True
+      if fit.state == energy_model.BEYOND:
+        self._say(f"SKIP {errand.name}: {fit.why()}")
+        self._drop_errand(self.errands.pop(0), fit)
+        continue
+      seen = self._deferrals[errand.name] = \
+          self._deferrals.get(errand.name, 0) + 1
+      if seen > MAX_ERRAND_DEFERRALS:
+        # Charging is not what is wrong. Said differently from a `beyond`
+        # drop, because it is a different fault: the pack could hold this
+        # job and does not, which means the charge cycle is failing.
+        self._say(f"SKIP {errand.name}: still {fit.need_wh:.2f} Wh short "
+                  f"after {MAX_ERRAND_DEFERRALS} charges -- giving up on it")
+        self._drop_errand(self.errands.pop(0), fit)
+        continue
+      self._say(f"DEFER {errand.name}: {fit.why()}")
+      return False
+    return True
+
+  def _drop_errand(self, errand, fit) -> None:
+    """Give up on an errand, and close the job it was discharging.
+
+    ⚠ DROPPING A TASK ERRAND FOR `beyond` SHOULD NOT BE REACHABLE, and the
+    arithmetic is why: `Task.claimable` compares the job's estimate against
+    `spendable_wh` (the pack, less the margin), which is never more than
+    `fundable_wh` (a charged pack, less the same margin) -- so a job this
+    world could never fund cannot be claimed in the first place. Dropping one
+    because charging keeps failing IS reachable, which is the other half of
+    why this exists: a task left `active` on a board the robot has walked away
+    from is a marker that never resolves, and that reads as a bug rather than
+    as the honest failure it is.
+    """
+    self.errand_results.append({
+      "errand": errand.name, "module": errand.module,
+      "picked": False, "stowed": True, "skipped": fit.state,
+      "estimateWh": round(fit.cost_wh, 4), "energyWh": 0.0,
+      "error": fit.why(),
+    })
+    if not errand.task_id or self.tasks is None:
+      return
+    # Judged by the same evaluator as a finished one, on the same evidence:
+    # it will find no ink, no count and nothing carried, and close the job
+    # `failed`. A task closed any other way would be a second scorer.
+    verdict = scoring.score_errand(self, errand, self.errand_results[-1], {})
+    self._bank(verdict)
+    if verdict is not None:
+      closed = self.tasks.resolve(errand.task_id, verdict,
+                                  t=float(self.data.time))
+      if closed is not None:
+        self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
 
   # ---- the visitor channel (issue #16) -------------------------------------
 
@@ -564,25 +729,47 @@ class HubLifecycle:
   # ---- tasks (issue #21) ----------------------------------------------------
 
   @property
-  def spendable_wh(self) -> float:
-    """What is in the pack, which is what a job's cost is compared against.
+  def charged_wh(self) -> float:
+    """What a full pack holds here. `CHARGED` rather than capacity, because
+    the charge cycle stops there and a pack is never actually filled."""
+    return self.battery.capacity_wh * CHARGED
 
-    THE WHOLE CHARGE, not the part above the reserve, and the distinction was
-    worth a wrong fixture to learn. The reserve is a RETURN-TRIP margin: an
-    errand is allowed to spend into it, which is how this loop has always
-    worked -- `needs_charge` is checked BETWEEN errands and never during one.
-    Measured off the committed recordings, one errand costs roughly one full
-    pack in both worlds (0.487-0.570 Wh in room_hub against a 0.700 Wh cell,
-    0.866-0.929 Wh in home against 1.100 Wh), while the energy ABOVE the
+  @property
+  def reserve_margin_wh(self) -> float:
+    """The energy an errand must be expected to LEAVE BEHIND (issue #15).
+
+    Zero on a demo cell and the return-trip reserve on a hosting-sized one --
+    `energy.EnergyModel.margin_wh` is the rule and its docstring is the
+    argument. One number for the world, so the errand gate, `Task.claimable`
+    and the producer are all doing the same arithmetic rather than three
+    slightly different ones.
+    """
+    return self.energy.margin_wh(self.charged_wh, self.low_battery_wh)
+
+  @property
+  def spendable_wh(self) -> float:
+    """What a job's cost is compared against, right now.
+
+    THE WHOLE CHARGE LESS THE MARGIN, and on a demo cell the margin is zero,
+    so this is the whole charge -- which is what it always was, and the
+    distinction was worth a wrong fixture to learn. The reserve is a
+    RETURN-TRIP margin: on a cell smaller than one errand it is a margin the
+    robot cannot afford to keep, because one errand costs roughly one full
+    pack in both demo worlds (0.487-0.570 Wh in room_hub against a 0.700 Wh
+    cell, 0.866-0.929 Wh in home against 1.100 Wh) while the energy ABOVE the
     reserve is 0.28 and 0.44 Wh. Gating on that would refuse every job in
     every world forever -- a task system that silently does nothing.
+
+    On a hosting-sized pack there IS margin to keep, the errand is required to
+    finish with the return trip still in hand, and the mid-errand death this
+    number exists to prevent stops being reachable.
     """
-    return max(0.0, self.battery.energy_wh)
+    return max(0.0, self.battery.energy_wh - self.reserve_margin_wh)
 
   @property
   def fundable_wh(self) -> float:
-    """What a CHARGED pack holds here -- what the WORLD can fund, as opposed
-    to what the robot can afford this second.
+    """What a CHARGED pack can fund here -- what the WORLD can pay for, as
+    opposed to what the robot can afford this second.
 
     This is what the producer offers against (issue #23), and the difference
     from `spendable_wh` is the difference between "this world cannot pay for
@@ -590,7 +777,32 @@ class HubLifecycle:
     not to put a job up; the second is what `Task.claimable` says about an
     offer that is already standing, and it says it every time anybody asks.
     """
-    return self.battery.capacity_wh * CHARGED
+    return max(0.0, self.charged_wh - self.reserve_margin_wh)
+
+  def affords(self, errand) -> energy_model.Affordability:
+    """Can this errand be started now, later, or not at all (issue #15).
+
+    The whole point of the module is in the FOUR answers rather than two.
+    `needs_charge` is checked between errands and never inside one, so an
+    errand the pack cannot cover is a robot that dies holding the tool -- but
+    "not now" wants a charge and a retry while "not ever here" wants the
+    errand dropped, and answering both with False is how a charge/defer spin
+    gets written.
+
+    An errand that carries its own `estimate_wh` is priced by that: a task's
+    figure is per KIND and knows which end of the house it is being asked
+    about, which a per-action table cannot (CLAUDE.md, "the far board costs
+    more than the near one").
+    """
+    return self.energy.afford(
+      errand.task or errand.name, energy_wh=self.battery.energy_wh,
+      charged_wh=self.charged_wh, reserve_wh=self.low_battery_wh,
+      cost_wh=errand.estimate_wh or None,
+      # WHICH board/zone/module, so a per-target row can win. `detail` is
+      # where an errand already records what it went to; the name would work
+      # for the drawing errands and not for the census.
+      target=str(errand.detail.get("board") or errand.detail.get("zone") or
+                 errand.module if errand.detail else ""))
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -775,9 +987,23 @@ class HubLifecycle:
       self._say(f"DECIDE: nothing to build for {decision.action!r}")
       self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
       return
+    fit = self.affords(errand)
+    if fit.state == energy_model.BEYOND:
+      # Chosen, buildable, and bigger than any charge this world can give it
+      # (issue #15). Refused HERE rather than queued and dropped a moment
+      # later, because the difference matters to whoever is watching: the
+      # robot said no to its own idea, and the next decision is made knowing
+      # that. The model is told which actions it can afford in the same
+      # breath -- `affordableActions` in the context -- so this is a backstop
+      # for a decision made against a stale reading, not the primary path.
+      self._say(f"DECIDE: {fit.why()}")
+      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      return
     # Queued rather than run inline, so the errand goes through the SAME
     # arbitration the scripted queue does -- if the decision itself dropped
-    # the battery below the reserve, the next pass charges first.
+    # the battery below the reserve, the next pass charges first. A
+    # `charge_first` errand is queued for exactly that reason: the loop's
+    # energy gate turns it into a charge and then this errand.
     self.errands.append(errand)
 
   # ---- the loop ------------------------------------------------------------
@@ -821,6 +1047,20 @@ class HubLifecycle:
         # without `mission` stepping still keeps its board honest.
         self._task_step()
         if self.needs_charge:
+          self.state = "GO_CHARGE"
+          if not self.go_charge():
+            break
+          self.state = "CHARGE"
+          self.charge()
+        elif self.errands and not self._afford_next():
+          # ⚠ AN ERRAND THAT WILL NOT FIT IS CHARGED FOR FIRST (issue #15).
+          # `needs_charge` above is checked BETWEEN errands and never inside
+          # one, so a job bigger than what is left in the pack cannot be
+          # survived by any charging policy -- the robot leaves the rack,
+          # works, and dies holding the tool. This is the one place that can
+          # see it coming. `_afford_next` has already narrated why and, for
+          # an errand no pack in this world could cover, has already dropped
+          # it -- so False here always means "go and charge".
           self.state = "GO_CHARGE"
           if not self.go_charge():
             break
@@ -957,7 +1197,8 @@ def points_ledger(state: str | None = None, table=None):
   return Ledger(path=state, table=table)
 
 
-def task_board(state: str | None = None, table=None, cadence=None):
+def task_board(state: str | None = None, table=None, cadence=None,
+               world: str = ""):
   """The world's job offers as persistent state (issue #21).
 
   `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
@@ -971,10 +1212,14 @@ def task_board(state: str | None = None, table=None, cadence=None):
   defaults, which is what a unit test wants.
   """
   from pluggybot.hub.tasks import TaskBoard
+  # ...and what a job COSTS here (issue #15), for the same reason: a board
+  # that priced every world's `carry` the same either under-prices the big
+  # floor plan or refuses the small one work it does perfectly well.
+  costs = energy_model.load(world) if world else None
   if cadence is None:
-    return TaskBoard(path=state, table=table)
+    return TaskBoard(path=state, table=table, energy=costs)
   return TaskBoard(path=state, table=table, max_tasks=cadence.max_tasks,
-                   max_offered=cadence.max_offered)
+                   max_offered=cadence.max_offered, energy=costs)
 
 
 def world_targets(world: str, book=None) -> dict:
@@ -1183,6 +1428,12 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   except (ValueError, KeyError, IndexError):
     return None
   errand.task_id = task.id
+  # The job's own energy figure travels with the errand (issue #15). Per
+  # KIND rather than per action, which is strictly better information: it
+  # knows which whiteboard was asked for, and the far one costs more than
+  # the near one. The gate that refuses an unaffordable errand then agrees
+  # by construction with the gate that refused to claim it.
+  errand.estimate_wh = float(task.estimate_wh)
   return errand
 
 
@@ -1214,7 +1465,24 @@ def overseer_context(life) -> dict:
   offers = (life.tasks.context(float(life.data.time), life.spendable_wh,
                                limit=TASKS_SHOWN)
             if life.tasks is not None else [])
-  state = ov.context_for(life, life.journal, visitors=visitors, tasks=offers)
+  # What the pack can pay for now, and what this world could ever do
+  # (issue #15). TWO lists, because they are answers to different questions:
+  # an errand the robot cannot afford this second is one the loop charges for
+  # and then runs -- an ordinary plan, and one the model should be able to
+  # make -- while an errand no charge here would cover is a dead end. The
+  # decision is only ever filtered on the second.
+  def priced(action: str, have: float):
+    if action not in ov.ERRAND_ACTIONS:
+      return True                       # free, bounded, or priced per offer
+    return life.energy.afford(action, energy_wh=have,
+                              charged_wh=life.charged_wh,
+                              reserve_wh=life.low_battery_wh).ok
+
+  menu = life.overseer.menu.available()
+  affordable = [a for a in menu if priced(a, life.battery.energy_wh)]
+  possible = [a for a in menu if priced(a, life.charged_wh)]
+  state = ov.context_for(life, life.journal, visitors=visitors, tasks=offers,
+                         affordable=affordable, possible=possible)
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
 
@@ -1236,6 +1504,7 @@ def world_config(world: str) -> dict:
       "start": tuple(home.SPAWNS["start"]),
       "use_at": (1.5, 1.8),
       "battery_wh": home.HOME_DEMO_CAPACITY_WH,
+      "hosting_battery_wh": home.HOME_HOSTING_CAPACITY_WH,
       "low_battery_wh": home.HOME_LOW_BATTERY_WH,
       "explore_budget": 240.0,
       "activities": home_activities,
@@ -1262,6 +1531,7 @@ def world_config(world: str) -> dict:
       "start": (0.5, 3.0, math.pi / 2),
       "use_at": (-1.2, 2.5),
       "battery_wh": DEMO_CAPACITY_WH,
+      "hosting_battery_wh": HOSTING_CAPACITY_WH,
       "low_battery_wh": LOW_BATTERY_WH,
       "explore_budget": 90.0,
       "activities": None,      # room_hub has no activities yet
@@ -1285,7 +1555,8 @@ def run_demo(start=None, view: bool = False,
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
              journal_state: str | None = None,
-             tasks: bool = False, tasks_state: str | None = None) -> dict:
+             tasks: bool = False, tasks_state: str | None = None,
+             pack: str = "demo", reserve_wh: float | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -1296,6 +1567,14 @@ def run_demo(start=None, view: bool = False,
   book while telemetry reported the other.
   """
   cfg = world_config(world)
+  # Which CELL this run flies on (issue #15). `demo` flattens in minutes,
+  # which is what every mission test and both committed recordings were made
+  # against; `hosting` is the pack a watched world runs on, where one charge
+  # buys hours of work and hub/energy.py's return-trip margin becomes real.
+  # `--battery-wh` still overrides either.
+  if pack not in ("demo", "hosting"):
+    raise ValueError(f"unknown pack {pack!r} (demo or hosting)")
+  default_wh = cfg["battery_wh"] if pack == "demo" else cfg["hosting_battery_wh"]
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
   viewer = None
@@ -1317,7 +1596,7 @@ def run_demo(start=None, view: bool = False,
   # may stand at once (issue #23): hub/cadence.json, per world.
   from pluggybot.hub.cadence import default_cadence
   beat = default_cadence(world) if (tasks or tasks_state) else None
-  board = (task_board(tasks_state, cadence=beat)
+  board = (task_board(tasks_state, cadence=beat, world=world)
            if (tasks or tasks_state) else None)
   maker = task_producer(board, world, book, beat) if board is not None else None
   # The overseer chooses what to do once the queue below is empty (issue #15);
@@ -1331,9 +1610,11 @@ def run_demo(start=None, view: bool = False,
   # honest -- see FrameBuilder.goals_message.
   goals_prose = ov.goals_text(goals)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
-                      battery_wh=battery_wh or cfg["battery_wh"],
+                      battery_wh=battery_wh or default_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], boards=book,
+                      low_battery_wh=(reserve_wh if reserve_wh is not None
+                                      else cfg["low_battery_wh"]),
+                      boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, world=world,
                       errands=errands_for(errand, world, book), tasks=board,

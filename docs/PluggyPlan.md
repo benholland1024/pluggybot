@@ -459,17 +459,55 @@ tracked as its own issues; landed so far:
     journal entries ride the existing narration channel, and the *structured*
     journal surface the site's UI wants lands with issue #16, which has to
     bump for the inbound direction anyway. One two-repo event instead of two.
-  - ⚠ **A chosen errand can cost more than the whole pack.** Found by the
-    charge-priority test on its first run. Measured: one dance ≈ **0.76 Wh**,
-    which fits home's 1.1 Wh cell (finishes at 31 %, then charges) and
-    exceeds room_hub's 0.7 Wh cell outright — the robot dies mid-errand with
-    zero charge cycles, and no charging policy saves it, because the reserve
-    is only checked *between* errands. World tuning, not a code defect, and
-    deliberately not papered over with a guessed energy model: `--overseer`
-    belongs on `home` until room_hub's demo cell grows or per-errand energy is
-    measured properly. Note the obvious cheap fix is wrong too — breaking off
-    on `needs_charge` (the census's pattern) fires on home as well, where the
-    robot is legitimately at 31 % *while dancing in front of the rack*.
+  - ⚠ **A chosen errand can cost more than the whole pack** — found by the
+    charge-priority test on its first run, left as documentation for two
+    issues, and now **closed by a measured energy model**: `hub/energy.py` +
+    `hub/energy.json` (`$PLUGGY_ENERGY`), the fourth data file after rewards,
+    cadence and questions. `needs_charge` is checked *between* errands and
+    never inside one, so a job bigger than what is left cannot be survived by
+    any charging policy; the committed home recording has the robot finishing
+    a census at frac 0.000. Every errand is priced by
+    `scripts/energy_spike.py` — SWAP_PICK to end of SWAP_RETURN, on an
+    oversized pack so the measurement is of a job and not of a death — and
+    the loop charges first rather than starting one it cannot pay for.
+    - **Four answers, three behaviours.** `ok` runs, `charge_first` defers
+      and charges, `beyond` drops the errand, `overspend` runs it and says
+      the cell was always too small. Collapsing any pair is a real bug, and
+      the third is the one that nearly went wrong: home's census measures
+      **1.12 Wh** against a 0.99 Wh charged demo cell, so refusing it would
+      have deleted the census from every home mission — including the
+      recording where the robot completes the survey, stows the LCD, and only
+      then runs flat.
+    - ⚠ **The margin is all-or-nothing.** An errand must leave the
+      return-trip reserve behind, but only where the charged pack can fund
+      the dearest job plus that reserve. On both demo cells it cannot, the
+      margin is zero, and every existing mission, demo and recording behaves
+      exactly as it did. On `--pack hosting` (8 Wh home / 6 Wh room_hub, the
+      named version of what the deployment already ran) it is the reserve,
+      and the mid-errand death stops being reachable. The reserve itself does
+      **not** scale with the pack: it is the absolute cost of reaching the
+      dock, a property of the floor plan.
+    - ⚠ **`dance` is not 0.76 Wh**, which is what this bullet used to say.
+      That was a whole first cycle — spawn, explore, fetch, dance, stow —
+      read off the ending fraction. The errand alone is 0.53–0.58 Wh in both
+      worlds, so the world that got blamed was the wrong one. Measuring a
+      cycle and calling it an errand is the mistake, and it survived two
+      issues because nothing ever compared the estimate to an outcome; the
+      loop now narrates when an errand outruns its estimate, which is how
+      `count_plants` was caught at 0.87 Wh against a measured 1.14.
+    - ⚠ **A timeout in seconds is a timeout in watt-hours.**
+      `CHARGE_TIMEOUT` was flat 400 s, sized for the 0.7 Wh cell; the
+      deployed 8 Wh one needs ~1340 s, so every cycle stopped partway up and
+      narrated itself complete. It scales with the pack now — and still
+      computes 400 s on both demo cells, so nothing about an existing mission
+      moves. The rate it is sized against is the **slowest** press measured
+      (19.4 W; other approaches read 39.6 W), because the spread is geometry:
+      how squarely the bumper meets the pins sets how hard the wheels stall.
+    - **A job's price is per WORLD, not per kind.** room_hub's carry is
+      0.570 Wh and home's 0.689, so one number was either under-pricing home
+      or refusing room_hub work it does perfectly well. `TaskBoard` takes the
+      world's table and `TaskKind.estimate_wh` is now only the fallback for a
+      world nobody has measured.
 - **The visitor channel (issue #16)**: the socket becomes two-way, and the
   robot answers back. `hub/inbox.py`, protocol **0.7.0**, and the server half
   is rooftop-media-2026 #29.

@@ -104,6 +104,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   physics — plug seats in the socket), `scripts/schuko_spike.py`
   (docking tolerance sweep), `scripts/hub_spike.py` (milestone-8 tool-coupling
   tolerance sweep; `--film` for a filmstrip),
+  `scripts/energy_spike.py` (issue-15: what each errand COSTS, per world —
+  flies each one on an oversized pack and reports SWAP_PICK to end of
+  SWAP_RETURN, `--write` folds it into `hub/energy.json`. Re-run it after
+  anything that changes what an errand does),
   `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
   with the REAL pen and reports how far the ink sits from each candidate
   answer's glyphs, plus the ink-length ratio — re-run it if the pen, the
@@ -191,12 +195,68 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   is written and never edited.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
-  ⚠ **A chosen errand can cost more than the whole pack.** Measured: one dance
-  is ~0.76 Wh, which fits home's 1.1 Wh cell (ends at 31 %) and exceeds
-  room_hub's 0.7 Wh cell outright — the robot dies mid-errand with zero charge
-  cycles, and no charging policy can save it, because the reserve is only
-  checked BETWEEN errands. `--overseer` belongs on `home` until room_hub's
-  demo cell grows or per-errand energy is actually modelled.
+  ⚠ **A chosen errand can cost more than the whole pack**, and
+  `hub/energy.py` + `hub/energy.json` are what stop it (`$PLUGGY_ENERGY`;
+  the fourth data file after rewards, cadence and questions). `needs_charge`
+  is checked BETWEEN errands and never inside one, so an errand bigger than
+  what is left cannot be survived by any charging policy — the committed home
+  recording has the robot finish a census at frac 0.000. Every errand is now
+  priced (MEASURED — `scripts/energy_spike.py`, SWAP_PICK to end of
+  SWAP_RETURN, on an oversized pack so the measurement is not of a death) and
+  the loop refuses to start one it cannot pay for.
+  - **Four answers, three behaviours.** `ok` runs; `charge_first` defers,
+    charges and retries; `beyond` drops the errand; `overspend` runs it and
+    says the cell was always too small. Collapsing any pair is a real bug:
+    `charge_first` as `beyond` refuses work a top-up allows, `beyond` as
+    `charge_first` is a charge/defer spin, and `overspend` as `beyond`
+    deletes home's census (1.14 Wh against a 0.99 Wh charged demo cell) from
+    every mission that has ever run one, recording included.
+  - ⚠ **The margin is all-or-nothing.** An errand must leave the return-trip
+    reserve behind — but only in a world whose charged pack can fund its
+    dearest job PLUS that reserve. On both demo cells that is false, the
+    margin is zero, and every existing mission, demo and recording behaves
+    exactly as it did. On `--pack hosting` it is the reserve, and the
+    mid-errand death stops being reachable. One number per world, so
+    `Task.claimable`, `fundable_wh` and the errand gate are the same
+    arithmetic.
+  - ⚠ **Where two honest measurements disagree, the table carries the
+    dearer.** An errand's cost depends on where the robot is standing AND on
+    how much of the map it already has: home's drawing measures 0.849 Wh from
+    beside the rack and 0.929 from the spawn pose, and the census read 1.104
+    / 1.131 / 1.141 / 1.245 Wh over four runs, the dearest being a mission's
+    FIRST errand planning through unexplored space. Over-estimating costs a
+    charge nobody needed; under-estimating costs a robot dead in the garden.
+    The invariant is not "the estimate is never exceeded" — it is that an
+    overrun smaller than the margin cannot strand the robot. A bigger one is
+    a stale table, and the loop says so (`ENERGY ... hub/energy.json is low`,
+    at 10 % over so trajectory variance is not noise).
+  - **A cost key may name a TARGET** (`draw:whiteboard_b`), and it wins over
+    the bare action. That closes the issue-21 defect this file records two
+    bullets down: home's far whiteboard is 7 m away through a doorway and
+    costs 0.18 Wh more, and one number for both either kills the robot on the
+    way back from it or prices the near board off the demo cell. Padding is
+    the fix that note warns against; a second measured row is not padding.
+    `TaskBoard.estimate_for(kind, target)` and `TaskProducer` pick the target
+    BEFORE the energy gate for the same reason.
+  - ⚠ **`dance` is not 0.76 Wh** — that figure (which this file used to
+    carry) was a whole first cycle read off the ending fraction, not an
+    errand. It is 0.53–0.58 Wh in both worlds, and blaming `room_hub` for it
+    was blaming the wrong world.
+  - ⚠ **A timeout in seconds is a timeout in watt-hours.** `CHARGE_TIMEOUT`
+    was a flat 400 s sized for a 0.7 Wh cell; the deployed 8 Wh one needs
+    ~1340 s at the measured rate, so every cycle stopped partway and
+    narrated "CHARGE complete (79 %)". `charge_timeout` scales with the pack
+    now — and still reads 400 s on both demo cells, so nothing about an
+    existing mission moves. ⚠ `chargeW` is the SLOWEST press measured
+    (19.4 W; other approaches read 39.6 W, and the recordings' whole cycles
+    35-37 W) because the spread is GEOMETRY — how squarely the bumper meets
+    the pins sets how hard the wheels stall. A cap sized off a good approach
+    fires on a slow charge that is working.
+  - **`--pack hosting`** (`$PLUGGY_PACK`; 8 Wh on home, 6 Wh on room_hub) is
+    the named hours-long cell a watched world wants. The RESERVE does not
+    scale with it — it is the absolute cost of reaching the dock, a property
+    of the floor plan (`--reserve-wh` / `$PLUGGY_RESERVE_WH` is for a
+    different room, not a different battery).
 - **A recording carries the robot's MAP** (rooftop-media-2026 #78). `grid` was
   live-only from 0.2.0 until the website drew it, and the site's default view
   is a recording — so the map panel would have been blank for almost every
@@ -257,12 +317,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   GPU-less box. `MUJOCO_GL=osmesa` is baked in and the build renders one
   offscreen frame, so headless GL is a red build rather than a mission that
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
-  `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_BATTERY_WH`,
+  `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
+  `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`; the secret stays
-  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The three DATA files
+  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The four DATA files
   are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
-  (what a job pays), `$PLUGGY_QUESTIONS` (the question bank) and
-  `$PLUGGY_CADENCE` (how busy the world is) — mount a file, no rebuild.
+  (what a job pays), `$PLUGGY_QUESTIONS` (the question bank),
+  `$PLUGGY_CADENCE` (how busy the world is) and `$PLUGGY_ENERGY` (what an
+  errand costs) — mount a file, no rebuild.
   ⚠ **A lazy import is the failure mode here**: the detector comes in
   inside `hub.tags._shared_detector`, so nothing an import scan can see —
   which is why `tests/test_deploy.py` blocks the omitted packages and then

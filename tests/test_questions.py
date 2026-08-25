@@ -575,6 +575,13 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   that lost a race with a house would make this test flaky rather than
   informative.
 
+  ⚠ The board is given home's ENERGY table, because that is what production
+  does (issue #15). A bare board falls back to `TaskKind.estimate_wh`, which
+  is deliberately the dearest world's dearest target -- more than this cell
+  holds -- so every offer would stand unclaimable and the robot would explore
+  until its budget ran out. The measured figure for a `whiteboard_a` drawing
+  is 0.929 Wh, which a freshly charged 1.1 Wh cell can just take.
+
   ⚠ AND IT RUNS ON THE HOUSE'S OWN 1.1 Wh CELL, so a CHARGE CYCLE lands
   between the two questions -- an answer errand costs ~0.74 Wh here, so two
   of them cannot fit in one pack and the arbitration loop has to go to the
@@ -587,6 +594,7 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   bigger battery and that whole path stops being exercised.
   """
   import mujoco
+  from pluggybot.hub import energy
   from pluggybot.hub.journal import Journal
   from pluggybot.hub.mission import MissionAborted
   from pluggybot.hub.overseer import Overseer
@@ -595,7 +603,7 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
   book = lc.board_book("home")
-  tasks = board()
+  tasks = board(energy=energy.load("home"))
   mind = Arithmetician()
   boss = Overseer(Menu.for_world("home", book), client=mind)
   ledger = Ledger(table=TABLE, clock=lambda: "2026-08-23T00:00:00")

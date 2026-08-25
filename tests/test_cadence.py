@@ -382,7 +382,11 @@ def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
   import mujoco
   cfg = lc.world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
-  b = board()
+  # Priced for room_hub, as production does (issue #15): a bare board falls
+  # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
+  # figure and so refuses room_hub a carry it does for 0.57 Wh.
+  from pluggybot.hub.energy import load as load_energy
+  b = board(energy=load_energy("room_hub"))
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
                          world="room_hub", errand=False, tasks=b,
                          producer=None, battery_wh=cfg["battery_wh"],
@@ -533,7 +537,11 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
   import mujoco
   cfg = lc.world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
-  b = board()
+  # Priced for room_hub, as production does (issue #15): a bare board falls
+  # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
+  # figure and so refuses room_hub a carry it does for 0.57 Wh.
+  from pluggybot.hub.energy import load as load_energy
+  b = board(energy=load_energy("room_hub"))
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
                          world="room_hub", errand=False, tasks=b,
                          battery_wh=cfg["battery_wh"], rack=cfg["rack"],

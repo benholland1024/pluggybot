@@ -75,6 +75,16 @@ class Errand:
   #: that "the robot drew a house" and "the robot did the job it took on"
   #: are the same event rather than two.
   task_id: str = ""
+  #: what this errand is expected to COST, Wh, or 0 to look it up in
+  #: hub/energy.json by `task` (issue #15).
+  #:
+  #: Set only where a better figure exists than the per-action one: a TASK
+  #: carries a per-KIND estimate that knows which end of the house it is
+  #: being asked about, and the far whiteboard costs more than the near one.
+  #: The mission loop refuses to start an errand it cannot pay for, so this
+  #: is the number standing between an overseer and a robot that dies holding
+  #: the tool -- MEASURED (scripts/energy_spike.py), never guessed.
+  estimate_wh: float = 0.0
   #: does the use-phase need the pre-positioning drive to have ARRIVED?
   #:
   #: True for everything that works on a fixed thing at a fixed place -- a pen

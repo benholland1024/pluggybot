@@ -33,6 +33,15 @@ fi
 if [ -n "${PLUGGY_BATTERY_WH:-}" ]; then
   set -- --battery-wh "${PLUGGY_BATTERY_WH}" "$@"
 fi
+# Which CELL a watched world runs on (pluggybot #15). `hosting` is the named
+# hours-long pack; PLUGGY_BATTERY_WH still overrides it with a raw number,
+# which is what the deployment did before the name existed.
+if [ -n "${PLUGGY_PACK:-}" ]; then
+  set -- --pack "${PLUGGY_PACK}" "$@"
+fi
+if [ -n "${PLUGGY_RESERVE_WH:-}" ]; then
+  set -- --reserve-wh "${PLUGGY_RESERVE_WH}" "$@"
+fi
 
 # The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY is
 # NOT turned into a flag -- serve.py never sees it and the SDK reads it from
