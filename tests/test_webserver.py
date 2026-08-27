@@ -735,6 +735,9 @@ class _FakePublisher:
     self.messages: list = []
     self.frames_sent = self.frames_dropped = self.connections = 0
     self.last_error = None
+    # The downstream direction (issue #16). Always wired as of issue #30 --
+    # the inbox is attached on every served world, not only overseer ones.
+    self.on_inbound: list = []
 
   def step_hook(self) -> None:
     pass
@@ -890,3 +893,17 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
                        "--record", str(tmp_path / "out.jsonl.gz")])
   serve.main()
   assert seen["model_name"] == "home_world"
+
+
+def test_serve_advertises_accepts_per_kind(monkeypatch):
+  """The `accepts` split (issue #30): a scripted world hears what CODE
+  handles -- a rating settles a ledger row, a reset moves a module -- while
+  suggestions and questions still need an overseer to read them. Advertising
+  the full vocabulary without one would promise conversations that never
+  start; advertising nothing would hide the admin's only recovery for a
+  dropped tool."""
+  from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES
+  life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert tuple(pub.init_kwargs["accepts"]) == CODE_HANDLED_TYPES
+  # ...and the inbox is attached regardless, so those kinds actually land.
+  assert life.init_kwargs["inbox"] is not None
