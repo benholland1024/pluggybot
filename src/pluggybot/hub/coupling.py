@@ -323,6 +323,9 @@ RACK_HALF_W = 0.93        # side posts. Grew 0.48 -> 0.68 for the fourth tool
                           # home_world: rack at (0.5, -1.98) yaw 90, rail
                           # spans x -0.43..1.43 inside a house wall at -2.0.
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
+CHARGE_TAG_X = 0.109      # rack-local x of the charge tag's face -- the
+                          # anchor a measured standoff fix is computed from
+                          # (hub/mission.py, issue #32)
 # Fiducial plates carry real tag36h11 AprilTags (hub/tags.py). Plate sizes
 # follow from the marker sizes, which are themselves a range decision: a
 # tag must span ~25-30 px to decode, so the rack's marker is large (read
@@ -445,7 +448,7 @@ def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
             rgba="0.30 0.32 0.36 1"/>
       <geom name="rack_charge_tag" type="box"
             size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}"
-            pos="0.109 {CHARGE_BAY_Y:.4f} {CHARGE_PIN_Z + 0.030:.3f}"
+            pos="{CHARGE_TAG_X:.3f} {CHARGE_BAY_Y:.4f} {CHARGE_PIN_Z + 0.030:.3f}"
             contype="0" conaffinity="0" material="tagmat{CHARGE_TAG_ID}"/>
       <geom name="rack_pin_l" type="cylinder" size="0.004 0.006" zaxis="1 0 0"
             pos="0.114 {CHARGE_BAY_Y + 0.03:.4f} {CHARGE_PIN_Z:.3f}" mass="0.005"
