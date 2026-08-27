@@ -695,6 +695,8 @@ class HubLifecycle:
     """
     if self.inbox is None:
       return
+    for msg in self.inbox.drain(("reset_tool",)):
+      self._reset_tool(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -711,6 +713,51 @@ class HubLifecycle:
       self._say(f"VISITOR rated task {msg.seq} ({entry['task']}) "
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
                 f"balance {entry['balance']}")
+
+  def _reset_tool(self, msg) -> None:
+    """Put a lost module back on its bay, because an admin said so (#30).
+
+    The recovery half of the tool-drop problem: prevention is the measured
+    bay standoff, but a module that IS on the floor -- knocked there by a
+    collision, an unlucky jam, anything the measurement cannot promise away
+    -- is invisible to the whole swap stack (every pick finds an empty bay)
+    and litters the rack's approach lane. On hardware this is a person
+    picking the tool up; in the sim it is the same hand, reaching in through
+    the admin page.
+
+    Handled by CODE on the physics thread, like a rating: an admin command
+    is not a thing the robot weighs, so it never reaches the overseer's
+    context. Refused, with a narration, while the module is electrically
+    seated on the fork -- a tool in use is not lost, and yanking it out of
+    the coupling mid-errand would MAKE the mess this exists to clean up.
+
+    The reset pose is `model.qpos0`: every world compiles its modules hung
+    at their own bays, so "back where it belongs" is the model's own answer
+    rather than a second copy of the rack geometry.
+    """
+    name, who = msg.module, msg.who or "an admin"
+    if not name.startswith("module_"):
+      self._say(f"ADMIN reset refused: {name!r} is not a module")
+      return
+    try:
+      body = self.model.body(name)
+    except KeyError:
+      self._say(f"ADMIN reset refused: no {name!r} in this world")
+      return
+    jid = int(body.jntadr[0])
+    if jid < 0 or self.model.jnt_type[jid] != mujoco.mjtJoint.mjJNT_FREE:
+      self._say(f"ADMIN reset refused: {name!r} is not a free module")
+      return
+    if module_power_contact(self.model, self.data, name):
+      self._say(f"ADMIN reset refused: {name} is seated on the fork -- "
+                "a tool in use is not lost")
+      return
+    qadr = int(self.model.jnt_qposadr[jid])
+    dadr = int(self.model.jnt_dofadr[jid])
+    self.data.qpos[qadr:qadr + 7] = self.model.qpos0[qadr:qadr + 7]
+    self.data.qvel[dadr:dadr + 6] = 0.0
+    mujoco.mj_forward(self.model, self.data)
+    self._say(f"ADMIN {who} reset {name} -- back on its bay")
 
   def _answer_visitor(self, decision) -> None:
     """Send one accept/decline/answer back out, and retire the message.

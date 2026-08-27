@@ -243,7 +243,29 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 # `move` and `clear_board` (tic-tac-toe) are named in issue #16 as LATER and
 # are deliberately absent: there is no board game yet, and a vocabulary entry
 # with nothing behind it is a promise the robot cannot keep.
-INBOUND_TYPES = ("suggestion", "question", "rating")
+#
+# `reset_tool` (issue #30) is the ADMIN recovery for a dropped module:
+#   {"type": "reset_tool", "id": "a_01", "module": "module_pen",
+#    "from": "ben"}
+# It is handled by CODE the moment the physics thread drains it -- the module
+# jumps back to its own bay, exactly as `rating` goes straight to the ledger
+# -- and NEVER reaches the overseer: an admin command is not a thing the
+# robot weighs. The acknowledgement is the world itself (the module's pose
+# stream) plus a narration event line; the sim refuses, with a narration,
+# while the module is seated on the fork, because a tool in use is not lost.
+# Added WITHOUT a version bump, deliberately: no emitted artifact changes
+# shape (recordings carry no inbound messages, and the header's `accepts`
+# list is where a website discovers whether this sim understands it -- the
+# `accepts` lesson is the mechanism, not the version).
+INBOUND_TYPES = ("suggestion", "question", "rating", "reset_tool")
+
+#: The inbound kinds CODE handles without an overseer: applied by the physics
+#: thread the moment they are drained, never shown to a model. What a served
+#: world with no overseer advertises in `accepts` -- a suggestion to a robot
+#: with nothing reading it is a conversation that is not happening (the
+#: `accepts` lesson), but a rating settles a ledger row and a reset moves a
+#: module, and both of those work on a scripted world.
+CODE_HANDLED_TYPES = ("rating", "reset_tool")
 
 # The task system's vocabularies (issue #21). Two-repo contracts on the same
 # terms as the three above. They live here rather than in hub/tasks.py, which

@@ -125,7 +125,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   much BELIEF error the dock forgives — the robot is placed truly at
   standoff-plus-error while believing itself at the standoff; `--blind`
   reproduces the before-fix rows, which die at ~6 cm lateral / ~10° heading
-  / a 10° rack-yaw belief error), `scripts/hub_swap.py` (robot
+  / a 10° rack-yaw belief error),
+  `scripts/swap_spike.py` (issue-30 bay-swap sweep under the same belief
+  error: where the MODULE ends up — hung, on the fork, or on the floor at
+  the rack's foot; `--blind` reproduces the before-fix rows, which drop the
+  module at 4–8 cm across or −3° of heading, `--pick` corrupts before the
+  pick instead), `scripts/hub_swap.py` (robot
   swaps a module at the hub in `models/hub_world.xml`),
   `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
@@ -324,12 +329,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   / `reply`) and the outcome goes back as a typed `visitor_reply` that closes
   the website's row. **RATINGS NEVER REACH THE MODEL** — a rating moves a
   balance, so `_visitor_step` drains those straight to the ledger; the
-  `artwork` task is what makes that path live rather than reserved.
-  ⚠ **The header advertises `accepts`**, and it is load-bearing: a sim with no
-  overseer never reads its socket, so a website that marked a suggestion
-  "delivered" because the socket took it would report a conversation that
-  never started. A robot that cannot hear you is treated as absent — the same
-  lesson as the charge criterion being electrical rather than positional.
+  `artwork` task is what makes that path live rather than reserved. Nor does
+  a `reset_tool` (issue #30): an admin command is code's to apply, not the
+  robot's to weigh.
+  ⚠ **The header advertises `accepts`, PER KIND** (issues #16, #30), and it
+  is load-bearing: suggestions and questions need an overseer to read them,
+  while `rating` and `reset_tool` are handled by code on any served world —
+  so a scripted world advertises `CODE_HANDLED_TYPES` and an overseer world
+  the full vocabulary. A website that marked a suggestion "delivered"
+  because the socket took it would report a conversation that never started.
+  A robot that cannot hear you is treated as absent — the same lesson as the
+  charge criterion being electrical rather than positional.
   ⚠ **Sanitising is NOT the security boundary.** Capping at 280 chars and
   stripping control characters stops a forged narration line and does nothing
   about "ignore your goals". What answers that is the framing (a labelled
@@ -562,6 +572,22 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   as `stranded`, never as "mission complete" — a robot that could not reach
   its charger has not completed anything. SimNotes, "The charge approach
   was blind".
+- **...AND SO ARE THE BAYS** (issue #30; `_measured_standoff` is the shared
+  core). The tool drop the website kept seeing was an APPROACH error, not a
+  retention one: 4–8 cm of belief decoherence (or −3° of heading) makes a
+  return drag the module off the trays and on to the floor at the rack's
+  foot, where every later pick finds an empty bay and the rack's approach
+  lane is littered — and the grinding retries slip the wheels, pumping more
+  drift, so the cliff feeds itself. `HubMission.bay_fix` measures the bay
+  standoff off the bay's own tag inside `swap_at_bay`'s retry loop (fork
+  line, so `PLUG_LATERAL` rides along); `scripts/swap_spike.py --blind`
+  reproduces the drops. Recovery for what measurement cannot promise away:
+  the `reset_tool` inbound kind (admin-only, code-handled on the physics
+  thread, never shown to the overseer, refused while the module is seated
+  on the fork) puts a lost module back at `model.qpos0` — and with it the
+  served inbox is attached on EVERY world, `accepts` advertised per kind
+  (`CODE_HANDLED_TYPES` without an overseer), so ratings now settle on
+  scripted worlds too. SimNotes, "The tool drop was an approach error".
 - **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —
