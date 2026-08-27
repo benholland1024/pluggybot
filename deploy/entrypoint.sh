@@ -43,11 +43,13 @@ if [ -n "${PLUGGY_RESERVE_WH:-}" ]; then
   set -- --reserve-wh "${PLUGGY_RESERVE_WH}" "$@"
 fi
 
-# The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY is
-# NOT turned into a flag -- serve.py never sees it and the SDK reads it from
-# the environment, so it stays out of `ps`. PLUGGY_OVERSEER is read by
-# `hub.overseer.build` directly, but the flag is passed anyway so that a run
-# with it on says so in its own argv.
+# The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY
+# and $HF_TOKEN are NOT turned into flags -- serve.py never sees them and the
+# backends read them from the environment, so they stay out of `ps`. Which
+# backend is $PLUGGY_MODEL's call (an `org/name` id is the HuggingFace
+# router, hub/llm.py; a bare id is Anthropic), read by `hub.overseer.build`
+# directly like PLUGGY_OVERSEER -- but the --overseer flag is passed anyway
+# so that a run with it on says so in its own argv.
 if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
   if [ -n "${PLUGGY_GOALS:-}" ]; then
