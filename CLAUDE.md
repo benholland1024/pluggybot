@@ -180,13 +180,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
   frame-gap stats + keyframe spacing; `--token` makes it refuse an
   unauthenticated publisher, like the real ingest path),
-  `scripts/overseer_probe.py` (issue #15: makes REAL Haiku 4.5 calls against a
+  `scripts/overseer_probe.py` (issue #15: makes REAL LLM calls against a
   synthetic robot state and reports tokens, cost per sim-hour and the prompt-
-  cache hit rate. `--tokens-only` counts the stable prefix and stops, billing
-  no tokens — the number that matters, because Haiku 4.5 does not cache a
-  prefix under 4096 tokens and the marker is silently inert below it. ⚠ Both
-  modes need `$ANTHROPIC_API_KEY`: `count_tokens` is a free endpoint, not a
-  local tokenizer, and there is no offline Claude token count worth trusting)
+  cache hit rate. `--model Qwen/...` — any `org/name` id — measures a
+  HuggingFace candidate through the router instead (rates come off its own
+  catalogue; needs `$HF_TOKEN`, which lives in this repo's gitignored
+  `.env`), and is how the model behind a served world is chosen before
+  `$PLUGGY_MODEL` names it. `--tokens-only` counts the stable prefix and
+  stops, billing no tokens — the number that matters on the Anthropic path,
+  because Haiku 4.5 does not cache a prefix under 4096 tokens and the marker
+  is silently inert below it. ⚠ The Anthropic modes need
+  `$ANTHROPIC_API_KEY`: `count_tokens` is a free endpoint, not a local
+  tokenizer, and there is no offline Claude token count worth trusting)
 - **The LLM overseer** (`--overseer` on `serve.py` / `hub_lifecycle.py`, issue
   #15; `docs/Overseer.md`) replaces **exactly one branch** of
   `HubLifecycle.run()`: which errand, when the battery is fine and nothing is
@@ -206,6 +211,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   is written and never edited.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  - **WHICH model decides is `$PLUGGY_MODEL`, and the id picks the backend**
+    (issue #15's HF turn): an `org/name` id goes to the HuggingFace router
+    (`hub/llm.py`, `$HF_TOKEN`, stdlib urllib — the serve image's package
+    set did not grow), a bare id to the Anthropic SDK. One client seam,
+    vendor-blind downstream. Measured sweep + per-model doctrine in
+    docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
+    burns `max_tokens` on `<think>` and truncates before the answer;
+    the adapter strips a completed think block, but cannot conjure the
+    JSON a truncated one never wrote). The deployed pick is
+    `Qwen/Qwen3-4B-Instruct-2507`: 3/3 valid decisions, ~$0.0009/sim-hour
+    off the router's own catalogue rates, and small enough that Ben's
+    local-hosting plan (≤8B) has headroom.
   ⚠ **A chosen errand can cost more than the whole pack**, and
   `hub/energy.py` + `hub/energy.json` are what stop it (`$PLUGGY_ENERGY`;
   the fourth data file after rewards, cadence and questions). `needs_charge`

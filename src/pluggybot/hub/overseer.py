@@ -510,7 +510,9 @@ same trip with the decision made on purpose. Anything missing from \
 `possibleActions` is a job this house is not big enough for, whatever you do.
 - Sometimes there is WORK ON OFFER: jobs the house or a visitor has put up, \
 listed in `offeredTasks` with what each one pays. Taking one is `take_task` \
-with its `id`. Nobody makes you take a job -- an offer you leave alone \
+with `task` set to the offer's `id`, copied exactly (ids look like \
+"t_0012"; a kind name like "draw" is not an id and names nothing). Nobody \
+makes you take a job -- an offer you leave alone \
 eventually lapses, and that is a real thing you are allowed to let happen -- \
 but a job somebody asked for is usually worth more than something you thought \
 of yourself, and it is the closest thing you have to being useful to a \
@@ -585,7 +587,10 @@ def system_prompt(goals: str, menu: Menu, table: RewardTable) -> list[dict]:
       "explore": "drive around mapping what you have not seen. Optional "
                  "`zone` names where to concentrate.",
       "take_task": "accept a job from `offeredTasks` and do it. Needs "
-                   "`task`, the offer's `id`. The job says which tool and "
+                   "`task`: the offer's `id` copied exactly as listed -- it "
+                   "looks like \"t_0012\" -- NEVER the job's kind or a word "
+                   "like \"draw\" (that names nothing and wastes the turn). "
+                   "The job says which tool and "
                    "which place; you do not have to work that out. A job "
                    "marked `needsAnswer` asks you something: work the answer "
                    "out yourself and put it in `answer` as a whole number of "
@@ -700,7 +705,14 @@ def context_for(life, journal: Journal | None = None,
 
 @dataclass
 class Usage:
-  """What the decisions have cost. Reported, never enforced against."""
+  """What the decisions have cost. Reported, never enforced against.
+
+  The per-Mtok rates default to Haiku 4.5's and are OVERWRITTEN when an HF
+  backend is built, from the router's own catalogue (`HFClient.pricing`) --
+  a hardcoded table would be stale by the second model measured. `priced`
+  goes False when that lookup fails, so the report can say "unknown" instead
+  of the confident zero this module keeps out of prompts and reports alike.
+  """
 
   calls: int = 0
   llm_calls: int = 0
@@ -709,14 +721,18 @@ class Usage:
   output_tokens: int = 0
   cache_read_tokens: int = 0
   cache_write_tokens: int = 0
+  usd_per_mtok_in: float = USD_PER_MTOK_IN
+  usd_per_mtok_out: float = USD_PER_MTOK_OUT
+  priced: bool = True
   errors: list[str] = field(default_factory=list)
 
   @property
   def usd(self) -> float:
-    return (self.input_tokens * USD_PER_MTOK_IN
-            + self.cache_read_tokens * USD_PER_MTOK_IN * CACHE_READ_MULTIPLIER
-            + self.cache_write_tokens * USD_PER_MTOK_IN * CACHE_WRITE_MULTIPLIER
-            + self.output_tokens * USD_PER_MTOK_OUT) / 1e6
+    rate_in, rate_out = self.usd_per_mtok_in, self.usd_per_mtok_out
+    return (self.input_tokens * rate_in
+            + self.cache_read_tokens * rate_in * CACHE_READ_MULTIPLIER
+            + self.cache_write_tokens * rate_in * CACHE_WRITE_MULTIPLIER
+            + self.output_tokens * rate_out) / 1e6
 
   @property
   def cache_hit_rate(self) -> float:
@@ -734,6 +750,7 @@ class Usage:
             "cacheReadTokens": self.cache_read_tokens,
             "cacheWriteTokens": self.cache_write_tokens,
             "cacheHitRate": self.cache_hit_rate, "usd": round(self.usd, 6),
+            "priced": self.priced,
             "errors": list(self.errors[-5:])}
 
 
@@ -800,20 +817,40 @@ class Overseer:
 
   @property
   def client(self):
-    """The Anthropic client, built on first use.
+    """The LLM client, built on first use. WHICH one is the model id's call:
+    every HuggingFace id is `org/name` and no Anthropic id contains a slash,
+    so `Qwen/Qwen3-4B-Instruct-2507` gets the router adapter (`hub/llm.py`,
+    wearing the same `.messages.create` shape) and `claude-haiku-4-5` gets
+    the SDK. One seam, two vendors, and everything downstream -- `_call`,
+    validation, metering, the fallbacks -- neither knows nor cares.
 
     Lazy because `anthropic` is a runtime dependency of the SERVE path and the
     import must not be a hard requirement of importing the mission stack --
     tests/test_deploy.py flies the robot with the image's package set, and a
     module-level import here would make the overseer's absence a crash rather
-    than a fallback.
+    than a fallback. The HF adapter is stdlib-only but stays behind the same
+    laziness for symmetry, and because a missing $HF_TOKEN raises HERE (at
+    construction, unlike the SDK's first-request failure) and resolves to the
+    same `fallback:no-client`.
     """
     if not self._client_ready:
       self._client_ready = True
       try:
-        import anthropic
-        self._client = anthropic.Anthropic(timeout=self.timeout_s,
-                                           max_retries=0)
+        if "/" in self.model:
+          from pluggybot.hub import llm
+          self._client = llm.HFClient(timeout=self.timeout_s)
+          rates = self._client.pricing(self.model)
+          if rates is not None:
+            self.usage.usd_per_mtok_in, self.usage.usd_per_mtok_out = rates
+          else:
+            # Metering with Haiku's rates would bill a 4B like a Claude;
+            # metering at zero would read "free". Unknown is the truth.
+            self.usage.usd_per_mtok_in = self.usage.usd_per_mtok_out = 0.0
+            self.usage.priced = False
+        else:
+          import anthropic
+          self._client = anthropic.Anthropic(timeout=self.timeout_s,
+                                             max_retries=0)
       except Exception as e:                # noqa: BLE001 -- see docstring
         # No SDK, no key, no network stack: all the same story from here, and
         # the story is "decide without it".
@@ -1025,6 +1062,11 @@ def _extract_json(response) -> dict:
 ENABLE_ENV = "PLUGGY_OVERSEER"
 GOALS_ENV = "PLUGGY_GOALS"
 JOURNAL_ENV = "PLUGGY_JOURNAL"
+#: Which model decides (issue #15's HF turn). An environment knob rather than
+#: a flag, like every other deploy setting: `PLUGGY_MODEL=Qwen/Qwen3-8B`
+#: points a served world at the HF router with no compose edit beyond the
+#: environment block, and an id with no slash keeps meaning Anthropic.
+MODEL_ENV = "PLUGGY_MODEL"
 
 
 def goals_text(goals_path: str | None = None) -> str:
@@ -1044,13 +1086,18 @@ def build(world: str, book=None, enabled: bool | None = None,
           goals_path: str | None = None, journal_path: str | None = None,
           table: RewardTable | None = None, client=None,
           calls_per_hour: int = CALLS_PER_HOUR,
-          model: str = MODEL) -> tuple["Overseer | None", Journal | None]:
+          model: str | None = None,
+          ) -> tuple["Overseer | None", Journal | None]:
   """`(overseer, journal)` for a world, or `(None, None)` when disabled.
 
   Disabled is the DEFAULT and stays the default: every existing demo, every
   mission test and every recording must behave exactly as it did, which is
   only true if the arbitration loop is untouched unless someone asks for the
   overseer by name.
+
+  `model=None` reads `$PLUGGY_MODEL` and falls back to `MODEL`, the same
+  resolution shape as the enable flag and the memory paths -- a served world
+  is configured by environment alone.
   """
   if enabled is None:
     enabled = os.environ.get(ENABLE_ENV, "").strip().lower() in (
@@ -1060,6 +1107,8 @@ def build(world: str, book=None, enabled: bool | None = None,
   journal = Journal(journal_path or os.environ.get(JOURNAL_ENV) or None)
   goals = goals_text(goals_path)
   overseer = Overseer(Menu.for_world(world, book), goals=goals, table=table,
-                      journal=journal, client=client, model=model,
+                      journal=journal, client=client,
+                      model=model or os.environ.get(MODEL_ENV, "").strip()
+                      or MODEL,
                       calls_per_hour=calls_per_hour)
   return overseer, journal

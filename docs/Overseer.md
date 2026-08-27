@@ -374,7 +374,83 @@ The scripted fallback obeys the same list, so an outage does not mean the
 robot proposing an errand the loop refuses, over and over, until the budget
 runs out.
 
-## 6. Cost, and the call budget
+## 6. The model, the cost, and the call budget
+
+### Two backends, one seam
+
+Which model decides is **`$PLUGGY_MODEL`**, and the id itself picks the
+backend: every HuggingFace id is `org/name`, no Anthropic id contains a
+slash, so `Qwen/Qwen3-4B-Instruct-2507` goes to the **HF Inference
+Providers router** (`hub/llm.py`, `$HF_TOKEN`) and `claude-haiku-4-5` — the
+default — to the Anthropic SDK (`$ANTHROPIC_API_KEY`). The overseer's client
+seam was always "anything with `.messages.create(**kwargs)` returning
+`.content` and `.usage`", and the HF adapter simply wears that shape, so
+`_call`, validation, metering, the budget and every fallback are
+vendor-blind. Stdlib `urllib` on purpose: the serving image's six pinned
+packages did not grow to talk to one HTTPS endpoint.
+
+The HF turn exists because Ben's hardware runs ~8B models at a decent
+speed: the router is where candidate models get **measured**
+(`scripts/overseer_probe.py --model Qwen/...`) before one earns a local
+deployment. Differences, all handled in the adapter:
+
+- **No prompt caching.** The router bills full input every call, so
+  `cacheHitRate: 0` is the honest reading there (not the Haiku 4096-token
+  floor). At 8B-class prices this costs less than Haiku's cached rate
+  anyway — see the sweep below.
+- **Structured outputs are provider-dependent.** The same JSON schema rides
+  as OpenAI-style `response_format`; a provider that 4xxes it gets ONE
+  retry with the schema spelled into the system text. `validate()` is the
+  last word on both vendors either way.
+- **A missing `$HF_TOKEN` fails at construction** (the opposite of the SDK,
+  whose late failure is why the cool-off exists) and resolves to
+  `fallback:no-client`.
+- **A reasoning model's `<think>` block is stripped** before parsing —
+  "the model reasoned first" and "the model did not answer JSON" are
+  different events.
+
+### The sweep (measured 2026-08-27, 3 real decisions each, home world)
+
+| model | valid | $/Mtok in/out | $/sim-hour | note |
+|---|---|---|---|---|
+| **`Qwen/Qwen3-4B-Instruct-2507`** | **3/3** | 0.01 / 0.03 | **$0.0009** | best reasons, cheapest — the pick |
+| `meta-llama/Llama-3.1-8B-Instruct` | 3/3 | 0.02 / 0.05 | $0.0018 | terse; one hallucinated reason |
+| `meta-llama/Llama-3.3-70B-Instruct` | 2/3 | 0.135 / 0.4 | $0.0116 | one truncated answer |
+| `Qwen/Qwen3-8B` | 1/3 | 0.07 / 0.18 | — | thinking: burns `max_tokens` on `<think>` |
+| `ibm-granite/granite-4.2-8b` | 0/3 | 0.06 / 0.25 | — | empty answers |
+| `Qwen/Qwen3.5-9B` | 0/3 | — | — | 403 from its only provider |
+
+Every failure above degraded to a tagged scripted fallback — the sweep is
+also the fallback machinery's live audition. Prefer **instruct-tuned**
+models: a thinking model spends its 512-token budget reasoning and truncates
+before the answer. Rates come off the router's own `/v1/models` catalogue at
+client build (cheapest live provider), so the `usd` in `stats()` tracks the
+model actually chosen; when the catalogue does not answer, `priced: false`
+and the report says unknown rather than zero.
+
+### The acceptance run (the pick, 4 sim-hours unattended, measured)
+
+Home world, hosting pack, tasks on cadence, `--fast`: **mission complete at
+t=14 400 with the pack at 21 % — 8/8 charge cycles docked, no stranding, no
+mid-errand death, $0.00125 total ($0.0003/sim-hour)**, and the DEFER path
+fired exactly as designed (a chosen census at 17 % was deferred, charged for,
+then run). The model answered every question task correctly — `2 + 3`,
+a fortnight, `12 − 4`, `6 × 7`, a spider's legs — and the first one went all
+the way to ink: `wrote 5 on whiteboard_a in answer to "2 + 3" -- correct,
+0.7 mm from the glyphs`.
+
+⚠ **The one small-model quirk measured: the offer id.** 23 of the run's 34
+fallbacks were `take_task` with the job's KIND in `task` ("draw", "census")
+instead of the id, each degrading safely to the scripted policy (which takes
+the oldest claimable offer anyway) but also feeding the cool-off streaks.
+The prompt now spells the id shape out in both the rules and the action
+description, and the probe's synthetic state carries a claimable offer so
+the mistake is measurable: re-probed after the wording fix, 4/4 valid with
+the offer taken by id. (The run's 36 failed jobs were the long-run bay-swap
+cliff — issue #30 territory, pre-existing and LLM-independent: the dead-key
+fallback run hit the same cliff with zero model calls.)
+
+### The Anthropic path
 
 **Claude Haiku 4.5** (`claude-haiku-4-5`), structured outputs so the decision is
 validated JSON rather than parsed prose, `max_tokens` 512, no thinking.
@@ -453,16 +529,26 @@ ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
 # needs a key -- count_tokens is a free ENDPOINT, not a local tokenizer.
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
 
+# measure a HuggingFace candidate the same way (any `org/name` id routes to
+# the HF router; rates come off its catalogue) -- and the acceptance shape
+# on the model the sweep picked:
+HF_TOKEN=... uv run python scripts/overseer_probe.py \
+    --model Qwen/Qwen3-4B-Instruct-2507 --calls 3
+HF_TOKEN=... PLUGGY_MODEL=Qwen/Qwen3-4B-Instruct-2507 MUJOCO_GL=egl \
+  uv run python scripts/hub_lifecycle.py --world home --pack hosting \
+    --errand none --tasks --overseer --fast --max-sim-time 14400
+
 # served, the deploy shape
 PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
   uv run python scripts/serve.py --world home --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Environment (the deploy configures with `environment:` alone):
-`PLUGGY_OVERSEER`, `PLUGGY_GOALS`, `PLUGGY_JOURNAL`,
-`PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`, `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` is deliberately **not** turned
-into a flag — the SDK reads it from the environment and it stays out of `ps`,
-exactly like `PLUGGYWORLD_TOKEN`.
+`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_GOALS`, `PLUGGY_JOURNAL`,
+`PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
+`PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` and `HF_TOKEN` are deliberately **not**
+turned into flags — the backends read them from the environment and they stay
+out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
 
 ## 9. Visitors (issue #16)
 

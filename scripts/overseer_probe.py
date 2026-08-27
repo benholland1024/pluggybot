@@ -19,6 +19,14 @@ says plainly whether caching engaged.
                         # real (free) endpoint, not a local tokenizer, and
                         # there is no offline way to count Claude tokens that
                         # is worth trusting.
+  HF_TOKEN=... uv run python scripts/overseer_probe.py \
+      --model Qwen/Qwen3-4B-Instruct-2507   # any `org/name` id goes to the
+                        # HuggingFace router instead (hub/llm.py) -- THIS is
+                        # how candidate models are measured before one is
+                        # picked for a served world ($PLUGGY_MODEL). Rates
+                        # come off the router's own catalogue; the cache
+                        # section does not apply (the router bills full input
+                        # every call) and says so.
 
 ⚠ EXPECT A CACHE HIT RATE OF ZERO unless the stable prefix is over 4096
 tokens. That is Claude Haiku 4.5's minimum cacheable prefix, and below it a
@@ -36,6 +44,7 @@ import time
 
 from pluggybot.hub.journal import read_goals
 from pluggybot.hub.lifecycle import board_book
+from pluggybot.hub.llm import is_hf_model
 from pluggybot.hub.overseer import MODEL, Menu, Overseer
 
 
@@ -59,6 +68,16 @@ def synthetic_state(menu: Menu, i: int) -> dict:
                for b in menu.boards},
     "journal": ["whiteboard_a was already full when I got there"][:i],
     "visitorSuggestions": [],
+    # A claimable offer, so the probe exercises `take_task` -- the action the
+    # acceptance run measured small models getting WRONG (the kind "draw" in
+    # `task` instead of the id, 23 times in 4 sim-hours before the prompt
+    # spelled the id shape out). A decision naming `t_0007` is the fix
+    # working; `fallback:ValueError ... not on offer` is it not.
+    "offeredTasks": [{"id": "t_0007", "kind": "artwork",
+                      "description": "Draw a sun on whiteboard_a for people "
+                                     "to rate.",
+                      "paysUpTo": 30, "claimable": True,
+                      "needsAnswer": False}],
     "decisions": i,
   }
 
@@ -84,36 +103,57 @@ def main() -> None:
   print(f"actions      : {', '.join(menu.available())}")
   print(f"prefix chars : {len(prefix)}")
 
+  hf = is_hf_model(args.model)
   client = boss.client
   if client is None:
-    print("\nno client -- set ANTHROPIC_API_KEY (the sim would run scripted)")
+    key = "HF_TOKEN" if hf else "ANTHROPIC_API_KEY"
+    print(f"\nno client -- set {key} (the sim would run scripted)")
+    for err in boss.usage.errors:
+      print(f"  {err}")
     return
-  try:
-    counted = client.messages.count_tokens(
-      model=args.model, system=boss.system,
-      messages=[{"role": "user", "content": "?"}])
-  except Exception as e:                    # noqa: BLE001
-    # Almost always a missing or rejected key. Say so in one line rather than
-    # in a twelve-frame traceback -- this script exists to report numbers, and
-    # "I could not get one, here is why" is a report.
-    print(f"\ncould not count tokens: {type(e).__name__}: "
-          f"{str(e).splitlines()[0][:160]}")
-    print("set ANTHROPIC_API_KEY -- count_tokens is a free endpoint, but it"
-          " is still an authenticated one")
-    return
-  prefix_tokens = counted.input_tokens
-  # 4096 on Haiku 4.5. Named here rather than imported because it is a
-  # property of the MODEL, and the probe is the thing that gets pointed at a
-  # different one.
+  prefix_tokens = None
   minimum = 4096
-  print(f"prefix tokens: {prefix_tokens} (cacheable minimum on Haiku 4.5:"
-        f" {minimum})")
-  if prefix_tokens < minimum:
-    print(f"             ⚠ {minimum - prefix_tokens} short -- the"
-          " cache_control marker will be INERT and the hit rate below will"
-          " read 0. That is the model's floor, not a bug.")
-  if args.tokens_only:
-    return
+  if hf:
+    # The router has no count_tokens endpoint and no billed prompt cache --
+    # `cacheHitRate: 0` below is the honest reading, not the Haiku floor.
+    # What it DOES publish is per-provider pricing, which is where the
+    # cost report's rates come from.
+    rates = ((boss.usage.usd_per_mtok_in, boss.usage.usd_per_mtok_out)
+             if boss.usage.priced else None)
+    print("router rates : "
+          + (f"${rates[0]}/Mtok in, ${rates[1]}/Mtok out (cheapest live "
+             "provider)" if rates else "UNKNOWN -- catalogue did not answer; "
+             "usd below will read 0"))
+    if args.tokens_only:
+      print("(--tokens-only needs count_tokens, which is Anthropic-only; "
+            "prefix chars above are the size measure here)")
+      return
+  else:
+    try:
+      counted = client.messages.count_tokens(
+        model=args.model, system=boss.system,
+        messages=[{"role": "user", "content": "?"}])
+    except Exception as e:                  # noqa: BLE001
+      # Almost always a missing or rejected key. Say so in one line rather
+      # than in a twelve-frame traceback -- this script exists to report
+      # numbers, and "I could not get one, here is why" is a report.
+      print(f"\ncould not count tokens: {type(e).__name__}: "
+            f"{str(e).splitlines()[0][:160]}")
+      print("set ANTHROPIC_API_KEY -- count_tokens is a free endpoint, but it"
+            " is still an authenticated one")
+      return
+    prefix_tokens = counted.input_tokens
+    # 4096 on Haiku 4.5. Named here rather than imported because it is a
+    # property of the MODEL, and the probe is the thing that gets pointed at
+    # a different one.
+    print(f"prefix tokens: {prefix_tokens} (cacheable minimum on Haiku 4.5:"
+          f" {minimum})")
+    if prefix_tokens < minimum:
+      print(f"             ⚠ {minimum - prefix_tokens} short -- the"
+            " cache_control marker will be INERT and the hit rate below will"
+            " read 0. That is the model's floor, not a bug.")
+    if args.tokens_only:
+      return
 
   print(f"\nmaking {args.calls} real decision(s)...\n")
   wall0 = time.monotonic()
@@ -144,9 +184,13 @@ def main() -> None:
         "   (at one decision per 2 sim-minutes)")
   print(f"cost per sim-day       : ${per_call * 30 * 24:.3f}")
   hit = stats["cacheHitRate"]
-  print(f"prompt-cache hit rate  : {hit:.0%}"
-        + ("" if hit else f"  -- prefix is {prefix_tokens} tokens, below the"
-                          f" {minimum}-token floor"))
+  if hf:
+    print(f"prompt-cache hit rate  : {hit:.0%}  -- the router bills full "
+          "input every call; 0 is expected")
+  else:
+    print(f"prompt-cache hit rate  : {hit:.0%}"
+          + ("" if hit else f"  -- prefix is {prefix_tokens} tokens, below"
+                            f" the {minimum}-token floor"))
 
 
 if __name__ == "__main__":
