@@ -35,12 +35,12 @@ from pluggybot.behavior.navigation import (
 )
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
 from pluggybot.hub.coupling import (
-  BAY_TAG_FACE_X, CHARGE_BAY_Y, HUB_STATION_YS, RACK_HANG_X,
-  bay_tag_id, module_power_contact,
+  BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
+  bay_tag_id, module_power_contact, rack_charge_contact,
 )
 from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
 from pluggybot.hub.tags import (
-  RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
+  CHARGE_TAG_ID, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
 from pluggybot.hub.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
@@ -52,6 +52,19 @@ from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
+CHARGE_STANDOFF = 0.42    # m out from the pin faces the creep starts at
+#: m backed out of a failed charge creep before the next attempt -- past the
+#: standoff radius, so the retry's look at the tag is a fresh measurement
+#: from a usable range rather than a re-read of the pose that just missed.
+CHARGE_RETRY_BACKOFF = 0.45
+#: The lift the charge approach LOOKS from. dock_eye rides the carriage, and
+#: from the align preset (0.128) it sits too high to see the charge tag AT
+#: ALL -- measured: tag 3 decodes from every probe pose at lift 0 and from
+#: none of them at align height, because the tag hangs at pin level (0.12 m)
+#: and the camera's half-fov is 20.5 deg. Charging is a bumper affair, so
+#: the lift is free to serve the camera; a mission arrives here with
+#: whatever height the last stow left, which is exactly the trap.
+CHARGE_LOOK_LIFT = 0.0
 FACING_TOLERANCE = math.radians(0.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
@@ -65,7 +78,8 @@ def rack_heading(rack: RackPose | None = None) -> float:
 
 
 def charge_standoff(rack: RackPose | None = None,
-                    distance: float = 0.42) -> tuple[float, float, float]:
+                    distance: float = CHARGE_STANDOFF,
+                    ) -> tuple[float, float, float]:
   """(axle_x, axle_y, heading) for nosing into the charge bay.
 
   No plug-lateral offset, unlike a tool bay: charging presses the BUMPER
@@ -441,18 +455,28 @@ class HubMission:
 
   # ---- the mission ---------------------------------------------------------
 
-  def steer_fn(self, tag_id: int):
+  def steer_fn(self, tag_id: int, target: float = 0.0):
     """Terminal-servo callback for HubSwap: steer on ONE named bay marker,
     re-looking every SERVO_PERIOD. Passing the id is the point -- the
     servo can no longer be captured by whatever fiducial happens to look
-    most appealing in the frame."""
+    most appealing in the frame.
+
+    `target` is where in the camera the marker is HELD, not always centre:
+    dock_eye rides the carriage on the fork line, PLUG_LATERAL left of it in
+    the camera's +x. A bay approach aligns the FORK with the bay, so centred
+    is right; the charge approach aligns the CHASSIS with the pins, so the
+    charge tag must be held at -PLUG_LATERAL -- centring it was measured to
+    park the chassis 5 cm off the pin line, which is the edge of the blind
+    creep's whole envelope (issue #32).
+    """
     state = {"next": 0.0, "w": 0.0}
 
     def fn() -> float:
       if self.data.time >= state["next"]:
         state["next"] = self.data.time + SERVO_PERIOD
         e = self.tags.bay_error(self.data, tag_id)
-        state["w"] = 0.0 if e is None else max(-0.3, min(0.3, -SERVO_GAIN * e))
+        state["w"] = (0.0 if e is None
+                      else max(-0.3, min(0.3, -SERVO_GAIN * (e - target))))
       return state["w"]
     return fn
 
@@ -549,6 +573,106 @@ class HubMission:
     # because this layer has no event stream: the lifecycle above it does.
     self.travel_source = "nominal"
     return NOMINAL_TRAVEL
+
+  def charge_bay_fix(self, distance: float = CHARGE_STANDOFF,
+                     ) -> tuple[float, float, float] | None:
+    """Measure the charge standoff off the bay's OWN tag (issue #32).
+
+    Returns (sx, sy, hd) in the BELIEVED frame, or None if the tag does not
+    decode from where the robot stands. This is what makes the charge
+    approach survive a long shift: the standoff computed from the believed
+    rack pose inherits every error the belief has accumulated -- odometry
+    drift diluted through the sighting average, a facing kept from an old
+    look -- while this one is a single fresh measurement of the bay itself,
+    made from metres away, in the same frame the next drive_to acts in.
+
+    The arithmetic is sensor-legitimate throughout: the tag's translation
+    and plane yaw come from its PnP pose (what a real detector returns), and
+    the camera's mount relative to the chassis is the robot's own kinematics
+    -- read off the model rather than re-typed, so a camera move cannot
+    silently stale a constant here.
+    """
+    det = self.tags.detect(self.data).get(CHARGE_TAG_ID)
+    if det is None:
+      return None
+    bid = int(self.model.geom("chassis").bodyid[0])
+    body_r = self.data.xmat[bid].reshape(3, 3)
+    cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
+    cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
+                        - self.data.xpos[bid])
+    # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
+    # frame (x right, y up, looking along -z): negate y and z
+    tx, ty, tz = det["t"]
+    tag_ch = cam_p + cam_r @ np.array([tx, -ty, -tz])
+    # the tag plane's horizontal normal, pointing INTO the rack; the rack's
+    # outward normal (its local +x) is the negation
+    n_at = (math.sin(det["yaw"]), 0.0, math.cos(det["yaw"]))
+    n_ch = cam_r @ np.array([n_at[0], 0.0, -n_at[2]])
+    bx, by, bth = self.pose
+    c, s = math.cos(bth), math.sin(bth)
+    # chassis body origin rides 0.08 m ahead of the axle midpoint the
+    # believed pose tracks
+    ax, ay = tag_ch[0] + 0.08, tag_ch[1]
+    wx, wy = bx + c * ax - s * ay, by + s * ax + c * ay
+    ox, oy = -(c * n_ch[0] - s * n_ch[1]), -(s * n_ch[0] + c * n_ch[1])
+    norm = math.hypot(ox, oy) or 1.0
+    ox, oy = ox / norm, oy / norm
+    reach = distance + (CHARGE_PIN_X - CHARGE_TAG_X)
+    return wx + ox * reach, wy + oy * reach, math.atan2(-oy, -ox)
+
+  def charge_approach(self, max_travel: float, creep_v: float,
+                      tries: int = 3) -> str:
+    """Line up on the charge bay by its own tag and creep until the pins
+    conduct. Returns _drive_until's `why`; the caller judges success by the
+    electrical criterion, exactly as swap_at_bay's caller judges by seating.
+
+    This is the swap_at_bay doctrine applied to the chassis (issue #32):
+    measure, approach, verify, and take another run at it. The blind creep
+    it replaces forgave only ~6 cm of lateral belief error and ~10 deg of
+    heading (measured, scripts/charge_spike.py) -- and a 10 deg rack-yaw
+    belief error, which one bad free-space look delivers, swings the
+    standoff 7 cm sideways AND tilts the approach, killing it on both axes
+    at once. Tool bays never showed it because their terminal creep is
+    steered and ranged off the bay's own tag; the charge bay had the same
+    tag and nothing reading it.
+    """
+    # Bring the camera down to where the tag is before the first look: the
+    # lift arrives at whatever height the last stow left it, and from the
+    # align preset the charge tag is below the camera's view entirely.
+    self.swap._run(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
+    why = "no-attempt"
+    for attempt in range(max(tries, 1)):
+      if attempt:
+        # back out past the standoff radius, so the retry's look is a fresh
+        # measurement from a usable range rather than a re-read of the miss
+        self.swap._drive_until(CHARGE_RETRY_BACKOFF, -0.15, stall_stop=False)
+      fix = self.charge_bay_fix()
+      if fix is None:
+        # the tag is not in view from here: spin to buy sight lines (and
+        # map), re-adopt whatever the finder now believes, and look again
+        # from that standoff
+        self._spin()
+        self.refresh_rack()
+        sx, sy, hd = charge_standoff(self.rack)
+        self.drive_to(sx, sy, timeout=45.0)
+        self.face(hd)
+        fix = self.charge_bay_fix()
+        if fix is None:
+          why = "no-tag"
+          continue
+      sx, sy, hd = fix
+      self.drive_to(sx, sy, timeout=30.0)
+      self.face(hd)
+      self.refine_standoff(sx, sy, hd)
+      why = self.swap._drive_until(
+        max_travel, creep_v, stall_stop=True,
+        # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
+        # and it is the CHASSIS that must meet the pins (see steer_fn)
+        steer_fn=self.steer_fn(CHARGE_TAG_ID, target=-PLUG_LATERAL),
+        stop_fn=lambda: rack_charge_contact(self.model, self.data))
+      if rack_charge_contact(self.model, self.data):
+        return why
+    return why
 
   def swap_at_bay(self, station_y: float, verb: str,
                   module: str | None = None, tries: int = 2) -> str:

@@ -409,19 +409,32 @@ class HubLifecycle:
     self._say("EXPLORE -> GO_CHARGE (battery low)")
 
   def go_charge(self) -> bool:
-    """Navigate to the charge bay and press until the pins connect."""
+    """Navigate to the charge bay and press until the pins connect.
+
+    The terminal half is `mission.charge_approach` (issue #32): the standoff
+    computed from the believed rack pose is only how the robot gets to the
+    NEIGHBOURHOOD -- the approach itself is re-measured off the charge bay's
+    own tag and verified-retried, exactly as every tool-bay approach already
+    was. The blind creep this replaces forgave ~6 cm / ~10 deg of belief
+    error, and a long shift's accumulated drift walked straight out of that
+    envelope roughly once an hour on a hosting pack.
+    """
     self.mission.refresh_rack()
     sx, sy, hd = charge_standoff(self.mission.rack)
-    if not self.mission.drive_to(sx, sy, timeout=90.0):
+    # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
+    # spin to buy map (and possibly the rack tag) and try again.
+    for _ in range(2):
+      if self.mission.drive_to(sx, sy, timeout=90.0):
+        break
+      self.mission._spin()
+      self.mission.refresh_rack()
+      sx, sy, hd = charge_standoff(self.mission.rack)
+    else:
       self._say("GO_CHARGE: no route to the charge bay")
       return False
-    self.mission.face(hd)
-    self.mission.refine_standoff(sx, sy, hd)
-    # Creep until the electrical criterion fires -- position is believed,
-    # contact is known.
-    why = self.mission.swap._drive_until(
-      CHARGE_APPROACH_MAX, CHARGE_CREEP, stall_stop=True,
-      stop_fn=lambda: rack_charge_contact(self.model, self.data))
+    # Line up on the bay's own tag and creep until the electrical criterion
+    # fires -- position is believed, contact is known.
+    why = self.mission.charge_approach(CHARGE_APPROACH_MAX, CHARGE_CREEP)
     if not rack_charge_contact(self.model, self.data):
       self._say(f"GO_CHARGE: no charge contact ({why})")
       return False
@@ -1016,6 +1029,7 @@ class HubLifecycle:
     self.max_sim_time = max_sim_time
     self.blacklist: set = set()
     self.map_done = False
+    self.stranded = False
     aborted = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
@@ -1049,6 +1063,7 @@ class HubLifecycle:
         if self.needs_charge:
           self.state = "GO_CHARGE"
           if not self.go_charge():
+            self.stranded = True
             break
           self.state = "CHARGE"
           self.charge()
@@ -1063,6 +1078,7 @@ class HubLifecycle:
           # it -- so False here always means "go and charge".
           self.state = "GO_CHARGE"
           if not self.go_charge():
+            self.stranded = True
             break
           self.state = "CHARGE"
           self.charge()
@@ -1106,8 +1122,16 @@ class HubLifecycle:
           break
 
       self.state = "DONE"
-      self._say("mission complete" if not self.battery.empty
-                else "BATTERY DEAD -- mission over")
+      # A robot that could not reach its charger has not completed anything
+      # (issue #32): the old line said "mission complete" here because the
+      # battery was not yet empty, which dressed the day's actual ending --
+      # a failed dock -- as success.
+      if self.stranded:
+        self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
+                  f"at {self.battery.fraction:.0%}")
+      else:
+        self._say("mission complete" if not self.battery.empty
+                  else "BATTERY DEAD -- mission over")
     except MissionAborted:
       aborted = True
     finally:
@@ -1117,6 +1141,10 @@ class HubLifecycle:
     return {
       "state": self.state,
       "aborted": aborted,
+      # A failed dock ended this run (issue #32) -- distinct from "aborted"
+      # (the viewer closing is a request to stop, not a failure) and visible
+      # here so a watcher can tell "finished the day" from "never got home".
+      "stranded": self.stranded,
       "charge_cycles": self.charge_cycles,
       "swaps_done": self.swaps_done,
       "battery": self.battery.fraction,

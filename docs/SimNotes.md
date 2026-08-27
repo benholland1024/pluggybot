@@ -1945,6 +1945,66 @@ the believed pose against `data` before theorising.** Two rounds of plausible
 reasoning went into the rack belief and the tag ranges; one line printing the
 fork vertex's true position next to the odometry pose ended it.
 
+## The charge approach was blind (issue #32): the one dock with no eyes
+
+On a hosting-sized pack the robot works ~1000 sim-seconds between charges,
+and some way into every long run `go_charge` drove to where it believed the
+standoff was, crept `CHARGE_APPROACH_MAX`, touched nothing, and ended the
+mission — with the pack at 7 % and the words "mission complete". The tool
+bays kept working in the same runs (30 swaps either side of the failure),
+which was the tell: their terminal creep is steered and ranged off the bay's
+own tag, while the charge approach was dead reckoning end to end. The rack
+generator has always carried the comment "the terminal servo needs a mark
+here like anywhere else" next to the charge tag it emits — the mark was
+there; nothing read it.
+
+Why it is intermittent — measured on an instrumented 2-sim-hour run: the
+dead-reckoned frame drifted 0.002 → 0.054 → **0.693 m** over three charge
+approaches, and the third still docked within 8 mm, because the rack belief
+(1983 sightings, all projected through the same drifted pose) had drifted
+COHERENTLY with it and the errors cancelled. The blind dock survives exactly
+as long as the belief and the frame drift together; whatever decoheres them —
+drift accumulated since the last line of sight, a facing kept from an
+older-frame look — lands the standoff outside the envelope, and nothing in
+the approach could notice or correct. A race, lost roughly once an hour on a
+hosting pack.
+
+Measured envelope of the blind creep (`scripts/charge_spike.py`, robot placed
+truly at standoff-plus-error while believing itself at the standoff): ~6 cm
+of lateral belief error, ~10° of heading. A rack-yaw belief error — the
+issue-78 failure shape, which one badly conditioned free-space look delivers
+at ~20° — swings the standoff sideways by `0.42·sin(err)` AND tilts the
+approach heading at once, and kills the blind creep at 10°. The fix
+(`HubMission.charge_approach`) measures the standoff off the charge tag's own
+PnP pose (translation + plane yaw, now exposed by `TagDetector`), drives to
+the corrected pose, creeps under tag servo, verifies by the electrical
+criterion and takes a backed-off second run — `swap_at_bay`'s doctrine
+applied to the chassis. Same sweep afterwards: every row passes to 20 cm and
+20°.
+
+Two camera lessons found on the way, both invisible until something looked:
+
+- **dock_eye rides the carriage, on the fork line.** It sits 5 cm right of
+  the chassis centreline (`PLUG_LATERAL`), so the bay servo's "centre the
+  tag" law is exactly right for aligning the FORK and 5 cm wrong for
+  aligning the CHASSIS — and 5 cm is the edge of the blind creep's whole
+  envelope. The charge servo holds the tag at `-PLUG_LATERAL` in the camera
+  instead (`steer_fn(target=...)`). A servo law is a statement about which
+  part of the robot must arrive.
+- **...and it rides the LIFT.** From the align preset (0.128 m) the charge
+  tag — hanging at pin height, 0.12 m — is below the camera's 20.5° half-fov
+  entirely: measured, tag 3 decodes from every probe pose at lift 0 and from
+  none at align height. A mission reaches `go_charge` with whatever lift the
+  last stow left, so the approach commands `CHARGE_LOOK_LIFT` before its
+  first look. Charging is a bumper affair; the lift is free to serve the
+  camera.
+
+And the honesty half: `run()` used to `break` on a failed dock and then say
+"mission complete", because the battery was not yet empty. A robot that could
+not reach its charger has not completed anything — the ending now narrates
+`GO_CHARGE FAILED -- stranded off the dock`, and the result dict carries
+`stranded` so a watcher can tell "finished the day" from "never got home".
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

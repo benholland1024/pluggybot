@@ -120,7 +120,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   board or `questions.ANSWER_CAP` moves), `scripts/noslip_spike.py`
   (issue-3 solver-policy sweep: coupling/schuko seat, jittered robot swap,
   grip creep, pen square, step cost under candidate `noslip_iterations`
-  values; `--no-brake` reproduces the before-fix rows), `scripts/hub_swap.py` (robot
+  values; `--no-brake` reproduces the before-fix rows),
+  `scripts/charge_spike.py` (issue-32 charge-approach tolerance sweep: how
+  much BELIEF error the dock forgives — the robot is placed truly at
+  standoff-plus-error while believing itself at the standoff; `--blind`
+  reproduces the before-fix rows, which die at ~6 cm lateral / ~10° heading
+  / a 10° rack-yaw belief error), `scripts/hub_swap.py` (robot
   swaps a module at the hub in `models/hub_world.xml`),
   `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
@@ -523,6 +528,23 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   free-space sum, because driving behind the rack turns it into the
   free-standing partition `wall_normal` warns about — conditioning 0.824 →
   0.077, direction off by 80°).
+- **THE DOCK IS MEASURED, NOT BELIEVED** (issue #32). The charge approach
+  was the one terminal maneuver with no eyes — dead reckoning end to end
+  while every tool bay's creep is steered and ranged off its own tag — and
+  a long shift's accumulated belief error walked out of its ~6 cm / ~10°
+  envelope roughly once an hour on a hosting pack, ending the mission with
+  "mission complete" at 7 %. `HubMission.charge_approach` now measures the
+  standoff off the charge tag's PnP pose, creeps under servo and
+  verified-retries; `scripts/charge_spike.py --blind` reproduces the old
+  rows. Two traps live in `dock_eye` itself: it rides the FORK LINE
+  (`PLUG_LATERAL` right of the chassis centreline — the charge servo must
+  hold the tag at `-PLUG_LATERAL`, not centre it, because charging aligns
+  the CHASSIS), and it rides the LIFT (from the align preset the charge tag
+  is below the camera's view entirely; the approach commands
+  `CHARGE_LOOK_LIFT` before its first look). And a failed dock is narrated
+  as `stranded`, never as "mission complete" — a robot that could not reach
+  its charger has not completed anything. SimNotes, "The charge approach
+  was blind".
 - **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —

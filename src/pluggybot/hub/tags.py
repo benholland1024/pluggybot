@@ -159,11 +159,18 @@ class TagDetector:
     self.detector = _shared_detector()
 
   def detect(self, data) -> dict:
-    """{tag_id: {"t": (x, y, z) in camera frame, "center": (u, v)}}.
+    """{tag_id: {"t": (x, y, z) in camera frame, "center": (u, v), "yaw": r}}.
 
     One render, one decode, all sizes: PnP translation is linear in the
     assumed tag size, so each id's pose is rescaled from the nominal size
     to its own. Cheaper than a pass per marker size, and exact.
+
+    "yaw" is the tag PLANE's rotation about the camera's vertical, in
+    radians: 0 when the tag faces the camera squarely, positive when the
+    robot's heading is rotated positive (counter-clockwise) of the tag's
+    normal. It comes from the same PnP pose as "t" (rotation is scale-free,
+    so no per-size rescale). Measured convention check: a robot placed
+    +10 deg off the charge approach heading reads +9.4 deg (issue #32).
     """
     self.renderer.update_scene(data, camera=self.camera_name)
     rgb = self.renderer.render()
@@ -177,9 +184,11 @@ class TagDetector:
     for det in found:
       tag_id = int(det.tag_id)
       scale = TAG_SIZES.get(tag_id, self.tag_size) / self.tag_size
+      normal = np.asarray(det.pose_R) @ (0.0, 0.0, 1.0)
       out[tag_id] = {
         "t": tuple(float(v) * scale for v in np.asarray(det.pose_t).ravel()),
         "center": (float(det.center[0]), float(det.center[1])),
+        "yaw": float(np.arctan2(normal[0], normal[2])),
       }
     return out
 
