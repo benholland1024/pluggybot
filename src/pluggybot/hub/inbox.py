@@ -100,6 +100,10 @@ class VisitorMessage:
   #: `rating` only: which ledger entry is being rated, and how well (0..1).
   seq: int = 0
   quality: float = 0.0
+  #: `reset_tool` only (issue #30): which module the admin wants back on its
+  #: bay. A NAME, validated against the model by the handler -- the inbox
+  #: cleans, it does not know what modules exist.
+  module: str = ""
   #: sim seconds when the robot took delivery, not when it was sent
   t: float = 0.0
 
@@ -114,6 +118,8 @@ class VisitorMessage:
            "from": self.who, "t": round(self.t, 3)}
     if self.kind == "rating":
       out.update({"seq": self.seq, "quality": self.quality})
+    if self.kind == "reset_tool":
+      out["module"] = self.module
     return out
 
 
@@ -200,9 +206,16 @@ class Inbox:
         return None
       if seq <= 0 or not 0.0 <= quality <= 1.0:
         return None
+    module = ""
+    if kind == "reset_tool":
+      # A name, not free text: same cap as an id, and WHICH modules exist is
+      # the handler's question (hub/lifecycle.py), not this queue's.
+      module = clean(raw.get("module"), MAX_ID)
+      if not module:
+        return None                         # nothing was actually named
     return VisitorMessage(id=clean(raw.get("id"), MAX_ID), kind=kind,
                           text=text, who=clean(raw.get("from"), MAX_WHO),
-                          seq=seq, quality=quality, t=float(t))
+                          seq=seq, quality=quality, module=module, t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 

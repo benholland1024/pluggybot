@@ -49,7 +49,7 @@ from pluggybot.hub.lifecycle import (
   task_board, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
-from pluggybot.telemetry.protocol import INBOUND_TYPES
+from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 
@@ -176,10 +176,14 @@ def main() -> None:
   # as true of a scripted rotation as of a chosen errand. What is NOT the
   # same is whether anything is reading them, which is what `steering` says.
   goals_prose = overseer.goals_text(args.goals)
-  # The visitor channel (issue #16). Only where there is somebody to hear it:
-  # without an overseer nothing reads a suggestion, so accepting one would be
-  # a promise the robot has no way to keep.
-  inbox = Inbox() if boss is not None else None
+  # The visitor channel (issue #16), attached ALWAYS as of issue #30 -- but
+  # what this run advertises it can hear is per-kind (`accepts` below).
+  # Suggestions and questions still need an overseer to read them; a rating
+  # settles a ledger row and a `reset_tool` puts a dropped module back on its
+  # bay, and BOTH are handled by code the moment the physics thread drains
+  # them -- a scripted world's tools get lost (and its artwork rated) exactly
+  # as often as a minded one's.
+  inbox = Inbox()
   # The demo cell flattens in minutes, which reads on a watched stream as a
   # robot that only ever charges; `--pack hosting` is the hours-long one
   # (issue #15). The RESERVE is not scaled with it -- it is the absolute
@@ -211,11 +215,14 @@ def main() -> None:
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
                           screens=screens, ledger=ledger, tasks=tasks,
-                          # What this run can actually HEAR (issue #16). Empty
-                          # without an overseer, and the website reads it: a
+                          # What this run can actually HEAR, per kind
+                          # (issues #16, #30). The website reads it: a
                           # suggestion is only "delivered" if somebody who can
-                          # act on it got it.
-                          accepts=INBOUND_TYPES if inbox is not None else (),
+                          # act on it got it, and that somebody is an overseer
+                          # -- while a rating or an admin's tool reset is
+                          # handled by code and heard on any served world.
+                          accepts=(INBOUND_TYPES if boss is not None
+                                   else CODE_HANDLED_TYPES),
                           goals=goals_prose, steering=boss is not None,
                           robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)

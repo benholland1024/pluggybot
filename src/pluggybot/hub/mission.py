@@ -574,17 +574,26 @@ class HubMission:
     self.travel_source = "nominal"
     return NOMINAL_TRAVEL
 
-  def charge_bay_fix(self, distance: float = CHARGE_STANDOFF,
-                     ) -> tuple[float, float, float] | None:
-    """Measure the charge standoff off the bay's OWN tag (issue #32).
+  def _measured_standoff(self, tag_id: int, tag_face_x: float,
+                         anchor_x: float, distance: float,
+                         lateral: float = 0.0,
+                         ) -> tuple[float, float, float] | None:
+    """Measure a standoff off ONE tag's PnP pose (issues #32, #30).
 
     Returns (sx, sy, hd) in the BELIEVED frame, or None if the tag does not
-    decode from where the robot stands. This is what makes the charge
-    approach survive a long shift: the standoff computed from the believed
+    decode from where the robot stands. This is what makes a terminal
+    approach survive a long shift: a standoff computed from the believed
     rack pose inherits every error the belief has accumulated -- odometry
     drift diluted through the sighting average, a facing kept from an old
     look -- while this one is a single fresh measurement of the bay itself,
-    made from metres away, in the same frame the next drive_to acts in.
+    in the same frame the next drive acts in.
+
+    `tag_face_x` and `anchor_x` are rack-local: where the tag's face sits
+    and where the approach's anchor line is (the pin faces for the charge
+    bay, the hang plane for a tool bay), so the standoff lands `distance`
+    out from the ANCHOR whatever the tag's own offset is. `lateral` shifts
+    the axle across the approach axis, exactly as `RackPose.bay_standoff`
+    does -- a tool bay aligns the FORK LINE, the charge bay the chassis.
 
     The arithmetic is sensor-legitimate throughout: the tag's translation
     and plane yaw come from its PnP pose (what a real detector returns), and
@@ -592,7 +601,7 @@ class HubMission:
     -- read off the model rather than re-typed, so a camera move cannot
     silently stale a constant here.
     """
-    det = self.tags.detect(self.data).get(CHARGE_TAG_ID)
+    det = self.tags.detect(self.data).get(tag_id)
     if det is None:
       return None
     bid = int(self.model.geom("chassis").bodyid[0])
@@ -617,8 +626,37 @@ class HubMission:
     ox, oy = -(c * n_ch[0] - s * n_ch[1]), -(s * n_ch[0] + c * n_ch[1])
     norm = math.hypot(ox, oy) or 1.0
     ox, oy = ox / norm, oy / norm
-    reach = distance + (CHARGE_PIN_X - CHARGE_TAG_X)
-    return wx + ox * reach, wy + oy * reach, math.atan2(-oy, -ox)
+    reach = distance + (anchor_x - tag_face_x)
+    sx, sy = wx + ox * reach, wy + oy * reach
+    hd = math.atan2(-oy, -ox)
+    if lateral:
+      right = (math.sin(hd), -math.cos(hd))
+      sx, sy = sx - lateral * right[0], sy - lateral * right[1]
+    return sx, sy, hd
+
+  def charge_bay_fix(self, distance: float = CHARGE_STANDOFF,
+                     ) -> tuple[float, float, float] | None:
+    """The charge bay's measured standoff (issue #32): pin line as the
+    anchor, no lateral -- charging aligns the CHASSIS."""
+    return self._measured_standoff(CHARGE_TAG_ID, CHARGE_TAG_X, CHARGE_PIN_X,
+                                   distance)
+
+  def bay_fix(self, station_y: float) -> tuple[float, float, float] | None:
+    """A tool bay's measured standoff (issue #30): the same medicine one bay
+    over. Hang plane as the anchor, PLUG_LATERAL across -- a swap aligns the
+    FORK LINE. Selected by the bay's own decoded id, so a neighbouring bay's
+    marker cannot capture it.
+
+    This is what stops the long-run tool drop: a return whose belief has
+    decohered ~4 cm from the world drags the module off the trays and on to
+    the floor (measured, scripts/swap_spike.py) -- the tray V forgives
+    +/-8 mm, `refine_standoff` kills BELIEVED lateral only, and the tag
+    servo's authority over the 0.22 m creep is ~1-2 cm. Measuring the
+    standoff off the bay's own tag makes the terminal maneuver drift-immune,
+    which no amount of drift hygiene upstream can promise.
+    """
+    return self._measured_standoff(bay_tag_id(station_y), BAY_TAG_FACE_X,
+                                   RACK_HANG_X, STANDOFF, PLUG_LATERAL)
 
   def charge_approach(self, max_travel: float, creep_v: float,
                       tries: int = 3) -> str:
@@ -741,6 +779,17 @@ class HubMission:
       if verb == "pick" or attempt:
         self.swap._run(1.5, 0.0, lift_target=lift_entry)
       self.face(hd)
+      # MEASURE the standoff off the bay's own tag before lining up on it
+      # (issue #30): the believed one inherits the shift's accumulated drift,
+      # and ~4 cm of that is a module dragged on to the floor. Face first, so
+      # the camera points rackward; inside the retry loop, so a second
+      # attempt is a fresh measurement from the retreat pose, exactly like
+      # the travel range below. None (tag not decodable from here) keeps the
+      # believed standoff, which is what every approach trusted before.
+      fix = self.bay_fix(station_y)
+      if fix is not None:
+        sx, sy, hd = fix
+        self.face(hd)
       self.refine_standoff(sx, sy, hd)
       self.set_arm(ARM_EXT)               # deploy only once lined up
       # Travel computed from the BELIEVED distance to the hang plane --

@@ -2005,6 +2005,55 @@ not reach its charger has not completed anything — the ending now narrates
 `GO_CHARGE FAILED -- stranded off the dock`, and the result dict carries
 `stranded` so a watcher can tell "finished the day" from "never got home".
 
+## The tool drop was an approach error (issue #30): the bays get eyes too
+
+Long unattended runs kept degenerating some hours in: swaps ran flawlessly
+and then, from one moment, pick and return failures became chronic (31/33 of
+them in the back half of a 4-sim-hour run) with every affected job scored an
+honest 0. Reproduced twice, once with ZERO overseer calls — physics, not
+policy. The website had seen the symptom for months as issue #30's "tools
+drop during tasks".
+
+Measured (`scripts/swap_spike.py`): pick a module cleanly, decohere the
+dead-reckoned belief by `across`, attempt the return —
+
+- 0–2 cm hangs. **4–8 cm puts the module on the FLOOR at the rack's foot**:
+  the peg misses the tray V's ±8 mm window and the retreat drags it off the
+  trays. 10 cm misses the trays entirely and keeps it on the fork.
+- Heading alone kills too: **−3° dropped a module** with zero lateral error.
+- Pick-side, 8–10 cm knocks the module off its bracket without ever holding
+  it.
+
+Once a module is on the floor the failure is permanent: every later pick of
+it finds an empty bay, and the module litters the rack's approach lane (one
+run ended `GO_CHARGE: no route to the charge bay` because of it). And the
+cliff feeds itself — the grinding retries slip the wheels, which pumps more
+drift.
+
+Why the existing defences never covered this: `refine_standoff` kills
+BELIEVED lateral only, the bay tag servo has ~1–2 cm of authority over the
+0.22 m creep, and the tag RANGE (`_terminal_travel`) fixes depth but not the
+line. ToolPattern's "retention is not the problem" stays true — the module
+holds through 8 m/s² of shake — because the drop is not a retention failure
+at all: it is the approach delivering the coupling outside its own envelope.
+
+The fix is `HubMission.bay_fix`, issue #32's measured standoff one bay over
+(`_measured_standoff` is now the shared core): measure the standoff off the
+bay's own tag PnP pose before lining up, inside the retry loop so a second
+attempt is a fresh measurement. After it, every row of both sweeps — pick or
+return corrupted, 10 cm, ±10° — ends with the module hung.
+
+And the recovery, for the drops measurement cannot promise away
+(`reset_tool`, protocol's fourth inbound kind): an admin puts a lost module
+back on its bay through the website. Handled by CODE on the physics thread,
+never shown to the overseer; refused while the module is electrically seated
+(a tool in use is not lost); the reset pose is `model.qpos0`, so "where it
+belongs" is the model's own answer. With it, `serve.py` now attaches the
+inbox on EVERY served world and advertises `accepts` per kind
+(`CODE_HANDLED_TYPES` without an overseer) — which also makes ratings work
+on a scripted world, closing a gap where an `artwork` task could be claimed
+by the scripted rotation but never settled.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

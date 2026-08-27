@@ -97,6 +97,17 @@ settle, so v1 is usable, but the margin is thinner than it should be.
 — more than the wheels can transmit to it — and the spike carried a 300 g tool,
 2× the nominal per-module cap.
 
+ⓘ *Confirmed the hard way by issue #30.* The "dropped tools" long runs kept
+producing were **approach failures wearing a retention costume**: 4–8 cm of
+belief decoherence (or −3° of heading) delivers the coupling outside the
+envelope above, the peg misses the tray V, and the RETREAT drags the module
+on to the floor — nothing about the latch gave way. The fix lives in the
+approach (`HubMission.bay_fix`, a standoff measured off the bay's own tag;
+`scripts/swap_spike.py` is the sweep), and the recovery is the `reset_tool`
+admin message. A new tool inherits both for free; what it must NOT do is
+respond to floor-dropped modules by armouring the coupling — the envelope
+was never the part that failed.
+
 ### The moment budget — the number that shapes tools
 
 **The gravity latch takes about 0.45 N·m of pitch moment before the peg rides
@@ -728,7 +739,10 @@ your tool makes them worse.
 2. **Nothing can autonomously find a floor object.** The LIDAR plane is
    223 mm up and the nav camera is blind to the floor inside 0.48 m, while a
    grip point sits ~285 mm ahead of the axle. Grasps run open-loop from a
-   memorised pose. Marked delivery zones are the honest workaround.
+   memorised pose. Marked delivery zones are the honest workaround. (This is
+   also why a floor-dropped MODULE is unrecoverable by the robot itself —
+   issue #30's option 3 — and why the recovery is the `reset_tool` admin
+   message rather than a heroic pickup behaviour.)
 3. **Yaw at the coupling has ~2° of margin** against navigation's ~0.5°
    settle. Known v2 levers: y-chamfered trays, a squaring press against the
    rack's back wall, softer yaw compliance.
