@@ -907,3 +907,38 @@ def test_serve_advertises_accepts_per_kind(monkeypatch):
   assert tuple(pub.init_kwargs["accepts"]) == CODE_HANDLED_TYPES
   # ...and the inbox is attached regardless, so those kinds actually land.
   assert life.init_kwargs["inbox"] is not None
+
+
+def test_serve_names_the_robot_in_both_artifacts(monkeypatch, tmp_path):
+  """--robot-name is this instance's IDENTITY on the wire (issue #39), and
+  `serve.py --record` writes a recording of the SAME run it streams -- so
+  the name must reach the publisher AND the recorder, or a replay of a
+  stream would disagree with the stream about who was flying."""
+  serve = _load_serve()
+  seen: dict = {}
+  pub_kw: dict = {}
+  real_recorder = serve.TelemetryRecorder
+
+  def recorder_factory(model, data, path, **kw):
+    seen.update(kw)
+    return real_recorder(model, data, path, **kw)
+
+  def pub_factory(model, data, endpoint, **kw):
+    pub_kw.update(kw)
+    return _FakePublisher(model, data, endpoint, **kw)
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _FakeLife(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(serve, "TelemetryRecorder", recorder_factory)
+  monkeypatch.setattr(sys, "argv",
+                      ["serve.py", "--free-run", "--robot-name", "Luca",
+                       "--record", str(tmp_path / "out.jsonl.gz")])
+  serve.main()
+  assert pub_kw["robot_name"] == "Luca"
+  assert seen["robot_name"] == "Luca"
+  # ...and without the flag the wiring passes None through untouched:
+  # resolution (env, then 'Pluggy') is the FrameBuilder's alone, so both
+  # sinks of one run cannot resolve differently.
+  _, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert pub.init_kwargs["robot_name"] is None

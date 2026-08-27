@@ -223,7 +223,11 @@ things about it are decisions rather than boilerplate:
 - **Config is environment, not a command line** (`deploy/entrypoint.sh`):
   `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`,
-  `PLUGGY_LEDGER`, `PLUGGY_TASKS`. The ingest
+  `PLUGGY_LEDGER`, `PLUGGY_TASKS`. `PLUGGY_ROBOT_NAME` (issue #39) is read
+  by the frame builder itself rather than the entrypoint — the robot's
+  display name on the wire, `"Pluggy"` unless a deployment names its robot
+  (`--robot-name` overrides; the robot *id* stays the body name either
+  way, so renaming re-keys nothing). The ingest
   secret stays `$PLUGGYWORLD_TOKEN`, read by `serve.py` itself, because a
   flag is visible in `ps`. Anything passed to the container is appended
   after the derived flags, so `docker run <image> --rate 2.0` still wins.

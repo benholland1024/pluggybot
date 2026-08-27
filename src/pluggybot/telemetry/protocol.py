@@ -9,7 +9,22 @@ repo vendors fixture copies stamped with this version, so a bump is a
 deliberate two-repo event -- never a side effect of an unrelated edit.
 """
 
-PROTOCOL_VERSION = "0.9.0"
+import os
+
+PROTOCOL_VERSION = "0.10.0"
+# 0.10.0: the robot has a NAME, and the name is not the species (issue #39,
+#         rooftop-media-2026 #88). The header gains "robotNames": robot id ->
+#         the display name this instance answers to:
+#           "robots":     {"pluggybot": ["pluggybot", "head", ...]}
+#           "robotNames": {"pluggybot": "Luca"}
+#         The KEY stays ROBOT_ROOT -- the MJCF body name, the species, and
+#         the id every other wire structure (frames, ledger, goals, grid)
+#         already keys off. The display name is per INSTANCE (--robot-name /
+#         $PLUGGY_ROBOT_NAME, default "Pluggy") and appears nowhere else:
+#         renaming a robot must never re-key its telemetry. A consumer
+#         reading an older recording (field absent) or a blank name falls
+#         back to a default rather than rendering blank -- same degrade rule
+#         as `accepts`.
 # 0.9.0: the robot is GIVEN WORK, and the work is on the wire (pluggybot #21,
 #        rooftop-media-2026 #77). A task is a JOB OFFER -- a description, a
 #        target, a reward, a deadline and a verdict -- as distinct from an
@@ -298,6 +313,32 @@ VISITOR_OUTCOMES = ("accepted", "declined", "answered")
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.
 ROBOT_ROOT = "pluggybot"
+
+# The robot's DISPLAY NAME (issue #39): "Luca the pluggybot" makes ROBOT_ROOT
+# the species and this the identity, and keeping them apart is what lets a
+# deployment rename its robot without touching body_census, the scene
+# transpiler or a single fixture. Set per sim instance (--robot-name on
+# serve.py / hub_lifecycle.py, or $PLUGGY_ROBOT_NAME); the default keeps
+# every existing single-robot run reading sensibly.
+ROBOT_NAME_ENV = "PLUGGY_ROBOT_NAME"
+DEFAULT_ROBOT_NAME = "Pluggy"
+# The name renders in the website's identity header; a cap makes a runaway
+# env var a loud config error rather than a broken layout three hops away.
+MAX_ROBOT_NAME_CHARS = 60
+
+
+def robot_display_name(name: str | None = None) -> str:
+  """Resolve this instance's display name: explicit > $PLUGGY_ROBOT_NAME >
+  default. Blank resolves to the default -- an absent name must degrade to
+  something readable, never to an empty string on the wire."""
+  raw = name if name is not None else os.environ.get(ROBOT_NAME_ENV)
+  raw = (raw or "").strip()
+  if not raw:
+    return DEFAULT_ROBOT_NAME
+  if len(raw) > MAX_ROBOT_NAME_CHARS:
+    raise ValueError(f"robot name is {len(raw)} chars, max "
+                     f"{MAX_ROBOT_NAME_CHARS}: {raw[:40]!r}...")
+  return raw
 
 
 def dynamic_flags(model) -> list[bool]:

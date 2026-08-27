@@ -42,6 +42,9 @@ def main() -> None:
                            "Absolute energy, not a fraction of the pack -- "
                            "the cost of getting home is set by the ROOM")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--robot-name", default=None, metavar="NAME",
+                      help="this robot's display name in a recording (issue "
+                           "#39; default $PLUGGY_ROBOT_NAME, then 'Pluggy')")
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
@@ -90,7 +93,8 @@ def main() -> None:
                overseer=args.overseer or None, goals=args.goals,
                journal_state=args.journal,
                tasks=args.tasks, tasks_state=args.task_state,
-               pack=args.pack, reserve_wh=args.reserve_wh)
+               pack=args.pack, reserve_wh=args.reserve_wh,
+               robot_name=args.robot_name)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
