@@ -45,7 +45,8 @@ from typing import Callable
 
 from PIL import Image
 
-from pluggybot.telemetry.protocol import PROTOCOL_VERSION, ROBOT_ROOT, body_census
+from pluggybot.telemetry.protocol import (PROTOCOL_VERSION, ROBOT_ROOT,
+                                          body_census, robot_display_name)
 
 FRAME_HZ = 20.0     # the design point: 15-20 Hz reads smooth after
                     # client-side interpolation at 60 fps
@@ -90,7 +91,8 @@ class FrameBuilder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               steering: bool = False) -> None:
+               steering: bool = False,
+               robot_name: str | None = None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -126,6 +128,11 @@ class FrameBuilder:
     # `board_snapshot` shape, for the `board_snapshot` reason.
     self.goals = goals
     self.steering = bool(steering)
+    # Who this robot IS, as distinct from what it is (0.10.0, issue #39):
+    # ROBOT_ROOT is the species and stays the key of every wire structure;
+    # this is the identity the website's header shows. Resolved here (flag >
+    # $PLUGGY_ROBOT_NAME > default) so both sinks of one run agree.
+    self.robot_name = robot_display_name(robot_name)
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -160,6 +167,12 @@ class FrameBuilder:
       "hz": self.hz,
       "keyframeS": self.keyframe_s,
       "robots": {ROBOT_ROOT: self.robot_names},
+      # Display name per robot id (0.10.0, issue #39). The KEY is the
+      # species (ROBOT_ROOT); the value is this instance's identity. Header
+      # only: it never changes during a run, so repeating it at 20 Hz would
+      # buy nothing, and a consumer holding an older recording (field
+      # absent) falls back to a default rather than rendering blank.
+      "robotNames": {ROBOT_ROOT: self.robot_name},
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
@@ -399,13 +412,14 @@ class TelemetryRecorder:
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
                steering: bool = False,
+               robot_name: str | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
-                                 steering=steering)
+                                 steering=steering, robot_name=robot_name)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False

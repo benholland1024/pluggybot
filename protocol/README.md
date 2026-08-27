@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.9.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.10.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -27,6 +27,29 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand showcase --tasks --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+### 0.9.0 → 0.10.0 (the robot has a name, and the name is not the species)
+
+pluggybot #39, for the website's per-robot identity UI (rooftop-media-2026
+#88): "**Luca** the pluggybot" makes *pluggybot* the species and the name the
+identity, and the wire now carries both. The header gains one field:
+
+```jsonc
+"robots":     {"pluggybot": ["pluggybot", "head", ...]},  // unchanged
+"robotNames": {"pluggybot": "Luca"}                       // id → display name
+```
+
+The **key stays the robot id** (`ROBOT_ROOT`, the MJCF body name): frames,
+the ledger, `goals`, `grid` and every typed message keep keying off it, so
+renaming a robot re-keys nothing and breaks no consumer mid-stream. The name
+is per sim instance (`--robot-name` on `serve.py` / `hub_lifecycle.py`, or
+`$PLUGGY_ROBOT_NAME`), defaults to `"Pluggy"`, and rides the header alone —
+it cannot change during a run, so a 20 Hz repeat would buy nothing.
+
+⚠ **Absent must degrade to a default, never to blank.** A pre-0.10.0
+recording has no `robotNames` at all, and older copies of both vendored
+recordings exist forever — a consumer renders a fallback name for a missing
+or blank entry rather than an empty identity header.
 
 ### 0.8.0 → 0.9.0 (the robot is given work, and the work is on the wire)
 
@@ -607,6 +630,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 {"type": "header", "protocolVersion": "0.6.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
+ "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
  "activities": ["garden_gate"],                         // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces

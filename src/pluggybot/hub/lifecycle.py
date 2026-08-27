@@ -1584,7 +1584,8 @@ def run_demo(start=None, view: bool = False,
              overseer: bool | None = None, goals: str | None = None,
              journal_state: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
-             pack: str = "demo", reserve_wh: float | None = None) -> dict:
+             pack: str = "demo", reserve_wh: float | None = None,
+             robot_name: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -1662,6 +1663,10 @@ def run_demo(start=None, view: bool = False,
                                  screens=screens, ledger=ledger, tasks=board,
                                  goals=goals_prose,
                                  steering=boss is not None,
+                                 # Who this robot is, apart from what it is
+                                 # (issue #39): flag > $PLUGGY_ROBOT_NAME >
+                                 # "Pluggy", resolved by the builder.
+                                 robot_name=robot_name,
                                  # The occupancy map is a BELIEF, and a
                                  # recording that omits it replays a robot
                                  # that never had one -- which is what the

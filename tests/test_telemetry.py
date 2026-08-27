@@ -228,12 +228,16 @@ def test_recorder_honours_the_keyframe_cadence(mini_model, tmp_path):
     assert set(f["world"]) == set(header["world"])
 
 
-def test_recorder_header_and_decimation(mini_model, tmp_path):
+def test_recorder_header_and_decimation(mini_model, tmp_path, monkeypatch):
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
   rec, lines = record(mini_model, seconds=2.0, tmp=tmp_path)
   header, frames = lines[0], lines[1:]
   assert header["type"] == "header"
   assert header["protocolVersion"] == PROTOCOL_VERSION
   assert header["robots"] == {"pluggybot": ["pluggybot"]}
+  # An unconfigured run still has a NAME (0.10.0, issue #39): absent config
+  # degrades to a default, never to a blank identity header on the site.
+  assert header["robotNames"] == {"pluggybot": "Pluggy"}
   assert header["world"] == ["ball"]
   # ~20 Hz of sim time out of 500 Hz of steps, spacing never under 1/hz
   assert len(frames) == pytest.approx(2.0 * header["hz"], abs=2)
@@ -241,6 +245,47 @@ def test_recorder_header_and_decimation(mini_model, tmp_path):
   assert all(b - a >= 1 / header["hz"] - 1e-6 for a, b in zip(times, times[1:]))
   # everything queued reached the file: close() drains before returning
   assert len(frames) == rec.frames
+
+
+def test_a_named_robot_re_keys_nothing(mini_model, tmp_path):
+  """The name is IDENTITY, and the species is the KEY (0.10.0, issue #39).
+
+  'Luca the pluggybot' must put Luca in `robotNames` and change nothing
+  else: `robots`, the frame keys and ROBOT_ROOT itself all stay the MJCF
+  body name, because every body-name-keyed structure (body_census, the
+  scene transpiler, the ledger, every fixture) rides on it. A rename that
+  re-keyed telemetry would orphan every consumer mid-stream.
+  """
+  from pluggybot.telemetry.protocol import ROBOT_ROOT
+  rec, lines = record(mini_model, seconds=1.0, tmp=tmp_path,
+                      robot_name="Luca")
+  header, frames = lines[0], lines[1:]
+  assert header["robotNames"] == {"pluggybot": "Luca"}
+  assert ROBOT_ROOT == "pluggybot"
+  assert header["robots"] == {"pluggybot": ["pluggybot"]}
+  assert all(set(f["robots"]) == {"pluggybot"} for f in frames)
+  # ...and the name rides the header alone: 20 Hz frames repeat what can
+  # change, and a name cannot.
+  assert all("robotNames" not in f for f in frames)
+
+
+def test_the_name_comes_from_the_environment_and_degrades_to_a_default(
+    mini_model, tmp_path, monkeypatch):
+  """$PLUGGY_ROBOT_NAME names a deployed sim without a rebuild (the boards/
+  ledger/energy pattern); an explicit name beats it; blank degrades to the
+  default rather than putting an empty identity on the wire."""
+  from pluggybot.telemetry.protocol import robot_display_name
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Beryl")
+  _, lines = record(mini_model, seconds=0.2, tmp=tmp_path)
+  assert lines[0]["robotNames"] == {"pluggybot": "Beryl"}
+  assert robot_display_name("Luca") == "Luca"      # flag beats env
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "   ")
+  assert robot_display_name() == "Pluggy"          # blank is not a name
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME")
+  assert robot_display_name("") == "Pluggy"
+  # A runaway env var is a loud config error, not a broken site layout.
+  with pytest.raises(ValueError):
+    robot_display_name("x" * 61)
 
 
 def test_first_frame_is_keyframe_then_sparse(mini_model, tmp_path):
@@ -750,6 +795,10 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # the header field the website selects its scene off -- a recording
   # mislabelled here poses one world's robot inside the other's rooms
   assert header["model"] == model_name
+  # The committed recordings are made with no --robot-name, so they carry
+  # the DEFAULT identity (0.10.0) -- which is itself the claim under test:
+  # an unconfigured producer still names its robot.
+  assert header["robotNames"] == {"pluggybot": "Pluggy"}
   robot_names = set(header["robots"]["pluggybot"])
   first = frames[0]["robots"]["pluggybot"]
   assert set(first["bodies"]) == robot_names, "first frame must be a keyframe"

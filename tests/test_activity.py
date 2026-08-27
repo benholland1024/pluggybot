@@ -231,8 +231,10 @@ def test_header_advertises_activities(builder_pair):
   # robot is FOR, sent when a stream opens, so the site can show it. 0.8.0 ->
   # 0.9.0 for the `tasks` block and its three messages (issue #21): the robot
   # is GIVEN work, and the block is the one that ships WHOLE rather than as a
-  # per-key delta, because a task can cease to exist.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.9.0"
+  # per-key delta, because a task can cease to exist. 0.9.0 -> 0.10.0 for
+  # `robotNames` in the header (issue #39): the robot has a display NAME,
+  # keyed by the species (ROBOT_ROOT), which stays the id of everything else.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.10.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

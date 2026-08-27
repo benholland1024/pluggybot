@@ -347,7 +347,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
   `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
-  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`; the secret stays
+  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
+  `PLUGGY_ROBOT_NAME` — the robot's DISPLAY name on the wire, issue #39:
+  identity, never the body name, so `ROBOT_ROOT` and every body-keyed
+  structure are untouched by a rename, and an unset name degrades to
+  `"Pluggy"` rather than blank; the secret stays
   `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The four DATA files
   are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
   (what a job pays), `$PLUGGY_QUESTIONS` (the question bank),

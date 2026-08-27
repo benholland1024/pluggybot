@@ -78,6 +78,12 @@ def main() -> None:
   parser.add_argument("--reserve-wh", type=float, default=None,
                       help="override the world's go-charge reserve, in Wh")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--robot-name", default=None, metavar="NAME",
+                      help="this robot's display name on the wire (issue "
+                           "#39): the identity the site shows, e.g. 'Luca "
+                           "the pluggybot'. Default $PLUGGY_ROBOT_NAME, then "
+                           "'Pluggy'. Never the body name: renaming a robot "
+                           "must not re-key its telemetry")
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
   parser.add_argument("--token", default=os.environ.get("PLUGGYWORLD_TOKEN"),
@@ -210,7 +216,8 @@ def main() -> None:
                           # suggestion is only "delivered" if somebody who can
                           # act on it got it.
                           accepts=INBOUND_TYPES if inbox is not None else (),
-                          goals=goals_prose, steering=boss is not None)
+                          goals=goals_prose, steering=boss is not None,
+                          robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
@@ -246,6 +253,7 @@ def main() -> None:
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  goals=goals_prose,
                                  steering=boss is not None,
+                                 robot_name=args.robot_name,
                                  grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
