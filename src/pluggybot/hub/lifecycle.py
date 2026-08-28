@@ -1798,6 +1798,10 @@ def run_demo(start=None, view: bool = False,
   memory = ThoughtFiles.open(thoughts_root, goals_path=goals)
   boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
                            journal_path=journal_state, thoughts=memory,
+                           # Who this robot is (issue #39). The recorder has
+                           # had this since #39; the robot itself had not,
+                           # so a renamed robot introduced itself by species.
+                           robot_name=robot_name,
                            backend=overseer_backend, model=overseer_model,
                            base_url=overseer_url)
   # Read for the STREAM whether or not an overseer reads it for decisions

@@ -70,7 +70,9 @@ from pluggybot.hub.scoring import RewardTable, default_table
 from pluggybot.hub.thoughts import (
   GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
 )
-from pluggybot.telemetry.protocol import VISITOR_OUTCOMES
+from pluggybot.telemetry.protocol import (
+  ROBOT_ROOT, VISITOR_OUTCOMES, robot_display_name,
+)
 
 #: Longest reply to a visitor. The robot is answering a stranger in one
 #: sentence, and this is the only free text that leaves the model and reaches
@@ -616,9 +618,17 @@ state, your recent tasks, what is on the boards. If you do not know, say so.
 
 
 def system_prompt(thoughts: ThoughtFiles, menu: Menu,
-                  table: RewardTable) -> list[dict]:
-  """The STABLE half of the prompt: rules, world, rewards, and the two
-  HUMAN-WRITTEN thought files.
+                  table: RewardTable, name: str = "") -> list[dict]:
+  """The STABLE half of the prompt: identity, rules, world, rewards, and the
+  two HUMAN-WRITTEN thought files.
+
+  `name` is this instance's DISPLAY NAME (issue #39), resolved once by
+  `robot_display_name`. It is stated HERE rather than written into `Main.md`
+  because that file becomes a human's the moment it exists on disk: a name
+  baked into its default would freeze there while `$PLUGGY_ROBOT_NAME` went
+  on meaning something else. Safe in the cached prefix -- a robot cannot be
+  renamed mid-run -- and a rename between runs SHOULD invalidate it, on the
+  same terms as editing `Goals.md`.
 
   Byte-stability is a feature, not an accident -- this is the cached prefix, so
   anything varying per call (a timestamp, a battery reading, a note) belongs in
@@ -690,8 +700,19 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
   world["actions"] = {k: v for k, v in world["actions"].items()
                       if v is not None and k in menu.available()}
   stable = thoughts.stable()
+  # ⚠ THE NAME IS NOT THE SPECIES (issue #39). "pluggybot" is the MJCF body
+  # name and the key of every wire structure; the robot's name is per
+  # instance and is what the website's header and a visitor both use. Saying
+  # the species here -- which is what `Main.md` used to do -- meant a robot
+  # renamed to Luca introduced itself as PluggyBot one panel below a header
+  # reading "Luca the pluggybot".
+  who = (f"Your name is {name}. You are a {ROBOT_ROOT}, which is your KIND "
+         "rather than your name -- somebody chose your name for you, and it "
+         "is what the people watching you call you.\n\n"
+         if name else "")
   text = "\n\n".join([
-    f"WHO YOU ARE ({MAIN} -- written by the person who looks after you)\n"
+    f"WHO YOU ARE\n\n{who}"
+    f"({MAIN}, written by the person who looks after you)\n"
     + stable[MAIN].strip(),
     PERSONA,
     RULES,
@@ -875,6 +896,7 @@ class Overseer:
                table: RewardTable | None = None,
                journal: Journal | None = None,
                thoughts: ThoughtFiles | None = None,
+               robot_name: str | None = None,
                model: str = MODEL, client=None,
                backend: str = "auto", base_url: str | None = None,
                calls_per_hour: int = CALLS_PER_HOUR,
@@ -889,6 +911,11 @@ class Overseer:
     self.thoughts = thoughts if thoughts is not None else ThoughtFiles(
       texts={GOALS: goals} if goals else None)
     self.journal = journal
+    # Who this robot IS, as distinct from what it is (issue #39). Resolved
+    # once, here, by the same helper the telemetry header uses -- so the name
+    # a visitor reads on the website and the name the robot calls itself are
+    # the same string by construction rather than by two people remembering.
+    self.robot_name = robot_display_name(robot_name)
     self.model = model
     # WHICH mind decides (issue #19). `auto` is issue #15's rule -- the id's
     # shape picks the vendor -- so a deployment that only ever set
@@ -928,7 +955,8 @@ class Overseer:
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
-    self.system = system_prompt(self.thoughts, self.menu, self.table)
+    self.system = system_prompt(self.thoughts, self.menu, self.table,
+                                name=self.robot_name)
 
   @property
   def goals(self) -> str:
@@ -1280,6 +1308,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           model: str | None = None, backend: str | None = None,
           base_url: str | None = None,
           thoughts: ThoughtFiles | None = None,
+          robot_name: str | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
   """`(overseer, journal)` for a world, or `(None, None)` when disabled.
 
@@ -1319,6 +1348,7 @@ def build(world: str, book=None, enabled: bool | None = None,
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   overseer = Overseer(Menu.for_world(world, book), thoughts=thoughts,
                       table=table, journal=journal, client=client,
+                      robot_name=robot_name,
                       model=model, backend=backend, base_url=base_url,
                       calls_per_hour=calls_per_hour)
   return overseer, journal

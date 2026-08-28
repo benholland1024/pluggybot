@@ -559,11 +559,23 @@ rather than being promised by its callers.
 
 | File | Written by | Cap | Why |
 |---|---|---|---|
-| `Main.md` | **human** | 4000 | Persona and identity. A robot that can rewrite who it is defeats the point |
+| `Main.md` | **human** | 4000 | Body and manner. A robot that can rewrite who it is defeats the point |
 | `Goals.md` | **human** | 8000 | What it is for. How goals already worked, and still `$PLUGGY_GOALS`' file |
 | `History.md` | **system**, append-only | 6000 | What happened. A robot that can edit its own history breaks the principle that stops it awarding itself points |
 | `Knowledge_and_Opinions.md` | **robot** | 3000 | The one genuinely writable surface: what it has learned and what it thinks |
 
+- ⚠ **The NAME is not in `Main.md`, and that is deliberate** (issue #39).
+  `pluggybot` is the species — the MJCF body name every wire structure keys
+  off — while the name is per instance (`robot_display_name`, `--robot-name`
+  / `$PLUGGY_ROBOT_NAME`, default `Pluggy`). `Main.md` carries body and
+  manner; `system_prompt` states *"Your name is Luca. You are a pluggybot,
+  which is your KIND rather than your name"*, resolved once per run by the
+  same helper the telemetry header uses. Putting it in the file instead would
+  freeze it: the file is written to disk on a fresh volume and is a human's
+  from that moment, so a later `$PLUGGY_ROBOT_NAME` would stop reaching the
+  robot — the drift #39 exists to prevent. Safe in the cached prefix (a robot
+  cannot be renamed mid-run); a rename between runs invalidates it, which is
+  correct, on the same terms as editing `Goals.md`.
 - **A write by anyone but the owner raises `ThoughtRefused`**, is counted, and
   is narrated (`THOUGHT refused: …`). Human files have no write API at all — a
   person edits the file on the volume, which is how goals have always been

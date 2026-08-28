@@ -203,6 +203,10 @@ def main() -> None:
                                  goals_path=args.goals,
                                  journal_path=args.journal,
                                  thoughts=memory,
+                                 # ...and its NAME (issue #39), so the robot
+                                 # calls itself what the site's header calls
+                                 # it rather than what its species is.
+                                 robot_name=args.robot_name,
                                  backend=args.overseer_backend,
                                  model=args.overseer_model,
                                  base_url=args.overseer_url, **overseer_kw)

@@ -218,7 +218,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   outputs are, and are what the decision uses.
   - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
     (`hub/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
-    `--thoughts DIR`). `Main.md` (persona) and `Goals.md` are **human** —
+    `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —
     edited on the volume, no write API at all, because a robot that can
     rewrite who it is defeats the point. `History.md` is **system**,
     append-only: a robot that could edit its own history breaks the same
@@ -249,6 +249,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     (it passes with the file misplaced); `test_what_the_robot_writes_it_can_
     read_back_the_same_run` is the one that fails, and `volatile()` inverts
     the same flag `stable()` reads so the halves cannot disagree.
+    ⚠ **The robot's NAME is not in `Main.md`** (issue #39): `pluggybot` is
+    the SPECIES, the name is per instance, and `system_prompt` states it from
+    `robot_display_name` — the same helper the telemetry header uses, so the
+    name a visitor reads and the name the robot calls itself are ONE string
+    by construction. In the file it would freeze on the first run (the file
+    is written to disk and is a human's from then on) and
+    `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
     docs/Overseer.md §7.
   - **WHICH model decides is `$PLUGGY_MODEL`; WHICH MIND runs it is
     `--overseer-backend` / `$PLUGGY_OVERSEER_BACKEND`** (issue #19), and the
@@ -282,8 +289,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     because a silent downgrade shows up only as a higher fallback rate.
     Which mind decided is written into `History.md` at mission start, so the
     site shows it with no protocol change. Measured on the pick:
-    `--backend local` probes 4/4 valid, 8.3 s per decision, $0. Measured sweep + per-model doctrine in
-    docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
+    `--backend local` probes 4/4 valid, 8.3 s per decision, $0.
+    Measured sweep + per-model doctrine in docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
     burns `max_tokens` on `<think>` and truncates before the answer;
     the adapter strips a completed think block, but cannot conjure the
     JSON a truncated one never wrote). The deployed pick is
