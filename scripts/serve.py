@@ -184,7 +184,11 @@ def main() -> None:
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
                                  journal_path=args.journal,
-                                 thoughts=memory, **overseer_kw)
+                                 thoughts=memory,
+                                 # ...and its NAME (issue #39), so the robot
+                                 # calls itself what the site's header calls
+                                 # it rather than what its species is.
+                                 robot_name=args.robot_name, **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
   # as true of a scripted rotation as of a chosen errand. What is NOT the

@@ -912,7 +912,7 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # same terms and for the same reason: the site's Thoughts tab is built
   # against these lines, no keyframe re-ships one, and the default view is a
   # recording. A fixture without them leaves that tab showing a single row.
-  from pluggybot.hub.thoughts import HISTORY, KNOWLEDGE, NAMES
+  from pluggybot.hub.thoughts import HISTORY, KNOWLEDGE, MAIN, NAMES
 
   first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
   docs = [e for e in events if e["type"] == "thought"]
@@ -937,6 +937,21 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # the scripted rotation, and nothing without a mind writes an opinion. The
   # same fact `steering: False` states from the other end.
   assert next(d for d in opening if d["name"] == KNOWLEDGE)["text"] == ""
+  # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
+  # These recordings are made with no thoughts directory, so Main.md is
+  # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a
+  # fixture carrying last month's persona is what a visitor actually reads.
+  # This is the guard that was missing: the persona changed and every shape
+  # assertion above still passed, because content drift is invisible to them.
+  from pluggybot.hub.thoughts import DEFAULT_MAIN
+  assert next(d for d in opening if d["name"] == MAIN)["text"] \
+      == DEFAULT_MAIN.strip(), \
+    "the recording's persona is stale: re-record after editing DEFAULT_MAIN"
+  # ...and it never claims the SPECIES as the robot's name: `pluggybot` is
+  # what it is, the name is per instance (`robot_display_name`), and the
+  # website renders "<name> the pluggybot" directly above this text.
+  assert "You are PluggyBot" not in next(
+    d for d in opening if d["name"] == MAIN)["text"]
 
   # The scoreboard half (0.6.0). Every mission charges, and charging is a
   # scored task, so BOTH worlds' fixtures must carry a ledger that moves --

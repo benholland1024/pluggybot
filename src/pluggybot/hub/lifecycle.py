@@ -1781,7 +1781,11 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   memory = ThoughtFiles.open(thoughts_root, goals_path=goals)
   boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
-                           journal_path=journal_state, thoughts=memory)
+                           journal_path=journal_state, thoughts=memory,
+                           # Who this robot is (issue #39). The recorder has
+                           # had this since #39; the robot itself had not,
+                           # so a renamed robot introduced itself by species.
+                           robot_name=robot_name)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
