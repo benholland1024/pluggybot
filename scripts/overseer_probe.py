@@ -45,6 +45,7 @@ import time
 from pluggybot.hub.lifecycle import board_book
 from pluggybot.hub.llm import is_hf_model
 from pluggybot.hub.thoughts import ThoughtFiles
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.hub.overseer import MODEL, Menu, Overseer
 
 
@@ -116,6 +117,10 @@ def main() -> None:
   boss = Overseer(menu, thoughts=memory, model=args.model)
   prefix = boss.system[0]["text"]
 
+  # The prefix now states the robot's NAME (issue #39), resolved from
+  # $PLUGGY_ROBOT_NAME like a deployment's would be -- so the probe reports
+  # who it measured, not just how big the measurement was.
+  print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
   print(f"world        : {args.world}")
   print(f"model        : {args.model}")
   print(f"actions      : {', '.join(menu.available())}")

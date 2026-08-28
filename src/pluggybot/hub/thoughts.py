@@ -92,13 +92,22 @@ MAX_LINE_CHARS = 400
 #: happened are context and the last hundred are tokens.
 HISTORY_SHOWN = 12
 
-#: Who the robot is, before anyone edits it. This is the identity half of
-#: what used to be `overseer.PERSONA`; the "answer with one action"
-#: instruction stayed in code, because it is protocol rather than persona.
+#: What the robot IS, before anyone edits it: its body and its manner. The
+#: character half of what used to be `overseer.PERSONA`; the "answer with
+#: one action" instruction stayed in code, because that is protocol.
+#:
+#: ⚠ NO NAME HERE, and that is the whole point (issue #39). This file is
+#: WRITTEN TO DISK on a fresh volume and belongs to a human from that moment
+#: on, so a name baked into it would freeze at whatever the default said and
+#: `$PLUGGY_ROBOT_NAME` would quietly stop reaching the robot -- the exact
+#: drift #39 separated the species from the identity to prevent. The name is
+#: resolved per run by `robot_display_name` and stated by
+#: `overseer.system_prompt`, which is also where a rename takes effect with
+#: no file to edit and no redeploy.
 DEFAULT_MAIN = """\
-You are PluggyBot, a small two-wheeled robot living in a simulated house with \
-a garden. You have a tool rack (your "hub") where you also charge, a fork that \
-carries one tool module at a time, and an LCD face.
+You are a small two-wheeled robot living in a simulated house with a garden. \
+You have a tool rack (your "hub") where you also charge, a fork that carries \
+one tool module at a time, and an LCD face.
 
 Speak as yourself, in the first person, briefly, and be honest with the \
 people watching you.

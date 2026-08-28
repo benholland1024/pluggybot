@@ -30,7 +30,9 @@ from pluggybot.hub.thoughts import (
   GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ROBOT, SYSTEM,
   NAMES, SPECS, ThoughtFiles, ThoughtRefused,
 )
-from pluggybot.telemetry.protocol import THOUGHT_FILES, THOUGHT_WRITERS
+from pluggybot.telemetry.protocol import (
+  DEFAULT_ROBOT_NAME, ROBOT_ROOT, THOUGHT_FILES, THOUGHT_WRITERS,
+)
 
 from test_overseer import FakeClient, full
 
@@ -373,6 +375,73 @@ def test_the_persona_is_the_file_rather_than_the_code(tmp_path):
   assert "You are a very serious robot." in text
   assert "two-wheeled robot" not in text, \
     "the default persona is still in the prompt beside the edited one"
+
+
+# ---- the robot's own name (issue #39) ----------------------------------------
+
+
+def test_the_robot_is_told_its_name_and_not_its_species(monkeypatch):
+  """⚠ THE ONE THE PERSONA GOT WRONG. #39 made `pluggybot` the SPECIES and
+  the name a per-instance thing (`robot_display_name`), but `Main.md`'s
+  default said "You are PluggyBot" and nothing ever handed the overseer the
+  real name -- so a robot renamed to Luca introduced itself by its species,
+  one panel below a website header reading "Luca the pluggybot", and could
+  not recognise its own name if a visitor used it.
+  """
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Luca")
+  boss = Overseer(Menu(boards=("a",), programs=("house",)), client=FakeClient())
+  text = boss.system[0]["text"]
+  assert boss.robot_name == "Luca"
+  assert "Your name is Luca." in text
+  # The species is still stated -- it is true, and the robot should know what
+  # it is -- but never AS the name.
+  assert ROBOT_ROOT in text
+  assert "You are PluggyBot" not in text and "You are Pluggybot" not in text
+
+
+def test_the_name_is_not_frozen_into_the_file_on_disk(tmp_path, monkeypatch):
+  """The reason the name is stated in the prompt rather than written into
+  `Main.md`: that file becomes a HUMAN's the moment it exists, so a name
+  baked into its default would survive every later rename while
+  `$PLUGGY_ROBOT_NAME` went on meaning something else."""
+  root = tmp_path / "thoughts"
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Luca")
+  files = ThoughtFiles(root)
+  assert "Luca" not in (root / MAIN).read_text(), "a name was frozen into the file"
+  assert "Luca" not in files.read(MAIN)
+
+  # ...and a rename between runs reaches the robot with no file to edit.
+  first = Overseer(Menu(boards=("a",), programs=("house",)),
+                   thoughts=ThoughtFiles(root), client=FakeClient())
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Mika")
+  second = Overseer(Menu(boards=("a",), programs=("house",)),
+                    thoughts=ThoughtFiles(root), client=FakeClient())
+  assert "Your name is Luca." in first.system[0]["text"]
+  assert "Your name is Mika." in second.system[0]["text"]
+  # A rename SHOULD move the cached prefix -- it is a different robot
+  # talking, on the same terms as a human editing Goals.md.
+  assert first.system != second.system
+
+
+def test_an_unnamed_robot_still_gets_a_readable_name(monkeypatch):
+  """The 0.10.0 degrade rule, one layer in: absent must resolve to the
+  default, never to "Your name is ." -- the wire header does the same."""
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
+  boss = Overseer(Menu(boards=("a",), programs=("house",)), client=FakeClient())
+  assert boss.robot_name == DEFAULT_ROBOT_NAME
+  assert f"Your name is {DEFAULT_ROBOT_NAME}." in boss.system[0]["text"]
+
+
+def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
+  """`overseer.build` is what a served world calls, and the name has to
+  survive that hop -- it reached the RECORDER back in #39 and stopped
+  there, which is why nothing caught this."""
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
+  boss, _ = ov.build("room_hub", None, enabled=True, client=FakeClient(),
+                     thoughts=ThoughtFiles(tmp_path / "thoughts"),
+                     robot_name="Luca")
+  assert boss.robot_name == "Luca"
+  assert "Your name is Luca." in boss.system[0]["text"]
 
 
 # ---- the robot's own writes, through a real decision --------------------------

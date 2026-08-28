@@ -218,7 +218,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   outputs are, and are what the decision uses.
   - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
     (`hub/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
-    `--thoughts DIR`). `Main.md` (persona) and `Goals.md` are **human** —
+    `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —
     edited on the volume, no write API at all, because a robot that can
     rewrite who it is defeats the point. `History.md` is **system**,
     append-only: a robot that could edit its own history breaks the same
@@ -249,6 +249,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     (it passes with the file misplaced); `test_what_the_robot_writes_it_can_
     read_back_the_same_run` is the one that fails, and `volatile()` inverts
     the same flag `stable()` reads so the halves cannot disagree.
+    ⚠ **The robot's NAME is not in `Main.md`** (issue #39): `pluggybot` is
+    the SPECIES, the name is per instance, and `system_prompt` states it from
+    `robot_display_name` — the same helper the telemetry header uses, so the
+    name a visitor reads and the name the robot calls itself are ONE string
+    by construction. In the file it would freeze on the first run (the file
+    is written to disk and is a human's from then on) and
+    `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
     docs/Overseer.md §7.
   - **WHICH model decides is `$PLUGGY_MODEL`, and the id picks the backend**
     (issue #15's HF turn): an `org/name` id goes to the HuggingFace router
