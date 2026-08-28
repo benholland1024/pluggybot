@@ -91,6 +91,7 @@ class FrameBuilder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
+               thoughts=None,
                steering: bool = False,
                robot_name: str | None = None) -> None:
     if keyframe_s < 0:
@@ -128,6 +129,13 @@ class FrameBuilder:
     # `board_snapshot` shape, for the `board_snapshot` reason.
     self.goals = goals
     self.steering = bool(steering)
+    # The robot's memory documents (0.11.0, issue #38). The goals message's
+    # shape and its reason -- prose that never rides a frame -- but FOUR
+    # documents, each saying who may write it, and unlike goals two of them
+    # CHANGE during a run. Those reach a sink through `ThoughtFiles.on_event`
+    # (wired into `message` / `emit`, exactly like a journal note); this
+    # reference is only what opens a stream with all four.
+    self.thoughts = thoughts
     # Who this robot IS, as distinct from what it is (0.10.0, issue #39):
     # ROBOT_ROOT is the species and stays the key of every wire structure;
     # this is the identity the website's header shows. Resolved here (flag >
@@ -213,6 +221,24 @@ class FrameBuilder:
       return None
     return {"type": "goals", "t": round(float(t), 3), "robot": ROBOT_ROOT,
             "text": self.goals, "steering": self.steering}
+
+  def thought_messages(self, t: float) -> list[dict]:
+    """The robot's memory documents, whole (0.11.0, issue #38).
+
+    The `goals_message` slot and its argument, four times over: a document
+    is not a pose, no keyframe re-ships one, and a browser that joined an
+    hour in would otherwise show an empty Thoughts tab for the rest of the
+    mission. Empty list when this run has no files, which is the honest
+    answer on the same terms as goals -- absent means "nothing to say".
+
+    ⚠ `goals` (0.8.0) is NOT replaced by this and both are emitted. They
+    answer different questions: this one says what the documents SAY, and
+    that one says whether anything is READING them (`steering`), which no
+    document knows about itself.
+    """
+    if self.thoughts is None:
+      return []
+    return self.thoughts.messages(float(t))
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
@@ -411,6 +437,7 @@ class TelemetryRecorder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
+               thoughts=None,
                steering: bool = False,
                robot_name: str | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
@@ -419,6 +446,7 @@ class TelemetryRecorder:
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
+                                 thoughts=thoughts,
                                  steering=steering, robot_name=robot_name)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
@@ -430,6 +458,11 @@ class TelemetryRecorder:
     goals_msg = self._builder.goals_message(float(data.time))
     if goals_msg is not None:
       self._queue.put(goals_msg)
+    # ...and the memory documents behind it (0.11.0, issue #38), in the same
+    # slot for the same reason: no keyframe carries one, so a reader that
+    # missed these lines never learns what the robot is working from.
+    for thought in self._builder.thought_messages(float(data.time)):
+      self._queue.put(thought)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without

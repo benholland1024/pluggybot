@@ -11,7 +11,36 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.10.0"
+PROTOCOL_VERSION = "0.11.0"
+# 0.11.0: the robot's memory is a set of NAMED DOCUMENTS, and each one says
+#         who may write it (pluggybot #38, for the website's Thoughts tab --
+#         rooftop-media-2026 #88). One new upstream message, emitted when a
+#         stream OPENS and again whenever a file changes:
+#           {"type": "thought", "t": 300.2, "robot": "pluggybot",
+#            "name": "Knowledge_and_Opinions.md", "writer": "robot",
+#            "text": "whiteboard_b is the one people look at",
+#            "cap": 3000}
+#         `name` is one of THOUGHT_FILES, `writer` one of THOUGHT_WRITERS.
+#         WHOLE TEXT, NOT A DELTA -- a file is small, and "present means
+#         complete" is what keeps a late joiner and a scrubbed recording
+#         honest: the `tasks` block's rule, applied to prose.  `cap` is the
+#         size limit the sim enforces on writes, so a client can show how
+#         full a file is without inventing the denominator.
+#         ⚠ `writer` is the `steering` lesson one loop over: these files look
+#         alike on a page and are not alike at all. A `human` file is edited
+#         on the volume and no robot can touch it; `system` is append-only
+#         narrative the robot cannot revise (the principle that stops it
+#         awarding itself points); only `robot` is the robot's own. A site
+#         that rendered four identical panels would be reporting a mind that
+#         wrote its own persona.
+#         READ-ONLY IN EVERY DIRECTION, exactly like `goals` (0.8.0): no
+#         inbound message writes one, and the files beside the sim stay the
+#         one copy. `goals` is UNCHANGED and still sent -- it is the only
+#         carrier of `steering`, which says who is READING rather than who
+#         may write. Goals.md therefore arrives twice by design; a consumer
+#         should take the prose from here and the steering note from there.
+#         Additive: a 0.10.0 consumer that ignores the type renders exactly
+#         what it rendered before, minus three documents it never had.
 # 0.10.0: the robot has a NAME, and the name is not the species (issue #39,
 #         rooftop-media-2026 #88). The header gains "robotNames": robot id ->
 #         the display name this instance answers to:
@@ -85,8 +114,10 @@ PROTOCOL_VERSION = "0.10.0"
 #        would never learn them.
 #          {"type": "goals", "t": 0.0, "robot": "pluggybot",
 #           "text": "Keep the house in good order...", "steering": true}
-#        `text` is hub/journal.py's `read_goals` verbatim -- the mounted
-#        goals.md Ben edits, or the built-in defaults when there is no file.
+#        `text` is `Goals.md` verbatim -- the mounted file Ben edits, or the
+#        built-in defaults when there is no file. Since 0.11.0 that document
+#        also rides the wire as a `thought`; this message is kept because it
+#        alone carries `steering`.
 #        The site displays it; it is READ-ONLY in every direction, and there
 #        is no inbound message that can change it. The file beside the sim
 #        stays the one copy (docs/pluggyworld.md is explicit that `pw_goals`
@@ -308,6 +339,28 @@ TASK_SOURCES = ("system", "visitor", "overseer")
 
 #: What the robot may say back about one visitor message.
 VISITOR_OUTCOMES = ("accepted", "declined", "answered")
+
+# The thought files (issue #38). Two-repo vocabulary on the same terms as
+# TASK_STATES above: the names and the writers are what the wire may carry,
+# while the CAPS and the write rules are sim-side facts and live in
+# hub/thoughts.py, which owns the one write path that enforces them.
+#
+# ⚠ WHO MAY WRITE IS THE WHOLE POINT, and it is per file rather than per
+# robot. `human` is a person editing the file on the volume -- persona and
+# purpose, which a robot that could rewrite them would make meaningless.
+# `system` is append-only narrative: code writes what happened and nothing
+# revises it, the same principle that stops the robot awarding itself points
+# (hub/scoring.py). `robot` is the one genuinely writable surface. Rendering
+# the four identically would claim a mind that wrote its own persona, which
+# is the `steering` mistake one loop over.
+THOUGHT_WRITERS = ("human", "system", "robot")
+
+#: The documents, in the order a reader should show them: who it is, what it
+#: is for, what happened, what it makes of that. Appending one is additive
+#: (a client renders a document it has never heard of); renaming one is a
+#: breaking change in both repos, like a FACE_STATE.
+THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
+                 "Knowledge_and_Opinions.md")
 
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then

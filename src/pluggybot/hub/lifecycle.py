@@ -46,6 +46,7 @@ from pluggybot.hub import energy as energy_model
 from pluggybot.hub.overseer import THINK_SLICE_S
 from pluggybot.hub.questions import clean_answer
 from pluggybot.hub.screen import face_for
+from pluggybot.hub.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.hub import scoring, strokes
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.protocol import ROBOT_ROOT
@@ -150,7 +151,7 @@ class HubLifecycle:
                errands=None, boards=None, screen=None, ledger=None,
                overseer=None, journal=None, world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
-               energy=None) -> None:
+               energy=None, thoughts=None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -169,6 +170,12 @@ class HubLifecycle:
     # recording has to behave exactly as it did.
     self.overseer = overseer
     self.journal = journal
+    # The thought files (issue #38). Present on EVERY world, unlike the
+    # overseer: `History.md` is what happened to this robot, and that is as
+    # true of a scripted rotation as of a chosen errand -- the same argument
+    # that has `Goals.md` read on every run. In-memory when nobody supplied
+    # a directory, which is every unit test and every physics spike.
+    self.thoughts = thoughts if thoughts is not None else ThoughtFiles()
     self.decisions: list[dict] = []
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
@@ -300,6 +307,25 @@ class HubLifecycle:
     for hook in self.say_hooks:
       hook(float(self.data.time), msg)
 
+  def _remember(self, line: str) -> None:
+    """Append one line to `History.md` (issue #38).
+
+    The narrative record, and deliberately NOT the narration: `_say` fires
+    dozens of times a minute and most of it is a state machine talking to
+    itself. What lands here is what a person catching up would want -- the
+    day starting, what the robot decided, how each finished job was judged,
+    how the day ended. Written by CODE, which is the point of the file: a
+    robot that could edit its own history breaks the same principle that
+    stops it awarding itself points.
+    """
+    try:
+      self.thoughts.record(line, t=float(self.data.time))
+    except ThoughtRefused as e:
+      # History rolls rather than refusing, so this is close to unreachable
+      # -- but a memory write must never be able to end a mission, and a
+      # refusal nobody can see is the thing this module exists to prevent.
+      self._say(f"HISTORY refused: {e}")
+
   def telemetry_status(self) -> dict:
     """The per-frame robot record for the telemetry recorder: lifecycle
     state, the _say narration, and the battery gauges. The bare message,
@@ -331,12 +357,19 @@ class HubLifecycle:
     self.verdicts.append(verdict.as_dict())
     if self.ledger is None:
       self._say(f"SCORE {verdict.task}: {verdict.reason} (no ledger)")
+      # ⚠ `verdict.reason` and not `public_metrics`: the reason line is
+      # already redacted of a hidden answer (issue #14), and History is read
+      # back into the model's own context, so a file built out of raw
+      # metrics would hand the census its ground truth by the back door.
+      self._remember(f"{verdict.task}: {verdict.reason}")
       return None
     entry = self.ledger.award(verdict, t=float(self.data.time))
     tail = " (pending a rating)" if entry["pending"] else ""
     self._say(f"SCORE {verdict.task}: {verdict.reason} -- "
               f"{entry['points']:+d} points{tail}, "
               f"balance {entry['balance']}")
+    self._remember(f"{verdict.task}: {verdict.reason} "
+                   f"({entry['points']:+d} points{tail})")
     return entry
 
   @property
@@ -765,6 +798,35 @@ class HubLifecycle:
     mujoco.mj_forward(self.model, self.data)
     self._say(f"ADMIN {who} reset {name} -- back on its bay")
 
+  def _reconsider(self, decision) -> None:
+    """Apply a decision's `forget` and `learn` to the robot's own file.
+
+    THE REFUSAL IS THE INTERESTING PATH (issue #38). A write the permission
+    table or the size cap forbids is narrated, counted, and left in
+    `ThoughtFiles.refusals` -- never swallowed. A robot whose memory
+    silently stopped accepting writes would go on believing it had
+    remembered things, and the only symptom would be a mind that never
+    learned anything, which is indistinguishable from a model that has
+    nothing to say.
+
+    `forget` before `learn`: a full file plus a decision that clears one
+    line and writes another is a robot tidying up, and doing these in the
+    other order would refuse the write for a fullness the same decision was
+    about to fix.
+    """
+    t = float(self.data.time)
+    for verb, text in (("forget", decision.forget), ("learn", decision.learn)):
+      if not text:
+        continue
+      try:
+        done = (self.thoughts.unlearn(text, t=t) if verb == "forget"
+                else self.thoughts.learn(text, t=t))
+      except ThoughtRefused as e:
+        self._say(f"THOUGHT refused: {e}")
+        continue
+      if done:
+        self._say(f"THOUGHT {verb}: {done}")
+
   def _answer_visitor(self, decision) -> None:
     """Send one accept/decline/answer back out, and retire the message.
 
@@ -1004,6 +1066,14 @@ class HubLifecycle:
                                 why=decision.reason)
       if entry is not None:
         self._say(f"JOURNAL {entry['text']}")
+    # ...and what it decided, into the record it cannot edit (issue #38).
+    self._remember(f"chose {decision.summary()}")
+    # ...and whatever it made of the day, into the one file it can
+    # (issue #38). Orthogonal to the action, like the note above: a robot
+    # should not have to spend its turn to write a line down. `forget`
+    # first, so a decision that makes room and then uses it works in one
+    # go rather than being refused for a fullness it was about to fix.
+    self._reconsider(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose suggestion was taken hears
     # so at the moment it is taken rather than five minutes later.
@@ -1092,6 +1162,11 @@ class HubLifecycle:
       self.mission._spin()               # seed the map before deciding anything
       self.explore_deadline = self.data.time + explore_budget
       self._say("mission start")
+      # A restart is a new day, and History is the file that says so
+      # (issue #38): without this line a reader cannot tell one mission's
+      # record from the four before it that share the volume.
+      self._remember(f"woke up in {self.world} with the pack at "
+                     f"{self.battery.fraction:.0%}")
 
       # A real arbitration loop, not a fixed script. Priority order, and the
       # reasons: charging outranks everything (a flat robot does nothing at
@@ -1182,9 +1257,14 @@ class HubLifecycle:
       if self.stranded:
         self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
                   f"at {self.battery.fraction:.0%}")
+        self._remember("could not reach the charger -- stranded at "
+                       f"{self.battery.fraction:.0%}")
       else:
         self._say("mission complete" if not self.battery.empty
                   else "BATTERY DEAD -- mission over")
+        self._remember("finished the day at "
+                       f"{self.battery.fraction:.0%}" if not self.battery.empty
+                       else "the pack went flat and the day ended there")
     except MissionAborted:
       aborted = True
     finally:
@@ -1224,6 +1304,11 @@ class HubLifecycle:
       "decisions": list(self.decisions),
       "overseer": self.overseer.stats() if self.overseer is not None else {},
       "journal": (self.journal.recent() if self.journal is not None else []),
+      # The thought files as they stand at the end (issue #38), and what the
+      # write path refused along the way. Present on every run, because the
+      # files are -- a scripted mission still has a history.
+      "thoughts": dict(self.thoughts.texts),
+      "thought_stats": self.thoughts.stats(),
       # What visitors said and what the robot said back (issue #16). Empty
       # without an inbox, which is every caller that does not serve.
       "visitors": self.inbox.stats() if self.inbox is not None else {},
@@ -1563,7 +1648,12 @@ def overseer_context(life) -> dict:
   affordable = [a for a in menu if priced(a, life.battery.energy_wh)]
   possible = [a for a in menu if priced(a, life.charged_wh)]
   state = ov.context_for(life, life.journal, visitors=visitors, tasks=offers,
-                         affordable=affordable, possible=possible)
+                         affordable=affordable, possible=possible,
+                         # The two thought files that change during a run
+                         # (issue #38). The other two are already in the
+                         # cached prefix, and putting these there instead is
+                         # the mistake `system_prompt` documents.
+                         thoughts=life.thoughts)
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
 
@@ -1635,7 +1725,7 @@ def run_demo(start=None, view: bool = False,
              errand: str = "carry", board_state: str | None = None,
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
-             journal_state: str | None = None,
+             journal_state: str | None = None, thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
              pack: str = "demo", reserve_wh: float | None = None,
              robot_name: str | None = None) -> dict:
@@ -1684,13 +1774,19 @@ def run_demo(start=None, view: bool = False,
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.hub import overseer as ov
+  # The robot's memory documents (issue #38), built ONCE per run and shared
+  # by everything that reads or writes them: the overseer's prompt, the
+  # lifecycle's History writes, and both telemetry sinks. A second set built
+  # somewhere downstream would be a second copy of a file on disk, drifting
+  # from this one the moment either wrote a line.
+  memory = ThoughtFiles.open(thoughts_root, goals_path=goals)
   boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
-                           journal_path=journal_state)
+                           journal_path=journal_state, thoughts=memory)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
   # honest -- see FrameBuilder.goals_message.
-  goals_prose = ov.goals_text(goals)
+  goals_prose = ov.goals_text(thoughts=memory)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or default_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
@@ -1700,7 +1796,7 @@ def run_demo(start=None, view: bool = False,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, world=world,
                       errands=errands_for(errand, world, book), tasks=board,
-                      producer=maker)
+                      producer=maker, thoughts=memory)
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
@@ -1714,7 +1810,7 @@ def run_demo(start=None, view: bool = False,
                                  status_fn=life.telemetry_status,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=board,
-                                 goals=goals_prose,
+                                 goals=goals_prose, thoughts=memory,
                                  steering=boss is not None,
                                  # Who this robot is, apart from what it is
                                  # (issue #39): flag > $PLUGGY_ROBOT_NAME >
@@ -1738,6 +1834,12 @@ def run_demo(start=None, view: bool = False,
     # which is what the site animates a marker on.
     if board is not None:
       board.on_event.append(recorder.emit)
+    # ...and so is a document changing (issue #38). The recorder OPENS with
+    # all four; these are the edits after that, and without them a replay
+    # shows the robot's memory frozen at the moment it woke up.
+    memory.on_event.append(recorder.emit)
+    if journal is not None:
+      journal.on_event.append(recorder.emit)
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
   # put the offers on the floor before the recorder existed -- a recording

@@ -211,11 +211,45 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   in points. Every failure
   (timeout, error, malformed answer, spent budget) resolves to a scripted
   rotation tagged `fallback:<why>`, because "the robot chose to explore" and
-  "the API was down" must not look the same on the wire. Memory is two files
-  in `/var/lib/pluggybot`: `goals.md` is read and human-edited, `journal.json`
-  is written and never edited.
+  "the API was down" must not look the same on the wire. Memory is the THOUGHT
+  FILES (issue #38, below) plus `journal.json`, which is written and never
+  edited — all in `/var/lib/pluggybot`.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
+    (`hub/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
+    `--thoughts DIR`). `Main.md` (persona) and `Goals.md` are **human** —
+    edited on the volume, no write API at all, because a robot that can
+    rewrite who it is defeats the point. `History.md` is **system**,
+    append-only: a robot that could edit its own history breaks the same
+    principle that stops it awarding itself points. `Knowledge_and_Opinions.
+    md` is the **robot's**, and its only verbs are `learn` (add a line) and
+    `forget` (quote one to remove) — fields on a decision, orthogonal to the
+    action, so writing a line down costs no turn. There is deliberately no
+    verb that REPLACES a file: one bad generation must not erase everything
+    the robot knows. Permissions are enforced at the one write path and a
+    refusal is narrated (`THOUGHT refused: …`), never swallowed — a memory
+    that silently stopped accepting writes looks exactly like a model with
+    nothing to say. Attached on EVERY world, overseer or not, on the same
+    terms `Goals.md` already was: a scripted rotation still has a history,
+    and the site's Thoughts tab is the first thing a visitor opens.
+    ⚠ **The two caps fail in OPPOSITE directions, deliberately.**
+    `History.md` rolls (oldest lines off the front, the journal's rule);
+    `Knowledge_and_Opinions.md` REFUSES when full, because silently dropping
+    the robot's oldest line leaves it believing it remembers something it
+    does not. `forget` is the remedy and the prompt says so.
+    ⚠ **The prompt-cache split is by WRITER — and the issue's stated reason
+    for it is WRONG, measured.** Human files ride the cached prefix, writable
+    ones the user turn. But a misplaced writable file would NOT cost per-call
+    cache hits: `Overseer.system` is built ONCE in `__init__` and sent
+    verbatim, so a mid-run write cannot move it whatever the split says. What
+    it would actually cost is the memory working at all — the model shown its
+    files as they stood at mission start, re-learning the same thing every
+    hour. So the byte-identical prefix guard is necessary and NOT sufficient
+    (it passes with the file misplaced); `test_what_the_robot_writes_it_can_
+    read_back_the_same_run` is the one that fails, and `volatile()` inverts
+    the same flag `stable()` reads so the halves cannot disagree.
+    docs/Overseer.md §7.
   - **WHICH model decides is `$PLUGGY_MODEL`, and the id picks the backend**
     (issue #15's HF turn): an `org/name` id goes to the HuggingFace router
     (`hub/llm.py`, `$HF_TOKEN`, stdlib urllib — the serve image's package

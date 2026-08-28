@@ -44,6 +44,7 @@ import mujoco
 from pluggybot.hub import overseer
 from pluggybot.hub.inbox import Inbox
 from pluggybot.hub.cadence import default_cadence
+from pluggybot.hub.thoughts import ThoughtFiles
 from pluggybot.hub.lifecycle import (
   HubLifecycle, board_book, errands_for, points_ledger, task_producer,
   task_board, world_config, world_screens,
@@ -128,6 +129,12 @@ def main() -> None:
   parser.add_argument("--journal", default=None, metavar="PATH",
                       help="JSON file the overseer's notes-to-self live in "
                            "between runs ($PLUGGY_JOURNAL)")
+  parser.add_argument("--thoughts", default=None, metavar="DIR",
+                      help="directory the robot's THOUGHT FILES live in "
+                           "(issue #38; $PLUGGY_THOUGHTS). Main.md and "
+                           "Goals.md are yours to edit, History.md is "
+                           "append-only and written by the sim, and "
+                           "Knowledge_and_Opinions.md is the robot's own")
   parser.add_argument("--overseer-budget", type=int, default=None,
                       metavar="N", help="hard cap on LLM calls per rolling "
                                         "hour (default 60)")
@@ -167,15 +174,22 @@ def main() -> None:
   # human-edited between runs), the journal is written.
   overseer_kw = ({"calls_per_hour": args.overseer_budget}
                  if args.overseer_budget else {})
+  # The thought files (issue #38), built ONCE and shared by everything that
+  # reads or writes them -- the prompt, the History writes, and both wire
+  # surfaces. Attached on EVERY served world, overseer or not: a scripted
+  # rotation still has a history, and the site's Thoughts tab is what a
+  # visitor opens first.
+  memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
   boss, journal = overseer.build(args.world, book,
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
-                                 journal_path=args.journal, **overseer_kw)
+                                 journal_path=args.journal,
+                                 thoughts=memory, **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
   # as true of a scripted rotation as of a chosen errand. What is NOT the
   # same is whether anything is reading them, which is what `steering` says.
-  goals_prose = overseer.goals_text(args.goals)
+  goals_prose = overseer.goals_text(thoughts=memory)
   # The visitor channel (issue #16), attached ALWAYS as of issue #30 -- but
   # what this run advertises it can hear is per-kind (`accepts` below).
   # Suggestions and questions still need an overseer to read them; a rating
@@ -202,7 +216,7 @@ def main() -> None:
                       screen=next(iter(screens), None),
                       overseer=boss, journal=journal, world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
-                      producer=maker)
+                      producer=maker, thoughts=memory)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -223,7 +237,8 @@ def main() -> None:
                           # handled by code and heard on any served world.
                           accepts=(INBOUND_TYPES if boss is not None
                                    else CODE_HANDLED_TYPES),
-                          goals=goals_prose, steering=boss is not None,
+                          goals=goals_prose, thoughts=memory,
+                          steering=boss is not None,
                           robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
@@ -240,6 +255,9 @@ def main() -> None:
   # ...and so are the robot's notes and its answers to visitors (#15, #16).
   if journal is not None:
     journal.on_event.append(publisher.message)
+  # ...and so is a thought file changing (issue #38): the publisher opens a
+  # stream with all four and these are the edits after that.
+  memory.on_event.append(publisher.message)
   life.visitor_hooks.append(publisher.message)
   if inbox is not None:
     # THE OTHER DIRECTION. `offer` runs on the publisher's socket thread and
@@ -258,7 +276,7 @@ def main() -> None:
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=tasks,
-                                 goals=goals_prose,
+                                 goals=goals_prose, thoughts=memory,
                                  steering=boss is not None,
                                  robot_name=args.robot_name,
                                  grid=life.mission.grid)
@@ -270,6 +288,7 @@ def main() -> None:
       tasks.on_event.append(recorder.emit)
     if journal is not None:
       journal.on_event.append(recorder.emit)
+    memory.on_event.append(recorder.emit)
     life.visitor_hooks.append(recorder.emit)
 
   # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
