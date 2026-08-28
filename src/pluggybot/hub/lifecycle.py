@@ -458,6 +458,12 @@ class HubLifecycle:
     # had reached, a metre from the bay, and came away with nothing.
     # See `HubSwap.pinned`.
     self.mission.swap.pinned = True
+    # THE DOCK IS THE RE-ANCHOR (issue #42). Called with the pins already
+    # conducting -- go_charge verified that -- which is the one moment the
+    # robot's true pose is known to millimetres by construction. This is
+    # where a shift's accumulated dead-reckoning drift dies, instead of
+    # compounding until a terminal maneuver walks out of its envelope.
+    self.mission.anchor_at_dock()
     try:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED

@@ -44,6 +44,22 @@ TAG_Z = RACK_RAIL_Z + 0.075
 # room's pale plates out; that reasoning is simply gone.)
 MAX_RANGE = 5.0
 MIN_SIGHTINGS = 3        # the milestone-5 lesson: one sighting is a rumor
+#: Weight floor for the rack landmark's merges (issue #42): past the first
+#: few sightings the position becomes an exponential moving average, so a
+#: handful of fresh looks carry the belief most of the way into the CURRENT
+#: odometry frame. The pure running average remembered the mission-long MEAN
+#: frame instead, which after hours of drift describes a rack nobody is
+#: parked at: a recovery spin's fresh sightings moved a long-run average by
+#: nothing (measured -- the issue-30 recovery regression test fails on it).
+#: Sized against what a spin actually delivers: the tag is visible in a
+#: narrow arc, so one look-around yields only ~5 sightings, and at 0.25 five
+#: of them move the belief ~76 % of the way -- enough acquisition accuracy
+#: (the bay tag enters the dock camera's view within ~0.3 m) for the
+#: MEASURED terminal standoff to do the fine work. The wobble this buys
+#: (EMA std ~0.4x a single sighting's ~5-10 cm) lands in the same place.
+#: The OUTLET landmarks keep the pure average: they are surveyed once on a
+#: short clock, not lived against for hours.
+RACK_RECENCY = 0.25
 #: How well conditioned the free-space sum must be before its direction is
 #: believed as the rack's FACING (landmarks.wall_normal_conf).
 #:
@@ -144,17 +160,33 @@ class RackFinder:
 
   def __init__(self, model, camera_name: str = "left_eye") -> None:
     self.spotter = RackSpotter(model, camera_name)
-    self.landmarks = LandmarkStore()
+    self.landmarks = LandmarkStore(recency=RACK_RECENCY)
     #: the last facing that came off a well-conditioned free-space sum. The
     #: rack does not turn round, so a good answer stays good -- and keeping
     #: it is the whole fix for a later, worse look (see MIN_FACING_CONF).
     self.facing: float | None = None
 
   def look(self, data, pose: tuple[float, float, float]) -> int:
-    """One look; returns how many tag sightings it added."""
+    """One look; returns how many tag sightings it added.
+
+    ⚠ MERGED BY IDENTITY, NOT BY DISTANCE (issue #42). The store's 0.4 m
+    gate exists for outlets, which are anonymous blobs -- two detections far
+    apart might be two outlets. The rack's sightings carry a DECODED ID, so
+    every one of them is the same rack wherever the believed frame puts it.
+    Gating them by distance broke the drift recovery in the worst way
+    (measured, the issue-30 recovery regression test): after half a metre of
+    decoherence a recovery spin's fresh sightings landed outside the gate,
+    spawned a SECOND landmark, and `estimate` kept answering from the stale
+    one with the bigger count -- so the spin that existed to fix the belief
+    could not touch it.
+    """
     n = 0
     for x, y, z, _px in self.spotter.spot(data, pose):
-      self.landmarks.add_sighting(x, y, z, seen_from=(pose[0], pose[1]))
+      if self.landmarks.landmarks:
+        self.landmarks.landmarks[0].merge(x, y, z,
+                                          seen_from=(pose[0], pose[1]))
+      else:
+        self.landmarks.add_sighting(x, y, z, seen_from=(pose[0], pose[1]))
       n += 1
     return n
 

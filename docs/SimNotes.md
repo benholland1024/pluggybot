@@ -2054,6 +2054,84 @@ inbox on EVERY served world and advertises `accepts` per kind
 on a scripted world, closing a gap where an `artwork` task could be claimed
 by the scripted rotation but never settled.
 
+## Drift hygiene (issue #42): the dock is the anchor, and identity beats distance
+
+Dead reckoning was never corrected, and every long-run failure family traced
+back to it: 0.69 m of frame drift over three cycles (the pre-#32
+diagnostics), the blind charge approach (#32), the 4 cm tool-drop cliff
+(#30), and — after both measured approaches landed — the pen still lost at
+t=7372 of the issue-30 validation run, when drift put the bay tag outside
+the dock camera's whole field and the first look answered None. The system
+survives *coherent* drift and dies of *decoherence*; these three fixes are
+one mechanism for keeping the frame coherent, and the fourth family member
+each of them was measured against:
+
+- **The dock is the re-anchor** (`HubMission.anchor_at_dock`, called by
+  `charge()` the moment the pins conduct). Measured: with both pogo pins
+  pressed the axle sits 0.2056–0.2059 m from the pin faces, within 1 mm
+  across and 0.0° of heading, on every instrumented dock — the one pose the
+  robot ever occupies to millimetres BY CONSTRUCTION, held for minutes every
+  cycle anyway, free, and how real robots use docks. ⚠ **Snapped to the
+  COMMISSIONED prior, not to the believed rack — and that was measured, not
+  argued.** The first version anchored to the belief ("a world constant
+  would be cheating"). Its four-sim-hour acceptance run logged, per dock:
+
+  | t | drift before dock | after anchor | rack belief error |
+  |---|---|---|---|
+  | 2480 | 0.015 | 0.006 | 0.003 |
+  | 6702 | 0.144 | 0.147 | 0.146 |
+  | 13466 | 0.367 | 0.361 | 0.344 |
+
+  `after_anchor` tracked the belief's own error exactly: the belief follows
+  the frame (that is what recency weighting is FOR), the frame drifts, the
+  anchor snaps to the belief — a loop in which nothing references the world,
+  so absolute drift stayed monotonic and swaps failed again past ~0.15 m
+  (board standoffs are world constants). The prior is `RackPose.prior`'s own
+  definition, "what a robot that booted docked knows": the map frame is
+  DEFINED by the dock at commissioning, exactly as on hardware, and every
+  boot already trusts it. The rack landmark is re-seeded to the same pose —
+  a robot pressed against its rack needs no sighting average to say where
+  the rack is. Drift is thereby bounded to one shift's worth.
+- **The rack merges by identity, not distance** (`RackFinder.look`). The
+  landmark store's 0.4 m gate exists for outlets, which are anonymous blobs;
+  the rack's sightings carry a decoded ID. Measured failure: after 0.5 m of
+  decoherence, a recovery spin's fresh sightings landed outside the gate,
+  spawned a SECOND landmark, and `estimate` kept answering from the stale
+  one with the bigger count — the spin that existed to fix the belief could
+  not touch it.
+- **The rack belief is recency-weighted** (`RACK_RECENCY`, a floor under the
+  merge weight → an EMA once past the first few sightings). The pure running
+  average is the right estimator for a stationary frame, and this frame
+  drifts: a mission-long average remembers the MEAN historical frame, and a
+  2000-sighting belief moved by nothing when fresh looks arrived. Sized
+  against what a spin actually delivers (~5 sightings — the tag is visible
+  in a narrow arc): at 0.25, five looks move the belief ~76 %, enough for
+  the bay tag to enter the dock camera's view, and the MEASURED terminal
+  standoff does the fine work from there. Outlets keep the pure average.
+- **The bays got charge_approach's no-tag recovery** (`swap_at_bay`): spin,
+  refresh, take a fresh run, look again. The charge bay had it and docked
+  7/7 in the run that lost the pen; the tool bays didn't, and the first
+  look's None fell straight through to the believed standoff. ⚠ The recovery
+  only works WITH the two belief fixes above — pinned end-to-end by
+  `test_the_recovery_finds_a_bay_the_first_look_lost`, which fails if any of
+  the three is removed.
+
+Also from the same hunt: **the erase rides the first stroke** (hub/errand.py).
+`book.clear` was unconditional on arrival, and the board book is the ink's
+ground truth — so a drifted robot narrated "erased whiteboard_a", pressed at
+empty air ("never reached the board"), and the book ended blank as if a wipe
+had happened at a board nobody visited. The one truthful signal the pen is at
+the slab is a press that found it, so the wipe now happens when the first
+stroke lands, and a draw that never touched the board leaves the old ink
+standing — which is what physically occurred.
+
+**Map evidence decay was DEFERRED, measured rather than assumed.** The
+issue-30 validation run shows the smeared map costing jobs (planner refusals
+to the far whiteboard mid-run), but the smear is drift's shadow: with the
+anchor bounding drift per-shift, new scans land back near old ones. Decay
+gets built when a post-anchor long run still shows planner refusals, not
+before — the acceptance run's counts are the evidence either way.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

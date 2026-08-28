@@ -25,7 +25,8 @@ GATE_RADIUS = 0.4   # m: sightings closer than this (in 2D) are the same outlet.
 
 class Landmark:
   def __init__(self, x: float, y: float, z: float,
-               seen_from: tuple[float, float]) -> None:
+               seen_from: tuple[float, float],
+               recency: float | None = None) -> None:
     self.x = x
     self.y = y
     self.z = z
@@ -33,6 +34,10 @@ class Landmark:
     # Mean robot position across sightings (2D: the camera height is fixed,
     # so a seen-from z would be a constant, not information).
     self.seen_from_x, self.seen_from_y = seen_from
+    #: Floor under the merge weight, or None for the pure running average.
+    #: See `merge` -- this is what lets a landmark TRACK a drifting frame
+    #: instead of remembering the mission-long mean of one (issue #42).
+    self.recency = recency
 
   def merge(self, x: float, y: float, z: float,
             seen_from: tuple[float, float]) -> None:
@@ -41,9 +46,24 @@ class Landmark:
     Running average: after n sightings each stored value is the mean of all
     n, so a new observation moves it by 1/n of the residual — early (noisy,
     far-away) sightings get corrected, later ones only fine-tune.
+
+    ⚠ With `recency` set, the weight FLOORS there instead of vanishing
+    (issue #42). The pure average is the right estimator for a stationary
+    world observed from a stationary frame — and this system's frame is dead
+    reckoning, which drifts. Sightings are placed through the believed pose,
+    so a landmark averaged over a whole mission remembers the MEAN historical
+    frame; navigation happens in the CURRENT one, and the gap between the two
+    is exactly the belief decoherence that dropped tools (issue #30 — a
+    recovery spin's fresh sightings moved a long-run average by nothing,
+    measured: the recovery regression test fails without this floor). The
+    floor turns the estimate into an exponential moving average once enough
+    sightings exist: recent looks dominate, and the belief follows the frame
+    the robot is actually navigating in.
     """
     self.n_sightings += 1
     w = 1.0 / self.n_sightings
+    if self.recency is not None:
+      w = max(w, self.recency)
     self.x += (x - self.x) * w
     self.y += (y - self.y) * w
     self.z += (z - self.z) * w
@@ -142,8 +162,14 @@ def wall_normal_conf(grid, x: float, y: float,
 
 
 class LandmarkStore:
-  def __init__(self, gate_radius: float = GATE_RADIUS) -> None:
+  def __init__(self, gate_radius: float = GATE_RADIUS,
+               recency: float | None = None) -> None:
     self.gate_radius = gate_radius
+    #: Passed to every Landmark this store creates. None -- the default, and
+    #: what the outlet map uses -- is the pure running average; the rack
+    #: finder passes a floor so its one landmark tracks the current odometry
+    #: frame (issue #42; the argument is on Landmark.merge).
+    self.recency = recency
     self.landmarks: list[Landmark] = []
 
   def add_sighting(self, x: float, y: float, z: float,
@@ -160,7 +186,7 @@ class LandmarkStore:
         nearest = landmark
 
     if nearest is None:
-      nearest = Landmark(x, y, z, seen_from)
+      nearest = Landmark(x, y, z, seen_from, recency=self.recency)
       self.landmarks.append(nearest)
     else:
       nearest.merge(x, y, z, seen_from)

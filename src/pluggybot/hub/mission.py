@@ -53,6 +53,14 @@ from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
 CHARGE_STANDOFF = 0.42    # m out from the pin faces the creep starts at
+#: Where the axle TRULY sits when the bumper is pressed on the pins.
+#: MEASURED: 0.2056-0.2059 m from the pin faces across every instrumented
+#: dock (the issue-32 diagnostics and the issue-42 probe), within 1 mm
+#: across and 0.0 deg of heading -- both pins conducting means the bumper
+#: is flat on the pin plane with the chassis centreline on the pin axis, so
+#: the dock is the one pose the robot ever occupies to millimetres BY
+#: CONSTRUCTION. That is what makes it the re-anchor (issue #42).
+DOCK_ALONG = 0.206
 #: m backed out of a failed charge creep before the next attempt -- past the
 #: standoff radius, so the retry's look at the tag is a fresh measurement
 #: from a usable range rather than a re-read of the pose that just missed.
@@ -217,6 +225,12 @@ class HubMission:
     # that booted on its dock knows; discover_rack() replaces it with what
     # the robot has actually seen.
     self.rack = rack or RackPose.prior()
+    #: The COMMISSIONED rack pose -- where the dock is in the map frame, the
+    #: one absolute reference this robot has (issue #42). Kept apart from
+    #: `rack`, which discovery overwrites, because the anchor snaps to THIS:
+    #: a belief-anchored frame was measured drifting 0.003 -> 0.344 m over
+    #: four sim-hours with the anchor tracking it exactly.
+    self.rack_prior = self.rack
     self.finder: RackFinder | None = None
     self.rack_discovered = False
     #: which range source answered the last terminal creep --
@@ -658,6 +672,48 @@ class HubMission:
     return self._measured_standoff(bay_tag_id(station_y), BAY_TAG_FACE_X,
                                    RACK_HANG_X, STANDOFF, PLUG_LATERAL)
 
+  def anchor_at_dock(self) -> None:
+    """Reset dead reckoning -- and the rack belief -- to the commissioned
+    dock pose (issue #42).
+
+    Dead reckoning is never otherwise corrected, and a hosting-pack shift
+    accumulates enough of it to walk terminal approaches out of their
+    envelopes (0.69 m measured over three cycles pre-#32; the pen was lost
+    to it at t=7372 of the issue-30 validation run). With both pogo pins
+    conducting, the robot occupies the one pose it ever holds to
+    millimetres by construction -- bumper flat on the pin plane, centreline
+    on the pin axis, heading square into the bay -- so the press the robot
+    already makes for minutes every cycle is a free, hardware-realistic
+    localization fix. Docks are standard anchors on real robots for exactly
+    this reason.
+
+    ⚠ SNAPPED TO THE PRIOR, NOT TO THE BELIEF, and this was measured the
+    hard way. The first version anchored to the believed rack, on the
+    argument that a world constant would be cheating; the four-sim-hour
+    acceptance run then showed `after_anchor` tracking the rack belief's
+    own error exactly -- 0.003 -> 0.344 m, monotonic -- because the belief
+    follows the frame and the frame drifts, and nothing in that loop ever
+    referenced the world. The prior is not a cheat: it is `RackPose.prior`'s
+    own definition, "what a robot that booted docked knows" -- the map frame
+    is DEFINED by the dock at commissioning, exactly as on hardware -- and
+    every boot already trusts it. The rack landmark is re-seeded to the same
+    pose, because a robot pressed against its rack does not need a sighting
+    average to tell it where the rack is.
+    """
+    r = self.rack_prior
+    bx, by = r.to_world(CHARGE_PIN_X, CHARGE_BAY_Y)
+    nx, ny = math.cos(r.yaw), math.sin(r.yaw)
+    rec = self.swap.reckoner
+    rec.x = bx + nx * DOCK_ALONG
+    rec.y = by + ny * DOCK_ALONG
+    rec.theta = r.heading
+    self.rack = r
+    if self.finder is not None:
+      tx, ty = r.to_world(TAG_LOCAL_X, 0.0)
+      for lm in self.finder.landmarks.landmarks:
+        lm.x, lm.y = tx, ty
+      self.finder.facing = r.yaw
+
   def charge_approach(self, max_travel: float, creep_v: float,
                       tries: int = 3) -> str:
     """Line up on the charge bay by its own tag and creep until the pins
@@ -784,12 +840,30 @@ class HubMission:
       # and ~4 cm of that is a module dragged on to the floor. Face first, so
       # the camera points rackward; inside the retry loop, so a second
       # attempt is a fresh measurement from the retreat pose, exactly like
-      # the travel range below. None (tag not decodable from here) keeps the
-      # believed standoff, which is what every approach trusted before.
+      # the travel range below.
       fix = self.bay_fix(station_y)
+      if fix is None:
+        # The tag is not in view from here, which after a long shift means
+        # the robot ARRIVED somewhere else entirely -- drift walked the
+        # believed standoff outside the camera's whole field. Recover the
+        # way charge_approach does: spin to buy sight lines (and map),
+        # re-adopt whatever the finder now believes, take a fresh run from
+        # that standoff, and look again. The gap this closes was measured
+        # in the issue-30 validation run: the charge bay, which HAS this
+        # recovery, docked 6/6 at drift levels where the tool bays -- which
+        # lacked it -- lost the pen for the rest of the mission (first
+        # fouled return t=7372, every pen errand failing thereafter).
+        self._spin()
+        self.refresh_rack()
+        sx, sy, hd = bay_standoff(station_y, self.rack)
+        self.drive_to(sx, sy, timeout=45.0)
+        self.face(hd)
+        fix = self.bay_fix(station_y)
       if fix is not None:
         sx, sy, hd = fix
         self.face(hd)
+      # ...and None even after the recovery keeps the believed standoff,
+      # which is what every approach trusted before there were fixes.
       self.refine_standoff(sx, sy, hd)
       self.set_arm(ARM_EXT)               # deploy only once lined up
       # Travel computed from the BELIEVED distance to the hang plane --
