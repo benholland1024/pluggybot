@@ -592,6 +592,30 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   served inbox is attached on EVERY world, `accepts` advertised per kind
   (`CODE_HANDLED_TYPES` without an overseer), so ratings now settle on
   scripted worlds too. SimNotes, "The tool drop was an approach error".
+- **THE DOCK IS ALSO THE ANCHOR** (issue #42). Dead reckoning is corrected
+  in exactly one place: `HubMission.anchor_at_dock`, called by `charge()`
+  the moment both pins conduct — the one pose the robot occupies to
+  millimetres BY CONSTRUCTION (measured: axle 0.2056–0.2059 m from the pin
+  faces, ±1 mm across, 0.0° heading, every instrumented dock). ⚠ Snapped to
+  the COMMISSIONED PRIOR (`rack_prior`), NOT the believed rack, and the
+  landmark is re-seeded there — measured: anchored to the belief, the
+  four-sim-hour run's `after_anchor` tracked the belief's own error
+  0.003 → 0.344 m, because belief follows frame, frame drifts, and nothing
+  in that loop referenced the world. The prior is "what a robot that booted
+  docked knows" — the map frame is DEFINED by the dock. Two belief rules
+  travel with it: the rack landmark merges BY DECODED IDENTITY (the 0.4 m
+  distance gate is for anonymous outlets — under drift it spawned a second
+  landmark the stale one outvoted), and its position is recency-weighted
+  (`RACK_RECENCY` — a mission-long average remembers the MEAN historical
+  frame and a recovery spin could not move it, measured). The bay recovery
+  (`swap_at_bay`'s no-tag spin-refresh-retry, mirroring `charge_approach`)
+  only works because of those two; one test pins all three together
+  (`test_the_recovery_finds_a_bay_the_first_look_lost`). Map evidence decay
+  was DEFERRED on measurement — build it only if a post-anchor long run
+  still shows planner refusals. And the pen's ERASE rides the first
+  successful press, never arrival — `book.clear` on a believed arrival let
+  a drifted robot blank a board it never touched. SimNotes, "Drift
+  hygiene".
 - **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —

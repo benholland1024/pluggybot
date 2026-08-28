@@ -149,3 +149,47 @@ def test_bay_fix_measures_the_standoff_the_bay_is_actually_at():
                                        math.cos(fhd - tshd)))) < 5.0
   finally:
     mission.close()
+
+
+def test_half_a_metre_of_drift_blinds_the_first_look():
+  """The premise of the recovery branch (issue #30's validation run): at
+  0.5 m of decoherence the bay tag sits outside the dock camera's whole
+  field, so `bay_fix` answers None -- and the pre-recovery code then trusted
+  the believed standoff, which is the old cliff through the gap. If this
+  starts decoding, the recovery has lost its premise."""
+  mission = carrying_mission()
+  try:
+    from pluggybot.hub.mission import bay_standoff
+    decohere(mission, 0.5)
+    sx, sy, hd = bay_standoff(STATION, mission.rack)
+    mission.drive_to(sx, sy, timeout=30.0)
+    mission.face(hd)
+    assert mission.bay_fix(STATION) is None
+  finally:
+    mission.close()
+
+
+def test_the_recovery_finds_a_bay_the_first_look_lost():
+  """The whole chain, on physics: a robot that mapped the rack and sighted
+  its tag, decohered by half a metre mid-carry, must still hang the module.
+  The first look answers None (above); the recovery spins, re-sights the
+  rack tag from the decohered frame, and the refreshed belief pulls the
+  standoff close enough for the second look to decode. The charge bay had
+  exactly this recovery and docked 6/6 in the run that lost the pen."""
+  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  data = mujoco.MjData(model)
+  mission = HubMission(model, data, viewer=None, realtime=False,
+                       rack=TRUE_RACK, grid_bounds=home.GRID_BOUNDS)
+  try:
+    sx, sy, hd = TRUE_RACK.bay_standoff(STATION, 1.2, 0.05)
+    mission.start_at(sx, sy, hd)
+    mission.start_discovery()
+    mission._spin()                       # seed the map and the tag sightings
+    mission.swap_at_bay(STATION, "pick", module=MODULE)
+    assert mission.swap.module_state(MODULE)["on_fork"]
+    mission.swap._drive_until(0.6, -0.12, stall_stop=False)
+    decohere(mission, 0.5)
+    mission.swap_at_bay(STATION, "return", module=MODULE)
+    assert mission.swap.module_state(MODULE)["hung"]
+  finally:
+    mission.close()

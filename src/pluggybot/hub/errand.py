@@ -155,12 +155,39 @@ def drawing_errand(book, board_name: str, board: Board,
     # signature at the call site, because it needs the errand's program name:
     # a bare polyline list has no name, and "which programs are on this board"
     # is the board state's whole point.
-    plotter.on_stroke = lambda i, points, name: book.stroke(
-      board_name, name or figure.name, points, t=float(life.data.time))
+    #
+    # ⚠ THE ERASE RIDES THE FIRST STROKE, not the arrival (issue #30's
+    # validation run). The board book is the ink's ground truth and clearing
+    # it used to be unconditional -- so a robot whose drift had put the
+    # believed standoff somewhere else entirely narrated "erased
+    # whiteboard_a", pressed at empty air ("never reached the board"), and
+    # the book ended blank as if a wipe had happened at a board nobody
+    # visited. The one truthful signal that the pen is AT the slab is a
+    # press that found it, and the first stroke landing is exactly that --
+    # so the wipe happens then, and a draw that never touched the board
+    # leaves the old ink standing, which is what physically occurred.
+    erased = False
+
+    def on_stroke(i, points, name):
+      nonlocal erased
+      if erase and not erased:
+        book.clear(board_name, t=float(life.data.time))
+        life._say(f"USE_TOOL: erased {board_name}")
+        erased = True
+      book.stroke(board_name, name or figure.name, points,
+                  t=float(life.data.time))
+
+    plotter.on_stroke = on_stroke
     squared = plotter.drive_to_board()
-    if erase:
-      book.clear(board_name, t=float(life.data.time))
-      life._say(f"USE_TOOL: erased {board_name}")
+    if not squared:
+      # Not even at the BELIEVED standoff -- the drive stagnated or hit the
+      # reflex. Skip the press entirely, restore the carry pose, and say so:
+      # the evaluator finds no new ink and fails the job honestly.
+      plotter.carry_config()
+      life._say(f"USE_TOOL: never squared up to {board_name} -- "
+                "skipping the drawing")
+      return {"squared": False, "board": board_name, "figure": figure.name,
+              "error": "never squared up to the board"}
     life._say(f"USE_TOOL: drawing {figure.name} on {board_name} "
               f"({len(figure.strokes)} strokes, {figure.ink_length:.2f} m of ink)")
     result = plotter.draw_program(figure)
@@ -175,6 +202,13 @@ def drawing_errand(book, board_name: str, board: Board,
     # on the way in (issue #10).
     plotter.carry_config()
     rec = book[board_name]
+    if not result.get("drew"):
+      # The reason, out loud: "drew None/None strokes" was the validation
+      # run's whole account of a pen pressing at empty air.
+      life._say(f"USE_TOOL: drew nothing -- "
+                f"{result.get('reason', 'no reason recorded')}")
+      return {"squared": squared, "board": board_name, "figure": figure.name,
+              "fill": rec.fill, "plotter": plotter, **result}
     life._say(f"USE_TOOL: drew {result.get('strokes_drawn')}/"
               f"{result.get('strokes')} strokes, "
               f"{result.get('inked_fraction', 0):.0%} inked, "
