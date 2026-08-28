@@ -80,14 +80,17 @@ def read_goals(path: str | os.PathLike | None = None) -> str:
   of a fresh deploy has no goals file, and a robot that refuses to start
   because nobody has written its purpose down yet is worse than one that has
   a sensible default purpose and says so.
+
+  ⚠ Since issue #38 this file is `Goals.md`, one of the four thought files,
+  and `hub/thoughts.py` owns the reading of it. This DELEGATES rather than
+  keeping a second copy of the rule: two implementations of "read it, cap
+  it, fall back to the defaults" is exactly the drift that ends with
+  different prose in the model's prompt and on the wire. Kept under the name
+  every caller before #38 used. The import is local because `thoughts`
+  imports the defaults and the cap from this module.
   """
-  if path is None:
-    return DEFAULT_GOALS
-  target = Path(path)
-  if not target.exists():
-    return DEFAULT_GOALS
-  text = target.read_text()[:MAX_GOALS_CHARS].strip()
-  return text or DEFAULT_GOALS
+  from pluggybot.hub.thoughts import GOALS, ThoughtFiles
+  return ThoughtFiles(goals_path=path).read(GOALS)
 
 
 class Journal:

@@ -42,9 +42,9 @@ import argparse
 import json
 import time
 
-from pluggybot.hub.journal import read_goals
 from pluggybot.hub.lifecycle import board_book
 from pluggybot.hub.llm import is_hf_model
+from pluggybot.hub.thoughts import ThoughtFiles
 from pluggybot.hub.overseer import MODEL, Menu, Overseer
 
 
@@ -67,6 +67,14 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     "boards": {b: {"fill": 0.11 * i, "strokes": 6 * i, "programs": []}
                for b in menu.boards},
     "journal": ["whiteboard_a was already full when I got there"][:i],
+    # The two thought files that ride the VOLATILE half (issue #38). Here
+    # rather than in the prefix on purpose, and carried by the probe because
+    # they are real input tokens on every call -- a measurement that left
+    # them out would under-report what a decision costs.
+    "thoughts": {"History.md": [f"[t={120 * i}s] carry: fetched and stowed "
+                                "module_lcd (+2 points)"][:i],
+                 "Knowledge_and_Opinions.md":
+                   "whiteboard_b is the one people look at" if i else ""},
     "visitorSuggestions": [],
     # A claimable offer, so the probe exercises `take_task` -- the action the
     # acceptance run measured small models getting WRONG (the kind "draw" in
@@ -89,19 +97,31 @@ def main() -> None:
                       help="real decisions to make (each one costs money)")
   parser.add_argument("--model", default=MODEL)
   parser.add_argument("--goals", default=None, metavar="PATH")
+  parser.add_argument("--thoughts", default=None, metavar="DIR",
+                      help="the robot's thought files (issue #38). Point it "
+                           "at a real directory to measure the prefix a "
+                           "deployment actually sends -- Main.md and Goals.md "
+                           "ride in it, so an edited persona changes the "
+                           "number below")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
   args = parser.parse_args()
 
   book = board_book(args.world)
   menu = Menu.for_world(args.world, book)
-  boss = Overseer(menu, goals=read_goals(args.goals), model=args.model)
+  # The REAL memory, so the prefix measured here is the prefix a deployment
+  # sends: `Main.md` and `Goals.md` are in it (issue #38), and the two
+  # writable files are deliberately not -- they ride the user turn below.
+  memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
+  boss = Overseer(menu, thoughts=memory, model=args.model)
   prefix = boss.system[0]["text"]
 
   print(f"world        : {args.world}")
   print(f"model        : {args.model}")
   print(f"actions      : {', '.join(menu.available())}")
   print(f"prefix chars : {len(prefix)}")
+  print(f"memory       : {', '.join(memory.stable())} cached; "
+        f"{', '.join(memory.volatile())} per call")
 
   hf = is_hf_model(args.model)
   client = boss.client

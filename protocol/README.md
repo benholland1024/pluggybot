@@ -28,6 +28,47 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
 
+### 0.10.0 → 0.11.0 (the robot's memory is a set of documents, with owners)
+
+pluggybot #38, for the website's Thoughts tab (rooftop-media-2026 #88). The
+robot's memory stops being "the goals file plus a journal" and becomes four
+named documents, **each of which says who may write it**. One new upstream
+message, emitted when a stream **opens** and again whenever a file changes:
+
+```jsonc
+{"type": "thought", "t": 300.2, "robot": "pluggybot",
+ "name": "Knowledge_and_Opinions.md", "writer": "robot",
+ "text": "whiteboard_b is the one people look at", "cap": 3000}
+```
+
+- **It rides the `goals` slot for the `goals` reason**, four times over: a
+  document is not a pose, no keyframe re-ships one, and a browser that opened
+  the page an hour in would never learn any of them. A recording carries all
+  four right after the header; the live publisher re-sends on every connect.
+  A run with no files emits none — absent means "nothing to say".
+- **WHOLE TEXT, NOT A DELTA.** A file is small, and "present means complete"
+  is the `tasks` block's rule applied to prose: replace the document, do not
+  merge it.
+- ⚠ **`writer` is the `steering` lesson one loop over.** Four documents look
+  alike on a page and are not alike at all. `human` (`Main.md`, `Goals.md`) is
+  edited on the volume and no robot can touch it; `system` (`History.md`) is
+  append-only narrative the robot cannot revise — the principle that stops it
+  awarding itself points; `robot` (`Knowledge_and_Opinions.md`) is the one
+  genuinely writable surface. A client that rendered them identically would be
+  reporting a mind that wrote its own persona. The vocabularies are
+  `THOUGHT_FILES` and `THOUGHT_WRITERS`; adding a document is additive
+  (render one you have never heard of), renaming one breaks both repos.
+- `cap` is the size limit the sim enforces on writes, so a client can show how
+  full a file is without inventing the denominator.
+- **Read-only in every direction**, exactly like `goals`: no inbound message
+  writes one, and the files beside the sim stay the one copy.
+- ⚠ **`goals` is unchanged and still sent.** It is the only carrier of
+  `steering`, which says who is *reading* rather than who may *write* — and no
+  document knows that about itself. `Goals.md` therefore arrives twice by
+  design: take the prose from `thought` and the steering note from `goals`.
+- Additive: a 0.10.0 consumer that ignores the type renders exactly what it
+  rendered before, minus three documents it never had.
+
 ### 0.9.0 → 0.10.0 (the robot has a name, and the name is not the species)
 
 pluggybot #39, for the website's per-robot identity UI (rooftop-media-2026

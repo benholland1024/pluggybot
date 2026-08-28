@@ -83,6 +83,11 @@ def main() -> None:
   parser.add_argument("--journal", default=None, metavar="PATH",
                       help="JSON file the overseer's notes-to-self live in "
                            "between runs ($PLUGGY_JOURNAL)")
+  parser.add_argument("--thoughts", default=None, metavar="DIR",
+                      help="directory the robot's THOUGHT FILES live in "
+                           "(issue #38; $PLUGGY_THOUGHTS). Without one they "
+                           "start from their defaults every run and nothing "
+                           "is written to disk")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
@@ -91,7 +96,7 @@ def main() -> None:
                world=args.world, errand=args.errand,
                board_state=args.boards, ledger_state=args.ledger,
                overseer=args.overseer or None, goals=args.goals,
-               journal_state=args.journal,
+               journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
                pack=args.pack, reserve_wh=args.reserve_wh,
                robot_name=args.robot_name)

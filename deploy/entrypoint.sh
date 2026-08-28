@@ -43,6 +43,18 @@ if [ -n "${PLUGGY_RESERVE_WH:-}" ]; then
   set -- --reserve-wh "${PLUGGY_RESERVE_WH}" "$@"
 fi
 
+# The robot's MEMORY (issue #38), and deliberately NOT behind the overseer
+# flag: History.md is written on every world, the documents stream on every
+# world, and the site's Thoughts tab is what a visitor opens first. Two of
+# the four files are a human's to edit on the volume; the sim refuses a
+# write to any file by anyone but its owner.
+if [ -n "${PLUGGY_THOUGHTS:-}" ]; then
+  set -- --thoughts "${PLUGGY_THOUGHTS}" "$@"
+fi
+if [ -n "${PLUGGY_GOALS:-}" ]; then
+  set -- --goals "${PLUGGY_GOALS}" "$@"
+fi
+
 # The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY
 # and $HF_TOKEN are NOT turned into flags -- serve.py never sees them and the
 # backends read them from the environment, so they stay out of `ps`. Which
@@ -52,9 +64,6 @@ fi
 # so that a run with it on says so in its own argv.
 if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
-  if [ -n "${PLUGGY_GOALS:-}" ]; then
-    set -- --goals "${PLUGGY_GOALS}" "$@"
-  fi
   if [ -n "${PLUGGY_JOURNAL:-}" ]; then
     set -- --journal "${PLUGGY_JOURNAL}" "$@"
   fi

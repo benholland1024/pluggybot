@@ -612,6 +612,74 @@ def test_the_goals_file_is_read_whether_or_not_an_overseer_runs():
   assert ov.goals_text(None).strip()
 
 
+def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
+  """0.11.0: the thought files ride the `goals` slot, four times over
+  (pluggybot #38).
+
+  Same argument as goals and board snapshots: a document is not a pose and
+  no keyframe re-ships one, so these lines are the only place in the stream
+  a reader learns what the robot is working from. A recording that emitted
+  them after the frames -- or not at all -- leaves the site's Thoughts tab
+  permanently empty, and that is the case almost every visitor meets,
+  because the default view is a recording.
+  """
+  from pluggybot.hub.thoughts import KNOWLEDGE, NAMES, ThoughtFiles
+
+  memory = ThoughtFiles()
+  memory.learn("whiteboard_b is the one people look at")
+  _, lines = record(mini_model, seconds=0.4, tmp=tmp_path,
+                    goals="Keep the house in good order.", thoughts=memory)
+  thoughts = [x for x in lines if x.get("type") == "thought"]
+  assert [t["name"] for t in thoughts] == list(NAMES)
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  assert all(lines.index(t) < first_frame for t in thoughts), \
+    "the documents arrived after the frames that depend on them"
+  by_name = {t["name"]: t for t in thoughts}
+  assert by_name[KNOWLEDGE]["text"] == "whiteboard_b is the one people look at"
+  # Each one says who may write it -- four panels that look alike on a page
+  # and are not alike at all (the `steering` lesson, one loop over).
+  assert {t["writer"] for t in thoughts} == {"human", "system", "robot"}
+  # ...and `goals` is UNCHANGED and still sent: it is the only carrier of
+  # `steering`, which says who is READING rather than who may write.
+  assert len([x for x in lines if x.get("type") == "goals"]) == 1
+  # A run with no files at all emits none, on the same terms as goals.
+  _, silent = record(mini_model, seconds=0.4, tmp=tmp_path, goals="")
+  assert not [x for x in silent if x.get("type") == "thought"]
+
+
+def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
+  """A thought message per CONNECT, like the goals beside it -- a browser
+  that opened the page an hour in has missed the only lines that carried
+  them, and the hub relays rather than re-keys on its behalf."""
+  from pluggybot.hub.thoughts import NAMES, ThoughtFiles
+  from pluggybot.telemetry.publisher import WsPublisher
+
+  data = mujoco.MjData(mini_model)
+  pub = WsPublisher.__new__(WsPublisher)          # no socket, no sender thread
+  pub._builder = FrameBuilder(mini_model, data, model_name="mini",
+                              thoughts=ThoughtFiles())
+  pub.data = data
+  pub._queue = queue.Queue(maxsize=64)
+  pub._need_goals = threading.Event()
+  pub._need_thoughts = threading.Event()
+  pub._need_boards = threading.Event()
+  pub._need_keyframe = threading.Event()
+  pub.boards = None
+  pub._grid = GridSampler(None)
+  pub.frames_dropped = 0
+  pub.events_dropped = 0
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "thought"), "sent with nobody connected"
+
+  pub._need_thoughts.set()                         # ...as the sender does
+  pub.step_hook()
+  assert [m["name"] for m in _typed(pub._queue, "thought")] == list(NAMES)
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "thought"), "repeated on every physics step"
+
+
 def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   """A goals message per CONNECT, not per stream.
 
@@ -630,6 +698,7 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub.data = data
   pub._queue = queue.Queue(maxsize=64)
   pub._need_goals = threading.Event()
+  pub._need_thoughts = threading.Event()
   pub._need_boards = threading.Event()
   pub._need_keyframe = threading.Event()
   pub.boards = None
@@ -839,6 +908,36 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   assert goals[0]["steering"] is False
   assert lines.index(goals[0]) <= 2, "goals must precede the frames"
 
+  # ...and the memory documents behind it (0.11.0, issue #38), on exactly the
+  # same terms and for the same reason: the site's Thoughts tab is built
+  # against these lines, no keyframe re-ships one, and the default view is a
+  # recording. A fixture without them leaves that tab showing a single row.
+  from pluggybot.hub.thoughts import HISTORY, KNOWLEDGE, NAMES
+
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  docs = [e for e in events if e["type"] == "thought"]
+  opening = [d for d in docs if lines.index(d) < first_frame]
+  assert [d["name"] for d in opening] == list(NAMES), \
+    "the fixture does not open with the robot's memory"
+  assert {d["writer"] for d in opening} == {"human", "system", "robot"}, \
+    "four documents claiming one writer render as four identical panels"
+  # Goals.md rides the wire TWICE by design -- the prose here, `steering`
+  # over there -- and the two must agree or the panel shows one and annotates
+  # the other.
+  assert next(d for d in opening if d["name"] == "Goals.md")["text"].strip() \
+      == goals[0]["text"].strip()
+  # History is written DURING the mission, so it must actually move: a
+  # fixture whose memory never changed replays a robot that had none.
+  later = [d for d in docs if lines.index(d) >= first_frame]
+  assert later, "nothing was ever written to the robot's history"
+  assert {d["name"] for d in later} == {HISTORY}, \
+    "something other than the system wrote a file mid-mission"
+  assert later[-1]["text"].count("\n") >= 2, "a one-line day"
+  # ...and the robot's OWN file is empty here, honestly: these missions run
+  # the scripted rotation, and nothing without a mind writes an opinion. The
+  # same fact `steering: False` states from the other end.
+  assert next(d for d in opening if d["name"] == KNOWLEDGE)["text"] == ""
+
   # The scoreboard half (0.6.0). Every mission charges, and charging is a
   # scored task, so BOTH worlds' fixtures must carry a ledger that moves --
   # this is what the site's scoreboard is built against, and the balance is
@@ -942,7 +1041,19 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   for e in drawn:
     assert e["board"] in header["boards"]
     assert len(e["points"]) >= 2 and all(len(p) == 2 for p in e["points"])
-  assert cleared[0]["t"] < drawn[0]["t"], "drew before erasing"
+  # A board is erased before it is drawn on -- checked by STREAM ORDER, with
+  # the clock allowed to tie.
+  # ⚠ It used to be a strict `<`, and that was encoding an accident of the
+  # pre-issue-42 implementation rather than the claim. `book.clear` used to
+  # fire on a BELIEVED arrival, seconds ahead of the pen touching anything,
+  # which let a drifted robot narrate "erased whiteboard_a", press at empty
+  # air and blank a board it never reached. #42 moved the erase onto the
+  # first stroke, so the two now happen in the SAME physics step and carry
+  # the same `t` -- measured here at 108.303 for both. The committed
+  # recording predated that change and was the last thing still asserting
+  # the old gap.
+  assert lines.index(cleared[0]) < lines.index(drawn[0]), "drew before erasing"
+  assert cleared[0]["t"] <= drawn[0]["t"]
   # ...and the board state itself moved off blank, in the frames
   final = [f for f in frames if "boards" in f][-1]["boards"]
   assert any(b["strokes"] > 0 and b["fill"] > 0 for b in final.values()), \

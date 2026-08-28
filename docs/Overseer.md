@@ -482,29 +482,90 @@ rate, because at that point the honest options are "the prefix genuinely has
 more to say" and "this model does not cache prompts this small" — and padding
 it until the number looks right is neither.
 
-## 7. Memory
+## 7. Memory — the thought files (issue #38)
 
 Local files beside the sim, deliberately, and not a round trip to the website.
 The overseer runs inside the sim process, so a read against the site would put
 an HTTP failure mode on the path that decides what the robot does next — and
 the site is the one component the sim is otherwise completely indifferent to.
 Memory that only works when the site is up is memory the robot loses in exactly
-the situation it most needs it. Both files live in `/var/lib/pluggybot`, the
-same volume the boards and the ledger do.
+the situation it most needs it. Everything below lives in `/var/lib/pluggybot`,
+the same volume the boards and the ledger do.
 
-- **`goals.md`** is **read and never written** — plain prose, human-editable,
-  mounted. Ben changes what the robot is for by editing a file; the next
-  decision reflects it, with no redeploy and no code change. It rides in the
-  stable prefix, so editing it invalidates the prompt cache, which is correct:
-  the goals changing is exactly when the cached prefix should stop being reused.
-- **`journal.json`** is **written and never edited** — append-only notes the
-  overseer writes to itself, the last ten of which come back in the next
-  prompt. Bounded on disk (200) and per note (400 chars), because an unbounded
-  file that is replayed into every prompt is a slow-motion context leak.
+Issue #15 shipped two files whose asymmetry *was* the design — goals read and
+never written, a journal written and never edited. Issue #38 keeps that
+asymmetry and makes it a **table**: four named Markdown documents, each with
+one writer, which is the shape the website's Thoughts tab renders. Code:
+`hub/thoughts.py`, and the permission check lives at the single write path
+rather than being promised by its callers.
 
-Neither is scoring and neither can become scoring: the journal is `narrative`
-tier, the one tier in `hub/scoring.py` with no evaluator and none coming. A
-robot writing "I did great today" earns nothing by writing it.
+| File | Written by | Cap | Why |
+|---|---|---|---|
+| `Main.md` | **human** | 4000 | Persona and identity. A robot that can rewrite who it is defeats the point |
+| `Goals.md` | **human** | 8000 | What it is for. How goals already worked, and still `$PLUGGY_GOALS`' file |
+| `History.md` | **system**, append-only | 6000 | What happened. A robot that can edit its own history breaks the principle that stops it awarding itself points |
+| `Knowledge_and_Opinions.md` | **robot** | 3000 | The one genuinely writable surface: what it has learned and what it thinks |
+
+- **A write by anyone but the owner raises `ThoughtRefused`**, is counted, and
+  is narrated (`THOUGHT refused: …`). Human files have no write API at all — a
+  person edits the file on the volume, which is how goals have always been
+  changed, and the next run reads it. **A refusal nobody can see** is the
+  failure this guards: a robot whose memory quietly stopped accepting writes is
+  indistinguishable from a model with nothing to say.
+- **The verbs are `learn` and `forget`, and there is no third.** They are
+  fields on a decision rather than actions, orthogonal to `action` like `note`
+  — writing a line down should not cost a turn. `forget` quotes a line and
+  refuses on a miss *or* an ambiguity, because a robot that asked to drop one
+  belief and dropped another is worse than one that dropped none. **There is
+  deliberately no verb that replaces a file**: one bad generation must not be
+  able to erase everything the robot knows. And no parameter names a file, so
+  `Main.md` is not reachable from a decision at all — the permission table is
+  the backstop, not the only lock.
+- **The two caps fail in opposite directions, on purpose.** `History.md` rolls
+  (oldest lines off the front, the journal's rule) because nothing curates it.
+  `Knowledge_and_Opinions.md` **refuses** when full, because silently dropping
+  its oldest line would leave the robot believing it remembers something it
+  does not; `forget` is its remedy, and the prompt says so.
+- **`History.md` is written by the lifecycle**, not the model, at the four
+  moments a person catching up would want: waking up, each decision, each
+  banked verdict, and how the day ended. It is *not* the narration — `_say`
+  fires dozens of times a minute and most of it is a state machine talking to
+  itself. Its lines carry `verdict.reason`, already redacted of a hidden
+  answer, because History is read back into the model's own context.
+- **All four exist on every world**, overseer or not, on the same terms as
+  goals: a scripted rotation still has a history, and the Thoughts tab is what
+  a visitor opens first. `--thoughts DIR` / `$PLUGGY_THOUGHTS`; `$PLUGGY_GOALS`
+  still names `Goals.md`, so a volume carrying a hand-edited `goals.md` keeps
+  using it rather than silently reverting to the defaults.
+- **`journal.json` is unchanged** and still the overseer's notes-to-self. The
+  journal is *this decision's* remark; `History.md` is the record of what
+  happened; `Knowledge_and_Opinions.md` is what the robot concluded. None of
+  the three is scoring or can become scoring: the journal is `narrative` tier,
+  the one tier in `hub/scoring.py` with no evaluator and none coming. A robot
+  writing "I did great today" earns nothing by writing it.
+
+### ⚠ The split is by WRITER — and the reason is not the one the issue gives
+
+Read-only files ride the cached prefix, writable ones sit after the
+breakpoint. That placement is exactly what issue #38 asks for. **The argument
+for it is not**, and this was measured rather than reasoned.
+
+The issue expects a writable file in the prefix to invalidate the cache on
+every self-edit and roughly tenfold per-call input cost. That is not what
+would happen here: `Overseer.system` is **built once in `__init__`** and sent
+verbatim on every call — deliberately, since #15 — so a mid-run write cannot
+move it whatever the split says, and the bill would not budge. What would
+actually happen is quieter and worse: the model would be shown its memory as
+it stood **at mission start** and never see a word it wrote afterwards,
+re-learning the same thing every hour and `forget`ting lines that were no
+longer there. The real cost is one cache miss per **restart**.
+
+So the byte-identical prefix guard — extended by this issue — is necessary and
+**not sufficient**: it passes with a writable file misplaced, because the
+prefix is frozen either way. `test_what_the_robot_writes_it_can_read_back_the_
+same_run` is the one that fails, and `ThoughtFiles.volatile()` is derived by
+inverting the same `stable` flag rather than listed separately, so the two
+halves cannot disagree and leave a file reaching the model through neither.
 
 ## 8. Running it
 
@@ -544,7 +605,8 @@ PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
 ```
 
 Environment (the deploy configures with `environment:` alone):
-`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_GOALS`, `PLUGGY_JOURNAL`,
+`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_GOALS`, `PLUGGY_THOUGHTS`,
+`PLUGGY_JOURNAL`,
 `PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
 `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` and `HF_TOKEN` are deliberately **not**
 turned into flags — the backends read them from the environment and they stay
@@ -639,3 +701,12 @@ that are steering nothing — the `accepts` mistake, one loop over.
 The mission result dict gains `decisions`, `journal` and `overseer` (the
 stats block: calls, fallbacks, tokens, cache hit rate, USD, budget left). All
 empty without an overseer, so nothing an existing caller reads has changed.
+
+**Protocol 0.11.0** adds `thought` (`{robot, t, name, writer, text, cap}`),
+one per memory document, emitted when a stream opens and again on every
+change (pluggybot #38). It rides the `goals` slot for the `goals` reason and
+`goals` itself is unchanged — that message is the only carrier of `steering`,
+which is about who is *reading*, and no document knows that about itself. The
+result dict gains `thoughts` (the four texts) and `thought_stats` (sizes,
+write counts, and what the permission table refused), both present on every
+run, because the files are.

@@ -31,6 +31,7 @@ import pytest
 
 from pluggybot.hub import energy as en
 from pluggybot.hub import lifecycle as lc
+from pluggybot.hub.thoughts import GOALS, ThoughtFiles
 from pluggybot.hub import overseer as ov
 from pluggybot.hub.errand import Errand, carry_errand
 
@@ -370,7 +371,8 @@ def test_the_costs_ride_the_cached_prefix_and_not_the_turn():
   invalidator docs/Overseer.md §6 is about."""
   book = lc.board_book("home")
   menu = ov.Menu.for_world("home", book)
-  prompt = ov.system_prompt("be useful", menu, ov.default_table())
+  prompt = ov.system_prompt(ThoughtFiles(texts={GOALS: "be useful"}), menu,
+                             ov.default_table())
   text = prompt[0]["text"]
   assert "energyCostWh" in text
   assert '"draw"' in text and str(menu.costs_wh["draw"]) in text
@@ -441,7 +443,8 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
   leak. Same claim as `test_the_prompt_never_carries_a_hidden_answer`, made
   again against the half of the prompt this issue touched."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  text = ov.system_prompt("be useful", menu, ov.default_table())[0]["text"]
+  text = ov.system_prompt(ThoughtFiles(texts={GOALS: "be useful"}), menu,
+                             ov.default_table())[0]["text"]
   assert "truth" not in text.lower().split("energycostwh")[-1]
 
 
