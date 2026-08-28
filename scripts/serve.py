@@ -41,7 +41,7 @@ import time
 
 import mujoco
 
-from pluggybot.hub import overseer
+from pluggybot.hub import llm, overseer
 from pluggybot.hub.inbox import Inbox
 from pluggybot.hub.cadence import default_cadence
 from pluggybot.hub.thoughts import ThoughtFiles
@@ -135,6 +135,24 @@ def main() -> None:
                            "Goals.md are yours to edit, History.md is "
                            "append-only and written by the sim, and "
                            "Knowledge_and_Opinions.md is the robot's own")
+  parser.add_argument("--overseer-backend", default=None,
+                      choices=llm.BACKENDS, metavar="NAME",
+                      help="WHICH MIND decides (issue #19; "
+                           "$PLUGGY_OVERSEER_BACKEND): anthropic, "
+                           "huggingface, local (a model on this machine -- "
+                           "ollama by default, no network and no bill), "
+                           "openai-compatible, or auto (the default: the "
+                           "model id's shape, as before)")
+  parser.add_argument("--overseer-model", default=None, metavar="ID",
+                      help="the model that decides ($PLUGGY_MODEL). Defaults "
+                           f"to {overseer.MODEL} on Anthropic and "
+                           f"{llm.LOCAL_MODEL} on the local backend")
+  parser.add_argument("--overseer-url", default=None, metavar="URL",
+                      help="base URL of the local / openai-compatible "
+                           f"endpoint ($PLUGGY_OVERSEER_URL; default "
+                           f"{llm.LOCAL_URL}, ollama's). A key for a "
+                           "third-party one goes in $PLUGGY_OVERSEER_KEY -- "
+                           "never a flag, since ps is public")
   parser.add_argument("--overseer-budget", type=int, default=None,
                       metavar="N", help="hard cap on LLM calls per rolling "
                                         "hour (default 60)")
@@ -184,7 +202,10 @@ def main() -> None:
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
                                  journal_path=args.journal,
-                                 thoughts=memory, **overseer_kw)
+                                 thoughts=memory,
+                                 backend=args.overseer_backend,
+                                 model=args.overseer_model,
+                                 base_url=args.overseer_url, **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
   # as true of a scripted rotation as of a chosen errand. What is NOT the
@@ -332,8 +353,27 @@ def main() -> None:
     print(f"overseer               : {o['llmCalls']} LLM call(s), "
           f"{o['fallbacks']} scripted, budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left, cache hit {o['cacheHitRate']:.0%}")
-    print(f"overseer cost          : ${o['usd']:.5f}"
-          f"  (${per_hour:.4f} per sim-hour, {o['model']})")
+    # ⚠ Three different sentences, because three different things are true
+    # (issue #19). A local model is FREE -- zero is a measurement. A backend
+    # whose rates could not be read is UNKNOWN -- printing $0.00000 there
+    # would be a fabricated invoice, which is exactly what the acceptance
+    # criterion forbids. Only a priced backend gets a number.
+    backend = o.get("backend", "anthropic")
+    where = f"{o['model']} on {backend}"
+    if backend == "local":
+      print(f"overseer cost          : no API cost -- {where}")
+    elif not o.get("priced", True):
+      print(f"overseer cost          : unknown -- {where} publishes no rates "
+            "here, so the tokens above are the honest measure")
+    else:
+      print(f"overseer cost          : ${o['usd']:.5f}"
+            f"  (${per_hour:.4f} per sim-hour, {where})")
+    if not o.get("constrained", True):
+      # The menu is no longer enforced at the decoder -- see
+      # Overseer.constrained. Worth a line: the fallback rate below is being
+      # produced under a weaker guarantee than the default one.
+      print("overseer decoding      : UNCONSTRAINED -- this endpoint refused "
+            "the schema; answers are checked sim-side only")
     for err in o["errors"]:
       # A run that was scripted all along looks identical to a thoughtful one
       # from the outside unless this is printed.

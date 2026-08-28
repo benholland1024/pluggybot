@@ -58,10 +58,13 @@ fi
 # The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY
 # and $HF_TOKEN are NOT turned into flags -- serve.py never sees them and the
 # backends read them from the environment, so they stay out of `ps`. Which
-# backend is $PLUGGY_MODEL's call (an `org/name` id is the HuggingFace
-# router, hub/llm.py; a bare id is Anthropic), read by `hub.overseer.build`
-# directly like PLUGGY_OVERSEER -- but the --overseer flag is passed anyway
-# so that a run with it on says so in its own argv.
+# backend is $PLUGGY_OVERSEER_BACKEND's call, defaulting to $PLUGGY_MODEL's
+# shape (an `org/name` id is the HuggingFace router, hub/llm.py; a bare id is
+# Anthropic; `local` is a model on the box at $PLUGGY_OVERSEER_URL, issue
+# #19). All of them are read by `hub.overseer.build` from the environment
+# directly, like PLUGGY_OVERSEER and for the same reason -- $PLUGGY_OVERSEER_
+# KEY has no business in `ps` either -- but the --overseer flag is passed
+# anyway so that a run with it on says so in its own argv.
 if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
   if [ -n "${PLUGGY_JOURNAL:-}" ]; then

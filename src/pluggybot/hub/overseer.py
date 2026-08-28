@@ -62,6 +62,7 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
+from pluggybot.hub import llm
 from pluggybot.hub.inbox import MAX_ID, clean
 from pluggybot.hub.journal import Journal
 from pluggybot.hub.questions import clean_answer
@@ -814,6 +815,14 @@ class Usage:
   priced: bool = True
   errors: list[str] = field(default_factory=list)
 
+  def unpriced(self) -> None:
+    """This backend's rates are not knowable from here. Zero the rates and
+    say so, rather than reporting a confident number off another vendor's
+    price list -- `usd` then reads 0 with `priced: False` beside it, and
+    every report prints "unknown" instead of "free"."""
+    self.usd_per_mtok_in = self.usd_per_mtok_out = 0.0
+    self.priced = False
+
   @property
   def usd(self) -> float:
     rate_in, rate_out = self.usd_per_mtok_in, self.usd_per_mtok_out
@@ -867,8 +876,9 @@ class Overseer:
                journal: Journal | None = None,
                thoughts: ThoughtFiles | None = None,
                model: str = MODEL, client=None,
+               backend: str = "auto", base_url: str | None = None,
                calls_per_hour: int = CALLS_PER_HOUR,
-               timeout_s: float = CALL_TIMEOUT_S,
+               timeout_s: float | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
     self.menu = menu
     self.table = table if table is not None else default_table()
@@ -880,8 +890,20 @@ class Overseer:
       texts={GOALS: goals} if goals else None)
     self.journal = journal
     self.model = model
+    # WHICH mind decides (issue #19). `auto` is issue #15's rule -- the id's
+    # shape picks the vendor -- so a deployment that only ever set
+    # $PLUGGY_MODEL routes exactly where it did. Resolved HERE rather than at
+    # first use, because `stats()` must be able to say what this run is
+    # thinking with before it has thought anything.
+    self.backend = llm.resolve_backend(backend, model)
+    self.base_url = base_url
     self.calls_per_hour = calls_per_hour
-    self.timeout_s = timeout_s
+    # ⚠ PER BACKEND, because a local model has to be loaded before it can
+    # think: 27.3 s cold against 3.4-5.5 s warm, measured (hub/llm.py). One
+    # number for both vendors makes either the API's deadline useless or the
+    # local path's first decision a certainty of failure.
+    self.timeout_s = (llm.default_timeout(self.backend, CALL_TIMEOUT_S)
+                      if timeout_s is None else timeout_s)
     self.clock = clock
     self.usage = Usage()
     self.decisions: list[Decision] = []
@@ -890,6 +912,7 @@ class Overseer:
     self._calls: deque = deque()          # monotonic stamps, for the budget
     self._idle_run = 0
     self._errors_in_a_row = 0
+    self._unconstrained_noted = False
     self._cooloff_until = 0.0
     self._lock = threading.Lock()
     self._slot: dict = {}
@@ -916,46 +939,66 @@ class Overseer:
 
   @property
   def client(self):
-    """The LLM client, built on first use. WHICH one is the model id's call:
-    every HuggingFace id is `org/name` and no Anthropic id contains a slash,
-    so `Qwen/Qwen3-4B-Instruct-2507` gets the router adapter (`hub/llm.py`,
-    wearing the same `.messages.create` shape) and `claude-haiku-4-5` gets
-    the SDK. One seam, two vendors, and everything downstream -- `_call`,
-    validation, metering, the fallbacks -- neither knows nor cares.
+    """The LLM client, built on first use. WHICH one is `self.backend`'s call
+    (issue #19), and by default the model id's: every HuggingFace id is
+    `org/name` and no Anthropic id contains a slash, so
+    `Qwen/Qwen3-4B-Instruct-2507` gets the router adapter and
+    `claude-haiku-4-5` gets the SDK. Naming a backend outright is what puts
+    the same decision loop in front of a model on this machine
+    (`--overseer-backend local`) or somebody else's endpoint -- one seam,
+    four vendors, and everything downstream -- `_call`, validation, metering,
+    the fallbacks -- neither knows nor cares.
 
     Lazy because `anthropic` is a runtime dependency of the SERVE path and the
     import must not be a hard requirement of importing the mission stack --
     tests/test_deploy.py flies the robot with the image's package set, and a
-    module-level import here would make the overseer's absence a crash rather
-    than a fallback. The HF adapter is stdlib-only but stays behind the same
-    laziness for symmetry, and because a missing $HF_TOKEN raises HERE (at
-    construction, unlike the SDK's first-request failure) and resolves to the
-    same `fallback:no-client`.
+    module-level import there would make the overseer's absence a crash
+    rather than a fallback. The chat adapter is stdlib-only but is built
+    behind the same laziness for symmetry, and because a missing $HF_TOKEN
+    raises HERE (at construction, unlike the SDK's first-request failure) and
+    resolves to the same `fallback:no-client`.
+
+    ⚠ The METERING policy is the one place a backend is not interchangeable,
+    and each branch is a different kind of honesty. The router publishes its
+    rates, so they are read. A local model has NO bill, so zero is the true
+    number rather than a missing one. A stranger's endpoint and a non-default
+    Anthropic model both cost something this code cannot know, so they are
+    priced UNKNOWN -- reporting Haiku's rates for either would be inventing
+    an invoice.
     """
     if not self._client_ready:
       self._client_ready = True
       try:
-        if "/" in self.model:
-          from pluggybot.hub import llm
-          self._client = llm.HFClient(timeout=self.timeout_s)
-          rates = self._client.pricing(self.model)
-          if rates is not None:
-            self.usage.usd_per_mtok_in, self.usage.usd_per_mtok_out = rates
-          else:
-            # Metering with Haiku's rates would bill a 4B like a Claude;
-            # metering at zero would read "free". Unknown is the truth.
-            self.usage.usd_per_mtok_in = self.usage.usd_per_mtok_out = 0.0
-            self.usage.priced = False
-        else:
-          import anthropic
-          self._client = anthropic.Anthropic(timeout=self.timeout_s,
-                                             max_retries=0)
+        self._client = llm.build_client(self.backend, self.model,
+                                        timeout=self.timeout_s,
+                                        base_url=self.base_url)
+        self._meter_rates()
       except Exception as e:                # noqa: BLE001 -- see docstring
-        # No SDK, no key, no network stack: all the same story from here, and
-        # the story is "decide without it".
+        # No SDK, no key, no local runtime listening: all the same story from
+        # here, and the story is "decide without it".
         self.usage.errors.append(f"client: {type(e).__name__}: {e}")
         self._client = None
     return self._client
+
+  def _meter_rates(self) -> None:
+    """Point the cost report at rates that are true for THIS backend."""
+    if self.backend == "huggingface":
+      rates = self._client.pricing(self.model)
+      if rates is not None:
+        self.usage.usd_per_mtok_in, self.usage.usd_per_mtok_out = rates
+      else:
+        # Metering with Haiku's rates would bill a 4B like a Claude;
+        # metering at zero would read "free". Unknown is the truth.
+        self.usage.unpriced()
+    elif self.backend == "local":
+      # A model on this machine is not billed by anyone. Zero here is a
+      # measurement, not an absent one -- which is why `priced` stays True
+      # and the reports say "no API cost" rather than "unknown".
+      self.usage.usd_per_mtok_in = self.usage.usd_per_mtok_out = 0.0
+    elif self.backend != "anthropic" or self.model != MODEL:
+      # Somebody else's endpoint, or an Anthropic model that is not the one
+      # the rates at the top of this file were written for.
+      self.usage.unpriced()
 
   # ---- the budget ----------------------------------------------------------
 
@@ -1079,6 +1122,7 @@ class Overseer:
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered, answering=answering)
       self._meter(response)                 # before publishing; see below
+      self._note_unconstrained()
       slot = {"decision": decision}
     except Exception as e:                  # noqa: BLE001
       # EVERY failure is the same failure from the mission's point of view:
@@ -1116,8 +1160,43 @@ class Overseer:
     self.usage.cache_write_tokens += int(
       getattr(usage, "cache_creation_input_tokens", 0) or 0)
 
+  @property
+  def constrained(self) -> bool:
+    """Is the MENU being enforced at the decoder, or only after the fact?
+
+    The decision schema makes `action` an enum of this world's menu, so an
+    endpoint honouring `response_format` cannot emit an action that does not
+    exist -- which is the whole reason a 4B model is safe in this seat. An
+    endpoint that rejects the field is retried once with the schema in prose
+    (hub/llm.py), and from then on `validate()` is the ONLY thing standing
+    between a small model and a fallback per call. Same guards either way,
+    materially different failure rate, so it is reported rather than assumed.
+    True with no client: nothing has told us otherwise, and a run that never
+    reached a model is not a run whose decoding was unconstrained.
+    """
+    return bool(getattr(self._client, "constrained", True))
+
+  def _note_unconstrained(self) -> None:
+    """Say ONCE, in the operator's list, that the decoder stopped enforcing
+    the menu. Once because this is a property of the endpoint rather than of
+    the call, and sixty identical lines an hour would bury the fallbacks the
+    list exists to show."""
+    if self.constrained or self._unconstrained_noted:
+      return
+    self._unconstrained_noted = True
+    self.usage.errors.append(
+      f"schema: {self.backend} does not enforce the menu at the decoder -- "
+      "answers are checked sim-side only")
+
   def stats(self) -> dict:
     return {**self.usage.as_dict(), "model": self.model,
+            # WHICH MIND decided (issue #19). Beside the model rather than
+            # folded into it: `qwen3:4b-instruct` names a model and says
+            # nothing about whether it answered from this machine or from
+            # somebody's datacentre, and the cost line's meaning depends on
+            # which.
+            "backend": self.backend,
+            "constrained": self.constrained,
             "budgetLeft": self.budget_left(),
             "callsPerHour": self.calls_per_hour,
             "cooloffS": round(max(0.0, self._cooloff_until - self.clock()), 1)}
@@ -1166,6 +1245,11 @@ JOURNAL_ENV = "PLUGGY_JOURNAL"
 #: points a served world at the HF router with no compose edit beyond the
 #: environment block, and an id with no slash keeps meaning Anthropic.
 MODEL_ENV = "PLUGGY_MODEL"
+#: ...and WHICH BACKEND answers (issue #19). Unset means `auto`, which is the
+#: model id's shape and so exactly what every deployment written before this
+#: knob existed already does. `local` points the same loop at a model on the
+#: box (`$PLUGGY_OVERSEER_URL`, ollama by default) and costs nothing to run.
+BACKEND_ENV = "PLUGGY_OVERSEER_BACKEND"
 
 
 def goals_text(goals_path: str | None = None,
@@ -1193,7 +1277,8 @@ def build(world: str, book=None, enabled: bool | None = None,
           goals_path: str | None = None, journal_path: str | None = None,
           table: RewardTable | None = None, client=None,
           calls_per_hour: int = CALLS_PER_HOUR,
-          model: str | None = None,
+          model: str | None = None, backend: str | None = None,
+          base_url: str | None = None,
           thoughts: ThoughtFiles | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
   """`(overseer, journal)` for a world, or `(None, None)` when disabled.
@@ -1205,7 +1290,15 @@ def build(world: str, book=None, enabled: bool | None = None,
 
   `model=None` reads `$PLUGGY_MODEL` and falls back to `MODEL`, the same
   resolution shape as the enable flag and the memory paths -- a served world
-  is configured by environment alone.
+  is configured by environment alone. `backend=None` reads
+  `$PLUGGY_OVERSEER_BACKEND` and falls back to `auto`, which is the model
+  id's shape (issue #19): unset, everything routes where it always did.
+
+  ⚠ The DEFAULT MODEL is per backend, and it has to be: `claude-haiku-4-5` is
+  not a thing ollama can serve, so `--overseer-backend local` with no model
+  named would otherwise 404 against the robot's own machine. A backend
+  chosen without a model gets that backend's default; a model named without a
+  backend still picks its own, as before.
 
   ⚠ `thoughts` is NOT built here when it is missing, it is built per RUN and
   handed in (issue #38): the files are streamed and History is written on
@@ -1220,9 +1313,12 @@ def build(world: str, book=None, enabled: bool | None = None,
   journal = Journal(journal_path or os.environ.get(JOURNAL_ENV) or None)
   if thoughts is None:
     thoughts = ThoughtFiles.open(goals_path=goals_path)
+  model = model or os.environ.get(MODEL_ENV, "").strip()
+  backend = llm.resolve_backend(
+    backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)
+  model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   overseer = Overseer(Menu.for_world(world, book), thoughts=thoughts,
                       table=table, journal=journal, client=client,
-                      model=model or os.environ.get(MODEL_ENV, "").strip()
-                      or MODEL,
+                      model=model, backend=backend, base_url=base_url,
                       calls_per_hour=calls_per_hour)
   return overseer, journal
