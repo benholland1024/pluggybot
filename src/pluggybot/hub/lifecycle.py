@@ -1167,6 +1167,19 @@ class HubLifecycle:
       # record from the four before it that share the volume.
       self._remember(f"woke up in {self.world} with the pack at "
                      f"{self.battery.fraction:.0%}")
+      # ...and WHO is doing the thinking today (issue #19). In History
+      # because History is the system's file and this is a fact about the
+      # run rather than something the robot decided -- and because History
+      # already rides the wire as a `thought` (0.11.0), so the site can show
+      # which mind made the decisions below it without a protocol change.
+      # Said on scripted runs too: "nothing is choosing" is the answer a
+      # reader most needs, and the one an absent line quietly hides.
+      if self.overseer is not None:
+        self._remember(f"thinking with {self.overseer.model} "
+                       f"({self.overseer.backend})")
+      else:
+        self._remember("nobody is choosing today -- flying the scripted "
+                       "rotation")
 
       # A real arbitration loop, not a fixed script. Priority order, and the
       # reasons: charging outranks everything (a flat robot does nothing at
@@ -1728,7 +1741,10 @@ def run_demo(start=None, view: bool = False,
              journal_state: str | None = None, thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
              pack: str = "demo", reserve_wh: float | None = None,
-             robot_name: str | None = None) -> dict:
+             robot_name: str | None = None,
+             overseer_backend: str | None = None,
+             overseer_model: str | None = None,
+             overseer_url: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -1785,7 +1801,9 @@ def run_demo(start=None, view: bool = False,
                            # Who this robot is (issue #39). The recorder has
                            # had this since #39; the robot itself had not,
                            # so a renamed robot introduced itself by species.
-                           robot_name=robot_name)
+                           robot_name=robot_name,
+                           backend=overseer_backend, model=overseer_model,
+                           base_url=overseer_url)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that

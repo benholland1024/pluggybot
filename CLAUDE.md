@@ -257,12 +257,40 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     is written to disk and is a human's from then on) and
     `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
     docs/Overseer.md §7.
-  - **WHICH model decides is `$PLUGGY_MODEL`, and the id picks the backend**
-    (issue #15's HF turn): an `org/name` id goes to the HuggingFace router
-    (`hub/llm.py`, `$HF_TOKEN`, stdlib urllib — the serve image's package
-    set did not grow), a bare id to the Anthropic SDK. One client seam,
-    vendor-blind downstream. Measured sweep + per-model doctrine in
-    docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
+  - **WHICH model decides is `$PLUGGY_MODEL`; WHICH MIND runs it is
+    `--overseer-backend` / `$PLUGGY_OVERSEER_BACKEND`** (issue #19), and the
+    default `auto` is issue #15's rule unchanged: an `org/name` id goes to
+    the HuggingFace router (`hub/llm.py`, `$HF_TOKEN`, stdlib urllib — the
+    serve image's package set did not grow), a bare id to the Anthropic SDK.
+    Naming a backend outright adds two more: **`local`** (a model on this
+    machine — ollama on `$PLUGGY_OVERSEER_URL`, no key, no network, no bill,
+    default `qwen3:4b-instruct`) and **`openai-compatible`** (somebody
+    else's endpoint, `$PLUGGY_OVERSEER_KEY`). All three non-SDK backends are
+    ONE adapter (`llm.ChatClient`) and `llm.build_client` is the only
+    function that knows a vendor from another. One client seam,
+    vendor-blind downstream.
+    ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the
+    model LOAD**: measured 3.4–5.5 s warm and **27.3 s cold** (1660 Super,
+    6 GB, the real ~11 kB prompt), so the API path's 8 s deadline makes
+    every mission's FIRST local decision a certain `fallback:TimeoutError`
+    — three for three, and ollama unloads an idle model after five minutes
+    so a long errand pays it again. `llm.LOCAL_TIMEOUT_S` (45 s) is the
+    local default; `CALL_TIMEOUT_S` is untouched for the API paths.
+    ⚠ **Money has THREE states and each report says which**: `local` prints
+    "no API cost" (zero is a measurement), an endpoint whose rates cannot be
+    read prints "unknown" with `priced: false` — which now covers a
+    non-default *Anthropic* model too, since the rates in `overseer.py` are
+    Haiku 4.5's — and a priced backend prints the number. Inventing an
+    invoice and claiming free are different lies, and the acceptance
+    criterion forbids both. The GRAMMAR is what makes a 4B safe here
+    (`Menu.schema()` makes `action` an enum of the world's menu, and it
+    rides every request as `response_format`); an endpoint that refuses it
+    is retried once in prose and then `constrained` goes False and SAYS so,
+    because a silent downgrade shows up only as a higher fallback rate.
+    Which mind decided is written into `History.md` at mission start, so the
+    site shows it with no protocol change. Measured on the pick:
+    `--backend local` probes 4/4 valid, 8.3 s per decision, $0.
+    Measured sweep + per-model doctrine in docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
     burns `max_tokens` on `<think>` and truncates before the answer;
     the adapter strips a completed think block, but cannot conjure the
     JSON a truncated one never wrote). The deployed pick is

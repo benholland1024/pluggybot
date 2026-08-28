@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 
+from pluggybot.hub import llm
 from pluggybot.hub.lifecycle import run_demo
 
 
@@ -77,6 +78,20 @@ def main() -> None:
                            "queue is empty (issue #15). Needs $ANTHROPIC_API_"
                            "KEY; without one it runs the scripted fallback "
                            "and says so")
+  parser.add_argument("--overseer-backend", default=None,
+                      choices=llm.BACKENDS, metavar="NAME",
+                      help="WHICH MIND decides (issue #19): anthropic, "
+                           "huggingface, local (a model on this machine, "
+                           "ollama by default -- no network and no bill), "
+                           "openai-compatible, or auto (the default: the "
+                           "model id's shape, as before)")
+  parser.add_argument("--overseer-model", default=None, metavar="ID",
+                      help="the model that decides ($PLUGGY_MODEL); defaults "
+                           "per backend")
+  parser.add_argument("--overseer-url", default=None, metavar="URL",
+                      help="base URL of the local / openai-compatible "
+                           f"endpoint ($PLUGGY_OVERSEER_URL; default "
+                           f"{llm.LOCAL_URL})")
   parser.add_argument("--goals", default=None, metavar="PATH",
                       help="the overseer's long-term goals, as prose "
                            "(human-editable; $PLUGGY_GOALS)")
@@ -99,7 +114,10 @@ def main() -> None:
                journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
                pack=args.pack, reserve_wh=args.reserve_wh,
-               robot_name=args.robot_name)
+               robot_name=args.robot_name,
+               overseer_backend=args.overseer_backend,
+               overseer_model=args.overseer_model,
+               overseer_url=args.overseer_url)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -139,12 +157,25 @@ def main() -> None:
   if r.get("overseer"):
     o = r["overseer"]
     per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
-    print(f"overseer ({o['model']}): {o['llmCalls']} call(s), "
-          f"{o['fallbacks']} fallback(s), budget {o['budgetLeft']}/"
+    backend = o.get("backend", "anthropic")
+    print(f"overseer ({o['model']} on {backend}): {o['llmCalls']} "
+          f"call(s), {o['fallbacks']} fallback(s), budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left")
-    print(f"overseer cost          : ${o['usd']:.5f} this run "
-          f"(${per_hour:.4f}/sim-hour), cache hit rate "
-          f"{o['cacheHitRate']:.0%}")
+    # Free, unknown and priced are three different answers -- see serve.py's
+    # copy of this branch and Usage.unpriced (issue #19).
+    if backend == "local":
+      print("overseer cost          : no API cost (a model on this machine), "
+            f"cache hit rate {o['cacheHitRate']:.0%}")
+    elif not o.get("priced", True):
+      print("overseer cost          : unknown -- no published rates for this "
+            f"backend; {o['inputTokens']}+{o['outputTokens']} tokens")
+    else:
+      print(f"overseer cost          : ${o['usd']:.5f} this run "
+            f"(${per_hour:.4f}/sim-hour), cache hit rate "
+            f"{o['cacheHitRate']:.0%}")
+    if not o.get("constrained", True):
+      print("overseer decoding      : UNCONSTRAINED -- this endpoint refused "
+            "the schema")
     for err in o["errors"]:
       print(f"overseer note          : {err}")
   # Every errand's OWN verdict, not just the last module's: a queue where the

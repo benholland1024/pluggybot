@@ -376,18 +376,29 @@ runs out.
 
 ## 6. The model, the cost, and the call budget
 
-### Two backends, one seam
+### Four backends, one seam
 
-Which model decides is **`$PLUGGY_MODEL`**, and the id itself picks the
-backend: every HuggingFace id is `org/name`, no Anthropic id contains a
-slash, so `Qwen/Qwen3-4B-Instruct-2507` goes to the **HF Inference
-Providers router** (`hub/llm.py`, `$HF_TOKEN`) and `claude-haiku-4-5` — the
-default — to the Anthropic SDK (`$ANTHROPIC_API_KEY`). The overseer's client
-seam was always "anything with `.messages.create(**kwargs)` returning
-`.content` and `.usage`", and the HF adapter simply wears that shape, so
-`_call`, validation, metering, the budget and every fallback are
-vendor-blind. Stdlib `urllib` on purpose: the serving image's six pinned
-packages did not grow to talk to one HTTPS endpoint.
+Which model decides is **`$PLUGGY_MODEL`**; **which mind** it runs on is
+`--overseer-backend` / **`$PLUGGY_OVERSEER_BACKEND`** (issue #19), and its
+default — `auto` — is the id's own shape, so nothing written before that flag
+existed routes anywhere new:
+
+| backend | endpoint | key | what it is for |
+|---|---|---|---|
+| `anthropic` | the SDK | `$ANTHROPIC_API_KEY` | the default; `claude-haiku-4-5` |
+| `huggingface` | Inference Providers router | `$HF_TOKEN` | where candidate open-weight models are MEASURED |
+| `local` | `$PLUGGY_OVERSEER_URL` (ollama, `:11434/v1`) | none | a model on this machine: no network, no bill |
+| `openai-compatible` | `$PLUGGY_OVERSEER_URL` | `$PLUGGY_OVERSEER_KEY` | somebody else's endpoint, same protocol |
+| `auto` | — | — | `org/name` → huggingface, anything else → anthropic |
+
+The overseer's client seam was always "anything with
+`.messages.create(**kwargs)` returning `.content` and `.usage`", and the
+middle three are ONE adapter (`hub/llm.ChatClient`) wearing that shape over
+an OpenAI-style `/chat/completions` — so `_call`, validation, metering, the
+budget and every fallback are vendor-blind, and `llm.build_client` is the
+only function in the repo that knows which vendor is which. Stdlib `urllib`
+on purpose: the serving image's six pinned packages did not grow to talk to
+one HTTP endpoint — least of all to one on localhost.
 
 The HF turn exists because Ben's hardware runs ~8B models at a decent
 speed: the router is where candidate models get **measured**
@@ -449,6 +460,61 @@ the mistake is measurable: re-probed after the wording fix, 4/4 valid with
 the offer taken by id. (The run's 36 failed jobs were the long-run bay-swap
 cliff — issue #30 territory, pre-existing and LLM-independent: the dead-key
 fallback run hit the same cliff with zero model calls.)
+
+### The local backend (issue #19)
+
+`--overseer-backend local` puts the same decision loop in front of a model on
+this machine. Nothing else changes: the call budget, the cool-off, the
+timeout and the tagged `fallback:<why>` rotation are backend-independent, and
+a local runtime that stalls is the same failure as an API that times out.
+`scripts/overseer_probe.py --backend local` is the measuring tool, and
+`--errand none --overseer --overseer-backend local` flies a whole mission on
+it.
+
+**The grammar constraint is the point.** `Menu.schema()` already makes
+`action` an ENUM of this world's menu, and it rides every request as
+OpenAI-style `response_format: json_schema` — so a decoder honouring it has
+no token sequence that spells an action which does not exist. That is what
+makes a 4B model safe in this seat, and it is why the honest measure of a
+small model here is *reasoning*, not format compliance. An endpoint that
+rejects the field is retried once with the schema in prose, and then
+`Overseer.constrained` goes False and says so once in `usage.errors` and in
+both scripts' closing blocks — a silent downgrade would surface only as a
+mysteriously higher fallback rate.
+
+⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the model
+LOAD.** Measured on the dev box (GTX 1660 Super, 6 GB; `qwen3:4b-instruct`,
+the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the Anthropic
+path's 8 s deadline that is not a risk, it is a certainty — three of three
+probe decisions came back `fallback:TimeoutError` while the model was still
+loading — and ollama unloads an idle model after five minutes, so a robot
+returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
+(45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the
+API paths. `tests/test_local_backend.py` pins both halves.
+
+⚠ …and 45 s is measured on a box doing nothing else. A cold load with the
+full test suite saturating the same machine went straight through it and fell
+back — the guard working exactly as designed, not a wrong constant, because a
+robot cannot wait indefinitely for a mind that is being starved of CPU. But
+it does mean the local backend wants the machine a served world already
+assumes it has: the sim's own container, not a laptop mid-build. Measured
+quiet, after the merge: 25.0 s cold, 7.0–7.7 s warm, 3/3 valid.
+
+**Nothing is billed, and that is a third answer rather than a zero.** Money
+has three states here and each report distinguishes them: `local` prints "no
+API cost" (zero is a *measurement*), a backend whose rates cannot be read
+prints "unknown" with `priced: false` (Haiku's rates would be a fabricated
+invoice — and that now covers a non-default *Anthropic* model too), and a
+priced backend prints the number. Token counts are always the endpoint's
+own; the cache fields are 0, which is the honest reading for a runtime that
+reuses its KV cache for latency and bills nobody either way.
+
+**Which mind decided is in `History.md`** — "thinking with qwen3:4b-instruct
+(local)", or "nobody is choosing today" on a scripted run — written at
+mission start beside the line that opens the day. History is the system's
+file and already rides the wire as a `thought` (0.11.0), so the site can show
+which mind made the decisions below it with no protocol change. `stats()`
+carries `backend` and `constrained` for the closing block.
 
 ### The Anthropic path
 
@@ -611,18 +677,26 @@ HF_TOKEN=... PLUGGY_MODEL=Qwen/Qwen3-4B-Instruct-2507 MUJOCO_GL=egl \
   uv run python scripts/hub_lifecycle.py --world home --pack hosting \
     --errand none --tasks --overseer --fast --max-sim-time 14400
 
+# measure a model on THIS MACHINE the same way (issue #19: ollama on
+# $PLUGGY_OVERSEER_URL, no key, no network, no bill) -- and a whole mission
+# on it. Measured on the dev box: 4/4 valid decisions, 8.3 s each, $0.
+uv run python scripts/overseer_probe.py --backend local --calls 4
+MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world room_hub \
+    --errand none --tasks --overseer --overseer-backend local --fast
+
 # served, the deploy shape
 PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
   uv run python scripts/serve.py --world home --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Environment (the deploy configures with `environment:` alone):
-`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_GOALS`, `PLUGGY_THOUGHTS`,
+`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`,
+`PLUGGY_OVERSEER_URL`, `PLUGGY_GOALS`, `PLUGGY_THOUGHTS`,
 `PLUGGY_JOURNAL`,
 `PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
-`PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` and `HF_TOKEN` are deliberately **not**
-turned into flags — the backends read them from the environment and they stay
-out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
+`PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY`
+are deliberately **not** turned into flags — the backends read them from the
+environment and they stay out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
 
 ## 9. Visitors (issue #16)
 

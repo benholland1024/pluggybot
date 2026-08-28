@@ -27,6 +27,15 @@ says plainly whether caching engaged.
                         # come off the router's own catalogue; the cache
                         # section does not apply (the router bills full input
                         # every call) and says so.
+  uv run python scripts/overseer_probe.py --backend local
+                        # ...and a model on THIS MACHINE (issue #19): ollama
+                        # or llama.cpp on $PLUGGY_OVERSEER_URL, no key, no
+                        # network, no bill. The numbers that matter here are
+                        # the SECONDS per decision -- a 30-second answer is a
+                        # robot standing still in the garden -- and how often
+                        # the answer is valid, which is what the schema is
+                        # for. Cost prints as "no API cost" rather than as
+                        # $0.00000, because those are different claims.
 
 ⚠ EXPECT A CACHE HIT RATE OF ZERO unless the stable prefix is over 4096
 tokens. That is Claude Haiku 4.5's minimum cacheable prefix, and below it a
@@ -43,7 +52,7 @@ import json
 import time
 
 from pluggybot.hub.lifecycle import board_book
-from pluggybot.hub.llm import is_hf_model
+from pluggybot.hub import llm
 from pluggybot.hub.thoughts import ThoughtFiles
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.hub.overseer import MODEL, Menu, Overseer
@@ -96,7 +105,15 @@ def main() -> None:
   parser.add_argument("--world", choices=("room_hub", "home"), default="home")
   parser.add_argument("--calls", type=int, default=4,
                       help="real decisions to make (each one costs money)")
-  parser.add_argument("--model", default=MODEL)
+  parser.add_argument("--model", default=None,
+                      help=f"default {MODEL} on Anthropic, "
+                           f"{llm.LOCAL_MODEL} on the local backend")
+  parser.add_argument("--backend", default=None, choices=llm.BACKENDS,
+                      help="which mind answers (issue #19); default auto -- "
+                           "the model id's shape")
+  parser.add_argument("--url", default=None, metavar="URL",
+                      help="base URL for the local / openai-compatible "
+                           f"backend (default {llm.LOCAL_URL})")
   parser.add_argument("--goals", default=None, metavar="PATH")
   parser.add_argument("--thoughts", default=None, metavar="DIR",
                       help="the robot's thought files (issue #38). Point it "
@@ -114,7 +131,10 @@ def main() -> None:
   # sends: `Main.md` and `Goals.md` are in it (issue #38), and the two
   # writable files are deliberately not -- they ride the user turn below.
   memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
-  boss = Overseer(menu, thoughts=memory, model=args.model)
+  backend = llm.resolve_backend(args.backend, args.model or "")
+  model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
+  boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
+                  base_url=args.url)
   prefix = boss.system[0]["text"]
 
   # The prefix now states the robot's NAME (issue #39), resolved from
@@ -122,23 +142,39 @@ def main() -> None:
   # who it measured, not just how big the measurement was.
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
   print(f"world        : {args.world}")
-  print(f"model        : {args.model}")
+  print(f"model        : {model} on {backend}")
   print(f"actions      : {', '.join(menu.available())}")
   print(f"prefix chars : {len(prefix)}")
   print(f"memory       : {', '.join(memory.stable())} cached; "
         f"{', '.join(memory.volatile())} per call")
 
-  hf = is_hf_model(args.model)
+  hf = backend == "huggingface"
+  local = backend in ("local", "openai-compatible")
   client = boss.client
   if client is None:
-    key = "HF_TOKEN" if hf else "ANTHROPIC_API_KEY"
-    print(f"\nno client -- set {key} (the sim would run scripted)")
+    key = {"huggingface": "$HF_TOKEN",
+           "anthropic": "$ANTHROPIC_API_KEY",
+           "local": ("a runtime listening on "
+                     f"{args.url or llm.default_url(backend)}"),
+           "openai-compatible": "$PLUGGY_OVERSEER_KEY and --url"}[backend]
+    print(f"\nno client -- needs {key} (the sim would run scripted)")
     for err in boss.usage.errors:
       print(f"  {err}")
     return
   prefix_tokens = None
   minimum = 4096
-  if hf:
+  if local:
+    # Nothing to price and nothing to count: a local runtime publishes no
+    # rates and has no count_tokens endpoint. What it DOES have is a KV
+    # cache, which is why the prompt is still split stable/volatile -- the
+    # saving is latency rather than money, and the per-call seconds below
+    # are where it shows up.
+    print(f"endpoint     : {args.url or llm.default_url(backend)}")
+    if args.tokens_only:
+      print("(--tokens-only needs count_tokens, which is Anthropic-only; "
+            "prefix chars above are the size measure here)")
+      return
+  elif hf:
     # The router has no count_tokens endpoint and no billed prompt cache --
     # `cacheHitRate: 0` below is the honest reading, not the Haiku floor.
     # What it DOES publish is per-provider pricing, which is where the
@@ -156,7 +192,7 @@ def main() -> None:
   else:
     try:
       counted = client.messages.count_tokens(
-        model=args.model, system=boss.system,
+        model=model, system=boss.system,
         messages=[{"role": "user", "content": "?"}])
     except Exception as e:                  # noqa: BLE001
       # Almost always a missing or rejected key. Say so in one line rather
@@ -203,13 +239,26 @@ def main() -> None:
   # The acceptance criteria, in the units they were written in. A decision
   # every ~2 minutes of sim time is the design doc's cadence.
   per_call = stats["usd"] / max(1, stats["llmCalls"])
+  valid = sum(1 for d in boss.decisions if not d.scripted)
   print(f"\nmean wall per decision : {wall / max(1, args.calls):.2f} s")
-  print(f"cost per decision      : ${per_call:.6f}")
-  print(f"cost per sim-hour      : ${per_call * 30:.4f}"
-        "   (at one decision per 2 sim-minutes)")
-  print(f"cost per sim-day       : ${per_call * 30 * 24:.3f}")
+  print(f"valid decisions        : {valid}/{args.calls}"
+        + ("" if stats["constrained"] else
+           "   (UNCONSTRAINED -- this endpoint refused the schema)"))
+  if backend == "local":
+    print("cost                   : none -- the model is on this machine")
+  elif not stats["priced"]:
+    print("cost                   : unknown -- this backend publishes no "
+          "rates; the token counts above are the honest measure")
+  else:
+    print(f"cost per decision      : ${per_call:.6f}")
+    print(f"cost per sim-hour      : ${per_call * 30:.4f}"
+          "   (at one decision per 2 sim-minutes)")
+    print(f"cost per sim-day       : ${per_call * 30 * 24:.3f}")
   hit = stats["cacheHitRate"]
-  if hf:
+  if local:
+    print(f"prompt-cache hit rate  : {hit:.0%}  -- a local runtime reuses its "
+          "KV cache for LATENCY and bills nothing either way")
+  elif hf:
     print(f"prompt-cache hit rate  : {hit:.0%}  -- the router bills full "
           "input every call; 0 is expected")
   else:
