@@ -492,6 +492,14 @@ returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
 (45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the
 API paths. `tests/test_local_backend.py` pins both halves.
 
+⚠ …and 45 s is measured on a box doing nothing else. A cold load with the
+full test suite saturating the same machine went straight through it and fell
+back — the guard working exactly as designed, not a wrong constant, because a
+robot cannot wait indefinitely for a mind that is being starved of CPU. But
+it does mean the local backend wants the machine a served world already
+assumes it has: the sim's own container, not a laptop mid-build. Measured
+quiet, after the merge: 25.0 s cold, 7.0–7.7 s warm, 3/3 valid.
+
 **Nothing is billed, and that is a third answer rather than a zero.** Money
 has three states here and each report distinguishes them: `local` prints "no
 API cost" (zero is a *measurement*), a backend whose rates cannot be read
