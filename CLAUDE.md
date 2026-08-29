@@ -257,6 +257,47 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     is written to disk and is a human's from then on) and
     `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
     docs/Overseer.md §7.
+  - **THE ROBOT HAS A WEEKLY ALLOWANCE, AND CANNOT REACH IT** (`hub/spend.py`
+    + `hub/mode.py`, issue #37; protocol 0.12.0). The reward table's rule one
+    layer out: it is SHOWN what its thinking has cost and given one boolean
+    (`escalate`) to ask for a bigger mind, and every gate is code —
+    `$PLUGGY_WEEKLY_USD` (default $10, rolling seven days, on the state
+    volume), a ten-minute interval and a 10 % share of the run's decisions.
+    The ask rides the decision the model was already making, so **the routing
+    costs no extra call**; the answer comes from `$PLUGGY_ESCALATE_TO` /
+    `--escalate-to`, off by default, and then `source` is `llm:<model>` so
+    the wire says which mind the money bought.
+    ⚠ **Every escalation failure keeps the cheap answer** — a timeout, a 403,
+    prose instead of JSON. Escalation may improve a decision and may never
+    cost one, which is the whole reason a paid dependency is allowed on this
+    path; an exhausted allowance degrades to the free backend, never to no
+    decision. And **billed is billed**: a response that arrived and failed to
+    parse is still banked, or the allowance drifts under the invoice.
+    ⚠ **MEASURED, and not the model the issue named**: `meta-llama/
+    Llama-3.3-70B-Instruct` is licence-gated on this account and 403s
+    whatever the catalogue says. `Qwen/Qwen3-235B-A22B-Instruct-2507` is the
+    pick at **2.05 s and $0.00035 a call** — cheapest AND fastest of the four
+    that answered (DeepSeek-V3.1 $0.00102, GLM-4.6 $0.00183, Kimi-K2
+    $0.00238). ⚠ **At those prices the BUDGET does not bite — the CADENCE
+    does**: $10 buys ~28 000 escalations a week. The budget is the backstop
+    for a loop or a reprice; do not tighten it expecting the escalation rate
+    to move, and do not read a full allowance on Sunday as the gates working.
+    - **Three operator modes, and the robot can reach none of them**
+      (`$PLUGGY_MODE_FILE`, polled, never written — `hub/mode.py` has no
+      writer at all and a test asserts that absence). `llm` is normal;
+      `scripted` is FREE mode (the rotation decides, no API call, the world
+      still looks alive — a world that goes dark to save money looks broken);
+      `paused` stops the physics mid-motion and keeps the socket up.
+      ⚠ **An unreadable or unknown mode means `llm`, not `paused`** — failing
+      safe here means failing OPEN, because a paused world looks exactly like
+      a broken one to everybody except whoever paused it.
+      ⚠ **A PAUSED ROBOT EMITS NO FRAMES** (they are due on SIM time), which
+      is why `mode` is a MESSAGE with a heartbeat as well as a field in every
+      frame — without it the site cannot tell a pause from a dead sim.
+      ⚠ **...and a pause must not become a SPRINT**: the pacer sleeps off the
+      sim's lead and ignores lag, so five minutes paused would run at 2.9× to
+      catch up. `RealTimePacer.resync()` on resume is the fix and
+      `attach_mode_stream` is what wires all of it.
   - **WHICH model decides is `$PLUGGY_MODEL`; WHICH MIND runs it is
     `--overseer-backend` / `$PLUGGY_OVERSEER_BACKEND`** (issue #19), and the
     default `auto` is issue #15's rule unchanged: an `org/name` id goes to
@@ -435,7 +476,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
   (what a job pays), `$PLUGGY_QUESTIONS` (the question bank),
   `$PLUGGY_CADENCE` (how busy the world is) and `$PLUGGY_ENERGY` (what an
-  errand costs) — mount a file, no rebuild.
+  errand costs) — mount a file, no rebuild. Issue #37 adds two more pieces of
+  world state to the same volume: `$PLUGGY_SPEND` (the week's spending) and
+  `$PLUGGY_MODE_FILE` (the operator's switch), plus `$PLUGGY_WEEKLY_USD` and
+  `$PLUGGY_ESCALATE_TO`.
   ⚠ **A lazy import is the failure mode here**: the detector comes in
   inside `hub.tags._shared_detector`, so nothing an import scan can see —
   which is why `tests/test_deploy.py` blocks the omitted packages and then

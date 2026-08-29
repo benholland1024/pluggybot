@@ -25,6 +25,7 @@ it charges away from the hub.
 
 import json
 import math
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -43,6 +44,8 @@ from pluggybot.hub.mission import (
 )
 from pluggybot.hub.cadence import CHECK_S
 from pluggybot.hub import energy as energy_model
+from pluggybot.hub.mode import ModeSwitch, open_switch
+from pluggybot.hub.spend import open_book
 from pluggybot.hub.overseer import THINK_SLICE_S
 from pluggybot.hub.questions import clean_answer
 from pluggybot.hub.screen import face_for
@@ -50,7 +53,7 @@ from pluggybot.hub.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.hub import scoring, strokes
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.telemetry.recorder import TelemetryRecorder
+from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
                 "USE_TOOL", "SWAP_RETURN", "DONE"]
@@ -107,6 +110,15 @@ DECIDED_IDLE_S = 4.0
 #: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
 #: an idle moment.
 WAIT_FOR_WORK_S = 5.0
+#: WALL seconds per slice while the operator has the robot PAUSED (issue
+#: #37). Wall rather than sim, because sim time is precisely what is not
+#: moving -- this is the cadence of the heartbeat that tells the site it is
+#: looking at a paused robot and not a dead stream, and a quarter second is
+#: short enough that un-pausing feels immediate.
+PAUSE_SLICE_S = 0.25
+#: ...and how often the paused heartbeat goes out, in wall seconds. Slow: it
+#: says one word, and the only thing it has to beat is a viewer's patience.
+MODE_HEARTBEAT_S = 2.0
 #: Battery fraction below which a CHOSEN `charge` is worth making the trip for.
 #:
 #: ⚠ This closes a points farm, not a physics problem. `charge` is a scored
@@ -149,7 +161,8 @@ class HubLifecycle:
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
                errands=None, boards=None, screen=None, ledger=None,
-               overseer=None, journal=None, world: str = "room_hub",
+               overseer=None, journal=None, mode: ModeSwitch | None = None,
+               world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
                energy=None, thoughts=None) -> None:
     self.model, self.data = model, data
@@ -220,12 +233,31 @@ class HubLifecycle:
     # nobody scoring them.
     self.energy = energy or energy_model.load(world)
     self._deferrals: dict[str, int] = {}
+    # THE OPERATOR'S SWITCH (issue #37). None means `llm` forever, which is
+    # every demo and every test that does not ask for one. Polled on the
+    # physics seam below, so a pause takes effect inside a second rather
+    # than at the next arbitration pass -- which, mid-errand, is minutes.
+    self.mode = mode
+    #: Called every slice while PAUSED, with the wall seconds paused so far.
+    #: The socket is alive and nothing is being stepped, so this is the only
+    #: thing keeping the site's view of a paused robot distinguishable from
+    #: a crashed one -- serve.py hangs the heartbeat off it.
+    self.pause_hooks: list = []
+    #: ...and called once when it un-pauses, with the wall seconds it lasted.
+    #: The pacer needs this: it sleeps off the sim's LEAD over wall time, so
+    #: without a resync a five-minute pause reads as five minutes of lag and
+    #: the robot sprints to "catch up" in front of whoever is watching.
+    self.resume_hooks: list = []
+    self.paused_s = 0.0
     self.mission.step_hooks.append(self._power_step)
     # The world's own clock (issue #23): offers appear and lapse on the same
     # per-step seam the battery drains through, so a job put up while the
     # robot is halfway through an errand is put up THEN and not on whichever
     # arbitration pass happens next. See `_task_step`.
     self.mission.step_hooks.append(self._task_step)
+    # ...and the operator's switch, on the same seam and for a sharper
+    # version of the same reason: `paused` means the physics stops NOW.
+    self.mission.step_hooks.append(self._mode_step)
     self.state: State = "EXPLORE"
     # A QUEUE, not a flag: "two drawings on two boards with charging in
     # between" is the acceptance test for issue #12, and a boolean cannot
@@ -334,6 +366,11 @@ class HubLifecycle:
     return {
       "state": self.state,
       "status": self.status,
+      # The operator's switch (0.12.0, issue #37). In the robot's own record
+      # rather than a block of its own, because it is a fact about the robot
+      # at this instant -- and absent when there is no switch, which reads
+      # as `llm` and is what every demo and test is.
+      **({"mode": self.mode.mode} if self.mode is not None else {}),
       "battery": {"frac": round(self.battery.fraction, 4),
                   "watts": round(self.battery.last_power_w, 2),
                   "charging": self.charging_now},
@@ -958,6 +995,38 @@ class HubLifecycle:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh):
         self._say(f"TASK {task.id} offered: {task.description}")
 
+  def _mode_step(self) -> None:
+    """The operator's switch, read on the physics seam (issue #37).
+
+    ⚠ PAUSING BLOCKS HERE, INSIDE THE STEP HOOK, and that is what makes
+    `paused` mean what it says: this hook runs between physics steps, so
+    parking in it stops the integration mid-motion rather than at the next
+    convenient boundary. Everything else that hangs off the seam -- the
+    telemetry frame, the pacer, the recorder -- stops with it, which is why
+    the heartbeat is a hook of its own: frames are built off SIM time, and
+    sim time is exactly what is not moving.
+
+    A pause survives the thing that paused it: the file is on the volume, so
+    a robot paused before a restart comes back paused.
+    """
+    if self.mode is None:
+      return
+    if self.mode.poll() != "paused":
+      return
+    wall0 = time.monotonic()
+    self._say("PAUSED by the operator -- physics stopped, stream alive")
+    self._remember("paused by the operator")
+    while self.mode.poll(force=True) == "paused":
+      time.sleep(PAUSE_SLICE_S)
+      for hook in list(self.pause_hooks):
+        hook(time.monotonic() - wall0)
+    held = time.monotonic() - wall0
+    self.paused_s += held
+    for hook in list(self.resume_hooks):
+      hook(held)
+    self._say(f"RESUMED after {held:.0f} s in {self.mode.mode} mode")
+    self._remember(f"woke up again after {held:.0f} s paused")
+
   def _claim_task(self, task_id: str, answer: str = "") -> bool:
     """Take one offered job on and queue the errand that discharges it.
 
@@ -1052,10 +1121,26 @@ class HubLifecycle:
     """
     self.state = "DECIDE"
     state = overseer_context(self)
+    if self.mode is not None and not self.mode.thinking:
+      # FREE MODE (issue #37): the scripted rotation decides and no API call
+      # is made at all. The world keeps running and looks alive, which is the
+      # whole point -- a world that goes dark to save money looks broken, and
+      # a robot that stops deciding looks broken faster.
+      decision = self.overseer.decide_scripted(state, "scripted-mode")
+      self._after_decision(decision)
+      return
     self.overseer.start(state)
     while self.overseer.pending:
       self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
     decision = self.overseer.result(state)
+    self._after_decision(decision)
+
+  def _after_decision(self, decision) -> None:
+    """Narrate a decision, remember it, answer whoever it answered, and DO
+    it. Split out of `_decide` so free mode (issue #37) runs the identical
+    path -- a scripted decision the operator asked for must reach the world
+    exactly as a chosen one does, or "the world keeps running and looks
+    alive" is only true of the narration."""
     self.decisions.append(decision.as_dict())
     self._say(f"DECIDE {decision.summary()}")
     # A note is written whatever the action was: "I chose X because Y" is
@@ -1666,9 +1751,73 @@ def overseer_context(life) -> dict:
                          # (issue #38). The other two are already in the
                          # cached prefix, and putting these there instead is
                          # the mistake `system_prompt` documents.
-                         thoughts=life.thoughts)
+                         thoughts=life.thoughts,
+                         # What the week's thinking has cost, and what is
+                         # left of it (issue #37). Shown for the same reason
+                         # the points balance is -- a robot deciding whether
+                         # to spend needs to know what it has -- and movable
+                         # by nothing on a decision, for the same reason the
+                         # reward table is not.
+                         allowance=(life.overseer.spend.snapshot()
+                                    if (life.overseer is not None
+                                        and life.overseer.can_escalate
+                                        and life.overseer.spend is not None)
+                                    else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
+
+
+def attach_mode_stream(life, sinks, pacer=None,
+                       heartbeat_s: float = MODE_HEARTBEAT_S) -> None:
+  """Put the operator's switch on the wire, and keep the pacer honest.
+
+  Three wirings, and each one exists for a failure that would otherwise be
+  invisible (issue #37):
+
+    on a CHANGE   one `mode` message, so a site showing "free mode" learns
+                  about it at the moment somebody flips it rather than at
+                  the next frame that happens to carry the field.
+    while PAUSED  a heartbeat, because a paused robot steps no physics and
+                  frames are due on SIM time -- the stream goes completely
+                  silent, and silence is what a dead sim looks like too.
+    on RESUME     `pacer.resync()`, or the wall time spent paused reads as
+                  lag and the robot sprints to catch up in front of whoever
+                  was watching it stand still.
+
+  `sinks` are emit callables (`WsPublisher.message`, `TelemetryRecorder.emit`);
+  a run with neither passes an empty list and still gets the resync.
+  """
+  if life.mode is None:
+    return
+
+  def emit(held_s: float = 0.0) -> None:
+    msg = mode_message(life.mode, float(life.data.time), held_s)
+    for sink in sinks:
+      sink(dict(msg))
+
+  life.mode.on_change.append(lambda was, now: emit())
+
+  last = [0.0]
+
+  def heartbeat(held_s: float) -> None:
+    if held_s - last[0] < heartbeat_s:
+      return
+    last[0] = held_s
+    emit(held_s)
+
+  life.pause_hooks.append(heartbeat)
+
+  def resumed(held_s: float) -> None:
+    # ...and NOT a second `mode` message: the change hook above already sent
+    # one the moment the file flipped, and two lines saying "llm" (one of
+    # them carrying the pause's duration) is a consumer's problem to
+    # disambiguate for no gain. Measured against a real socket -- the sink
+    # saw `llm` twice, 0.0 s apart.
+    last[0] = 0.0
+    if pacer is not None:
+      pacer.resync()
+
+  life.resume_hooks.append(resumed)
 
 
 def world_config(world: str) -> dict:
@@ -1744,7 +1893,11 @@ def run_demo(start=None, view: bool = False,
              robot_name: str | None = None,
              overseer_backend: str | None = None,
              overseer_model: str | None = None,
-             overseer_url: str | None = None) -> dict:
+             overseer_url: str | None = None,
+             escalate_to: str | None = None,
+             weekly_usd: float | None = None,
+             spend_state: str | None = None,
+             mode_file: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -1796,6 +1949,14 @@ def run_demo(start=None, view: bool = False,
   # somewhere downstream would be a second copy of a file on disk, drifting
   # from this one the moment either wrote a line.
   memory = ThoughtFiles.open(thoughts_root, goals_path=goals)
+  # What the week's thinking may cost, and what it has (issue #37). World
+  # state on exactly the terms the ledger is: a weekly allowance that reset
+  # whenever the container cycled would be a weekly allowance in name only,
+  # since a mission ends -- and restarts -- several times an hour.
+  purse = open_book(spend_state, weekly_usd=weekly_usd)
+  # ...and the operator's switch, which is the one input here that the robot
+  # has no verb for at all.
+  switch = open_switch(mode_file)
   boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
                            journal_path=journal_state, thoughts=memory,
                            # Who this robot is (issue #39). The recorder has
@@ -1803,7 +1964,8 @@ def run_demo(start=None, view: bool = False,
                            # so a renamed robot introduced itself by species.
                            robot_name=robot_name,
                            backend=overseer_backend, model=overseer_model,
-                           base_url=overseer_url)
+                           base_url=overseer_url, escalate_to=escalate_to,
+                           spend=purse)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
@@ -1816,7 +1978,8 @@ def run_demo(start=None, view: bool = False,
                                       else cfg["low_battery_wh"]),
                       boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
-                      overseer=boss, journal=journal, world=world,
+                      overseer=boss, journal=journal, mode=switch,
+                      world=world,
                       errands=errands_for(errand, world, book), tasks=board,
                       producer=maker, thoughts=memory)
   # Activities poll on the SAME per-step seam the battery drains through and
@@ -1833,6 +1996,12 @@ def run_demo(start=None, view: bool = False,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=board,
                                  goals=goals_prose, thoughts=memory,
+                                 # What the thinking cost and who is in
+                                 # charge of the switch (issue #37).
+                                 spend=(purse if (boss is not None
+                                                  and boss.can_escalate)
+                                        else None),
+                                 mode=switch,
                                  steering=boss is not None,
                                  # Who this robot is, apart from what it is
                                  # (issue #39): flag > $PLUGGY_ROBOT_NAME >
@@ -1862,6 +2031,10 @@ def run_demo(start=None, view: bool = False,
     memory.on_event.append(recorder.emit)
     if journal is not None:
       journal.on_event.append(recorder.emit)
+  # ...and so is the operator reaching for the switch (issue #37). Attached
+  # whether or not anything is recording: the resync half is what stops a
+  # pause becoming a sprint, and that is true of a viewer run too.
+  attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
   # put the offers on the floor before the recorder existed -- a recording

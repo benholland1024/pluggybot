@@ -65,6 +65,16 @@ fi
 # directly, like PLUGGY_OVERSEER and for the same reason -- $PLUGGY_OVERSEER_
 # KEY has no business in `ps` either -- but the --overseer flag is passed
 # anyway so that a run with it on says so in its own argv.
+# The allowance and the operator's switch (issue #37) are environment too,
+# and read straight from it by hub/spend.py and hub/mode.py -- no flags, so
+# nothing here has to know they exist: $PLUGGY_WEEKLY_USD, $PLUGGY_SPEND,
+# $PLUGGY_MODE_FILE, $PLUGGY_ESCALATE_TO. ⚠ The mode file and the spend file
+# BOTH belong on the state volume: a budget that reset on restart would be no
+# budget (a mission ends several times an hour here), and a robot paused
+# before a restart must come back paused.
+if [ -n "${PLUGGY_ESCALATE_TO:-}" ]; then
+  set -- --escalate-to "${PLUGGY_ESCALATE_TO}" "$@"
+fi
 if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
   if [ -n "${PLUGGY_JOURNAL:-}" ]; then

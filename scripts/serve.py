@@ -42,12 +42,15 @@ import time
 import mujoco
 
 from pluggybot.hub import llm, overseer
+from pluggybot.hub.mode import open_switch
+from pluggybot.hub.overseer import ESCALATE_MODEL
+from pluggybot.hub.spend import WEEKLY_USD, open_book
 from pluggybot.hub.inbox import Inbox
 from pluggybot.hub.cadence import default_cadence
 from pluggybot.hub.thoughts import ThoughtFiles
 from pluggybot.hub.lifecycle import (
-  HubLifecycle, board_book, errands_for, points_ledger, task_producer,
-  task_board, world_config, world_screens,
+  HubLifecycle, attach_mode_stream, board_book, errands_for, points_ledger,
+  task_board, task_producer, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
@@ -153,6 +156,30 @@ def main() -> None:
                            f"{llm.LOCAL_URL}, ollama's). A key for a "
                            "third-party one goes in $PLUGGY_OVERSEER_KEY -- "
                            "never a flag, since ps is public")
+  parser.add_argument("--escalate-to", default=None, metavar="ID",
+                      help="a BIGGER mind the robot may buy a decision from "
+                           "when it says it is unsure (issue #37; "
+                           "$PLUGGY_ESCALATE_TO). Off unless set. The routing "
+                           "costs no extra call -- the model asks on the "
+                           "decision it was already making, and code decides "
+                           f"whether it can afford one. Try {ESCALATE_MODEL}")
+  parser.add_argument("--weekly-usd", type=float, default=None,
+                      metavar="USD",
+                      help="the soft weekly allowance escalations spend "
+                           f"against ($PLUGGY_WEEKLY_USD; default {WEEKLY_USD})"
+                           ". The HARD ceiling is the provider account "
+                           "balance, which is deliberately not code")
+  parser.add_argument("--spend-state", default=None, metavar="PATH",
+                      help="JSON file the week's spending lives in between "
+                           "runs ($PLUGGY_SPEND). A weekly budget that reset "
+                           "on restart would be no budget at all")
+  parser.add_argument("--mode-file", default=None, metavar="PATH",
+                      help="the OPERATOR's control file ($PLUGGY_MODE_FILE): "
+                           "{\"mode\": \"llm\"|\"scripted\"|\"paused\"}. "
+                           "Polled, never written -- the robot has no verb "
+                           "that reaches it. `scripted` is free mode (no API "
+                           "calls, world still alive); `paused` stops the "
+                           "physics and keeps the stream up")
   parser.add_argument("--overseer-budget", type=int, default=None,
                       metavar="N", help="hard cap on LLM calls per rolling "
                                         "hour (default 60)")
@@ -198,6 +225,12 @@ def main() -> None:
   # rotation still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
   memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
+  # The weekly allowance (issue #37), and world state on the same terms the
+  # ledger is: a mission ends several times an hour here, so a budget that
+  # lived in the process would be a budget that reset several times an hour.
+  purse = open_book(args.spend_state, weekly_usd=args.weekly_usd)
+  # ...and the operator's switch: a file this process only ever READS.
+  switch = open_switch(args.mode_file)
   boss, journal = overseer.build(args.world, book,
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
@@ -209,7 +242,9 @@ def main() -> None:
                                  robot_name=args.robot_name,
                                  backend=args.overseer_backend,
                                  model=args.overseer_model,
-                                 base_url=args.overseer_url, **overseer_kw)
+                                 base_url=args.overseer_url,
+                                 escalate_to=args.escalate_to, spend=purse,
+                                 **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
   # as true of a scripted rotation as of a chosen errand. What is NOT the
@@ -239,7 +274,8 @@ def main() -> None:
                                       else cfg["low_battery_wh"]),
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
-                      overseer=boss, journal=journal, world=args.world,
+                      overseer=boss, journal=journal, mode=switch,
+                      world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
                       producer=maker, thoughts=memory)
   # The world's task state machines, polled on the same per-step seam
@@ -263,6 +299,14 @@ def main() -> None:
                           accepts=(INBOUND_TYPES if boss is not None
                                    else CODE_HANDLED_TYPES),
                           goals=goals_prose, thoughts=memory,
+                          # What the thinking costs, and who has the switch
+                          # (0.12.0, issue #37). The spend block is only
+                          # attached where there is spending to report --
+                          # an all-zero money panel on a world that cannot
+                          # spend is a panel that means nothing.
+                          spend=(purse if (boss is not None and boss.can_escalate)
+                                        else None),
+                          mode=switch,
                           steering=boss is not None,
                           robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
@@ -302,6 +346,9 @@ def main() -> None:
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  goals=goals_prose, thoughts=memory,
+                                 spend=(purse if (boss is not None and boss.can_escalate)
+                                        else None),
+                                 mode=switch,
                                  steering=boss is not None,
                                  robot_name=args.robot_name,
                                  grid=life.mission.grid)
@@ -315,6 +362,15 @@ def main() -> None:
       journal.on_event.append(recorder.emit)
     memory.on_event.append(recorder.emit)
     life.visitor_hooks.append(recorder.emit)
+
+  # The operator's switch, on the wire and off the pacer's clock (issue
+  # #37). ⚠ The pacer is what makes this more than a display detail: a
+  # PAUSED robot steps nothing, so without `resync` the wall time it stood
+  # still reads as lag and the sim sprints to catch up the moment it is let
+  # go -- at 2.9x, in front of whoever paused it to look at something.
+  attach_mode_stream(life, [publisher.message]
+                     + ([recorder.emit] if recorder is not None else []),
+                     pacer=pacer)
 
   # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
   # `task_offered` immediately, so seeding earlier drops those lines on the
@@ -372,6 +428,24 @@ def main() -> None:
     else:
       print(f"overseer cost          : ${o['usd']:.5f}"
             f"  (${per_hour:.4f} per sim-hour, {where})")
+    if o.get("escalationModel"):
+      # What the ALLOWANCE bought (issue #37). Refusals are printed beside
+      # the escalations because they are the more useful number: a robot
+      # that keeps asking and keeps being told no is a budget too small or a
+      # cadence too slow, and neither is visible from the count of the ones
+      # that happened.
+      money = o.get("allowance") or {}
+      refused = o.get("escalationsRefused") or {}
+      print(f"overseer escalations   : {o['escalations']} to "
+            f"{o['escalationModel']} (${o.get('escalationUsd', 0.0):.5f}), "
+            + (", ".join(f"{n} refused for {why}"
+                         for why, n in sorted(refused.items())) or "none "
+               "refused"))
+      if money:
+        print(f"weekly allowance       : ${money['spentUsd']:.4f} spent of "
+              f"${money['weeklyUsd']:.2f}, ${money['leftUsd']:.4f} left"
+              + (f", {money['unpriced']} call(s) at unknown rates"
+                 if money.get("unpriced") else ""))
     if not o.get("constrained", True):
       # The menu is no longer enforced at the decoder -- see
       # Overseer.constrained. Worth a line: the fallback rate below is being
@@ -395,6 +469,13 @@ def main() -> None:
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
+  if life.mode is not None and (life.paused_s or life.mode.mode != "llm"):
+    # Said only when it is not the default: a run nobody touched should not
+    # print a line about a switch nobody flipped.
+    print(f"operator mode          : {life.mode.mode}"
+          + (f", paused for {life.paused_s:.0f} s" if life.paused_s else ""))
+    for note in life.mode.errors:
+      print(f"mode file              : {note}")
   if pacer is not None:
     s = pacer.stats()
     print(f"pacing (target {s['rate']:.2f}x)  : drift {s['drift_s']:+.3f} s"

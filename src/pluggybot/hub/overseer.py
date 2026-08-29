@@ -66,6 +66,7 @@ from pluggybot.hub import llm
 from pluggybot.hub.inbox import MAX_ID, clean
 from pluggybot.hub.journal import Journal
 from pluggybot.hub.questions import clean_answer
+from pluggybot.hub.spend import SpendBook
 from pluggybot.hub.scoring import RewardTable, default_table
 from pluggybot.hub.thoughts import (
   GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
@@ -96,6 +97,45 @@ CALLS_PER_HOUR = 60
 #: poll is not itself the cost.
 THINK_SLICE_S = 0.1
 MAX_TOKENS = 512
+
+#: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
+#: world was started with -- free, if that is the local model -- and the robot
+#: may ask to think HARDER about one, which costs real money and is therefore
+#: gated by code it cannot reach.
+#:
+#: ⚠ MEASURED, and not the model the issue named. One real decision each
+#: through the router, from the local 4B's own state (docs/Overseer.md §8):
+#:
+#:   meta-llama/Llama-3.3-70B-Instruct     403 Forbidden -- gated on this
+#:                                         account, whatever the catalogue says
+#:   Qwen/Qwen3-235B-A22B-Instruct-2507    valid, 2.05 s, $0.00035  <- the pick
+#:   deepseek-ai/DeepSeek-V3.1             valid, 5.89 s, $0.00102
+#:   zai-org/GLM-4.6                       valid, 3.04 s, $0.00183
+#:   moonshotai/Kimi-K2-Instruct-0905      valid, 3.73 s, $0.00238
+#:
+#: The pick is the cheapest AND the fastest of the four that answered, and at
+#: 235B (A22B active) it is two orders of magnitude more model than the 4B it
+#: is bought instead of -- which is the only reason to spend anything.
+#: `ESCALATE_MAX_TOKENS` is doubled from the routine 512 because #15's sweep
+#: measured a big model TRUNCATING at that ceiling rather than refusing.
+ESCALATE_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
+ESCALATE_MAX_TOKENS = 1024
+#: ⚠ SCARCITY HAS TO BITE, and these two are how. A budget that covers most
+#: decisions is just a slower frontier model with extra steps: if thinking
+#: hard earns points, an agent with an unconstrained escalation learns to
+#: escalate every time. ~10 % of decisions, and never twice inside ten
+#: minutes, forces the robot to spend its allowance on something.
+ESCALATE_SHARE = 0.10
+ESCALATE_MIN_INTERVAL_S = 600.0
+#: Input tokens assumed when pricing an escalation BEFORE it is made (the
+#: real count is only known from the response). The measured prompt is
+#: ~3 300; rounding up is the safe direction for a budget check.
+ESCALATE_ASSUMED_IN = 3500
+#: Wall seconds a bigger mind gets. Longer than `CALL_TIMEOUT_S` because a
+#: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200,
+#: and shorter than the local backend's because nothing has to be loaded
+#: into anybody's VRAM first.
+ESCALATE_TIMEOUT_S = 30.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
 #: report a cost per sim-hour -- nothing here spends or gates on money.
@@ -187,6 +227,15 @@ class Decision:
   #: not be able to erase everything the robot knows.
   learn: str = ""
   forget: str = ""
+  #: "Think harder about this one" (issue #37). A REQUEST, not a decision:
+  #: the model sets it on the answer it was already giving -- so the routing
+  #: costs no extra call, which is the whole reason it is a field and not a
+  #: question of its own -- and code decides whether to honour it, against a
+  #: budget and a cadence the model cannot see the levers of. It is
+  #: meaningless on the answer that comes BACK from an escalation, which is
+  #: why `_escalate` clears it: a bigger model asking to escalate again is a
+  #: loop with a price tag.
+  escalate: bool = False
   source: str = "llm"
 
   @property
@@ -195,7 +244,18 @@ class Decision:
 
   @property
   def scripted(self) -> bool:
-    return self.source != "llm"
+    """Did the FALLBACK produce this?
+
+    ⚠ Not `source != "llm"`. An escalated answer is `llm:<model>` -- a model
+    answer by any reading -- and treating it as scripted would count every
+    expensive decision as a failure, which is exactly backwards for the two
+    numbers (`llmCalls`, `fallbacks`) that say whether the mind is working.
+    """
+    return not self.source.startswith("llm")
+
+  @property
+  def escalated(self) -> bool:
+    return self.source.startswith("llm:")
 
   def as_dict(self) -> dict:
     return {"action": self.action, "reason": self.reason, "board": self.board,
@@ -203,7 +263,7 @@ class Decision:
             "respondTo": self.respond_to, "outcome": self.outcome,
             "reply": self.reply, "task": self.task, "answer": self.answer,
             "learn": self.learn, "forget": self.forget,
-            "source": self.source}
+            "escalate": self.escalate, "source": self.source}
 
   def summary(self) -> str:
     """The one-line narration that reaches the event stream."""
@@ -293,8 +353,14 @@ class Menu:
       out.append("explore")
     return tuple(a for a in ACTIONS if a in out)
 
-  def schema(self) -> dict:
+  def schema(self, escalation: bool = False) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
+
+    `escalation` adds the one boolean the robot may set to ask for a more
+    expensive mind (issue #37), and it is CONDITIONAL on purpose: a world
+    with no escalation configured must not be offered a lever that does
+    nothing, and a field the model sets and code silently ignores is how an
+    agent learns that its stated preferences are decorative.
 
     `""` is the "not applicable" member rather than a nullable type, because
     the supported JSON-Schema subset for structured outputs is small and an
@@ -308,7 +374,7 @@ class Menu:
       "additionalProperties": False,
       "required": ["action", "reason", "board", "program", "zone", "note",
                    "respond_to", "outcome", "reply", "task", "answer",
-                   "learn", "forget"],
+                   "learn", "forget"] + (["escalate"] if escalation else []),
       "properties": {
         "action": {"type": "string", "enum": list(self.available())},
         "board": enum(self.boards),
@@ -339,6 +405,7 @@ class Menu:
         # permission table does not allow whatever arrives here.
         "learn": {"type": "string"},
         "forget": {"type": "string"},
+        **({"escalate": {"type": "boolean"}} if escalation else {}),
       },
     }
 
@@ -396,6 +463,13 @@ class Menu:
     if action == "take_task" and task in answering and not answer:
       raise ValueError(f"task {task!r} asks a question and the answer "
                        f"{raw.get('answer')!r} is not one this pen can write")
+    # A REQUEST to spend, read as a plain bool -- a string "true" from a
+    # model that ignored the type is honoured, because refusing the whole
+    # decision over the shape of a hint would be the fallback punishing a
+    # robot for its own enthusiasm.
+    escalate = raw.get("escalate")
+    escalate = (escalate.strip().lower() in ("true", "yes", "1")
+                if isinstance(escalate, str) else bool(escalate))
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     reply = clean(raw.get("reply"), MAX_REPLY)
@@ -415,7 +489,8 @@ class Menu:
                     # like a `respond_to` that named a message already dealt
                     # with.
                     learn=clean(raw.get("learn"), MAX_LINE_CHARS),
-                    forget=clean(raw.get("forget"), MAX_LINE_CHARS))
+                    forget=clean(raw.get("forget"), MAX_LINE_CHARS),
+                    escalate=escalate)
 
 
 # ---- the scripted policy (also the fallback) --------------------------------
@@ -617,8 +692,31 @@ state, your recent tasks, what is on the boards. If you do not know, say so.
 """
 
 
+#: What the robot is told about buying a bigger mind (issue #37). In the
+#: STABLE half because it is a property of the world, not of the moment --
+#: and ABSENT entirely where escalation is not configured, so a world without
+#: it has a byte-identical prefix to the one it had before this existed.
+ESCALATION_RULE = """\
+THINKING HARDER
+
+Some decisions are worth more thought than others. Set `escalate` to true on \
+a decision you are genuinely unsure about -- an unfamiliar job, a question you \
+cannot work out, a choice you would like to get right rather than get over \
+with -- and a larger mind will be asked the same question and will answer in \
+your place.
+
+It costs real money out of a weekly allowance, and it is not yours to hand \
+out: you ask, and the code that runs your body decides, against a budget and \
+a cadence you cannot change. Asking for it on every decision spends the week \
+in an afternoon and gets you refused for the rest of it, so ask when it \
+matters. Nothing is lost when the answer is no -- the decision you already \
+made is the one that happens.\
+"""
+
+
 def system_prompt(thoughts: ThoughtFiles, menu: Menu,
-                  table: RewardTable, name: str = "") -> list[dict]:
+                  table: RewardTable, name: str = "",
+                  escalation: bool = False) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -726,14 +824,15 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                                       sort_keys=True),
     f"YOUR LONG-TERM GOALS ({GOALS} -- likewise; you cannot change these)\n"
     + stable[GOALS].strip(),
-  ])
+  ] + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
 
 
 def context_for(life, journal: Journal | None = None,
                 visitors=(), tasks=(), affordable=(), possible=(),
-                thoughts: ThoughtFiles | None = None) -> dict:
+                thoughts: ThoughtFiles | None = None,
+                allowance: dict | None = None) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
@@ -807,6 +906,14 @@ def context_for(life, journal: Journal | None = None,
     # `Task.secret`, which has no path into this dict -- the census's
     # redacted ground truth, one layer up.
     "offeredTasks": list(tasks),
+    # THE ALLOWANCE, SHOWN AND UNREACHABLE (issue #37). Exactly the reward
+    # table's rule, one layer out: the robot is told what its thinking has
+    # cost this week and how much is left, and there is no field on a
+    # decision that moves either. Absent -- not zero -- on a world with no
+    # escalation configured, because "no allowance" and "an allowance of
+    # nothing" would read the same to a model and only one of them means
+    # "do not bother asking".
+    **({"allowance": dict(allowance)} if allowance else {}),
   }
 
 
@@ -899,6 +1006,10 @@ class Overseer:
                robot_name: str | None = None,
                model: str = MODEL, client=None,
                backend: str = "auto", base_url: str | None = None,
+               escalate_to: str | None = None,
+               escalate_backend: str | None = None,
+               escalate_url: str | None = None,
+               spend: SpendBook | None = None,
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
@@ -933,6 +1044,35 @@ class Overseer:
                       if timeout_s is None else timeout_s)
     self.clock = clock
     self.usage = Usage()
+    # ---- the allowance (issue #37) ----
+    # A SECOND mind, bought a decision at a time. Configured or not; unset is
+    # the default and the whole feature is then absent, including from the
+    # schema and the prompt -- a lever that does nothing must not be offered.
+    self.escalate_model = (escalate_to or "").strip()
+    self.escalate_backend = (llm.resolve_backend(escalate_backend,
+                                                 self.escalate_model)
+                             if self.escalate_model else "")
+    self.escalate_url = escalate_url
+    # ⚠ Escalation without a spend book would be an unbounded budget, so an
+    # unattached one gets an IN-MEMORY book at the default allowance rather
+    # than no book. It forgets across restarts, which is why a deployment
+    # mounts the file -- but a demo cannot spend the month's money either.
+    self.spend = spend if spend is not None else (
+      SpendBook(None) if self.escalate_model else None)
+    #: Metered SEPARATELY from `usage`, because the two minds bill at
+    #: different rates and adding a 70B's tokens to an 8B's counter would
+    #: price the expensive half at the cheap one's rate.
+    self.escalation_usage = Usage()
+    self.escalations = 0
+    self.escalations_refused: dict[str, int] = {}
+    self._esc_client = None
+    self._esc_ready = False
+    # ⚠ None, not 0.0. "Never escalated" and "escalated at clock zero" are
+    # different facts, and a falsy sentinel conflates them -- with a
+    # monotonic clock that starts near boot, the guard below then skips the
+    # interval check on the second escalation of a freshly started process.
+    # Found by the test, not by reading it.
+    self._last_escalation: float | None = None
     self.decisions: list[Decision] = []
     self._client = client
     self._client_ready = client is not None
@@ -956,7 +1096,8 @@ class Overseer:
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
     self.system = system_prompt(self.thoughts, self.menu, self.table,
-                                name=self.robot_name)
+                                name=self.robot_name,
+                                escalation=self.can_escalate)
 
   @property
   def goals(self) -> str:
@@ -1027,6 +1168,151 @@ class Overseer:
       # Somebody else's endpoint, or an Anthropic model that is not the one
       # the rates at the top of this file were written for.
       self.usage.unpriced()
+
+  # ---- the expensive mind (issue #37) --------------------------------------
+
+  @property
+  def can_escalate(self) -> bool:
+    """Is there a bigger mind to buy at all? False is the default, and with
+    it the escalation field is absent from the schema and the prompt."""
+    return bool(self.escalate_model)
+
+  @property
+  def escalation_client(self):
+    """The expensive client, built on first use -- and its rates read then,
+    so an escalation is priced by the catalogue of the model that answered
+    it rather than by the one the routine decisions run on."""
+    if not self._esc_ready:
+      self._esc_ready = True
+      try:
+        self._esc_client = llm.build_client(
+          self.escalate_backend, self.escalate_model,
+          timeout=ESCALATE_TIMEOUT_S, base_url=self.escalate_url)
+        rates = (self._esc_client.pricing(self.escalate_model)
+                 if self.escalate_backend == "huggingface" else None)
+        if rates is not None:
+          (self.escalation_usage.usd_per_mtok_in,
+           self.escalation_usage.usd_per_mtok_out) = rates
+        elif self.escalate_backend == "local":
+          self.escalation_usage.usd_per_mtok_in = 0.0
+          self.escalation_usage.usd_per_mtok_out = 0.0
+        else:
+          self.escalation_usage.unpriced()
+      except Exception as e:                # noqa: BLE001 -- as the primary
+        self.usage.errors.append(f"escalation client: {type(e).__name__}: {e}")
+        self._esc_client = None
+    return self._esc_client
+
+  def escalation_estimate(self) -> float:
+    """What the NEXT escalation would cost, in USD, before making it.
+
+    Off the measured input size of the calls already made (the prompt is the
+    same one), and the full output ceiling, which is the pessimistic
+    direction and the right one for a budget check.
+    """
+    per_call = (self.usage.input_tokens // self.usage.llm_calls
+                if self.usage.llm_calls else 0) or ESCALATE_ASSUMED_IN
+    return (per_call * self.escalation_usage.usd_per_mtok_in
+            + ESCALATE_MAX_TOKENS
+            * self.escalation_usage.usd_per_mtok_out) / 1e6
+
+  def why_not_escalate(self, decision: Decision) -> str:
+    """"" if this decision may be re-thought by the expensive mind, else the
+    reason it may not -- which is reported rather than silently applied,
+    because "the robot never asked" and "the robot asked and could not
+    afford it" are different worlds and only one of them needs more money.
+
+    ⚠ EVERY GATE HERE IS CODE THE MODEL CANNOT REACH. It sets one boolean;
+    the allowance, the cadence and the share are read from a file it cannot
+    write and constants it cannot see the levers of. That is the same
+    division as the reward table: the agent may want, and only code may pay.
+    """
+    if not self.can_escalate:
+      return "not-configured"
+    if not decision.escalate:
+      return "not-asked"
+    if self.spend is not None and not self.spend.can_spend(
+        self.escalation_estimate()):
+      # THE DEGRADATION THE ISSUE ASKS FOR: a spent allowance costs the robot
+      # its expensive mind and nothing else. The cheap decision it already
+      # made stands, and the day goes on.
+      return "no-allowance"
+    if (self._last_escalation is not None
+        and self.clock() - self._last_escalation < ESCALATE_MIN_INTERVAL_S):
+      return "too-soon"
+    # `max(1, ...)` is the warm-up: a strict share refuses the FIRST ask
+    # forever, since 1 is more than a tenth of 1. One is always affordable;
+    # the second needs the run to have earned it.
+    allowed = max(1, int(ESCALATE_SHARE * len(self.decisions)))
+    if self.escalations + 1 > allowed:
+      return "share"
+    return ""
+
+  def _maybe_escalate(self, decision: Decision, state: dict) -> Decision:
+    """The second call, when the gate allows one. Worker thread.
+
+    ⚠ THE CHEAP ANSWER IS NEVER LOST. Every failure here -- a timeout, a
+    malformed answer from the big model, a 402 from the provider -- returns
+    the decision that was already valid. Escalation can only ever improve a
+    decision, never cost the robot one, which is what makes it safe to put a
+    paid dependency on this path at all.
+    """
+    why = self.why_not_escalate(decision)
+    if why:
+      if why not in ("not-asked", "not-configured"):
+        self.escalations_refused[why] = (
+          self.escalations_refused.get(why, 0) + 1)
+      return decision
+    if self.escalation_client is None:
+      return decision
+    # The supervisor is watching a deadline sized for ONE call; tell it there
+    # is a second leg, or `result()` hands back a `fallback:timeout` while
+    # the answer it is waiting for is still in flight.
+    with self._lock:
+      self._deadline = max(self._deadline,
+                           self.clock() + ESCALATE_TIMEOUT_S + POLL_GRACE_S)
+    response = None
+    try:
+      response = self.escalation_client.messages.create(
+        model=self.escalate_model, max_tokens=ESCALATE_MAX_TOKENS,
+        system=self.system,
+        output_config={"format": {"type": "json_schema",
+                                  "schema": self.menu.schema(escalation=True)}},
+        messages=[{"role": "user", "content": _user_turn(state)}],
+      )
+      waiting, offered, answering = limits_from(state)
+      better = self.menu.validate(_extract_json(response), waiting=waiting,
+                                  offered=offered, answering=answering)
+    except Exception as e:                  # noqa: BLE001 -- see docstring
+      self.usage.errors.append(
+        f"escalation: {type(e).__name__}: {e}"[:200])
+      return decision
+    finally:
+      # BILLED IS BILLED. A response that arrived and then failed to parse
+      # still consumed tokens, and an allowance that only counted the useful
+      # calls would drift under the real invoice.
+      if response is not None:
+        self._meter(response, self.escalation_usage)
+        self._bank_escalation()
+    self.escalations += 1
+    self._last_escalation = self.clock()
+    # `escalate` is cleared on the way out: a bigger model asking for a
+    # bigger model is a loop with a price tag. `source` names the mind, so
+    # the wire can show WHICH answer the money bought.
+    return replace(better, escalate=False,
+                   source=f"llm:{self.escalate_model}")
+
+  def _bank_escalation(self) -> None:
+    """Record what the last escalation actually cost, from the response's own
+    usage block and the escalation model's own rates."""
+    if self.spend is None:
+      return
+    usage = self.escalation_usage
+    spent = usage.usd - getattr(self, "_esc_usd_banked", 0.0)
+    self._esc_usd_banked = usage.usd
+    self.spend.record(spent, model=self.escalate_model, kind="escalation",
+                      priced=usage.priced,
+                      tokens=usage.input_tokens + usage.output_tokens)
 
   # ---- the budget ----------------------------------------------------------
 
@@ -1101,6 +1387,19 @@ class Overseer:
     self._record(decision)
     return decision
 
+  def decide_scripted(self, state: dict, why: str) -> Decision:
+    """A rotation decision, recorded like any other and costing nothing.
+
+    The public way to decide WITHOUT asking anybody, which is what free mode
+    is (issue #37): the operator has turned the spending off, not the robot.
+    It goes through `_record` so the run's own numbers stay true -- a day
+    spent in free mode should read as a day of scripted decisions, not as a
+    day with no decisions in it.
+    """
+    decision = scripted(self.menu, state, why)
+    self._record(decision)
+    return decision
+
   def decide(self, state: dict) -> Decision:
     """Blocking convenience. Steps nothing -- see the class docstring."""
     self.start(state)
@@ -1116,8 +1415,12 @@ class Overseer:
       # something going wrong -- listing them as errors would make a healthy
       # run's summary read like an incident report, which is how a real
       # incident gets missed.
+      # ...and `scripted-mode` joins them (issue #37): an operator who put
+      # the robot in free mode is not an incident, and a run that listed
+      # every free decision as an error would bury the ones that are.
       if decision.source not in ("fallback:budget", "fallback:idle-run",
-                                 "fallback:cooloff"):
+                                 "fallback:cooloff",
+                                 "fallback:scripted-mode"):
         self.usage.errors.append(decision.source)
     else:
       self.usage.llm_calls += 1
@@ -1137,20 +1440,21 @@ class Overseer:
         # returns a 400 there. Structured outputs ARE, which is what this
         # needs -- a validated decision rather than parsed prose.
         output_config={"format": {"type": "json_schema",
-                                  "schema": self.menu.schema()}},
+                                  "schema": self.menu.schema(
+                                    escalation=self.can_escalate)}},
         messages=[{"role": "user", "content": _user_turn(state)}],
       )
-      waiting = tuple(m.get("id", "") for m in state.get("visitorMessages", ())
-                      if isinstance(m, dict))
-      claimable = [t for t in state.get("offeredTasks", ())
-                   if isinstance(t, dict) and t.get("claimable")]
-      offered = tuple(t.get("id", "") for t in claimable)
-      answering = tuple(t.get("id", "") for t in claimable
-                        if t.get("needsAnswer"))
+      waiting, offered, answering = limits_from(state)
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered, answering=answering)
       self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
+      # ...and, if the robot asked for a bigger mind and code agrees it can
+      # afford one, the answer this returns is the expensive one's (issue
+      # #37). Inside the worker, so the mission is stepping physics
+      # throughout -- an escalation costs the robot a longer pause, never
+      # the world a freeze.
+      decision = self._maybe_escalate(decision, state)
       slot = {"decision": decision}
     except Exception as e:                  # noqa: BLE001
       # EVERY failure is the same failure from the mission's point of view:
@@ -1177,15 +1481,19 @@ class Overseer:
           self._cooloff_until = self.clock() + min(
             COOLOFF_BASE_S * (2 ** over), COOLOFF_MAX_S)
 
-  def _meter(self, response) -> None:
+  def _meter(self, response, into: "Usage | None" = None) -> None:
+    """Bank one response's tokens. `into` is the escalation's own counter --
+    the two minds bill at different rates, so one counter would price the
+    expensive half at the cheap one's."""
+    into = self.usage if into is None else into
     usage = getattr(response, "usage", None)
     if usage is None:
       return
-    self.usage.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
-    self.usage.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
-    self.usage.cache_read_tokens += int(
+    into.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
+    into.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
+    into.cache_read_tokens += int(
       getattr(usage, "cache_read_input_tokens", 0) or 0)
-    self.usage.cache_write_tokens += int(
+    into.cache_write_tokens += int(
       getattr(usage, "cache_creation_input_tokens", 0) or 0)
 
   @property
@@ -1217,7 +1525,22 @@ class Overseer:
       "answers are checked sim-side only")
 
   def stats(self) -> dict:
-    return {**self.usage.as_dict(), "model": self.model,
+    esc = {
+      # What the allowance bought (issue #37). `escalations` counts answers
+      # the expensive mind actually produced; `escalationsRefused` counts the
+      # times the robot ASKED and code said no, by reason, because a robot
+      # that keeps asking and keeps being refused is a budget that is too
+      # small or a cadence that is too slow -- and neither is visible from
+      # the number of escalations that happened.
+      "escalations": self.escalations,
+      "escalationsRefused": dict(self.escalations_refused),
+      "escalationModel": self.escalate_model,
+      "escalationUsd": round(self.escalation_usage.usd, 6),
+      "escalationTokens": (self.escalation_usage.input_tokens
+                           + self.escalation_usage.output_tokens),
+    } if self.can_escalate else {}
+    return {**self.usage.as_dict(), **esc, "model": self.model,
+            "allowance": self.spend.snapshot() if self.spend else {},
             # WHICH MIND decided (issue #19). Beside the model rather than
             # folded into it: `qwen3:4b-instruct` names a model and says
             # nothing about whether it answered from this machine or from
@@ -1228,6 +1551,26 @@ class Overseer:
             "budgetLeft": self.budget_left(),
             "callsPerHour": self.calls_per_hour,
             "cooloffS": round(max(0.0, self._cooloff_until - self.clock()), 1)}
+
+
+def limits_from(state: dict) -> tuple[tuple, tuple, tuple]:
+  """(waiting, offered, answering) -- what `validate` checks an answer
+  against, read off the state that was sent.
+
+  ⚠ ONE derivation, deliberately. It used to live inline in `_call` and be
+  passed into the escalation as three arguments, and the first caller to
+  forget them (the probe, issue #37) got a perfectly good decision from a
+  235B model refused as `task 't_0007' is not on offer` -- a bug that looks
+  exactly like a model failure and is not one. Reading them from the state
+  makes a caller that has the state correct by construction.
+  """
+  waiting = tuple(m.get("id", "") for m in state.get("visitorMessages", ())
+                  if isinstance(m, dict))
+  claimable = [t for t in state.get("offeredTasks", ())
+               if isinstance(t, dict) and t.get("claimable")]
+  offered = tuple(t.get("id", "") for t in claimable)
+  answering = tuple(t.get("id", "") for t in claimable if t.get("needsAnswer"))
+  return waiting, offered, answering
 
 
 def _user_turn(state: dict) -> str:
@@ -1278,6 +1621,10 @@ MODEL_ENV = "PLUGGY_MODEL"
 #: knob existed already does. `local` points the same loop at a model on the
 #: box (`$PLUGGY_OVERSEER_URL`, ollama by default) and costs nothing to run.
 BACKEND_ENV = "PLUGGY_OVERSEER_BACKEND"
+#: ...and the BIGGER mind a decision may be bought from (issue #37). Unset is
+#: the default and means the robot has no expensive option at all -- the
+#: field is then absent from its schema and its prompt.
+ESCALATE_ENV = "PLUGGY_ESCALATE_TO"
 
 
 def goals_text(goals_path: str | None = None,
@@ -1306,7 +1653,8 @@ def build(world: str, book=None, enabled: bool | None = None,
           table: RewardTable | None = None, client=None,
           calls_per_hour: int = CALLS_PER_HOUR,
           model: str | None = None, backend: str | None = None,
-          base_url: str | None = None,
+          base_url: str | None = None, escalate_to: str | None = None,
+          spend: SpendBook | None = None,
           thoughts: ThoughtFiles | None = None,
           robot_name: str | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
@@ -1350,5 +1698,9 @@ def build(world: str, book=None, enabled: bool | None = None,
                       table=table, journal=journal, client=client,
                       robot_name=robot_name,
                       model=model, backend=backend, base_url=base_url,
+                      escalate_to=(escalate_to
+                                   or os.environ.get(ESCALATE_ENV, "").strip()
+                                   or None),
+                      spend=spend,
                       calls_per_hour=calls_per_hour)
   return overseer, journal
