@@ -55,6 +55,18 @@ if [ -n "${PLUGGY_GOALS:-}" ]; then
   set -- --goals "${PLUGGY_GOALS}" "$@"
 fi
 
+# POINTS AS FOOD (issue #36) is environment too, and read straight from it by
+# scripts/serve.py -- $PLUGGY_METABOLISM names a metabolism.json on the volume
+# and IMPLIES the mechanic, the way $PLUGGY_TASKS implies a task board. So is
+# every other tuning file the sim reads for itself: $PLUGGY_REWARDS (what a
+# job pays), $PLUGGY_CADENCE (how busy the world is), $PLUGGY_QUESTIONS (the
+# question bank) and $PLUGGY_ENERGY (what an errand costs). Mount a file, no
+# rebuild, no flag here.
+# ⚠ Unset means the robot never gets hungry and its balance is unbounded,
+# which is what every world did before #36 -- turning hunger on in a
+# deployment is a deliberate act, because the rate and the cap are still
+# provisional numbers rather than measured ones.
+
 # The LLM overseer (issue #15). Like the ingest secret, $ANTHROPIC_API_KEY
 # and $HF_TOKEN are NOT turned into flags -- serve.py never sees them and the
 # backends read them from the environment, so they stay out of `ps`. Which

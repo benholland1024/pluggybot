@@ -217,12 +217,22 @@ class ScreenSet:
 
 # ---- the automatic face ----------------------------------------------------
 
-def face_for(state: str, battery_frac: float = 1.0) -> tuple[str, str]:
+def face_for(state: str, battery_frac: float = 1.0,
+             hunger: str = "") -> tuple[str, str]:
   """(face, hint) for a lifecycle state -- the robot's resting expression.
 
-  Deliberately a pure function of state plus one number, so it is testable
+  Deliberately a pure function of state plus two readings, so it is testable
   without a physics world and so "what does the robot look like right now"
   has exactly one answer. An errand that wants something else says so.
+
+  `hunger` is a `HUNGER_STATES` name or "" (issue #36), and it reaches the
+  face through ONE door: `starving` replaces the `idle` default below. That
+  narrowness is the point. A starving robot should show it, but every other
+  branch here is about something more urgent than food -- a low pack, a
+  charge in progress, a tool in the air -- and hunger stomping those would
+  hide the states a watcher actually needs. It is also the whole of what
+  being out of points does: the face changes and nothing else, which is
+  issue #36's "zero is narrative, never a capability lock".
   """
   if state == "CHARGE":
     return "sleepy", "blink"
@@ -244,4 +254,9 @@ def face_for(state: str, battery_frac: float = 1.0) -> tuple[str, str]:
     return "happy", "bounce"
   if state == "DONE":
     return "happy", "blink"
+  if hunger == "starving":
+    # Nothing else to be doing and nothing in the bank. Two existing words
+    # rather than a new one: FACE_STATES is a two-repo contract, so a new
+    # expression is a pair of old ones before it is a new entry.
+    return "worried", "shake"
   return "idle", "blink"

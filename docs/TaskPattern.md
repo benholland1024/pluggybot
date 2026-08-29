@@ -290,6 +290,73 @@ every one below was hit, measured, and given a gate.
 
 ---
 
+## 5b. Points are food — the metabolism (issue #36)
+
+The fourth file in the same division, and it changes what the other three are
+FOR. `tasks.py` says what a job is, `rewards.json` what it pays,
+`cadence.json` when it turns up — and `metabolism.json` says **why the robot
+would bother**. Before it, points only went up and the robot only ever wanted
+more; 1 400 points and 1 420 points were the same day.
+
+**Points are consumed by living.** A steady rate on sim time
+(`pointsPerHour`), a **cap** past which earnings are not banked, and a
+**satisfied** state once the balance is high enough. The free time — the
+hours the robot did not have to spend earning — is the entire mechanic;
+everything in `economy/metabolism.py` exists to make sure there is some.
+
+Six rules, and each is a way the mechanic deletes itself.
+
+- **Calibrate against measured throughput, never intuition.** The arithmetic
+  is `cadence.json`'s own: a home charge-to-charge cycle is ~365 sim-seconds
+  and one errand costs roughly one full pack, so ~10 jobs a sim-hour at the
+  2–20 points `rewards.json` pays — a ~150 point/hour ceiling and nearer 100
+  once offers lapse and jobs fail. **An appetite at 100/hour is subsistence
+  with zero free time**, which is the mechanic wearing a disguise. The
+  shipped 45/hour against a 90 cap is issue #36's proposed starting point and
+  is **provisional, not measured**; re-tune it here whenever `rewards.json`
+  or `cadence.json` moves, because both change what an hour earns.
+- **Zero is narrative, never a capability lock**, and so is full. A starving
+  robot shows it — a worried face, a line in `History.md`, a prompt that says
+  go and earn something — and is prevented from nothing. This is the rule
+  that decides the *shape* of the whole feature: **satisfaction changes what
+  the robot is TOLD and nothing else.** There is no branch that reads
+  `satisfied` and declines a job, which is why the scripted rotation is
+  untouched (it has no goals to pursue, so it would have nothing to do with
+  the free time) and why every existing mission behaves identically with the
+  appetite on. It also means the criterion is enforced by ABSENCE, and the
+  test for it is a whole mission flown broke plus a grep over the branches
+  that could have grown a gate.
+- **Arrears are the sneaky lock.** Hunger stops at zero and never goes
+  negative: a robot that owed an hour of appetite would see its first job
+  back pay nothing, which is a discouragement gradient at exactly the wrong
+  moment.
+- **Decay ticks on the PHYSICS seam**, like `TaskProducer` and for a sharper
+  version of the same reason — an appetite ticked on the arbitration loop
+  would not charge the robot for the twenty minutes it spent inside one
+  errand, which is most of its day.
+- **A restart is neither a meal nor a missed one.** Sim time begins again at
+  0 every mission, so the anchor is re-taken and the gap costs nothing; what
+  survives is the BALANCE, in the ledger's file, plus the fraction of a point
+  owed. Both failures are the same bug wearing opposite signs. The carry is
+  kept in memory every tick and written by the next save from any source —
+  saving a file a second on the physics thread to persist a hundredth of a
+  point is paying for accuracy in the wrong currency.
+- **The cap refuses out loud.** `points` on a ledger entry stays what the
+  reward table paid; `banked` and `spilled` say how much of it fit. Silently
+  paying less than the published table would undo the reward system's whole
+  design — a robot cannot check its own arithmetic, so a number that quietly
+  disagrees with the published one is indistinguishable to it from a bug.
+
+The hysteresis is the ordinary `ActivityPattern.md` rule applied to a sensed
+BALANCE: `satisfiedAt` latches on, the lower `hungryAt` latches off, and the
+gap is both the anti-flap band and the period of the rhythm —
+`(satisfiedAt - hungryAt) / pointsPerHour` is how long the free time lasts.
+The latch is **not persisted** and is seeded on the hungry side, because a
+robot that came back from a restart still coasting on a satisfaction it could
+no longer justify would idle through the first stretch of every mission.
+
+---
+
 ## 6. The build sequence — task kind N+1
 
 The order that falls out of the builds so far. As with the sibling docs, each

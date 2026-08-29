@@ -47,6 +47,7 @@ from pluggybot.mind.overseer import ESCALATE_MODEL
 from pluggybot.mind.spend import WEEKLY_USD, open_book
 from pluggybot.mind.inbox import Inbox
 from pluggybot.economy.cadence import default_cadence
+from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.lifecycle import (
   HubLifecycle, attach_mode_stream, board_book, errands_for, points_ledger,
@@ -122,6 +123,15 @@ def main() -> None:
                            "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
+  parser.add_argument("--metabolism", action="store_true",
+                      help="POINTS ARE FOOD (issue #36): the robot consumes "
+                           "points at a steady rate on sim time, stops "
+                           "banking at a cap, and once it has enough it is "
+                           "SATISFIED and spends the rest of its time on its "
+                           "goals. Off by default -- it changes what the "
+                           "robot is told. Rate and cap are data "
+                           "(economy/metabolism.json; $PLUGGY_METABOLISM "
+                           "re-points it and implies this flag)")
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
@@ -198,7 +208,15 @@ def main() -> None:
   # room's: a balance that resets whenever the container cycles is not a
   # scoreboard. Every mission end is a restart, so the site's rivalry only
   # exists if this file does.
-  ledger = points_ledger(args.ledger)
+  # ...and how fast the robot gets HUNGRY (issue #36), which is what turns a
+  # balance into a metabolism: consumed on sim time, capped rather than
+  # accumulated, and once there is enough the robot has free time. World
+  # state again -- the hunger lives in the balance, so the ledger file above
+  # is what makes it survive the container cycling.
+  appetite = (Appetite.load(args.world)
+              if (args.metabolism or os.environ.get(METABOLISM_ENV)) else None)
+  ledger = points_ledger(args.ledger, cap=appetite.cap if appetite else None)
+  hunger = Metabolism(ledger, appetite) if appetite else None
   # Job offers (issue #21), and world state on exactly the terms the boards
   # and the ledger are: a task that vanished because the container cycled is
   # a job somebody asked for and nobody ever declined. Off unless asked for.
@@ -244,6 +262,10 @@ def main() -> None:
                                  model=args.overseer_model,
                                  base_url=args.overseer_url,
                                  escalate_to=args.escalate_to, spend=purse,
+                                 # Whether points are food on this world
+                                 # (issue #36): the RULES ride the cached
+                                 # prefix, the numbers ride every call.
+                                 appetite=hunger is not None,
                                  **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
@@ -277,7 +299,7 @@ def main() -> None:
                       overseer=boss, journal=journal, mode=switch,
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
-                      producer=maker, thoughts=memory)
+                      producer=maker, thoughts=memory, metabolism=hunger)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -307,6 +329,8 @@ def main() -> None:
                           spend=(purse if (boss is not None and boss.can_escalate)
                                         else None),
                           mode=switch,
+                          # ...and how hungry it is (0.13.0, issue #36).
+                          metabolism=hunger,
                           steering=boss is not None,
                           robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
@@ -348,7 +372,7 @@ def main() -> None:
                                  goals=goals_prose, thoughts=memory,
                                  spend=(purse if (boss is not None and boss.can_escalate)
                                         else None),
-                                 mode=switch,
+                                 mode=switch, metabolism=hunger,
                                  steering=boss is not None,
                                  robot_name=args.robot_name,
                                  grid=life.mission.grid)

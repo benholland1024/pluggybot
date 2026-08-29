@@ -543,6 +543,40 @@ tracked as its own issues; landed so far:
     visitor to the robot's body.
     `test_a_prompt_injection_is_still_only_a_suggestion` lets the attack
     arrive and then shows the menu refusing every action it asked for.
+- **Points are food (issue #36)**: the reward system gets a reason to exist.
+  `economy/metabolism.py` + `metabolism.json`, protocol **0.13.0**. Points are
+  consumed at a steady rate on sim time, stop being banked at a **cap**, and
+  once the balance is high enough the robot is **satisfied** — and the hours
+  it did not have to spend earning are what it spends on `Goals.md`. The free
+  time is the mechanic; an unbounded score was not a motivation, because
+  1 400 points and 1 420 points are the same day.
+  - **Calibrated against measured throughput, and the numbers say so.**
+    `cadence.json`'s own arithmetic — ~10 jobs a sim-hour at 2–20 points —
+    puts the ceiling near 150 points/hour and realistic throughput near 100,
+    so an appetite at 100/hour is subsistence with zero free time: the
+    mechanic deleting itself while appearing to work. The shipped 45/hour
+    against a 90 cap is the issue's proposed starting point and is marked
+    **provisional**; the fifth data file (`$PLUGGY_METABOLISM`) is there so
+    re-tuning it is a JSON edit on a mounted volume.
+  - ⚠ **Satisfaction changes what the robot is TOLD and nothing else.** No
+    branch reads `satisfied` and declines a job; none reads `starving` and
+    declines anything at all. The scripted rotation is untouched (it has no
+    goals to spend free time on), so every existing mission behaves
+    identically with hunger on, and the behavioural half is a mind's — which
+    is where the issue puts it. "Zero is narrative, never a capability lock"
+    is therefore enforced by ABSENCE, and the test is a whole mission flown
+    broke plus a grep over the branches that could have grown a gate.
+  - **A restart is neither a meal nor a missed one.** Sim time restarts at 0
+    every mission, so the anchor is re-taken and the gap costs nothing, while
+    the balance and the fraction of a point owed survive in the ledger's
+    file. Both failures are one bug wearing opposite signs, and each is
+    pinned by a test shown to fail without its fix.
+  - **The cap refuses out loud.** A ledger entry's `points` stays what the
+    reward table paid; `banked`/`spilled` say how much fit, and
+    `earned - consumed - spent == balance` is now checkable off the wire.
+    Paying quietly less than the published table would undo the reward
+    system's whole design.
+  **The website must re-vendor `protocol/`.**
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

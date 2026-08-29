@@ -32,6 +32,23 @@ itself out of a charge is a robot that eventually will, and the resulting brick
 is not an interesting failure. The `spent` counter and the balance arithmetic
 are here so that ledgers written today stay readable when it does.
 
+CONSUMPTION is not spending, and the two counters are separate for that reason
+(issue #36). `consume` is METABOLISM -- points eaten by the passage of sim
+time, driven by `economy/metabolism.py`, chosen by nobody -- while `spent` is
+still reserved for a purchase the robot decides on. Rolling them together
+would make "what has this robot bought" unanswerable the day the first
+purchase lands. Both come off the balance; only one of them will ever be the
+robot's idea.
+
+THE CAP is the other half of the same issue, and it lives here because this is
+the only code that banks anything. Above `cap` an award is not banked -- and
+`spilled` is what says so, on the entry and on the account. Silently paying
+less than `economy/rewards.json` promised would undo the reward table's whole
+design: a robot cannot check its own arithmetic, so a number that quietly
+disagrees with the published one is indistinguishable to it from a bug. `cap`
+is None everywhere the mechanic is off, which is every existing mission,
+recording and test.
+
 The telemetry surface is the same duck type an `ActivitySet`, a `BoardBook` and
 a `ScreenSet` present (`names` + `snapshot()`), so the frame builder diffs it
 with the one code path it already has -- and for the same reason those exist:
@@ -48,7 +65,14 @@ from typing import Callable
 from pluggybot.economy.scoring import RewardTable, Verdict, default_table
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
-STATE_VERSION = 1
+#: Bumped to 2 by issue #36: an account gained `consumed`, `spilled` and
+#: `owed`. A v1 file loads (the fields default to zero, which is what a
+#: ledger written before hunger existed honestly means); a v1 BUILD refuses a
+#: v2 file, which is the asymmetry `load` explains and the reason this is not
+#: just three more `.get` calls -- an old image reading a new file would drop
+#: the fraction of a point owed and re-round it in the robot's favour on
+#: every restart.
+STATE_VERSION = 2
 
 #: Entries kept per robot in the state file. The balance is exact forever --
 #: it is a running total, not a re-sum of the log -- and this only bounds the
@@ -65,6 +89,20 @@ def _now() -> str:
   return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _account() -> dict:
+  """A robot's opening account. One factory so the constructor, the
+  grown-a-second-robot path and `load` cannot disagree about the fields --
+  they did not, and then issue #36 added three at once."""
+  return {"balance": 0, "earned": 0, "spent": 0, "seq": 0, "dropped": 0,
+          # Points eaten by living (issue #36), kept apart from `spent` for
+          # the reason the module docstring gives: metabolism is not a
+          # purchase. `spilled` is what the cap refused, and `owed` the
+          # fraction of a point the appetite is carrying -- persisted so a
+          # restart resumes mid-point instead of rounding a free meal.
+          "consumed": 0, "spilled": 0, "owed": 0.0,
+          "entries": []}
+
+
 class Ledger:
   """Per-robot balances and their earnings log.
 
@@ -75,16 +113,19 @@ class Ledger:
   def __init__(self, robots=(ROBOT_ROOT,),
                path: str | os.PathLike | None = None,
                table: RewardTable | None = None,
+               cap: int | None = None,
                clock: Callable[[], str] = _now) -> None:
     self.table = table if table is not None else default_table()
     self.path = Path(path) if path is not None else None
+    #: The most a balance may hold (issue #36), or None for the unbounded
+    #: accumulation every run before the metabolism had. Supplied by whoever
+    #: read `economy/metabolism.json`, so this class stays the thing that
+    #: BANKS and never the thing that decides the policy -- the same split as
+    #: `table`.
+    self.cap = int(cap) if cap is not None else None
     self.clock = clock
     self.on_event: list[Callable[[dict], None]] = []
-    self.robots: dict[str, dict] = {
-      name: {"balance": 0, "earned": 0, "spent": 0, "seq": 0, "dropped": 0,
-             "entries": []}
-      for name in robots
-    }
+    self.robots: dict[str, dict] = {name: _account() for name in robots}
     if self.path is not None and self.path.exists():
       self.load()
 
@@ -96,12 +137,28 @@ class Ledger:
       # the shared world grows a second robot before this file learns its
       # name -- but it starts at zero, which is the only honest opening
       # balance.
-      self.robots[robot] = {"balance": 0, "earned": 0, "spent": 0, "seq": 0,
-                            "dropped": 0, "entries": []}
+      self.robots[robot] = _account()
     return self.robots[robot]
 
   def balance(self, robot: str = ROBOT_ROOT) -> int:
     return self._acct(robot)["balance"]
+
+  def consumed(self, robot: str = ROBOT_ROOT) -> int:
+    """Points eaten by living, since this file was opened (issue #36)."""
+    return self._acct(robot)["consumed"]
+
+  def spilled(self, robot: str = ROBOT_ROOT) -> int:
+    """Points the CAP refused. The receipt for every award that came in over
+    the ceiling -- without it the robot would simply see the reward table
+    paying less than it says, which is the one thing a scoreboard may not
+    do quietly."""
+    return self._acct(robot)["spilled"]
+
+  def owed(self, robot: str = ROBOT_ROOT) -> float:
+    """The fraction of a point the appetite is carrying. Stored here rather
+    than in `Metabolism` because it has to survive a restart, and this is
+    the file that already does."""
+    return float(self._acct(robot)["owed"])
 
   def entries(self, robot: str = ROBOT_ROOT) -> list[dict]:
     return list(self._acct(robot)["entries"])
@@ -124,6 +181,14 @@ class Ledger:
         "balance": acct["balance"],
         "earned": acct["earned"],
         "spent": acct["spent"],
+        # What living has cost and what the cap refused (0.13.0, issue #36).
+        # Here as well as in the `metabolism` block because they are the
+        # BALANCE's arithmetic -- earned - consumed - spent is what is left,
+        # and a site showing the balance without them cannot explain it.
+        # Zero on every world with no appetite attached, which is honest:
+        # nothing has been eaten and nothing refused.
+        "consumed": acct["consumed"],
+        "spilled": acct["spilled"],
         "tasks": acct["seq"],
         "pending": sum(1 for e in acct["entries"] if e.get("pending")),
         # Compact on purpose: this rides in every keyframe, and the full
@@ -190,8 +255,13 @@ class Ledger:
     points = reward.points(entry["ok"], float(quality))
     entry.update({"pending": False, "settledBy": by, "quality": round(float(quality), 4),
                   "points": points, "settledAt": self.clock()})
-    acct["balance"] += points
-    acct["earned"] += points
+    # Through the cap like any other award (issue #36). A rating that arrives
+    # while the robot is full is worth exactly what the work was worth and
+    # exactly as much of it fits -- a deferred payout is not a way around a
+    # ceiling.
+    banked, over = self._to_balance(acct, points)
+    if self.cap is not None:
+      entry.update({"banked": banked, "spilled": over})
     entry["balance"] = acct["balance"]
     # `t` is when the RATING landed, not when the work was done -- the entry
     # keeps the latter, and `seq` is what ties the two messages together. Note
@@ -206,10 +276,19 @@ class Ledger:
             t: float, pending: bool = False) -> dict:
     acct = self._acct(robot)
     acct["seq"] += 1
-    acct["balance"] += points
-    acct["earned"] += points
+    banked, over = self._to_balance(acct, int(points))
     entry = {"seq": acct["seq"], "t": round(float(t), 3), "at": self.clock(),
-             "task": task, "tier": tier, "ok": bool(ok), "points": int(points),
+             "task": task, "tier": tier, "ok": bool(ok),
+             # ⚠ WHAT THE JOB PAID, NOT WHAT FIT. `points` stays the reward
+             # table's answer whatever the cap did, because that is the
+             # number `award` above re-derived and the number the robot was
+             # promised. `banked` and `spilled` are how much of it reached
+             # the balance -- present only where a cap can actually refuse
+             # something, so every capless run's entries are byte-identical
+             # to the ones it wrote before this existed.
+             "points": int(points),
+             **({"banked": banked, "spilled": over}
+                if self.cap is not None else {}),
              "quality": quality, "reason": reason, "metrics": metrics,
              "pending": bool(pending), "balance": acct["balance"]}
     acct["entries"].append(entry)
@@ -218,6 +297,67 @@ class Ledger:
       del acct["entries"][:len(acct["entries"]) - MAX_ENTRIES]
     self._emit({"type": "earned", "robot": robot, **entry})
     return entry
+
+  def _to_balance(self, acct: dict, points: int) -> tuple[int, int]:
+    """Bank `points`, refusing whatever the cap will not hold.
+
+    `earned` follows the BALANCE rather than the reward table, so
+    earned - consumed - spent == balance stays an identity a reader can
+    check. What the table paid over the ceiling is in `spilled`, and the two
+    together reconstruct the gross.
+    """
+    banked = (points if self.cap is None
+              else max(0, min(points, self.cap - acct["balance"])))
+    over = points - banked
+    acct["balance"] += banked
+    acct["earned"] += banked
+    acct["spilled"] += over
+    return banked, over
+
+  # ---- the one way down (issue #36) ----------------------------------------
+
+  def carry(self, owed: float, robot: str = ROBOT_ROOT) -> None:
+    """Record the fraction of a point the appetite has not charged yet.
+
+    IN MEMORY ONLY, and deliberately: this moves every tick, and saving a
+    file a second on the physics thread to persist a hundredth of a point
+    would be paying for the accuracy in the wrong currency. Any later
+    `save()` -- an award, a consume -- writes whatever the carry is by then,
+    so the most a crash can round in the robot's favour is the fraction
+    accumulated since the last write, which is under one point by
+    construction.
+    """
+    self._acct(robot)["owed"] = round(float(owed), 6)
+
+  def consume(self, points: int, t: float = 0.0, robot: str = ROBOT_ROOT,
+              owed: float | None = None) -> int:
+    """Eat `points`. The ONLY method that moves a balance down.
+
+    Called by `economy/metabolism.py` off the physics seam, never by anything
+    the robot can influence -- which is `award`'s rule inverted, and the same
+    reason: a robot that could decline to be hungry would.
+
+    ⚠ THE FLOOR IS ZERO, AND THERE IS NO DEBT. A starving robot that earns
+    five points has five points, not five minus however long it went without
+    -- arrears would make the first job after a bad night pay nothing, which
+    is the discouragement gradient at exactly the wrong moment. Hunger is a
+    state to be shown, never a hole to be climbed out of (issue #36, "zero is
+    narrative, never a capability lock").
+
+    No event and no `_emit`: consumption is CONTINUOUS, and one message per
+    point would bury the awards it sits between. The `metabolism` block in
+    every frame is where a site reads it. The save is here because the write
+    is what makes hunger survive a restart, and it lands at the appetite's
+    rate -- a handful of times a sim-hour, exactly like an award.
+    """
+    acct = self._acct(robot)
+    eaten = max(0, min(int(points), acct["balance"]))
+    acct["balance"] -= eaten
+    acct["consumed"] += eaten
+    if owed is not None:
+      self.carry(owed, robot)
+    self.save()
+    return eaten
 
   def _emit(self, msg: dict) -> None:
     for hook in self.on_event:
@@ -268,6 +408,11 @@ class Ledger:
         # were: `seq` is the counter, not the length.
         "seq": int(acct.get("seq", len(entries))),
         "dropped": int(acct.get("dropped", 0)),
+        # Absent in a v1 file, and zero is what one honestly means: it was
+        # written by a build in which nothing was ever eaten.
+        "consumed": int(acct.get("consumed", 0)),
+        "spilled": int(acct.get("spilled", 0)),
+        "owed": float(acct.get("owed", 0.0)),
         "entries": entries,
       }
     return self
