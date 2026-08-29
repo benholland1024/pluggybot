@@ -43,14 +43,14 @@ is exactly as hard as the walls make it and not an inch harder.
 import json
 import math
 
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml, rack_frame_to_world,
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.activity.plate import (
   GATE_HALF_LEN, plate_gate_xml,
 )
-from pluggybot.hub.tags import asset_xml, write_tag_pngs
+from pluggybot.rack.tags import asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
 # The ORIGIN sits inside the living room, like room_1's: the robot model
@@ -139,7 +139,7 @@ HOME_DEMO_CAPACITY_WH = 1.1
 #: energy needed to reach the dock -- a property of the FLOOR PLAN, not a
 #: fraction of the pack (the milestone-7 lesson) -- so it is the same 0.55 Wh
 #: on either cell. What changes on a hosting pack is that the reserve becomes
-#: a margin the robot can afford to KEEP: hub/energy.py then requires every
+#: a margin the robot can afford to KEEP: economy/energy.py then requires every
 #: errand to finish with it intact, which is what stops a mid-errand death.
 HOME_HOSTING_CAPACITY_WH = 8.0
 
@@ -270,7 +270,7 @@ def build_home_world() -> tuple[str, dict]:
 
   # The reference activity. Its module owns BOTH the geometry and the state
   # machine (activity/plate.py), so a world adds one by calling one function
-  # -- the same shape as hub/coupling.py owning the tool modules' faces.
+  # -- the same shape as rack/coupling.py owning the tool modules' faces.
   # No visual hints: there is no `gate` or `plate` in the vocabulary, and the
   # website falls back to raw primitives for an unhinted body. Adding one is
   # additive whenever the site wants a parametric gate, but inventing hints

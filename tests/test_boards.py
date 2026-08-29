@@ -6,11 +6,11 @@ import math
 import mujoco
 import pytest
 
-from pluggybot.hub.boards import CELL, BoardBook, BoardRecord, decimate
-from pluggybot.hub.drawing import Board, Envelope, board_standoff
-from pluggybot.hub.errand import carry_errand, drawing_errand
-from pluggybot.hub.lifecycle import board_book, errands_for
-from pluggybot.hub import strokes
+from pluggybot.tools.boards import CELL, BoardBook, BoardRecord, decimate
+from pluggybot.tools.drawing import Board, Envelope, board_standoff
+from pluggybot.mission.errand import carry_errand, drawing_errand
+from pluggybot.lifecycle import board_book, errands_for
+from pluggybot.tools import strokes
 
 META = json.load(open("models/home_world.meta.json"))
 BOARD_A = Board.from_meta(META["boards"]["whiteboard_a"])
@@ -293,7 +293,7 @@ def test_the_remembered_lines_are_capped_and_say_so():
   """An un-erased board must not grow an unbounded state file or an
   unbounded join message. Oldest-first, and counted: a snapshot missing the
   start of a long drawing reports how much it is missing."""
-  from pluggybot.hub.boards import MAX_LINES
+  from pluggybot.tools.boards import MAX_LINES
   b = book()
   for _ in range(MAX_LINES + 5):
     b.stroke("whiteboard_a", "house", square(size=0.01))
@@ -400,9 +400,9 @@ def test_a_real_drawing_reaches_the_board_state():
   was commanded, arriving as each stroke finishes rather than in a lump at
   the end (which is what makes a drawing watchable).
   """
-  from pluggybot.hub.coupling import HUB_STATION_YS
-  from pluggybot.hub.drawing import PenPlotter
-  from pluggybot.hub.swap import HubSwap
+  from pluggybot.rack.coupling import HUB_STATION_YS
+  from pluggybot.tools.drawing import PenPlotter
+  from pluggybot.rack.swap import HubSwap
 
   model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
   data = mujoco.MjData(model)

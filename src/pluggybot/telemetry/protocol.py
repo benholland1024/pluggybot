@@ -113,7 +113,7 @@ PROTOCOL_VERSION = "0.12.0"
 #        merge it. It is still sparse in time (emitted only when something
 #        changed) and still re-shipped on every keyframe.
 #        The header gains "taskKinds": the kind vocabulary this producer can
-#        offer (`pluggybot.hub.tasks.KINDS`), empty for a run with no task
+#        offer (`pluggybot.economy.tasks.KINDS`), empty for a run with no task
 #        board. A two-repo contract on the same terms as FACE_STATES: adding
 #        a kind is additive (draw a generic marker for one you do not know),
 #        renaming one breaks both repos.
@@ -132,7 +132,7 @@ PROTOCOL_VERSION = "0.12.0"
 #           than a marker vanishing.
 #        ⚠ What a task does NOT carry is the point of the design. It has no
 #        points figure of its own -- `reward` is looked up from
-#        hub/rewards.json every time the block is built, so nothing that can
+#        economy/rewards.json every time the block is built, so nothing that can
 #        create a task (a visitor, an LLM) can price one. And the honesty
 #        rule the whole milestone is governed by applies here first: the wire
 #        may carry anything a network could carry (a work order, a surveyed
@@ -185,7 +185,7 @@ PROTOCOL_VERSION = "0.12.0"
 #        ⚠ Visitor text is DATA, never instructions. The sim caps it at 280
 #        characters, strips control characters, collapses it to one line, and
 #        frames it to the overseer as something a person WANTS. The robot's
-#        freedom to decline is the defence; see hub/inbox.py.
+#        freedom to decline is the defence; see mind/inbox.py.
 #        UPSTREAM, two new typed messages:
 #          {"type": "visitor_reply", "t": 412.5, "robot": "pluggybot",
 #           "id": "s_01", "kind": "suggestion", "outcome": "accepted",
@@ -221,7 +221,7 @@ PROTOCOL_VERSION = "0.12.0"
 #        Additive: a 0.5.0 consumer that ignores both renders what it did.
 #        ⚠ What is NOT on the wire is as deliberate as what is: a hidden
 #        ground-truth task publishes its verdict without its ANSWER (the
-#        census's `truth` is redacted by hub/scoring.py), because the ledger
+#        census's `truth` is redacted by economy/scoring.py), because the ledger
 #        is streamed to the site AND shown to the LLM overseer as context --
 #        and a task the robot is supposed to discover must not arrive
 #        pre-solved in its own scoreboard.
@@ -244,7 +244,7 @@ PROTOCOL_VERSION = "0.12.0"
 #        currently carrying, emitted when a stream OPENS. Ink is not a
 #        pose, so nothing else in the stream can catch a late joiner up:
 #        keyframes re-ship the "boards" counters but never the lines, and a
-#        board that survived a producer restart (hub/boards.py persists the
+#        board that survived a producer restart (tools/boards.py persists the
 #        polylines as of this version) has strokes no live "draw" event
 #        will ever describe again. Additive: a consumer that ignores it
 #        renders exactly what 0.4.0 rendered.
@@ -315,7 +315,7 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 # (the sim counts and drops an unknown inbound type; a consumer ignores an
 # unknown outcome); renaming one breaks both repos.
 #
-# They live HERE rather than in hub/inbox.py, which is where the parsing is,
+# They live HERE rather than in mind/inbox.py, which is where the parsing is,
 # so the wire spec and the parser cannot disagree -- and in this direction,
 # because `hub` already imports `telemetry` and the reverse would invert the
 # layering for a tuple of strings.
@@ -348,7 +348,7 @@ INBOUND_TYPES = ("suggestion", "question", "rating", "reset_tool")
 CODE_HANDLED_TYPES = ("rating", "reset_tool")
 
 # The task system's vocabularies (issue #21). Two-repo contracts on the same
-# terms as the three above. They live here rather than in hub/tasks.py, which
+# terms as the three above. They live here rather than in economy/tasks.py, which
 # is where the state machine is, so the wire spec and the implementation
 # cannot disagree -- and in this direction, because `hub` already imports
 # `telemetry`.
@@ -382,21 +382,21 @@ VISITOR_OUTCOMES = ("accepted", "declined", "answered")
 #: ⚠ These are the operator's, never the robot's. There is no inbound
 #: message and no decision field that sets one -- a mode is how a person
 #: stops a robot that is behaving badly or spending money, and a kill switch
-#: the thing being killed can reach is not a kill switch. hub/mode.py is the
+#: the thing being killed can reach is not a kill switch. mind/mode.py is the
 #: sim's end and it has no writer at all.
 MODES = ("llm", "scripted", "paused")
 
 # The thought files (issue #38). Two-repo vocabulary on the same terms as
 # TASK_STATES above: the names and the writers are what the wire may carry,
 # while the CAPS and the write rules are sim-side facts and live in
-# hub/thoughts.py, which owns the one write path that enforces them.
+# mind/thoughts.py, which owns the one write path that enforces them.
 #
 # ⚠ WHO MAY WRITE IS THE WHOLE POINT, and it is per file rather than per
 # robot. `human` is a person editing the file on the volume -- persona and
 # purpose, which a robot that could rewrite them would make meaningless.
 # `system` is append-only narrative: code writes what happened and nothing
 # revises it, the same principle that stops the robot awarding itself points
-# (hub/scoring.py). `robot` is the one genuinely writable surface. Rendering
+# (economy/scoring.py). `robot` is the one genuinely writable surface. Rendering
 # the four identically would claim a mind that wrote its own persona, which
 # is the `steering` mistake one loop over.
 THOUGHT_WRITERS = ("human", "system", "robot")

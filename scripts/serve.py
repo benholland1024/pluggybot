@@ -41,14 +41,14 @@ import time
 
 import mujoco
 
-from pluggybot.hub import llm, overseer
-from pluggybot.hub.mode import open_switch
-from pluggybot.hub.overseer import ESCALATE_MODEL
-from pluggybot.hub.spend import WEEKLY_USD, open_book
-from pluggybot.hub.inbox import Inbox
-from pluggybot.hub.cadence import default_cadence
-from pluggybot.hub.thoughts import ThoughtFiles
-from pluggybot.hub.lifecycle import (
+from pluggybot.mind import llm, overseer
+from pluggybot.mind.mode import open_switch
+from pluggybot.mind.overseer import ESCALATE_MODEL
+from pluggybot.mind.spend import WEEKLY_USD, open_book
+from pluggybot.mind.inbox import Inbox
+from pluggybot.economy.cadence import default_cadence
+from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.lifecycle import (
   HubLifecycle, attach_mode_stream, board_book, errands_for, points_ledger,
   task_board, task_producer, world_config, world_screens,
 )
@@ -74,7 +74,7 @@ def main() -> None:
                       help="which cell to serve on (issue #15). `demo` is the "
                            "minutes-long cell the mission tests use; "
                            "`hosting` is the hours-long one a watched world "
-                           "wants, where hub/energy.py's return-trip margin "
+                           "wants, where economy/energy.py's return-trip margin "
                            "becomes real and an errand is deferred rather "
                            "than started on a pack that cannot finish it")
   parser.add_argument("--battery-wh", type=float, default=None,
@@ -118,8 +118,8 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. More arrive on "
-                           "the cadence in hub/cadence.json as the run goes "
+                           "economy/rewards.json and a deadline. More arrive on "
+                           "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
@@ -202,7 +202,7 @@ def main() -> None:
   # Job offers (issue #21), and world state on exactly the terms the boards
   # and the ledger are: a task that vanished because the container cycled is
   # a job somebody asked for and nobody ever declined. Off unless asked for.
-  # ...on the timing policy in hub/cadence.json (issue #23): how often work
+  # ...on the timing policy in economy/cadence.json (issue #23): how often work
   # appears, how long an offer stands, how much may stand at once and how long
   # a target rests. Configuration rather than constants, and $PLUGGY_CADENCE
   # re-tunes how busy a deployed world is without a rebuild.
@@ -263,7 +263,7 @@ def main() -> None:
   # (issue #15). The RESERVE is not scaled with it -- it is the absolute
   # energy needed to reach the dock, a property of the floor plan -- but on a
   # hosting pack it becomes a margin every errand must leave intact, which is
-  # what hub/energy.py enforces and what stops a mid-errand death.
+  # what economy/energy.py enforces and what stops a mid-errand death.
   pack_wh = (cfg["battery_wh"] if args.pack == "demo"
              else cfg["hosting_battery_wh"])
   life = HubLifecycle(model, data, inbox=inbox,
@@ -330,7 +330,7 @@ def main() -> None:
   life.visitor_hooks.append(publisher.message)
   if inbox is not None:
     # THE OTHER DIRECTION. `offer` runs on the publisher's socket thread and
-    # does nothing but validate and enqueue -- see hub/inbox.py for why that
+    # does nothing but validate and enqueue -- see mind/inbox.py for why that
     # is the whole of what it is allowed to do.
     publisher.on_inbound.append(inbox.offer)
   pacer = None

@@ -1,10 +1,10 @@
 """When work appears, how long it stands, and how much of it there may be
 (issue #23).
 
-hub/tasks.py owns what a task IS and what may happen to it, and says in its
+economy/tasks.py owns what a task IS and what may happen to it, and says in its
 own docstring that timing policy is deliberately not there. This is that
-policy, and it is DATA -- hub/cadence.json, overridable per deploy with
-$PLUGGY_CADENCE, on exactly the terms hub/rewards.json is data. The three
+policy, and it is DATA -- economy/cadence.json, overridable per deploy with
+$PLUGGY_CADENCE, on exactly the terms economy/rewards.json is data. The three
 files divide cleanly and that is the point: what a job is, what it pays, and
 when it turns up are re-tuned one at a time.
 
@@ -51,11 +51,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pluggybot.hub.tasks import KINDS, TaskBoard
+from pluggybot.economy.tasks import KINDS, TaskBoard
 
 #: The shipped cadence. Overridable per deploy with $PLUGGY_CADENCE, which is
 #: how the deployment re-tunes how busy the world is on a mounted volume
-#: without a rebuild -- the same door hub/rewards.json and hub/questions.json
+#: without a rebuild -- the same door economy/rewards.json and economy/questions.json
 #: are opened by.
 CADENCE_PATH = Path(__file__).with_name("cadence.json")
 CADENCE_ENV = "PLUGGY_CADENCE"
@@ -72,7 +72,7 @@ CHECK_S = 1.0
 
 @dataclass(frozen=True)
 class Cadence:
-  """One world's timing policy, as read off hub/cadence.json.
+  """One world's timing policy, as read off economy/cadence.json.
 
   Frozen, and every field is a number or a name -- a Cadence is the ANSWER to
   "how busy is this world", not a thing that decides it. `TaskProducer` below
@@ -177,7 +177,7 @@ class TaskProducer:
   Deliberately knows nothing about the world it is producing for beyond
   `targets`: a mapping of `TaskKind.target_kind` ("board", "zone", "module")
   to the names this world actually has. That is what keeps the layering one
-  way -- hub/lifecycle.py knows about worlds and hands the furniture in, and
+  way -- pluggybot/lifecycle.py knows about worlds and hands the furniture in, and
   nothing here imports it back.
 
   `board` is the `TaskBoard`, which stays the only thing that moves a task.
@@ -371,7 +371,7 @@ class TaskProducer:
       params["program"] = programs[self.figure % len(programs)]
       self.figure += 1
     if kind == "whiteboard_answer":
-      from pluggybot.hub.questions import default_bank
+      from pluggybot.economy.questions import default_bank
       question = default_bank().pick(self.board.seq)
       params.update({"question": question.ask, "template": question.id})
       return params, {"answer": question.answer}

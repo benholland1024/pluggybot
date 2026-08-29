@@ -14,7 +14,7 @@ Usage:
 import argparse
 import math
 
-from pluggybot.hub.mission import run_demo
+from pluggybot.mission.mission import run_demo
 
 
 def main() -> None:

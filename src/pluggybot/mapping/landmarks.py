@@ -139,7 +139,7 @@ def wall_normal_conf(grid, x: float, y: float,
   pointing at the wrong FACE of a correctly-found axis; this one says the
   axis itself is not there to be found. A caller that has a better answer
   already -- a remembered pose, a prior -- should keep it rather than adopt
-  one of these (hub/localize.py, `RackFinder.estimate`).
+  one of these (rack/localize.py, `RackFinder.estimate`).
   """
   fx = fy = 0.0
   free = 0

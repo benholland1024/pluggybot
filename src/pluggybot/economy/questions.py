@@ -8,7 +8,7 @@ ledger. What is new is the question, the answer, and the two different things
 that have to be true for the job to have been done.
 
   THE ARITHMETIC IS THE MIND'S JOB. The answer comes from whatever is
-  deciding for the robot (`hub/overseer.py`), travels with the CLAIM, and is
+  deciding for the robot (`mind/overseer.py`), travels with the CLAIM, and is
   frozen into the task before a wheel turns. Code never computes it -- a sim
   that answered its own question would be marking its own homework, and the
   whole point of the kind is that a weaker backend (issue #19) gets it wrong
@@ -68,7 +68,7 @@ deliberately NO expression evaluator here: a data file that can compute is a
 data file that can be made to compute something else, and the bank is the one
 thing in this module a deploy is expected to edit. Adding a question is a
 JSON edit and a restart ($PLUGGY_QUESTIONS to point somewhere else), exactly
-as re-pricing a task is (`hub/rewards.json`).
+as re-pricing a task is (`economy/rewards.json`).
 
 Answers are numeric and at most `MAX_ANSWER` characters, and that is a
 MACHINE limit rather than a taste one: the pen's usable line is 100 mm wide,
@@ -84,7 +84,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pluggybot.hub import hershey
+from pluggybot.tools import hershey
 
 BANK_PATH = Path(__file__).with_name("questions.json")
 BANK_ENV = "PLUGGY_QUESTIONS"
@@ -97,8 +97,8 @@ BANK_VERSION = 1
 #: would silently shrink the whole answer instead.
 ANSWER_CAP = 0.050
 #: ...and the widest line, which is `strokes.TEXT_WIDTH`. Duplicated rather
-#: than imported because `hub/strokes.py` reaches MuJoCo through
-#: `hub/drawing.py`, and this module is on the evaluator's path, which is
+#: than imported because `tools/strokes.py` reaches MuJoCo through
+#: `tools/drawing.py`, and this module is on the evaluator's path, which is
 #: pure. `test_questions.py` asserts the two agree.
 ANSWER_WIDTH = 0.100
 #: Characters an answer may have. See the module docstring -- three do not
@@ -110,7 +110,7 @@ MAX_ANSWER = 2
 #: need "YES" (three glyphs) or a convention nobody watching would read.
 ANSWER_ALPHABET = "0123456789"
 #: Longest question text. A question is a sentence somebody reads off a
-#: marker on a website; `hub/inbox.py` caps a visitor's suggestion at 280 for
+#: marker on a website; `mind/inbox.py` caps a visitor's suggestion at 280 for
 #: the same reason, and a question may come from one (issue #23).
 MAX_QUESTION = 200
 
@@ -149,7 +149,7 @@ def clean_answer(text) -> str:
 
   Sanitising, on the inbox's terms and for the inbox's reason: this is the
   ONE string a model chooses that ends up drawn a metre wide on a wall a
-  stranger is watching. `hub/overseer.py` keeps `text` off the figure menu
+  stranger is watching. `mind/overseer.py` keeps `text` off the figure menu
   precisely because it takes arbitrary caller text -- an answer is where
   that lands safely, and it is safe because of this function rather than
   because of anything the model was asked to do.
@@ -166,13 +166,13 @@ def clean_answer(text) -> str:
 def answer_strokes(text: str) -> tuple[tuple[tuple[float, float], ...], ...]:
   """The polylines that WRITE an answer, in board-local metres.
 
-  The single implementation, used twice: `hub/strokes.py` registers it as the
+  The single implementation, used twice: `tools/strokes.py` registers it as the
   `answer` program so the plotter can draw one, and the evaluator renders the
   same call to compare against the ink. Two renderings that could disagree
   would be a grader marking against a figure the robot was never asked to
   draw.
 
-  `-x` is the board's lateral flip (`hub/strokes.py`: +lat is the viewer's
+  `-x` is the board's lateral flip (`tools/strokes.py`: +lat is the viewer's
   LEFT, so text advances toward -lat). It is applied here rather than by the
   caller so that the reference and the drawing cannot end up mirrored
   relative to each other -- a fault no symmetric diagnostic can see.
@@ -220,7 +220,7 @@ class Question:
       raise ValueError(
         f"question {qid!r} answers {raw!r}, which this pen cannot write -- "
         f"answers are at most {MAX_ANSWER} characters from "
-        f"{ANSWER_ALPHABET!r} (hub/questions.py: it is the carriage's "
+        f"{ANSWER_ALPHABET!r} (economy/questions.py: it is the carriage's "
         f"100 mm line, not a style rule)")
     return cls(id=qid, ask=ask, answer=answer,
                note=str(spec.get("note", "")).strip())
@@ -376,7 +376,7 @@ def ink_match(drawn, answer: str) -> dict | None:
   and fitting them out would be the grader helping.
 
   NONE, NOT ZERO, for a board with no ink on it. A missing measurement is not
-  a passing one (hub/scoring.py), and the evaluator is what turns the absence
+  a passing one (economy/scoring.py), and the evaluator is what turns the absence
   into a failure.
   """
   ink = [tuple(tuple(float(v) for v in p) for p in line)

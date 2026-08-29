@@ -14,7 +14,7 @@ from pathlib import Path
 import mujoco
 import pytest
 
-from pluggybot.hub.drawing import Board, PenPlotter
+from pluggybot.tools.drawing import Board, PenPlotter
 from pluggybot.home import world as home
 from pluggybot.telemetry.protocol import VISUAL_HINTS
 from pluggybot.telemetry.scene import scene_dict

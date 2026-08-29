@@ -20,7 +20,7 @@ Coordinates are `ord(c) - ord('R')`, and JHF's y axis points DOWN with the
 baseline at y = +9. This module flips it once, at parse time, into the frame
 the rest of the repo thinks in -- x right, **y up**, origin on the baseline at
 the glyph's left bearing -- so no consumer has to remember the flip. The
-board's own lateral sign flip lives in `hub/strokes.py`, for the same reason:
+board's own lateral sign flip lives in `tools/strokes.py`, for the same reason:
 each convention gets exactly one place where it is applied.
 
 Sizes are quoted as CAP HEIGHT (the height of an 'A'), not as an em, because

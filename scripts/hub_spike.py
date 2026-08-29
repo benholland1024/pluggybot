@@ -15,7 +15,7 @@ import argparse
 import numpy as np
 from PIL import Image
 
-from pluggybot.hub.coupling import run_cycle, run_pick
+from pluggybot.rack.coupling import run_cycle, run_pick
 
 
 def sweep(name: str, values, kw_of) -> None:

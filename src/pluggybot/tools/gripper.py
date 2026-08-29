@@ -32,8 +32,8 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
-from pluggybot.hub.coupling import CLAW_JAW_TRAVEL
-from pluggybot.hub.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
+from pluggybot.rack.coupling import CLAW_JAW_TRAVEL
+from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
 
 CLAW_MODULE = "module_claw"
 JAW_GEOMS = ("module_claw_pad_l", "module_claw_pad_r")

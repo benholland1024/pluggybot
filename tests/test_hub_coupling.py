@@ -1,11 +1,11 @@
-"""Guards for the hub tool-coupling spike (hub/coupling.py, milestone-8 prep).
+"""Guards for the hub tool-coupling spike (rack/coupling.py, milestone-8 prep).
 
 These pin the MEASURED envelope. If a geometry change makes the "outside the
 envelope" test start passing, that is good news wearing a test failure --
 re-measure and update SimNotes, don't just delete the assert.
 """
 
-from pluggybot.hub.coupling import run_cycle, run_pick
+from pluggybot.rack.coupling import run_cycle, run_pick
 
 
 def test_aligned_cycle_picks_and_returns():

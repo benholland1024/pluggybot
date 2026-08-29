@@ -1,6 +1,6 @@
 """How far the ink sits from the glyphs it was meant to be (issue #22).
 
-The measurement `hub/questions.py`'s fidelity bar is set from, and the one
+The measurement `economy/questions.py`'s fidelity bar is set from, and the one
 that has to be re-run whenever the pen, the board or the answer's cap height
 moves. It draws with the REAL plotter on a real board and reports, for each
 drawing, the symmetric distance to a handful of candidate answers plus how
@@ -16,7 +16,7 @@ Two rows are the whole point:
 The near-miss digits are there to show what the bar CANNOT do: a 6 and an 8
 are closer together than a correct drawing is to its own ideal, which is why
 correctness is decided against the answer the mind committed to and never by
-reading the board (hub/questions.py, "Why the ink is a FIDELITY check").
+reading the board (economy/questions.py, "Why the ink is a FIDELITY check").
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/answer_spike.py
@@ -27,11 +27,12 @@ import argparse
 
 import mujoco
 
-from pluggybot.hub import questions, strokes
-from pluggybot.hub.boards import decimate
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.drawing import PenPlotter
-from pluggybot.hub.swap import HubSwap
+from pluggybot.economy import questions
+from pluggybot.tools import strokes
+from pluggybot.tools.boards import decimate
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.tools.drawing import PenPlotter
+from pluggybot.rack.swap import HubSwap
 
 CANDIDATES = ("5", "6", "8", "12", "15")
 

@@ -5,7 +5,7 @@ The mission stack, reusing every layer that already exists:
   map        look-around spin + scans -> occupancy grid (milestone 4)
   localize   the rack is FOUND, not assumed: its fiducial is watched for
              through every maneuver and confirmed by sighting count
-             (hub/localize.py). The stored pose is only the boot-time prior
+             (rack/localize.py). The stored pose is only the boot-time prior
              -- what a robot that started docked knows -- and observation
              overrides it.
   plan       A* over the inflated grid to the believed hand-off pose
@@ -16,9 +16,9 @@ The mission stack, reusing every layer that already exists:
              off the rack's tag rather than integrated from odometry (which
              had drifted ~20 mm by the return leg -- twice the coupling's
              capture window)
-  swap       HubSwap's verbs (hub/swap.py), timestep dropped to 1 ms
+  swap       HubSwap's verbs (rack/swap.py), timestep dropped to 1 ms
 
-The markers are real tag36h11 AprilTags (hub/tags.py), so every reading is
+The markers are real tag36h11 AprilTags (rack/tags.py), so every reading is
 tied to a decoded ID rather than to whichever blob looked most promising.
 Range comes from each marker's own PnP pose -- no depth buffer, matching
 what the hardware will actually have.
@@ -34,15 +34,15 @@ from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
 )
-from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
-from pluggybot.hub.tags import (
+from pluggybot.rack.localize import TAG_LOCAL_X, RackFinder, RackPose
+from pluggybot.rack.tags import (
   CHARGE_TAG_ID, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
-from pluggybot.hub.swap import (
+from pluggybot.rack.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )

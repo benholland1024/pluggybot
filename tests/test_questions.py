@@ -24,15 +24,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from pluggybot.hub import lifecycle as lc
-from pluggybot.hub import questions as q
-from pluggybot.hub import scoring, strokes
-from pluggybot.hub.boards import BoardBook, BoardRecord, decimate
-from pluggybot.hub.drawing import Envelope
-from pluggybot.hub.errand import Errand
-from pluggybot.hub.ledger import Ledger
-from pluggybot.hub.overseer import Menu, scripted
-from pluggybot.hub.tasks import KINDS, TaskBoard
+from pluggybot import lifecycle as lc
+from pluggybot.economy import questions as q
+from pluggybot.economy import scoring
+from pluggybot.tools import strokes
+from pluggybot.tools.boards import BoardBook, BoardRecord, decimate
+from pluggybot.tools.drawing import Envelope
+from pluggybot.mission.errand import Errand
+from pluggybot.economy.ledger import Ledger
+from pluggybot.mind.overseer import Menu, scripted
+from pluggybot.economy.tasks import KINDS, TaskBoard
 
 TABLE = scoring.default_table()
 BANK = q.default_bank()
@@ -166,7 +167,7 @@ def test_picking_a_question_is_deterministic_and_wraps():
 def test_an_answer_is_sanitised_before_it_can_become_a_stroke(raw, want):
   """`clean_answer` is the security boundary the `text` program never had.
 
-  `hub/overseer.py` keeps `text` off the figure menu precisely because it
+  `mind/overseer.py` keeps `text` off the figure menu precisely because it
   takes arbitrary caller text; this is where that lands safely, and it is
   safe because everything outside a two-character numeric alphabet is
   dropped -- not escaped, dropped.
@@ -594,10 +595,10 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   bigger battery and that whole path stops being exercised.
   """
   import mujoco
-  from pluggybot.hub import energy
-  from pluggybot.hub.journal import Journal
-  from pluggybot.hub.mission import MissionAborted
-  from pluggybot.hub.overseer import Overseer
+  from pluggybot.economy import energy
+  from pluggybot.mind.journal import Journal
+  from pluggybot.mission.mission import MissionAborted
+  from pluggybot.mind.overseer import Overseer
 
   cfg = lc.world_config("home")
   model = mujoco.MjModel.from_xml_path(cfg["model"])

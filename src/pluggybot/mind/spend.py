@@ -2,7 +2,7 @@
 
 Money enters this repo for the first time here, and the design is the points
 ledger's, one layer up: the robot can SEE what it has spent and has no verb
-that moves it. Nothing in `hub/overseer.py` writes this file -- the spend is
+that moves it. Nothing in `mind/overseer.py` writes this file -- the spend is
 recorded by the code that made the call, from the response's own usage block
 and the backend's own rates, after the fact. A model cannot decline to be
 billed.

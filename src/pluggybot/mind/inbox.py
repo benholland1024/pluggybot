@@ -209,7 +209,7 @@ class Inbox:
     module = ""
     if kind == "reset_tool":
       # A name, not free text: same cap as an id, and WHICH modules exist is
-      # the handler's question (hub/lifecycle.py), not this queue's.
+      # the handler's question (pluggybot/lifecycle.py), not this queue's.
       module = clean(raw.get("module"), MAX_ID)
       if not module:
         return None                         # nothing was actually named

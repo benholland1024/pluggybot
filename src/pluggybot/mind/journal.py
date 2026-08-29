@@ -27,7 +27,7 @@ Two files, and the asymmetry between them is the point:
 
 Neither is scoring, and neither can become scoring: nothing here has a path to
 `Ledger.award`, and the journal is `narrative` tier -- the one tier in
-hub/scoring.py with no evaluator and none coming. A robot writing "I did great
+economy/scoring.py with no evaluator and none coming. A robot writing "I did great
 today" earns nothing by writing it.
 """
 
@@ -82,14 +82,14 @@ def read_goals(path: str | os.PathLike | None = None) -> str:
   a sensible default purpose and says so.
 
   ⚠ Since issue #38 this file is `Goals.md`, one of the four thought files,
-  and `hub/thoughts.py` owns the reading of it. This DELEGATES rather than
+  and `mind/thoughts.py` owns the reading of it. This DELEGATES rather than
   keeping a second copy of the rule: two implementations of "read it, cap
   it, fall back to the defaults" is exactly the drift that ends with
   different prose in the model's prompt and on the wire. Kept under the name
   every caller before #38 used. The import is local because `thoughts`
   imports the defaults and the cap from this module.
   """
-  from pluggybot.hub.thoughts import GOALS, ThoughtFiles
+  from pluggybot.mind.thoughts import GOALS, ThoughtFiles
   return ThoughtFiles(goals_path=path).read(GOALS)
 
 
@@ -146,7 +146,7 @@ class Journal:
     return list(self.notes[-n:])
 
   # ---- persistence ----------------------------------------------------------
-  # Same shape as hub/ledger.py and hub/boards.py, and for the same reason:
+  # Same shape as economy/ledger.py and tools/boards.py, and for the same reason:
   # /var/lib/pluggybot outlives the image, so this must survive the restart
   # that ends every mission.
 

@@ -17,8 +17,8 @@ Three more structural rules, each of which is a thing this module cannot do
 rather than a thing it promises not to:
 
   IT CANNOT AWARD ITSELF POINTS. The reward table is in its context because
-  making the reward explicit is the point; `hub/scoring.py` measures the
-  finished task off the sim and `hub/ledger.py` re-derives the payout before
+  making the reward explicit is the point; `economy/scoring.py` measures the
+  finished task off the sim and `economy/ledger.py` re-derives the payout before
   banking it, and neither takes an argument from here. The overseer chooses
   what to attempt; code decides what it was worth.
 
@@ -62,13 +62,13 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
-from pluggybot.hub import llm
-from pluggybot.hub.inbox import MAX_ID, clean
-from pluggybot.hub.journal import Journal
-from pluggybot.hub.questions import clean_answer
-from pluggybot.hub.spend import SpendBook
-from pluggybot.hub.scoring import RewardTable, default_table
-from pluggybot.hub.thoughts import (
+from pluggybot.mind import llm
+from pluggybot.mind.inbox import MAX_ID, clean
+from pluggybot.mind.journal import Journal
+from pluggybot.economy.questions import clean_answer
+from pluggybot.mind.spend import SpendBook
+from pluggybot.economy.scoring import RewardTable, default_table
+from pluggybot.mind.thoughts import (
   GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
 )
 from pluggybot.telemetry.protocol import (
@@ -304,8 +304,8 @@ class Menu:
 
   @classmethod
   def for_world(cls, world: str, book=None) -> "Menu":
-    from pluggybot.hub import strokes
-    from pluggybot.hub.lifecycle import world_config
+    from pluggybot.tools import strokes
+    from pluggybot.lifecycle import world_config
     cfg = world_config(world)
     zones = tuple(z["name"] for z in cfg["zones"])
     census = (cfg.get("census_zone") or {}).get("name", "") \
@@ -327,7 +327,7 @@ class Menu:
                programs=programs, zones=zones, census_zone=census)
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
-    from pluggybot.hub import energy as energy_model
+    from pluggybot.economy import energy as energy_model
     costs = energy_model.load(world)
     return replace(menu, costs_wh=costs.as_context(menu.available()))
 
@@ -401,7 +401,7 @@ class Menu:
         "answer": {"type": "string"},
         # The thought files (issue #38). Free strings, capped in `validate`
         # -- the schema cannot express "one line, 400 characters", and the
-        # write path in hub/thoughts.py refuses anything the cap or the
+        # write path in mind/thoughts.py refuses anything the cap or the
         # permission table does not allow whatever arrives here.
         "learn": {"type": "string"},
         "forget": {"type": "string"},
@@ -748,7 +748,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
   (see `self.system` below) and reused verbatim, so a file frozen in here
   would show the model its memory as it stood at mission start and hide
   every line it wrote afterwards -- a robot re-learning the same thing all
-  day. hub/thoughts.py's module docstring has the measurement.
+  day. mind/thoughts.py's module docstring has the measurement.
 
   Ordered stable -> volatile, and the `cache_control` marker sits on the last
   block so tools+system cache together (shared/prompt-caching.md).
@@ -790,7 +790,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     "zones": list(menu.zones),
     # What each one COSTS, in watt-hours (issue #15). In the STABLE half
     # because it is a property of the world rather than of the moment -- and
-    # measured (hub/energy.json, scripts/energy_spike.py) rather than
+    # measured (economy/energy.json, scripts/energy_spike.py) rather than
     # guessed, which is the difference between a robot that plans its day
     # around its pack and one that dies halfway through a drawing.
     "energyCostWh": dict(menu.costs_wh),
@@ -887,7 +887,7 @@ def context_for(life, journal: Journal | None = None,
                                 if v["task"] != "charge"}),
     "boards": boards,
     "journal": [n["text"] for n in (journal.recent() if journal else [])],
-    # What strangers have said (issue #16). Already cleaned by hub/inbox.py --
+    # What strangers have said (issue #16). Already cleaned by mind/inbox.py --
     # capped, one line, control characters gone -- and carried as a LIST OF
     # REPORTS rather than as conversation turns, so nothing in here can look
     # like the operator talking. The rules block above is the other half.
@@ -1037,7 +1037,7 @@ class Overseer:
     self.base_url = base_url
     self.calls_per_hour = calls_per_hour
     # ⚠ PER BACKEND, because a local model has to be loaded before it can
-    # think: 27.3 s cold against 3.4-5.5 s warm, measured (hub/llm.py). One
+    # think: 27.3 s cold against 3.4-5.5 s warm, measured (mind/llm.py). One
     # number for both vendors makes either the API's deadline useless or the
     # local path's first decision a certainty of failure.
     self.timeout_s = (llm.default_timeout(self.backend, CALL_TIMEOUT_S)
@@ -1504,7 +1504,7 @@ class Overseer:
     endpoint honouring `response_format` cannot emit an action that does not
     exist -- which is the whole reason a 4B model is safe in this seat. An
     endpoint that rejects the field is retried once with the schema in prose
-    (hub/llm.py), and from then on `validate()` is the ONLY thing standing
+    (mind/llm.py), and from then on `validate()` is the ONLY thing standing
     between a small model and a fallback per call. Same guards either way,
     materially different failure rate, so it is reported rather than assumed.
     True with no client: nothing has told us otherwise, and a run that never

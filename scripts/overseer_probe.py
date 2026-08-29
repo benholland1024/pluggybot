@@ -21,7 +21,7 @@ says plainly whether caching engaged.
                         # is worth trusting.
   HF_TOKEN=... uv run python scripts/overseer_probe.py \
       --model Qwen/Qwen3-4B-Instruct-2507   # any `org/name` id goes to the
-                        # HuggingFace router instead (hub/llm.py) -- THIS is
+                        # HuggingFace router instead (mind/llm.py) -- THIS is
                         # how candidate models are measured before one is
                         # picked for a served world ($PLUGGY_MODEL). Rates
                         # come off the router's own catalogue; the cache
@@ -52,11 +52,11 @@ import json
 import time
 from dataclasses import replace
 
-from pluggybot.hub.lifecycle import board_book
-from pluggybot.hub import llm
-from pluggybot.hub.thoughts import ThoughtFiles
+from pluggybot.lifecycle import board_book
+from pluggybot.mind import llm
+from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.hub.overseer import MODEL, Menu, Overseer
+from pluggybot.mind.overseer import MODEL, Menu, Overseer
 
 
 def synthetic_state(menu: Menu, i: int) -> dict:

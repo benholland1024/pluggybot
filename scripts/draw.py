@@ -29,10 +29,10 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.drawing import PEN_MODULE, PenPlotter
-from pluggybot.hub.strokes import PROGRAMS, from_cli
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.tools.drawing import PEN_MODULE, PenPlotter
+from pluggybot.tools.strokes import PROGRAMS, from_cli
+from pluggybot.rack.swap import HubSwap
 from pluggybot.viz import Recorder
 
 FRAME_W, FRAME_H = 400, 300

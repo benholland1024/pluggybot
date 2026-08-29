@@ -394,7 +394,7 @@ taught (coupling spikes, sensor calibration, odometry-in-the-loop) transfers.
 
 ## Hub coupling spike (milestone-8 prep)
 
-Standalone fork-and-peg rig (`hub/coupling.py`, `scripts/hub_spike.py`) — no
+Standalone fork-and-peg rig (`rack/coupling.py`, `scripts/hub_spike.py`) — no
 robot: a compliant carrier runs scripted pick-and-return cycles against a hub
 shelf. The coupling is designed around the no-wrist constraint (latch verbs:
 slide + lift): the tool hangs by a long peg axle in two upward-open V-trays;
@@ -422,7 +422,7 @@ set by peg overhang, not machined clearance. Gravity is the latch. Findings
   under the force cap — no range sensing needed at the hub.
 
 ### Robot integration: the fork inherits the plug's lessons, item by item
-Mounting the fork on the real robot (`pluggybot_fork.xml`, `hub/swap.py`,
+Mounting the fork on the real robot (`pluggybot_fork.xml`, `rack/swap.py`,
 demo `scripts/hub_swap.py`) replayed three known plot beats in one afternoon:
 - **The bumper reaches the hub before the fork does.** Retracted, the fork
   vertex sits 25 mm behind the chassis front — the chassis bottomed on the
@@ -476,7 +476,7 @@ reflex zone), and a demo waypoint that sits inside an obstacle produces
 "mysterious" collisions — check the target before debugging the driver.
 
 ### Real AprilTags: what the swap cost and what it bought
-Replacing the colour-plate stand-in with tag36h11 markers (`hub/tags.py`,
+Replacing the colour-plate stand-in with tag36h11 markers (`rack/tags.py`,
 generated with moms-apriltag, decoded with pupil-apriltags):
 
 - **`type="2d"` textures do not paint primitives.** A 2d texture is mapped
@@ -504,7 +504,7 @@ generated with moms-apriltag, decoded with pupil-apriltags):
 
 ### Finding the hub by looking at it: what the fiducial stand-in taught
 Promoting the rack from "a pose the robot is told" to "a landmark the robot
-sees" (`hub/localize.py`) cost five measured lessons, none of them about the
+sees" (`rack/localize.py`) cost five measured lessons, none of them about the
 rack:
 
 - **A white marker is not a detectable marker.** The tag plates started
@@ -540,7 +540,7 @@ rack:
   and precisely what a real tag's ID removes.
 
 ### The hub lifecycle: four failures, all of them about *driving*, not docking
-Wiring the hub into a battery-driven mission (`hub/lifecycle.py`) broke in
+Wiring the hub into a battery-driven mission (`pluggybot/lifecycle.py`) broke in
 four ways, and not one of them was in the coupling that had been so
 carefully measured:
 
@@ -705,7 +705,7 @@ home — the same lesson the rack-frame verdict taught, one level down.
 
 ### The module electrical interface: put the contacts where the force is
 Built as a split peg — two conductors around an insulated centre, so the
-fork's left and right V-notch pairs are the two poles (`hub/coupling.py`
+fork's left and right V-notch pairs are the two poles (`rack/coupling.py`
 `peg_xml` / `module_power_state`, demo `scripts/module_power.py`). Nothing
 new was added to the coupling: the connector *is* the latch.
 
@@ -737,7 +737,7 @@ new was added to the coupling: the connector *is* the latch.
   other side. The room errand computes its travel and stows fine.
 
 ### The drawing tool: five bugs, and only one was about drawing
-Building the pen module's plot controller (`hub/drawing.py`, demo
+Building the pen module's plot controller (`tools/drawing.py`, demo
 `scripts/draw.py`). End state: a circle traced to **2.2 mm RMS shape error,
 98 % inked**, with the tool still electrically seated afterwards. Getting
 there cost five failures, each of which is a lesson this repo already had in
@@ -1726,8 +1726,8 @@ change like that **the flag is the only record anywhere in the stream**.
 
 ## Stroke programs (issue #11): a press is a measurement, and it moves
 
-Splitting *what to draw* from *how to draw* (`hub/strokes.py` vs
-`hub/drawing.py`) was meant to be pure content work — a registry, a vendored
+Splitting *what to draw* from *how to draw* (`tools/strokes.py` vs
+`tools/drawing.py`) was meant to be pure content work — a registry, a vendored
 Hershey font, a figure library, no physics. Two of the three lessons were
 physics anyway, and both were invisible to every figure the plotter had drawn
 before, for the same structural reason: **a square and a circle are one closed
@@ -2116,7 +2116,7 @@ each of them was measured against:
   `test_the_recovery_finds_a_bay_the_first_look_lost`, which fails if any of
   the three is removed.
 
-Also from the same hunt: **the erase rides the first stroke** (hub/errand.py).
+Also from the same hunt: **the erase rides the first stroke** (mission/errand.py).
 `book.clear` was unconditional on arrival, and the board book is the ink's
 ground truth — so a drifted robot narrated "erased whiteboard_a", pressed at
 empty air ("never reached the board"), and the book ended blank as if a wipe

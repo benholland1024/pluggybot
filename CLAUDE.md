@@ -15,12 +15,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the honesty rule (the wire may carry anything a network could carry, never
   anything a sensor would have to discover), the perception ladder for object
   tasks, code-side grading, and how tasks, errands and activities compose.
-  Read BEFORE adding a task kind or touching `hub/tasks.py`,
-  `hub/scoring.py` or `hub/cadence.py` — and fold any gap it left back in
+  Read BEFORE adding a task kind or touching `economy/tasks.py`,
+  `economy/scoring.py` or `economy/cadence.py` — and fold any gap it left back in
 - `docs/Overseer.md` — the LLM overseer (issue #15): the ONE branch of the
   arbitration loop an LLM may replace, the action vocabulary, the three things
   it structurally cannot do, the scripted fallback, the call budget, and the
-  measured battery limit. Read BEFORE touching `hub/overseer.py`, the decision
+  measured battery limit. Read BEFORE touching `mind/overseer.py`, the decision
   vocabulary, or anything that changes what the model is shown
 
 ## Working style
@@ -112,7 +112,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   tolerance sweep; `--film` for a filmstrip),
   `scripts/energy_spike.py` (issue-15: what each errand COSTS, per world —
   flies each one on an oversized pack and reports SWAP_PICK to end of
-  SWAP_RETURN, `--write` folds it into `hub/energy.json`. Re-run it after
+  SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
   `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
   with the REAL pen and reports how far the ink sits from each candidate
@@ -217,7 +217,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
   - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
-    (`hub/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
+    (`mind/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
     `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —
     edited on the volume, no write API at all, because a robot that can
     rewrite who it is defeats the point. `History.md` is **system**,
@@ -257,8 +257,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     is written to disk and is a human's from then on) and
     `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
     docs/Overseer.md §7.
-  - **THE ROBOT HAS A WEEKLY ALLOWANCE, AND CANNOT REACH IT** (`hub/spend.py`
-    + `hub/mode.py`, issue #37; protocol 0.12.0). The reward table's rule one
+  - **THE ROBOT HAS A WEEKLY ALLOWANCE, AND CANNOT REACH IT** (`mind/spend.py`
+    + `mind/mode.py`, issue #37; protocol 0.12.0). The reward table's rule one
     layer out: it is SHOWN what its thinking has cost and given one boolean
     (`escalate`) to ask for a bigger mind, and every gate is code —
     `$PLUGGY_WEEKLY_USD` (default $10, rolling seven days, on the state
@@ -283,7 +283,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     for a loop or a reprice; do not tighten it expecting the escalation rate
     to move, and do not read a full allowance on Sunday as the gates working.
     - **Three operator modes, and the robot can reach none of them**
-      (`$PLUGGY_MODE_FILE`, polled, never written — `hub/mode.py` has no
+      (`$PLUGGY_MODE_FILE`, polled, never written — `mind/mode.py` has no
       writer at all and a test asserts that absence). `llm` is normal;
       `scripted` is FREE mode (the rotation decides, no API call, the world
       still looks alive — a world that goes dark to save money looks broken);
@@ -301,7 +301,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - **WHICH model decides is `$PLUGGY_MODEL`; WHICH MIND runs it is
     `--overseer-backend` / `$PLUGGY_OVERSEER_BACKEND`** (issue #19), and the
     default `auto` is issue #15's rule unchanged: an `org/name` id goes to
-    the HuggingFace router (`hub/llm.py`, `$HF_TOKEN`, stdlib urllib — the
+    the HuggingFace router (`mind/llm.py`, `$HF_TOKEN`, stdlib urllib — the
     serve image's package set did not grow), a bare id to the Anthropic SDK.
     Naming a backend outright adds two more: **`local`** (a model on this
     machine — ollama on `$PLUGGY_OVERSEER_URL`, no key, no network, no bill,
@@ -339,7 +339,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     off the router's own catalogue rates, and small enough that Ben's
     local-hosting plan (≤8B) has headroom.
   ⚠ **A chosen errand can cost more than the whole pack**, and
-  `hub/energy.py` + `hub/energy.json` are what stop it (`$PLUGGY_ENERGY`;
+  `economy/energy.py` + `economy/energy.json` are what stop it (`$PLUGGY_ENERGY`;
   the fourth data file after rewards, cadence and questions). `needs_charge`
   is checked BETWEEN errands and never inside one, so an errand bigger than
   what is left cannot be survived by any charging policy — the committed home
@@ -371,7 +371,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     charge nobody needed; under-estimating costs a robot dead in the garden.
     The invariant is not "the estimate is never exceeded" — it is that an
     overrun smaller than the margin cannot strand the robot. A bigger one is
-    a stale table, and the loop says so (`ENERGY ... hub/energy.json is low`,
+    a stale table, and the loop says so (`ENERGY ... economy/energy.json is low`,
     at 10 % over so trajectory variance is not noise).
   - **A cost key may name a TARGET** (`draw:whiteboard_b`), and it wins over
     the bare action. That closes the issue-21 defect this file records two
@@ -428,7 +428,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   to display. Streaming the prose without the flag would let the site report
   "following its goals" about a robot with nothing reading them — the
   `accepts` mistake from the other end of the same loop.
-- **The visitor channel** (`hub/inbox.py`, issue #16; protocol 0.7.0) makes the
+- **The visitor channel** (`mind/inbox.py`, issue #16; protocol 0.7.0) makes the
   ingest socket BIDIRECTIONAL — the first version where the sim reads its
   socket at all. Inbound arrives on the publisher's own sender thread
   (`recv(timeout=0)` between sends, so no reader thread and one thread owns
@@ -534,7 +534,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `type` means frame. Ink is NEVER MuJoCo geometry — a stroke is a `draw`
   event carrying the polyline the pen actually inked, and the browser paints
   it into a canvas texture (the three-layer rule from ActivityPattern.md).
-  Board state (`hub/boards.py`) is world state, not run state: it survives a
+  Board state (`tools/boards.py`) is world state, not run state: it survives a
   restart in a JSON file written on every stroke, and its `fill` is measured
   against the pen's REACH (110 × 200 mm — carriage travel with the base
   parked) rather than the 320 × 260 mm slab.
@@ -550,7 +550,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   circle`, `--view`, `--boards PATH`, `--no-erase`, and `--cycles N` to
   repeat the whole errand N times. Since issue #12 it is a THIN CALLER of
   `HubLifecycle.run_errand` rather than a second mission stack — add
-  behaviour to `hub/errand.py`, never here). The pen's stow works as
+  behaviour to `mission/errand.py`, never here). The pen's stow works as
   of issue #10 — three faults in a row, and the ONE that found the last two
   was running the errand twice: a second fetch starts from the state the
   first cycle left, which is a different test. Use `--cycles 2` before
@@ -572,7 +572,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   both repos. NEVER encode hints as geom colors — the robot's cameras render
   rgba, and colour-as-encoding couples the tag detector to the website's art.
 - Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
-  `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
+  `models/hub_rack.xml` with `uv run python -m pluggybot.rack.coupling` after
   changing any rack geometry. The rack has **five tool bays** (A–E) plus the
   charge bay; `HUB_STATION_YS` is APPENDED to, never reordered, because
   bay↔tag pairing is by index. A sixth tool needs the rail to grow again and
@@ -729,15 +729,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   successful press, never arrival — `book.clear` on a believed arrival let
   a drifted robot blank a board it never touched. SimNotes, "Drift
   hygiene".
-- **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
+- **A TASK is a job OFFER, and it is not an errand** (`economy/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —
   *scenery that reacts*. A task is something the house or a visitor puts up:
   a description, a target, a reward, a deadline, and a verdict once it is
   over. An errand is HOW a task gets done; the task is WHY.
   - **A task never carries its own payout.** It names an evaluator
-    (`hub/scoring.py`) and a reward-table row; what it PAYS is looked up from
-    `hub/rewards.json` on every read. That is issue #14's rule arriving from
+    (`economy/scoring.py`) and a reward-table row; what it PAYS is looked up from
+    `economy/rewards.json` on every read. That is issue #14's rule arriving from
     the direction a visitor and (later) the model can both reach — anything
     that could set a number could pay itself. `Task.create` refuses a kind
     whose evaluator does not exist, so the unscoreable task cannot be built.
@@ -774,7 +774,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     stands, never a licence to abandon a job with a module on the fork.
   - Off by default (`--tasks` / `--task-state PATH`, `$PLUGGY_TASKS`): a task
     board adds errands, which reshuffles a whole mission.
-- **WHEN work appears is `hub/cadence.py` + `cadence.json`, and it is DATA**
+- **WHEN work appears is `economy/cadence.py` + `cadence.json`, and it is DATA**
   (issue #23; `$PLUGGY_CADENCE` overrides, per world). Three files now divide
   the task system cleanly and they are meant to be re-tuned one at a time:
   `tasks.py` says what a job IS, `rewards.json` says what it PAYS,
@@ -853,7 +853,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     — the reserve is only checked BETWEEN errands and a per-kind estimate
     cannot know which end of the house it is being asked about. Do not
     "fix" it by padding the table: see the note under TASK above.
-- **A QUESTION is a job for a MIND** (`hub/questions.py` + `questions.json`,
+- **A QUESTION is a job for a MIND** (`economy/questions.py` + `questions.json`,
   issue #22). The `whiteboard_answer` kind poses a question with a checkable
   answer — "Draw the answer to this question on whiteboard_a: 2 + 3" — and
   the robot discharges it as an ordinary drawing errand with the answer as
@@ -886,7 +886,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     consolation payout for showing up is the gradient that teaches a robot
     to attempt the cheapest task it can fail at. Legibility scales the
     BONUS on a right answer and cannot buy a wrong one.
-  - **The bank is data** (`hub/questions.json`, `$PLUGGY_QUESTIONS`): a flat
+  - **The bank is data** (`economy/questions.json`, `$PLUGGY_QUESTIONS`): a flat
     list of questions and their answers, with **no expression evaluator** —
     a data file that can compute is one that can be made to compute
     something else. Answers are at most **two digits**, which is the pen's
@@ -900,7 +900,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   merging would keep a stale marker forever. Present means COMPLETE. The
   header advertises `taskKinds` (the vocabulary) rather than the ids, which
   are stale before the first frame.
-- **An ERRAND is a tool, a place and a use-phase** (`hub/errand.py`, issue
+- **An ERRAND is a tool, a place and a use-phase** (`mission/errand.py`, issue
   #12). `HubLifecycle` carries a QUEUE of them, arbitrated against the
   battery by the same loop as everything else, so a repeat is a list rather
   than a flag. Anything the robot does with a tool goes in a use-phase, and
@@ -916,11 +916,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   it — `_drive(PRESENT_S, 0, 0)` — and check the RECORDING, not the return
   value.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14).
-  Three files, and the split is the whole design: `hub/scoring.py` MEASURES a
+  Three files, and the split is the whole design: `economy/scoring.py` MEASURES a
   finished task off the sim and judges it (`EVALUATORS`, one per task, pure
-  and unit-testable); `hub/rewards.json` is DATA saying what it pays (base +
+  and unit-testable); `economy/rewards.json` is DATA saying what it pays (base +
   bonus × quality curves — a 0.6 mm drawing beats a 3 mm one, and re-tuning a
-  payout is a JSON edit, `$PLUGGY_REWARDS` to override); `hub/ledger.py` banks
+  payout is a JSON edit, `$PLUGGY_REWARDS` to override); `economy/ledger.py` banks
   it. A `Verdict` can only be built by `scoring.evaluate`, and `Ledger.award`
   re-derives the points from the table before accepting one. The overseer
   (issue #15) will SEE its balance and the reward table and be able to move
@@ -936,7 +936,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - **A hidden-truth task never publishes its answer.** `secret` metrics are
     redacted from the ledger entry, the wire and the `reason` line, because
     the stream reaches both the site and the overseer's context.
-- **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
+- **What to draw is `tools/strokes.py`; how to draw it is `tools/drawing.py`, and
   the plotter never imports the content module** (issue #11). A *stroke
   program* is a named list of polylines in board coordinates, pen up between
   them. Three rules the build paid for:

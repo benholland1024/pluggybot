@@ -223,7 +223,7 @@ class BoardBook:
     fill denominator is the pen's actual travel intersected with the slab --
     never the slab alone.
     """
-    from pluggybot.hub.drawing import Board, Envelope
+    from pluggybot.tools.drawing import Board, Envelope
     records = []
     for name, spec in (meta.get("boards") or {}).items():
       env = Envelope.for_board(Board.from_meta(spec))

@@ -55,7 +55,7 @@ and one public surface, `self.flags` — a small dict of JSON-ready scalars that
 goes to telemetry verbatim.
 
 **An activity module owns its geometry too.** `activity/plate.py` emits its own
-MJCF and holds its own state machine, exactly as `hub/coupling.py` owns the
+MJCF and holds its own state machine, exactly as `rack/coupling.py` owns the
 tool modules' faces. A world generator adds an activity with one import and
 one call, and knows nothing else about it:
 

@@ -87,7 +87,7 @@ DRAW_MAX_TRAVEL_INK = 0.25
 #: it timed out, which is a failed charge however long the robot sat there.
 CHARGE_OK_FRAC = 0.85
 #: A routine that mostly happened is a routine; the individual moves are scored
-#: by hub/errand.py's own landed-fraction rule (the drivetrain cannot deliver a
+#: by mission/errand.py's own landed-fraction rule (the drivetrain cannot deliver a
 #: full 5 s spin and never will, so this is not a tolerance to tighten).
 DANCE_MIN_LANDED = 0.67
 #: ...but a "dance" that ends this far from where it started drove off.
@@ -292,7 +292,7 @@ class Verdict:
   def __post_init__(self) -> None:
     if self.seal is not _SEAL:
       raise TypeError(
-        "a Verdict may only be built by pluggybot.hub.scoring.evaluate() -- "
+        "a Verdict may only be built by pluggybot.economy.scoring.evaluate() -- "
         "points come from a deterministic evaluator, never from a task "
         "reporting on itself (issue #14)")
     # Cleared immediately, so a dataclasses.replace() of a real verdict
@@ -402,7 +402,7 @@ def eval_answer(m: dict) -> tuple[bool, dict, str]:
   apart at this cap height while a correctly drawn answer sits 1.2 mm from
   its own ideal -- so a grader that classified the ink would fail correct
   drawings and pass wrong ones, on exactly the pairs arithmetic produces.
-  The reasoning and the numbers are in hub/questions.py.
+  The reasoning and the numbers are in economy/questions.py.
 
   NO PARTIAL CREDIT for a legible wrong answer, and that is a decision rather
   than an omission (issue #22 asks for it to be made explicitly). It follows
@@ -411,7 +411,7 @@ def eval_answer(m: dict) -> tuple[bool, dict, str]:
   that teaches a robot to attempt the cheapest task it can fail at. Beautiful
   handwriting scales the BONUS on a right answer; it cannot buy a wrong one.
   """
-  from pluggybot.hub import questions
+  from pluggybot.economy import questions
   wrote = str(m.get("wrote") or "")
   expected = str(m.get("expected") or "")
   inked = int(m.get("strokesInked") or 0)
@@ -538,7 +538,7 @@ def evaluate(task: str, measurements: dict,
   check = EVALUATORS.get(task)
   if check is None:
     raise KeyError(f"task {task!r} has a reward-table entry but no evaluator "
-                   f"in hub/scoring.py -- nothing may award points without one")
+                   f"in economy/scoring.py -- nothing may award points without one")
   ok, metrics, reason = check(dict(measurements))
   quality = reward.quality(metrics)
   pending = reward.tier == "visitor"
@@ -631,7 +631,7 @@ def sample_answer(life, errand, result: dict, before: dict) -> dict:
   Between them there is no path by which the thing being graded supplies a
   measurement.
   """
-  from pluggybot.hub import questions
+  from pluggybot.economy import questions
   base = sample_draw(life, errand, result, before)
   board = base.get("board")
   task = None

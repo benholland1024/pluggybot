@@ -32,7 +32,7 @@ import math
 import mujoco
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.lifecycle import (
+from pluggybot.lifecycle import (
   HubLifecycle, board_book, errands_for, world_config, world_screens,
 )
 

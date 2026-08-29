@@ -45,7 +45,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.hub.scoring import RewardTable, Verdict, default_table
+from pluggybot.economy.scoring import RewardTable, Verdict, default_table
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 STATE_VERSION = 1

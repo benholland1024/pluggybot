@@ -183,7 +183,7 @@ hub**. What stands between here and ordering parts:
    drives its carriage end-to-end without shaking off the fork, and its sweep
    clears the robot. **Mass 182 g** (vs LCD 130 g, plug 156 g) — over the
    150 g soft budget, inside the 300 g the latch was validated to.
-   **It draws.** `hub/drawing.py` assembles an X-Y plotter from the module's
+   **It draws.** `tools/drawing.py` assembles an X-Y plotter from the module's
    carriage (horizontal), the robot's lift (vertical), and the arm's reach
    through a sprung quill (pen pressure); the base stays parked, so nothing
    in a drawing is integrated from wheel odometry. Calibration is measured
@@ -266,12 +266,12 @@ tracked as its own issues; landed so far:
   the pen afterwards failed here at first — and failed the same way in
   room_hub, so it was pre-existing; closed by issue #10, and the errand now
   repeats end to end (`--cycles 2`).
-- **Stroke programs (issue #11)**: `src/pluggybot/hub/strokes.py` separates
+- **Stroke programs (issue #11)**: `src/pluggybot/tools/strokes.py` separates
   *what to draw* from *how to draw it*. A **stroke program** is a named list
   of polylines in board coordinates, pen up between them; `PenPlotter.draw_program`
   consumes one, and the old single-path `draw` is now a one-stroke program.
   Ships the registry (`square`, `circle`, `text`, `house`, `tree`, `sun`,
-  `robot`), the vendored **Hershey** single-stroke font (`hub/hershey.py`,
+  `robot`), the vendored **Hershey** single-stroke font (`tools/hershey.py`,
   the `futural` face — public domain, attribution in the module), word wrap
   with a shrink-to-fit pass, and a hand-authored figure library. Content is
   pure: `tests/test_strokes.py` is 18 assertions in 0.2 s with no MuJoCo in
@@ -293,7 +293,7 @@ tracked as its own issues; landed so far:
     square's baseline is bit-identical: **0.57 mm form, 98 % inked**.
 - **Drawing as a lifecycle errand + board state (issue #12)**: the robot now
   *draws for a living* rather than in a script. Three parts:
-  - **`run_errand` is general.** An **errand** (`hub/errand.py`) is a tool, a
+  - **`run_errand` is general.** An **errand** (`mission/errand.py`) is a tool, a
     place and a *use-phase callable*, and `USE_TOOL` finally does work. The
     lifecycle carries a **queue** of them, arbitrated against the battery by
     the same loop as everything else, so "two drawings on two boards with a
@@ -303,7 +303,7 @@ tracked as its own issues; landed so far:
     silently miss the other. Measured in the house: fetch → navigate →
     erase → draw a house → stow, **7/7 strokes, 98 % inked, 1.14 mm form
     rms, 0 collisions**.
-  - **Boards are persistent state** (`hub/boards.py`), not scenery: which
+  - **Boards are persistent state** (`tools/boards.py`), not scenery: which
     stroke programs are on each one, how much of the pen's reach is inked,
     when it was last cleared — surviving a restart in a JSON state file
     written on every stroke (`--boards PATH`). *Fill is measured against the
@@ -324,7 +324,7 @@ tracked as its own issues; landed so far:
     `protocol/`.**
 - **The LCD gets a job (issue #13)**: the last module with no purpose is now
   the robot's FACE, and the first tool whose output is not physical.
-  - **A face costs an enum.** `hub/screen.py` streams `{mode, powered, face,
+  - **A face costs an enum.** `tools/screen.py` streams `{mode, powered, face,
     hint}` and the browser draws it (`FACE_STATES` / `SCREEN_HINTS` are a
     two-repo vocabulary, like the visual hints). The sim never ticks an
     animation: `hint` names a loop the browser runs, because a 150 ms blink
@@ -359,13 +359,13 @@ tracked as its own issues; landed so far:
     A third typed message, `board_snapshot`, carries every stroke a board is
     holding when a stream opens — the gap nothing else could fill, since
     keyframes re-ship a board's counters but never its lines, and
-    `hub/boards.py` now persists the polylines so a restart walks into a
+    `tools/boards.py` now persists the polylines so a restart walks into a
     house whose drawings are still there. The home fixture runs the
     **showcase** queue (draw + census), so one recording exercises both
     streamed surfaces. **Re-vendor `protocol/`.**
 - **Task evaluation + the points ledger (issue #14)**: the robot now has
   reasons, and they are not its own. Three pieces, deliberately split:
-  - **The evaluator is code.** `hub/scoring.py` MEASURES a finished task off
+  - **The evaluator is code.** `economy/scoring.py` MEASURES a finished task off
     the sim and judges it — one pure function per task (`draw`, `census`,
     `dance`, `charge`, `carry`), unit-testable without a physics world. What
     it measures is chosen to be un-claimable: a drawing is scored on the
@@ -374,7 +374,7 @@ tracked as its own issues; landed so far:
     errand's `use` is arbitrary caller code, so its report of itself is a
     claim — `tests/test_rewards.py` runs a perfect report over a blank board
     and asserts it pays nothing.
-  - **What a task is worth is DATA.** `hub/rewards.json`: base + bonus ×
+  - **What a task is worth is DATA.** `economy/rewards.json`: base + bonus ×
     quality, where quality is a weighted mean of curves over named metrics
     (`formMm` best 0.6 / worst 3.0 — the design doc's "a 0.6 mm drawing beats
     a 3 mm one", now a number in a file). Re-tuning a payout is a JSON edit,
@@ -407,8 +407,8 @@ tracked as its own issues; landed so far:
     capability unlocks only, never anything the survival loop depends on. A
     robot that can spend itself into a brick will.
 - **The LLM overseer (issue #15)**: the robot now decides what it is *for*,
-  inside a fence built before the door was opened. `hub/overseer.py` +
-  `hub/journal.py`, full design in `docs/Overseer.md`.
+  inside a fence built before the door was opened. `mind/overseer.py` +
+  `mind/journal.py`, full design in `docs/Overseer.md`.
   - **It replaces exactly one branch.** `HubLifecycle.run()` was already a
     priority loop; the overseer takes the "battery is fine and nothing is
     queued" arm and nothing else. **Charge priority stays in code** and is
@@ -461,8 +461,8 @@ tracked as its own issues; landed so far:
     bump for the inbound direction anyway. One two-repo event instead of two.
   - ⚠ **A chosen errand can cost more than the whole pack** — found by the
     charge-priority test on its first run, left as documentation for two
-    issues, and now **closed by a measured energy model**: `hub/energy.py` +
-    `hub/energy.json` (`$PLUGGY_ENERGY`), the fourth data file after rewards,
+    issues, and now **closed by a measured energy model**: `economy/energy.py` +
+    `economy/energy.json` (`$PLUGGY_ENERGY`), the fourth data file after rewards,
     cadence and questions. `needs_charge` is checked *between* errands and
     never inside one, so a job bigger than what is left cannot be survived by
     any charging policy; the committed home recording has the robot finishing
@@ -509,7 +509,7 @@ tracked as its own issues; landed so far:
       world's table and `TaskKind.estimate_wh` is now only the fallback for a
       world nobody has measured.
 - **The visitor channel (issue #16)**: the socket becomes two-way, and the
-  robot answers back. `hub/inbox.py`, protocol **0.7.0**, and the server half
+  robot answers back. `mind/inbox.py`, protocol **0.7.0**, and the server half
   is rooftop-media-2026 #29.
   - **The publisher reads its own socket, on its own thread.**
     `recv(timeout=0)` is a non-blocking poll, so the sender loop checks for
@@ -604,7 +604,7 @@ makes two robots in one shared world tractable.
 - **Tool-creation pattern (issue #7)**: `docs/ToolPattern.md` writes down the
   recipe — coupling envelope, module anatomy, contact rules, the
   spike→module→demo→pytest sequence, rack integration — and it is *validated*,
-  by building the fifth tool against it. `src/pluggybot/hub/dispenser.py` +
+  by building the fifth tool against it. `src/pluggybot/tools/dispenser.py` +
   `scripts/dispense.py`: a **seed dispenser** whose slide-valve escapement
   meters exactly one seed per cycle by geometry rather than timing. Verified
   headless: fetched from the rack's new bay E, powered through the coupling,

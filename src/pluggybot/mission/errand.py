@@ -37,10 +37,10 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from pluggybot.control import wrap_angle
-from pluggybot.hub.census import Zone, count_objects, score, survey_route, true_count
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.drawing import Board, Envelope, PenPlotter, board_standoff
-from pluggybot.hub.strokes import StrokeProgram, from_cli
+from pluggybot.economy.census import Zone, count_objects, score, survey_route, true_count
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.tools.drawing import Board, Envelope, PenPlotter, board_standoff
+from pluggybot.tools.strokes import StrokeProgram, from_cli
 
 LCD_BAY = HUB_STATION_YS[0]
 PEN_BAY = HUB_STATION_YS[2]      # bay C, as every pen demo has used
@@ -67,7 +67,7 @@ class Errand:
   #: it (issue #14) -- "draw", "census", "dance", "carry". Defaulted off the
   #: name's prefix, since every errand here is already named `task:where`,
   #: and an errand whose task has no evaluator is simply never scored
-  #: (hub/scoring.py: nothing awards points without one).
+  #: (economy/scoring.py: nothing awards points without one).
   task: str = ""
   #: the TASK this errand was built to discharge (issue #21), or "" for one
   #: nobody asked for. The errand still runs the same way -- the id is what
@@ -76,7 +76,7 @@ class Errand:
   #: are the same event rather than two.
   task_id: str = ""
   #: what this errand is expected to COST, Wh, or 0 to look it up in
-  #: hub/energy.json by `task` (issue #15).
+  #: economy/energy.json by `task` (issue #15).
   #:
   #: Set only where a better figure exists than the per-action one: a TASK
   #: carries a per-KIND estimate that knows which end of the house it is

@@ -454,7 +454,7 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   block insists the wall is 19 % full -- and nothing later in the stream
   repairs it, because a keyframe re-ships the counters and never the lines.
   """
-  from pluggybot.hub.boards import BoardBook, BoardRecord
+  from pluggybot.tools.boards import BoardBook, BoardRecord
 
   data = mujoco.MjData(mini_model)
   book = BoardBook([BoardRecord(name="whiteboard_a", reach=(0.11, 0.2))],
@@ -483,7 +483,7 @@ def test_screens_ride_the_same_sparse_rule_as_boards(mini_model, tmp_path):
   """0.5.0, and the third block to follow one rule. What makes it worth
   asserting separately: a face is not a pose either, so a screen missing
   from a frame means "unchanged" and never "dark"."""
-  from pluggybot.hub.screen import ScreenSet
+  from pluggybot.tools.screen import ScreenSet
 
   class FakeScreen:
     name = "module_lcd"
@@ -523,8 +523,8 @@ def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
   `earned` message carrying the verdict behind it, interleaved with the
   frames exactly as `draw` is.
   """
-  from pluggybot.hub.ledger import Ledger
-  from pluggybot.hub.scoring import evaluate
+  from pluggybot.economy.ledger import Ledger
+  from pluggybot.economy.scoring import evaluate
 
   data = mujoco.MjData(mini_model)
   ledger = Ledger()
@@ -604,7 +604,7 @@ def test_the_goals_file_is_read_whether_or_not_an_overseer_runs():
   """`overseer.build` answers (None, None) when disabled, which is why the
   telemetry path cannot get its prose from there. It reads the file itself.
   """
-  from pluggybot.hub import overseer as ov
+  from pluggybot.mind import overseer as ov
 
   assert ov.build("home", enabled=False) == (None, None)
   # ...and yet there is prose to stream, which is the whole point of the
@@ -623,7 +623,7 @@ def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
   permanently empty, and that is the case almost every visitor meets,
   because the default view is a recording.
   """
-  from pluggybot.hub.thoughts import KNOWLEDGE, NAMES, ThoughtFiles
+  from pluggybot.mind.thoughts import KNOWLEDGE, NAMES, ThoughtFiles
 
   memory = ThoughtFiles()
   memory.learn("whiteboard_b is the one people look at")
@@ -651,7 +651,7 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   """A thought message per CONNECT, like the goals beside it -- a browser
   that opened the page an hour in has missed the only lines that carried
   them, and the hub relays rather than re-keys on its behalf."""
-  from pluggybot.hub.thoughts import NAMES, ThoughtFiles
+  from pluggybot.mind.thoughts import NAMES, ThoughtFiles
   from pluggybot.telemetry.publisher import WsPublisher
 
   data = mujoco.MjData(mini_model)
@@ -912,7 +912,7 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # same terms and for the same reason: the site's Thoughts tab is built
   # against these lines, no keyframe re-ships one, and the default view is a
   # recording. A fixture without them leaves that tab showing a single row.
-  from pluggybot.hub.thoughts import HISTORY, KNOWLEDGE, MAIN, NAMES
+  from pluggybot.mind.thoughts import HISTORY, KNOWLEDGE, MAIN, NAMES
 
   first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
   docs = [e for e in events if e["type"] == "thought"]
@@ -943,7 +943,7 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # fixture carrying last month's persona is what a visitor actually reads.
   # This is the guard that was missing: the persona changed and every shape
   # assertion above still passed, because content drift is invisible to them.
-  from pluggybot.hub.thoughts import DEFAULT_MAIN
+  from pluggybot.mind.thoughts import DEFAULT_MAIN
   assert next(d for d in opening if d["name"] == MAIN)["text"] \
       == DEFAULT_MAIN.strip(), \
     "the recording's persona is stale: re-record after editing DEFAULT_MAIN"

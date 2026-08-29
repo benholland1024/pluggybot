@@ -14,7 +14,7 @@ shape the website's Thoughts tab renders (rooftop-media-2026 #88).
   History.md                 SYSTEM  what happened, append-only. A robot that
                                      can edit its own history breaks the same
                                      principle that stops it awarding itself
-                                     points (hub/scoring.py).
+                                     points (economy/scoring.py).
   Knowledge_and_Opinions.md  ROBOT   the one genuinely writable surface: what
                                      it has learned and what it thinks.
 
@@ -73,7 +73,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.hub.journal import DEFAULT_GOALS, MAX_GOALS_CHARS
+from pluggybot.mind.journal import DEFAULT_GOALS, MAX_GOALS_CHARS
 from pluggybot.telemetry.protocol import (
   ROBOT_ROOT, THOUGHT_FILES, THOUGHT_WRITERS,
 )

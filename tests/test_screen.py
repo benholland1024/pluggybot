@@ -16,12 +16,12 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.census import (
+from pluggybot.economy.census import (
   MARGIN, Zone, count_objects, score, survey_route, true_count,
 )
-from pluggybot.hub.errand import DANCE_ROUTINE, census_errand, dance_errand
-from pluggybot.hub.lifecycle import errands_for, world_screens
-from pluggybot.hub.screen import ANXIOUS_FRAC, Screen, ScreenSet, face_for
+from pluggybot.mission.errand import DANCE_ROUTINE, census_errand, dance_errand
+from pluggybot.lifecycle import errands_for, world_screens
+from pluggybot.tools.screen import ANXIOUS_FRAC, Screen, ScreenSet, face_for
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.telemetry.protocol import FACE_STATES, SCREEN_HINTS, SCREEN_MODES
 from pluggybot.telemetry.recorder import FrameBuilder
@@ -319,7 +319,7 @@ def test_the_lcd_errands_are_on_the_menu():
 def test_the_showcase_queue_leaves_both_surfaces_marked(home_model):
   """What the site serves: one errand that puts ink on a board and one that
   puts a face on the screen, so a single recording exercises both."""
-  from pluggybot.hub.lifecycle import board_book
+  from pluggybot.lifecycle import board_book
   book = board_book("home")
   queue = errands_for("showcase", "home", book)
   assert [e.module for e in queue] == ["module_pen", "module_lcd"]

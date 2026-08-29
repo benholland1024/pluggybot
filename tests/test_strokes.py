@@ -1,4 +1,4 @@
-"""Guards for stroke programs and the Hershey font (hub/strokes.py, issue #11).
+"""Guards for stroke programs and the Hershey font (tools/strokes.py, issue #11).
 
 Pure content: no MuJoCo, no model, no data. That is the point of the module
 and the reason this whole file runs in milliseconds -- everything expensive
@@ -11,10 +11,10 @@ import math
 import numpy as np
 import pytest
 
-from pluggybot.hub import hershey
-from pluggybot.hub import strokes as S
-from pluggybot.hub.coupling import PEN_TRAVEL
-from pluggybot.hub.drawing import Board, Envelope, PenPlotter, square_path
+from pluggybot.tools import hershey
+from pluggybot.tools import strokes as S
+from pluggybot.rack.coupling import PEN_TRAVEL
+from pluggybot.tools.drawing import Board, Envelope, PenPlotter, square_path
 
 
 @pytest.fixture(scope="module")

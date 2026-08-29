@@ -1,9 +1,9 @@
 """What an errand COSTS, and whether the pack can pay for it (issue #15).
 
-`hub/tasks.py` says what a job is, `hub/rewards.json` what it pays,
-`hub/cadence.json` when it turns up. This is the fourth of that set and the
+`economy/tasks.py` says what a job is, `economy/rewards.json` what it pays,
+`economy/cadence.json` when it turns up. This is the fourth of that set and the
 only one that can stop the robot doing something: **how much energy a job
-takes**, per world, measured -- hub/energy.json, `$PLUGGY_ENERGY` to
+takes**, per world, measured -- economy/energy.json, `$PLUGGY_ENERGY` to
 re-point, on exactly the terms the other three are data.
 
 It exists because of the one way an overseer could still strand the robot.
@@ -70,7 +70,7 @@ from pathlib import Path
 
 #: The shipped table. `$PLUGGY_ENERGY` re-points it, which is how a deploy
 #: re-tunes costs on a mounted volume without a rebuild -- the door
-#: hub/rewards.json, hub/questions.json and hub/cadence.json are opened by.
+#: economy/rewards.json, economy/questions.json and economy/cadence.json are opened by.
 ENERGY_PATH = Path(__file__).with_name("energy.json")
 ENERGY_ENV = "PLUGGY_ENERGY"
 ENERGY_VERSION = 1
