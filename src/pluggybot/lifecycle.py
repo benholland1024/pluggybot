@@ -27,7 +27,7 @@ import json
 import math
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 import mujoco
 
@@ -1223,6 +1223,42 @@ class HubLifecycle:
 
   # ---- the loop ------------------------------------------------------------
 
+  def stop_when(self, settled: Callable[[], bool]) -> None:
+    """End the run as soon as `settled()` is true, instead of when the budget
+    runs out.
+
+    A battery-driven loop has no idea when the thing watching it has seen
+    enough: with work left it keeps taking it, and with none left it spends
+    the rest of its budget honestly deciding what to do with its afternoon.
+    Both are correct robot behaviour and both are dead time in a test or a
+    demo -- issue #22's question test measured 10:35 against 3:16 for the
+    same assertions, and issue #54's dearest test 903 s against the ~2
+    errands it actually reads.
+
+    ⚠ THE PREDICATE MUST BE THE SUCCESS CONDITION, never a step count or a
+    clock. A run that fails then never satisfies it, so it takes the long
+    path and fails exactly as it did before -- which is what stops a
+    shortened test from passing a regression it would otherwise catch. A
+    predicate that could go true on a broken run is a test that stopped
+    testing.
+
+    ⚠ AND DO NOT COMPENSATE WITH A NEW ASSERTION unless the design actually
+    promises it. Shortening `test_full_hub_lifecycle` came with a
+    "strictly stronger" `min(fraction) > 0` to replace an end-state check,
+    and room_hub failed it at 0.0 % -- correctly, because a pack reaching
+    empty INSIDE an errand is documented behaviour on a demo cell
+    (`needs_charge` is checked between errands, never inside one). A
+    plausibility guard that rejects the truth is the SimNotes lesson, and a
+    shortened test is exactly where it gets invented.
+
+    Polled on the physics seam, so `settled` must be cheap and must not step
+    the sim.
+    """
+    def hook() -> None:
+      if settled():
+        raise MissionAborted("stop_when")
+    self.mission.step_hooks.append(hook)
+
   def run(self, start: tuple[float, float, float],
           station_y: float = HUB_STATION_YS[0],
           use_at: tuple[float, float] = (-1.2, 2.5),
@@ -1891,7 +1927,8 @@ def run_demo(start=None, view: bool = False,
              escalate_to: str | None = None,
              weekly_usd: float | None = None,
              spend_state: str | None = None,
-             mode_file: str | None = None) -> dict:
+             mode_file: str | None = None,
+             stop_when: Callable[["HubLifecycle"], bool] | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   Callers that want to hand in errands they built themselves -- the overseer,
@@ -1982,6 +2019,11 @@ def run_demo(start=None, view: bool = False,
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.mission.step_hooks.append(activities.step_hook(model, data))
+  # End the day when the caller has seen what it came for, rather than when
+  # the budget runs out -- `HubLifecycle.stop_when` carries the rule the
+  # predicate has to obey (issue #54).
+  if stop_when is not None:
+    life.stop_when(lambda: stop_when(life))
   recorder = None
   if record is not None:
     recorder = TelemetryRecorder(model, data, record,

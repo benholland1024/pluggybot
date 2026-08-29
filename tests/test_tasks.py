@@ -539,6 +539,16 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
     lambda: legal_at.append(float(life.data.time))
     if not legal_at and life.battery.energy_wh >= life.low_battery_wh else None)
 
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). This test asserts WHEN
+  # the job was taken on, never that the errand behind it ran -- so the fetch
+  # that follows the claim is pure cost. Measured 292.9 s.
+  #
+  # The predicate is the SUCCESS condition. With the branches inverted the
+  # job is claimed at t~0 below the reserve, `legal_at` is still empty, the
+  # hook does not fire, and the run goes the full 200 s and fails on the
+  # ordering exactly as before.
+  life.stop_when(lambda: bool(legal_at) and life.charge_cycles >= 1
+                 and b[task.id].claimed_t is not None)
   r = life.run(lc.world_config("room_hub")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 

@@ -60,8 +60,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   Scaling is ~1.8× on the full suite, not 6×, and that is a real ceiling
   rather than a tuning problem: the mission tests contend for memory/GPU
   bandwidth and each runs ~36 % slower under load, so `--dist worksteal`
-  measured identical to `load`. `test_full_hub_lifecycle[home]` takes 157 s
-  on its own and no worker count beats that.
+  measured identical to `load`. The floor is whatever the LONGEST SINGLE TEST
+  costs, and no worker count beats it: `-n auto` is already all six cores
+  here, and measured on the slow half before issue #54 it delivered 2.35×
+  with five of six workers idle at the end.
   ⚠ **A wall-clock benchmark must time its two sides INTERLEAVED**, never as
   two blocks: suite load VARIES over time, so a mission test starting during
   a solid block of one implementation's reps penalises that half alone.
@@ -70,32 +72,55 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **596 of 607 tests in ~2:15**, against **~13:10** for everything (before
-  issue #23 it was 570/583 and ~10:30; before #21–#22, 430/439 in 1:18 and
-  ~6:22; before #13–#15, 343/351 in 1:13 and 6:34). ELEVEN whole-mission
-  integration runs carry `@pytest.mark.slow` and are ALL of the serial clock:
-  `-m slow` alone measured 844 s against a full suite's 844 s, so every fast
-  test is absorbed into their shadow and the marginal cost of the other 596
-  is close to zero.
-  ⚠ **The wall-clock figures track the MACHINE, not the repo.** The 10:30
-  and the 13:10 above are very nearly the same tests: `test_full_hub_lifecycle
-  [home]` measured **250 s** alone here on the same commit that documented it
-  at 157 s, and 249.8 vs 250.2 s across the issue-23 change (stashed and
-  unstashed, back to back) — a 0.2 % difference on a test that touches none
-  of it. Before believing a slower suite, time ONE unchanged mission test
-  `-n0` on both sides; a number in this file is evidence about the day it was
-  written.
-  Two of them are the same argument twice over:
-  `test_charge_priority_survives_an_overseer_that_never_charges` (issue #15,
-  153 s alone) is the only way to prove an LLM cannot skip charging, and
-  `test_a_question_is_asked_answered_and_graded_twice_unattended` (issue #22,
-  196 s) is the only way to prove a robot can be asked something, answer it,
-  and be marked on the board — twice, with nobody watching.
-  ⚠ **A mission test should END when its claim is settled**, not when its
-  budget runs out. The issue-22 one raises `MissionAborted` from a step hook
-  the moment the second verdict lands; without that it ran 10:35 instead of
-  3:16, because a battery-driven loop with no work left spends the rest of
-  its budget honestly deciding what to do with its afternoon.
+  **751 of 766 tests in ~2:16**, against **~17:15** for everything, and
+  `-m slow` alone is **~12:03** of that (measured 2026-08-29, issue #54; the
+  history: before #54 it was 753/766 in 2:31 against 28:57, before #23
+  570/583 and ~10:30, before #21–#22 430/439 in 1:18 and ~6:22, before
+  #13–#15 343/351 in 1:13 and 6:34). FIFTEEN tests carry `@pytest.mark.slow`
+  and are very nearly all of the clock: every fast test is absorbed into
+  their shadow and the marginal cost of the other 751 is small.
+  ⚠ **The wall-clock figures track the MACHINE, not the repo**, and the
+  6-core box they were measured on was also running a VM holding ~95 % of a
+  core. `test_full_hub_lifecycle[home]` has measured **157 s**, **250 s** and
+  (before #54 shortened it) **369 s** on three different days for the same
+  test, and 249.8 vs 250.2 s across the issue-23 change stashed and unstashed
+  back to back — a 0.2 % difference on a test that touches none of it. Before
+  believing a slower suite, time ONE unchanged mission test `-n0` on both
+  sides, and INTERLEAVE the two halves rather than running them as blocks; a
+  number in this file is evidence about the day it was written.
+  ⚠ **`-n auto` is already every core here, and the ceiling is the LONGEST
+  SINGLE TEST, not the worker count** (issue #54). Measured before that
+  issue: 2.35× effective parallelism on the slow half out of a theoretical
+  6×, five of six workers idle at the end while one ground on, and one test
+  at 903 s against a 1355 s wall — no `-n` and no `--dist` beats an
+  indivisible test, which is why `worksteal` measured identical to `load`.
+  The lever is shortening the long poles.
+  ⚠ **A mission test must END WHEN ITS CLAIM IS SETTLED**, not when its
+  budget runs out — `HubLifecycle.stop_when`, which is where the rules live.
+  A battery-driven loop with no work left spends the rest of its budget
+  honestly deciding what to do with its afternoon. Measured (issue #54):
+  903→482 s, 370→180 s, 293→134 s, 257→144 s, and issue #22's question test
+  10:35→3:16 when it got the treatment first.
+  Three of them resist it, and each for its own reason, so do not retry
+  these without reading why: `test_a_charge_completes_on_a_pack_the_old_flat
+  _timeout_could_not_fill` (414 s) needs a charge LONGER than the old 400 s
+  cap or it cannot fail without its fix, which needs ≥5.3 Wh of pack;
+  `test_a_question_is_asked_answered_and_graded_twice_unattended` (394 s,
+  issue #22) already stops on its claim, and cutting it to one question
+  deletes the "**twice**, with nobody watching" that is its whole point; and
+  `test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies`
+  (482 s, issue #15) asserts two COMPLETED errands, which is the acceptance
+  criterion. It and `test_charge_priority_survives_an_overseer_that_never
+  _charges` (144 s) are the only ways to prove an LLM cannot skip charging.
+  ⚠ **`slow` means EXPENSIVE *AND* UNABLE TO CATCH A REGRESSION WHILE YOU
+  ITERATE** (issue #54; the rule is written out in `pyproject.toml`). Cost
+  alone is not the test — before that rule the marker meant "is a whole-
+  mission run", which put a 29 s test in the slow suite and left an 80 s one
+  out of it. Whole-mission runs qualify; so do PREMISE-PINNING tests, which
+  bypass a fix and assert the old defect still reproduces (they cannot fail
+  because the fix regressed — it is not running). A "blind"-named test that
+  calls the real code and asserts it declines is NOT one of those and stays
+  in the iterate loop. **Shorten before you mark.**
 - Tests, before calling any work done: the **FULL** suite,
   `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
   the end — whenever the change touches something a whole mission exercises:

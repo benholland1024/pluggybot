@@ -21,6 +21,7 @@ Sweep tables: scripts/swap_spike.py (`--blind` for the before-fix rows).
 
 import math
 
+import pytest
 import mujoco
 
 from pluggybot.home import world as home
@@ -64,6 +65,11 @@ def module_z(mission) -> float:
   return float(mission.data.xpos[int(mission.model.body(MODULE).id)][2])
 
 
+#: SLOW because it cannot catch a regression in the fix -- it BYPASSES the
+#: fix and asserts the old defect still reproduces. That premise needs
+#: re-checking when the geometry moves, which is a merge, not every iterate
+#: loop. Cost is why it was looked at; this is why it qualifies (issue #54).
+@pytest.mark.slow
 def test_a_blind_return_at_the_cliff_drops_the_module_on_the_floor():
   """The defect, pinned: with the measurement bypassed, six centimetres of
   belief decoherence puts the module on the floor at the rack's foot. If
