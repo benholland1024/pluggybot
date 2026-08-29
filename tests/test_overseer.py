@@ -546,6 +546,17 @@ def test_charge_priority_survives_an_overseer_that_never_charges():
     lambda: states.append(life.state)
     if life.state != (states[-1] if states else None) else None)
 
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The claim is settled the
+  # moment the robot has charged AND the overseer has been asked and answered
+  # -- everything after is the idling overseer being asked again. Measured
+  # 256.9 s.
+  #
+  # The predicate is the SUCCESS condition, and it does NOT encode the
+  # ordering it is testing: with the branches inverted, DECIDE lands first,
+  # the charge follows, the hook fires anyway, and `states` still reads
+  # DECIDE-before-GO_CHARGE -- so the assertion below fails as it always did.
+  life.stop_when(lambda: "DECIDE" in states and life.charge_cycles >= 1
+                 and any(d["source"] == "llm" for d in life.decisions))
   r = life.run(world_config("room_hub")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 

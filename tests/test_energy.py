@@ -530,6 +530,18 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
   life.mission.step_hooks.append(
     lambda: low.append(life.battery.fraction))
 
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). Everything asserted
+  # below is settled the moment the SECOND errand is stowed: the defer, the
+  # charge, two errands, the margin. Running on to 900 s measured 903 s of
+  # wall clock -- two thirds of the whole slow suite -- for a third census
+  # that repeats the second.
+  #
+  # The predicate is the SUCCESS condition, which is what keeps this test
+  # able to fail: unfix the gate and the robot strands itself mid-errand,
+  # `errand_results` never reaches 2, the hook never fires, and the run goes
+  # the whole distance and fails on `min(low) > 0` exactly as it did before.
+  life.stop_when(lambda: len(life.errand_results) >= 2
+                 and life.charge_cycles >= 1)
   r = life.run(lc.world_config("home")["start"], max_sim_time=900.0,
                explore_budget=15.0)
 

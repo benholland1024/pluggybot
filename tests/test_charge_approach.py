@@ -24,6 +24,7 @@ should say so (the test_navigation doctrine).
 
 import math
 
+import pytest
 import mujoco
 
 from pluggybot.home import world as home
@@ -85,6 +86,11 @@ def blind_creep(mission, sx, sy, hd) -> bool:
   return rack_charge_contact(mission.model, mission.data)
 
 
+#: SLOW because it cannot catch a regression in the fix -- it BYPASSES the
+#: fix and asserts the old defect still reproduces. That premise needs
+#: re-checking when the geometry moves, which is a merge, not every iterate
+#: loop. Cost is why it was looked at; this is why it qualifies (issue #54).
+@pytest.mark.slow
 def test_the_blind_creep_misses_at_a_ten_degree_rack_yaw_error():
   """The defect, pinned: face + refine against a belief that reads perfect
   are no-ops, and the creep sails past the pins. If this starts passing,

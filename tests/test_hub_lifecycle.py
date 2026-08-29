@@ -98,12 +98,35 @@ def test_full_hub_lifecycle(world):
   from world_config, so this is also the guard on that table.
   """
   from pluggybot.lifecycle import run_demo
-  r = run_demo(world=world)                # start pose from the world config
+
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The whole milestone-8
+  # claim is settled once the tool has gone out and come back and the robot
+  # has charged; `run_demo`'s default 600 s budget then buys a SECOND charge
+  # cycle in home (219.7 -> 353.6 sim-seconds since the garden plate landed)
+  # that repeats the first. Measured 369.6 s / 236.7 s of wall clock.
+  #
+  # The predicate is the SUCCESS condition, so a world constant that breaks
+  # the mission never satisfies it: the run goes the whole distance and fails
+  # on the same assertion it always did.
+  def settled(life):
+    return (life.swaps_done >= 2 and life.charge_cycles >= 1
+            and life.mission.swap.module_state(life.module)["hung"])
+
+  r = run_demo(world=world, stop_when=settled)   # start pose from world config
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
   assert r["module_stowed"], "the module was not put back"
   assert r["charge_cycles"] >= 1, "never charged at the hub"
   assert r["battery"] > 0.5, "ended flat"
+  # ⚠ NO LOW-WATER ASSERTION HERE, and that is deliberate. A first pass at
+  # this added `min(fraction) > 0` as a "strictly stronger" replacement for
+  # the line above, and room_hub failed it at 0.0 % -- correctly. The pack
+  # reaching empty inside an errand is documented, honest behaviour on a demo
+  # cell: `needs_charge` is checked BETWEEN errands and never inside one, so
+  # an errand bigger than what is left cannot be survived by any charging
+  # policy, and the committed home recording finishes a census at frac 0.000.
+  # An assertion the design explicitly does not promise is a plausibility
+  # guard rejecting the truth (SimNotes), not extra rigour.
   assert r["collision_steps"] == 0, "the robot hit something"
   # ...and it was PAID for the work, by code (issue #14). Both tasks a bare
   # mission performs are scoreable, and the verdicts come from evaluators
