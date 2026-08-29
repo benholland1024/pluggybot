@@ -3,7 +3,7 @@
   "note": [
     "The questions the house asks (pluggybot issue #22). DATA, not code: a",
     "question and its answer, and nothing that computes -- see",
-    "hub/questions.py. Adding a question is an edit to this file and a",
+    "economy/questions.py. Adding a question is an edit to this file and a",
     "restart, and $PLUGGY_QUESTIONS points the deploy at a different one.",
     "",
     "`answer` is at most two characters from 0-9, and that is the pen's",
