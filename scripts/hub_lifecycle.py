@@ -70,6 +70,14 @@ def main() -> None:
                            "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
+  parser.add_argument("--metabolism", action="store_true",
+                      help="POINTS ARE FOOD (issue #36): the robot consumes "
+                           "points at a steady rate on sim time, stops "
+                           "banking at a cap, and once it has enough it is "
+                           "SATISFIED and turns to its goals. Off by "
+                           "default. Rate and cap are data "
+                           "(economy/metabolism.json; $PLUGGY_METABOLISM "
+                           "re-points it and implies this flag)")
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
@@ -127,6 +135,7 @@ def main() -> None:
                overseer=args.overseer or None, goals=args.goals,
                journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
+               metabolism=args.metabolism,
                pack=args.pack, reserve_wh=args.reserve_wh,
                robot_name=args.robot_name,
                overseer_backend=args.overseer_backend,
@@ -163,6 +172,13 @@ def main() -> None:
           f"{' PENDING' if v['pending'] else ''}"
           f"  {'ok ' if v['ok'] else 'FAIL'}  {v['reason']}")
   print(f"points balance         : {r['points']} ({r['earned']} this mission)")
+  # ...and what LIVING cost, where points are food (issue #36). Printed only
+  # when there is an appetite, so every existing run's output is unchanged.
+  if r.get("metabolism"):
+    m = r["metabolism"]
+    print(f"appetite               : {m['state']}, {m['points']}/{m['cap']} "
+          f"points at {m['pointsPerHour']}/h -- {m['consumed']} eaten, "
+          f"{m['spilled']} over the cap")
   # What the overseer chose, and what the choosing cost (issue #15). `source`
   # is on every line because "the robot chose to explore" and "the API was
   # down so the robot explored" look identical from outside.

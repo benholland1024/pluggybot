@@ -763,6 +763,59 @@ minutes paused reads as five minutes of lag and the robot then runs at up to
 on resume says the honest thing instead: that time was not sim time that
 went missing, it was sim time that never happened.
 
+## 8b. Hunger — the one thing satisfaction is allowed to change (issue #36)
+
+Points became a metabolism: consumed at a steady rate on sim time, capped
+rather than accumulated, and **satisfied** once the balance is high enough.
+The mechanic and its numbers live in `economy/metabolism.py` and
+docs/TaskPattern.md §5b; what belongs *here* is the one place it touches the
+mind.
+
+**It is prompt, not policy.** With an appetite attached the system prompt
+gains an `APPETITE_RULE` block and the user turn gains a `metabolism` object:
+
+```jsonc
+"metabolism": {"state": "satisfied", "satisfied": true, "points": 52,
+               "cap": 90, "pointsPerHour": 45.0, "satisfiedAt": 45,
+               "hungryAt": 20, "consumed": 118, "spilled": 4}
+```
+
+The split is the usual one and the usual reason: the RULES are a property of
+the world and ride the cached prefix; the numbers move per call and ride the
+user turn. A world with no appetite has a **byte-identical prefix** to the one
+it had before this existed, exactly like `ESCALATION_RULE`.
+
+**Shown, and unreachable.** The reward table's rule for the third time (after
+the balance in #14 and the allowance in #37): the robot is told how hungry it
+is, what living costs it an hour, and what the ceiling refused — and there is
+no field on a `Decision` that moves any of it. Nothing declines to be hungry,
+just as nothing awards itself points.
+
+⚠ **THIS IS THE WHOLE OF WHAT SATISFACTION DOES.** No branch anywhere reads
+`satisfied` and declines a job; no branch reads `starving` and declines
+anything at all. Two consequences worth stating because both look like
+omissions:
+
+- **The scripted rotation is untouched.** A fallback policy has no
+  `Goals.md` to pursue, so "free time" would have nothing to spend itself on
+  — it would rotate onto the same errands, only having refused the offers
+  somebody actually asked for. Hunger on a scripted world is a gauge that
+  moves and a face that changes, which is honest; the *behavioural* half of
+  the mechanic is a mind's, which is where issue #36 puts it ("the free time
+  is what a PluggyBot spends pursuing its written goals with actions the
+  overseer constructs").
+- **Zero is narrative, never a capability lock.** A robot at no points
+  charges, navigates and stows exactly as it always did. That is enforced by
+  ABSENCE, so the test for it is a whole mission flown broke
+  (`test_a_starving_robot_still_charges_navigates_and_stows`) plus a grep
+  over every branch that could have grown a gate. Hunger that could brick a
+  world overnight is worse than no hunger.
+
+**Two currencies, and they never convert.** Points are the in-game
+metabolism; USD (§8) is the real thinking budget. A robot that could buy
+thinking with points would have a reason to grind, and one that could buy
+points with money would have a reward table denominated in an invoice.
+
 ## 9. Running it
 
 ```sh

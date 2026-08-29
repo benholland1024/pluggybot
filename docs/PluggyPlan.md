@@ -543,6 +543,50 @@ tracked as its own issues; landed so far:
     visitor to the robot's body.
     `test_a_prompt_injection_is_still_only_a_suggestion` lets the attack
     arrive and then shows the menu refusing every action it asked for.
+- **Points are food (issue #36)**: the reward system gets a reason to exist.
+  `economy/metabolism.py` + `metabolism.json`, protocol **0.13.0**. Points are
+  consumed at a steady rate on sim time, stop being banked at a **cap**, and
+  once the balance is high enough the robot is **satisfied** — and the hours
+  it did not have to spend earning are what it spends on `Goals.md`. The free
+  time is the mechanic; an unbounded score was not a motivation, because
+  1 400 points and 1 420 points are the same day.
+  - **Calibrated against MEASURED throughput.** Two unattended 1-sim-hour
+    `home` runs: the robot banks **102 points/sim-hour on the hosting pack**
+    (6 jobs done, 4 failed, 6 expired), so the shipped 45/hour is ~44 % of
+    its income and the rest of the day is its own. A third run with
+    `--metabolism` on banked 102 and ate 43, independently confirming both,
+    and showed the arc: starving → fed at t=230 → satisfied at t=2643, still
+    satisfied at 59/90 when the hour ran out. ⚠ The cycle is **longer than
+    one mission** — 44 min to climb from cold against the ~26 the idealised
+    arithmetic predicts, because real income is lumpy — so the full rhythm
+    plays out across several missions, which is exactly why hunger persists
+    in the ledger file rather than resetting with the sim clock.
+    ⚠ The demo cell banked a comparable-looking 80 points/hour and completed
+    **zero jobs**: a charged demo pack holds 0.990 Wh and every target but
+    `whiteboard_a` costs more, so every point came from CHARGING. Tuning
+    there would make charging the food and work optional — and it is the
+    configuration every mission test and both recordings run on. The fifth
+    data file (`$PLUGGY_METABOLISM`) is there so a re-tune is a JSON edit on
+    a mounted volume.
+  - ⚠ **Satisfaction changes what the robot is TOLD and nothing else.** No
+    branch reads `satisfied` and declines a job; none reads `starving` and
+    declines anything at all. The scripted rotation is untouched (it has no
+    goals to spend free time on), so every existing mission behaves
+    identically with hunger on, and the behavioural half is a mind's — which
+    is where the issue puts it. "Zero is narrative, never a capability lock"
+    is therefore enforced by ABSENCE, and the test is a whole mission flown
+    broke plus a grep over the branches that could have grown a gate.
+  - **A restart is neither a meal nor a missed one.** Sim time restarts at 0
+    every mission, so the anchor is re-taken and the gap costs nothing, while
+    the balance and the fraction of a point owed survive in the ledger's
+    file. Both failures are one bug wearing opposite signs, and each is
+    pinned by a test shown to fail without its fix.
+  - **The cap refuses out loud.** A ledger entry's `points` stays what the
+    reward table paid; `banked`/`spilled` say how much fit, and
+    `earned - consumed - spent == balance` is now checkable off the wire.
+    Paying quietly less than the published table would undo the reward
+    system's whole design.
+  **The website must re-vendor `protocol/`.**
 - **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
   the sim as a deployable container, so it can join the website's compose
   stack as a third service alongside `web` and `db`. It runs `serve.py` and

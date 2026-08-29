@@ -510,11 +510,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   identity, never the body name, so `ROBOT_ROOT` and every body-keyed
   structure are untouched by a rename, and an unset name degrades to
   `"Pluggy"` rather than blank; the secret stays
-  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The four DATA files
+  `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The five DATA files
   are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
   (what a job pays), `$PLUGGY_QUESTIONS` (the question bank),
-  `$PLUGGY_CADENCE` (how busy the world is) and `$PLUGGY_ENERGY` (what an
-  errand costs) — mount a file, no rebuild. Issue #37 adds two more pieces of
+  `$PLUGGY_CADENCE` (how busy the world is), `$PLUGGY_ENERGY` (what an
+  errand costs) and `$PLUGGY_METABOLISM` (how fast the robot gets hungry,
+  issue #36 — and naming it turns the mechanic on) — mount a file, no
+  rebuild. Issue #37 adds two more pieces of
   world state to the same volume: `$PLUGGY_SPEND` (the week's spending) and
   `$PLUGGY_MODE_FILE` (the operator's switch), plus `$PLUGGY_WEEKLY_USD` and
   `$PLUGGY_ESCALATE_TO`.
@@ -537,10 +539,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   [models/home_world.xml]` (rerun after changing ANY geometry in that world —
   the fixture test fails when stale). Recordings: `MUJOCO_GL=egl uv run
   python scripts/hub_lifecycle.py [--world home --errand showcase] --tasks
-  --record protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — ⚠ `--tasks` is
-  load-bearing as of protocol 0.9.0 (issue #21): job offers are OFF by
-  default, so a recording made without it carries no `tasks` block at all and
-  the website's marker code (rooftop-media-2026 #77) has nothing to build
+  --metabolism
+  --record protocol/telemetry.{hub,home}_lifecycle.jsonl.gz` — ⚠ `--tasks`
+  and `--metabolism` are BOTH load-bearing, as of protocol 0.9.0 (issue #21)
+  and 0.13.0 (issue #36): job offers and hunger are OFF by
+  default, so a recording made without them carries no `tasks` or
+  `metabolism` block at all and the website's marker code
+  (rooftop-media-2026 #77) and hunger gauge have nothing to build
   against. The HOME one runs the
   SHOWCASE queue (issues #12 + #13): a drawing errand and then a census on
   the LCD, so the website has ONE recording carrying `draw` /
@@ -659,8 +664,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `rack/` (coupling, swap, localize, tags — the literal hub hardware) ·
   `tools/` (drawing, gripper, dispenser, screen, strokes, hershey, boards) ·
   `mind/` (overseer, llm, thoughts, journal, inbox, mode, spend) ·
-  `economy/` (tasks, scoring, ledger, cadence, questions, energy, census, and
-  the four `.json` data files) · `mission/` (mission, errand) ·
+  `economy/` (tasks, scoring, ledger, cadence, questions, energy, metabolism,
+  census, and the five `.json` data files) · `mission/` (mission, errand) ·
   `lifecycle.py` at top level, because arbitration is what ties them together.
   A new module goes where its CONCERN lives; if it does not fit one of these,
   that is a sign it is a new domain, not a reason to widen an old one.
@@ -902,6 +907,54 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     — the reserve is only checked BETWEEN errands and a per-kind estimate
     cannot know which end of the house it is being asked about. Do not
     "fix" it by padding the table: see the note under TASK above.
+- **POINTS ARE FOOD** (`economy/metabolism.py` + `metabolism.json`, issue #36;
+  protocol 0.13.0). The fourth file in the same division and the one that says
+  why the robot would bother: `tasks.py` what a job IS, `rewards.json` what it
+  PAYS, `cadence.json` when it TURNS UP, `metabolism.json` how fast the robot
+  gets HUNGRY. Points are consumed at a steady rate on sim time, stop being
+  banked at a **cap**, and once the balance is high enough the robot is
+  **satisfied** — and the hours it did not have to spend earning are what it
+  spends on `Goals.md`. OFF by default (`--metabolism`; `$PLUGGY_METABOLISM`
+  names a data file and implies it, the way `$PLUGGY_TASKS` implies a board).
+  ⚠ **CALIBRATED AGAINST MEASURED THROUGHPUT** (three unattended 1-sim-hour
+  `home` runs): the robot BANKS **102 pts/sim-hour on the hosting pack**, so
+  the shipped 45/hour is ~44 % of its income and the rest of the day is its
+  own. ⚠ **The CYCLE is longer than one mission** — measured, a cold robot
+  reached `satisfied` at t=2643 (44 min) against the ~26 the idealised
+  arithmetic predicts, because real income is LUMPY (a 640 s charge, four
+  failed jobs, exploring). A watcher sees the full arc across several
+  missions, which is exactly why hunger persists in the ledger; do NOT
+  re-tune to fit a cycle into one mission — that is tuning for a demo.
+  Re-run the measurement whenever `rewards.json` or `cadence.json` moves; do
+  not adjust by feel.
+  ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** The demo run banked
+  a similar-looking 80 pts/hour and completed **ZERO jobs** — a charged demo
+  pack holds 0.990 Wh and every target but `whiteboard_a` (0.929) costs more
+  (`whiteboard_b` 1.113, census 1.141), so every point came from CHARGING. A
+  rate calibrated there makes charging the food and work optional, which is
+  the mechanic inverted. It is also what every mission test and both
+  recordings run on, so it is the number you reach for by accident.
+  ⚠ **SATISFACTION CHANGES WHAT THE ROBOT IS TOLD AND NOTHING ELSE.** There
+  is no branch that reads `satisfied` and declines a job, and none that reads
+  `starving` and declines anything at all — the scripted rotation is
+  untouched (it has no goals to spend free time on) and every existing
+  mission behaves identically with hunger on. That is issue #36's "zero is
+  narrative, never a capability lock", and because it is enforced by ABSENCE
+  the test is a whole mission flown broke plus a grep over the branches that
+  could grow a gate. Arrears are the sneaky version of the lock: hunger stops
+  at zero, so a starving robot's next job pays in full.
+  ⚠ **It ticks on the PHYSICS seam**, like `TaskProducer` — an appetite
+  ticked on the arbitration loop would not charge for the twenty minutes
+  inside an errand, which is most of the day. And **a restart is neither a
+  meal nor a missed one**: sim time restarts at 0 so the anchor is re-taken
+  and the gap costs nothing, while the BALANCE (and the fraction of a point
+  owed) survives in the ledger's file. Both failures are one bug wearing
+  opposite signs.
+  ⚠ **The cap refuses OUT LOUD.** A ledger entry's `points` stays what the
+  reward table paid; `banked`/`spilled` say how much fit. Silently paying
+  less than the published table undoes the reward system's whole design.
+  `earned - consumed - spent == balance` is now checkable off the wire.
+  docs/TaskPattern.md §5b.
 - **A QUESTION is a job for a MIND** (`economy/questions.py` + `questions.json`,
   issue #22). The `whiteboard_answer` kind poses a question with a checkable
   answer — "Draw the answer to this question on whiteboard_a: 2 + 3" — and
