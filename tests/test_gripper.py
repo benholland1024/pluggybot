@@ -1,4 +1,4 @@
-"""Guards for the claw module (hub/gripper.py, milestone 8)."""
+"""Guards for the claw module (tools/gripper.py, milestone 8)."""
 
 import math
 
@@ -6,12 +6,12 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   CLAW_JAW_Z, CLAW_PAD_HALF_H, CLAW_PENDANT_BOT, HUB_STATION_YS,
   module_power_contact,
 )
-from pluggybot.hub.gripper import GRIP_Z, ClawTool, CLAW_MODULE
-from pluggybot.hub.swap import HubSwap
+from pluggybot.tools.gripper import GRIP_Z, ClawTool, CLAW_MODULE
+from pluggybot.rack.swap import HubSwap
 
 
 @pytest.fixture(scope="module")

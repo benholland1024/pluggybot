@@ -5,7 +5,7 @@ and the boundary is the interesting part: everything that keeps the robot alive
 stays in code, and the model is given exactly one branch of one loop.
 
 Design doc: `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
-Code: `src/pluggybot/hub/overseer.py` (decide) and `hub/journal.py` (remember).
+Code: `src/pluggybot/mind/overseer.py` (decide) and `mind/journal.py` (remember).
 
 ---
 
@@ -78,7 +78,7 @@ can think comes past, and lapses honestly as `expired` if nothing does.
 That is deliberate, and it is the first thing in this design that the LLM is
 not merely *allowed* to do but is the *only* thing that can. The two ways
 code could supply an answer are both worse than leaving the job alone —
-reading it out of `hub/questions.json` is the sim marking its own homework,
+reading it out of `economy/questions.json` is the sim marking its own homework,
 and guessing puts a confident wrong number on a wall — and a weaker backend
 (issue #19) getting one wrong in public, on a whiteboard, is exactly the
 honest difference the kind exists to show.
@@ -96,7 +96,7 @@ reduces it to at most two characters from `0-9` before a single stroke
 exists. There is no free-text path from the model to the board.
 
 What the overseer cannot do with a task is the usual list, one notch further
-out: it cannot price one (the payout is looked up from `hub/rewards.json`
+out: it cannot price one (the payout is looked up from `economy/rewards.json`
 every time the offer is read), it cannot close one (`TaskBoard.resolve` takes a
 `scoring.Verdict` and nothing that merely looks like one), and it cannot see a
 task's answer (`Task.secret` is in no context dict, no snapshot and no wire
@@ -135,7 +135,7 @@ than a thing it promises not to, and each is pinned by a test.
 
 **It cannot award itself points.** The reward table is in its context — making
 the reward explicit and steerable is the whole point of issue #14 — but
-`hub/scoring.py` measures the finished task off the sim and `hub/ledger.py`
+`economy/scoring.py` measures the finished task off the sim and `economy/ledger.py`
 re-derives the payout from the table before banking it. Neither takes an
 argument from here. The overseer chooses what to attempt; code decides what it
 was worth. An agent that can score its own work learns to declare victory, and
@@ -236,8 +236,8 @@ errand  t= 308.6-> 459.9  frac 0.883->0.000  = 0.9718 Wh   (a census)
                                        ^^^^^ nothing left
 ```
 
-`hub/energy.py` + `hub/energy.json` are the answer, and they are the fourth
-member of the set `hub/tasks.py` opened: what a job **is**, what it **pays**
+`economy/energy.py` + `economy/energy.json` are the answer, and they are the fourth
+member of the set `economy/tasks.py` opened: what a job **is**, what it **pays**
 (`rewards.json`), when it **turns up** (`cadence.json`), and now what it
 **costs**. Data, per world, `$PLUGGY_ENERGY` to re-point.
 
@@ -277,7 +277,7 @@ LCD.
 That is the invariant, not "never exceeded" — an overrun smaller than the
 return trip cannot strand the robot. One larger than it means the table has
 gone stale, and the loop narrates that
-(`ENERGY <errand> cost X against an estimate of Y — hub/energy.json is low`,
+(`ENERGY <errand> cost X against an estimate of Y — economy/energy.json is low`,
 fired at 10 % over so a few percent of trajectory variance is not noise). That
 line is how `count_plants` was caught at 0.87 Wh against a measured 1.14.
 
@@ -374,7 +374,149 @@ The scripted fallback obeys the same list, so an outage does not mean the
 robot proposing an errand the loop refuses, over and over, until the budget
 runs out.
 
-## 6. Cost, and the call budget
+## 6. The model, the cost, and the call budget
+
+### Four backends, one seam
+
+Which model decides is **`$PLUGGY_MODEL`**; **which mind** it runs on is
+`--overseer-backend` / **`$PLUGGY_OVERSEER_BACKEND`** (issue #19), and its
+default — `auto` — is the id's own shape, so nothing written before that flag
+existed routes anywhere new:
+
+| backend | endpoint | key | what it is for |
+|---|---|---|---|
+| `anthropic` | the SDK | `$ANTHROPIC_API_KEY` | the default; `claude-haiku-4-5` |
+| `huggingface` | Inference Providers router | `$HF_TOKEN` | where candidate open-weight models are MEASURED |
+| `local` | `$PLUGGY_OVERSEER_URL` (ollama, `:11434/v1`) | none | a model on this machine: no network, no bill |
+| `openai-compatible` | `$PLUGGY_OVERSEER_URL` | `$PLUGGY_OVERSEER_KEY` | somebody else's endpoint, same protocol |
+| `auto` | — | — | `org/name` → huggingface, anything else → anthropic |
+
+The overseer's client seam was always "anything with
+`.messages.create(**kwargs)` returning `.content` and `.usage`", and the
+middle three are ONE adapter (`hub/llm.ChatClient`) wearing that shape over
+an OpenAI-style `/chat/completions` — so `_call`, validation, metering, the
+budget and every fallback are vendor-blind, and `llm.build_client` is the
+only function in the repo that knows which vendor is which. Stdlib `urllib`
+on purpose: the serving image's six pinned packages did not grow to talk to
+one HTTP endpoint — least of all to one on localhost.
+
+The HF turn exists because Ben's hardware runs ~8B models at a decent
+speed: the router is where candidate models get **measured**
+(`scripts/overseer_probe.py --model Qwen/...`) before one earns a local
+deployment. Differences, all handled in the adapter:
+
+- **No prompt caching.** The router bills full input every call, so
+  `cacheHitRate: 0` is the honest reading there (not the Haiku 4096-token
+  floor). At 8B-class prices this costs less than Haiku's cached rate
+  anyway — see the sweep below.
+- **Structured outputs are provider-dependent.** The same JSON schema rides
+  as OpenAI-style `response_format`; a provider that 4xxes it gets ONE
+  retry with the schema spelled into the system text. `validate()` is the
+  last word on both vendors either way.
+- **A missing `$HF_TOKEN` fails at construction** (the opposite of the SDK,
+  whose late failure is why the cool-off exists) and resolves to
+  `fallback:no-client`.
+- **A reasoning model's `<think>` block is stripped** before parsing —
+  "the model reasoned first" and "the model did not answer JSON" are
+  different events.
+
+### The sweep (measured 2026-08-27, 3 real decisions each, home world)
+
+| model | valid | $/Mtok in/out | $/sim-hour | note |
+|---|---|---|---|---|
+| **`Qwen/Qwen3-4B-Instruct-2507`** | **3/3** | 0.01 / 0.03 | **$0.0009** | best reasons, cheapest — the pick |
+| `meta-llama/Llama-3.1-8B-Instruct` | 3/3 | 0.02 / 0.05 | $0.0018 | terse; one hallucinated reason |
+| `meta-llama/Llama-3.3-70B-Instruct` | 2/3 | 0.135 / 0.4 | $0.0116 | one truncated answer |
+| `Qwen/Qwen3-8B` | 1/3 | 0.07 / 0.18 | — | thinking: burns `max_tokens` on `<think>` |
+| `ibm-granite/granite-4.2-8b` | 0/3 | 0.06 / 0.25 | — | empty answers |
+| `Qwen/Qwen3.5-9B` | 0/3 | — | — | 403 from its only provider |
+
+Every failure above degraded to a tagged scripted fallback — the sweep is
+also the fallback machinery's live audition. Prefer **instruct-tuned**
+models: a thinking model spends its 512-token budget reasoning and truncates
+before the answer. Rates come off the router's own `/v1/models` catalogue at
+client build (cheapest live provider), so the `usd` in `stats()` tracks the
+model actually chosen; when the catalogue does not answer, `priced: false`
+and the report says unknown rather than zero.
+
+### The acceptance run (the pick, 4 sim-hours unattended, measured)
+
+Home world, hosting pack, tasks on cadence, `--fast`: **mission complete at
+t=14 400 with the pack at 21 % — 8/8 charge cycles docked, no stranding, no
+mid-errand death, $0.00125 total ($0.0003/sim-hour)**, and the DEFER path
+fired exactly as designed (a chosen census at 17 % was deferred, charged for,
+then run). The model answered every question task correctly — `2 + 3`,
+a fortnight, `12 − 4`, `6 × 7`, a spider's legs — and the first one went all
+the way to ink: `wrote 5 on whiteboard_a in answer to "2 + 3" -- correct,
+0.7 mm from the glyphs`.
+
+⚠ **The one small-model quirk measured: the offer id.** 23 of the run's 34
+fallbacks were `take_task` with the job's KIND in `task` ("draw", "census")
+instead of the id, each degrading safely to the scripted policy (which takes
+the oldest claimable offer anyway) but also feeding the cool-off streaks.
+The prompt now spells the id shape out in both the rules and the action
+description, and the probe's synthetic state carries a claimable offer so
+the mistake is measurable: re-probed after the wording fix, 4/4 valid with
+the offer taken by id. (The run's 36 failed jobs were the long-run bay-swap
+cliff — issue #30 territory, pre-existing and LLM-independent: the dead-key
+fallback run hit the same cliff with zero model calls.)
+
+### The local backend (issue #19)
+
+`--overseer-backend local` puts the same decision loop in front of a model on
+this machine. Nothing else changes: the call budget, the cool-off, the
+timeout and the tagged `fallback:<why>` rotation are backend-independent, and
+a local runtime that stalls is the same failure as an API that times out.
+`scripts/overseer_probe.py --backend local` is the measuring tool, and
+`--errand none --overseer --overseer-backend local` flies a whole mission on
+it.
+
+**The grammar constraint is the point.** `Menu.schema()` already makes
+`action` an ENUM of this world's menu, and it rides every request as
+OpenAI-style `response_format: json_schema` — so a decoder honouring it has
+no token sequence that spells an action which does not exist. That is what
+makes a 4B model safe in this seat, and it is why the honest measure of a
+small model here is *reasoning*, not format compliance. An endpoint that
+rejects the field is retried once with the schema in prose, and then
+`Overseer.constrained` goes False and says so once in `usage.errors` and in
+both scripts' closing blocks — a silent downgrade would surface only as a
+mysteriously higher fallback rate.
+
+⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the model
+LOAD.** Measured on the dev box (GTX 1660 Super, 6 GB; `qwen3:4b-instruct`,
+the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the Anthropic
+path's 8 s deadline that is not a risk, it is a certainty — three of three
+probe decisions came back `fallback:TimeoutError` while the model was still
+loading — and ollama unloads an idle model after five minutes, so a robot
+returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
+(45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the
+API paths. `tests/test_local_backend.py` pins both halves.
+
+⚠ …and 45 s is measured on a box doing nothing else. A cold load with the
+full test suite saturating the same machine went straight through it and fell
+back — the guard working exactly as designed, not a wrong constant, because a
+robot cannot wait indefinitely for a mind that is being starved of CPU. But
+it does mean the local backend wants the machine a served world already
+assumes it has: the sim's own container, not a laptop mid-build. Measured
+quiet, after the merge: 25.0 s cold, 7.0–7.7 s warm, 3/3 valid.
+
+**Nothing is billed, and that is a third answer rather than a zero.** Money
+has three states here and each report distinguishes them: `local` prints "no
+API cost" (zero is a *measurement*), a backend whose rates cannot be read
+prints "unknown" with `priced: false` (Haiku's rates would be a fabricated
+invoice — and that now covers a non-default *Anthropic* model too), and a
+priced backend prints the number. Token counts are always the endpoint's
+own; the cache fields are 0, which is the honest reading for a runtime that
+reuses its KV cache for latency and bills nobody either way.
+
+**Which mind decided is in `History.md`** — "thinking with qwen3:4b-instruct
+(local)", or "nobody is choosing today" on a scripted run — written at
+mission start beside the line that opens the day. History is the system's
+file and already rides the wire as a `thought` (0.11.0), so the site can show
+which mind made the decisions below it with no protocol change. `stats()`
+carries `backend` and `constrained` for the closing block.
+
+### The Anthropic path
 
 **Claude Haiku 4.5** (`claude-haiku-4-5`), structured outputs so the decision is
 validated JSON rather than parsed prose, `max_tokens` 512, no thinking.
@@ -406,31 +548,222 @@ rate, because at that point the honest options are "the prefix genuinely has
 more to say" and "this model does not cache prompts this small" — and padding
 it until the number looks right is neither.
 
-## 7. Memory
+## 7. Memory — the thought files (issue #38)
 
 Local files beside the sim, deliberately, and not a round trip to the website.
 The overseer runs inside the sim process, so a read against the site would put
 an HTTP failure mode on the path that decides what the robot does next — and
 the site is the one component the sim is otherwise completely indifferent to.
 Memory that only works when the site is up is memory the robot loses in exactly
-the situation it most needs it. Both files live in `/var/lib/pluggybot`, the
-same volume the boards and the ledger do.
+the situation it most needs it. Everything below lives in `/var/lib/pluggybot`,
+the same volume the boards and the ledger do.
 
-- **`goals.md`** is **read and never written** — plain prose, human-editable,
-  mounted. Ben changes what the robot is for by editing a file; the next
-  decision reflects it, with no redeploy and no code change. It rides in the
-  stable prefix, so editing it invalidates the prompt cache, which is correct:
-  the goals changing is exactly when the cached prefix should stop being reused.
-- **`journal.json`** is **written and never edited** — append-only notes the
-  overseer writes to itself, the last ten of which come back in the next
-  prompt. Bounded on disk (200) and per note (400 chars), because an unbounded
-  file that is replayed into every prompt is a slow-motion context leak.
+Issue #15 shipped two files whose asymmetry *was* the design — goals read and
+never written, a journal written and never edited. Issue #38 keeps that
+asymmetry and makes it a **table**: four named Markdown documents, each with
+one writer, which is the shape the website's Thoughts tab renders. Code:
+`mind/thoughts.py`, and the permission check lives at the single write path
+rather than being promised by its callers.
 
-Neither is scoring and neither can become scoring: the journal is `narrative`
-tier, the one tier in `hub/scoring.py` with no evaluator and none coming. A
-robot writing "I did great today" earns nothing by writing it.
+| File | Written by | Cap | Why |
+|---|---|---|---|
+| `Main.md` | **human** | 4000 | Body and manner. A robot that can rewrite who it is defeats the point |
+| `Goals.md` | **human** | 8000 | What it is for. How goals already worked, and still `$PLUGGY_GOALS`' file |
+| `History.md` | **system**, append-only | 6000 | What happened. A robot that can edit its own history breaks the principle that stops it awarding itself points |
+| `Knowledge_and_Opinions.md` | **robot** | 3000 | The one genuinely writable surface: what it has learned and what it thinks |
 
-## 8. Running it
+- ⚠ **The NAME is not in `Main.md`, and that is deliberate** (issue #39).
+  `pluggybot` is the species — the MJCF body name every wire structure keys
+  off — while the name is per instance (`robot_display_name`, `--robot-name`
+  / `$PLUGGY_ROBOT_NAME`, default `Pluggy`). `Main.md` carries body and
+  manner; `system_prompt` states *"Your name is Luca. You are a pluggybot,
+  which is your KIND rather than your name"*, resolved once per run by the
+  same helper the telemetry header uses. Putting it in the file instead would
+  freeze it: the file is written to disk on a fresh volume and is a human's
+  from that moment, so a later `$PLUGGY_ROBOT_NAME` would stop reaching the
+  robot — the drift #39 exists to prevent. Safe in the cached prefix (a robot
+  cannot be renamed mid-run); a rename between runs invalidates it, which is
+  correct, on the same terms as editing `Goals.md`.
+- **A write by anyone but the owner raises `ThoughtRefused`**, is counted, and
+  is narrated (`THOUGHT refused: …`). Human files have no write API at all — a
+  person edits the file on the volume, which is how goals have always been
+  changed, and the next run reads it. **A refusal nobody can see** is the
+  failure this guards: a robot whose memory quietly stopped accepting writes is
+  indistinguishable from a model with nothing to say.
+- **The verbs are `learn` and `forget`, and there is no third.** They are
+  fields on a decision rather than actions, orthogonal to `action` like `note`
+  — writing a line down should not cost a turn. `forget` quotes a line and
+  refuses on a miss *or* an ambiguity, because a robot that asked to drop one
+  belief and dropped another is worse than one that dropped none. **There is
+  deliberately no verb that replaces a file**: one bad generation must not be
+  able to erase everything the robot knows. And no parameter names a file, so
+  `Main.md` is not reachable from a decision at all — the permission table is
+  the backstop, not the only lock.
+- **The two caps fail in opposite directions, on purpose.** `History.md` rolls
+  (oldest lines off the front, the journal's rule) because nothing curates it.
+  `Knowledge_and_Opinions.md` **refuses** when full, because silently dropping
+  its oldest line would leave the robot believing it remembers something it
+  does not; `forget` is its remedy, and the prompt says so.
+- **`History.md` is written by the lifecycle**, not the model, at the four
+  moments a person catching up would want: waking up, each decision, each
+  banked verdict, and how the day ended. It is *not* the narration — `_say`
+  fires dozens of times a minute and most of it is a state machine talking to
+  itself. Its lines carry `verdict.reason`, already redacted of a hidden
+  answer, because History is read back into the model's own context.
+- **All four exist on every world**, overseer or not, on the same terms as
+  goals: a scripted rotation still has a history, and the Thoughts tab is what
+  a visitor opens first. `--thoughts DIR` / `$PLUGGY_THOUGHTS`; `$PLUGGY_GOALS`
+  still names `Goals.md`, so a volume carrying a hand-edited `goals.md` keeps
+  using it rather than silently reverting to the defaults.
+- **`journal.json` is unchanged** and still the overseer's notes-to-self. The
+  journal is *this decision's* remark; `History.md` is the record of what
+  happened; `Knowledge_and_Opinions.md` is what the robot concluded. None of
+  the three is scoring or can become scoring: the journal is `narrative` tier,
+  the one tier in `economy/scoring.py` with no evaluator and none coming. A robot
+  writing "I did great today" earns nothing by writing it.
+
+### ⚠ The split is by WRITER — and the reason is not the one the issue gives
+
+Read-only files ride the cached prefix, writable ones sit after the
+breakpoint. That placement is exactly what issue #38 asks for. **The argument
+for it is not**, and this was measured rather than reasoned.
+
+The issue expects a writable file in the prefix to invalidate the cache on
+every self-edit and roughly tenfold per-call input cost. That is not what
+would happen here: `Overseer.system` is **built once in `__init__`** and sent
+verbatim on every call — deliberately, since #15 — so a mid-run write cannot
+move it whatever the split says, and the bill would not budge. What would
+actually happen is quieter and worse: the model would be shown its memory as
+it stood **at mission start** and never see a word it wrote afterwards,
+re-learning the same thing every hour and `forget`ting lines that were no
+longer there. The real cost is one cache miss per **restart**.
+
+So the byte-identical prefix guard — extended by this issue — is necessary and
+**not sufficient**: it passes with a writable file misplaced, because the
+prefix is frozen either way. `test_what_the_robot_writes_it_can_read_back_the_
+same_run` is the one that fails, and `ThoughtFiles.volatile()` is derived by
+inverting the same `stable` flag rather than listed separately, so the two
+halves cannot disagree and leave a file reaching the model through neither.
+
+## 8. The allowance, the escalation and the switch (issue #37)
+
+Three things arrive together, and they share the principle this repo keeps
+re-learning: **the agent may want, and only code may pay.** The reward table
+was the first version (nothing awards itself points); the allowance is the
+second (nothing spends its own money); the mode file is the third and
+bluntest (the thing being switched off cannot reach the switch).
+
+### Three ceilings, and only the middle one is code
+
+| ceiling | where | what it stops |
+|---|---|---|
+| the provider balance | the HuggingFace account, topped up by hand | everything, absolutely. Deliberately not code |
+| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10) | a month's money going in an afternoon |
+| the hourly call cap | `Overseer.calls_per_hour`, unchanged since #15 | a loop bug |
+
+⚠ **The hourly window could not be reused for the weekly one, and the reason
+is the restart.** `Overseer._calls` is a deque of `time.monotonic` stamps —
+right for an hour inside one process, useless across a week, because a
+mission ends and the container restarts several times an hour
+(`PLUGGY_MAX_SIM_TIME` is 3600 on the deployed world). The spend book is
+wall-clock stamps in a file on the state volume, beside the boards and the
+ledger, and a **rolling** seven days rather than a calendar week: a calendar
+week hands out a full allowance at midnight on Sunday and none at 23:00 on
+Saturday.
+
+⚠ **A damaged spend file is refused, not read as an unspent week.** That is
+the one direction this class must never fail in.
+
+### Escalation: the model asks, code pays
+
+The robot sets **`escalate`** on the decision it was already making — so the
+routing costs **no extra API call**, which is the issue's sharpest
+constraint: if deciding to escalate costs an escalation, the mechanic is
+self-defeating. Code then decides, against gates the model can see the
+effects of and not the levers:
+
+- the allowance has room for the estimate (measured input × the escalation
+  model's own published rates, plus the full output ceiling — the
+  pessimistic direction, which is the right one for a budget check);
+- at least `ESCALATE_MIN_INTERVAL_S` (10 min) since the last one;
+- no more than `ESCALATE_SHARE` (10 %) of this run's decisions, with the
+  first one always allowed so a short mission is not silently excluded.
+
+**Every failure keeps the cheap answer.** A timeout, a 403, a big model
+answering prose — the decision that was already valid stands, and the run
+notes what happened. Escalation can only improve a decision, never cost the
+robot one, which is what makes it safe to put a paid dependency here at all.
+An exhausted allowance therefore degrades to the free backend rather than to
+no decisions.
+
+⚠ **Billed is billed.** A response that arrived and then failed to parse
+still consumed tokens, and it is banked. An allowance that counted only the
+useful calls would drift under the real invoice.
+
+### Which big model (measured 2026-08-29, one real decision each)
+
+| model | result | latency | $/call | rates in/out |
+|---|---|---|---|---|
+| `meta-llama/Llama-3.3-70B-Instruct` | **403 Forbidden** | — | — | 0.135 / 0.4 |
+| **`Qwen/Qwen3-235B-A22B-Instruct-2507`** | valid | **2.05 s** | **$0.00035** | 0.09 / 0.55 |
+| `deepseek-ai/DeepSeek-V3.1` | valid | 5.89 s | $0.00102 | 0.25 / 0.95 |
+| `zai-org/GLM-4.6` | valid | 3.04 s | $0.00183 | 0.5 / 2.0 |
+| `moonshotai/Kimi-K2-Instruct-0905` | valid | 3.73 s | $0.00238 | 0.6 / 2.5 |
+
+The 70B the issue named is **licence-gated on this account** and 403s
+whatever the catalogue says — worth knowing before a deployment discovers it
+as a stream of `escalation: RuntimeError` lines. The pick is the cheapest and
+the fastest of the four that answered, and at 235B (22B active) it is two
+orders of magnitude more model than the 4B it is bought instead of, which is
+the only reason to spend anything at all.
+
+⚠ **AT THESE PRICES THE WEEKLY BUDGET DOES NOT BITE — THE CADENCE DOES.** At
+$0.00035 a call, $10 buys about **28 000 escalations a week**, which is more
+than a robot deciding every two minutes could make if it escalated every
+time. The issue's scarcity argument still holds, but the thing enforcing it
+is `ESCALATE_MIN_INTERVAL_S` and `ESCALATE_SHARE`, not the money. The budget
+is the backstop that catches a mistake (a loop, a much dearer model, a
+provider that reprices); do not read a full allowance at the end of the week
+as proof the gates are working, and do not tighten the budget expecting the
+escalation rate to move.
+
+### The operator's switch
+
+`mind/mode.py` reads a JSON file and **never writes it** — there is no writer
+in the module at all, not even a private one, and `tests/test_allowance.py`
+asserts that absence so the next convenience added there fails a test.
+
+| mode | what happens |
+|---|---|
+| `llm` | normal: the overseer decides, spending against the allowance |
+| `scripted` | FREE mode: the rotation decides and no API call is made. The world keeps running and looks alive — a world that goes dark to save money looks broken |
+| `paused` | physics stops mid-motion and the socket stays open, heartbeating `paused` |
+
+A file, polled, and deliberately **not** an inbound message: `reset_tool`
+(#30) is recoverable and idempotent, while this is the control that turns the
+robot off, and a file on the mounted volume has no auth surface to get wrong,
+survives the restart that ends every mission, and can be read with `cat` when
+the website is the thing that is broken. The website's admin page writes it.
+
+⚠ **An unreadable or unknown mode means `llm`, not `paused`** — failing safe
+here means failing OPEN. A typo must not silently stop a robot nobody meant
+to stop, because a paused world is indistinguishable from a broken one to
+everybody except the person who paused it.
+
+⚠ **A paused robot emits no frames**, because frames are due on SIM time and
+sim time is exactly what is not moving. Hence the `mode` message and its
+heartbeat (protocol 0.12.0): without it a site cannot tell "the operator
+paused it" from "the sim died", which is the `accepts` lesson in the version
+where the whole point is that somebody notices.
+
+⚠ **And a pause must not become a sprint.** `RealTimePacer` sleeps off the
+sim's lead over wall time and does nothing when it is behind, so five
+minutes paused reads as five minutes of lag and the robot then runs at up to
+2.9× — in front of whoever paused it to look at something. `pacer.resync()`
+on resume says the honest thing instead: that time was not sim time that
+went missing, it was sim time that never happened.
+
+## 9. Running it
 
 ```sh
 # locally, watching it think
@@ -453,25 +786,44 @@ ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
 # needs a key -- count_tokens is a free ENDPOINT, not a local tokenizer.
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
 
+# measure a HuggingFace candidate the same way (any `org/name` id routes to
+# the HF router; rates come off its catalogue) -- and the acceptance shape
+# on the model the sweep picked:
+HF_TOKEN=... uv run python scripts/overseer_probe.py \
+    --model Qwen/Qwen3-4B-Instruct-2507 --calls 3
+HF_TOKEN=... PLUGGY_MODEL=Qwen/Qwen3-4B-Instruct-2507 MUJOCO_GL=egl \
+  uv run python scripts/hub_lifecycle.py --world home --pack hosting \
+    --errand none --tasks --overseer --fast --max-sim-time 14400
+
+# measure a model on THIS MACHINE the same way (issue #19: ollama on
+# $PLUGGY_OVERSEER_URL, no key, no network, no bill) -- and a whole mission
+# on it. Measured on the dev box: 4/4 valid decisions, 8.3 s each, $0.
+uv run python scripts/overseer_probe.py --backend local --calls 4
+MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world room_hub \
+    --errand none --tasks --overseer --overseer-backend local --fast
+
 # served, the deploy shape
 PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
   uv run python scripts/serve.py --world home --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Environment (the deploy configures with `environment:` alone):
-`PLUGGY_OVERSEER`, `PLUGGY_GOALS`, `PLUGGY_JOURNAL`,
-`PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`, `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY` is deliberately **not** turned
-into a flag — the SDK reads it from the environment and it stays out of `ps`,
-exactly like `PLUGGYWORLD_TOKEN`.
+`PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`,
+`PLUGGY_OVERSEER_URL`, `PLUGGY_GOALS`, `PLUGGY_THOUGHTS`,
+`PLUGGY_JOURNAL`,
+`PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
+`PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY`
+are deliberately **not** turned into flags — the backends read them from the
+environment and they stay out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
 
-## 9. Visitors (issue #16)
+## 10. Visitors (issue #16)
 
 People watching the site can send the robot **suggestions** and **questions**,
 and it can take them or turn them down. The channel is the same authenticated
 socket the publisher already dialled out on — the sim still owns no inbound
 port, and a message can only reach it while that connection is up.
 
-`hub/inbox.py` is the sim's end: a bounded, drop-oldest, thread-safe queue.
+`mind/inbox.py` is the sim's end: a bounded, drop-oldest, thread-safe queue.
 Messages arrive on the publisher's socket thread (which polls `recv(timeout=0)`
 between sends, so there is no reader thread and the connection is only ever
 touched by one), and the physics thread drains it. A full queue drops its
@@ -515,7 +867,7 @@ What answers that is two things that are not string handling:
 that claim as an assertion: it lets the attack arrive, then shows the menu
 refusing every action it asked for.
 
-## 10. On the wire
+## 11. On the wire
 
 Decisions and journal entries reach the site as `event` messages, through the
 narration channel every other lifecycle line uses (`say_hooks` →
@@ -553,3 +905,12 @@ that are steering nothing — the `accepts` mistake, one loop over.
 The mission result dict gains `decisions`, `journal` and `overseer` (the
 stats block: calls, fallbacks, tokens, cache hit rate, USD, budget left). All
 empty without an overseer, so nothing an existing caller reads has changed.
+
+**Protocol 0.11.0** adds `thought` (`{robot, t, name, writer, text, cap}`),
+one per memory document, emitted when a stream opens and again on every
+change (pluggybot #38). It rides the `goals` slot for the `goals` reason and
+`goals` itself is unchanged — that message is the only carrier of `steering`,
+which is about who is *reading*, and no document knows that about itself. The
+result dict gains `thoughts` (the four texts) and `thought_stats` (sizes,
+write counts, and what the permission table refused), both present on every
+run, because the files are.

@@ -3,7 +3,7 @@
 The rules this file exists to hold down, in the order they matter:
 
   1. NOTHING PRICES ITS OWN WORK. A task names an evaluator and a reward-table
-     row; what it PAYS is looked up from hub/rewards.json, and there is no
+     row; what it PAYS is looked up from economy/rewards.json, and there is no
      field on a task that anybody can set to change it. This is issue #14's
      rule arriving from the direction a visitor and an LLM can both reach.
   2. A TASK IS CLOSED BY AN EVALUATOR. `resolve` takes a `scoring.Verdict` and
@@ -20,10 +20,10 @@ import json
 
 import pytest
 
-from pluggybot.hub import lifecycle as lc
-from pluggybot.hub import scoring
-from pluggybot.hub.overseer import Menu, scripted
-from pluggybot.hub.tasks import (
+from pluggybot import lifecycle as lc
+from pluggybot.economy import scoring
+from pluggybot.mind.overseer import Menu, scripted
+from pluggybot.economy.tasks import (
   KINDS, MAX_OFFERED, Task, TaskBoard, kind_names,
 )
 from pluggybot.telemetry.protocol import TASK_SOURCES, TASK_STATES
@@ -157,7 +157,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   afford has to be refused before it is started, not during.
 
   The numbers are the ones that matter here. A `draw_figure` on
-  `whiteboard_a` is priced at 0.929 Wh -- MEASURED, hub/energy.json, and
+  `whiteboard_a` is priced at 0.929 Wh -- MEASURED, economy/energy.json, and
   cross-checked against the committed home recording -- against a 1.100 Wh
   cell that charges to 90 %, so a freshly-charged robot can just take it and
   a half-empty one cannot, which is the whole behaviour. The first version of
@@ -169,7 +169,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   board falls back to `TaskKind.estimate_wh`, which is deliberately the FAR
   whiteboard's figure and would not fit the cell at all.
   """
-  from pluggybot.hub.energy import load as load_energy
+  from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy("home"))
   task = offered(b)                       # draw_figure on whiteboard_a: 0.929
   assert task.claimable(0.0, pack_wh=0.99)      # home, just after a charge
@@ -205,10 +205,10 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
   # home's 0.689, so the one world-agnostic number that used to be here was
   # either under-pricing home or refusing room_hub a job it does perfectly
   # well. `count_plants` is left out of the home row for the reason
-  # hub/energy.py calls `overspend`: home's census genuinely outgrows its
+  # economy/energy.py calls `overspend`: home's census genuinely outgrows its
   # 1.1 Wh demo cell, which the committed recording shows the robot doing
   # anyway.
-  from pluggybot.hub.energy import load as load_energy
+  from pluggybot.economy.energy import load as load_energy
   for world, cap in (("room_hub", 0.700), ("home", 1.100)):
     board = TaskBoard(energy=load_energy(world))
     for name, kind in KINDS.items():
@@ -539,6 +539,16 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
     lambda: legal_at.append(float(life.data.time))
     if not legal_at and life.battery.energy_wh >= life.low_battery_wh else None)
 
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). This test asserts WHEN
+  # the job was taken on, never that the errand behind it ran -- so the fetch
+  # that follows the claim is pure cost. Measured 292.9 s.
+  #
+  # The predicate is the SUCCESS condition. With the branches inverted the
+  # job is claimed at t~0 below the reserve, `legal_at` is still empty, the
+  # hook does not fire, and the run goes the full 200 s and fails on the
+  # ordering exactly as before.
+  life.stop_when(lambda: bool(legal_at) and life.charge_cycles >= 1
+                 and b[task.id].claimed_t is not None)
   r = life.run(lc.world_config("room_hub")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 

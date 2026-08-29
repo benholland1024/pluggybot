@@ -15,8 +15,8 @@ import mujoco
 import numpy as np
 from PIL import Image
 
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.rack.swap import HubSwap
 
 
 def main() -> None:

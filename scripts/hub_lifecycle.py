@@ -16,7 +16,8 @@ Usage:
 
 import argparse
 
-from pluggybot.hub.lifecycle import run_demo
+from pluggybot.mind import llm
+from pluggybot.lifecycle import run_demo
 
 
 def main() -> None:
@@ -42,6 +43,9 @@ def main() -> None:
                            "Absolute energy, not a fraction of the pack -- "
                            "the cost of getting home is set by the ROOM")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--robot-name", default=None, metavar="NAME",
+                      help="this robot's display name in a recording (issue "
+                           "#39; default $PLUGGY_ROBOT_NAME, then 'Pluggy')")
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
@@ -62,8 +66,8 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. More arrive on "
-                           "the cadence in hub/cadence.json as the run goes "
+                           "economy/rewards.json and a deadline. More arrive on "
+                           "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
@@ -74,12 +78,45 @@ def main() -> None:
                            "queue is empty (issue #15). Needs $ANTHROPIC_API_"
                            "KEY; without one it runs the scripted fallback "
                            "and says so")
+  parser.add_argument("--overseer-backend", default=None,
+                      choices=llm.BACKENDS, metavar="NAME",
+                      help="WHICH MIND decides (issue #19): anthropic, "
+                           "huggingface, local (a model on this machine, "
+                           "ollama by default -- no network and no bill), "
+                           "openai-compatible, or auto (the default: the "
+                           "model id's shape, as before)")
+  parser.add_argument("--overseer-model", default=None, metavar="ID",
+                      help="the model that decides ($PLUGGY_MODEL); defaults "
+                           "per backend")
+  parser.add_argument("--overseer-url", default=None, metavar="URL",
+                      help="base URL of the local / openai-compatible "
+                           f"endpoint ($PLUGGY_OVERSEER_URL; default "
+                           f"{llm.LOCAL_URL})")
+  parser.add_argument("--escalate-to", default=None, metavar="ID",
+                      help="a BIGGER mind the robot may buy a decision from "
+                           "when it says it is unsure (issue #37). Off unless "
+                           "set; the routing costs no extra call")
+  parser.add_argument("--weekly-usd", type=float, default=None, metavar="USD",
+                      help="the soft weekly allowance escalations spend "
+                           "against ($PLUGGY_WEEKLY_USD)")
+  parser.add_argument("--spend-state", default=None, metavar="PATH",
+                      help="JSON file the week's spending lives in between "
+                           "runs ($PLUGGY_SPEND)")
+  parser.add_argument("--mode-file", default=None, metavar="PATH",
+                      help="the OPERATOR's control file ($PLUGGY_MODE_FILE): "
+                           "llm, scripted (free mode) or paused. Polled, "
+                           "never written")
   parser.add_argument("--goals", default=None, metavar="PATH",
                       help="the overseer's long-term goals, as prose "
                            "(human-editable; $PLUGGY_GOALS)")
   parser.add_argument("--journal", default=None, metavar="PATH",
                       help="JSON file the overseer's notes-to-self live in "
                            "between runs ($PLUGGY_JOURNAL)")
+  parser.add_argument("--thoughts", default=None, metavar="DIR",
+                      help="directory the robot's THOUGHT FILES live in "
+                           "(issue #38; $PLUGGY_THOUGHTS). Without one they "
+                           "start from their defaults every run and nothing "
+                           "is written to disk")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
@@ -88,9 +125,15 @@ def main() -> None:
                world=args.world, errand=args.errand,
                board_state=args.boards, ledger_state=args.ledger,
                overseer=args.overseer or None, goals=args.goals,
-               journal_state=args.journal,
+               journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
-               pack=args.pack, reserve_wh=args.reserve_wh)
+               pack=args.pack, reserve_wh=args.reserve_wh,
+               robot_name=args.robot_name,
+               overseer_backend=args.overseer_backend,
+               overseer_model=args.overseer_model,
+               overseer_url=args.overseer_url,
+               escalate_to=args.escalate_to, weekly_usd=args.weekly_usd,
+               spend_state=args.spend_state, mode_file=args.mode_file)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -114,7 +157,7 @@ def main() -> None:
     print(f"board {name:<17s}: {b['strokes']} strokes, {b['fill']:.0%} full, "
           f"{b['clears']} clear(s), programs {b['programs'] or '-'}")
   # What the robot EARNED, and why (issue #14). Every line here came out of a
-  # deterministic evaluator in hub/scoring.py -- the mission awards nothing.
+  # deterministic evaluator in economy/scoring.py -- the mission awards nothing.
   for v in r["verdicts"]:
     print(f"score  {v['task']:<16s}: {v['points']:+d}"
           f"{' PENDING' if v['pending'] else ''}"
@@ -130,12 +173,35 @@ def main() -> None:
   if r.get("overseer"):
     o = r["overseer"]
     per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
-    print(f"overseer ({o['model']}): {o['llmCalls']} call(s), "
-          f"{o['fallbacks']} fallback(s), budget {o['budgetLeft']}/"
+    backend = o.get("backend", "anthropic")
+    print(f"overseer ({o['model']} on {backend}): {o['llmCalls']} "
+          f"call(s), {o['fallbacks']} fallback(s), budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left")
-    print(f"overseer cost          : ${o['usd']:.5f} this run "
-          f"(${per_hour:.4f}/sim-hour), cache hit rate "
-          f"{o['cacheHitRate']:.0%}")
+    # Free, unknown and priced are three different answers -- see serve.py's
+    # copy of this branch and Usage.unpriced (issue #19).
+    if backend == "local":
+      print("overseer cost          : no API cost (a model on this machine), "
+            f"cache hit rate {o['cacheHitRate']:.0%}")
+    elif not o.get("priced", True):
+      print("overseer cost          : unknown -- no published rates for this "
+            f"backend; {o['inputTokens']}+{o['outputTokens']} tokens")
+    else:
+      print(f"overseer cost          : ${o['usd']:.5f} this run "
+            f"(${per_hour:.4f}/sim-hour), cache hit rate "
+            f"{o['cacheHitRate']:.0%}")
+    if o.get("escalationModel"):
+      money = o.get("allowance") or {}
+      refused = o.get("escalationsRefused") or {}
+      print(f"escalations            : {o['escalations']} to "
+            f"{o['escalationModel']}, ${o.get('escalationUsd', 0.0):.5f}"
+            + (f"  ({', '.join(f'{n} refused: {w}' for w, n in sorted(refused.items()))})"
+               if refused else ""))
+      if money:
+        print(f"weekly allowance       : ${money['spentUsd']:.4f} of "
+              f"${money['weeklyUsd']:.2f} spent, ${money['leftUsd']:.4f} left")
+    if not o.get("constrained", True):
+      print("overseer decoding      : UNCONSTRAINED -- this endpoint refused "
+            "the schema")
     for err in o["errors"]:
       print(f"overseer note          : {err}")
   # Every errand's OWN verdict, not just the last module's: a queue where the

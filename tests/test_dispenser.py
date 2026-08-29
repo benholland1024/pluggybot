@@ -1,4 +1,4 @@
-"""Guards for the seed dispenser (hub/dispenser.py, the fifth tool).
+"""Guards for the seed dispenser (tools/dispenser.py, the fifth tool).
 
 The first tool built against `docs/ToolPattern.md`, so these follow the
 checklist that doc's "pytest regressions" section lays out: the tool can be
@@ -12,15 +12,15 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   DISP_BORE, DISP_MOUTH_Z, DISP_POCKET_HALF_Z, DISP_SHELF_END,
   DISP_SHELF_TOP, DISP_STROKE, HUB_STATION_YS, SEED_COUNT, SEED_R,
   module_power_contact, seed_stack_zs,
 )
-from pluggybot.hub.dispenser import (
+from pluggybot.tools.dispenser import (
   SEED_MODULE, SOW_OUTLET_Z, SeedDispenser,
 )
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.swap import HubSwap
 
 
 @pytest.fixture(scope="module")

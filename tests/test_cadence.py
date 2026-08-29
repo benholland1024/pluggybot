@@ -1,6 +1,6 @@
 """Guards for task generation, timing and expiry (issue #23).
 
-hub/tasks.py's tests hold down what a task IS. These hold down when one turns
+economy/tasks.py's tests hold down what a task IS. These hold down when one turns
 up and when it goes away, which is a different set of failures:
 
   1. THE WORLD DOES NOT GO EMPTY. A starter set that never grows back is a
@@ -11,7 +11,7 @@ up and when it goes away, which is a different set of failures:
      back-to-back, or a third kind that never once gets a turn, are the two
      ways a rotation quietly stops being one.
   4. THE TIMING IS CONFIGURATION. Cadence, caps and expiry are read off
-     hub/cadence.json, and a deploy can point $PLUGGY_CADENCE somewhere else.
+     economy/cadence.json, and a deploy can point $PLUGGY_CADENCE somewhere else.
   5. NOTHING HERE CAN DELAY A CHARGE. The producer runs on the physics seam,
      which means it runs DURING a charge -- so what it is allowed to touch is
      a property worth pinning rather than assuming.
@@ -23,12 +23,12 @@ from pathlib import Path
 
 import pytest
 
-from pluggybot.hub import lifecycle as lc
-from pluggybot.hub.cadence import (
+from pluggybot import lifecycle as lc
+from pluggybot.economy.cadence import (
   CADENCE_ENV, CADENCE_VERSION, Cadence, TaskProducer, default_cadence,
   reload_cadence,
 )
-from pluggybot.hub.tasks import KINDS, TaskBoard
+from pluggybot.economy.tasks import KINDS, TaskBoard
 
 HOME_TARGETS = {"board": ["whiteboard_a", "whiteboard_b"],
                 "zone": ["garden"], "module": ["module_lcd"]}
@@ -164,7 +164,7 @@ def test_a_healthy_run_shows_claimed_completed_and_lapsed():
   and some jobs lapse; offer slower and the robot idles. Both are failures
   and only the middle passes.
   """
-  from pluggybot.hub import scoring
+  from pluggybot.economy import scoring
   maker = producer(cadence(everyS=120.0, firstAtS=120.0, ttlS=420.0,
                            cooldownS=200.0))
   maker.seed(0.0)
@@ -286,9 +286,9 @@ def test_the_seed_respects_the_per_target_rule_rather_than_double_booking():
 
 def test_every_world_block_in_the_shipped_file_loads():
   """Issue #23's last acceptance box, and the cheapest way for the file to be
-  wrong: a kind renamed in hub/tasks.py and not here."""
+  wrong: a kind renamed in economy/tasks.py and not here."""
   doc = json.loads((Path(__file__).parents[1]
-                    / "src/pluggybot/hub/cadence.json").read_text())
+                    / "src/pluggybot/economy/cadence.json").read_text())
   assert doc["version"] == CADENCE_VERSION
   for world in ("", *doc["worlds"]):
     beat = default_cadence(world)
@@ -385,7 +385,7 @@ def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
   # Priced for room_hub, as production does (issue #15): a bare board falls
   # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
   # figure and so refuses room_hub a carry it does for 0.57 Wh.
-  from pluggybot.hub.energy import load as load_energy
+  from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy("room_hub"))
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
                          world="room_hub", errand=False, tasks=b,
@@ -429,7 +429,7 @@ def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
   what it is guarding.
   """
   import mujoco
-  from pluggybot.hub.errand import Errand
+  from pluggybot.mission.errand import Errand
   cfg = lc.world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
@@ -476,7 +476,7 @@ def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
   test is what fails.
   """
   import mujoco
-  from pluggybot.hub.errand import Errand
+  from pluggybot.mission.errand import Errand
   cfg = lc.world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
@@ -540,7 +540,7 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
   # Priced for room_hub, as production does (issue #15): a bare board falls
   # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
   # figure and so refuses room_hub a carry it does for 0.57 Wh.
-  from pluggybot.hub.energy import load as load_energy
+  from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy("room_hub"))
   life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
                          world="room_hub", errand=False, tasks=b,

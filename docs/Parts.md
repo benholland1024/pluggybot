@@ -346,8 +346,8 @@ settles the yaw margin.**
 
 | Part | Route | Notes → sim |
 |---|---|---|
-| Hub shelf + V-trays + back wall | **3D-printed** (PETG; the trays see ~3 N loads) | tray geometry = `hub/coupling.py` constants |
-| Tool peg axles | **6 mm steel rod** (must be conductive — see below), 2× 63 mm sections on an insulating centre bush, 150 mm overall | printed pegs would flex/wear; the rod is the one loaded part **and now the electrical connector** — `hub/coupling.py` `PEG_INSUL_HALF` / `PEG_COND_HALF` |
+| Hub shelf + V-trays + back wall | **3D-printed** (PETG; the trays see ~3 N loads) | tray geometry = `rack/coupling.py` constants |
+| Tool peg axles | **6 mm steel rod** (must be conductive — see below), 2× 63 mm sections on an insulating centre bush, 150 mm overall | printed pegs would flex/wear; the rod is the one loaded part **and now the electrical connector** — `rack/coupling.py` `PEG_INSUL_HALF` / `PEG_COND_HALF` |
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits (the plug becomes *a module*) | prong stance ±58 mm |
 | Module frames (plug module, LCD module) | 3D-printed plates, common peg interface | ≤150 g budget each (validated to 300 g) |
 | Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. Modelled as a 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |

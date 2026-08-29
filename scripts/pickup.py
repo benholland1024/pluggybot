@@ -18,7 +18,7 @@ Writes pickup.png: a filmstrip plus what actually happened, judged on contact
 rather than on command. Grip creep (a gripped object once crept out of the
 jaws at ~8 mm/s no matter how hard they squeezed) is cured at the source by
 the jaw pads' hard contact constraint (`coupling.GRIP_SOLIMP`) -- no solver
-mode needed (see hub/gripper.py). Note the robot is BLIND to the floor inside 0.48 m
+mode needed (see tools/gripper.py). Note the robot is BLIND to the floor inside 0.48 m
 (nav camera 180 mm up, 41 deg fovy) while the grip point is 244 mm ahead of
 the axle, so the grasp is necessarily open-loop from a memorised pose --
 finding the object is a separate, unsolved problem.
@@ -37,9 +37,9 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.gripper import CLAW_MODULE, ClawTool
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.tools.gripper import CLAW_MODULE, ClawTool
+from pluggybot.rack.swap import HubSwap
 from pluggybot.viz import Recorder
 
 FRAME_W, FRAME_H = 400, 300

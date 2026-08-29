@@ -23,10 +23,10 @@ import mujoco
 import pytest
 
 from pluggybot.control import W_BREAKAWAY, turn_command
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.drawing import PenPlotter, square_path
-from pluggybot.hub.gripper import ClawTool
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.tools.drawing import PenPlotter, square_path
+from pluggybot.tools.gripper import ClawTool
+from pluggybot.rack.swap import HubSwap
 
 WORLDS = ("models/world.xml", "models/world_fork.xml", "models/playground.xml",
           "models/room_1.xml", "models/room_hub.xml", "models/hub_world.xml")

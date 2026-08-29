@@ -21,13 +21,13 @@ from collections import Counter
 import mujoco
 import pytest
 
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.journal import MAX_NOTE_CHARS, Journal, read_goals
-from pluggybot.hub.lifecycle import (
+from pluggybot.mind import overseer as ov
+from pluggybot.mind.journal import MAX_NOTE_CHARS, Journal, read_goals
+from pluggybot.lifecycle import (
   HubLifecycle, board_book, errand_from, world_config, zone_centre,
 )
-from pluggybot.hub.overseer import Decision, Menu, Overseer, scripted
-from pluggybot.hub.scoring import default_table
+from pluggybot.mind.overseer import Decision, Menu, Overseer, scripted
+from pluggybot.economy.scoring import default_table
 
 
 # ---- fakes -------------------------------------------------------------------
@@ -319,9 +319,21 @@ def test_the_stable_prefix_is_byte_identical_across_calls(menu):
   # and the journal, which is stable text and entirely fine. What must never
   # appear is a key from the volatile turn, or today's date.
   for key in ('"simTimeS"', '"reserveWh"', '"recentTasks"',
-              '"tasksThisMission"', '"visitorSuggestions"'):
+              '"tasksThisMission"', '"visitorSuggestions"', '"thoughts"'):
     assert key not in text, f"{key} belongs in the user turn"
   assert time.strftime("%Y") not in text, "a timestamp in the cached prefix"
+  # ...and the thought files (issue #38), which is the same trap with a new
+  # door: the two a HUMAN writes are constants within a run and belong here,
+  # while the two that change during one would invalidate this prefix on
+  # every self-edit. Their CONTENT, not their names -- the rules prose names
+  # all four, which is stable text and exactly right, the same distinction
+  # the comment above draws. tests/test_thoughts.py holds the rest.
+  boss = Overseer(menu, client=FakeClient())
+  boss.thoughts.learn("this is a thing I worked out", t=1.0)
+  boss.thoughts.record("this is a thing that happened", t=2.0)
+  assert boss.system[0]["text"] == text, "a self-edit moved the cached prefix"
+  assert "this is a thing I worked out" not in text
+  assert "this is a thing that happened" not in text
 
 
 def test_the_prompt_never_carries_a_hidden_answer(menu):
@@ -534,6 +546,17 @@ def test_charge_priority_survives_an_overseer_that_never_charges():
     lambda: states.append(life.state)
     if life.state != (states[-1] if states else None) else None)
 
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The claim is settled the
+  # moment the robot has charged AND the overseer has been asked and answered
+  # -- everything after is the idling overseer being asked again. Measured
+  # 256.9 s.
+  #
+  # The predicate is the SUCCESS condition, and it does NOT encode the
+  # ordering it is testing: with the branches inverted, DECIDE lands first,
+  # the charge follows, the hook fires anyway, and `states` still reads
+  # DECIDE-before-GO_CHARGE -- so the assertion below fails as it always did.
+  life.stop_when(lambda: "DECIDE" in states and life.charge_cycles >= 1
+                 and any(d["source"] == "llm" for d in life.decisions))
   r = life.run(world_config("room_hub")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 

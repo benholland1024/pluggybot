@@ -15,12 +15,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the honesty rule (the wire may carry anything a network could carry, never
   anything a sensor would have to discover), the perception ladder for object
   tasks, code-side grading, and how tasks, errands and activities compose.
-  Read BEFORE adding a task kind or touching `hub/tasks.py`,
-  `hub/scoring.py` or `hub/cadence.py` — and fold any gap it left back in
+  Read BEFORE adding a task kind or touching `economy/tasks.py`,
+  `economy/scoring.py` or `economy/cadence.py` — and fold any gap it left back in
 - `docs/Overseer.md` — the LLM overseer (issue #15): the ONE branch of the
   arbitration loop an LLM may replace, the action vocabulary, the three things
   it structurally cannot do, the scripted fallback, the call budget, and the
-  measured battery limit. Read BEFORE touching `hub/overseer.py`, the decision
+  measured battery limit. Read BEFORE touching `mind/overseer.py`, the decision
   vocabulary, or anything that changes what the model is shown
 
 ## Working style
@@ -36,6 +36,19 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   all found this way, and two of them were hiding behind green metrics.
 - Every debugged failure becomes a pytest assertion, and the assertion must be
   shown to fail without the fix — a regression test that cannot fail is décor.
+- **An inline comment states a constraint the code cannot show. Anything that
+  is a story goes to `docs/`, with a one-line pointer left behind** (issue
+  #51). Prose in a `.py` is loaded every time anything reads that file,
+  relevant or not; a doc is loaded when the task calls for it. So a measured
+  number with its failure mode attached belongs at the constant — that is 60 %
+  of the comments here and they are why nobody "fixes" something deliberate —
+  while the narrative of how it was found belongs in SimNotes, ToolPattern,
+  ActivityPattern, TaskPattern, Overseer or `protocol/README.md`.
+  ⚠ **This is not a deletion pass and a falling prose:code ratio is not the
+  goal.** Removing a short why-comment is a net loss. What was actually wrong
+  was PLACEMENT: `telemetry/protocol.py` carried a 273-line changelog that
+  `protocol/README.md` already told better, and reconciling the two meant
+  MOVING the one spec (`reset_tool`) the README was missing, not cutting it.
 
 ## Commands
 
@@ -47,8 +60,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   Scaling is ~1.8× on the full suite, not 6×, and that is a real ceiling
   rather than a tuning problem: the mission tests contend for memory/GPU
   bandwidth and each runs ~36 % slower under load, so `--dist worksteal`
-  measured identical to `load`. `test_full_hub_lifecycle[home]` takes 157 s
-  on its own and no worker count beats that.
+  measured identical to `load`. The floor is whatever the LONGEST SINGLE TEST
+  costs, and no worker count beats it: `-n auto` is already all six cores
+  here, and measured on the slow half before issue #54 it delivered 2.35×
+  with five of six workers idle at the end.
   ⚠ **A wall-clock benchmark must time its two sides INTERLEAVED**, never as
   two blocks: suite load VARIES over time, so a mission test starting during
   a solid block of one implementation's reps penalises that half alone.
@@ -57,32 +72,55 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `process_time` is NOT the fix (the contention is memory bandwidth, not
   preemption); interleaving is.
 - Tests, while iterating: `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  **596 of 607 tests in ~2:15**, against **~13:10** for everything (before
-  issue #23 it was 570/583 and ~10:30; before #21–#22, 430/439 in 1:18 and
-  ~6:22; before #13–#15, 343/351 in 1:13 and 6:34). ELEVEN whole-mission
-  integration runs carry `@pytest.mark.slow` and are ALL of the serial clock:
-  `-m slow` alone measured 844 s against a full suite's 844 s, so every fast
-  test is absorbed into their shadow and the marginal cost of the other 596
-  is close to zero.
-  ⚠ **The wall-clock figures track the MACHINE, not the repo.** The 10:30
-  and the 13:10 above are very nearly the same tests: `test_full_hub_lifecycle
-  [home]` measured **250 s** alone here on the same commit that documented it
-  at 157 s, and 249.8 vs 250.2 s across the issue-23 change (stashed and
-  unstashed, back to back) — a 0.2 % difference on a test that touches none
-  of it. Before believing a slower suite, time ONE unchanged mission test
-  `-n0` on both sides; a number in this file is evidence about the day it was
-  written.
-  Two of them are the same argument twice over:
-  `test_charge_priority_survives_an_overseer_that_never_charges` (issue #15,
-  153 s alone) is the only way to prove an LLM cannot skip charging, and
-  `test_a_question_is_asked_answered_and_graded_twice_unattended` (issue #22,
-  196 s) is the only way to prove a robot can be asked something, answer it,
-  and be marked on the board — twice, with nobody watching.
-  ⚠ **A mission test should END when its claim is settled**, not when its
-  budget runs out. The issue-22 one raises `MissionAborted` from a step hook
-  the moment the second verdict lands; without that it ran 10:35 instead of
-  3:16, because a battery-driven loop with no work left spends the rest of
-  its budget honestly deciding what to do with its afternoon.
+  **751 of 766 tests in ~2:16**, against **~17:15** for everything, and
+  `-m slow` alone is **~12:03** of that (measured 2026-08-29, issue #54; the
+  history: before #54 it was 753/766 in 2:31 against 28:57, before #23
+  570/583 and ~10:30, before #21–#22 430/439 in 1:18 and ~6:22, before
+  #13–#15 343/351 in 1:13 and 6:34). FIFTEEN tests carry `@pytest.mark.slow`
+  and are very nearly all of the clock: every fast test is absorbed into
+  their shadow and the marginal cost of the other 751 is small.
+  ⚠ **The wall-clock figures track the MACHINE, not the repo**, and the
+  6-core box they were measured on was also running a VM holding ~95 % of a
+  core. `test_full_hub_lifecycle[home]` has measured **157 s**, **250 s** and
+  (before #54 shortened it) **369 s** on three different days for the same
+  test, and 249.8 vs 250.2 s across the issue-23 change stashed and unstashed
+  back to back — a 0.2 % difference on a test that touches none of it. Before
+  believing a slower suite, time ONE unchanged mission test `-n0` on both
+  sides, and INTERLEAVE the two halves rather than running them as blocks; a
+  number in this file is evidence about the day it was written.
+  ⚠ **`-n auto` is already every core here, and the ceiling is the LONGEST
+  SINGLE TEST, not the worker count** (issue #54). Measured before that
+  issue: 2.35× effective parallelism on the slow half out of a theoretical
+  6×, five of six workers idle at the end while one ground on, and one test
+  at 903 s against a 1355 s wall — no `-n` and no `--dist` beats an
+  indivisible test, which is why `worksteal` measured identical to `load`.
+  The lever is shortening the long poles.
+  ⚠ **A mission test must END WHEN ITS CLAIM IS SETTLED**, not when its
+  budget runs out — `HubLifecycle.stop_when`, which is where the rules live.
+  A battery-driven loop with no work left spends the rest of its budget
+  honestly deciding what to do with its afternoon. Measured (issue #54):
+  903→482 s, 370→180 s, 293→134 s, 257→144 s, and issue #22's question test
+  10:35→3:16 when it got the treatment first.
+  Three of them resist it, and each for its own reason, so do not retry
+  these without reading why: `test_a_charge_completes_on_a_pack_the_old_flat
+  _timeout_could_not_fill` (414 s) needs a charge LONGER than the old 400 s
+  cap or it cannot fail without its fix, which needs ≥5.3 Wh of pack;
+  `test_a_question_is_asked_answered_and_graded_twice_unattended` (394 s,
+  issue #22) already stops on its claim, and cutting it to one question
+  deletes the "**twice**, with nobody watching" that is its whole point; and
+  `test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies`
+  (482 s, issue #15) asserts two COMPLETED errands, which is the acceptance
+  criterion. It and `test_charge_priority_survives_an_overseer_that_never
+  _charges` (144 s) are the only ways to prove an LLM cannot skip charging.
+  ⚠ **`slow` means EXPENSIVE *AND* UNABLE TO CATCH A REGRESSION WHILE YOU
+  ITERATE** (issue #54; the rule is written out in `pyproject.toml`). Cost
+  alone is not the test — before that rule the marker meant "is a whole-
+  mission run", which put a 29 s test in the slow suite and left an 80 s one
+  out of it. Whole-mission runs qualify; so do PREMISE-PINNING tests, which
+  bypass a fix and assert the old defect still reproduces (they cannot fail
+  because the fix regressed — it is not running). A "blind"-named test that
+  calls the real code and asserts it declines is NOT one of those and stays
+  in the iterate loop. **Shorten before you mark.**
 - Tests, before calling any work done: the **FULL** suite,
   `MUJOCO_GL=egl uv run pytest -q`. Run it while iterating too — not just at
   the end — whenever the change touches something a whole mission exercises:
@@ -112,7 +150,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   tolerance sweep; `--film` for a filmstrip),
   `scripts/energy_spike.py` (issue-15: what each errand COSTS, per world —
   flies each one on an oversized pack and reports SWAP_PICK to end of
-  SWAP_RETURN, `--write` folds it into `hub/energy.json`. Re-run it after
+  SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
   `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
   with the REAL pen and reports how far the ink sits from each candidate
@@ -120,7 +158,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   board or `questions.ANSWER_CAP` moves), `scripts/noslip_spike.py`
   (issue-3 solver-policy sweep: coupling/schuko seat, jittered robot swap,
   grip creep, pen square, step cost under candidate `noslip_iterations`
-  values; `--no-brake` reproduces the before-fix rows), `scripts/hub_swap.py` (robot
+  values; `--no-brake` reproduces the before-fix rows),
+  `scripts/charge_spike.py` (issue-32 charge-approach tolerance sweep: how
+  much BELIEF error the dock forgives — the robot is placed truly at
+  standoff-plus-error while believing itself at the standoff; `--blind`
+  reproduces the before-fix rows, which die at ~6 cm lateral / ~10° heading
+  / a 10° rack-yaw belief error),
+  `scripts/swap_spike.py` (issue-30 bay-swap sweep under the same belief
+  error: where the MODULE ends up — hung, on the fork, or on the floor at
+  the rack's foot; `--blind` reproduces the before-fix rows, which drop the
+  module at 4–8 cm across or −3° of heading, `--pick` corrupts before the
+  pick instead), `scripts/hub_swap.py` (robot
   swaps a module at the hub in `models/hub_world.xml`),
   `scripts/draw.py` (the drawing tool: fetch the pen module from bay C, carry
   it to a board, plot a figure; saves `draw.png` — filmstrip + commanded-vs-
@@ -175,13 +223,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/ws_sink.py` (dummy sink for serve.py: message counts + received
   frame-gap stats + keyframe spacing; `--token` makes it refuse an
   unauthenticated publisher, like the real ingest path),
-  `scripts/overseer_probe.py` (issue #15: makes REAL Haiku 4.5 calls against a
+  `scripts/overseer_probe.py` (issue #15: makes REAL LLM calls against a
   synthetic robot state and reports tokens, cost per sim-hour and the prompt-
-  cache hit rate. `--tokens-only` counts the stable prefix and stops, billing
-  no tokens — the number that matters, because Haiku 4.5 does not cache a
-  prefix under 4096 tokens and the marker is silently inert below it. ⚠ Both
-  modes need `$ANTHROPIC_API_KEY`: `count_tokens` is a free endpoint, not a
-  local tokenizer, and there is no offline Claude token count worth trusting)
+  cache hit rate. `--model Qwen/...` — any `org/name` id — measures a
+  HuggingFace candidate through the router instead (rates come off its own
+  catalogue; needs `$HF_TOKEN`, which lives in this repo's gitignored
+  `.env`), and is how the model behind a served world is chosen before
+  `$PLUGGY_MODEL` names it. `--tokens-only` counts the stable prefix and
+  stops, billing no tokens — the number that matters on the Anthropic path,
+  because Haiku 4.5 does not cache a prefix under 4096 tokens and the marker
+  is silently inert below it. ⚠ The Anthropic modes need
+  `$ANTHROPIC_API_KEY`: `count_tokens` is a free endpoint, not a local
+  tokenizer, and there is no offline Claude token count worth trusting)
 - **The LLM overseer** (`--overseer` on `serve.py` / `hub_lifecycle.py`, issue
   #15; `docs/Overseer.md`) replaces **exactly one branch** of
   `HubLifecycle.run()`: which errand, when the battery is fine and nothing is
@@ -196,13 +249,135 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   in points. Every failure
   (timeout, error, malformed answer, spent budget) resolves to a scripted
   rotation tagged `fallback:<why>`, because "the robot chose to explore" and
-  "the API was down" must not look the same on the wire. Memory is two files
-  in `/var/lib/pluggybot`: `goals.md` is read and human-edited, `journal.json`
-  is written and never edited.
+  "the API was down" must not look the same on the wire. Memory is the THOUGHT
+  FILES (issue #38, below) plus `journal.json`, which is written and never
+  edited — all in `/var/lib/pluggybot`.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
+    (`mind/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
+    `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —
+    edited on the volume, no write API at all, because a robot that can
+    rewrite who it is defeats the point. `History.md` is **system**,
+    append-only: a robot that could edit its own history breaks the same
+    principle that stops it awarding itself points. `Knowledge_and_Opinions.
+    md` is the **robot's**, and its only verbs are `learn` (add a line) and
+    `forget` (quote one to remove) — fields on a decision, orthogonal to the
+    action, so writing a line down costs no turn. There is deliberately no
+    verb that REPLACES a file: one bad generation must not erase everything
+    the robot knows. Permissions are enforced at the one write path and a
+    refusal is narrated (`THOUGHT refused: …`), never swallowed — a memory
+    that silently stopped accepting writes looks exactly like a model with
+    nothing to say. Attached on EVERY world, overseer or not, on the same
+    terms `Goals.md` already was: a scripted rotation still has a history,
+    and the site's Thoughts tab is the first thing a visitor opens.
+    ⚠ **The two caps fail in OPPOSITE directions, deliberately.**
+    `History.md` rolls (oldest lines off the front, the journal's rule);
+    `Knowledge_and_Opinions.md` REFUSES when full, because silently dropping
+    the robot's oldest line leaves it believing it remembers something it
+    does not. `forget` is the remedy and the prompt says so.
+    ⚠ **The prompt-cache split is by WRITER — and the issue's stated reason
+    for it is WRONG, measured.** Human files ride the cached prefix, writable
+    ones the user turn. But a misplaced writable file would NOT cost per-call
+    cache hits: `Overseer.system` is built ONCE in `__init__` and sent
+    verbatim, so a mid-run write cannot move it whatever the split says. What
+    it would actually cost is the memory working at all — the model shown its
+    files as they stood at mission start, re-learning the same thing every
+    hour. So the byte-identical prefix guard is necessary and NOT sufficient
+    (it passes with the file misplaced); `test_what_the_robot_writes_it_can_
+    read_back_the_same_run` is the one that fails, and `volatile()` inverts
+    the same flag `stable()` reads so the halves cannot disagree.
+    ⚠ **The robot's NAME is not in `Main.md`** (issue #39): `pluggybot` is
+    the SPECIES, the name is per instance, and `system_prompt` states it from
+    `robot_display_name` — the same helper the telemetry header uses, so the
+    name a visitor reads and the name the robot calls itself are ONE string
+    by construction. In the file it would freeze on the first run (the file
+    is written to disk and is a human's from then on) and
+    `$PLUGGY_ROBOT_NAME` would silently stop reaching the robot.
+    docs/Overseer.md §7.
+  - **THE ROBOT HAS A WEEKLY ALLOWANCE, AND CANNOT REACH IT** (`mind/spend.py`
+    + `mind/mode.py`, issue #37; protocol 0.12.0). The reward table's rule one
+    layer out: it is SHOWN what its thinking has cost and given one boolean
+    (`escalate`) to ask for a bigger mind, and every gate is code —
+    `$PLUGGY_WEEKLY_USD` (default $10, rolling seven days, on the state
+    volume), a ten-minute interval and a 10 % share of the run's decisions.
+    The ask rides the decision the model was already making, so **the routing
+    costs no extra call**; the answer comes from `$PLUGGY_ESCALATE_TO` /
+    `--escalate-to`, off by default, and then `source` is `llm:<model>` so
+    the wire says which mind the money bought.
+    ⚠ **Every escalation failure keeps the cheap answer** — a timeout, a 403,
+    prose instead of JSON. Escalation may improve a decision and may never
+    cost one, which is the whole reason a paid dependency is allowed on this
+    path; an exhausted allowance degrades to the free backend, never to no
+    decision. And **billed is billed**: a response that arrived and failed to
+    parse is still banked, or the allowance drifts under the invoice.
+    ⚠ **MEASURED, and not the model the issue named**: `meta-llama/
+    Llama-3.3-70B-Instruct` is licence-gated on this account and 403s
+    whatever the catalogue says. `Qwen/Qwen3-235B-A22B-Instruct-2507` is the
+    pick at **2.05 s and $0.00035 a call** — cheapest AND fastest of the four
+    that answered (DeepSeek-V3.1 $0.00102, GLM-4.6 $0.00183, Kimi-K2
+    $0.00238). ⚠ **At those prices the BUDGET does not bite — the CADENCE
+    does**: $10 buys ~28 000 escalations a week. The budget is the backstop
+    for a loop or a reprice; do not tighten it expecting the escalation rate
+    to move, and do not read a full allowance on Sunday as the gates working.
+    - **Three operator modes, and the robot can reach none of them**
+      (`$PLUGGY_MODE_FILE`, polled, never written — `mind/mode.py` has no
+      writer at all and a test asserts that absence). `llm` is normal;
+      `scripted` is FREE mode (the rotation decides, no API call, the world
+      still looks alive — a world that goes dark to save money looks broken);
+      `paused` stops the physics mid-motion and keeps the socket up.
+      ⚠ **An unreadable or unknown mode means `llm`, not `paused`** — failing
+      safe here means failing OPEN, because a paused world looks exactly like
+      a broken one to everybody except whoever paused it.
+      ⚠ **A PAUSED ROBOT EMITS NO FRAMES** (they are due on SIM time), which
+      is why `mode` is a MESSAGE with a heartbeat as well as a field in every
+      frame — without it the site cannot tell a pause from a dead sim.
+      ⚠ **...and a pause must not become a SPRINT**: the pacer sleeps off the
+      sim's lead and ignores lag, so five minutes paused would run at 2.9× to
+      catch up. `RealTimePacer.resync()` on resume is the fix and
+      `attach_mode_stream` is what wires all of it.
+  - **WHICH model decides is `$PLUGGY_MODEL`; WHICH MIND runs it is
+    `--overseer-backend` / `$PLUGGY_OVERSEER_BACKEND`** (issue #19), and the
+    default `auto` is issue #15's rule unchanged: an `org/name` id goes to
+    the HuggingFace router (`mind/llm.py`, `$HF_TOKEN`, stdlib urllib — the
+    serve image's package set did not grow), a bare id to the Anthropic SDK.
+    Naming a backend outright adds two more: **`local`** (a model on this
+    machine — ollama on `$PLUGGY_OVERSEER_URL`, no key, no network, no bill,
+    default `qwen3:4b-instruct`) and **`openai-compatible`** (somebody
+    else's endpoint, `$PLUGGY_OVERSEER_KEY`). All three non-SDK backends are
+    ONE adapter (`llm.ChatClient`) and `llm.build_client` is the only
+    function that knows a vendor from another. One client seam,
+    vendor-blind downstream.
+    ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the
+    model LOAD**: measured 3.4–5.5 s warm and **27.3 s cold** (1660 Super,
+    6 GB, the real ~11 kB prompt), so the API path's 8 s deadline makes
+    every mission's FIRST local decision a certain `fallback:TimeoutError`
+    — three for three, and ollama unloads an idle model after five minutes
+    so a long errand pays it again. `llm.LOCAL_TIMEOUT_S` (45 s) is the
+    local default; `CALL_TIMEOUT_S` is untouched for the API paths.
+    ⚠ **Money has THREE states and each report says which**: `local` prints
+    "no API cost" (zero is a measurement), an endpoint whose rates cannot be
+    read prints "unknown" with `priced: false` — which now covers a
+    non-default *Anthropic* model too, since the rates in `overseer.py` are
+    Haiku 4.5's — and a priced backend prints the number. Inventing an
+    invoice and claiming free are different lies, and the acceptance
+    criterion forbids both. The GRAMMAR is what makes a 4B safe here
+    (`Menu.schema()` makes `action` an enum of the world's menu, and it
+    rides every request as `response_format`); an endpoint that refuses it
+    is retried once in prose and then `constrained` goes False and SAYS so,
+    because a silent downgrade shows up only as a higher fallback rate.
+    Which mind decided is written into `History.md` at mission start, so the
+    site shows it with no protocol change. Measured on the pick:
+    `--backend local` probes 4/4 valid, 8.3 s per decision, $0.
+    Measured sweep + per-model doctrine in docs/Overseer.md §6 — prefer INSTRUCT-tuned models (a thinking model
+    burns `max_tokens` on `<think>` and truncates before the answer;
+    the adapter strips a completed think block, but cannot conjure the
+    JSON a truncated one never wrote). The deployed pick is
+    `Qwen/Qwen3-4B-Instruct-2507`: 3/3 valid decisions, ~$0.0009/sim-hour
+    off the router's own catalogue rates, and small enough that Ben's
+    local-hosting plan (≤8B) has headroom.
   ⚠ **A chosen errand can cost more than the whole pack**, and
-  `hub/energy.py` + `hub/energy.json` are what stop it (`$PLUGGY_ENERGY`;
+  `economy/energy.py` + `economy/energy.json` are what stop it (`$PLUGGY_ENERGY`;
   the fourth data file after rewards, cadence and questions). `needs_charge`
   is checked BETWEEN errands and never inside one, so an errand bigger than
   what is left cannot be survived by any charging policy — the committed home
@@ -234,7 +409,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     charge nobody needed; under-estimating costs a robot dead in the garden.
     The invariant is not "the estimate is never exceeded" — it is that an
     overrun smaller than the margin cannot strand the robot. A bigger one is
-    a stale table, and the loop says so (`ENERGY ... hub/energy.json is low`,
+    a stale table, and the loop says so (`ENERGY ... economy/energy.json is low`,
     at 10 % over so trajectory variance is not noise).
   - **A cost key may name a TARGET** (`draw:whiteboard_b`), and it wins over
     the bare action. That closes the issue-21 defect this file records two
@@ -291,7 +466,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   to display. Streaming the prose without the flag would let the site report
   "following its goals" about a robot with nothing reading them — the
   `accepts` mistake from the other end of the same loop.
-- **The visitor channel** (`hub/inbox.py`, issue #16; protocol 0.7.0) makes the
+- **The visitor channel** (`mind/inbox.py`, issue #16; protocol 0.7.0) makes the
   ingest socket BIDIRECTIONAL — the first version where the sim reads its
   socket at all. Inbound arrives on the publisher's own sender thread
   (`recv(timeout=0)` between sends, so no reader thread and one thread owns
@@ -302,12 +477,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   / `reply`) and the outcome goes back as a typed `visitor_reply` that closes
   the website's row. **RATINGS NEVER REACH THE MODEL** — a rating moves a
   balance, so `_visitor_step` drains those straight to the ledger; the
-  `artwork` task is what makes that path live rather than reserved.
-  ⚠ **The header advertises `accepts`**, and it is load-bearing: a sim with no
-  overseer never reads its socket, so a website that marked a suggestion
-  "delivered" because the socket took it would report a conversation that
-  never started. A robot that cannot hear you is treated as absent — the same
-  lesson as the charge criterion being electrical rather than positional.
+  `artwork` task is what makes that path live rather than reserved. Nor does
+  a `reset_tool` (issue #30): an admin command is code's to apply, not the
+  robot's to weigh.
+  ⚠ **The header advertises `accepts`, PER KIND** (issues #16, #30), and it
+  is load-bearing: suggestions and questions need an overseer to read them,
+  while `rating` and `reset_tool` are handled by code on any served world —
+  so a scripted world advertises `CODE_HANDLED_TYPES` and an overseer world
+  the full vocabulary. A website that marked a suggestion "delivered"
+  because the socket took it would report a conversation that never started.
+  A robot that cannot hear you is treated as absent — the same lesson as the
+  charge criterion being electrical rather than positional.
   ⚠ **Sanitising is NOT the security boundary.** Capping at 280 chars and
   stripping control characters stops a forged narration line and does nothing
   about "ignore your goals". What answers that is the framing (a labelled
@@ -325,12 +505,19 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
   `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
-  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`; the secret stays
+  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
+  `PLUGGY_ROBOT_NAME` — the robot's DISPLAY name on the wire, issue #39:
+  identity, never the body name, so `ROBOT_ROOT` and every body-keyed
+  structure are untouched by a rename, and an unset name degrades to
+  `"Pluggy"` rather than blank; the secret stays
   `$PLUGGYWORLD_TOKEN`, never a flag — `ps` is public). The four DATA files
   are re-pointed the same way and need no flag at all: `$PLUGGY_REWARDS`
   (what a job pays), `$PLUGGY_QUESTIONS` (the question bank),
   `$PLUGGY_CADENCE` (how busy the world is) and `$PLUGGY_ENERGY` (what an
-  errand costs) — mount a file, no rebuild.
+  errand costs) — mount a file, no rebuild. Issue #37 adds two more pieces of
+  world state to the same volume: `$PLUGGY_SPEND` (the week's spending) and
+  `$PLUGGY_MODE_FILE` (the operator's switch), plus `$PLUGGY_WEEKLY_USD` and
+  `$PLUGGY_ESCALATE_TO`.
   ⚠ **A lazy import is the failure mode here**: the detector comes in
   inside `hub.tags._shared_detector`, so nothing an import scan can see —
   which is why `tests/test_deploy.py` blocks the omitted packages and then
@@ -385,7 +572,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `type` means frame. Ink is NEVER MuJoCo geometry — a stroke is a `draw`
   event carrying the polyline the pen actually inked, and the browser paints
   it into a canvas texture (the three-layer rule from ActivityPattern.md).
-  Board state (`hub/boards.py`) is world state, not run state: it survives a
+  Board state (`tools/boards.py`) is world state, not run state: it survives a
   restart in a JSON file written on every stroke, and its `fill` is measured
   against the pen's REACH (110 × 200 mm — carriage travel with the base
   parked) rather than the 320 × 260 mm slab.
@@ -401,7 +588,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   circle`, `--view`, `--boards PATH`, `--no-erase`, and `--cycles N` to
   repeat the whole errand N times. Since issue #12 it is a THIN CALLER of
   `HubLifecycle.run_errand` rather than a second mission stack — add
-  behaviour to `hub/errand.py`, never here). The pen's stow works as
+  behaviour to `mission/errand.py`, never here). The pen's stow works as
   of issue #10 — three faults in a row, and the ONE that found the last two
   was running the errand twice: a second fetch starts from the state the
   first cycle left, which is a different test. Use `--cycles 2` before
@@ -423,7 +610,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   both repos. NEVER encode hints as geom colors — the robot's cameras render
   rgba, and colour-as-encoding couples the tag detector to the website's art.
 - Hub worlds are GENERATED — regenerate `models/hub_world.xml` +
-  `models/hub_rack.xml` with `uv run python -m pluggybot.hub.coupling` after
+  `models/hub_rack.xml` with `uv run python -m pluggybot.rack.coupling` after
   changing any rack geometry. The rack has **five tool bays** (A–E) plus the
   charge bay; `HUB_STATION_YS` is APPENDED to, never reordered, because
   bay↔tag pairing is by index. A sixth tool needs the rail to grow again and
@@ -467,6 +654,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 ## Conventions
 
 - 2-space Python indent; type hints in `src/`, loose in tests/scripts.
+- **`src/` is divided by DOMAIN, not by era** (issue #50). `hub/` was the
+  hub-*epoch* and had absorbed 75 % of all source; it is now:
+  `rack/` (coupling, swap, localize, tags — the literal hub hardware) ·
+  `tools/` (drawing, gripper, dispenser, screen, strokes, hershey, boards) ·
+  `mind/` (overseer, llm, thoughts, journal, inbox, mode, spend) ·
+  `economy/` (tasks, scoring, ledger, cadence, questions, energy, census, and
+  the four `.json` data files) · `mission/` (mission, errand) ·
+  `lifecycle.py` at top level, because arbitration is what ties them together.
+  A new module goes where its CONCERN lives; if it does not fit one of these,
+  that is a sign it is a new domain, not a reason to widen an old one.
+  `tests/` is deliberately FLAT and does not mirror the tree.
 - `models/world.xml` = bare world for physics tests; `playground.xml` /
   `room_1.xml` add scenery for humans and mapping. Never put scenery in the
   test world.
@@ -523,15 +721,72 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   free-space sum, because driving behind the rack turns it into the
   free-standing partition `wall_normal` warns about — conditioning 0.824 →
   0.077, direction off by 80°).
-- **A TASK is a job OFFER, and it is not an errand** (`hub/tasks.py`, issue
+- **THE DOCK IS MEASURED, NOT BELIEVED** (issue #32). The charge approach
+  was the one terminal maneuver with no eyes — dead reckoning end to end
+  while every tool bay's creep is steered and ranged off its own tag — and
+  a long shift's accumulated belief error walked out of its ~6 cm / ~10°
+  envelope roughly once an hour on a hosting pack, ending the mission with
+  "mission complete" at 7 %. `HubMission.charge_approach` now measures the
+  standoff off the charge tag's PnP pose, creeps under servo and
+  verified-retries; `scripts/charge_spike.py --blind` reproduces the old
+  rows. Two traps live in `dock_eye` itself: it rides the FORK LINE
+  (`PLUG_LATERAL` right of the chassis centreline — the charge servo must
+  hold the tag at `-PLUG_LATERAL`, not centre it, because charging aligns
+  the CHASSIS), and it rides the LIFT (from the align preset the charge tag
+  is below the camera's view entirely; the approach commands
+  `CHARGE_LOOK_LIFT` before its first look). And a failed dock is narrated
+  as `stranded`, never as "mission complete" — a robot that could not reach
+  its charger has not completed anything. SimNotes, "The charge approach
+  was blind".
+- **...AND SO ARE THE BAYS** (issue #30; `_measured_standoff` is the shared
+  core). The tool drop the website kept seeing was an APPROACH error, not a
+  retention one: 4–8 cm of belief decoherence (or −3° of heading) makes a
+  return drag the module off the trays and on to the floor at the rack's
+  foot, where every later pick finds an empty bay and the rack's approach
+  lane is littered — and the grinding retries slip the wheels, pumping more
+  drift, so the cliff feeds itself. `HubMission.bay_fix` measures the bay
+  standoff off the bay's own tag inside `swap_at_bay`'s retry loop (fork
+  line, so `PLUG_LATERAL` rides along); `scripts/swap_spike.py --blind`
+  reproduces the drops. Recovery for what measurement cannot promise away:
+  the `reset_tool` inbound kind (admin-only, code-handled on the physics
+  thread, never shown to the overseer, refused while the module is seated
+  on the fork) puts a lost module back at `model.qpos0` — and with it the
+  served inbox is attached on EVERY world, `accepts` advertised per kind
+  (`CODE_HANDLED_TYPES` without an overseer), so ratings now settle on
+  scripted worlds too. SimNotes, "The tool drop was an approach error".
+- **THE DOCK IS ALSO THE ANCHOR** (issue #42). Dead reckoning is corrected
+  in exactly one place: `HubMission.anchor_at_dock`, called by `charge()`
+  the moment both pins conduct — the one pose the robot occupies to
+  millimetres BY CONSTRUCTION (measured: axle 0.2056–0.2059 m from the pin
+  faces, ±1 mm across, 0.0° heading, every instrumented dock). ⚠ Snapped to
+  the COMMISSIONED PRIOR (`rack_prior`), NOT the believed rack, and the
+  landmark is re-seeded there — measured: anchored to the belief, the
+  four-sim-hour run's `after_anchor` tracked the belief's own error
+  0.003 → 0.344 m, because belief follows frame, frame drifts, and nothing
+  in that loop referenced the world. The prior is "what a robot that booted
+  docked knows" — the map frame is DEFINED by the dock. Two belief rules
+  travel with it: the rack landmark merges BY DECODED IDENTITY (the 0.4 m
+  distance gate is for anonymous outlets — under drift it spawned a second
+  landmark the stale one outvoted), and its position is recency-weighted
+  (`RACK_RECENCY` — a mission-long average remembers the MEAN historical
+  frame and a recovery spin could not move it, measured). The bay recovery
+  (`swap_at_bay`'s no-tag spin-refresh-retry, mirroring `charge_approach`)
+  only works because of those two; one test pins all three together
+  (`test_the_recovery_finds_a_bay_the_first_look_lost`). Map evidence decay
+  was DEFERRED on measurement — build it only if a post-anchor long run
+  still shows planner refusals. And the pen's ERASE rides the first
+  successful press, never arrival — `book.clear` on a believed arrival let
+  a drifted robot blank a board it never touched. SimNotes, "Drift
+  hygiene".
+- **A TASK is a job OFFER, and it is not an errand** (`economy/tasks.py`, issue
   #21). An errand is a tool, a place and a use-phase — *machinery*. An
   activity is a mechanism watching contacts and owning discrete world state —
   *scenery that reacts*. A task is something the house or a visitor puts up:
   a description, a target, a reward, a deadline, and a verdict once it is
   over. An errand is HOW a task gets done; the task is WHY.
   - **A task never carries its own payout.** It names an evaluator
-    (`hub/scoring.py`) and a reward-table row; what it PAYS is looked up from
-    `hub/rewards.json` on every read. That is issue #14's rule arriving from
+    (`economy/scoring.py`) and a reward-table row; what it PAYS is looked up from
+    `economy/rewards.json` on every read. That is issue #14's rule arriving from
     the direction a visitor and (later) the model can both reach — anything
     that could set a number could pay itself. `Task.create` refuses a kind
     whose evaluator does not exist, so the unscoreable task cannot be built.
@@ -568,7 +823,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     stands, never a licence to abandon a job with a module on the fork.
   - Off by default (`--tasks` / `--task-state PATH`, `$PLUGGY_TASKS`): a task
     board adds errands, which reshuffles a whole mission.
-- **WHEN work appears is `hub/cadence.py` + `cadence.json`, and it is DATA**
+- **WHEN work appears is `economy/cadence.py` + `cadence.json`, and it is DATA**
   (issue #23; `$PLUGGY_CADENCE` overrides, per world). Three files now divide
   the task system cleanly and they are meant to be re-tuned one at a time:
   `tasks.py` says what a job IS, `rewards.json` says what it PAYS,
@@ -647,7 +902,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     — the reserve is only checked BETWEEN errands and a per-kind estimate
     cannot know which end of the house it is being asked about. Do not
     "fix" it by padding the table: see the note under TASK above.
-- **A QUESTION is a job for a MIND** (`hub/questions.py` + `questions.json`,
+- **A QUESTION is a job for a MIND** (`economy/questions.py` + `questions.json`,
   issue #22). The `whiteboard_answer` kind poses a question with a checkable
   answer — "Draw the answer to this question on whiteboard_a: 2 + 3" — and
   the robot discharges it as an ordinary drawing errand with the answer as
@@ -680,7 +935,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     consolation payout for showing up is the gradient that teaches a robot
     to attempt the cheapest task it can fail at. Legibility scales the
     BONUS on a right answer and cannot buy a wrong one.
-  - **The bank is data** (`hub/questions.json`, `$PLUGGY_QUESTIONS`): a flat
+  - **The bank is data** (`economy/questions.json`, `$PLUGGY_QUESTIONS`): a flat
     list of questions and their answers, with **no expression evaluator** —
     a data file that can compute is one that can be made to compute
     something else. Answers are at most **two digits**, which is the pen's
@@ -694,7 +949,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   merging would keep a stale marker forever. Present means COMPLETE. The
   header advertises `taskKinds` (the vocabulary) rather than the ids, which
   are stale before the first frame.
-- **An ERRAND is a tool, a place and a use-phase** (`hub/errand.py`, issue
+- **An ERRAND is a tool, a place and a use-phase** (`mission/errand.py`, issue
   #12). `HubLifecycle` carries a QUEUE of them, arbitrated against the
   battery by the same loop as everything else, so a repeat is a list rather
   than a flag. Anything the robot does with a tool goes in a use-phase, and
@@ -710,11 +965,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   it — `_drive(PRESENT_S, 0, 0)` — and check the RECORDING, not the return
   value.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14).
-  Three files, and the split is the whole design: `hub/scoring.py` MEASURES a
+  Three files, and the split is the whole design: `economy/scoring.py` MEASURES a
   finished task off the sim and judges it (`EVALUATORS`, one per task, pure
-  and unit-testable); `hub/rewards.json` is DATA saying what it pays (base +
+  and unit-testable); `economy/rewards.json` is DATA saying what it pays (base +
   bonus × quality curves — a 0.6 mm drawing beats a 3 mm one, and re-tuning a
-  payout is a JSON edit, `$PLUGGY_REWARDS` to override); `hub/ledger.py` banks
+  payout is a JSON edit, `$PLUGGY_REWARDS` to override); `economy/ledger.py` banks
   it. A `Verdict` can only be built by `scoring.evaluate`, and `Ledger.award`
   re-derives the points from the table before accepting one. The overseer
   (issue #15) will SEE its balance and the reward table and be able to move
@@ -730,7 +985,7 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - **A hidden-truth task never publishes its answer.** `secret` metrics are
     redacted from the ledger entry, the wire and the `reason` line, because
     the stream reaches both the site and the overseer's context.
-- **What to draw is `hub/strokes.py`; how to draw it is `hub/drawing.py`, and
+- **What to draw is `tools/strokes.py`; how to draw it is `tools/drawing.py`, and
   the plotter never imports the content module** (issue #11). A *stroke
   program* is a named list of polylines in board coordinates, pen up between
   them. Three rules the build paid for:

@@ -1,12 +1,12 @@
-"""Guards for hub-in-room navigation (hub/mission.py, milestone 8)."""
+"""Guards for hub-in-room navigation (mission/mission.py, milestone 8)."""
 
 import math
 
 import mujoco
 import pytest
 
-from pluggybot.hub.coupling import HUB_STATION_YS, RACK_HANG_X, rack_frame_to_world
-from pluggybot.hub.mission import bay_standoff, rack_heading
+from pluggybot.rack.coupling import HUB_STATION_YS, RACK_HANG_X, rack_frame_to_world
+from pluggybot.mission.mission import bay_standoff, rack_heading
 
 
 @pytest.fixture(scope="module")
@@ -47,7 +47,7 @@ def test_module_state_is_rack_frame_relative(room_model):
   coordinates against rack-local constants silently reported every correct
   placement in room_hub as a failure (the rack sits at (-0.9, 5.99) yaw -90
   there, and at the origin in the bare hub world)."""
-  from pluggybot.hub.swap import HubSwap
+  from pluggybot.rack.swap import HubSwap
   data = mujoco.MjData(room_model)
   mujoco.mj_forward(room_model, data)
   swap = HubSwap(room_model, data)
@@ -70,8 +70,8 @@ def test_a_second_fetch_works_after_a_stow(room_model):
   the only sign is a module still hanging in its bay. Bay A and the LCD,
   because nothing here is about the pen -- any tool inherits it.
   """
-  from pluggybot.hub.coupling import module_power_contact
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.rack.coupling import module_power_contact
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   mission = HubMission(room_model, data)
   bay = HUB_STATION_YS[0]
@@ -99,7 +99,7 @@ def test_full_hub_mission():
   """The milestone-8 claim, end to end: map the room, navigate to the rack,
   fine-align on the fiducials, pick the LCD module, carry it across the
   room, come back, and hang it up -- collision-free."""
-  from pluggybot.hub.mission import run_demo
+  from pluggybot.mission.mission import run_demo
   result = run_demo(start=(0.5, 3.0, math.pi / 2))
   assert result["picked"], "never got the module off the rack"
   assert result["returned"], "never hung the module back up"

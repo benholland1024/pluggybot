@@ -1,4 +1,4 @@
-"""Guards for the hub-era mission loop (hub/lifecycle.py, milestone 8)."""
+"""Guards for the hub-era mission loop (pluggybot/lifecycle.py, milestone 8)."""
 
 import math
 
@@ -6,10 +6,10 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import CHARGE_BAY_Y, HUB_STATION_YS
-from pluggybot.hub.lifecycle import HubLifecycle, LOW_BATTERY_WH
-from pluggybot.hub.mission import CHARGE_PIN_X, bay_standoff, charge_standoff
-from pluggybot.hub.swap import PLUG_LATERAL
+from pluggybot.rack.coupling import CHARGE_BAY_Y, HUB_STATION_YS
+from pluggybot.lifecycle import HubLifecycle, LOW_BATTERY_WH
+from pluggybot.mission.mission import CHARGE_PIN_X, bay_standoff, charge_standoff
+from pluggybot.rack.swap import PLUG_LATERAL
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +23,7 @@ def test_charge_standoff_lines_up_the_chassis_not_the_fork():
   the FORK line is what matters. Getting this wrong aims the robot half a
   chassis-width off the pins."""
   sx, sy, hd = charge_standoff()
-  from pluggybot.hub.localize import RackPose
+  from pluggybot.rack.localize import RackPose
   rack = RackPose.prior()
   px, py = rack.to_world(CHARGE_PIN_X, CHARGE_BAY_Y)
   lateral = -(px - sx) * math.sin(hd) + (py - sy) * math.cos(hd)
@@ -39,7 +39,7 @@ def test_carried_module_survives_a_turn(room_model):
   """The fork's V-notches hold a peg vertically and fore-aft but NOT along
   its own axis. Without end-stops the first carried module walked sideways
   off the fork during a turn and landed on the floor 2.5 m away."""
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   mission = HubMission(room_model, data)
   try:
@@ -59,7 +59,7 @@ def test_arm_is_stowed_after_a_swap(room_model):
   """An extended fork rides at module height and sweeps a rack clean --
   measured, by the robot knocking down the module it had just stowed while
   driving past to the charge bay. Driving configuration is arm retracted."""
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   mission = HubMission(room_model, data)
   try:
@@ -97,13 +97,36 @@ def test_full_hub_lifecycle(world):
   or a dropped module rather than as an exception. Every constant comes
   from world_config, so this is also the guard on that table.
   """
-  from pluggybot.hub.lifecycle import run_demo
-  r = run_demo(world=world)                # start pose from the world config
+  from pluggybot.lifecycle import run_demo
+
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The whole milestone-8
+  # claim is settled once the tool has gone out and come back and the robot
+  # has charged; `run_demo`'s default 600 s budget then buys a SECOND charge
+  # cycle in home (219.7 -> 353.6 sim-seconds since the garden plate landed)
+  # that repeats the first. Measured 369.6 s / 236.7 s of wall clock.
+  #
+  # The predicate is the SUCCESS condition, so a world constant that breaks
+  # the mission never satisfies it: the run goes the whole distance and fails
+  # on the same assertion it always did.
+  def settled(life):
+    return (life.swaps_done >= 2 and life.charge_cycles >= 1
+            and life.mission.swap.module_state(life.module)["hung"])
+
+  r = run_demo(world=world, stop_when=settled)   # start pose from world config
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
   assert r["module_stowed"], "the module was not put back"
   assert r["charge_cycles"] >= 1, "never charged at the hub"
   assert r["battery"] > 0.5, "ended flat"
+  # ⚠ NO LOW-WATER ASSERTION HERE, and that is deliberate. A first pass at
+  # this added `min(fraction) > 0` as a "strictly stronger" replacement for
+  # the line above, and room_hub failed it at 0.0 % -- correctly. The pack
+  # reaching empty inside an errand is documented, honest behaviour on a demo
+  # cell: `needs_charge` is checked BETWEEN errands and never inside one, so
+  # an errand bigger than what is left cannot be survived by any charging
+  # policy, and the committed home recording finishes a census at frac 0.000.
+  # An assertion the design explicitly does not promise is a plausibility
+  # guard rejecting the truth (SimNotes), not extra rigour.
   assert r["collision_steps"] == 0, "the robot hit something"
   # ...and it was PAID for the work, by code (issue #14). Both tasks a bare
   # mission performs are scoreable, and the verdicts come from evaluators
@@ -123,7 +146,7 @@ def test_world_config_use_at_is_inside_its_own_world(world):
   there aims a 60 s drive at a wall, and nothing raises. This is a cheap
   geometric check of the same thing the slow home arm proves by driving.
   """
-  from pluggybot.hub.lifecycle import world_config
+  from pluggybot.lifecycle import world_config
   cfg = world_config(world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)

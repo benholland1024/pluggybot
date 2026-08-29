@@ -58,10 +58,25 @@ build-backend = "uv_build"
 # output all want it, and spawning six workers for one test is a net loss.
 addopts = "-n auto --dist worksteal"
 markers = [
-    # Whole-mission runs (~90 s sim each). They stay in the default suite —
-    # the two lessons that cost the most here (a frame-relative verdict, a
-    # sign on the return travel) were only visible end to end.
-    "slow: full-mission integration runs",
+    # `slow` means EXPENSIVE **AND** UNABLE TO CATCH A REGRESSION IN THE CODE
+    # YOU ARE ITERATING ON (issue #54). Cost alone is not the test: an 80 s
+    # test that guards a live path earns its place in `-m "not slow"`, and
+    # before this rule was written the marker meant "is a whole-mission run",
+    # which put a 29 s test in the slow suite and left an 80 s one out of it.
+    #
+    # Two kinds qualify:
+    #   * whole-mission integration runs -- the two costliest lessons in this
+    #     repo (a frame-relative verdict, a sign on the return travel) were
+    #     only ever visible end to end;
+    #   * PREMISE-PINNING tests, which bypass a fix and assert the old defect
+    #     still reproduces. They cannot fail because the fix regressed, since
+    #     the fix is not running; they fail when the geometry moves far enough
+    #     that the defect stops reproducing, which is a merge-time question.
+    #
+    # ⚠ Shorten before you mark. A mission test that stops on its claim rather
+    # than its budget is worth more than one moved out of the iterate loop --
+    # see `HubLifecycle.stop_when`.
+    "slow: expensive, and cannot catch a regression while you iterate",
 ]
 
 [dependency-groups]

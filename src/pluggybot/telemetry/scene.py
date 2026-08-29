@@ -114,7 +114,7 @@ def _geom_appearance(model, gid: int) -> tuple[list[float], str | None]:
 
 #: Geoms whose name ends with this are DISPLAY PANELS -- the LCD module's
 #: face (issue #13). Named by convention rather than listed in a sidecar
-#: because the modules are generated (hub/coupling.py) and live in three
+#: because the modules are generated (rack/coupling.py) and live in three
 #: worlds, only one of which has a sidecar at all.
 SCREEN_SUFFIX = "_screen"
 

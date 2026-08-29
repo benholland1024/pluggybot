@@ -52,9 +52,15 @@ COPY deploy/entrypoint.sh deploy/
 # Board contents, the points ledger and the overseer's memory are WORLD state,
 # not run state (issues #12, #14 and #15): mount a volume here and the
 # whiteboards, the balance the site puts on its scoreboard, and the robot's
-# journal all survive the restart that ends every mission. `goals.md` lives in
-# the same volume and is the one file a HUMAN writes -- editing it changes what
-# the robot is for, with no redeploy and no code change.
+# journal all survive the restart that ends every mission. The THOUGHT FILES
+# (issue #38) live in the same volume, under `thoughts/`, and two of the four
+# are the files a HUMAN writes: editing `Main.md` changes who the robot is and
+# `Goals.md` what it is for, with no redeploy and no code change. `History.md`
+# is the sim's append-only record and `Knowledge_and_Opinions.md` is the
+# robot's own -- the sim refuses a write to any file by anyone but its owner.
+# ⚠ $PLUGGY_GOALS still points at the pre-#38 `goals.md` and still wins for
+# Goals.md, so a volume that has been carrying a hand-edited goals file keeps
+# using it rather than silently reverting to the defaults.
 #
 # The user gets a real home directory: mesa writes its shader cache there,
 # and without one every osmesa context logs "Failed to create /home/pluggy
@@ -68,6 +74,7 @@ ENV HOME=/home/pluggy \
     PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json \
     PLUGGY_TASKS=/var/lib/pluggybot/tasks.json \
     PLUGGY_JOURNAL=/var/lib/pluggybot/journal.json \
-    PLUGGY_GOALS=/var/lib/pluggybot/goals.md
+    PLUGGY_GOALS=/var/lib/pluggybot/goals.md \
+    PLUGGY_THOUGHTS=/var/lib/pluggybot/thoughts
 
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]

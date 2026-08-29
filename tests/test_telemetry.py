@@ -228,12 +228,16 @@ def test_recorder_honours_the_keyframe_cadence(mini_model, tmp_path):
     assert set(f["world"]) == set(header["world"])
 
 
-def test_recorder_header_and_decimation(mini_model, tmp_path):
+def test_recorder_header_and_decimation(mini_model, tmp_path, monkeypatch):
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
   rec, lines = record(mini_model, seconds=2.0, tmp=tmp_path)
   header, frames = lines[0], lines[1:]
   assert header["type"] == "header"
   assert header["protocolVersion"] == PROTOCOL_VERSION
   assert header["robots"] == {"pluggybot": ["pluggybot"]}
+  # An unconfigured run still has a NAME (0.10.0, issue #39): absent config
+  # degrades to a default, never to a blank identity header on the site.
+  assert header["robotNames"] == {"pluggybot": "Pluggy"}
   assert header["world"] == ["ball"]
   # ~20 Hz of sim time out of 500 Hz of steps, spacing never under 1/hz
   assert len(frames) == pytest.approx(2.0 * header["hz"], abs=2)
@@ -241,6 +245,47 @@ def test_recorder_header_and_decimation(mini_model, tmp_path):
   assert all(b - a >= 1 / header["hz"] - 1e-6 for a, b in zip(times, times[1:]))
   # everything queued reached the file: close() drains before returning
   assert len(frames) == rec.frames
+
+
+def test_a_named_robot_re_keys_nothing(mini_model, tmp_path):
+  """The name is IDENTITY, and the species is the KEY (0.10.0, issue #39).
+
+  'Luca the pluggybot' must put Luca in `robotNames` and change nothing
+  else: `robots`, the frame keys and ROBOT_ROOT itself all stay the MJCF
+  body name, because every body-name-keyed structure (body_census, the
+  scene transpiler, the ledger, every fixture) rides on it. A rename that
+  re-keyed telemetry would orphan every consumer mid-stream.
+  """
+  from pluggybot.telemetry.protocol import ROBOT_ROOT
+  rec, lines = record(mini_model, seconds=1.0, tmp=tmp_path,
+                      robot_name="Luca")
+  header, frames = lines[0], lines[1:]
+  assert header["robotNames"] == {"pluggybot": "Luca"}
+  assert ROBOT_ROOT == "pluggybot"
+  assert header["robots"] == {"pluggybot": ["pluggybot"]}
+  assert all(set(f["robots"]) == {"pluggybot"} for f in frames)
+  # ...and the name rides the header alone: 20 Hz frames repeat what can
+  # change, and a name cannot.
+  assert all("robotNames" not in f for f in frames)
+
+
+def test_the_name_comes_from_the_environment_and_degrades_to_a_default(
+    mini_model, tmp_path, monkeypatch):
+  """$PLUGGY_ROBOT_NAME names a deployed sim without a rebuild (the boards/
+  ledger/energy pattern); an explicit name beats it; blank degrades to the
+  default rather than putting an empty identity on the wire."""
+  from pluggybot.telemetry.protocol import robot_display_name
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Beryl")
+  _, lines = record(mini_model, seconds=0.2, tmp=tmp_path)
+  assert lines[0]["robotNames"] == {"pluggybot": "Beryl"}
+  assert robot_display_name("Luca") == "Luca"      # flag beats env
+  monkeypatch.setenv("PLUGGY_ROBOT_NAME", "   ")
+  assert robot_display_name() == "Pluggy"          # blank is not a name
+  monkeypatch.delenv("PLUGGY_ROBOT_NAME")
+  assert robot_display_name("") == "Pluggy"
+  # A runaway env var is a loud config error, not a broken site layout.
+  with pytest.raises(ValueError):
+    robot_display_name("x" * 61)
 
 
 def test_first_frame_is_keyframe_then_sparse(mini_model, tmp_path):
@@ -409,7 +454,7 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   block insists the wall is 19 % full -- and nothing later in the stream
   repairs it, because a keyframe re-ships the counters and never the lines.
   """
-  from pluggybot.hub.boards import BoardBook, BoardRecord
+  from pluggybot.tools.boards import BoardBook, BoardRecord
 
   data = mujoco.MjData(mini_model)
   book = BoardBook([BoardRecord(name="whiteboard_a", reach=(0.11, 0.2))],
@@ -438,7 +483,7 @@ def test_screens_ride_the_same_sparse_rule_as_boards(mini_model, tmp_path):
   """0.5.0, and the third block to follow one rule. What makes it worth
   asserting separately: a face is not a pose either, so a screen missing
   from a frame means "unchanged" and never "dark"."""
-  from pluggybot.hub.screen import ScreenSet
+  from pluggybot.tools.screen import ScreenSet
 
   class FakeScreen:
     name = "module_lcd"
@@ -478,8 +523,8 @@ def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
   `earned` message carrying the verdict behind it, interleaved with the
   frames exactly as `draw` is.
   """
-  from pluggybot.hub.ledger import Ledger
-  from pluggybot.hub.scoring import evaluate
+  from pluggybot.economy.ledger import Ledger
+  from pluggybot.economy.scoring import evaluate
 
   data = mujoco.MjData(mini_model)
   ledger = Ledger()
@@ -559,12 +604,80 @@ def test_the_goals_file_is_read_whether_or_not_an_overseer_runs():
   """`overseer.build` answers (None, None) when disabled, which is why the
   telemetry path cannot get its prose from there. It reads the file itself.
   """
-  from pluggybot.hub import overseer as ov
+  from pluggybot.mind import overseer as ov
 
   assert ov.build("home", enabled=False) == (None, None)
   # ...and yet there is prose to stream, which is the whole point of the
   # helper: a scripted mission still has a purpose to display.
   assert ov.goals_text(None).strip()
+
+
+def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
+  """0.11.0: the thought files ride the `goals` slot, four times over
+  (pluggybot #38).
+
+  Same argument as goals and board snapshots: a document is not a pose and
+  no keyframe re-ships one, so these lines are the only place in the stream
+  a reader learns what the robot is working from. A recording that emitted
+  them after the frames -- or not at all -- leaves the site's Thoughts tab
+  permanently empty, and that is the case almost every visitor meets,
+  because the default view is a recording.
+  """
+  from pluggybot.mind.thoughts import KNOWLEDGE, NAMES, ThoughtFiles
+
+  memory = ThoughtFiles()
+  memory.learn("whiteboard_b is the one people look at")
+  _, lines = record(mini_model, seconds=0.4, tmp=tmp_path,
+                    goals="Keep the house in good order.", thoughts=memory)
+  thoughts = [x for x in lines if x.get("type") == "thought"]
+  assert [t["name"] for t in thoughts] == list(NAMES)
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  assert all(lines.index(t) < first_frame for t in thoughts), \
+    "the documents arrived after the frames that depend on them"
+  by_name = {t["name"]: t for t in thoughts}
+  assert by_name[KNOWLEDGE]["text"] == "whiteboard_b is the one people look at"
+  # Each one says who may write it -- four panels that look alike on a page
+  # and are not alike at all (the `steering` lesson, one loop over).
+  assert {t["writer"] for t in thoughts} == {"human", "system", "robot"}
+  # ...and `goals` is UNCHANGED and still sent: it is the only carrier of
+  # `steering`, which says who is READING rather than who may write.
+  assert len([x for x in lines if x.get("type") == "goals"]) == 1
+  # A run with no files at all emits none, on the same terms as goals.
+  _, silent = record(mini_model, seconds=0.4, tmp=tmp_path, goals="")
+  assert not [x for x in silent if x.get("type") == "thought"]
+
+
+def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
+  """A thought message per CONNECT, like the goals beside it -- a browser
+  that opened the page an hour in has missed the only lines that carried
+  them, and the hub relays rather than re-keys on its behalf."""
+  from pluggybot.mind.thoughts import NAMES, ThoughtFiles
+  from pluggybot.telemetry.publisher import WsPublisher
+
+  data = mujoco.MjData(mini_model)
+  pub = WsPublisher.__new__(WsPublisher)          # no socket, no sender thread
+  pub._builder = FrameBuilder(mini_model, data, model_name="mini",
+                              thoughts=ThoughtFiles())
+  pub.data = data
+  pub._queue = queue.Queue(maxsize=64)
+  pub._need_goals = threading.Event()
+  pub._need_thoughts = threading.Event()
+  pub._need_boards = threading.Event()
+  pub._need_keyframe = threading.Event()
+  pub.boards = None
+  pub._grid = GridSampler(None)
+  pub.frames_dropped = 0
+  pub.events_dropped = 0
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "thought"), "sent with nobody connected"
+
+  pub._need_thoughts.set()                         # ...as the sender does
+  pub.step_hook()
+  assert [m["name"] for m in _typed(pub._queue, "thought")] == list(NAMES)
+
+  pub.step_hook()
+  assert not _typed(pub._queue, "thought"), "repeated on every physics step"
 
 
 def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
@@ -585,6 +698,7 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub.data = data
   pub._queue = queue.Queue(maxsize=64)
   pub._need_goals = threading.Event()
+  pub._need_thoughts = threading.Event()
   pub._need_boards = threading.Event()
   pub._need_keyframe = threading.Event()
   pub.boards = None
@@ -750,6 +864,10 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # the header field the website selects its scene off -- a recording
   # mislabelled here poses one world's robot inside the other's rooms
   assert header["model"] == model_name
+  # The committed recordings are made with no --robot-name, so they carry
+  # the DEFAULT identity (0.10.0) -- which is itself the claim under test:
+  # an unconfigured producer still names its robot.
+  assert header["robotNames"] == {"pluggybot": "Pluggy"}
   robot_names = set(header["robots"]["pluggybot"])
   first = frames[0]["robots"]["pluggybot"]
   assert set(first["bodies"]) == robot_names, "first frame must be a keyframe"
@@ -789,6 +907,51 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # nothing is reading the goals and the fixture must not claim otherwise.
   assert goals[0]["steering"] is False
   assert lines.index(goals[0]) <= 2, "goals must precede the frames"
+
+  # ...and the memory documents behind it (0.11.0, issue #38), on exactly the
+  # same terms and for the same reason: the site's Thoughts tab is built
+  # against these lines, no keyframe re-ships one, and the default view is a
+  # recording. A fixture without them leaves that tab showing a single row.
+  from pluggybot.mind.thoughts import HISTORY, KNOWLEDGE, MAIN, NAMES
+
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  docs = [e for e in events if e["type"] == "thought"]
+  opening = [d for d in docs if lines.index(d) < first_frame]
+  assert [d["name"] for d in opening] == list(NAMES), \
+    "the fixture does not open with the robot's memory"
+  assert {d["writer"] for d in opening} == {"human", "system", "robot"}, \
+    "four documents claiming one writer render as four identical panels"
+  # Goals.md rides the wire TWICE by design -- the prose here, `steering`
+  # over there -- and the two must agree or the panel shows one and annotates
+  # the other.
+  assert next(d for d in opening if d["name"] == "Goals.md")["text"].strip() \
+      == goals[0]["text"].strip()
+  # History is written DURING the mission, so it must actually move: a
+  # fixture whose memory never changed replays a robot that had none.
+  later = [d for d in docs if lines.index(d) >= first_frame]
+  assert later, "nothing was ever written to the robot's history"
+  assert {d["name"] for d in later} == {HISTORY}, \
+    "something other than the system wrote a file mid-mission"
+  assert later[-1]["text"].count("\n") >= 2, "a one-line day"
+  # ...and the robot's OWN file is empty here, honestly: these missions run
+  # the scripted rotation, and nothing without a mind writes an opinion. The
+  # same fact `steering: False` states from the other end.
+  assert next(d for d in opening if d["name"] == KNOWLEDGE)["text"] == ""
+  # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
+  # These recordings are made with no thoughts directory, so Main.md is
+  # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a
+  # fixture carrying last month's persona is what a visitor actually reads.
+  # This is the guard that was missing: the persona changed and every shape
+  # assertion above still passed, because content drift is invisible to them.
+  from pluggybot.mind.thoughts import DEFAULT_MAIN
+  assert next(d for d in opening if d["name"] == MAIN)["text"] \
+      == DEFAULT_MAIN.strip(), \
+    "the recording's persona is stale: re-record after editing DEFAULT_MAIN"
+  # ...and it never claims the SPECIES as the robot's name: `pluggybot` is
+  # what it is, the name is per instance (`robot_display_name`), and the
+  # website renders "<name> the pluggybot" directly above this text.
+  assert "You are PluggyBot" not in next(
+    d for d in opening if d["name"] == MAIN)["text"]
 
   # The scoreboard half (0.6.0). Every mission charges, and charging is a
   # scored task, so BOTH worlds' fixtures must carry a ledger that moves --
@@ -893,7 +1056,19 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   for e in drawn:
     assert e["board"] in header["boards"]
     assert len(e["points"]) >= 2 and all(len(p) == 2 for p in e["points"])
-  assert cleared[0]["t"] < drawn[0]["t"], "drew before erasing"
+  # A board is erased before it is drawn on -- checked by STREAM ORDER, with
+  # the clock allowed to tie.
+  # ⚠ It used to be a strict `<`, and that was encoding an accident of the
+  # pre-issue-42 implementation rather than the claim. `book.clear` used to
+  # fire on a BELIEVED arrival, seconds ahead of the pen touching anything,
+  # which let a drifted robot narrate "erased whiteboard_a", press at empty
+  # air and blank a board it never reached. #42 moved the erase onto the
+  # first stroke, so the two now happen in the SAME physics step and carry
+  # the same `t` -- measured here at 108.303 for both. The committed
+  # recording predated that change and was the last thing still asserting
+  # the old gap.
+  assert lines.index(cleared[0]) < lines.index(drawn[0]), "drew before erasing"
+  assert cleared[0]["t"] <= drawn[0]["t"]
   # ...and the board state itself moved off blank, in the frames
   final = [f for f in frames if "boards" in f][-1]["boards"]
   assert any(b["strokes"] > 0 and b["fill"] > 0 for b in final.values()), \

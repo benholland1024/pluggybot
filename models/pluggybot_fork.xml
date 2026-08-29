@@ -4,7 +4,7 @@
        becomes a swappable module. Everything else is a verbatim copy of
        pluggybot.xml - keep the two in sync until the hub design fully
        supersedes the plug robot (then this file becomes canonical).
-       Fork geometry mirrors hub/coupling.py's spike carrier exactly, via a
+       Fork geometry mirrors rack/coupling.py's spike carrier exactly, via a
        180-degree body rotation so the spike-frame coordinates paste in
        unchanged (the spike approaches along -x; the robot along +x). -->
   <visual><global offwidth="1280" offheight="720"/></visual>
@@ -222,7 +222,7 @@
 
           <!-- Tool-coupling FORK on the same passive compliant wrist (RCC)
                the plug used. euler 180 about z lets the spike-frame fork
-               coordinates from hub/coupling.py paste in verbatim (geometry
+               coordinates from rack/coupling.py paste in verbatim (geometry
                is y-symmetric, so the mirror is exact). V-notch vertices sit
                22 mm below the fork axis (FORK_DROP): the whole fork passes
                UNDER a module's peg on approach, then the lift raises it

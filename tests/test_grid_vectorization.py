@@ -64,7 +64,7 @@ def load_scans():
 
 
 def make_grid():
-  # room_hub's mission grid: -3..7 m at 5 cm, same as hub/mission.py
+  # room_hub's mission grid: -3..7 m at 5 cm, same as mission/mission.py
   return OccupancyGrid(x_min=-3, y_min=-3, x_max=7, y_max=7, resolution=0.05)
 
 

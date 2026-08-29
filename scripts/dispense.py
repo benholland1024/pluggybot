@@ -38,13 +38,13 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   HUB_STATION_YS, SEED_COUNT, module_power_contact,
 )
-from pluggybot.hub.dispenser import (
+from pluggybot.tools.dispenser import (
   APPROACH_LIFT, SEED_MODULE, SOW_OUTLET_Z, SeedDispenser,
 )
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.swap import HubSwap
 from pluggybot.viz import Recorder
 
 FRAME_W, FRAME_H = 400, 300

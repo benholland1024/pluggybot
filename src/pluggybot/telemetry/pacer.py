@@ -52,6 +52,23 @@ class RealTimePacer:
     elif -ahead > self.max_lag:
       self.max_lag = -ahead
 
+  def resync(self) -> None:
+    """Forget the wall time that passed while nothing was stepping.
+
+    ⚠ Without this an operator pause becomes a SPRINT (issue #37). The pacer
+    sleeps off the sim's lead over wall time and does nothing when it is
+    behind, so a five-minute pause leaves it five minutes behind and the
+    robot then runs at full speed -- 2.9x real time headless -- until the
+    debt is paid, in front of whoever is watching. Rebasing both clocks to
+    now says the honest thing instead: the paused time was not sim time that
+    went missing, it was sim time that never happened.
+
+    `max_lag` is deliberately NOT reset: it is the worst transient this run
+    has seen, and a pause is not a transient.
+    """
+    self._wall0, self._t0 = time.monotonic(), float(self.data.time)
+    self._next_check = 0.0
+
   def stats(self) -> dict:
     """Pacing accuracy so far: how much sim ran, how long it took, and the
     drift between the two. `drift_s` is wall-seconds ahead (+) or behind

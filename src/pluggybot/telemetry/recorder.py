@@ -45,7 +45,22 @@ from typing import Callable
 
 from PIL import Image
 
-from pluggybot.telemetry.protocol import PROTOCOL_VERSION, ROBOT_ROOT, body_census
+from pluggybot.telemetry.protocol import (MODES, PROTOCOL_VERSION, ROBOT_ROOT,
+                                          body_census, robot_display_name)
+
+def mode_message(mode, t: float, held_s: float = 0.0) -> dict | None:
+  """`{"type": "mode", ...}` for a switch, or None when there is no switch.
+
+  A module function rather than only a builder method because BOTH sinks and
+  both entry points (`run_demo`, `serve.py`) emit it, and a message shape
+  written out in four places is a message shape that will disagree with
+  itself. 0.12.0, issue #37.
+  """
+  if mode is None:
+    return None
+  return {"type": "mode", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+          "mode": mode.mode, "heldS": round(float(held_s), 1)}
+
 
 FRAME_HZ = 20.0     # the design point: 15-20 Hz reads smooth after
                     # client-side interpolation at 60 fps
@@ -90,7 +105,9 @@ class FrameBuilder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               steering: bool = False) -> None:
+               thoughts=None, spend=None, mode=None,
+               steering: bool = False,
+               robot_name: str | None = None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -126,6 +143,30 @@ class FrameBuilder:
     # `board_snapshot` shape, for the `board_snapshot` reason.
     self.goals = goals
     self.steering = bool(steering)
+    # The robot's memory documents (0.11.0, issue #38). The goals message's
+    # shape and its reason -- prose that never rides a frame -- but FOUR
+    # documents, each saying who may write it, and unlike goals two of them
+    # CHANGE during a run. Those reach a sink through `ThoughtFiles.on_event`
+    # (wired into `message` / `emit`, exactly like a journal note); this
+    # reference is only what opens a stream with all four.
+    self.thoughts = thoughts
+    # What the thinking has COST this week (0.12.0, issue #37). A fifth duck
+    # of the `snapshot()` shape -- but shipped WHOLE on change like `tasks`
+    # rather than diffed per key, because it is six numbers that move
+    # together and a delta of one of them is not a smaller message.
+    self.spend = spend
+    # ...and the operator's switch (0.12.0). Not a block: `mode` rides the
+    # robot's own per-frame record beside `state`, because it is a fact
+    # about the robot at that instant. The MESSAGE below is the separate
+    # thing, and it exists because a paused robot emits no frames at all.
+    self.mode = mode
+    self._last_spend: dict | None = None
+    self._last_mode: str | None = None
+    # Who this robot IS, as distinct from what it is (0.10.0, issue #39):
+    # ROBOT_ROOT is the species and stays the key of every wire structure;
+    # this is the identity the website's header shows. Resolved here (flag >
+    # $PLUGGY_ROBOT_NAME > default) so both sinks of one run agree.
+    self.robot_name = robot_display_name(robot_name)
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -160,6 +201,12 @@ class FrameBuilder:
       "hz": self.hz,
       "keyframeS": self.keyframe_s,
       "robots": {ROBOT_ROOT: self.robot_names},
+      # Display name per robot id (0.10.0, issue #39). The KEY is the
+      # species (ROBOT_ROOT); the value is this instance's identity. Header
+      # only: it never changes during a run, so repeating it at 20 Hz would
+      # buy nothing, and a consumer holding an older recording (field
+      # absent) falls back to a default rather than rendering blank.
+      "robotNames": {ROBOT_ROOT: self.robot_name},
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
@@ -179,6 +226,11 @@ class FrameBuilder:
       # is not happening. "Delivered" has to mean somebody who can hear you
       # got it, which is why this is advertised rather than assumed.
       "accepts": list(self.accepts),
+      # The operator modes this producer understands (0.12.0, issue #37).
+      # The vocabulary rather than the current mode -- which is in every
+      # frame -- on the same terms as `taskKinds`: a client builds its
+      # controls before the robot has ever been in one of them.
+      "modes": list(MODES),
     }
 
   def goals_message(self, t: float) -> dict | None:
@@ -201,6 +253,39 @@ class FrameBuilder:
     return {"type": "goals", "t": round(float(t), 3), "robot": ROBOT_ROOT,
             "text": self.goals, "steering": self.steering}
 
+  def thought_messages(self, t: float) -> list[dict]:
+    """The robot's memory documents, whole (0.11.0, issue #38).
+
+    The `goals_message` slot and its argument, four times over: a document
+    is not a pose, no keyframe re-ships one, and a browser that joined an
+    hour in would otherwise show an empty Thoughts tab for the rest of the
+    mission. Empty list when this run has no files, which is the honest
+    answer on the same terms as goals -- absent means "nothing to say".
+
+    ⚠ `goals` (0.8.0) is NOT replaced by this and both are emitted. They
+    answer different questions: this one says what the documents SAY, and
+    that one says whether anything is READING them (`steering`), which no
+    document knows about itself.
+    """
+    if self.thoughts is None:
+      return []
+    return self.thoughts.messages(float(t))
+
+  def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
+    """The operator's mode, as its own message (0.12.0, issue #37).
+
+    ⚠ This exists because a PAUSED robot emits no frames. Frames are due on
+    SIM time and a paused robot steps no physics, so the block that carries
+    `mode` in every other state is exactly the block that stops arriving in
+    the one state somebody needs to see. The heartbeat is what keeps "the
+    operator paused it" distinguishable from "the sim died" -- the `accepts`
+    lesson, in the version where the whole point is that somebody notices.
+
+    None when there is no switch at all, which is every demo and every test
+    that did not ask for one.
+    """
+    return mode_message(self.mode, t, held_s)
+
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
     self._last.clear()
@@ -209,6 +294,7 @@ class FrameBuilder:
     self._last_screens.clear()
     self._last_ledger.clear()
     self._last_tasks = None
+    self._last_spend = None
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -235,6 +321,7 @@ class FrameBuilder:
       self._last_screens.clear()
       self._last_ledger.clear()
       self._last_tasks = None
+      self._last_spend = None
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -282,6 +369,14 @@ class FrameBuilder:
       if board != self._last_tasks:
         self._last_tasks = board
         frame["tasks"] = board
+    if self.spend is not None:
+      # What the week's thinking has cost (0.12.0, issue #37). Whole-block on
+      # change, like `tasks`: six numbers that move together, and they move
+      # only when the robot buys a thought.
+      money = self.spend.snapshot()
+      if money != self._last_spend:
+        self._last_spend = money
+        frame["spend"] = money
     return frame
 
   @staticmethod
@@ -398,14 +493,18 @@ class TelemetryRecorder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
+               thoughts=None, spend=None, mode=None,
                steering: bool = False,
+               robot_name: str | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
-                                 steering=steering)
+                                 thoughts=thoughts, spend=spend,
+                                 mode=mode,
+                                 steering=steering, robot_name=robot_name)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
@@ -416,6 +515,11 @@ class TelemetryRecorder:
     goals_msg = self._builder.goals_message(float(data.time))
     if goals_msg is not None:
       self._queue.put(goals_msg)
+    # ...and the memory documents behind it (0.11.0, issue #38), in the same
+    # slot for the same reason: no keyframe carries one, so a reader that
+    # missed these lines never learns what the robot is working from.
+    for thought in self._builder.thought_messages(float(data.time)):
+      self._queue.put(thought)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without

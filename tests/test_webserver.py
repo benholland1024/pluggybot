@@ -519,7 +519,7 @@ def test_every_connection_is_caught_up_on_the_ink(mini_model):
   none -- and a RECONNECT is the same problem, which is why the snapshot
   rides every session rather than only the first.
   """
-  from pluggybot.hub.boards import BoardBook, BoardRecord
+  from pluggybot.tools.boards import BoardBook, BoardRecord
 
   mini_model.opt.gravity[:] = 0
   data = mujoco.MjData(mini_model)
@@ -596,7 +596,7 @@ _SERVE = Path(__file__).parent.parent / "scripts" / "serve.py"
 
 def _publishing(mini_model, sink, **kw):
   """A publisher wired to an inbox, connected to `sink`. Returns both."""
-  from pluggybot.hub.inbox import Inbox
+  from pluggybot.mind.inbox import Inbox
   data = mujoco.MjData(mini_model)
   inbox = Inbox(**kw)
   pub = WsPublisher(mini_model, data, sink.endpoint, hz=20.0)
@@ -713,6 +713,14 @@ class _FakeLife:
     self.init_kwargs = kw
     self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
     self.say_hooks: list = []
+    # The operator's switch and its two hook lists (issue #37). Held the way
+    # the real lifecycle holds them -- off the kwargs it was built with --
+    # because a double that quietly lacks an attribute the real object always
+    # has turns a wiring bug into a test failure about the double.
+    self.mode = kw.get("mode")
+    self.pause_hooks: list = []
+    self.resume_hooks: list = []
+    self.paused_s = 0.0
     # Where a `visitor_reply` goes on its way to the socket (issue #16).
     self.visitor_hooks: list = []
     self.run_args: tuple = ()
@@ -735,6 +743,9 @@ class _FakePublisher:
     self.messages: list = []
     self.frames_sent = self.frames_dropped = self.connections = 0
     self.last_error = None
+    # The downstream direction (issue #16). Always wired as of issue #30 --
+    # the inbox is attached on every served world, not only overseer ones.
+    self.on_inbound: list = []
 
   def step_hook(self) -> None:
     pass
@@ -781,7 +792,7 @@ def test_serve_takes_every_world_constant_from_world_config(monkeypatch, world):
   (-1.2, 2.5) -- which in the home world is inside wall_divider_0, so the
   errand drives at a wall instead of into the living room.
   """
-  from pluggybot.hub.lifecycle import world_config
+  from pluggybot.lifecycle import world_config
   cfg = world_config(world)
 
   life, pub, model = _serve_wiring(monkeypatch, ["--world", world, "--free-run"])
@@ -890,3 +901,78 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
                        "--record", str(tmp_path / "out.jsonl.gz")])
   serve.main()
   assert seen["model_name"] == "home_world"
+
+
+def test_serve_advertises_accepts_per_kind(monkeypatch):
+  """The `accepts` split (issue #30): a scripted world hears what CODE
+  handles -- a rating settles a ledger row, a reset moves a module -- while
+  suggestions and questions still need an overseer to read them. Advertising
+  the full vocabulary without one would promise conversations that never
+  start; advertising nothing would hide the admin's only recovery for a
+  dropped tool."""
+  from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES
+  life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert tuple(pub.init_kwargs["accepts"]) == CODE_HANDLED_TYPES
+  # ...and the inbox is attached regardless, so those kinds actually land.
+  assert life.init_kwargs["inbox"] is not None
+
+
+def test_serve_names_the_robot_in_both_artifacts(monkeypatch, tmp_path):
+  """--robot-name is this instance's IDENTITY on the wire (issue #39), and
+  `serve.py --record` writes a recording of the SAME run it streams -- so
+  the name must reach the publisher AND the recorder, or a replay of a
+  stream would disagree with the stream about who was flying."""
+  serve = _load_serve()
+  seen: dict = {}
+  pub_kw: dict = {}
+  real_recorder = serve.TelemetryRecorder
+
+  def recorder_factory(model, data, path, **kw):
+    seen.update(kw)
+    return real_recorder(model, data, path, **kw)
+
+  def pub_factory(model, data, endpoint, **kw):
+    pub_kw.update(kw)
+    return _FakePublisher(model, data, endpoint, **kw)
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _FakeLife(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(serve, "TelemetryRecorder", recorder_factory)
+  monkeypatch.setattr(sys, "argv",
+                      ["serve.py", "--free-run", "--robot-name", "Luca",
+                       "--record", str(tmp_path / "out.jsonl.gz")])
+  serve.main()
+  assert pub_kw["robot_name"] == "Luca"
+  assert seen["robot_name"] == "Luca"
+  # ...and without the flag the wiring passes None through untouched:
+  # resolution (env, then 'Pluggy') is the FrameBuilder's alone, so both
+  # sinks of one run cannot resolve differently.
+  _, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert pub.init_kwargs["robot_name"] is None
+
+def test_serve_hands_the_operator_switch_to_the_lifecycle_and_the_wire(
+    monkeypatch, tmp_path):
+  """The switch has to reach three places or it is decoration (issue #37):
+  the lifecycle (which stops stepping), the publisher (whose heartbeat is the
+  only thing a paused world sends) and the pacer (or the pause becomes a
+  sprint)."""
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "scripted"}))
+  life, pub, _ = _serve_wiring(monkeypatch, [
+    "--world", "room_hub", "--rate", "1.0", "--mode-file", str(path)])
+  switch = life.init_kwargs["mode"]
+  assert switch is not None and switch.mode == "scripted"
+  assert pub.init_kwargs["mode"] is switch
+  # attach_mode_stream ran: a pause has something to beat with, and a resume
+  # has something to resync.
+  assert life.pause_hooks and life.resume_hooks
+
+
+def test_serve_shows_no_wallet_on_a_world_that_cannot_spend(monkeypatch):
+  """ABSENT and ZERO are different claims (0.12.0). Without an escalation
+  model there is nothing to spend, so the block is not attached at all --
+  a `spend` of zeroes would tell the site to render a wallet the robot does
+  not have."""
+  _, pub, _ = _serve_wiring(monkeypatch, ["--world", "room_hub", "--free-run"])
+  assert pub.init_kwargs["spend"] is None

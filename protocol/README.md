@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.9.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.12.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -27,6 +27,121 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand showcase --tasks --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+### 0.11.0 → 0.12.0 (money, and the operator's switch)
+
+pluggybot #37. The robot gets a weekly USD allowance it may spend on a
+bigger mind, and an operator gets three modes to run it in. Everything on
+the wire is **display**: there is no inbound message that moves a dollar or
+sets a mode, exactly as there is none that moves a point.
+
+**1. A `spend` block in the frame**, shipped whole when it changes (the
+`tasks` block's rule rather than the `ledger`'s per-key delta — six numbers
+that move together, and they only move when the robot buys a thought):
+
+```jsonc
+"spend": {"weeklyUsd": 10.0, "spentUsd": 0.0132, "leftUsd": 9.9868,
+          "calls": 3, "escalations": 3, "unpriced": 0,
+          "recent": [{"t": 1756400000.0, "usd": 0.00038,
+                      "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+                      "kind": "escalation"}]}
+```
+
+`unpriced` counts calls whose price nobody published: the sum is understated
+by exactly that many, and a client that hid the number would be showing a
+confident total it does not have. Present only on a world that can actually
+spend — an all-zero money panel on a world with no escalation configured is
+a panel that means nothing.
+
+**2. `mode` on the robot's per-frame record**, beside `state` and `status`,
+one of `MODES` = `llm` | `scripted` | `paused`. Inside the existing block
+rather than a new one, because it is a fact about the robot at that instant.
+The header gains `modes` (the vocabulary), for the reason it carries
+`taskKinds`: a client builds its controls before the robot has been in one.
+
+**3. A `mode` message**, the only one of the three that earns its own type:
+
+```jsonc
+{"type": "mode", "t": 812.4, "robot": "pluggybot", "mode": "paused",
+ "heldS": 12.5}
+```
+
+Emitted when the mode changes **and as a heartbeat while `paused`**.
+
+⚠ **The heartbeat is the load-bearing half.** A paused robot steps no
+physics; frames are due on SIM time; so a paused world emits **no frames at
+all**. Without this message a site cannot tell "the operator paused the
+robot" from "the sim died" — the `accepts` lesson in the version where the
+whole point is that somebody notices an outage. A consumer should treat a
+`mode` of `paused` as live-but-still, and the absence of both frames and
+heartbeats as a stream that has stopped.
+
+Additive: a 0.11.0 consumer ignores the block, the field and the type, and
+renders exactly what it rendered before.
+
+### 0.10.0 → 0.11.0 (the robot's memory is a set of documents, with owners)
+
+pluggybot #38, for the website's Thoughts tab (rooftop-media-2026 #88). The
+robot's memory stops being "the goals file plus a journal" and becomes four
+named documents, **each of which says who may write it**. One new upstream
+message, emitted when a stream **opens** and again whenever a file changes:
+
+```jsonc
+{"type": "thought", "t": 300.2, "robot": "pluggybot",
+ "name": "Knowledge_and_Opinions.md", "writer": "robot",
+ "text": "whiteboard_b is the one people look at", "cap": 3000}
+```
+
+- **It rides the `goals` slot for the `goals` reason**, four times over: a
+  document is not a pose, no keyframe re-ships one, and a browser that opened
+  the page an hour in would never learn any of them. A recording carries all
+  four right after the header; the live publisher re-sends on every connect.
+  A run with no files emits none — absent means "nothing to say".
+- **WHOLE TEXT, NOT A DELTA.** A file is small, and "present means complete"
+  is the `tasks` block's rule applied to prose: replace the document, do not
+  merge it.
+- ⚠ **`writer` is the `steering` lesson one loop over.** Four documents look
+  alike on a page and are not alike at all. `human` (`Main.md`, `Goals.md`) is
+  edited on the volume and no robot can touch it; `system` (`History.md`) is
+  append-only narrative the robot cannot revise — the principle that stops it
+  awarding itself points; `robot` (`Knowledge_and_Opinions.md`) is the one
+  genuinely writable surface. A client that rendered them identically would be
+  reporting a mind that wrote its own persona. The vocabularies are
+  `THOUGHT_FILES` and `THOUGHT_WRITERS`; adding a document is additive
+  (render one you have never heard of), renaming one breaks both repos.
+- `cap` is the size limit the sim enforces on writes, so a client can show how
+  full a file is without inventing the denominator.
+- **Read-only in every direction**, exactly like `goals`: no inbound message
+  writes one, and the files beside the sim stay the one copy.
+- ⚠ **`goals` is unchanged and still sent.** It is the only carrier of
+  `steering`, which says who is *reading* rather than who may *write* — and no
+  document knows that about itself. `Goals.md` therefore arrives twice by
+  design: take the prose from `thought` and the steering note from `goals`.
+- Additive: a 0.10.0 consumer that ignores the type renders exactly what it
+  rendered before, minus three documents it never had.
+
+### 0.9.0 → 0.10.0 (the robot has a name, and the name is not the species)
+
+pluggybot #39, for the website's per-robot identity UI (rooftop-media-2026
+#88): "**Luca** the pluggybot" makes *pluggybot* the species and the name the
+identity, and the wire now carries both. The header gains one field:
+
+```jsonc
+"robots":     {"pluggybot": ["pluggybot", "head", ...]},  // unchanged
+"robotNames": {"pluggybot": "Luca"}                       // id → display name
+```
+
+The **key stays the robot id** (`ROBOT_ROOT`, the MJCF body name): frames,
+the ledger, `goals`, `grid` and every typed message keep keying off it, so
+renaming a robot re-keys nothing and breaks no consumer mid-stream. The name
+is per sim instance (`--robot-name` on `serve.py` / `hub_lifecycle.py`, or
+`$PLUGGY_ROBOT_NAME`), defaults to `"Pluggy"`, and rides the header alone —
+it cannot change during a run, so a 20 Hz repeat would buy nothing.
+
+⚠ **Absent must degrade to a default, never to blank.** A pre-0.10.0
+recording has no `robotNames` at all, and older copies of both vendored
+recordings exist forever — a consumer renders a fallback name for a missing
+or blank entry rather than an empty identity header.
 
 ### 0.8.0 → 0.9.0 (the robot is given work, and the work is on the wire)
 
@@ -72,7 +187,7 @@ still sparse in time (emitted only when something changed) and still
 re-shipped on every keyframe.
 
 **`reward` is looked up, never carried.** A task names an evaluator
-(`hub/scoring.py`) and a reward-table row (`hub/rewards.json`); what it pays
+(`economy/scoring.py`) and a reward-table row (`economy/rewards.json`); what it pays
 is read off that table every time the block is built. Nothing that can
 create a task — a visitor, and later the robot itself — can price one. This
 is 0.6.0's rule ("only code awards points") arriving from the direction a
@@ -164,7 +279,7 @@ before.
   so a browser that opens the page an hour into a mission would never learn
   them. A recording carries it right after the header; the live publisher
   re-sends it on **every connect**.
-- **`text` is `hub/journal.py`'s `read_goals` verbatim**: the mounted
+- **`text` is `mind/journal.py`'s `read_goals` verbatim**: the mounted
   `goals.md` a human edits (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md`
   in the deploy), or the built-in defaults when there is no file. It is
   read-only in every direction — there is no inbound message that can
@@ -218,10 +333,26 @@ it opened, and a message can only arrive while that connection is up.
   cannot know whether the first copy arrived), and acting on a suggestion
   twice is still acting on it twice.
 - **`rating` settles the deferred verdict slot** 0.6.0 reserved. `seq` is a
-  ledger entry, `quality` is 0..1, and `hub/rewards.json` — not the rater
+  ledger entry, `quality` is 0..1, and `economy/rewards.json` — not the rater
   and not the robot — turns it into points. The ledger then re-emits that
   entry with `"settled": true`. The `artwork` task now actually produces
   one, so this is a live path rather than a reserved word.
+- **`reset_tool` is the ADMIN recovery for a dropped module** (pluggybot
+  #30), added *after* 0.7.0 and deliberately **without a version bump** — no
+  emitted artifact changes shape (recordings carry no inbound messages), and
+  `accepts` is where a website discovers whether this sim understands it.
+  The `accepts` list is the mechanism; the version number is not.
+
+  ```jsonc
+  {"type": "reset_tool", "id": "a_01", "module": "module_pen", "from": "ben"}
+  ```
+
+  Handled by CODE the moment the physics thread drains it — the module jumps
+  back to its own bay, exactly as `rating` goes straight to the ledger — and
+  it **never reaches the overseer**: an admin command is not a thing the
+  robot weighs. The acknowledgement is the world itself (the module's pose
+  stream) plus a narration event line. The sim **refuses, with a narration**,
+  while the module is seated on the fork: a tool in use is not a lost one.
 - **Unknown types are dropped and counted**, so adding one is additive and
   a website ahead of its sim is a no-op rather than a crash. `move` and
   `clear_board` (tic-tac-toe) are named in the issue as later work and are
@@ -316,8 +447,8 @@ that ignores both renders exactly what it rendered before.
 ```
 
 **Only code awards points.** The verdict comes from a deterministic evaluator
-(`pluggybot/hub/scoring.py`) that measures the finished task off the sim; what
-it is worth comes from a data table (`hub/rewards.json`); the ledger re-derives
+(`pluggybot/economy/scoring.py`) that measures the finished task off the sim; what
+it is worth comes from a data table (`economy/rewards.json`); the ledger re-derives
 the payout from both before banking it. The robot — and, when it lands, the LLM
 overseer — *sees* its balance and the reward table, and can move neither. An
 agent that can score its own work learns to declare victory instead of doing
@@ -403,7 +534,7 @@ hanging in its bay is `off`, and so is a half-seated one on the fork.
 **Why `board_snapshot` had to exist.** Keyframes re-ship every board's
 counters, but no keyframe re-ships the LINES: a stroke is an event that
 happens once. So a browser that opens the page after the pen has moved on —
-or after the producer restarted onto a state file, since `hub/boards.py` now
+or after the producer restarted onto a state file, since `tools/boards.py` now
 persists the polylines themselves — sees a board reporting 40 % fill with
 nothing painted on it. The snapshot is what closes that gap. It is sent when
 a stream opens (a recording carries it right after the header; the live
@@ -607,6 +738,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 {"type": "header", "protocolVersion": "0.6.0", "model": "room_hub", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
+ "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
  "activities": ["garden_gate"],                         // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces

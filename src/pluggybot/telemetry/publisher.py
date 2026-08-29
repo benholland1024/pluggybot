@@ -98,7 +98,9 @@ class WsPublisher:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               steering: bool = False) -> None:
+               thoughts=None, spend=None, mode=None,
+               steering: bool = False,
+               robot_name: str | None = None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -116,7 +118,9 @@ class WsPublisher:
                                  activities=activities, boards=boards,
                                  screens=screens, ledger=ledger,
                                  tasks=tasks, accepts=accepts, goals=goals,
-                                 steering=steering)
+                                 thoughts=thoughts, spend=spend,
+                                 mode=mode,
+                                 steering=steering, robot_name=robot_name)
     self.data = data
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)
     # Set by the sender (on connect) or the hook (on drop); cleared by the
@@ -132,6 +136,11 @@ class WsPublisher:
     # only: goals do not change during a run, but a NEW consumer has never
     # seen them and no keyframe carries them.
     self._need_goals = threading.Event()
+    # ...and the memory documents (0.11.0, issue #38). Set on connect for the
+    # goals reason, and UNLIKE goals these change during a run -- but a
+    # change is published by `ThoughtFiles.on_event` as it happens, so this
+    # flag stays what it says: catching a new consumer up, not polling.
+    self._need_thoughts = threading.Event()
     self.boards = boards
     self._stop = threading.Event()
     self.frames_sent = 0
@@ -155,6 +164,10 @@ class WsPublisher:
       goals = self._builder.goals_message(float(self.data.time))
       if goals is not None:
         self.message(goals)
+    if self._need_thoughts.is_set() and not self._queue.full():
+      self._need_thoughts.clear()
+      for thought in self._builder.thought_messages(float(self.data.time)):
+        self.message(thought)
     if self._need_boards.is_set() and not self._queue.full():
       self._need_boards.clear()
       if self.boards is not None:
@@ -220,6 +233,9 @@ class WsPublisher:
           # ...and on what the robot is for (0.8.0), which is likewise in no
           # keyframe: a viewer who joins an hour in still has to be told.
           self._need_goals.set()
+          # ...and on what it is working from (0.11.0, issue #38), which no
+          # keyframe carries either.
+          self._need_thoughts.set()
           # ...and catch the new consumer up on the ink already on the walls
           # (0.5.0). No keyframe carries it: a stroke is an event that
           # happened once, so without this a viewer who joined late watches

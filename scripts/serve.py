@@ -41,15 +41,19 @@ import time
 
 import mujoco
 
-from pluggybot.hub import overseer
-from pluggybot.hub.inbox import Inbox
-from pluggybot.hub.cadence import default_cadence
-from pluggybot.hub.lifecycle import (
-  HubLifecycle, board_book, errands_for, points_ledger, task_producer,
-  task_board, world_config, world_screens,
+from pluggybot.mind import llm, overseer
+from pluggybot.mind.mode import open_switch
+from pluggybot.mind.overseer import ESCALATE_MODEL
+from pluggybot.mind.spend import WEEKLY_USD, open_book
+from pluggybot.mind.inbox import Inbox
+from pluggybot.economy.cadence import default_cadence
+from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.lifecycle import (
+  HubLifecycle, attach_mode_stream, board_book, errands_for, points_ledger,
+  task_board, task_producer, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
-from pluggybot.telemetry.protocol import INBOUND_TYPES
+from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 
@@ -70,7 +74,7 @@ def main() -> None:
                       help="which cell to serve on (issue #15). `demo` is the "
                            "minutes-long cell the mission tests use; "
                            "`hosting` is the hours-long one a watched world "
-                           "wants, where hub/energy.py's return-trip margin "
+                           "wants, where economy/energy.py's return-trip margin "
                            "becomes real and an errand is deferred rather "
                            "than started on a pack that cannot finish it")
   parser.add_argument("--battery-wh", type=float, default=None,
@@ -78,6 +82,12 @@ def main() -> None:
   parser.add_argument("--reserve-wh", type=float, default=None,
                       help="override the world's go-charge reserve, in Wh")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--robot-name", default=None, metavar="NAME",
+                      help="this robot's display name on the wire (issue "
+                           "#39): the identity the site shows, e.g. 'Luca "
+                           "the pluggybot'. Default $PLUGGY_ROBOT_NAME, then "
+                           "'Pluggy'. Never the body name: renaming a robot "
+                           "must not re-key its telemetry")
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
   parser.add_argument("--token", default=os.environ.get("PLUGGYWORLD_TOKEN"),
@@ -108,8 +118,8 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. More arrive on "
-                           "the cadence in hub/cadence.json as the run goes "
+                           "economy/rewards.json and a deadline. More arrive on "
+                           "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
@@ -122,6 +132,54 @@ def main() -> None:
   parser.add_argument("--journal", default=None, metavar="PATH",
                       help="JSON file the overseer's notes-to-self live in "
                            "between runs ($PLUGGY_JOURNAL)")
+  parser.add_argument("--thoughts", default=None, metavar="DIR",
+                      help="directory the robot's THOUGHT FILES live in "
+                           "(issue #38; $PLUGGY_THOUGHTS). Main.md and "
+                           "Goals.md are yours to edit, History.md is "
+                           "append-only and written by the sim, and "
+                           "Knowledge_and_Opinions.md is the robot's own")
+  parser.add_argument("--overseer-backend", default=None,
+                      choices=llm.BACKENDS, metavar="NAME",
+                      help="WHICH MIND decides (issue #19; "
+                           "$PLUGGY_OVERSEER_BACKEND): anthropic, "
+                           "huggingface, local (a model on this machine -- "
+                           "ollama by default, no network and no bill), "
+                           "openai-compatible, or auto (the default: the "
+                           "model id's shape, as before)")
+  parser.add_argument("--overseer-model", default=None, metavar="ID",
+                      help="the model that decides ($PLUGGY_MODEL). Defaults "
+                           f"to {overseer.MODEL} on Anthropic and "
+                           f"{llm.LOCAL_MODEL} on the local backend")
+  parser.add_argument("--overseer-url", default=None, metavar="URL",
+                      help="base URL of the local / openai-compatible "
+                           f"endpoint ($PLUGGY_OVERSEER_URL; default "
+                           f"{llm.LOCAL_URL}, ollama's). A key for a "
+                           "third-party one goes in $PLUGGY_OVERSEER_KEY -- "
+                           "never a flag, since ps is public")
+  parser.add_argument("--escalate-to", default=None, metavar="ID",
+                      help="a BIGGER mind the robot may buy a decision from "
+                           "when it says it is unsure (issue #37; "
+                           "$PLUGGY_ESCALATE_TO). Off unless set. The routing "
+                           "costs no extra call -- the model asks on the "
+                           "decision it was already making, and code decides "
+                           f"whether it can afford one. Try {ESCALATE_MODEL}")
+  parser.add_argument("--weekly-usd", type=float, default=None,
+                      metavar="USD",
+                      help="the soft weekly allowance escalations spend "
+                           f"against ($PLUGGY_WEEKLY_USD; default {WEEKLY_USD})"
+                           ". The HARD ceiling is the provider account "
+                           "balance, which is deliberately not code")
+  parser.add_argument("--spend-state", default=None, metavar="PATH",
+                      help="JSON file the week's spending lives in between "
+                           "runs ($PLUGGY_SPEND). A weekly budget that reset "
+                           "on restart would be no budget at all")
+  parser.add_argument("--mode-file", default=None, metavar="PATH",
+                      help="the OPERATOR's control file ($PLUGGY_MODE_FILE): "
+                           "{\"mode\": \"llm\"|\"scripted\"|\"paused\"}. "
+                           "Polled, never written -- the robot has no verb "
+                           "that reaches it. `scripted` is free mode (no API "
+                           "calls, world still alive); `paused` stops the "
+                           "physics and keeps the stream up")
   parser.add_argument("--overseer-budget", type=int, default=None,
                       metavar="N", help="hard cap on LLM calls per rolling "
                                         "hour (default 60)")
@@ -144,7 +202,7 @@ def main() -> None:
   # Job offers (issue #21), and world state on exactly the terms the boards
   # and the ledger are: a task that vanished because the container cycled is
   # a job somebody asked for and nobody ever declined. Off unless asked for.
-  # ...on the timing policy in hub/cadence.json (issue #23): how often work
+  # ...on the timing policy in economy/cadence.json (issue #23): how often work
   # appears, how long an offer stands, how much may stand at once and how long
   # a target rests. Configuration rather than constants, and $PLUGGY_CADENCE
   # re-tunes how busy a deployed world is without a rebuild.
@@ -161,25 +219,51 @@ def main() -> None:
   # human-edited between runs), the journal is written.
   overseer_kw = ({"calls_per_hour": args.overseer_budget}
                  if args.overseer_budget else {})
+  # The thought files (issue #38), built ONCE and shared by everything that
+  # reads or writes them -- the prompt, the History writes, and both wire
+  # surfaces. Attached on EVERY served world, overseer or not: a scripted
+  # rotation still has a history, and the site's Thoughts tab is what a
+  # visitor opens first.
+  memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
+  # The weekly allowance (issue #37), and world state on the same terms the
+  # ledger is: a mission ends several times an hour here, so a budget that
+  # lived in the process would be a budget that reset several times an hour.
+  purse = open_book(args.spend_state, weekly_usd=args.weekly_usd)
+  # ...and the operator's switch: a file this process only ever READS.
+  switch = open_switch(args.mode_file)
   boss, journal = overseer.build(args.world, book,
                                  enabled=args.overseer or None,
                                  goals_path=args.goals,
-                                 journal_path=args.journal, **overseer_kw)
+                                 journal_path=args.journal,
+                                 thoughts=memory,
+                                 # ...and its NAME (issue #39), so the robot
+                                 # calls itself what the site's header calls
+                                 # it rather than what its species is.
+                                 robot_name=args.robot_name,
+                                 backend=args.overseer_backend,
+                                 model=args.overseer_model,
+                                 base_url=args.overseer_url,
+                                 escalate_to=args.escalate_to, spend=purse,
+                                 **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
   # as true of a scripted rotation as of a chosen errand. What is NOT the
   # same is whether anything is reading them, which is what `steering` says.
-  goals_prose = overseer.goals_text(args.goals)
-  # The visitor channel (issue #16). Only where there is somebody to hear it:
-  # without an overseer nothing reads a suggestion, so accepting one would be
-  # a promise the robot has no way to keep.
-  inbox = Inbox() if boss is not None else None
+  goals_prose = overseer.goals_text(thoughts=memory)
+  # The visitor channel (issue #16), attached ALWAYS as of issue #30 -- but
+  # what this run advertises it can hear is per-kind (`accepts` below).
+  # Suggestions and questions still need an overseer to read them; a rating
+  # settles a ledger row and a `reset_tool` puts a dropped module back on its
+  # bay, and BOTH are handled by code the moment the physics thread drains
+  # them -- a scripted world's tools get lost (and its artwork rated) exactly
+  # as often as a minded one's.
+  inbox = Inbox()
   # The demo cell flattens in minutes, which reads on a watched stream as a
   # robot that only ever charges; `--pack hosting` is the hours-long one
   # (issue #15). The RESERVE is not scaled with it -- it is the absolute
   # energy needed to reach the dock, a property of the floor plan -- but on a
   # hosting pack it becomes a margin every errand must leave intact, which is
-  # what hub/energy.py enforces and what stops a mid-errand death.
+  # what economy/energy.py enforces and what stops a mid-errand death.
   pack_wh = (cfg["battery_wh"] if args.pack == "demo"
              else cfg["hosting_battery_wh"])
   life = HubLifecycle(model, data, inbox=inbox,
@@ -190,9 +274,10 @@ def main() -> None:
                                       else cfg["low_battery_wh"]),
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
-                      overseer=boss, journal=journal, world=args.world,
+                      overseer=boss, journal=journal, mode=switch,
+                      world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
-                      producer=maker)
+                      producer=maker, thoughts=memory)
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -205,12 +290,25 @@ def main() -> None:
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
                           screens=screens, ledger=ledger, tasks=tasks,
-                          # What this run can actually HEAR (issue #16). Empty
-                          # without an overseer, and the website reads it: a
+                          # What this run can actually HEAR, per kind
+                          # (issues #16, #30). The website reads it: a
                           # suggestion is only "delivered" if somebody who can
-                          # act on it got it.
-                          accepts=INBOUND_TYPES if inbox is not None else (),
-                          goals=goals_prose, steering=boss is not None)
+                          # act on it got it, and that somebody is an overseer
+                          # -- while a rating or an admin's tool reset is
+                          # handled by code and heard on any served world.
+                          accepts=(INBOUND_TYPES if boss is not None
+                                   else CODE_HANDLED_TYPES),
+                          goals=goals_prose, thoughts=memory,
+                          # What the thinking costs, and who has the switch
+                          # (0.12.0, issue #37). The spend block is only
+                          # attached where there is spending to report --
+                          # an all-zero money panel on a world that cannot
+                          # spend is a panel that means nothing.
+                          spend=(purse if (boss is not None and boss.can_escalate)
+                                        else None),
+                          mode=switch,
+                          steering=boss is not None,
+                          robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   if book is not None:
@@ -226,10 +324,13 @@ def main() -> None:
   # ...and so are the robot's notes and its answers to visitors (#15, #16).
   if journal is not None:
     journal.on_event.append(publisher.message)
+  # ...and so is a thought file changing (issue #38): the publisher opens a
+  # stream with all four and these are the edits after that.
+  memory.on_event.append(publisher.message)
   life.visitor_hooks.append(publisher.message)
   if inbox is not None:
     # THE OTHER DIRECTION. `offer` runs on the publisher's socket thread and
-    # does nothing but validate and enqueue -- see hub/inbox.py for why that
+    # does nothing but validate and enqueue -- see mind/inbox.py for why that
     # is the whole of what it is allowed to do.
     publisher.on_inbound.append(inbox.offer)
   pacer = None
@@ -244,8 +345,12 @@ def main() -> None:
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=tasks,
-                                 goals=goals_prose,
+                                 goals=goals_prose, thoughts=memory,
+                                 spend=(purse if (boss is not None and boss.can_escalate)
+                                        else None),
+                                 mode=switch,
                                  steering=boss is not None,
+                                 robot_name=args.robot_name,
                                  grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:
@@ -255,7 +360,17 @@ def main() -> None:
       tasks.on_event.append(recorder.emit)
     if journal is not None:
       journal.on_event.append(recorder.emit)
+    memory.on_event.append(recorder.emit)
     life.visitor_hooks.append(recorder.emit)
+
+  # The operator's switch, on the wire and off the pacer's clock (issue
+  # #37). ⚠ The pacer is what makes this more than a display detail: a
+  # PAUSED robot steps nothing, so without `resync` the wall time it stood
+  # still reads as lag and the sim sprints to catch up the moment it is let
+  # go -- at 2.9x, in front of whoever paused it to look at something.
+  attach_mode_stream(life, [publisher.message]
+                     + ([recorder.emit] if recorder is not None else []),
+                     pacer=pacer)
 
   # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
   # `task_offered` immediately, so seeding earlier drops those lines on the
@@ -298,8 +413,45 @@ def main() -> None:
     print(f"overseer               : {o['llmCalls']} LLM call(s), "
           f"{o['fallbacks']} scripted, budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left, cache hit {o['cacheHitRate']:.0%}")
-    print(f"overseer cost          : ${o['usd']:.5f}"
-          f"  (${per_hour:.4f} per sim-hour, {o['model']})")
+    # ⚠ Three different sentences, because three different things are true
+    # (issue #19). A local model is FREE -- zero is a measurement. A backend
+    # whose rates could not be read is UNKNOWN -- printing $0.00000 there
+    # would be a fabricated invoice, which is exactly what the acceptance
+    # criterion forbids. Only a priced backend gets a number.
+    backend = o.get("backend", "anthropic")
+    where = f"{o['model']} on {backend}"
+    if backend == "local":
+      print(f"overseer cost          : no API cost -- {where}")
+    elif not o.get("priced", True):
+      print(f"overseer cost          : unknown -- {where} publishes no rates "
+            "here, so the tokens above are the honest measure")
+    else:
+      print(f"overseer cost          : ${o['usd']:.5f}"
+            f"  (${per_hour:.4f} per sim-hour, {where})")
+    if o.get("escalationModel"):
+      # What the ALLOWANCE bought (issue #37). Refusals are printed beside
+      # the escalations because they are the more useful number: a robot
+      # that keeps asking and keeps being told no is a budget too small or a
+      # cadence too slow, and neither is visible from the count of the ones
+      # that happened.
+      money = o.get("allowance") or {}
+      refused = o.get("escalationsRefused") or {}
+      print(f"overseer escalations   : {o['escalations']} to "
+            f"{o['escalationModel']} (${o.get('escalationUsd', 0.0):.5f}), "
+            + (", ".join(f"{n} refused for {why}"
+                         for why, n in sorted(refused.items())) or "none "
+               "refused"))
+      if money:
+        print(f"weekly allowance       : ${money['spentUsd']:.4f} spent of "
+              f"${money['weeklyUsd']:.2f}, ${money['leftUsd']:.4f} left"
+              + (f", {money['unpriced']} call(s) at unknown rates"
+                 if money.get("unpriced") else ""))
+    if not o.get("constrained", True):
+      # The menu is no longer enforced at the decoder -- see
+      # Overseer.constrained. Worth a line: the fallback rate below is being
+      # produced under a weaker guarantee than the default one.
+      print("overseer decoding      : UNCONSTRAINED -- this endpoint refused "
+            "the schema; answers are checked sim-side only")
     for err in o["errors"]:
       # A run that was scripted all along looks identical to a thoughtful one
       # from the outside unless this is printed.
@@ -317,6 +469,13 @@ def main() -> None:
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
   print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
         f"  ({r['sim_time'] / wall:.2f}x real time)")
+  if life.mode is not None and (life.paused_s or life.mode.mode != "llm"):
+    # Said only when it is not the default: a run nobody touched should not
+    # print a line about a switch nobody flipped.
+    print(f"operator mode          : {life.mode.mode}"
+          + (f", paused for {life.paused_s:.0f} s" if life.paused_s else ""))
+    for note in life.mode.errors:
+      print(f"mode file              : {note}")
   if pacer is not None:
     s = pacer.stats()
     print(f"pacing (target {s['rate']:.2f}x)  : drift {s['drift_s']:+.3f} s"

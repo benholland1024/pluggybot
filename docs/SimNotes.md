@@ -394,7 +394,7 @@ taught (coupling spikes, sensor calibration, odometry-in-the-loop) transfers.
 
 ## Hub coupling spike (milestone-8 prep)
 
-Standalone fork-and-peg rig (`hub/coupling.py`, `scripts/hub_spike.py`) — no
+Standalone fork-and-peg rig (`rack/coupling.py`, `scripts/hub_spike.py`) — no
 robot: a compliant carrier runs scripted pick-and-return cycles against a hub
 shelf. The coupling is designed around the no-wrist constraint (latch verbs:
 slide + lift): the tool hangs by a long peg axle in two upward-open V-trays;
@@ -422,7 +422,7 @@ set by peg overhang, not machined clearance. Gravity is the latch. Findings
   under the force cap — no range sensing needed at the hub.
 
 ### Robot integration: the fork inherits the plug's lessons, item by item
-Mounting the fork on the real robot (`pluggybot_fork.xml`, `hub/swap.py`,
+Mounting the fork on the real robot (`pluggybot_fork.xml`, `rack/swap.py`,
 demo `scripts/hub_swap.py`) replayed three known plot beats in one afternoon:
 - **The bumper reaches the hub before the fork does.** Retracted, the fork
   vertex sits 25 mm behind the chassis front — the chassis bottomed on the
@@ -476,7 +476,7 @@ reflex zone), and a demo waypoint that sits inside an obstacle produces
 "mysterious" collisions — check the target before debugging the driver.
 
 ### Real AprilTags: what the swap cost and what it bought
-Replacing the colour-plate stand-in with tag36h11 markers (`hub/tags.py`,
+Replacing the colour-plate stand-in with tag36h11 markers (`rack/tags.py`,
 generated with moms-apriltag, decoded with pupil-apriltags):
 
 - **`type="2d"` textures do not paint primitives.** A 2d texture is mapped
@@ -504,7 +504,7 @@ generated with moms-apriltag, decoded with pupil-apriltags):
 
 ### Finding the hub by looking at it: what the fiducial stand-in taught
 Promoting the rack from "a pose the robot is told" to "a landmark the robot
-sees" (`hub/localize.py`) cost five measured lessons, none of them about the
+sees" (`rack/localize.py`) cost five measured lessons, none of them about the
 rack:
 
 - **A white marker is not a detectable marker.** The tag plates started
@@ -540,7 +540,7 @@ rack:
   and precisely what a real tag's ID removes.
 
 ### The hub lifecycle: four failures, all of them about *driving*, not docking
-Wiring the hub into a battery-driven mission (`hub/lifecycle.py`) broke in
+Wiring the hub into a battery-driven mission (`pluggybot/lifecycle.py`) broke in
 four ways, and not one of them was in the coupling that had been so
 carefully measured:
 
@@ -705,7 +705,7 @@ home — the same lesson the rack-frame verdict taught, one level down.
 
 ### The module electrical interface: put the contacts where the force is
 Built as a split peg — two conductors around an insulated centre, so the
-fork's left and right V-notch pairs are the two poles (`hub/coupling.py`
+fork's left and right V-notch pairs are the two poles (`rack/coupling.py`
 `peg_xml` / `module_power_state`, demo `scripts/module_power.py`). Nothing
 new was added to the coupling: the connector *is* the latch.
 
@@ -737,7 +737,7 @@ new was added to the coupling: the connector *is* the latch.
   other side. The room errand computes its travel and stows fine.
 
 ### The drawing tool: five bugs, and only one was about drawing
-Building the pen module's plot controller (`hub/drawing.py`, demo
+Building the pen module's plot controller (`tools/drawing.py`, demo
 `scripts/draw.py`). End state: a circle traced to **2.2 mm RMS shape error,
 98 % inked**, with the tool still electrically seated afterwards. Getting
 there cost five failures, each of which is a lesson this repo already had in
@@ -1726,8 +1726,8 @@ change like that **the flag is the only record anywhere in the stream**.
 
 ## Stroke programs (issue #11): a press is a measurement, and it moves
 
-Splitting *what to draw* from *how to draw* (`hub/strokes.py` vs
-`hub/drawing.py`) was meant to be pure content work — a registry, a vendored
+Splitting *what to draw* from *how to draw* (`tools/strokes.py` vs
+`tools/drawing.py`) was meant to be pure content work — a registry, a vendored
 Hershey font, a figure library, no physics. Two of the three lessons were
 physics anyway, and both were invisible to every figure the plotter had drawn
 before, for the same structural reason: **a square and a circle are one closed
@@ -1944,6 +1944,193 @@ And the workflow lesson, which is the one that actually found it: **compare
 the believed pose against `data` before theorising.** Two rounds of plausible
 reasoning went into the rack belief and the tag ranges; one line printing the
 fork vertex's true position next to the odometry pose ended it.
+
+## The charge approach was blind (issue #32): the one dock with no eyes
+
+On a hosting-sized pack the robot works ~1000 sim-seconds between charges,
+and some way into every long run `go_charge` drove to where it believed the
+standoff was, crept `CHARGE_APPROACH_MAX`, touched nothing, and ended the
+mission — with the pack at 7 % and the words "mission complete". The tool
+bays kept working in the same runs (30 swaps either side of the failure),
+which was the tell: their terminal creep is steered and ranged off the bay's
+own tag, while the charge approach was dead reckoning end to end. The rack
+generator has always carried the comment "the terminal servo needs a mark
+here like anywhere else" next to the charge tag it emits — the mark was
+there; nothing read it.
+
+Why it is intermittent — measured on an instrumented 2-sim-hour run: the
+dead-reckoned frame drifted 0.002 → 0.054 → **0.693 m** over three charge
+approaches, and the third still docked within 8 mm, because the rack belief
+(1983 sightings, all projected through the same drifted pose) had drifted
+COHERENTLY with it and the errors cancelled. The blind dock survives exactly
+as long as the belief and the frame drift together; whatever decoheres them —
+drift accumulated since the last line of sight, a facing kept from an
+older-frame look — lands the standoff outside the envelope, and nothing in
+the approach could notice or correct. A race, lost roughly once an hour on a
+hosting pack.
+
+Measured envelope of the blind creep (`scripts/charge_spike.py`, robot placed
+truly at standoff-plus-error while believing itself at the standoff): ~6 cm
+of lateral belief error, ~10° of heading. A rack-yaw belief error — the
+issue-78 failure shape, which one badly conditioned free-space look delivers
+at ~20° — swings the standoff sideways by `0.42·sin(err)` AND tilts the
+approach heading at once, and kills the blind creep at 10°. The fix
+(`HubMission.charge_approach`) measures the standoff off the charge tag's own
+PnP pose (translation + plane yaw, now exposed by `TagDetector`), drives to
+the corrected pose, creeps under tag servo, verifies by the electrical
+criterion and takes a backed-off second run — `swap_at_bay`'s doctrine
+applied to the chassis. Same sweep afterwards: every row passes to 20 cm and
+20°.
+
+Two camera lessons found on the way, both invisible until something looked:
+
+- **dock_eye rides the carriage, on the fork line.** It sits 5 cm right of
+  the chassis centreline (`PLUG_LATERAL`), so the bay servo's "centre the
+  tag" law is exactly right for aligning the FORK and 5 cm wrong for
+  aligning the CHASSIS — and 5 cm is the edge of the blind creep's whole
+  envelope. The charge servo holds the tag at `-PLUG_LATERAL` in the camera
+  instead (`steer_fn(target=...)`). A servo law is a statement about which
+  part of the robot must arrive.
+- **...and it rides the LIFT.** From the align preset (0.128 m) the charge
+  tag — hanging at pin height, 0.12 m — is below the camera's 20.5° half-fov
+  entirely: measured, tag 3 decodes from every probe pose at lift 0 and from
+  none at align height. A mission reaches `go_charge` with whatever lift the
+  last stow left, so the approach commands `CHARGE_LOOK_LIFT` before its
+  first look. Charging is a bumper affair; the lift is free to serve the
+  camera.
+
+And the honesty half: `run()` used to `break` on a failed dock and then say
+"mission complete", because the battery was not yet empty. A robot that could
+not reach its charger has not completed anything — the ending now narrates
+`GO_CHARGE FAILED -- stranded off the dock`, and the result dict carries
+`stranded` so a watcher can tell "finished the day" from "never got home".
+
+## The tool drop was an approach error (issue #30): the bays get eyes too
+
+Long unattended runs kept degenerating some hours in: swaps ran flawlessly
+and then, from one moment, pick and return failures became chronic (31/33 of
+them in the back half of a 4-sim-hour run) with every affected job scored an
+honest 0. Reproduced twice, once with ZERO overseer calls — physics, not
+policy. The website had seen the symptom for months as issue #30's "tools
+drop during tasks".
+
+Measured (`scripts/swap_spike.py`): pick a module cleanly, decohere the
+dead-reckoned belief by `across`, attempt the return —
+
+- 0–2 cm hangs. **4–8 cm puts the module on the FLOOR at the rack's foot**:
+  the peg misses the tray V's ±8 mm window and the retreat drags it off the
+  trays. 10 cm misses the trays entirely and keeps it on the fork.
+- Heading alone kills too: **−3° dropped a module** with zero lateral error.
+- Pick-side, 8–10 cm knocks the module off its bracket without ever holding
+  it.
+
+Once a module is on the floor the failure is permanent: every later pick of
+it finds an empty bay, and the module litters the rack's approach lane (one
+run ended `GO_CHARGE: no route to the charge bay` because of it). And the
+cliff feeds itself — the grinding retries slip the wheels, which pumps more
+drift.
+
+Why the existing defences never covered this: `refine_standoff` kills
+BELIEVED lateral only, the bay tag servo has ~1–2 cm of authority over the
+0.22 m creep, and the tag RANGE (`_terminal_travel`) fixes depth but not the
+line. ToolPattern's "retention is not the problem" stays true — the module
+holds through 8 m/s² of shake — because the drop is not a retention failure
+at all: it is the approach delivering the coupling outside its own envelope.
+
+The fix is `HubMission.bay_fix`, issue #32's measured standoff one bay over
+(`_measured_standoff` is now the shared core): measure the standoff off the
+bay's own tag PnP pose before lining up, inside the retry loop so a second
+attempt is a fresh measurement. After it, every row of both sweeps — pick or
+return corrupted, 10 cm, ±10° — ends with the module hung.
+
+And the recovery, for the drops measurement cannot promise away
+(`reset_tool`, protocol's fourth inbound kind): an admin puts a lost module
+back on its bay through the website. Handled by CODE on the physics thread,
+never shown to the overseer; refused while the module is electrically seated
+(a tool in use is not lost); the reset pose is `model.qpos0`, so "where it
+belongs" is the model's own answer. With it, `serve.py` now attaches the
+inbox on EVERY served world and advertises `accepts` per kind
+(`CODE_HANDLED_TYPES` without an overseer) — which also makes ratings work
+on a scripted world, closing a gap where an `artwork` task could be claimed
+by the scripted rotation but never settled.
+
+## Drift hygiene (issue #42): the dock is the anchor, and identity beats distance
+
+Dead reckoning was never corrected, and every long-run failure family traced
+back to it: 0.69 m of frame drift over three cycles (the pre-#32
+diagnostics), the blind charge approach (#32), the 4 cm tool-drop cliff
+(#30), and — after both measured approaches landed — the pen still lost at
+t=7372 of the issue-30 validation run, when drift put the bay tag outside
+the dock camera's whole field and the first look answered None. The system
+survives *coherent* drift and dies of *decoherence*; these three fixes are
+one mechanism for keeping the frame coherent, and the fourth family member
+each of them was measured against:
+
+- **The dock is the re-anchor** (`HubMission.anchor_at_dock`, called by
+  `charge()` the moment the pins conduct). Measured: with both pogo pins
+  pressed the axle sits 0.2056–0.2059 m from the pin faces, within 1 mm
+  across and 0.0° of heading, on every instrumented dock — the one pose the
+  robot ever occupies to millimetres BY CONSTRUCTION, held for minutes every
+  cycle anyway, free, and how real robots use docks. ⚠ **Snapped to the
+  COMMISSIONED prior, not to the believed rack — and that was measured, not
+  argued.** The first version anchored to the belief ("a world constant
+  would be cheating"). Its four-sim-hour acceptance run logged, per dock:
+
+  | t | drift before dock | after anchor | rack belief error |
+  |---|---|---|---|
+  | 2480 | 0.015 | 0.006 | 0.003 |
+  | 6702 | 0.144 | 0.147 | 0.146 |
+  | 13466 | 0.367 | 0.361 | 0.344 |
+
+  `after_anchor` tracked the belief's own error exactly: the belief follows
+  the frame (that is what recency weighting is FOR), the frame drifts, the
+  anchor snaps to the belief — a loop in which nothing references the world,
+  so absolute drift stayed monotonic and swaps failed again past ~0.15 m
+  (board standoffs are world constants). The prior is `RackPose.prior`'s own
+  definition, "what a robot that booted docked knows": the map frame is
+  DEFINED by the dock at commissioning, exactly as on hardware, and every
+  boot already trusts it. The rack landmark is re-seeded to the same pose —
+  a robot pressed against its rack needs no sighting average to say where
+  the rack is. Drift is thereby bounded to one shift's worth.
+- **The rack merges by identity, not distance** (`RackFinder.look`). The
+  landmark store's 0.4 m gate exists for outlets, which are anonymous blobs;
+  the rack's sightings carry a decoded ID. Measured failure: after 0.5 m of
+  decoherence, a recovery spin's fresh sightings landed outside the gate,
+  spawned a SECOND landmark, and `estimate` kept answering from the stale
+  one with the bigger count — the spin that existed to fix the belief could
+  not touch it.
+- **The rack belief is recency-weighted** (`RACK_RECENCY`, a floor under the
+  merge weight → an EMA once past the first few sightings). The pure running
+  average is the right estimator for a stationary frame, and this frame
+  drifts: a mission-long average remembers the MEAN historical frame, and a
+  2000-sighting belief moved by nothing when fresh looks arrived. Sized
+  against what a spin actually delivers (~5 sightings — the tag is visible
+  in a narrow arc): at 0.25, five looks move the belief ~76 %, enough for
+  the bay tag to enter the dock camera's view, and the MEASURED terminal
+  standoff does the fine work from there. Outlets keep the pure average.
+- **The bays got charge_approach's no-tag recovery** (`swap_at_bay`): spin,
+  refresh, take a fresh run, look again. The charge bay had it and docked
+  7/7 in the run that lost the pen; the tool bays didn't, and the first
+  look's None fell straight through to the believed standoff. ⚠ The recovery
+  only works WITH the two belief fixes above — pinned end-to-end by
+  `test_the_recovery_finds_a_bay_the_first_look_lost`, which fails if any of
+  the three is removed.
+
+Also from the same hunt: **the erase rides the first stroke** (mission/errand.py).
+`book.clear` was unconditional on arrival, and the board book is the ink's
+ground truth — so a drifted robot narrated "erased whiteboard_a", pressed at
+empty air ("never reached the board"), and the book ended blank as if a wipe
+had happened at a board nobody visited. The one truthful signal the pen is at
+the slab is a press that found it, so the wipe now happens when the first
+stroke lands, and a draw that never touched the board leaves the old ink
+standing — which is what physically occurred.
+
+**Map evidence decay was DEFERRED, measured rather than assumed.** The
+issue-30 validation run shows the smeared map costing jobs (planner refusals
+to the far whiteboard mid-run), but the smear is drift's shadow: with the
+anchor bounding drift per-shift, new scans land back near old ones. Decay
+gets built when a post-anchor long run still shows planner refusals, not
+before — the acceptance run's counts are the evidence either way.
 
 ## Debugging workflow that worked
 
