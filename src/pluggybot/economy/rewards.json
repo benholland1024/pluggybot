@@ -5,7 +5,7 @@
     "a task is WORTH lives here so a payout can be re-tuned without touching",
     "an evaluator, and so the whole table can be shown to the LLM overseer as",
     "context (issue #15). What a task ACHIEVED is never decided here -- the",
-    "pass/fail rule is a deterministic evaluator in hub/scoring.py, and the",
+    "pass/fail rule is a deterministic evaluator in economy/scoring.py, and the",
     "robot never awards itself anything.",
     "",
     "points = base + bonus * quality, when the evaluator says the task passed;",
@@ -26,7 +26,7 @@
     "Override the whole file with $PLUGGY_REWARDS=/path/to/rewards.json --",
     "which is how the deploy re-tunes payouts on a mounted volume without a",
     "rebuild. Adding a task here does nothing on its own: a task with no",
-    "evaluator in hub/scoring.py cannot be scored, and that is deliberate."
+    "evaluator in economy/scoring.py cannot be scored, and that is deliberate."
   ],
   "tasks": {
     "draw": {
