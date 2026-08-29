@@ -338,21 +338,45 @@ def test_rate_and_cap_are_data_and_re_tunable_without_a_code_change(tmp_path):
   assert home.satisfied_at == 45 and home.hungry_at == 20
 
 
-def test_the_shipped_file_loads_and_leaves_the_robot_free_time():
-  """The tuning claim, checked against the numbers actually committed.
+#: What a `home` robot actually BANKS in a sim-hour, measured over two
+#: unattended runs with no overseer (issue #36's calibration comment). The
+#: hosting figure is the one that matters: on the demo cell every point came
+#: from CHARGING and no job was completed at all, so a rate calibrated there
+#: would make charging the food -- see economy/metabolism.json's note.
+MEASURED_POINTS_PER_HOUR = 102.0
 
-  Issue #36's arithmetic: ~10 jobs a sim-hour at 2-20 points is a ~150
-  point/hour ceiling and ~100 realistic, so an appetite at or above that is
-  subsistence with no free time -- which deletes the mechanic. This is the
-  guard on a future re-tune, not on today's value.
+
+def test_the_shipped_file_leaves_the_robot_half_its_day():
+  """The tuning claim, against MEASURED throughput rather than a projection.
+
+  This is the guard on a future re-tune, not on today's value: the mechanic
+  is the free time, so an appetite that eats the whole income deletes it
+  while still looking like it works.
   """
   a = Appetite.load("home")
-  assert a.points_per_hour <= 60.0, (
-    "an appetite this steep leaves no time for anything but earning")
+  duty = a.points_per_hour / MEASURED_POINTS_PER_HOUR
+  assert 0.25 <= duty <= 0.60, (
+    f"an appetite of {a.points_per_hour}/h against a measured "
+    f"{MEASURED_POINTS_PER_HOUR}/h income is {duty:.0%} of the robot's "
+    "capacity -- issue #36 asks for roughly half, and at the top of that "
+    "range there is no time for anything but earning")
   assert a.satisfied_at <= a.cap and a.hungry_at < a.satisfied_at
-  # The free time the rhythm actually buys, in sim-hours per cycle.
+  # The rhythm the thresholds buy: free time falling from satisfiedAt back to
+  # hungryAt, and the climb back up at whatever is left of the income.
+  #
+  # ⚠ IDEALISED, and the real cycle is LONGER -- measured, a cold robot took
+  # 44 min to reach `satisfied` against the ~26 this arithmetic predicts,
+  # because real income is lumpy (a 640 s charge, failed jobs, exploring all
+  # land inside it). So this is a sanity bound on the thresholds against the
+  # rate, NOT a promise that one mission shows a whole cycle -- it does not,
+  # and that is why hunger persists in the ledger instead.
   free_h = (a.satisfied_at - a.hungry_at) / a.points_per_hour
+  work_h = (a.satisfied_at - a.hungry_at) / (MEASURED_POINTS_PER_HOUR
+                                             - a.points_per_hour)
   assert free_h >= 0.25, f"only {free_h * 60:.0f} min of free time a cycle"
+  assert free_h + work_h <= 1.5, (
+    f"an idealised cycle of {(free_h + work_h) * 60:.0f} min is already "
+    "longer than a mission before real income's lumpiness is added")
 
 
 @pytest.mark.parametrize("bad", [

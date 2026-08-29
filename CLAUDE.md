@@ -916,13 +916,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   **satisfied** — and the hours it did not have to spend earning are what it
   spends on `Goals.md`. OFF by default (`--metabolism`; `$PLUGGY_METABOLISM`
   names a data file and implies it, the way `$PLUGGY_TASKS` implies a board).
-  ⚠ **CALIBRATE AGAINST MEASURED THROUGHPUT.** `cadence.json`'s own
-  arithmetic: ~10 jobs a sim-hour at 2–20 points is a ~150 point/hour ceiling
-  and ~100 realistic, so **a 100/hour appetite is subsistence with zero free
-  time** — the mechanic deleting itself while looking like it works. The
-  shipped 45/hour against a 90 cap is issue #36's proposed starting point and
-  is **PROVISIONAL, not measured**; re-tune it whenever `rewards.json` or
-  `cadence.json` moves.
+  ⚠ **CALIBRATED AGAINST MEASURED THROUGHPUT** (three unattended 1-sim-hour
+  `home` runs): the robot BANKS **102 pts/sim-hour on the hosting pack**, so
+  the shipped 45/hour is ~44 % of its income and the rest of the day is its
+  own. ⚠ **The CYCLE is longer than one mission** — measured, a cold robot
+  reached `satisfied` at t=2643 (44 min) against the ~26 the idealised
+  arithmetic predicts, because real income is LUMPY (a 640 s charge, four
+  failed jobs, exploring). A watcher sees the full arc across several
+  missions, which is exactly why hunger persists in the ledger; do NOT
+  re-tune to fit a cycle into one mission — that is tuning for a demo.
+  Re-run the measurement whenever `rewards.json` or `cadence.json` moves; do
+  not adjust by feel.
+  ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** The demo run banked
+  a similar-looking 80 pts/hour and completed **ZERO jobs** — a charged demo
+  pack holds 0.990 Wh and every target but `whiteboard_a` (0.929) costs more
+  (`whiteboard_b` 1.113, census 1.141), so every point came from CHARGING. A
+  rate calibrated there makes charging the food and work optional, which is
+  the mechanic inverted. It is also what every mission test and both
+  recordings run on, so it is the number you reach for by accident.
   ⚠ **SATISFACTION CHANGES WHAT THE ROBOT IS TOLD AND NOTHING ELSE.** There
   is no branch that reads `satisfied` and declines a job, and none that reads
   `starving` and declines anything at all — the scripted rotation is

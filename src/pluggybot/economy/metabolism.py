@@ -51,8 +51,16 @@ money would have a reward table denominated in Ben's invoice.
 
 The numbers are DATA (`economy/metabolism.json`, `$PLUGGY_METABOLISM`), the
 fifth such file after rewards, cadence, questions and energy, and they are
-PROVISIONAL rather than measured -- the file's own note carries the
-arithmetic and what to re-tune them against.
+MEASURED: two unattended 1-sim-hour `home` runs bank 102 points/hour on the
+hosting pack, so the shipped 45/hour is ~44 % of the world's income and the
+robot's own time is the other half. The file's own note carries the runs, the
+rhythm that falls out of them, and what to re-run before re-tuning.
+
+⚠ TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL. The demo run banked a
+comparable 80 points/hour and completed ZERO JOBS: a charged demo pack holds
+0.990 Wh and every target but one costs more, so every point came from
+CHARGING. A rate calibrated there would make charging the food and work
+optional, which is this module upside down.
 """
 
 import json

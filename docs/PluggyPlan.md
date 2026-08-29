@@ -550,14 +550,24 @@ tracked as its own issues; landed so far:
   it did not have to spend earning are what it spends on `Goals.md`. The free
   time is the mechanic; an unbounded score was not a motivation, because
   1 400 points and 1 420 points are the same day.
-  - **Calibrated against measured throughput, and the numbers say so.**
-    `cadence.json`'s own arithmetic — ~10 jobs a sim-hour at 2–20 points —
-    puts the ceiling near 150 points/hour and realistic throughput near 100,
-    so an appetite at 100/hour is subsistence with zero free time: the
-    mechanic deleting itself while appearing to work. The shipped 45/hour
-    against a 90 cap is the issue's proposed starting point and is marked
-    **provisional**; the fifth data file (`$PLUGGY_METABOLISM`) is there so
-    re-tuning it is a JSON edit on a mounted volume.
+  - **Calibrated against MEASURED throughput.** Two unattended 1-sim-hour
+    `home` runs: the robot banks **102 points/sim-hour on the hosting pack**
+    (6 jobs done, 4 failed, 6 expired), so the shipped 45/hour is ~44 % of
+    its income and the rest of the day is its own. A third run with
+    `--metabolism` on banked 102 and ate 43, independently confirming both,
+    and showed the arc: starving → fed at t=230 → satisfied at t=2643, still
+    satisfied at 59/90 when the hour ran out. ⚠ The cycle is **longer than
+    one mission** — 44 min to climb from cold against the ~26 the idealised
+    arithmetic predicts, because real income is lumpy — so the full rhythm
+    plays out across several missions, which is exactly why hunger persists
+    in the ledger file rather than resetting with the sim clock.
+    ⚠ The demo cell banked a comparable-looking 80 points/hour and completed
+    **zero jobs**: a charged demo pack holds 0.990 Wh and every target but
+    `whiteboard_a` costs more, so every point came from CHARGING. Tuning
+    there would make charging the food and work optional — and it is the
+    configuration every mission test and both recordings run on. The fifth
+    data file (`$PLUGGY_METABOLISM`) is there so a re-tune is a JSON edit on
+    a mounted volume.
   - ⚠ **Satisfaction changes what the robot is TOLD and nothing else.** No
     branch reads `satisfied` and declines a job; none reads `starving` and
     declines anything at all. The scripted rotation is untouched (it has no

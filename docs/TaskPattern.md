@@ -306,15 +306,58 @@ everything in `economy/metabolism.py` exists to make sure there is some.
 
 Six rules, and each is a way the mechanic deletes itself.
 
-- **Calibrate against measured throughput, never intuition.** The arithmetic
-  is `cadence.json`'s own: a home charge-to-charge cycle is ~365 sim-seconds
-  and one errand costs roughly one full pack, so ~10 jobs a sim-hour at the
-  2–20 points `rewards.json` pays — a ~150 point/hour ceiling and nearer 100
-  once offers lapse and jobs fail. **An appetite at 100/hour is subsistence
-  with zero free time**, which is the mechanic wearing a disguise. The
-  shipped 45/hour against a 90 cap is issue #36's proposed starting point and
-  is **provisional, not measured**; re-tune it here whenever `rewards.json`
-  or `cadence.json` moves, because both change what an hour earns.
+- **Calibrate against measured throughput, never intuition.** Two unattended
+  1-sim-hour `home` runs, no overseer, measure what the robot actually
+  **banks**:
+
+  | | banked/sim-hour | jobs done |
+  |---|---|---|
+  | hosting cell (8 Wh) | **102 pts** | 6 done, 4 failed, 6 expired |
+  | demo cell (1.1 Wh) | 80 pts | **zero** |
+
+  So the shipped 45/hour is ~44 % of the hosting world's income — issue #36's
+  "roughly half". A third run, the same hour with `--metabolism` on, banked
+  102 and ate 43 (independently confirming both numbers) and shows the arc:
+
+  ```
+  t=   0  starving   0     t= 875  fed       32
+  t= 230  fed       20     t=2643  satisfied 51   ← 44 min in
+  t= 240  hungry    19     t=3601  satisfied 59/90
+  ```
+- ⚠ **The cycle is longer than one mission, and that is the honest reading.**
+  The idealised arithmetic says ~26 min up and ~33 min down; the measured
+  climb took **44 min** from cold, because real income is *lumpy* — a 640 s
+  charge, four failed jobs and a stretch of exploring all happen inside it.
+  A watcher sees the full arc across several missions, not within one, which
+  is exactly why hunger lives in the ledger's file and survives a restart.
+  Do not re-tune to make one mission show a whole cycle: that is tuning for
+  a demo, and it would take roughly halving the rate.
+  `test_the_shipped_file_leaves_the_robot_half_its_day` guards a re-tune from
+  both ends — too steep is nothing but earning, too shallow is a cycle that
+  is absurd before lumpiness is even added.
+- **A one-point wobble at `hungryAt` is expected and bounded.** Only the
+  *satisfied* latch is hysteretic; `fed`/`hungry` is a plain threshold, so an
+  award landing exactly on the line followed by a point eaten reads as
+  `fed → hungry` ten seconds apart. Measured: **once** in a sim-hour. Both
+  states mean the same thing to the robot, the latch that gates behaviour is
+  the hysteretic one, and buying this off would cost a fourth threshold
+  nobody could calibrate.
+- ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** The demo run banked
+  a comparable-looking 80 points/hour and completed **no jobs at all**: a
+  charged demo pack holds 0.990 Wh and every target but `whiteboard_a`
+  (0.929 Wh) costs more — `whiteboard_b` 1.113, the census 1.141 — so every
+  single point came from **charging**. A rate calibrated there makes charging
+  the food and work optional, which is this section upside down. It is also
+  the configuration every mission test and both committed recordings run on,
+  so it is the number you will reach for by accident.
+- ⚠ **A third of the work pays nothing, and the rate has to survive that.**
+  Of 11 resolved jobs on the hosting run, 4 failed outright (three of them
+  the far-whiteboard navigation problem) and 6 more expired unclaimed. The
+  102 is already net of that, but the *variance* is real: a bad hour with no
+  income takes the robot from `satisfiedAt` to zero in almost exactly one
+  hour. `starving` is a state this world reaches for real rather than
+  theoretically — which is the mechanic working, and exactly why it must
+  never lock anything.
 - **Zero is narrative, never a capability lock**, and so is full. A starving
   robot shows it — a worried face, a line in `History.md`, a prompt that says
   go and earn something — and is prevented from nothing. This is the rule
