@@ -625,28 +625,10 @@ CLAW_EYE_POS = (0.033, 0.030, -0.079)     # (forward, lateral, vertical),
 
 
 # ---- the seed dispenser (the fifth tool): metering, not manipulation -------
-# The first tool built AGAINST docs/ToolPattern.md rather than the other way
-# round, and the doc's opening question -- which axis does this bring, and
-# which does it borrow? -- shaped it completely. A dispenser brings a
-# DISCRETE RELEASE: the robot can carry things and can grip things, but it
-# has no way to let go of exactly one of something. It borrows the lift for
-# height and the base for placement, and it needs no new axis at all.
-#
-# What the pattern's envelope check said before any of this was drawn:
-#   * moment: the whole assembly hangs on the peg's own axis (L = 0), so it
-#     spends NOTHING of the 0.45 N.m budget no matter what it holds. The
-#     claw's lesson (reach is expensive, mass is not) applied for free.
-#   * force: a dispenser RELEASES, it never presses, so unlike the pen it
-#     makes no demand at all on the lean-pad's ~1.5-2 N ceiling.
-#   * mass: tube + escapement + shelf come to ~58 g on top of the 120 g
-#     plate/peg budget, landing the module at ~178 g -- between the pen
-#     (182 g) and the plug (156 g), inside the class the lift preset and the
-#     RCC-wrist tuning assume.
-#   * geometry: the whole tool hangs BELOW the plate (z < -TOOL_HALF_Z),
-#     where the rack has nothing at all. The pen module stands 26 mm proud
-#     of its plate AT plate height and is the prime suspect in the open
-#     pen-stow failure; the pattern's advice is to keep the rack-facing face
-#     flat, and here it costs nothing to follow.
+#: The first tool built AGAINST docs/ToolPattern.md rather than mined out of
+#: the ones before it. Its envelope check (zero moment on the peg axis, no
+#: lean-pad demand because a dispenser releases rather than presses, ~178 g in
+#: class) is that doc's worked stage-0 example -- ToolPattern.md section 5.0.
 #
 # The mechanism is a SLIDE-VALVE ESCAPEMENT, which is what a real seed meter
 # is: one actuator, one moving part, exactly one seed per cycle.
@@ -661,10 +643,8 @@ CLAW_EYE_POS = (0.033, 0.030, -0.079)     # (forward, lateral, vertical),
 #   home again            the slab retracts and the stack settles one seed
 #                         into the pocket, ready for the next cycle.
 #
-# Metering by geometry rather than by timing is deliberate: "open the gate
-# for 200 ms" is a controller that dispenses a different number of seeds on
-# a slower machine, and this repo has already been bitten once by a
-# choreography that assumed its own timing.
+# Metering by GEOMETRY, never by timing: "open the gate for 200 ms" dispenses
+# a different number of seeds on a slower machine.
 SEED_R = 0.008            # 16 mm seed body. Sized UP from a literal seed: the
                           # claw's grip physics is tuned for ~5 cm objects and
                           # true seed-scale bodies are miserable contact work,

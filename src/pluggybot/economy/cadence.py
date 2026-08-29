@@ -291,30 +291,16 @@ class TaskProducer:
         estimate = spec.estimate_wh
       if pack_wh is not None and estimate > float(pack_wh):
         # THE WORLD'S ENERGY GATE, and read what it is measured against.
+        # `pack_wh` is what a CHARGED pack holds in this world (the caller
+        # passes `HubLifecycle.fundable_wh`), NOT what is in the cell now. So
+        # this refuses only a job the world could never fund; a job the robot
+        # merely cannot afford yet is still put up, and stands unclaimable
+        # until the pack is legal again -- `Task.claimable` is the gate with
+        # the teeth.
         #
-        # `pack_wh` here is what a CHARGED pack holds in this world, not what
-        # is in the cell at this instant -- the caller passes
-        # `HubLifecycle.fundable_wh`. So this refuses a job the world could
-        # never fund and nothing else, and a job the robot merely cannot
-        # afford right now is still put up.
-        #
-        # ⚠ THE OTHER READING WAS TRIED AND MEASURED, and it starves the
-        # robot. Issue #23 asks for a job whose cost exceeds the usable pack
-        # to be deferred until after a charge; gating each tick on the
-        # INSTANTANEOUS charge does that literally and takes home from 58
-        # offers in four sim-hours to 14, with 46 deferrals -- fewer jobs
-        # than the robot can complete in that time, which is the empty world
-        # this module exists to prevent, arriving as a safety feature. The
-        # reason is arithmetic rather than tuning: one errand costs roughly
-        # one full pack, so the window in which a home cell is above any
-        # errand's estimate is the minute after a charge, and a 240 s tick
-        # mostly misses it.
-        #
-        # Deferring until after a charge is REAL, and it already lives in
-        # `Task.claimable` -- an offer simply stands, unclaimable, until the
-        # pack is legal again, which is also what the site draws and what
-        # `_claim_next_task` consults. That is the gate with the teeth; this
-        # one only keeps a world from advertising work it could never fund.
+        # ⚠ Gating on the INSTANTANEOUS charge was tried and starves the
+        # robot: home falls from 58 offers in four sim-hours to 14, fewer
+        # than it can complete. docs/TaskPattern.md section 5.
         starved = True
         passed = index if passed is None else passed
         continue

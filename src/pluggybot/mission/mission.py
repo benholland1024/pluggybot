@@ -809,24 +809,18 @@ class HubMission:
       self.drive_to(sx, sy, timeout=25.0)
     why = "no-attempt"
     # The lift a swap ENTERS at, which is never "whatever the last manoeuvre
-    # happened to leave".
+    # happened to leave" -- put_back computes every height RELATIVE to the
+    # lift it starts with, so an inherited one is a different maneuver.
     #
-    # For a RETURN it is the height the module is being carried at, captured
-    # before any attempt: a failed put_back leaves the lift at its RELEASE
-    # height, 50 mm low, and a retry entered from there carries the peg
-    # straight into the tray flanks (put_back computes every height relative
-    # to the lift it starts with). Restoring it makes the second attempt an
-    # actual repeat of the first, not a different maneuver.
-    #
-    # For a PICK it is the align preset, and it must be commanded rather
-    # than inherited for the very same reason one verb along -- a stow ends
-    # at RELEASE height too, so the NEXT pick used to slide in 50 mm low and
-    # come away with nothing. That went unseen for as long as it did because
-    # nothing ever picked after stowing: the lift was preset once at
-    # start_at and every mission fetched exactly once. It is what broke the
-    # second cycle of the repeating errand in issue #10, and it fails
-    # silently -- the travel is correct, the approach reports "arrived", and
-    # the fork simply passes under the peg.
+    # A RETURN captures the carry height before any attempt (a failed
+    # put_back leaves the lift 50 mm low at RELEASE height, and a retry from
+    # there drives the peg into the tray flanks). A PICK commands the align
+    # preset for the same reason one verb along: a stow ends at RELEASE
+    # height too, so the next pick slides in 50 mm low and comes away with
+    # nothing -- silently, because the travel is correct and the approach
+    # reports "arrived".
+    #: Both faults in full, and why nothing caught them until an errand
+    #: repeated: docs/SimNotes.md, "The pen would not stow (issue #10)".
     if verb == "pick":
       lift_entry = align_lift()
     else:

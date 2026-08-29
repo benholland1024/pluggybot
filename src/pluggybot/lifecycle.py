@@ -591,28 +591,21 @@ class HubLifecycle:
               f" ({errand.name})")
 
     self.state = "USE_TOOL"
-    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to` returns
-    # False when it stagnated or could not plan at all, and a use-phase run
-    # anyway is a pen pressing at empty air: found by issue #23, whose
-    # producer is the first thing that offers work on the FAR whiteboard, 7 m
-    # away through a doorway the robot has not mapped yet. The drive gave up,
-    # the loop narrated "arrived", the erase probe searched for a board that
-    # was not there, and the mission hung until the battery died -- ten
-    # minutes of wall clock with nothing in the log after `USE_TOOL: arrived`.
+    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
+    # returns False when it stagnated or could not plan, and a use-phase run
+    # anyway is a pen pressing at empty air -- the far whiteboard hung a
+    # mission until the battery died, with nothing logged after "arrived".
     #
-    # Not reaching the board is an ordinary outcome, so it is reported and
-    # not raised on: the tool still goes back to its bay, the evaluator still
-    # measures the world (it will find no ink) and the job closes `failed`.
-    # A robot that could not get there is a different thing from a robot that
-    # got there and drew badly, and only one of them is a bug -- but they
-    # must BOTH end with the module on the rack.
+    # Not reaching the board is an ordinary outcome, reported rather than
+    # raised on: the tool still goes back to its bay and the evaluator finds
+    # no ink. Failing to get there and drawing badly are different events,
+    # and both must end with the module on the rack.
     #
     # ⚠ THE GATE IS PER-ERRAND, not universal (`Errand.needs_use_pose`). An
     # errand that DOES ITS OWN NAVIGATION does not need this drive to have
     # arrived -- the census's `use_at` is the first point of the survey route
-    # its use-phase drives itself. Gating it too cost the recorded showcase
-    # mission its census answer: the drive stopped 1.96 m short and the robot,
-    # which could still see the whole garden from there, was sent home.
+    # its use-phase drives itself, and gating it too cost the recorded
+    # showcase mission its census answer.
     arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"

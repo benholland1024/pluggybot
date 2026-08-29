@@ -337,6 +337,22 @@ it opened, and a message can only arrive while that connection is up.
   and not the robot — turns it into points. The ledger then re-emits that
   entry with `"settled": true`. The `artwork` task now actually produces
   one, so this is a live path rather than a reserved word.
+- **`reset_tool` is the ADMIN recovery for a dropped module** (pluggybot
+  #30), added *after* 0.7.0 and deliberately **without a version bump** — no
+  emitted artifact changes shape (recordings carry no inbound messages), and
+  `accepts` is where a website discovers whether this sim understands it.
+  The `accepts` list is the mechanism; the version number is not.
+
+  ```jsonc
+  {"type": "reset_tool", "id": "a_01", "module": "module_pen", "from": "ben"}
+  ```
+
+  Handled by CODE the moment the physics thread drains it — the module jumps
+  back to its own bay, exactly as `rating` goes straight to the ledger — and
+  it **never reaches the overseer**: an admin command is not a thing the
+  robot weighs. The acknowledgement is the world itself (the module's pose
+  stream) plus a narration event line. The sim **refuses, with a narration**,
+  while the module is seated on the fork: a tool in use is not a lost one.
 - **Unknown types are dropped and counted**, so adding one is additive and
   a website ahead of its sim is a no-op rather than a crash. `move` and
   `clear_board` (tic-tac-toe) are named in the issue as later work and are

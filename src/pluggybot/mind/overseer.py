@@ -103,19 +103,13 @@ MAX_TOKENS = 512
 #: may ask to think HARDER about one, which costs real money and is therefore
 #: gated by code it cannot reach.
 #:
-#: ⚠ MEASURED, and not the model the issue named. One real decision each
-#: through the router, from the local 4B's own state (docs/Overseer.md §8):
+#: ⚠ MEASURED, and NOT the model the issue named: Llama-3.3-70B answers 403
+#: on this account whatever the catalogue says. The pick is the cheapest AND
+#: the fastest of the four that did answer (2.05 s, $0.00035 a decision), and
+#: at 235B (A22B active) it is two orders of magnitude more model than the 4B
+#: it is bought instead of -- the only reason to spend anything. Full sweep:
+#: docs/Overseer.md section 8.
 #:
-#:   meta-llama/Llama-3.3-70B-Instruct     403 Forbidden -- gated on this
-#:                                         account, whatever the catalogue says
-#:   Qwen/Qwen3-235B-A22B-Instruct-2507    valid, 2.05 s, $0.00035  <- the pick
-#:   deepseek-ai/DeepSeek-V3.1             valid, 5.89 s, $0.00102
-#:   zai-org/GLM-4.6                       valid, 3.04 s, $0.00183
-#:   moonshotai/Kimi-K2-Instruct-0905      valid, 3.73 s, $0.00238
-#:
-#: The pick is the cheapest AND the fastest of the four that answered, and at
-#: 235B (A22B active) it is two orders of magnitude more model than the 4B it
-#: is bought instead of -- which is the only reason to spend anything.
 #: `ESCALATE_MAX_TOKENS` is doubled from the routine 512 because #15's sweep
 #: measured a big model TRUNCATING at that ceiling rather than refusing.
 ESCALATE_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"

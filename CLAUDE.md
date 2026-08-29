@@ -36,6 +36,19 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   all found this way, and two of them were hiding behind green metrics.
 - Every debugged failure becomes a pytest assertion, and the assertion must be
   shown to fail without the fix — a regression test that cannot fail is décor.
+- **An inline comment states a constraint the code cannot show. Anything that
+  is a story goes to `docs/`, with a one-line pointer left behind** (issue
+  #51). Prose in a `.py` is loaded every time anything reads that file,
+  relevant or not; a doc is loaded when the task calls for it. So a measured
+  number with its failure mode attached belongs at the constant — that is 60 %
+  of the comments here and they are why nobody "fixes" something deliberate —
+  while the narrative of how it was found belongs in SimNotes, ToolPattern,
+  ActivityPattern, TaskPattern, Overseer or `protocol/README.md`.
+  ⚠ **This is not a deletion pass and a falling prose:code ratio is not the
+  goal.** Removing a short why-comment is a net loss. What was actually wrong
+  was PLACEMENT: `telemetry/protocol.py` carried a 273-line changelog that
+  `protocol/README.md` already told better, and reconciling the two meant
+  MOVING the one spec (`reset_tool`) the README was missing, not cutting it.
 
 ## Commands
 
@@ -616,6 +629,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
 ## Conventions
 
 - 2-space Python indent; type hints in `src/`, loose in tests/scripts.
+- **`src/` is divided by DOMAIN, not by era** (issue #50). `hub/` was the
+  hub-*epoch* and had absorbed 75 % of all source; it is now:
+  `rack/` (coupling, swap, localize, tags — the literal hub hardware) ·
+  `tools/` (drawing, gripper, dispenser, screen, strokes, hershey, boards) ·
+  `mind/` (overseer, llm, thoughts, journal, inbox, mode, spend) ·
+  `economy/` (tasks, scoring, ledger, cadence, questions, energy, census, and
+  the four `.json` data files) · `mission/` (mission, errand) ·
+  `lifecycle.py` at top level, because arbitration is what ties them together.
+  A new module goes where its CONCERN lives; if it does not fit one of these,
+  that is a sign it is a new domain, not a reason to widen an old one.
+  `tests/` is deliberately FLAT and does not mirror the tree.
 - `models/world.xml` = bare world for physics tests; `playground.xml` /
   `room_1.xml` add scenery for humans and mapping. Never put scenery in the
   test world.

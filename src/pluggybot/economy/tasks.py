@@ -105,28 +105,13 @@ def _now() -> str:
 # #22) "draw the answer to 2 + 3 on whiteboard_a" are both scored on ink, and
 # only the second one needs an answer to be right.
 #
-# `estimateWh` is what makes a task refusable on ENERGY grounds (see
-# `Task.claimable`). It is a declared per-kind figure, not a model -- M10's
-# per-errand energy work is what replaces it -- but the figures below are
-# MEASURED, off the committed recordings, from the battery at SWAP_PICK to
-# the battery at the end of SWAP_RETURN:
-#
-#     room_hub  carry (module_lcd, across the room)      0.487 - 0.570 Wh
-#     home      draw  (pen, erase, house, stow)          0.929 Wh
-#     home      census (LCD, survey the garden, stow)    0.866 Wh
-#
-# ⚠ READ THOSE AGAINST THE PACK. room_hub's demo cell is 0.700 Wh and home's
-# is 1.100 Wh, and a charge stops at 90 %. So ONE ERRAND IS ROUGHLY ONE FULL
-# PACK, in both worlds, and there is no margin to be had -- which is why a
-# guess here was not good enough. The first version of this table guessed
-# 0.35 Wh for a drawing (measured: 0.929) and the home fixture recorded a
-# robot that claimed the job at 88 % and died mid-stroke with nothing inked
-# and the pen still on the fork. That failure is the entire argument for the
-# gate, and it was the gate's own numbers that let it through.
-#
-# Rounded UP to the nearest 0.01 Wh and no further: inflating them for safety
-# would make every job permanently unclaimable, because the headroom being
-# padded against does not exist.
+# `estimateWh` is what makes a task refusable on ENERGY grounds
+# (`Task.claimable`). Every figure below is MEASURED off the committed
+# recordings, battery at SWAP_PICK to battery at the end of SWAP_RETURN, and
+# rounded UP to the nearest 0.01 Wh and NO FURTHER -- one errand costs roughly
+# one full pack in both worlds, so padding for safety makes every job
+# permanently unclaimable. Why a guess is fatal in either direction, and the
+# fixture that proved it: docs/TaskPattern.md section 5.
 
 
 @dataclass(frozen=True)
