@@ -92,6 +92,20 @@ def main() -> None:
                       help="base URL of the local / openai-compatible "
                            f"endpoint ($PLUGGY_OVERSEER_URL; default "
                            f"{llm.LOCAL_URL})")
+  parser.add_argument("--escalate-to", default=None, metavar="ID",
+                      help="a BIGGER mind the robot may buy a decision from "
+                           "when it says it is unsure (issue #37). Off unless "
+                           "set; the routing costs no extra call")
+  parser.add_argument("--weekly-usd", type=float, default=None, metavar="USD",
+                      help="the soft weekly allowance escalations spend "
+                           "against ($PLUGGY_WEEKLY_USD)")
+  parser.add_argument("--spend-state", default=None, metavar="PATH",
+                      help="JSON file the week's spending lives in between "
+                           "runs ($PLUGGY_SPEND)")
+  parser.add_argument("--mode-file", default=None, metavar="PATH",
+                      help="the OPERATOR's control file ($PLUGGY_MODE_FILE): "
+                           "llm, scripted (free mode) or paused. Polled, "
+                           "never written")
   parser.add_argument("--goals", default=None, metavar="PATH",
                       help="the overseer's long-term goals, as prose "
                            "(human-editable; $PLUGGY_GOALS)")
@@ -117,7 +131,9 @@ def main() -> None:
                robot_name=args.robot_name,
                overseer_backend=args.overseer_backend,
                overseer_model=args.overseer_model,
-               overseer_url=args.overseer_url)
+               overseer_url=args.overseer_url,
+               escalate_to=args.escalate_to, weekly_usd=args.weekly_usd,
+               spend_state=args.spend_state, mode_file=args.mode_file)
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
@@ -173,6 +189,16 @@ def main() -> None:
       print(f"overseer cost          : ${o['usd']:.5f} this run "
             f"(${per_hour:.4f}/sim-hour), cache hit rate "
             f"{o['cacheHitRate']:.0%}")
+    if o.get("escalationModel"):
+      money = o.get("allowance") or {}
+      refused = o.get("escalationsRefused") or {}
+      print(f"escalations            : {o['escalations']} to "
+            f"{o['escalationModel']}, ${o.get('escalationUsd', 0.0):.5f}"
+            + (f"  ({', '.join(f'{n} refused: {w}' for w, n in sorted(refused.items()))})"
+               if refused else ""))
+      if money:
+        print(f"weekly allowance       : ${money['spentUsd']:.4f} of "
+              f"${money['weeklyUsd']:.2f} spent, ${money['leftUsd']:.4f} left")
     if not o.get("constrained", True):
       print("overseer decoding      : UNCONSTRAINED -- this endpoint refused "
             "the schema")

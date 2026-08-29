@@ -645,7 +645,125 @@ same_run` is the one that fails, and `ThoughtFiles.volatile()` is derived by
 inverting the same `stable` flag rather than listed separately, so the two
 halves cannot disagree and leave a file reaching the model through neither.
 
-## 8. Running it
+## 8. The allowance, the escalation and the switch (issue #37)
+
+Three things arrive together, and they share the principle this repo keeps
+re-learning: **the agent may want, and only code may pay.** The reward table
+was the first version (nothing awards itself points); the allowance is the
+second (nothing spends its own money); the mode file is the third and
+bluntest (the thing being switched off cannot reach the switch).
+
+### Three ceilings, and only the middle one is code
+
+| ceiling | where | what it stops |
+|---|---|---|
+| the provider balance | the HuggingFace account, topped up by hand | everything, absolutely. Deliberately not code |
+| the weekly allowance | `hub/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10) | a month's money going in an afternoon |
+| the hourly call cap | `Overseer.calls_per_hour`, unchanged since #15 | a loop bug |
+
+⚠ **The hourly window could not be reused for the weekly one, and the reason
+is the restart.** `Overseer._calls` is a deque of `time.monotonic` stamps —
+right for an hour inside one process, useless across a week, because a
+mission ends and the container restarts several times an hour
+(`PLUGGY_MAX_SIM_TIME` is 3600 on the deployed world). The spend book is
+wall-clock stamps in a file on the state volume, beside the boards and the
+ledger, and a **rolling** seven days rather than a calendar week: a calendar
+week hands out a full allowance at midnight on Sunday and none at 23:00 on
+Saturday.
+
+⚠ **A damaged spend file is refused, not read as an unspent week.** That is
+the one direction this class must never fail in.
+
+### Escalation: the model asks, code pays
+
+The robot sets **`escalate`** on the decision it was already making — so the
+routing costs **no extra API call**, which is the issue's sharpest
+constraint: if deciding to escalate costs an escalation, the mechanic is
+self-defeating. Code then decides, against gates the model can see the
+effects of and not the levers:
+
+- the allowance has room for the estimate (measured input × the escalation
+  model's own published rates, plus the full output ceiling — the
+  pessimistic direction, which is the right one for a budget check);
+- at least `ESCALATE_MIN_INTERVAL_S` (10 min) since the last one;
+- no more than `ESCALATE_SHARE` (10 %) of this run's decisions, with the
+  first one always allowed so a short mission is not silently excluded.
+
+**Every failure keeps the cheap answer.** A timeout, a 403, a big model
+answering prose — the decision that was already valid stands, and the run
+notes what happened. Escalation can only improve a decision, never cost the
+robot one, which is what makes it safe to put a paid dependency here at all.
+An exhausted allowance therefore degrades to the free backend rather than to
+no decisions.
+
+⚠ **Billed is billed.** A response that arrived and then failed to parse
+still consumed tokens, and it is banked. An allowance that counted only the
+useful calls would drift under the real invoice.
+
+### Which big model (measured 2026-08-29, one real decision each)
+
+| model | result | latency | $/call | rates in/out |
+|---|---|---|---|---|
+| `meta-llama/Llama-3.3-70B-Instruct` | **403 Forbidden** | — | — | 0.135 / 0.4 |
+| **`Qwen/Qwen3-235B-A22B-Instruct-2507`** | valid | **2.05 s** | **$0.00035** | 0.09 / 0.55 |
+| `deepseek-ai/DeepSeek-V3.1` | valid | 5.89 s | $0.00102 | 0.25 / 0.95 |
+| `zai-org/GLM-4.6` | valid | 3.04 s | $0.00183 | 0.5 / 2.0 |
+| `moonshotai/Kimi-K2-Instruct-0905` | valid | 3.73 s | $0.00238 | 0.6 / 2.5 |
+
+The 70B the issue named is **licence-gated on this account** and 403s
+whatever the catalogue says — worth knowing before a deployment discovers it
+as a stream of `escalation: RuntimeError` lines. The pick is the cheapest and
+the fastest of the four that answered, and at 235B (22B active) it is two
+orders of magnitude more model than the 4B it is bought instead of, which is
+the only reason to spend anything at all.
+
+⚠ **AT THESE PRICES THE WEEKLY BUDGET DOES NOT BITE — THE CADENCE DOES.** At
+$0.00035 a call, $10 buys about **28 000 escalations a week**, which is more
+than a robot deciding every two minutes could make if it escalated every
+time. The issue's scarcity argument still holds, but the thing enforcing it
+is `ESCALATE_MIN_INTERVAL_S` and `ESCALATE_SHARE`, not the money. The budget
+is the backstop that catches a mistake (a loop, a much dearer model, a
+provider that reprices); do not read a full allowance at the end of the week
+as proof the gates are working, and do not tighten the budget expecting the
+escalation rate to move.
+
+### The operator's switch
+
+`hub/mode.py` reads a JSON file and **never writes it** — there is no writer
+in the module at all, not even a private one, and `tests/test_allowance.py`
+asserts that absence so the next convenience added there fails a test.
+
+| mode | what happens |
+|---|---|
+| `llm` | normal: the overseer decides, spending against the allowance |
+| `scripted` | FREE mode: the rotation decides and no API call is made. The world keeps running and looks alive — a world that goes dark to save money looks broken |
+| `paused` | physics stops mid-motion and the socket stays open, heartbeating `paused` |
+
+A file, polled, and deliberately **not** an inbound message: `reset_tool`
+(#30) is recoverable and idempotent, while this is the control that turns the
+robot off, and a file on the mounted volume has no auth surface to get wrong,
+survives the restart that ends every mission, and can be read with `cat` when
+the website is the thing that is broken. The website's admin page writes it.
+
+⚠ **An unreadable or unknown mode means `llm`, not `paused`** — failing safe
+here means failing OPEN. A typo must not silently stop a robot nobody meant
+to stop, because a paused world is indistinguishable from a broken one to
+everybody except the person who paused it.
+
+⚠ **A paused robot emits no frames**, because frames are due on SIM time and
+sim time is exactly what is not moving. Hence the `mode` message and its
+heartbeat (protocol 0.12.0): without it a site cannot tell "the operator
+paused it" from "the sim died", which is the `accepts` lesson in the version
+where the whole point is that somebody notices.
+
+⚠ **And a pause must not become a sprint.** `RealTimePacer` sleeps off the
+sim's lead over wall time and does nothing when it is behind, so five
+minutes paused reads as five minutes of lag and the robot then runs at up to
+2.9× — in front of whoever paused it to look at something. `pacer.resync()`
+on resume says the honest thing instead: that time was not sim time that
+went missing, it was sim time that never happened.
+
+## 9. Running it
 
 ```sh
 # locally, watching it think
@@ -698,7 +816,7 @@ Environment (the deploy configures with `environment:` alone):
 are deliberately **not** turned into flags — the backends read them from the
 environment and they stay out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
 
-## 9. Visitors (issue #16)
+## 10. Visitors (issue #16)
 
 People watching the site can send the robot **suggestions** and **questions**,
 and it can take them or turn them down. The channel is the same authenticated
@@ -749,7 +867,7 @@ What answers that is two things that are not string handling:
 that claim as an assertion: it lets the attack arrive, then shows the menu
 refusing every action it asked for.
 
-## 10. On the wire
+## 11. On the wire
 
 Decisions and journal entries reach the site as `event` messages, through the
 narration channel every other lifecycle line uses (`say_hooks` →

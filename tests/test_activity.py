@@ -234,7 +234,12 @@ def test_header_advertises_activities(builder_pair):
   # per-key delta, because a task can cease to exist. 0.9.0 -> 0.10.0 for
   # `robotNames` in the header (issue #39): the robot has a display NAME,
   # keyed by the species (ROBOT_ROOT), which stays the id of everything else.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.11.0"
+  # 0.10.0 -> 0.11.0 for the thought files (issue #38), and 0.11.0 -> 0.12.0
+  # for money and the operator's switch (issue #37): a `spend` block, `mode`
+  # on the robot's record, and a `mode` MESSAGE -- which exists because a
+  # paused robot steps no physics and so sends no frames at all, leaving the
+  # field that rides them unable to say so.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.12.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

@@ -713,6 +713,14 @@ class _FakeLife:
     self.init_kwargs = kw
     self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
     self.say_hooks: list = []
+    # The operator's switch and its two hook lists (issue #37). Held the way
+    # the real lifecycle holds them -- off the kwargs it was built with --
+    # because a double that quietly lacks an attribute the real object always
+    # has turns a wiring bug into a test failure about the double.
+    self.mode = kw.get("mode")
+    self.pause_hooks: list = []
+    self.resume_hooks: list = []
+    self.paused_s = 0.0
     # Where a `visitor_reply` goes on its way to the socket (issue #16).
     self.visitor_hooks: list = []
     self.run_args: tuple = ()
@@ -942,3 +950,29 @@ def test_serve_names_the_robot_in_both_artifacts(monkeypatch, tmp_path):
   # sinks of one run cannot resolve differently.
   _, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
   assert pub.init_kwargs["robot_name"] is None
+
+def test_serve_hands_the_operator_switch_to_the_lifecycle_and_the_wire(
+    monkeypatch, tmp_path):
+  """The switch has to reach three places or it is decoration (issue #37):
+  the lifecycle (which stops stepping), the publisher (whose heartbeat is the
+  only thing a paused world sends) and the pacer (or the pause becomes a
+  sprint)."""
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "scripted"}))
+  life, pub, _ = _serve_wiring(monkeypatch, [
+    "--world", "room_hub", "--rate", "1.0", "--mode-file", str(path)])
+  switch = life.init_kwargs["mode"]
+  assert switch is not None and switch.mode == "scripted"
+  assert pub.init_kwargs["mode"] is switch
+  # attach_mode_stream ran: a pause has something to beat with, and a resume
+  # has something to resync.
+  assert life.pause_hooks and life.resume_hooks
+
+
+def test_serve_shows_no_wallet_on_a_world_that_cannot_spend(monkeypatch):
+  """ABSENT and ZERO are different claims (0.12.0). Without an escalation
+  model there is nothing to spend, so the block is not attached at all --
+  a `spend` of zeroes would tell the site to render a wallet the robot does
+  not have."""
+  _, pub, _ = _serve_wiring(monkeypatch, ["--world", "room_hub", "--free-run"])
+  assert pub.init_kwargs["spend"] is None

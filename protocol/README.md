@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.10.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.12.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -27,6 +27,57 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand showcase --tasks --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+### 0.11.0 → 0.12.0 (money, and the operator's switch)
+
+pluggybot #37. The robot gets a weekly USD allowance it may spend on a
+bigger mind, and an operator gets three modes to run it in. Everything on
+the wire is **display**: there is no inbound message that moves a dollar or
+sets a mode, exactly as there is none that moves a point.
+
+**1. A `spend` block in the frame**, shipped whole when it changes (the
+`tasks` block's rule rather than the `ledger`'s per-key delta — six numbers
+that move together, and they only move when the robot buys a thought):
+
+```jsonc
+"spend": {"weeklyUsd": 10.0, "spentUsd": 0.0132, "leftUsd": 9.9868,
+          "calls": 3, "escalations": 3, "unpriced": 0,
+          "recent": [{"t": 1756400000.0, "usd": 0.00038,
+                      "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+                      "kind": "escalation"}]}
+```
+
+`unpriced` counts calls whose price nobody published: the sum is understated
+by exactly that many, and a client that hid the number would be showing a
+confident total it does not have. Present only on a world that can actually
+spend — an all-zero money panel on a world with no escalation configured is
+a panel that means nothing.
+
+**2. `mode` on the robot's per-frame record**, beside `state` and `status`,
+one of `MODES` = `llm` | `scripted` | `paused`. Inside the existing block
+rather than a new one, because it is a fact about the robot at that instant.
+The header gains `modes` (the vocabulary), for the reason it carries
+`taskKinds`: a client builds its controls before the robot has been in one.
+
+**3. A `mode` message**, the only one of the three that earns its own type:
+
+```jsonc
+{"type": "mode", "t": 812.4, "robot": "pluggybot", "mode": "paused",
+ "heldS": 12.5}
+```
+
+Emitted when the mode changes **and as a heartbeat while `paused`**.
+
+⚠ **The heartbeat is the load-bearing half.** A paused robot steps no
+physics; frames are due on SIM time; so a paused world emits **no frames at
+all**. Without this message a site cannot tell "the operator paused the
+robot" from "the sim died" — the `accepts` lesson in the version where the
+whole point is that somebody notices an outage. A consumer should treat a
+`mode` of `paused` as live-but-still, and the absence of both frames and
+heartbeats as a stream that has stopped.
+
+Additive: a 0.11.0 consumer ignores the block, the field and the type, and
+renders exactly what it rendered before.
 
 ### 0.10.0 → 0.11.0 (the robot's memory is a set of documents, with owners)
 

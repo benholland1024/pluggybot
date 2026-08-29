@@ -1,5 +1,5 @@
 {
- "protocolVersion": "0.11.0",
+ "protocolVersion": "0.12.0",
  "model": "room_hub",
  "upAxis": "z",
  "bodies": [

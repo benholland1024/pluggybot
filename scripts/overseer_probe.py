@@ -50,6 +50,7 @@ looks right is neither.
 import argparse
 import json
 import time
+from dataclasses import replace
 
 from pluggybot.hub.lifecycle import board_book
 from pluggybot.hub import llm
@@ -121,6 +122,18 @@ def main() -> None:
                            "deployment actually sends -- Main.md and Goals.md "
                            "ride in it, so an edited persona changes the "
                            "number below")
+  parser.add_argument("--escalate-to", default=None, metavar="ID",
+                      help="also measure the ESCALATION path (issue #37): "
+                           "the bigger mind a decision can be bought from. "
+                           "⚠ This spends real money -- one call per "
+                           "decision below, at that model's rates")
+  parser.add_argument("--force-escalate", action="store_true",
+                      help="ask the big mind on EVERY decision, ignoring the "
+                           "cadence gates. For measurement only: it is the "
+                           "only way to get a per-escalation number without "
+                           "waiting out the ten-minute interval between "
+                           "them, and it is exactly what the gates exist to "
+                           "stop the robot doing")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
   args = parser.parse_args()
@@ -134,7 +147,7 @@ def main() -> None:
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
-                  base_url=args.url)
+                  base_url=args.url, escalate_to=args.escalate_to)
   prefix = boss.system[0]["text"]
 
   # The prefix now states the robot's NAME (issue #39), resolved from
@@ -143,6 +156,10 @@ def main() -> None:
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
   print(f"world        : {args.world}")
   print(f"model        : {model} on {backend}")
+  if args.escalate_to:
+    print(f"escalates to : {args.escalate_to}"
+          + ("  (forced on every decision -- measurement only)"
+             if args.force_escalate else ""))
   print(f"actions      : {', '.join(menu.available())}")
   print(f"prefix chars : {len(prefix)}")
   print(f"memory       : {', '.join(memory.stable())} cached; "
@@ -221,7 +238,16 @@ def main() -> None:
   for i in range(args.calls):
     before = dict(boss.usage.as_dict())
     t0 = time.monotonic()
-    decision = boss.decide(synthetic_state(menu, i))
+    state = synthetic_state(menu, i)
+    decision = boss.decide(state)
+    if args.force_escalate and not decision.escalated:
+      # Straight past the gates, on purpose and only here: the interval is
+      # ten minutes and the point of this run is the per-escalation number.
+      boss._last_escalation = None
+      boss.escalations = 0
+      esc0 = time.monotonic()
+      decision = boss._maybe_escalate(replace(decision, escalate=True), state)
+      print(f"   escalation took {time.monotonic() - esc0:5.2f}s")
     dt = time.monotonic() - t0
     now = boss.usage.as_dict()
     delta = {k: now[k] - before[k] for k in
@@ -236,6 +262,15 @@ def main() -> None:
 
   stats = boss.stats()
   print("\n" + json.dumps(stats, indent=1))
+  if args.escalate_to and boss.escalation_usage.input_tokens:
+    eu = boss.escalation_usage
+    made = max(1, len(boss.decisions) if args.force_escalate
+               else boss.escalations)
+    print(f"\nescalation cost        : ${eu.usd / made:.5f} per call "
+          f"({eu.input_tokens // made} in, {eu.output_tokens // made} out at "
+          f"${eu.usd_per_mtok_in}/${eu.usd_per_mtok_out} per Mtok)"
+          if eu.priced else
+          "\nescalation cost        : unknown -- no published rates")
   # The acceptance criteria, in the units they were written in. A decision
   # every ~2 minutes of sim time is the design doc's cadence.
   per_call = stats["usd"] / max(1, stats["llmCalls"])

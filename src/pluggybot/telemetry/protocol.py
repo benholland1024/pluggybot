@@ -11,7 +11,41 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.11.0"
+PROTOCOL_VERSION = "0.12.0"
+# 0.12.0: MONEY AND THE OPERATOR'S SWITCH (pluggybot #37). Three additions,
+#         all of them display-only in the direction that matters: there is no
+#         inbound message that moves a dollar or sets a mode, exactly as
+#         there is none that moves a point.
+#           1. a `spend` block in the frame, shipped when it CHANGES (the
+#              `ledger` block's rule -- it moves only when the robot buys a
+#              thought, which is minutes apart at best):
+#                "spend": {"weeklyUsd": 10.0, "spentUsd": 0.0132,
+#                          "leftUsd": 9.9868, "calls": 3, "escalations": 3,
+#                          "unpriced": 0, "recent": [...]}
+#              `unpriced` counts calls whose price nobody published -- the
+#              sum is understated by exactly that many, and a client that
+#              hid the number would be reporting a confident total it does
+#              not have.
+#           2. `mode` on the robot's per-frame record, beside `state` and
+#              `status`: one of MODES below. Inside the existing block
+#              rather than a new one, because it is a fact about the robot
+#              at that instant and that is what the block is.
+#           3. a `mode` MESSAGE, which is the only one of the three that
+#              earns its own type:
+#                {"type": "mode", "t": 812.4, "robot": "pluggybot",
+#                 "mode": "paused", "heldS": 12.5}
+#              Emitted when the mode changes AND as a heartbeat while
+#              `paused`. ⚠ The heartbeat is the load-bearing half: a paused
+#              robot steps no physics, frames are built off SIM time, and so
+#              a paused world emits NO FRAMES AT ALL. Without this a site
+#              could not tell "the operator paused the robot" from "the sim
+#              died", which is the `accepts` lesson in its costliest form --
+#              the one where somebody is meant to notice an outage.
+#         The header gains `modes` (the vocabulary) for the same reason it
+#         carries `taskKinds`: a client can build its controls before the
+#         robot has ever been in one of them.
+#         Additive: a 0.11.0 consumer ignores the block, the field and the
+#         type, and renders exactly what it rendered before.
 # 0.11.0: the robot's memory is a set of NAMED DOCUMENTS, and each one says
 #         who may write it (pluggybot #38, for the website's Thoughts tab --
 #         rooftop-media-2026 #88). One new upstream message, emitted when a
@@ -339,6 +373,18 @@ TASK_SOURCES = ("system", "visitor", "overseer")
 
 #: What the robot may say back about one visitor message.
 VISITOR_OUTCOMES = ("accepted", "declined", "answered")
+
+#: OPERATOR MODES (0.12.0, issue #37). A two-repo contract on the same terms
+#: as FACE_STATES and TASK_STATES: the website's admin page writes these
+#: strings into the mode file and the wire carries them back, so adding one
+#: is additive and renaming one is a change in both repos.
+#:
+#: ⚠ These are the operator's, never the robot's. There is no inbound
+#: message and no decision field that sets one -- a mode is how a person
+#: stops a robot that is behaving badly or spending money, and a kill switch
+#: the thing being killed can reach is not a kill switch. hub/mode.py is the
+#: sim's end and it has no writer at all.
+MODES = ("llm", "scripted", "paused")
 
 # The thought files (issue #38). Two-repo vocabulary on the same terms as
 # TASK_STATES above: the names and the writers are what the wire may carry,
