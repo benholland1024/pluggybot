@@ -1,6 +1,6 @@
 """Stroke programs: what to draw, separated from how to draw it (issue #11).
 
-`hub/drawing.py` knows how to get a pen tip to a board coordinate. This module
+`tools/drawing.py` knows how to get a pen tip to a board coordinate. This module
 knows what those coordinates should be, and knows nothing else -- no MuJoCo, no
 model, no data. That split is the whole point: every later drawing feature (a
 daily greeting, a tic-tac-toe move, a figure the robot picked from a menu)
@@ -38,8 +38,9 @@ import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from pluggybot.hub import hershey, questions
-from pluggybot.hub.drawing import Envelope, circle_path, square_path
+from pluggybot.tools import hershey
+from pluggybot.economy import questions
+from pluggybot.tools.drawing import Envelope, circle_path, square_path
 
 Point = tuple[float, float]
 Polyline = tuple[Point, ...]
@@ -281,14 +282,14 @@ def answer(text: str = "0") -> StrokeProgram:
   """The answer to a question, written big enough to read across a room.
 
   A THIN WRAPPER, and deliberately so: the polylines come from
-  `hub/questions.py`, which is also what the evaluator renders to compare
+  `economy/questions.py`, which is also what the evaluator renders to compare
   against the ink (issue #22). Two renderings that could drift apart would be
   a grader marking against a figure the robot was never asked to draw, so
   there is one of them and this is the plotter's door to it.
 
   Note what this is NOT: a second `text` program. `text` takes arbitrary
   caller text and is kept off the overseer's menu for exactly that reason
-  (`hub/overseer.py`, `Menu.for_world`). An answer is at most two characters
+  (`mind/overseer.py`, `Menu.for_world`). An answer is at most two characters
   from a fixed alphabet, sanitised by `questions.clean_answer` before a
   single stroke exists -- which is what makes this the one place a model's
   own words may reach a wall a stranger is watching.

@@ -13,11 +13,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from pluggybot.hub import scoring
-from pluggybot.hub.boards import BoardBook, BoardRecord
-from pluggybot.hub.errand import Errand, carry_errand, dance_errand
-from pluggybot.hub.ledger import MAX_ENTRIES, RECENT, Ledger
-from pluggybot.hub.scoring import Curve, RewardTable, Verdict, evaluate
+from pluggybot.economy import scoring
+from pluggybot.tools.boards import BoardBook, BoardRecord
+from pluggybot.mission.errand import Errand, carry_errand, dance_errand
+from pluggybot.economy.ledger import MAX_ENTRIES, RECENT, Ledger
+from pluggybot.economy.scoring import Curve, RewardTable, Verdict, evaluate
 
 TABLE = scoring.default_table()
 
@@ -487,7 +487,7 @@ def test_every_errand_the_menu_builds_names_a_task_that_can_be_scored():
   """An errand's `task` is what selects its evaluator, and it defaults off
   the errand NAME -- so a renamed errand silently stops being scored. This is
   the guard on that."""
-  from pluggybot.hub.lifecycle import errands_for
+  from pluggybot.lifecycle import errands_for
   for kind in ("carry", "dance"):
     for errand in errands_for(kind, "room_hub"):
       assert errand.task in scoring.EVALUATORS, \

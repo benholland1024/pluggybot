@@ -13,9 +13,9 @@ import math
 
 import mujoco
 
-from pluggybot.hub import lifecycle as lc
-from pluggybot.hub.inbox import Inbox
-from pluggybot.hub.lifecycle import HubLifecycle
+from pluggybot import lifecycle as lc
+from pluggybot.mind.inbox import Inbox
+from pluggybot.lifecycle import HubLifecycle
 from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
 
 MODULE = "module_lcd"

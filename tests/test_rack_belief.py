@@ -36,8 +36,8 @@ import math
 
 import pytest
 
-from pluggybot.hub.localize import MIN_FACING_CONF, RackFinder, RackPose
-from pluggybot.hub.mission import (
+from pluggybot.rack.localize import MIN_FACING_CONF, RackFinder, RackPose
+from pluggybot.mission.mission import (
   NOMINAL_TRAVEL, TRAVEL_SLACK, bay_standoff, plausible_travel,
 )
 from pluggybot.mapping.landmarks import wall_normal, wall_normal_conf
@@ -212,7 +212,7 @@ def mission_at(pose, bay=None, rack=None, vertex_ahead=0.165):
   source selection, and standing a physics world up to ask them would make a
   0.2 s test a 30 s one.
   """
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
 
   # `pose` is a read-only property on the real class, so the stand-in is a
   # subclass that overrides it rather than an instance with an attribute set.
@@ -294,7 +294,7 @@ def test_a_pinned_robot_does_not_reckon_its_way_across_the_room(world_model):
   """
   import mujoco
 
-  from pluggybot.hub.swap import HubSwap
+  from pluggybot.rack.swap import HubSwap
   data = mujoco.MjData(world_model)
   swap = HubSwap(world_model, data)
   swap.reckoner.x, swap.reckoner.y = 1.0, 2.0
@@ -315,7 +315,7 @@ def test_and_still_reckons_normally_once_it_is_free(world_model):
   the robot would come away from every charge with no idea where it is."""
   import mujoco
 
-  from pluggybot.hub.swap import HubSwap
+  from pluggybot.rack.swap import HubSwap
   data = mujoco.MjData(world_model)
   swap = HubSwap(world_model, data)
   swap.reckoner.x, swap.reckoner.y = 0.0, 0.0

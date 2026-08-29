@@ -1,4 +1,4 @@
-"""Guards for rack discovery (hub/localize.py, milestone 8)."""
+"""Guards for rack discovery (rack/localize.py, milestone 8)."""
 
 import math
 
@@ -6,8 +6,8 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import RACK_HANG_X
-from pluggybot.hub.localize import RackPose, RackSpotter
+from pluggybot.rack.coupling import RACK_HANG_X
+from pluggybot.rack.localize import RackPose, RackSpotter
 
 TAG_WORLD = (-0.9, 5.906)      # the rack tag's true world position
 
@@ -34,7 +34,7 @@ def test_every_hub_marker_decodes_with_the_right_id(room_model):
   the charge bay, and both modules. The colour stand-in could only guess
   which fiducial was which, and once guessed wrong badly enough to drag a
   module toward the wrong bay."""
-  from pluggybot.hub.tags import (
+  from pluggybot.rack.tags import (
     BAY_TAG_IDS, CHARGE_TAG_ID, MODULE_TAG_IDS, RACK_TAG_ID, RACK_TAG_SIZE,
     TagDetector,
   )
@@ -53,7 +53,7 @@ def test_tag_pnp_range_is_accurate(room_model):
   """Range comes from the marker's own pose, not a depth buffer -- so it
   has to be right. This is what the terminal approach trusts instead of
   odometry, which had drifted 20 mm by the return leg."""
-  from pluggybot.hub.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
+  from pluggybot.rack.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
   data = mujoco.MjData(room_model)
   det = TagDetector(room_model, "left_eye", tag_size=RACK_TAG_SIZE)
   try:
@@ -129,7 +129,7 @@ def test_discovery_corrects_a_wrong_prior(room_model):
   """The point of looking: a robot whose stored dock pose has gone stale
   (odometry drift, or someone nudged the rack) must fix it by observation
   rather than driving confidently to the wrong place."""
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   stale = RackPose(RACK_ROOM_WRONG[0], RACK_ROOM_WRONG[1],
                    math.radians(-90.0))

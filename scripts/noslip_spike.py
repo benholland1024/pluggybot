@@ -45,12 +45,12 @@ import time
 import mujoco
 
 from pluggybot.docking.schuko import run_trial
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   HUB_STATION_YS, module_power_contact, run_cycle,
 )
-from pluggybot.hub.drawing import PenPlotter, PEN_MODULE, square_path
-from pluggybot.hub.gripper import CARRY_LIFT, ClawTool, CLAW_MODULE
-from pluggybot.hub.swap import HubSwap
+from pluggybot.tools.drawing import PenPlotter, PEN_MODULE, square_path
+from pluggybot.tools.gripper import CARRY_LIFT, ClawTool, CLAW_MODULE
+from pluggybot.rack.swap import HubSwap
 
 HUB_WORLD = "models/hub_world.xml"
 ROOM_HUB = "models/room_hub.xml"

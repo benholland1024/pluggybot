@@ -24,9 +24,9 @@ import math
 import mujoco
 
 from pluggybot.home import world as home
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.localize import RackPose
-from pluggybot.hub.mission import HubMission
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.rack.localize import RackPose
+from pluggybot.mission.mission import HubMission
 
 TRUE_RACK = RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],
                      math.radians(home.HOME_RACK_YAW))
@@ -137,7 +137,7 @@ def test_bay_fix_measures_the_standoff_the_bay_is_actually_at():
     fix = mission.bay_fix(STATION)
     assert fix is not None, "the bay tag must decode from this pose"
     fx, fy, fhd = fix
-    from pluggybot.hub.swap import PLUG_LATERAL, STANDOFF
+    from pluggybot.rack.swap import PLUG_LATERAL, STANDOFF
     tsx, tsy, tshd = TRUE_RACK.bay_standoff(STATION, STANDOFF, PLUG_LATERAL)
     # the believed frame is the true frame shifted by `across` along the
     # rack's local +y, so the expected fix is the true standoff plus that
@@ -159,7 +159,7 @@ def test_half_a_metre_of_drift_blinds_the_first_look():
   starts decoding, the recovery has lost its premise."""
   mission = carrying_mission()
   try:
-    from pluggybot.hub.mission import bay_standoff
+    from pluggybot.mission.mission import bay_standoff
     decohere(mission, 0.5)
     sx, sy, hd = bay_standoff(STATION, mission.rack)
     mission.drive_to(sx, sy, timeout=30.0)

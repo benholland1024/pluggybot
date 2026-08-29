@@ -35,9 +35,9 @@ doc exists to prevent:
 
 | pattern | is | owns | in one word |
 |---|---|---|---|
-| **errand** (`hub/errand.py`) | a tool, a place and a use-phase | nothing durable — it runs and is over | machinery |
+| **errand** (`mission/errand.py`) | a tool, a place and a use-phase | nothing durable — it runs and is over | machinery |
 | **activity** (`activity/`) | a mechanism watching contacts | discrete world state (a gate latched open) | scenery that reacts |
-| **task** (`hub/tasks.py`) | a JOB OFFER: description, target, reward row, deadline, verdict | its own lifecycle on the board | a reason |
+| **task** (`economy/tasks.py`) | a JOB OFFER: description, target, reward row, deadline, verdict | its own lifecycle on the board | a reason |
 
 **An errand is HOW a task gets done; the task is WHY.** One task resolves to
 one errand today, and the split is what lets a visitor ask for something
@@ -97,7 +97,7 @@ Worked through the deliveries the current kinds actually make:
 | the description ("Draw the answer to this question on whiteboard_a: 2 + 3") | ✅ | a work order over a network |
 | which whiteboard, by id and pose | ✅ | surveyed infrastructure, same class as the charging rack — and the final approach is still sensed (`board_standoff()` / `drive_to_board()` square off against the board, they do not teleport to it) |
 | the answer to the question | ✅ | cognition, not perception — supplying it is what the mind is *for* (§2.1) |
-| whether the board is already clean | ❌ | the robot owns board state (`hub/boards.py` — written on every stroke, survives restarts); it should know from its own actions, and the drawing errand erases first precisely so it need not be told |
+| whether the board is already clean | ❌ | the robot owns board state (`tools/boards.py` — written on every stroke, survives restarts); it should know from its own actions, and the drawing errand erases first precisely so it need not be told |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | the true count in a census | ❌ | hidden ground truth, already correctly redacted (`Task.secret`, `Verdict.secret`) |
 
@@ -136,8 +136,8 @@ inherits all of it for free:
 
 The honesty rule governs what a task may tell the robot; this one governs
 what a task may tell the *ledger*, and it is issue #14's rule arriving from
-the offer side. `Task.task` names an evaluator in `hub/scoring.py` and a row
-of `hub/rewards.json`; what the job PAYS is looked up from the table on every
+the offer side. `Task.task` names an evaluator in `economy/scoring.py` and a row
+of `economy/rewards.json`; what the job PAYS is looked up from the table on every
 read and is never a field anybody can set — a visitor-created task that could
 name its own price would be a stranger on the internet moving a balance, and
 an LLM-proposed one would be the model paying itself. `Task.create` refuses a
@@ -151,7 +151,7 @@ person reads.
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
 text on exactly the inbox's terms — capped at 280 chars and cleaned on the
-way in. And as `hub/inbox.py` records, **sanitising is not the security
+way in. And as `mind/inbox.py` records, **sanitising is not the security
 boundary**; the boundary is that nothing a task says can reach the robot's
 body except by resolving to an errand off a fixed menu.
 
@@ -193,7 +193,7 @@ target can move, its pose climbs the ladder and stops being deliverable.
 
 ## 4. Grading measures the world, never the report
 
-`hub/scoring.py` splits the end of a task into three pieces, and the split is
+`economy/scoring.py` splits the end of a task into three pieces, and the split is
 the whole design: **MEASURE** (samplers read the finished task off the sim),
 **JUDGE** (`EVALUATORS`, pure functions, measurements in → verdict out),
 **PAY** (`rewards.json`, data — base + bonus × quality curves). A `Verdict`
@@ -258,7 +258,7 @@ every one below was hit, measured, and given a gate.
   and a guessed estimate is fatal in either direction: the first table
   guessed 0.35 Wh for a drawing that measures 0.929, and the home fixture
   recorded a robot claiming the job at 88 % and dying mid-stroke. Costs come
-  from `scripts/energy_spike.py` into `hub/energy.json`; a cost key may name
+  from `scripts/energy_spike.py` into `economy/energy.json`; a cost key may name
   a TARGET (`draw:whiteboard_b`) and wins over the bare action, because the
   far whiteboard measurably costs more than the near one and one number for
   both either kills the robot or prices a board off the demo cell. Where two
@@ -277,7 +277,7 @@ every one below was hit, measured, and given a gate.
   `needs_charge` — so a test watching the swap states passes even with the
   branch order inverted. What moves is the moment the robot *accepts* work,
   which is what `tests/test_tasks.py` asserts against the battery clock.
-- **Cadence is data, and deterministic** (`hub/cadence.json`,
+- **Cadence is data, and deterministic** (`economy/cadence.json`,
   `$PLUGGY_CADENCE`). Three files divide the system so each is re-tuned
   alone: `tasks.py` says what a job IS, `rewards.json` what it PAYS,
   `cadence.json` when it TURNS UP. The producer ticks on the physics seam
@@ -319,13 +319,13 @@ ink), `target_kind` says what the target names, and the `template` is the
 sentence a person reads — **with no price in it** (§2.2). `estimate_wh` is
 the world-agnostic FALLBACK and must never sit below the measured cost of the
 errand that discharges the kind (`tests/test_energy.py` is the drift guard);
-the number that actually gets used comes from `hub/energy.json`, so **run
+the number that actually gets used comes from `economy/energy.json`, so **run
 `scripts/energy_spike.py` for the new errand in every world that offers the
 kind**, and add target-keyed rows where targets differ materially.
 
 ### 3. The evaluator, the sampler, and the row
 
-In `hub/scoring.py`: a pure evaluator (measurements in → `(ok, metrics,
+In `economy/scoring.py`: a pure evaluator (measurements in → `(ok, metrics,
 reason)` out — reason phrased to be streamable, i.e. never containing a
 hidden value) and a sampler that reads the finished task off the SIM, taking
 a *before* reading where prior state could contaminate the measurement. In

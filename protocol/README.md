@@ -187,7 +187,7 @@ still sparse in time (emitted only when something changed) and still
 re-shipped on every keyframe.
 
 **`reward` is looked up, never carried.** A task names an evaluator
-(`hub/scoring.py`) and a reward-table row (`hub/rewards.json`); what it pays
+(`economy/scoring.py`) and a reward-table row (`economy/rewards.json`); what it pays
 is read off that table every time the block is built. Nothing that can
 create a task — a visitor, and later the robot itself — can price one. This
 is 0.6.0's rule ("only code awards points") arriving from the direction a
@@ -279,7 +279,7 @@ before.
   so a browser that opens the page an hour into a mission would never learn
   them. A recording carries it right after the header; the live publisher
   re-sends it on **every connect**.
-- **`text` is `hub/journal.py`'s `read_goals` verbatim**: the mounted
+- **`text` is `mind/journal.py`'s `read_goals` verbatim**: the mounted
   `goals.md` a human edits (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md`
   in the deploy), or the built-in defaults when there is no file. It is
   read-only in every direction — there is no inbound message that can
@@ -333,10 +333,26 @@ it opened, and a message can only arrive while that connection is up.
   cannot know whether the first copy arrived), and acting on a suggestion
   twice is still acting on it twice.
 - **`rating` settles the deferred verdict slot** 0.6.0 reserved. `seq` is a
-  ledger entry, `quality` is 0..1, and `hub/rewards.json` — not the rater
+  ledger entry, `quality` is 0..1, and `economy/rewards.json` — not the rater
   and not the robot — turns it into points. The ledger then re-emits that
   entry with `"settled": true`. The `artwork` task now actually produces
   one, so this is a live path rather than a reserved word.
+- **`reset_tool` is the ADMIN recovery for a dropped module** (pluggybot
+  #30), added *after* 0.7.0 and deliberately **without a version bump** — no
+  emitted artifact changes shape (recordings carry no inbound messages), and
+  `accepts` is where a website discovers whether this sim understands it.
+  The `accepts` list is the mechanism; the version number is not.
+
+  ```jsonc
+  {"type": "reset_tool", "id": "a_01", "module": "module_pen", "from": "ben"}
+  ```
+
+  Handled by CODE the moment the physics thread drains it — the module jumps
+  back to its own bay, exactly as `rating` goes straight to the ledger — and
+  it **never reaches the overseer**: an admin command is not a thing the
+  robot weighs. The acknowledgement is the world itself (the module's pose
+  stream) plus a narration event line. The sim **refuses, with a narration**,
+  while the module is seated on the fork: a tool in use is not a lost one.
 - **Unknown types are dropped and counted**, so adding one is additive and
   a website ahead of its sim is a no-op rather than a crash. `move` and
   `clear_board` (tic-tac-toe) are named in the issue as later work and are
@@ -431,8 +447,8 @@ that ignores both renders exactly what it rendered before.
 ```
 
 **Only code awards points.** The verdict comes from a deterministic evaluator
-(`pluggybot/hub/scoring.py`) that measures the finished task off the sim; what
-it is worth comes from a data table (`hub/rewards.json`); the ledger re-derives
+(`pluggybot/economy/scoring.py`) that measures the finished task off the sim; what
+it is worth comes from a data table (`economy/rewards.json`); the ledger re-derives
 the payout from both before banking it. The robot — and, when it lands, the LLM
 overseer — *sees* its balance and the reward table, and can move neither. An
 agent that can score its own work learns to declare victory instead of doing
@@ -518,7 +534,7 @@ hanging in its bay is `off`, and so is a half-seated one on the fork.
 **Why `board_snapshot` had to exist.** Keyframes re-ship every board's
 counters, but no keyframe re-ships the LINES: a stroke is an event that
 happens once. So a browser that opens the page after the pen has moved on —
-or after the producer restarted onto a state file, since `hub/boards.py` now
+or after the producer restarted onto a state file, since `tools/boards.py` now
 persists the polylines themselves — sees a board reporting 40 % fill with
 nothing painted on it. The snapshot is what closes that gap. It is sent when
 a stream opens (a recording carries it right after the header; the live

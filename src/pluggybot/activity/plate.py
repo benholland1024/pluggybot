@@ -17,7 +17,7 @@ smallest thing that exercises every part of it:
                           keyframes
 
 An activity module owns BOTH its geometry and its state machine, the way
-`hub/coupling.py` owns the tool modules' faces. A world generator calls
+`rack/coupling.py` owns the tool modules' faces. A world generator calls
 `plate_gate_xml()` and knows nothing else about it; adding an activity to a
 world is one import and one call.
 

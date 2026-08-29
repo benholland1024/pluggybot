@@ -1,10 +1,10 @@
 """When work appears, how long it stands, and how much of it there may be
 (issue #23).
 
-hub/tasks.py owns what a task IS and what may happen to it, and says in its
+economy/tasks.py owns what a task IS and what may happen to it, and says in its
 own docstring that timing policy is deliberately not there. This is that
-policy, and it is DATA -- hub/cadence.json, overridable per deploy with
-$PLUGGY_CADENCE, on exactly the terms hub/rewards.json is data. The three
+policy, and it is DATA -- economy/cadence.json, overridable per deploy with
+$PLUGGY_CADENCE, on exactly the terms economy/rewards.json is data. The three
 files divide cleanly and that is the point: what a job is, what it pays, and
 when it turns up are re-tuned one at a time.
 
@@ -51,11 +51,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pluggybot.hub.tasks import KINDS, TaskBoard
+from pluggybot.economy.tasks import KINDS, TaskBoard
 
 #: The shipped cadence. Overridable per deploy with $PLUGGY_CADENCE, which is
 #: how the deployment re-tunes how busy the world is on a mounted volume
-#: without a rebuild -- the same door hub/rewards.json and hub/questions.json
+#: without a rebuild -- the same door economy/rewards.json and economy/questions.json
 #: are opened by.
 CADENCE_PATH = Path(__file__).with_name("cadence.json")
 CADENCE_ENV = "PLUGGY_CADENCE"
@@ -72,7 +72,7 @@ CHECK_S = 1.0
 
 @dataclass(frozen=True)
 class Cadence:
-  """One world's timing policy, as read off hub/cadence.json.
+  """One world's timing policy, as read off economy/cadence.json.
 
   Frozen, and every field is a number or a name -- a Cadence is the ANSWER to
   "how busy is this world", not a thing that decides it. `TaskProducer` below
@@ -177,7 +177,7 @@ class TaskProducer:
   Deliberately knows nothing about the world it is producing for beyond
   `targets`: a mapping of `TaskKind.target_kind` ("board", "zone", "module")
   to the names this world actually has. That is what keeps the layering one
-  way -- hub/lifecycle.py knows about worlds and hands the furniture in, and
+  way -- pluggybot/lifecycle.py knows about worlds and hands the furniture in, and
   nothing here imports it back.
 
   `board` is the `TaskBoard`, which stays the only thing that moves a task.
@@ -291,30 +291,16 @@ class TaskProducer:
         estimate = spec.estimate_wh
       if pack_wh is not None and estimate > float(pack_wh):
         # THE WORLD'S ENERGY GATE, and read what it is measured against.
+        # `pack_wh` is what a CHARGED pack holds in this world (the caller
+        # passes `HubLifecycle.fundable_wh`), NOT what is in the cell now. So
+        # this refuses only a job the world could never fund; a job the robot
+        # merely cannot afford yet is still put up, and stands unclaimable
+        # until the pack is legal again -- `Task.claimable` is the gate with
+        # the teeth.
         #
-        # `pack_wh` here is what a CHARGED pack holds in this world, not what
-        # is in the cell at this instant -- the caller passes
-        # `HubLifecycle.fundable_wh`. So this refuses a job the world could
-        # never fund and nothing else, and a job the robot merely cannot
-        # afford right now is still put up.
-        #
-        # ⚠ THE OTHER READING WAS TRIED AND MEASURED, and it starves the
-        # robot. Issue #23 asks for a job whose cost exceeds the usable pack
-        # to be deferred until after a charge; gating each tick on the
-        # INSTANTANEOUS charge does that literally and takes home from 58
-        # offers in four sim-hours to 14, with 46 deferrals -- fewer jobs
-        # than the robot can complete in that time, which is the empty world
-        # this module exists to prevent, arriving as a safety feature. The
-        # reason is arithmetic rather than tuning: one errand costs roughly
-        # one full pack, so the window in which a home cell is above any
-        # errand's estimate is the minute after a charge, and a 240 s tick
-        # mostly misses it.
-        #
-        # Deferring until after a charge is REAL, and it already lives in
-        # `Task.claimable` -- an offer simply stands, unclaimable, until the
-        # pack is legal again, which is also what the site draws and what
-        # `_claim_next_task` consults. That is the gate with the teeth; this
-        # one only keeps a world from advertising work it could never fund.
+        # ⚠ Gating on the INSTANTANEOUS charge was tried and starves the
+        # robot: home falls from 58 offers in four sim-hours to 14, fewer
+        # than it can complete. docs/TaskPattern.md section 5.
         starved = True
         passed = index if passed is None else passed
         continue
@@ -371,7 +357,7 @@ class TaskProducer:
       params["program"] = programs[self.figure % len(programs)]
       self.figure += 1
     if kind == "whiteboard_answer":
-      from pluggybot.hub.questions import default_bank
+      from pluggybot.economy.questions import default_bank
       question = default_bank().pick(self.board.seq)
       params.update({"question": question.ask, "template": question.id})
       return params, {"answer": question.answer}

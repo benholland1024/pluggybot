@@ -1,6 +1,6 @@
 """Robot-side tool swap: the coupling spike's phases, driven by the real base.
 
-The spike (hub/coupling.py) validated the fork-and-peg latch with an ideal
+The spike (rack/coupling.py) validated the fork-and-peg latch with an ideal
 carrier; this runs the same slide-under / lift / retreat verbs through the
 actual robot in hub_world.xml -- wheel velocity servos with slew, the real
 lift lead-screw, odometry for the approach distance, and the fork hanging on
@@ -14,7 +14,7 @@ import math
 import mujoco
 
 from pluggybot.control import slew, wheel_targets
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   HUB_PEG_Z, HUB_STATION_YS, LIFT_STEP, PEG_R, RACK_HANG_X, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
@@ -113,7 +113,7 @@ class HubSwap:
     #: downstream is computed in that frame -- so the robot drove to a bay
     #: standoff it believed it had reached and was physically a metre away,
     #: the bay tag honestly ranged 1.25 m, and the fetch came away empty.
-    #: `hub/mission.py`'s `_drive_until` docstring has always said that
+    #: `mission/mission.py`'s `_drive_until` docstring has always said that
     #: pressing slips the wheels and dead reckoning counts it as progress;
     #: this is the other half of that sentence, and the half that survives
     #: the drive being over.

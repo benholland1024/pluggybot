@@ -16,8 +16,8 @@ Usage:
 
 import argparse
 
-from pluggybot.hub import llm
-from pluggybot.hub.lifecycle import run_demo
+from pluggybot.mind import llm
+from pluggybot.lifecycle import run_demo
 
 
 def main() -> None:
@@ -66,8 +66,8 @@ def main() -> None:
   parser.add_argument("--tasks", action="store_true",
                       help="offer the robot JOBS this run (issue #21): each "
                            "one has a description, a target, a reward off "
-                           "hub/rewards.json and a deadline. More arrive on "
-                           "the cadence in hub/cadence.json as the run goes "
+                           "economy/rewards.json and a deadline. More arrive on "
+                           "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
   parser.add_argument("--task-state", default=None, metavar="PATH",
@@ -157,7 +157,7 @@ def main() -> None:
     print(f"board {name:<17s}: {b['strokes']} strokes, {b['fill']:.0%} full, "
           f"{b['clears']} clear(s), programs {b['programs'] or '-'}")
   # What the robot EARNED, and why (issue #14). Every line here came out of a
-  # deterministic evaluator in hub/scoring.py -- the mission awards nothing.
+  # deterministic evaluator in economy/scoring.py -- the mission awards nothing.
   for v in r["verdicts"]:
     print(f"score  {v['task']:<16s}: {v['points']:+d}"
           f"{' PENDING' if v['pending'] else ''}"

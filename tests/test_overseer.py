@@ -21,13 +21,13 @@ from collections import Counter
 import mujoco
 import pytest
 
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.journal import MAX_NOTE_CHARS, Journal, read_goals
-from pluggybot.hub.lifecycle import (
+from pluggybot.mind import overseer as ov
+from pluggybot.mind.journal import MAX_NOTE_CHARS, Journal, read_goals
+from pluggybot.lifecycle import (
   HubLifecycle, board_book, errand_from, world_config, zone_centre,
 )
-from pluggybot.hub.overseer import Decision, Menu, Overseer, scripted
-from pluggybot.hub.scoring import default_table
+from pluggybot.mind.overseer import Decision, Menu, Overseer, scripted
+from pluggybot.economy.scoring import default_table
 
 
 # ---- fakes -------------------------------------------------------------------

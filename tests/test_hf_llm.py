@@ -1,7 +1,7 @@
 """Guards for the HuggingFace backend behind the overseer (issue #15).
 
 The overseer's client seam is "anything with `.messages.create(**kwargs)`
-returning `.content` and `.usage`"; `hub/llm.py` adapts the HF router to it
+returning `.content` and `.usage`"; `mind/llm.py` adapts the HF router to it
 so `Overseer._call` cannot tell the vendors apart. Everything here runs
 against a fake `fetch` -- a suite that needs a token and a network is a suite
 that fails for reasons that are not about the code.
@@ -11,9 +11,9 @@ import json
 
 import pytest
 
-from pluggybot.hub import llm, overseer
-from pluggybot.hub.llm import FORMAT_NOTE, HFClient, is_hf_model
-from pluggybot.hub.overseer import Menu, Overseer
+from pluggybot.mind import llm, overseer
+from pluggybot.mind.llm import FORMAT_NOTE, HFClient, is_hf_model
+from pluggybot.mind.overseer import Menu, Overseer
 
 
 def fake_fetch(script):

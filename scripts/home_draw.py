@@ -1,7 +1,7 @@
 """The home-world drawing errand: fetch the pen, erase a board, draw, stow.
 
 As of issue #12 this script is a THIN CALLER of the lifecycle's own errand
-path (`hub/errand.py` + `HubLifecycle.run_errand`) rather than a second copy
+path (`mission/errand.py` + `HubLifecycle.run_errand`) rather than a second copy
 of the mission stack. What it adds over `hub_lifecycle.py --errand draw` is
 diagnostics, not behaviour: a photo of the board taken while the robot is
 still standing at it, and the commanded-vs-inked overlay in board
@@ -35,13 +35,13 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.boards import BoardBook
-from pluggybot.hub.drawing import Board
-from pluggybot.hub.errand import drawing_errand
-from pluggybot.hub.lifecycle import HubLifecycle
-from pluggybot.hub.localize import RackPose
-from pluggybot.hub.mission import MissionAborted
-from pluggybot.hub.strokes import PROGRAMS, from_cli
+from pluggybot.tools.boards import BoardBook
+from pluggybot.tools.drawing import Board
+from pluggybot.mission.errand import drawing_errand
+from pluggybot.lifecycle import HubLifecycle
+from pluggybot.rack.localize import RackPose
+from pluggybot.mission.mission import MissionAborted
+from pluggybot.tools.strokes import PROGRAMS, from_cli
 from pluggybot.home import world as home
 
 OUT = "home_draw.png"

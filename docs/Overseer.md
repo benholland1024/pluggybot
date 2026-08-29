@@ -5,7 +5,7 @@ and the boundary is the interesting part: everything that keeps the robot alive
 stays in code, and the model is given exactly one branch of one loop.
 
 Design doc: `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
-Code: `src/pluggybot/hub/overseer.py` (decide) and `hub/journal.py` (remember).
+Code: `src/pluggybot/mind/overseer.py` (decide) and `mind/journal.py` (remember).
 
 ---
 
@@ -78,7 +78,7 @@ can think comes past, and lapses honestly as `expired` if nothing does.
 That is deliberate, and it is the first thing in this design that the LLM is
 not merely *allowed* to do but is the *only* thing that can. The two ways
 code could supply an answer are both worse than leaving the job alone —
-reading it out of `hub/questions.json` is the sim marking its own homework,
+reading it out of `economy/questions.json` is the sim marking its own homework,
 and guessing puts a confident wrong number on a wall — and a weaker backend
 (issue #19) getting one wrong in public, on a whiteboard, is exactly the
 honest difference the kind exists to show.
@@ -96,7 +96,7 @@ reduces it to at most two characters from `0-9` before a single stroke
 exists. There is no free-text path from the model to the board.
 
 What the overseer cannot do with a task is the usual list, one notch further
-out: it cannot price one (the payout is looked up from `hub/rewards.json`
+out: it cannot price one (the payout is looked up from `economy/rewards.json`
 every time the offer is read), it cannot close one (`TaskBoard.resolve` takes a
 `scoring.Verdict` and nothing that merely looks like one), and it cannot see a
 task's answer (`Task.secret` is in no context dict, no snapshot and no wire
@@ -135,7 +135,7 @@ than a thing it promises not to, and each is pinned by a test.
 
 **It cannot award itself points.** The reward table is in its context — making
 the reward explicit and steerable is the whole point of issue #14 — but
-`hub/scoring.py` measures the finished task off the sim and `hub/ledger.py`
+`economy/scoring.py` measures the finished task off the sim and `economy/ledger.py`
 re-derives the payout from the table before banking it. Neither takes an
 argument from here. The overseer chooses what to attempt; code decides what it
 was worth. An agent that can score its own work learns to declare victory, and
@@ -236,8 +236,8 @@ errand  t= 308.6-> 459.9  frac 0.883->0.000  = 0.9718 Wh   (a census)
                                        ^^^^^ nothing left
 ```
 
-`hub/energy.py` + `hub/energy.json` are the answer, and they are the fourth
-member of the set `hub/tasks.py` opened: what a job **is**, what it **pays**
+`economy/energy.py` + `economy/energy.json` are the answer, and they are the fourth
+member of the set `economy/tasks.py` opened: what a job **is**, what it **pays**
 (`rewards.json`), when it **turns up** (`cadence.json`), and now what it
 **costs**. Data, per world, `$PLUGGY_ENERGY` to re-point.
 
@@ -277,7 +277,7 @@ LCD.
 That is the invariant, not "never exceeded" — an overrun smaller than the
 return trip cannot strand the robot. One larger than it means the table has
 gone stale, and the loop narrates that
-(`ENERGY <errand> cost X against an estimate of Y — hub/energy.json is low`,
+(`ENERGY <errand> cost X against an estimate of Y — economy/energy.json is low`,
 fired at 10 % over so a few percent of trajectory variance is not noise). That
 line is how `count_plants` was caught at 0.87 Wh against a measured 1.14.
 
@@ -562,7 +562,7 @@ Issue #15 shipped two files whose asymmetry *was* the design — goals read and
 never written, a journal written and never edited. Issue #38 keeps that
 asymmetry and makes it a **table**: four named Markdown documents, each with
 one writer, which is the shape the website's Thoughts tab renders. Code:
-`hub/thoughts.py`, and the permission check lives at the single write path
+`mind/thoughts.py`, and the permission check lives at the single write path
 rather than being promised by its callers.
 
 | File | Written by | Cap | Why |
@@ -619,7 +619,7 @@ rather than being promised by its callers.
   journal is *this decision's* remark; `History.md` is the record of what
   happened; `Knowledge_and_Opinions.md` is what the robot concluded. None of
   the three is scoring or can become scoring: the journal is `narrative` tier,
-  the one tier in `hub/scoring.py` with no evaluator and none coming. A robot
+  the one tier in `economy/scoring.py` with no evaluator and none coming. A robot
   writing "I did great today" earns nothing by writing it.
 
 ### ⚠ The split is by WRITER — and the reason is not the one the issue gives
@@ -658,7 +658,7 @@ bluntest (the thing being switched off cannot reach the switch).
 | ceiling | where | what it stops |
 |---|---|---|
 | the provider balance | the HuggingFace account, topped up by hand | everything, absolutely. Deliberately not code |
-| the weekly allowance | `hub/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10) | a month's money going in an afternoon |
+| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10) | a month's money going in an afternoon |
 | the hourly call cap | `Overseer.calls_per_hour`, unchanged since #15 | a loop bug |
 
 ⚠ **The hourly window could not be reused for the weekly one, and the reason
@@ -729,7 +729,7 @@ escalation rate to move.
 
 ### The operator's switch
 
-`hub/mode.py` reads a JSON file and **never writes it** — there is no writer
+`mind/mode.py` reads a JSON file and **never writes it** — there is no writer
 in the module at all, not even a private one, and `tests/test_allowance.py`
 asserts that absence so the next convenience added there fails a test.
 
@@ -823,7 +823,7 @@ and it can take them or turn them down. The channel is the same authenticated
 socket the publisher already dialled out on — the sim still owns no inbound
 port, and a message can only reach it while that connection is up.
 
-`hub/inbox.py` is the sim's end: a bounded, drop-oldest, thread-safe queue.
+`mind/inbox.py` is the sim's end: a bounded, drop-oldest, thread-safe queue.
 Messages arrive on the publisher's socket thread (which polls `recv(timeout=0)`
 between sends, so there is no reader thread and the connection is only ever
 touched by one), and the physics thread drains it. A full queue drops its

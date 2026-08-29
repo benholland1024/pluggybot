@@ -121,8 +121,8 @@ class Blocked:
 sys.meta_path.insert(0, Blocked(set(sys.argv[1].split(","))))
 
 import mujoco
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.lifecycle import (
+from pluggybot.mind import overseer as ov
+from pluggybot.lifecycle import (
   HubLifecycle, board_book, errands_for, world_config,
 )
 from pluggybot.telemetry.publisher import WsPublisher

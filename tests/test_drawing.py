@@ -1,16 +1,16 @@
-"""Guards for the drawing tool's plot controller (hub/drawing.py, milestone 8)."""
+"""Guards for the drawing tool's plot controller (tools/drawing.py, milestone 8)."""
 
 import math
 
 import mujoco
 import pytest
 
-from pluggybot.hub import strokes
-from pluggybot.hub.coupling import HUB_STATION_YS, module_power_contact
-from pluggybot.hub.drawing import (
+from pluggybot.tools import strokes
+from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.tools.drawing import (
   PEN_MODULE, PenPlotter, circle_path, pen_on_board, square_path,
 )
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.swap import HubSwap
 
 
 @pytest.fixture(scope="module")

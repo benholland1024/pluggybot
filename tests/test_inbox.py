@@ -26,10 +26,10 @@ import time
 
 import pytest
 
-from pluggybot.hub.inbox import (
+from pluggybot.mind.inbox import (
   MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, Inbox, VisitorMessage, clean,
 )
-from pluggybot.hub.overseer import Decision, Menu
+from pluggybot.mind.overseer import Decision, Menu
 from pluggybot.telemetry.protocol import INBOUND_TYPES, VISITOR_OUTCOMES
 
 
@@ -328,7 +328,7 @@ def test_the_reply_the_visitor_reads_is_capped_too():
 
 
 def test_the_inbound_vocabulary_is_the_protocols():
-  """One source: hub/inbox.py parses exactly what protocol.py publishes, so
+  """One source: mind/inbox.py parses exactly what protocol.py publishes, so
   the wire spec and the parser cannot drift."""
   assert INBOUND_TYPES == ("suggestion", "question", "rating", "reset_tool")
   assert "move" not in INBOUND_TYPES and "clear_board" not in INBOUND_TYPES
@@ -347,7 +347,7 @@ def test_a_decision_carries_its_reply_to_the_wire():
 
 def _lifecycle(**kw):
   import mujoco
-  from pluggybot.hub.lifecycle import HubLifecycle, world_config
+  from pluggybot.lifecycle import HubLifecycle, world_config
   cfg = world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   return HubLifecycle(model, mujoco.MjData(model), realtime=False,
@@ -409,8 +409,8 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
   reach (issue #14) -- so `_visitor_step` drains ratings straight to the
   ledger and the overseer is not consulted or even told.
   """
-  from pluggybot.hub import scoring
-  from pluggybot.hub.ledger import Ledger
+  from pluggybot.economy import scoring
+  from pluggybot.economy.ledger import Ledger
 
   ledger = Ledger()
   verdict = scoring.evaluate("artwork", {
@@ -443,8 +443,8 @@ def test_a_rating_the_ledger_refuses_is_narrated_not_raised(seq, quality, why):
   """The website is a different process holding a possibly stale row. It is
   allowed to be wrong about which entry is open; the sim is not allowed to
   fall over when it is."""
-  from pluggybot.hub import scoring
-  from pluggybot.hub.ledger import Ledger
+  from pluggybot.economy import scoring
+  from pluggybot.economy.ledger import Ledger
 
   ledger = Ledger()
   ledger.award(scoring.evaluate("carry", {"picked": True, "stowed": True,

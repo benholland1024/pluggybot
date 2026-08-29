@@ -519,7 +519,7 @@ def test_every_connection_is_caught_up_on_the_ink(mini_model):
   none -- and a RECONNECT is the same problem, which is why the snapshot
   rides every session rather than only the first.
   """
-  from pluggybot.hub.boards import BoardBook, BoardRecord
+  from pluggybot.tools.boards import BoardBook, BoardRecord
 
   mini_model.opt.gravity[:] = 0
   data = mujoco.MjData(mini_model)
@@ -596,7 +596,7 @@ _SERVE = Path(__file__).parent.parent / "scripts" / "serve.py"
 
 def _publishing(mini_model, sink, **kw):
   """A publisher wired to an inbox, connected to `sink`. Returns both."""
-  from pluggybot.hub.inbox import Inbox
+  from pluggybot.mind.inbox import Inbox
   data = mujoco.MjData(mini_model)
   inbox = Inbox(**kw)
   pub = WsPublisher(mini_model, data, sink.endpoint, hz=20.0)
@@ -792,7 +792,7 @@ def test_serve_takes_every_world_constant_from_world_config(monkeypatch, world):
   (-1.2, 2.5) -- which in the home world is inside wall_divider_0, so the
   errand drives at a wall instead of into the living room.
   """
-  from pluggybot.hub.lifecycle import world_config
+  from pluggybot.lifecycle import world_config
   cfg = world_config(world)
 
   life, pub, model = _serve_wiring(monkeypatch, ["--world", world, "--free-run"])

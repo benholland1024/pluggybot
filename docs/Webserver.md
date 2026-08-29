@@ -123,8 +123,8 @@ keyframe, so a late joiner needs no snapshot message for points the way it
 needs one for ink.
 
 Everything about it is a READOUT. Points are awarded by a deterministic
-evaluator in the sim (`hub/scoring.py`), priced by a data table
-(`hub/rewards.json`), and banked by a ledger that re-derives the payout before
+evaluator in the sim (`economy/scoring.py`), priced by a data table
+(`economy/rewards.json`), and banked by a ledger that re-derives the payout before
 accepting it. Nothing on the socket can move a balance, in either direction —
 including, when it lands, the LLM overseer, which sees its score and cannot
 touch it. `--ledger PATH` (or `$PLUGGY_LEDGER`) is where the balance lives

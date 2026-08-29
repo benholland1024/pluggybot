@@ -16,7 +16,7 @@ budgets and different failure modes:
                 projection, same LandmarkStore, same sighting-count
                 confirmation, because a marker seen once is still a rumor).
   fine approach the last few millimeters. Needs ~4 mm, which no stored pose
-                can promise. Done by hub/mission.py's servo, looking at the
+                can promise. Done by mission/mission.py's servo, looking at the
                 bay's own tag as it closes in.
 
 Measured detection range for the rack's 120 mm marker at 1280x720: it
@@ -28,10 +28,10 @@ they are ever read from.
 import math
 from dataclasses import dataclass
 
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   RACK_BRACKET_X, RACK_HANG_X, RACK_RAIL_Z, RACK_ROOM_POS, RACK_ROOM_YAW,
 )
-from pluggybot.hub.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
+from pluggybot.rack.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
 from pluggybot.mapping.landmarks import LandmarkStore, wall_normal_conf
 from pluggybot.perception.outlet_spotter import pixel_to_world
 

@@ -22,9 +22,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from pluggybot.hub import llm, overseer
-from pluggybot.hub.llm import ChatClient, build_client, resolve_backend
-from pluggybot.hub.overseer import MODEL, Menu, Overseer
+from pluggybot.mind import llm, overseer
+from pluggybot.mind.llm import ChatClient, build_client, resolve_backend
+from pluggybot.mind.overseer import MODEL, Menu, Overseer
 
 MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
 
@@ -213,7 +213,7 @@ def test_a_third_party_endpoint_prices_as_unknown_not_free():
 
 def test_an_anthropic_model_the_rate_table_does_not_cover_is_unknown_too():
   """Same rule pointed at our own vendor: the rates at the top of
-  hub/overseer.py are Haiku 4.5's, and charging a Sonnet run at them would be
+  mind/overseer.py are Haiku 4.5's, and charging a Sonnet run at them would be
   inventing a bill from the one direction it would be easiest to believe."""
   boss = Overseer(MENU, model="claude-sonnet-5", backend="anthropic")
   boss._client = object()

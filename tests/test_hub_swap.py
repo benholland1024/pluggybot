@@ -6,8 +6,8 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import HUB_STATION_YS, TOOL_HALF_X
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS, TOOL_HALF_X
+from pluggybot.rack.swap import HubSwap
 
 # Adjacent-link clearance for the FORK, the same geometric discipline as
 # test_arm.py: weld/parent filtering silences these contacts, so overlap is
@@ -181,7 +181,7 @@ def test_module_power_follows_the_coupling(hub_model):
   the rack is DEAD, a module properly seated on the fork is LIVE, and the
   transition happens on the lift -- the latching motion -- not on arrival.
   """
-  from pluggybot.hub.coupling import module_power_contact, module_power_state
+  from pluggybot.rack.coupling import module_power_contact, module_power_state
   data = mujoco.MjData(hub_model)
   swap = HubSwap(hub_model, data)
   swap.place_at_standoff(HUB_STATION_YS[0])
@@ -214,7 +214,7 @@ def test_module_power_survives_carrying(hub_model):
   because the robot turned would be a miserable bug to find later.
   """
   from pluggybot.control import wheel_targets
-  from pluggybot.hub.coupling import module_power_state
+  from pluggybot.rack.coupling import module_power_state
   data = mujoco.MjData(hub_model)
   swap = HubSwap(hub_model, data)
   swap.place_at_standoff(HUB_STATION_YS[0])
@@ -264,8 +264,8 @@ def test_bay_tag_ids_pair_by_index(hub_model):
   two-bay equality check, which would have silently steered every bay-C swap
   onto bay B's marker -- the exact class of bug real AprilTags were adopted
   to make impossible."""
-  from pluggybot.hub.coupling import HUB_STATION_YS, bay_tag_id
-  from pluggybot.hub.tags import BAY_TAG_IDS
+  from pluggybot.rack.coupling import HUB_STATION_YS, bay_tag_id
+  from pluggybot.rack.tags import BAY_TAG_IDS
   assert len(BAY_TAG_IDS) == len(HUB_STATION_YS), "a bay has no tag"
   assert len(set(BAY_TAG_IDS)) == len(BAY_TAG_IDS), "duplicate bay tag id"
   for i, y in enumerate(HUB_STATION_YS):
@@ -285,7 +285,7 @@ def test_pen_module_is_a_usable_tool(hub_model):
   pairing with the lift to make an X-Y plotter. So the module has to survive
   being a module first: hang, be picked, and conduct.
   """
-  from pluggybot.hub.coupling import (
+  from pluggybot.rack.coupling import (
     HUB_STATION_YS, PEN_TRAVEL, module_power_contact,
   )
   data = mujoco.MjData(hub_model)
@@ -338,7 +338,7 @@ def test_pen_carriage_sweep_clears_the_robot(hub_model):
   module is the first part that MOVES while carried, so its envelope has
   never been swept before.
   """
-  from pluggybot.hub.coupling import HUB_STATION_YS, PEN_TRAVEL
+  from pluggybot.rack.coupling import HUB_STATION_YS, PEN_TRAVEL
   data = mujoco.MjData(hub_model)
   swap = HubSwap(hub_model, data)
   swap.place_at_standoff(HUB_STATION_YS[2])
@@ -386,7 +386,7 @@ def _module_geoms(model, name):
 
 
 def _bay_geoms(model, i):
-  from pluggybot.hub.coupling import bay_prefix
+  from pluggybot.rack.coupling import bay_prefix
   pre = bay_prefix(i)
   return [g for g in range(model.ngeom)
           if (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g) or "")
@@ -395,7 +395,7 @@ def _bay_geoms(model, i):
 
 def _flank_clearance(model, data, bay):
   """How far a peg must rise from its rest to pass over the tray flanks."""
-  from pluggybot.hub.coupling import HUB_PEG_Z, PEG_R, TRAY_VERTEX_DROP
+  from pluggybot.rack.coupling import HUB_PEG_Z, PEG_R, TRAY_VERTEX_DROP
   mujoco.mj_forward(model, data)
   flank_top = max(
     float(data.geom_xpos[g][2]) + _world_half_extents(model, data, g)[2]
@@ -423,7 +423,7 @@ def _stow_raise_band():
   the rail further below the pen line (`PEN_RAIL_DZ`) -- that is free,
   because the pen line does not move with it.
   """
-  from pluggybot.hub.swap import RETURN_CLEARANCE
+  from pluggybot.rack.swap import RETURN_CLEARANCE
   return RETURN_CLEARANCE + 0.009, RETURN_CLEARANCE + 0.018
 
 
@@ -434,7 +434,7 @@ def _fouls(model, data, name, mod, bay, dz):
   data, so repeated calls cannot drift by reading back a height this
   function itself set.
   """
-  from pluggybot.hub.coupling import (
+  from pluggybot.rack.coupling import (
     HUB_PEG_Z, PEG_ABOVE_BODY, PEG_R, TRAY_VERTEX_DROP,
   )
   adr = model.jnt_qposadr[model.body(name).jntadr[0]]
@@ -534,8 +534,8 @@ def test_pen_stows_back_into_its_bay_after_its_carriage_has_moved(hub_model):
   Displacing the carriage by hand stands in for the drawing: it is the
   state a figure leaves behind, without paying for a figure.
   """
-  from pluggybot.hub.drawing import PenPlotter
-  from pluggybot.hub.swap import ARM_EXT
+  from pluggybot.tools.drawing import PenPlotter
+  from pluggybot.rack.swap import ARM_EXT
   data = mujoco.MjData(hub_model)
   swap = HubSwap(hub_model, data)
   swap.place_at_standoff(HUB_STATION_YS[2])
@@ -568,7 +568,7 @@ def test_charge_bay_press_connects(hub_model):
   """Nosing into the charge bay and pressing must land BOTH pogo pins on the
   bumper -- the rack-side charge criterion -- without shoving the rack."""
   import math
-  from pluggybot.hub.coupling import CHARGE_BAY_Y, rack_charge_contact
+  from pluggybot.rack.coupling import CHARGE_BAY_Y, rack_charge_contact
   data = mujoco.MjData(hub_model)
   swap = HubSwap(hub_model, data)
   yaw = math.pi

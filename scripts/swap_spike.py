@@ -31,9 +31,9 @@ import math
 import mujoco
 
 from pluggybot.home import world as home
-from pluggybot.hub.coupling import HUB_STATION_YS
-from pluggybot.hub.localize import RackPose
-from pluggybot.hub.mission import HubMission
+from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.rack.localize import RackPose
+from pluggybot.mission.mission import HubMission
 
 TRUE_RACK = RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],
                      math.radians(home.HOME_RACK_YAW))

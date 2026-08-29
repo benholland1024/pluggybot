@@ -23,10 +23,10 @@ import json
 
 import pytest
 
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.lifecycle import board_book, world_config
-from pluggybot.hub.overseer import Menu, Overseer
-from pluggybot.hub.thoughts import (
+from pluggybot.mind import overseer as ov
+from pluggybot.lifecycle import board_book, world_config
+from pluggybot.mind.overseer import Menu, Overseer
+from pluggybot.mind.thoughts import (
   GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ROBOT, SYSTEM,
   NAMES, SPECS, ThoughtFiles, ThoughtRefused,
 )
@@ -338,7 +338,7 @@ def test_the_history_the_model_sees_is_the_tail(files):
   """The whole file is on disk and on the wire; the PROMPT gets the last few
   lines. The last dozen things that happened are context, and the hundred
   before them are input tokens on every call for the rest of the mission."""
-  from pluggybot.hub.thoughts import HISTORY_SHOWN
+  from pluggybot.mind.thoughts import HISTORY_SHOWN
   for i in range(HISTORY_SHOWN * 3):
     files.record(f"thing number {i}", t=float(i))
   shown = files.volatile()[HISTORY]

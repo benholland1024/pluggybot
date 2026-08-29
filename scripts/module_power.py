@@ -35,9 +35,9 @@ import mujoco
 import numpy as np
 from PIL import Image, ImageDraw
 
-from pluggybot.hub.coupling import HUB_STATION_YS, module_power_state
-from pluggybot.hub.mission import HubMission, MissionAborted
-from pluggybot.hub.swap import HubSwap
+from pluggybot.rack.coupling import HUB_STATION_YS, module_power_state
+from pluggybot.mission.mission import HubMission, MissionAborted
+from pluggybot.rack.swap import HubSwap
 from pluggybot.power import MODULE_IDLE_W
 
 MODULE = "module_lcd"
@@ -215,7 +215,7 @@ def draw_timeline(draw, log, marks, x0, y0, w, h):
 def _launch_viewer(model, data):
   # `from mujoco import viewer as ...`, NOT `import mujoco.viewer`: the
   # latter binds `mujoco` as a function-local and shadows the module-level
-  # import for the whole function (the same trap hub/mission.py documents).
+  # import for the whole function (the same trap mission/mission.py documents).
   from mujoco import viewer as mj_viewer
   return mj_viewer.launch_passive(model, data)
 

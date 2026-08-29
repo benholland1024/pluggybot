@@ -19,13 +19,13 @@ import time
 
 import pytest
 
-from pluggybot.hub import mode as mode_mod
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.mode import MODES, ModeSwitch
-from pluggybot.hub.overseer import (
+from pluggybot.mind import mode as mode_mod
+from pluggybot.mind import overseer as ov
+from pluggybot.mind.mode import MODES, ModeSwitch
+from pluggybot.mind.overseer import (
   ESCALATE_MIN_INTERVAL_S, ESCALATE_SHARE, Decision, Menu, Overseer,
 )
-from pluggybot.hub.spend import WEEK_S, SpendBook
+from pluggybot.mind.spend import WEEK_S, SpendBook
 from pluggybot.telemetry.pacer import RealTimePacer
 
 MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
@@ -405,7 +405,7 @@ def test_the_pause_is_announced_once_and_beats_while_it_lasts(tmp_path):
   """
   from test_overseer import _lifecycle
 
-  from pluggybot.hub.lifecycle import attach_mode_stream
+  from pluggybot.lifecycle import attach_mode_stream
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))

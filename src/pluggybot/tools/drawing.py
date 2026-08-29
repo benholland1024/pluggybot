@@ -32,10 +32,10 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, LIFT_STEP, PEN_TRAVEL,
 )
-from pluggybot.hub.swap import ARM_EXT, PLUG_LATERAL, align_lift
+from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, align_lift
 
 PEN_MODULE = "module_pen"
 
@@ -223,7 +223,7 @@ def circle_path(size: float = 0.075, n: int = 240) -> list[tuple[float, float]]:
           for k in range(n + 1)]
 
 
-# `PATHS` used to live here as the figure menu. It is gone: `hub/strokes.py`
+# `PATHS` used to live here as the figure menu. It is gone: `tools/strokes.py`
 # owns the registry now, and a second menu that only knows two of the seven
 # programs is a trap rather than a convenience. The two path functions stay --
 # they ARE the diagnostics, and the plotter's own tests reach for them
@@ -242,7 +242,7 @@ class PenPlotter:
     watchable: the website paints each line into the board's canvas as it is
     drawn, and a viewer who joins mid-figure sees the same partial drawing the
     robot is looking at. The plotter still knows nothing about boards as STATE
-    -- it hands over a polyline and a name, and `hub/boards.py` decides what
+    -- it hands over a polyline and a name, and `tools/boards.py` decides what
     that means.
     """
     self.model, self.data, self.swap = model, data, swap

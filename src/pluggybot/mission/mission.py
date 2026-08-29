@@ -5,7 +5,7 @@ The mission stack, reusing every layer that already exists:
   map        look-around spin + scans -> occupancy grid (milestone 4)
   localize   the rack is FOUND, not assumed: its fiducial is watched for
              through every maneuver and confirmed by sighting count
-             (hub/localize.py). The stored pose is only the boot-time prior
+             (rack/localize.py). The stored pose is only the boot-time prior
              -- what a robot that started docked knows -- and observation
              overrides it.
   plan       A* over the inflated grid to the believed hand-off pose
@@ -16,9 +16,9 @@ The mission stack, reusing every layer that already exists:
              off the rack's tag rather than integrated from odometry (which
              had drifted ~20 mm by the return leg -- twice the coupling's
              capture window)
-  swap       HubSwap's verbs (hub/swap.py), timestep dropped to 1 ms
+  swap       HubSwap's verbs (rack/swap.py), timestep dropped to 1 ms
 
-The markers are real tag36h11 AprilTags (hub/tags.py), so every reading is
+The markers are real tag36h11 AprilTags (rack/tags.py), so every reading is
 tied to a decoded ID rather than to whichever blob looked most promising.
 Range comes from each marker's own PnP pose -- no depth buffer, matching
 what the hardware will actually have.
@@ -34,15 +34,15 @@ from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
 from pluggybot.control import turn_command, wheel_targets, wrap_angle
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
 )
-from pluggybot.hub.localize import TAG_LOCAL_X, RackFinder, RackPose
-from pluggybot.hub.tags import (
+from pluggybot.rack.localize import TAG_LOCAL_X, RackFinder, RackPose
+from pluggybot.rack.tags import (
   CHARGE_TAG_ID, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
-from pluggybot.hub.swap import (
+from pluggybot.rack.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
@@ -809,24 +809,18 @@ class HubMission:
       self.drive_to(sx, sy, timeout=25.0)
     why = "no-attempt"
     # The lift a swap ENTERS at, which is never "whatever the last manoeuvre
-    # happened to leave".
+    # happened to leave" -- put_back computes every height RELATIVE to the
+    # lift it starts with, so an inherited one is a different maneuver.
     #
-    # For a RETURN it is the height the module is being carried at, captured
-    # before any attempt: a failed put_back leaves the lift at its RELEASE
-    # height, 50 mm low, and a retry entered from there carries the peg
-    # straight into the tray flanks (put_back computes every height relative
-    # to the lift it starts with). Restoring it makes the second attempt an
-    # actual repeat of the first, not a different maneuver.
-    #
-    # For a PICK it is the align preset, and it must be commanded rather
-    # than inherited for the very same reason one verb along -- a stow ends
-    # at RELEASE height too, so the NEXT pick used to slide in 50 mm low and
-    # come away with nothing. That went unseen for as long as it did because
-    # nothing ever picked after stowing: the lift was preset once at
-    # start_at and every mission fetched exactly once. It is what broke the
-    # second cycle of the repeating errand in issue #10, and it fails
-    # silently -- the travel is correct, the approach reports "arrived", and
-    # the fork simply passes under the peg.
+    # A RETURN captures the carry height before any attempt (a failed
+    # put_back leaves the lift 50 mm low at RELEASE height, and a retry from
+    # there drives the peg into the tray flanks). A PICK commands the align
+    # preset for the same reason one verb along: a stow ends at RELEASE
+    # height too, so the next pick slides in 50 mm low and comes away with
+    # nothing -- silently, because the travel is correct and the approach
+    # reports "arrived".
+    #: Both faults in full, and why nothing caught them until an errand
+    #: repeated: docs/SimNotes.md, "The pen would not stow (issue #10)".
     if verb == "pick":
       lift_entry = align_lift()
     else:

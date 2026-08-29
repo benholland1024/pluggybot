@@ -36,7 +36,7 @@ clears it when it drives away.
 
 from typing import Callable
 
-from pluggybot.hub.coupling import module_power_contact
+from pluggybot.rack.coupling import module_power_contact
 from pluggybot.telemetry.protocol import FACE_STATES, SCREEN_HINTS
 
 #: Battery fraction below which the automatic face starts to look worried.

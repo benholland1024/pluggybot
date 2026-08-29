@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """What an errand COSTS, measured (issue #15).
 
-`hub/energy.json` says how much energy each errand takes in each world, and
+`economy/energy.json` says how much energy each errand takes in each world, and
 the mission loop refuses to start one it cannot pay for. Those numbers have
 to be MEASURED -- a guessed energy model is how issue #21 shipped a fixture
 in which the robot claimed a 0.93 Wh drawing at 88 %% of a 1.1 Wh cell, drew
@@ -42,7 +42,7 @@ from pathlib import Path
 
 import mujoco
 
-from pluggybot.hub.lifecycle import (
+from pluggybot.lifecycle import (
   HubLifecycle, board_book, errands_for, points_ledger, world_config,
   world_screens,
 )
@@ -50,7 +50,7 @@ from pluggybot.hub.lifecycle import (
 #: Actions worth pricing: every errand a world can build, plus the two the
 #: `showcase` queue is made of. `artwork` and `answer` are drawing errands
 #: with a different tier and a different figure, so they are priced as
-#: `draw` in hub/energy.json rather than flown twice for the same number.
+#: `draw` in economy/energy.json rather than flown twice for the same number.
 ACTIONS = ("carry", "draw", "census", "dance")
 
 #: A pack far bigger than any errand, so nothing being measured is cut short.
@@ -173,7 +173,7 @@ def main() -> None:
   ap.add_argument("--actions", default=",".join(ACTIONS))
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
-                  help="fold the result into src/pluggybot/hub/energy.json")
+                  help="fold the result into src/pluggybot/economy/energy.json")
   args = ap.parse_args()
 
   cfg = world_config(args.world)
@@ -191,7 +191,7 @@ def main() -> None:
     Path(args.json).write_text(json.dumps(out, indent=2) + "\n")
     print(f"wrote {args.json}")
   if args.write:
-    from pluggybot.hub import energy
+    from pluggybot.economy import energy
     path = energy.ENERGY_PATH
     doc = json.loads(path.read_text())
     block = doc.setdefault("worlds", {}).setdefault(args.world, {})

@@ -1,6 +1,6 @@
 """Guards for the per-errand energy model (issue #15).
 
-hub/energy.py exists to close the one way an overseer can still strand the
+economy/energy.py exists to close the one way an overseer can still strand the
 robot: `needs_charge` is checked BETWEEN errands and never inside one, so a
 job bigger than what is left in the pack cannot be survived by any charging
 policy. What these hold down:
@@ -29,11 +29,11 @@ import json
 import mujoco
 import pytest
 
-from pluggybot.hub import energy as en
-from pluggybot.hub import lifecycle as lc
-from pluggybot.hub.thoughts import GOALS, ThoughtFiles
-from pluggybot.hub import overseer as ov
-from pluggybot.hub.errand import Errand, carry_errand
+from pluggybot.economy import energy as en
+from pluggybot import lifecycle as lc
+from pluggybot.mind.thoughts import GOALS, ThoughtFiles
+from pluggybot.mind import overseer as ov
+from pluggybot.mission.errand import Errand, carry_errand
 
 HOME_RESERVE = 0.55            # home_world's return-trip reserve
 HOME_DEMO_WH = 1.10            # ...and its demo cell
@@ -148,7 +148,7 @@ def test_the_far_board_is_priced_apart_from_the_near_one():
 
 
 def test_a_task_offer_is_priced_for_the_board_it_names():
-  from pluggybot.hub.tasks import TaskBoard
+  from pluggybot.economy.tasks import TaskBoard
   board = TaskBoard(energy=en.load("home"))
   near = board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
   far = board.offer("draw_figure", "whiteboard_b", params={"program": "house"})
@@ -194,16 +194,16 @@ def test_the_shipped_table_is_the_one_the_deploy_can_repoint(tmp_path, monkeypat
 def test_a_task_kind_is_never_priced_below_the_errand_that_discharges_it():
   """⚠ TWO TABLES, ONE TRUTH, AND THE DRIFT IS SILENT. `TaskKind.estimate_wh`
   is what `Task.claimable` and the errand gate both trust, and it is a
-  separate number from hub/energy.json because it knows which target was
+  separate number from economy/energy.json because it knows which target was
   asked for. Under-priced, it is a robot that takes on a job it cannot
   finish.
 
   This is not hypothetical: `count_plants` was 0.87 Wh against a census that
-  measures 1.12, which the new `ENERGY ... hub/energy.json is low` narration
+  measures 1.12, which the new `ENERGY ... economy/energy.json is low` narration
   line caught on a real unattended run. The dearest measured world is the
   bar, because the table is world-agnostic and the offer could be anywhere.
   """
-  from pluggybot.hub.tasks import KINDS
+  from pluggybot.economy.tasks import KINDS
   dearest: dict = {}
   for world in ("home", "room_hub"):
     for key, wh in en.load(world).errand_wh.items():
@@ -550,7 +550,7 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
     # FIRST errand of a mission plans through unknown space. What the margin
     # is FOR is absorbing exactly that -- an overrun smaller than the return
     # trip cannot strand the robot, and one larger than it is a stale table,
-    # which the loop narrates as `ENERGY ... hub/energy.json is low`.
+    # which the loop narrates as `ENERGY ... economy/energy.json is low`.
     assert done["energyWh"] <= done["estimateWh"] + HOME_RESERVE, \
         f"{done['errand']} cost {done['energyWh']} against an estimate of " \
         f"{done['estimateWh']} -- more than the margin can absorb"

@@ -27,13 +27,13 @@ import math
 import mujoco
 
 from pluggybot.home import world as home
-from pluggybot.hub.coupling import rack_charge_contact
-from pluggybot.hub.lifecycle import (
+from pluggybot.rack.coupling import rack_charge_contact
+from pluggybot.lifecycle import (
   CHARGE_APPROACH_MAX, CHARGE_CREEP, HubLifecycle,
 )
-from pluggybot.hub.localize import RackPose
-from pluggybot.hub.mission import HubMission, charge_standoff
-from pluggybot.hub.swap import align_lift
+from pluggybot.rack.localize import RackPose
+from pluggybot.mission.mission import HubMission, charge_standoff
+from pluggybot.rack.swap import align_lift
 
 TRUE_RACK = RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],
                      math.radians(home.HOME_RACK_YAW))
@@ -140,7 +140,7 @@ def test_charge_bay_fix_measures_where_the_bay_actually_is():
   try:
     # what charge_approach does before its first look: bring the camera down
     # to tag height (from the align preset the tag is out of view entirely)
-    from pluggybot.hub.mission import CHARGE_LOOK_LIFT
+    from pluggybot.mission.mission import CHARGE_LOOK_LIFT
     mission.swap._run(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
     fix = mission.charge_bay_fix()
     assert fix is not None, "the charge tag must decode from this pose"

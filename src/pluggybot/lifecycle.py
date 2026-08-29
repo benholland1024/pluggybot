@@ -32,25 +32,26 @@ from typing import Literal
 import mujoco
 
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
-from pluggybot.hub.coupling import (
+from pluggybot.rack.coupling import (
   HUB_STATION_YS, module_power_contact, rack_charge_contact,
 )
-from pluggybot.hub.census import Zone
-from pluggybot.hub.errand import (
+from pluggybot.economy.census import Zone
+from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
-from pluggybot.hub.mission import (
+from pluggybot.mission.mission import (
   MissionAborted, HubMission, RackPose, charge_standoff,
 )
-from pluggybot.hub.cadence import CHECK_S
-from pluggybot.hub import energy as energy_model
-from pluggybot.hub.mode import ModeSwitch, open_switch
-from pluggybot.hub.spend import open_book
-from pluggybot.hub.overseer import THINK_SLICE_S
-from pluggybot.hub.questions import clean_answer
-from pluggybot.hub.screen import face_for
-from pluggybot.hub.thoughts import ThoughtFiles, ThoughtRefused
-from pluggybot.hub import scoring, strokes
+from pluggybot.economy.cadence import CHECK_S
+from pluggybot.economy import energy as energy_model
+from pluggybot.mind.mode import ModeSwitch, open_switch
+from pluggybot.mind.spend import open_book
+from pluggybot.mind.overseer import THINK_SLICE_S
+from pluggybot.economy.questions import clean_answer
+from pluggybot.tools.screen import face_for
+from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
+from pluggybot.economy import scoring
+from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
@@ -81,7 +82,7 @@ CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
 #:
 #: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
 #: against a 0.7 Wh pack. The deployed sim runs an 8 Wh one, which at the
-#: measured rate (hub/energy.json, `chargeW`) needs ~1340 s to refill -- so
+#: measured rate (economy/energy.json, `chargeW`) needs ~1340 s to refill -- so
 #: the fixed 400 s cap silently ended every charge partway up and narrated
 #: "CHARGE complete (79 %)". `charge_timeout` below scales it with the pack.
 #: It still computes 400 s on BOTH demo cells, where the arithmetic asks for
@@ -144,11 +145,11 @@ VISITORS_SHOWN = 5
 TASKS_SHOWN = 5
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
-#: -- hub/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
+#: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
 #: issue #23's last acceptance line asks for exactly that, and because they
 #: want re-tuning against a mission's own clock by somebody who is not editing
 #: Python. `SEED_TTL_S` and `SEED_STANDING_TTL_S` are gone with the placeholder
-#: `seed_tasks` they belonged to; see `hub/cadence.py`.
+#: `seed_tasks` they belonged to; see `economy/cadence.py`.
 
 
 class HubLifecycle:
@@ -199,7 +200,7 @@ class HubLifecycle:
     self.boards = boards
     # The points ledger (issue #14). Optional: a physics test or a spike has
     # nothing to score against and wants no state file. When it IS here, every
-    # finished task is evaluated by hub/scoring.py and the verdict is banked
+    # finished task is evaluated by economy/scoring.py and the verdict is banked
     # through it -- the lifecycle measures nothing and pays nothing itself.
     self.ledger = ledger
     self.verdicts: list[dict] = []
@@ -227,7 +228,7 @@ class HubLifecycle:
                               rack=rack, grid_bounds=grid_bounds)
     self.battery = Battery(model, capacity_wh=battery_wh)
     # What an errand COSTS here, measured (issue #15). Read per world from
-    # hub/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
+    # economy/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
     # unlike the ledger or the task board: "can I finish this before the pack
     # runs out" is a question every mission asks, including the ones with
     # nobody scoring them.
@@ -382,7 +383,7 @@ class HubLifecycle:
     """Narrate an evaluator's verdict and hand it to the ledger.
 
     This is the lifecycle's ENTIRE role in scoring: it runs the tasks and it
-    asks hub/scoring.py to judge the finished one. It never decides a verdict
+    asks economy/scoring.py to judge the finished one. It never decides a verdict
     and never moves a balance -- scoring.py measures and judges, ledger.py
     pays, and neither will take an answer from the task itself.
 
@@ -430,7 +431,7 @@ class HubLifecycle:
     ⚠ The rate it is sized against is the SLOWEST press measured, not the
     best one -- 19.4 W against 39.6 W on a different approach -- because the
     spread is geometry: how squarely the bumper meets the pins decides how
-    hard the wheels stall against them. See hub/energy.json.
+    hard the wheels stall against them. See economy/energy.json.
     """
     rate = self.energy.charge_w
     if rate <= 0.0:
@@ -557,7 +558,7 @@ class HubLifecycle:
   def run_errand(self, errand) -> dict:
     """Fetch a tool, take it somewhere, DO something, and put it back.
 
-    The middle is the errand's own `use` callable (hub/errand.py). Everything
+    The middle is the errand's own `use` callable (mission/errand.py). Everything
     around it -- which bay, verifying the pick electrically, verifying the
     stow by hanging, restoring the arm -- is identical whatever the tool is,
     which is exactly why it lives here and only here.
@@ -590,28 +591,21 @@ class HubLifecycle:
               f" ({errand.name})")
 
     self.state = "USE_TOOL"
-    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to` returns
-    # False when it stagnated or could not plan at all, and a use-phase run
-    # anyway is a pen pressing at empty air: found by issue #23, whose
-    # producer is the first thing that offers work on the FAR whiteboard, 7 m
-    # away through a doorway the robot has not mapped yet. The drive gave up,
-    # the loop narrated "arrived", the erase probe searched for a board that
-    # was not there, and the mission hung until the battery died -- ten
-    # minutes of wall clock with nothing in the log after `USE_TOOL: arrived`.
+    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
+    # returns False when it stagnated or could not plan, and a use-phase run
+    # anyway is a pen pressing at empty air -- the far whiteboard hung a
+    # mission until the battery died, with nothing logged after "arrived".
     #
-    # Not reaching the board is an ordinary outcome, so it is reported and
-    # not raised on: the tool still goes back to its bay, the evaluator still
-    # measures the world (it will find no ink) and the job closes `failed`.
-    # A robot that could not get there is a different thing from a robot that
-    # got there and drew badly, and only one of them is a bug -- but they
-    # must BOTH end with the module on the rack.
+    # Not reaching the board is an ordinary outcome, reported rather than
+    # raised on: the tool still goes back to its bay and the evaluator finds
+    # no ink. Failing to get there and drawing badly are different events,
+    # and both must end with the module on the rack.
     #
     # ⚠ THE GATE IS PER-ERRAND, not universal (`Errand.needs_use_pose`). An
     # errand that DOES ITS OWN NAVIGATION does not need this drive to have
     # arrived -- the census's `use_at` is the first point of the survey route
-    # its use-phase drives itself. Gating it too cost the recorded showcase
-    # mission its census answer: the drive stopped 1.96 m short and the robot,
-    # which could still see the whole garden from there, was sent home.
+    # its use-phase drives itself, and gating it too cost the recorded
+    # showcase mission its census answer.
     arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
     self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"
@@ -641,7 +635,7 @@ class HubLifecycle:
     estimated = self.affords(errand).cost_wh
     result = {"errand": errand.name, "module": errand.module,
               "picked": carried, "stowed": stowed,
-              # Measured against what hub/energy.json said it would be. Both,
+              # Measured against what economy/energy.json said it would be. Both,
               # deliberately: the estimate alone is a claim, and the two side
               # by side are what says the table still describes the world.
               "energyWh": round(spent, 4),
@@ -653,11 +647,11 @@ class HubLifecycle:
       # thing standing between an overseer and a mid-errand death, so an
       # under-estimate is said out loud rather than left in a dict.
       self._say(f"ENERGY {errand.name} cost {spent:.3f} Wh against an "
-                f"estimate of {estimated:.3f} -- hub/energy.json is low "
+                f"estimate of {estimated:.3f} -- economy/energy.json is low "
                 f"(scripts/energy_spike.py re-measures it)")
     self._deferrals.pop(errand.name, None)
     # And the verdict, LAST: an errand is judged on the finished job, which
-    # includes putting the tool back. Measured off the sim by hub/scoring.py,
+    # includes putting the tool back. Measured off the sim by economy/scoring.py,
     # never off `used` alone -- see sample_draw, which counts the strokes the
     # pen actually wrote into the board book.
     verdict = scoring.score_errand(self, errand, result, before)
@@ -766,7 +760,7 @@ class HubLifecycle:
     not by the overseer, deliberately: a rating settles a deferred verdict,
     and letting the model anywhere near that would hand it the "declare
     victory" button the whole reward design exists to keep out of its reach
-    (issue #14). The rater supplies a 0..1 quality; `hub/rewards.json` turns
+    (issue #14). The rater supplies a 0..1 quality; `economy/rewards.json` turns
     it into points; the robot is not consulted.
     """
     if self.inbox is None:
@@ -984,7 +978,7 @@ class HubLifecycle:
     It is deliberately incapable of doing anything the robot does: it offers
     and it expires. Nothing here touches `state`, `errands` or the battery,
     which is what makes "a task never delays a charge" a property of the
-    seam rather than of the numbers in hub/cadence.json.
+    seam rather than of the numbers in economy/cadence.json.
     """
     if self.tasks is None or self.data.time < self._next_task_check:
       return
@@ -1441,7 +1435,7 @@ def board_book(world: str, state: str | None = None):
   with one, the site's robot walks into a house whose whiteboards still carry
   yesterday's drawing.
   """
-  from pluggybot.hub.boards import BoardBook
+  from pluggybot.tools.boards import BoardBook
   cfg = world_config(world)
   if not cfg["meta"]:
     return None
@@ -1457,7 +1451,7 @@ def points_ledger(state: str | None = None, table=None):
   are world state, and every mission end is a restart. Without one the ledger
   is per-run, which is what tests and one-off demos want.
   """
-  from pluggybot.hub.ledger import Ledger
+  from pluggybot.economy.ledger import Ledger
   return Ledger(path=state, table=table)
 
 
@@ -1470,12 +1464,12 @@ def task_board(state: str | None = None, table=None, cadence=None,
   state, and every mission end is a restart. A task that vanished because the
   container cycled would be a job somebody asked for and nobody ever declined.
 
-  The two CAPS come from `cadence` (issue #23) rather than from `hub/tasks.py`
+  The two CAPS come from `cadence` (issue #23) rather than from `economy/tasks.py`
   defaults, so how much work may stand at once is configuration like the rest
   of the timing policy. Without one the board keeps its own conservative
   defaults, which is what a unit test wants.
   """
-  from pluggybot.hub.tasks import TaskBoard
+  from pluggybot.economy.tasks import TaskBoard
   # ...and what a job COSTS here (issue #15), for the same reason: a board
   # that priced every world's `carry` the same either under-prices the big
   # floor plan or refuses the small one work it does perfectly well.
@@ -1489,7 +1483,7 @@ def task_board(state: str | None = None, table=None, cadence=None,
 def world_targets(world: str, book=None) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
 
-  The seam that keeps `hub/cadence.py` from knowing what a world is: the
+  The seam that keeps `economy/cadence.py` from knowing what a world is: the
   producer is handed the furniture and rotates over it, and a kind whose
   target_kind is missing here is simply not offered. Read off the world's own
   config and the boards' own names, never hardcoded -- a world without
@@ -1522,7 +1516,7 @@ def task_producer(board, world: str, book=None, cadence=None):
   every hook is attached: `TaskBoard.offer` emits a `task_offered` the moment
   it is called.
   """
-  from pluggybot.hub.cadence import TaskProducer, default_cadence
+  from pluggybot.economy.cadence import TaskProducer, default_cadence
   return TaskProducer(board, cadence or default_cadence(world),
                       world_targets(world, book))
 
@@ -1535,7 +1529,7 @@ def world_screens(model, data):
   so the panel the website paints and the panel the sim drives can never be
   two different lists.
   """
-  from pluggybot.hub.screen import Screen, ScreenSet
+  from pluggybot.tools.screen import Screen, ScreenSet
   from pluggybot.telemetry.scene import screen_map
   return ScreenSet([Screen(model, data, module=body)
                     for body in screen_map(model)])
@@ -1612,7 +1606,7 @@ def draw_errand_for(world: str, book, board_name: str,
   if board_name not in meta["boards"]:
     raise ValueError(f"{world} has no board {board_name!r} "
                      f"(have: {', '.join(meta['boards'])})")
-  from pluggybot.hub.drawing import Board
+  from pluggybot.tools.drawing import Board
   return drawing_errand(book, board_name,
                         Board.from_meta(meta["boards"][board_name]),
                         program=program, program_name=program_name, task=task)
@@ -1662,7 +1656,7 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   can see, the less there is for it to be wrong about -- and scoring reads
   the board and the frozen commitment instead.
   """
-  from pluggybot.hub.tasks import KINDS
+  from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
   if spec is None:
     return None
@@ -1718,7 +1712,7 @@ def overseer_context(life) -> dict:
   scripted, or answer only one of several, and a suggestion is retired when it
   has been answered rather than when it has been read (issue #16).
   """
-  from pluggybot.hub import overseer as ov
+  from pluggybot.mind import overseer as ov
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   # The offers on the board, framed the way `TaskReward.as_context` frames a
   # payout: what the job is, what it pays, and whether it can be taken RIGHT
@@ -1911,7 +1905,7 @@ def run_demo(start=None, view: bool = False,
   # Which CELL this run flies on (issue #15). `demo` flattens in minutes,
   # which is what every mission test and both committed recordings were made
   # against; `hosting` is the pack a watched world runs on, where one charge
-  # buys hours of work and hub/energy.py's return-trip margin becomes real.
+  # buys hours of work and economy/energy.py's return-trip margin becomes real.
   # `--battery-wh` still overrides either.
   if pack not in ("demo", "hosting"):
     raise ValueError(f"unknown pack {pack!r} (demo or hosting)")
@@ -1934,15 +1928,15 @@ def run_demo(start=None, view: bool = False,
   # every existing demo and mission test has to behave exactly as it did
   # unless somebody asks for tasks by name. A state path implies "yes".
   # ...and how often the world puts work up, how long it stands and how much
-  # may stand at once (issue #23): hub/cadence.json, per world.
-  from pluggybot.hub.cadence import default_cadence
+  # may stand at once (issue #23): economy/cadence.json, per world.
+  from pluggybot.economy.cadence import default_cadence
   beat = default_cadence(world) if (tasks or tasks_state) else None
   board = (task_board(tasks_state, cadence=beat, world=world)
            if (tasks or tasks_state) else None)
   maker = task_producer(board, world, book, beat) if board is not None else None
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
-  from pluggybot.hub import overseer as ov
+  from pluggybot.mind import overseer as ov
   # The robot's memory documents (issue #38), built ONCE per run and shared
   # by everything that reads or writes them: the overseer's prompt, the
   # lifecycle's History writes, and both telemetry sinks. A second set built

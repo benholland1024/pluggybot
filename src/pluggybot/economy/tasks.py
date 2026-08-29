@@ -4,7 +4,7 @@ The third pattern in this repo, and the one that gives the robot a reason.
 The other two describe what the robot can DO; this one describes what it has
 been ASKED to do:
 
-  an ERRAND     is a tool, a place and a use-phase (hub/errand.py). Machinery.
+  an ERRAND     is a tool, a place and a use-phase (mission/errand.py). Machinery.
   an ACTIVITY   is a mechanism watching contacts and owning discrete world
                 state (docs/ActivityPattern.md). Scenery that reacts.
   a TASK        is a JOB OFFER: a description, a target, a reward, a deadline
@@ -19,7 +19,7 @@ knowing that a whiteboard means "fetch the pen from bay C".
 Four rules, and the first two are the ones worth breaking a build over.
 
   A TASK NEVER CARRIES ITS OWN PAYOUT. `Task.task` names a row of
-  hub/rewards.json and an evaluator in hub/scoring.py; what the job is WORTH
+  economy/rewards.json and an evaluator in economy/scoring.py; what the job is WORTH
   is looked up from that table every time it is asked for, and is never a
   field anybody can set. This is issue #14's rule arriving from a new
   direction: a visitor-created task that could name its own price would be a
@@ -63,15 +63,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.hub.inbox import clean
-from pluggybot.hub.questions import clean_answer
-from pluggybot.hub.scoring import EVALUATORS, RewardTable, Verdict, default_table
+from pluggybot.mind.inbox import clean
+from pluggybot.economy.questions import clean_answer
+from pluggybot.economy.scoring import EVALUATORS, RewardTable, Verdict, default_table
 from pluggybot.telemetry.protocol import ROBOT_ROOT, TASK_SOURCES, TASK_STATES
 
 STATE_VERSION = 1
 
 #: Longest visitor-facing description kept. A job offer is a sentence, and
-#: this is `hub/inbox.py`'s cap for the same reason -- a task can be created
+#: this is `mind/inbox.py`'s cap for the same reason -- a task can be created
 #: by a stranger (issue #23), so its text is untrusted on exactly the terms
 #: a suggestion is.
 MAX_DESCRIPTION = 280
@@ -105,28 +105,13 @@ def _now() -> str:
 # #22) "draw the answer to 2 + 3 on whiteboard_a" are both scored on ink, and
 # only the second one needs an answer to be right.
 #
-# `estimateWh` is what makes a task refusable on ENERGY grounds (see
-# `Task.claimable`). It is a declared per-kind figure, not a model -- M10's
-# per-errand energy work is what replaces it -- but the figures below are
-# MEASURED, off the committed recordings, from the battery at SWAP_PICK to
-# the battery at the end of SWAP_RETURN:
-#
-#     room_hub  carry (module_lcd, across the room)      0.487 - 0.570 Wh
-#     home      draw  (pen, erase, house, stow)          0.929 Wh
-#     home      census (LCD, survey the garden, stow)    0.866 Wh
-#
-# ⚠ READ THOSE AGAINST THE PACK. room_hub's demo cell is 0.700 Wh and home's
-# is 1.100 Wh, and a charge stops at 90 %. So ONE ERRAND IS ROUGHLY ONE FULL
-# PACK, in both worlds, and there is no margin to be had -- which is why a
-# guess here was not good enough. The first version of this table guessed
-# 0.35 Wh for a drawing (measured: 0.929) and the home fixture recorded a
-# robot that claimed the job at 88 % and died mid-stroke with nothing inked
-# and the pen still on the fork. That failure is the entire argument for the
-# gate, and it was the gate's own numbers that let it through.
-#
-# Rounded UP to the nearest 0.01 Wh and no further: inflating them for safety
-# would make every job permanently unclaimable, because the headroom being
-# padded against does not exist.
+# `estimateWh` is what makes a task refusable on ENERGY grounds
+# (`Task.claimable`). Every figure below is MEASURED off the committed
+# recordings, battery at SWAP_PICK to battery at the end of SWAP_RETURN, and
+# rounded UP to the nearest 0.01 Wh and NO FURTHER -- one errand costs roughly
+# one full pack in both worlds, so padding for safety makes every job
+# permanently unclaimable. Why a guess is fatal in either direction, and the
+# fixture that proved it: docs/TaskPattern.md section 5.
 
 
 @dataclass(frozen=True)
@@ -134,14 +119,14 @@ class TaskKind:
   """One kind of job the world knows how to offer."""
 
   name: str
-  #: the hub/scoring.py evaluator and hub/rewards.json row
+  #: the economy/scoring.py evaluator and economy/rewards.json row
   task: str
   #: what `target` names: a board, a zone, or a tool module
   target_kind: str
   #: sentence template; `{target}` and any `params` key may appear in it
   template: str
   #: What this job takes out of the pack, Wh. MEASURED, and the source of
-  #: truth is hub/energy.json (`scripts/energy_spike.py`) -- this is the
+  #: truth is economy/energy.json (`scripts/energy_spike.py`) -- this is the
   #: per-KIND copy, which is strictly better information than the per-action
   #: one because it knows which target was asked for. It must never sit BELOW
   #: the measured cost of the errand that discharges it: `Task.claimable` and
@@ -151,7 +136,7 @@ class TaskKind:
   #: _that_discharges_it` is the drift guard.
   #:
   #: ⚠ It is a FALLBACK, not the number that gets used. `TaskBoard` prices an
-  #: offer off hub/energy.json for the world AND the target it names, which
+  #: offer off economy/energy.json for the world AND the target it names, which
   #: is why the drawing figures here read like the FAR whiteboard: this is
   #: what an unmeasured world is charged, and being dear there is the cheap
   #: direction to be wrong in.
@@ -186,9 +171,9 @@ KINDS: dict[str, TaskKind] = {
     template="Survey {target} and put the number of plants on your face.",
     # ⚠ 0.87 until issue #15 measured it. The census is the DEAREST errand in
     # home and it was the cheapest number on this table -- caught in the wild
-    # by the new `ENERGY ... hub/energy.json is low` line, on a real run:
+    # by the new `ENERGY ... economy/energy.json is low` line, on a real run:
     # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
-    # touch above hub/energy.json's 1.141, because this is the FALLBACK for a
+    # touch above economy/energy.json's 1.141, because this is the FALLBACK for a
     # world nobody has measured and being dear there is the cheap direction.
     estimate_wh=1.15),
   "whiteboard_answer": TaskKind(
@@ -196,7 +181,7 @@ KINDS: dict[str, TaskKind] = {
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
     # Draw the answer to..." and the number is deliberately not here: a
     # description is written once and frozen, `reward` is looked up from
-    # hub/rewards.json on every read, and a job that quoted its own price in
+    # economy/rewards.json on every read, and a job that quoted its own price in
     # prose would go stale the first time the table was re-tuned -- with the
     # stale figure being the half a person reads. The wire carries both, side
     # by side, and only one of them is derived.
@@ -279,7 +264,7 @@ class Task:
     Refuses three things, and each refusal is a rule from the module
     docstring made structural rather than promised: an unknown kind, a source
     outside the vocabulary, and -- the important one -- a kind whose `task`
-    has no evaluator in hub/scoring.py. There is no way to construct a task
+    has no evaluator in economy/scoring.py. There is no way to construct a task
     that could be finished and then have to be paid for by guesswork.
     """
     spec = KINDS.get(kind)
@@ -292,7 +277,7 @@ class Task:
     if spec.task not in EVALUATORS:
       raise ValueError(
         f"task kind {kind!r} is scored as {spec.task!r}, which has no "
-        "evaluator in hub/scoring.py -- nothing may be offered that cannot "
+        "evaluator in economy/scoring.py -- nothing may be offered that cannot "
         "then be judged by code (issue #14)")
     if not target:
       raise ValueError(f"task kind {kind!r} needs a {spec.target_kind} target")
@@ -324,7 +309,7 @@ class Task:
     """What the table says this pays, right now.
 
     Derived on every read rather than stored, which is the whole of the
-    first rule: re-tuning hub/rewards.json re-prices every offered task, and
+    first rule: re-tuning economy/rewards.json re-prices every offered task, and
     nothing that can write a Task can write a payout.
     """
     row = (table if table is not None else default_table())[self.task]
@@ -389,7 +374,7 @@ class Task:
 
     The file is not the wire, and this is the line that says so. A question's
     answer lives in /var/lib/pluggybot beside the board book and the points
-    ledger -- the same trust domain as hub/rewards.json, which also decides
+    ledger -- the same trust domain as economy/rewards.json, which also decides
     what things are worth and is also not published. Leaving it out instead
     would mean a restart brought back an offer that could never be graded:
     a job standing on the board with no right answer behind it, which is a
@@ -570,7 +555,7 @@ class TaskBoard:
     the kind's own figure.
 
     None rather than a number when nothing has been measured, so that
-    "hub/energy.json has a row for this" and "fall back to the conservative
+    "economy/energy.json has a row for this" and "fall back to the conservative
     world-agnostic estimate" stay distinguishable -- `EnergyModel.cost` will
     answer for any name, and taking its dearest-measured fallback here would
     price a `carry` as a `census`.

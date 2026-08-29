@@ -1,4 +1,4 @@
-"""Guards for the hub-era mission loop (hub/lifecycle.py, milestone 8)."""
+"""Guards for the hub-era mission loop (pluggybot/lifecycle.py, milestone 8)."""
 
 import math
 
@@ -6,10 +6,10 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.hub.coupling import CHARGE_BAY_Y, HUB_STATION_YS
-from pluggybot.hub.lifecycle import HubLifecycle, LOW_BATTERY_WH
-from pluggybot.hub.mission import CHARGE_PIN_X, bay_standoff, charge_standoff
-from pluggybot.hub.swap import PLUG_LATERAL
+from pluggybot.rack.coupling import CHARGE_BAY_Y, HUB_STATION_YS
+from pluggybot.lifecycle import HubLifecycle, LOW_BATTERY_WH
+from pluggybot.mission.mission import CHARGE_PIN_X, bay_standoff, charge_standoff
+from pluggybot.rack.swap import PLUG_LATERAL
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +23,7 @@ def test_charge_standoff_lines_up_the_chassis_not_the_fork():
   the FORK line is what matters. Getting this wrong aims the robot half a
   chassis-width off the pins."""
   sx, sy, hd = charge_standoff()
-  from pluggybot.hub.localize import RackPose
+  from pluggybot.rack.localize import RackPose
   rack = RackPose.prior()
   px, py = rack.to_world(CHARGE_PIN_X, CHARGE_BAY_Y)
   lateral = -(px - sx) * math.sin(hd) + (py - sy) * math.cos(hd)
@@ -39,7 +39,7 @@ def test_carried_module_survives_a_turn(room_model):
   """The fork's V-notches hold a peg vertically and fore-aft but NOT along
   its own axis. Without end-stops the first carried module walked sideways
   off the fork during a turn and landed on the floor 2.5 m away."""
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   mission = HubMission(room_model, data)
   try:
@@ -59,7 +59,7 @@ def test_arm_is_stowed_after_a_swap(room_model):
   """An extended fork rides at module height and sweeps a rack clean --
   measured, by the robot knocking down the module it had just stowed while
   driving past to the charge bay. Driving configuration is arm retracted."""
-  from pluggybot.hub.mission import HubMission
+  from pluggybot.mission.mission import HubMission
   data = mujoco.MjData(room_model)
   mission = HubMission(room_model, data)
   try:
@@ -97,7 +97,7 @@ def test_full_hub_lifecycle(world):
   or a dropped module rather than as an exception. Every constant comes
   from world_config, so this is also the guard on that table.
   """
-  from pluggybot.hub.lifecycle import run_demo
+  from pluggybot.lifecycle import run_demo
   r = run_demo(world=world)                # start pose from the world config
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
@@ -123,7 +123,7 @@ def test_world_config_use_at_is_inside_its_own_world(world):
   there aims a 60 s drive at a wall, and nothing raises. This is a cheap
   geometric check of the same thing the slow home arm proves by driving.
   """
-  from pluggybot.hub.lifecycle import world_config
+  from pluggybot.lifecycle import world_config
   cfg = world_config(world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
