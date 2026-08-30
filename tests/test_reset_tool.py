@@ -103,4 +103,4 @@ def test_a_reset_cannot_teleport_things_that_are_not_modules():
 def test_the_code_handled_kinds_are_a_subset_of_the_inbound_vocabulary():
   assert set(CODE_HANDLED_TYPES) <= set(INBOUND_TYPES)
   assert "reset_tool" in CODE_HANDLED_TYPES
-  assert "suggestion" not in CODE_HANDLED_TYPES
+  assert "message" not in CODE_HANDLED_TYPES

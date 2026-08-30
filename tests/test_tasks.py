@@ -359,8 +359,8 @@ def test_the_state_and_source_vocabularies_cover_what_the_board_produces():
 
 def test_a_description_from_a_stranger_is_cleaned_and_capped():
   """A task can be created by a visitor (issue #23), so its text is untrusted
-  on exactly the terms a suggestion is -- and cleaned by the same function,
-  so the two can never disagree."""
+  on exactly the terms a visitor's message is -- and cleaned by the same
+  function, so the two can never disagree."""
   task = Task.create("draw_figure", "whiteboard_a", "t_1",
                      description="draw\na\rhouse\x00 " + "x" * 400)
   assert "\n" not in task.description and "\x00" not in task.description

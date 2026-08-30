@@ -226,7 +226,7 @@ def test_header_advertises_activities(builder_pair):
   # SHOULD have to touch a test rather than slide through. Bumped 0.5.0 ->
   # 0.6.0 with the ledger block and `earned` messages (issue #14), and
   # 0.6.0 -> 0.7.0 when the socket became two-way (issue #16): visitor
-  # suggestions, questions and ratings DOWN, `visitor_reply` and `journal` UP.
+  # visitor messages and ratings DOWN, `visitor_reply` and `journal` UP.
   # 0.7.0 -> 0.8.0 for the `goals` message (rooftop-media-2026 #30): what the
   # robot is FOR, sent when a stream opens, so the site can show it. 0.8.0 ->
   # 0.9.0 for the `tasks` block and its three messages (issue #21): the robot
@@ -238,8 +238,14 @@ def test_header_advertises_activities(builder_pair):
   # for money and the operator's switch (issue #37): a `spend` block, `mode`
   # on the robot's record, and a `mode` MESSAGE -- which exists because a
   # paused robot steps no physics and so sends no frames at all, leaving the
-  # field that rides them unable to say so.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.13.0"
+  # field that rides them unable to say so. 0.12.0 -> 0.13.0 for the
+  # `metabolism` block (issue #36): points are food, and how hungry the robot
+  # is rides every frame. 0.13.0 -> 0.14.0 for the visitor channel collapsing
+  # to ONE inbound kind (issue #61): `suggestion` and `question` were a
+  # classification asked of the sender, who was the wrong party for it, and
+  # what the robot DID about a message -- `replied` where the old vocabulary
+  # said `answered` -- is the distinction that survived.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.14.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

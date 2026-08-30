@@ -110,7 +110,7 @@ MAX_ANSWER = 2
 #: need "YES" (three glyphs) or a convention nobody watching would read.
 ANSWER_ALPHABET = "0123456789"
 #: Longest question text. A question is a sentence somebody reads off a
-#: marker on a website; `mind/inbox.py` caps a visitor's suggestion at 280 for
+#: marker on a website; `mind/inbox.py` caps a visitor's message at 280 for
 #: the same reason, and a question may come from one (issue #23).
 MAX_QUESTION = 200
 

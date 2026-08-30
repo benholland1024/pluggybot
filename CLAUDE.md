@@ -480,11 +480,31 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `artwork` task is what makes that path live rather than reserved. Nor does
   a `reset_tool` (issue #30): an admin command is code's to apply, not the
   robot's to weigh.
+  - ⚠ **ONE INBOUND KIND, AND THE ROBOT IS WHAT SORTS IT** (issue #61,
+    protocol 0.14.0). `suggestion` and `question` are gone: the two names
+    travelled the whole stack — two endpoints, two UI affordances, a DB enum
+    — and NOTHING on either side ever branched on which one it was. They were
+    also the wrong two, because the categories are neither exclusive ("can
+    you draw a cat?" is both) nor exhaustive (a greeting is neither), and
+    classifying an inbound message is the one job a mind does better than a
+    form. So the request carries no category, and the OUTCOME carries the
+    distinction instead — `accepted` (doing it, this turn), `declined` (with
+    a reason) and `replied` (everything else: a question answered, a hello
+    returned), which is where it was always going to be useful.
+    ⚠ **Two legacy maps, in OPPOSITE directions, and both are load-bearing
+    for one version.** `LEGACY_INBOUND_TYPES` folds `suggestion`/`question`
+    to `message` at the sim's door so a website mid-deploy keeps working, and
+    nothing past `Inbox._parse` has heard of them. `LEGACY_VISITOR_OUTCOMES`
+    folds `answered` to `replied` on the way IN from a model still working
+    off a cached older prompt — and the old name lives forever in every
+    recording made before 0.14.0, so a CONSUMER must keep rendering it.
+    ⚠ `as_context` ships no `kind` at all: a field with one possible value
+    tells a model nothing, and working out what somebody meant is the job.
   ⚠ **The header advertises `accepts`, PER KIND** (issues #16, #30), and it
-  is load-bearing: suggestions and questions need an overseer to read them,
+  is load-bearing: a visitor's `message` needs an overseer to read it,
   while `rating` and `reset_tool` are handled by code on any served world —
   so a scripted world advertises `CODE_HANDLED_TYPES` and an overseer world
-  the full vocabulary. A website that marked a suggestion "delivered"
+  the full vocabulary. A website that marked a message "delivered"
   because the socket took it would report a conversation that never started.
   A robot that cannot hear you is treated as absent — the same lesson as the
   charge criterion being electrical rather than positional.

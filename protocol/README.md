@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.13.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.14.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -32,6 +32,73 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
 and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
 recording made without it carries no `tasks` / `metabolism` block at all and
 the website has nothing to build its markers or its hunger gauge against.
+
+### 0.13.0 → 0.14.0 (one visitor message, and the robot sorts it)
+
+pluggybot #61. A visitor used to have to declare whether they were
+**suggesting** or **asking**, and the distinction travelled the whole stack —
+two endpoints, two UI affordances, `INBOUND_TYPES`, a database enum — and was
+branched on **nowhere**. Both halves of this version delete that choice and
+put the classification where it belongs.
+
+**1. `INBOUND_TYPES` collapses to `message`.**
+
+```jsonc
+{"type": "message", "id": "m_01", "from": "ada",
+ "text": "can you draw a cat?"}         // an idea, a question, or both
+{"type": "message", "id": "m_02", "from": "luca",
+ "text": "Hey Pluggy! Nice to see you today"}      // and now this fits too
+```
+
+⚠ **The old categories were neither exclusive nor exhaustive.** *"Can you
+draw a cat?"* is a suggestion **and** a question, and the visitor was made to
+pick a box for it. *"Hey Pluggy! Nice to see you today"* is **neither**, and
+the taxonomy had nowhere to put it — so it was visibly wrong rather than
+merely unused. And it asked the wrong party: working out what somebody meant
+is the one job a mind is unambiguously better at than a form. Nobody
+classifies a prompt before sending it to a model; the recipient works it out,
+because the recipient is the thing equipped to.
+
+**Migration: `suggestion` and `question` are still accepted for one version**
+and folded to `message` at the sim's door (`LEGACY_INBOUND_TYPES`, applied in
+`mind/inbox.py`), so a website mid-deploy keeps working. Nothing past the
+queue ever sees the retired name. A later version drops them.
+
+**2. `visitor_reply.outcome` carries the distinction instead**, and gains
+`replied` where it said `answered`:
+
+```jsonc
+{"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "m_02",
+ "kind": "message", "outcome": "replied",      // accepted|declined|replied
+ "reply": "hello Luca, good to see you too", "action": ""}
+```
+
+- **`accepted`** — the robot took it up, *this turn*, and `action` says what
+  it is doing. Unchanged.
+- **`declined`** — it could have become work and did not, and `reply` says
+  why. Unchanged.
+- **`replied`** — everything else: a question answered, a greeting returned.
+  This is the **common case**, and it is what the rename is for: `answered`
+  was documented as being for questions, which a greeting is not.
+
+⚠ **A consumer must go on rendering `answered`.** The rename travels *up* the
+wire, so every recording made before 0.14.0 carries the old name and always
+will (`LEGACY_VISITOR_OUTCOMES`). The sim also accepts it back from a model
+still working off an older prompt, and folds it — same judgement, old name.
+
+**3. The `kind` a model is shown is gone**, since it could only ever have
+been `message`: `VisitorMessage.as_context` now ships `id`, `from` and `text`
+and nothing else. `kind` stays on `visitor_reply` and in the recording,
+because the wire still has three inbound kinds (`message`, `rating`,
+`reset_tool`) and only one of them is ever answered.
+
+**`accepts` is unchanged in meaning** and still gates on whether anything can
+hear you: a served world with no mind advertises `CODE_HANDLED_TYPES`
+(`rating`, `reset_tool`) and one with a mind advertises the lot. A robot that
+cannot hear you is treated exactly like a robot that is not there.
+
+Breaking, hence the bump: `suggestion` and `question` are retired names on a
+grace period, and `answered` is a renamed value.
 
 ### 0.12.0 → 0.13.0 (points are food)
 
@@ -375,6 +442,10 @@ less.
 
 #### Downstream: server → sim (the new direction)
 
+⚠ **`suggestion` and `question` were retired at 0.14.0** — see that section
+above for what replaced them and how long they keep working. They are shown
+here as 0.7.0 sent them.
+
 Sent over the same authenticated ingest connection the producer dialled
 out on. There is still no inbound port anywhere: the sim reads the socket
 it opened, and a message can only arrive while that connection is up.
@@ -461,6 +532,7 @@ since it cannot hear anything either.
 ```
 
 `visitor_reply` is what closes the row the website is holding open.
+(⚠ `answered` became `replied` at 0.14.0; a consumer renders both.)
 `action` is filled only when the outcome is `accepted` — the robot is doing
 the thing *now* — and is empty otherwise. Both messages are also narrated
 as ordinary `event` lines, because the two audiences differ: the typed
@@ -805,7 +877,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "screens": ["module_lcd"],                             // display modules
  "ledger": ["pluggybot"],                               // robots with a balance
  "taskKinds": ["draw_figure", "count_plants"],          // jobs it can offer
- "accepts": ["suggestion", "question", "rating"]}       // what it will act on
+ "accepts": ["message", "rating"]}                      // what it will act on
 
 // frame
 {"t": 123.45,                                  // sim seconds
