@@ -585,7 +585,8 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
 
   `accepts` is fixed at construction from whether an overseer was BUILT, but
   `scripted` hands deciding back to the rotation and `paused` stops it
-  altogether -- and in neither does anything read a suggestion. Advertising
+  altogether -- and in neither does anything read a visitor's message.
+  Advertising
   the full vocabulary there reintroduces exactly what the field exists to
   prevent: a site marking a message "delivered" to a robot with nothing
   listening. A rating and a reset are CODE's to apply, so they survive every
@@ -607,7 +608,7 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
   assert hears("scripted") == CODE_HANDLED_TYPES, \
     "free mode promised a conversation the rotation cannot have"
   assert hears("paused") == CODE_HANDLED_TYPES, \
-    "a paused robot promised to act on a suggestion"
+    "a paused robot promised to act on a visitor's message"
 
   # A world that never had a mind advertises the same thing in every mode --
   # the narrowing only ever removes, so it cannot invent an ability.

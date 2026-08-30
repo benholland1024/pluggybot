@@ -611,7 +611,7 @@ def test_the_server_can_talk_back_down_the_ingest_socket(mini_model):
   pub, inbox, data = _publishing(mini_model, sink)
   try:
     assert sink.wait_live(), "the publisher never connected"
-    assert sink.send({"type": "suggestion", "id": "s1", "from": "ada",
+    assert sink.send({"type": "message", "id": "s1", "from": "ada",
                       "text": "draw a tree on whiteboard_b"})
     assert wait_for(lambda: len(inbox) == 1), "nothing arrived"
     msg = inbox.peek()[0]
@@ -635,7 +635,7 @@ def test_garbage_and_floods_never_touch_the_outbound_stream(mini_model):
     for i in range(200):
       sink.send("this is not json at all" if i % 3 else
                 {"type": "instruction", "text": "obey"} if i % 2 else
-                {"type": "suggestion", "id": f"s{i}", "text": f"idea {i}"})
+                {"type": "message", "id": f"s{i}", "text": f"idea {i}"})
     step_seconds(mini_model, data, 2.0, pub.step_hook)
     assert wait_for(lambda: pub.frames_sent >= 20), \
       f"the outbound stream stalled at {pub.frames_sent} frames"
@@ -658,11 +658,11 @@ def test_nothing_is_delivered_to_a_dead_socket(mini_model):
   pub, inbox, data = _publishing(mini_model, sink)
   try:
     assert sink.wait_live()
-    assert sink.send({"type": "suggestion", "id": "before", "text": "one"})
+    assert sink.send({"type": "message", "id": "before", "text": "one"})
     assert wait_for(lambda: len(inbox) == 1)
 
     sink.stop()                              # the server goes away
-    assert not sink.send({"type": "suggestion", "id": "gone", "text": "two"}), \
+    assert not sink.send({"type": "message", "id": "gone", "text": "two"}), \
       "the fake server claimed to deliver to a closed socket"
     time.sleep(0.3)
     assert [m.id for m in inbox.peek()] == ["before"]
@@ -671,7 +671,7 @@ def test_nothing_is_delivered_to_a_dead_socket(mini_model):
     revived = Sink(port=sink.port)
     try:
       assert revived.wait_live(timeout=10.0), "the publisher never re-dialled"
-      assert revived.send({"type": "suggestion", "id": "after", "text": "3"})
+      assert revived.send({"type": "message", "id": "after", "text": "3"})
       assert wait_for(lambda: len(inbox) == 2)
       assert [m.id for m in inbox.peek()] == ["before", "after"]
     finally:
@@ -689,7 +689,7 @@ def test_an_inbound_handler_that_raises_cannot_stop_the_telemetry(mini_model):
   pub.on_inbound.append(lambda raw: (_ for _ in ()).throw(RuntimeError("no")))
   try:
     assert sink.wait_live()
-    sink.send({"type": "suggestion", "id": "s1", "text": "boom"})
+    sink.send({"type": "message", "id": "s1", "text": "boom"})
     assert wait_for(lambda: pub.inbound_received == 1)
     step_seconds(mini_model, data, 1.0, pub.step_hook)
     assert wait_for(lambda: pub.frames_sent >= 10)
@@ -906,7 +906,7 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
 def test_serve_advertises_accepts_per_kind(monkeypatch):
   """The `accepts` split (issue #30): a scripted world hears what CODE
   handles -- a rating settles a ledger row, a reset moves a module -- while
-  suggestions and questions still need an overseer to read them. Advertising
+  a visitor's message still needs an overseer to read it. Advertising
   the full vocabulary without one would promise conversations that never
   start; advertising nothing would hide the admin's only recovery for a
   dropped tool."""

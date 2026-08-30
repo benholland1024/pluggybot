@@ -209,7 +209,7 @@ class FrameBuilder:
     but the operator's switch (0.12.0, issue #37) retires the mind at
     runtime: `scripted` hands the decision back to the rotation and
     `paused` stops deciding altogether, and in neither does anything read
-    a suggestion. Advertising the full vocabulary there would reintroduce
+    a message. Advertising the full vocabulary there would reintroduce
     the exact mistake this field exists to prevent -- a site marking a
     message "delivered" to a robot with nothing listening.
 
@@ -251,7 +251,7 @@ class FrameBuilder:
       "taskKinds": list(self.tasks.kinds) if self.tasks is not None else [],
       # What this producer will ACT ON if the server sends it (0.7.0). Empty
       # is the normal answer and the important one: a sim with no overseer
-      # reads nothing, so a website that marked a suggestion "delivered"
+      # reads nothing, so a website that marked a message "delivered"
       # because the socket accepted it would be reporting a conversation that
       # is not happening. "Delivered" has to mean somebody who can hear you
       # got it, which is why this is advertised rather than assumed.

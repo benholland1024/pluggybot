@@ -314,7 +314,7 @@ def main() -> None:
                           screens=screens, ledger=ledger, tasks=tasks,
                           # What this run can actually HEAR, per kind
                           # (issues #16, #30). The website reads it: a
-                          # suggestion is only "delivered" if somebody who can
+                          # message is only "delivered" if somebody who can
                           # act on it got it, and that somebody is an overseer
                           # -- while a rating or an admin's tool reset is
                           # handled by code and heard on any served world.
