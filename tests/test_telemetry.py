@@ -579,6 +579,47 @@ def test_a_recording_opens_by_saying_what_the_robot_is_for(mini_model,
   assert all("goals" not in f for f in lines if "type" not in f)
 
 
+def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
+                                                                    tmp_path):
+  """The `accepts` lesson, applied to the operator's switch (issue #37).
+
+  `accepts` is fixed at construction from whether an overseer was BUILT, but
+  `scripted` hands deciding back to the rotation and `paused` stops it
+  altogether -- and in neither does anything read a suggestion. Advertising
+  the full vocabulary there reintroduces exactly what the field exists to
+  prevent: a site marking a message "delivered" to a robot with nothing
+  listening. A rating and a reset are CODE's to apply, so they survive every
+  mode.
+  """
+  from pluggybot.mind.mode import ModeSwitch
+  from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
+
+  data = mujoco.MjData(mini_model)
+  path = tmp_path / "mode.json"
+
+  def hears(mode: str, advertised=INBOUND_TYPES) -> tuple:
+    path.write_text(json.dumps({"mode": mode}))
+    builder = FrameBuilder(mini_model, data, model_name="mini",
+                           accepts=advertised, mode=ModeSwitch(path))
+    return tuple(builder.header()["accepts"])
+
+  assert hears("llm") == INBOUND_TYPES
+  assert hears("scripted") == CODE_HANDLED_TYPES, \
+    "free mode promised a conversation the rotation cannot have"
+  assert hears("paused") == CODE_HANDLED_TYPES, \
+    "a paused robot promised to act on a suggestion"
+
+  # A world that never had a mind advertises the same thing in every mode --
+  # the narrowing only ever removes, so it cannot invent an ability.
+  assert hears("llm", CODE_HANDLED_TYPES) == CODE_HANDLED_TYPES
+
+  # ...and with no switch at all (every run before 0.12.0, and every
+  # recording) the advertised list is passed through untouched.
+  bare = FrameBuilder(mini_model, data, model_name="mini",
+                      accepts=INBOUND_TYPES)
+  assert tuple(bare.header()["accepts"]) == INBOUND_TYPES
+
+
 def test_goals_say_whether_anything_is_actually_reading_them(mini_model,
                                                              tmp_path):
   """The `accepts` lesson, applied to the other end of the same loop.
