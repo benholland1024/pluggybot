@@ -886,6 +886,8 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "bodies": {"pluggybot": [x, y, z, qw, qx, qy, qz], ...},   // world-frame
    "state": "EXPLORE",                         // lifecycle state machine
    "status": "EXPLORE -> GO_CHARGE (battery low)",            // the _say line
+   //  ⚠ BOTH ARE THE SIM TALKING TO ITSELF -- see "Narration is not UI copy"
+   //  below before a consumer prints either one.
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
  "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
  "activities": {"garden_gate": {"state": "open", "pressed": false}},
@@ -930,6 +932,38 @@ is a callback on `HubMission.step_hooks` — the same per-physics-step seam
 the battery drains through. It decimates 500 Hz of steps to `hz` of frames
 and hands them to a writer thread; no serialization or file I/O ever runs
 inside a physics step.
+
+### Narration is not UI copy
+
+⚠ **Three fields on this wire are the sim's own vocabulary, and a consumer
+must not print any of them raw** (rooftop-media-2026 #123 — a deliberate
+contract change, recorded here as well as there).
+
+| field | example | what it is |
+| --- | --- | --- |
+| `state` on a robot's frame record | `SWAP_PICK` | a state machine's name for itself |
+| `task` on `earned` / an `earning` | `census` | a row in `economy/rewards.json` |
+| `action` on `visitor_reply` | `dance` | one of the overseer's `ERRAND_ACTIONS` |
+
+The website printed the first of them in bold under a label a visitor could
+read, and it measured **27 % of the home recording** spent telling somebody
+the robot was doing something called `SWAP_PICK`. These are identifiers a
+client should map to its own words; the site now renders a phrase per token
+and falls back to the raw token for one it has never heard of — all three are
+OPEN sets, on the same terms as `FACE_STATES` and `taskKinds`, so a new
+lifecycle state or reward row costs a consumer the phrasing and never the
+fact.
+
+`status` is different and stays as it is: it is the `_say` line, real prose
+written by the sim, and worth showing **as a log** rather than as a headline.
+⚠ It is **English**, and so are `earned.reason`, a task `description`, a
+journal note, a memory document and a `visitor_reply.reply` — a client whose
+page is in another language owes them a `lang="en"` region, or a screen reader
+announces English words with the reader's phonemes. Do NOT mark a VISITOR's
+own message that way: they wrote it in their own language.
+
+Nothing here changes what the sim emits. It is a note about what the bytes
+MEAN, which is exactly what this file is for.
 
 ## The live stream (webserver v1)
 
