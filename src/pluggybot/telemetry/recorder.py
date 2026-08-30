@@ -45,8 +45,8 @@ from typing import Callable
 
 from PIL import Image
 
-from pluggybot.telemetry.protocol import (HUNGER_STATES, MODES,
-                                          PROTOCOL_VERSION, ROBOT_ROOT,
+from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, HUNGER_STATES,
+                                          MODES, PROTOCOL_VERSION, ROBOT_ROOT,
                                           body_census, robot_display_name)
 
 def mode_message(mode, t: float, held_s: float = 0.0) -> dict | None:
@@ -202,6 +202,27 @@ class FrameBuilder:
     # consumer "no tasks" apart from "no tasks block in this frame".
     self._last_tasks: dict | None = None
 
+  def hears(self) -> list[str]:
+    """`accepts`, narrowed to what the CURRENT mode can actually act on.
+
+    `accepts` is fixed at construction from whether an overseer was BUILT,
+    but the operator's switch (0.12.0, issue #37) retires the mind at
+    runtime: `scripted` hands the decision back to the rotation and
+    `paused` stops deciding altogether, and in neither does anything read
+    a suggestion. Advertising the full vocabulary there would reintroduce
+    the exact mistake this field exists to prevent -- a site marking a
+    message "delivered" to a robot with nothing listening.
+
+    ⚠ The header is per CONNECTION, so this is right when a run STARTS in
+    a mindless mode and stale if the switch is flipped mid-run. The
+    `mode` message carries every flip as it happens, so a consumer that
+    honours both is correct at all times; one that reads only the header
+    is correct until the operator touches the switch.
+    """
+    if self.mode is not None and not self.mode.thinking:
+      return [k for k in self.accepts if k in CODE_HANDLED_TYPES]
+    return list(self.accepts)
+
   def header(self) -> dict:
     return {
       "type": "header",
@@ -234,7 +255,7 @@ class FrameBuilder:
       # because the socket accepted it would be reporting a conversation that
       # is not happening. "Delivered" has to mean somebody who can hear you
       # got it, which is why this is advertised rather than assumed.
-      "accepts": list(self.accepts),
+      "accepts": self.hears(),
       # The operator modes this producer understands (0.12.0, issue #37).
       # The vocabulary rather than the current mode -- which is in every
       # frame -- on the same terms as `taskKinds`: a client builds its
