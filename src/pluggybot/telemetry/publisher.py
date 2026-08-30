@@ -98,7 +98,7 @@ class WsPublisher:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               thoughts=None, spend=None, mode=None,
+               thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None) -> None:
     if token is not None and not token.strip():
@@ -119,7 +119,7 @@ class WsPublisher:
                                  screens=screens, ledger=ledger,
                                  tasks=tasks, accepts=accepts, goals=goals,
                                  thoughts=thoughts, spend=spend,
-                                 mode=mode,
+                                 mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name)
     self.data = data
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)

@@ -290,6 +290,116 @@ every one below was hit, measured, and given a gate.
 
 ---
 
+## 5b. Points are food — the metabolism (issue #36)
+
+The fourth file in the same division, and it changes what the other three are
+FOR. `tasks.py` says what a job is, `rewards.json` what it pays,
+`cadence.json` when it turns up — and `metabolism.json` says **why the robot
+would bother**. Before it, points only went up and the robot only ever wanted
+more; 1 400 points and 1 420 points were the same day.
+
+**Points are consumed by living.** A steady rate on sim time
+(`pointsPerHour`), a **cap** past which earnings are not banked, and a
+**satisfied** state once the balance is high enough. The free time — the
+hours the robot did not have to spend earning — is the entire mechanic;
+everything in `economy/metabolism.py` exists to make sure there is some.
+
+Six rules, and each is a way the mechanic deletes itself.
+
+- **Calibrate against measured throughput, never intuition.** Two unattended
+  1-sim-hour `home` runs, no overseer, measure what the robot actually
+  **banks**:
+
+  | | banked/sim-hour | jobs done |
+  |---|---|---|
+  | hosting cell (8 Wh) | **102 pts** | 6 done, 4 failed, 6 expired |
+  | demo cell (1.1 Wh) | 80 pts | **zero** |
+
+  So the shipped 45/hour is ~44 % of the hosting world's income — issue #36's
+  "roughly half". A third run, the same hour with `--metabolism` on, banked
+  102 and ate 43 (independently confirming both numbers) and shows the arc:
+
+  ```
+  t=   0  starving   0     t= 875  fed       32
+  t= 230  fed       20     t=2643  satisfied 51   ← 44 min in
+  t= 240  hungry    19     t=3601  satisfied 59/90
+  ```
+- ⚠ **The cycle is longer than one mission, and that is the honest reading.**
+  The idealised arithmetic says ~26 min up and ~33 min down; the measured
+  climb took **44 min** from cold, because real income is *lumpy* — a 640 s
+  charge, four failed jobs and a stretch of exploring all happen inside it.
+  A watcher sees the full arc across several missions, not within one, which
+  is exactly why hunger lives in the ledger's file and survives a restart.
+  Do not re-tune to make one mission show a whole cycle: that is tuning for
+  a demo, and it would take roughly halving the rate.
+  `test_the_shipped_file_leaves_the_robot_half_its_day` guards a re-tune from
+  both ends — too steep is nothing but earning, too shallow is a cycle that
+  is absurd before lumpiness is even added.
+- **A one-point wobble at `hungryAt` is expected and bounded.** Only the
+  *satisfied* latch is hysteretic; `fed`/`hungry` is a plain threshold, so an
+  award landing exactly on the line followed by a point eaten reads as
+  `fed → hungry` ten seconds apart. Measured: **once** in a sim-hour. Both
+  states mean the same thing to the robot, the latch that gates behaviour is
+  the hysteretic one, and buying this off would cost a fourth threshold
+  nobody could calibrate.
+- ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** The demo run banked
+  a comparable-looking 80 points/hour and completed **no jobs at all**: a
+  charged demo pack holds 0.990 Wh and every target but `whiteboard_a`
+  (0.929 Wh) costs more — `whiteboard_b` 1.113, the census 1.141 — so every
+  single point came from **charging**. A rate calibrated there makes charging
+  the food and work optional, which is this section upside down. It is also
+  the configuration every mission test and both committed recordings run on,
+  so it is the number you will reach for by accident.
+- ⚠ **A third of the work pays nothing, and the rate has to survive that.**
+  Of 11 resolved jobs on the hosting run, 4 failed outright (three of them
+  the far-whiteboard navigation problem) and 6 more expired unclaimed. The
+  102 is already net of that, but the *variance* is real: a bad hour with no
+  income takes the robot from `satisfiedAt` to zero in almost exactly one
+  hour. `starving` is a state this world reaches for real rather than
+  theoretically — which is the mechanic working, and exactly why it must
+  never lock anything.
+- **Zero is narrative, never a capability lock**, and so is full. A starving
+  robot shows it — a worried face, a line in `History.md`, a prompt that says
+  go and earn something — and is prevented from nothing. This is the rule
+  that decides the *shape* of the whole feature: **satisfaction changes what
+  the robot is TOLD and nothing else.** There is no branch that reads
+  `satisfied` and declines a job, which is why the scripted rotation is
+  untouched (it has no goals to pursue, so it would have nothing to do with
+  the free time) and why every existing mission behaves identically with the
+  appetite on. It also means the criterion is enforced by ABSENCE, and the
+  test for it is a whole mission flown broke plus a grep over the branches
+  that could have grown a gate.
+- **Arrears are the sneaky lock.** Hunger stops at zero and never goes
+  negative: a robot that owed an hour of appetite would see its first job
+  back pay nothing, which is a discouragement gradient at exactly the wrong
+  moment.
+- **Decay ticks on the PHYSICS seam**, like `TaskProducer` and for a sharper
+  version of the same reason — an appetite ticked on the arbitration loop
+  would not charge the robot for the twenty minutes it spent inside one
+  errand, which is most of its day.
+- **A restart is neither a meal nor a missed one.** Sim time begins again at
+  0 every mission, so the anchor is re-taken and the gap costs nothing; what
+  survives is the BALANCE, in the ledger's file, plus the fraction of a point
+  owed. Both failures are the same bug wearing opposite signs. The carry is
+  kept in memory every tick and written by the next save from any source —
+  saving a file a second on the physics thread to persist a hundredth of a
+  point is paying for accuracy in the wrong currency.
+- **The cap refuses out loud.** `points` on a ledger entry stays what the
+  reward table paid; `banked` and `spilled` say how much of it fit. Silently
+  paying less than the published table would undo the reward system's whole
+  design — a robot cannot check its own arithmetic, so a number that quietly
+  disagrees with the published one is indistinguishable to it from a bug.
+
+The hysteresis is the ordinary `ActivityPattern.md` rule applied to a sensed
+BALANCE: `satisfiedAt` latches on, the lower `hungryAt` latches off, and the
+gap is both the anti-flap band and the period of the rhythm —
+`(satisfiedAt - hungryAt) / pointsPerHour` is how long the free time lasts.
+The latch is **not persisted** and is seeded on the hungry side, because a
+robot that came back from a restart still coasting on a satisfaction it could
+no longer justify would idle through the first stretch of every mission.
+
+---
+
 ## 6. The build sequence — task kind N+1
 
 The order that falls out of the builds so far. As with the sibling docs, each

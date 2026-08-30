@@ -686,6 +686,44 @@ state, your recent tasks, what is on the boards. If you do not know, say so.
 """
 
 
+#: What the robot is told about being hungry (issue #36). In the STABLE half
+#: because the RULES are a property of the world -- what points are for, and
+#: what to do once there are enough -- while the numbers that move (the
+#: balance, the state, what the appetite costs an hour) ride the user turn as
+#: `metabolism`. ABSENT entirely where no appetite is attached, so a world
+#: without one keeps a byte-identical prefix to the one it had before this
+#: existed, exactly like ESCALATION_RULE below.
+#:
+#: ⚠ IT IS THE ONLY THING SATISFACTION CHANGES, and that is deliberate. There
+#: is no code path anywhere that reads `satisfied` and refuses a job, and no
+#: branch that reads `starving` and refuses anything at all: the mechanic is
+#: what the robot is TOLD and what it makes of that. A gate would be the
+#: capability lock issue #36 forbids wearing the opposite sign -- and a
+#: scripted rotation, which has no goals to pursue, would have nothing
+#: sensible to do with the free time anyway.
+APPETITE_RULE = """\
+POINTS ARE FOOD
+
+Points are not a score you are trying to run up. You spend them by being \
+alive: a steady trickle, all day, whatever you happen to be doing. Working \
+earns them back, and there is a ceiling -- past it a job's points simply are \
+not banked, so grinding when you are already full earns you nothing at all.
+
+`metabolism` in your state says where you are. `hungry` or `starving` means \
+go and earn something: take a job, do a task that pays. `satisfied` means you \
+have enough for now, and THAT IS THE INTERESTING PART OF YOUR DAY -- the \
+hours you did not have to spend earning are yours, and what you should spend \
+them on is what `Goals.md` says you are for. Explore somewhere you have never \
+been, draw something because you want it drawn, look at the garden, write \
+down what you have worked out. None of that pays and none of it needs to.
+
+Running out is not a failure and it does not break anything: at zero points \
+you can still charge, still drive, still finish what you are holding. It just \
+means you have not been useful to anybody for a while, and that is worth \
+noticing.\
+"""
+
+
 #: What the robot is told about buying a bigger mind (issue #37). In the
 #: STABLE half because it is a property of the world, not of the moment --
 #: and ABSENT entirely where escalation is not configured, so a world without
@@ -710,7 +748,8 @@ made is the one that happens.\
 
 def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   table: RewardTable, name: str = "",
-                  escalation: bool = False) -> list[dict]:
+                  escalation: bool = False,
+                  appetite: bool = False) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -818,7 +857,8 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                                       sort_keys=True),
     f"YOUR LONG-TERM GOALS ({GOALS} -- likewise; you cannot change these)\n"
     + stable[GOALS].strip(),
-  ] + ([ESCALATION_RULE] if escalation else []))
+  ] + ([APPETITE_RULE] if appetite else [])
+    + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
 
@@ -826,7 +866,8 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
 def context_for(life, journal: Journal | None = None,
                 visitors=(), tasks=(), affordable=(), possible=(),
                 thoughts: ThoughtFiles | None = None,
-                allowance: dict | None = None) -> dict:
+                allowance: dict | None = None,
+                metabolism: dict | None = None) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
@@ -908,6 +949,12 @@ def context_for(life, journal: Journal | None = None,
     # nothing" would read the same to a model and only one of them means
     # "do not bother asking".
     **({"allowance": dict(allowance)} if allowance else {}),
+    # HOW HUNGRY IT IS (issue #36), on exactly the allowance's terms: shown,
+    # and movable by nothing on a decision. Absent -- not zeroed -- on a
+    # world with no appetite, because "there is no hunger here" and "you are
+    # not hungry right now" would read the same to a model and only one of
+    # them means "stop thinking about it".
+    **({"metabolism": dict(metabolism)} if metabolism else {}),
   }
 
 
@@ -1004,6 +1051,7 @@ class Overseer:
                escalate_backend: str | None = None,
                escalate_url: str | None = None,
                spend: SpendBook | None = None,
+               appetite: bool = False,
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
@@ -1086,12 +1134,18 @@ class Overseer:
     self._in_flight = False
     self._deadline = 0.0
     self._pending_state: dict = {}
+    #: Does this world's robot get hungry (issue #36)? A bool rather than the
+    #: numbers: what the prefix needs is the RULES, and the rate and the cap
+    #: change per deploy while the rules do not -- so the numbers ride the
+    #: user turn instead, as `metabolism`.
+    self.appetite = bool(appetite)
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
     self.system = system_prompt(self.thoughts, self.menu, self.table,
                                 name=self.robot_name,
-                                escalation=self.can_escalate)
+                                escalation=self.can_escalate,
+                                appetite=self.appetite)
 
   @property
   def goals(self) -> str:
@@ -1649,6 +1703,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           model: str | None = None, backend: str | None = None,
           base_url: str | None = None, escalate_to: str | None = None,
           spend: SpendBook | None = None,
+          appetite: bool = False,
           thoughts: ThoughtFiles | None = None,
           robot_name: str | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
@@ -1696,5 +1751,9 @@ def build(world: str, book=None, enabled: bool | None = None,
                                    or os.environ.get(ESCALATE_ENV, "").strip()
                                    or None),
                       spend=spend,
+                      # Whether the robot gets hungry here (issue #36). The
+                      # RULES only -- the numbers ride the user turn -- so a
+                      # world with no appetite keeps the prefix it had.
+                      appetite=appetite,
                       calls_per_hour=calls_per_hour)
   return overseer, journal

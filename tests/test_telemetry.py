@@ -20,7 +20,8 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-from pluggybot.telemetry.protocol import PROTOCOL_VERSION, body_census, dynamic_flags
+from pluggybot.telemetry.protocol import (HUNGER_STATES, PROTOCOL_VERSION,
+                                          body_census, dynamic_flags)
 from pluggybot.telemetry.recorder import (FrameBuilder, GridSampler,
                                           TelemetryRecorder)
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
@@ -976,8 +977,36 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # fixture for that.
   final = with_ledger[-1]["ledger"]["pluggybot"]
   assert 0 < final["balance"] <= banked[-1]["balance"]
-  assert final["balance"] in {e["balance"] for e in banked}
+  # ⚠ NOT "the final balance is one of the awards' balances", which is what
+  # 0.6.0 asserted here. That encoded "only an award moves a balance", and
+  # issue #36 breaks it deliberately: with an appetite attached the balance
+  # also falls BETWEEN awards, a point at a time. What survives is the
+  # block's own arithmetic -- and it is the stronger check, since it is why
+  # `consumed` and `spilled` are on the wire at all: a site showing a
+  # balance it cannot reconstruct is showing points leaking.
+  assert (final["earned"] - final["consumed"] - final["spent"]
+          == final["balance"])
   assert final["recent"] and final["tasks"] >= len(final["recent"])
+
+  # The appetite half (0.13.0, issue #36). Both fixtures are recorded with
+  # `--metabolism` for the reason they are recorded with `--tasks`: the
+  # mechanic is off by default, so without it the site has no block to build
+  # its hunger gauge against.
+  assert header["hungerStates"] == list(HUNGER_STATES)
+  with_hunger = [f for f in frames if "metabolism" in f]
+  assert with_hunger, "the fixture carries no metabolism block at all -- was "\
+                      "it recorded without --metabolism?"
+  assert len(with_hunger) < len(frames), "an unchanged appetite was re-sent"
+  states = [f["metabolism"]["state"] for f in with_hunger]
+  # A fresh ledger starts the robot with nothing, and the gauge has to MOVE
+  # -- a fixture pinned at one state is a fixture a hunger panel cannot be
+  # developed against.
+  assert states[0] == "starving"
+  assert len(set(states)) > 1, f"the appetite never changed state: {set(states)}"
+  assert set(states) <= set(HUNGER_STATES)
+  last = with_hunger[-1]["metabolism"]
+  assert last["consumed"] > 0, "a whole mission ate nothing"
+  assert 0 < last["points"] <= last["cap"]
 
   # The task half (0.9.0, issue #21): the world OFFERED work, the robot took
   # it, and code judged the result. All three reach a consumer only through

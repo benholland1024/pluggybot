@@ -25,6 +25,7 @@ it charges away from the hub.
 
 import json
 import math
+import os
 import time
 from pathlib import Path
 from typing import Callable, Literal
@@ -165,7 +166,7 @@ class HubLifecycle:
                overseer=None, journal=None, mode: ModeSwitch | None = None,
                world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
-               energy=None, thoughts=None) -> None:
+               energy=None, thoughts=None, metabolism=None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -215,6 +216,20 @@ class HubLifecycle:
     # wants the board without a world generating more behind its back, and a
     # restart against a persisted board resumes work rather than re-seeding.
     self.producer = producer
+    # THE APPETITE (issue #36). Optional, like the ledger it eats out of and
+    # for a stricter version of the same reason: hunger reshuffles nothing on
+    # its own but it does change what the robot is TOLD, and every existing
+    # mission, demo and recording has to behave exactly as it did unless
+    # somebody asks for it by name.
+    #
+    # ⚠ NOTHING IN THIS CLASS GATES ON IT. `needs_charge`, `go_charge`,
+    # `run_errand` and every navigation call are unchanged and unaware; a
+    # robot at zero points does precisely what a robot at ninety does. That
+    # is issue #36's first design decision ("zero is narrative, never a
+    # capability lock") and it is enforced by absence -- there is no branch
+    # to audit, which is why the test that pins it flies a whole mission
+    # rather than reading a flag.
+    self.metabolism = metabolism
     self.claimed: list[str] = []
     self._next_task_check = 0.0
     # The LCD module's display (issue #13). The lifecycle drives the resting
@@ -256,6 +271,11 @@ class HubLifecycle:
     # robot is halfway through an errand is put up THEN and not on whichever
     # arbitration pass happens next. See `_task_step`.
     self.mission.step_hooks.append(self._task_step)
+    # ...and the robot's own clock (issue #36), on the same seam and for a
+    # closer version of the same reason: an appetite ticked on the
+    # arbitration loop would not charge the robot for the twenty minutes it
+    # spent inside one errand, which is most of its day.
+    self.mission.step_hooks.append(self._metabolism_step)
     # ...and the operator's switch, on the same seam and for a sharper
     # version of the same reason: `paused` means the physics stops NOW.
     self.mission.step_hooks.append(self._mode_step)
@@ -327,7 +347,9 @@ class HubLifecycle:
       return
     # Compare the pair BEFORE handing it over: `Screen.face` builds a dict and
     # diffs it, which is cheap once and is not free a thousand times a second.
-    resting = face_for(self.state, self.battery.fraction)
+    resting = face_for(self.state, self.battery.fraction,
+                       hunger=(self.metabolism.state
+                               if self.metabolism is not None else ""))
     if resting != self._face_shown:
       self._face_shown = resting
       self.screen.face(*resting)
@@ -989,6 +1011,38 @@ class HubLifecycle:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh):
         self._say(f"TASK {task.id} offered: {task.description}")
 
+  def _metabolism_step(self) -> None:
+    """Get hungrier, and say so when that means something new (issue #36).
+
+    On the physics seam so sim time is charged for whatever the robot was
+    doing while it passed -- an errand, a charge, standing by for work. The
+    tick itself is an interval check and, ~45 times a sim-hour, one point off
+    the balance; `Metabolism.tick` carries the arithmetic and the reason a
+    restart charges nothing.
+
+    ⚠ It NARRATES A TRANSITION, not a level. The balance moves a point every
+    eighty seconds, so a line per tick would be forty lines an hour of a
+    robot saying it is still slightly hungry -- and `History.md` is read back
+    into the model's own context, where that is forty lines of nothing. What
+    a reader wants is the four moments a day the state actually changes.
+    """
+    if self.metabolism is None:
+      return
+    self.metabolism.tick(float(self.data.time))
+    moved = self.metabolism.changed()
+    if not moved:
+      return
+    points = self.metabolism.points
+    self._say(f"HUNGER {moved} ({points} points)")
+    self._remember({
+      "satisfied": f"had enough for now -- {points} points banked, and the "
+                   "rest of the shift is mine",
+      "fed": f"eating into the day's work -- {points} points",
+      "hungry": f"getting hungry again at {points} points",
+      "starving": "out of points entirely -- everything still works, but "
+                  "nothing has paid for a while",
+    }[moved])
+
   def _mode_step(self) -> None:
     """The operator's switch, read on the physics seam (issue #37).
 
@@ -1316,6 +1370,10 @@ class HubLifecycle:
         # same sweep runs on the physics seam. Kept so a lifecycle driven
         # without `mission` stepping still keeps its board honest.
         self._task_step()
+        # ...and the same for the appetite (issue #36), for the same reason
+        # and with the same result: a no-op here on any mission whose physics
+        # is actually running.
+        self._metabolism_step()
         if self.needs_charge:
           self.state = "GO_CHARGE"
           if not self.go_charge():
@@ -1422,6 +1480,11 @@ class HubLifecycle:
       # ledger -- a test or a spike wants the evaluation without a state file.
       "verdicts": list(self.verdicts),
       "points": self.ledger.balance() if self.ledger is not None else 0,
+      # What living cost, where points are food (issue #36). Absent -- not
+      # zeroed -- without an appetite, so a caller can tell "nothing was
+      # eaten" from "nothing eats here".
+      **({"metabolism": self.metabolism.snapshot()}
+         if self.metabolism is not None else {}),
       "earned": sum(v["points"] for v in self.verdicts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
@@ -1479,16 +1542,22 @@ def board_book(world: str, state: str | None = None):
   return BoardBook.for_meta(meta, path=state)
 
 
-def points_ledger(state: str | None = None, table=None):
+def points_ledger(state: str | None = None, table=None,
+                  cap: int | None = None):
   """The robots' points ledger (issue #14).
 
   `state` is a JSON file the balances and the earnings log live in ACROSS
   runs -- the same treatment the boards get, and for the same reason: points
   are world state, and every mission end is a restart. Without one the ledger
   is per-run, which is what tests and one-off demos want.
+
+  `cap` is the metabolism's ceiling (issue #36), read off
+  economy/metabolism.json by the caller and passed in here rather than looked
+  up -- the ledger banks, it does not decide policy. None is unbounded
+  accumulation, which is every run before the appetite existed.
   """
   from pluggybot.economy.ledger import Ledger
-  return Ledger(path=state, table=table)
+  return Ledger(path=state, table=table, cap=cap)
 
 
 def task_board(state: str | None = None, table=None, cadence=None,
@@ -1792,7 +1861,14 @@ def overseer_context(life) -> dict:
                                     if (life.overseer is not None
                                         and life.overseer.can_escalate
                                         and life.overseer.spend is not None)
-                                    else None))
+                                    else None),
+                         # How hungry it is, and what being satisfied means
+                         # here (issue #36). Shown on the allowance's terms
+                         # -- a number the robot reads and cannot move --
+                         # and absent on a world with no appetite.
+                         metabolism=(life.metabolism.snapshot()
+                                     if life.metabolism is not None
+                                     else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   return state
 
@@ -1919,6 +1995,7 @@ def run_demo(start=None, view: bool = False,
              overseer: bool | None = None, goals: str | None = None,
              journal_state: str | None = None, thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
+             metabolism: bool = False,
              pack: str = "demo", reserve_wh: float | None = None,
              robot_name: str | None = None,
              overseer_backend: str | None = None,
@@ -1957,9 +2034,24 @@ def run_demo(start=None, view: bool = False,
   # Displays are a WORLD's, like activities and boards; the lifecycle drives
   # the first one (there is one LCD) and telemetry streams the set.
   screens = world_screens(model, data)
+  # HOW FAST THE ROBOT GETS HUNGRY (issue #36), or None for the unbounded
+  # accumulation every run had before it. OFF by default and staying that
+  # way, on the task board's terms: an appetite changes what the robot is
+  # told and puts a ceiling on what it can bank, and every existing demo,
+  # mission test and recording has to read exactly as it did unless somebody
+  # asks for hunger by name. A $PLUGGY_METABOLISM data file implies "yes",
+  # the way a task state path implies --tasks.
+  from pluggybot.economy.metabolism import (METABOLISM_ENV, Appetite,
+                                            Metabolism)
+  appetite = (Appetite.load(world)
+              if (metabolism or os.environ.get(METABOLISM_ENV)) else None)
   # The ledger is the ROBOTS', not the world's -- it is the one piece of
   # persistent state that follows them between rooms.
-  ledger = points_ledger(ledger_state)
+  # ⚠ The CAP is handed to the ledger rather than to the appetite, because
+  # the ledger is the only code that banks anything -- see `Ledger._post`.
+  ledger = points_ledger(ledger_state,
+                         cap=appetite.cap if appetite else None)
+  hunger = Metabolism(ledger, appetite) if appetite else None
   # Job offers (issue #21). OFF by default and staying that way: a task board
   # adds errands to a mission, which reshuffles the whole trajectory, and
   # every existing demo and mission test has to behave exactly as it did
@@ -1996,7 +2088,11 @@ def run_demo(start=None, view: bool = False,
                            robot_name=robot_name,
                            backend=overseer_backend, model=overseer_model,
                            base_url=overseer_url, escalate_to=escalate_to,
-                           spend=purse)
+                           spend=purse,
+                           # Whether points are food here (issue #36): the
+                           # rules go in the cached prefix, the numbers ride
+                           # every call.
+                           appetite=hunger is not None)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
@@ -2012,7 +2108,7 @@ def run_demo(start=None, view: bool = False,
                       overseer=boss, journal=journal, mode=switch,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
-                      producer=maker, thoughts=memory)
+                      producer=maker, thoughts=memory, metabolism=hunger)
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
@@ -2038,6 +2134,8 @@ def run_demo(start=None, view: bool = False,
                                                   and boss.can_escalate)
                                         else None),
                                  mode=switch,
+                                 # ...and how hungry it is (issue #36).
+                                 metabolism=hunger,
                                  steering=boss is not None,
                                  # Who this robot is, apart from what it is
                                  # (issue #39): flag > $PLUGGY_ROBOT_NAME >

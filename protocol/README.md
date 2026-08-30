@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.12.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.13.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -24,9 +24,69 @@ ink first, then record against the same state file:
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand draw --boards /tmp/pw_boards.json                      # pass 1
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
-  --errand showcase --tasks --boards /tmp/pw_boards.json \
+  --errand showcase --tasks --metabolism --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
+
+⚠ **`--tasks` and `--metabolism` are both load-bearing**, for the same reason
+and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
+recording made without it carries no `tasks` / `metabolism` block at all and
+the website has nothing to build its markers or its hunger gauge against.
+
+### 0.12.0 → 0.13.0 (points are food)
+
+pluggybot #36. Points stop being a score that only goes up. The robot
+**consumes** them at a steady rate on sim time, stops banking at a **cap**,
+and once it has enough it is **satisfied** — and the hours it did not have to
+spend earning are what it spends on its goals. Display, like the ledger and
+the allowance: there is no inbound message that moves a point in either
+direction.
+
+**1. A `metabolism` block in the frame**, shipped whole when it changes (the
+`spend` block's rule — a handful of numbers that move together, and they move
+at the appetite's rate rather than the frame's):
+
+```jsonc
+"metabolism": {"state": "satisfied", "satisfied": true, "points": 52,
+               "cap": 90, "pointsPerHour": 45.0, "satisfiedAt": 45,
+               "hungryAt": 20, "consumed": 118, "spilled": 4}
+```
+
+`state` is one of `HUNGER_STATES` = `starving` | `hungry` | `fed` |
+`satisfied`, and the header gains `hungerStates` (the vocabulary), for the
+reason it carries `modes`. Present only on a world with an appetite — an
+all-zero hunger gauge on a world that never gets hungry is a panel that means
+nothing.
+
+⚠ **`fed` and `satisfied` are not interchangeable.** `fed` is above the
+hungry line and still climbing; `satisfied` is the latch that says stop
+working. The gap between `hungryAt` and `satisfiedAt` is hysteresis, so a
+client that collapsed the two would draw a gauge flickering exactly where the
+robot is most stable.
+
+⚠ **`starving` IS NOT A FAULT.** A robot at zero points charges, navigates
+and stows exactly as it always did — nothing in the sim gates on it. It is
+narrative: a worried face and a line in `History.md`. A client that rendered
+it as an error would be reporting a state that does not exist.
+
+**2. `consumed` and `spilled` on the `ledger` block**, so the balance
+explains itself: `earned - consumed - spent == balance` is now checkable from
+the wire alone. Without them a site would show a balance falling with nothing
+beside it to say why, and a job paying less than the published reward table
+with nothing to say it hit the ceiling. Both are `0` on a world with no
+appetite.
+
+**3. `banked` and `spilled` on an `earned` message**, present only where a cap
+is in force. `points` stays what the reward table paid; these two are how much
+of it reached the balance:
+
+```jsonc
+{"type": "earned", "robot": "pluggybot", "seq": 12, "task": "draw",
+ "points": 17, "banked": 3, "spilled": 14, "balance": 90, ...}
+```
+
+Additive: a 0.12.0 consumer ignores the block, the two ledger keys and the two
+entry keys, and renders exactly what it rendered before.
 
 ### 0.11.0 → 0.12.0 (money, and the operator's switch)
 

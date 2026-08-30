@@ -45,7 +45,8 @@ from typing import Callable
 
 from PIL import Image
 
-from pluggybot.telemetry.protocol import (MODES, PROTOCOL_VERSION, ROBOT_ROOT,
+from pluggybot.telemetry.protocol import (HUNGER_STATES, MODES,
+                                          PROTOCOL_VERSION, ROBOT_ROOT,
                                           body_census, robot_display_name)
 
 def mode_message(mode, t: float, held_s: float = 0.0) -> dict | None:
@@ -105,7 +106,7 @@ class FrameBuilder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               thoughts=None, spend=None, mode=None,
+               thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None) -> None:
     if keyframe_s < 0:
@@ -160,7 +161,15 @@ class FrameBuilder:
     # about the robot at that instant. The MESSAGE below is the separate
     # thing, and it exists because a paused robot emits no frames at all.
     self.mode = mode
+    # ...and how HUNGRY it is (0.13.0, issue #36). A sixth duck of the
+    # `snapshot()` shape, shipped whole on change like `spend` and for the
+    # same reason: a handful of numbers that move together, and a per-key
+    # delta of them is not a smaller message. Absent on a world with no
+    # appetite, which is every mission before this one -- an all-zero hunger
+    # gauge would be a panel that means nothing.
+    self.metabolism = metabolism
     self._last_spend: dict | None = None
+    self._last_hunger: dict | None = None
     self._last_mode: str | None = None
     # Who this robot IS, as distinct from what it is (0.10.0, issue #39):
     # ROBOT_ROOT is the species and stays the key of every wire structure;
@@ -231,6 +240,12 @@ class FrameBuilder:
       # frame -- on the same terms as `taskKinds`: a client builds its
       # controls before the robot has ever been in one of them.
       "modes": list(MODES),
+      # The appetite vocabulary (0.13.0, issue #36), on `modes`' terms: what
+      # the `metabolism` block's `state` may say, so a client builds its
+      # gauge before the robot has been in any of them. Empty on a world
+      # with no appetite -- the same honest answer `taskKinds` gives a world
+      # with no board.
+      "hungerStates": list(HUNGER_STATES) if self.metabolism else [],
     }
 
   def goals_message(self, t: float) -> dict | None:
@@ -322,6 +337,7 @@ class FrameBuilder:
       self._last_ledger.clear()
       self._last_tasks = None
       self._last_spend = None
+      self._last_hunger = None
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
@@ -377,6 +393,14 @@ class FrameBuilder:
       if money != self._last_spend:
         self._last_spend = money
         frame["spend"] = money
+    if self.metabolism is not None:
+      # How hungry it is (0.13.0, issue #36). Whole-block on change, like
+      # `spend` -- and it changes at the appetite's rate (a point every
+      # eighty sim-seconds at the shipped 45/hour), not per frame.
+      hunger = self.metabolism.snapshot()
+      if hunger != self._last_hunger:
+        self._last_hunger = hunger
+        frame["metabolism"] = hunger
     return frame
 
   @staticmethod
@@ -493,7 +517,7 @@ class TelemetryRecorder:
                keyframe_s: float = KEYFRAME_S,
                activities=None, boards=None, screens=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
-               thoughts=None, spend=None, mode=None,
+               thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
@@ -503,7 +527,7 @@ class TelemetryRecorder:
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
                                  thoughts=thoughts, spend=spend,
-                                 mode=mode,
+                                 mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()

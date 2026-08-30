@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.12.0"
+PROTOCOL_VERSION = "0.13.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -104,6 +104,24 @@ VISITOR_OUTCOMES = ("accepted", "declined", "answered")
 #: the thing being killed can reach is not a kill switch. mind/mode.py is the
 #: sim's end and it has no writer at all.
 MODES = ("llm", "scripted", "paused")
+
+#: THE ROBOT'S APPETITE (0.13.0, issue #36). Points are food: consumed at a
+#: steady rate on sim time, capped rather than accumulated, and once there is
+#: enough the robot is SATISFIED and spends its time on its goals instead.
+#: A two-repo vocabulary on FACE_STATES' terms -- adding a state is additive
+#: (a client falls back to rendering the number), renaming one breaks both.
+#:
+#: ⚠ `satisfied` and `fed` are BOTH "above the hungry line", and they are not
+#: interchangeable: `fed` is climbing and not there yet, `satisfied` is the
+#: latch that says stop working. The gap between them is hysteresis
+#: (economy/metabolism.py), and a client that collapsed the two would draw a
+#: gauge that flickered exactly where the robot is most stable.
+#:
+#: ⚠ `starving` IS NOT A DISABLED ROBOT. It is narrative -- a face and a line
+#: in History -- and nothing in the sim gates on it: a robot at zero points
+#: charges, navigates and stows exactly as it always did. A client that
+#: rendered it as a fault would be reporting a state that does not exist.
+HUNGER_STATES = ("starving", "hungry", "fed", "satisfied")
 
 # The thought files (issue #38). Two-repo vocabulary on the same terms as
 # TASK_STATES above: the names and the writers are what the wire may carry,
