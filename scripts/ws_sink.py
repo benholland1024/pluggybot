@@ -22,8 +22,9 @@ and the robot deciding whether to take your advice.
 Usage:
   uv run python scripts/ws_sink.py [--port 8765] [--quiet] [--token SECRET]
   ... then type at it:
-      draw a tree on whiteboard_b        # a suggestion
-      ? what are you doing               # a question
+      draw a tree on whiteboard_b        # just talk to it -- as of 0.14.0
+      what are you doing                 # there is one kind of message, and
+      hello!                             # working out which is the robot's job
       rate 3 0.8                         # rate ledger entry 3 at 80 %
 """
 
@@ -67,10 +68,7 @@ def main() -> None:
       if not line:
         continue
       n += 1
-      if line.startswith("?"):
-        msg = {"type": "question", "id": f"q{n}", "from": "console",
-               "text": line[1:].strip()}
-      elif line.startswith("rate "):
+      if line.startswith("rate "):
         parts = line.split()
         try:
           msg = {"type": "rating", "id": f"r{n}", "seq": int(parts[1]),
@@ -79,7 +77,7 @@ def main() -> None:
           print("[sink] usage: rate <ledger seq> <0..1>")
           continue
       else:
-        msg = {"type": "suggestion", "id": f"s{n}", "from": "console",
+        msg = {"type": "message", "id": f"m{n}", "from": "console",
                "text": line}
       try:
         ws.send(json.dumps(msg))
@@ -91,7 +89,7 @@ def main() -> None:
   def handle(ws) -> None:
     print(f"[sink] connection from {ws.remote_address}")
     if not args.quiet:
-      print("[sink] type a suggestion, '? question', or 'rate <seq> <0..1>'")
+      print("[sink] say anything to the robot, or 'rate <seq> <0..1>'")
       threading.Thread(target=typed_lines, args=(ws,), daemon=True).start()
     counts: dict[str, int] = {}
     gaps: list[float] = []

@@ -48,7 +48,7 @@ with no "type" field):
   {"type": "event", ...}   lifecycle narration lines (_say), as they occur.
 
 INBOUND (issue #16). The socket is bidirectional as of protocol 0.7.0: the
-server may send visitor suggestions, questions and ratings back down it. Two
+server may send visitor messages and ratings back down it. Two
 deliberate choices about how:
 
   IT IS THE SAME THREAD, not a reader thread. `recv(timeout=0)` is a

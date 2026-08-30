@@ -73,7 +73,7 @@ STATE_VERSION = 1
 #: Longest visitor-facing description kept. A job offer is a sentence, and
 #: this is `mind/inbox.py`'s cap for the same reason -- a task can be created
 #: by a stranger (issue #23), so its text is untrusted on exactly the terms
-#: a suggestion is.
+#: a visitor's message is.
 MAX_DESCRIPTION = 280
 #: Tasks the board holds at all. Resolved ones age out oldest-first; an OPEN
 #: task is never dropped to make room, because dropping a job the robot might

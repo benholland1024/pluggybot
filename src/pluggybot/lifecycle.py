@@ -881,12 +881,19 @@ class HubLifecycle:
         self._say(f"THOUGHT {verb}: {done}")
 
   def _answer_visitor(self, decision) -> None:
-    """Send one accept/decline/answer back out, and retire the message.
+    """Send one accepted/declined/replied back out, and retire the message.
 
     The message is only taken off the queue once it has actually been
     answered. A decision that came back scripted (the API was down) responds
-    to nobody, so the suggestion is still there for the next decision rather
+    to nobody, so the message is still there for the next decision rather
     than silently discarded by an outage.
+
+    The outcome is the ONLY classification of a visitor message anywhere in
+    the stack since 0.14.0 (issue #61) -- the request no longer carries one,
+    because the sender was the wrong party to ask. `kind` still rides the
+    reply for the same reason it rides `VisitorMessage`: the wire has three
+    inbound kinds and only one of them ever gets an answer, so a consumer
+    reading a mixed archive can tell which it is looking at.
     """
     if self.inbox is None or not decision.responds:
       return
@@ -904,8 +911,11 @@ class HubLifecycle:
     # Narrated as well as sent, because the two audiences are different: the
     # typed message closes the database row the website is holding, and the
     # event line is what a person watching the stream reads.
-    self._say(f"VISITOR {decision.outcome} {msg.who or 'a visitor'}'s "
-              f"{msg.kind}: {decision.reply or '(no reply)'}")
+    # Phrased with the message as the subject rather than the outcome as a
+    # verb: "replied ada's message" was ungrammatical the moment `answered`
+    # became `replied`, and all three outcomes have to read as English here.
+    self._say(f"VISITOR message from {msg.who or 'a visitor'} -- "
+              f"{decision.outcome}: {decision.reply or '(no reply)'}")
 
   # ---- tasks (issue #21) ----------------------------------------------------
 
@@ -1208,7 +1218,7 @@ class HubLifecycle:
     # go rather than being refused for a fullness it was about to fix.
     self._reconsider(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
-    # Before the action runs, so a visitor whose suggestion was taken hears
+    # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
     self._answer_visitor(decision)
 
@@ -1814,7 +1824,7 @@ def overseer_context(life) -> dict:
   the scripted fallback rotates on.
 
   Visitor messages are PEEKED, not taken: a decision can fail, come back
-  scripted, or answer only one of several, and a suggestion is retired when it
+  scripted, or answer only one of several, and a message is retired when it
   has been answered rather than when it has been read (issue #16).
   """
   from pluggybot.mind import overseer as ov

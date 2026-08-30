@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.13.0"
+PROTOCOL_VERSION = "0.14.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -58,11 +58,26 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 # are absent until there is a board game.
 #: What each type means on the wire, and why `reset_tool` was added without a
 #: version bump: protocol/README.md, "Downstream: server -> sim".
-INBOUND_TYPES = ("suggestion", "question", "rating", "reset_tool")
+#:
+#: ⚠ `message` is ONE kind and replaced `suggestion`/`question` at 0.14.0
+#: (issue #61). Classifying an inbound message is the recipient's job, not the
+#: sender's: the two categories were neither exclusive ("can you draw a cat?"
+#: is both) nor exhaustive (a greeting is neither), nothing on either side
+#: ever branched on which one it was, and the party equipped to work out what
+#: somebody meant is the one with a mind. What the robot DID about it is the
+#: distinction that survives, and it lives in `VISITOR_OUTCOMES` below.
+INBOUND_TYPES = ("message", "rating", "reset_tool")
+
+#: Retired inbound types still accepted, mapped to what replaced them. A
+#: website mid-deploy and an operator's older script keep working for one
+#: version; `mind/inbox.py` folds them in `_parse`, so nothing downstream of
+#: the queue ever sees a retired name. Emptying this is the second half of
+#: the migration and a deliberate later edit.
+LEGACY_INBOUND_TYPES = {"suggestion": "message", "question": "message"}
 
 #: The inbound kinds CODE handles without an overseer: applied by the physics
 #: thread the moment they are drained, never shown to a model. What a served
-#: world with no overseer advertises in `accepts` -- a suggestion to a robot
+#: world with no overseer advertises in `accepts` -- a message to a robot
 #: with nothing reading it is a conversation that is not happening (the
 #: `accepts` lesson), but a rating settles a ledger row and a reset moves a
 #: module, and both of those work on a scripted world.
@@ -90,8 +105,21 @@ TASK_STATES = ("offered", "claimed", "active", "done", "failed", "expired")
 #: lesson from `Decision.source`, one layer up.
 TASK_SOURCES = ("system", "visitor", "overseer")
 
-#: What the robot may say back about one visitor message.
-VISITOR_OUTCOMES = ("accepted", "declined", "answered")
+#: What the robot may say back about one visitor message, and -- since the
+#: inbound kinds collapsed at 0.14.0 (issue #61) -- the only classification of
+#: a conversation anybody makes. It is generated rather than declared, by the
+#: party that acted: `accepted` is "I am doing it, this turn", `declined` is
+#: "I am not, and here is why", and `replied` is everything else -- a question
+#: answered, a hello returned. That last one is why the vocabulary moved: it
+#: is the common case and the old `answered` was documented as being for
+#: questions, which a greeting is not.
+VISITOR_OUTCOMES = ("accepted", "declined", "replied")
+
+#: Retired outcomes, on `LEGACY_INBOUND_TYPES`' terms and in the opposite
+#: direction: this one travels UP, so the names live on in every recording
+#: made before 0.14.0 and a consumer must go on rendering them. The sim also
+#: accepts `answered` back from a model still working off an older prompt.
+LEGACY_VISITOR_OUTCOMES = {"answered": "replied"}
 
 #: OPERATOR MODES (0.12.0, issue #37). A two-repo contract on the same terms
 #: as FACE_STATES and TASK_STATES: the website's admin page writes these
