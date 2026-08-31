@@ -147,6 +147,12 @@ class Inbox:
     #: fired with each accepted VisitorMessage, on the SOCKET thread. For
     #: narration only -- anything that touches the sim belongs on `drain`.
     self.on_message: list[Callable[[VisitorMessage], None]] = []
+    #: Messages the bound above threw away, waiting to be reported
+    #: (rooftop-media-2026 #124). Filled on the SOCKET thread and drained on
+    #: the physics thread, exactly like `_queue` -- and bounded for exactly
+    #: the same reason, because a run with nothing draining it must not grow
+    #: without limit either.
+    self._evicted: deque = deque(maxlen=maxlen)
     self._seen: deque = deque(maxlen=maxlen * 4)
     self._seen_set: set = set()
 
@@ -183,7 +189,14 @@ class Inbox:
         self._seen.append(msg.id)
         self._seen_set.add(msg.id)
       if len(self._queue) == self._queue.maxlen:
-        self.dropped_full += 1              # deque drops the oldest for us
+        # ⚠ CAPTURE WHAT IS ABOUT TO GO (rooftop-media-2026 #124). The deque
+        # drops the oldest for us, silently, and until now the only trace was
+        # this counter -- which reaches nothing outside the process. A website
+        # holding that row can then only report it as still waiting, forever,
+        # when in fact nobody will ever read it. Read `[0]` BEFORE the append,
+        # because after it the message is already gone.
+        self.dropped_full += 1
+        self._evicted.append(self._queue[0])
       self._queue.append(msg)
       self.received += 1
     for hook in self.on_message:
@@ -267,6 +280,24 @@ class Inbox:
         (out if msg.kind in kinds else keep).append(msg)
       self._queue = keep
       self.delivered += len(out)
+      return out
+
+  def drain_evicted(self) -> list[VisitorMessage]:
+    """Remove and return the messages the queue bound threw away.
+
+    The physics thread's half of the capture in `offer`, and the only way the
+    fact leaves this process: a `dropped` reply goes out per message, so the
+    website can close the row it is holding instead of showing it as waiting
+    on an answer that is never coming (rooftop-media-2026 #124).
+
+    Drained rather than read, because each of these is reported exactly once.
+    Anything still in here when a mission ends dies with the process -- which
+    is the same trade `_queue` makes, and the reason the website re-delivers
+    unsettled rows on the next connect rather than trusting this to arrive.
+    """
+    with self._lock:
+      out = list(self._evicted)
+      self._evicted.clear()
       return out
 
   def stats(self) -> dict:

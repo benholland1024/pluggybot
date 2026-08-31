@@ -72,7 +72,7 @@ from pluggybot.mind.thoughts import (
   GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
 )
 from pluggybot.telemetry.protocol import (
-  LEGACY_VISITOR_OUTCOMES, ROBOT_ROOT, VISITOR_OUTCOMES, robot_display_name,
+  DECIDED_OUTCOMES, LEGACY_VISITOR_OUTCOMES, ROBOT_ROOT, robot_display_name,
 )
 
 #: Longest reply to a visitor. The robot is answering a stranger in one
@@ -389,7 +389,7 @@ class Menu:
         # against the queue in `validate` instead, which is where every other
         # piece of untrusted input in this file is checked.
         "respond_to": {"type": "string"},
-        "outcome": enum(VISITOR_OUTCOMES),
+        "outcome": enum(DECIDED_OUTCOMES),
         "reply": {"type": "string"},
         # ...and the task id, a free string for the same reason (issue #21).
         "task": {"type": "string"},
@@ -478,7 +478,10 @@ class Menu:
     # reply attached to it (issue #61).
     outcome = LEGACY_VISITOR_OUTCOMES.get(outcome, outcome)
     reply = clean(raw.get("reply"), MAX_REPLY)
-    if respond_to not in waiting or outcome not in VISITOR_OUTCOMES:
+    #  ⚠ `DECIDED_OUTCOMES`, not the whole wire vocabulary: `dropped` is the
+    #  queue's to report and a model claiming it would be inventing a free
+    #  excuse for not answering (rooftop-media-2026 #124).
+    if respond_to not in waiting or outcome not in DECIDED_OUTCOMES:
       respond_to, outcome, reply = "", "", ""
     return Decision(action=action, reason=str(raw.get("reason", "")).strip(),
                     board=board, program=program, zone=zone,
