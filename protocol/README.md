@@ -933,6 +933,44 @@ the battery drains through. It decimates 500 Hz of steps to `hz` of frames
 and hands them to a writer thread; no serialization or file I/O ever runs
 inside a physics step.
 
+### A message the queue threw away says so
+
+⚠ **`visitor_reply.outcome` gains a fourth value, `dropped`**
+(rooftop-media-2026 #124). Additive, and no version bump: a consumer that has
+never heard of it falls through to whatever it already does with an outcome it
+does not know, which is the `FACE_STATES` rule.
+
+```jsonc
+{"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "m_02",
+ "kind": "message", "outcome": "dropped", "reply": "", "action": ""}
+```
+
+The inbox is a **bounded drop-oldest deque** (`MAX_QUEUE` = 32), so a burst
+evicts messages the robot never read. `Inbox.dropped_full` counted them and
+**reached nothing outside the process**, so a website holding that row could
+only report it as still waiting — forever, on a message nobody was ever going
+to answer. "Nobody has answered you yet" and "your message was thrown away"
+are different facts, and only one of them is worth waiting on.
+
+It reuses `visitor_reply` rather than earning a type of its own because the
+correlation machinery already exists on both sides: a consumer closes the row
+by `id`, exactly as it does for the other three. What differs is **who
+generated it** — the queue, not a decision — which is why `reply` and `action`
+are empty. There was nobody to write one.
+
+⚠ **A MIND CANNOT SAY IT.** `DECIDED_OUTCOMES` is the three a model may
+choose and rides its grammar; `VISITOR_OUTCOMES` is all four and is what a
+consumer must render. Offered to a model, `dropped` is a free excuse for not
+answering — and one indistinguishable on the wire from the truth. Same rule as
+the reward table: the party that benefits from a claim is not the party that
+gets to make it.
+
+⚠ **It is best-effort, and the website should not rely on it alone.** Anything
+still waiting to be reported when a mission ends dies with the process, the
+same trade the queue itself makes. A consumer that cares about not losing
+messages re-delivers unsettled rows on the next producer connect; this makes
+the common case legible, it does not make the channel lossless.
+
 ### Narration is not UI copy
 
 ⚠ **Three fields on this wire are the sim's own vocabulary, and a consumer

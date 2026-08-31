@@ -480,6 +480,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `artwork` task is what makes that path live rather than reserved. Nor does
   a `reset_tool` (issue #30): an admin command is code's to apply, not the
   robot's to weigh.
+  - ⚠ **A MESSAGE THE QUEUE THREW AWAY SAYS SO** (rooftop-media-2026 #124).
+    The inbox is a bounded drop-oldest deque, so a burst evicts messages no
+    mind ever read — and `dropped_full` counted them without ever leaving the
+    process, so a website holding that row could only report it as still
+    waiting, for ever. `Inbox.drain_evicted()` hands them to the physics
+    thread and `_drop_visitor` emits a `visitor_reply` with the new
+    `dropped` outcome, reusing the correlation machinery both sides already
+    have rather than earning a message type.
+    ⚠ **`DECIDED_OUTCOMES` IS WHAT A MIND MAY SAY; `VISITOR_OUTCOMES` IS WHAT
+    A CONSUMER MUST RENDER**, and `dropped` is only in the second. Put it in
+    the model's grammar and a model that did not feel like answering has a
+    free excuse, indistinguishable on the wire from the truth — the reward
+    table's rule again: the party that benefits from a claim is not the party
+    that gets to make it.
+    ⚠ It is BEST EFFORT: anything still waiting to be reported when a mission
+    ends dies with the process, the same trade the queue itself makes. A
+    consumer that cares re-delivers unsettled rows on the next connect; this
+    makes the common case legible, it does not make the channel lossless.
   - ⚠ **ONE INBOUND KIND, AND THE ROBOT IS WHAT SORTS IT** (issue #61,
     protocol 0.14.0). `suggestion` and `question` are gone: the two names
     travelled the whole stack — two endpoints, two UI affordances, a DB enum

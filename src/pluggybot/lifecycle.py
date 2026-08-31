@@ -787,6 +787,14 @@ class HubLifecycle:
     """
     if self.inbox is None:
       return
+    # ⚠ FIRST, WHAT THE QUEUE THREW AWAY (rooftop-media-2026 #124). The inbox
+    # is bounded and drop-oldest, so a burst evicts messages the robot never
+    # read -- and until now that reached nothing outside the process, leaving
+    # the website's row waiting on an answer nobody was ever going to write.
+    # Reported before anything else in the pass so a message cannot be
+    # evicted and answered in the same step.
+    for msg in self.inbox.drain_evicted():
+      self._drop_visitor(msg)
     for msg in self.inbox.drain(("reset_tool",)):
       self._reset_tool(msg)
     for msg in self.inbox.drain(("rating",)):
@@ -879,6 +887,28 @@ class HubLifecycle:
         continue
       if done:
         self._say(f"THOUGHT {verb}: {done}")
+
+  def _drop_visitor(self, msg) -> None:
+    """Tell whoever is holding this row that nobody will ever read it.
+
+    A `visitor_reply` like any other, and deliberately so: the website already
+    correlates one to a row by `id` and closes it, so this needs no new
+    message type and no new plumbing on either side. What is different is who
+    generated it -- the QUEUE, not a decision -- which is why there is no
+    reply text and no action. There was nobody to write one.
+    """
+    reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
+             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "outcome": "dropped", "reply": "", "action": ""}
+    for hook in self.visitor_hooks:
+      hook(dict(reply))
+    self.replies.append(reply)
+    # Narrated too, on `_answer_visitor`'s terms: the typed message closes the
+    # database row, and the event line is what a person watching reads. An
+    # operator seeing this repeatedly is watching the channel saturate, which
+    # is the other thing the count was supposed to be telling somebody.
+    self._say(f"VISITOR message from {msg.who or 'a visitor'} -- "
+              f"dropped: the inbox was full")
 
   def _answer_visitor(self, decision) -> None:
     """Send one accepted/declined/replied back out, and retire the message.
