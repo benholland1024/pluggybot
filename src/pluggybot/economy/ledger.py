@@ -193,8 +193,20 @@ class Ledger:
         "pending": sum(1 for e in acct["entries"] if e.get("pending")),
         # Compact on purpose: this rides in every keyframe, and the full
         # verdict is in the `earned` message that went out when it happened.
+        # ⚠ `pending` rides along (rooftop-media-2026 #120). A deferred
+        # verdict banks at ZERO and waits for a person to rate it, and the
+        # block already publishes the COUNT of those -- but a consumer given
+        # only the count cannot say WHICH entry is waiting, so it can show
+        # "1 awaiting a rating" and offer no way to resolve it. That is
+        # exactly the bug that issue is about, and without this field it
+        # survives for every visitor who joins after the verdict landed:
+        # `earned` messages are not cached by the hub, so a late joiner has
+        # this summary and nothing else. Additive -- an older consumer
+        # ignores it, and a newer one reading an older recording gets
+        # `undefined`, which is the `false` it assumed before.
         "recent": [{"seq": e["seq"], "task": e["task"], "points": e["points"],
-                    "ok": e["ok"], "t": e["t"]} for e in recent],
+                    "ok": e["ok"], "t": e["t"],
+                    "pending": bool(e.get("pending"))} for e in recent],
       }
     return out
 
