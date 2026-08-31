@@ -349,8 +349,14 @@ def census_errand(zone: Zone, label: str = "plants",
                   f" -- battery down to {life.battery.fraction:.0%}")
         break
 
-    # The evaluator. Deliberately after the last look and deliberately not
-    # shown to the robot: `verdict["truth"]` never reaches the screen.
+    # The evaluator. Deliberately after the last look, and its answer is
+    # narrated NOWHERE: `verdict["truth"]` reaches neither the robot's LCD nor
+    # the WIRE (issue #75). `_say` writes `life.status`, which rides every
+    # telemetry frame -- so a status line naming the true count publishes it
+    # to the website's portrait AND back into the overseer's own context,
+    # which is what `Task.secret` and `Verdict.public_metrics` exist to stop.
+    # The count, the verdict and the coverage are public; the answer is not,
+    # which is the same line `eval_census`'s reason draws.
     truth = true_count(life.model, zone, prefix=prefix)
     verdict = score(tally["count"], truth, tally["coverage"])
     if screen is not None:
@@ -358,8 +364,8 @@ def census_errand(zone: Zone, label: str = "plants",
                         face="happy" if verdict["correct"] else "surprised",
                         hint="bounce" if verdict["correct"] else "none")
     life._say(f"USE_TOOL: census of {zone.name} -- reported "
-              f"{verdict['counted']} {label}, truth {verdict['truth']} "
-              f"({'CORRECT' if verdict['correct'] else 'wrong'}), "
+              f"{verdict['counted']} {label} "
+              f"({'correct' if verdict['correct'] else 'wrong'}), "
               f"{verdict['coverage']:.0%} of the zone surveyed")
     # Stand still and SHOW it. See PRESENT_S: the alternative is a number
     # that exists only inside this function.
