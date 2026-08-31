@@ -428,8 +428,39 @@ def test_the_telemetry_block_carries_the_balance_and_the_last_few_earnings():
   assert snap["balance"] == ledger.balance()
   assert snap["tasks"] == RECENT + 3
   assert len(snap["recent"]) == RECENT
-  assert set(snap["recent"][0]) == {"seq", "task", "points", "ok", "t"}
+  # The literal set is the point: a field added here rides EVERY keyframe, so
+  # it should cost somebody a deliberate edit rather than arriving by accident.
+  assert set(snap["recent"][0]) == {"seq", "task", "points", "ok", "t", "pending"}
   json.dumps(snap)                      # it goes on a websocket
+
+
+def test_the_recent_block_says_WHICH_verdict_is_waiting_on_a_rating():
+  """`pending` per entry, not just the count beside them (issue #78).
+
+  The block has always published how MANY verdicts are waiting for a person.
+  A consumer given only the count cannot say which one, so it can render "1
+  awaiting a rating" and offer nothing that resolves it -- which is what the
+  website did until `earned` messages stopped being the only place the flag
+  appeared. `earned` is not cached by the hub, so a browser that joins after a
+  deferred verdict lands has this summary and nothing else.
+  """
+  ledger = Ledger()
+  ledger.award(evaluate("carry", {"picked": True, "stowed": True,
+                                  "module": "module_lcd"}), t=1.0)
+  deferred = ledger.award(evaluate("artwork", GOOD_DRAWING), t=2.0)
+
+  recent = {e["seq"]: e for e in ledger.snapshot()["pluggybot"]["recent"]}
+  # ⚠ BOTH VALUES, not just the presence of the key. An ordinary award is
+  # finished business and must not read as waiting on anybody.
+  assert recent[deferred["seq"]]["pending"] is True
+  assert [e["pending"] for e in recent.values()].count(False) == 1
+
+  # ...and rating it clears the flag on the wire, not merely in the entry:
+  # this is what lets a site take the control away again.
+  ledger.settle(deferred["seq"], quality=0.75, t=9.0)
+  settled = {e["seq"]: e for e in ledger.snapshot()["pluggybot"]["recent"]}
+  assert settled[deferred["seq"]]["pending"] is False
+  assert ledger.snapshot()["pluggybot"]["pending"] == 0
 
 
 def test_an_award_is_an_event_as_it_happens():
