@@ -30,7 +30,9 @@ from pluggybot.mind.inbox import (
   MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, Inbox, VisitorMessage, clean,
 )
 from pluggybot.mind.overseer import Decision, Menu
-from pluggybot.telemetry.protocol import INBOUND_TYPES, VISITOR_OUTCOMES
+from pluggybot.telemetry.protocol import (
+  DECIDED_OUTCOMES, INBOUND_TYPES, VISITOR_OUTCOMES,
+)
 
 
 def message(**kw) -> dict:
@@ -159,6 +161,49 @@ def test_a_flood_drops_the_OLDEST_and_says_so():
   # The SURVIVORS are the newest, which is the half of "drop-oldest" that a
   # length check alone would not catch.
   assert inbox.peek(1)[0].text == f"idea {MAX_QUEUE * 2}"
+
+
+def test_an_evicted_message_is_handed_back_so_somebody_can_be_told():
+  """The counter said HOW MANY were thrown away and nothing said WHICH.
+
+  It reached nothing outside the process either, so a website holding the row
+  could only report it as still waiting -- forever, on a message no robot was
+  ever going to read (rooftop-media-2026 #124). "Nobody has answered you yet"
+  and "your message was thrown away" are different facts.
+  """
+  inbox = Inbox()
+  for i in range(MAX_QUEUE + 3):
+    inbox.offer(message(id=f"s{i}", text=f"idea {i}"))
+
+  evicted = inbox.drain_evicted()
+  # The three OLDEST, in the order they were lost, and each exactly once.
+  assert [m.id for m in evicted] == ["s0", "s1", "s2"]
+  assert inbox.stats()["droppedFull"] == 3
+  # Drained, not read: a second call has nothing left, or the website would
+  # be told twice about one message.
+  assert inbox.drain_evicted() == []
+
+
+def test_an_evicted_message_is_not_also_still_queued():
+  """The two halves must not disagree: a message reported as thrown away and
+  then answered would close the visitor's row twice, with opposite news."""
+  inbox = Inbox()
+  for i in range(MAX_QUEUE + 1):
+    inbox.offer(message(id=f"s{i}", text=f"idea {i}"))
+
+  evicted = {m.id for m in inbox.drain_evicted()}
+  queued = {m.id for m in inbox.drain()}
+  assert evicted == {"s0"}
+  assert not (evicted & queued)
+
+
+def test_the_evicted_list_is_bounded_like_the_queue_it_shadows():
+  """Nothing drains it on a run with no telemetry attached, and an unbounded
+  one would be the memory leak the queue's own bound exists to prevent."""
+  inbox = Inbox()
+  for i in range(MAX_QUEUE * 4):
+    inbox.offer(message(id=f"s{i}", text=f"idea {i}"))
+  assert len(inbox.drain_evicted()) == MAX_QUEUE
 
 
 def test_offer_never_raises_whatever_it_is_handed():
@@ -317,7 +362,27 @@ def test_a_reply_outcome_is_off_a_fixed_vocabulary():
                      "outcome": "obeyed", "reply": "yes master"},
                     waiting=("s1",))
   assert not d.responds
-  assert set(VISITOR_OUTCOMES) == {"accepted", "declined", "replied"}
+  assert set(DECIDED_OUTCOMES) == {"accepted", "declined", "replied"}
+
+
+def test_a_model_cannot_claim_the_queue_ate_a_message():
+  """`dropped` is on the wire but NOT in the model's vocabulary.
+
+  It is the queue's to report (rooftop-media-2026 #124). Offered to a mind it
+  would be a free excuse for not answering -- and one indistinguishable, on
+  the wire, from the truth. Same rule as the reward table: the party that
+  benefits from a claim is not the party that gets to make it.
+  """
+  assert "dropped" in VISITOR_OUTCOMES
+  assert "dropped" not in DECIDED_OUTCOMES
+
+  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+                     "outcome": "dropped", "reply": ""}, waiting=("s1",))
+  assert not d.responds, "a model talked its way out of answering"
+  # ...and it is not in the grammar the model is handed either, so it never
+  # gets as far as the validator on a well-behaved backend.
+  assert "dropped" not in str(menu.schema())
 
 
 def test_the_reply_the_visitor_reads_is_capped_too():

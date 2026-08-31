@@ -886,6 +886,8 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "bodies": {"pluggybot": [x, y, z, qw, qx, qy, qz], ...},   // world-frame
    "state": "EXPLORE",                         // lifecycle state machine
    "status": "EXPLORE -> GO_CHARGE (battery low)",            // the _say line
+   //  ⚠ BOTH ARE THE SIM TALKING TO ITSELF -- see "Narration is not UI copy"
+   //  below before a consumer prints either one.
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
  "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
  "activities": {"garden_gate": {"state": "open", "pressed": false}},
@@ -930,6 +932,76 @@ is a callback on `HubMission.step_hooks` — the same per-physics-step seam
 the battery drains through. It decimates 500 Hz of steps to `hz` of frames
 and hands them to a writer thread; no serialization or file I/O ever runs
 inside a physics step.
+
+### A message the queue threw away says so
+
+⚠ **`visitor_reply.outcome` gains a fourth value, `dropped`**
+(rooftop-media-2026 #124). Additive, and no version bump: a consumer that has
+never heard of it falls through to whatever it already does with an outcome it
+does not know, which is the `FACE_STATES` rule.
+
+```jsonc
+{"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "m_02",
+ "kind": "message", "outcome": "dropped", "reply": "", "action": ""}
+```
+
+The inbox is a **bounded drop-oldest deque** (`MAX_QUEUE` = 32), so a burst
+evicts messages the robot never read. `Inbox.dropped_full` counted them and
+**reached nothing outside the process**, so a website holding that row could
+only report it as still waiting — forever, on a message nobody was ever going
+to answer. "Nobody has answered you yet" and "your message was thrown away"
+are different facts, and only one of them is worth waiting on.
+
+It reuses `visitor_reply` rather than earning a type of its own because the
+correlation machinery already exists on both sides: a consumer closes the row
+by `id`, exactly as it does for the other three. What differs is **who
+generated it** — the queue, not a decision — which is why `reply` and `action`
+are empty. There was nobody to write one.
+
+⚠ **A MIND CANNOT SAY IT.** `DECIDED_OUTCOMES` is the three a model may
+choose and rides its grammar; `VISITOR_OUTCOMES` is all four and is what a
+consumer must render. Offered to a model, `dropped` is a free excuse for not
+answering — and one indistinguishable on the wire from the truth. Same rule as
+the reward table: the party that benefits from a claim is not the party that
+gets to make it.
+
+⚠ **It is best-effort, and the website should not rely on it alone.** Anything
+still waiting to be reported when a mission ends dies with the process, the
+same trade the queue itself makes. A consumer that cares about not losing
+messages re-delivers unsettled rows on the next producer connect; this makes
+the common case legible, it does not make the channel lossless.
+
+### Narration is not UI copy
+
+⚠ **Three fields on this wire are the sim's own vocabulary, and a consumer
+must not print any of them raw** (rooftop-media-2026 #123 — a deliberate
+contract change, recorded here as well as there).
+
+| field | example | what it is |
+| --- | --- | --- |
+| `state` on a robot's frame record | `SWAP_PICK` | a state machine's name for itself |
+| `task` on `earned` / an `earning` | `census` | a row in `economy/rewards.json` |
+| `action` on `visitor_reply` | `dance` | one of the overseer's `ERRAND_ACTIONS` |
+
+The website printed the first of them in bold under a label a visitor could
+read, and it measured **27 % of the home recording** spent telling somebody
+the robot was doing something called `SWAP_PICK`. These are identifiers a
+client should map to its own words; the site now renders a phrase per token
+and falls back to the raw token for one it has never heard of — all three are
+OPEN sets, on the same terms as `FACE_STATES` and `taskKinds`, so a new
+lifecycle state or reward row costs a consumer the phrasing and never the
+fact.
+
+`status` is different and stays as it is: it is the `_say` line, real prose
+written by the sim, and worth showing **as a log** rather than as a headline.
+⚠ It is **English**, and so are `earned.reason`, a task `description`, a
+journal note, a memory document and a `visitor_reply.reply` — a client whose
+page is in another language owes them a `lang="en"` region, or a screen reader
+announces English words with the reader's phonemes. Do NOT mark a VISITOR's
+own message that way: they wrote it in their own language.
+
+Nothing here changes what the sim emits. It is a note about what the bytes
+MEAN, which is exactly what this file is for.
 
 ## The live stream (webserver v1)
 

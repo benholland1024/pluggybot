@@ -113,7 +113,28 @@ TASK_SOURCES = ("system", "visitor", "overseer")
 #: answered, a hello returned. That last one is why the vocabulary moved: it
 #: is the common case and the old `answered` was documented as being for
 #: questions, which a greeting is not.
-VISITOR_OUTCOMES = ("accepted", "declined", "replied")
+#:
+#: What a MIND may choose. This is the set that rides the model's grammar and
+#: the set its answer is validated against.
+DECIDED_OUTCOMES = ("accepted", "declined", "replied")
+
+#: ...and the whole vocabulary a CONSUMER must render, which is one longer.
+#:
+#: ⚠ `dropped` IS THE ONE THE ROBOT DID NOT CHOOSE (rooftop-media-2026 #124).
+#: The inbox is a bounded drop-oldest deque, so a burst can evict a message
+#: the robot never read -- and the count of that (`dropped_full`) reached
+#: nothing outside the process, so a site holding the row could only report it
+#: as still waiting, forever. "Nobody has answered you yet" and "your message
+#: was thrown away" are different facts and only one of them is worth waiting
+#: on. Emitted by the QUEUE, which is why it carries no `reply` text: there
+#: was nobody to write one.
+#:
+#: ⚠ AND IT IS KEPT OUT OF `DECIDED_OUTCOMES` ON PURPOSE. Put it in the
+#: model's enum and a model that did not feel like answering could say the
+#: queue ate the message -- a free excuse, indistinguishable on the wire from
+#: the truth. The same reason it cannot award itself points: the party that
+#: benefits from a claim is not the party that gets to make it.
+VISITOR_OUTCOMES = (*DECIDED_OUTCOMES, "dropped")
 
 #: Retired outcomes, on `LEGACY_INBOUND_TYPES`' terms and in the opposite
 #: direction: this one travels UP, so the names live on in every recording
