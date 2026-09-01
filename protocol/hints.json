@@ -1,0 +1,915 @@
+{
+ "protocolVersion": "0.14.0",
+ "model": "hints",
+ "upAxis": "z",
+ "vocabulary": [
+  "wall",
+  "fence",
+  "floor",
+  "ground",
+  "whiteboard",
+  "rack",
+  "plant",
+  "tree",
+  "hill",
+  "couch",
+  "bed",
+  "table",
+  "robot"
+ ],
+ "oneBoxHints": [
+  "couch",
+  "bed",
+  "table"
+ ],
+ "hints": {
+  "wall": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "thickness": "size0",
+    "length": "size1",
+    "height": "size2"
+   },
+   "note": "A slab standing on the floor. The two horizontal extents are not interchangeable: the SHORT one is the thickness, and a wall may run along either world axis -- read them body-local and let the body quat place the result.",
+   "body": {
+    "name": "hint_wall",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "wall",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_wall_0",
+      "type": "box",
+      "size": [
+       0.04,
+       8.0,
+       1.2
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.6
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "fence": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "length": "size0",
+    "thickness": "size1",
+    "height": "size2"
+   },
+   "note": "Like a wall but see-through: the browser draws posts and rails within the slab, which is why the marker is solid and the art is not.",
+   "body": {
+    "name": "hint_fence",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "fence",
+    "pos": [
+     0.0,
+     3.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_fence_0",
+      "type": "box",
+      "size": [
+       5.0,
+       0.04,
+       0.9
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.45
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "floor": {
+   "marker": "box",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "Indoors underfoot. Does NOT collide -- the robot is held up by the world plane, and this is the surface a visitor sees.",
+   "body": {
+    "name": "hint_floor",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "floor",
+    "pos": [
+     0.0,
+     6.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_floor_0",
+      "type": "box",
+      "size": [
+       7.0,
+       8.0,
+       0.002
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       -0.001
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "ground": {
+   "marker": "box",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "Outdoors underfoot, same shape as `floor` and a different material. The pair is why the vocabulary has two names for one primitive.",
+   "body": {
+    "name": "hint_ground",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "ground",
+    "pos": [
+     0.0,
+     9.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_ground_0",
+      "type": "box",
+      "size": [
+       5.0,
+       8.0,
+       0.002
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       -0.001
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "whiteboard": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "depth": "size0",
+    "width": "size1",
+    "height": "size2"
+   },
+   "note": "The DRAWN face is +x in the body frame, and its extent is size1 x size2 -- the same rectangle a `draw` event's polyline is in. `scene.boards` gives the same numbers by board name.",
+   "body": {
+    "name": "hint_whiteboard",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "whiteboard",
+    "pos": [
+     0.0,
+     12.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_whiteboard_0",
+      "type": "box",
+      "size": [
+       0.02,
+       0.32,
+       0.26
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "rack": {
+   "marker": "many",
+   "markers": 3,
+   "collides": true,
+   "build": "reskin",
+   "axes": {},
+   "note": "MANY primitives, and the only v1 hint that is already a reskin: the bays are where the robot puts tools, so their positions are load-bearing and an asset that replaced them would put the tools somewhere else. Use `primitives()`.",
+   "body": {
+    "name": "hint_rack",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "rack",
+    "pos": [
+     0.0,
+     15.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_rack_0",
+      "type": "box",
+      "size": [
+       0.048,
+       0.048,
+       0.8
+      ],
+      "pos": [
+       -0.9,
+       0.0,
+       0.4
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_rack_1",
+      "type": "box",
+      "size": [
+       0.048,
+       0.048,
+       0.8
+      ],
+      "pos": [
+       0.9,
+       0.0,
+       0.4
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_rack_2",
+      "type": "box",
+      "size": [
+       1.8,
+       0.048,
+       0.048
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.78
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "plant": {
+   "marker": "cylinder",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "radius": "size0",
+    "height": "size1"
+   },
+   "note": "A cylinder standing on the ground, and NOT solid: the robot maps it (the census counts it off the occupancy grid) and drives through it. Do not draw it as an obstacle.",
+   "body": {
+    "name": "hint_plant",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "plant",
+    "pos": [
+     0.0,
+     18.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_plant_0",
+      "type": "cylinder",
+      "size": [
+       0.04,
+       0.3
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.15
+      ],
+      "quat": [
+       0.707107,
+       0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "tree": {
+   "marker": "cylinder",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "radius": "size0",
+    "height": "size1"
+   },
+   "note": "THE TRUNK, not the tree. Unlike `plant` it is solid, because a tree the robot may drive through is a tree it will park in. The canopy is art and may exceed the marker -- but only ABOVE the robot, because nothing outside this cylinder is something the robot will avoid.",
+   "body": {
+    "name": "hint_tree",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "tree",
+    "pos": [
+     0.0,
+     21.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_tree_0",
+      "type": "cylinder",
+      "size": [
+       0.06,
+       1.8
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.9
+      ],
+      "quat": [
+       0.707107,
+       0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "hill": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "height": "size2"
+   },
+   "note": "A mound INSIDE the fence, where the robot maps it -- the distant hills of the horizon are the browser's and are not hinted at all. The marker is the footprint and the peak height; the shape between them is the builder's.",
+   "body": {
+    "name": "hint_hill",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "hill",
+    "pos": [
+     0.0,
+     24.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_hill_0",
+      "type": "box",
+      "size": [
+       2.0,
+       2.0,
+       0.3
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "couch": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "width": "size0",
+    "depth": "size1",
+    "height": "size2"
+   },
+   "note": "EXACTLY ONE BOX -- see the note below on furniture. Width is the seating direction, depth is front-to-back.",
+   "body": {
+    "name": "hint_couch",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "couch",
+    "pos": [
+     0.0,
+     27.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_couch_0",
+      "type": "box",
+      "size": [
+       1.8,
+       0.8,
+       0.7
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.35
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "bed": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "length": "size0",
+    "width": "size1",
+    "height": "size2"
+   },
+   "note": "EXACTLY ONE BOX. Length is head-to-foot.",
+   "body": {
+    "name": "hint_bed",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "bed",
+    "pos": [
+     0.0,
+     30.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_bed_0",
+      "type": "box",
+      "size": [
+       2.0,
+       1.4,
+       0.5
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.25
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "table": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "width": "size0",
+    "depth": "size1",
+    "height": "size2"
+   },
+   "note": "EXACTLY ONE BOX, and the height is the TOP -- a builder draws legs and a top within it rather than a solid block.",
+   "body": {
+    "name": "hint_table",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "table",
+    "pos": [
+     0.0,
+     33.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_table_0",
+      "type": "box",
+      "size": [
+       1.2,
+       0.8,
+       0.74
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.37
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "robot": {
+   "marker": "many",
+   "markers": 4,
+   "collides": true,
+   "build": "reskin",
+   "axes": {},
+   "note": "MANY primitives, and a RESKIN for the same reason as `rack` and a stronger one: this is the body a visitor watches, and its silhouette is the shape the physics used. A visitor watching it squeeze through a doorway is watching that shape, so dress the primitives -- never replace them with a prettier outline. It is also the only DYNAMIC hinted body: its pose is overwritten by every telemetry frame. \u26a0 The hint goes on the ROOT body only; the head, wheels, carriage, arm and fork are bodies of their own with their own poses. They are already identifiable without a hint -- every body in the subtree carries `robot: \"pluggybot\"` -- so the hint names where to ANCHOR, and `robot` names what to dress.",
+   "body": {
+    "name": "pluggybot",
+    "parent": "world",
+    "dynamic": true,
+    "robot": "pluggybot",
+    "visual": "robot",
+    "pos": [
+     0.0,
+     36.0,
+     0.2
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "pluggybot_0",
+      "type": "box",
+      "size": [
+       0.21,
+       0.16,
+       0.09
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "pluggybot_1",
+      "type": "box",
+      "size": [
+       0.1,
+       0.08,
+       0.12
+      ],
+      "pos": [
+       0.0,
+       -0.08,
+       0.135
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "pluggybot_2",
+      "type": "cylinder",
+      "size": [
+       0.045,
+       0.024
+      ],
+      "pos": [
+       -0.105,
+       0.0,
+       0.0
+      ],
+      "quat": [
+       0.707107,
+       0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "pluggybot_3",
+      "type": "cylinder",
+      "size": [
+       0.045,
+       0.024
+      ],
+      "pos": [
+       0.105,
+       0.0,
+       0.0
+      ],
+      "quat": [
+       0.707107,
+       0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  }
+ }
+}
