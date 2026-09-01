@@ -15,12 +15,18 @@
   "couch",
   "bed",
   "table",
-  "robot"
+  "robot",
+  "stairs",
+  "street",
+  "sidewalk",
+  "counter"
  ],
  "oneBoxHints": [
   "couch",
   "bed",
-  "table"
+  "table",
+  "counter",
+  "stairs"
  ],
  "hints": {
   "wall": {
@@ -897,6 +903,242 @@
       "quat": [
        0.707107,
        0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "stairs": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "height": "size2"
+   },
+   "note": "ONE SOLID BOX, and the browser draws the flight inside it -- issue #68 decides this outright and it is not a simplification to undo. The box is 0.9 m tall because the LIDAR rides at 0.223 m: real steps at ~0.18 m would be solid geometry the robot cannot see, which is a wall it maps as open floor. The art may show risers and treads; the marker is what the robot believes, and it believes a block.",
+   "body": {
+    "name": "hint_stairs",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "stairs",
+    "pos": [
+     0.0,
+     39.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_stairs_0",
+      "type": "box",
+      "size": [
+       3.0,
+       3.0,
+       0.9
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.45
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "street": {
+   "marker": "box",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "Underfoot beyond the property, on the same terms as `floor` and `ground`: a thin non-colliding slab whose whole job is a material. The robot can reach it through the garden gate, so it is a mapped surface rather than scenery.",
+   "body": {
+    "name": "hint_street",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "street",
+    "pos": [
+     0.0,
+     42.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_street_0",
+      "type": "box",
+      "size": [
+       3.0,
+       12.0,
+       0.002
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       -0.001
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "sidewalk": {
+   "marker": "box",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "The strip between the fence and the `street`, and the third member of the `floor`/`ground` family -- same primitive, different material. It is a separate name for the same reason those two are: a builder keys on the name, and the alternative is one hint whose material depends on where it happens to be.",
+   "body": {
+    "name": "hint_sidewalk",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "sidewalk",
+    "pos": [
+     0.0,
+     45.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_sidewalk_0",
+      "type": "box",
+      "size": [
+       1.5,
+       12.0,
+       0.002
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       -0.001
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "counter": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "width": "size0",
+    "depth": "size1",
+    "height": "size2"
+   },
+   "note": "The kitchen's worktop: EXACTLY ONE BOX, like the furniture, and the height is the TOP. Frozen ahead of any decision about whether the kitchen gets fixtures at all -- an unused name costs nothing and a late one costs a two-repo rename.",
+   "body": {
+    "name": "hint_counter",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "counter",
+    "pos": [
+     0.0,
+     48.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_counter_0",
+      "type": "box",
+      "size": [
+       2.0,
+       0.6,
+       0.9
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.45
+      ],
+      "quat": [
+       1.0,
+       0.0,
        0.0,
        0.0
       ],

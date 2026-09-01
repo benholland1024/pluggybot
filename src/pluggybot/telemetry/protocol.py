@@ -57,6 +57,18 @@ VISUAL_HINTS = (
   # doorway is watching the shape the physics used, and art that flattered
   # it would be lying about the sim.
   "robot",
+  # v3 (issue #66 again, against the floor plan authored for #68 on
+  # 2026-09-01): the expanded property. The house grows a kitchen, a workshop
+  # and a hall with a staircase in it, and the garden now fronts a real street
+  # the robot can reach through the existing gate.
+  #
+  # Frozen in the SAME pass as v2 rather than as they are needed, which is the
+  # point of a freeze: adding is free and renaming is the breaking change, so
+  # a name that MIGHT be wanted costs nothing now and a two-repo event later.
+  # `counter` is the kitchen's, and is here on exactly that reasoning -- #68
+  # may leave the kitchen empty, in which case this is an unused name and no
+  # harm done.
+  "stairs", "street", "sidewalk", "counter",
 )
 
 # The LCD module's display (issue #13). Three vocabularies on the same terms
