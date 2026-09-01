@@ -176,9 +176,11 @@ def test_a_good_answer_is_used_verbatim(menu):
 
 
 @pytest.mark.parametrize("answer, expect", [
-  (RuntimeError("connection reset"), "fallback:RuntimeError"),
-  ("I would love to draw a house!", "fallback:ValueError"),
-  ({"action": "delete_the_ledger", "reason": "..."}, "fallback:ValueError"),
+  # The BUCKET, not the exception class (issue #76): nobody answered, versus
+  # somebody answered with something that was not a decision.
+  (RuntimeError("connection reset"), "fallback:offline"),
+  ("I would love to draw a house!", "fallback:garbled"),
+  ({"action": "delete_the_ledger", "reason": "..."}, "fallback:garbled"),
 ])
 def test_a_broken_answer_falls_back_to_the_scripted_policy(menu, answer,
                                                            expect):
@@ -271,7 +273,7 @@ def test_a_dead_endpoint_backs_off_instead_of_hammering(menu):
   client = FakeClient(RuntimeError("no route to host"))
   boss = Overseer(menu, client=client, calls_per_hour=60)
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS):
-    assert boss.decide({}).source.startswith("fallback:RuntimeError")
+    assert boss.decide({}).source == "fallback:offline"
   assert len(client.calls) == ov.MAX_CONSECUTIVE_ERRORS
   assert boss.decide({}).source == "fallback:cooloff"
   assert len(client.calls) == ov.MAX_CONSECUTIVE_ERRORS, "still calling out"

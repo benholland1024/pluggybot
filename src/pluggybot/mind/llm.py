@@ -54,7 +54,7 @@ Differences from the Anthropic path, and how they are handled:
   - Reasoning models may prefix their answer with a `<think>` block. It is
     stripped before parsing, because "the model reasoned first" and "the
     model did not answer JSON" are different events and only the second
-    should become `fallback:ValueError`.
+    should become `fallback:garbled`.
 
 Stdlib `urllib` on purpose: the serving image installs six pinned packages
 (deploy/requirements-serve.txt) and this backend should not grow that list to
@@ -99,7 +99,7 @@ LOCAL_MODEL = "qwen3:4b-instruct"
 #: 11 kB prompt): a warm decision is 3.4-5.5 s, and the first one after the
 #: weights are out of VRAM is **27.3 s**. The Anthropic path's 8 s deadline
 #: therefore turns every mission's opening decision into a guaranteed
-#: `fallback:TimeoutError` -- measured, three for three, before this constant
+#: `fallback:timeout` -- measured, three for three, before this constant
 #: existed -- and ollama unloads an idle model after five minutes, so a robot
 #: coming back from a long errand pays it again. The budget, the cool-off and
 #: the fallback are untouched; only the number they are measured against

@@ -354,9 +354,23 @@ class HubLifecycle:
       self._face_shown = resting
       self.screen.face(*resting)
 
-  def _say(self, msg: str) -> None:
+  def _say(self, msg: str, detail: str = "") -> None:
+    """Narrate one line. `msg` is what the ROBOT says; `detail` is evidence.
+
+    `msg` becomes `self.status`, which rides every telemetry frame, is
+    rendered verbatim under the robot's portrait and goes to `say_hooks` (the
+    event stream). So it has to be a sentence a robot could say.
+
+    `detail` reaches the console and `self.log` and NOTHING else -- no status,
+    no frame, no hook. It is where a caught exception's class and message go
+    (issue #76): the operator debugging a recovered failure still wants the
+    class, and a visitor reading the Thoughts tab should not be shown a
+    traceback for something that did not crash.
+    """
     self.status = msg
     line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
+    if detail:
+      line = f"{line}  [{detail}]"
     self.log.append(line)
     print(line, flush=True)
     for hook in self.say_hooks:
@@ -630,8 +644,8 @@ class HubLifecycle:
     # showcase mission its census answer.
     arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
     still = self.mission.swap.module_state(self.module)["on_fork"]
-    self._say(f"USE_TOOL: {'arrived' if arrived else 'NEVER GOT THERE'}"
-              f"{'' if still else ' -- BUT DROPPED THE TOOL'}")
+    self._say(f"USE_TOOL: {'arrived' if arrived else 'never got there'}"
+              f"{'' if still else ' -- but dropped the tool on the way'}")
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
@@ -645,8 +659,17 @@ class HubLifecycle:
       except MissionAborted:
         raise
       except Exception as e:                      # noqa: BLE001 -- see docstring
+        # The dict keeps the CLASS -- scoring and `errand_results` read it,
+        # and it is a machine record rather than something the robot says.
+        # The narration is a sentence and the evidence goes to the log
+        # (issue #76): nothing crashed here. The tool goes back to its bay,
+        # the evaluator grades the job honestly and the mission carries on,
+        # so a traceback under the robot's portrait describes a disaster that
+        # did not happen.
         used = {"error": f"{type(e).__name__}: {e}"}
-        self._say(f"USE_TOOL FAILED: {used['error']} -- stowing the tool anyway")
+        self._say("USE_TOOL FAILED: something went wrong doing the job -- "
+                  "stowing the tool anyway",
+                  detail=used["error"])
 
     self.state = "SWAP_RETURN"
     self.mission.swap_at_bay(errand.station_y, "return", module=self.module)
@@ -803,12 +826,22 @@ class HubLifecycle:
       try:
         entry = self.ledger.settle(msg.seq, msg.quality,
                                    t=float(self.data.time))
-      except (KeyError, ValueError) as e:
-        # A rating for an entry that is gone, already settled, or was never
-        # visitor-tiered. The website is allowed to be wrong about this --
-        # it is a different process holding a stale row -- so it is a
-        # narration line, not a crash.
-        self._say(f"VISITOR rating {msg.seq} ignored: {e}")
+      except KeyError as e:
+        # The two misses are caught apart so the robot can say which one
+        # happened (issue #76). `str()` of a KeyError re-quotes its argument,
+        # so the one line these used to share read literally as
+        # `ignored: 'pluggybot: no ledger entry 7'` -- stray quotes and the
+        # robot's own body name -- at the exact moment A PERSON had just done
+        # something on the site. The website is allowed to be wrong here: it
+        # is a different process holding a stale row, and being out of date
+        # is not an error condition. The evidence still reaches the log.
+        self._say(f"VISITOR rating ignored: I have no job {msg.seq} "
+                  f"on my ledger to rate", detail=f"{type(e).__name__}: {e}")
+        continue
+      except ValueError as e:
+        # Settled already, or a job that was never the visitor's to rate.
+        self._say(f"VISITOR rating ignored: job {msg.seq} is not waiting on "
+                  f"a rating", detail=f"{type(e).__name__}: {e}")
         continue
       self._say(f"VISITOR rated task {msg.seq} ({entry['task']}) "
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
