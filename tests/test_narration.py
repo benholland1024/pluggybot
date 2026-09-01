@@ -82,10 +82,18 @@ def assert_sounds_like_a_robot(line: str) -> None:
 
 
 def test_the_fallback_vocabulary_is_closed_and_documented():
-  """The tokens are a two-repo vocabulary: the site renders `source`, so
-  ADDING one is additive and RENAMING one is breaking. Pinning the set is what
-  makes that rule enforceable rather than a wish -- and it is what caught
-  `busy`, a ninth token issue #76 did not list and the docs had never had."""
+  """Pinning the set is what makes "closed" enforceable rather than a wish --
+  and it is what caught `busy`, a ninth token issue #76 did not list and
+  docs/Overseer.md had never had.
+
+  ⚠ NOT a two-repo vocabulary in the `VISUAL_HINTS` sense, which the issue
+  slightly overstates and which is worth being exact about: `source` is not a
+  wire field and nothing in the website parses it. It reaches a reader as TEXT
+  inside the status line and inside `History.md`. So adding a token needs no
+  website change -- but renaming one is still near-irreversible, because every
+  committed RECORDING keeps saying the old token forever and a rename migrates
+  none of them. Add freely, rename almost never.
+  """
   assert ov.FALLBACK_REASONS == (
     "timeout", "offline", "garbled", "budget", "cooloff", "busy",
     "idle-run", "no-client", "scripted-mode")

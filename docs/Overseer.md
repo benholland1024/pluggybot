@@ -207,11 +207,21 @@ explored" look identical from outside and are not the same event.
 | `fallback:no-client` | no SDK, no key, no endpoint: it was never asked |
 | `fallback:scripted-mode` | the operator turned the spending off (issue #37) |
 
-⚠ **This set is CLOSED, and it is a vocabulary in the two-repo sense** (issue
-#76). `overseer.FALLBACK_REASONS` is the list, `tests/test_overseer.py` pins
-it, and the site renders `source` — so **adding** a token is additive (an
-unknown one shows as itself) and **renaming** one is a breaking change in both
-repos, exactly the rule `VISUAL_HINTS` and `FACE_STATES` carry.
+⚠ **This set is CLOSED** (issue #76). `overseer.FALLBACK_REASONS` is the list,
+`tests/test_narration.py` pins it, and this table is the documentation the
+pinning test checks itself against — a closed set nobody wrote down is an open
+one.
+
+⚠ **It is a vocabulary, but NOT in the way `VISUAL_HINTS` and `FACE_STATES`
+are, and the difference is worth knowing before you rename one.** `source` is
+not a wire field: nothing in the protocol carries it, and nothing in the
+website parses it. It reaches a reader as TEXT, inside the status line
+(`DECIDE explore: … [fallback:offline]`) and inside `History.md`. So adding a
+token needs no website change at all — but renaming one is still close to
+irreversible, because **recordings are permanent and vendored**. Every
+committed recording keeps saying the old token forever, so a rename does not
+migrate anything; it just makes two eras of the archive disagree about what
+the robot meant. Add freely, rename almost never.
 
 ⚠ **Three of these used to be the EXCEPTION'S CLASS NAME**, interpolated
 straight from the caught error: `fallback:<ErrorName>` for anything the SDK
