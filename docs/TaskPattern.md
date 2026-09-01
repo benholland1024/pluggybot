@@ -124,6 +124,21 @@ inherits all of it for free:
   `reason` — which reaches the site *and* the overseer's context — never
   contains the hidden value. `Verdict.public_metrics()` redacts the `secret`
   metrics the reward row names, for the same audience.
+- ⚠ **...AND SO MUST THE ERRAND'S OWN NARRATION** (issue #75). Three
+  mechanisms guarded the census's ground truth — `secret` in the reward row,
+  `public_metrics()`, and a reason line written not to say it — and the
+  use-phase then put it on the wire anyway with one `_say`. `_say` writes
+  `life.status`; `telemetry_status()` puts that in EVERY telemetry frame; the
+  site renders it verbatim under the robot's portrait and the overseer reads
+  the same frames. So the answer to a hidden-truth task was published to
+  precisely the two readers it is hidden from, and it shipped in the
+  committed home recording, which is the site's default view.
+  The lesson generalises past the census: **`secret` is a property of the
+  VALUE, not of the channel you happened to think of.** A hidden value has
+  three exits, not one — the ledger, the reason line, and any `_say`
+  anywhere in the errand — and the comment above the offending line
+  ("`verdict["truth"]` never reaches the screen") was true of the robot's
+  LCD and false of the website. Name which screen.
 - **Answers travel one way.** For `whiteboard_answer`, the answer comes from
   the mind (`Decision.answer`), is frozen into the task at CLAIM time, and
   the errand that draws it is handed glyphs and never told the question.
@@ -484,7 +499,10 @@ as a checklist for the new kind:
 - **acceptance-time vs the battery clock** — not just "it charged first",
   which passes with the branch order inverted (§5);
 - the verdict on a job that never ran is a FAILURE, not a default pass;
-- the hidden value appears in no `as_dict`, no frame, no context, no reason;
+- the hidden value appears in no `as_dict`, no frame, no context, no reason
+  **and no `_say`** — assert it against a FLOWN mission's recorded frames,
+  not against the f-string, because the status line is three seams away
+  from the errand (issue #75);
 - expiry lands as a visible `expired`, and a restart fails what it
   interrupted;
 - run at least one new test in isolation, not only the file — the dispenser's
