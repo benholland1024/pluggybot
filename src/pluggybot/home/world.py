@@ -117,6 +117,28 @@ SPAWNS = {
 
 # Occupancy-grid bounds for this world (HubMission takes them as a
 # parameter; room_hub keeps its historical defaults).
+#
+# ⚠ x_max is 11.0 and the shared ground plane's visual edge is 10.0, so the
+# grid deliberately covers a strip with no floor drawn under it (issue #67).
+# DELIBERATE, and safe by DESIGN rather than by luck -- three facts, in this
+# order:
+#
+#   1. A MuJoCo plane's `size` is RENDERING ONLY; collision is with the
+#      infinite half-space. Verified: a box 15 m outside a 1x1 plane rests at
+#      the same height as one on it. Nothing can drive off the world.
+#   2. A cell out there can never become KNOWN-FREE. `update()` marks cells
+#      free along a ray up to its hit, and there is no surface out there to
+#      return one.
+#   3. Unknown space is never traversable (`frontier.traversable_mask` says so
+#      in as many words) and a frontier is a known-FREE cell. So the planner
+#      cannot route into the strip and the explorer cannot target it.
+#
+# The padding therefore costs cells and nothing else, and cells are what
+# `occupancy_grid.MAX_CELLS` budgets. Shrinking it to 10.0 would change every
+# home mission's grid shape -- and so its trajectories, and so the committed
+# recording -- to buy a safety property the design already has.
+# `tests/test_world_budget.py` pins fact 3, which is the one that could
+# silently stop being true.
 GRID_BOUNDS = (-3.0, -3.0, 11.0, 7.0)
 
 # Battery tuning for the bigger floor plan (issue #6 "rides along"). The
@@ -126,7 +148,26 @@ GRID_BOUNDS = (-3.0, -3.0, 11.0, 7.0)
 # charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
 # 0.35 is too thin here; the demo cell grows with it so one explore + one
 # errand still runs the pack down and the loop still has to charge.
+#: ⚠ WHAT THIS WAS MEASURED AGAINST, and it is not the worst case (issue #67).
+#: The 0.3 Wh above is a LIVING-ROOM CROSSING plus the charge approach --
+#: `living NW` to the rack is 2.89 m. The worst point in this plan to be
+#: stranded at is the GARDEN'S NORTH-EAST CORNER, which routes 11.96 m back to
+#: the rack through the garden doorway: roughly 4x the travel the reserve was
+#: sized on. It has not bitten because the charge approach is a large fixed
+#: share of that 0.3 Wh and the demo cell forces a charge long before the
+#: garden is reached -- but the relationship is unasserted, and issue #68 makes
+#: the plan bigger in exactly this direction. RE-MEASURE FROM
+#: `HOME_WORST_RETURN`, not from a room crossing. Re-pricing is issue #70.
 HOME_LOW_BATTERY_WH = 0.55
+
+#: The point the reserve above should be measured from: the far corner of the
+#: garden, one robot-length inside the fence. Named rather than left implicit
+#: so `tests/test_world_budget.py` can check it is still the plan's extreme --
+#: a comment that says "the worst case is X" rots silently the moment somebody
+#: moves a wall, and #68 is about to move several.
+HOME_WORST_RETURN = (GARDEN_X[1] - 0.4, HOUSE_Y[1] - 0.4)
+#: ...and how far that is, routed via the garden doorway. Measured 2026-09-01.
+HOME_WORST_RETURN_M = 11.96
 HOME_DEMO_CAPACITY_WH = 1.1
 #: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
 #: in minutes by design, which is right for a test and reads as a robot that

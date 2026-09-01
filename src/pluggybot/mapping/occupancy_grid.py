@@ -7,6 +7,35 @@ L_FREE = -0.4   # Amount to subtract when a ray passes through a cell
 L_OCC = 0.85    # amount to add when a ray collides a cell
 
 
+#: The most cells a world's grid may ask for (issue #67). NOT a performance
+#: cliff -- a tripwire, so an accidentally 10x world is loud instead of quiet.
+#:
+#: MEASURED 2026-09-01, 360 rays at 5 cm, on this box. Two things scale very
+#: differently and it is worth knowing which is which before moving this:
+#:
+#:   cells     update()   frontier+mask   the world
+#:    40,000    2.4 ms       0.8 ms       room_hub today
+#:    56,000    3.1 ms       1.1 ms       home today
+#:   159,600    4.3 ms       3.0 ms       the floor plan authored for #68
+#:   360,000    3.5 ms       7.0 ms       a 30x30 m park
+#:
+#: `update()` is ~FLAT in cell count: its cost is the RAY WORK (how many rays,
+#: how long), not the size of the array, which is why 360k cells can measure
+#: cheaper than 160k. ⚠ That makes docs/pluggyworld.md's "a 30x30 m park is 9x
+#: the cells" warning STALE -- it was written against the pure-Python update
+#: and the vectorization removed it.
+#:
+#: `traversable_mask` + `find_frontiers` is the half that really does scale,
+#: linearly, at ~19 ns/cell: `binary_dilation` touches every cell whatever the
+#: robot can see. That is what this ceiling is denominated in.
+#:
+#: 250k is ~1.6x the #68 plan, which is headroom for the house to grow again
+#: without a second conversation, and it puts the 30x30 park outside -- which
+#: is right, because a park is a re-examination rather than a bigger house.
+#: Move it with a measurement, not by feel.
+MAX_CELLS = 250_000
+
+
 class OccupancyGrid:
   def __init__(self, x_min, y_min, x_max, y_max, resolution=0.05):
     self.x_min = x_min
