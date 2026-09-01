@@ -822,13 +822,16 @@ hint it does not know. Hints ride in the sidecar and **never** in geom
 colors — the robot's cameras render rgba, so colour-as-encoding would couple
 perception to art direction.
 
-The vocabulary is `telemetry.protocol.VISUAL_HINTS`, **thirteen** names as of
-M13's freeze (issue #66):
+The vocabulary is `telemetry.protocol.VISUAL_HINTS`, **seventeen** names as
+of M13's freeze (issue #66). v3 was frozen in the same pass, against the floor
+plan authored for issue #68 — a name that might be wanted costs nothing now
+and a two-repo event later:
 
 | | |
 |---|---|
 | v1 (issue #6) | `wall` `fence` `floor` `ground` `whiteboard` `rack` `plant` |
 | v2 (issue #66) | `tree` `hill` `couch` `bed` `table` `robot` |
+| v3 (issue #66) | `stairs` `street` `sidewalk` `counter` |
 
 #### What a new hint costs
 

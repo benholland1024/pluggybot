@@ -189,17 +189,58 @@ MARKERS = [
               "are already identifiable without a hint -- every body in the "
               "subtree carries `robot: \"pluggybot\"` -- so the hint names "
               "where to ANCHOR, and `robot` names what to dress."),
+  # ---- v3 (issue #66, against #68's authored floor plan) --------------------
+  Marker("stairs", [("box", "1.5 1.5 0.45", "0 0 0.45")], collides=True,
+         axes={"extentX": "size0", "extentY": "size1", "height": "size2"},
+         build="replace",
+         note="ONE SOLID BOX, and the browser draws the flight inside it -- "
+              "issue #68 decides this outright and it is not a simplification "
+              "to undo. The box is 0.9 m tall because the LIDAR rides at "
+              "0.223 m: real steps at ~0.18 m would be solid geometry the "
+              "robot cannot see, which is a wall it maps as open floor. The "
+              "art may show risers and treads; the marker is what the robot "
+              "believes, and it believes a block."),
+  Marker("street", [("box", "1.5 6.0 0.001", "0 0 -0.001")], collides=False,
+         axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
+         build="replace",
+         note="Underfoot beyond the property, on the same terms as `floor` "
+              "and `ground`: a thin non-colliding slab whose whole job is a "
+              "material. The robot can reach it through the garden gate, so "
+              "it is a mapped surface rather than scenery."),
+  Marker("sidewalk", [("box", "0.75 6.0 0.001", "0 0 -0.001")], collides=False,
+         axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
+         build="replace",
+         note="The strip between the fence and the `street`, and the third "
+              "member of the `floor`/`ground` family -- same primitive, "
+              "different material. It is a separate name for the same reason "
+              "those two are: a builder keys on the name, and the alternative "
+              "is one hint whose material depends on where it happens to be."),
+  Marker("counter", [("box", "1.0 0.3 0.45", "0 0 0.45")], collides=True,
+         axes={"width": "size0", "depth": "size1", "height": "size2"},
+         build="replace",
+         note="The kitchen's worktop: EXACTLY ONE BOX, like the furniture, "
+              "and the height is the TOP. Frozen ahead of any decision about "
+              "whether the kitchen gets fixtures at all -- an unused name "
+              "costs nothing and a late one costs a two-repo rename."),
 ]
 
-#: A furniture marker is EXACTLY ONE BOX (issue #66's second recorded
-#: decision), and this is pinned rather than merely intended: the alternative
+#: These markers are EXACTLY ONE BOX, pinned rather than merely intended.
+#:
+#: For the FURNITURE three it is issue #66's second recorded decision: the
+#: alternative
 #: -- a builder keying on the marker's proportions to tell a couch from a bed
 #: -- is what made three names better than one `furniture`, and it only works
 #: while there is one box to take proportions of. `largestBox` selects by
 #: VOLUME, so a couch modelled as a frame plus cushions could hand a builder
 #: the wrong one. If the expanded house wants furniture that cannot be one
 #: box, that is a bug to report on issue #66, not to work around in a builder.
-ONE_BOX_HINTS = ("couch", "bed", "table")
+#:
+#: `stairs` is here for a different and stronger reason: issue #68 decides the
+#: staircase IS one box ("do not model steps"), because the LIDAR rides at
+#: 0.223 m and real risers at ~0.18 m would be solid geometry the robot cannot
+#: see. A builder that replaced the block with modelled steps would be drawing
+#: a shape the robot does not believe in.
+ONE_BOX_HINTS = ("couch", "bed", "table", "counter", "stairs")
 
 _XML = """<mujoco model="hints">
   <worldbody>
