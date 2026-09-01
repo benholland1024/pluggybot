@@ -91,7 +91,7 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     # acceptance run measured small models getting WRONG (the kind "draw" in
     # `task` instead of the id, 23 times in 4 sim-hours before the prompt
     # spelled the id shape out). A decision naming `t_0007` is the fix
-    # working; `fallback:ValueError ... not on offer` is it not.
+    # working; a `fallback:garbled` is it not.
     "offeredTasks": [{"id": "t_0007", "kind": "artwork",
                       "description": "Draw a sun on whiteboard_a for people "
                                      "to rate.",

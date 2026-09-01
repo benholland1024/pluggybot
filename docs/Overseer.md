@@ -196,13 +196,33 @@ explored" look identical from outside and are not the same event.
 | `source` | cause |
 |---|---|
 | `llm` | a real answer |
+| `llm:<model>` | …from the expensive mind the allowance bought (issue #37) |
 | `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (8 s) |
-| `fallback:<ErrorName>` | the SDK raised — network, auth, rate limit, 5xx |
-| `fallback:ValueError` | the answer was malformed, or named something off the menu |
+| `fallback:offline` | nobody answered — transport, HTTP, auth, rate limit, 5xx |
+| `fallback:garbled` | somebody answered, and it was not a decision |
 | `fallback:budget` | the hourly call budget is spent |
 | `fallback:cooloff` | too many failures in a row; the endpoint is being left alone |
+| `fallback:busy` | the previous call is still out there; a second is not piled on |
 | `fallback:idle-run` | two `idle`/`journal` turns in a row; do something |
-| `fallback:no-client` | the `anthropic` package could not be imported |
+| `fallback:no-client` | no SDK, no key, no endpoint: it was never asked |
+| `fallback:scripted-mode` | the operator turned the spending off (issue #37) |
+
+⚠ **This set is CLOSED, and it is a vocabulary in the two-repo sense** (issue
+#76). `overseer.FALLBACK_REASONS` is the list, `tests/test_overseer.py` pins
+it, and the site renders `source` — so **adding** a token is additive (an
+unknown one shows as itself) and **renaming** one is a breaking change in both
+repos, exactly the rule `VISUAL_HINTS` and `FACE_STATES` carry.
+
+⚠ **Three of these used to be the EXCEPTION'S CLASS NAME**, interpolated
+straight from the caught error: `fallback:<ErrorName>` for anything the SDK
+raised and `fallback:ValueError` for a malformed answer. That string is the
+`source`, the `source` is in `Decision.summary()`, and `lifecycle.py` puts the
+summary through `_say` (every frame's status, rendered under the robot's
+portrait) *and* `_remember` (`History.md`, the tab a visitor reads as the
+robot's own paper trail). So an outage at a vendor became something the robot
+had written down about its day. `fallback_reason()` buckets the exception
+before it can become a `source`; the class itself is still kept, in
+`Usage.errors`, where the operator is looking and the robot is not talking.
 
 The scripted policy is not a stub. It is the fallback the issue requires ("kill
 the API and the robot keeps working"), so it produces a real day's work on its
@@ -486,7 +506,7 @@ mysteriously higher fallback rate.
 LOAD.** Measured on the dev box (GTX 1660 Super, 6 GB; `qwen3:4b-instruct`,
 the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the Anthropic
 path's 8 s deadline that is not a risk, it is a certainty — three of three
-probe decisions came back `fallback:TimeoutError` while the model was still
+probe decisions came back `fallback:timeout` while the model was still
 loading — and ollama unloads an idle model after five minutes, so a robot
 returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
 (45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the

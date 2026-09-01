@@ -255,7 +255,7 @@ def test_the_local_deadline_survives_a_cold_model_load():
   On the Anthropic path's 8 s deadline that is a certainty of failure rather
   than a risk of one: every mission's opening decision, and every one after
   an errand long enough for ollama to unload the model, arrives as
-  `fallback:TimeoutError` with the model still working on an answer nobody
+  `fallback:timeout` with the model still working on an answer nobody
   will read. Measured three for three before this constant existed.
   """
   assert overseer.CALL_TIMEOUT_S < COLD_LOAD_S, \
@@ -392,5 +392,5 @@ def test_a_garbled_local_answer_is_a_tagged_fallback(local_endpoint):
   boss = Overseer(MENU, model=llm.LOCAL_MODEL, backend="local",
                   base_url=f"http://{host}:{port}/v1", timeout_s=5.0)
   decision = boss.decide({"decisions": 0})
-  assert decision.source.startswith("fallback:ValueError")
+  assert decision.source == "fallback:garbled"
   assert decision.action in MENU.available()
