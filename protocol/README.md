@@ -767,6 +767,7 @@ against the body census.
 | `scene.room_hub.json` | Static scene description of `models/room_hub.xml` | `uv run python -m pluggybot.telemetry.scene` |
 | `scene.home_world.json` | The generated home world, with visual hints + zones + spawns (issue #6) | `uv run python -m pluggybot.telemetry.scene models/home_world.xml` |
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
+| `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
 | `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
@@ -817,11 +818,90 @@ get theirs overwritten by telemetry), and `geoms`.
 `visual` comes from the world generator's sidecar
 (`models/<world>.meta.json`, issue #6): the website renders a parametric
 component per hint and falls back to raw primitives for `null` or for a
-hint it does not know. Vocabulary v1 (`telemetry.protocol.VISUAL_HINTS`):
-`wall`, `fence`, `floor`, `ground`, `whiteboard`, `rack`, `plant`. Adding
-a hint is additive; renaming one is a two-repo breaking change. Hints ride
-in the sidecar and **never** in geom colors — the robot's cameras render
-rgba, so colour-as-encoding would couple perception to art direction.
+hint it does not know. Hints ride in the sidecar and **never** in geom
+colors — the robot's cameras render rgba, so colour-as-encoding would couple
+perception to art direction.
+
+The vocabulary is `telemetry.protocol.VISUAL_HINTS`, **seventeen** names as
+of M13's freeze (issue #66). v3 was frozen in the same pass, against the floor
+plan authored for issue #68 — a name that might be wanted costs nothing now
+and a two-repo event later:
+
+| | |
+|---|---|
+| v1 (issue #6) | `wall` `fence` `floor` `ground` `whiteboard` `rack` `plant` |
+| v2 (issue #66) | `tree` `hill` `couch` `bed` `table` `robot` |
+| v3 (issue #66) | `stairs` `street` `sidewalk` `counter` |
+
+#### What a new hint costs
+
+**Adding one is additive and needs no version bump.** That rests on an
+asymmetry worth stating outright, because it is what lets the sim lane and the
+art lane run in parallel:
+
+- `telemetry/scene.py` **raises** on a hint outside the vocabulary. The sim
+  refuses to describe what it has no word for, so a typo in a sidecar is a
+  failed build rather than a body that silently renders as a grey box.
+- `sceneGraph.ts` **falls back** to the body's raw collision primitives for a
+  hint it has no builder for. The browser degrades.
+
+So the sim may ship a hint **before** the art exists, and the world renders
+plainly rather than breaking. What an addition actually costs is one `Marker`
+in `telemetry/hints.py` and a regeneration — `tests/test_hints.py` fails on a
+name added to `VISUAL_HINTS` without a conformance body, because a name the
+art lane cannot look up is a name it will guess at.
+
+**Renaming one is a two-repo breaking change, and worse than it looks**:
+recordings and scenes are committed and vendored, so a rename migrates none of
+them — it leaves two eras of the archive disagreeing about what a body is.
+Append; do not rename.
+
+#### `hints.json` — what a builder may assume
+
+A tuple of strings does not say whether a `couch` marker is one box or five,
+which axis is its height, or whether the robot will plan around it.
+`protocol/hints.json` answers that per hint, and its bodies are emitted
+**through `scene_dict`** rather than hand-written — a worked example that has
+silently drifted from the real body shape is worse than none, because it still
+looks authoritative.
+
+```jsonc
+"couch": {
+  "marker": "box",       // primitive type, or "many"
+  "markers": 1,
+  "collides": true,      // does the robot plan around exactly this volume?
+  "build": "replace",    // "replace" the primitives, or "reskin" them
+  "axes": {"width": "size0", "depth": "size1", "height": "size2"},
+  "note": "...",         // for a person; nothing parses it
+  "body": { /* one body, exactly as a scene ships it */ }
+}
+```
+
+- **`axes` is body-local.** A scene ships a body's world pose and its geoms'
+  body-local `pos`/`quat`, and the browser puts the primitives in a group it
+  then places — so "which axis is the height" is a question about the body's
+  own frame, and a builder that respects it works for a couch against any
+  wall.
+- **`collides` is not decoration.** It is already not constant in the house:
+  `wall`, `fence`, `rack` and `whiteboard` collide; `floor`, `ground` and
+  **`plant`** do not — a plant is mapped and driven through. Where it is true,
+  art outside the marker must sit above the robot or read as non-solid. A
+  tree's canopy is the case it exists for.
+- **`build: "reskin"`** on `rack` and `robot` means keep the primitives'
+  silhouette and dress it. The rack's bays are where tools physically go, and
+  the robot's outline is the shape the physics used — a visitor watching it
+  squeeze through a doorway is watching that shape, so art that flattered it
+  would be lying about the sim.
+- **Furniture is exactly one box** (`oneBoxHints`). Three names beat one
+  `furniture` because a builder keys on the name rather than on proportions,
+  and proportion-keying only works while there is one box to take proportions
+  of.
+- **`picture` and the horizon are deliberately not hints.** They have no
+  physics role, so under the three-layer rule they belong to the browser, hung
+  on the `wall` bodies a scene already ships. That is camera-safety by
+  construction: a picture the robot's cameras never render cannot confuse the
+  AprilTag detector, and high-contrast rectilinear detail is exactly what that
+  detector looks for.
 
 A generated world may also carry three optional top-level fields, likewise
 additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`),

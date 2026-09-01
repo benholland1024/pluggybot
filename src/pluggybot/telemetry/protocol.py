@@ -24,8 +24,52 @@ PROTOCOL_VERSION = "0.14.0"
 # component per hint and falls back to raw primitives for anything else,
 # so ADDING a hint is additive (no version bump), while renaming one is a
 # breaking change (bump).
-VISUAL_HINTS = ("wall", "fence", "floor", "ground", "whiteboard", "rack",
-                "plant")
+#
+# ⚠ APPEND ONLY, and `protocol/hints.json` is what makes that enforceable
+# (issue #66): every name here has a conformance body in that fixture saying
+# what a builder may assume -- the marker primitive, which body-local axis
+# carries what, and whether the robot will plan around exactly that volume.
+# `tests/test_hints.py` fails on a name added here without one, so a hint
+# cannot be frozen without being described. NO VERSION BUMP for an addition:
+# an unknown hint falls back to raw primitives in the browser, which is the
+# asymmetry that lets the sim ship a hint before the art exists.
+VISUAL_HINTS = (
+  # v1 (issue #6): the house as it stands.
+  "wall", "fence", "floor", "ground", "whiteboard", "rack", "plant",
+  # v2 (issue #66, M13's freeze point): what the expanded house and its
+  # dressing will need, named BEFORE either lane starts so the art and the
+  # generator cannot build against different guesses.
+  #
+  # `picture` and the horizon are deliberately absent: they have no physics
+  # role, so under the three-layer rule they are the browser's, hung on the
+  # `wall` bodies the scene already ships. That is camera-safety by
+  # construction -- a picture the robot's cameras never render cannot
+  # confuse the AprilTag detector, and high-contrast rectilinear detail is
+  # exactly what that detector looks for. `tree` and `hill` are here only
+  # for the case where the house wants one INSIDE the world, where the robot
+  # will map it.
+  "tree", "hill", "couch", "bed", "table",
+  # ...and the one thing a visitor actually watches, which was the only
+  # object in the world with no builder: every scenery class got art and the
+  # thing that MOVES did not. Its builder reskins the primitives rather than
+  # replacing them (`assets/rack.ts`'s pattern) -- the silhouette is
+  # load-bearing, because a visitor watching the robot squeeze through a
+  # doorway is watching the shape the physics used, and art that flattered
+  # it would be lying about the sim.
+  "robot",
+  # v3 (issue #66 again, against the floor plan authored for #68 on
+  # 2026-09-01): the expanded property. The house grows a kitchen, a workshop
+  # and a hall with a staircase in it, and the garden now fronts a real street
+  # the robot can reach through the existing gate.
+  #
+  # Frozen in the SAME pass as v2 rather than as they are needed, which is the
+  # point of a freeze: adding is free and renaming is the breaking change, so
+  # a name that MIGHT be wanted costs nothing now and a two-repo event later.
+  # `counter` is the kitchen's, and is here on exactly that reasoning -- #68
+  # may leave the kitchen empty, in which case this is an unused name and no
+  # harm done.
+  "stairs", "street", "sidewalk", "counter",
+)
 
 # The LCD module's display (issue #13). Three vocabularies on the same terms
 # as VISUAL_HINTS: the sim may only emit these strings, the website draws a

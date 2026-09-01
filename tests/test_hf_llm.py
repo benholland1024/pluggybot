@@ -116,7 +116,7 @@ def test_any_other_error_raises_and_does_not_retry():
 
 def test_a_reasoning_models_thinking_is_not_a_malformed_answer():
   """`<think>` before the JSON is the model reasoning, not the model failing
-  to answer -- only the second should ever become fallback:ValueError."""
+  to answer -- only the second should ever become fallback:garbled."""
   resp = create(fake_fetch([ok_payload(
     '<think>hmm, the battery is fine\nso...</think>\n{"action": "idle"}')]))
   assert json.loads(resp.content[0].text) == {"action": "idle"}

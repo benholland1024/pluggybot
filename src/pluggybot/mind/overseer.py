@@ -171,6 +171,47 @@ COOLOFF_MAX_S = 3600.0
 IDLE_ACTIONS = ("idle", "journal")
 MAX_IDLE_RUN = 2
 
+#: Every `why` that may follow `fallback:` in a `Decision.source`. CLOSED, and
+#: a vocabulary in the two-repo sense (issue #76): the site renders `source`,
+#: so ADDING a token is additive and RENAMING one is breaking, the same rule
+#: `VISUAL_HINTS` and `FACE_STATES` carry. `docs/Overseer.md` §5 is the table.
+#:
+#: ⚠ The first three used to be the EXCEPTION's class name, interpolated
+#: straight from the caught error -- so a vendor's HTTP class reached the
+#: status line, every telemetry frame, and `History.md`, which is the tab a
+#: visitor reads as the robot's own paper trail. The class is still kept, in
+#: `Usage.errors`, where the operator is looking and the robot is not talking.
+FALLBACK_REASONS = (
+  "timeout",        # the call outlived its deadline
+  "offline",        # transport, HTTP, auth, rate limit, 5xx -- nobody answered
+  "garbled",        # somebody answered, and it was not a decision
+  "budget",         # the hourly call budget is spent
+  "cooloff",        # too many failures in a row; the endpoint is left alone
+  "busy",           # the previous call is still out there; do not pile on
+  "idle-run",       # two idle turns running; do something
+  "no-client",      # no SDK, no key, no endpoint: never asked at all
+  "scripted-mode",  # the operator turned the spending off (issue #37)
+)
+
+
+def fallback_reason(e: BaseException) -> str:
+  """Which token stands for this exception on the wire.
+
+  Three buckets, because three is what a reader can act on: the call ran out
+  of time, nobody answered, or somebody answered with something that was not a
+  decision. Anything unrecognised reads as `offline` -- the common case by far
+  is the network, and the exact class is one line away in `Usage.errors` for
+  whoever needs more than the bucket.
+  """
+  if isinstance(e, TimeoutError):
+    return "timeout"
+  # `_extract_json` and `Menu.validate` both raise ValueError; a response whose
+  # SHAPE is wrong surfaces as KeyError/TypeError from reading it. All three
+  # are the same story: the answer came back and could not be used.
+  if isinstance(e, (ValueError, KeyError, TypeError)):
+    return "garbled"
+  return "offline"
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -180,6 +221,11 @@ class Decision:
   and the why is on the wire, because "the robot chose to explore" and "the
   API was down so the robot explored" look identical from outside and are not
   the same event.
+
+  The whys are a CLOSED set (`FALLBACK_REASONS`), and closing it is issue
+  #76: three of them used to be a caught exception's class name, so a
+  vendor's HTTP error reached the status line, every frame, and `History.md`.
+  An escalated answer says which mind was bought: `llm:<model>`.
   """
 
   action: str
@@ -1486,9 +1532,13 @@ class Overseer:
       # ...and `scripted-mode` joins them (issue #37): an operator who put
       # the robot in free mode is not an incident, and a run that listed
       # every free decision as an error would bury the ones that are.
+      # ...and `offline` / `garbled` are skipped for the opposite reason
+      # (issue #76): `_call` has ALREADY written a line for them carrying the
+      # exception class, so re-listing the bucket would bury it.
       if decision.source not in ("fallback:budget", "fallback:idle-run",
                                  "fallback:cooloff",
-                                 "fallback:scripted-mode"):
+                                 "fallback:scripted-mode",
+                                 "fallback:offline", "fallback:garbled"):
         self.usage.errors.append(decision.source)
     else:
       self.usage.llm_calls += 1
@@ -1529,7 +1579,13 @@ class Overseer:
       # there is no answer, so the scripted policy decides. The kind is kept
       # for the operator (`stats()`), not for the control flow -- except for
       # the count, which backs the endpoint off.
-      slot = {"error": f"{type(e).__name__}: {e}"[:200]}
+      # The BUCKET goes on the wire and the CLASS goes to the operator
+      # (issue #76). `_record` deliberately does not re-list these in
+      # `usage.errors`: the detailed line below is the same incident said
+      # better, and two entries per failure push the detail out of the five
+      # `stats()` shows.
+      self.usage.errors.append(f"call: {type(e).__name__}: {e}"[:200])
+      slot = {"error": fallback_reason(e)}
     # ⚠ PUBLISHING AND RELEASING ARE ONE CRITICAL SECTION. `result()` returns
     # the moment `_slot` is set, so anything done between setting it and
     # clearing `_in_flight` is a window in which the caller has its answer and
