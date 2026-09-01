@@ -1294,3 +1294,72 @@ def test_the_recorder_and_the_publisher_describe_one_map(mini_model):
   recorded, _ = GridSampler(grid, hz=1.0, dedupe=True).due(0.0)
   live, _ = GridSampler(grid, hz=1.0, dedupe=False).due(0.0)
   assert recorded == live
+
+
+def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path):
+  """The count is public; the ANSWER is not (issue #75).
+
+  `census` is the first task kind with hidden ground truth, and three
+  mechanisms keep that truth off the wire: `rewards.json` marks it `secret`,
+  `Verdict.public_metrics` filters it out, and `eval_census`'s reason line
+  says WHETHER the answer was right without saying what it was. The
+  use-phase's own narration then published it anyway -- `_say` writes
+  `life.status`, `telemetry_status()` puts that in every frame, and the site
+  renders it verbatim under the robot's portrait. The overseer reads the same
+  frames, so a hidden-truth task was narrating its answer straight back into
+  the context `Task.secret` exists to keep it out of.
+
+  Flown rather than asserted on a string: the claim is about what reaches a
+  RECORDING, which is three seams away from the f-string. The drive is
+  stubbed out (minutes of physics that cannot change what the status line
+  says) so the robot surveys from where it stands and reports a count that is
+  honestly WRONG -- which is what lets this tell the two numbers apart at
+  all. Restore `truth {verdict['truth']}` to the `_say` and the last
+  assertion fails.
+  """
+  import pluggybot.lifecycle as lc
+  from pluggybot.economy.census import Zone, true_count
+  from pluggybot.telemetry.protocol import ROBOT_ROOT
+
+  cfg = lc.world_config("home")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                         world="home", errand=False, battery_wh=8.0,
+                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                         low_battery_wh=cfg["low_battery_wh"])
+  path = str(tmp_path / "census.jsonl")
+  rec = TelemetryRecorder(model, life.data, path, model_name="home_world",
+                          status_fn=life.telemetry_status)
+  life.mission.step_hooks.append(rec.step_hook)
+  errand, = [e for e in lc.errands_for("census", "home", None)
+             if e.task == "census"]
+  life.mission.drive_to = lambda *a, **kw: False     # every vantage falls short
+  try:
+    result = errand.use(life)
+  finally:
+    rec.close()
+
+  zone = Zone.from_meta(cfg["census_zone"])
+  truth = true_count(model, zone)
+  counted = result["census"]["counted"]
+  assert result["census"]["truth"] == truth, \
+      "the evaluator must still be handed the ground truth"
+  assert counted != truth, \
+      f"the fixture only separates the two numbers while they differ " \
+      f"(counted {counted}, truth {truth})"
+
+  with open(path) as f:
+    lines = [json.loads(x) for x in f]
+  said = [fr["robots"][ROBOT_ROOT]["status"] for fr in lines[1:]
+          if "type" not in fr and "status" in fr["robots"].get(ROBOT_ROOT, {})]
+  census_lines = [s for s in said if "census of" in s]
+  assert census_lines, "the census verdict never reached a frame"
+  # What a visitor is entitled to: the robot's own count, and whether it was
+  # right. Not the number it was graded against.
+  assert all(f"{counted} plants" in s for s in census_lines), census_lines
+  assert all(("correct" if result["census"]["correct"] else "wrong") in s
+             for s in census_lines), census_lines
+  for s in said:
+    assert "truth" not in s, f"the ground truth was published: {s!r}"
+    assert f" {truth} " not in s and f" {truth}," not in s, \
+        f"the ground truth was published: {s!r}"
