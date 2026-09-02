@@ -8,6 +8,8 @@ and it runs in milliseconds instead of a minute.
 
 import math
 
+import numpy as np
+
 from pluggybot.behavior.navigation import (
   TERMINAL_CONE, V_MAX, W_MAX, drive_toward,
 )
@@ -112,3 +114,121 @@ def test_path_following_is_untouched():
     v, w = drive_toward((0.0, 0.0, -err), (1.0, 0.0))
     assert v == V_MAX * math.cos(err)
     assert abs(w - min(W_MAX, 2.5 * err)) < 1e-9
+
+
+# ---- the inflation-halo escape (issue #92) -----------------------------------
+
+
+def _halo_world():
+  """A robot sealed inside an obstacle's inflation ring, with the rest of the
+  room known-free and a frontier at the far end.
+
+  The geometry that trapped the real robot, minimised: a couch-shaped
+  occupied block, the robot one cell from it -- deep inside the 7-cell
+  inflation ring -- and open mapped floor beyond, fading to unknown at the
+  far wall (which is what makes the far edge a frontier).
+  """
+  from pluggybot.mapping.occupancy_grid import OccupancyGrid
+
+  g = OccupancyGrid(x_min=0.0, y_min=0.0, x_max=4.0, y_max=2.0,
+                    resolution=0.05)
+  g.grid[:, :] = -5.0                  # known free everywhere...
+  g.grid[:, 70:] = 0.0                 # ...fading to unknown past x=3.5 m
+  g.grid[16:24, 8:12] = 5.0            # the couch: occupied block
+  pose = (0.65, 1.0, 0.0)              # one cell east of it: sealed in
+  return g, pose
+
+
+def test_a_sealed_in_robot_can_still_plan_to_a_frontier():
+  """THE EXPLORE TRAP (issue #92), minimised and pinned.
+
+  `astar`'s start-cell exemption is one cell deep, so a robot whose start
+  AND four neighbours are inside an obstacle's inflation ring cannot take a
+  first step; each failed frontier is then blacklisted forever and a few
+  strikes later explore declares a two-thirds-unmapped house finished.
+  Measured on the expanded home world: gave up at 61 s of a 900 s budget
+  with 366 of 367 frontiers reachable and the nearest traversable cell
+  15 cm away.
+
+  Shown to fail before the fix by replacing `nearest_traversable(trav, ...)`
+  with the raw robot cell in `plan()`: status comes back "no-reachable" and
+  the blacklist eats a frontier per attempt.
+  """
+  from pluggybot.behavior.navigation import plan
+  from pluggybot.mapping.frontier import traversable_mask
+
+  g, pose = _halo_world()
+  trav = traversable_mask(np.asarray(g.grid))
+  rix, riy = g.world_to_cell(pose[0], pose[1])
+  assert not trav[riy, rix], "the fixture robot is not actually sealed in"
+  assert not any(trav[riy + dy, rix + dx]
+                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))), \
+      "a traversable neighbour means astar's own exemption suffices " \
+      "and this test is about nothing"
+
+  blacklist: set = set()
+  path, status = plan(g, pose, blacklist)
+  assert status == "ok", f"a sealed-in robot could not plan: {status}"
+  assert path, "ok with no path"
+  assert blacklist == set(), \
+      f"planning burned frontiers onto the blacklist: {blacklist}"
+
+
+def test_the_escape_is_bounded_a_lost_robot_is_not_teleported():
+  """The other half of `nearest_traversable`'s contract: a nearest cell
+  beyond the bound means the robot is off its own map -- lost, not merely
+  sealed -- and planning from half a metre of pretend-position would paper
+  that over. The reserve probe hit exactly this: a robot placed on the
+  unmapped street 'failed to dock' in a way that looked like a route
+  problem and was actually a robot outside its own known world."""
+  from pluggybot.mapping.astar import nearest_traversable
+
+  trav = np.zeros((100, 100), dtype=bool)
+  trav[50:60, 50:60] = True
+  assert nearest_traversable(trav, (55, 55)) == (55, 55)
+  assert nearest_traversable(trav, (48, 55)) == (50, 55)   # inside the bound
+  assert nearest_traversable(trav, (10, 10)) is None       # genuinely lost
+
+
+def test_the_real_couch_pose_that_ended_exploration_can_plan_again():
+  """The trap flown, at the measured pose, on the real house.
+
+  The synthetic fixture above is the iterate-loop guard; this is the claim
+  that the fixture describes reality. The robot is placed where the real
+  explore run parked and gave up -- (+4.00, +0.92), 30 cm east of the couch,
+  between it and the east wall -- given one look around to map its
+  surroundings, and must then be sealed in by the couch's inflation ring and
+  STILL able to plan to a frontier.
+
+  Measured before the fix, from this exact situation: explore ended at 61 s
+  of a 900 s budget on "no-reachable", kitchen 0.0%% mapped, 60 frontiers
+  blacklisted. After: 469 s, "no-frontiers", kitchen 86.6%%, blacklist 0.
+  The full flown run is 10 minutes of wall clock, so what is pinned here is
+  its first domino -- sealed, and planning anyway -- which takes seconds.
+  """
+  import mujoco
+
+  from pluggybot.behavior.navigation import plan
+  from pluggybot.lifecycle import world_config
+  from pluggybot.mapping.frontier import traversable_mask
+  from pluggybot.mission.mission import HubMission
+
+  cfg = world_config("home")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  mission = HubMission(model, mujoco.MjData(model), viewer=None,
+                       realtime=False, rack=cfg["rack"],
+                       grid_bounds=cfg["grid_bounds"])
+  try:
+    mission.start_at(4.0, 0.92, math.pi)     # the measured stuck pose
+    mission._spin()                          # one look: maps couch + wall
+    trav = traversable_mask(np.asarray(mission.grid.grid))
+    rix, riy = mission.grid.world_to_cell(4.0, 0.92)
+    assert not trav[riy, rix], \
+        "the couch's halo no longer seals this pose; the premise moved -- " \
+        "re-measure before weakening anything"
+    path, status = plan(mission.grid, mission.pose, set())
+    assert status == "ok", \
+        f"sealed in beside the real couch and could not plan: {status}"
+    assert path
+  finally:
+    mission.close()

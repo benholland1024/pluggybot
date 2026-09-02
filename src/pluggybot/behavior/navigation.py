@@ -11,7 +11,7 @@ import math
 import numpy as np
 
 from pluggybot.control import wrap_angle
-from pluggybot.mapping.astar import astar
+from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import find_frontiers, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 
@@ -53,9 +53,17 @@ def plan(grid: OccupancyGrid, pose: Pose,
   if len(frontiers) == 0:
     return None, "no-frontiers"
 
-  rows, cols = grid.grid.shape
-  rix, riy = grid.world_to_cell(pose[0], pose[1])
-  rix, riy = min(max(rix, 0), cols - 1), min(max(riy, 0), rows - 1)
+  # ⚠ ESCAPE THE INFLATION HALO FIRST (issue #92). A robot parked against a
+  # couch sits inside the couch's own inflation ring; `astar`'s start-cell
+  # exemption is one cell deep, so every plan from there fails on the first
+  # step, every failure permanently blacklists a frontier, and after a few
+  # strikes explore declares a two-thirds-unmapped house finished. The twin
+  # planner in `HubMission._plan_to` always had this escape -- this one is
+  # what exploration uses, and it did not.
+  start = nearest_traversable(trav, grid.world_to_cell(pose[0], pose[1]))
+  if start is None:
+    return None, "no-reachable"          # off the map, not merely sealed in
+  rix, riy = start
 
   dist = np.hypot(frontiers[:, 0] - rix, frontiers[:, 1] - riy)
   eligible = dist >= MIN_FRONTIER_CELLS
