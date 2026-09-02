@@ -46,7 +46,7 @@ from pluggybot.rack.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
-from pluggybot.mapping.astar import astar
+from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
@@ -392,19 +392,13 @@ class HubMission:
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     trav = traversable_mask(self.grid.grid)
     rows, cols = trav.shape
-    rix, riy = self.grid.world_to_cell(self.pose[0], self.pose[1])
-    start = (min(max(rix, 0), cols - 1), min(max(riy, 0), rows - 1))
-    if not trav[start[1], start[0]]:
-      best, best_d = None, 1e9
-      for dy in range(-10, 11):
-        for dx in range(-10, 11):
-          x2, y2 = start[0] + dx, start[1] + dy
-          if 0 <= x2 < cols and 0 <= y2 < rows and trav[y2, x2]:
-            if dx * dx + dy * dy < best_d:
-              best, best_d = (x2, y2), dx * dx + dy * dy
-      if best is None:
-        return None
-      start = best
+    # The halo escape, shared with `navigation.plan` since issue #92 -- this
+    # inline version is where the idea was born, and exploration's planner
+    # not having it is what let a sealed-in robot declare the house mapped.
+    start = nearest_traversable(
+      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+    if start is None:
+      return None
     goal = self.grid.world_to_cell(wx, wy)
     goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
     if not trav[goal[1], goal[0]]:
