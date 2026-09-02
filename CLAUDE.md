@@ -178,11 +178,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
   Full pick-carry-place verified),
-  `scripts/plate.py` (the reference ACTIVITY, issue #8: the robot drives onto
-  a sprung pressure plate in the home world's garden and latches a gate open;
-  saves `plate.png`. `--view` watches live. Note the gate is a MOCAP body —
-  `geom_pos` mutation is silently inert on anything welded to the world, which
-  is all scenery; see docs/ActivityPattern.md §3.4),
+  `scripts/plate.py` (the reference ACTIVITY, issue #8, reworked by #93: the
+  robot drives onto a sprung pressure plate in the home world's garden and
+  latches a garden LIGHT on — the gate the plate used to open is gone, and
+  the street doorway is permanently open; saves `plate.png`. `--view` watches
+  live. ⚠ the mocap lesson survives the gate: `geom_pos` mutation is silently
+  inert on anything welded to the world, which is all scenery, and anything
+  an activity must MOVE needs a mocap body; see docs/ActivityPattern.md §3.4),
   `scripts/dispense.py` (the seed dispenser, the fifth tool and the first
   built against `docs/ToolPattern.md`: fetch it from bay E, drive a row and
   meter out exactly one seed per point; saves `dispense.png`. `--view`

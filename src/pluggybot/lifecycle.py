@@ -1594,8 +1594,8 @@ def home_activities(model, data):
   MjModel and are meaningless against another.
   """
   from pluggybot.activity.base import ActivitySet
-  from pluggybot.activity.plate import PlateGate
-  return ActivitySet([PlateGate(model, data)])
+  from pluggybot.activity.plate import PlateLight
+  return ActivitySet([PlateLight(model, data)])
 
 
 def board_book(world: str, state: str | None = None):

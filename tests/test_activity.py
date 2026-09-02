@@ -13,7 +13,7 @@ from pluggybot.activity.base import (
   Activity, ActivitySet, GeomToggle, MocapToggle, Threshold,
 )
 from pluggybot.activity.plate import (
-  PLATE_ON, PLATE_TRAVEL, PlateGate, plate_center,
+  PLATE_ON, PLATE_TRAVEL, PlateLight, plate_center,
 )
 from pluggybot.control import slew, wheel_targets
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION
@@ -69,7 +69,7 @@ def test_a_latch_is_one_way():
 # ---- toggles ----------------------------------------------------------------
 
 def test_geom_rgba_toggles_take_effect(home_model):
-  lamp = GeomToggle(home_model, "garden_lamp_bulb",
+  lamp = GeomToggle(home_model, "garden_light_bulb",
                     {"a": {"rgba": [1, 0, 0, 1]}, "b": {"rgba": [0, 1, 0, 1]}})
   lamp.select("a")
   assert list(home_model.geom_rgba[lamp.gid]) == [1, 0, 0, 1]
@@ -78,7 +78,7 @@ def test_geom_rgba_toggles_take_effect(home_model):
 
 
 def test_an_unknown_state_is_an_error_not_a_no_op(home_model):
-  lamp = GeomToggle(home_model, "garden_lamp_bulb", {"a": {"rgba": [1, 0, 0, 1]}})
+  lamp = GeomToggle(home_model, "garden_light_bulb", {"a": {"rgba": [1, 0, 0, 1]}})
   with pytest.raises(KeyError):
     lamp.select("nope")
 
@@ -93,7 +93,8 @@ def test_geom_pos_does_nothing_on_a_body_welded_to_the_world(home_model):
 
   Asserting the DEFECT, deliberately: it is why `MocapToggle` exists. If
   MuJoCo ever starts honouring this, that is good news wearing a test
-  failure -- re-measure, and simplify the gate back to a geom toggle.
+  failure -- re-measure, and MocapToggle can retire (its last live consumer,
+  the garden gate, already did -- issue #93).
   """
   data = mujoco.MjData(home_model)
   gid = home_model.geom("garden_plate_pad").id      # a pad on a JOINTED body
@@ -113,23 +114,44 @@ def test_geom_pos_does_nothing_on_a_body_welded_to_the_world(home_model):
   home_model.geom_pos[fid] = [0.0, 0.0, 0.0]        # leave the fixture clean
 
 
-def test_mocap_toggle_actually_moves_the_gate(home_model):
-  """The fix: a mocap pose IS re-read by kinematics every step."""
-  data = mujoco.MjData(home_model)
-  gate = PlateGate(home_model, data)
-  gid = home_model.geom("garden_gate_panel").id
-  mujoco.mj_forward(home_model, data)
-  closed = float(data.geom_xpos[gid][2])
-  gate.gate.select("open")
-  mujoco.mj_forward(home_model, data)
-  assert float(data.geom_xpos[gid][2]) < closed - 1.0, \
-    "the gate did not move -- the toggle is inert again"
+#: MocapToggle's own little world. It used to be tested against the garden
+#: GATE, which issue #93 removed -- the tool now has NO live consumer, and
+#: that is precisely why these tests moved to a synthetic model instead of
+#: being deleted with the gate: the welded-body trap (above) is still real,
+#: `MocapToggle` is still the answer for the next activity that must MOVE
+#: something, and a tool guarded only by its consumer dies with it.
+_MOCAP_XML = """<mujoco><worldbody>
+  <body name="panel" mocap="true" pos="0 0 0.5">
+    <geom name="panel_geom" type="box" size="0.5 0.02 0.5"/>
+  </body>
+  <body name="jointed"><joint type="slide" axis="0 0 1"/>
+    <geom type="box" size="0.1 0.1 0.1"/></body>
+</worldbody></mujoco>"""
 
 
-def test_mocap_toggle_refuses_a_non_mocap_body(home_model):
-  data = mujoco.MjData(home_model)
+def test_mocap_toggle_actually_moves_the_body():
+  """The fix the welded-body trap demands: a mocap pose IS re-read by
+  kinematics every step."""
+  model = mujoco.MjModel.from_xml_string(_MOCAP_XML)
+  data = mujoco.MjData(model)
+  toggle = MocapToggle(model, data, "panel", {
+    "up": {"pos": [0.0, 0.0, 0.5]},
+    "down": {"pos": [0.0, 0.0, -0.7]},
+  })
+  toggle.select("up")
+  mujoco.mj_forward(model, data)
+  up = float(data.geom_xpos[model.geom("panel_geom").id][2])
+  toggle.select("down")
+  mujoco.mj_forward(model, data)
+  assert float(data.geom_xpos[model.geom("panel_geom").id][2]) < up - 1.0, \
+    "the panel did not move -- the toggle is inert again"
+
+
+def test_mocap_toggle_refuses_a_non_mocap_body():
+  model = mujoco.MjModel.from_xml_string(_MOCAP_XML)
+  data = mujoco.MjData(model)
   with pytest.raises(ValueError, match="mocap"):
-    MocapToggle(home_model, data, "garden_plate", {"a": {"pos": [0, 0, 0]}})
+    MocapToggle(model, data, "jointed", {"a": {"pos": [0, 0, 0]}})
 
 
 # ---- the reference activity -------------------------------------------------
@@ -138,32 +160,33 @@ def test_plate_rests_below_its_own_trigger(home_model):
   """The pad's own weight must not press it. If a plate triggers itself the
   activity is on from t=0 and nothing about it is testable."""
   data = mujoco.MjData(home_model)
-  gate = PlateGate(home_model, data)
+  light = PlateLight(home_model, data)
   for _ in range(2000):
     mujoco.mj_step(home_model, data)
-    gate.sense(home_model, data)
-  assert gate.depth(data) < PLATE_ON, "the plate presses itself"
-  assert gate.flags == {"state": "closed", "pressed": False, "depressMm": 1}
+    light.sense(home_model, data)
+  assert light.depth(data) < PLATE_ON, "the plate presses itself"
+  assert light.flags == {"state": "off", "pressed": False, "depressMm": 1}
 
 
-def test_pressing_latches_the_gate_open_and_releasing_does_not_close_it(home_model):
+def test_pressing_latches_the_light_on_and_releasing_does_not_turn_it_off(home_model):
   data = mujoco.MjData(home_model)
-  gate = PlateGate(home_model, data)
+  light = PlateLight(home_model, data)
   adr = home_model.joint("garden_plate_joint").qposadr[0]
   mujoco.mj_forward(home_model, data)
-  gate.sense(home_model, data)
-  assert gate.flags["state"] == "closed"
+  light.sense(home_model, data)
+  assert light.flags["state"] == "off"
 
   data.qpos[adr] = -PLATE_TRAVEL * 0.9
   mujoco.mj_forward(home_model, data)
-  gate.sense(home_model, data)
-  assert gate.flags["pressed"] and gate.flags["state"] == "open"
+  light.sense(home_model, data)
+  assert light.flags["pressed"] and light.flags["state"] == "on"
 
   data.qpos[adr] = 0.0
   mujoco.mj_forward(home_model, data)
-  gate.sense(home_model, data)
-  assert not gate.flags["pressed"], "pressed is a LIVE flag"
-  assert gate.flags["state"] == "open", "state is LATCHED"
+  light.sense(home_model, data)
+  assert not light.flags["pressed"], "pressed is a LIVE flag"
+  assert light.flags["state"] == "on", "state is LATCHED -- a real motion "\
+      "light times out; this one leaving a mark is the activity's point"
 
 
 def test_the_robot_can_actually_drive_onto_the_plate(home_model):
@@ -173,7 +196,7 @@ def test_the_robot_can_actually_drive_onto_the_plate(home_model):
   would pass every unit test above and be useless.
   """
   data = mujoco.MjData(home_model)
-  gate = PlateGate(home_model, data)
+  light = PlateLight(home_model, data)
   px, py = plate_center(home_model)
   yaw = math.pi
   data.qpos[0], data.qpos[1], data.qpos[2] = px + 1.2, py, 0.045
@@ -187,12 +210,12 @@ def test_the_robot_can_actually_drive_onto_the_plate(home_model):
     data.ctrl[left] = slew(data.ctrl[left], tl, home_model.opt.timestep)
     data.ctrl[right] = slew(data.ctrl[right], tr, home_model.opt.timestep)
     mujoco.mj_step(home_model, data)
-    gate.sense(home_model, data)
-    deepest = max(deepest, gate.depth(data))
+    light.sense(home_model, data)
+    deepest = max(deepest, light.depth(data))
   assert deepest > PLATE_ON, (
     f"a wheel only pressed the plate {deepest * 1000:.1f} mm against a "
     f"{PLATE_ON * 1000:.1f} mm trigger")
-  assert gate.flags["state"] == "open"
+  assert light.flags["state"] == "on"
 
 
 # ---- telemetry --------------------------------------------------------------
@@ -300,7 +323,7 @@ def test_two_sinks_over_one_activity_set_stay_independent(home_model):
     "the second sink lost a state change to the first"
 
 
-def test_a_real_gate_opening_reaches_a_telemetry_frame(home_model):
+def test_a_real_light_turning_on_reaches_a_telemetry_frame(home_model):
   """End to end: robot presses plate -> flag flips -> the flip is on the wire.
 
   Worth having as a test rather than trusting the committed recording. The
@@ -310,7 +333,7 @@ def test_a_real_gate_opening_reaches_a_telemetry_frame(home_model):
   without inventing a fixture nobody replays.
   """
   data = mujoco.MjData(home_model)
-  acts = ActivitySet([PlateGate(home_model, data)])
+  acts = ActivitySet([PlateLight(home_model, data)])
   fb = FrameBuilder(home_model, data, hz=20.0, model_name="home_world",
                     activities=acts)
   px, py = plate_center(home_model)
@@ -330,14 +353,14 @@ def test_a_real_gate_opening_reaches_a_telemetry_frame(home_model):
     hook()
     frame = fb.build()
     if frame is not None and "activities" in frame:
-      seen.append((frame["t"], frame["activities"]["garden_gate"]))
+      seen.append((frame["t"], frame["activities"]["garden_light"]))
 
   states = [f["state"] for _, f in seen if "state" in f]
-  assert states[0] == "closed"
-  assert "open" in states, "the gate opened in the sim but never on the wire"
-  # ...and it stays open in every later frame that mentions state at all
-  after = states[states.index("open"):]
-  assert set(after) == {"open"}, f"the wire un-opened the gate: {after}"
+  assert states[0] == "off"
+  assert "on" in states, "the light came on in the sim but never on the wire"
+  # ...and it stays on in every later frame that mentions state at all
+  after = states[states.index("on"):]
+  assert set(after) == {"on"}, f"the wire turned the light back off: {after}"
   assert len(seen) < fb.frames * 0.35, (
     f"activity flags shipped in {len(seen)}/{fb.frames} frames -- that is "
     "not sparse; check the analogue-flag quantisation")
@@ -345,10 +368,10 @@ def test_a_real_gate_opening_reaches_a_telemetry_frame(home_model):
 
 def test_activity_set_snapshot_and_hook(home_model):
   data = mujoco.MjData(home_model)
-  acts = ActivitySet([PlateGate(home_model, data)])
+  acts = ActivitySet([PlateLight(home_model, data)])
   hook = acts.step_hook(home_model, data)
   mujoco.mj_forward(home_model, data)
   hook()
-  assert acts.names == ["garden_gate"]
-  assert acts.snapshot()["garden_gate"]["state"] == "closed"
+  assert acts.names == ["garden_light"]
+  assert acts.snapshot()["garden_light"]["state"] == "off"
   assert len(acts) == 1

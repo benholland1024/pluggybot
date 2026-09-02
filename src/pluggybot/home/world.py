@@ -34,7 +34,8 @@ here -- this diagram is the plan, not a picture of it:
          │            │▓▓▓│                     │  ┃     ┃
   y=-6   └────────────┴───┴───────fence─────────┘  ┃     ┃
 
-   d = doorway   ╪ = the existing gate   ▓ = staircase (3 x 3, solid box)
+   d = doorway   ╪ = the OPEN street doorway (issue #93: the gate is
+   gone; the plate turns on a light)   ▓ = staircase (3 x 3, solid box)
 
 ⚠ The kitchen/workshop divider is at y=2.0 (the ZONES table's number), not
 the y=2.5 the diagram's left edge sits near -- 2.5 is the living/bedroom
@@ -74,7 +75,7 @@ from pluggybot.rack.coupling import (
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.activity.plate import (
-  GATE_HALF_LEN, plate_gate_xml,
+  plate_light_xml,
 )
 from pluggybot.rack.tags import asset_xml, write_tag_pngs
 
@@ -156,12 +157,20 @@ BOARDS = {
 PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 
 # The reference ACTIVITY (issue #8): a pressure plate just inside the garden
-# doorway, latching a gate in the garden's outer fence. Placed there on
-# purpose -- the gate blocks no route the robot needs, so the world stays
-# exactly as navigable as it was while still demonstrating the whole
-# pattern. Gating a real passage is the same code with the geometry moved.
+# doorway, turning on a garden light beside it (issue #93 -- it used to latch
+# a GATE in the east fence, until #68 put the street behind that gate and
+# broke the gate's own design rule, "blocks no route the robot needs"). The
+# light keeps the activity's whole pattern -- sensed criterion, hysteresis,
+# latch, rgba toggle, telemetry -- while blocking nothing, ever, by
+# construction.
 PLATE_XY = (5.7, 0.7)
-GATE_Y = 3.1                  # centre of a 1 m gap in the east fence
+#: Centre of the 1 m OPEN doorway in the east fence -- the way to the
+#: sidewalk and street. It was the gate's position (issue #93 removed the
+#: panel), and it keeps the exact same geometry so `HOME_WORST_RETURN_PATH`,
+#: the committed recordings' fence segmentation and every measured route
+#: survive the change: what left is the panel, not the gap.
+STREET_DOOR_Y = 3.1
+STREET_DOOR_HALF = 0.50
 
 #: The plot, tiled. Every zone is ONE RECTANGLE and together they cover the
 #: property exactly once -- `tests/test_home_world.py` checks both halves of
@@ -264,7 +273,7 @@ HOME_WORST_RETURN = (STREET_X[1] - 0.4, PROPERTY_Y[1] - 0.4)
 #: a fact about the floor plan, and the plan lives in this file.
 HOME_WORST_RETURN_PATH = (
   HOME_WORST_RETURN,
-  (SIDEWALK_X[0], GATE_Y),                  # the gate
+  (SIDEWALK_X[0], STREET_DOOR_Y),           # the street doorway
   (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),  # the garden doorway
   HOME_RACK_POS,
 )
@@ -417,8 +426,8 @@ def build_home_world() -> tuple[str, dict]:
                               FENCE_HALF_H, FENCE_RGBA)),
     ("fence_east", _wall_run("fence_east", gx1, gx1, py0, py1,
                              FENCE_HALF_H, FENCE_RGBA,
-                             gaps=((GATE_Y - GATE_HALF_LEN,
-                                    GATE_Y + GATE_HALF_LEN),))),
+                             gaps=((STREET_DOOR_Y - STREET_DOOR_HALF,
+                                    STREET_DOOR_Y + STREET_DOOR_HALF),))),
   )
   for prefix, segments in walls:
     hint = "fence" if prefix.startswith("fence") else "wall"
@@ -475,11 +484,11 @@ def build_home_world() -> tuple[str, dict]:
   # The reference activity. Its module owns BOTH the geometry and the state
   # machine (activity/plate.py), so a world adds one by calling one function
   # -- the same shape as rack/coupling.py owning the tool modules' faces.
-  # No visual hints: there is no `gate` or `plate` in the vocabulary, and the
+  # No visual hints: there is no `light` or `plate` in the vocabulary, and the
   # website falls back to raw primitives for an unhinted body. Adding one is
-  # additive whenever the site wants a parametric gate, but inventing hints
+  # additive whenever the site wants a parametric lamp, but inventing hints
   # ahead of a consumer is how a shared vocabulary rots.
-  act_body, act_sensor = plate_gate_xml(PLATE_XY, (gx1, GATE_Y), FENCE_HALF_H)
+  act_body, act_sensor = plate_light_xml(PLATE_XY)
   bodies.append(act_body)
 
   # Furniture: real obstacles, for exploration to have something to map --
@@ -549,7 +558,8 @@ def build_home_world() -> tuple[str, dict]:
      Regenerate: uv run python -m pluggybot.home.world
      The home world (issue #6, expanded by #68): kitchen, workshop, hall,
      living room, bedroom, a garden wrapping south and east, and the
-     sidewalk and street beyond the gate. Whiteboard drawing surfaces; the
+     sidewalk and street through the open fence doorway. Whiteboard
+     drawing surfaces; the
      tool rack on the living room's south wall.
      Layout constants + visual hints + zones live in home/world.py; the
      sidecar models/home_world.meta.json is emitted alongside. -->
