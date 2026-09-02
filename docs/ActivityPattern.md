@@ -138,6 +138,13 @@ The fix is MuJoCo's own mechanism for this: make it a **mocap body**
 its pose is an *input*, re-read from `data.mocap_pos` on every forward pass.
 One attribute in the world, and `MocapToggle` does the rest.
 
+> ⚠ **The worked example of this — the garden gate — was removed by issue
+> #93** (the plate turns on a light now; a bulb is `rgba` work and needs no
+> mocap). The lesson stands undiminished, and so does `MocapToggle`, guarded
+> by synthetic-model tests in `tests/test_activity.py` rather than by a live
+> consumer: the next activity that must MOVE something starts here, not at
+> `geom_pos`.
+
 > ⚠ This corrects `rooftop-media-2026/docs/pluggyworld.md`, which lists
 > `geom_pos` among the mutable fields without the static-body caveat. Digging
 > ("swap a mound geom for a hole visual") happens to be safe because it is
@@ -190,10 +197,11 @@ value it saw.
 
 **Re-shipped on every keyframe** — and this matters more here than it does for
 poses. An activity's visible effect usually lives on a **static body**: the
-gate ships once in the scene description and never again, and its mocap pose
-is not in the pose stream at all. So for a change like that **the flag is the
-only record anywhere in the stream**. A consumer that missed it has no other
-way to learn the gate is open.
+garden light's bulb ships once in the scene description and never again, and
+its `rgba` is not in the pose stream at all. So for a change like that **the
+flag is the only record anywhere in the stream**. A consumer that missed it
+has no other way to learn the light is on. (This was written about the gate
+the light replaced — issue #93 — and is just as true of the bulb.)
 
 ⚠ **The emitted-state memory belongs to the sink, not the activity.**
 `FrameBuilder` keeps `_last_acts`, exactly where it keeps `_last` for poses.
