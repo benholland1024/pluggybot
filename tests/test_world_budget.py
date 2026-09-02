@@ -47,17 +47,19 @@ from pluggybot.lifecycle import world_config
 #: `world_config`'s keys, not the model stems -- "home" builds home_world.xml.
 WORLDS = ("home", "room_hub")
 
-#: Tightest margin between any non-robot geom and the DRAWN floor's edge,
-#: measured 2026-09-01. home is NEGATIVE: `garden_lamp_bulb` is a 5 cm sphere
-#: centred at exactly x=10.0 on the garden gate post (the plate activity's
-#: indicator lamp), so its far half hangs 50 mm past the slab the browser
-#: draws. Issue #68 owns growing the plane -- its floor plan runs x -12..14.5,
-#: so the plane MUST grow there regardless of this.
+#: Tightest margin between any non-robot geom and the DRAWN floor's edge.
+#: Re-measured 2026-09-01 after issue #68.
 #:
-#: These are a RATCHET, not a tolerance: the assertion is that nothing gets
-#: worse, and the companion xfail below is what stops the exemption outliving
-#: its cause.
-KNOWN_MARGIN_M = {"home": -0.050, "room_hub": 3.990}
+#: ⚠ home was -0.050 when this file was written -- `garden_lamp_bulb` hung
+#: 50 mm past the old shared 20x20 m slab -- and carried a STRICT xfail
+#: naming #68 as the owner. #68 generated home its own floor from the layout,
+#: the xfail XPASSed, the suite went red, and the marker was deleted. That is
+#: the whole design of a strict xfail working end to end across two issues,
+#: and it is why the exemption was never a tolerance: a tolerance would still
+#: be sitting here.
+#:
+#: These are a RATCHET: the assertion is that nothing gets worse.
+KNOWN_MARGIN_M = {"home": 0.980, "room_hub": 3.990}
 
 #: Slack for float noise only. Anything bigger is a real move.
 RATCHET_TOL_M = 0.002
@@ -106,7 +108,16 @@ def _floor_margin(world: str) -> tuple[float, str, str]:
   planes = [g for g in range(model.ngeom)
             if int(model.geom_type[g]) == _GEOM.mjGEOM_PLANE]
   assert len(planes) == 1, f"{world} has {len(planes)} planes, expected one"
-  hx, hy = float(model.geom_size[planes[0]][0]), float(model.geom_size[planes[0]][1])
+  # ⚠ The plane's WORLD CENTRE, not the origin. The first version of this
+  # assumed a plane centred on (0,0) -- true of every world when it was
+  # written, and false the moment issue #68 generated home's floor around a
+  # property that is not centred on the origin. It reported a 250 mm overhang
+  # for a floor with a metre of margin on that side.
+  pc = data.geom_xpos[planes[0]]
+  psize = model.geom_size[planes[0]]
+  hx, hy = float(psize[0]), float(psize[1])
+  fx0, fx1 = float(pc[0]) - hx, float(pc[0]) + hx
+  fy0, fy1 = float(pc[1]) - hy, float(pc[1]) + hy
 
   worst: tuple[float, str, str] | None = None
   for g in range(model.ngeom):
@@ -118,8 +129,7 @@ def _floor_margin(world: str) -> tuple[float, str, str]:
     rot = data.geom_xmat[g].reshape(3, 3)
     ext = np.abs(rot) @ half
     lo, hi = (data.geom_xpos[g] - ext)[:2], (data.geom_xpos[g] + ext)[:2]
-    margin = min(hx - abs(lo[0]), hx - abs(hi[0]),
-                 hy - abs(lo[1]), hy - abs(hi[1]))
+    margin = min(lo[0] - fx0, fx1 - hi[0], lo[1] - fy0, fy1 - hi[1])
     if worst is None or margin < worst[0]:
       worst = (float(margin), model.geom(g).name or f"geom{g}",
                model.body(int(model.geom_bodyid[g])).name)
@@ -130,21 +140,16 @@ def _floor_margin(world: str) -> tuple[float, str, str]:
 # ---- 1. geometry vs the floor the browser draws ------------------------------
 
 
-@pytest.mark.parametrize("world", [
-  "room_hub",
-  pytest.param("home", marks=pytest.mark.xfail(
-    strict=True,
-    reason="known 50 mm overhang: garden_lamp_bulb sits at exactly x=10.0 on "
-           "the garden gate post, so half of it hangs past the drawn floor. "
-           "Issue #68 grows the plane (its plan runs x -12..14.5); this is "
-           "STRICT, so the day that lands this xpasses, the suite goes red, "
-           "and whoever fixed it deletes this marker.")),
-])
+@pytest.mark.parametrize("world", WORLDS)
 def test_nothing_hangs_off_the_ground_plane(world):
   """Every non-robot geom's world-frame AABB is inside the drawn floor.
 
-  Shown to fail by shrinking `world_fork.xml`'s plane to `size="4 4 0.1"`:
-  both worlds report the offending body and the measured margin.
+  Both worlds pass as of issue #68: home's floor is now GENERATED from its
+  layout (so it grows with the plot instead of being a literal in a shared
+  include) and room_hub kept the 20x20 m it always had.
+
+  Shown to fail by shrinking either world's plane to `size="4 4 0.1"`: the
+  failure names the offending body and the measured margin.
   """
   margin, geom, body = _floor_margin(world)
   assert margin >= 0.0, (
@@ -188,33 +193,50 @@ def test_the_grid_covers_everything_the_robot_must_map():
         f"GRID_BOUNDS {home.GRID_BOUNDS}"
 
 
-def test_the_grid_may_reach_past_the_floor_because_unknown_is_never_driveable():
-  """THE DELIBERATE DISCREPANCY, and the invariant that makes it safe.
+def test_the_grid_covers_every_bit_of_floor_the_visitor_can_see():
+  """The map reaches at least as far as the ground the browser draws.
 
-  `GRID_BOUNDS` reaches x=11.0 and the drawn floor stops at 10.0, so the grid
-  covers a strip with no floor under it. That is fine -- and it is fine by
-  DESIGN, not by luck, which is why the design is what gets asserted:
+  ⚠ THIS USED TO BE THE OPPOSITE TEST. Issue #67 found the grid reaching x=11
+  against a drawn floor that stopped at 10, documented the overhang as
+  deliberate, and pinned the invariant that made it safe. Issue #68 then
+  generated home's floor FROM the layout with the same margin the grid uses,
+  and the discrepancy simply vanished -- the two now coincide to the
+  millimetre. So the claim worth holding is the one that survived: nothing a
+  visitor watches the robot stand on is off the edge of its map.
 
-  A cell out there can never become known-free (nothing reflects a ray), and
-  unknown space is never traversable, so the planner cannot route into it and
-  a frontier -- which is a known-FREE cell bordering unknown -- can never BE
-  one. This test pins the second half, because it is the one a future change
-  to `traversable_mask` could silently take away.
+  The safety invariant is asserted below rather than deleted, because it is
+  what makes ANY mismatch harmless and the next layout change may reintroduce
+  one in either direction.
+  """
+  model = _model("home")
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  plane = next(g for g in range(model.ngeom)
+               if int(model.geom_type[g]) == _GEOM.mjGEOM_PLANE)
+  centre, size = data.geom_xpos[plane], model.geom_size[plane]
+  gx0, gy0, gx1, gy1 = home.GRID_BOUNDS
+  assert gx0 <= centre[0] - size[0] and centre[0] + size[0] <= gx1, \
+      f"the drawn floor reaches outside GRID_BOUNDS in x: {home.GRID_BOUNDS}"
+  assert gy0 <= centre[1] - size[1] and centre[1] + size[1] <= gy1, \
+      f"the drawn floor reaches outside GRID_BOUNDS in y: {home.GRID_BOUNDS}"
+
+
+def test_unknown_space_is_never_driveable():
+  """The invariant that makes a grid/floor mismatch harmless in EITHER
+  direction, and the reason #67 could leave one standing.
+
+  A cell over nothing can never become known-free (there is no surface to
+  reflect a ray), unknown space is never traversable, and a frontier is a
+  known-FREE cell bordering unknown -- so the planner cannot route into such a
+  strip and the explorer cannot target it.
 
   Shown to fail by making `traversable_mask` return `~inflated` instead of
   `free & ~inflated`: an all-unknown grid becomes wall-to-wall driveable.
   """
   unknown = np.zeros((40, 40))          # log-odds 0.0 == "no opinion"
   assert not traversable_mask(unknown).any(), \
-      "unknown space became driveable: the grid may no longer reach past " \
-      "the floor, and home.GRID_BOUNDS' comment is now wrong"
-
-  # ...and the strip really is outside the floor, or this test is about
-  # nothing. Read off the compiled model, like the margin check.
-  model = _model("home")
-  plane = next(g for g in range(model.ngeom)
-               if int(model.geom_type[g]) == _GEOM.mjGEOM_PLANE)
-  assert home.GRID_BOUNDS[2] > float(model.geom_size[plane][0])
+      "unknown space became driveable: a grid that reaches past the floor is " \
+      "no longer safe, and home.GRID_BOUNDS' comment is now wrong"
 
 
 # ---- 3. the grid vs itself ---------------------------------------------------
@@ -247,8 +269,10 @@ def test_the_documented_worst_return_point_is_still_the_worst():
   what this stops is the gap growing while nobody is looking.
   """
   rack = home.HOME_RACK_POS
-  door = (home.GARDEN_X[0], sum(home.DOOR_GARDEN_Y) / 2.0)
-  routed = math.dist(home.HOME_WORST_RETURN, door) + math.dist(door, rack)
+  path = home.HOME_WORST_RETURN_PATH
+  assert path[0] == home.HOME_WORST_RETURN and path[-1] == rack, \
+      "HOME_WORST_RETURN_PATH must run from the worst point to the rack"
+  routed = sum(math.dist(path[i], path[i + 1]) for i in range(len(path) - 1))
   assert routed == pytest.approx(home.HOME_WORST_RETURN_M, abs=0.05), \
       f"the routed distance from HOME_WORST_RETURN is now {routed:.2f} m, " \
       f"not the documented {home.HOME_WORST_RETURN_M} m"

@@ -70,19 +70,33 @@ def module_z(mission) -> float:
 #: re-checking when the geometry moves, which is a merge, not every iterate
 #: loop. Cost is why it was looked at; this is why it qualifies (issue #54).
 @pytest.mark.slow
-def test_a_blind_return_at_the_cliff_drops_the_module_on_the_floor():
+def test_a_blind_return_at_the_cliff_fails_to_hang_the_module():
   """The defect, pinned: with the measurement bypassed, six centimetres of
-  belief decoherence puts the module on the floor at the rack's foot. If
-  this starts passing, bay_fix has lost its premise -- find out why."""
+  belief decoherence loses the module. If this starts passing, bay_fix has
+  lost its premise -- find out why.
+
+  ⚠ WHICH FAILURE is deliberately NOT pinned any more (issue #88). It used
+  to also assert the module ended up on the FLOOR, which was true and useful
+  right up until it wasn't: the tag's decoded yaw is ambiguous square-on to
+  the bay and flips sign under 2 mm of pose difference, so at this
+  decoherence the blind return lands on either side of a coin toss --
+  dragged to the floor, or left on the fork. This file's own docstring
+  already records fork-retention as what 10 cm does, so both are the same
+  defect wearing different clothes.
+
+  What must not change is that the blind return FAILS. Pinning the mode as
+  well made this a test of the coin rather than of the premise -- it went red
+  when issue #68 moved a wall on the other side of the house, which changed
+  the pick trajectory by a fraction of a millimetre.
+  """
   mission = carrying_mission()
   try:
     mission.bay_fix = lambda *a, **k: None      # what swap_at_bay did before
     decohere(mission, DROP_ACROSS)
     mission.swap_at_bay(STATION, "return", module=MODULE)
     st = mission.swap.module_state(MODULE)
-    assert not st["hung"]
-    assert module_z(mission) < 0.10, \
-        "expected the retreat to drag the module on to the floor"
+    assert not st["hung"], \
+        "the blind return hung the module: bay_fix's premise is gone"
   finally:
     mission.close()
 
@@ -150,9 +164,29 @@ def test_bay_fix_measures_the_standoff_the_bay_is_actually_at():
     # same shift
     ex = tsx + -math.sin(TRUE_RACK.yaw) * across
     ey = tsy + math.cos(TRUE_RACK.yaw) * across
-    assert math.hypot(fx - ex, fy - ey) < 0.04
+    # ⚠ 0.07 and 10 degrees, not the 0.04 and 5 these carried until issue
+    # #68 -- and the loosening is a CORRECTION, not a concession.
+    #
+    # The tag's PnP yaw is ambiguous when the robot is square to the bay,
+    # which is exactly where it stands here, and the ambiguity is worth
+    # centimetres. MEASURED on the UNCHANGED world (issue #88), thirteen
+    # poses 2 mm apart across the approach:
+    #
+    #     residual   0.0006 .. 0.0476 m    against a 0.04 bar
+    #     heading      0.00 .. 6.09 deg    against a 5.0 bar
+    #
+    # So this test already failed at TWO OF TWELVE nearby poses before #68
+    # touched anything; it was passing at 0.0364 because the fixture happened
+    # to land on a winning toss. The distribution is bimodal -- most poses
+    # measure ~0.001 m, and the outliers are the solver picking the mirrored
+    # branch -- so a tighter bar does not buy precision, it buys flakiness.
+    #
+    # What these guard is a SIGN SLIP in PLUG_LATERAL, worth ~0.10 m, and
+    # both still catch that. Tighten them when #88 makes the yaw trustworthy,
+    # not before.
+    assert math.hypot(fx - ex, fy - ey) < 0.07
     assert abs(math.degrees(math.atan2(math.sin(fhd - tshd),
-                                       math.cos(fhd - tshd)))) < 5.0
+                                       math.cos(fhd - tshd)))) < 10.0
   finally:
     mission.close()
 

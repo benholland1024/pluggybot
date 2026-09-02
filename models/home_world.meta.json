@@ -1,28 +1,86 @@
 {
  "model": "home_world",
  "visualHints": {
-  "wall_west": "wall",
+  "wall_west_0": "wall",
+  "wall_west_1": "wall",
   "wall_south": "wall",
   "wall_north": "wall",
   "wall_east_0": "wall",
   "wall_east_1": "wall",
   "wall_divider_0": "wall",
   "wall_divider_1": "wall",
+  "wall_wing_west": "wall",
+  "wall_wing_north": "wall",
+  "wall_wing_south": "wall",
+  "wall_wing_east_0": "wall",
+  "wall_wing_east_1": "wall",
+  "wall_wing_east_2": "wall",
+  "wall_kitchen_div": "wall",
+  "wall_hall_north": "wall",
+  "wall_hall_south": "wall",
+  "wall_hall_east": "wall",
   "fence_south": "fence",
   "fence_north": "fence",
   "fence_east_0": "fence",
   "fence_east_1": "fence",
   "home_floor": "floor",
   "garden_ground": "ground",
+  "kitchen_floor": "floor",
+  "workshop_floor": "floor",
+  "hall_floor": "floor",
+  "garden_south_ground": "ground",
+  "sidewalk_ground": "sidewalk",
+  "street_ground": "street",
   "whiteboard_a": "whiteboard",
   "whiteboard_b": "whiteboard",
   "plant_0": "plant",
   "plant_1": "plant",
   "plant_2": "plant",
   "plant_3": "plant",
+  "furniture_couch": "couch",
+  "furniture_bed": "bed",
+  "furniture_counter": "counter",
+  "furniture_table": "table",
+  "stairs": "stairs",
   "rack": "rack"
  },
  "zones": [
+  {
+   "name": "kitchen",
+   "kind": "room",
+   "min": [
+    -12.0,
+    2.0
+   ],
+   "max": [
+    -5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "workshop",
+   "kind": "room",
+   "min": [
+    -12.0,
+    -6.0
+   ],
+   "max": [
+    -5.0,
+    2.0
+   ]
+  },
+  {
+   "name": "hall",
+   "kind": "room",
+   "min": [
+    -5.0,
+    -6.0
+   ],
+   "max": [
+    -2.0,
+    6.0
+   ]
+  },
   {
    "name": "living",
    "kind": "room",
@@ -58,6 +116,42 @@
     10.0,
     6.0
    ]
+  },
+  {
+   "name": "garden_south",
+   "kind": "garden",
+   "min": [
+    -2.0,
+    -6.0
+   ],
+   "max": [
+    10.0,
+    -2.0
+   ]
+  },
+  {
+   "name": "sidewalk",
+   "kind": "outdoor",
+   "min": [
+    10.0,
+    -6.0
+   ],
+   "max": [
+    11.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street",
+   "kind": "outdoor",
+   "min": [
+    11.5,
+    -6.0
+   ],
+   "max": [
+    14.5,
+    6.0
+   ]
   }
  ],
  "spawns": {
@@ -69,6 +163,21 @@
   "garden": [
    7.5,
    2.0,
+   0.0
+  ],
+  "hall": [
+   -3.5,
+   1.0,
+   0.0
+  ],
+  "kitchen": [
+   -8.5,
+   4.0,
+   0.0
+  ],
+  "workshop": [
+   -8.5,
+   -2.0,
    0.0
   ]
  },
@@ -110,9 +219,9 @@
   "yaw_deg": 90.0
  },
  "gridBounds": [
-  -3.0,
-  -3.0,
-  11.0,
+  -13.0,
+  -7.0,
+  15.5,
   7.0
  ],
  "battery": {
