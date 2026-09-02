@@ -4,6 +4,14 @@
        hub_rack.xml is GENERATED -- regenerate with:
          uv run python -m pluggybot.rack.coupling -->
   <include file="world_fork.xml"/>
+
+  <!-- room_hub's own ground, moved here verbatim from world_fork.xml by
+       issue #68 so that growing home's floor does not grow this one. Same
+       name, same size, same place: the compiled model is unchanged and
+       protocol/scene.room_hub.json is byte-identical across the move. -->
+  <worldbody>
+    <geom name="floor" type="plane" size="10 10 0.1" rgba="0.5 0.5 0.5 1"/>
+  </worldbody>
   <include file="room_1_scenery.xml"/>
   <include file="hub_rack.xml"/>
 </mujoco>

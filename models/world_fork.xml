@@ -7,8 +7,19 @@
 
   <include file="pluggybot_fork.xml" />
 
+  <!-- ⚠ NO FLOOR HERE (issue #68). It used to live in this file, which meant
+       one 20x20 m slab shared by every world that includes it -- and the
+       expanded home property is 26.5 x 12 m, so the slab had to grow. Growing
+       it HERE would have wrapped room_hub's 8 x 8 m room in a 32 m apron of
+       grey for no reason, and a plane's `size` is what the WEBSITE DRAWS (it
+       is rendering-only; collision is with the infinite half-space). So the
+       ground is now each world's own: room_hub declares the same 20 x 20 m it
+       always had, and home/world.py GENERATES one sized to its property, which
+       means the floor grows with the layout instead of being a literal
+       somebody has to remember. This file keeps what its comment always said
+       it was for: the fork robot, and the options to simulate it.
+       tests/test_world_budget.py is what checks a world against its own. -->
   <worldbody>
     <light pos="0 0 3" dir="0 0 -1"/>
-    <geom name="floor" type="plane" size="10 10 0.1" rgba="0.5 0.5 0.5 1"/>
   </worldbody>
 </mujoco>

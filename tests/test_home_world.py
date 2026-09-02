@@ -7,6 +7,7 @@ four can drift silently -- a wall moved in Python while models/ still holds
 last week's XML looks fine until a mission drives into it.
 """
 
+import itertools
 import json
 import math
 from pathlib import Path
@@ -107,8 +108,14 @@ def test_scene_json_carries_hints_zones_and_spawns(home_model, meta):
   scene = scene_dict(home_model, "home_world", meta=meta)
   hinted = {b["name"]: b["visual"] for b in scene["bodies"] if b["visual"]}
   assert hinted == meta["visualHints"]
-  assert [z["name"] for z in scene["zones"]] == ["living", "bedroom", "garden"]
-  assert set(scene["spawns"]) == {"start", "garden"}
+  # Against the generator, not a literal list: this used to name the three
+  # zones outright, which made adding a room a two-file edit and the second
+  # file easy to forget. What the scene must carry is whatever `home.ZONES`
+  # says, in order.
+  assert [z["name"] for z in scene["zones"]] == [z["name"] for z in home.ZONES]
+  assert set(scene["spawns"]) == set(home.SPAWNS)
+  # ...and the two the rest of the suite and every script depend on by name.
+  assert {"start", "garden"} <= set(scene["spawns"])
 
 
 def test_scene_transpiler_rejects_an_unknown_hint(home_model):
@@ -144,17 +151,62 @@ def test_robot_spawns_clear_of_the_geometry(home_model):
 
 
 def test_doorways_are_wide_enough_to_drive_through(home_model):
-  """Both doorways must clear the robot's 0.21 m track with margin for the
-  inflated planning mask -- a doorway the planner refuses is a wall."""
-  for lo, hi in (home.DOOR_DIV_X, home.DOOR_GARDEN_Y):
-    assert hi - lo >= 0.6, "doorway too narrow for planning + control error"
+  """EVERY doorway must clear the robot's 0.21 m track with margin for the
+  inflated planning mask -- a doorway the planner refuses is a wall.
+
+  All five, not the two that existed before issue #68: the wing is reachable
+  through exactly one of the new three, so a doorway too narrow to plan
+  through would quietly cut a third of the house off the map."""
+  doors = {"divider": home.DOOR_DIV_X, "garden": home.DOOR_GARDEN_Y,
+           "hall": home.DOOR_HALL_Y, "kitchen": home.DOOR_KITCHEN_Y,
+           "workshop": home.DOOR_WORKSHOP_Y}
+  for name, (lo, hi) in doors.items():
+    assert hi - lo >= 0.6, f"{name} doorway too narrow for planning + control"
 
 
 def test_zones_tile_the_world_without_overlapping():
-  for a, b in ((home.ZONES[0], home.ZONES[1]), (home.ZONES[1], home.ZONES[2])):
+  """EVERY pair, not the adjacent ones. The old version checked ZONES[0] vs
+  [1] and [1] vs [2], which was every pair when there were three; with nine it
+  would have missed the garden overlapping the street."""
+  for a, b in itertools.combinations(home.ZONES, 2):
     overlap_x = (min(a["max"][0], b["max"][0]) - max(a["min"][0], b["min"][0]))
     overlap_y = (min(a["max"][1], b["max"][1]) - max(a["min"][1], b["min"][1]))
     assert overlap_x <= 0 or overlap_y <= 0, f"{a['name']} overlaps {b['name']}"
+
+
+def test_the_zones_tile_the_whole_plot_with_no_gaps():
+  """...and TILE it: the areas sum to the bounding rectangle exactly.
+
+  Overlap-freedom alone is satisfied by a plan with a hole in it, and a hole
+  is a room the robot can be sent to that belongs to no zone -- which is how
+  `zone_centre` returns something nobody meant."""
+  area = sum((z["max"][0] - z["min"][0]) * (z["max"][1] - z["min"][1])
+             for z in home.ZONES)
+  plot = ((home.STREET_X[1] - home.WING_X[0])
+          * (home.PROPERTY_Y[1] - home.PROPERTY_Y[0]))
+  assert area == pytest.approx(plot), \
+      f"zones cover {area:.1f} m2 of a {plot:.1f} m2 plot"
+
+
+def test_the_new_rooms_are_reachable_from_the_living_room():
+  """A room with no doorway into it is scenery. Checked as a GRAPH over the
+  zones rather than by eye, because the wing hangs off the hall and the hall
+  hangs off one 1 m gap in the living room's west wall -- three rooms behind a
+  single door, which is exactly the shape that goes wrong quietly."""
+  edges = {("living", "hall"), ("hall", "kitchen"), ("hall", "workshop"),
+           ("living", "bedroom"), ("living", "garden"),
+           ("garden", "garden_south"), ("garden", "sidewalk"),
+           ("sidewalk", "street")}
+  reached, frontier = {"living"}, ["living"]
+  while frontier:
+    here = frontier.pop()
+    for a, b in edges:
+      for src, dst in ((a, b), (b, a)):
+        if src == here and dst not in reached:
+          reached.add(dst)
+          frontier.append(dst)
+  names = {z["name"] for z in home.ZONES}
+  assert reached == names, f"unreachable from the living room: {names - reached}"
 
 
 def test_spawns_and_rack_sit_inside_the_house(home_model):
