@@ -152,6 +152,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   flies each one on an oversized pack and reports SWAP_PICK to end of
   SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
+  `scripts/board_png.py` (rooftop-media-2026 #128: a whiteboard's ink as a
+  PNG, cropped to the drawing, from the boards state file or a recording —
+  how a drawing the robot made gets HUNG on the website's walls. By hand,
+  every so often, on purpose: a gallery that curates itself hangs everything.
+  ⚠ It flips +lat to the viewer's LEFT exactly as `surfaces/board.ts` does,
+  and the test pins it, because every figure the pen draws is symmetric and
+  nothing else would notice a mirrored house),
   `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
   with the REAL pen and reports how far the ink sits from each candidate
   answer's glyphs, plus the ink-length ratio — re-run it if the pen, the
