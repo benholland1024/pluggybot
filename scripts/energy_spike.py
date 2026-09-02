@@ -159,6 +159,105 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   return out
 
 
+def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
+  """What it COSTS to get home from the worst place to be (issues #70, #84).
+
+  `HOME_LOW_BATTERY_WH` is the one energy number that is not about an errand:
+  it is the absolute cost of reaching the dock from the worst point in the
+  floor plan, which is why it is a property of the PLAN and deliberately not
+  scaled with the pack. It was written down as ~0.3 Wh -- "a full living-room
+  crossing plus charge approach", a 2.89 m route -- and issue #68 grew the
+  plot to 26.5 x 12 m, which moves the worst point to the street's far
+  corner, 15.6 m of route away.
+
+  Two parts, measured separately because they fail differently:
+
+    travelWh   driving `home.HOME_WORST_RETURN_PATH` from the worst point to
+               the garden doorway. The waypoints are FOLLOWED, not planned --
+               the route is a fact about the floor plan and lives in
+               home/world.py -- so this is the physical cost of the distance,
+               not of the planner's mood that day.
+    dockWh     `go_charge()` from the garden doorway: the drive to the
+               standoff, the tag-servo creep and the press, which is the part
+               a plain distance model cannot predict.
+
+  The sum is a FLOOR, not the constant: the constant also has to cover a
+  failed press-and-retry, so the caller adds margin and says so at the
+  constant. (An earlier draft drove the route OUTBOUND first, to open the
+  gate the street used to be behind. Issue #93 removed the gate, so the
+  street is plain floor now, and the outbound leg went with it.)
+  """
+  from pluggybot.behavior.navigation import drive_toward
+  from pluggybot.home import world as home
+
+  cfg = world_config(world)
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, battery_wh=battery_wh,
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"],
+                      ledger=points_ledger(None), world=world, errands=[])
+  activities = cfg["activities"](model, data) if cfg["activities"] else None
+  if activities is not None:
+    life.mission.step_hooks.append(activities.step_hook(model, data))
+  life.max_sim_time = 1e9
+  life.blacklist = set()
+  life.map_done = False
+  life.explore_deadline = 1e9
+
+  out: dict = {"world": world}
+  try:
+    life.mission.start_at(*cfg["start"])
+    life.mission.start_discovery()
+    life.mission._spin()
+    life.explore(budget=explore_s, mark_done=False)
+
+    path = list(home.HOME_WORST_RETURN_PATH)
+    # Start AT the worst point, odometry seeded from truth: this measures the
+    # route's energy, not the robot's confusion about where it is.
+    hd = math.atan2(path[1][1] - path[0][1], path[1][0] - path[0][0])
+    life.mission.start_at(path[0][0], path[0][1], hd)
+    life.battery.energy_wh = battery_wh
+
+    t0, e0 = float(data.time), life.battery.energy_wh
+    metres = 0.0
+    # ⚠ Every waypoint EXCEPT the last. The path ends at the rack itself, and
+    # driving to within 15 cm of a rack centre is driving into the rack --
+    # the final leg belongs to `go_charge`, which navigates to the charge
+    # STANDOFF and then creeps on the tag. That split is also the honest one:
+    # travel is what a distance model can predict, docking is what it cannot.
+    for wx, wy in path[1:-1]:
+      metres += math.hypot(wx - life.mission.pose[0],
+                           wy - life.mission.pose[1])
+      deadline = float(data.time) + 120.0
+      while float(data.time) < deadline:
+        px, py, _ = life.mission.pose
+        if math.hypot(wx - px, wy - py) < 0.15:
+          break
+        v, w = drive_toward(life.mission.pose, (wx, wy), slow_radius=0.5)
+        life.mission._drive(0.05, v, w)
+    travel = e0 - life.battery.energy_wh
+    out["travelWh"] = travel
+    out["travelS"] = float(data.time) - t0
+    out["routeM"] = metres
+    print(f"  return    {out['travelS']:6.1f}s  {travel:.4f} Wh over "
+          f"{metres:.2f} m  ({travel / max(metres, 1e-6) * 1000:.1f} mWh/m)"
+          f"  [to the garden doorway; the rest is the dock]")
+
+    e1 = life.battery.energy_wh
+    docked = life.go_charge()
+    out["dockWh"] = e1 - life.battery.energy_wh
+    out["docked"] = bool(docked)
+    print(f"  dock      {'reached' if docked else 'FAILED'}  "
+          f"{out['dockWh']:.4f} Wh")
+    out["reserveWh"] = out["travelWh"] + out["dockWh"]
+    print(f"  RESERVE   {out['reserveWh']:.4f} Wh floor "
+          f"(travel + dock, before the retry margin)")
+  finally:
+    life.mission.close()
+  return out
+
+
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -171,6 +270,10 @@ def main() -> None:
   ap.add_argument("--charge-s", type=float, default=90.0,
                   help="sim seconds of held press to measure the charge rate")
   ap.add_argument("--actions", default=",".join(ACTIONS))
+  ap.add_argument("--reserve", action="store_true",
+                  help="measure the worst-case return trip instead of the "
+                       "errands (issues #70/#84): what HOME_LOW_BATTERY_WH "
+                       "has to cover on the current floor plan")
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
                   help="fold the result into src/pluggybot/economy/energy.json")
@@ -181,6 +284,19 @@ def main() -> None:
       else float(cfg["explore_budget"])
   actions = tuple(a for a in args.actions.split(",") if a)
   wall = time.time()
+  if args.reserve:
+    print(f"== {args.world}: measuring the worst-case return trip on a "
+          f"{args.battery_wh:g} Wh pack")
+    out = measure_reserve(args.world, args.battery_wh, explore_s)
+    out["wallS"] = round(time.time() - wall, 1)
+    print(f"-- {out['wallS']:.0f} s of wall clock")
+    if args.json:
+      Path(args.json).write_text(json.dumps(out, indent=2) + "\n")
+      print(f"wrote {args.json}")
+    # Deliberately never --write: the reserve is a constant in home/world.py
+    # with a paragraph of reasoning attached, not a row in a data file, and
+    # it needs a human to add the retry margin.
+    return
   print(f"== {args.world}: pricing {', '.join(actions)} on a "
         f"{args.battery_wh:g} Wh pack")
   out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s)

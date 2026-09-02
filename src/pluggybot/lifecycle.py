@@ -53,7 +53,7 @@ from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
-from pluggybot.power import MODULE_IDLE_W, Battery
+from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 
@@ -162,6 +162,7 @@ class HubLifecycle:
                module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                low_battery_wh: float = LOW_BATTERY_WH,
+               charge_scale: float | None = None,
                errands=None, boards=None, screen=None, ledger=None,
                overseer=None, journal=None, mode: ModeSwitch | None = None,
                world: str = "room_hub",
@@ -241,7 +242,9 @@ class HubLifecycle:
     self._next_screen_sense = 0.0
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack, grid_bounds=grid_bounds)
-    self.battery = Battery(model, capacity_wh=battery_wh)
+    self.battery = Battery(model, capacity_wh=battery_wh,
+                           charge_scale=(charge_scale if charge_scale is not None
+                                         else charge_scale_from_env()))
     # What an errand COSTS here, measured (issue #15). Read per world from
     # economy/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
     # unlike the ledger or the task board: "can I finish this before the pack
@@ -472,7 +475,14 @@ class HubLifecycle:
     rate = self.energy.charge_w
     if rate <= 0.0:
       return CHARGE_TIMEOUT
-    need = self.charged_wh * 3600.0 / rate * CHARGE_TIMEOUT_SLACK
+    # ⚠ AND AGAINST THE SCALE (issue #84). `charge_scale` makes the pack fill
+    # k times faster, so a cap sized for the honest rate is k times too
+    # generous -- and a timeout that can no longer fire is not a timeout. It
+    # is one more factor in the same expression rather than a second branch,
+    # because the two are the same question: how long should THIS charge, on
+    # THIS pack, at THIS rate, be allowed to take.
+    need = (self.charged_wh * 3600.0 / (rate * self.battery.charge_scale)
+            * CHARGE_TIMEOUT_SLACK)
     return max(CHARGE_TIMEOUT_MIN, need)
 
   # ---- phases --------------------------------------------------------------
@@ -2075,6 +2085,7 @@ def world_config(world: str) -> dict:
 
 def run_demo(start=None, view: bool = False,
              realtime: bool = True, battery_wh: float | None = None,
+             battery_fraction: float = 1.0,
              max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              record: str | None = None,
@@ -2198,6 +2209,11 @@ def run_demo(start=None, view: bool = False,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger)
+  # Where the pack starts (issue #84). A mission does not have to begin on a
+  # full cell -- the milestone-8 test starts half-charged so its one-errand
+  # day still needs the hub, now that the grown demo cell can fund a whole
+  # day without it. Applied after construction: capacity stays the world's.
+  life.battery.energy_wh = life.battery.capacity_wh * battery_fraction
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.

@@ -45,14 +45,62 @@ MODULE_IDLE_W = 0.6     # a coupled tool module's own electronics: one
 
 DEMO_CAPACITY_WH = 1.0  # scaled demo cell (see module docstring)
 
+#: The test suite's charge-rate knob (issue #84). See `Battery.charge_scale`.
+#:
+#: ⚠ THIS IS A WORLD PARAMETER, NOT A HARDWARE-ACCURACY EXEMPTION, and the
+#: distinction is worth stating because it looks like one. The rule this repo
+#: holds is that MEASUREMENTS ARE HONEST AND CAPABILITIES ARE NEVER FAKED.
+#: Charge duration is neither: it is in the same class as pack capacity, which
+#: is already a knob with two named values (`demo`, `hosting`) plus a free
+#: override. Nothing the robot can DO changes -- it still has to find the
+#: dock, align on the bay's own tag, seat the pins and hold a press until the
+#: ELECTRICAL criterion says it is charging. What changes is how long the
+#: waiting takes, and the waiting is what lands on the suite's clock.
+#:
+#: ⚠ THE DEPLOYED WORLD RUNS AT 1.0, and `tests/test_battery.py` asserts it.
+#: Charging is a scored task and `economy/metabolism.json` was calibrated
+#: against measured throughput (102 points/sim-hour at the honest rate), so a
+#: faster charge means more cycles an hour, more points, and a metabolism
+#: tuned against a world that does not exist.
+CHARGE_SCALE_ENV = "PLUGGY_CHARGE_SCALE"
+
+
+def charge_scale_from_env(default: float = 1.0) -> float:
+  """`$PLUGGY_CHARGE_SCALE`, or `default`. An unreadable value is the
+  default and says so -- failing safe here means failing HONEST, because a
+  typo that silently sped the world up would be discovered as a metabolism
+  that no longer matches its own measurement."""
+  import os
+  raw = os.environ.get(CHARGE_SCALE_ENV)
+  if not raw:
+    return default
+  try:
+    value = float(raw)
+  except ValueError:
+    print(f"{CHARGE_SCALE_ENV}={raw!r} is not a number; using {default}")
+    return default
+  if value <= 0.0:
+    print(f"{CHARGE_SCALE_ENV}={raw!r} must be > 0; using {default}")
+    return default
+  return value
+
 
 class Battery:
   """Tracks stored energy against the robot's actual actuator effort."""
 
   def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
-               fraction: float = 1.0) -> None:
+               fraction: float = 1.0, charge_scale: float = 1.0) -> None:
+    if charge_scale <= 0.0:
+      raise ValueError(f"charge_scale must be > 0, got {charge_scale}")
     self.capacity_wh = capacity_wh
     self.energy_wh = capacity_wh * fraction
+    #: How many times faster than the hardware the pack fills (issue #84).
+    #: 1.0 everywhere except the test suite; see `update` for the semantics
+    #: and `docs/PluggyPlan.md` for why this is a world parameter and not a
+    #: capability. THE DEPLOYED WORLD RUNS AT 1.0 and a test asserts it: a
+    #: faster charge means more cycles an hour, more points, and a
+    #: metabolism calibrated against a throughput that is not the real one.
+    self.charge_scale = float(charge_scale)
     self._wheel_acts = [model.actuator("left_motor").id,
                         model.actuator("right_motor").id]
     self._wheel_dofs = [model.joint("left_wheel_joint").dofadr[0],
@@ -81,7 +129,19 @@ class Battery:
     seated one does."""
     p = self.power_draw(data) + tool_w
     if charging:
-      p -= CHARGE_W
+      # ⚠ THE SCALE MULTIPLIES THE NET, not `CHARGE_W`, and the difference is
+      # the whole usability of the knob. Charging is `CHARGE_W` in less
+      # whatever the held press is drawing -- 55 W against a measured ~35 W
+      # of stalled wheels, so ~19 W net. Scaling `CHARGE_W` by 2 would give
+      # (110 - 35) = 75 W net, nearly FOUR times the fill rate, and nobody
+      # could reason about the suite's clock from the number they typed.
+      # Scaling the net means `charge_scale=5` fills the pack five times
+      # faster, exactly.
+      #
+      # At 1.0 this is arithmetically identical to the `p -= CHARGE_W` it
+      # replaces, which is what lets every existing mission, recording and
+      # measurement stand unchanged.
+      p = (p - CHARGE_W) * self.charge_scale
     self.last_power_w = p
     self.energy_wh = float(np.clip(self.energy_wh - p * dt / 3600.0,
                                    0.0, self.capacity_wh))

@@ -392,14 +392,20 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     says the cell was always too small. Collapsing any pair is a real bug:
     `charge_first` as `beyond` refuses work a top-up allows, `beyond` as
     `charge_first` is a charge/defer spin, and `overspend` as `beyond`
-    deletes home's census (1.14 Wh against a 0.99 Wh charged demo cell) from
-    every mission that has ever run one, recording included.
+    deletes home's census from every mission recorded before issue #84
+    (1.14 Wh against the old 0.99 Wh charged demo cell — the committed
+    recording still shows it; the grown 3.0 Wh cell no longer overspends,
+    so the fourth answer is now guarded synthetically).
   - ⚠ **The margin is all-or-nothing.** An errand must leave the return-trip
     reserve behind — but only in a world whose charged pack can fund its
-    dearest job PLUS that reserve. On both demo cells that is false, the
-    margin is zero, and every existing mission, demo and recording behaves
-    exactly as it did. On `--pack hosting` it is the reserve, and the
-    mid-errand death stops being reachable. One number per world, so
+    dearest job PLUS that reserve. **Since issue #84 home's demo cell (3.0 Wh)
+    clears that bar and charges the FULL margin** — the reserve is 0.90 Wh,
+    measured on the expanded plan (`scripts/energy_spike.py --reserve`: 0.579
+    floor = 0.297 travel over 10.5 m + 0.282 dock, plus one dock-leg retry;
+    the route quadrupled and the reserve barely moved because it was always
+    DOMINATED BY THE DOCK, at 28 mWh/m of travel). room_hub's 0.7 Wh cell is
+    untouched and still zero-margin. The old 1.1 Wh home cell's overspend
+    era survives only in the committed recording, until #70 re-records. One number per world, so
     `Task.claimable`, `fundable_wh` and the errand gate are the same
     arithmetic.
   - ⚠ **Where two honest measurements disagree, the table carries the
@@ -429,8 +435,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     was a flat 400 s sized for a 0.7 Wh cell; the deployed 8 Wh one needs
     ~1340 s at the measured rate, so every cycle stopped partway and
     narrated "CHARGE complete (79 %)". `charge_timeout` scales with the pack
-    now — and still reads 400 s on both demo cells, so nothing about an
-    existing mission moves. ⚠ `chargeW` is the SLOWEST press measured
+    — and, since issue #84, with `charge_scale` (`$PLUGGY_CHARGE_SCALE`, the
+    TEST-ONLY multiplier on the net fill rate; the served default is 1.0 and
+    `tests/test_battery.py` pins it three ways). room_hub's demo cell still
+    reads the 400 s floor; home's grown cell computes ~830 s at scale 1. ⚠ `chargeW` is the SLOWEST press measured
     (19.4 W; other approaches read 39.6 W, and the recordings' whole cycles
     35-37 W) because the spread is GEOMETRY — how squarely the bumper meets
     the pins sets how hard the wheels stall. A cap sized off a good approach

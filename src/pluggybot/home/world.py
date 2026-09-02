@@ -239,26 +239,26 @@ GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
 # charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
 # 0.35 is too thin here; the demo cell grows with it so one explore + one
 # errand still runs the pack down and the loop still has to charge.
-#: ⚠⚠ THIS NUMBER IS NOW BADLY WRONG, AND KNOWINGLY SO (issues #67, #68, #70).
-#: The 0.3 Wh above is a LIVING-ROOM CROSSING plus the charge approach --
-#: 2.89 m. Issue #68 grew the plot from 7 x 8 m to 26.5 x 12 m, and the worst
-#: place to be stranded went from the garden's far corner (11.96 m routed) to
-#: the STREET's (see HOME_WORST_RETURN below). The reserve did not move,
-#: because re-pricing this world is issue #70's whole job and guessing at it
-#: here would put an unmeasured number where a measured one belongs -- exactly
-#: what CLAUDE.md's energy notes forbid.
+#: MEASURED on the expanded plan, 2 Sep 2026 (issues #70 step 1 / #84;
+#: `scripts/energy_spike.py --reserve`, runnable again whenever a wall moves).
+#: The worst-case return -- street's far corner, through the open doorway and
+#: the garden door, to a REAL dock with the pins conducting:
 #:
-#: What that means until #70 lands: a robot sent to the far end of the new
-#: plot can set out with a reserve that does not reach the charger. No ERRAND
-#: and no TASK target goes there -- every board, the rack and both spawns the
-#: missions use are still in the original two rooms -- so nothing on the
-#: scripted path is exposed. The one thing that is: an overseer's
-#: `explore(zone)`, whose menu is every zone in this file and now includes the
-#: street. That is unpriced by construction (it is not an errand, so
-#: `economy/energy.py` never sees it) and it is called out at the `zones` entry
-#: in `lifecycle.world_config`. `tests/test_world_budget.py` asserts where the
-#: worst case IS, never that this reserve covers it.
-HOME_LOW_BATTERY_WH = 0.55
+#:     travel   0.297 Wh over 10.49 m of route  (28.3 mWh/m)
+#:     dock     0.282 Wh  (drive to standoff + tag creep + press)
+#:     floor    0.579 Wh
+#:
+#: ...plus one failed press-and-retry, which is the constant's own definition
+#: and is priced as one more dock leg: 0.579 + 0.282 = 0.861, carried as 0.90.
+#:
+#: ⚠ THE ROUTE QUADRUPLED AND THE RESERVE BARELY MOVED, and that is the
+#: measurement's real finding: the old "~0.3 Wh living-room crossing" was
+#: always DOMINATED BY THE DOCK, not the distance. Travel is 28 mWh/m, so
+#: 15 m of house costs less than one docking attempt. (An earlier probe read
+#: 74.7 mWh/m -- that was the robot grinding at the then-closed street gate,
+#: issue #94's odometry pump, not a travel cost.) Do not scale this with the
+#: pack, and re-measure it when the PLAN changes, not when the battery does.
+HOME_LOW_BATTERY_WH = 0.90
 
 #: The point the reserve should be measured from: one robot-length inside the
 #: street's far corner, which is the farthest the robot can legally stand from
@@ -280,7 +280,29 @@ HOME_WORST_RETURN_PATH = (
 #: Its length. Measured 2026-09-01 against the plan above; 11.96 m before #68.
 HOME_WORST_RETURN_M = 15.59
 
-HOME_DEMO_CAPACITY_WH = 1.1
+#: SIZED FROM THE MEASURED RESERVE (issue #84), not guessed, and the
+#: arithmetic is short enough to carry here. Off one charge (`CHARGED` = 0.9)
+#: the cell must hold the reserve above plus the dearest errand (census,
+#: ~1.17 Wh): the floor is (0.90 + 1.17) / 0.9 = 2.30 Wh. Carried at 3.0 --
+#: 30 % of headroom, because the dearest errand has measured as high as
+#: 1.245 across runs and issue #70's re-pricing must not invalidate this
+#: sizing the week after it landed.
+#:
+#: ⚠ 3.0 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
+#: suite flies: the errand queue runs BEFORE the explore, so the first
+#: drawing fits a full pack (3.0 - 0.9 reserve funds 0.89), the second does
+#: NOT (1.11 against 1.2 - 0.9), and the loop defers it, charges, and runs
+#: it -- the defer-then-charge-then-resume path on real physics. At 3.5 both
+#: draws fit back to back and a demo mission ends at 41 % having never
+#: visited the hub, which fails the milestone-8 test's whole point.
+#:
+#: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL FROM HERE ON, deliberately. The old
+#: 1.1 Wh cell ran its errands on `overspend` and finished the recorded
+#: census at frac 0.000; growing past that is what issue #84 is for. The
+#: charged pack now funds reserve + dearest, so `margin_wh` charges the full
+#: 0.90 and the mid-errand death stops being reachable on the world the
+#: tests fly most. room_hub's 0.7 Wh cell is untouched and still zero-margin.
+HOME_DEMO_CAPACITY_WH = 3.0
 #: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
 #: in minutes by design, which is right for a test and reads as a robot that
 #: only ever charges; a hosting-sized one gives the hours-long work/charge
