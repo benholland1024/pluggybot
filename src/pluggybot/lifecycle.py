@@ -2023,12 +2023,28 @@ def world_config(world: str) -> dict:
       # The census's zone and the doorway it is entered by (issue #13). Off
       # the generator's own ZONES, so the rectangle the robot surveys is the
       # rectangle the website draws and the one the evaluator scores against.
-      "census_zone": next(z for z in home.ZONES if z["kind"] == "garden"),
+      # ⚠ BY NAME, not by kind. It was `next(z for z in ZONES if z["kind"] ==
+      # "garden")` while there was exactly one garden; issue #68 split the
+      # garden into an east rectangle and a south one (an L is not a rect), so
+      # "the first garden-kind zone" became an ordering accident that would
+      # quietly move the census to a lawn with no plants on it.
+      "census_zone": next(z for z in home.ZONES if z["name"] == "garden"),
       "census_entry": (home.GARDEN_X[0] + 0.4,
                        sum(home.DOOR_GARDEN_Y) / 2),
       # Every named region, for an overseer's `explore(zone)` (issue #15).
       # Off the generator's own ZONES, like the census zone above -- the
       # region the LLM can name is the region the website draws.
+      #
+      # ⚠ AND THIS IS THE CONCRETE STRANDING PATH ISSUE #70 MUST CLOSE. Since
+      # issue #68 the list includes `street`, `sidewalk`, `kitchen` and
+      # `workshop`: `zone_centre("home", "street")` is 12.5 m from the rack,
+      # against a `HOME_LOW_BATTERY_WH` still measured on a 2.89 m living-room
+      # crossing. An `explore(street)` is the one thing in this world that can
+      # send the robot somewhere its reserve does not reach, and unlike an
+      # errand it is not priced, so `economy/energy.py` never sees it. It is
+      # left in rather than filtered because #68's plan puts those rooms in
+      # the world to be explored and a filter would be policy invented here;
+      # re-pricing is #70, and it is next.
       "zones": [dict(z) for z in home.ZONES],
       # The generator sidecar, which is also where the BOARDS are described
       # (issue #12). One source again: the whiteboard the errand drives to is
