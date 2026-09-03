@@ -2085,6 +2085,7 @@ def world_config(world: str) -> dict:
 
 def run_demo(start=None, view: bool = False,
              realtime: bool = True, battery_wh: float | None = None,
+             battery_fraction: float = 1.0,
              max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              record: str | None = None,
@@ -2208,6 +2209,11 @@ def run_demo(start=None, view: bool = False,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger)
+  # Where the pack starts (issue #84). A mission does not have to begin on a
+  # full cell -- the milestone-8 test starts half-charged so its one-errand
+  # day still needs the hub, now that the grown demo cell can fund a whole
+  # day without it. Applied after construction: capacity stays the world's.
+  life.battery.energy_wh = life.battery.capacity_wh * battery_fraction
   # Activities poll on the SAME per-step seam the battery drains through and
   # telemetry decimates from -- one hook for the whole world's state
   # machines, whatever their number.
