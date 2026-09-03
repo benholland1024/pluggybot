@@ -117,8 +117,9 @@ def test_full_hub_lifecycle(world):
   # day with 41 % to spare, and the loop -- correctly -- ends a done mission
   # without visiting the hub, which fails this test's whole point. Starting
   # at 45 % makes the SAME day need the hub again, and in a better order:
-  # the errand is refused up front (CHARGE_FIRST: 0.69 + 0.90 reserve
-  # against 1.35 held), the robot charges, then runs it -- the
+  # the errand is refused up front (CHARGE_FIRST: 0.914 + 0.90 reserve
+  # against 1.35 held, at issue #70's re-priced carry), the robot charges,
+  # then runs it -- the
   # defer-then-charge-then-resume path on real physics, a strictly harder
   # claim than the old "ran out mid-day", in LESS wall clock than the old
   # test. (A two-errand day was tried first and measured 430-500 s of wall

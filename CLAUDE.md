@@ -417,10 +417,12 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     arithmetic.
   - ⚠ **Where two honest measurements disagree, the table carries the
     dearer.** An errand's cost depends on where the robot is standing AND on
-    how much of the map it already has: home's drawing measures 0.849 Wh from
-    beside the rack and 0.929 from the spawn pose, and the census read 1.104
-    / 1.131 / 1.141 / 1.245 Wh over four runs, the dearest being a mission's
-    FIRST errand planning through unexplored space. Over-estimating costs a
+    how much of the map it already has: home's drawing measured 0.849 Wh from
+    beside the rack and 0.929 from the spawn pose of the OLD house, and the
+    census read 1.104 / 1.131 / 1.141 / 1.245 Wh over four runs there
+    (1.170–1.180 in the expanded one), the dearest being a mission's
+    FIRST errand planning through unexplored space — which is why issue #70's
+    re-pricing flew every errand twice, full map and sparse, dearer per row. Over-estimating costs a
     charge nobody needed; under-estimating costs a robot dead in the garden.
     The invariant is not "the estimate is never exceeded" — it is that an
     overrun smaller than the margin cannot strand the robot. A bigger one is
@@ -429,15 +431,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - **A cost key may name a TARGET** (`draw:whiteboard_b`), and it wins over
     the bare action. That closes the issue-21 defect this file records two
     bullets down: home's far whiteboard is 7 m away through a doorway and
-    costs 0.18 Wh more, and one number for both either kills the robot on the
+    costs 0.236 Wh more (1.086 vs 0.850 at issue #70's re-pricing), and one
+    number for both either kills the robot on the
     way back from it or prices the near board off the demo cell. Padding is
     the fix that note warns against; a second measured row is not padding.
     `TaskBoard.estimate_for(kind, target)` and `TaskProducer` pick the target
     BEFORE the energy gate for the same reason.
   - ⚠ **`dance` is not 0.76 Wh** — that figure (which this file used to
     carry) was a whole first cycle read off the ending fraction, not an
-    errand. It is 0.53–0.58 Wh in both worlds, and blaming `room_hub` for it
-    was blaming the wrong world.
+    errand. It measures 0.528 in room_hub and 0.658 in the expanded home
+    (issue #70; 0.53–0.58 in both before the house grew), and blaming
+    `room_hub` for the 0.76 was blaming the wrong world.
   - ⚠ **A timeout in seconds is a timeout in watt-hours.** `CHARGE_TIMEOUT`
     was a flat 400 s sized for a 0.7 Wh cell; the deployed 8 Wh one needs
     ~1340 s at the measured rate, so every cycle stopped partway and
@@ -860,17 +864,16 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     never be graded, and `/var/lib/pluggybot` is where the reward table
     lives too. The file is not the wire.
   - **A job's energy estimate is MEASURED, and gated against the WHOLE
-    pack.** One errand costs roughly one full pack in both worlds (0.487–
-    0.570 Wh in room_hub against a 0.700 Wh cell; 0.866–0.929 Wh in home
-    against 1.100 Wh — read off the committed recordings, SWAP_PICK to end of
-    SWAP_RETURN). So the reserve is a RETURN-TRIP margin an errand is allowed
-    to spend into, and gating on energy *above* it (0.28 / 0.44 Wh) refuses
-    every job in every world forever — a task system that silently does
-    nothing. Guessing cost a fixture: 0.35 Wh guessed for a drawing that
-    measures 0.929, and the home recording caught a robot claiming it at 88 %
-    and dying mid-stroke with nothing inked and the pen still on the fork.
-    Do not inflate the numbers for safety either; the headroom does not
-    exist. Per-errand energy is M10.
+    pack.** In room_hub one errand still costs roughly one full pack
+    (0.487–0.570 Wh against a 0.700 Wh cell). Home left that regime at issue
+    #84: its errands re-priced 0.658–1.180 Wh (issue #70, expanded house)
+    against a 3.0 Wh cell that holds the reserve AND the dearest job off one
+    charge. The reserve is a RETURN-TRIP margin — measured 0.90 Wh, dock-
+    dominated — and history's warning stands: guessing cost a fixture
+    (0.35 Wh guessed for a drawing that measured 0.929; the robot claimed it
+    at 88 % and died mid-stroke), and gating on energy above the margin in a
+    world whose cell cannot fund it refuses every job forever. Do not
+    inflate the numbers for safety either. Per-errand energy is M10.
   - **Charge priority is untouched, and the test that proves it is subtle.**
     Claiming only QUEUES an errand, and the errand queue already sits below
     `needs_charge` — so an inverted branch order still charges before it
