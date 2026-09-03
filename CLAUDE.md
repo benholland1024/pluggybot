@@ -811,7 +811,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   drift, so the cliff feeds itself. `HubMission.bay_fix` measures the bay
   standoff off the bay's own tag inside `swap_at_bay`'s retry loop (fork
   line, so `PLUG_LATERAL` rides along); `scripts/swap_spike.py --blind`
-  reproduces the drops. Recovery for what measurement cannot promise away:
+  reproduces the drops.
+  ⚠ **A measured standoff's FACING comes off the rack's tags TOGETHER**
+  (`localize.fit_rack_facing` over `coupling.RACK_TAG_FACES`, issue #88),
+  never off one tag's PnP yaw: square-on — which is where every standoff
+  puts the robot — a single 30 mm tag's yaw is a coin flip between two
+  mirrored solutions (measured −7.5..+7° across 2 mm of pose, 0.066 m of
+  standoff, bimodal) while its TRANSLATION holds to a millimetre. Fitting
+  the layout the robot already knows to where the tags are holds 0.4°;
+  `HubMission.fix_source` says which source answered (`plane:N` / `yaw`),
+  and `scripts/swap_spike.py --yaw` is the sweep. The layout is FACES,
+  consistently — mixing a plate centre in put a 0.46° bias on the two-tag
+  charge fit. Recovery for what measurement cannot promise away:
   the `reset_tool` inbound kind (admin-only, code-handled on the physics
   thread, never shown to the overseer, refused while the module is seated
   on the fork) puts a lost module back at `model.qpos0` — and with it the
