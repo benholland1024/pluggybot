@@ -38,7 +38,9 @@ from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
 )
-from pluggybot.rack.localize import TAG_LOCAL_X, RackFinder, RackPose
+from pluggybot.rack.localize import (
+  TAG_LOCAL_X, RackFinder, RackPose, fit_rack_facing,
+)
 from pluggybot.rack.tags import (
   CHARGE_TAG_ID, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
@@ -237,6 +239,11 @@ class HubMission:
     #: "bay", "rack", "odometry", or "nominal" for a creep that
     #: had no plausible measurement at all (`_terminal_travel`).
     self.travel_source = ""
+    #: which source gave the last measured standoff its FACING (issue #88):
+    #: "plane:N" for a rigid fit over N of the rack's tags, "yaw" for the
+    #: one tag's own PnP yaw -- the fallback when it is the only rack tag
+    #: in view, and a coin flip square-on (`_measured_standoff`).
+    self.fix_source = ""
     self._next_look = 0.0
     self.viewer = viewer
     self.realtime = realtime
@@ -609,7 +616,8 @@ class HubMission:
     -- read off the model rather than re-typed, so a camera move cannot
     silently stale a constant here.
     """
-    det = self.tags.detect(self.data).get(tag_id)
+    dets = self.tags.detect(self.data)
+    det = dets.get(tag_id)
     if det is None:
       return None
     bid = int(self.model.geom("chassis").bodyid[0])
@@ -617,14 +625,33 @@ class HubMission:
     cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
     cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
                         - self.data.xpos[bid])
-    # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
-    # frame (x right, y up, looking along -z): negate y and z
-    tx, ty, tz = det["t"]
-    tag_ch = cam_p + cam_r @ np.array([tx, -ty, -tz])
-    # the tag plane's horizontal normal, pointing INTO the rack; the rack's
-    # outward normal (its local +x) is the negation
-    n_at = (math.sin(det["yaw"]), 0.0, math.cos(det["yaw"]))
-    n_ch = cam_r @ np.array([n_at[0], 0.0, -n_at[2]])
+
+    def in_chassis(t):
+      # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
+      # frame (x right, y up, looking along -z): negate y and z
+      tx, ty, tz = t
+      return cam_p + cam_r @ np.array([tx, -ty, -tz])
+
+    tag_ch = in_chassis(det["t"])
+    # The tag plane's horizontal normal, pointing INTO the rack; the rack's
+    # outward normal (its local +x) is the negation.
+    #
+    # ⚠ Taken from the rack's tags TOGETHER, not from this tag's own PnP
+    # yaw (issue #88). Square-on -- which is where every standoff puts the
+    # robot -- a single small tag's yaw is a coin flip between two mirrored
+    # solutions: measured -7.5..+7 deg across 2 mm nudges, worth 0.066 m
+    # of standoff. The translations hold to a millimetre, so the facing is
+    # fitted to WHERE the rack's tags are (0.007 m / 0.4 deg over the same
+    # sweep). One rack tag in view falls back to its yaw, and says so.
+    fit = fit_rack_facing({i: (float(p[0]), float(p[1])) for i, p in
+                           ((i, in_chassis(d["t"])) for i, d in dets.items())})
+    if fit is not None:
+      n_ch = np.array([-math.cos(fit.yaw), -math.sin(fit.yaw), 0.0])
+      self.fix_source = f"plane:{fit.n}"
+    else:
+      n_at = (math.sin(det["yaw"]), 0.0, math.cos(det["yaw"]))
+      n_ch = cam_r @ np.array([n_at[0], 0.0, -n_at[2]])
+      self.fix_source = "yaw"
     bx, by, bth = self.pose
     c, s = math.cos(bth), math.sin(bth)
     # chassis body origin rides 0.08 m ahead of the axle midpoint the

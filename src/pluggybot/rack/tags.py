@@ -171,6 +171,14 @@ class TagDetector:
     normal. It comes from the same PnP pose as "t" (rotation is scale-free,
     so no per-size rescale). Measured convention check: a robot placed
     +10 deg off the charge approach heading reads +9.4 deg (issue #32).
+
+    ⚠ Square-on it is a COIN FLIP (issue #88): a planar tag viewed along
+    its normal has two mirrored PnP solutions, and the solver's pick swung
+    a bay tag's yaw -7.5..+7 deg across 2 mm of robot pose while "t"
+    held to a millimetre (the detector prints "more than one new minima"
+    when it happens). Fit a facing to several tags' translations instead
+    (localize.fit_rack_facing); read one tag's yaw only when it is the
+    only one there is.
     """
     self.renderer.update_scene(data, camera=self.camera_name)
     rgb = self.renderer.render()

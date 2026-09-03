@@ -28,15 +28,18 @@ they are ever read from.
 import math
 from dataclasses import dataclass
 
+import numpy as np
+
 from pluggybot.rack.coupling import (
-  RACK_BRACKET_X, RACK_HANG_X, RACK_RAIL_Z, RACK_ROOM_POS, RACK_ROOM_YAW,
+  RACK_HANG_X, RACK_RAIL_Z, RACK_ROOM_POS, RACK_ROOM_YAW, RACK_TAG_FACES,
+  RACK_TAG_X,
 )
 from pluggybot.rack.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
 from pluggybot.mapping.landmarks import LandmarkStore, wall_normal_conf
 from pluggybot.perception.outlet_spotter import pixel_to_world
 
 # Where the rack tag sits in the rack's own frame (generator constants).
-TAG_LOCAL_X = RACK_BRACKET_X + 0.014
+TAG_LOCAL_X = RACK_TAG_X
 TAG_Z = RACK_RAIL_Z + 0.075
 
 # No height gate, no size gate, no hoping: the tag's decoded ID is the
@@ -119,6 +122,50 @@ class RackPose:
     return (math.hypot(self.x - other.x, self.y - other.y),
             abs(math.atan2(math.sin(self.yaw - other.yaw),
                            math.cos(self.yaw - other.yaw))))
+
+
+@dataclass(frozen=True)
+class RackFacingFit:
+  """The rack's facing, fitted to several of its tags at once (issue #88)."""
+
+  yaw: float       # direction of the rack's local +x in the observer's frame
+  n: int           # tags the fit used
+  rms: float       # m; how far the decoded tags sit from the fitted layout
+
+
+def fit_rack_facing(seen: dict[int, tuple[float, float]],
+                    ) -> RackFacingFit | None:
+  """Fit the rack's known tag layout to where its tags were decoded.
+
+  `seen` maps tag id -> horizontal (x, y) of that tag's decoded translation
+  in the OBSERVER's frame (chassis, say); ids not in `RACK_TAG_FACES` are
+  ignored. Returns None with fewer than two rack tags, because one point
+  fixes no direction. Least-squares 2D rigid fit (Kabsch): the rotation
+  that best carries the layout onto the sightings, so the yaw comes from the
+  BASELINE between tags -- 0.25 m at the bay pitch, most of a metre across
+  the rail -- rather than from the foreshortening of one 30 mm square.
+
+  ⚠ That baseline is the whole point. A single planar tag viewed near
+  square-on has two PnP solutions mirrored about its normal, and the solver
+  picks between them on pixel noise: measured on the bay standoff, the bay
+  tag's own yaw swung -7.5..+7 deg across 2 mm nudges of the robot while
+  its translation held to a millimetre. Translations are what this fits.
+  Measured with it: the standoff heading holds to +/-0.4 deg over the same
+  sweep, and 0.007 m where the single tag gave 0.066. SimNotes, "The bay
+  tag's yaw was a coin flip".
+  """
+  ids = [i for i in seen if i in RACK_TAG_FACES]
+  if len(ids) < 2:
+    return None
+  p = np.array([RACK_TAG_FACES[i] for i in ids], dtype=float)
+  q = np.array([seen[i] for i in ids], dtype=float)
+  pc, qc = p - p.mean(axis=0), q - q.mean(axis=0)
+  h = pc.T @ qc
+  yaw = math.atan2(h[0, 1] - h[1, 0], h[0, 0] + h[1, 1])
+  c, s = math.cos(yaw), math.sin(yaw)
+  fitted = pc @ np.array([[c, s], [-s, c]]) + q.mean(axis=0)
+  rms = float(np.sqrt(np.mean(np.sum((q - fitted) ** 2, axis=1))))
+  return RackFacingFit(yaw=yaw, n=len(ids), rms=rms)
 
 
 class RackSpotter:

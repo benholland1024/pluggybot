@@ -2132,6 +2132,93 @@ anchor bounding drift per-shift, new scans land back near old ones. Decay
 gets built when a post-anchor long run still shows planner refusals, not
 before — the acceptance run's counts are the evidence either way.
 
+## The bay tag's yaw was a coin flip (issue #88): fit the rack, not the tag
+
+`test_bay_fix_measures_the_standoff_the_bay_is_actually_at` sat at 0.0364
+against a 0.04 bar on `staging`, and went red at 0.0561 when issue #68 moved
+a wall on the far side of the house — a change that altered the pick
+trajectory by a fraction of a millimetre. The believed pose after the pick
+was identical to a millimetre in both worlds and the rendered image decoded
+the same nine tags. Only one number differed: the bay tag's decoded yaw.
+
+The mechanism is textbook and the detector announces it. A square planar
+target viewed near head-on has two PnP solutions mirrored about its normal,
+nearly equal in reprojection error, and which one the solver returns is
+decided by pixel noise (`Error, more than one new minima found.` on the
+console). The robot is square to the bay tag *by construction* at every
+standoff — that is what the approach is for — so this is the worst case,
+hit every time. Measured (`scripts/swap_spike.py --yaw`: the robot's TRUE
+pose nudged 2 mm at a time across the approach, belief untouched, one look
+per pose):
+
+| nudge | bay tag yaw | standoff error (one tag) | error (fit) |
+|---|---|---|---|
+| +0 mm | +6.09° | 0.041 m / 5.2° | 0.003 m / 0.2° |
+| +2 mm | +2.90° | 0.016 m / 2.0° | 0.005 m / 0.1° |
+| +4 mm | −6.93° | 0.062 m / 7.8° | 0.008 m / 0.4° |
+| +10 mm | −7.48° | 0.066 m / 8.4° | 0.004 m / 0.0° |
+| +16 mm | −1.56° | 0.019 m / 2.5° | 0.005 m / 0.1° |
+| +24 mm | +6.95° | 0.047 m / 6.1° | 0.006 m / 0.1° |
+
+Thirteen poses; the single-tag column is over the old 0.04 bar at eight of
+them and over the new 0.02 m / 2° bars at twelve, and the distribution is bimodal rather than noisy — the yaw sits at
+about ±6–7° or near zero, never in between, while the tag's *translation*
+holds to under a millimetre throughout. At the 0.45 m reach the standoff is
+computed over, 7° of normal is 5.5 cm of lateral error: the ±4–8 cm cliff
+issue #30 exists to keep the module away from, spent on a coin toss by the
+one maneuver that was made measured *specifically* to be drift-immune.
+
+Why the three candidates the issue listed lose, in a sentence each. A median
+of N looks: the render is deterministic, so N looks at one pose are one
+look, and the robot is standing still. Sign from the believed facing: the
+MAGNITUDE is wrong too — the true yaw is ~0° and both branches read ±6° —
+and the belief is the thing this measurement exists to be independent of.
+Ignoring the yaw square-on: the same, plus a threshold to tune.
+
+What the robot actually has is more tags. From the bay standoff the dock
+camera decodes six or seven of the rack's own markers (rack, charge, bays
+A–E as they come into view), and their translations are the stable half of
+PnP. The rack's tags are a rigid layout the robot already knows —
+`coupling.RACK_TAG_FACES`, rack-local (x, y) of every rack-fixed tag's
+printed face, commissioning knowledge on exactly the footing as
+`RackPose.prior` — so `localize.fit_rack_facing` fits that layout to the
+decoded positions (a two-dimensional Kabsch fit: the rotation that best
+carries the known points onto the seen ones) and the facing comes off the
+BASELINE between tags — 0.25 m at the bay pitch, most of a metre across the
+rail — instead of the foreshortening of a 30 mm square. `_measured_standoff`
+takes its normal from that fit whenever two or more rack tags decode, keeps
+the bay's own tag for the position, and falls back to the single yaw with
+one tag in view; `HubMission.fix_source` says which (`plane:6`, `yaw`).
+Measured over the same sweep: **0.0075 m / 0.7° worst** at the bay, and at
+the charge standoff — where only the charge tag and bay B are in view, a
+two-tag fit on one bay pitch — **0.0023 m / 0.3°** against the single tag's
+0.008 m / 1.1°.
+
+Two things found on the way:
+
+- **The layout must be FACES, consistently, and 2 mm is enough to see it.**
+  The first fit used the rack tag's and the charge tag's plate *centres*
+  (what `TAG_LOCAL_X` and `CHARGE_TAG_X` are) beside the bay tags' *faces*
+  (`BAY_TAG_FACE_X`), and the two-tag charge fit carried a steady +0.3…+0.7°
+  bias — atan(2 mm / 0.25 m) = 0.46°, the plate's half-thickness over the
+  baseline. With every entry a face, the bias is gone. A differential error
+  between tags is a rotation; a common one is swallowed by the fit's
+  translation and costs nothing. (`CHARGE_TAG_X` itself is left as the
+  charge fix's reach anchor: its comment now says "plate centre", and the
+  2 mm is inside the creep's electrical stop.)
+- **Bay E's tag fits 11–15 mm off from bay A's standoff** — it is at
+  0.875 m off-axis, at the edge of the field, a small tag seen obliquely —
+  and the unweighted fit still holds ±0.4° because six other tags outvote
+  it. Weighting by range or image position is deferred until a pose shows
+  it is needed; the rms is on the `RackFacingFit` for when one does.
+
+The bars went back down to where the measurement puts them — 0.02 m and 2°,
+from the 0.07 / 10° issue #68 left as an honest stopgap — and the sweep
+itself is now the regression test: thirteen poses, one pick, and the
+single-tag arithmetic fails it at twelve. The premise (that one tag's yaw
+still flips) is pinned separately and marked slow, because if the solver
+ever stops flipping the fit should be re-examined rather than kept on faith.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
