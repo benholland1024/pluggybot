@@ -587,7 +587,13 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
   `self.charge_timeout` in `HubLifecycle.charge` and the run ends well below
   `CHARGED`.
   """
-  life = home_lifecycle(battery_wh=6.0, errands=[])
+  # ⚠ charge_scale PINNED AT 1.0 (issue #84). This test's premise is a charge
+  # that takes LONGER than the old flat 400 s cap -- that is the whole defect
+  # it reproduces -- so a suite-wide multiplier would delete it silently: the
+  # pack would fill inside 400 s, the assertion above would still pass, and
+  # the test would be proving nothing. Pinned explicitly rather than relying
+  # on the default, because the default is exactly what a multiplier changes.
+  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=1.0)
   assert life.charge_timeout > lc.CHARGE_TIMEOUT, "pick a bigger pack"
   # ⚠ READ BEFORE THE UNDOCK. `charge()` backs off the rack when it is done,
   # and that 0.30 m of reversing is real travel off the pack -- reading
@@ -612,4 +618,42 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
     life.mission.close()
   assert topped and topped[0] >= lc.CHARGED, \
       f"the charge stopped at {(topped or [0])[0]:.1%}"
+  assert life.charge_cycles == 1
+
+
+@pytest.mark.slow
+def test_a_scaled_charge_still_completes_inside_its_own_cap():
+  """The other half of issue #84's timeout warning, flown rather than argued.
+
+  `charge_timeout` divides by the scale, so a 5x charge gets a cap 5x
+  tighter. That is the point -- a cap that cannot fire is not a cap -- but it
+  is also exactly how a well-meant scaling breaks a working charge: get the
+  arithmetic backwards, or forget the floor, and the cycle ends partway up
+  narrating "CHARGE complete (61 %)". This flies one and asserts it reaches
+  CHARGED, which is the only way to know the two factors agree.
+
+  Deliberately the SAME pack as the unscaled test above, so the pair differ
+  in exactly one thing.
+  """
+  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=5.0)
+  topped: list[float] = []
+  life.say_hooks.append(
+    lambda _t, msg: topped.append(life.battery.fraction)
+    if msg.startswith("CHARGE complete") else None)
+  life.max_sim_time = 3000.0
+  life.blacklist, life.map_done = set(), False
+  life.explore_deadline = 1e9
+  life.mission.start_at(*lc.world_config("home")["start"])
+  life.mission.start_discovery()
+  life.mission._spin()
+  try:
+    life.explore(budget=30.0, mark_done=False)
+    life.battery.energy_wh = 0.9          # the same long way from full
+    assert life.go_charge(), "never reached the rack"
+    life.charge()
+  finally:
+    life.mission.close()
+  assert topped and topped[0] >= lc.CHARGED, \
+      f"the scaled charge stopped at {(topped or [0])[0]:.1%} -- the cap and " \
+      f"the rate disagree"
   assert life.charge_cycles == 1
