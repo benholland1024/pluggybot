@@ -283,18 +283,19 @@ HOME_WORST_RETURN_M = 15.59
 #: SIZED FROM THE MEASURED RESERVE (issue #84), not guessed, and the
 #: arithmetic is short enough to carry here. Off one charge (`CHARGED` = 0.9)
 #: the cell must hold the reserve above plus the dearest errand (census,
-#: ~1.17 Wh): the floor is (0.90 + 1.17) / 0.9 = 2.30 Wh. Carried at 3.0 --
-#: 30 % of headroom, because the dearest errand has measured as high as
-#: 1.245 across runs and issue #70's re-pricing must not invalidate this
-#: sizing the week after it landed.
+#: 1.180 Wh at issue #70's re-pricing): the floor is (0.90 + 1.18) / 0.9 =
+#: 2.31 Wh. Carried at 3.0 -- ~23 % of headroom, and #70's fresh numbers
+#: confirmed the sizing rather than moving it: the dearest row rose 1.141 ->
+#: 1.180 and the floor absorbed it.
 #:
 #: ⚠ 3.0 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
-#: suite flies: the errand queue runs BEFORE the explore, so the first
-#: drawing fits a full pack (3.0 - 0.9 reserve funds 0.89), the second does
-#: NOT (1.11 against 1.2 - 0.9), and the loop defers it, charges, and runs
-#: it -- the defer-then-charge-then-resume path on real physics. At 3.5 both
-#: draws fit back to back and a demo mission ends at 41 % having never
-#: visited the hub, which fails the milestone-8 test's whole point.
+#: suite flies: the milestone-8 home arm starts at 45 % and its carry errand
+#: (0.914 Wh since #70 -- the new plot moved its route) is refused up front
+#: against the 0.90 reserve, so the loop defers, charges, and resumes -- the
+#: defer-then-charge-then-resume path on real physics. A full 3.0 pack funds
+#: a whole preset day with ~40 % to spare, which is why that test does not
+#: start full: a demo mission that never needs the hub proves nothing about
+#: charging.
 #:
 #: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL FROM HERE ON, deliberately. The old
 #: 1.1 Wh cell ran its errands on `overspend` and finished the recorded

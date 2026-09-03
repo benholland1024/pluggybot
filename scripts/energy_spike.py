@@ -115,11 +115,19 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         result = life.run_errand(errand)
         used = battery_wh - life.battery.energy_wh
         dt = max(1e-6, float(data.time) - t0)
-        out["actions"][action] = {
+        # ⚠ KEYED BY THE ERRAND'S OWN NAME when it carries a target
+        # (`draw:whiteboard_b`), not by the action (issue #70). A queue like
+        # `draw2` flies BOTH boards, and keying by action would keep only the
+        # last one measured -- which is precisely the per-target distinction
+        # the table exists for: the far board is 7 m away through a doorway
+        # and one number for both either kills the robot on the way back or
+        # prices the near board off the demo cell.
+        key = errand.name if ":" in errand.name else action
+        out["actions"][key] = {
           "wh": used, "s": dt, "w": used * 3600.0 / dt,
           "errand": errand.name, "stowed": bool(result.get("stowed")),
         }
-        print(f"  {action:9s} {dt:6.1f}s  {used:.4f} Wh  "
+        print(f"  {key:18s} {dt:6.1f}s  {used:.4f} Wh  "
               f"({used * 3600.0 / dt:5.1f} W)  "
               f"{'stowed' if result.get('stowed') else 'NOT STOWED'}")
         life.battery.energy_wh = battery_wh
@@ -312,13 +320,19 @@ def main() -> None:
     doc = json.loads(path.read_text())
     block = doc.setdefault("worlds", {}).setdefault(args.world, {})
     costs = block.setdefault("errandWh", {})
-    for action, row in out["actions"].items():
-      costs[action] = round(row["wh"], 3)
+    for key, row in out["actions"].items():
+      # A `draw:whiteboard_a` measurement is ALSO the bare `draw` row: the
+      # bare action is the near-target price by the table's own convention
+      # (the per-target key wins over it only where a dearer target exists).
+      costs[key] = round(row["wh"], 3)
+      if key.endswith(":whiteboard_a"):
+        costs[key.split(":")[0]] = round(row["wh"], 3)
     # The two drawing tiers are the drawing errand: same tool, same board,
     # same figure size. Priced together rather than flown three times.
-    if "draw" in costs:
-      costs["artwork"] = costs["draw"]
-      costs["answer"] = costs["draw"]
+    for bare in ("draw", "draw:whiteboard_b"):
+      if bare in costs:
+        costs[bare.replace("draw", "artwork")] = costs[bare]
+        costs[bare.replace("draw", "answer")] = costs[bare]
     if "exploreWhPerS" in out:
       block["exploreWhPerS"] = round(out["exploreWhPerS"], 6)
     if "chargeW" in out:

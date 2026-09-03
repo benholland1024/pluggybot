@@ -12,8 +12,15 @@
     "economy/rewards.json; WHEN one appears is here, and the three are separate",
     "so that re-tuning any of them touches one file.",
     "",
-    "READ THE NUMBERS AGAINST THE MISSION, NOT AGAINST A CLOCK ON A WALL. A",
-    "home charge-to-charge cycle is ~365 sim-seconds and one errand costs",
+    "READ THE NUMBERS AGAINST THE MISSION, NOT AGAINST A CLOCK ON A WALL.",
+    "Re-measured for the expanded house (issue #70, three 1-sim-hour hosting",
+    "runs): 15 offers/hour produce 4 ok, 5 failed, 2 pending and 5 expired",
+    "-- offers still outpace completion, some lapse, and the board is a",
+    "real queue, so THE VALUES BELOW STAND unchanged across the expansion.",
+    "(The old anchor prose said a home charge cycle was ~365 sim-seconds;",
+    "that was the 1.1 Wh demo cell's rhythm, gone at issue #84. The demo",
+    "cycle is now ~610 s and hosting's is unchanged, and the mix above is",
+    "what the tuning is actually judged by.)",
     "roughly one full pack, so the robot finishes about one job per cycle.",
     "`everyS` below is deliberately a little FASTER than that: offers have to",
     "outpace completion or nothing ever lapses, and a board on which every",
@@ -52,8 +59,19 @@
     "initial": 3,
     "kinds": {
       "whiteboard_answer": {},
-      "draw_figure": {"programs": ["house", "tree", "sun"]},
-      "rate_artwork": {"programs": ["robot", "sun"]},
+      "draw_figure": {
+        "programs": [
+          "house",
+          "tree",
+          "sun"
+        ]
+      },
+      "rate_artwork": {
+        "programs": [
+          "robot",
+          "sun"
+        ]
+      },
       "count_plants": {},
       "fetch_module": {}
     }
@@ -68,8 +86,19 @@
       "initial": 4,
       "kinds": {
         "whiteboard_answer": {},
-        "draw_figure": {"programs": ["house", "tree", "sun"]},
-        "rate_artwork": {"programs": ["robot", "sun"]},
+        "draw_figure": {
+          "programs": [
+            "house",
+            "tree",
+            "sun"
+          ]
+        },
+        "rate_artwork": {
+          "programs": [
+            "robot",
+            "sun"
+          ]
+        },
         "count_plants": {}
       }
     },
