@@ -2219,6 +2219,92 @@ single-tag arithmetic fails it at twelve. The premise (that one tag's yaw
 still flips) is pinned separately and marked slow, because if the solver
 ever stops flipping the fit should be re-examined rather than kept on faith.
 
+## A stalled drive is an odometry pump (issue #94): the bumper is the sensor
+
+Found during issue #70's reserve probe: a robot in the garden, `drive_toward`
+a point beyond the (then closed) gate for 30 s, true pose pressed against the
+gate at x = 9.62, believed pose at x = 14.00. **4.38 m of travel that never
+happened.** The charge press had taught this lesson once (828 mm, `HubSwap.
+pinned`, above), but `pinned` guards the one press the code DECLARES; an
+ordinary navigation drive that stalls — an obstacle, a wall corner, a wedged
+approach — had no guard and no bound but the drive's timeout. Reproduced
+against the east fence (`scripts/stall_spike.py --blind`):
+
+| 30 s into the fence at | true travel | believed | pump |
+|---|---|---|---|
+| `drive_toward` (V_MAX 0.4) | 0.71 m | 4.99 m | **+4.28 m** |
+| 0.30 m/s | 0.79 m | 6.76 m | **+5.98 m** |
+| 0.12 m/s | 0.78 m | 2.05 m | +1.27 m |
+| APPROACH_V 0.05 | 0.78 m | 0.95 m | +0.17 m |
+
+The pressed wheels turn at 83 % of command; the robot does not move. And
+`drive_to` is not protected by its own stagnation check, because the check
+watches the BELIEVED pose, which is advancing at full speed: driven at a
+point behind a knee-high box the lidar looks straight over, it returned
+**True after 6.6 s with the robot 1.30 m short**, which is exactly the
+frame-relative lie CLAUDE.md records as the costliest kind of bug here.
+
+**The motor is not the sensor, measured.** The natural remedy is stall
+current — a stalled motor draws more — and it does not work on this robot:
+pressed against the fence the wheel servos sit at 0.44 N m against 0.35
+cruising and a 1.23 N m start transient, nowhere near their 2.06 N m limit.
+A 1.8 kg robot's tyres slip long before its motors saturate, so torque tells
+a press from a cruise about as well as a coin. (The issue's other sketch, a
+cap on believed travel against the commanded path, cannot work either: the
+belief IS consistent with the command; it is the ground that disagrees.)
+
+**The bumper is.** The chassis is in contact with the fence for the whole
+press, and `HubMission` had been booking that contact as a collision all
+along. So `HubSwap.pressing` is `pinned`'s rule sensed rather than declared:
+a chassis contact on the side the wheels are turning toward is a press, and a
+press is not travel — the reckoner keeps counting the encoders and discards
+the position they imply, heading still off the gyro. Three details, each
+measured:
+
+- **The side is judged against the ENCODERS, not the command.** The first
+  version read the commanded wheel targets, and `drive_to` behind the box
+  still reported arrival from 1.27 m short: its new bumper reflex reverses
+  the command the step after contact, and the wheels then spend the slew
+  (~0.4 s from cruise) still rolling forward against the box — travel the
+  rule waved through because the *command* said reverse.
+- **A fast press is hundreds of contacts, not one.** At cruise speed the
+  chassis bounces off the fence: 777 gaps of 4–20 ms in 30 s, and the
+  wheels' roll in those gaps alone pumped 1.21 m. The hold runs
+  `PRESS_RELEASE_S` = 50 ms past the last contact (2.5× the longest gap),
+  and a wheel that reverses releases at once because the side stops
+  matching. After it, the pump is **−0.004 / −0.003 / +0.002 / +0.002 m**
+  down the same table.
+- **The rule is quiet when nothing is pressing**: zero chassis contacts
+  through a pick, a carry drive and a return; only the pogo pins through a
+  charge press — which the rule now pins by itself (the explicit flag in
+  `charge()` stays, belt and braces). `press_steps` rides beside
+  `collision_steps` in every result dict so a run can say how long it spent
+  pressing.
+
+Two consequences downstream. `drive_to` gains a bumper reflex, the lidar
+reflex's twin for what the 0.223 m scan plane looks over: back off and
+replan rather than grind — and because the belief now stays with the robot,
+the stagnation check fires honestly (behind the box: **False after 12.4 s,
+belief 0.07 m from truth**, where before it lied). And the charge creep's
+no-progress detector now sees the press itself: a healthy dock presses
+**0.67–1.24 s** from first chassis contact to both pins conducting (four
+approach scenarios), which the swap's 0.4 s `STALL_TIME` cut short every
+time and failed three charge tests. `CHARGE_PRESS_STALL_S` = 4 s bounds a
+press that will never conduct at a third of what the old fake-travel
+`max_travel` allowed, and hands it to the backed-off retry.
+
+What it does not cover, said plainly: the bumper spans z 0.06–0.12 m and
+the scan plane sits at 0.223, so an obstacle between them is met by the
+fork or the arm, and one under 0.06 m by the wheels or the caster. Neither
+is a chassis contact. The fork is deliberately excluded — it touches pegs
+and trays as its job, and a hold there would stall every pick's terminal
+creep — and the caster case (measured: 3295 caster contacts against the
+0.15 m box, 12 872 chassis) rode along on the chassis this time. Marking a
+bumped cell in the map was tried on paper and dropped: the lidar's
+over-the-top rays scrub a low obstacle's cells free within a second of
+scans, so the mark would not survive to the replan. If a post-#94 long run
+still shows a pumped frame, those are where to look.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
