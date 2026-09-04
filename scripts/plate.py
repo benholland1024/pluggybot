@@ -1,27 +1,29 @@
-"""Activity demo (issue #8): a pressure plate latches a garden gate open.
+"""Activity demo (issue #8, reworked by #93): a pressure plate turns on a light.
 
 The reference consumer of the activity pattern (`docs/ActivityPattern.md`).
 The robot drives onto a sprung plate in the garden; a joint sensor crossing a
 threshold flips a live `pressed` flag, and that latches an irreversible
-`state: open` which drops the gate panel and turns its lamp from red to
-green. Then the robot drives off, `pressed` goes false again, and the gate
-STAYS open -- which is the whole point of the latch.
+`state: on` which lights the bulb on the pole beside the plate. Then the
+robot drives off, `pressed` goes false again, and the light STAYS on --
+which is the whole point of the latch: one visit leaves a visible mark.
 
 What each layer owns, and it is worth watching for it in the output:
 
   MUJOCO      the plate's sprung slide joint, and the wheel that pushes it.
-              That is all. The gate does not swing, the lamp does not glow.
-  PYTHON      "is it pressed" (threshold + hysteresis) and "is it open"
+              That is all. The bulb does not glow -- rgba changes, light
+              does not radiate.
+  PYTHON      "is it pressed" (threshold + hysteresis) and "is it on"
               (a latch). Discrete world state, remembered here because the
               physics has no restoring force to remember it with.
-  THE BROWSER everything continuous -- in a real gate, the swing and the
-              creak -- keyed to the streamed flags, never simulated.
+  THE BROWSER everything continuous -- in a real lamp, the glow, the moths
+              -- keyed to the streamed flags, never simulated.
 
-Note what the sim CAN do and the pose stream cannot: the gate panel sits on
-a STATIC body, so it ships once in the scene description and never again. It
-moves by `geom_pos` toggle, which the robot's own cameras see and the
-telemetry poses do not. The activity flag is not a convenience duplicating
-the poses -- for a change like this it is the only channel there is.
+Note what the sim CAN do and the pose stream cannot: the bulb sits on a
+STATIC body, so it ships once in the scene description and never again. Its
+colour flips by `geom_rgba` toggle, which the robot's own cameras see and
+the telemetry poses do not. The activity flag is not a convenience
+duplicating the poses -- for a change like this it is the only channel
+there is.
 
 Usage:
   uv run python scripts/plate.py --view          # watch it live
@@ -36,7 +38,7 @@ import mujoco
 from PIL import Image, ImageDraw
 
 from pluggybot.activity.base import ActivitySet
-from pluggybot.activity.plate import PlateGate, plate_center
+from pluggybot.activity.plate import PlateLight, plate_center
 from pluggybot.control import slew, wheel_targets
 
 FRAME_W, FRAME_H = 400, 300
@@ -50,13 +52,13 @@ GREEN, RED = (61, 220, 132), (232, 92, 84)
 def run(view: bool, realtime: bool):
   model = mujoco.MjModel.from_xml_path("models/home_world.xml")
   data = mujoco.MjData(model)
-  acts = ActivitySet([PlateGate(model, data)])
-  gate = acts.activities[0]
+  acts = ActivitySet([PlateLight(model, data)])
+  light = acts.activities[0]
   poll = acts.step_hook(model, data)
 
   px, py = plate_center(model)
-  gate_bid = model.body("garden_gate").id
-  gx, gy = float(model.body_pos[gate_bid][0]), float(model.body_pos[gate_bid][1])
+  lid = model.body("garden_light").id
+  lx, ly = float(model.body_pos[lid][0]), float(model.body_pos[lid][1])
 
   yaw = math.pi                       # approach the plate from the east
   data.qpos[0], data.qpos[1], data.qpos[2] = px + APPROACH, py, 0.045
@@ -73,9 +75,10 @@ def run(view: bool, realtime: bool):
   cam.type = mujoco.mjtCamera.mjCAMERA_FREE
 
   def grab(label, target, distance, az, el):
-    """Aim a free camera at a named point. Two subjects here -- the plate and
-    the gate 4.4 m away -- so the filmstrip alternates between them rather
-    than trying to frame both and showing neither."""
+    """Aim a free camera at a named point. One nice thing #93 bought this
+    demo: the light stands 0.8 m from the plate, so cause and effect fit in
+    ONE frame where the gate used to be 4.4 m away and the filmstrip had to
+    alternate subjects."""
     if renderer is None:
       return
     cam.lookat[:] = [target[0], target[1], target[2]]
@@ -83,15 +86,11 @@ def run(view: bool, realtime: bool):
     renderer.update_scene(data, cam)
     frames.append((label, renderer.render().copy()))
 
-  def gate_view(label):
-    # az/distance/elevation swept in both states, not reasoned: the first
-    # guess framed the fence as an undifferentiated brown wall in which the
-    # gate was invisible either way. Near-level and close is what shows a
-    # panel present vs a gap.
-    grab(label, (gx, gy, 0.45), 3.0, 200, -8)
-
-  def plate_view(label):
-    grab(label, (px, py, 0.2), 2.6, 140, -18)
+  def scene_view(label):
+    # Frames the plate AND the pole together, near-level: a bulb's rgba flip
+    # reads best against the fence, not from above (the filmstrip-angle
+    # lesson from draw.py -- sweep, do not reason).
+    grab(label, ((px + lx) / 2, (py + ly) / 2, 0.45), 2.8, 150, -12)
 
   L, R = model.actuator("left_motor").id, model.actuator("right_motor").id
   wall0 = time.monotonic()
@@ -113,9 +112,8 @@ def run(view: bool, realtime: bool):
             time.sleep(min(ahead, 0.02))
 
   step(1.0, 0.0)                                    # settle
-  rest = dict(gate.flags)
-  gate_view("gate closed, lamp red")
-  plate_view("approaching the plate")
+  rest = dict(light.flags)
+  scene_view("light off, approaching the plate")
 
   # Drive on, recording the deepest press and whether the flag ever tripped.
   deepest, pressed_ever = 0.0, False
@@ -126,40 +124,30 @@ def run(view: bool, realtime: bool):
     data.ctrl[R] = slew(data.ctrl[R], tr, model.opt.timestep)
     mujoco.mj_step(model, data)
     poll()
-    deepest = max(deepest, gate.depth(data))
-    if gate.flags["pressed"] and not pressed_ever:
+    deepest = max(deepest, light.depth(data))
+    if light.flags["pressed"] and not pressed_ever:
       pressed_ever = True
-      plate_view("on the plate: pressed")
-      # One more step before looking at the gate. `sense()` selects the
-      # toggle, but a mocap pose only reaches `geom_xpos` on the NEXT
-      # forward pass -- grabbing immediately photographed the closed gate
-      # under a caption saying it was open.
-      mujoco.mj_step(model, data)
-      poll()
-      gate_view("gate open, lamp green")
+      # No settle step needed before the photo: an rgba toggle lands in the
+      # model immediately, unlike the mocap pose the gate needed a forward
+      # pass for. One less trap, by construction.
+      scene_view("on the plate: pressed, light ON")
     if viewer is not None:
       viewer.sync()
     if float(data.qpos[0]) < px - 0.9:
       break
   step(2.0, 0.0)
 
-  plate_view("driven off: plate released")
-  gate_view("gate stays open (latched)")
+  scene_view("driven off: released, light STAYS on")
 
   result = {
     "rest": rest,
     "deepest_mm": deepest * 1000,
     "pressed_ever": pressed_ever,
-    "final": dict(gate.flags),
-    "changes": gate.changes,
+    "final": dict(light.flags),
+    "changes": light.changes,
     "snapshot": acts.snapshot(),
-    # Read the WORLD pose, not the model field: the gate is a mocap body and
-    # its pose lives in data. Reading model.geom_pos here reported +0.00 and
-    # a cheerful FAILED -- a verdict checking the wrong side of the very
-    # trap this activity exists to document.
-    "gate_geom_z": float(data.geom_xpos[model.geom("garden_gate_panel").id][2]),
-    "lamp_rgba": [float(v) for v in
-                  model.geom_rgba[model.geom("garden_lamp_bulb").id]],
+    "bulb_rgba": [float(v) for v in
+                  model.geom_rgba[model.geom("garden_light_bulb").id]],
     "sim_time": float(data.time),
   }
   if viewer is not None:
@@ -182,21 +170,24 @@ def main() -> None:
     print("aborted (viewer closed)")
     return
 
-  latched = (r["final"]["state"] == "open" and not r["final"]["pressed"])
-  ok = r["pressed_ever"] and latched and r["gate_geom_z"] < -0.5
+  from pluggybot.activity.plate import LAMP_LIT
+  latched = (r["final"]["state"] == "on" and not r["final"]["pressed"])
+  # Within float32: MuJoCo stores rgba as f32, so 0.85 comes back 0.8500000238
+  # and an == against the Python literal calls a lit bulb dark.
+  lit = all(abs(a - b) < 1e-5 for a, b in zip(r["bulb_rgba"], LAMP_LIT))
+  ok = r["pressed_ever"] and latched and lit
   print(f"\nat rest                 {r['rest']}")
   print(f"deepest press           {r['deepest_mm']:.1f} mm "
         f"(trigger 6.0, travel 10.0)")
   print(f"pressed while driven on {r['pressed_ever']}")
   print(f"after driving off       {r['final']}")
-  print(f"gate panel world z      {r['gate_geom_z']:+.2f} m "
-        f"(mocap toggle; 0.45 closed, -0.75 open)")
-  print(f"lamp rgba               {[round(v, 2) for v in r['lamp_rgba']]}")
+  print(f"bulb rgba               {[round(v, 2) for v in r['bulb_rgba']]} "
+        f"(rgba toggle: dim unlit vs warm lit)")
   print(f"flag changes            {r['changes']}")
   print(f"telemetry snapshot      {r['snapshot']}")
   print(f"sim time                {r['sim_time']:.1f} s")
   print(f"\nACTIVITY: {'OK' if ok else 'FAILED'}"
-        f"  (pressed, latched, and the gate actually moved)")
+        f"  (pressed, latched, and the bulb actually changed)")
 
   if not frames:
     return
@@ -221,16 +212,16 @@ def main() -> None:
       (f"pressed (live)       {r['final']['pressed']}   "
        f"-- false again once the robot drives off", INK),
       (f"state (latched)      {r['final']['state']}   "
-       f"-- stays open; a world fact with no restoring force", INK),
-      (f"gate panel world z  {r['gate_geom_z']:+.2f} m   "
-       f"mocap toggle (0.45 closed / -0.75 open), not physics", INK),
+       f"-- stays on; a world fact with no restoring force", INK),
+      (f"bulb rgba            {[round(v, 2) for v in r['bulb_rgba']]}   "
+       f"geom_rgba toggle, not light simulation", INK),
       (f"telemetry            {r['snapshot']}", INK),
       ("", INK),
       ("MuJoCo owns the sprung joint and the wheel on it. Python owns", DIM),
-      ("'pressed' (threshold + hysteresis) and 'open' (a latch). The", DIM),
-      ("browser owns the swing and the creak, keyed to these flags.", DIM),
-      ("The gate is a STATIC body: it ships once in the scene and never", DIM),
-      ("again, so the flag is the only record of it moving on the wire.", DIM),
+      ("'pressed' (threshold + hysteresis) and 'on' (a latch). The", DIM),
+      ("browser owns the glow, keyed to these flags, never simulated.", DIM),
+      ("The bulb is on a STATIC body: it ships once in the scene and", DIM),
+      ("never again, so the flag is the only record of it on the wire.", DIM),
   ):
     dr.text((20, ty), line, fill=colour)
     ty += 15

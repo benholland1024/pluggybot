@@ -35,8 +35,10 @@ from pluggybot.mind.thoughts import GOALS, ThoughtFiles
 from pluggybot.mind import overseer as ov
 from pluggybot.mission.errand import Errand, carry_errand
 
-HOME_RESERVE = 0.55            # home_world's return-trip reserve
-HOME_DEMO_WH = 1.10            # ...and its demo cell
+HOME_RESERVE = 0.90            # home_world's return-trip reserve (issue #84:
+                               # measured 0.579 floor + one dock retry)
+HOME_DEMO_WH = 3.0             # ...and its demo cell, sized to hold the
+                               # reserve AND the dearest errand off one charge
 HOSTING_WH = 8.0               # what the deployment actually runs
 
 
@@ -99,16 +101,31 @@ def test_the_why_line_says_which_of_the_four_it_is():
 # ---- 2. the margin, and the demo cells that must not move -------------------
 
 
-def test_a_demo_cell_charges_no_margin_at_all():
-  """⚠ THE LOAD-BEARING COMPATIBILITY CLAIM. One errand costs roughly one
-  full pack on both demo cells, so a reserve margin charged there refuses
-  every job in every world forever -- the task system silently doing nothing,
-  which is the failure issue #21 already paid for once. Zero here is what
-  makes "every existing mission behaves exactly as it did" true."""
-  for world, cell, reserve in (("home", HOME_DEMO_WH, HOME_RESERVE),
-                               ("room_hub", 0.70, lc.LOW_BATTERY_WH)):
-    t = en.load(world)
-    assert t.margin_wh(cell * lc.CHARGED, reserve) == 0.0, world
+def test_home_s_demo_cell_now_charges_the_whole_margin():
+  """⚠ THE DELIBERATE INVERSION OF A LOAD-BEARING CLAIM (issue #84).
+
+  Until #84 this asserted ZERO margin on BOTH demo cells -- one errand cost
+  roughly one full pack, so a reserve charged there would have refused every
+  job forever, and zero was what made "every existing mission behaves exactly
+  as it did" true. The old home cell ran its errands on `overspend` and
+  finished the recorded census at frac 0.000.
+
+  #84 grew home's cell precisely so this stops being true: the demo world now
+  keeps its return trip in hand like the hosting one, and the mid-errand
+  death stops being reachable on the world the tests fly most.
+  """
+  t = en.load("home")
+  assert t.margin_wh(HOME_DEMO_WH * lc.CHARGED, HOME_RESERVE) == HOME_RESERVE
+
+
+def test_room_hub_s_demo_cell_still_charges_no_margin_at_all():
+  """room_hub is UNCHANGED by #84: its 0.7 Wh cell is still smaller than
+  margin arithmetic can serve, its reserve is still the old world's, and
+  every room_hub mission and the committed hub recording behave exactly as
+  they did. The zero is still load-bearing there -- a margin charged on a
+  cell one errand deep refuses every job forever (issue #21's failure)."""
+  t = en.load("room_hub")
+  assert t.margin_wh(0.70 * lc.CHARGED, lc.LOW_BATTERY_WH) == 0.0
 
 
 def test_a_hosting_pack_charges_the_whole_reserve():
@@ -285,22 +302,31 @@ def test_an_errand_no_charge_could_cover_is_dropped_not_deferred():
              for line in life.log), life.log
 
 
-def test_a_demo_cell_still_attempts_a_job_bigger_than_itself():
-  """⚠ THE OTHER WAY THIS GUARD COULD HAVE GONE WRONG, and it nearly did.
-  home's census measures 1.14 Wh against a 0.99 Wh charged demo cell, so a
-  `beyond` refusal there would have deleted the census from every home
-  mission -- including the committed showcase recording, in which the robot
-  completes the survey, stows the LCD, and only then runs flat. A guard that
-  deletes a capability the fixture proves exists is not a guard."""
+def test_the_new_demo_cell_funds_the_census_with_the_reserve_intact():
+  """⚠ WHAT USED TO BE HERE WAS THE FLOWN `overspend` FIXTURE, and its
+  premise is gone -- retired deliberately, not lost (issue #84).
+
+  The old test asserted home's census (1.14 Wh) OUTGREW the charged demo cell
+  (0.99 Wh) and was attempted anyway, because that was true, shipped in the
+  committed recording, and exactly what `overspend` exists to allow. #84
+  grew the cell so that stops happening: no world now offers a job bigger
+  than its own charged pack, so `overspend` is reachable only synthetically
+  -- and it stays guarded there, in
+  `test_affordability_has_a_now_a_later_a_never_and_a_demo_cell`, which
+  builds its own too-small cell. The four answers still exist and still must
+  not collapse; what changed is that the SHIPPED worlds no longer exercise
+  the fourth. If a future world does, fly it again.
+  """
   life = life_with(battery_wh=HOME_DEMO_WH,
                    errands=[Errand(name="census:garden", module="module_lcd",
                                    station_y=0.0, use_at=(1.5, 1.8),
                                    task="census")])
-  assert life.energy.cost("census") > life.charged_wh, \
-      "the fixture only means anything while the census outgrows the cell"
+  assert life.energy.cost("census") + HOME_RESERVE <= life.charged_wh, \
+      "the cell no longer holds reserve + census; issue #84's sizing broke"
   assert life._afford_next() is True
   assert len(life.errands) == 1
-  assert any("smaller than this job" in line for line in life.log), life.log
+  assert not any("smaller than this job" in line for line in life.log), \
+      "the demo cell went back to overspending"
 
 
 def test_an_errand_deferred_too_often_is_given_up_on():
@@ -329,15 +355,23 @@ def test_a_task_errand_is_priced_by_its_own_kind_not_by_the_action():
   assert life.affords(errand).cost_wh == en.load("home").cost("carry")
 
 
-def test_a_demo_cell_spends_its_whole_pack_exactly_as_it_always_did():
-  """The compatibility claim from the loop's side: with a zero margin,
-  `spendable_wh` is the pack, which is the number every existing mission and
-  both committed recordings were produced against."""
+def test_the_demo_cell_keeps_the_return_trip_out_of_a_job_s_budget():
+  """The loop's side of #84's inversion: home's demo cell now funds the
+  margin, so `spendable_wh` is the pack LESS the reserve -- the same shape
+  the hosting test below has always asserted, arriving on the world the
+  suite flies most. (Until #84 this asserted the opposite: zero margin,
+  spendable == pack, which was what the old recordings were produced
+  against. room_hub still behaves that way; see the margin tests above.)"""
   life = life_with(battery_wh=HOME_DEMO_WH)
-  life.battery.energy_wh = 0.77
-  assert life.reserve_margin_wh == 0.0
-  assert life.spendable_wh == pytest.approx(0.77)
-  assert life.fundable_wh == pytest.approx(HOME_DEMO_WH * lc.CHARGED)
+  life.battery.energy_wh = 2.0
+  assert life.reserve_margin_wh == HOME_RESERVE
+  assert life.spendable_wh == pytest.approx(2.0 - HOME_RESERVE)
+  # ...and what the WORLD can offer shrinks by the same reserve: `fundable_wh`
+  # is a charged pack less the margin, so the producer now prices jobs against
+  # 1.80 Wh, not 2.70 -- the dearest errand (~1.17) still fits with a third
+  # of the budget to spare, which is the sizing working.
+  assert life.fundable_wh == pytest.approx(
+    HOME_DEMO_WH * lc.CHARGED - HOME_RESERVE)
 
 
 def test_a_hosting_pack_keeps_the_return_trip_out_of_a_job_s_budget():
@@ -353,10 +387,14 @@ def test_a_charge_timeout_is_sized_against_the_pack_it_has_to_fill():
   narrating "CHARGE complete (65 %)" every cycle."""
   demo = life_with(battery_wh=HOME_DEMO_WH)
   host = life_with(battery_wh=HOSTING_WH)
-  assert demo.charge_timeout == lc.CHARGE_TIMEOUT_MIN
+  # Since #84 the home demo cell is 3.5 Wh, which needs ~10 minutes at the
+  # measured 19 W -- above the 400 s floor, so the cap is computed, not
+  # clamped. (room_hub's 0.7 Wh cell is still under the floor.)
+  rate = en.load("home").charge_w
+  assert demo.charge_timeout >= demo.charged_wh * 3600.0 / rate
+  assert demo.charge_timeout > lc.CHARGE_TIMEOUT_MIN
   # Long enough to actually put a hosting pack's worth in at the measured
   # net rate, with the slack a real press needs.
-  rate = en.load("home").charge_w
   assert host.charge_timeout >= host.charged_wh * 3600.0 / rate
   assert host.charge_timeout > demo.charge_timeout
 
@@ -451,11 +489,14 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, on real physics ------------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime on `home` (the dearest
-#: errand, 1.14 Wh, plus the 0.55 Wh reserve must fit a charged pack), so
-#: these cost one charge cycle instead of the six a real 8 Wh pack would take.
-#: The regime is what is under test, not the capacity -- `--pack hosting` is
-#: the same arithmetic with more room in it.
-MARGIN_PACK_WH = 2.0
+#: errand, ~1.17 Wh, plus the 0.90 Wh reserve must fit a charged pack:
+#: capacity >= 2.07 / 0.9 = 2.30), so these cost one charge cycle instead of
+#: the six a real 8 Wh pack would take. The regime is what is under test, not
+#: the capacity -- `--pack hosting` is the same arithmetic with more room in
+#: it. Was 2.0 against the old 0.55 reserve; issue #84's measured 0.90 moved
+#: the regime's floor, and a pack below it silently drops to zero margin (the
+#: all-or-nothing rule), which is exactly what the first assertion catches.
+MARGIN_PACK_WH = 2.4
 
 
 class OneNote:
@@ -501,11 +542,11 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
   """⚠ THE ACCEPTANCE CRITERION, flown, and the adversarial version of it.
 
   An overseer that answers `census` to every question it is ever asked --
-  home's most expensive errand, 1.14 Wh against a 1.8 Wh charged pack. The
+  home's most expensive errand, ~1.17 Wh against a 2.16 Wh charged pack. The
   robot must notice, in advance, that the second one will not fit, go and
-  charge, and then do it. Without the gate `needs_charge` is false at 0.58 Wh
-  (the reserve is 0.55), the errand starts anyway, and the robot ends the
-  survey with less energy than it takes to get back to the rack.
+  charge, and then do it. Without the gate `needs_charge` is false at
+  ~0.99 Wh (the reserve is 0.90), the errand starts anyway, and the robot
+  ends the survey with less energy than it takes to get back to the rack.
 
   Adversarial rather than cooperative on purpose: the guarantee issue #15
   needs is not "a sensible model plans well", it is "a model that plans badly
@@ -587,7 +628,13 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
   `self.charge_timeout` in `HubLifecycle.charge` and the run ends well below
   `CHARGED`.
   """
-  life = home_lifecycle(battery_wh=6.0, errands=[])
+  # ⚠ charge_scale PINNED AT 1.0 (issue #84). This test's premise is a charge
+  # that takes LONGER than the old flat 400 s cap -- that is the whole defect
+  # it reproduces -- so a suite-wide multiplier would delete it silently: the
+  # pack would fill inside 400 s, the assertion above would still pass, and
+  # the test would be proving nothing. Pinned explicitly rather than relying
+  # on the default, because the default is exactly what a multiplier changes.
+  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=1.0)
   assert life.charge_timeout > lc.CHARGE_TIMEOUT, "pick a bigger pack"
   # ⚠ READ BEFORE THE UNDOCK. `charge()` backs off the rack when it is done,
   # and that 0.30 m of reversing is real travel off the pack -- reading
@@ -612,4 +659,42 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
     life.mission.close()
   assert topped and topped[0] >= lc.CHARGED, \
       f"the charge stopped at {(topped or [0])[0]:.1%}"
+  assert life.charge_cycles == 1
+
+
+@pytest.mark.slow
+def test_a_scaled_charge_still_completes_inside_its_own_cap():
+  """The other half of issue #84's timeout warning, flown rather than argued.
+
+  `charge_timeout` divides by the scale, so a 5x charge gets a cap 5x
+  tighter. That is the point -- a cap that cannot fire is not a cap -- but it
+  is also exactly how a well-meant scaling breaks a working charge: get the
+  arithmetic backwards, or forget the floor, and the cycle ends partway up
+  narrating "CHARGE complete (61 %)". This flies one and asserts it reaches
+  CHARGED, which is the only way to know the two factors agree.
+
+  Deliberately the SAME pack as the unscaled test above, so the pair differ
+  in exactly one thing.
+  """
+  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=5.0)
+  topped: list[float] = []
+  life.say_hooks.append(
+    lambda _t, msg: topped.append(life.battery.fraction)
+    if msg.startswith("CHARGE complete") else None)
+  life.max_sim_time = 3000.0
+  life.blacklist, life.map_done = set(), False
+  life.explore_deadline = 1e9
+  life.mission.start_at(*lc.world_config("home")["start"])
+  life.mission.start_discovery()
+  life.mission._spin()
+  try:
+    life.explore(budget=30.0, mark_done=False)
+    life.battery.energy_wh = 0.9          # the same long way from full
+    assert life.go_charge(), "never reached the rack"
+    life.charge()
+  finally:
+    life.mission.close()
+  assert topped and topped[0] >= lc.CHARGED, \
+      f"the scaled charge stopped at {(topped or [0])[0]:.1%} -- the cap and " \
+      f"the rate disagree"
   assert life.charge_cycles == 1

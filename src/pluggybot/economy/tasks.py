@@ -173,9 +173,10 @@ KINDS: dict[str, TaskKind] = {
     # home and it was the cheapest number on this table -- caught in the wild
     # by the new `ENERGY ... economy/energy.json is low` line, on a real run:
     # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
-    # touch above economy/energy.json's 1.141, because this is the FALLBACK for a
+    # touch above economy/energy.json's census row (1.180 since issue #70's
+    # re-pricing of the expanded house), because this is the FALLBACK for a
     # world nobody has measured and being dear there is the cheap direction.
-    estimate_wh=1.15),
+    estimate_wh=1.20),
   "whiteboard_answer": TaskKind(
     "whiteboard_answer", task="answer", target_kind="board",
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
@@ -190,9 +191,10 @@ KINDS: dict[str, TaskKind] = {
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
-    # 0.57 is room_hub's figure; home's floor plan is bigger and the table is
-    # world-agnostic, so it carries the dearer of the two.
-    estimate_wh=0.69),
+    # room_hub's carry measures 0.57; home's, re-priced for the expanded
+    # house (issue #70), 0.914 -- the new plot moved the carry's route. The
+    # table is world-agnostic, so it carries a touch above the dearer.
+    estimate_wh=0.93),
 }
 
 

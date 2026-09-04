@@ -34,7 +34,8 @@ here -- this diagram is the plan, not a picture of it:
          │            │▓▓▓│                     │  ┃     ┃
   y=-6   └────────────┴───┴───────fence─────────┘  ┃     ┃
 
-   d = doorway   ╪ = the existing gate   ▓ = staircase (3 x 3, solid box)
+   d = doorway   ╪ = the OPEN street doorway (issue #93: the gate is
+   gone; the plate turns on a light)   ▓ = staircase (3 x 3, solid box)
 
 ⚠ The kitchen/workshop divider is at y=2.0 (the ZONES table's number), not
 the y=2.5 the diagram's left edge sits near -- 2.5 is the living/bedroom
@@ -74,7 +75,7 @@ from pluggybot.rack.coupling import (
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.activity.plate import (
-  GATE_HALF_LEN, plate_gate_xml,
+  plate_light_xml,
 )
 from pluggybot.rack.tags import asset_xml, write_tag_pngs
 
@@ -156,12 +157,20 @@ BOARDS = {
 PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 
 # The reference ACTIVITY (issue #8): a pressure plate just inside the garden
-# doorway, latching a gate in the garden's outer fence. Placed there on
-# purpose -- the gate blocks no route the robot needs, so the world stays
-# exactly as navigable as it was while still demonstrating the whole
-# pattern. Gating a real passage is the same code with the geometry moved.
+# doorway, turning on a garden light beside it (issue #93 -- it used to latch
+# a GATE in the east fence, until #68 put the street behind that gate and
+# broke the gate's own design rule, "blocks no route the robot needs"). The
+# light keeps the activity's whole pattern -- sensed criterion, hysteresis,
+# latch, rgba toggle, telemetry -- while blocking nothing, ever, by
+# construction.
 PLATE_XY = (5.7, 0.7)
-GATE_Y = 3.1                  # centre of a 1 m gap in the east fence
+#: Centre of the 1 m OPEN doorway in the east fence -- the way to the
+#: sidewalk and street. It was the gate's position (issue #93 removed the
+#: panel), and it keeps the exact same geometry so `HOME_WORST_RETURN_PATH`,
+#: the committed recordings' fence segmentation and every measured route
+#: survive the change: what left is the panel, not the gap.
+STREET_DOOR_Y = 3.1
+STREET_DOOR_HALF = 0.50
 
 #: The plot, tiled. Every zone is ONE RECTANGLE and together they cover the
 #: property exactly once -- `tests/test_home_world.py` checks both halves of
@@ -230,26 +239,26 @@ GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
 # charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
 # 0.35 is too thin here; the demo cell grows with it so one explore + one
 # errand still runs the pack down and the loop still has to charge.
-#: ⚠⚠ THIS NUMBER IS NOW BADLY WRONG, AND KNOWINGLY SO (issues #67, #68, #70).
-#: The 0.3 Wh above is a LIVING-ROOM CROSSING plus the charge approach --
-#: 2.89 m. Issue #68 grew the plot from 7 x 8 m to 26.5 x 12 m, and the worst
-#: place to be stranded went from the garden's far corner (11.96 m routed) to
-#: the STREET's (see HOME_WORST_RETURN below). The reserve did not move,
-#: because re-pricing this world is issue #70's whole job and guessing at it
-#: here would put an unmeasured number where a measured one belongs -- exactly
-#: what CLAUDE.md's energy notes forbid.
+#: MEASURED on the expanded plan, 2 Sep 2026 (issues #70 step 1 / #84;
+#: `scripts/energy_spike.py --reserve`, runnable again whenever a wall moves).
+#: The worst-case return -- street's far corner, through the open doorway and
+#: the garden door, to a REAL dock with the pins conducting:
 #:
-#: What that means until #70 lands: a robot sent to the far end of the new
-#: plot can set out with a reserve that does not reach the charger. No ERRAND
-#: and no TASK target goes there -- every board, the rack and both spawns the
-#: missions use are still in the original two rooms -- so nothing on the
-#: scripted path is exposed. The one thing that is: an overseer's
-#: `explore(zone)`, whose menu is every zone in this file and now includes the
-#: street. That is unpriced by construction (it is not an errand, so
-#: `economy/energy.py` never sees it) and it is called out at the `zones` entry
-#: in `lifecycle.world_config`. `tests/test_world_budget.py` asserts where the
-#: worst case IS, never that this reserve covers it.
-HOME_LOW_BATTERY_WH = 0.55
+#:     travel   0.297 Wh over 10.49 m of route  (28.3 mWh/m)
+#:     dock     0.282 Wh  (drive to standoff + tag creep + press)
+#:     floor    0.579 Wh
+#:
+#: ...plus one failed press-and-retry, which is the constant's own definition
+#: and is priced as one more dock leg: 0.579 + 0.282 = 0.861, carried as 0.90.
+#:
+#: ⚠ THE ROUTE QUADRUPLED AND THE RESERVE BARELY MOVED, and that is the
+#: measurement's real finding: the old "~0.3 Wh living-room crossing" was
+#: always DOMINATED BY THE DOCK, not the distance. Travel is 28 mWh/m, so
+#: 15 m of house costs less than one docking attempt. (An earlier probe read
+#: 74.7 mWh/m -- that was the robot grinding at the then-closed street gate,
+#: issue #94's odometry pump, not a travel cost.) Do not scale this with the
+#: pack, and re-measure it when the PLAN changes, not when the battery does.
+HOME_LOW_BATTERY_WH = 0.90
 
 #: The point the reserve should be measured from: one robot-length inside the
 #: street's far corner, which is the farthest the robot can legally stand from
@@ -264,14 +273,37 @@ HOME_WORST_RETURN = (STREET_X[1] - 0.4, PROPERTY_Y[1] - 0.4)
 #: a fact about the floor plan, and the plan lives in this file.
 HOME_WORST_RETURN_PATH = (
   HOME_WORST_RETURN,
-  (SIDEWALK_X[0], GATE_Y),                  # the gate
+  (SIDEWALK_X[0], STREET_DOOR_Y),           # the street doorway
   (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),  # the garden doorway
   HOME_RACK_POS,
 )
 #: Its length. Measured 2026-09-01 against the plan above; 11.96 m before #68.
 HOME_WORST_RETURN_M = 15.59
 
-HOME_DEMO_CAPACITY_WH = 1.1
+#: SIZED FROM THE MEASURED RESERVE (issue #84), not guessed, and the
+#: arithmetic is short enough to carry here. Off one charge (`CHARGED` = 0.9)
+#: the cell must hold the reserve above plus the dearest errand (census,
+#: 1.180 Wh at issue #70's re-pricing): the floor is (0.90 + 1.18) / 0.9 =
+#: 2.31 Wh. Carried at 3.0 -- ~23 % of headroom, and #70's fresh numbers
+#: confirmed the sizing rather than moving it: the dearest row rose 1.141 ->
+#: 1.180 and the floor absorbed it.
+#:
+#: ⚠ 3.0 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
+#: suite flies: the milestone-8 home arm starts at 45 % and its carry errand
+#: (0.914 Wh since #70 -- the new plot moved its route) is refused up front
+#: against the 0.90 reserve, so the loop defers, charges, and resumes -- the
+#: defer-then-charge-then-resume path on real physics. A full 3.0 pack funds
+#: a whole preset day with ~40 % to spare, which is why that test does not
+#: start full: a demo mission that never needs the hub proves nothing about
+#: charging.
+#:
+#: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL FROM HERE ON, deliberately. The old
+#: 1.1 Wh cell ran its errands on `overspend` and finished the recorded
+#: census at frac 0.000; growing past that is what issue #84 is for. The
+#: charged pack now funds reserve + dearest, so `margin_wh` charges the full
+#: 0.90 and the mid-errand death stops being reachable on the world the
+#: tests fly most. room_hub's 0.7 Wh cell is untouched and still zero-margin.
+HOME_DEMO_CAPACITY_WH = 3.0
 #: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
 #: in minutes by design, which is right for a test and reads as a robot that
 #: only ever charges; a hosting-sized one gives the hours-long work/charge
@@ -417,8 +449,8 @@ def build_home_world() -> tuple[str, dict]:
                               FENCE_HALF_H, FENCE_RGBA)),
     ("fence_east", _wall_run("fence_east", gx1, gx1, py0, py1,
                              FENCE_HALF_H, FENCE_RGBA,
-                             gaps=((GATE_Y - GATE_HALF_LEN,
-                                    GATE_Y + GATE_HALF_LEN),))),
+                             gaps=((STREET_DOOR_Y - STREET_DOOR_HALF,
+                                    STREET_DOOR_Y + STREET_DOOR_HALF),))),
   )
   for prefix, segments in walls:
     hint = "fence" if prefix.startswith("fence") else "wall"
@@ -475,11 +507,11 @@ def build_home_world() -> tuple[str, dict]:
   # The reference activity. Its module owns BOTH the geometry and the state
   # machine (activity/plate.py), so a world adds one by calling one function
   # -- the same shape as rack/coupling.py owning the tool modules' faces.
-  # No visual hints: there is no `gate` or `plate` in the vocabulary, and the
+  # No visual hints: there is no `light` or `plate` in the vocabulary, and the
   # website falls back to raw primitives for an unhinted body. Adding one is
-  # additive whenever the site wants a parametric gate, but inventing hints
+  # additive whenever the site wants a parametric lamp, but inventing hints
   # ahead of a consumer is how a shared vocabulary rots.
-  act_body, act_sensor = plate_gate_xml(PLATE_XY, (gx1, GATE_Y), FENCE_HALF_H)
+  act_body, act_sensor = plate_light_xml(PLATE_XY)
   bodies.append(act_body)
 
   # Furniture: real obstacles, for exploration to have something to map --
@@ -549,7 +581,8 @@ def build_home_world() -> tuple[str, dict]:
      Regenerate: uv run python -m pluggybot.home.world
      The home world (issue #6, expanded by #68): kitchen, workshop, hall,
      living room, bedroom, a garden wrapping south and east, and the
-     sidewalk and street beyond the gate. Whiteboard drawing surfaces; the
+     sidewalk and street through the open fence doorway. Whiteboard
+     drawing surfaces; the
      tool rack on the living room's south wall.
      Layout constants + visual hints + zones live in home/world.py; the
      sidecar models/home_world.meta.json is emitted alongside. -->

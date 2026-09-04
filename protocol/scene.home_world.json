@@ -2568,15 +2568,15 @@
    ]
   },
   {
-   "name": "garden_gate",
+   "name": "garden_light",
    "parent": "world",
    "dynamic": false,
    "robot": null,
    "visual": null,
    "pos": [
-    10.0,
-    3.1,
-    0.45
+    5.7,
+    1.5,
+    0.0
    ],
    "quat": [
     1.0,
@@ -2586,54 +2586,33 @@
    ],
    "geoms": [
     {
-     "name": "garden_gate_panel",
-     "type": "box",
+     "name": "garden_light_pole",
+     "type": "cylinder",
      "size": [
-      0.04,
-      1.0,
+      0.02,
       0.9
      ],
      "pos": [
       0.0,
       0.0,
-      0.0
+      0.45
      ],
      "quat": [
-      1.0,
-      0.0,
+      0.707107,
+      0.707107,
       0.0,
       0.0
      ],
      "rgba": [
-      0.62,
-      0.66,
-      0.72,
+      0.3,
+      0.31,
+      0.33,
       1.0
      ],
      "texture": null
-    }
-   ]
-  },
-  {
-   "name": "garden_lamp",
-   "parent": "world",
-   "dynamic": false,
-   "robot": null,
-   "visual": null,
-   "pos": [
-    10.0,
-    3.6,
-    0.95
-   ],
-   "quat": [
-    1.0,
-    0.0,
-    0.0,
-    0.0
-   ],
-   "geoms": [
+    },
     {
-     "name": "garden_lamp_bulb",
+     "name": "garden_light_bulb",
      "type": "sphere",
      "size": [
       0.05
@@ -2641,7 +2620,7 @@
      "pos": [
       0.0,
       0.0,
-      0.0
+      0.95
      ],
      "quat": [
       1.0,
@@ -2650,9 +2629,9 @@
       0.0
      ],
      "rgba": [
-      0.85,
-      0.2,
-      0.18,
+      0.35,
+      0.34,
+      0.3,
       1.0
      ],
      "texture": null

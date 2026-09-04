@@ -65,6 +65,58 @@ def module_z(mission) -> float:
   return float(mission.data.xpos[int(mission.model.body(MODULE).id)][2])
 
 
+def true_axle(mission) -> tuple[float, float, float]:
+  """The robot's TRUE axle pose off qpos (the chassis origin rides 8 cm
+  ahead of it)."""
+  q = mission.data.qpos
+  w, x, y, z = q[3], q[4], q[5], q[6]
+  th = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+  return q[0] - 0.08 * math.cos(th), q[1] - 0.08 * math.sin(th), th
+
+
+def fix_error(mission, fix, true_standoff) -> tuple[float, float]:
+  """(m, deg) between a believed-frame fix and the TRUE standoff, the fix
+  re-based from the believed pose on to the true one -- so this is the
+  MEASUREMENT's error with none of the belief's in it (the same arithmetic
+  as scripts/swap_spike.py --yaw)."""
+  fx, fy, fhd = fix
+  bx, by, bth = mission.pose
+  tx, ty, tth = true_axle(mission)
+  dx, dy = fx - bx, fy - by
+  rx = dx * math.cos(bth) + dy * math.sin(bth)
+  ry = -dx * math.sin(bth) + dy * math.cos(bth)
+  px = tx + rx * math.cos(tth) - ry * math.sin(tth)
+  py = ty + rx * math.sin(tth) + ry * math.cos(tth)
+  tsx, tsy, tshd = true_standoff
+  dh = (tth + fhd - bth) - tshd
+  return (math.hypot(px - tsx, py - tsy),
+          abs(math.degrees(math.atan2(math.sin(dh), math.cos(dh)))))
+
+
+def nudge_truth(mission, q0, v0, metres: float) -> None:
+  """Move the TRUE robot -- and the module on its fork -- across the
+  approach by `metres`, from the saved state, belief untouched."""
+  model, data = mission.model, mission.data
+  data.qpos[:] = q0
+  data.qvel[:] = v0
+  for body in (model.geom("chassis").bodyid[0], model.body(MODULE).id):
+    adr = model.jnt_qposadr[model.body(body).jntadr[0]]
+    data.qpos[adr] += -math.sin(TRUE_RACK.yaw) * metres
+    data.qpos[adr + 1] += math.cos(TRUE_RACK.yaw) * metres
+  mujoco.mj_forward(model, data)
+
+
+#: The issue-88 sweep: thirteen true poses 2 mm apart across the approach.
+SWEEP_MM = range(0, 26, 2)
+#: What the measured standoff must hold at EVERY one of them. Measured
+#: (scripts/swap_spike.py --yaw): 0.0075 m / 0.71 deg worst with the
+#: facing fitted over the rack's tags; 0.016-0.066 m / 2.0-8.4 deg with it
+#: read off the bay tag's own PnP yaw, over a bar at 12 of the 13. So these
+#: fail without the fit, and they still catch the ~0.10 m PLUG_LATERAL sign
+#: slip the single-pose test below was written for.
+FIX_BAR_M, FIX_BAR_DEG = 0.02, 2.0
+
+
 #: SLOW because it cannot catch a regression in the fix -- it BYPASSES the
 #: fix and asserts the old defect still reproduces. That premise needs
 #: re-checking when the geometry moves, which is a merge, not every iterate
@@ -149,7 +201,16 @@ def test_bay_fix_measures_the_standoff_the_bay_is_actually_at():
   rides PLUG_LATERAL right of the chassis, and a sign slip there would park
   every approach 10 cm off -- plausible-looking and always wrong. The
   measured standoff must land where the TRUE standoff sits relative to the
-  robot, re-expressed in the decohered believed frame."""
+  robot, re-expressed in the decohered believed frame.
+
+  Bars: 0.02 m and 2 deg. They were 0.04 / 5 until issue #68 moved a wall
+  on the far side of the house and this went red at 0.0561 -- and 0.07 / 10
+  from then until issue #88, which found why: the bay tag's PnP yaw is a
+  coin flip square-on, and the fixture had been landing on the winning
+  side. With the facing fitted over the rack's tags instead, the residual
+  here is ~0.009 m at every one of 13 poses 2 mm apart (the sweep test
+  below), so the bars are set from that with headroom.
+  """
   mission = carrying_mission()
   try:
     across = 0.05
@@ -164,29 +225,61 @@ def test_bay_fix_measures_the_standoff_the_bay_is_actually_at():
     # same shift
     ex = tsx + -math.sin(TRUE_RACK.yaw) * across
     ey = tsy + math.cos(TRUE_RACK.yaw) * across
-    # ⚠ 0.07 and 10 degrees, not the 0.04 and 5 these carried until issue
-    # #68 -- and the loosening is a CORRECTION, not a concession.
-    #
-    # The tag's PnP yaw is ambiguous when the robot is square to the bay,
-    # which is exactly where it stands here, and the ambiguity is worth
-    # centimetres. MEASURED on the UNCHANGED world (issue #88), thirteen
-    # poses 2 mm apart across the approach:
-    #
-    #     residual   0.0006 .. 0.0476 m    against a 0.04 bar
-    #     heading      0.00 .. 6.09 deg    against a 5.0 bar
-    #
-    # So this test already failed at TWO OF TWELVE nearby poses before #68
-    # touched anything; it was passing at 0.0364 because the fixture happened
-    # to land on a winning toss. The distribution is bimodal -- most poses
-    # measure ~0.001 m, and the outliers are the solver picking the mirrored
-    # branch -- so a tighter bar does not buy precision, it buys flakiness.
-    #
-    # What these guard is a SIGN SLIP in PLUG_LATERAL, worth ~0.10 m, and
-    # both still catch that. Tighten them when #88 makes the yaw trustworthy,
-    # not before.
-    assert math.hypot(fx - ex, fy - ey) < 0.07
+    assert math.hypot(fx - ex, fy - ey) < FIX_BAR_M
     assert abs(math.degrees(math.atan2(math.sin(fhd - tshd),
-                                       math.cos(fhd - tshd)))) < 10.0
+                                       math.cos(fhd - tshd)))) < FIX_BAR_DEG
+    assert mission.fix_source.startswith("plane:"), mission.fix_source
+  finally:
+    mission.close()
+
+
+def test_the_fix_holds_across_two_millimetre_nudges_of_the_robot():
+  """Issue #88, the regression test: the measured standoff must be a
+  MEASUREMENT, not a toss. The robot is moved 2 mm at a time across the
+  approach -- truth only, belief untouched, one render per pose -- and the
+  fix's error against the true standoff must stay under the bar at every
+  pose. A single tag's PnP yaw fails this at 12 of 13 (0.016-0.066 m),
+  bimodally: the solver picks the mirrored branch on pixel noise, and 2 mm
+  of pose is enough to re-roll it."""
+  from pluggybot.rack.swap import PLUG_LATERAL, STANDOFF
+  mission = carrying_mission()
+  try:
+    q0, v0 = mission.data.qpos.copy(), mission.data.qvel.copy()
+    truth = TRUE_RACK.bay_standoff(STATION, STANDOFF, PLUG_LATERAL)
+    worst = (0.0, 0.0)
+    for mm in SWEEP_MM:
+      nudge_truth(mission, q0, v0, mm / 1000)
+      fix = mission.bay_fix(STATION)
+      assert fix is not None, f"the bay tag must decode at +{mm} mm"
+      assert mission.fix_source.startswith("plane:"), mission.fix_source
+      err_m, err_deg = fix_error(mission, fix, truth)
+      worst = max(worst, (err_m, err_deg))
+      assert err_m < FIX_BAR_M and err_deg < FIX_BAR_DEG, \
+          f"+{mm} mm: {err_m:.4f} m / {err_deg:.2f} deg ({mission.fix_source})"
+  finally:
+    mission.close()
+
+
+#: SLOW because it cannot catch a regression in the fix -- it reads the
+#: detector's raw yaw and asserts the OLD defect still reproduces (the
+#: premise-pinning rule, issue #54). If this starts failing, the solver has
+#: stopped flipping and the fit may be redundant -- find out why.
+@pytest.mark.slow
+def test_one_tags_yaw_is_still_a_coin_flip_square_on():
+  """The premise, pinned: over the same 2 mm sweep, with the true heading
+  never changing, the bay tag's own decoded yaw must still swing by more
+  than the +/-3 deg that drops a module blind. Measured -7.5..+7.0 deg."""
+  from pluggybot.rack.coupling import bay_tag_id
+  mission = carrying_mission()
+  try:
+    q0, v0 = mission.data.qpos.copy(), mission.data.qvel.copy()
+    yaws = []
+    for mm in SWEEP_MM:
+      nudge_truth(mission, q0, v0, mm / 1000)
+      det = mission.tags.detect(mission.data).get(bay_tag_id(STATION))
+      assert det is not None
+      yaws.append(math.degrees(det["yaw"]))
+    assert max(yaws) - min(yaws) > 6.0, yaws
   finally:
     mission.close()
 

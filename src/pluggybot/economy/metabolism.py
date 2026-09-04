@@ -52,7 +52,9 @@ money would have a reward table denominated in Ben's invoice.
 The numbers are DATA (`economy/metabolism.json`, `$PLUGGY_METABOLISM`), the
 fifth such file after rewards, cadence, questions and energy, and they are
 MEASURED: two unattended 1-sim-hour `home` runs bank 102 points/hour on the
-hosting pack, so the shipped 45/hour is ~44 % of the world's income and the
+hosting pack of the OLD house; the expanded one measures 65 (issue #70,
+the data file's note has the decomposition), so the shipped 30/hour is
+~46 % of the world's income and the
 robot's own time is the other half. The file's own note carries the runs, the
 rhythm that falls out of them, and what to re-run before re-tuning.
 
@@ -101,7 +103,7 @@ class Appetite:
   """
 
   world: str = ""
-  points_per_hour: float = 45.0
+  points_per_hour: float = 30.0
   cap: int = 90
   satisfied_at: int = 45
   hungry_at: int = 20
@@ -143,7 +145,7 @@ class Appetite:
     spec = dict(doc.get("default") or {})
     spec.update(dict((doc.get("worlds") or {}).get(world) or {}))
     return cls(world=world,
-               points_per_hour=float(spec.get("pointsPerHour", 45.0)),
+               points_per_hour=float(spec.get("pointsPerHour", 30.0)),
                cap=int(spec.get("cap", 90)),
                satisfied_at=int(spec.get("satisfiedAt", 45)),
                hungry_at=int(spec.get("hungryAt", 20)))

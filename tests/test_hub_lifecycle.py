@@ -112,7 +112,33 @@ def test_full_hub_lifecycle(world):
     return (life.swaps_done >= 2 and life.charge_cycles >= 1
             and life.mission.swap.module_state(life.module)["hung"])
 
-  r = run_demo(world=world, stop_when=settled)   # start pose from world config
+  # ⚠ THE HOME ARM STARTS HALF-CHARGED (issue #84). On the old 1.1 Wh cell
+  # one carry errand demanded a charge; the grown 3.0 Wh cell funds the same
+  # day with 41 % to spare, and the loop -- correctly -- ends a done mission
+  # without visiting the hub, which fails this test's whole point. Starting
+  # at 45 % makes the SAME day need the hub again, and in a better order:
+  # the errand is refused up front (CHARGE_FIRST: 0.914 + 0.90 reserve
+  # against 1.35 held, at issue #70's re-priced carry), the robot charges,
+  # then runs it -- the
+  # defer-then-charge-then-resume path on real physics, a strictly harder
+  # claim than the old "ran out mid-day", in LESS wall clock than the old
+  # test. (A two-errand day was tried first and measured 430-500 s of wall
+  # against the old 184; it also rolled #88's tag-yaw dice four times per
+  # run instead of two, and flaked. Draining the start is the cheap lever.)
+  #
+  # charge_scale=3 ~ the cells' ratio (3.0/1.1), so the PRESS lasts about
+  # what it always did on the old cell -- the pinned-odometry mechanics are
+  # exercised for similar sim-seconds -- while the deployed rate stays
+  # honest (test_battery pins the served default at 1.0).
+  if world == "home":
+    import os
+    os.environ["PLUGGY_CHARGE_SCALE"] = "3"
+    try:
+      r = run_demo(world=world, stop_when=settled, battery_fraction=0.45)
+    finally:
+      os.environ.pop("PLUGGY_CHARGE_SCALE", None)
+  else:
+    r = run_demo(world=world, stop_when=settled)   # start pose from world config
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
   assert r["module_stowed"], "the module was not put back"

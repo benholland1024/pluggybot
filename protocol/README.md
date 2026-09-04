@@ -769,10 +769,10 @@ against the body census.
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
-| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --metabolism --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
 
-⚠ **`--tasks` is load-bearing on both recordings** (0.9.0). Job offers are
+⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
 off by default — a task board adds errands, which reshuffles a whole mission
 — so a recording made without the flag carries no `tasks` block at all and
 the website's marker code has nothing to build against.

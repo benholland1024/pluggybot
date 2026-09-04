@@ -46,14 +46,15 @@
     "  chargeW        NET watts into the pack: 55 W of charger less the held",
     "                 press. lifecycle.CHARGE_TIMEOUT is sized against this",
     "",
-    "READ THE NUMBERS AGAINST THE PACK. On the DEMO cells (room_hub 0.70 Wh,",
-    "home 1.10 Wh) one errand costs roughly one full charge, so there is no",
-    "return-trip margin to keep and economy/energy.py charges none -- every",
-    "existing mission behaves exactly as it did, and home's census (1.14 Wh",
-    "against a 0.99 Wh charged cell) is still attempted, because that is what",
-    "the committed recording shows the robot doing. On a HOSTING-sized pack",
-    "(PLUGGY_BATTERY_WH, 5-15 Wh) the same table makes the robot charge while",
-    "it still has a return trip in hand. The table does not change; what a",
+    "READ THE NUMBERS AGAINST THE PACK. room_hub's demo cell (0.70 Wh) is",
+    "still smaller than one errand, so no margin is charged there and every",
+    "room_hub mission behaves as it always did. home's demo cell is 3.0 Wh",
+    "since issue #84 -- sized from the MEASURED worst-case reserve (0.90 Wh,",
+    "scripts/energy_spike.py --reserve) plus the dearest errand -- so home",
+    "now keeps a return trip in hand on BOTH its packs, and the old",
+    "overspend-and-die-at-0% era survives only in the recording made before",
+    "the change (re-recorded by #70). On a HOSTING pack (5-15 Wh) nothing",
+    "moves: the same table, the same reserve, more headroom.",
     "pack can afford does.",
     "",
     "chargeW IS THE SLOWEST PRESS, NOT THE BEST ONE, AND THAT IS DELIBERATE.",
@@ -74,19 +75,19 @@
   "worlds": {
     "home": {
       "errandWh": {
-        "answer": 0.929,
-        "answer:whiteboard_b": 1.113,
-        "artwork": 0.929,
-        "artwork:whiteboard_b": 1.113,
-        "carry": 0.689,
-        "census": 1.141,
-        "dance": 0.584,
-        "draw": 0.929,
-        "draw:whiteboard_b": 1.113
+        "answer": 0.85,
+        "answer:whiteboard_b": 1.086,
+        "artwork": 0.85,
+        "artwork:whiteboard_b": 1.086,
+        "carry": 0.914,
+        "census": 1.18,
+        "dance": 0.658,
+        "draw": 0.85,
+        "draw:whiteboard_b": 1.086
       },
-      "exploreWhPerS": 0.00769,
+      "exploreWhPerS": 0.00897,
       "chargeW": 19.0,
-      "measuredOn": "40 Wh pack, 149 s explore, plus a 4 sim-hour unattended --pack hosting run; where the two disagree the dearer wins (whiteboard_b read 1.065 and 1.113 Wh, the census 1.104-1.245)"
+      "measuredOn": "re-priced for the expanded house, 3 Sep 2026 (issue #70): two 40 Wh spike runs, one after a full 243 s explore and one after a sparse 79 s one, dearer per row -- the sparse-map run is dearer almost everywhere, which is the documented first-errand-through-unexplored-space effect. carry rose 0.689 -> 0.914 (the new plot moved its route) and the near draw fell 0.929 -> 0.850 (both runs agree; the old figure was a spawn-pose reading of the old house). draw:whiteboard_b is the sparse run alone: the full-map run's attempt failed its drive (49.6 s, 0.205 Wh -- a failure is not a cost, this file's own rule). chargeW stays 19.0: fresh presses read 37.7/38.0 W and the slowest press measured still governs the timeout."
     },
     "room_hub": {
       "errandWh": {

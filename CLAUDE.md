@@ -152,6 +152,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   flies each one on an oversized pack and reports SWAP_PICK to end of
   SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
+  `scripts/board_png.py` (rooftop-media-2026 #128: a whiteboard's ink as a
+  PNG, cropped to the drawing, from the boards state file or a recording —
+  how a drawing the robot made gets HUNG on the website's walls. By hand,
+  every so often, on purpose: a gallery that curates itself hangs everything.
+  ⚠ It flips +lat to the viewer's LEFT exactly as `surfaces/board.ts` does,
+  and the test pins it, because every figure the pen draws is symmetric and
+  nothing else would notice a mirrored house),
   `scripts/answer_spike.py` (issue-22 fidelity calibration: draws answers
   with the REAL pen and reports how far the ink sits from each candidate
   answer's glyphs, plus the ink-length ratio — re-run it if the pen, the
@@ -164,6 +171,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   standoff-plus-error while believing itself at the standoff; `--blind`
   reproduces the before-fix rows, which die at ~6 cm lateral / ~10° heading
   / a 10° rack-yaw belief error),
+  `scripts/stall_spike.py` (issue-94 stalled-drive sweep: how much imaginary
+  travel a drive pressed into the fence pumps into dead reckoning at each of
+  the mission's speeds, why motor torque is not the signal, and what
+  `drive_to` reports behind a box the lidar looks over; `--blind`
+  reproduces the before-fix rows — 4.28 m in 30 s and a false arrival),
   `scripts/swap_spike.py` (issue-30 bay-swap sweep under the same belief
   error: where the MODULE ends up — hung, on the fork, or on the floor at
   the rack's foot; `--blind` reproduces the before-fix rows, which drop the
@@ -178,11 +190,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `scripts/pickup.py` (the claw module: fetch it from bay D, grip a block off
   the floor, carry it, set it down; saves `pickup.png`. `--view` watches live.
   Full pick-carry-place verified),
-  `scripts/plate.py` (the reference ACTIVITY, issue #8: the robot drives onto
-  a sprung pressure plate in the home world's garden and latches a gate open;
-  saves `plate.png`. `--view` watches live. Note the gate is a MOCAP body —
-  `geom_pos` mutation is silently inert on anything welded to the world, which
-  is all scenery; see docs/ActivityPattern.md §3.4),
+  `scripts/plate.py` (the reference ACTIVITY, issue #8, reworked by #93: the
+  robot drives onto a sprung pressure plate in the home world's garden and
+  latches a garden LIGHT on — the gate the plate used to open is gone, and
+  the street doorway is permanently open; saves `plate.png`. `--view` watches
+  live. ⚠ the mocap lesson survives the gate: `geom_pos` mutation is silently
+  inert on anything welded to the world, which is all scenery, and anything
+  an activity must MOVE needs a mocap body; see docs/ActivityPattern.md §3.4),
   `scripts/dispense.py` (the seed dispenser, the fifth tool and the first
   built against `docs/ToolPattern.md`: fetch it from bay E, drive a row and
   meter out exactly one seed per point; saves `dispense.png`. `--view`
@@ -390,22 +404,30 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     says the cell was always too small. Collapsing any pair is a real bug:
     `charge_first` as `beyond` refuses work a top-up allows, `beyond` as
     `charge_first` is a charge/defer spin, and `overspend` as `beyond`
-    deletes home's census (1.14 Wh against a 0.99 Wh charged demo cell) from
-    every mission that has ever run one, recording included.
+    deletes home's census from every mission recorded before issue #84
+    (1.14 Wh against the old 0.99 Wh charged demo cell — the committed
+    recording still shows it; the grown 3.0 Wh cell no longer overspends,
+    so the fourth answer is now guarded synthetically).
   - ⚠ **The margin is all-or-nothing.** An errand must leave the return-trip
     reserve behind — but only in a world whose charged pack can fund its
-    dearest job PLUS that reserve. On both demo cells that is false, the
-    margin is zero, and every existing mission, demo and recording behaves
-    exactly as it did. On `--pack hosting` it is the reserve, and the
-    mid-errand death stops being reachable. One number per world, so
+    dearest job PLUS that reserve. **Since issue #84 home's demo cell (3.0 Wh)
+    clears that bar and charges the FULL margin** — the reserve is 0.90 Wh,
+    measured on the expanded plan (`scripts/energy_spike.py --reserve`: 0.579
+    floor = 0.297 travel over 10.5 m + 0.282 dock, plus one dock-leg retry;
+    the route quadrupled and the reserve barely moved because it was always
+    DOMINATED BY THE DOCK, at 28 mWh/m of travel). room_hub's 0.7 Wh cell is
+    untouched and still zero-margin. The old 1.1 Wh home cell's overspend
+    era survives only in the committed recording, until #70 re-records. One number per world, so
     `Task.claimable`, `fundable_wh` and the errand gate are the same
     arithmetic.
   - ⚠ **Where two honest measurements disagree, the table carries the
     dearer.** An errand's cost depends on where the robot is standing AND on
-    how much of the map it already has: home's drawing measures 0.849 Wh from
-    beside the rack and 0.929 from the spawn pose, and the census read 1.104
-    / 1.131 / 1.141 / 1.245 Wh over four runs, the dearest being a mission's
-    FIRST errand planning through unexplored space. Over-estimating costs a
+    how much of the map it already has: home's drawing measured 0.849 Wh from
+    beside the rack and 0.929 from the spawn pose of the OLD house, and the
+    census read 1.104 / 1.131 / 1.141 / 1.245 Wh over four runs there
+    (1.170–1.180 in the expanded one), the dearest being a mission's
+    FIRST errand planning through unexplored space — which is why issue #70's
+    re-pricing flew every errand twice, full map and sparse, dearer per row. Over-estimating costs a
     charge nobody needed; under-estimating costs a robot dead in the garden.
     The invariant is not "the estimate is never exceeded" — it is that an
     overrun smaller than the margin cannot strand the robot. A bigger one is
@@ -414,21 +436,25 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   - **A cost key may name a TARGET** (`draw:whiteboard_b`), and it wins over
     the bare action. That closes the issue-21 defect this file records two
     bullets down: home's far whiteboard is 7 m away through a doorway and
-    costs 0.18 Wh more, and one number for both either kills the robot on the
+    costs 0.236 Wh more (1.086 vs 0.850 at issue #70's re-pricing), and one
+    number for both either kills the robot on the
     way back from it or prices the near board off the demo cell. Padding is
     the fix that note warns against; a second measured row is not padding.
     `TaskBoard.estimate_for(kind, target)` and `TaskProducer` pick the target
     BEFORE the energy gate for the same reason.
   - ⚠ **`dance` is not 0.76 Wh** — that figure (which this file used to
     carry) was a whole first cycle read off the ending fraction, not an
-    errand. It is 0.53–0.58 Wh in both worlds, and blaming `room_hub` for it
-    was blaming the wrong world.
+    errand. It measures 0.528 in room_hub and 0.658 in the expanded home
+    (issue #70; 0.53–0.58 in both before the house grew), and blaming
+    `room_hub` for the 0.76 was blaming the wrong world.
   - ⚠ **A timeout in seconds is a timeout in watt-hours.** `CHARGE_TIMEOUT`
     was a flat 400 s sized for a 0.7 Wh cell; the deployed 8 Wh one needs
     ~1340 s at the measured rate, so every cycle stopped partway and
     narrated "CHARGE complete (79 %)". `charge_timeout` scales with the pack
-    now — and still reads 400 s on both demo cells, so nothing about an
-    existing mission moves. ⚠ `chargeW` is the SLOWEST press measured
+    — and, since issue #84, with `charge_scale` (`$PLUGGY_CHARGE_SCALE`, the
+    TEST-ONLY multiplier on the net fill rate; the served default is 1.0 and
+    `tests/test_battery.py` pins it three ways). room_hub's demo cell still
+    reads the 400 s floor; home's grown cell computes ~830 s at scale 1. ⚠ `chargeW` is the SLOWEST press measured
     (19.4 W; other approaches read 39.6 W, and the recordings' whole cycles
     35-37 W) because the spread is GEOMETRY — how squarely the bumper meets
     the pins sets how hard the wheels stall. A cap sized off a good approach
@@ -755,6 +781,20 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   from it drives into the rack. `charge()` sets `pinned` for the press and
   clears it before the undock, which is real travel. Anything else that ends
   in a sustained press against a hard stop needs the same treatment.
+  ⚠ **...AND AN UNDECLARED PRESS IS CAUGHT BY THE BUMPER** (`HubSwap.pressing`,
+  issue #94): a chassis contact on the side the wheels are TURNING toward
+  holds the reckoner's travel, because an ordinary navigation drive that
+  stalls has no `pinned` and no bound but its timeout — measured 4.28 m of
+  imaginary travel in 30 s against the fence, and `drive_to` behind a
+  knee-high box reporting arrival from 1.3 m short. Motor torque does NOT
+  separate a press from a cruise here (0.44 vs 0.35 N m; the tyres slip long
+  before the servos saturate) — the bumper does, judged against the encoders
+  (not the command, which the reflex reverses while the wheels still roll)
+  and held 50 ms past the last contact (a cruise-speed press bounces, 777
+  gaps ≤ 20 ms). The charge creep presses 0.7–1.2 s before both pins conduct,
+  so it stalls on `CHARGE_PRESS_STALL_S` (4 s), not the swap's 0.4 s.
+  `scripts/stall_spike.py` is the sweep; SimNotes, "A stalled drive is an
+  odometry pump".
   Two more lessons from the same hunt, both in SimNotes: **a plausibility
   guard can reject the truth** (`mission.plausible_travel` refused the tag,
   which was right, in favour of odometry, which was wrong — keep it as a
@@ -790,7 +830,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   drift, so the cliff feeds itself. `HubMission.bay_fix` measures the bay
   standoff off the bay's own tag inside `swap_at_bay`'s retry loop (fork
   line, so `PLUG_LATERAL` rides along); `scripts/swap_spike.py --blind`
-  reproduces the drops. Recovery for what measurement cannot promise away:
+  reproduces the drops.
+  ⚠ **A measured standoff's FACING comes off the rack's tags TOGETHER**
+  (`localize.fit_rack_facing` over `coupling.RACK_TAG_FACES`, issue #88),
+  never off one tag's PnP yaw: square-on — which is where every standoff
+  puts the robot — a single 30 mm tag's yaw is a coin flip between two
+  mirrored solutions (measured −7.5..+7° across 2 mm of pose, 0.066 m of
+  standoff, bimodal) while its TRANSLATION holds to a millimetre. Fitting
+  the layout the robot already knows to where the tags are holds 0.4°;
+  `HubMission.fix_source` says which source answered (`plane:N` / `yaw`),
+  and `scripts/swap_spike.py --yaw` is the sweep. The layout is FACES,
+  consistently — mixing a plate centre in put a 0.46° bias on the two-tag
+  charge fit. Recovery for what measurement cannot promise away:
   the `reset_tool` inbound kind (admin-only, code-handled on the physics
   thread, never shown to the overseer, refused while the module is seated
   on the fork) puts a lost module back at `model.qpos0` — and with it the
@@ -843,17 +894,16 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     never be graded, and `/var/lib/pluggybot` is where the reward table
     lives too. The file is not the wire.
   - **A job's energy estimate is MEASURED, and gated against the WHOLE
-    pack.** One errand costs roughly one full pack in both worlds (0.487–
-    0.570 Wh in room_hub against a 0.700 Wh cell; 0.866–0.929 Wh in home
-    against 1.100 Wh — read off the committed recordings, SWAP_PICK to end of
-    SWAP_RETURN). So the reserve is a RETURN-TRIP margin an errand is allowed
-    to spend into, and gating on energy *above* it (0.28 / 0.44 Wh) refuses
-    every job in every world forever — a task system that silently does
-    nothing. Guessing cost a fixture: 0.35 Wh guessed for a drawing that
-    measures 0.929, and the home recording caught a robot claiming it at 88 %
-    and dying mid-stroke with nothing inked and the pen still on the fork.
-    Do not inflate the numbers for safety either; the headroom does not
-    exist. Per-errand energy is M10.
+    pack.** In room_hub one errand still costs roughly one full pack
+    (0.487–0.570 Wh against a 0.700 Wh cell). Home left that regime at issue
+    #84: its errands re-priced 0.658–1.180 Wh (issue #70, expanded house)
+    against a 3.0 Wh cell that holds the reserve AND the dearest job off one
+    charge. The reserve is a RETURN-TRIP margin — measured 0.90 Wh, dock-
+    dominated — and history's warning stands: guessing cost a fixture
+    (0.35 Wh guessed for a drawing that measured 0.929; the robot claimed it
+    at 88 % and died mid-stroke), and gating on energy above the margin in a
+    world whose cell cannot fund it refuses every job forever. Do not
+    inflate the numbers for safety either. Per-errand energy is M10.
   - **Charge priority is untouched, and the test that proves it is subtle.**
     Claiming only QUEUES an errand, and the errand queue already sits below
     `needs_charge` — so an inverted branch order still charges before it

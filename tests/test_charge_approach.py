@@ -155,19 +155,61 @@ def test_charge_bay_fix_measures_where_the_bay_actually_is():
     # composed with the robot's TRUE offset from the true standoff
     bx, by, bth = mission.pose
     tsx, tsy, tshd = charge_standoff(TRUE_RACK)
-    d = mission.data
-    tyaw = hd + math.radians(dyaw)
-    tx = float(d.qpos[0]) - 0.08 * math.cos(tyaw)
-    ty = float(d.qpos[1]) - 0.08 * math.sin(tyaw)
+    # The TRUE pose off qpos, not the commanded one: the placement's settle
+    # drive turns the robot ~2.6 deg (the reckoner follows, so the belief
+    # error stays what was asked), and an expectation built on `hd + dyaw`
+    # carried that as a 2.5 deg "measurement error" the old 5 deg bar hid.
+    q = mission.data.qpos
+    tyaw = math.atan2(2 * (q[3] * q[6] + q[4] * q[5]),
+                      1 - 2 * (q[5] * q[5] + q[6] * q[6]))
+    tx = float(q[0]) - 0.08 * math.cos(tyaw)
+    ty = float(q[1]) - 0.08 * math.sin(tyaw)
     # relative transform true->standoff, re-based onto the believed pose
     dxr = (tsx - tx) * math.cos(tyaw) + (tsy - ty) * math.sin(tyaw)
     dyr = -(tsx - tx) * math.sin(tyaw) + (tsy - ty) * math.cos(tyaw)
     ex = bx + dxr * math.cos(bth) - dyr * math.sin(bth)
     ey = by + dxr * math.sin(bth) + dyr * math.cos(bth)
     ehd = bth + (tshd - tyaw)
-    assert math.hypot(fx - ex, fy - ey) < 0.04
+    # 0.02 m / 2 deg, from 0.04 / 5: measured 0.0016 m / 0.09 deg here with
+    # the facing fitted over the two rack tags in view (issue #88), and the
+    # one-tag arithmetic read the same to 0.2 mm -- at -6 deg the robot is
+    # NOT square to the tag, so its PnP yaw was never ambiguous at this
+    # pose. The coin flip lives at the bay standoffs, tests/test_swap_
+    # approach.py; this pins that the charge bay's fit is as good.
+    assert math.hypot(fx - ex, fy - ey) < 0.02
     assert abs(math.degrees(math.atan2(math.sin(fhd - ehd),
-                                       math.cos(fhd - ehd)))) < 5.0
+                                       math.cos(fhd - ehd)))) < 2.0
+    assert mission.fix_source.startswith("plane:"), mission.fix_source
+  finally:
+    mission.close()
+
+
+def test_one_rack_tag_in_view_falls_back_to_its_yaw_and_says_so():
+  """The fit needs two rack tags (issue #88); with one, the fix reads that
+  tag's own PnP yaw -- which is fine OFF square, where the solution is
+  unambiguous, and is what a robot that arrived 10 deg off actually sees
+  (measured: only the charge tag decodes from there). The fallback must
+  still measure, and must LABEL itself, because a mission log that cannot
+  tell a fitted facing from a coin toss cannot explain a drop."""
+  across, dyaw = 0.06, -6
+  mission, _ = mission_with_belief_error(across, dyaw)
+  try:
+    from pluggybot.mission.mission import CHARGE_LOOK_LIFT, CHARGE_TAG_ID
+    mission.swap._run(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
+    real = mission.tags.detect
+    mission.tags.detect = lambda data: {
+      k: v for k, v in real(data).items() if k == CHARGE_TAG_ID}
+    fix = mission.charge_bay_fix()
+    assert fix is not None
+    assert mission.fix_source == "yaw"
+    both = real(mission.data)
+    assert sum(1 for k in both if k != CHARGE_TAG_ID and k < 10) >= 1, \
+        "the premise: a second rack tag IS in view for the fit to use"
+    mission.tags.detect = real
+    fitted = mission.charge_bay_fix()
+    assert mission.fix_source.startswith("plane:")
+    # off square the two agree to millimetres; square-on they would not
+    assert math.hypot(fix[0] - fitted[0], fix[1] - fitted[1]) < 0.01
   finally:
     mission.close()
 

@@ -323,9 +323,16 @@ RACK_HALF_W = 0.93        # side posts. Grew 0.48 -> 0.68 for the fourth tool
                           # home_world: rack at (0.5, -1.98) yaw 90, rail
                           # spans x -0.43..1.43 inside a house wall at -2.0.
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
-CHARGE_TAG_X = 0.109      # rack-local x of the charge tag's face -- the
-                          # anchor a measured standoff fix is computed from
-                          # (mission/mission.py, issue #32)
+CHARGE_TAG_X = 0.109      # rack-local x of the charge tag's PLATE CENTRE --
+                          # the anchor a measured standoff fix is computed
+                          # from (mission/mission.py, issue #32). The face the
+                          # camera sees is PLATE_HALF_T proud of it; the 2 mm
+                          # is inside the creep's electrical stop, so the
+                          # reach is left as measured.
+RACK_TAG_X = RACK_BRACKET_X + 0.014  # rack-local x of the big rack tag's
+                          # plate centre, on its mast (localize.TAG_LOCAL_X)
+PLATE_HALF_T = 0.002      # every fiducial plate is a 4 mm box; PnP returns
+                          # the printed FACE, one half-thickness proud
 # Fiducial plates carry real tag36h11 AprilTags (rack/tags.py). Plate sizes
 # follow from the marker sizes, which are themselves a range decision: a
 # tag must span ~25-30 px to decode, so the rack's marker is large (read
@@ -340,6 +347,17 @@ SMALL_PLATE_HALF = plate_half_extent(SMALL_TAG_SIZE)
 # off this face (mission._terminal_travel), so the offset is a constant of
 # the rack's geometry, not a calibration number.
 BAY_TAG_FACE_X = RACK_HANG_X + 0.004
+
+#: Rack-local (x, y) of every RACK-FIXED tag's printed face, keyed by id --
+#: the layout `localize.fit_rack_facing` fits to what the dock camera
+#: decodes (issue #88). Commissioning knowledge, like `RackPose.prior`: a
+#: real multi-tag board ships with its geometry. Module tags are NOT here:
+#: a module hangs a few mm off the plane and may be on the fork.
+RACK_TAG_FACES: dict[int, tuple[float, float]] = {
+  RACK_TAG_ID: (RACK_TAG_X + PLATE_HALF_T, 0.0),
+  CHARGE_TAG_ID: (CHARGE_TAG_X + PLATE_HALF_T, CHARGE_BAY_Y),
+  **{BAY_TAG_IDS[i]: (BAY_TAG_FACE_X, y) for i, y in enumerate(HUB_STATION_YS)},
+}
 
 
 def bay_tag_id(station_y: float) -> int:
@@ -434,7 +452,7 @@ def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
             rgba="0.50 0.52 0.55 1"/>
       <geom name="rack_tag" type="box"
             size="0.002 {RACK_PLATE_HALF:.4f} {RACK_PLATE_HALF:.4f}"
-            pos="{RACK_BRACKET_X + 0.014:.4f} 0 {RACK_RAIL_Z + 0.075:.3f}"
+            pos="{RACK_TAG_X:.4f} 0 {RACK_RAIL_Z + 0.075:.3f}"
             contype="0" conaffinity="0" material="tagmat{RACK_TAG_ID}"/>
       <geom name="rack_tag_mast" type="box" size="0.006 0.006 0.045"
             pos="{RACK_BRACKET_X:.4f} 0 {RACK_RAIL_Z + 0.045:.3f}" mass="0.02"

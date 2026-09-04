@@ -2132,6 +2132,179 @@ anchor bounding drift per-shift, new scans land back near old ones. Decay
 gets built when a post-anchor long run still shows planner refusals, not
 before — the acceptance run's counts are the evidence either way.
 
+## The bay tag's yaw was a coin flip (issue #88): fit the rack, not the tag
+
+`test_bay_fix_measures_the_standoff_the_bay_is_actually_at` sat at 0.0364
+against a 0.04 bar on `staging`, and went red at 0.0561 when issue #68 moved
+a wall on the far side of the house — a change that altered the pick
+trajectory by a fraction of a millimetre. The believed pose after the pick
+was identical to a millimetre in both worlds and the rendered image decoded
+the same nine tags. Only one number differed: the bay tag's decoded yaw.
+
+The mechanism is textbook and the detector announces it. A square planar
+target viewed near head-on has two PnP solutions mirrored about its normal,
+nearly equal in reprojection error, and which one the solver returns is
+decided by pixel noise (`Error, more than one new minima found.` on the
+console). The robot is square to the bay tag *by construction* at every
+standoff — that is what the approach is for — so this is the worst case,
+hit every time. Measured (`scripts/swap_spike.py --yaw`: the robot's TRUE
+pose nudged 2 mm at a time across the approach, belief untouched, one look
+per pose):
+
+| nudge | bay tag yaw | standoff error (one tag) | error (fit) |
+|---|---|---|---|
+| +0 mm | +6.09° | 0.041 m / 5.2° | 0.003 m / 0.2° |
+| +2 mm | +2.90° | 0.016 m / 2.0° | 0.005 m / 0.1° |
+| +4 mm | −6.93° | 0.062 m / 7.8° | 0.008 m / 0.4° |
+| +10 mm | −7.48° | 0.066 m / 8.4° | 0.004 m / 0.0° |
+| +16 mm | −1.56° | 0.019 m / 2.5° | 0.005 m / 0.1° |
+| +24 mm | +6.95° | 0.047 m / 6.1° | 0.006 m / 0.1° |
+
+Thirteen poses; the single-tag column is over the old 0.04 bar at eight of
+them and over the new 0.02 m / 2° bars at twelve, and the distribution is bimodal rather than noisy — the yaw sits at
+about ±6–7° or near zero, never in between, while the tag's *translation*
+holds to under a millimetre throughout. At the 0.45 m reach the standoff is
+computed over, 7° of normal is 5.5 cm of lateral error: the ±4–8 cm cliff
+issue #30 exists to keep the module away from, spent on a coin toss by the
+one maneuver that was made measured *specifically* to be drift-immune.
+
+Why the three candidates the issue listed lose, in a sentence each. A median
+of N looks: the render is deterministic, so N looks at one pose are one
+look, and the robot is standing still. Sign from the believed facing: the
+MAGNITUDE is wrong too — the true yaw is ~0° and both branches read ±6° —
+and the belief is the thing this measurement exists to be independent of.
+Ignoring the yaw square-on: the same, plus a threshold to tune.
+
+What the robot actually has is more tags. From the bay standoff the dock
+camera decodes six or seven of the rack's own markers (rack, charge, bays
+A–E as they come into view), and their translations are the stable half of
+PnP. The rack's tags are a rigid layout the robot already knows —
+`coupling.RACK_TAG_FACES`, rack-local (x, y) of every rack-fixed tag's
+printed face, commissioning knowledge on exactly the footing as
+`RackPose.prior` — so `localize.fit_rack_facing` fits that layout to the
+decoded positions (a two-dimensional Kabsch fit: the rotation that best
+carries the known points onto the seen ones) and the facing comes off the
+BASELINE between tags — 0.25 m at the bay pitch, most of a metre across the
+rail — instead of the foreshortening of a 30 mm square. `_measured_standoff`
+takes its normal from that fit whenever two or more rack tags decode, keeps
+the bay's own tag for the position, and falls back to the single yaw with
+one tag in view; `HubMission.fix_source` says which (`plane:6`, `yaw`).
+Measured over the same sweep: **0.0075 m / 0.7° worst** at the bay, and at
+the charge standoff — where only the charge tag and bay B are in view, a
+two-tag fit on one bay pitch — **0.0023 m / 0.3°** against the single tag's
+0.008 m / 1.1°.
+
+Two things found on the way:
+
+- **The layout must be FACES, consistently, and 2 mm is enough to see it.**
+  The first fit used the rack tag's and the charge tag's plate *centres*
+  (what `TAG_LOCAL_X` and `CHARGE_TAG_X` are) beside the bay tags' *faces*
+  (`BAY_TAG_FACE_X`), and the two-tag charge fit carried a steady +0.3…+0.7°
+  bias — atan(2 mm / 0.25 m) = 0.46°, the plate's half-thickness over the
+  baseline. With every entry a face, the bias is gone. A differential error
+  between tags is a rotation; a common one is swallowed by the fit's
+  translation and costs nothing. (`CHARGE_TAG_X` itself is left as the
+  charge fix's reach anchor: its comment now says "plate centre", and the
+  2 mm is inside the creep's electrical stop.)
+- **Bay E's tag fits 11–15 mm off from bay A's standoff** — it is at
+  0.875 m off-axis, at the edge of the field, a small tag seen obliquely —
+  and the unweighted fit still holds ±0.4° because six other tags outvote
+  it. Weighting by range or image position is deferred until a pose shows
+  it is needed; the rms is on the `RackFacingFit` for when one does.
+
+The bars went back down to where the measurement puts them — 0.02 m and 2°,
+from the 0.07 / 10° issue #68 left as an honest stopgap — and the sweep
+itself is now the regression test: thirteen poses, one pick, and the
+single-tag arithmetic fails it at twelve. The premise (that one tag's yaw
+still flips) is pinned separately and marked slow, because if the solver
+ever stops flipping the fit should be re-examined rather than kept on faith.
+
+## A stalled drive is an odometry pump (issue #94): the bumper is the sensor
+
+Found during issue #70's reserve probe: a robot in the garden, `drive_toward`
+a point beyond the (then closed) gate for 30 s, true pose pressed against the
+gate at x = 9.62, believed pose at x = 14.00. **4.38 m of travel that never
+happened.** The charge press had taught this lesson once (828 mm, `HubSwap.
+pinned`, above), but `pinned` guards the one press the code DECLARES; an
+ordinary navigation drive that stalls — an obstacle, a wall corner, a wedged
+approach — had no guard and no bound but the drive's timeout. Reproduced
+against the east fence (`scripts/stall_spike.py --blind`):
+
+| 30 s into the fence at | true travel | believed | pump |
+|---|---|---|---|
+| `drive_toward` (V_MAX 0.4) | 0.71 m | 4.99 m | **+4.28 m** |
+| 0.30 m/s | 0.79 m | 6.76 m | **+5.98 m** |
+| 0.12 m/s | 0.78 m | 2.05 m | +1.27 m |
+| APPROACH_V 0.05 | 0.78 m | 0.95 m | +0.17 m |
+
+The pressed wheels turn at 83 % of command; the robot does not move. And
+`drive_to` is not protected by its own stagnation check, because the check
+watches the BELIEVED pose, which is advancing at full speed: driven at a
+point behind a knee-high box the lidar looks straight over, it returned
+**True after 6.6 s with the robot 1.30 m short**, which is exactly the
+frame-relative lie CLAUDE.md records as the costliest kind of bug here.
+
+**The motor is not the sensor, measured.** The natural remedy is stall
+current — a stalled motor draws more — and it does not work on this robot:
+pressed against the fence the wheel servos sit at 0.44 N m against 0.35
+cruising and a 1.23 N m start transient, nowhere near their 2.06 N m limit.
+A 1.8 kg robot's tyres slip long before its motors saturate, so torque tells
+a press from a cruise about as well as a coin. (The issue's other sketch, a
+cap on believed travel against the commanded path, cannot work either: the
+belief IS consistent with the command; it is the ground that disagrees.)
+
+**The bumper is.** The chassis is in contact with the fence for the whole
+press, and `HubMission` had been booking that contact as a collision all
+along. So `HubSwap.pressing` is `pinned`'s rule sensed rather than declared:
+a chassis contact on the side the wheels are turning toward is a press, and a
+press is not travel — the reckoner keeps counting the encoders and discards
+the position they imply, heading still off the gyro. Three details, each
+measured:
+
+- **The side is judged against the ENCODERS, not the command.** The first
+  version read the commanded wheel targets, and `drive_to` behind the box
+  still reported arrival from 1.27 m short: its new bumper reflex reverses
+  the command the step after contact, and the wheels then spend the slew
+  (~0.4 s from cruise) still rolling forward against the box — travel the
+  rule waved through because the *command* said reverse.
+- **A fast press is hundreds of contacts, not one.** At cruise speed the
+  chassis bounces off the fence: 777 gaps of 4–20 ms in 30 s, and the
+  wheels' roll in those gaps alone pumped 1.21 m. The hold runs
+  `PRESS_RELEASE_S` = 50 ms past the last contact (2.5× the longest gap),
+  and a wheel that reverses releases at once because the side stops
+  matching. After it, the pump is **−0.004 / −0.003 / +0.002 / +0.002 m**
+  down the same table.
+- **The rule is quiet when nothing is pressing**: zero chassis contacts
+  through a pick, a carry drive and a return; only the pogo pins through a
+  charge press — which the rule now pins by itself (the explicit flag in
+  `charge()` stays, belt and braces). `press_steps` rides beside
+  `collision_steps` in every result dict so a run can say how long it spent
+  pressing.
+
+Two consequences downstream. `drive_to` gains a bumper reflex, the lidar
+reflex's twin for what the 0.223 m scan plane looks over: back off and
+replan rather than grind — and because the belief now stays with the robot,
+the stagnation check fires honestly (behind the box: **False after 12.4 s,
+belief 0.07 m from truth**, where before it lied). And the charge creep's
+no-progress detector now sees the press itself: a healthy dock presses
+**0.67–1.24 s** from first chassis contact to both pins conducting (four
+approach scenarios), which the swap's 0.4 s `STALL_TIME` cut short every
+time and failed three charge tests. `CHARGE_PRESS_STALL_S` = 4 s bounds a
+press that will never conduct at a third of what the old fake-travel
+`max_travel` allowed, and hands it to the backed-off retry.
+
+What it does not cover, said plainly: the bumper spans z 0.06–0.12 m and
+the scan plane sits at 0.223, so an obstacle between them is met by the
+fork or the arm, and one under 0.06 m by the wheels or the caster. Neither
+is a chassis contact. The fork is deliberately excluded — it touches pegs
+and trays as its job, and a hold there would stall every pick's terminal
+creep — and the caster case (measured: 3295 caster contacts against the
+0.15 m box, 12 872 chassis) rode along on the chassis this time. Marking a
+bumped cell in the map was tried on paper and dropped: the lidar's
+over-the-top rays scrub a low obstacle's cells free within a second of
+scans, so the mark would not survive to the replan. If a post-#94 long run
+still shows a pumped frame, those are where to look.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.

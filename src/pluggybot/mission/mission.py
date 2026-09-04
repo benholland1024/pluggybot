@@ -38,7 +38,9 @@ from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
 )
-from pluggybot.rack.localize import TAG_LOCAL_X, RackFinder, RackPose
+from pluggybot.rack.localize import (
+  TAG_LOCAL_X, RackFinder, RackPose, fit_rack_facing,
+)
 from pluggybot.rack.tags import (
   CHARGE_TAG_ID, RACK_TAG_ID, SMALL_TAG_SIZE, TagDetector,
 )
@@ -46,7 +48,7 @@ from pluggybot.rack.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
-from pluggybot.mapping.astar import astar
+from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
@@ -65,6 +67,13 @@ DOCK_ALONG = 0.206
 #: standoff radius, so the retry's look at the tag is a fresh measurement
 #: from a usable range rather than a re-read of the pose that just missed.
 CHARGE_RETRY_BACKOFF = 0.45
+#: How long the charge creep may PRESS without both pins conducting before
+#: the attempt is abandoned for a backed-off retry. The bumper rule (issue
+#: #94) holds the reckoner through a press, so the creep's no-progress
+#: detector now sees the press itself -- and a healthy dock presses
+#: 1.24 s from first chassis contact to both pins (measured, aligned
+#: approach), which the swap's 0.4 s STALL_TIME cut short every time.
+CHARGE_PRESS_STALL_S = 4.0
 #: The lift the charge approach LOOKS from. dock_eye rides the carriage, and
 #: from the align preset (0.128) it sits too high to see the charge tag AT
 #: ALL -- measured: tag 3 decodes from every probe pose at lift 0 and from
@@ -237,6 +246,11 @@ class HubMission:
     #: "bay", "rack", "odometry", or "nominal" for a creep that
     #: had no plausible measurement at all (`_terminal_travel`).
     self.travel_source = ""
+    #: which source gave the last measured standoff its FACING (issue #88):
+    #: "plane:N" for a rigid fit over N of the rack's tags, "yaw" for the
+    #: one tag's own PnP yaw -- the fallback when it is the only rack tag
+    #: in view, and a coin flip square-on (`_measured_standoff`).
+    self.fix_source = ""
     self._next_look = 0.0
     self.viewer = viewer
     self.realtime = realtime
@@ -392,19 +406,13 @@ class HubMission:
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     trav = traversable_mask(self.grid.grid)
     rows, cols = trav.shape
-    rix, riy = self.grid.world_to_cell(self.pose[0], self.pose[1])
-    start = (min(max(rix, 0), cols - 1), min(max(riy, 0), rows - 1))
-    if not trav[start[1], start[0]]:
-      best, best_d = None, 1e9
-      for dy in range(-10, 11):
-        for dx in range(-10, 11):
-          x2, y2 = start[0] + dx, start[1] + dy
-          if 0 <= x2 < cols and 0 <= y2 < rows and trav[y2, x2]:
-            if dx * dx + dy * dy < best_d:
-              best, best_d = (x2, y2), dx * dx + dy * dy
-      if best is None:
-        return None
-      start = best
+    # The halo escape, shared with `navigation.plan` since issue #92 -- this
+    # inline version is where the idea was born, and exploration's planner
+    # not having it is what let a sealed-in robot declare the house mapped.
+    start = nearest_traversable(
+      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+    if start is None:
+      return None
     goal = self.grid.world_to_cell(wx, wy)
     goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
     if not trav[goal[1], goal[0]]:
@@ -458,6 +466,14 @@ class HubMission:
       else:
         v, w = drive_toward(self.pose, (wx, wy))
       self._drive(self.model.opt.timestep, v, w)
+      if self.swap.pressing:
+        # The BUMPER reflex (issue #94), the lidar reflex's twin for what
+        # the scan plane (0.223 m) looks straight over: back off and replan
+        # rather than grind. The reckoner already holds its travel through
+        # a press, so a robot that keeps meeting the same unseen thing now
+        # stagnates honestly above -- where before it "arrived" at a point
+        # it never reached, 4 m of imaginary travel later.
+        self.backoff_until = self.data.time + BACKOFF_TIME
     return False
 
   def face(self, heading: float) -> None:
@@ -615,7 +631,8 @@ class HubMission:
     -- read off the model rather than re-typed, so a camera move cannot
     silently stale a constant here.
     """
-    det = self.tags.detect(self.data).get(tag_id)
+    dets = self.tags.detect(self.data)
+    det = dets.get(tag_id)
     if det is None:
       return None
     bid = int(self.model.geom("chassis").bodyid[0])
@@ -623,14 +640,33 @@ class HubMission:
     cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
     cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
                         - self.data.xpos[bid])
-    # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
-    # frame (x right, y up, looking along -z): negate y and z
-    tx, ty, tz = det["t"]
-    tag_ch = cam_p + cam_r @ np.array([tx, -ty, -tz])
-    # the tag plane's horizontal normal, pointing INTO the rack; the rack's
-    # outward normal (its local +x) is the negation
-    n_at = (math.sin(det["yaw"]), 0.0, math.cos(det["yaw"]))
-    n_ch = cam_r @ np.array([n_at[0], 0.0, -n_at[2]])
+
+    def in_chassis(t):
+      # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
+      # frame (x right, y up, looking along -z): negate y and z
+      tx, ty, tz = t
+      return cam_p + cam_r @ np.array([tx, -ty, -tz])
+
+    tag_ch = in_chassis(det["t"])
+    # The tag plane's horizontal normal, pointing INTO the rack; the rack's
+    # outward normal (its local +x) is the negation.
+    #
+    # ⚠ Taken from the rack's tags TOGETHER, not from this tag's own PnP
+    # yaw (issue #88). Square-on -- which is where every standoff puts the
+    # robot -- a single small tag's yaw is a coin flip between two mirrored
+    # solutions: measured -7.5..+7 deg across 2 mm nudges, worth 0.066 m
+    # of standoff. The translations hold to a millimetre, so the facing is
+    # fitted to WHERE the rack's tags are (0.007 m / 0.4 deg over the same
+    # sweep). One rack tag in view falls back to its yaw, and says so.
+    fit = fit_rack_facing({i: (float(p[0]), float(p[1])) for i, p in
+                           ((i, in_chassis(d["t"])) for i, d in dets.items())})
+    if fit is not None:
+      n_ch = np.array([-math.cos(fit.yaw), -math.sin(fit.yaw), 0.0])
+      self.fix_source = f"plane:{fit.n}"
+    else:
+      n_at = (math.sin(det["yaw"]), 0.0, math.cos(det["yaw"]))
+      n_ch = cam_r @ np.array([n_at[0], 0.0, -n_at[2]])
+      self.fix_source = "yaw"
     bx, by, bth = self.pose
     c, s = math.cos(bth), math.sin(bth)
     # chassis body origin rides 0.08 m ahead of the axle midpoint the
@@ -759,7 +795,7 @@ class HubMission:
       self.face(hd)
       self.refine_standoff(sx, sy, hd)
       why = self.swap._drive_until(
-        max_travel, creep_v, stall_stop=True,
+        max_travel, creep_v, stall_stop=True, stall_time=CHARGE_PRESS_STALL_S,
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
         # and it is the CHASSIS that must meet the pins (see steer_fn)
         steer_fn=self.steer_fn(CHARGE_TAG_ID, target=-PLUG_LATERAL),
@@ -947,6 +983,7 @@ def run_demo(start=(0.5, 3.0, math.pi / 2), station_y=HUB_STATION_YS[0],
     "picked": picked["on_fork"],
     "returned": returned["hung"],
     "collision_steps": mission.collision_steps,
+    "press_steps": mission.swap.press_steps,
     "sim_time": float(data.time),
     "aborted": aborted,
     "discovered": found is not None,
