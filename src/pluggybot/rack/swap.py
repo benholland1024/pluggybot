@@ -44,6 +44,9 @@ STANDOFF = 0.45           # m from the station at the hand-off pose
 APPROACH_V = 0.05         # m/s creep toward the hub
 RETREAT_DIST = 0.35       # m backed away between phases
 STALL_TIME = 0.4          # s of no odometry progress = bottomed out
+PRESS_RELEASE_S = 0.05    # s a bumper press is held after its last contact:
+                          # the longest gap in a bouncing cruise-speed press
+                          # measured 0.020 s (issue #94; `HubSwap._pressing`)
 PICK_OVERSHOOT = 0.004    # m of deliberate overdrive past the peg line, the
                           # spike's own aligned figure: the peg lands low on
                           # the V's near flank and the LIFT self-centres it.
@@ -89,6 +92,14 @@ def align_lift(peg_z: float = HUB_PEG_Z) -> float:
   return peg_z - 0.145 - FORK_MOUNT_RAISE + DROOP_COMP
 
 
+def press_opposes_drive(contact_x_body: float, v_wheels: float) -> bool:
+  """A chassis contact is a PRESS when it sits on the side the wheels are
+  ROLLING toward: ahead (+x in the chassis frame) while they roll forward,
+  behind while they roll back. Same sign = pressing. `v_wheels` is the
+  encoders' sum, never the command (issue #94; `HubSwap._pressing`)."""
+  return contact_x_body * v_wheels > 0.0
+
+
 class HubSwap:
   """Scripted pick/return cycles for one robot in hub_world.xml."""
 
@@ -118,6 +129,28 @@ class HubSwap:
     #: this is the other half of that sentence, and the half that survives
     #: the drive being over.
     self.pinned = False
+    #: ...and the SAME rule, sensed rather than declared (issue #94): a
+    #: chassis contact on the side the wheels are driving toward is a press,
+    #: and a press is not travel. Set every step by `_pressing`; `pinned`
+    #: is the explicit override a caller that KNOWS it is pressing still
+    #: sets, so the two are belt and braces on the charge cycle.
+    #:
+    #: ⚠ Measured before this existed: an ordinary drive stalled against the
+    #: garden fence pumped 4.28 m of imaginary travel into the pose in 30 s
+    #: (the wheels turn at 83 % of command while the robot stands still),
+    #: and `drive_to` then "arrived" at a point it never reached. Motor
+    #: effort does NOT tell a stall from a cruise here -- 0.44 N m pressed
+    #: against 0.35 cruising, the servo nowhere near its 2.06 N m limit,
+    #: because a 1.8 kg robot's tyres slip long before its motors saturate
+    #: -- which is why the signal is the BUMPER (scripts/stall_spike.py).
+    self.pressing = False
+    self.press_steps = 0
+    self.chassis_gid = m.geom("chassis").id
+    self.chassis_bid = int(m.geom_bodyid[self.chassis_gid])
+    self.left_dof = m.joint("left_wheel_joint").dofadr[0]
+    self.right_dof = m.joint("right_wheel_joint").dofadr[0]
+    self._press_side = 0.0      # sign of the last pressing contact's x_body
+    self._press_until = -1.0    # sim time the release dwell runs to
     # Optional per-step callback. Every phase of both the swap and the
     # mission bottoms out in _step_once, so one hook here is enough to
     # drive a viewer (or any telemetry) through the whole run.
@@ -148,13 +181,58 @@ class HubSwap:
     self.reckoner.update(float(d.qpos[self.left_adr]),
                          float(d.qpos[self.right_adr]))
 
+  def _pressing(self) -> bool:
+    """Is the chassis pressed against something, on the side the wheels are
+    TURNING toward? (issue #94)
+
+    A bumper contact AHEAD while the wheels roll forward, or BEHIND while
+    they roll back. A contact on the other side is a scrape the robot is
+    leaving, and a pure spin (no net rolling) is heading, which the gyro
+    owns. The contact point is read in the CHASSIS frame -- where on the
+    bumper it landed, which is what a bumper switch reports -- never in the
+    world's. Measured clean: zero chassis contacts through a pick, a carry
+    and a return; only the pogo pins through a charge press.
+
+    ⚠ The direction is the ENCODERS' (wheel qvel), not the command's. The
+    reflex that backs a robot off a bump reverses the command the step
+    after contact, and the wheels then spend the slew (~0.4 s from cruise)
+    still rolling forward against the obstacle -- travel the reckoner
+    would count, and did: `drive_to` behind a knee-high box reported
+    arrival from 1.27 m short with the command-signed rule in place.
+    ⚠ And it holds through PRESS_RELEASE_S after the last contact, because
+    a fast press is not one contact but hundreds: at cruise speed against
+    the fence the chassis bounces, 777 gaps of 4-20 ms in 30 s, and the
+    wheels' forward roll in those gaps alone pumped 1.2 m. A wheel that
+    reverses releases at once -- the side no longer matches.
+    """
+    d = self.data
+    v_wheels = float(d.qvel[self.left_dof] + d.qvel[self.right_dof])
+    if abs(v_wheels) < 1e-3:
+      return False
+    r = d.xmat[self.chassis_bid].reshape(3, 3)
+    origin = d.xpos[self.chassis_bid]
+    for i in range(d.ncon):
+      c = d.contact[i]
+      if self.chassis_gid in (c.geom1, c.geom2):
+        x_body = float((r.T @ (c.pos - origin))[0])
+        if press_opposes_drive(x_body, v_wheels):
+          self._press_side = math.copysign(1.0, x_body)
+          self._press_until = d.time + PRESS_RELEASE_S
+          return True
+    return (d.time < self._press_until
+            and press_opposes_drive(self._press_side, v_wheels))
+
   def _step_once(self, tl: float, tr: float) -> None:
     d, m = self.data, self.model
     ts = m.opt.timestep
     d.ctrl[self.left_act] = slew(d.ctrl[self.left_act], tl, ts)
     d.ctrl[self.right_act] = slew(d.ctrl[self.right_act], tr, ts)
     mujoco.mj_step(m, d)
-    held = (self.reckoner.x, self.reckoner.y) if self.pinned else None
+    self.pressing = self._pressing()
+    if self.pressing:
+      self.press_steps += 1
+    held = ((self.reckoner.x, self.reckoner.y)
+            if self.pinned or self.pressing else None)
     self.reckoner.update(float(d.qpos[self.left_adr]),
                          float(d.qpos[self.right_adr]),
                          gyro_yaw_rate=float(d.sensordata[self.gyro_adr + 2]),
@@ -177,7 +255,8 @@ class HubSwap:
       self._step_once(tl, tr)
 
   def _drive_until(self, distance: float, v: float, timeout: float = 20.0,
-                   stall_stop: bool = True, steer_fn=None, stop_fn=None) -> str:
+                   stall_stop: bool = True, steer_fn=None, stop_fn=None,
+                   stall_time: float = STALL_TIME) -> str:
     """Travel `distance` of ODOMETRY path along the current heading; with
     stall_stop, ending early on no-progress (bottomed against the hub).
     steer_fn() -> w lets a terminal visual servo trim the heading while
@@ -190,6 +269,11 @@ class HubSwap:
     stall detector ever fires (measured: a charge approach that had been
     connected for 15 s kept pushing until it timed out, and the wasted
     press flattened the battery).
+
+    Since issue #94 the reckoner HOLDS through a chassis press, so the
+    stall detector does see one -- after `stall_time`, which a caller whose
+    press is the point (the charge creep: 0.7-1.2 s from bumper to both
+    pins, measured) sets longer than STALL_TIME.
     """
     x0, y0 = self.reckoner.x, self.reckoner.y
     tl, tr = wheel_targets(v, 0.0)
@@ -206,7 +290,7 @@ class HubSwap:
         return "arrived"
       if dist > last_dist + 0.001:
         last_dist, last_progress = dist, self.data.time
-      elif (stall_stop and self.data.time - last_progress > STALL_TIME
+      elif (stall_stop and self.data.time - last_progress > stall_time
             and self.data.time - t0 > 0.5):
         return "stalled"
     return "timeout"

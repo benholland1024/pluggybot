@@ -171,6 +171,11 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   standoff-plus-error while believing itself at the standoff; `--blind`
   reproduces the before-fix rows, which die at ~6 cm lateral / ~10° heading
   / a 10° rack-yaw belief error),
+  `scripts/stall_spike.py` (issue-94 stalled-drive sweep: how much imaginary
+  travel a drive pressed into the fence pumps into dead reckoning at each of
+  the mission's speeds, why motor torque is not the signal, and what
+  `drive_to` reports behind a box the lidar looks over; `--blind`
+  reproduces the before-fix rows — 4.28 m in 30 s and a false arrival),
   `scripts/swap_spike.py` (issue-30 bay-swap sweep under the same belief
   error: where the MODULE ends up — hung, on the fork, or on the floor at
   the rack's foot; `--blind` reproduces the before-fix rows, which drop the
@@ -776,6 +781,20 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   from it drives into the rack. `charge()` sets `pinned` for the press and
   clears it before the undock, which is real travel. Anything else that ends
   in a sustained press against a hard stop needs the same treatment.
+  ⚠ **...AND AN UNDECLARED PRESS IS CAUGHT BY THE BUMPER** (`HubSwap.pressing`,
+  issue #94): a chassis contact on the side the wheels are TURNING toward
+  holds the reckoner's travel, because an ordinary navigation drive that
+  stalls has no `pinned` and no bound but its timeout — measured 4.28 m of
+  imaginary travel in 30 s against the fence, and `drive_to` behind a
+  knee-high box reporting arrival from 1.3 m short. Motor torque does NOT
+  separate a press from a cruise here (0.44 vs 0.35 N m; the tyres slip long
+  before the servos saturate) — the bumper does, judged against the encoders
+  (not the command, which the reflex reverses while the wheels still roll)
+  and held 50 ms past the last contact (a cruise-speed press bounces, 777
+  gaps ≤ 20 ms). The charge creep presses 0.7–1.2 s before both pins conduct,
+  so it stalls on `CHARGE_PRESS_STALL_S` (4 s), not the swap's 0.4 s.
+  `scripts/stall_spike.py` is the sweep; SimNotes, "A stalled drive is an
+  odometry pump".
   Two more lessons from the same hunt, both in SimNotes: **a plausibility
   guard can reject the truth** (`mission.plausible_travel` refused the tag,
   which was right, in favour of odometry, which was wrong — keep it as a

@@ -67,6 +67,13 @@ DOCK_ALONG = 0.206
 #: standoff radius, so the retry's look at the tag is a fresh measurement
 #: from a usable range rather than a re-read of the pose that just missed.
 CHARGE_RETRY_BACKOFF = 0.45
+#: How long the charge creep may PRESS without both pins conducting before
+#: the attempt is abandoned for a backed-off retry. The bumper rule (issue
+#: #94) holds the reckoner through a press, so the creep's no-progress
+#: detector now sees the press itself -- and a healthy dock presses
+#: 1.24 s from first chassis contact to both pins (measured, aligned
+#: approach), which the swap's 0.4 s STALL_TIME cut short every time.
+CHARGE_PRESS_STALL_S = 4.0
 #: The lift the charge approach LOOKS from. dock_eye rides the carriage, and
 #: from the align preset (0.128) it sits too high to see the charge tag AT
 #: ALL -- measured: tag 3 decodes from every probe pose at lift 0 and from
@@ -459,6 +466,14 @@ class HubMission:
       else:
         v, w = drive_toward(self.pose, (wx, wy))
       self._drive(self.model.opt.timestep, v, w)
+      if self.swap.pressing:
+        # The BUMPER reflex (issue #94), the lidar reflex's twin for what
+        # the scan plane (0.223 m) looks straight over: back off and replan
+        # rather than grind. The reckoner already holds its travel through
+        # a press, so a robot that keeps meeting the same unseen thing now
+        # stagnates honestly above -- where before it "arrived" at a point
+        # it never reached, 4 m of imaginary travel later.
+        self.backoff_until = self.data.time + BACKOFF_TIME
     return False
 
   def face(self, heading: float) -> None:
@@ -780,7 +795,7 @@ class HubMission:
       self.face(hd)
       self.refine_standoff(sx, sy, hd)
       why = self.swap._drive_until(
-        max_travel, creep_v, stall_stop=True,
+        max_travel, creep_v, stall_stop=True, stall_time=CHARGE_PRESS_STALL_S,
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
         # and it is the CHASSIS that must meet the pins (see steer_fn)
         steer_fn=self.steer_fn(CHARGE_TAG_ID, target=-PLUG_LATERAL),
@@ -968,6 +983,7 @@ def run_demo(start=(0.5, 3.0, math.pi / 2), station_y=HUB_STATION_YS[0],
     "picked": picked["on_fork"],
     "returned": returned["hung"],
     "collision_steps": mission.collision_steps,
+    "press_steps": mission.swap.press_steps,
     "sim_time": float(data.time),
     "aborted": aborted,
     "discovered": found is not None,

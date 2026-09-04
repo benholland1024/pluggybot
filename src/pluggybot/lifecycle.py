@@ -573,7 +573,10 @@ class HubLifecycle:
     # 828 mm of imaginary progress, and every pose downstream was computed in
     # the wrong frame: the next tool fetch drove to a standoff it believed it
     # had reached, a metre from the bay, and came away with nothing.
-    # See `HubSwap.pinned`.
+    # See `HubSwap.pinned`. The bumper rule (`HubSwap.pressing`, issue #94)
+    # now catches this press by itself -- the pins ARE a chassis contact
+    # ahead -- and the explicit flag stays: a caller that knows it is
+    # pressing says so, and a contact that flickers does not un-pin it.
     self.mission.swap.pinned = True
     # THE DOCK IS THE RE-ANCHOR (issue #42). Called with the pins already
     # conducting -- go_charge verified that -- which is the one moment the
@@ -1571,6 +1574,7 @@ class HubLifecycle:
       "earned": sum(v["points"] for v in self.verdicts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
+      "press_steps": self.mission.swap.press_steps,
       "sim_time": float(self.data.time),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
