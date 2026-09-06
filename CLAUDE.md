@@ -22,6 +22,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   it structurally cannot do, the scripted fallback, the call budget, and the
   measured battery limit. Read BEFORE touching `mind/overseer.py`, the decision
   vocabulary, or anything that changes what the model is shown
+- `docs/Evaluation.md` — measurement (M14): the three arms (`scripted` /
+  `guarded` / `autonomous`) and why `guarded` is the control and is never
+  deleted, what is measured and how each metric is defined, the experiment
+  harness and its committed result-file format, and the list of things that
+  silently invalidate a number — the deployed world, an admin intervention,
+  the demo cell, a `flat` death summed with a `stuck` one. Read BEFORE adding
+  a metric, changing an arm, touching `scripts/experiment.py`, or drawing any
+  conclusion from a run
 
 ## Working style
 
