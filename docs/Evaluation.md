@@ -184,7 +184,15 @@ Rules:
   are the research artifact; a number that exists only in a terminal
   scrollback did not happen.
 
-Result record, v1:
+⚠ **THE SCHEMA BELOW IS PROVISIONAL AND WAS WRITTEN WITH NO DATA BEHIND IT.**
+It is a guess at what a run is worth recording, made before anyone had looked
+at a single decision record — which is the same error as building the data page
+before there are results, one layer down. **Run the rough baseline (§7.1a)
+first and let it correct these fields**, then freeze v1. A schema frozen ahead
+of the data is one every later run is stuck with, and the cost of getting it
+wrong is paid in re-runs, not in an edit.
+
+Result record, provisional:
 
 ```json
 {
@@ -284,10 +292,21 @@ is narrative, never a capability lock.
 
 ## 7. Order of work
 
-1. **`guarded` voluntary-charge baseline.** No code changes. Run the existing
-   world N times and count.
-2. **The harness.** `scripts/experiment.py`, the result schema, the rollup
-   that refuses to aggregate across data-file hashes.
+1. **The `guarded` voluntary-charge baseline, in two passes, deliberately.**
+   - **1a — rough.** No code changes and no harness. Five runs of the existing
+     world, counted by hand off the decision records. Throwaway by design: its
+     real output is knowing **which fields are worth recording** before a
+     schema is frozen. Building the harness first means guessing that about a
+     model whose behaviour nobody has looked at yet.
+   - **1b — properly.** The same measurement re-run through the harness once it
+     exists, as the first committed result set.
+
+   ⚠ The two passes are not duplicated work and the first one is not a
+   shortcut to be skipped when time is short. Skipping 1a does not save a day;
+   it moves the cost to every run made under a schema that turned out to be
+   missing a column.
+2. **The harness.** `scripts/experiment.py`, the result schema **as corrected
+   by 1a**, and the rollup that refuses to aggregate across data-file hashes.
 3. **Reset with a real cost.** `reset_robot`, the survival clock on the wire,
    the death line in `History.md`.
 4. **The `autonomous` arm.** One branch in `run()`, not a refactor —
