@@ -41,7 +41,7 @@ def _dist(values: list) -> dict:
           "max": max(vals), "values": vals}
 
 
-def _series(records: list[dict], current: dict | None) -> dict:
+def _series(records: list[dict], current) -> dict:
   runs = sorted(records, key=lambda r: r["runId"])
   regimes = {json.dumps(r["dataHashes"], sort_keys=True) for r in runs}
   if len(regimes) > 1:
@@ -50,7 +50,7 @@ def _series(records: list[dict], current: dict | None) -> dict:
     detail = "; ".join(f"{n} run(s) on {json.loads(h)}" for h, n in seen.items())
     raise MixedRegime(
       f"refusing to aggregate {key}: its {len(runs)} runs span "
-      f"{len(regimes)} data-file regimes -- {detail}. Re-run the series on "
+      f"{len(regimes)} regimes (data files + world) -- {detail}. Re-run the series on "
       "one set of data files, or move the older runs to results/archive/")
   hashes = runs[0]["dataHashes"]
   # Survival statistics EXCLUDE a run with an intervention in it and a run
@@ -66,7 +66,10 @@ def _series(records: list[dict], current: dict | None) -> dict:
     "n": len(runs), "runIds": [r["runId"] for r in runs],
     "commits": sorted({r["commit"] for r in runs}),
     "dataHashes": dict(hashes),
-    "current": (dict(hashes) == current) if current is not None else None,
+    # `current` is judged against THIS series' world: the regime is the
+    # five data files AND the world model (issue #110).
+    "current": ((dict(hashes) == current(world)) if current is not None
+                else None),
     "ends": dict(Counter(r["end"] for r in runs)),
     "killed": sum(1 for r in runs if r["end"] == "killed"),
     "withInterventions": sum(1 for r in runs if r["interventions"]),
@@ -118,10 +121,10 @@ def _series(records: list[dict], current: dict | None) -> dict:
   }
 
 
-def rollup(records: list[dict], current: dict | None = None) -> dict:
+def rollup(records: list[dict], current=None) -> dict:
   """Aggregate records by series. Raises `MixedRegime` rather than pooling
-  two data-file regimes under one name. `current` is today's `data_hashes()`
-  (None to leave `current` unset)."""
+  two regimes under one name. `current` is a callable `world -> hashes`
+  (today's `data_hashes`), or None to leave `current` unset."""
   bad = {r.get("runId", "?"): problems(r) for r in records}
   bad = {k: v for k, v in bad.items() if v}
   if bad:
@@ -145,7 +148,7 @@ def load_records(results_dir: Path) -> list[dict]:
 
 def write_rollup(results_dir: Path) -> Path:
   results_dir = Path(results_dir)
-  doc = rollup(load_records(results_dir), current=data_hashes())
+  doc = rollup(load_records(results_dir), current=data_hashes)
   target = results_dir / ROLLUP_NAME
   target.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
   return target

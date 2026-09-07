@@ -61,7 +61,7 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
   state = Path(config["stateDir"]) if config.get("stateDir") else Path(
     tempfile.mkdtemp(prefix="pluggy-run-"))
   state.mkdir(parents=True, exist_ok=True)
-  hashes = data_hashes()
+  hashes = data_hashes(config["world"])
   cfg = world_config(config["world"])
   config = {**config,
             "packWh": (cfg["battery_wh"] if config["pack"] == "demo"

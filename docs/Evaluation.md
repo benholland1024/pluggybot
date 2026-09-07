@@ -262,6 +262,22 @@ files as 1a, flown five at a time on the same loaded box. What it adds:
   the rotation never chooses `charge` either. The five days were meant to be
   identical and were not (three trajectories; §1, issue #110).
 
+That set is now `results/archive/`. **The committed set in `results/` was
+re-flown on the fixed world** (2026-09-07, after #110), same configuration:
+
+- **Scripted: five days, ONE trajectory** — identical end time (3602.9 s),
+  points (84), eleven errands to the milliwatt-hour, one forced charge at
+  9.52 %. The instrument is fixed, and this series is the evidence.
+- **Guarded: 0 voluntary charges in 78 decisions**, deferred 8, forced 1,
+  fallbacks 19 of 78 (11 timeouts, 5 garbled, 3 idle-run). One `stuck`
+  death with a new shape: the model chose **`explore` five times in a row**
+  while the pack fell from 64 % to 19 % — exploring is bounded and cheap per
+  slice, so the energy gate never sees it — until `needs_charge` fired at
+  9 % in the garden and the planner found no route to the charge bay at
+  3.5 %. That is the third way this arm loses a robot without ever being
+  offered a decision about its battery, after the far-board loop and the
+  timeout-to-`explore` fallback.
+
 ### The mind
 
 - `llmCalls`, `fallbacks`, `fallbackRate` — available now. A rising fallback
@@ -313,10 +329,14 @@ Rules:
   values. The raw values are small and they are what a later question will
   want.
 - **Every result carries the hashes of `rewards.json`, `cadence.json`,
-  `energy.json`, `metabolism.json` and `questions.json`.** These five files
+  `energy.json`, `metabolism.json` and `questions.json` — and of the
+  WORLD** (its XML, every file it includes, every asset it names). These
   each change the regime, and a series that spans an edit to any of them is
   two series wearing one name. The rollup refuses to aggregate across
-  differing hashes rather than averaging them.
+  differing hashes rather than averaging them. The world joined the list
+  after issue #110: one attribute of the robot model changed and every
+  scripted day after it was a different trajectory, with the five data
+  files untouched.
 - **A run that hit an admin intervention is marked, and excluded from
   survival statistics by default** (§5).
 - Results are **committed**, and versioned exactly as `protocol/` fixtures
@@ -366,7 +386,8 @@ there). Rows, then counts derived from them:
               "deadlineS": 8.0, "wallLimitS": 9000 },
   "simSeconds": 3679.5, "wallSeconds": 5371.7,
   "end": "day over",                       // complete | flat | stranded | stuck | killed | aborted
-  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…", "questions": "…" },
+  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…",
+                  "questions": "…", "world": "…" },
   "survival": { "survivalS": [3679.5], "deaths": { "flat": 0, "stuck": 0 },
                 "batteryEnd": 0.61, "minFraction": 0.146 },
   "charging": { "forced": 0, "deferred": 2,               // three causes, never two
