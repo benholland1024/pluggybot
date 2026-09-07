@@ -54,11 +54,21 @@ from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
-from pluggybot.telemetry.protocol import ROBOT_ROOT
+from pluggybot.telemetry.protocol import DEATH_CAUSES, ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
-                "USE_TOOL", "SWAP_RETURN", "DONE"]
+                "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
+
+#: Chassis tilt from upright that counts as knocked over (issue #107), and
+#: how long it has to hold: a wheel riding a threshold tips the body for a
+#: moment and recovers, a robot on its side does not. 60 deg is past any
+#: pose the drive can right itself from.
+TOPPLE_TILT_RAD = math.radians(60.0)
+TOPPLE_HOLD_S = 2.0
+#: How often the death seam looks (sim seconds); it is on every physics
+#: step and a quaternion-to-tilt every 2 ms would be the cost, not the check.
+DEATH_CHECK_S = 0.1
 
 # Reserve is absolute energy, not a fraction of the pack -- the milestone-7
 # lesson: the cost of getting home is set by the ROOM, not by the battery.
@@ -167,7 +177,8 @@ class HubLifecycle:
                overseer=None, journal=None, mode: ModeSwitch | None = None,
                world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
-               energy=None, thoughts=None, metabolism=None) -> None:
+               energy=None, thoughts=None, metabolism=None,
+               mortal: bool | None = None) -> None:
     self.model, self.data = model, data
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -298,6 +309,35 @@ class HubLifecycle:
     self.tool_powered_s = 0.0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
+    # DEATH AND RESET (issue #107). `dead` is the cause of the current death
+    # or None; `deaths` and `resets` are the day's record of both; the
+    # survival clock runs from mission start or the last reset. Typed events
+    # (`death`, `reset`) go to `on_event` for the recorder and the publisher,
+    # exactly as a board's or the ledger's do.
+    # ⚠ MORTALITY IS OPT-IN, on exactly the terms job offers and hunger are
+    # (issue #107): it changes what a mission IS, so every existing demo,
+    # mission test and recording must read as it did unless somebody asks
+    # for it by name. Default: whether anybody could do something about a
+    # death -- a served world has an inbox and an admin behind it; a test,
+    # a spike and a filmstrip do not.
+    #
+    # ⚠ AND THE DEFAULT IS NOT FUSSINESS. On a demo cell the pack reaches
+    # ZERO mid-errand as documented behaviour (`needs_charge` is checked
+    # between errands, never inside one) and the robot then limps to the
+    # rack and carries on -- the committed home recording has it finishing
+    # a census at frac 0.000. Made mortal, room_hub's own recording died at
+    # t=184 and ended with the pack back at 87 %, which is a fixture
+    # describing a robot that is not there.
+    self.mortal = bool(inbox is not None) if mortal is None else bool(mortal)
+    self.dead: dict | None = None
+    self.deaths: list[dict] = []
+    self.resets: list[dict] = []
+    self.survival_since = 0.0
+    self.home_pose: tuple[float, float, float] | None = None
+    self.on_event: list = []
+    self._tilted_since: float | None = None
+    self._next_death_check = 0.0
+    self._end_run = False
     # Callbacks fired with (sim_time, bare_message) on every _say line --
     # the live publisher streams narration through here as event messages.
     self.say_hooks: list = []
@@ -319,6 +359,79 @@ class HubLifecycle:
     self.battery.update(self.data, dt, charging=self.charging_now,
                         tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
     self._screen_step()
+    self._death_step()
+
+  # ---- death (issue #107) --------------------------------------------------
+
+  @property
+  def survival_s(self) -> float:
+    """Sim seconds awake since mission start or the last reset."""
+    return float(self.data.time) - self.survival_since
+
+  def _death_step(self) -> None:
+    """THE DEATH SEAM: on every physics step, whatever phase is driving.
+
+    A flat death is the pack REACHING zero (docs/Evaluation.md §3), not the
+    run ending on it -- the motors do not stop at 0 Wh and every mission
+    guard is checked between errands, so the first committed result set had
+    a day that hit zero inside an errand, docked on nothing and ended "day
+    over". The moment is recorded here; what the body does next is the
+    errand's business until it returns. A `stuck` death by toppling is the
+    chassis past TOPPLE_TILT_RAD for TOPPLE_HOLD_S.
+    """
+    if (not self.mortal or self.dead is not None
+        or self.data.time < self._next_death_check):
+      return
+    self._next_death_check = self.data.time + DEATH_CHECK_S
+    if self.battery.empty:
+      self._die("flat", "the pack reached zero")
+      return
+    tilt = self._chassis_tilt()
+    if tilt < TOPPLE_TILT_RAD:
+      self._tilted_since = None
+      return
+    if self._tilted_since is None:
+      self._tilted_since = float(self.data.time)
+    elif self.data.time - self._tilted_since >= TOPPLE_HOLD_S:
+      self._die("stuck", f"knocked over ({math.degrees(tilt):.0f} deg from "
+                         "upright)")
+
+  def _chassis_tilt(self) -> float:
+    """Radians between the chassis's up axis and the world's."""
+    w, x, y, z = self.data.qpos[3:7]
+    up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
+    return math.acos(max(-1.0, min(1.0, up_z)))
+
+  def _die(self, cause: str, why: str) -> None:
+    """Record a death: narrated, remembered in the file the robot cannot
+    edit (Evaluation.md §6 -- the cheapest real cost there is), and put on
+    the wire as a `death` event. Idempotent: the first cause stands."""
+    if self.dead is not None:
+      return
+    assert cause in DEATH_CAUSES, cause
+    t = float(self.data.time)
+    self.dead = {"t": round(t, 3), "cause": cause, "why": why,
+                 "survivalS": round(self.survival_s, 3)}
+    self.deaths.append(dict(self.dead))
+    self._say(f"DEAD ({cause}): {why}")
+    self._remember(f"died -- {why} -- after {self.survival_s:.0f} s awake "
+                   f"({cause}); a person has to reset me")
+    self._emit({"type": "death", "t": round(t, 3), "robot": ROBOT_ROOT,
+                "cause": cause, "why": why,
+                "survivalS": round(self.survival_s, 3),
+                "deaths": len(self.deaths)})
+
+  def _emit(self, message: dict) -> None:
+    for hook in list(self.on_event):
+      hook(dict(message))
+
+  def _wait_dead(self) -> None:
+    """A dead robot with somebody who can reset it stands still and keeps
+    the stream alive; the visitor step is what delivers the reset."""
+    self.state = "DEAD"
+    self._visitor_step()
+    if self.dead is not None:
+      self.mission._drive(WAIT_FOR_WORK_S, 0.0, 0.0)
 
   def _screen_step(self) -> None:
     """Keep the display's power reading current, and its resting face.
@@ -414,6 +527,11 @@ class HubLifecycle:
       "battery": {"frac": round(self.battery.fraction, 4),
                   "watts": round(self.battery.last_power_w, 2),
                   "charging": self.charging_now},
+      # THE SURVIVAL CLOCK (0.15.0, issue #107): on the wire and in the
+      # model's context, because a metric the robot cannot see is not one
+      # it can optimise. `dead` is the cause while it waits for a reset.
+      "survival": {"s": round(self.survival_s, 1), "deaths": len(self.deaths),
+                   "dead": self.dead["cause"] if self.dead else None},
     }
 
   # ---- scoring (issue #14) -------------------------------------------------
@@ -833,6 +951,8 @@ class HubLifecycle:
       self._drop_visitor(msg)
     for msg in self.inbox.drain(("reset_tool",)):
       self._reset_tool(msg)
+    for msg in self.inbox.drain(("reset_robot",)):
+      self._reset_robot(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -904,6 +1024,53 @@ class HubLifecycle:
     self.data.qvel[dadr:dadr + 6] = 0.0
     mujoco.mj_forward(self.model, self.data)
     self._say(f"ADMIN {who} reset {name} -- back on its bay")
+
+  def _reset_robot(self, msg) -> None:
+    """Put the ROBOT back, because an admin said so (issue #107).
+
+    `reset_tool`'s shape exactly: an inbound kind, admin-only at the
+    website's door, handled by code on the physics thread, never shown to
+    the overseer, and refused while a module is seated on the fork -- a
+    reset that yanked a tool out of the coupling would make the mess
+    `reset_tool` exists to clean up. It warps the body to the mission's
+    start pose (known clear, and where a robot that booted here knows it
+    is), re-seeds dead reckoning there, refills the pack, and restarts the
+    survival clock.
+
+    ⚠ NOT ANONYMOUS, unlike a rating (Evaluation.md §5): if a stranger can
+    revive the robot, `survivalS` measures the kindness of the audience.
+    ⚠ A reset of a LIVING robot is an intervention and the event says so:
+    a run with one in it is not a survival data point.
+    """
+    who = msg.who or "an admin"
+    if self.tool_powered:
+      self._say(f"ADMIN reset refused: {self.module} is seated on the fork "
+                "-- stow it first")
+      return
+    if self.home_pose is None:
+      self._say("ADMIN reset refused: no start pose to return to")
+      return
+    was = self.dead
+    t = float(self.data.time)
+    dead_s = round(t - was["t"], 3) if was else 0.0
+    self.mission.swap.pinned = False
+    self.mission.start_at(*self.home_pose)
+    self.battery.energy_wh = self.battery.capacity_wh
+    self.dead = None
+    self.stranded = False
+    self._tilted_since = None
+    self.survival_since = float(self.data.time)
+    self.state = "EXPLORE"
+    event = {"type": "reset", "t": round(t, 3), "robot": ROBOT_ROOT,
+             "by": who, "wasDead": was["cause"] if was else None,
+             "deadS": dead_s, "intervention": was is None}
+    self.resets.append(dict(event))
+    self._say(f"ADMIN {who} reset me -- back at the start pose with a full "
+              "pack" + (f" after {dead_s:.0f} s dead" if was else
+                        " (I was not dead)"))
+    self._remember(f"reset by {who}" + (f" after {dead_s:.0f} s dead"
+                                        if was else " while still awake"))
+    self._emit(event)
 
   def _reconsider(self, decision) -> None:
     """Apply a decision's `forget` and `learn` to the robot's own file.
@@ -1363,6 +1530,17 @@ class HubLifecycle:
 
   # ---- the loop ------------------------------------------------------------
 
+  def _strand(self) -> None:
+    """A failed dock is a `stuck` death (issue #107): "unable to reach the
+    rack" is the third of Evaluation.md §3's causes, and it ends the day
+    only if nobody can reset the robot."""
+    self.stranded = True
+    self._say("GO_CHARGE FAILED -- stranded off the dock at "
+              f"{self.battery.fraction:.0%}")
+    self._die("stuck", f"could not reach the charger, stranded at "
+                       f"{self.battery.fraction:.0%}")
+    self._end_run = not self.mortal or self.inbox is None
+
   def stop_when(self, settled: Callable[[], bool]) -> None:
     """End the run as soon as `settled()` is true, instead of when the budget
     runs out.
@@ -1408,6 +1586,7 @@ class HubLifecycle:
     self.blacklist: set = set()
     self.map_done = False
     self.stranded = False
+    self._end_run = False
     aborted = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
@@ -1417,6 +1596,8 @@ class HubLifecycle:
       self.mission._spin()               # seed the map before deciding anything
       self.explore_deadline = self.data.time + explore_budget
       self._say("mission start")
+      self.home_pose = tuple(float(v) for v in start)
+      self.survival_since = float(self.data.time)
       # A restart is a new day, and History is the file that says so
       # (issue #38): without this line a reader cannot tell one mission's
       # record from the four before it that share the volume.
@@ -1443,7 +1624,22 @@ class HubLifecycle:
       # robot mapped, ran flat, charged, mapped again, and never got round
       # to the task it existed for. Whatever the battery does mid-errand,
       # the next pass through here reacts to it.
-      while self.data.time < max_sim_time and not self.battery.empty:
+      while self.data.time < max_sim_time:
+        # ⚠ THE IMMORTAL LOOP IS THE OLD LOOP, to the character: a pack that
+        # reaches zero ends the day, and one that reached zero mid-errand
+        # and recovered does not, because this is checked between errands.
+        if not self.mortal and self.battery.empty:
+          break
+        if self._end_run:
+          break
+        if self.dead is not None:
+          # DEAD (issue #107). With somebody who can reset it -- a served
+          # world's inbox -- the robot waits, still streaming; with nobody,
+          # the day is over, exactly as "BATTERY DEAD" always ended it.
+          if self.inbox is None:
+            break
+          self._wait_dead()
+          continue
         # Whatever visitors sent that needs no decision (issue #16). First,
         # so a rating lands on the ledger before the next frame carries the
         # balance -- and outside the priority order, because applying a
@@ -1463,8 +1659,8 @@ class HubLifecycle:
         if self.needs_charge:
           self.state = "GO_CHARGE"
           if not self.go_charge():
-            self.stranded = True
-            break
+            self._strand()
+            continue
           self.state = "CHARGE"
           self.charge()
         elif self.errands and not self._afford_next():
@@ -1478,8 +1674,8 @@ class HubLifecycle:
           # it -- so False here always means "go and charge".
           self.state = "GO_CHARGE"
           if not self.go_charge():
-            self.stranded = True
-            break
+            self._strand()
+            continue
           self.state = "CHARGE"
           self.charge()
         elif self.errands:
@@ -1526,7 +1722,13 @@ class HubLifecycle:
       # (issue #32): the old line said "mission complete" here because the
       # battery was not yet empty, which dressed the day's actual ending --
       # a failed dock -- as success.
-      if self.stranded:
+      if self.dead is not None:
+        self._say(f"mission over -- dead ({self.dead['cause']}): "
+                  f"{self.dead['why']}")
+        self._remember(f"the day ended dead ({self.dead['cause']})")
+      elif self.stranded:
+        # An IMMORTAL run's failed dock, worded exactly as it was before
+        # issue #107: nothing died, the day simply ended off the dock.
         self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
                   f"at {self.battery.fraction:.0%}")
         self._remember("could not reach the charger -- stranded at "
@@ -1550,6 +1752,12 @@ class HubLifecycle:
       # (the viewer closing is a request to stop, not a failure) and visible
       # here so a watcher can tell "finished the day" from "never got home".
       "stranded": self.stranded,
+      # Deaths, resets and the survival clock (issue #107). `dead` is the
+      # cause the day ended in, or None; `survival_s` is the clock at the end.
+      "dead": self.dead["cause"] if self.dead else None,
+      "deaths": list(self.deaths),
+      "resets": list(self.resets),
+      "survival_s": round(self.survival_s, 3),
       "charge_cycles": self.charge_cycles,
       "swaps_done": self.swaps_done,
       "battery": self.battery.fraction,
@@ -2110,7 +2318,8 @@ def run_demo(start=None, view: bool = False,
              spend_state: str | None = None,
              mode_file: str | None = None,
              stop_when: Callable[["HubLifecycle"], bool] | None = None,
-             on_ready: Callable[["HubLifecycle"], None] | None = None) -> dict:
+             on_ready: Callable[["HubLifecycle"], None] | None = None,
+             mortal: bool | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -2218,7 +2427,8 @@ def run_demo(start=None, view: bool = False,
                       overseer=boss, journal=journal, mode=switch,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
-                      producer=maker, thoughts=memory, metabolism=hunger)
+                      producer=maker, thoughts=memory, metabolism=hunger,
+                      mortal=mortal)
   # Where the pack starts (issue #84). A mission does not have to begin on a
   # full cell -- the milestone-8 test starts half-charged so its one-errand
   # day still needs the hub, now that the grown demo cell can fund a whole
@@ -2278,6 +2488,8 @@ def run_demo(start=None, view: bool = False,
     # all four; these are the edits after that, and without them a replay
     # shows the robot's memory frozen at the moment it woke up.
     memory.on_event.append(recorder.emit)
+    # ...and so is dying, and being reset (issue #107).
+    life.on_event.append(recorder.emit)
     if journal is not None:
       journal.on_event.append(recorder.emit)
   # ...and so is the operator reaching for the switch (issue #37). Attached

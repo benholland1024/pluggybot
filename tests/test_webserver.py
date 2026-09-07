@@ -723,6 +723,15 @@ class _FakeLife:
     self.paused_s = 0.0
     # Where a `visitor_reply` goes on its way to the socket (issue #16).
     self.visitor_hooks: list = []
+    # ...and where a `death` / `reset` goes (issue #107). Same reason as
+    # the mode hooks above: a double that quietly lacks an attribute the
+    # real object always has turns a wiring bug into a test failure about
+    # the double.
+    self.on_event: list = []
+    # A served world is mortal because it has an inbox and an admin behind
+    # it; serve.py ASSERTS that rather than setting it, so the rule lives
+    # in the lifecycle alone.
+    self.mortal = kw.get("inbox") is not None
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 

@@ -303,6 +303,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   # drive to the rack on nothing and finish the day "day over". The first
   # committed set had exactly that day. The survival span ends there.
   flat_at = next((s["t"] for s in says if s["fraction"] <= 0.0), None)
+  # Since issue #107 the lifecycle records deaths and resets itself; a
+  # result that carries them is the authority, and the narration-derived
+  # `flat_at` above is the fallback for a run that died before it existed.
+  deaths = list((result or {}).get("deaths") or [])
+  resets = list((result or {}).get("resets") or [])
   overseer = (result or {}).get("overseer") or {}
   metab = (result or {}).get("metabolism") or {}
   thought = (result or {}).get("thought_stats") or {}
@@ -351,6 +356,32 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "asked": sum(1 for r in rows if r.get("escalate")),
       "usd": overseer.get("escalationUsd"),
     }
+  # Survival spans: mission start -> first death, and each reset -> the next
+  # death or the end of the day. Without a reset there is one span, as
+  # before; a reset of a LIVING robot is an intervention (Evaluation.md §5).
+  if deaths or resets:
+    marks = sorted([(d["t"], "death") for d in deaths]
+                   + [(r["t"], "reset") for r in resets])
+    spans, since, alive = [], 0.0, True
+    for t_mark, kind in marks:
+      if kind == "death" and alive:
+        spans.append(round(t_mark - since, 3))
+        alive = False
+      elif kind == "reset":
+        since, alive = t_mark, True
+    if alive and end != "killed":
+      spans.append(round(sim_s - since, 3))
+    death_counts = {"flat": sum(1 for d in deaths if d["cause"] == "flat"),
+                    "stuck": sum(1 for d in deaths if d["cause"] == "stuck")}
+    interventions = [{"t": r["t"], "what": f"reset by {r.get('by', '?')} "
+                                            "while alive"}
+                     for r in resets if r.get("intervention")]
+  else:
+    spans = ([round(flat_at, 3)] if flat_at is not None
+             else [round(sim_s, 3)] if end != "killed" else [])
+    death_counts = {"flat": int(flat_at is not None or end == "flat"),
+                    "stuck": int(end in ("stuck", "stranded"))}
+    interventions = []
   record = {
     "schema": SCHEMA,
     # The id the PARENT assigned, when there is one: the file is named by it
@@ -382,14 +413,13 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       # Until a reset exists (issue #107) a run has one survival span, to
       # the moment the pack first reached zero or to the end of the day; a
       # killed run has none, because nobody knows when it died.
-      "survivalS": ([round(flat_at, 3)] if flat_at is not None
-                    else [round(sim_s, 3)] if end != "killed" else []),
+      "survivalS": spans,
       # `stranded` -- "unable to reach the rack" -- IS §3's `stuck`: a
-      # navigation failure, never a decision one. Counted here so the two
-      # columns the doc says never to sum are both populated today.
-      "deaths": {"flat": int(flat_at is not None or end == "flat"),
-                 "stuck": int(end in ("stuck", "stranded"))},
+      # navigation failure, never a decision one. The two columns the doc
+      # says never to sum, both populated.
+      "deaths": death_counts,
       "flatAtS": flat_at,
+      "resets": len(resets),
       "batteryEnd": frac_end,
       "minFraction": (round(min(fractions), 4) if fractions else None),
     },
@@ -427,7 +457,7 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "identityHolds": ledger_ok, "hungerEnd": metab.get("state") or None,
       "tasks": {**task_stats, "offeredToday": offered_today},
     },
-    "interventions": [],
+    "interventions": interventions,
   }
   return record
 

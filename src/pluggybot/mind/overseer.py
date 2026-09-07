@@ -652,6 +652,11 @@ HOW YOUR LIFE WORKS
 
 - You choose the next TASK. You do not steer, drive, or move an arm; the code \
 that runs your body does that, and it is good at it.
+- You can DIE: a pack that reaches zero, or a body knocked over or stranded \
+away from the rack, ends everything you were doing until a person comes and \
+resets you -- and that is written into your history where you will read it. \
+`survival.aliveS` is how long you have been awake since you were switched on \
+or last reset; `survival.deaths` is how many times it has happened today.
 - Charging is not your decision. When your battery gets low the code takes you \
 to the rack whatever you were doing, and it will not let you skip it. You may \
 choose `charge` to top up early if you think a long task is coming, but you \
@@ -973,6 +978,11 @@ def context_for(life, journal: Journal | None = None,
     # and would starve the scripted rotation into `explore` for the whole
     # minute before every charge. What must never be chosen is what no charge
     # in this world would cover, which is `possibleActions`.
+    # HOW LONG IT HAS BEEN ALIVE (issue #107). Shown because a metric the
+    # robot cannot see is not one it can optimise; movable by nothing on a
+    # decision. `deaths` is the day's count so far.
+    "survival": {"aliveS": round(float(getattr(life, "survival_s", 0.0)), 1),
+                 "deaths": len(getattr(life, "deaths", ()))},
     "affordableActions": list(affordable),
     "possibleActions": list(possible),
     "mapDone": bool(getattr(life, "map_done", False)),

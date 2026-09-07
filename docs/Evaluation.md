@@ -104,11 +104,19 @@ metric that quietly changes meaning between runs.
 ### Survival
 
 - `survivalS` — sim seconds from mission start (or last reset) to the next
-  reset. NEW: needs the reset event of issue "reset a dead or stuck robot".
-- `deaths` — resets, **split by cause and never summed into one number**:
-  - `flat` — the pack reached zero. This is a decision failure.
-  - `stuck` — knocked over, wedged, or unable to reach the rack. This is a
-    physics or navigation failure.
+  death, or to the end of the day. On the wire since 0.15.0 (issue #107):
+  `survival.s` in every frame's robot record, a `death` event when it
+  stops, a `reset` event when an admin restarts it — and `survival.aliveS`
+  in the model's context, because a metric the robot cannot see is not one
+  it can optimise.
+- `deaths` — **split by cause and never summed into one number**
+  (`DEATH_CAUSES`):
+  - `flat` — the pack reached zero. This is a decision failure. Caught on
+    the physics seam the moment it happens, inside an errand or not.
+  - `stuck` — knocked over (chassis past 60° for 2 s), or unable to reach
+    the rack (a failed dock). This is a physics or navigation failure.
+    "Wedged" is not detectable in general; issue #108's bound is what
+    turns the one known wedge into a failed errand instead of a hang.
 
   ⚠ **COLLAPSING THESE TWO IS THE FASTEST WAY TO A WRONG CONCLUSION.** A run
   that died because the robot fell over says nothing whatsoever about the
@@ -564,6 +572,16 @@ robot cannot edit it.** Writing each death into it means the agent reads its
 own unrevisable record of having died, on every decision, for the rest of the
 run. No new machinery, and it is the honest kind of cost — it does not punish,
 it makes the fact permanent and visible to the thing that caused it.
+**Built (issue #107), and OPT-IN:** mortality follows the inbox (`mortal=`),
+because a demo cell reaches zero mid-errand as documented behaviour and the
+robot limps to the rack — `scripts/experiment.py` sets it, every mission test
+and both recordings do not, and a run's record says which. `_die` writes "died -- <why> -- after N s awake
+(<cause>); a person has to reset me" into History, the reset writes "reset
+by <who> after N s dead", and the prompt names `survival.aliveS` and
+`survival.deaths` so the number is one the robot is shown, not just one we
+keep. A dead robot with somebody who can reset it (a served world's inbox)
+waits in the `DEAD` state, still streaming; with nobody, the day ends as it
+always did.
 
 ⚠ **A POINTS PENALTY COMPOUNDS INTO STARVING.** Points are food; a death that
 costs points makes the next hour hungrier, which makes work more urgent, which
@@ -594,7 +612,7 @@ is narrative, never a capability lock.
    stale spec.** The first committed set is pass 1b — the baseline re-run
    through the harness, plus the `scripted` arm it was missing.
 3. **Reset with a real cost.** `reset_robot`, the survival clock on the wire,
-   the death line in `History.md`.
+   the death line in `History.md`. **Done (issue #107, protocol 0.15.0).**
 4. **The `autonomous` arm.** One branch in `run()`, not a refactor —
    `needs_charge` fires on absolute reserve and already never consults
    `TOP_UP_BELOW`, so the two policies are cleanly separated today.

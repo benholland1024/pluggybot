@@ -335,6 +335,14 @@ def main() -> None:
                           robot_name=args.robot_name)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
+  # ...and dying / being reset are typed events too (issue #107).
+  life.on_event.append(publisher.message)
+  # A SERVED WORLD IS MORTAL (issue #107): there is an admin behind it who
+  # can stand the robot back up, which is the whole condition. `HubLifecycle`
+  # defaults to exactly this rule; it is asserted rather than set, so the
+  # rule lives in one place.
+  assert life.mortal, "a served world has an inbox and must be mortal"
+  print("mortal: a death ends nothing -- an admin stands the robot up")
   if book is not None:
     # Strokes reach the browser as `draw` messages, never as geometry: the
     # website paints them into the board's canvas texture.
