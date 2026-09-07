@@ -608,7 +608,8 @@ was a column the provisional schema either lacked or would have got wrong:
    fresh starts is a different experiment from six consecutive days on one
    volume, and only the second is what the served world does.
 
-The website's `/pluggyworld/data` page reads these files. That is the whole
+The website's `/experiments/pluggyworld/data` page reads these files, together
+with the write-ups in `results/notes.json` (§8). That is the whole
 contract between the repos, and it is deliberately a file format rather than
 an endpoint — the page must be able to show a result from six months ago
 without the sim being up.
@@ -787,7 +788,7 @@ are the measurement tranche.
 
 ⚠ **A RESULT THAT WAS NEVER EXPLAINED IS A RESULT NOBODY CAN READ, INCLUDING
 US IN THREE MONTHS.** `results/` holds numbers; it does not hold what they
-mean. The website's `/pluggyworld/data` page (rooftop-media-2026 #187) is
+mean. The website's `/experiments/pluggyworld/data` page (rooftop-media-2026 #187) is
 deliberately built *after* the first experiments, so that the page does not
 shape the experiments around what renders nicely — but the **explanation** is
 written when the data is collected, not when the page is.
@@ -797,3 +798,33 @@ numbers were, what changed since the last set, and what it does **not** show.
 §3's baseline sections are the format. That prose is what the page renders; a
 page built over undocumented numbers would have to invent the interpretation,
 which is the failure mode the whole document is about.
+
+### Where the entry goes: `results/notes.json`
+
+The file is committed and stale-checked beside the records
+(`evaluation/notes.py`), one entry per **series** — the rollup's own
+`(world, arm, pack, model)`, named by `notes.series_id` so a typo addresses
+nothing and says so. Four fields, which are the baseline sections above
+reduced to their moving parts:
+
+| field | what it holds |
+|---|---|
+| `ran` | the configuration, in a sentence — what a reader needs to know the numbers are about |
+| `found` | what the set says, as bullets. The *reading*, not the numbers |
+| `changed` | what moved since the last set on this series. Empty prose is a claim ("nothing did"); an absent key is not |
+| `notShown` | what the set does not establish |
+
+⚠ **AN ENTRY NEVER RESTATES A NUMBER THE ROLLUP ALREADY CARRIES.** A second
+copy of `fallbackRate` in prose is a copy that goes stale silently, and both
+the rollup and this file are open in front of the reader. What belongs here
+is the sentence a column cannot hold — *why* eight deferrals and one forced
+charge is the interesting pair, and what a fifth of the decisions arriving
+from a fallback does to the rest of the table.
+
+⚠ **`notShown` IS NOT OPTIONAL AND IS REFUSED WHEN EMPTY.** It is the half a
+writer skips and the half a reader most needs, and a set published without
+one reads as a set with no limits. `tests/test_experiment.py` checks both
+directions of coverage as well — a new series with no entry, and an entry
+left behind by a series that was re-flown under another name. A series that
+has merely gone *stale* keeps its entry: what it meant is still what it
+meant.

@@ -1,8 +1,18 @@
 # results/ — committed measurement records (M14, issue #106)
 
 One JSON file per run, written by `scripts/experiment.py`, plus
-`rollup.json`, which aggregates them by series. The record format is
-`docs/Evaluation.md` §4 (schema v1); the code is `src/pluggybot/evaluation/`.
+`rollup.json`, which aggregates them by series, and `notes.json`, which says
+what each series MEANT. The record format is `docs/Evaluation.md` §4 (schema
+v1); the code is `src/pluggybot/evaluation/`.
+
+**A result set lands with its write-up** (§8). `notes.json` carries one entry
+per series -- what was run, what the numbers say, what changed since the last
+set, and what the set does **not** show -- and the suite fails on a series
+with no entry, on an entry for a series that is gone, and on an empty
+`notShown`. It is prose and the records are data: an entry never restates a
+number the rollup already carries, because the second copy is the one that
+goes stale. The website's data page renders it (rooftop-media-2026 #187), so
+a number and its reading travel together or not at all.
 
 These are vendored the way `protocol/` fixtures are: generated, checked in,
 and stale-checked by `tests/test_experiment.py`. Do not edit a record by

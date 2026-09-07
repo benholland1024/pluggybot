@@ -19,6 +19,7 @@ import statistics
 from collections import Counter
 from pathlib import Path
 
+from pluggybot.evaluation.notes import NOTES_NAME
 from pluggybot.evaluation.record import SCHEMA, data_hashes, problems
 
 ROLLUP_NAME = "rollup.json"
@@ -137,10 +138,15 @@ def rollup(records: list[dict], current=None) -> dict:
           "series": [_series(groups[k], current) for k in sorted(groups)]}
 
 
+#: Files in `results/` that are not runs. A record is anything else, so a
+#: new sidecar has to be named here or it is read as a malformed run.
+NOT_RECORDS = (ROLLUP_NAME, NOTES_NAME)
+
+
 def load_records(results_dir: Path) -> list[dict]:
   out = []
   for path in sorted(Path(results_dir).glob("*.json")):
-    if path.name == ROLLUP_NAME:
+    if path.name in NOT_RECORDS:
       continue
     out.append(json.loads(path.read_text()))
   return out

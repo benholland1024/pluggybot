@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from pluggybot.evaluation import notes as nt
 from pluggybot.evaluation import record as rec
 from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.run import arm_flags
@@ -371,13 +372,57 @@ def test_committed_results_are_valid_and_the_rollup_is_current():
   records = ru.load_records(RESULTS)
   assert records, "the first committed result set is missing (issue #106)"
   for path, r in zip(sorted(p for p in RESULTS.glob("*.json")
-                            if p.name != ru.ROLLUP_NAME), records):
+                            if p.name not in ru.NOT_RECORDS), records):
     assert rec.problems(r) == [], r["runId"]
     assert path.stem == r["runId"], f"{path.name} carries runId {r['runId']}"
   committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
   fresh = ru.rollup(records, current=rec.data_hashes)
   assert committed == fresh, \
     "stale rollup: uv run python scripts/experiment.py --rollup"
+
+
+def test_the_write_ups_cover_every_committed_series_and_nothing_else():
+  """Evaluation.md §8's rule, with teeth (rooftop-media-2026 #187). A result
+  set lands with what it MEANT or it is a set nobody can read, including us
+  in three months -- and the website's data page renders this file rather
+  than inventing an interpretation at render time.
+
+  Both directions, because each fails silently on its own: a new series
+  flown with no entry ships numbers with no reading, and an entry left
+  behind by a re-flown series describes runs that are no longer there."""
+  doc = nt.load(RESULTS)
+  committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
+  ids = [nt.series_id(s["world"], s["arm"], s["pack"], s["model"])
+         for s in committed["series"]]
+  assert nt.problems(doc, ids) == []
+
+
+def test_the_write_ups_are_not_read_as_runs():
+  """`results/` is globbed for records, so a sidecar that is not named as
+  one is loaded as a malformed run. Fails without `NOT_RECORDS`: the rollup
+  reports eleven runs and refuses the eleventh as invalid."""
+  assert nt.NOTES_NAME in ru.NOT_RECORDS
+  runs = ru.load_records(RESULTS)
+  assert all("runId" in r for r in runs)
+  assert len(runs) == json.loads((RESULTS / ru.ROLLUP_NAME).read_text())["runs"]
+
+
+def test_a_write_up_names_its_limits_or_it_is_not_one():
+  """The four fields are §3's baseline sections reduced, and `notShown` is
+  the one a writer skips -- so an entry without it is refused rather than
+  rendered as a set with no caveats. Same for a series named by a typo,
+  which otherwise explains nothing while looking complete."""
+  entry = {"series": "home/scripted/hosting/none", "title": "t",
+           "date": "2026-09-07", "ran": "r", "found": ["f"],
+           "changed": "", "notShown": "n"}
+  assert nt.problems({"schema": 1, "entries": [entry]},
+                     ["home/scripted/hosting/none"]) == [], \
+    "an empty `changed` is a claim (nothing moved); an absent key is not"
+  blank = nt.problems({"schema": 1, "entries": [{**entry, "notShown": ""}]}, None)
+  assert any("notShown" in p for p in blank), blank
+  gone = nt.problems({"schema": 1, "entries": [entry]}, ["home/guarded/hosting/x"])
+  assert len(gone) == 2 and any("no write-up" in p for p in gone), gone
+  assert any("not in the rollup" in p for p in gone), gone
 
 
 @pytest.mark.slow
