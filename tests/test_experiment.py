@@ -127,7 +127,7 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   ]
   r = rec.validate(rec.build_record(_config(), _result(), events, 500.0,
                                     datetime.now(timezone.utc),
-                                    hashes=rec.data_hashes(), commit="abc"))
+                                    hashes=rec.data_hashes("home"), commit="abc"))
   ch = r["charging"]
   assert (ch["forced"], ch["deferred"], ch["docked"]) == (1, 1, 3)
   assert ch["voluntary"]["chosen"] == 2 and ch["voluntary"]["honoured"] == 1
@@ -156,7 +156,7 @@ def test_anticipation_needs_the_offers_the_model_was_shown():
     _say(101, 0.20, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
   ]
   r = rec.build_record(_config(), _result(), events, 1.0,
-                       datetime.now(timezone.utc), hashes=rec.data_hashes(),
+                       datetime.now(timezone.utc), hashes=rec.data_hashes("home"),
                        commit="abc")
   assert r["charging"]["anticipation"] == {"offer": 1, "action": 1}
   assert r["decisionRows"][0]["unfundableOffers"] == ["t_9"]
@@ -172,7 +172,7 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
             _say(4327, 0.0, "USE_TOOL", "TASK t_0016 expired: whatever")]
   r = rec.validate(rec.build_record(_config(), None, events, 9000.0,
                                     datetime.now(timezone.utc),
-                                    hashes=rec.data_hashes(), commit="abc"))
+                                    hashes=rec.data_hashes("home"), commit="abc"))
   assert r["end"] == "killed" and r["simSeconds"] == 4327
   # The rows show the pack at zero at t=4327, so THAT is known: a flat death
   # with a survival span. What is not known is whether it was stuck first.
@@ -182,7 +182,7 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
   # ...and without a zero in the rows, nothing at all is claimed.
   r2 = rec.validate(rec.build_record(_config(), None, events[:2], 9000.0,
                                      datetime.now(timezone.utc),
-                                     hashes=rec.data_hashes(), commit="abc"))
+                                     hashes=rec.data_hashes("home"), commit="abc"))
   assert r2["survival"]["survivalS"] == [] and r2["survival"]["deaths"] == \
     {"flat": 0, "stuck": 0}
   doc = ru.rollup([r])
@@ -198,7 +198,7 @@ def test_a_record_keeps_the_id_its_file_was_named_by():
                 startedAt="2026-09-07T00:00:00+00:00")
   r = rec.build_record(cfg, _result(), [], 1.0,
                        datetime(2026, 9, 7, 0, 0, 7, tzinfo=timezone.utc),
-                       hashes=rec.data_hashes(), commit="abc")
+                       hashes=rec.data_hashes("home"), commit="abc")
   assert r["runId"] == cfg["runId"] and r["startedAt"] == cfg["startedAt"]
 
 
@@ -211,7 +211,7 @@ def test_a_pack_that_reached_zero_mid_day_is_a_flat_death():
             _say(1500, 0.0, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
             _say(2100, 0.9, "CHARGE", "CHARGE complete (90%) -- backing off")]
   r = rec.build_record(_config(), _result(battery=0.55), events, 1.0,
-                       datetime.now(timezone.utc), hashes=rec.data_hashes(),
+                       datetime.now(timezone.utc), hashes=rec.data_hashes("home"),
                        commit="abc")
   assert r["end"] == "day over"
   assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
@@ -227,7 +227,7 @@ def test_a_stranded_day_is_a_stuck_death():
                                           sim_time=1083.0),
                        [_say(1083, 0.24, "GO_CHARGE", "GO_CHARGE: no route")],
                        1.0, datetime.now(timezone.utc),
-                       hashes=rec.data_hashes(), commit="abc")
+                       hashes=rec.data_hashes("home"), commit="abc")
   assert r["end"] == "stranded"
   assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1}
   assert r["survival"]["survivalS"] == [1083.0]
@@ -247,7 +247,7 @@ def test_end_causes_are_read_off_the_result():
 
 def test_validation_names_what_is_wrong():
   r = rec.build_record(_config(), _result(), [], 1.0, datetime.now(timezone.utc),
-                       hashes=rec.data_hashes(), commit="abc")
+                       hashes=rec.data_hashes("home"), commit="abc")
   assert rec.problems(r) == []
   bad = {**r, "end": "vanished", "dataHashes": {**r["dataHashes"], "energy": "x"}}
   found = rec.problems(bad)
@@ -257,14 +257,33 @@ def test_validation_names_what_is_wrong():
     rec.validate(bad)
 
 
+def test_the_world_is_part_of_the_regime(tmp_path, monkeypatch):
+  """Issue #110 changed one attribute of the robot model and every scripted
+  day after it was a different trajectory, with the five data files
+  untouched. So the world -- its XML, its includes, its assets -- hashes
+  into the regime, and two worlds never share one."""
+  home, hub = rec.world_hash("home"), rec.world_hash("room_hub")
+  assert home != hub and len(home) == 64
+  assert rec.data_hashes("home")["world"] == home
+  # an included file counts: copy the world tree, touch the robot model
+  import shutil
+  tree = tmp_path / "models"
+  shutil.copytree(REPO / "models", tree)
+  monkeypatch.setattr(rec, "REPO", tmp_path)
+  assert rec.world_hash("home") == home, "the copy hashes the same"
+  robot = tree / "pluggybot_fork.xml"
+  robot.write_text(robot.read_text().replace('offsamples="0"', 'offsamples="4"'))
+  assert rec.world_hash("home") != home, "an included file's edit is invisible"
+
+
 def test_data_hashes_follow_the_env_override(tmp_path, monkeypatch):
   """A record hashes the file the sim would READ, not the shipped one:
   `$PLUGGY_ENERGY` re-points the sim, so it re-points the hash."""
-  before = rec.data_hashes()
+  before = rec.data_hashes("home")
   other = tmp_path / "energy.json"
   other.write_text('{"version": 1, "default": {"errandWh": {}}, "worlds": {}}')
   monkeypatch.setenv(rec.DATA_FILES["energy"][1], str(other))
-  after = rec.data_hashes()
+  after = rec.data_hashes("home")
   assert after["energy"] != before["energy"]
   assert {k: v for k, v in after.items() if k != "energy"} == \
     {k: v for k, v in before.items() if k != "energy"}
@@ -283,25 +302,29 @@ def _record(seed: int, hashes: dict, **result_kw) -> dict:
 def test_the_rollup_refuses_to_aggregate_across_a_data_file_edit():
   """Two runs, one name, two `energy.json`s: not a series. The refusal names
   both regimes so whoever reads it can see which run to move."""
-  a = rec.data_hashes()
+  a = rec.data_hashes("home")
   b = {**a, "energy": "f" * 64}
   with pytest.raises(ru.MixedRegime) as err:
     ru.rollup([_record(0, a), _record(1, b)])
-  assert "2 data-file regimes" in str(err.value)
+  assert "2 regimes (data files + world)" in str(err.value)
   assert a["energy"][:12] in str(err.value) and "fff" in str(err.value)
+  # ...and a different WORLD is a different regime too (issue #110).
+  with pytest.raises(ru.MixedRegime):
+    ru.rollup([_record(0, a), _record(1, {**a, "world": "0" * 64})])
   # ...while two runs on ONE regime are a series with a distribution.
   doc = ru.rollup([_record(0, a, battery=0.6), _record(1, a, battery=0.3)],
-                  current=a)
+                  current=lambda world: a)
   s = doc["series"][0]
   assert s["n"] == 2 and s["current"] is True
   assert s["survival"]["minFraction"]["values"] == [0.5, 0.5]
   assert s["charging"]["voluntaryChosen"] == {"n": 2, "min": 0, "median": 0,
                                               "max": 0, "values": [0, 0]}
-  assert ru.rollup([_record(0, a)], current=b)["series"][0]["current"] is False
+  assert ru.rollup([_record(0, a)],
+                   current=lambda world: b)["series"][0]["current"] is False
 
 
 def test_the_rollup_keeps_an_intervened_run_out_of_survival():
-  a = rec.data_hashes()
+  a = rec.data_hashes("home")
   r = _record(0, a)
   r["interventions"] = [{"t": 10, "what": "battery set to 100 %"}]
   s = ru.rollup([r, _record(1, a)])["series"][0]
@@ -328,6 +351,17 @@ def test_the_wall_limit_has_a_floor_for_short_days():
 # ---- the committed results ---------------------------------------------------
 
 
+def test_the_archive_is_kept_out_of_the_rollup():
+  """`results/archive/` holds runs from a previous regime (the pre-#110
+  world) and is deliberately not a series: the loader reads one level."""
+  archived = sorted((RESULTS / "archive").glob("*.json"))
+  assert archived, "the pre-fix set should be archived, not deleted"
+  live = {r["runId"] for r in ru.load_records(RESULTS)}
+  assert not any(p.stem in live for p in archived)
+  # ...and an archived record is visibly from before the world hash existed
+  assert "world" not in json.loads(archived[0].read_text())["dataHashes"]
+
+
 def test_committed_results_are_valid_and_the_rollup_is_current():
   """Results are vendored the way `protocol/` fixtures are (Evaluation.md
   §4): every record validates, and `results/rollup.json` is exactly what
@@ -341,7 +375,7 @@ def test_committed_results_are_valid_and_the_rollup_is_current():
     assert rec.problems(r) == [], r["runId"]
     assert path.stem == r["runId"], f"{path.name} carries runId {r['runId']}"
   committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
-  fresh = ru.rollup(records, current=rec.data_hashes())
+  fresh = ru.rollup(records, current=rec.data_hashes)
   assert committed == fresh, \
     "stale rollup: uv run python scripts/experiment.py --rollup"
 

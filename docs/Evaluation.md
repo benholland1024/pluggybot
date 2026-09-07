@@ -313,10 +313,14 @@ Rules:
   values. The raw values are small and they are what a later question will
   want.
 - **Every result carries the hashes of `rewards.json`, `cadence.json`,
-  `energy.json`, `metabolism.json` and `questions.json`.** These five files
+  `energy.json`, `metabolism.json` and `questions.json` — and of the
+  WORLD** (its XML, every file it includes, every asset it names). These
   each change the regime, and a series that spans an edit to any of them is
   two series wearing one name. The rollup refuses to aggregate across
-  differing hashes rather than averaging them.
+  differing hashes rather than averaging them. The world joined the list
+  after issue #110: one attribute of the robot model changed and every
+  scripted day after it was a different trajectory, with the five data
+  files untouched.
 - **A run that hit an admin intervention is marked, and excluded from
   survival statistics by default** (§5).
 - Results are **committed**, and versioned exactly as `protocol/` fixtures
@@ -366,7 +370,8 @@ there). Rows, then counts derived from them:
               "deadlineS": 8.0, "wallLimitS": 9000 },
   "simSeconds": 3679.5, "wallSeconds": 5371.7,
   "end": "day over",                       // complete | flat | stranded | stuck | killed | aborted
-  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…", "questions": "…" },
+  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…",
+                  "questions": "…", "world": "…" },
   "survival": { "survivalS": [3679.5], "deaths": { "flat": 0, "stuck": 0 },
                 "batteryEnd": 0.61, "minFraction": 0.146 },
   "charging": { "forced": 0, "deferred": 2,               // three causes, never two

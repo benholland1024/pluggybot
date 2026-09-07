@@ -67,12 +67,45 @@ def top_up_below() -> float:
   return _TOP_UP_BELOW
 
 
-def data_hashes() -> dict[str, str]:
-  """sha256 of each data file, as the sim would load it right now."""
+REPO = Path(__file__).resolve().parents[3]
+
+
+def world_hash(world: str) -> str:
+  """sha256 over the world's XML, every file it `<include>`s (recursively)
+  and every asset it names by `file=` -- the WORLD is part of the regime.
+
+  Learned from issue #110: the MSAA fix changed one attribute in the robot
+  model and every scripted day after it is a different (and now
+  repeatable) trajectory, while the five data files were untouched -- so a
+  rollup keyed on the data files alone would have pooled pre-fix and
+  post-fix runs under one series name.
+  """
+  from pluggybot.lifecycle import world_config
+  root = REPO / world_config(world)["model"]
+  digest = hashlib.sha256()
+  seen: set[Path] = set()
+
+  def visit(path: Path) -> None:
+    if path in seen or not path.exists():
+      return
+    seen.add(path)
+    text = path.read_bytes()
+    digest.update(path.name.encode() + b"\0" + text + b"\0")
+    for ref in re.findall(rb'file="([^"]+)"', text):
+      visit(path.parent / ref.decode())
+
+  visit(root)
+  return digest.hexdigest()
+
+
+def data_hashes(world: str) -> dict[str, str]:
+  """sha256 of each data file as the sim would load it right now, plus the
+  world's own hash: together they are the regime a series is defined by."""
   out = {}
   for name, (default, env) in DATA_FILES.items():
     path = Path(os.environ.get(env) or default)
     out[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+  out["world"] = world_hash(world)
   return out
 
 
@@ -343,7 +376,8 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     },
     "simSeconds": round(sim_s, 3), "wallSeconds": round(float(wall_s), 1),
     "end": end,
-    "dataHashes": dict(hashes if hashes is not None else data_hashes()),
+    "dataHashes": dict(hashes if hashes is not None
+                       else data_hashes(config["world"])),
     "survival": {
       # Until a reset exists (issue #107) a run has one survival span, to
       # the moment the pack first reached zero or to the end of the day; a
@@ -421,7 +455,7 @@ def problems(record: dict) -> list[str]:
   if record["end"] not in END_CAUSES:
     out.append(f"end {record['end']!r} is not one of {END_CAUSES}")
   hashes = record["dataHashes"]
-  for name in DATA_FILES:
+  for name in (*DATA_FILES, "world"):
     h = hashes.get(name)
     if not (isinstance(h, str) and re.fullmatch(r"[0-9a-f]{64}", h)):
       out.append(f"dataHashes[{name!r}] is not a sha256 hex digest")

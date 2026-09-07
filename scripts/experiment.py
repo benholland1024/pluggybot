@@ -184,7 +184,7 @@ def main() -> int:
         print(f"refusing to fly the {args.arm} arm: {missing}", file=sys.stderr)
         return 2
     wall_limit = wall_limit_for(args.max_sim_time, args.wall_limit)
-    hashes = data_hashes()
+    hashes = data_hashes(args.world)
     configs = []
     for k in range(args.runs):
       started = datetime.now(timezone.utc)
