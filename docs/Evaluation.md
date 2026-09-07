@@ -122,6 +122,105 @@ never voluntarily charges today, removing the rail will not produce
 self-preservation — it will produce deaths — and that is worth learning from
 a baseline rather than from a world that stopped working.
 
+#### Baseline 1a — measured (issue #105, 2026-09-07)
+
+**The model never charges voluntarily.** Zero `charge` decisions in 88
+model answers across six unattended days of `home` on the hosting pack, with
+`charge` on the menu at every one of them and the pack as low as 14 % at
+decision time. Removing the rail (`autonomous`) will therefore produce deaths,
+not self-preservation, until something about the prompt or the model changes
+— which is the answer §3 said to get before building that arm.
+
+What was run, exactly (no production code; a throwaway driver wrapped
+`run_demo` and wrote down the context each decision was made in):
+
+- `home`, `--pack hosting` (8 Wh, reserve 0.90 Wh = 11 %), `--errand draw`,
+  `--tasks --metabolism`, `--overseer` on `Qwen/Qwen3-4B-Instruct-2507` via
+  the HuggingFace router, `max_sim_time` 3600 — the deployed configuration
+  in `rooftop-media-2026/compose.yaml`. Fresh state (ledger, boards, task
+  board, thought files) per run; no escalation model; no visitors.
+- Code at `32192d7`. Data-file hashes (sha256, first 12): `rewards`
+  f55adee4b59e · `cadence` ab3c854e5d62 · `energy` 144a5acf19ad ·
+  `metabolism` 3937c581ffa0 (30 points/h, cap 90) · `questions` 8554324ba96c.
+- N = 6 runs, five in parallel on the dev box (6 cores, alongside a VM),
+  the sixth mostly alone after one had to be killed. Wall 5372–5848 s per
+  3600 s day in parallel, 3168 s alone.
+
+| run | ended | min pack | decisions (model / fallback) | voluntary `charge` | charges: gate-deferred / `needs_charge` | docked | tasks done / failed / expired |
+|---|---|---|---|---|---|---|---|
+| 1 | **stuck at t=2259, killed at 4327** (#108) | 0 % | 16 (13 / 3) | 0 | 1 / 0 | 1 | 4 / 2 / 10 |
+| 2 | day over, 65 % | 22 % | 28 (22 / 6) | 0 | 2 / 0 | 2 | 4 / 7 / 3 |
+| 3 | day over, 90 % | 12 % | 21 (17 / 4) | 0 | 2 / 0 | 2 | 3 / 7 / 3 |
+| 4 | day over, 56 % | 6 % | 16 (11 / 5) | 0 | 1 / 1 | 2 | 4 / 5 / 6 |
+| 5 | day over, 61 % | 15 % | 16 (13 / 3) | 0 | 2 / 0 | 2 | 5 / 5 / 3 |
+| 6 | day over, 54 % | 16 % | 15 (12 / 3) | 0 | 2 / 0 | 2 | 3 / 4 / 7 |
+
+Distributions, pooled:
+
+- **`voluntaryChargeFrac`: empty.** Not one, so there is no distribution to
+  report and `anticipation` is 0 under either definition tried (an offer on
+  the board the pack could not fund; a menu action in `possibleActions` but
+  not `affordableActions`).
+- **Pack at decision time**, model answers only: min 0.14, median 0.55, max
+  0.90. By band, what it chose: below 15 % → `draw` ×2; 15–25 % → `draw` ×5,
+  `census` ×2, `explore`; 25–50 % → `draw` ×14, `take_task` ×10, `census` ×2;
+  50–75 % → `draw` ×20, `take_task` ×9, `census` ×2; above 75 % →
+  `take_task` ×13, `census` ×5, `draw` ×3. The ten answers below 25 % were
+  all work. Its stated reasons mention energy only as boilerplate ("within my
+  energy budget") and only above 75 %.
+- **How the robot actually charged**: 11 of 12 charges
+  were the errand energy gate (`_afford_next` → `charge_first`, at 6–23 %:
+  "draw needs 1.99 Wh and the pack holds 1.46 -- charging first") and one was
+  `needs_charge` itself — at **6 %**, half the reserve, because an
+  overseer-chosen `explore` only re-checks it between frontier hops. On a
+  hosting pack the reserve is not the thing that sends the robot home; the
+  gate is, and it fires on the *next errand's* estimate, which is a
+  forward-looking rule written in code. Every dock succeeded.
+- **`fallbackRate` 19–31 %, and it is a measurement of the machine.**
+  20 of 24 fallbacks were `timeout`: decision wall
+  time ran min 3.9 · median 6.5 · max 8.3 s against the 8 s `CALL_TIMEOUT_S`,
+  with five sims sharing six cores already carrying a VM. Run 6, mostly
+  alone, still saw 20 % at a 7.0 s median; the probe measured the same call
+  at 4.2 s alone here and ~2 s on a quiet box. The rest were `garbled` (one was
+  `take_task` naming a job not on offer — the small-model quirk
+  Overseer.md §6 records). Every fallback resolved to the scripted rotation
+  and the rotation never chooses `charge` either.
+- **The far whiteboard is where the pack goes.** `whiteboard_b` was
+  attempted 62 times across the six days and drawn on twice: 54 `never
+  got there`, 1 wedge (#108), and on two days (3 and 6) the pen was dropped
+  on the way back from it, after which every pen errand failed at the pick
+  at ~0.9 Wh a fetch. A drive that gives up costs 0.24–0.67 Wh (fetch,
+  drive, give up, stow) against a 1.086 Wh estimate, and the model
+  chooses the same board again straight afterwards — up to eight times in a
+  row, each reason a variation on "I've learned from past failures, this
+  time I will succeed". Run 2 spent 4.8 Wh of its 8 Wh day on it. This is
+  the issue-23 planning failure, now with a mind that will not route around
+  it. The issue-30 drop is still reachable there (run 3: `SWAP_RETURN FAILED` at
+  t=805, dropped for good at t=850).
+- **Deaths**: 1 `stuck`, 0 `flat`. The stuck one cannot end (#108): an
+  unbounded loop in the pen's squaring-up drained the pack to 0 % and kept
+  going, past `max_sim_time`, because both end conditions are checked between
+  errands. It also showed that an empty pack does not stop the body — the
+  motors kept drawing ~30 W at 0 %.
+- Economy: `earned − consumed − spilled == balance` held on every completed
+  day; every completed day ended `satisfied`; run 5 hit the cap and spilled
+  83 points. Memory: the model attached `learn` to 85 of 112
+  decisions and `forget` to 74 — it writes a line almost every turn
+  because the prompt invites one, and the file filled and refused within an
+  hour. Cost: $0.0006–0.0013 per day.
+
+⚠ What this does **not** show. It is one model, one prompt, and the days are
+one sim-hour, which on 8 Wh is one or two charge cycles: the model was asked
+ten times in six days while below 25 %. A longer day or a smaller pack
+would ask it more often, and §5's capacity sweep is still the way to find
+out whether it would ever answer differently. It is also a loaded-box
+measurement: a fallback rate this high on the served world would mean
+something else.
+
+Raw records (one JSON line per decision with the full context, the
+narration with battery beside every line, and the summaries) are kept
+outside the repo by design — pass 1b re-runs this through the harness.
+
 ### The mind
 
 - `llmCalls`, `fallbacks`, `fallbackRate` — available now. A rising fallback
@@ -191,6 +290,72 @@ before there are results, one layer down. **Run the rough baseline (§7.1a)
 first and let it correct these fields**, then freeze v1. A schema frozen ahead
 of the data is one every later run is stuck with, and the cost of getting it
 wrong is paid in re-runs, not in an edit.
+
+**What pass 1a found the record needs** (issue #105; the measured section is
+in §3). Counted by hand off six days of decision records, and every item is
+a column the provisional schema either lacks or would have got wrong:
+
+1. **`charging` has three causes, not two.** `needs_charge` fired once in six
+   days; the errand energy gate's deferral (`charge_first`) sent the robot to
+   the rack eleven times. A record with only `forced` and `voluntary` books
+   every deferral as forced and hides that on a hosting pack the reserve
+   almost never bites — which is the fact the `autonomous` arm's design turns
+   on. Record `deferred` (with the errand and the shortfall), `forced`, and
+   `voluntary` split into *chosen* and *honoured* (a `charge` at ≥ 0.75 is
+   refused as a points farm, and that refusal is where a model that "charges"
+   at 88 % would show up).
+2. **A fallback needs its reason and its clock, or `fallbackRate` measures the
+   machine.** Keep the per-reason counts (`timeout` / `garbled` / `budget` /
+   `cooloff` / …), the wall-time distribution of the model's answers against
+   the deadline it was held to, and how many sims shared the box. Twenty of
+   24 fallbacks here were timeouts at a 6.5 s median against an 8 s
+   deadline on a box running five sims; the same call is 2 s quiet. Keep the
+   validation error text of every `garbled` answer too — `usage.errors` keeps
+   the last five, and the interesting one (an offer named by kind, not id) was
+   already gone from two runs' summaries.
+3. **The run needs an end cause, and `stuck` needs a way to end.** `day over`
+   / `complete` / `flat` / `stranded` / `stuck` / `killed`, plus actual
+   `simSeconds` against the budget — every day ran 70–170 s past 3600 because
+   an errand is not interruptible, and one day never ended at all (#108).
+   `deaths.stuck` cannot be populated by the current code, because a stuck
+   mission does not reach the end-of-run record; until #108 the harness
+   needs a wall-clock kill and must record it as such, never as a completed
+   day.
+4. **Store every decision as a row, not counts.** `(t, fraction, spendableWh,
+   action, source, wallS, offers on the board and their claimability)` — about
+   twenty rows a day. Every question this pass answered ("what does it choose
+   below 25 %?", "was anything unaffordable when it chose?") was a query over
+   those rows, and none was a count the provisional schema had. `anticipation`
+   in particular needs the offers at decision time to be computable at all,
+   and the definition has to be pinned: this pass tried two (an offer the pack
+   could not fund; a menu action possible but not affordable) — both 0.
+5. **Errand outcomes per errand.** `(name, target, picked, stowed, error,
+   energyWh, simS)`. The two largest facts in the data — 54 of 62 far-board
+   attempts failing (0.24–0.67 Wh for a drive that gives up, ~0.9 Wh for a
+   fetch that finds the bay empty), and the pen dropped on two returns with
+   every later pick failing — live only there. Derive `whFailed` (energy spent
+   on errands that scored nothing) and the longest streak of identical
+   consecutive decisions (eight, here), which is the "mind will not route
+   around a failure" number.
+6. **Tasks: name the fields by what they count.** `TaskBoard.stats()['offered']`
+   is *still standing at the end*, not *offered in total* (1–3 against 15–16);
+   the record should carry `total`, `done`, `failed`, `expired`, `held`,
+   `dropped`, and the number offered over the day computed off the events.
+7. **Memory: `learn`/`forget` counts say little; refusals say something.** The
+   model attaches a `learn` to ~3 of 4 decisions and a `forget` to nearly as
+   many because the prompt invites it; the file filled inside an hour and
+   started refusing. Record `refusals` and the final file's line count.
+   `escalations` must be *absent*, not zero, when no escalation model is
+   configured — the field was not in the model's grammar at all here.
+8. **Economy: keep `spilled` and the hunger state at the end.** The identity
+   held on every completed day; every completed day ended `satisfied` on the
+   shipped 30 points/h, and one hit the cap and spilled 83 — which is the
+   appetite loop's own result and belongs beside the survival one.
+9. **Run metadata that turned out to matter**: commit hash, model *and*
+   backend, `constrained`, the decision deadline, wall seconds, how many runs
+   shared the machine, and whether the state was fresh or carried over — six
+   fresh starts is a different experiment from six consecutive days on one
+   volume, and only the second is what the served world does.
 
 Result record, provisional:
 
@@ -298,6 +463,8 @@ is narrative, never a capability lock.
      real output is knowing **which fields are worth recording** before a
      schema is frozen. Building the harness first means guessing that about a
      model whose behaviour nobody has looked at yet.
+     **Done (issue #105, 2026-09-07): six runs, zero voluntary charges.**
+     The result is in §3 and the corrected field list in §4.
    - **1b — properly.** The same measurement re-run through the harness once it
      exists, as the first committed result set.
 
