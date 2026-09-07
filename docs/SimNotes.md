@@ -2351,6 +2351,59 @@ and the stub raises after twice the budget, because a regression that
 hangs the suite is worse than one that fails it — shown against the old
 code: "still turning at t=60 s: the old _face never returns".
 
+## The world was not the same world twice (issue #110): MSAA is a random number generator
+
+Evaluation.md §1 rests on "nothing in the world is random", and the first
+committed `scripted` result set (issue #106) broke it: five identical days of
+`home` on the hosting pack — no model in the loop, fresh state each time —
+gave three trajectories. Identical to the milliwatt-hour for five errands,
+then one day reached the far board the others failed at, one hit 4 % where
+the others hit 9.6 %, and even the three that agreed to the errand ended
+3 s apart with different points.
+
+**Where they parted.** The harness keeps each run's narration with the
+battery beside every line, so the pairs could be diffed line by line: every
+divergence sat inside a DRIVE — a return to the rack at t≈246, the drive to
+the far board at t≈1240–1285, a census drive at t≈2910 — never inside a
+press, a stroke or a charge. A drive's inputs are the lidar (an `mj_ray`
+sweep with seeded noise) and the tag camera (an EGL render plus the
+two-thread AprilTag decoder). So `scripts/determinism_spike.py`: fly the
+scripted day N times in separate processes and hash `qpos+qvel+ctrl` every
+half second, every camera image before it is decoded, every decode, and
+every scan; then align the traces and say what moved first.
+
+**What moved.** Three days that stayed state-identical for 1500 s still
+disagreed on the camera image on **2563 of 2613 looks** with a tag in view,
+on the decode on **15–18** of them, and on the lidar on **0 of 10 784**
+scans. Rendering one static scene ten times with no physics step between
+gave ten different images — ±1 in 7–37 scattered pixels, all at shadow
+edges — and ten identical decodes; the decode moves only on the marginal
+look where a flickering pixel sits on a quad corner, and one moved decode
+is a moved rack belief that a later drive plans from. That is the whole
+causal chain: **the GPU's multisample resolve of shadowed edges is not
+deterministic, and 0.6 % of looks carry it into the robot's beliefs.**
+
+**The knob.** `offsamples="0"` (multisampling off) — or shadows off —
+makes every render byte-identical. The cost to the detector is nil,
+measured: at the standoff and at +0.5, +1, +2 and +3 m, the decoder sees
+exactly the same tag set with and without MSAA (out to 2 m, nothing at 3),
+with identical centres and translations. So the robot's cameras now render
+without it (`models/pluggybot*.xml`, the coupling spike's XML), which is the
+same lesson the segmentation labels taught in milestone 5 ("the renderer is
+not a measurement device by default"), arriving through a different door.
+Demo footage is a touch more aliased at 720p; the robot cannot tell.
+
+**Two things the traces ruled OUT**, which is worth as much: the lidar
+(0 differences in 10 784 scans) and the two-thread AprilTag decoder (one
+answer per image, every time). Contention was a red herring — five sims
+on a loaded box did not make the flicker worse, three on a quiet one did
+not make it go away; it is per render, not per machine.
+
+⚠ **The committed `scripted` series in `results/` predates this fix** and
+is the record of the pre-fix spread; a series flown after it should be
+byte-identical across runs, and `test_render_determinism.py` keeps the
+premise pinned (MSAA back on: the frames differ again).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
