@@ -252,22 +252,33 @@ def test_the_local_deadline_survives_a_cold_model_load():
   it so the premise cannot rot.
 
   A local backend's first decision includes loading the weights into VRAM.
-  On the Anthropic path's 8 s deadline that is a certainty of failure rather
-  than a risk of one: every mission's opening decision, and every one after
-  an errand long enough for ollama to unload the model, arrives as
-  `fallback:timeout` with the model still working on an answer nobody
-  will read. Measured three for three before this constant existed.
+  On the 8 s deadline this constant was written against, that was a
+  certainty of failure rather than a risk of one: every mission's opening
+  decision, and every one after an errand long enough for ollama to unload
+  the model, arrived as `fallback:timeout` with the model still working on
+  an answer nobody would read. Measured three for three.
+
+  ⚠ Since issue #117 the API deadline is 90 s and covers a cold load by
+  itself, so `LOCAL_TIMEOUT_S` is a FLOOR rather than the local answer. The
+  invariant that matters is unchanged and is asserted directly: whatever
+  either number is, the local path -- the one with the measured slow case --
+  is never given LESS patience than an endpoint across the internet.
   """
-  assert overseer.CALL_TIMEOUT_S < COLD_LOAD_S, \
-      "the defect: the API deadline cannot cover a model load"
-  assert llm.LOCAL_TIMEOUT_S > COLD_LOAD_S
-  assert Overseer(MENU, model=llm.LOCAL_MODEL,
-                  backend="local").timeout_s == llm.LOCAL_TIMEOUT_S
+  assert llm.LOCAL_TIMEOUT_S > COLD_LOAD_S, \
+      "the defect this constant exists for: a deadline under the model load"
+  local = Overseer(MENU, model=llm.LOCAL_MODEL, backend="local").timeout_s
+  assert local >= llm.LOCAL_TIMEOUT_S and local > COLD_LOAD_S
+  assert local >= overseer.CALL_TIMEOUT_S, \
+      "a local model is the slow one; it cannot be the impatient one too"
+  assert local == llm.default_timeout("local", overseer.CALL_TIMEOUT_S)
   # ...and the API path keeps ITS number, which is the regression half: a
-  # slow local runtime must not buy a slow API eight times the patience.
+  # slow local runtime must not buy a slow API any extra patience.
   assert Overseer(MENU).timeout_s == overseer.CALL_TIMEOUT_S
   assert Overseer(MENU, model="org/model-8b").timeout_s == \
       overseer.CALL_TIMEOUT_S
+  # The floor holds from the other side too: were the API deadline ever
+  # brought back down, the local path must not come down with it.
+  assert llm.default_timeout("local", 8.0) == llm.LOCAL_TIMEOUT_S
 
 
 def test_a_dead_local_endpoint_is_a_fallback_not_a_crash():
@@ -309,7 +320,8 @@ def test_serve_puts_a_named_backend_in_front_of_the_same_loop(monkeypatch):
   boss = life.init_kwargs["overseer"]
   assert (boss.backend, boss.model) == ("local", llm.LOCAL_MODEL)
   assert boss.base_url == "http://127.0.0.1:9/v1"
-  assert boss.timeout_s == llm.LOCAL_TIMEOUT_S
+  assert boss.timeout_s == llm.default_timeout("local",
+                                               overseer.CALL_TIMEOUT_S)
   assert boss.stats()["backend"] == "local"
 
 

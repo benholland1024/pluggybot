@@ -298,7 +298,11 @@ Distributions, pooled:
   time ran min 3.9 · median 6.5 · max 8.3 s against the 8 s `CALL_TIMEOUT_S`,
   with five sims sharing six cores already carrying a VM. Run 6, mostly
   alone, still saw 20 % at a 7.0 s median; the probe measured the same call
-  at 4.2 s alone here and ~2 s on a quiet box. The rest were `garbled` (one was
+  at 4.2 s alone here. (⚠ **The "~2 s on a quiet box" this section used to
+  carry was the wrong model** — that is `Overseer.md` §8's 235B *escalation*
+  figure. Measured properly in issue #117, the deciding model is 4.88 s
+  median on a quiet box, which makes the old deadline far tighter than
+  anyone writing this thought.) The rest were `garbled` (one was
   `take_task` naming a job not on offer — the small-model quirk
   Overseer.md §6 records). Every fallback resolved to the scripted rotation
   and the rotation never chooses `charge` either.
@@ -380,6 +384,56 @@ re-flown on the fixed world** (2026-09-07, after #110), same configuration:
   offered a decision about its battery, after the far-board loop and the
   timeout-to-`explore` fallback.
 
+#### The call-latency distribution — measured (issue #117, 2026-09-07)
+
+**The 8 s deadline was sitting on the distribution, not above it.** Fifty
+real decisions against a synthetic robot state, `Qwen/Qwen3-4B-Instruct-2507`
+on the HuggingFace router, on a box with nothing else running
+(`scripts/overseer_probe.py --calls 50 --world home`):
+
+| min | median | p90 | p95 | max |
+|---|---|---|---|---|
+| 3.55 s | **4.88 s** | 5.89 s | **6.59 s** | **7.38 s** |
+
+- **At 8 s, zero of fifty would have timed out** — and the slowest used 92 %
+  of it. That is not headroom, it is a coincidence: the same arm on a box
+  carrying a VM and five sims measured 19–47 % fallback, because moving a
+  distribution whose worst case is 7.4 s by a second and a half is all it
+  takes.
+- **Every answer that arrived was valid: 0 of 50 malformed.** This is the
+  other half of the number and it is measured separately for a reason — a
+  longer deadline can buy back a `timeout` and can do nothing whatever about
+  a `garbled`. The residual malformed rate is the FLOOR any fallback-rate
+  threshold has to clear, and here it is zero, so §5's limits are not
+  fighting the grammar.
+- **`CALL_TIMEOUT_S` is now 90 s**, and ⚠ **it is not read off this curve** —
+  nothing measured is within twelve times of it. The curve's job was to
+  establish that the deadline was never the *binding* constraint on a
+  healthy endpoint, which it did; the number itself is a deliberate
+  **patience budget**. This world exists to let a mind make a complicated
+  choice, and a decision lost to a clock is the one failure mode that is
+  purely ours. A minute and a half is where a slow answer stops being slow
+  and becomes a hang. The cost table is at the constant, and the short version
+  is that a cap is only spent when a call is actually slow: at the measured
+  median the whole day's thinking is 98 sim-seconds either way.
+- **`ESCALATE_TIMEOUT_S` follows it to 120 s** (it is an *ordering* — a
+  bigger mind answering more tokens — not an independent number), and
+  `llm.LOCAL_TIMEOUT_S` becomes a **floor** rather than the local answer:
+  the local path has the one measured slow case (a 27.3 s cold load), so it
+  must never be given *less* patience than an endpoint across the internet.
+
+⚠ **THIS IS A LOWER BOUND ON WHAT A MISSION PAYS.** The probe's state is
+synthetic and smaller than a real day's — no accumulated `History.md`, no
+journal, fewer offers — and the committed loaded runs' own `mind.wallS`
+medians (5.0–7.0 s) are what a mission actually saw. So the margin above is
+narrower in flight than in the probe, which is an argument for the cap and
+not against it.
+
+⚠ **AND IT IS A MEASUREMENT OF A ROUTER AS WELL AS A BOX.** A 3-call probe
+on the loaded box read a 3.86 s median — *faster* than the quiet 50-call
+run's 4.88 — which at n=3 is noise, and is the reason the committed number
+is n=50. Do not read a single fast probe as evidence the box is clear.
+
 ### Interrupts (NEW — arm `autonomous`, rung A2)
 
 - `interrupts` — offered, continued, aborted, with the battery fraction at
@@ -449,7 +503,13 @@ Rules:
   scripted day after it was a different trajectory, with the five data
   files untouched.
 - **A run that hit an admin intervention is marked, and excluded from
-  survival statistics by default** (§5).
+  survival statistics by default** (§5). So is one killed on wall clock, and
+  one whose fallback rate says the box decided too much of its day (#117) —
+  three exclusions, one shape, none of them a deletion.
+- **The conditions are part of the configuration, not of the prose.** The
+  decision `deadlineS` is a regime the rollup refuses to pool across, and
+  `label` names what the box was, so a quiet series and a loaded one are two
+  series rather than one average (#117).
 - Results are **committed**, and versioned exactly as `protocol/` fixtures
   are: generated, checked in, with a spec that fails when they go stale. They
   are the research artifact; a number that exists only in a terminal
@@ -491,6 +551,7 @@ there). Rows, then counts derived from them:
   "schema": 1, "runId": "2026-09-07T03-10-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
   "world": "home", "arm": "guarded", "pack": "hosting",
   "model": "Qwen/Qwen3-4B-Instruct-2507", "backend": "huggingface", "seed": 0,
+  "label": "quiet",                        // what the BOX was (#117); part of the series key
   "commit": "32192d7",
   "config": { "errand": "draw", "tasks": true, "metabolism": true, "maxSimS": 3600,
               "packWh": 8.0, "reserveWh": 0.9, "freshState": true, "parallel": 5,
@@ -509,7 +570,8 @@ there). Rows, then counts derived from them:
                                "marker": "DEFER draw:whiteboard_a: draw needs 1.75 Wh …" } ] },
   "mind": { "decisions": 16, "llmCalls": 13, "fallbacks": 3, "fallbackRate": 0.1875,
             "fallbackReasons": { "fallback:timeout": 3 }, "errors": [ "call: TimeoutError: …" ],
-            "wallS": { "n": 13, "min": 4.4, "median": 6.6, "max": 7.9, "values": [ … ] },
+            // the ONE distribution read at its tail: the deadline is a cap on it (#117)
+            "wallS": { "n": 13, "min": 4.4, "median": 6.6, "p90": 7.6, "p95": 7.9, "max": 7.9, "values": [ … ] },
             "deadlineS": 8.0, "constrained": true, "budgetLeft": 44, "usd": 0.00081,
             "actions": { "take_task": 6, "draw": 5, "census": 2 }, "longestStreak": 2
             /* "escalations": { … } only when an escalation model was configured */ },
@@ -533,7 +595,7 @@ there). Rows, then counts derived from them:
 ```
 
 `results/rollup.json` groups records into **series** — `(world, arm, pack,
-model)` — and reports every number as `{n, min, median, max, values}`. It
+model, label)` — and reports every number as `{n, min, median, max, values}`. It
 raises `MixedRegime` rather than pool two data-file regimes under one name,
 and each series carries `current`: whether its hashes are today's data
 files. `tests/test_experiment.py` asserts every committed record validates
@@ -645,12 +707,48 @@ never charges — so on `autonomous` a run with a 40 % fallback rate is
 two-fifths a `scripted` arm wearing the `autonomous` name, and pass 1b's one
 `flat` death was exactly that (two timeouts → `fallback:explore` → the street →
 zero on the way back). The baseline measured 19–47 % on a box running five sims
-on six cores against an 8 s deadline; the same call is ~2 s quiet. So: a
-threshold on `fallbackRate` disqualifies a run from survival statistics the way
-`killed` and `interventions` already do, and the arms that matter are flown on
-a quiet machine. ⚠ The threshold is a judgement call and belongs in the record,
-not in a comment — a run excluded by it is still committed, still readable, and
-still says why.
+on six cores against an 8 s deadline; the same call is ~2 s quiet.
+
+**Built in issue #117.** `rollup.FALLBACK_LIMIT` disqualifies a run from
+survival statistics the way `killed` and `interventions` already do, and the
+three exclusions are deliberately one shape — the first measured an *admin*,
+the second the box's *clock*, the third the box's *load* through a deadline.
+⚠ **Nothing is deleted.** The run stays in the series, still validates, and
+`survival.excluded` carries the reason; `experiment.py` prints it rather
+than quietly reporting a smaller `n`.
+
+⚠ **The threshold is a judgement call, which is exactly why the rollup
+WRITES IT DOWN** (`fallbackLimit`, per series) instead of applying it from a
+comment. Whoever disagrees can see the number that was used and the runs it
+cost. It differs by arm because a fallback costs the arms different things:
+
+| arm | limit | why |
+|---|---|---|
+| `scripted` | none | the rotation is not a failure mode here, it *is* the arm |
+| `guarded` | **0.25** | the rails still charge the robot, so a fallback DILUTES the result. A quarter of a day decided by the rotation is the most that can be pooled and still called a result about a model |
+| `autonomous` | **0.10** | nothing else is looking after the pack, so a fallback is the one decision that can END the run — pass 1b's `flat` death was one |
+
+⚠ **A THRESHOLD CANNOT BUY BACK MORE THAN THE DEADLINE COST.** `timeout` is
+the share a longer deadline removes; `garbled` is an answer that arrived on
+time and was unusable, and no deadline touches it. So the residual malformed
+rate is the FLOOR any threshold has to clear, and it is measured beside the
+latency (`overseer_probe.py` reports the two separately for this reason). A
+limit under the floor disqualifies every run for ever, which reads exactly
+like a broken harness.
+
+⚠ **AND THE DEADLINE IS PART OF THE REGIME.** It is not a data file, so no
+hash catches it, and it decides how much of a day the model decided at all —
+so `rollup` refuses to pool an 8 s series with a 90 s one, the way it already
+refuses two `energy.json`s. Raising `CALL_TIMEOUT_S` does not make the older
+runs wrong; it makes them a different series.
+
+**...and the conditions are named rather than inferred.** `--label` (e.g.
+`quiet`) joins `(world, arm, pack, model)` in the series key, so a quiet
+series and a loaded one are committed **side by side** instead of averaged
+into a box that never existed. The pair is itself a result about how much
+the harness's own conditions move the numbers, and it is the cheapest
+evidence for it anyone will get. Each series also reports the `deadlineS` it
+was held to and how many sims (`parallel`) shared the machine.
 
 ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** Already documented for
 metabolism and it generalises to everything here. A charged demo pack holds
@@ -754,9 +852,18 @@ is narrative, never a capability lock.
    a demo cell reaches zero mid-errand as documented behaviour and the robot
    limps to the rack, so `scripts/experiment.py` sets it and no mission test
    or recording is touched.
-4. **A quiet-box re-baseline, and the fallback-rate disqualifier.** Cheap, and
+4. **The deadline, measured — and the fallback-rate disqualifier.** Cheap, and
    everything downstream is uninterpretable without it: at 19–47 % the arms
-   are partly measuring an 8 s deadline on a loaded machine (§5).
+   were partly measuring an 8 s deadline on a loaded machine (§5).
+   **Done (issue #117)**, and it turned out to need almost no sim: a fallback
+   rate is a deterministic function of (latency distribution, deadline), and
+   the distribution comes from `overseer_probe.py` in ten minutes with no
+   physics at all. `CALL_TIMEOUT_S` is 90 s (§3), the same
+   number on the deployed world as in the experiment — measuring a robot
+   held to a deadline nobody can watch would describe a different robot —
+   and `rollup.FALLBACK_LIMIT` disqualifies the runs the box decided.
+   ⚠ The one part that still needs the sim is the confirmation flight, and
+   it is one overnight `--parallel 1` series under `--label quiet`.
 5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
    was written before the rails were counted. Three rails come off (§2), the
    prompt is corrected in the same change because otherwise the arm lies to

@@ -157,8 +157,36 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   recorded as `killed` -- never a death, never a completed day (a wedged
   mission does not end on its own, #108). ⚠ The `guarded` arm needs
   `$HF_TOKEN` (or `$ANTHROPIC_API_KEY`) in the environment and refuses
-  without it; `--parallel 5` on this box pushes the 8 s decision deadline
+  without it; `--parallel 5` on this box pushed the OLD 8 s decision deadline
   and the record says so (`config.parallel`, `mind.wallS`).
+  ⚠ **A RUN THE BOX DECIDED IS DISQUALIFIED, AND THE DEADLINE IS MEASURED**
+  (issue #117). Every fallback is the scripted rotation, and the rotation
+  never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25, `autonomous`
+  0.10, `scripted` none) drops a run from SURVIVAL statistics exactly as
+  `killed` and `interventions` do: still committed, still valid,
+  `survival.excluded` carrying the reason, and the threshold written into
+  the rollup rather than hidden in a comment. Two more things now define a
+  series: `config.deadlineS` (a regime the rollup refuses to pool across --
+  it caps how much of a day the model decided at all) and `--label` (what
+  the BOX was, so a quiet series and a loaded one sit side by side instead
+  of averaging into a box that never existed).
+  ⚠ **`CALL_TIMEOUT_S` IS 90 s, AND THE CURVE IS WHY IT COULD BE** --
+  `scripts/overseer_probe.py --calls 50` reports the latency DISTRIBUTION
+  (min/median/p90/p95/max + raw) and the timeout share each candidate
+  deadline would cost, so the number needs no sim at all. Measured quiet:
+  median 4.88 s, p95 6.59, max **7.38 against the old 8** -- 0 % timeouts
+  and no margin, which is why any load at all took the same arm to 19-47 %.
+  ⚠ 90 is NOT read off the tail (nothing is within 12x of it): it is a
+  patience budget, because this world exists to let a mind make a
+  complicated choice and a decision lost to a clock is the one failure that
+  is purely ours. A cap is only spent when a call is SLOW -- at the measured
+  median the day's thinking is 98 sim-s (2.7 %) whatever the cap is.
+  `ESCALATE_TIMEOUT_S` follows to 120 (it is an ordering, not a number), and
+  `llm.LOCAL_TIMEOUT_S` becomes a FLOOR: the local path has the one measured
+  slow case (27.3 s cold load) and must never be the impatient one.
+  ⚠ The probe holds calls to its OWN 120 s cap, not to the deadline: a
+  distribution measured through the deadline it is meant to justify is
+  censored at exactly the part it is chosen from.
   ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
   `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
   entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
@@ -406,11 +434,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     vendor-blind downstream.
     ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the
     model LOAD**: measured 3.4–5.5 s warm and **27.3 s cold** (1660 Super,
-    6 GB, the real ~11 kB prompt), so the API path's 8 s deadline makes
+    6 GB, the real ~11 kB prompt), so the API path's deadline makes
     every mission's FIRST local decision a certain `fallback:TimeoutError`
     — three for three, and ollama unloads an idle model after five minutes
     so a long errand pays it again. `llm.LOCAL_TIMEOUT_S` (45 s) is the
-    local default; `CALL_TIMEOUT_S` is untouched for the API paths.
+    local default -- and since issue #117 a FLOOR rather than the local
+    answer, because `CALL_TIMEOUT_S` is 90 s and covers a cold load by
+    itself. `default_timeout` returns `max(LOCAL_TIMEOUT_S, api)`: the local
+    path has the only MEASURED slow case and must never be the impatient one.
     ⚠ **Money has THREE states and each report says which**: `local` prints
     "no API cost" (zero is a measurement), an endpoint whose rates cannot be
     read prints "unknown" with `priced: false` — which now covers a

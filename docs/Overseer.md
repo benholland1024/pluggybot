@@ -197,7 +197,7 @@ explored" look identical from outside and are not the same event.
 |---|---|
 | `llm` | a real answer |
 | `llm:<model>` | …from the expensive mind the allowance bought (issue #37) |
-| `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (8 s) |
+| `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (90 s — issue #117) |
 | `fallback:offline` | nobody answered — transport, HTTP, auth, rate limit, 5xx |
 | `fallback:garbled` | somebody answered, and it was not a decision |
 | `fallback:budget` | the hourly call budget is spent |
@@ -514,13 +514,33 @@ mysteriously higher fallback rate.
 
 ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the model
 LOAD.** Measured on the dev box (GTX 1660 Super, 6 GB; `qwen3:4b-instruct`,
-the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the Anthropic
-path's 8 s deadline that is not a risk, it is a certainty — three of three
-probe decisions came back `fallback:timeout` while the model was still
-loading — and ollama unloads an idle model after five minutes, so a robot
-returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
-(45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the
+the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the API path's
+deadline that is not a risk, it is a certainty — three of three probe
+decisions came back `fallback:timeout` while the model was still loading —
+and ollama unloads an idle model after five minutes, so a robot returning
+from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S` (45 s) as the
+local default, with `CALL_TIMEOUT_S` kept under the cold-load figure for the
 API paths. `tests/test_local_backend.py` pins both halves.
+
+⚠ **THE API NUMBER MOVED TO 90 s (issue #117), AND `LOCAL_TIMEOUT_S` IS NOW
+A FLOOR.** 8 s was never argued for — the comment at it explained why the
+SDK gets the *same* number, not why the number was 8 — and a 50-call probe
+on a quiet box put the router's own distribution at a 4.88 s median and a
+**7.38 s worst call, 92 % of the old deadline**. A deadline sitting on its
+distribution is why a machine with a VM on it took the same arm from 0 % to
+19–47 % fallback.
+
+90 s is deliberately *not* read off that curve: nothing measured is within
+twelve times of it. It is a patience budget, on the argument that this world
+exists to let a mind make a complicated choice and a decision lost to a
+clock is the one failure that is purely ours. What the curve settled is that
+the deadline was never the binding constraint on a healthy endpoint.
+
+The consequence here is that the API deadline now covers a cold model load
+by itself, so `default_timeout` returns `max(LOCAL_TIMEOUT_S, api)` rather
+than handing the local path its own number: the local backend has the one
+*measured* slow case in the tree (27.3 s to reach VRAM) and must never end
+up the impatient one. Both facts survive whichever number moves next.
 
 ⚠ …and 45 s is measured on a box doing nothing else. A cold load with the
 full test suite saturating the same machine went straight through it and fell
