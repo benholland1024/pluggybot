@@ -793,6 +793,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **A TERMINAL LOOP HAS A BUDGET, and squaring up is `control.square_up`**
+  (issue #108). Four copies of `while |heading error| > tol` -- the pen, the
+  claw, the dispenser, `HubMission.face` -- had no bound of any kind, and a
+  robot that had ridden up onto a board mount sat in the pen's for 2000+
+  sim-seconds, drained to 0 % and kept going past `max_sim_time`, because
+  every mission guard is checked BETWEEN errands. They now share one
+  implementation with a sim-time budget (`FACE_BUDGET_S` = 30 s, ~3x the
+  measured worst healthy case) and an explicit `squared` answer the pen's
+  `drive_to_board` turns into "never squared up". An empty pack does NOT
+  stop the body in this sim (motors draw ~30 W at 0 Wh) -- a bound is not
+  a recovery, which is issue #107's. SimNotes, "The squaring-up loop had no
+  floor".
 - **A PRESS IS NOT TRAVEL** (`HubSwap.pinned`, found by issue #22). Holding
   the wheels against something immovable makes dead reckoning integrate every
   slipping revolution: the charge press runs minutes long and pumped **828 mm**

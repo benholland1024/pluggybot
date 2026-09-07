@@ -7,6 +7,7 @@ import pytest
 
 from pluggybot.tools import strokes
 from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.control import FACE_BUDGET_S
 from pluggybot.tools.drawing import (
   PEN_MODULE, PenPlotter, circle_path, pen_on_board, square_path,
 )
@@ -54,6 +55,49 @@ def test_squaring_up_does_not_overshoot(hub_model):
     f"parked {true_yaw:.2f} deg off square to the board -- that is "
     f"{110 * math.sin(math.radians(abs(true_yaw))):.1f} mm of pen-depth swing "
     f"across the carriage stroke")
+
+
+class _StuckSwap:
+  """A HubSwap whose body cannot turn: the reckoner's heading never moves,
+  sim time does. Raises after twice the face budget so a regression fails
+  rather than hanging the suite."""
+
+  class _Reckoner:
+    x = y = 0.0
+    theta = math.radians(-60.0)
+
+  class _Data:
+    time = 0.0
+
+  def __init__(self):
+    self.reckoner = self._Reckoner()
+    self.data = self._Data()
+    self.steps = 0
+
+  def _step_once(self, tl, tr):
+    self.steps += 1
+    self.data.time += 0.002
+    if self.data.time > 2 * FACE_BUDGET_S:
+      raise RuntimeError("PenPlotter._face is unbounded again (issue #108)")
+
+  def _run(self, seconds, v, lift_target=None):
+    for _ in range(round(seconds / 0.002)):
+      self._step_once(0.0, 0.0)
+
+
+def test_a_pen_that_cannot_square_up_gives_up_and_says_so():
+  """Issue #108, at the pen: the loop that held a wedged robot for 2000+
+  sim-seconds, past 0 % and past the day's budget. Now it runs out of
+  FACE_BUDGET_S and `squared` goes False, which `drive_to_board` turns into
+  "never squared up" so the errand skips the press and stows."""
+  plotter = PenPlotter.__new__(PenPlotter)
+  swap = _StuckSwap()
+  plotter.swap, plotter.data = swap, swap.data
+  plotter.squared = True
+  err = plotter._face(0.0)
+  assert not plotter.squared, "a wedged pen reported itself squared up"
+  assert abs(err) == pytest.approx(math.radians(60.0), abs=1e-6)
+  assert FACE_BUDGET_S <= swap.data.time < FACE_BUDGET_S + 1.0
 
 
 @pytest.mark.slow

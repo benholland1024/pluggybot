@@ -31,7 +31,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import turn_command, wheel_targets, wrap_angle
+from pluggybot.control import square_up, wheel_targets, wrap_angle
 from pluggybot.rack.coupling import (
   BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, LIFT_STEP, PEN_TRAVEL,
 )
@@ -259,6 +259,8 @@ class PenPlotter:
     # between strokes" a checkable claim rather than an assumption: ink on a
     # travel row is a line nobody asked for, drawn across the figure.
     self.trace: list[tuple[float, float, float, float, float, bool, int]] = []
+    #: Did the last squaring-up converge, or run out of time (issue #108)?
+    self.squared = True
     self.commanded: tuple[tuple[tuple[float, float], ...], ...] = ()
 
   # ---- geometry ------------------------------------------------------------
@@ -312,8 +314,11 @@ class PenPlotter:
     self.data.ctrl[self.lift_act] = lift0
     self.data.ctrl[self.arm_act] = ARM_EXT
     self.swap._run(2.0, 0.0)
-    return math.hypot(tx - self.swap.reckoner.x,
-                      ty - self.swap.reckoner.y) < 0.06
+    # A face that gave up is "never squared up", whatever the distance says
+    # (issue #108): the caller skips the press and stows, which is the only
+    # thing that makes the mission's between-errand checks reachable again.
+    return self.squared and math.hypot(tx - self.swap.reckoner.x,
+                                       ty - self.swap.reckoner.y) < 0.06
 
   def ramp(self, act: int, target: float, speed: float = CARRIAGE_SPEED,
            settle: float = 0.0, record: int | None = None) -> None:
@@ -345,31 +350,24 @@ class PenPlotter:
 
   def _face(self, heading: float, tol: float = 0.004,
             tries: int = 6) -> float:
-    """Square up to a heading, then STOP AND CHECK -- repeatedly.
-
-    A P-controller that simply stops commanding when the error goes small
-    overshoots here, badly: `slew` rate-limits the wheel velocity command, so
-    the wheels are still turning when the loop exits and the robot coasts
-    past. Measured on the approach to the board: -9.52 deg in, +7.47 deg out,
-    a 17 deg overshoot that the caller had no way to notice.
+    """Square up to a heading, then STOP AND CHECK -- repeatedly, and for a
+    BOUNDED time (issue #108; `control.square_up` is the one implementation
+    the pen, the claw, the dispenser and the mission share).
 
     Squareness matters more for drawing than for anything before it. The
     carriage sweeps 110 mm across the board, so a yaw error theta swings the
     pen's depth by 110*sin(theta) -- 14 mm at 7.5 deg, which is most of the
     quill's whole travel and is why one edge of the figure came out blank.
 
-    Settle-and-recheck is the same shape as refine_standoff's back-up-and-
-    try-again, one axis over. Returns the final error in radians.
+    Returns the final error in radians; `self.squared` says whether the
+    budget ran out first.
     """
-    for _ in range(tries):
-      while abs(wrap_angle(heading - self.swap.reckoner.theta)) > tol:
-        err = wrap_angle(heading - self.swap.reckoner.theta)
-        tl, tr = wheel_targets(0.0, turn_command(err))
-        self.swap._step_once(tl, tr)
-      self.swap._run(0.6, 0.0)              # brake, let the slew unwind
-      if abs(wrap_angle(heading - self.swap.reckoner.theta)) <= tol * 4:
-        break
-    return wrap_angle(heading - self.swap.reckoner.theta)
+    err, self.squared = square_up(
+      lambda: wrap_angle(heading - self.swap.reckoner.theta),
+      lambda w: self.swap._step_once(*wheel_targets(0.0, w)),
+      lambda: self.swap._run(0.6, 0.0),      # brake, let the slew unwind
+      lambda: float(self.data.time), tol=tol, tries=tries)
+    return err
 
   def press(self) -> bool:
     """Extend the arm until the pen touches, then a little more.

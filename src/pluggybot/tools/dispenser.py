@@ -40,7 +40,7 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import turn_command, wheel_targets, wrap_angle
+from pluggybot.control import square_up, wheel_targets, wrap_angle
 from pluggybot.rack.coupling import (
   DISP_STROKE, SEED_COUNT, SEED_R,
 )
@@ -180,15 +180,12 @@ class SeedDispenser:
     past it. Tolerance is looser than the plotter's 0.004 rad on purpose:
     heading only rotates this tool's centimetre-scale placement error, it
     does not sweep a pen across a board."""
-    for _ in range(tries):
-      while abs(wrap_angle(heading - self.swap.reckoner.theta)) > tol:
-        err = wrap_angle(heading - self.swap.reckoner.theta)
-        tl, tr = wheel_targets(0.0, turn_command(err))
-        self.swap._step_once(tl, tr)
-      self.swap._run(SETTLE, 0.0)
-      if abs(wrap_angle(heading - self.swap.reckoner.theta)) <= tol * 3:
-        break
-    return wrap_angle(heading - self.swap.reckoner.theta)
+    err, self.squared = square_up(
+      lambda: wrap_angle(heading - self.swap.reckoner.theta),
+      lambda w: self.swap._step_once(*wheel_targets(0.0, w)),
+      lambda: self.swap._run(SETTLE, 0.0),
+      lambda: float(self.data.time), tol=tol, tries=tries, done_within=3.0)
+    return err
 
   # ---- placement -----------------------------------------------------------
 
