@@ -159,6 +159,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `$HF_TOKEN` (or `$ANTHROPIC_API_KEY`) in the environment and refuses
   without it; `--parallel 5` on this box pushes the 8 s decision deadline
   and the record says so (`config.parallel`, `mind.wallS`).
+  ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
+  `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
+  entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
+  suite fails on a series with no entry, an entry for a series that is gone,
+  or an empty `notShown`. The PAGE is built late so it cannot shape the
+  experiments around what renders nicely; the EXPLANATION is written when
+  the data is collected, or the page has to invent one at render time. It is
+  PROSE beside DATA: an entry never restates a number the rollup carries,
+  because the copy is what goes stale.
 - Lint: `uv run ruff check src/ scripts/ tests/`
 - Demos: `scripts/teleop.py`, `scripts/map_teleop.py`, `scripts/explore.py [--headless]`
   (milestone-4 mapping demo — kept as the minimal repro; `lifecycle.py` is the
