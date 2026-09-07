@@ -174,12 +174,63 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
                                     datetime.now(timezone.utc),
                                     hashes=rec.data_hashes(), commit="abc"))
   assert r["end"] == "killed" and r["simSeconds"] == 4327
-  assert r["survival"]["survivalS"] == []
-  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 0}
+  # The rows show the pack at zero at t=4327, so THAT is known: a flat death
+  # with a survival span. What is not known is whether it was stuck first.
+  assert r["survival"]["survivalS"] == [4327]
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
   assert r["survival"]["batteryEnd"] == 0.0
+  # ...and without a zero in the rows, nothing at all is claimed.
+  r2 = rec.validate(rec.build_record(_config(), None, events[:2], 9000.0,
+                                     datetime.now(timezone.utc),
+                                     hashes=rec.data_hashes(), commit="abc"))
+  assert r2["survival"]["survivalS"] == [] and r2["survival"]["deaths"] == \
+    {"flat": 0, "stuck": 0}
   doc = ru.rollup([r])
   s = doc["series"][0]
   assert s["killed"] == 1 and s["survival"]["n"] == 0
+
+
+def test_a_record_keeps_the_id_its_file_was_named_by():
+  """The parent names the file before the child starts; the child must not
+  re-derive the id off its own clock. Found in the first committed set:
+  ten records whose `runId` disagreed with their file name by seconds."""
+  cfg = _config(runId="2026-09-07T00-00-00Z_home_guarded_hosting_x_s0",
+                startedAt="2026-09-07T00:00:00+00:00")
+  r = rec.build_record(cfg, _result(), [], 1.0,
+                       datetime(2026, 9, 7, 0, 0, 7, tzinfo=timezone.utc),
+                       hashes=rec.data_hashes(), commit="abc")
+  assert r["runId"] == cfg["runId"] and r["startedAt"] == cfg["startedAt"]
+
+
+def test_a_pack_that_reached_zero_mid_day_is_a_flat_death():
+  """§3: `flat` is the pack reaching zero -- not the run ending on it. The
+  motors do not stop at 0 Wh, so a day can hit zero inside an errand, dock
+  on nothing and end "day over"; the first committed set had one."""
+  events = [_say(900, 0.30, "USE_TOOL", "USE_TOOL: arrived"),
+            _say(1400, 0.0, "USE_TOOL", "USE_TOOL: never got there"),
+            _say(1500, 0.0, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
+            _say(2100, 0.9, "CHARGE", "CHARGE complete (90%) -- backing off")]
+  r = rec.build_record(_config(), _result(battery=0.55), events, 1.0,
+                       datetime.now(timezone.utc), hashes=rec.data_hashes(),
+                       commit="abc")
+  assert r["end"] == "day over"
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
+  assert r["survival"]["survivalS"] == [1400] and r["survival"]["flatAtS"] == 1400
+  assert r["charging"]["entries"][0]["cause"] == "forced"
+
+
+def test_a_stranded_day_is_a_stuck_death():
+  """§3: `stuck` is "knocked over, wedged, or unable to reach the rack"; a
+  `stranded` end is the third of those. The first committed set had one:
+  a dropped module, then "no route to the charge bay" at 24 %."""
+  r = rec.build_record(_config(), _result(stranded=True, battery=0.24,
+                                          sim_time=1083.0),
+                       [_say(1083, 0.24, "GO_CHARGE", "GO_CHARGE: no route")],
+                       1.0, datetime.now(timezone.utc),
+                       hashes=rec.data_hashes(), commit="abc")
+  assert r["end"] == "stranded"
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1}
+  assert r["survival"]["survivalS"] == [1083.0]
 
 
 def test_end_causes_are_read_off_the_result():
@@ -264,6 +315,16 @@ def test_the_autonomous_arm_is_refused_until_it_exists():
     arm_flags("autonomous")
 
 
+def test_the_wall_limit_has_a_floor_for_short_days():
+  """A run's start-up cost does not scale with the day: 3 x 30 s killed the
+  slow test below under the full suite's load and called it `killed`."""
+  sys.path.insert(0, str(REPO / "scripts"))
+  from experiment import WALL_FLOOR_S, WALL_PER_SIM_S, wall_limit_for
+  assert wall_limit_for(30.0) == WALL_FLOOR_S
+  assert wall_limit_for(3600.0) == WALL_PER_SIM_S * 3600.0
+  assert wall_limit_for(3600.0, 50.0) == 50.0
+
+
 # ---- the committed results ---------------------------------------------------
 
 
@@ -275,8 +336,10 @@ def test_committed_results_are_valid_and_the_rollup_is_current():
   committed numbers now describe a previous regime."""
   records = ru.load_records(RESULTS)
   assert records, "the first committed result set is missing (issue #106)"
-  for r in records:
+  for path, r in zip(sorted(p for p in RESULTS.glob("*.json")
+                            if p.name != ru.ROLLUP_NAME), records):
     assert rec.problems(r) == [], r["runId"]
+    assert path.stem == r["runId"], f"{path.name} carries runId {r['runId']}"
   committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
   fresh = ru.rollup(records, current=rec.data_hashes())
   assert committed == fresh, \

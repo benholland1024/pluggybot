@@ -264,6 +264,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
               else (says[-1]["fraction"] if says else None))
   fractions = [s["fraction"] for s in says] + [r["fraction"] for r in rows
                                               if r["fraction"] is not None]
+  # A FLAT DEATH IS THE PACK REACHING ZERO (Evaluation.md §3), not the run
+  # ending on it: `needs_charge` is checked between errands and the sim
+  # does not stop the motors at 0 Wh, so a robot can hit zero mid-errand,
+  # drive to the rack on nothing and finish the day "day over". The first
+  # committed set had exactly that day. The survival span ends there.
+  flat_at = next((s["t"] for s in says if s["fraction"] <= 0.0), None)
   overseer = (result or {}).get("overseer") or {}
   metab = (result or {}).get("metabolism") or {}
   thought = (result or {}).get("thought_stats") or {}
@@ -314,9 +320,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     }
   record = {
     "schema": SCHEMA,
-    "runId": run_id(config, started_at),
-    "startedAt": started_at.astimezone(timezone.utc).replace(
-      microsecond=0).isoformat(),
+    # The id the PARENT assigned, when there is one: the file is named by it
+    # before the child starts, and a child recomputing it off its own clock
+    # produced records whose `runId` disagreed with their file name.
+    "runId": config.get("runId") or run_id(config, started_at),
+    "startedAt": config.get("startedAt") or started_at.astimezone(
+      timezone.utc).replace(microsecond=0).isoformat(),
     "world": config["world"], "arm": config["arm"], "pack": config["pack"],
     "model": config.get("model"), "backend": overseer.get("backend")
     or config.get("backend"),
@@ -336,10 +345,17 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     "end": end,
     "dataHashes": dict(hashes if hashes is not None else data_hashes()),
     "survival": {
-      # Until a reset exists (issue #107) a run has one survival span; a
+      # Until a reset exists (issue #107) a run has one survival span, to
+      # the moment the pack first reached zero or to the end of the day; a
       # killed run has none, because nobody knows when it died.
-      "survivalS": [round(sim_s, 3)] if end != "killed" else [],
-      "deaths": {"flat": int(end == "flat"), "stuck": int(end == "stuck")},
+      "survivalS": ([round(flat_at, 3)] if flat_at is not None
+                    else [round(sim_s, 3)] if end != "killed" else []),
+      # `stranded` -- "unable to reach the rack" -- IS §3's `stuck`: a
+      # navigation failure, never a decision one. Counted here so the two
+      # columns the doc says never to sum are both populated today.
+      "deaths": {"flat": int(flat_at is not None or end == "flat"),
+                 "stuck": int(end in ("stuck", "stranded"))},
+      "flatAtS": flat_at,
       "batteryEnd": frac_end,
       "minFraction": (round(min(fractions), 4) if fractions else None),
     },
@@ -419,8 +435,9 @@ def problems(record: dict) -> list[str]:
     out.append("decisionRows is not a list")
   if not isinstance(record["interventions"], list):
     out.append("interventions is not a list")
-  if record["end"] == "killed" and record["survival"]["survivalS"]:
-    out.append("a killed run has no survival span")
+  if (record["end"] == "killed" and record["survival"]["survivalS"]
+      and record["survival"].get("flatAtS") is None):
+    out.append("a killed run's survival span can only end at a flat")
   return out
 
 

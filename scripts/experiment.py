@@ -52,6 +52,17 @@ DEFAULT_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
 #: baseline measured 0.6-1.2x real time on the dev box under load; 3x is a
 #: run that has stopped, not a slow one.
 WALL_PER_SIM_S = 3.0
+#: ...and a FLOOR, because a run has a fixed start-up cost (model load,
+#: the detector, the first offscreen render) that a short day is mostly
+#: made of: the 30 s test day was killed at 3 x 30 = 90 s under the full
+#: suite's load, and reported as `killed` a run that was merely starting.
+WALL_FLOOR_S = 600.0
+
+
+def wall_limit_for(max_sim_s: float, override: float | None = None) -> float:
+  if override is not None:
+    return float(override)
+  return max(WALL_FLOOR_S, WALL_PER_SIM_S * float(max_sim_s))
 
 
 def credentials_missing(model: str, backend: str | None) -> str:
@@ -156,7 +167,8 @@ def main() -> int:
   ap.add_argument("--results", default=str(RESULTS))
   ap.add_argument("--wall-limit", type=float, default=None,
                   help=f"seconds before a run is killed (default "
-                       f"{WALL_PER_SIM_S} x --max-sim-time)")
+                       f"{WALL_PER_SIM_S} x --max-sim-time, at least "
+                       f"{WALL_FLOOR_S:.0f})")
   ap.add_argument("--telemetry", action="store_true",
                   help="also write a PluggyWorld recording beside each record")
   ap.add_argument("--rollup", action="store_true",
@@ -171,7 +183,7 @@ def main() -> int:
       if missing:
         print(f"refusing to fly the {args.arm} arm: {missing}", file=sys.stderr)
         return 2
-    wall_limit = args.wall_limit or WALL_PER_SIM_S * args.max_sim_time
+    wall_limit = wall_limit_for(args.max_sim_time, args.wall_limit)
     hashes = data_hashes()
     configs = []
     for k in range(args.runs):

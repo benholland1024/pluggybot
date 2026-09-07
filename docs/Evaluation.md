@@ -45,6 +45,16 @@ a spread across repeated runs of one configuration is a measurement of the
 *model*, not of the simulator — which is exactly the experiment we want, and
 is why it is worth defending.
 
+⚠ **MEASURED (issue #110): IT IS NOT QUITE TRUE.** The first committed
+`scripted` series — five days of `home` on the hosting pack with no model in
+the loop — gave **three distinct trajectories**: identical to the
+milliwatt-hour for five errands, then one day reached the far board the
+others failed at, and one hit 4 % where the others hit 9.6 %. The suspects
+are the GPU detector, offscreen rendering under contention, and thread
+timing; none is confirmed. Until it is, a spread across runs is the model
+*plus a simulator floor that has not been measured*, and the `scripted` arm
+is what measures the floor — one more reason it is never skipped.
+
 ⚠ **Anything that makes the world random destroys this**, and the temptation
 will come dressed as realism ("jitter the task times so it feels alive").
 Variation belongs in the ARM, held fixed within a run and varied between them.
@@ -220,6 +230,32 @@ something else.
 Raw records (one JSON line per decision with the full context, the
 narration with battery beside every line, and the summaries) are kept
 outside the repo by design — pass 1b re-runs this through the harness.
+
+#### Pass 1b — the same measurement through the harness (issue #106)
+
+`results/` holds the first committed set: five `guarded` days and five
+`scripted` days of `home` on the hosting pack, same configuration and data
+files as 1a, flown five at a time on the same loaded box. What it adds:
+
+- **Guarded, again: 0 voluntary charges in 94 decisions** (fallback rate
+  8–47 %, still the box: 14 of 25 timeouts, plus the cool-off and idle-run
+  the streaks earn). Deferred 8, forced 1.
+- **One `flat` death, and the fallback caused it.** Two consecutive
+  timeouts at 24 % and 13 % resolved to the rotation's `explore`, which
+  sent the robot to the street; `needs_charge` fired at 6.7 % out there and
+  the pack reached **0 % on the way to the rack** (t=2852), docked on
+  nothing — the motors do not stop at 0 Wh — charged, and finished the day.
+  The end cause said "day over"; the record now counts the zero as the
+  death and the survival span ends there. It also says the 0.90 Wh reserve
+  does not cover a return from the street zone.
+- **One `stuck` death: stranded at 24 %.** A census errand dropped its
+  module on the way back; the next deferral's trip to the rack found "no
+  route to the charge bay" — the dropped module in the approach lane
+  (issue #30's cliff) — and the mission ended stranded with the pack a
+  quarter full.
+- **Scripted: one forced charge per day at 4–10 %, never a deferral**, and
+  the rotation never chooses `charge` either. The five days were meant to be
+  identical and were not (three trajectories; §1, issue #110).
 
 ### The mind
 
