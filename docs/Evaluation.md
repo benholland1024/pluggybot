@@ -45,15 +45,20 @@ a spread across repeated runs of one configuration is a measurement of the
 *model*, not of the simulator — which is exactly the experiment we want, and
 is why it is worth defending.
 
-⚠ **MEASURED (issue #110): IT IS NOT QUITE TRUE.** The first committed
-`scripted` series — five days of `home` on the hosting pack with no model in
-the loop — gave **three distinct trajectories**: identical to the
-milliwatt-hour for five errands, then one day reached the far board the
-others failed at, and one hit 4 % where the others hit 9.6 %. The suspects
-are the GPU detector, offscreen rendering under contention, and thread
-timing; none is confirmed. Until it is, a spread across runs is the model
-*plus a simulator floor that has not been measured*, and the `scripted` arm
-is what measures the floor — one more reason it is never skipped.
+⚠ **IT WAS NOT TRUE, AND NOW IT IS — MEASURED BOTH WAYS (issue #110).** The
+first committed `scripted` series — five days of `home` with no model in the
+loop — gave **three distinct trajectories**. Traced with
+`scripts/determinism_spike.py` to the offscreen renderer: with multisample
+antialiasing on, one static scene renders to a different image every time
+(±1 in a few dozen shadow-edge pixels), the AprilTag decode moves on ~0.6 %
+of looks, and a moved decode is a moved rack belief and, minutes later, a
+different drive. The lidar and the decoder itself were ruled out (0 of
+10 784 scans differed; one answer per image). `offsamples="0"` in the robot
+models makes every render byte-identical at no cost to the detector
+(same tags seen at every range), and `tests/test_render_determinism.py`
+pins both halves. The committed `scripted` series predates the fix and
+stays as the record of the pre-fix spread. SimNotes, "The world was not the
+same world twice".
 
 ⚠ **Anything that makes the world random destroys this**, and the temptation
 will come dressed as realism ("jitter the task times so it feels alive").

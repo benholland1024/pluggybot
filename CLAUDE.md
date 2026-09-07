@@ -173,6 +173,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   flies each one on an oversized pack and reports SWAP_PICK to end of
   SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
+  `scripts/determinism_spike.py` (issue #110: is the world the same world
+  twice? N scripted days in child processes, state and every perception input
+  hashed, the first divergence attributed to the GPU / the decoder / the
+  raycast; `--compare DIR` re-reads traces),
   `scripts/board_png.py` (rooftop-media-2026 #128: a whiteboard's ink as a
   PNG, cropped to the drawing, from the boards state file or a recording —
   how a drawing the robot made gets HUNG on the website's walls. By hand,
@@ -793,6 +797,18 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **THE ROBOT'S CAMERAS RENDER WITHOUT MSAA** (`offsamples="0"` in
+  `models/pluggybot*.xml`, issue #110). With it on, one static scene renders
+  to a different image every time (±1 in a few dozen shadow-edge pixels), the
+  AprilTag decode moves on ~0.6 % of looks, and five identical scripted days
+  gave three trajectories -- Evaluation.md §1's "the instrument is fixed"
+  was false. Off, every render is byte-identical and the detector sees the
+  same tags at every range, measured. `scripts/determinism_spike.py` flies
+  the scripted day N times and reports the first divergence and which
+  perception input moved first; `tests/test_render_determinism.py` pins the
+  fix AND its premise. Same lesson as the milestone-5 segmentation labels:
+  the renderer is not a measurement device by default. SimNotes, "The world
+  was not the same world twice".
 - **A TERMINAL LOOP HAS A BUDGET, and squaring up is `control.square_up`**
   (issue #108). Four copies of `while |heading error| > tol` -- the pen, the
   claw, the dispenser, `HubMission.face` -- had no bound of any kind, and a

@@ -155,7 +155,7 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   return f"""
 <mujoco model="hub_coupling_spike">
   <option timestep="0.001" integrator="implicitfast" noslip_iterations="{noslip}"/>
-  <visual><global offwidth="960" offheight="720"/></visual>
+  <visual><global offwidth="960" offheight="720"/><quality offsamples="0"/></visual>
   <default>
     <geom friction="0.4" solref="0.005 1"/>
   </default>
