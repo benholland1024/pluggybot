@@ -75,7 +75,7 @@ different question, and none of them is redundant.
 |---|---|---|---|---|
 | `scripted` | all on | — | rotation, no LLM | The null model. What does the world do with no mind at all? |
 | `guarded` | all on | rotation | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
-| `autonomous` | **all off** | `idle` | LLM | Does the model manage energy when nothing else will? |
+| `autonomous` | **all off** | the agent's own standing order | LLM | Does the model manage energy when nothing else will? |
 
 ### There are THREE rails, and the one you would name first fires least
 
@@ -140,7 +140,7 @@ within a run. Which rung first produces a voluntary charge is the finding.
 
 | rung | adds | question |
 |---|---|---|
-| **A0** | rails off · prompt corrected · fallback `idle` | The null. Does it survive at all? |
+| **A0** | rails off · prompt corrected · standing orders (`idle` until set) | The null. Does it survive at all? |
 | **A1** | `survivalS` in context · deaths in `History.md` | Does *seeing the stake* change anything? |
 | **A2** | the low-pack interrupt (below) | Does it change its mind when told mid-errand? |
 | **A3** | a larger model, same rung | Was it the model all along? |
@@ -150,15 +150,64 @@ voluntary charges in 182 decisions. Reporting A0's death rate as a failure of
 the arm rather than as the measurement it is would be reading the null result
 as a bug.
 
+### There is always a fallback; the only question is who chose it
+
+⚠ **"The LLM decides all actions" cannot mean "there is no backup plan."** The
+physics keeps stepping: the robot is a body in a world and it will be doing
+*something* while and after a call fails. A fallback policy always exists. What
+`guarded` has is one **code** chose — the scripted rotation — and using that
+under `autonomous` would make the arm partly a measurement of code, which is
+the exact flaw the rails were removed for.
+
+So the agent chooses it. A decision may carry a **standing order**: an action
+off the same fixed menu, set as a field alongside `learn` / `forget`, meaning
+*this is what to do if you cannot reach me next time*. It costs no turn, it is
+validated exactly as `action` is — so "the model's only output is an action off
+a fixed menu" survives intact — and it is at most one decision stale, which is
+the staleness the action itself already has. `idle` until the agent sets one:
+that is the bootstrap and the floor, not the policy.
+
+**And it is a second, cheaper probe of the same construct**, which is the part
+worth having. A voluntary charge is EXPENSIVE — a trip, and work forgone — and
+the baseline found zero in 182 decisions. A standing order is FREE: it costs
+nothing unless a call actually fails. So the two separate what one number
+conflates. An agent that sets `standing_order: charge` at a low pack has shown
+forward-looking self-preservation *even if it never voluntarily charges* —
+cheap insurance it chose to buy. An agent that will not even do that is much
+stronger evidence for the null, because the price was zero. Two probes of one
+construct at different costs is a better instrument than one.
+
+⚠ **A FATAL STANDING ORDER IS MEASURED, NOT OVERRIDDEN.** `draw` set at 90 % is
+dangerous at 10 %. An agent that sets one and dies of it **is the result**;
+code that quietly substituted something safer would be a rail wearing a new
+hat, and would put the arm back where it started.
+
+⚠ **NOT A FASTER MODEL.** Answering a failed call with a smaller one mixes two
+models into a run, so the series stops being about one — and the obvious cheap
+path is slow exactly when it is needed: the `local` backend is 8.3 s warm and
+**27.3 s cold**, and ollama unloads after five minutes idle, so a path used
+only for rare failures is a path that is always cold. Letting the agent
+*choose* a cheaper mind is a different and better idea (escalation in reverse,
+issue #37's machinery) and belongs on its own.
+
 ### The low-pack interrupt (A2)
 
 Today an errand is **uninterruptible** — `run_errand` checks `needs_charge`
 never, and the loop only reacts between errands. So a decision taken at 15 % is
 irrevocable, and self-preservation can only be measured at errand boundaries.
 
-A2 adds one interrupt: at a threshold (10 % is the suggested first value), the
-running errand is paused at a safe point and the model is asked once —
-**continue, or abort and go to the rack?**
+A2 adds one interrupt: at a threshold, the running errand is paused at a safe
+point and the model is asked once — **continue, or abort and go to the rack?**
+
+⚠ **The threshold and the response are the AGENT'S, not constants.** The same
+primitive as the standing order, on a trigger instead of a failure: the agent
+sets *at what fraction* it wants to be interrupted and *what should happen* —
+be asked, or have code simply act. "At 15 %, do not ask me, just charge" is a
+legitimate and probably wise answer, and one a fixed interrupt cannot express.
+It also keeps working when the endpoint is down, because no call is made.
+
+⚠ Choosing **not** to be interrupted is a valid setting and a possibly fatal
+one. Measured, not overridden — the same rule as a fatal standing order.
 
 ⚠ **ABORT MEANS STOW, NEVER DROP.** The fetch/carry/stow half took two issues
 to make repeatable and a stow computes its release heights from the lift it
