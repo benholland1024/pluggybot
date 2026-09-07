@@ -189,7 +189,8 @@ class Probe:
       program=d.program, zone=d.zone, reason=d.reason,
       wallS=event.get("wallS"), error=event.get("error", ""),
       learn=bool(d.learn), forget=bool(d.forget), note=bool(d.note),
-      escalate=bool(d.escalate), offers=offers,
+      escalate=bool(d.escalate), standingOrder=d.standing_order,
+      offers=offers,
       affordable=list(state.get("affordableActions") or ()),
       possible=list(state.get("possibleActions") or ()),
       hunger=(state.get("metabolism") or {}).get("state")))
@@ -391,6 +392,32 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "refused": dict(overseer.get("escalationsRefused") or {}),
       "asked": sum(1 for r in rows if r.get("escalate")),
       "usd": overseer.get("escalationUsd"),
+    }
+  # WHAT THE AGENT LEFT BEHIND, AND WHETHER IT WAS EVER NEEDED (issue #125).
+  # Counted off the ROWS rather than off the overseer's own counters, because
+  # a run killed on wall clock leaves rows and no result -- and read as: a
+  # model answer's `standingOrder` is one SET, a fallback's is one FIRED, and
+  # a firing whose action is not the order is one that could not be run.
+  # Present only where the field was in the model's grammar, on
+  # `escalations`' terms: "never left an order" is a fact about the agent and
+  # "was never offered one" is not.
+  if overseer.get("standingOrders"):
+    fired = [r for r in fallbacks if r.get("standingOrder")]
+    mind["standingOrders"] = {
+      "set": sum(1 for r in llm if r.get("standingOrder")),
+      "orders": dict(Counter(r["standingOrder"] for r in llm
+                             if r.get("standingOrder"))),
+      "fired": len(fired),
+      "firedOrders": dict(Counter(r["standingOrder"] for r in fired)),
+      # An order that fired into `idle` because it named something this
+      # world could not do at that moment. Never summed with the firings:
+      # "it chose this and this happened" and "it chose something
+      # impossible" are the two facts the field is measured for.
+      "unrunnable": sum(1 for r in fired if r["action"] != r["standingOrder"]),
+      # ...and a fallback with no order at all: the floor, before the agent
+      # has left one.
+      "unset": sum(1 for r in fallbacks if not r.get("standingOrder")),
+      "final": overseer["standingOrders"].get("current"),
     }
   # Survival spans: mission start -> first death, and each reset -> the next
   # death or the end of the day. Without a reset there is one span, as

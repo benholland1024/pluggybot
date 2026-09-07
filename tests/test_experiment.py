@@ -334,8 +334,12 @@ def test_the_rollup_keeps_an_intervened_run_out_of_survival():
 
 
 def test_the_autonomous_arm_is_refused_until_it_exists():
-  assert arm_flags("scripted") == {"overseer": False}
-  assert arm_flags("guarded") == {"overseer": True}
+  # `standing_orders` is stated rather than defaulted (issue #125): whose
+  # the fallback is is part of what an arm MEANS, and `guarded` is the
+  # control -- tests/test_standing_orders.py pins the other half.
+  assert arm_flags("scripted") == {"overseer": False,
+                                   "standing_orders": False}
+  assert arm_flags("guarded") == {"overseer": True, "standing_orders": False}
   with pytest.raises(NotImplementedError, match="Evaluation.md"):
     arm_flags("autonomous")
 

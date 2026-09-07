@@ -338,6 +338,36 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   edited — all in `/var/lib/pluggybot`.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  - **THERE IS ALWAYS A FALLBACK; THE ONLY QUESTION IS WHO CHOSE IT**
+    (`Overseer.fallback` + `standing_order` on a decision, issue #125;
+    docs/Overseer.md §2, docs/Evaluation.md §2). The physics keeps stepping,
+    so a failed call is not "nothing happens" -- it is the SCRIPTED ROTATION,
+    which code chose. Right for `guarded`, whose subject is today's
+    behaviour; wrong for `autonomous`, where it would make the arm partly a
+    measurement of code. So the agent leaves a STANDING ORDER: one action off
+    the same fixed menu, on the decision it was already making (so it costs
+    no turn), refused by `Menu.validate` exactly as `action` is (so "the
+    model's only output is an action off a fixed menu" survives), and at most
+    one decision stale because only the LATEST answer's order stands.
+    OFF by default and flown by nothing yet -- `arm_flags` states
+    `standing_orders: False` on both built arms and it is the boolean #115
+    flips.
+    ⚠ **A FATAL ORDER IS MEASURED, NOT OVERRIDDEN.** `draw` left behind at
+    90 % is dangerous at 10 % and runs anyway; substituting something safer
+    would be a rail wearing a new hat. What IS filtered is the IMPOSSIBLE --
+    a `take_task` with nothing on the board, an errand this world could not
+    fund out of a FULL pack (`possibleActions`, never `affordableActions`).
+    ⚠ **THREE OUTCOMES, NEVER SUMMED**: the order ran, no order had been left
+    (`idle`, the bootstrap and not the policy), or the order could not be run
+    (`idle`, and the row still names it). "Never set" and "set and
+    impossible" are different facts about an agent, and a field nobody ever
+    exercised looks identical to one that saved the run in a count of the
+    times it was SET -- so the record counts the firings separately, off the
+    ROWS, which is all a killed run leaves behind.
+    ⚠ Validation goes through a FUNCTION (`overseer.standing_order`), which
+    is the one line of care #58 asks: an order may later be a conditional
+    ("if below 20 %, charge, otherwise draw") and one place should know what
+    an order looks like.
   - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
     (`mind/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
     `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —

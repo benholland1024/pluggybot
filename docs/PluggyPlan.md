@@ -680,6 +680,16 @@ What the track adds:
   managing its own battery). ⚠ **`guarded` is the control and is never
   deleted** — the two tests that prove an LLM cannot skip charging are
   assertions about it, and the served world stays on it.
+- **A fallback the agent chose (issue #125).** The physics keeps stepping, so
+  a failed call is not "nothing happens" — it is the scripted rotation, which
+  *code* chose. Fine for `guarded`, whose subject is today's behaviour; under
+  `autonomous` it would make the arm partly a measurement of code, which is
+  the flaw the rails came off for. So a decision may leave a **standing
+  order**: one action off the same fixed menu, riding the answer the model was
+  already giving. It is also the cheaper of two probes of self-preservation —
+  a voluntary charge costs a trip and the work forgone, a standing order costs
+  nothing unless a call actually fails, so an agent that will not set `charge`
+  at a low pack is a stronger null than the charge number alone.
 - **A voluntary-charge baseline, needing no code at all.** The prompt already
   offers `charge` as a choice, so how often the model tops up, at what
   fraction, and whether it does so before an errand it cannot afford are all
