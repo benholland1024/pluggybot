@@ -16,6 +16,7 @@ measuring a different world from the one the record names.
 
 import hashlib
 import json
+import math
 import os
 import re
 import statistics
@@ -41,6 +42,13 @@ BUILT_ARMS = ("scripted", "guarded")
 #: `killed` into `stuck` would count "the box was slow" as a physics death.
 END_CAUSES = ("day over", "complete", "flat", "stranded", "stuck", "killed",
               "aborted")
+
+#: Where a call-latency distribution is read (issue #117). The deadline is
+#: a CAP on this distribution, so the share of calls it cuts off is a
+#: property of the TAIL and not of the middle: a 4.88 s median under an 8 s
+#: deadline lost a third of the loaded baseline's decisions, because its
+#: worst calls were already at 7.4 s with the box doing nothing.
+LATENCY_PERCENTILES = (90.0, 95.0)
 
 #: The five files that each change the regime (Evaluation.md §4), resolved
 #: exactly as the sim resolves them -- the env override wins -- so a record
@@ -124,8 +132,11 @@ def slug(text: str) -> str:
 
 def run_id(config: dict, started_at: datetime) -> str:
   stamp = started_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+  label = slug(config.get("label") or "")
   return (f"{stamp}_{config['world']}_{config['arm']}_{config['pack']}_"
-          f"{slug(config.get('model') or 'none')}_s{config.get('seed', 0)}")
+          f"{slug(config.get('model') or 'none')}"
+          + (f"_{label}" if config.get("label") else "")
+          + f"_s{config.get('seed', 0)}")
 
 
 # ---- the probe ---------------------------------------------------------------
@@ -192,11 +203,33 @@ def decision_row(**kw) -> dict:
 # ---- from rows to a record ---------------------------------------------------
 
 
-def _dist(values: list) -> dict:
+def percentile(values: list, p: float) -> float:
+  """The NEAREST-RANK percentile: an order statistic, never an interpolation
+  between two of them.
+
+  At the sizes here (n=50 for a latency probe, n=5 for a series) an
+  interpolated p95 is a number no call actually took, and the tail is
+  exactly what a deadline is read off. `p` is 0-100.
+  """
+  vals = sorted(values)
+  k = max(1, math.ceil((p / 100.0) * len(vals)))
+  return vals[min(k, len(vals)) - 1]
+
+
+def dist(values: list, percentiles: tuple[float, ...] = ()) -> dict:
+  """min / median / max + the raw values, and the percentiles asked for.
+
+  ⚠ `percentiles` is passed WHERE THE TAIL IS THE POINT and nowhere else
+  (issue #117): a call-latency distribution is read at p90/p95 because that
+  is what a deadline has to cover, while a p95 over five days' charge counts
+  is just the maximum wearing a percentile's name.
+  """
   vals = [v for v in values if v is not None]
   if not vals:
-    return {"n": 0, "min": None, "median": None, "max": None, "values": []}
+    return {"n": 0, "min": None, "median": None, "max": None,
+            **{f"p{p:g}": None for p in percentiles}, "values": []}
   return {"n": len(vals), "min": min(vals), "median": statistics.median(vals),
+          **{f"p{p:g}": percentile(vals, p) for p in percentiles},
           "max": max(vals), "values": vals}
 
 
@@ -335,7 +368,10 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     # The vendor's words behind every garbled/offline answer -- the
     # baseline lost the interesting one to `usage.errors`' five-line window.
     "errors": [r["error"] for r in rows if r.get("error")],
-    "wallS": _dist([r["wallS"] for r in llm]),
+    # The one distribution read at its TAIL: the deadline is a cap on
+    # this, and a median well under it says nothing about how often it
+    # bites (issue #117).
+    "wallS": dist([r["wallS"] for r in llm], LATENCY_PERCENTILES),
     "deadlineS": config.get("deadlineS"),
     "constrained": overseer.get("constrained"),
     "budgetLeft": overseer.get("budgetLeft"),
@@ -391,6 +427,13 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     "startedAt": config.get("startedAt") or started_at.astimezone(
       timezone.utc).replace(microsecond=0).isoformat(),
     "world": config["world"], "arm": config["arm"], "pack": config["pack"],
+    # THE CONDITIONS THE RUN WAS FLOWN UNDER, as a name (issue #117). Part
+    # of the series key, so a series flown on a quiet box and one flown
+    # five-up on a loaded one are two series rather than one average of
+    # both -- which is the whole point of committing the pair. Empty for a
+    # run that claims nothing about its box, which is every run before this
+    # existed.
+    "label": str(config.get("label") or ""),
     "model": config.get("model"), "backend": overseer.get("backend")
     or config.get("backend"),
     "seed": int(config.get("seed", 0)),

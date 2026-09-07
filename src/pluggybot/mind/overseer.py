@@ -84,7 +84,45 @@ MODEL = "claude-haiku-4-5"
 #: Wall seconds a single decision may take before the scripted policy wins.
 #: The SDK gets the same number as its own request timeout, so the HTTP call
 #: is actually abandoned rather than left running behind a fallback.
-CALL_TIMEOUT_S = 8.0
+#:
+#: MEASURED (issue #117; `scripts/overseer_probe.py --calls 50`, quiet box,
+#: `Qwen/Qwen3-4B-Instruct-2507` on the HF router, 2026-09-07):
+#:
+#:     min 3.55 · median 4.88 · p90 5.89 · p95 6.59 · max 7.38 s
+#:     timeout share at EVERY candidate from 8 s up: 0 %
+#:     malformed answers: 0 of 50
+#:
+#: ⚠ THE CURVE SAYS THE OLD 8 s WAS NOT FAILING -- IT SAYS IT HAD NO MARGIN.
+#: Nothing timed out on a quiet box, and the slowest call still used 92 % of
+#: the deadline; put a VM and five sims on the same six cores and the same
+#: arm went to 19-47 % fallback. Every one of those was the scripted
+#: rotation deciding, and the rotation never chooses `charge`.
+#:
+#: So 90 s is NOT read off the tail -- nothing measured is within twelve
+#: times of it. It is a deliberate PATIENCE budget, and the reasoning is the
+#: project's rather than the distribution's: this world exists to let a mind
+#: make a complicated choice, and a decision lost to a clock is the one
+#: failure that is purely ours. A minute and a half is where a slow answer
+#: stops being slow and becomes a hang -- and an escalation, which buys a
+#: bigger mind, gets the full two.
+#:
+#: ⚠ AND A DEADLINE IS A CAP, NOT A COST. It is spent only when a call is
+#: actually slow: `_decide` STEPS the sim while one is in flight
+#: (`THINK_SLICE_S`), so this bounds sim seconds spent standing still at
+#: ~8.5 W of electronics. At the measured median and ~20 decisions a day
+#: that is 98 sim-s -- 2.7 % of an hour-long day, 0.23 Wh of an 8 Wh pack,
+#: and it does not move when the cap does. The two ways to actually spend
+#: the cap:
+#:
+#:   - a DEAD endpoint cannot spend much of it: three failures in a row
+#:     start a cooloff (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, which
+#:     doubles), and a cooled-off decision is scripted instantly. ~810 sim-s
+#:     across a 3600 s day, worst case.
+#:   - an endpoint that is SLOW BUT ALIVE, answering just under the cap
+#:     every time, is the expensive one: 1800 sim-s, half the day and half
+#:     the pack. Nothing observed is remotely like this, and if it ever
+#:     happens the fallback rate is what says so.
+CALL_TIMEOUT_S = 90.0
 #: ...and the outer poll deadline, which must be the looser of the two or a
 #: call that finishes at 7.9 s would be discarded by its own supervisor.
 POLL_GRACE_S = 2.0
@@ -126,10 +164,13 @@ ESCALATE_MIN_INTERVAL_S = 600.0
 #: ~3 300; rounding up is the safe direction for a budget check.
 ESCALATE_ASSUMED_IN = 3500
 #: Wall seconds a bigger mind gets. Longer than `CALL_TIMEOUT_S` because a
-#: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200,
-#: and shorter than the local backend's because nothing has to be loaded
-#: into anybody's VRAM first.
-ESCALATE_TIMEOUT_S = 30.0
+#: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200
+#: -- an ordering, not an independent number, so it moves whenever that one
+#: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90).
+#: ⚠ Measured, the escalation is not in fact the slow one: the 235B pick
+#: answers in 2.05 s (docs/Overseer.md section 8). This is headroom for the
+#: case where it is, not a prediction that it will be.
+ESCALATE_TIMEOUT_S = 120.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
 #: report a cost per sim-hour -- nothing here spends or gates on money.

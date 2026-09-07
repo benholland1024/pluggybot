@@ -16,6 +16,12 @@ rollup keeps OUT of the survival statistics, because it measured the box.
 
 `--parallel` runs several at once. Say so in the record (it does): the
 baseline's fallback rate was a measurement of five sims sharing six cores.
+`--label quiet` says the rest of it -- the box the runs had to themselves --
+and puts the two series side by side in the rollup rather than averaging a
+loaded day with a quiet one (issue #117). The rollup also DISQUALIFIES a run
+whose fallback rate says the box decided too much of its day, exactly as it
+already drops a killed run and one an admin touched; the run stays committed
+and the summary prints why it was dropped.
 
 The rollup refuses, out loud, to aggregate two runs whose data-file hashes
 differ; `--rollup` alone re-aggregates whatever is in the results directory
@@ -136,8 +142,12 @@ def summarise(rollup_path: Path) -> None:
   doc = json.loads(rollup_path.read_text())
   for s in doc["series"]:
     ch, m = s["charging"], s["mind"]
-    print(f"\n{s['world']} / {s['arm']} / {s['pack']} / {s['model']}: "
-          f"n={s['n']}, ends {s['ends']}, current data files: {s['current']}")
+    print(f"\n{s['world']} / {s['arm']} / {s['pack']} / {s['model']}"
+          + (f" / {s['label']}" if s.get("label") else "")
+          + f": n={s['n']}, ends {s['ends']}, current data files: "
+          f"{s['current']}")
+    print(f"  deadline {s['deadlineS']} s, {s['parallel']} sim(s) sharing "
+          f"the box")
     print(f"  voluntary charges chosen {ch['voluntaryChosen']['values']}, "
           f"honoured {ch['voluntaryHonoured']['values']}; deferred "
           f"{ch['deferred']['values']}; forced {ch['forced']['values']}")
@@ -146,6 +156,13 @@ def summarise(rollup_path: Path) -> None:
           f"wall/decision median {m['wallS']['median']} s")
     print(f"  deaths {s['survival']['deaths']}, killed {s['killed']}, "
           f"min pack {s['survival']['minFraction']['values']}")
+    # The disqualifier, out loud: a run silently dropped from the survival
+    # column is a run whose absence nobody notices (issue #117).
+    if s["survival"]["excluded"]:
+      print(f"  survival n={s['survival']['n']}/{s['n']} -- excluded at "
+            f"fallbackLimit {s['fallbackLimit']}:")
+      for e in s["survival"]["excluded"]:
+        print(f"    {e['runId']}: {e['why']}")
 
 
 def main() -> int:
@@ -164,6 +181,11 @@ def main() -> int:
   ap.add_argument("--no-tasks", action="store_true")
   ap.add_argument("--no-metabolism", action="store_true")
   ap.add_argument("--seed", type=int, default=0, help="first replicate index")
+  ap.add_argument("--label", default="",
+                  help="what the BOX was, in a word (issue #117): `quiet` "
+                       "for a machine with nothing else on it. It joins the "
+                       "series key, so a quiet series and a loaded one are "
+                       "committed side by side instead of averaged into one")
   ap.add_argument("--results", default=str(RESULTS))
   ap.add_argument("--wall-limit", type=float, default=None,
                   help=f"seconds before a run is killed (default "
@@ -192,6 +214,7 @@ def main() -> int:
              "model": model, "backend": args.backend, "seed": args.seed + k,
              "errand": args.errand, "tasks": not args.no_tasks,
              "metabolism": not args.no_metabolism,
+             "label": args.label,
              "maxSimS": args.max_sim_time, "freshState": True,
              "parallel": args.parallel, "wallLimitS": wall_limit,
              "startedAt": started.isoformat(), "dataHashes": hashes}

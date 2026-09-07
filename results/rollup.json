@@ -116,6 +116,7 @@
     "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
     "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
    },
+   "deadlineS": 8.0,
    "economy": {
     "balance": {
      "max": 90,
@@ -206,7 +207,9 @@
     "day over": 4,
     "stranded": 1
    },
+   "fallbackLimit": 0.25,
    "killed": 0,
+   "label": "",
    "memory": {
     "forget": {
      "max": 13,
@@ -340,6 +343,8 @@
      "median": 6.586,
      "min": 3.461,
      "n": 59,
+     "p90": 7.878,
+     "p95": 8.049,
      "values": [
       5.04,
       3.461,
@@ -405,7 +410,11 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
+   "overFallback": 3,
    "pack": "hosting",
+   "parallel": [
+    5
+   ],
    "runIds": [
     "2026-09-07T11-22-03Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
     "2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
@@ -418,30 +427,38 @@
      "flat": 0,
      "stuck": 1
     },
+    "excluded": [
+     {
+      "runId": "2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
+      "why": "fallbackRate 0.2857 over the 0.25 limit for the guarded arm: 29% of its decisions were the rotation"
+     },
+     {
+      "runId": "2026-09-07T11-22-05Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s2",
+      "why": "fallbackRate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions were the rotation"
+     },
+     {
+      "runId": "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
+      "why": "fallbackRate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions were the rotation"
+     }
+    ],
     "minFraction": {
-     "max": 0.1628,
-     "median": 0.1105,
+     "max": 0.1243,
+     "median": 0.07975,
      "min": 0.0352,
-     "n": 5,
+     "n": 2,
      "values": [
       0.0352,
-      0.1628,
-      0.1038,
-      0.1105,
       0.1243
      ]
     },
-    "n": 5,
+    "n": 2,
     "survivalS": {
-     "max": 3733.981,
-     "median": 3697.911,
+     "max": 3720.447,
+     "median": 2397.3465,
      "min": 1074.246,
-     "n": 5,
+     "n": 2,
      "values": [
       1074.246,
-      3733.981,
-      3697.911,
-      3624.268,
       3720.447
      ]
     }
@@ -576,6 +593,7 @@
     "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
     "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
    },
+   "deadlineS": null,
    "economy": {
     "balance": {
      "max": 55,
@@ -665,7 +683,9 @@
    "ends": {
     "day over": 5
    },
+   "fallbackLimit": null,
    "killed": 0,
+   "label": "",
    "memory": {
     "forget": {
      "max": 0,
@@ -783,12 +803,18 @@
      "median": null,
      "min": null,
      "n": 0,
+     "p90": null,
+     "p95": null,
      "values": []
     }
    },
    "model": "none",
    "n": 5,
+   "overFallback": 0,
    "pack": "hosting",
+   "parallel": [
+    5
+   ],
    "runIds": [
     "2026-09-07T10-13-13Z_home_scripted_hosting_none_s0",
     "2026-09-07T10-13-14Z_home_scripted_hosting_none_s1",
@@ -801,6 +827,7 @@
      "flat": 0,
      "stuck": 0
     },
+    "excluded": [],
     "minFraction": {
      "max": 0.0952,
      "median": 0.0952,

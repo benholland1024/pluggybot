@@ -98,12 +98,19 @@ LOCAL_MODEL = "qwen3:4b-instruct"
 #: LOAD. Measured here (GTX 1660 Super, 6 GB, qwen3:4b-instruct, the real
 #: 11 kB prompt): a warm decision is 3.4-5.5 s, and the first one after the
 #: weights are out of VRAM is **27.3 s**. The Anthropic path's 8 s deadline
-#: therefore turns every mission's opening decision into a guaranteed
+#: therefore turned every mission's opening decision into a guaranteed
 #: `fallback:timeout` -- measured, three for three, before this constant
 #: existed -- and ollama unloads an idle model after five minutes, so a robot
 #: coming back from a long errand pays it again. The budget, the cool-off and
 #: the fallback are untouched; only the number they are measured against
 #: moves, and it moves because the endpoint is genuinely different.
+#:
+#: ⚠ It is now a FLOOR rather than the local answer (see `default_timeout`).
+#: Since issue #117 the API deadline is 90 s and covers the cold load on its
+#: own, so this number stops being the one that bites -- but it is kept, and
+#: kept measured, because it is the only thing in the tree that knows how
+#: long a model takes to reach VRAM. If the API deadline ever comes back
+#: down, the local path must not come down with it.
 LOCAL_TIMEOUT_S = 45.0
 
 #: Answer-format instructions for the one-retry path when an endpoint rejects
@@ -144,9 +151,18 @@ def default_timeout(backend: str, anthropic_s: float) -> float:
   `anthropic_s` is the caller's own default (`overseer.CALL_TIMEOUT_S`) --
   passed in rather than imported so this module stays free of the overseer,
   which imports it.
+
+  ⚠ A FLOOR, NOT AN OVERRIDE (issue #117). This used to hand the local
+  backend `LOCAL_TIMEOUT_S` outright, which was the same thing while that
+  number was the larger one (45 against 8). At a 90 s API deadline it would
+  invert the constant's own reason for existing -- the local path is the one
+  with a MEASURED slow case, a 27.3 s cold model load, so it must never be
+  given LESS patience than an endpoint on the far side of the internet.
+  `max` says both facts at once and stays right whichever number moves.
   """
-  return LOCAL_TIMEOUT_S if backend in ("local",
-                                       "openai-compatible") else anthropic_s
+  if backend in ("local", "openai-compatible"):
+    return max(LOCAL_TIMEOUT_S, anthropic_s)
+  return anthropic_s
 
 
 def default_url(backend: str) -> str:

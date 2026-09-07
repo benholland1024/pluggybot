@@ -37,6 +37,23 @@ says plainly whether caching engaged.
                         # for. Cost prints as "no API cost" rather than as
                         # $0.00000, because those are different claims.
 
+⚠ THE LATENCY DISTRIBUTION IS THE POINT OF THE `--calls` NUMBER (issue #117).
+A fallback rate is a deterministic function of (latency distribution,
+deadline), and the distribution needs no physics -- so `--calls 50` here is
+how `overseer.CALL_TIMEOUT_S` gets chosen, in ten minutes, instead of by
+five hours of flying the sim and reading the timeouts off the wreckage.
+Two rules the report obeys:
+
+  - **A mean hides the tail, and the tail is the whole measurement.** The
+    deadline is a CAP on this distribution: the loaded baseline's median was
+    6.5 s against 8 s and it still lost a third of its decisions. So min /
+    median / p90 / p95 / max and the raw values, the way the record schema
+    reports every other distribution (`Evaluation.md` section 4).
+  - **The probe holds calls to `--timeout`, not to the deadline.** A
+    distribution measured through the deadline it is meant to justify is
+    CENSORED at that deadline -- every slow call reads as exactly 8 s and
+    the tail the number is chosen from is the one part that was thrown away.
+
 ⚠ EXPECT A CACHE HIT RATE OF ZERO unless the stable prefix is over 4096
 tokens. That is Claude Haiku 4.5's minimum cacheable prefix, and below it a
 `cache_control` marker is silently inert -- no error, no warning, just
@@ -52,11 +69,41 @@ import json
 import time
 from dataclasses import replace
 
+from pluggybot.evaluation.record import LATENCY_PERCENTILES, dist
+
 from pluggybot.lifecycle import board_book
 from pluggybot.mind import llm
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.mind.overseer import MODEL, Menu, Overseer
+from pluggybot.mind.overseer import CALL_TIMEOUT_S, MODEL, Menu, Overseer
+
+#: What the probe holds a call to, and deliberately not the deadline under
+#: test: see the docstring. DERIVED from that deadline rather than fixed, so
+#: raising `CALL_TIMEOUT_S` can never quietly bring the probe's own cap down
+#: onto the distribution it is supposed to measure -- which is the same
+#: censoring mistake one level up. Long enough that nothing on a working
+#: endpoint is clipped (the measured max is 7.38 s), short enough that a
+#: hung call does not hold the probe for the afternoon; a call that IS
+#: clipped is reported as clipped rather than folded into the tail.
+PROBE_TIMEOUT_S = max(120.0, 2 * CALL_TIMEOUT_S)
+
+#: The ladder the timeout share is reported at. It brackets the original
+#: 8 s, the local backend's 45 s and today's 90 s, so the number is read off
+#: a curve rather than argued for one value at a time. The row for the
+#: deadline actually in force is marked, whatever it is.
+CANDIDATE_DEADLINES = (5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0)
+
+
+def timeout_share(latencies: list[float], deadline: float) -> float:
+  """The fraction of these calls a deadline would have cut off.
+
+  The whole reason this issue does not need the sim: a fallback rate is
+  this function of a measured distribution, and only the residual --
+  answers that arrived and were malformed -- has to be flown for.
+  """
+  if not latencies:
+    return 0.0
+  return sum(1 for v in latencies if v > deadline) / len(latencies)
 
 
 def synthetic_state(menu: Menu, i: int) -> dict:
@@ -101,6 +148,45 @@ def synthetic_state(menu: Menu, i: int) -> dict:
   }
 
 
+def report_latency(latencies: list[float], boss: Overseer,
+                   held_to: float) -> None:
+  """The distribution, then what each candidate deadline would cost.
+
+  ⚠ Two shares, and they are not the same number. The deadline curve is
+  what the LATENCY would have cost; the residual below it is what arrived
+  in time and was still unusable -- a malformed answer, a refused schema,
+  a spent budget. A deadline can only ever buy back the first, so the
+  second is the floor any fallback-rate threshold has to clear.
+  """
+  d = dist(latencies, LATENCY_PERCENTILES)
+  if not d["n"]:
+    return
+  print("\nwall seconds per decision (n=%d)" % d["n"])
+  print(f"  min {d['min']:.2f}   median {d['median']:.2f}   "
+        f"p90 {d['p90']:.2f}   p95 {d['p95']:.2f}   max {d['max']:.2f}")
+  print(f"  raw: {' '.join(f'{v:.2f}' for v in latencies)}")
+  clipped = sum(1 for v in latencies if v >= held_to)
+  if clipped:
+    print(f"  ⚠ {clipped} call(s) hit the probe's own {held_to:g} s cap: the "
+          "tail is RIGHT-CENSORED and every number below is a lower bound")
+  print("\ndeadline  would time out")
+  for cand in CANDIDATE_DEADLINES:
+    share = timeout_share(latencies, cand)
+    mark = "   <- today" if cand == CALL_TIMEOUT_S else ""
+    print(f"  {cand:5.1f} s   {share:6.1%}  "
+          f"{'#' * round(share * 40)}{mark}")
+  # What a deadline cannot buy back: answers that arrived and were no good.
+  late = sum(1 for d_ in boss.decisions
+             if d_.scripted and d_.source == "fallback:timeout")
+  other = [d_.source for d_ in boss.decisions
+           if d_.scripted and d_.source != "fallback:timeout"]
+  print(f"\nresidual (arrived, unusable) : {len(other)}/{len(boss.decisions)}"
+        + (f"  {dict(sorted({s: other.count(s) for s in set(other)}.items()))}"
+           if other else "  -- every answer that arrived was valid"))
+  if late:
+    print(f"late even at {held_to:g} s        : {late}")
+
+
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--world", choices=("room_hub", "home"), default="home")
@@ -134,6 +220,13 @@ def main() -> None:
                            "waiting out the ten-minute interval between "
                            "them, and it is exactly what the gates exist to "
                            "stop the robot doing")
+  parser.add_argument("--timeout", type=float, default=PROBE_TIMEOUT_S,
+                      metavar="S",
+                      help="wall seconds a call is held to here. NOT the "
+                           f"deadline under test ({CALL_TIMEOUT_S} s): a "
+                           "latency distribution measured through that "
+                           "deadline is censored at it, and the tail is what "
+                           "the deadline has to be chosen from")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
   args = parser.parse_args()
@@ -147,7 +240,14 @@ def main() -> None:
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
-                  base_url=args.url, escalate_to=args.escalate_to)
+                  base_url=args.url, escalate_to=args.escalate_to,
+                  # ⚠ NOT the deadline under test -- see `PROBE_TIMEOUT_S`.
+                  # It also keeps the measurement honest in a second way:
+                  # a call that outlives its deadline stays in flight, and
+                  # `start` answers the NEXT one `fallback:busy` in
+                  # microseconds, which would land in this distribution as
+                  # a very fast decision.
+                  timeout_s=args.timeout)
   prefix = boss.system[0]["text"]
 
   # The prefix now states the robot's NAME (issue #39), resolved from
@@ -156,6 +256,8 @@ def main() -> None:
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
   print(f"world        : {args.world}")
   print(f"model        : {model} on {backend}")
+  print(f"call held to : {args.timeout:g} s   (the deadline under test is "
+        f"{CALL_TIMEOUT_S:g} s; a censored distribution cannot justify one)")
   if args.escalate_to:
     print(f"escalates to : {args.escalate_to}"
           + ("  (forced on every decision -- measurement only)"
@@ -234,7 +336,7 @@ def main() -> None:
       return
 
   print(f"\nmaking {args.calls} real decision(s)...\n")
-  wall0 = time.monotonic()
+  latencies: list[float] = []
   for i in range(args.calls):
     before = dict(boss.usage.as_dict())
     t0 = time.monotonic()
@@ -253,12 +355,12 @@ def main() -> None:
     delta = {k: now[k] - before[k] for k in
              ("inputTokens", "outputTokens", "cacheReadTokens",
               "cacheWriteTokens")}
+    latencies.append(round(dt, 3))
     print(f"{i + 1}. {decision.summary()}")
     print(f"   {dt:5.2f}s  in={delta['inputTokens']}"
           f" out={delta['outputTokens']}"
           f" cache_read={delta['cacheReadTokens']}"
           f" cache_write={delta['cacheWriteTokens']}")
-  wall = time.monotonic() - wall0
 
   stats = boss.stats()
   print("\n" + json.dumps(stats, indent=1))
@@ -275,7 +377,7 @@ def main() -> None:
   # every ~2 minutes of sim time is the design doc's cadence.
   per_call = stats["usd"] / max(1, stats["llmCalls"])
   valid = sum(1 for d in boss.decisions if not d.scripted)
-  print(f"\nmean wall per decision : {wall / max(1, args.calls):.2f} s")
+  report_latency(latencies, boss, args.timeout)
   print(f"valid decisions        : {valid}/{args.calls}"
         + ("" if stats["constrained"] else
            "   (UNCONSTRAINED -- this endpoint refused the schema)"))

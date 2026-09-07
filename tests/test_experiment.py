@@ -19,6 +19,7 @@ from pluggybot.evaluation import record as rec
 from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.run import arm_flags
 from pluggybot.lifecycle import TOP_UP_BELOW, board_book
+from pluggybot.mind import overseer as overseer_mod
 from pluggybot.mind.overseer import Menu, Overseer
 
 from test_overseer import FakeClient, full  # noqa: I001 -- tests/ is on sys.path
@@ -392,7 +393,8 @@ def test_the_write_ups_cover_every_committed_series_and_nothing_else():
   behind by a re-flown series describes runs that are no longer there."""
   doc = nt.load(RESULTS)
   committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
-  ids = [nt.series_id(s["world"], s["arm"], s["pack"], s["model"])
+  ids = [nt.series_id(s["world"], s["arm"], s["pack"], s["model"],
+                      s.get("label", ""))
          for s in committed["series"]]
   assert nt.problems(doc, ids) == []
 
@@ -448,3 +450,185 @@ def test_the_script_writes_a_record_and_a_rollup(tmp_path):
   assert r["mind"]["decisions"] == 0, "a scripted day asks no mind"
   doc = json.loads((tmp_path / ru.ROLLUP_NAME).read_text())
   assert doc["series"][0]["n"] == 1 and doc["series"][0]["current"] is True
+
+
+# ---- the deadline, and the runs the box decided (issue #117) ------------------
+
+
+def _fallback_record(seed: int, hashes: dict, rate: float, **cfg) -> dict:
+  """A record whose fallback rate is `rate`, built from real decision rows so
+  the number is derived rather than asserted into place."""
+  n = 8
+  rows = [_decision(10.0 * i, 0.5, "draw",
+                    source="fallback:timeout" if i < round(rate * n) else "llm")
+          for i in range(n)]
+  return rec.build_record(_config(seed=seed, **{"deadlineS": 8.0, **cfg}),
+                          _result(),
+                          rows, 10.0,
+                          datetime(2026, 9, 7, 0, 0, seed, tzinfo=timezone.utc),
+                          hashes=hashes, commit="abc")
+
+
+def test_a_run_the_box_decided_is_not_a_survival_data_point():
+  """Issue #117. Every fallback is the scripted rotation deciding, and the
+  rotation never charges -- so a guarded day flown a third by the rotation is
+  a third a scripted day wearing the guarded name, and averaging its survival
+  into the series reports the box.
+
+  The three exclusions are one shape: an admin, the wall clock, and now the
+  load. None of them deletes anything -- the run is still in the series, it
+  still validates, and the reason travels with it."""
+  a = rec.data_hashes("home")
+  ok, over = _fallback_record(0, a, 0.125), _fallback_record(1, a, 0.5)
+  assert ok["mind"]["fallbackRate"] == 0.125
+  assert over["mind"]["fallbackRate"] == 0.5
+  s = ru.rollup([ok, over])["series"][0]
+  assert s["fallbackLimit"] == ru.FALLBACK_LIMIT["guarded"] == 0.25
+  assert s["n"] == 2, "the excluded run is still IN the series"
+  assert s["survival"]["n"] == 1 and s["overFallback"] == 1
+  assert rec.problems(over) == [], "an excluded run still validates"
+  [gone] = s["survival"]["excluded"]
+  assert gone["runId"] == over["runId"] and "0.5" in gone["why"]
+  assert "guarded" in gone["why"], "the reason names the arm's own threshold"
+  # ...and the premise the threshold is judged against: on the arm where the
+  # rotation IS the mind there is no limit and nothing is disqualified.
+  scripted = ru.rollup([_fallback_record(2, a, 0.5, arm="scripted",
+                                         model=None)])["series"][0]
+  assert scripted["fallbackLimit"] is None
+  assert scripted["survival"]["n"] == 1 and scripted["survival"]["excluded"] == []
+
+
+def test_autonomous_is_the_strict_arm():
+  """The thresholds are a judgement call and differ BY ARM on purpose: a
+  fallback dilutes a `guarded` day, whose rails still charge the robot, and
+  can end an `autonomous` one, where nothing else will. A single number for
+  both would have to be one or the other."""
+  assert ru.FALLBACK_LIMIT["autonomous"] < ru.FALLBACK_LIMIT["guarded"]
+  assert set(ru.FALLBACK_LIMIT) == set(rec.ARMS)
+
+
+def test_a_quiet_series_and_a_loaded_one_are_not_one_average():
+  """`--label` (issue #117). Two runs of the same configuration on different
+  machines are two results, and the pair is the point -- without the label in
+  the series key the rollup pools them and reports a box that never existed.
+  """
+  a = rec.data_hashes("home")
+  loaded = _fallback_record(0, a, 0.5)
+  quiet = _fallback_record(0, a, 0.0, label="quiet")
+  doc = ru.rollup([loaded, quiet])
+  assert doc["runs"] == 2 and len(doc["series"]) == 2
+  by_label = {s["label"]: s for s in doc["series"]}
+  assert by_label[""]["n"] == 1 and by_label["quiet"]["n"] == 1
+  assert "quiet" in quiet["runId"], "the label is legible in the file name"
+  assert quiet["label"] == "quiet" and loaded["label"] == ""
+  # ...and the write-ups follow the same key, so the quiet set lands with its
+  # own reading rather than being explained by the loaded set's.
+  assert nt.series_id("home", "guarded", "hosting", "m", "quiet") == \
+      "home/guarded/hosting/m/quiet"
+  assert nt.series_id("home", "guarded", "hosting", "m") == \
+      "home/guarded/hosting/m", "an unlabelled series keeps the id it had"
+
+
+def test_a_series_cannot_span_two_deadlines():
+  """The deadline is part of the regime and no data-file hash catches it: it
+  caps how much of a day the model decided at all, so an 8 s series pooled
+  with a 20 s one averages two experiments. This is what raising
+  `CALL_TIMEOUT_S` would otherwise have done silently to the committed set.
+  """
+  a = rec.data_hashes("home")
+  with pytest.raises(ru.MixedRegime, match="deadline"):
+    ru.rollup([_fallback_record(0, a, 0.0),
+               _fallback_record(1, a, 0.0, deadlineS=20.0)])
+
+
+def test_the_deadline_is_one_number_for_the_experiment_and_the_world(monkeypatch):
+  """One source of truth (issue #117). The measurement and the deployed world
+  are held to the same deadline ON PURPOSE: if the experiment ran at one and
+  the website at another, the results would describe a robot nobody can
+  watch. Nothing may override it per-world -- there is no flag and no env
+  var, and the harness records the same constant it flew under."""
+  from test_webserver import _serve_wiring
+
+  monkeypatch.delenv(overseer_mod.BACKEND_ENV, raising=False)
+  monkeypatch.delenv(overseer_mod.MODEL_ENV, raising=False)
+  monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                           "--overseer"])
+  served = life.init_kwargs["overseer"]
+  assert served.backend == "huggingface"
+  assert served.timeout_s == overseer_mod.CALL_TIMEOUT_S
+  # ...and the harness writes down the number it actually flew under, off
+  # the same constant rather than a copy of it.
+  cfg = _config()
+  record = rec.build_record({**cfg, "deadlineS": overseer_mod.CALL_TIMEOUT_S},
+                            _result(), [], 1.0,
+                            datetime(2026, 9, 7, tzinfo=timezone.utc),
+                            hashes=rec.data_hashes("home"), commit="abc")
+  assert record["config"]["deadlineS"] == overseer_mod.CALL_TIMEOUT_S
+  assert served.timeout_s == record["config"]["deadlineS"]
+
+
+def test_a_fallback_rate_is_a_function_of_the_latency_and_the_deadline():
+  """Why this issue costs ten minutes and not five hours: the timeout share
+  is arithmetic over a measured distribution, so the deadline is chosen from
+  a curve the probe can produce with no physics at all."""
+  sys.path.insert(0, str(REPO / "scripts"))
+  from overseer_probe import CANDIDATE_DEADLINES, timeout_share
+
+  latencies = [2.0, 2.5, 3.0, 9.0, 30.0]
+  assert timeout_share(latencies, 8.0) == 0.4
+  assert timeout_share(latencies, 45.0) == 0.0
+  assert timeout_share([], 8.0) == 0.0
+  # Monotonic in the deadline, which is the property that makes "what cap
+  # gives under 5 %" a lookup rather than a search.
+  shares = [timeout_share(latencies, d) for d in CANDIDATE_DEADLINES]
+  assert shares == sorted(shares, reverse=True)
+
+
+def test_a_distribution_is_read_at_its_tail_by_an_order_statistic():
+  """`p95` here is the 95th value of a hundred, never an interpolation
+  between two of them: at n=50 an interpolated tail is a number no call took,
+  and the tail is what a deadline is chosen from."""
+  vals = list(range(1, 101))
+  assert rec.percentile(vals, 95) == 95 and rec.percentile(vals, 50) == 50
+  assert rec.percentile(vals, 100) == 100 and rec.percentile([7], 95) == 7
+  d = rec.dist(vals, rec.LATENCY_PERCENTILES)
+  assert (d["p90"], d["p95"], d["max"]) == (90, 95, 100)
+  # ...and percentiles are reported where the TAIL is the point and nowhere
+  # else: a p95 over five days' charge counts is the maximum in disguise.
+  assert "p95" not in rec.dist([1, 2, 3])
+
+
+#: The quiet-box call-latency distribution the deadline was chosen from
+#: (issue #117, 2026-09-07; `overseer_probe.py --calls 50`, Qwen3-4B on the
+#: HF router). Here so a later change to `CALL_TIMEOUT_S` has to say which
+#: of the two it disagrees with -- the measurement, or the margin.
+MEASURED_P95_S = 6.59
+MEASURED_MAX_S = 7.38
+
+
+def test_the_deadline_clears_the_measured_tail_and_stays_under_a_model_load():
+  """Issue #117: 8 s was never argued for and sat on the distribution -- the
+  slowest of fifty calls used 92 % of it, which is why a box with a VM on it
+  moved the same arm from 0 % to 19-47 % fallback.
+
+  Both ceilings are load-bearing. `llm.LOCAL_TIMEOUT_S` is 45 s because a
+  COLD LOCAL MODEL takes 27.3 s to load, a reason that does not apply to an
+  API -- so an API deadline over that figure would quietly delete the
+  distinction. And an escalation must stay the more patient of the two,
+  because it buys a bigger model answering more tokens."""
+  from pluggybot.mind import llm
+
+  assert overseer_mod.CALL_TIMEOUT_S >= 3 * MEASURED_P95_S, \
+      "the deadline has to clear the measured tail with margin, not sit on it"
+  assert overseer_mod.CALL_TIMEOUT_S > 2 * MEASURED_MAX_S
+  assert MEASURED_MAX_S < 8.0, \
+      "the premise: at the OLD deadline nothing timed out on a quiet box, " \
+      "so the committed 19-47 % was the box and not the model"
+  # The deadline now covers a cold local model load on its own, so the local
+  # constant is a FLOOR -- and the ordering it protects is the one asserted:
+  # the slow path is never the impatient one.
+  assert llm.default_timeout("local", overseer_mod.CALL_TIMEOUT_S) >= \
+      overseer_mod.CALL_TIMEOUT_S
+  assert overseer_mod.ESCALATE_TIMEOUT_S > overseer_mod.CALL_TIMEOUT_S, \
+      "an escalation buys a bigger model answering more tokens"

@@ -35,4 +35,20 @@ the scripted five gave three trajectories -- and they carry no `world`
 hash because the field did not exist yet.
 
 A record with `end: "killed"` was stopped on wall clock and is excluded from
-survival statistics; one with a non-empty `interventions` list likewise.
+survival statistics; one with a non-empty `interventions` list likewise; and,
+since issue #117, so is one whose `fallbackRate` is over its arm's
+`FALLBACK_LIMIT` -- every fallback is the scripted rotation deciding, and a
+day a third decided by the rotation is a third a `scripted` day. All three
+exclusions leave the run committed and in its series: the rollup's
+`survival.excluded` carries the run id and the reason, and `experiment.py`
+prints them rather than reporting a quietly smaller `n`.
+
+Two things also define a series as of #117, and neither is a file hash:
+
+- **`config.deadlineS`** -- the wall seconds one decision was allowed. It
+  caps how much of a day the model decided at all, so the rollup refuses to
+  pool two deadlines the way it refuses two `energy.json`s.
+- **`label`** -- what the BOX was, in a word (`--label quiet`). It joins the
+  series key, so a series flown on a quiet machine and one flown five-up on
+  a loaded one sit side by side instead of averaging into a box that never
+  existed. An unlabelled series keeps the id it always had.
