@@ -31,7 +31,7 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import turn_command, wheel_targets, wrap_angle
+from pluggybot.control import square_up, wheel_targets, wrap_angle
 from pluggybot.rack.coupling import CLAW_JAW_TRAVEL
 from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
 
@@ -195,18 +195,15 @@ class ClawTool:
     return float(self.grip_world()[2]) - world_z
 
   def _face(self, heading: float, tol: float = 0.004, tries: int = 6) -> float:
-    """Settle-and-recheck, as the plotter needed: a P-controller that stops
-    commanding at the target coasts past, because `slew` rate-limits the
-    wheel command."""
-    for _ in range(tries):
-      while abs(wrap_angle(heading - self.swap.reckoner.theta)) > tol:
-        err = wrap_angle(heading - self.swap.reckoner.theta)
-        tl, tr = wheel_targets(0.0, turn_command(err))
-        self.swap._step_once(tl, tr)
-      self.swap._run(SETTLE, 0.0)
-      if abs(wrap_angle(heading - self.swap.reckoner.theta)) <= tol * 4:
-        break
-    return wrap_angle(heading - self.swap.reckoner.theta)
+    """Settle-and-recheck, as the plotter needed, and bounded (issue #108):
+    `control.square_up` is the one implementation. Returns the final error;
+    `self.squared` says whether the budget ran out first."""
+    err, self.squared = square_up(
+      lambda: wrap_angle(heading - self.swap.reckoner.theta),
+      lambda w: self.swap._step_once(*wheel_targets(0.0, w)),
+      lambda: self.swap._run(SETTLE, 0.0),
+      lambda: float(self.data.time), tol=tol, tries=tries)
+    return err
 
   # ---- driving -------------------------------------------------------------
 

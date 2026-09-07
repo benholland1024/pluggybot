@@ -33,7 +33,7 @@ import numpy as np
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
-from pluggybot.control import turn_command, wheel_targets, wrap_angle
+from pluggybot.control import square_up, wheel_targets, wrap_angle
 from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
@@ -476,12 +476,17 @@ class HubMission:
         self.backoff_until = self.data.time + BACKOFF_TIME
     return False
 
-  def face(self, heading: float) -> None:
-    while abs(wrap_angle(heading - self.pose[2])) > FACING_TOLERANCE:
-      err = wrap_angle(heading - self.pose[2])
-      self._drive(self.model.opt.timestep, 0.0,
-                  turn_command(err, gain=2.5, limit=1.0))
-    self._drive(0.5, 0.0, 0.0)
+  def face(self, heading: float) -> bool:
+    """Turn in place to `heading`. False if the budget ran out first
+    (issue #108) -- a robot that cannot turn must not be a robot that never
+    gets back to the arbitration loop."""
+    _, squared = square_up(
+      lambda: wrap_angle(heading - self.pose[2]),
+      lambda w: self._drive(self.model.opt.timestep, 0.0, w),
+      lambda: self._drive(0.5, 0.0, 0.0),
+      lambda: float(self.data.time), tol=FACING_TOLERANCE, tries=1,
+      done_within=float("inf"), gain=2.5, limit=1.0)
+    return squared
 
   # ---- the mission ---------------------------------------------------------
 

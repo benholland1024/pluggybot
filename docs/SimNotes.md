@@ -2305,6 +2305,52 @@ over-the-top rays scrub a low obstacle's cells free within a second of
 scans, so the mark would not survive to the replan. If a post-#94 long run
 still shows a pumped frame, those are where to look.
 
+## The squaring-up loop had no floor (issue #108): a wedged robot never ends
+
+Found by the M14 baseline (issue #105), which was the first time six
+unattended hosting-pack days had ever been watched by something that
+counted. One of them never ended: `USE_TOOL: arrived` at t=2259 for a
+drawing on the far whiteboard, then nothing from the robot at all — task
+offers expiring every 240 s, the pack draining from 57 % to 0 %, and the
+sim still stepping at t=4327, 700 s past `max_sim_time`, when it was
+killed by hand.
+
+**What it was.** The pen's `drive_to_board` ends with `_face(heading)`:
+`while |wrapped heading error| > 0.004 rad: step(turn_command(err))`, six
+tries with a settle between. No timeout, no step cap, no stall check. The
+recording showed the chassis rising from z = 0.04 to **0.12 m at t≈2262
+and staying there** — ridden up onto the board's own mount, wheels half
+off the floor, yaw drifting about a degree a second under the turn command
+and never inside 0.23°. Three more copies of the same loop existed (the
+claw, the dispenser, `HubMission.face`), all unbounded.
+
+**Why nothing else caught it.** Every guard this repo has sits BETWEEN
+errands, deliberately — `needs_charge`, `max_sim_time`, `battery.empty`
+— because an errand is the span the loop must not interrupt (a tool on the
+fork has to be stowed). An errand that never returns is therefore outside
+every one of them. And an empty pack does not stop the body: `Battery`
+clips at 0 Wh and the motors kept drawing ~30 W, so "flat" is a counter
+here, not a physical state. On the served world this robot would have sat
+at 0 % streaming frames until somebody restarted the container.
+
+**The fix.** One implementation, `control.square_up`, that the four
+callers delegate to: the same settle-and-recheck, with a sim-time budget
+(`FACE_BUDGET_S`, 30 s) and an explicit `(error, squared)` answer. Measured
+on the pen at the hub board, a healthy face takes 3.0 s from 5° and 11.4 s
+from 179°, so the budget is ~3× the worst honest case. The pen's
+`drive_to_board` returns False when the face gave up, which the errand
+already knew how to handle ("never squared up … skipping the drawing"):
+the tool goes back to its bay, and the arbitration loop gets its next turn.
+
+**What it is not.** A bound is not a recovery: the robot on the mount is
+still on the mount, and the next errand will find out. That is issue
+#107's `reset_robot` and the `stuck` death it records; this issue only
+makes sure the mission REACHES the point where a death can be counted.
+The premise pin is `test_a_pen_that_cannot_square_up_gives_up_and_says_so`
+and the stub raises after twice the budget, because a regression that
+hangs the suite is worse than one that fails it — shown against the old
+code: "still turning at t=60 s: the old _face never returns".
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list, `ncon`) — vibes don't bisect.
