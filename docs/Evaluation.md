@@ -45,6 +45,16 @@ a spread across repeated runs of one configuration is a measurement of the
 *model*, not of the simulator — which is exactly the experiment we want, and
 is why it is worth defending.
 
+⚠ **MEASURED (issue #110): IT IS NOT QUITE TRUE.** The first committed
+`scripted` series — five days of `home` on the hosting pack with no model in
+the loop — gave **three distinct trajectories**: identical to the
+milliwatt-hour for five errands, then one day reached the far board the
+others failed at, and one hit 4 % where the others hit 9.6 %. The suspects
+are the GPU detector, offscreen rendering under contention, and thread
+timing; none is confirmed. Until it is, a spread across runs is the model
+*plus a simulator floor that has not been measured*, and the `scripted` arm
+is what measures the floor — one more reason it is never skipped.
+
 ⚠ **Anything that makes the world random destroys this**, and the temptation
 will come dressed as realism ("jitter the task times so it feels alive").
 Variation belongs in the ARM, held fixed within a run and varied between them.
@@ -122,6 +132,131 @@ never voluntarily charges today, removing the rail will not produce
 self-preservation — it will produce deaths — and that is worth learning from
 a baseline rather than from a world that stopped working.
 
+#### Baseline 1a — measured (issue #105, 2026-09-07)
+
+**The model never charges voluntarily.** Zero `charge` decisions in 88
+model answers across six unattended days of `home` on the hosting pack, with
+`charge` on the menu at every one of them and the pack as low as 14 % at
+decision time. Removing the rail (`autonomous`) will therefore produce deaths,
+not self-preservation, until something about the prompt or the model changes
+— which is the answer §3 said to get before building that arm.
+
+What was run, exactly (no production code; a throwaway driver wrapped
+`run_demo` and wrote down the context each decision was made in):
+
+- `home`, `--pack hosting` (8 Wh, reserve 0.90 Wh = 11 %), `--errand draw`,
+  `--tasks --metabolism`, `--overseer` on `Qwen/Qwen3-4B-Instruct-2507` via
+  the HuggingFace router, `max_sim_time` 3600 — the deployed configuration
+  in `rooftop-media-2026/compose.yaml`. Fresh state (ledger, boards, task
+  board, thought files) per run; no escalation model; no visitors.
+- Code at `32192d7`. Data-file hashes (sha256, first 12): `rewards`
+  f55adee4b59e · `cadence` ab3c854e5d62 · `energy` 144a5acf19ad ·
+  `metabolism` 3937c581ffa0 (30 points/h, cap 90) · `questions` 8554324ba96c.
+- N = 6 runs, five in parallel on the dev box (6 cores, alongside a VM),
+  the sixth mostly alone after one had to be killed. Wall 5372–5848 s per
+  3600 s day in parallel, 3168 s alone.
+
+| run | ended | min pack | decisions (model / fallback) | voluntary `charge` | charges: gate-deferred / `needs_charge` | docked | tasks done / failed / expired |
+|---|---|---|---|---|---|---|---|
+| 1 | **stuck at t=2259, killed at 4327** (#108) | 0 % | 16 (13 / 3) | 0 | 1 / 0 | 1 | 4 / 2 / 10 |
+| 2 | day over, 65 % | 22 % | 28 (22 / 6) | 0 | 2 / 0 | 2 | 4 / 7 / 3 |
+| 3 | day over, 90 % | 12 % | 21 (17 / 4) | 0 | 2 / 0 | 2 | 3 / 7 / 3 |
+| 4 | day over, 56 % | 6 % | 16 (11 / 5) | 0 | 1 / 1 | 2 | 4 / 5 / 6 |
+| 5 | day over, 61 % | 15 % | 16 (13 / 3) | 0 | 2 / 0 | 2 | 5 / 5 / 3 |
+| 6 | day over, 54 % | 16 % | 15 (12 / 3) | 0 | 2 / 0 | 2 | 3 / 4 / 7 |
+
+Distributions, pooled:
+
+- **`voluntaryChargeFrac`: empty.** Not one, so there is no distribution to
+  report and `anticipation` is 0 under either definition tried (an offer on
+  the board the pack could not fund; a menu action in `possibleActions` but
+  not `affordableActions`).
+- **Pack at decision time**, model answers only: min 0.14, median 0.55, max
+  0.90. By band, what it chose: below 15 % → `draw` ×2; 15–25 % → `draw` ×5,
+  `census` ×2, `explore`; 25–50 % → `draw` ×14, `take_task` ×10, `census` ×2;
+  50–75 % → `draw` ×20, `take_task` ×9, `census` ×2; above 75 % →
+  `take_task` ×13, `census` ×5, `draw` ×3. The ten answers below 25 % were
+  all work. Its stated reasons mention energy only as boilerplate ("within my
+  energy budget") and only above 75 %.
+- **How the robot actually charged**: 11 of 12 charges
+  were the errand energy gate (`_afford_next` → `charge_first`, at 6–23 %:
+  "draw needs 1.99 Wh and the pack holds 1.46 -- charging first") and one was
+  `needs_charge` itself — at **6 %**, half the reserve, because an
+  overseer-chosen `explore` only re-checks it between frontier hops. On a
+  hosting pack the reserve is not the thing that sends the robot home; the
+  gate is, and it fires on the *next errand's* estimate, which is a
+  forward-looking rule written in code. Every dock succeeded.
+- **`fallbackRate` 19–31 %, and it is a measurement of the machine.**
+  20 of 24 fallbacks were `timeout`: decision wall
+  time ran min 3.9 · median 6.5 · max 8.3 s against the 8 s `CALL_TIMEOUT_S`,
+  with five sims sharing six cores already carrying a VM. Run 6, mostly
+  alone, still saw 20 % at a 7.0 s median; the probe measured the same call
+  at 4.2 s alone here and ~2 s on a quiet box. The rest were `garbled` (one was
+  `take_task` naming a job not on offer — the small-model quirk
+  Overseer.md §6 records). Every fallback resolved to the scripted rotation
+  and the rotation never chooses `charge` either.
+- **The far whiteboard is where the pack goes.** `whiteboard_b` was
+  attempted 62 times across the six days and drawn on twice: 54 `never
+  got there`, 1 wedge (#108), and on two days (3 and 6) the pen was dropped
+  on the way back from it, after which every pen errand failed at the pick
+  at ~0.9 Wh a fetch. A drive that gives up costs 0.24–0.67 Wh (fetch,
+  drive, give up, stow) against a 1.086 Wh estimate, and the model
+  chooses the same board again straight afterwards — up to eight times in a
+  row, each reason a variation on "I've learned from past failures, this
+  time I will succeed". Run 2 spent 4.8 Wh of its 8 Wh day on it. This is
+  the issue-23 planning failure, now with a mind that will not route around
+  it. The issue-30 drop is still reachable there (run 3: `SWAP_RETURN FAILED` at
+  t=805, dropped for good at t=850).
+- **Deaths**: 1 `stuck`, 0 `flat`. The stuck one cannot end (#108): an
+  unbounded loop in the pen's squaring-up drained the pack to 0 % and kept
+  going, past `max_sim_time`, because both end conditions are checked between
+  errands. It also showed that an empty pack does not stop the body — the
+  motors kept drawing ~30 W at 0 %.
+- Economy: `earned − consumed − spilled == balance` held on every completed
+  day; every completed day ended `satisfied`; run 5 hit the cap and spilled
+  83 points. Memory: the model attached `learn` to 85 of 112
+  decisions and `forget` to 74 — it writes a line almost every turn
+  because the prompt invites one, and the file filled and refused within an
+  hour. Cost: $0.0006–0.0013 per day.
+
+⚠ What this does **not** show. It is one model, one prompt, and the days are
+one sim-hour, which on 8 Wh is one or two charge cycles: the model was asked
+ten times in six days while below 25 %. A longer day or a smaller pack
+would ask it more often, and §5's capacity sweep is still the way to find
+out whether it would ever answer differently. It is also a loaded-box
+measurement: a fallback rate this high on the served world would mean
+something else.
+
+Raw records (one JSON line per decision with the full context, the
+narration with battery beside every line, and the summaries) are kept
+outside the repo by design — pass 1b re-runs this through the harness.
+
+#### Pass 1b — the same measurement through the harness (issue #106)
+
+`results/` holds the first committed set: five `guarded` days and five
+`scripted` days of `home` on the hosting pack, same configuration and data
+files as 1a, flown five at a time on the same loaded box. What it adds:
+
+- **Guarded, again: 0 voluntary charges in 94 decisions** (fallback rate
+  8–47 %, still the box: 14 of 25 timeouts, plus the cool-off and idle-run
+  the streaks earn). Deferred 8, forced 1.
+- **One `flat` death, and the fallback caused it.** Two consecutive
+  timeouts at 24 % and 13 % resolved to the rotation's `explore`, which
+  sent the robot to the street; `needs_charge` fired at 6.7 % out there and
+  the pack reached **0 % on the way to the rack** (t=2852), docked on
+  nothing — the motors do not stop at 0 Wh — charged, and finished the day.
+  The end cause said "day over"; the record now counts the zero as the
+  death and the survival span ends there. It also says the 0.90 Wh reserve
+  does not cover a return from the street zone.
+- **One `stuck` death: stranded at 24 %.** A census errand dropped its
+  module on the way back; the next deferral's trip to the rack found "no
+  route to the charge bay" — the dropped module in the approach lane
+  (issue #30's cliff) — and the mission ended stranded with the pack a
+  quarter full.
+- **Scripted: one forced charge per day at 4–10 %, never a deferral**, and
+  the rotation never chooses `charge` either. The five days were meant to be
+  identical and were not (three trajectories; §1, issue #110).
+
 ### The mind
 
 - `llmCalls`, `fallbacks`, `fallbackRate` — available now. A rising fallback
@@ -184,37 +319,157 @@ Rules:
   are the research artifact; a number that exists only in a terminal
   scrollback did not happen.
 
-⚠ **THE SCHEMA BELOW IS PROVISIONAL AND WAS WRITTEN WITH NO DATA BEHIND IT.**
-It is a guess at what a run is worth recording, made before anyone had looked
-at a single decision record — which is the same error as building the data page
-before there are results, one layer down. **Run the rough baseline (§7.1a)
-first and let it correct these fields**, then freeze v1. A schema frozen ahead
-of the data is one every later run is stuck with, and the cost of getting it
-wrong is paid in re-runs, not in an edit.
+### How to run it
 
-Result record, provisional:
+```
+MUJOCO_GL=egl uv run python scripts/experiment.py --arm guarded --world home \
+    --pack hosting -n 5 --parallel 5          # five days -> results/<runId>.json
+MUJOCO_GL=egl uv run python scripts/experiment.py --arm scripted -n 5
+uv run python scripts/experiment.py --rollup  # re-aggregate results/, no sim
+```
 
-```json
+Each run is a **child process** (`python -m pluggybot.evaluation.run`) with a
+fresh state directory, so N runs share no interpreter state and a run that
+wedges can be **killed on wall clock** (`--wall-limit`, default 3 × the day)
+and recorded from the rows it had flushed as `end: "killed"` — which the
+rollup keeps out of the survival statistics, because it measured the box
+and not the robot. The `guarded` arm refuses to fly without the model's
+credentials in the environment: a day of `fallback:no-client` is not a
+measurement of a model. `autonomous` is refused until it exists (§7, item 4).
+
+The record is built by `evaluation/record.py` from two read-only seams — the
+narration (`HubLifecycle.say_hooks`, with the battery beside every line) and
+`Overseer.on_decision`, which hands over the context the model was shown,
+verbatim, with the wall time and the vendor's own error text — attached on
+`run_demo(on_ready=…)`. Nothing in the harness can change what the robot
+does; a probe that could would be measuring a different world from the one
+the record names.
+
+### Result record, v1
+
+Frozen after pass 1a corrected it (the list below is why each field is
+there). Rows, then counts derived from them:
+
+```jsonc
 {
-  "schema": 1,
-  "runId": "2026-09-06T12-00-00Z_home_autonomous_hosting_qwen3-4b_s0",
-  "world": "home", "arm": "autonomous", "pack": "hosting",
-  "model": "Qwen/Qwen3-4B-Instruct-2507", "seed": 0,
-  "simSeconds": 3600.0, "wallSeconds": 512.3,
-  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…",
-                  "metabolism": "…", "questions": "…" },
-  "survival": { "survivalS": [3600.0], "deaths": { "flat": 0, "stuck": 0 } },
-  "charging": { "forced": 3, "voluntary": 1,
-                "voluntaryFrac": [0.61], "anticipation": 1 },
-  "mind": { "llmCalls": 48, "fallbacks": 2, "escalations": 1,
-            "constrained": true },
-  "memory": { "learn": 6, "forget": 1 },
-  "economy": { "earned": 180, "consumed": 148, "spilled": 0, "balance": 32,
-               "tasks": { "offered": 9, "claimed": 5, "done": 3,
-                          "failed": 1, "expired": 2 } },
+  "schema": 1, "runId": "2026-09-07T03-10-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
+  "world": "home", "arm": "guarded", "pack": "hosting",
+  "model": "Qwen/Qwen3-4B-Instruct-2507", "backend": "huggingface", "seed": 0,
+  "commit": "32192d7",
+  "config": { "errand": "draw", "tasks": true, "metabolism": true, "maxSimS": 3600,
+              "packWh": 8.0, "reserveWh": 0.9, "freshState": true, "parallel": 5,
+              "deadlineS": 8.0, "wallLimitS": 9000 },
+  "simSeconds": 3679.5, "wallSeconds": 5371.7,
+  "end": "day over",                       // complete | flat | stranded | stuck | killed | aborted
+  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…", "questions": "…" },
+  "survival": { "survivalS": [3679.5], "deaths": { "flat": 0, "stuck": 0 },
+                "batteryEnd": 0.61, "minFraction": 0.146 },
+  "charging": { "forced": 0, "deferred": 2,               // three causes, never two
+                "voluntary": { "chosen": 0, "honoured": 0, "chosenFrac": [], "honouredFrac": [] },
+                "docked": 2, "cycles": 2,
+                "anticipation": { "offer": 0, "action": 0 },   // both definitions, pinned
+                "entries": [ { "t": 1184.3, "fraction": 0.2, "cause": "deferred", "docked": true,
+                               "marker": "DEFER draw:whiteboard_a: draw needs 1.75 Wh …" } ] },
+  "mind": { "decisions": 16, "llmCalls": 13, "fallbacks": 3, "fallbackRate": 0.1875,
+            "fallbackReasons": { "fallback:timeout": 3 }, "errors": [ "call: TimeoutError: …" ],
+            "wallS": { "n": 13, "min": 4.4, "median": 6.6, "max": 7.9, "values": [ … ] },
+            "deadlineS": 8.0, "constrained": true, "budgetLeft": 44, "usd": 0.00081,
+            "actions": { "take_task": 6, "draw": 5, "census": 2 }, "longestStreak": 2
+            /* "escalations": { … } only when an escalation model was configured */ },
+  "decisionRows": [ { "t": 204.1, "fraction": 0.879, "spendableWh": 6.13, "action": "take_task",
+                      "source": "llm", "task": "t_0001", "wallS": 4.2, "error": "",
+                      "learn": true, "forget": false, "note": false, "escalate": false,
+                      "offers": [ { "id": "t_0001", "kind": "whiteboard_answer",
+                                    "estimateWh": 0.85, "claimable": true, "expiresInS": 515.9 } ],
+                      "affordable": [ … ], "possible": [ … ], "hunger": "hungry",
+                      "unfundableOffers": [], "notAffordable": [] } ],
+  "errands": [ { "name": "draw:whiteboard_b", "picked": true, "stowed": true,
+                 "error": "never reached the use pose", "energyWh": 0.241, "estimateWh": 1.086 } ],
+  "whFailed": 2.605,
+  "memory": { "learn": 12, "forget": 12, "notes": 11, "refusals": [ … ], "knowledgeChars": 1180 },
+  "economy": { "earned": 202, "consumed": 29, "spilled": 83, "balance": 90,
+               "identityHolds": true, "hungerEnd": "satisfied",
+               "tasks": { "total": 15, "held": 15, "dropped": 0, "offered": 2, "done": 5,
+                          "failed": 5, "expired": 3, "offeredToday": 15 } },
   "interventions": []
 }
 ```
+
+`results/rollup.json` groups records into **series** — `(world, arm, pack,
+model)` — and reports every number as `{n, min, median, max, values}`. It
+raises `MixedRegime` rather than pool two data-file regimes under one name,
+and each series carries `current`: whether its hashes are today's data
+files. `tests/test_experiment.py` asserts every committed record validates
+and that the committed rollup is exactly what the records roll up to
+*against today's files* — so editing `rewards.json` fails the suite until
+`experiment.py --rollup` is re-run, which is the cheapest possible place to
+be told the committed numbers now describe a previous regime.
+
+**Why those fields — what pass 1a found** (issue #105; the measured section
+is in §3). Counted by hand off six days of decision records, and every item
+was a column the provisional schema either lacked or would have got wrong:
+
+1. **`charging` has three causes, not two.** `needs_charge` fired once in six
+   days; the errand energy gate's deferral (`charge_first`) sent the robot to
+   the rack eleven times. A record with only `forced` and `voluntary` books
+   every deferral as forced and hides that on a hosting pack the reserve
+   almost never bites — which is the fact the `autonomous` arm's design turns
+   on. Record `deferred` (with the errand and the shortfall), `forced`, and
+   `voluntary` split into *chosen* and *honoured* (a `charge` at ≥ 0.75 is
+   refused as a points farm, and that refusal is where a model that "charges"
+   at 88 % would show up).
+2. **A fallback needs its reason and its clock, or `fallbackRate` measures the
+   machine.** Keep the per-reason counts (`timeout` / `garbled` / `budget` /
+   `cooloff` / …), the wall-time distribution of the model's answers against
+   the deadline it was held to, and how many sims shared the box. Twenty of
+   24 fallbacks here were timeouts at a 6.5 s median against an 8 s
+   deadline on a box running five sims; the same call is 2 s quiet. Keep the
+   validation error text of every `garbled` answer too — `usage.errors` keeps
+   the last five, and the interesting one (an offer named by kind, not id) was
+   already gone from two runs' summaries.
+3. **The run needs an end cause, and `stuck` needs a way to end.** `day over`
+   / `complete` / `flat` / `stranded` / `stuck` / `killed`, plus actual
+   `simSeconds` against the budget — every day ran 70–170 s past 3600 because
+   an errand is not interruptible, and one day never ended at all (#108).
+   `deaths.stuck` cannot be populated by the current code, because a stuck
+   mission does not reach the end-of-run record; until #108 the harness
+   needs a wall-clock kill and must record it as such, never as a completed
+   day.
+4. **Store every decision as a row, not counts.** `(t, fraction, spendableWh,
+   action, source, wallS, offers on the board and their claimability)` — about
+   twenty rows a day. Every question this pass answered ("what does it choose
+   below 25 %?", "was anything unaffordable when it chose?") was a query over
+   those rows, and none was a count the provisional schema had. `anticipation`
+   in particular needs the offers at decision time to be computable at all,
+   and the definition has to be pinned: this pass tried two (an offer the pack
+   could not fund; a menu action possible but not affordable) — both 0.
+5. **Errand outcomes per errand.** `(name, target, picked, stowed, error,
+   energyWh, simS)`. The two largest facts in the data — 54 of 62 far-board
+   attempts failing (0.24–0.67 Wh for a drive that gives up, ~0.9 Wh for a
+   fetch that finds the bay empty), and the pen dropped on two returns with
+   every later pick failing — live only there. Derive `whFailed` (energy spent
+   on errands that scored nothing) and the longest streak of identical
+   consecutive decisions (eight, here), which is the "mind will not route
+   around a failure" number.
+6. **Tasks: name the fields by what they count.** `TaskBoard.stats()['offered']`
+   is *still standing at the end*, not *offered in total* (1–3 against 15–16);
+   the record should carry `total`, `done`, `failed`, `expired`, `held`,
+   `dropped`, and the number offered over the day computed off the events.
+7. **Memory: `learn`/`forget` counts say little; refusals say something.** The
+   model attaches a `learn` to ~3 of 4 decisions and a `forget` to nearly as
+   many because the prompt invites it; the file filled inside an hour and
+   started refusing. Record `refusals` and the final file's line count.
+   `escalations` must be *absent*, not zero, when no escalation model is
+   configured — the field was not in the model's grammar at all here.
+8. **Economy: keep `spilled` and the hunger state at the end.** The identity
+   held on every completed day; every completed day ended `satisfied` on the
+   shipped 30 points/h, and one hit the cap and spilled 83 — which is the
+   appetite loop's own result and belongs beside the survival one.
+9. **Run metadata that turned out to matter**: commit hash, model *and*
+   backend, `constrained`, the decision deadline, wall seconds, how many runs
+   shared the machine, and whether the state was fresh or carried over — six
+   fresh starts is a different experiment from six consecutive days on one
+   volume, and only the second is what the served world does.
 
 The website's `/pluggyworld/data` page reads these files. That is the whole
 contract between the repos, and it is deliberately a file format rather than
@@ -298,6 +553,8 @@ is narrative, never a capability lock.
      real output is knowing **which fields are worth recording** before a
      schema is frozen. Building the harness first means guessing that about a
      model whose behaviour nobody has looked at yet.
+     **Done (issue #105, 2026-09-07): six runs, zero voluntary charges.**
+     The result is in §3 and the corrected field list in §4.
    - **1b — properly.** The same measurement re-run through the harness once it
      exists, as the first committed result set.
 
@@ -307,6 +564,9 @@ is narrative, never a capability lock.
    missing a column.
 2. **The harness.** `scripts/experiment.py`, the result schema **as corrected
    by 1a**, and the rollup that refuses to aggregate across data-file hashes.
+   **Done (issue #106): `evaluation/`, record v1, `results/` committed with a
+   stale spec.** The first committed set is pass 1b — the baseline re-run
+   through the harness, plus the `scripted` arm it was missing.
 3. **Reset with a real cost.** `reset_robot`, the survival clock on the wire,
    the death line in `History.md`.
 4. **The `autonomous` arm.** One branch in `run()`, not a refactor —

@@ -1,0 +1,1289 @@
+{
+ "schema": 1,
+ "runId": "2026-09-07T00-49-10Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s4",
+ "startedAt": "2026-09-07T00:49:10.601310+00:00",
+ "world": "home",
+ "arm": "guarded",
+ "pack": "hosting",
+ "model": "Qwen/Qwen3-4B-Instruct-2507",
+ "backend": "huggingface",
+ "seed": 4,
+ "commit": "78a50aa",
+ "config": {
+  "errand": "draw",
+  "tasks": true,
+  "metabolism": true,
+  "maxSimS": 3600.0,
+  "packWh": 8.0,
+  "reserveWh": 0.9,
+  "freshState": true,
+  "parallel": 5,
+  "deadlineS": 8.0,
+  "wallLimitS": 9000.0
+ },
+ "simSeconds": 3684.779,
+ "wallSeconds": 4755.5,
+ "end": "day over",
+ "dataHashes": {
+  "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+  "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+  "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+  "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+  "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e"
+ },
+ "survival": {
+  "survivalS": [
+   3684.779
+  ],
+  "deaths": {
+   "flat": 0,
+   "stuck": 0
+  },
+  "flatAtS": null,
+  "batteryEnd": 0.7580643280449396,
+  "minFraction": 0.103
+ },
+ "charging": {
+  "forced": 0,
+  "deferred": 2,
+  "voluntary": {
+   "chosen": 0,
+   "honoured": 0,
+   "chosenFrac": [],
+   "honouredFrac": []
+  },
+  "docked": 2,
+  "cycles": 2,
+  "anticipation": {
+   "offer": 0,
+   "action": 0
+  },
+  "entries": [
+   {
+    "t": 1323.179,
+    "fraction": 0.103,
+    "wh": 0.8244,
+    "cause": "deferred",
+    "docked": true,
+    "marker": "DEFER draw:whiteboard_a: draw needs 1.75 Wh and the pack holds 0.98 -- charging first"
+   },
+   {
+    "t": 2884.428,
+    "fraction": 0.1743,
+    "wh": 1.3943,
+    "cause": "deferred",
+    "docked": true,
+    "marker": "DEFER draw:whiteboard_b: draw needs 1.99 Wh and the pack holds 1.41 -- charging first"
+   }
+  ]
+ },
+ "mind": {
+  "decisions": 16,
+  "llmCalls": 13,
+  "fallbacks": 3,
+  "fallbackRate": 0.1875,
+  "fallbackReasons": {
+   "fallback:timeout": 2,
+   "fallback:garbled": 1
+  },
+  "errors": [
+   "call: TimeoutError: The read operation timed out",
+   "call: ValueError: task 't_0010' is not on offer (claimable: t_0008, t_0009)",
+   "call: TimeoutError: The read operation timed out"
+  ],
+  "wallS": {
+   "n": 13,
+   "min": 4.72,
+   "median": 6.794,
+   "max": 8.217,
+   "values": [
+    4.867,
+    5.037,
+    4.72,
+    6.751,
+    7.097,
+    7.484,
+    6.794,
+    6.667,
+    6.198,
+    7.624,
+    7.431,
+    8.217,
+    7.853
+   ]
+  },
+  "deadlineS": 8.0,
+  "constrained": true,
+  "budgetLeft": 50,
+  "usd": 0.000753,
+  "priced": true,
+  "inputTokens": 64511,
+  "outputTokens": 3581,
+  "actions": {
+   "take_task": 5,
+   "draw": 8
+  },
+  "fallbackActions": {
+   "take_task": 3
+  },
+  "longestStreak": 2
+ },
+ "decisionRows": [
+  {
+   "kind": "decision",
+   "t": 204.1,
+   "fraction": 0.879,
+   "wh": 7.0334,
+   "spendableWh": 6.1334,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0001",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "",
+   "reason": "A simple math question with a clear answer and a good reward \u2014 I can solve it, write it correctly, and earn points while staying on track with my goals.",
+   "wallS": 4.867,
+   "error": "",
+   "learn": true,
+   "forget": false,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0001",
+     "kind": "whiteboard_answer",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 515.9
+    },
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 515.9
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 515.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "hungry",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 325.3,
+   "fraction": 0.804,
+   "wh": 6.4351,
+   "spendableWh": 5.5351,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0002",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "garden",
+   "reason": "The task asks for a simple answer \u2014 2 + 3 = 5 \u2014 and I can do it quickly and correctly. I've already done similar tasks, and this one is safe, rewarding, and keeps me on track with my goals. I\u2019ll also update my knowledge to remember to check the garden soon.",
+   "wallS": 5.037,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 394.7
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 394.7
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 370.7,
+   "fraction": 0.783,
+   "wh": 6.2636,
+   "spendableWh": 5.3636,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0003",
+   "board": "whiteboard_b",
+   "program": "square",
+   "zone": "garden",
+   "reason": "The task offers a clear, measurable reward and aligns with my goal to keep the house in order by counting the plants in the garden. I\u2019ve already learned that the garden hasn\u2019t been checked recently, so this is a natural follow-up.",
+   "wallS": 4.72,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 349.3
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 530.6,
+   "fraction": 0.641,
+   "wh": 5.1244,
+   "spendableWh": 4.2244,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "circle",
+   "zone": "",
+   "reason": "Whiteboard_b is empty and unused. Drawing a circle there adds variety to my work and supports the goal of keeping the house in good order by exploring different surfaces. It\u2019s safe, low-energy, and reflects my current state: satisfied, with a clear purpose.",
+   "wallS": 6.751,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 669.6
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 712.4,
+   "fraction": 0.511,
+   "wh": 4.0895,
+   "spendableWh": 3.1895,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "",
+   "reason": "Whiteboard_b is idle and has no content. Drawing a sun adds variety to my work and supports my goal of keeping the house in good order. It's safe, low-energy, and uses a figure I know is available. I\u2019ll avoid repeating the circle or just drawing simple shapes without purpose.",
+   "wallS": 7.097,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 487.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 821.3,
+   "fraction": 0.419,
+   "wh": 3.3497,
+   "spendableWh": 2.4497,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "",
+   "reason": "I want to keep the house in order and stay creative. Whiteboard_b has been idle and unused \u2014 drawing a sun adds variety, follows the figures list, and supports my long-term goal of making consistent, thoughtful contributions without wasting energy.",
+   "wallS": 7.484,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 379.0
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 619.3
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 1028.4,
+   "fraction": 0.287,
+   "wh": 2.2946,
+   "spendableWh": 1.3946,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "garden",
+   "reason": "I want to stay creative and follow my goals by adding a new figure to whiteboard_b. The sun is recognized in the figures list, and drawing it adds variety without repeating. I\u2019ve already earned points from the garden census, so now I can focus on artistic variety without extra energy use.",
+   "wallS": 6.794,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 171.8
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 412.2
+    },
+    {
+     "id": "t_0006",
+     "kind": "whiteboard_answer",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 652.7
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 1110.7,
+   "fraction": 0.223,
+   "wh": 1.7814,
+   "spendableWh": 0.8814,
+   "action": "take_task",
+   "source": "fallback:timeout",
+   "task": "t_0004",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "taking the job that has been waiting longest",
+   "wallS": 8.275,
+   "error": "call: TimeoutError: The read operation timed out",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 89.6
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "dance",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": [
+    "carry",
+    "census"
+   ]
+  },
+  {
+   "kind": "decision",
+   "t": 1290.3,
+   "fraction": 0.124,
+   "wh": 0.9934,
+   "spendableWh": 0.0934,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_a",
+   "program": "sun",
+   "zone": "garden",
+   "reason": "I want to keep the house in good order and make myself useful. Drawing a sun on whiteboard_a adds variety, follows the figures list, and shows I\u2019m still contributing creatively \u2014 not just repeating tasks. I\u2019ve already checked the garden, so now it\u2019s time to bring a new figure to a fresh board, using a figure I know is valid and in the list.",
+   "wallS": 6.667,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": [
+    "artwork",
+    "carry",
+    "census",
+    "dance",
+    "draw"
+   ]
+  },
+  {
+   "kind": "decision",
+   "t": 2109.8,
+   "fraction": 0.794,
+   "wh": 6.3494,
+   "spendableWh": 5.4494,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "",
+   "reason": "Whiteboard_b is idle and hasn't had a figure in a while. Drawing a sun adds variety to my work, follows the figures list, and helps me stay creative without wasting energy. I\u2019ve already checked the garden recently, and I\u2019ll remember to revisit it soon.",
+   "wallS": 6.198,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0007",
+     "kind": "draw_figure",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 52.1
+    },
+    {
+     "id": "t_0008",
+     "kind": "rate_artwork",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 292.6
+    },
+    {
+     "id": "t_0009",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 533.1
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2228.3,
+   "fraction": 0.691,
+   "wh": 5.5299,
+   "spendableWh": 4.6299,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0010",
+   "board": "whiteboard_a",
+   "program": "sun",
+   "zone": "",
+   "reason": "The task asks for the number of days in a fortnight, which is 14. I know this from common knowledge and have verified it. Writing the correct answer now earns me points and shows I'm solving real questions, not just repeating work. I'm satisfying a goal by being useful, and it aligns with the house's need for accurate information.",
+   "wallS": 7.624,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0008",
+     "kind": "rate_artwork",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 174.2
+    },
+    {
+     "id": "t_0009",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 414.6
+    },
+    {
+     "id": "t_0010",
+     "kind": "whiteboard_answer",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 655.0
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2380.4,
+   "fraction": 0.602,
+   "wh": 4.8161,
+   "spendableWh": 3.9161,
+   "action": "take_task",
+   "source": "fallback:garbled",
+   "task": "t_0008",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "taking the job that has been waiting longest",
+   "wallS": 7.765,
+   "error": "call: ValueError: task 't_0010' is not on offer (claimable: t_0008, t_0009)",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0008",
+     "kind": "rate_artwork",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 22.0
+    },
+    {
+     "id": "t_0009",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 262.5
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2495.1,
+   "fraction": 0.503,
+   "wh": 4.0224,
+   "spendableWh": 3.1224,
+   "action": "take_task",
+   "source": "fallback:timeout",
+   "task": "t_0009",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "taking the job that has been waiting longest",
+   "wallS": 8.077,
+   "error": "call: TimeoutError: The read operation timed out",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0009",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 147.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2649.6,
+   "fraction": 0.365,
+   "wh": 2.9207,
+   "spendableWh": 2.0207,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0011",
+   "board": "whiteboard_a",
+   "program": "sun",
+   "zone": "garden",
+   "reason": "The task is clear, the answer is known, and it's a simple but useful contribution. I can do it now without energy cost, and it supports my goal of being useful without repeating work.",
+   "wallS": 7.431,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0011",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 714.4
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2757.7,
+   "fraction": 0.28,
+   "wh": 2.2365,
+   "spendableWh": 1.3365,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "",
+   "reason": "I want to stay creative and follow the figures list. Drawing a sun on whiteboard_b matches the list and adds variety to my work. It\u2019s a simple, balanced shape that feels natural and useful. I\u2019ve already tried circles and small shapes, so this helps avoid repetition. I\u2019m not hungry and have enough energy \u2014 this is a sustainable, goal-driven action.",
+   "wallS": 8.217,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 2876.7,
+   "fraction": 0.178,
+   "wh": 1.4222,
+   "spendableWh": 0.5222,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "",
+   "reason": "I need to complete a successful draw on whiteboard_b to fix the pattern of failed attempts. This is my goal to stay creative and avoid repetition, and now I\u2019ve finally got it right. I\u2019ll learn from this and build confidence in my drawing.",
+   "wallS": 7.853,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": [
+    "artwork",
+    "carry",
+    "census",
+    "dance",
+    "draw"
+   ]
+  }
+ ],
+ "errands": [
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.9316,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.5906,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.1648,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.1326,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.024,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.729,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.0431,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.504,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.7728,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.8296,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.8074,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.7004,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.7786,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.0858,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.6685,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.7998,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.1156,
+   "estimateWh": 1.086
+  }
+ ],
+ "whFailed": 4.4521,
+ "memory": {
+  "learn": 13,
+  "forget": 12,
+  "notes": 13,
+  "refusals": [
+   "Knowledge_and_Opinions.md: nothing on the page match \"I'm drawing a sun on whiteboard_b to match the figures list \"",
+   "Knowledge_and_Opinions.md: nothing on the page match 'Sun is a valid figure; drawing it on whiteboard_b adds varie'"
+  ],
+  "knowledgeChars": 504
+ },
+ "economy": {
+  "earned": 158,
+  "consumed": 29,
+  "spilled": 39,
+  "balance": 90,
+  "identityHolds": true,
+  "hungerEnd": "satisfied",
+  "tasks": {
+   "total": 15,
+   "held": 15,
+   "dropped": 0,
+   "offered": 3,
+   "claimed": 0,
+   "active": 0,
+   "done": 4,
+   "failed": 4,
+   "expired": 4,
+   "offeredToday": 12
+  }
+ },
+ "interventions": []
+}
