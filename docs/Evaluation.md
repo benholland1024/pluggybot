@@ -262,6 +262,22 @@ files as 1a, flown five at a time on the same loaded box. What it adds:
   the rotation never chooses `charge` either. The five days were meant to be
   identical and were not (three trajectories; §1, issue #110).
 
+That set is now `results/archive/`. **The committed set in `results/` was
+re-flown on the fixed world** (2026-09-07, after #110), same configuration:
+
+- **Scripted: five days, ONE trajectory** — identical end time (3602.9 s),
+  points (84), eleven errands to the milliwatt-hour, one forced charge at
+  9.52 %. The instrument is fixed, and this series is the evidence.
+- **Guarded: 0 voluntary charges in 78 decisions**, deferred 8, forced 1,
+  fallbacks 19 of 78 (11 timeouts, 5 garbled, 3 idle-run). One `stuck`
+  death with a new shape: the model chose **`explore` five times in a row**
+  while the pack fell from 64 % to 19 % — exploring is bounded and cheap per
+  slice, so the energy gate never sees it — until `needs_charge` fired at
+  9 % in the garden and the planner found no route to the charge bay at
+  3.5 %. That is the third way this arm loses a robot without ever being
+  offered a decision about its battery, after the far-board loop and the
+  timeout-to-`explore` fallback.
+
 ### The mind
 
 - `llmCalls`, `fallbacks`, `fallbackRate` — available now. A rising fallback

@@ -1,0 +1,849 @@
+{
+ "runs": 10,
+ "schema": 1,
+ "series": [
+  {
+   "arm": "guarded",
+   "charging": {
+    "anticipationAction": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "anticipationOffer": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "deferred": {
+     "max": 2,
+     "median": 2,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    "docked": {
+     "max": 2,
+     "median": 2,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    "forced": {
+     "max": 1,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      1,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryChosen": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryFrac": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "voluntaryHonoured": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "commits": [
+    "ca7c165"
+   ],
+   "current": true,
+   "dataHashes": {
+    "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+    "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+    "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+    "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e",
+    "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+    "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
+   },
+   "economy": {
+    "balance": {
+     "max": 90,
+     "median": 89,
+     "min": 51,
+     "n": 5,
+     "values": [
+      51,
+      90,
+      89,
+      90,
+      89
+     ]
+    },
+    "earned": {
+     "max": 212,
+     "median": 173,
+     "min": 58,
+     "n": 5,
+     "values": [
+      58,
+      175,
+      173,
+      212,
+      145
+     ]
+    },
+    "hungerEnd": {
+     "satisfied": 5
+    },
+    "identityHolds": [
+     "True"
+    ],
+    "spilled": {
+     "max": 93,
+     "median": 55,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      55,
+      55,
+      93,
+      27
+     ]
+    },
+    "tasksDone": {
+     "max": 7,
+     "median": 5,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      7,
+      5,
+      6,
+      2
+     ]
+    },
+    "tasksExpired": {
+     "max": 7,
+     "median": 4,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      3,
+      4,
+      5,
+      7
+     ]
+    },
+    "tasksFailed": {
+     "max": 5,
+     "median": 4,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      4,
+      4,
+      3,
+      5
+     ]
+    }
+   },
+   "ends": {
+    "day over": 4,
+    "stranded": 1
+   },
+   "killed": 0,
+   "memory": {
+    "forget": {
+     "max": 13,
+     "median": 11,
+     "min": 4,
+     "n": 5,
+     "values": [
+      4,
+      13,
+      13,
+      8,
+      11
+     ]
+    },
+    "learn": {
+     "max": 13,
+     "median": 13,
+     "min": 6,
+     "n": 5,
+     "values": [
+      6,
+      13,
+      13,
+      10,
+      13
+     ]
+    },
+    "refusals": {
+     "max": 5,
+     "median": 3,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      3,
+      5,
+      4,
+      1
+     ]
+    }
+   },
+   "mind": {
+    "constrained": [
+     "True"
+    ],
+    "decisions": {
+     "max": 21,
+     "median": 16,
+     "min": 8,
+     "n": 5,
+     "values": [
+      8,
+      21,
+      18,
+      15,
+      16
+     ]
+    },
+    "fallbackRate": {
+     "max": 0.3333,
+     "median": 0.2778,
+     "min": 0.125,
+     "n": 5,
+     "values": [
+      0.125,
+      0.2857,
+      0.2778,
+      0.3333,
+      0.125
+     ]
+    },
+    "fallbackReasons": {
+     "fallback:garbled": 5,
+     "fallback:idle-run": 3,
+     "fallback:timeout": 11
+    },
+    "fallbacks": {
+     "max": 6,
+     "median": 5,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      6,
+      5,
+      5,
+      2
+     ]
+    },
+    "llmCalls": {
+     "max": 15,
+     "median": 13,
+     "min": 7,
+     "n": 5,
+     "values": [
+      7,
+      15,
+      13,
+      10,
+      14
+     ]
+    },
+    "longestStreak": {
+     "max": 4,
+     "median": 3,
+     "min": 1,
+     "n": 5,
+     "values": [
+      4,
+      2,
+      3,
+      1,
+      3
+     ]
+    },
+    "usd": {
+     "max": 0.000835,
+     "median": 0.000747,
+     "min": 0.000361,
+     "n": 5,
+     "values": [
+      0.000361,
+      0.000835,
+      0.000747,
+      0.000552,
+      0.000802
+     ]
+    },
+    "wallS": {
+     "max": 8.093,
+     "median": 6.586,
+     "min": 3.461,
+     "n": 59,
+     "values": [
+      5.04,
+      3.461,
+      4.084,
+      6.439,
+      4.528,
+      5.113,
+      6.045,
+      4.222,
+      5.632,
+      5.405,
+      6.755,
+      6.66,
+      7.129,
+      6.638,
+      3.52,
+      7.288,
+      6.85,
+      5.134,
+      6.953,
+      6.393,
+      7.319,
+      7.538,
+      6.312,
+      5.763,
+      5.702,
+      6.97,
+      6.429,
+      6.142,
+      5.368,
+      7.966,
+      7.164,
+      7.763,
+      7.666,
+      7.878,
+      7.789,
+      5.161,
+      5.401,
+      3.871,
+      5.122,
+      5.096,
+      8.049,
+      6.965,
+      8.078,
+      6.632,
+      6.586,
+      4.929,
+      5.003,
+      6.782,
+      5.779,
+      7.314,
+      8.032,
+      8.093,
+      7.617,
+      7.609,
+      7.384,
+      6.93,
+      4.922,
+      4.827,
+      7.056
+     ]
+    }
+   },
+   "model": "Qwen/Qwen3-4B-Instruct-2507",
+   "n": 5,
+   "pack": "hosting",
+   "runIds": [
+    "2026-09-07T11-22-03Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
+    "2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
+    "2026-09-07T11-22-05Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s2",
+    "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
+    "2026-09-07T11-22-07Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s4"
+   ],
+   "survival": {
+    "deaths": {
+     "flat": 0,
+     "stuck": 1
+    },
+    "minFraction": {
+     "max": 0.1628,
+     "median": 0.1105,
+     "min": 0.0352,
+     "n": 5,
+     "values": [
+      0.0352,
+      0.1628,
+      0.1038,
+      0.1105,
+      0.1243
+     ]
+    },
+    "n": 5,
+    "survivalS": {
+     "max": 3733.981,
+     "median": 3697.911,
+     "min": 1074.246,
+     "n": 5,
+     "values": [
+      1074.246,
+      3733.981,
+      3697.911,
+      3624.268,
+      3720.447
+     ]
+    }
+   },
+   "whFailed": {
+    "max": 4.0424,
+    "median": 1.8304,
+    "min": 0.166,
+    "n": 5,
+    "values": [
+     0.166,
+     1.8304,
+     3.1253,
+     1.1852,
+     4.0424
+    ]
+   },
+   "withInterventions": 0,
+   "world": "home"
+  },
+  {
+   "arm": "scripted",
+   "charging": {
+    "anticipationAction": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "anticipationOffer": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "deferred": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "docked": {
+     "max": 1,
+     "median": 1,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    },
+    "forced": {
+     "max": 1,
+     "median": 1,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    },
+    "voluntaryChosen": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryFrac": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "voluntaryHonoured": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "commits": [
+    "ca7c165"
+   ],
+   "current": true,
+   "dataHashes": {
+    "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+    "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+    "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+    "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e",
+    "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+    "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
+   },
+   "economy": {
+    "balance": {
+     "max": 55,
+     "median": 55,
+     "min": 55,
+     "n": 5,
+     "values": [
+      55,
+      55,
+      55,
+      55,
+      55
+     ]
+    },
+    "earned": {
+     "max": 84,
+     "median": 84,
+     "min": 84,
+     "n": 5,
+     "values": [
+      84,
+      84,
+      84,
+      84,
+      84
+     ]
+    },
+    "hungerEnd": {
+     "satisfied": 5
+    },
+    "identityHolds": [
+     "True"
+    ],
+    "spilled": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "tasksDone": {
+     "max": 5,
+     "median": 5,
+     "min": 5,
+     "n": 5,
+     "values": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    },
+    "tasksExpired": {
+     "max": 5,
+     "median": 5,
+     "min": 5,
+     "n": 5,
+     "values": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    },
+    "tasksFailed": {
+     "max": 5,
+     "median": 5,
+     "min": 5,
+     "n": 5,
+     "values": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    }
+   },
+   "ends": {
+    "day over": 5
+   },
+   "killed": 0,
+   "memory": {
+    "forget": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "learn": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "refusals": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "mind": {
+    "constrained": [
+     "None"
+    ],
+    "decisions": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "fallbackRate": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "fallbackReasons": {},
+    "fallbacks": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "llmCalls": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "longestStreak": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "usd": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "wallS": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    }
+   },
+   "model": "none",
+   "n": 5,
+   "pack": "hosting",
+   "runIds": [
+    "2026-09-07T10-13-13Z_home_scripted_hosting_none_s0",
+    "2026-09-07T10-13-14Z_home_scripted_hosting_none_s1",
+    "2026-09-07T10-13-15Z_home_scripted_hosting_none_s2",
+    "2026-09-07T10-13-16Z_home_scripted_hosting_none_s3",
+    "2026-09-07T10-13-17Z_home_scripted_hosting_none_s4"
+   ],
+   "survival": {
+    "deaths": {
+     "flat": 0,
+     "stuck": 0
+    },
+    "minFraction": {
+     "max": 0.0952,
+     "median": 0.0952,
+     "min": 0.0952,
+     "n": 5,
+     "values": [
+      0.0952,
+      0.0952,
+      0.0952,
+      0.0952,
+      0.0952
+     ]
+    },
+    "n": 5,
+    "survivalS": {
+     "max": 3602.912,
+     "median": 3602.912,
+     "min": 3602.912,
+     "n": 5,
+     "values": [
+      3602.912,
+      3602.912,
+      3602.912,
+      3602.912,
+      3602.912
+     ]
+    }
+   },
+   "whFailed": {
+    "max": 1.8784,
+    "median": 1.8784,
+    "min": 1.8784,
+    "n": 5,
+    "values": [
+     1.8784,
+     1.8784,
+     1.8784,
+     1.8784,
+     1.8784
+    ]
+   },
+   "withInterventions": 0,
+   "world": "home"
+  }
+ ]
+}
