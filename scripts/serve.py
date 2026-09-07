@@ -266,6 +266,12 @@ def main() -> None:
                                  # (issue #36): the RULES ride the cached
                                  # prefix, the numbers ride every call.
                                  appetite=hunger is not None,
+                                 # ...and that it can DIE here (issue #107).
+                                 # A served world is mortal -- it has an
+                                 # inbox and an admin behind it -- and the
+                                 # rule is only true where that holds, so it
+                                 # is stated only there.
+                                 mortal=True,
                                  **overseer_kw)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is

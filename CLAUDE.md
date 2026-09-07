@@ -280,7 +280,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   queued. It is OFF by default and the loop is unchanged without it.
   **CHARGE PRIORITY STAYS IN CODE** — `needs_charge` is checked before the
   overseer is reached and no action suppresses it, because an LLM that can
-  decline to charge bricks the world overnight. Same rule from the other end:
+  decline to charge bricks the world overnight.
+  ⚠ **...ON EVERY ARM BUT ONE, AND THERE ARE THREE RAILS RATHER THAN THIS
+  ONE** (M14). `needs_charge` is the FLOOR and it fired once in six measured
+  days; `_afford_next` (the gate, which prices the next errand) fired eleven
+  times, and `Task.claimable` never shows an offer the pack cannot fund. The
+  `autonomous` arm removes all three ON PURPOSE and corrects `RULES` in the
+  same change, because the shipped prompt tells the robot "charging is not
+  your decision" and with the rails off that is false. The deployed world and
+  the `guarded` arm keep every rail. docs/Evaluation.md §2. Same rule from the other end:
   it *sees* the reward table and its balance and can move neither, and the
   census's ground truth is redacted out of its context. A *chosen* `charge`
   also needs the pack below `TOP_UP_BELOW` (75 %): charging is a scored task

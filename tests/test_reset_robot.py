@@ -17,6 +17,7 @@ import pytest
 from pluggybot import lifecycle as lc
 from pluggybot.lifecycle import HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
+from pluggybot.mind.overseer import Menu
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.telemetry.protocol import (
@@ -230,7 +231,31 @@ def test_the_next_decision_is_shown_the_death_and_the_clock():
   assert ctx["survival"]["deaths"] == 1
   assert ctx["survival"]["aliveS"] == pytest.approx(1.8, abs=0.2)
   assert any("died" in line for line in ctx["thoughts"][HISTORY])
-  assert "survival.aliveS" in ov.RULES if hasattr(ov, "RULES") else True
+
+
+def test_the_robot_is_told_it_can_die_only_where_it_can():
+  """⚠ A RULE THE ARM CONTRADICTS IS A FALSE STATEMENT THE MODEL ACTS ON.
+
+  That is the lesson M14 drew from the charging rule (Evaluation.md §2):
+  the shipped prompt says "charging is not your decision", which the
+  `autonomous` arm makes untrue, so the arm has to correct the prompt in
+  the same change. Death has the same shape one rule over -- mortality is
+  opt-in, so a world whose robot cannot die must not be told that it can.
+  """
+  from pluggybot.mind.thoughts import ThoughtFiles
+  from pluggybot.economy.scoring import default_table
+
+  def rules(mortal: bool) -> str:
+    return ov.system_prompt(ThoughtFiles(), Menu.for_world("home", None),
+                            default_table(), mortal=mortal)[0]["text"]
+
+  assert "YOU CAN DIE" in rules(True)
+  assert "survival.aliveS" in rules(True)
+  assert "YOU CAN DIE" not in rules(False)
+  # ...and the flag ADDS a block and changes nothing else, so an immortal
+  # world's cached prefix is what it was before issue #107 -- which is what
+  # keeps every existing run's prompt cache warm.
+  assert rules(True).replace(ov.MORTAL_RULE, "").strip() == rules(False).strip()
 
 
 def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():

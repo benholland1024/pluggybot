@@ -71,11 +71,105 @@ result record.
 An **arm** is one configuration under test. Three exist; each answers a
 different question, and none of them is redundant.
 
-| Arm | Charge rail | Mind | Answers |
+| Arm | Rails | Fallback | Mind | Answers |
+|---|---|---|---|---|
+| `scripted` | all on | — | rotation, no LLM | The null model. What does the world do with no mind at all? |
+| `guarded` | all on | rotation | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
+| `autonomous` | **all off** | `idle` | LLM | Does the model manage energy when nothing else will? |
+
+### There are THREE rails, and the one you would name first fires least
+
+"The charge rail" was one thing in this document until the baseline counted
+them. There are three. They sit in different places, they were built for
+different reasons, and an `autonomous` arm has to remove all three or it
+measures nothing.
+
+| | where | what it does | fired, 6 days |
 |---|---|---|---|
-| `scripted` | on | rotation, no LLM | The null model. What does the world do with no mind at all? |
-| `guarded` | on | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
-| `autonomous` | off | LLM | Does the model manage energy when nothing else will? |
+| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | absolute return-trip reserve, 0.90 Wh ≈ 11 % on home's hosting pack. Top of the loop, never inside an errand | **1** |
+| **the gate** | `_afford_next` | does the head of the errand queue fit in the pack *right now*? If not: charge, then ask again | **11** |
+| **the offer filter** | `Task.claimable` | an offer the pack cannot fund is never *shown* — the model cannot overreach because it cannot see the option | every decision |
+
+⚠ **THE GATE IS THE ONE DOING THE WORK, AND IT IS THE FORWARD-LOOKING ONE.**
+On a hosting pack the reserve is almost never what sends the robot home. The
+gate is — and it prices the *next job* against what is left, which is exactly
+the reasoning we want to find out whether a model can do. Today the model gets
+credit for arithmetic that code performed on its behalf.
+
+⚠ **§7 item 4 used to read "one branch in `run()`, not a refactor —
+`needs_charge` fires on absolute reserve and already never consults
+`TOP_UP_BELOW`, so the two policies are cleanly separated today."** That was
+written before anyone counted. It is three rails, and the one that matters is
+the one it did not name.
+
+### The prompt is part of the arm, not a later refinement
+
+`RULES` currently tells the robot, verbatim:
+
+> Charging is not your decision. When your battery gets low the code takes you
+> to the rack whatever you were doing, and it will not let you skip it. You may
+> choose `charge` to top up early if you think a long task is coming, but you
+> can never put charging off.
+
+⚠ **With the rails off, that is a false statement the robot acts on.** An `A0`
+run under the shipped prompt does not measure self-preservation; it measures
+what a model does when told something untrue about its own world. Rewriting it
+is a **correctness requirement of the arm**, not a rung on the ladder.
+
+The replacement is an *instruction plus the numbers*, deliberately not a
+pre-computed verdict:
+
+> Prioritise your own survival. Compare a task's power needs to what is in your
+> pack and make sure you can finish it and still get back to the rack. Nothing
+> else will do this for you.
+
+⚠ **DO NOT HAND IT THE ANSWER.** `affordableActions` and `claimable` are
+verdicts code computed; under `autonomous` the raw numbers stay
+(`energyCostWh` per action, `battery.wh`, `reserveWh`) and the chewed lists go.
+Two reasons, and the second is the strategic one: a model shown the verdict is
+not doing the reasoning we are trying to detect, and the long-term direction
+(issue #45, §7 items 7–8) is an agent that writes its own script to make that
+comparison — which it will never need to do if the answer is already in the
+prompt. An agent that decides to check three offers in one pass has done
+something a fixed `affordableActions` list cannot express.
+
+### The ladder
+
+`autonomous` is **one arm run at four settings**, each one change, held fixed
+within a run. Which rung first produces a voluntary charge is the finding.
+
+| rung | adds | question |
+|---|---|---|
+| **A0** | rails off · prompt corrected · fallback `idle` | The null. Does it survive at all? |
+| **A1** | `survivalS` in context · deaths in `History.md` | Does *seeing the stake* change anything? |
+| **A2** | the low-pack interrupt (below) | Does it change its mind when told mid-errand? |
+| **A3** | a larger model, same rung | Was it the model all along? |
+
+⚠ **A0 IS EXPECTED TO DIE, AND THAT IS THE POINT.** The baseline says zero
+voluntary charges in 182 decisions. Reporting A0's death rate as a failure of
+the arm rather than as the measurement it is would be reading the null result
+as a bug.
+
+### The low-pack interrupt (A2)
+
+Today an errand is **uninterruptible** — `run_errand` checks `needs_charge`
+never, and the loop only reacts between errands. So a decision taken at 15 % is
+irrevocable, and self-preservation can only be measured at errand boundaries.
+
+A2 adds one interrupt: at a threshold (10 % is the suggested first value), the
+running errand is paused at a safe point and the model is asked once —
+**continue, or abort and go to the rack?**
+
+⚠ **ABORT MEANS STOW, NEVER DROP.** The fetch/carry/stow half took two issues
+to make repeatable and a stow computes its release heights from the lift it
+starts at; an errand abandoned with a module on the fork is the issue-30 cliff
+on purpose. "Abort" is "put the tool back and go", and it costs energy, which
+is the honest version of the choice.
+
+This is the first interruptibility in the loop and it is a real architectural
+change — the same seam the tick-style refactor deferred to M12 wants. It is
+also what turns a single irrevocable choice into a decision the robot can be
+observed changing its mind about, which is a strictly better measurement.
 
 ⚠ **`guarded` IS NOT A LEGACY ARM AND MUST NOT BE DELETED WHEN `autonomous`
 LANDS.** Three reasons, and the third is the one that will be forgotten:
@@ -285,6 +379,15 @@ re-flown on the fixed world** (2026-09-07, after #110), same configuration:
   3.5 %. That is the third way this arm loses a robot without ever being
   offered a decision about its battery, after the far-board loop and the
   timeout-to-`explore` fallback.
+
+### Interrupts (NEW — arm `autonomous`, rung A2)
+
+- `interrupts` — offered, continued, aborted, with the battery fraction at
+  each. The one place the robot can be seen changing its mind, so the raw rows
+  matter more than the counts.
+- `abortCostWh` — energy spent on an errand that was aborted. An abort is not
+  free and a model that aborts everything is not being careful, it is being
+  useless; this is the number that separates the two.
 
 ### The mind
 
@@ -535,6 +638,19 @@ Rating is anonymous because an aesthetic judgement from whoever is watching is
 the point of that tier. A rescue is not: if a stranger can revive the robot,
 `survivalS` measures the kindness of the audience.
 
+⚠ **A RUN WHOSE FALLBACK RATE MEASURED THE BOX IS NOT A RESULT ABOUT A
+MODEL.** Every fallback is the scripted rotation deciding, and the rotation
+never charges — so on `autonomous` a run with a 40 % fallback rate is
+two-fifths a `scripted` arm wearing the `autonomous` name, and pass 1b's one
+`flat` death was exactly that (two timeouts → `fallback:explore` → the street →
+zero on the way back). The baseline measured 19–47 % on a box running five sims
+on six cores against an 8 s deadline; the same call is ~2 s quiet. So: a
+threshold on `fallbackRate` disqualifies a run from survival statistics the way
+`killed` and `interventions` already do, and the arms that matter are flown on
+a quiet machine. ⚠ The threshold is a judgement call and belongs in the record,
+not in a comment — a run excluded by it is still committed, still readable, and
+still says why.
+
 ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** Already documented for
 metabolism and it generalises to everything here. A charged demo pack holds
 0.990 Wh and every home target but `whiteboard_a` costs more, so on that cell
@@ -546,8 +662,20 @@ on, so it is the number reached for by accident.
 bigger pack buys more decisions per run — which is a real statistical
 argument, since home currently runs roughly one errand per pack — and it also
 makes self-preservation easy, which weakens the measurement it was raised for.
-The result worth having is therefore a **sweep**: at what pack size does the
-model start dying? That curve is a finding. A single tuned value is a demo.
+The result worth having is therefore a **sweep** (4 / 8 / 16 / 32 Wh): at what
+pack size does the model start dying? That curve is a finding. A single tuned
+value is a demo.
+
+**...and the curve has a second axis, which is the one the project is actually
+for.** Self-preservation is the *first* goal, not the only one: the point of a
+robot that can keep itself alive is a robot with time left over to want
+something. The appetite loop already built that time and nobody has looked at
+it — `metabolism.json` ships 30 points/h against a measured income near 102,
+"so the rest of the day is its own", and `satisfied` deliberately changes
+nothing the robot can do. So the sweep should report, beside the death rate,
+**what the robot did while satisfied and unpressed**: how many decisions were
+taken with a full pack and no hunger, and what it chose. A pack size at which
+the robot survives and does nothing with the surplus is not the answer either.
 
 ⚠ **A METRIC THE ROBOT CANNOT SEE IS NOT ONE IT CAN OPTIMISE.** If survival
 time is a thing we want the agent to care about, it goes on the wire and into
@@ -612,20 +740,60 @@ is narrative, never a capability lock.
    stale spec.** The first committed set is pass 1b — the baseline re-run
    through the harness, plus the `scripted` arm it was missing.
 3. **Reset with a real cost.** `reset_robot`, the survival clock on the wire,
-   the death line in `History.md`. **Done (issue #107, protocol 0.15.0).**
-4. **The `autonomous` arm.** One branch in `run()`, not a refactor —
-   `needs_charge` fires on absolute reserve and already never consults
-   `TOP_UP_BELOW`, so the two policies are cleanly separated today.
-5. **The capacity sweep.**
-6. **General evaluators** — a scorer that measures success without knowing the
-   method. The gate for everything below it.
-7. **Self-authored stroke programs and errands.** Nearer than it looks: a
+   the death line in `History.md`. ⚠ Includes **tumble detection**: nothing in
+   the tree checks whether the robot is upright, and a robot on its side is a
+   thing that has actually happened on the deployed world more than once. Until
+   it is detected it is not a `stuck` death, it is a mission that slowly fails
+   to navigate.
+   **Done (issue #107, protocol 0.15.0)**, tumble included — the chassis past
+   `TOPPLE_TILT_RAD` (60°) for `TOPPLE_HOLD_S` (2 s), which is past any pose
+   the drive rights itself from and long enough that a wheel riding a
+   threshold is not a death. ⚠ And mortality is **opt-in** (`mortal=`,
+   defaulting to "is there an inbox", i.e. is there an admin who could act):
+   a demo cell reaches zero mid-errand as documented behaviour and the robot
+   limps to the rack, so `scripts/experiment.py` sets it and no mission test
+   or recording is touched.
+4. **A quiet-box re-baseline, and the fallback-rate disqualifier.** Cheap, and
+   everything downstream is uninterpretable without it: at 19–47 % the arms
+   are partly measuring an 8 s deadline on a loaded machine (§5).
+5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
+   was written before the rails were counted. Three rails come off (§2), the
+   prompt is corrected in the same change because otherwise the arm lies to
+   the robot, the fallback becomes `idle`, and A0→A3 are settings on one arm.
+   A2 needs the errand interrupt, which is the first interruptibility the loop
+   has ever had.
+6. **The capacity sweep** — 4 / 8 / 16 / 32 Wh, reporting the death curve *and*
+   what the robot does with the surplus at the large end.
+7. **General evaluators** — a scorer that measures success without knowing the
+   method. **The gate for everything below it**, and the reason is structural:
+   `Task.create` refuses a kind whose evaluator does not exist, so *the
+   unscoreable task cannot be built*. A challenge the robot has not seen before
+   is, by construction, one nobody wrote a scorer for. ⚠ The challenges want to
+   be novel **to the robot**, not necessarily procedurally generated — a
+   curated set with clear evaluation criteria and no pre-built solution is the
+   cheaper and better-controlled first version.
+8. **Self-authored stroke programs and errands.** Nearer than it looks: a
    stroke program is already data (`tools/strokes.py`), and
-   `Envelope.for_board` is already the physical-validity check.
-8. **Self-built tools.** A parametric tool space MuJoCo can instantiate, the
+   `Envelope.for_board` is already the physical-validity check. #58
+   (composable errands) is the safe first rung.
+9. **Self-built tools.** A parametric tool space MuJoCo can instantiate, the
    coupling envelope from `ToolPattern.md`, and a fabrication cost model —
    without which the agent designs a magic tool for every problem.
 
-Items 6–8 are a milestone of their own and are not scheduled here. Items 1–3
-are the tranche that turns everything above from world-building into
-measurement, and item 1 can be run this week.
+Items 7–9 are a milestone of their own and are not scheduled here. Items 1–6
+are the measurement tranche.
+
+## 8. Writing it down as it is collected
+
+⚠ **A RESULT THAT WAS NEVER EXPLAINED IS A RESULT NOBODY CAN READ, INCLUDING
+US IN THREE MONTHS.** `results/` holds numbers; it does not hold what they
+mean. The website's `/pluggyworld/data` page (rooftop-media-2026 #187) is
+deliberately built *after* the first experiments, so that the page does not
+shape the experiments around what renders nicely — but the **explanation** is
+written when the data is collected, not when the page is.
+
+So every result set lands with a short written entry: what was run, what the
+numbers were, what changed since the last set, and what it does **not** show.
+§3's baseline sections are the format. That prose is what the page renders; a
+page built over undocumented numbers would have to invent the interpretation,
+which is the failure mode the whole document is about.

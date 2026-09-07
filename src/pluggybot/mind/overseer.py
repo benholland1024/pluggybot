@@ -652,11 +652,6 @@ HOW YOUR LIFE WORKS
 
 - You choose the next TASK. You do not steer, drive, or move an arm; the code \
 that runs your body does that, and it is good at it.
-- You can DIE: a pack that reaches zero, or a body knocked over or stranded \
-away from the rack, ends everything you were doing until a person comes and \
-resets you -- and that is written into your history where you will read it. \
-`survival.aliveS` is how long you have been awake since you were switched on \
-or last reset; `survival.deaths` is how many times it has happened today.
 - Charging is not your decision. When your battery gets low the code takes you \
 to the rack whatever you were doing, and it will not let you skip it. You may \
 choose `charge` to top up early if you think a long task is coming, but you \
@@ -772,6 +767,18 @@ friendly answer; it does not have to become work.
 #: capability lock issue #36 forbids wearing the opposite sign -- and a
 #: scripted rotation, which has no goals to pursue, would have nothing
 #: sensible to do with the free time anyway.
+MORTAL_RULE = """\
+YOU CAN DIE
+
+A pack that reaches zero, or a body knocked over or stranded away from the \
+rack, ends everything you were doing. You cannot get up again by yourself: \
+you stand where you fell until a person comes and stands you back up, and \
+that is written into your history, where you will read it for the rest of \
+the day. `survival.aliveS` is how long you have been awake since you were \
+switched on or last stood up; `survival.deaths` is how many times it has \
+happened today.
+"""
+
 APPETITE_RULE = """\
 POINTS ARE FOOD
 
@@ -820,7 +827,8 @@ made is the one that happens.\
 def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   table: RewardTable, name: str = "",
                   escalation: bool = False,
-                  appetite: bool = False) -> list[dict]:
+                  appetite: bool = False,
+                  mortal: bool = False) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -928,7 +936,8 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                                       sort_keys=True),
     f"YOUR LONG-TERM GOALS ({GOALS} -- likewise; you cannot change these)\n"
     + stable[GOALS].strip(),
-  ] + ([APPETITE_RULE] if appetite else [])
+  ] + ([MORTAL_RULE] if mortal else [])
+    + ([APPETITE_RULE] if appetite else [])
     + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
@@ -1128,6 +1137,7 @@ class Overseer:
                escalate_url: str | None = None,
                spend: SpendBook | None = None,
                appetite: bool = False,
+               mortal: bool = False,
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
@@ -1224,13 +1234,19 @@ class Overseer:
     #: change per deploy while the rules do not -- so the numbers ride the
     #: user turn instead, as `metabolism`.
     self.appetite = bool(appetite)
+    # ⚠ ONLY WHERE IT IS TRUE (issue #107). A world whose robot cannot die
+    # must not be told that it can: a rule the arm contradicts is a false
+    # statement the model acts on, which is exactly what M14 found in the
+    # charging rule (docs/Evaluation.md section 2).
+    self.can_die = bool(mortal)
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
     self.system = system_prompt(self.thoughts, self.menu, self.table,
                                 name=self.robot_name,
                                 escalation=self.can_escalate,
-                                appetite=self.appetite)
+                                appetite=self.appetite,
+                                mortal=self.can_die)
 
   @property
   def goals(self) -> str:
@@ -1815,6 +1831,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           base_url: str | None = None, escalate_to: str | None = None,
           spend: SpendBook | None = None,
           appetite: bool = False,
+          mortal: bool = False,
           thoughts: ThoughtFiles | None = None,
           robot_name: str | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
@@ -1866,5 +1883,10 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # RULES only -- the numbers ride the user turn -- so a
                       # world with no appetite keeps the prefix it had.
                       appetite=appetite,
+                      # ...and whether it can die HERE (issue #107), on the
+                      # same terms: the RULES only, and never a false one --
+                      # a world whose robot cannot die must not be told it
+                      # can (docs/Evaluation.md §2's lesson, one rule over).
+                      mortal=mortal,
                       calls_per_hour=calls_per_hour)
   return overseer, journal

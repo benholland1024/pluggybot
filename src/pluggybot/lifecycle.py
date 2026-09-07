@@ -2411,7 +2411,14 @@ def run_demo(start=None, view: bool = False,
                            # Whether points are food here (issue #36): the
                            # rules go in the cached prefix, the numbers ride
                            # every call.
-                           appetite=hunger is not None)
+                           appetite=hunger is not None,
+                           # ...and whether a death is a real thing here
+                           # (issue #107): mortality is opt-in, and a robot
+                           # that cannot die is not told that it can.
+                           # `run_demo` attaches no inbox, so an unset
+                           # `mortal` is False here by the same rule the
+                           # lifecycle applies.
+                           mortal=bool(mortal))
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
