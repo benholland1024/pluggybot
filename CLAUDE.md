@@ -146,6 +146,19 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the garden pressure plate took the home lifecycle from 219.7 to 353.6
   sim-seconds (1 → 2 charge cycles) while costing essentially no physics. A
   slower suite is not by itself a regression.
+- **Measurement (M14)**: `scripts/experiment.py --arm {scripted,guarded}
+  --world home --pack hosting -n 5 --parallel 5` flies N days as child
+  processes and writes `results/<runId>.json` + `results/rollup.json`
+  (issue #106; `docs/Evaluation.md` §4 is the record and the rules).
+  `--rollup` re-aggregates without flying. `results/` is COMMITTED and
+  stale-checked like `protocol/`: editing any of the five economy data
+  files flips `current` in the rollup and fails `tests/test_experiment.py`
+  until `--rollup` is re-run. ⚠ A run past `--wall-limit` is killed and
+  recorded as `killed` -- never a death, never a completed day (a wedged
+  mission does not end on its own, #108). ⚠ The `guarded` arm needs
+  `$HF_TOKEN` (or `$ANTHROPIC_API_KEY`) in the environment and refuses
+  without it; `--parallel 5` on this box pushes the 8 s decision deadline
+  and the record says so (`config.parallel`, `mind.wallS`).
 - Lint: `uv run ruff check src/ scripts/ tests/`
 - Demos: `scripts/teleop.py`, `scripts/map_teleop.py`, `scripts/explore.py [--headless]`
   (milestone-4 mapping demo — kept as the minimal repro; `lifecycle.py` is the

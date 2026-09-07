@@ -1182,6 +1182,15 @@ class Overseer:
     # Found by the test, not by reading it.
     self._last_escalation: float | None = None
     self.decisions: list[Decision] = []
+    #: THE MEASUREMENT SEAM (issue #106). Each hook gets one dict per
+    #: decision -- `state` (the context the model was shown, verbatim),
+    #: `decision`, `wallS` (asked -> answered) and `error` (the vendor's
+    #: text behind a `garbled` / `offline`, which `usage.errors` forgets
+    #: after five). Read-only: nothing here can change what was decided.
+    #: Pass 1a of M14 had to monkeypatch three methods to see this; the
+    #: harness gets it from one list, on the same terms as `say_hooks`.
+    self.on_decision: list[Callable[[dict], None]] = []
+    self._asked_at: float = 0.0
     self._client = client
     self._client_ready = client is not None
     self._calls: deque = deque()          # monotonic stamps, for the budget
@@ -1442,7 +1451,8 @@ class Overseer:
     """Dispatch a decision. Returns immediately; poll `pending`."""
     with self._lock:
       self._pending_state = dict(state)
-      self._deadline = self.clock() + self.timeout_s + POLL_GRACE_S
+      self._asked_at = self.clock()
+      self._deadline = self._asked_at + self.timeout_s + POLL_GRACE_S
       if self._in_flight:
         # A previous call outlived its deadline and is still out there. Do not
         # pile a second request on top of it -- but resolve THIS one now, so
@@ -1495,10 +1505,15 @@ class Overseer:
       slot, self._slot = self._slot, {}
       state = state if state is not None else self._pending_state
     decision = slot.get("decision")
+    error = ""
     if decision is None:
       why = slot.get("error") or "timeout"
       decision = scripted(self.menu, state, why)
-    self._record(decision)
+      # The vendor's own words for what went wrong, for the measurement
+      # seam: `_call` wrote them to `usage.errors` a moment ago.
+      error = next((e for e in reversed(self.usage.errors)
+                    if e.startswith("call:")), "") if slot else ""
+    self._record(decision, state, error)
     return decision
 
   def decide_scripted(self, state: dict, why: str) -> Decision:
@@ -1510,8 +1525,9 @@ class Overseer:
     spent in free mode should read as a day of scripted decisions, not as a
     day with no decisions in it.
     """
+    self._asked_at = self.clock()
     decision = scripted(self.menu, state, why)
-    self._record(decision)
+    self._record(decision, state)
     return decision
 
   def decide(self, state: dict) -> Decision:
@@ -1521,7 +1537,8 @@ class Overseer:
       time.sleep(0.005)
     return self.result(state)
 
-  def _record(self, decision: Decision) -> None:
+  def _record(self, decision: Decision, state: dict | None = None,
+              error: str = "") -> None:
     self.usage.calls += 1
     if decision.scripted:
       self.usage.fallbacks += 1
@@ -1545,6 +1562,14 @@ class Overseer:
     self._idle_run = (self._idle_run + 1) if decision.action in IDLE_ACTIONS \
         else 0
     self.decisions.append(decision)
+    if self.on_decision:
+      event = {"state": dict(state if state is not None
+                             else self._pending_state),
+               "decision": decision,
+               "wallS": round(self.clock() - self._asked_at, 3),
+               "error": error}
+      for hook in self.on_decision:
+        hook(event)
 
   # ---- the call (worker thread; must never touch the sim) ------------------
 

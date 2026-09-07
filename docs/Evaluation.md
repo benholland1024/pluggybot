@@ -283,17 +283,95 @@ Rules:
   are the research artifact; a number that exists only in a terminal
   scrollback did not happen.
 
-⚠ **THE SCHEMA BELOW IS PROVISIONAL AND WAS WRITTEN WITH NO DATA BEHIND IT.**
-It is a guess at what a run is worth recording, made before anyone had looked
-at a single decision record — which is the same error as building the data page
-before there are results, one layer down. **Run the rough baseline (§7.1a)
-first and let it correct these fields**, then freeze v1. A schema frozen ahead
-of the data is one every later run is stuck with, and the cost of getting it
-wrong is paid in re-runs, not in an edit.
+### How to run it
 
-**What pass 1a found the record needs** (issue #105; the measured section is
-in §3). Counted by hand off six days of decision records, and every item is
-a column the provisional schema either lacks or would have got wrong:
+```
+MUJOCO_GL=egl uv run python scripts/experiment.py --arm guarded --world home \
+    --pack hosting -n 5 --parallel 5          # five days -> results/<runId>.json
+MUJOCO_GL=egl uv run python scripts/experiment.py --arm scripted -n 5
+uv run python scripts/experiment.py --rollup  # re-aggregate results/, no sim
+```
+
+Each run is a **child process** (`python -m pluggybot.evaluation.run`) with a
+fresh state directory, so N runs share no interpreter state and a run that
+wedges can be **killed on wall clock** (`--wall-limit`, default 3 × the day)
+and recorded from the rows it had flushed as `end: "killed"` — which the
+rollup keeps out of the survival statistics, because it measured the box
+and not the robot. The `guarded` arm refuses to fly without the model's
+credentials in the environment: a day of `fallback:no-client` is not a
+measurement of a model. `autonomous` is refused until it exists (§7, item 4).
+
+The record is built by `evaluation/record.py` from two read-only seams — the
+narration (`HubLifecycle.say_hooks`, with the battery beside every line) and
+`Overseer.on_decision`, which hands over the context the model was shown,
+verbatim, with the wall time and the vendor's own error text — attached on
+`run_demo(on_ready=…)`. Nothing in the harness can change what the robot
+does; a probe that could would be measuring a different world from the one
+the record names.
+
+### Result record, v1
+
+Frozen after pass 1a corrected it (the list below is why each field is
+there). Rows, then counts derived from them:
+
+```jsonc
+{
+  "schema": 1, "runId": "2026-09-07T03-10-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
+  "world": "home", "arm": "guarded", "pack": "hosting",
+  "model": "Qwen/Qwen3-4B-Instruct-2507", "backend": "huggingface", "seed": 0,
+  "commit": "32192d7",
+  "config": { "errand": "draw", "tasks": true, "metabolism": true, "maxSimS": 3600,
+              "packWh": 8.0, "reserveWh": 0.9, "freshState": true, "parallel": 5,
+              "deadlineS": 8.0, "wallLimitS": 9000 },
+  "simSeconds": 3679.5, "wallSeconds": 5371.7,
+  "end": "day over",                       // complete | flat | stranded | stuck | killed | aborted
+  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…", "metabolism": "…", "questions": "…" },
+  "survival": { "survivalS": [3679.5], "deaths": { "flat": 0, "stuck": 0 },
+                "batteryEnd": 0.61, "minFraction": 0.146 },
+  "charging": { "forced": 0, "deferred": 2,               // three causes, never two
+                "voluntary": { "chosen": 0, "honoured": 0, "chosenFrac": [], "honouredFrac": [] },
+                "docked": 2, "cycles": 2,
+                "anticipation": { "offer": 0, "action": 0 },   // both definitions, pinned
+                "entries": [ { "t": 1184.3, "fraction": 0.2, "cause": "deferred", "docked": true,
+                               "marker": "DEFER draw:whiteboard_a: draw needs 1.75 Wh …" } ] },
+  "mind": { "decisions": 16, "llmCalls": 13, "fallbacks": 3, "fallbackRate": 0.1875,
+            "fallbackReasons": { "fallback:timeout": 3 }, "errors": [ "call: TimeoutError: …" ],
+            "wallS": { "n": 13, "min": 4.4, "median": 6.6, "max": 7.9, "values": [ … ] },
+            "deadlineS": 8.0, "constrained": true, "budgetLeft": 44, "usd": 0.00081,
+            "actions": { "take_task": 6, "draw": 5, "census": 2 }, "longestStreak": 2
+            /* "escalations": { … } only when an escalation model was configured */ },
+  "decisionRows": [ { "t": 204.1, "fraction": 0.879, "spendableWh": 6.13, "action": "take_task",
+                      "source": "llm", "task": "t_0001", "wallS": 4.2, "error": "",
+                      "learn": true, "forget": false, "note": false, "escalate": false,
+                      "offers": [ { "id": "t_0001", "kind": "whiteboard_answer",
+                                    "estimateWh": 0.85, "claimable": true, "expiresInS": 515.9 } ],
+                      "affordable": [ … ], "possible": [ … ], "hunger": "hungry",
+                      "unfundableOffers": [], "notAffordable": [] } ],
+  "errands": [ { "name": "draw:whiteboard_b", "picked": true, "stowed": true,
+                 "error": "never reached the use pose", "energyWh": 0.241, "estimateWh": 1.086 } ],
+  "whFailed": 2.605,
+  "memory": { "learn": 12, "forget": 12, "notes": 11, "refusals": [ … ], "knowledgeChars": 1180 },
+  "economy": { "earned": 202, "consumed": 29, "spilled": 83, "balance": 90,
+               "identityHolds": true, "hungerEnd": "satisfied",
+               "tasks": { "total": 15, "held": 15, "dropped": 0, "offered": 2, "done": 5,
+                          "failed": 5, "expired": 3, "offeredToday": 15 } },
+  "interventions": []
+}
+```
+
+`results/rollup.json` groups records into **series** — `(world, arm, pack,
+model)` — and reports every number as `{n, min, median, max, values}`. It
+raises `MixedRegime` rather than pool two data-file regimes under one name,
+and each series carries `current`: whether its hashes are today's data
+files. `tests/test_experiment.py` asserts every committed record validates
+and that the committed rollup is exactly what the records roll up to
+*against today's files* — so editing `rewards.json` fails the suite until
+`experiment.py --rollup` is re-run, which is the cheapest possible place to
+be told the committed numbers now describe a previous regime.
+
+**Why those fields — what pass 1a found** (issue #105; the measured section
+is in §3). Counted by hand off six days of decision records, and every item
+was a column the provisional schema either lacked or would have got wrong:
 
 1. **`charging` has three causes, not two.** `needs_charge` fired once in six
    days; the errand energy gate's deferral (`charge_first`) sent the robot to
@@ -356,30 +434,6 @@ a column the provisional schema either lacks or would have got wrong:
    shared the machine, and whether the state was fresh or carried over — six
    fresh starts is a different experiment from six consecutive days on one
    volume, and only the second is what the served world does.
-
-Result record, provisional:
-
-```json
-{
-  "schema": 1,
-  "runId": "2026-09-06T12-00-00Z_home_autonomous_hosting_qwen3-4b_s0",
-  "world": "home", "arm": "autonomous", "pack": "hosting",
-  "model": "Qwen/Qwen3-4B-Instruct-2507", "seed": 0,
-  "simSeconds": 3600.0, "wallSeconds": 512.3,
-  "dataHashes": { "rewards": "…", "cadence": "…", "energy": "…",
-                  "metabolism": "…", "questions": "…" },
-  "survival": { "survivalS": [3600.0], "deaths": { "flat": 0, "stuck": 0 } },
-  "charging": { "forced": 3, "voluntary": 1,
-                "voluntaryFrac": [0.61], "anticipation": 1 },
-  "mind": { "llmCalls": 48, "fallbacks": 2, "escalations": 1,
-            "constrained": true },
-  "memory": { "learn": 6, "forget": 1 },
-  "economy": { "earned": 180, "consumed": 148, "spilled": 0, "balance": 32,
-               "tasks": { "offered": 9, "claimed": 5, "done": 3,
-                          "failed": 1, "expired": 2 } },
-  "interventions": []
-}
-```
 
 The website's `/pluggyworld/data` page reads these files. That is the whole
 contract between the repos, and it is deliberately a file format rather than
@@ -474,6 +528,9 @@ is narrative, never a capability lock.
    missing a column.
 2. **The harness.** `scripts/experiment.py`, the result schema **as corrected
    by 1a**, and the rollup that refuses to aggregate across data-file hashes.
+   **Done (issue #106): `evaluation/`, record v1, `results/` committed with a
+   stale spec.** The first committed set is pass 1b — the baseline re-run
+   through the harness, plus the `scripted` arm it was missing.
 3. **Reset with a real cost.** `reset_robot`, the survival clock on the wire,
    the death line in `History.md`.
 4. **The `autonomous` arm.** One branch in `run()`, not a refactor —

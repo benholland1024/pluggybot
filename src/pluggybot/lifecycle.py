@@ -2109,8 +2109,14 @@ def run_demo(start=None, view: bool = False,
              weekly_usd: float | None = None,
              spend_state: str | None = None,
              mode_file: str | None = None,
-             stop_when: Callable[["HubLifecycle"], bool] | None = None) -> dict:
+             stop_when: Callable[["HubLifecycle"], bool] | None = None,
+             on_ready: Callable[["HubLifecycle"], None] | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
+
+  `on_ready` is handed the built lifecycle once every hook is attached and
+  before it runs -- the measurement harness (issue #106) attaches its probe
+  there. It may READ and attach hooks; a caller that changes the world from
+  it is running a different experiment from the one the record will claim.
 
   Callers that want to hand in errands they built themselves -- the overseer,
   once issue #15 has it choosing rather than picking a preset -- should build
@@ -2287,6 +2293,8 @@ def run_demo(start=None, view: bool = False,
   # board resumes the jobs it left rather than re-offering them all.
   if maker is not None and not board.open_tasks():
     maker.seed(pack_wh=life.fundable_wh)
+  if on_ready is not None:
+    on_ready(life)
   try:
     return life.run(start or cfg["start"], use_at=cfg["use_at"],
                     max_sim_time=max_sim_time,
