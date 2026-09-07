@@ -20,6 +20,13 @@ second copy of `fallbackRate` here is a copy that goes stale silently, and
 the page has the rollup open beside it. What belongs here is the sentence a
 column cannot hold.
 
+⚠ **THE FIELDS ARE PLAIN PROSE, NOT MARKDOWN.** The one consumer renders
+them as text, so a backtick renders as a backtick and a `--` as two hyphens —
+which is what the first draft of this file did, having been written in a repo
+where both are punctuation. Name a file or a flag in words, and use real
+dashes. `results/README.md` beside it is markdown and is the place for the
+other register.
+
 ⚠ **`schema` is this file's own, not the record's.** Prose gains a field far
 more readily than a measurement does, and a page pinning one version should
 not be broken by the other moving.

@@ -821,6 +821,11 @@ is the sentence a column cannot hold — *why* eight deferrals and one forced
 charge is the interesting pair, and what a fifth of the decisions arriving
 from a fallback does to the rest of the table.
 
+⚠ **THE FIELDS ARE PLAIN PROSE, NOT MARKDOWN.** The website renders them as
+text — a backtick shows up as a backtick, and `--` as two hyphens. The first
+draft of the file had both, because it was written in a repo where they are
+punctuation, and it read as unformatted source on the page.
+
 ⚠ **`notShown` IS NOT OPTIONAL AND IS REFUSED WHEN EMPTY.** It is the half a
 writer skips and the half a reader most needs, and a set published without
 one reads as a set with no limits. `tests/test_experiment.py` checks both
