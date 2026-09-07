@@ -805,6 +805,31 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **THE ROBOT CAN DIE, AND ONLY A PERSON CAN RESET IT** (issue #107,
+  protocol 0.15.0). `HubLifecycle._death_step` runs on the physics seam:
+  `flat` when the pack reaches zero (inside an errand or not -- the motors
+  do not stop at 0 Wh, and the first result set had a day that hit zero
+  mid-errand and finished "day over"), `stuck` when the chassis is past
+  `TOPPLE_TILT_RAD` for `TOPPLE_HOLD_S` or a dock fails. A death is a
+  `death` event, `survival.dead` in the frame, a line in `History.md` the
+  robot reads on every later decision, and the survival clock
+  (`survival.s` on the wire, `survival.aliveS` in the model's context). The
+  two causes are never summed. `reset_robot` is `reset_tool`'s shape --
+  admin-only at the website, code-handled, never shown to the model,
+  refused mid-swap -- and warps the robot to the start pose with a full
+  pack. ⚠ A dead robot WAITS in `DEAD` only when an inbox is attached
+  (somebody can reset it); with none the day ends as it always did.
+  ⚠ A reset of a LIVING robot is an intervention and the event says so.
+  ⚠ **MORTALITY IS OPT-IN** (`mortal=`, default: whether there is an
+  inbox), on exactly the terms `--tasks` and `--metabolism` are, AND THE
+  DEFAULT IS NOT CAUTION: on a demo cell the pack reaches ZERO mid-errand
+  as documented behaviour and the robot then limps to the rack and carries
+  on -- the committed home recording finishes a census at frac 0.000.
+  Made mortal by default, room_hub's own recording died at t=184 and ended
+  with the pack back at 87 %, a fixture describing a robot that is not
+  there. `scripts/experiment.py` passes `mortal=True` because deaths split
+  by cause are what M14's arms are judged on; serve.py asserts the inbox
+  rule rather than setting it twice.
 - **THE ROBOT'S CAMERAS RENDER WITHOUT MSAA** (`offsamples="0"` in
   `models/pluggybot*.xml`, issue #110). With it on, one static scene renders
   to a different image every time (±1 in a few dozen shadow-edge pixels), the

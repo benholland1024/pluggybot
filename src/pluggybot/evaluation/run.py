@@ -86,6 +86,11 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
       journal_state=str(state / "journal.json"),
       spend_state=str(state / "spend.json"),
       record=config.get("telemetry") or None,
+      # ⚠ MORTAL, and the harness is the one caller that must be: deaths
+      # split by cause are what the arms are judged on (Evaluation.md §3),
+      # and a run that quietly survived a flat pack would report a
+      # survival span that never happened.
+      mortal=True,
       on_ready=probe.attach, **flags)
   finally:
     wall = time.time() - t0

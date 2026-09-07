@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.14.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.15.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -32,6 +32,72 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
 and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
 recording made without it carries no `tasks` / `metabolism` block at all and
 the website has nothing to build its markers or its hunger gauge against.
+
+### 0.14.0 → 0.15.0 (the robot can die, and a person can reset it)
+
+pluggybot #107 (M14). Until now a pack reaching zero or a failed dock ENDED
+the mission — the process exited, the container restarted, and nothing on
+the wire distinguished "the day was over" from "the robot died at 3 %". Three
+things change, and the survival clock is the one the measurement track needs.
+
+**1. `reset_robot`, a new inbound kind.** `reset_tool`'s shape exactly:
+admin-only at the website's door, code-handled on the physics thread, never
+shown to the overseer, refused while a module is seated on the fork. It warps
+the robot to the mission's start pose, refills the pack and restarts the
+survival clock. Advertised in `accepts` on every served world, overseer or
+not (`CODE_HANDLED_TYPES`).
+
+```jsonc
+{"type": "reset_robot", "id": "rr_3f2a", "from": "ben"}
+```
+
+⚠ **Not anonymous, unlike `rating`.** If a stranger can revive the robot,
+survival measures the kindness of the audience (docs/Evaluation.md §5).
+
+**2. Two events, `death` and `reset`**, between the frames like `draw` and
+`earned`:
+
+```jsonc
+{"type": "death", "t": 2852.1, "robot": "pluggybot", "cause": "flat",
+ "why": "the pack reached zero", "survivalS": 2852.1, "deaths": 1}
+{"type": "reset", "t": 3010.0, "robot": "pluggybot", "by": "ben",
+ "wasDead": "flat", "deadS": 157.9, "intervention": false}
+```
+
+`cause` is one of `DEATH_CAUSES`, **`flat`** (the pack reached zero — a
+decision failure) or **`stuck`** (knocked over, or unable to reach the rack —
+a physics or navigation failure), and a consumer never sums the two. A
+`flat` is caught on the physics seam the moment it happens, inside an errand
+or not. A `reset` of a robot that was NOT dead carries `intervention: true`:
+the admin moved a living robot, and a measurement that contains one is not a
+survival data point.
+
+**3. `survival` in the robot's frame record**, beside `battery`:
+
+```jsonc
+"survival": {"s": 412.3, "deaths": 0, "dead": null}   // dead: null | "flat" | "stuck"
+```
+
+`s` is sim seconds since mission start or the last reset. While `dead` is
+set the lifecycle `state` is **`DEAD`** (a new state; the site's
+MISSION_STATES fallback renders the raw token), the robot stands where it
+died and frames keep flowing — a dead robot with a person who can reset it is
+not a dead stream. ⚠ **Mortality is OPT-IN sim-side** (`mortal=`, defaulting to "is there an
+inbox", i.e. is there an admin who could act) and a served world is mortal.
+A test, a demo and a filmstrip are not, and their days end exactly as they
+did: on a demo cell the pack reaches zero MID-ERRAND as documented
+behaviour and the robot limps to the rack and carries on, so a sticky death
+there would end a mission the sim has always survived. Measured while
+writing this version: made mortal by default, room_hub's own recording died
+at t=184 and ended with the pack back at 87 %.
+
+The same fact goes into `History.md` (a `thought` event), which is the cost:
+the robot reads its own unrevisable record of having died on every decision
+for the rest of the run, and the prompt tells it what `survival.aliveS` is.
+
+Additive on the wire (new kind, new events, new field); the bump is for the
+new lifecycle state and because a consumer that renders `deaths` needs to
+know the producer emits them.
 
 ### 0.13.0 → 0.14.0 (one visitor message, and the robot sorts it)
 
@@ -484,6 +550,21 @@ it opened, and a message can only arrive while that connection is up.
   robot weighs. The acknowledgement is the world itself (the module's pose
   stream) plus a narration event line. The sim **refuses, with a narration**,
   while the module is seated on the fork: a tool in use is not a lost one.
+- **`reset_robot` is the ADMIN recovery for a dead ROBOT** (pluggybot #107,
+  0.15.0), and takes no parameters at all — there is one robot per stream and
+  it is the robot in front of you.
+
+  ```jsonc
+  {"type": "reset_robot", "id": "rr_3f2a", "from": "ben"}
+  ```
+
+  Code-handled, never shown to the overseer, refused while a module is seated
+  on the fork — `reset_tool`'s rules, one object up. It warps the robot to
+  its mission start pose, refills the pack and restarts the survival clock.
+  ⚠ **Admin-only and NAMED**, unlike `rating`, which is anonymous on purpose:
+  if a stranger can revive the robot then survival time measures the kindness
+  of the audience. A reset of a robot that was NOT dead is an intervention
+  and the `reset` event says so.
 - **Unknown types are dropped and counted**, so adding one is additive and
   a website ahead of its sim is a no-op rather than a crash. `move` and
   `clear_board` (tic-tac-toe) are named in the issue as later work and are
