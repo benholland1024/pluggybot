@@ -916,7 +916,12 @@ is narrative, never a capability lock.
 5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
    was written before the rails were counted. Three rails come off (§2), the
    prompt is corrected in the same change because otherwise the arm lies to
-   the robot, the fallback becomes `idle`, and A0→A3 are settings on one arm.
+   the robot, the fallback becomes the agent's own standing order, and A0→A3
+   are settings on one arm.
+   **The standing order is done (issue #125)**: the field, its validation,
+   its firing and its counts, off by default and flown by nothing yet —
+   `arm_flags` states `standing_orders: False` on both built arms, and it is
+   the boolean A0 flips.
    A2 needs the errand interrupt, which is the first interruptibility the loop
    has ever had.
 6. **The capacity sweep** — 4 / 8 / 16 / 32 Wh, reporting the death curve *and*

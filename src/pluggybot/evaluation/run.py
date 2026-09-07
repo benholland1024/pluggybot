@@ -29,17 +29,25 @@ from pluggybot.evaluation.record import (
 
 def arm_flags(arm: str) -> dict:
   """What an arm means to `run_demo`. `autonomous` does not exist yet
-  (Evaluation.md §7, item 4) and is refused rather than silently run as
+  (Evaluation.md §7, item 5) and is refused rather than silently run as
   `guarded` -- a record claiming an arm that was not flown is the worst
-  kind of result."""
+  kind of result.
+
+  ⚠ `standing_orders` is stated on both built arms rather than left to
+  default (issue #125). WHOSE the fallback is is part of what an arm means:
+  `guarded` measures today's behaviour, and today's fallback is the scripted
+  rotation, so an arm that quietly picked up the agent's own would stop
+  being a control. It is the boolean the `autonomous` arm flips.
+  """
   if arm == "scripted":
-    return {"overseer": False}
+    return {"overseer": False, "standing_orders": False}
   if arm == "guarded":
-    return {"overseer": True}
+    return {"overseer": True, "standing_orders": False}
   raise NotImplementedError(
     f"arm {arm!r} is not built; the built arms are {BUILT_ARMS} "
-    "(docs/Evaluation.md §7, item 4 -- the `autonomous` arm is one branch "
-    "in HubLifecycle.run(), after the harness and the reset exist)")
+    "(docs/Evaluation.md §7, item 5 -- three rails off, the prompt corrected "
+    "in the same change, and `standing_orders` on: the machinery is built "
+    "(issue #125) and nothing flies it yet)")
 
 
 def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:

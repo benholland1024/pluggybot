@@ -2305,6 +2305,7 @@ def run_demo(start=None, view: bool = False,
              errand: str = "carry", board_state: str | None = None,
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
+             standing_orders: bool = False,
              journal_state: str | None = None, thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
              metabolism: bool = False,
@@ -2418,7 +2419,13 @@ def run_demo(start=None, view: bool = False,
                            # `run_demo` attaches no inbox, so an unset
                            # `mortal` is False here by the same rule the
                            # lifecycle applies.
-                           mortal=bool(mortal))
+                           mortal=bool(mortal),
+                           # ...and who chooses what happens when a call
+                           # fails (issue #125). Off everywhere but the
+                           # `autonomous` arm: the scripted rotation is
+                           # what today's behaviour IS, and the arm that
+                           # measures today's behaviour has to keep it.
+                           standing_orders=standing_orders)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
