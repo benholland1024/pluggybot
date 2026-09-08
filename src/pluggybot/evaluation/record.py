@@ -33,7 +33,7 @@ SCHEMA = 1
 #: The three arms (Evaluation.md §2). `autonomous` is named so a record can
 #: carry it, and refused by `run.py` until the arm exists (§7, item 4).
 ARMS = ("scripted", "guarded", "autonomous")
-BUILT_ARMS = ("scripted", "guarded")
+BUILT_ARMS = ("scripted", "guarded", "autonomous")
 
 #: How a run ended. CLOSED, because a rollup groups on it. `stuck` is listed
 #: and currently unreachable: a wedged mission does not end (#108), so the
@@ -474,6 +474,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "parallel": int(config.get("parallel", 1)),
       "deadlineS": config.get("deadlineS"),
       "wallLimitS": config.get("wallLimitS"),
+      # WHICH RUNG of the autonomous ladder, and absent on the arms that
+      # have no ladder -- "flown at A0" and "the question did not apply"
+      # are different claims, on `escalations`' terms (issue #115).
+      **({"rung": config.get("rung") or "A0"}
+         if config["arm"] == "autonomous" else {}),
     },
     "simSeconds": round(sim_s, 3), "wallSeconds": round(float(wall_s), 1),
     "end": end,

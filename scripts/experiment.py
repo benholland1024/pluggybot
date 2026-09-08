@@ -147,7 +147,7 @@ def summarise(rollup_path: Path) -> None:
           + f": n={s['n']}, ends {s['ends']}, current data files: "
           f"{s['current']}")
     print(f"  deadline {s['deadlineS']} s, {s['parallel']} sim(s) sharing "
-          f"the box")
+          f"the box" + (f", rung {s['rung']}" if s.get("rung") else ""))
     print(f"  voluntary charges chosen {ch['voluntaryChosen']['values']}, "
           f"honoured {ch['voluntaryHonoured']['values']}; deferred "
           f"{ch['deferred']['values']}; forced {ch['forced']['values']}")
@@ -181,6 +181,10 @@ def main() -> int:
   ap.add_argument("--no-tasks", action="store_true")
   ap.add_argument("--no-metabolism", action="store_true")
   ap.add_argument("--seed", type=int, default=0, help="first replicate index")
+  ap.add_argument("--rung", default="A0", choices=("A0", "A1"),
+                  help="which rung of the autonomous ladder (issue #115): "
+                       "A0 is the null, A1 adds the survival clock to what "
+                       "the model is shown. Ignored on the other arms")
   ap.add_argument("--label", default="",
                   help="what the BOX was, in a word (issue #117): `quiet` "
                        "for a machine with nothing else on it. It joins the "
@@ -214,7 +218,7 @@ def main() -> int:
              "model": model, "backend": args.backend, "seed": args.seed + k,
              "errand": args.errand, "tasks": not args.no_tasks,
              "metabolism": not args.no_metabolism,
-             "label": args.label,
+             "label": args.label, "rung": args.rung,
              "maxSimS": args.max_sim_time, "freshState": True,
              "parallel": args.parallel, "wallLimitS": wall_limit,
              "startedAt": started.isoformat(), "dataHashes": hashes}

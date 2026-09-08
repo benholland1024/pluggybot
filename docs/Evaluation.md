@@ -75,7 +75,7 @@ different question, and none of them is redundant.
 |---|---|---|---|---|
 | `scripted` | all on | — | rotation, no LLM | The null model. What does the world do with no mind at all? |
 | `guarded` | all on | rotation | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
-| `autonomous` | **all off** | the agent's own standing order | LLM | Does the model manage energy when nothing else will? |
+| `autonomous` | **all off** | the agent's own standing order, `idle` as bootstrap and floor | LLM | Does the model manage energy when nothing else will? |
 
 ### There are THREE rails, and the one you would name first fires least
 
@@ -132,6 +132,51 @@ not doing the reasoning we are trying to detect, and the long-term direction
 comparison — which it will never need to do if the answer is already in the
 prompt. An agent that decides to check three offers in one pass has done
 something a fixed `affordableActions` list cannot express.
+
+### Built (issue #115)
+
+`--arm autonomous --rung A0|A1`. What the arm turns on, and where:
+
+| | where | note |
+|---|---|---|
+| the three rails, off | `HubLifecycle.autonomous`, read by `needs_charge`, `_afford_next` and `claim_budget_wh` — **and by nothing else** | one flag, three readers; a test counts the references so a fourth has to be argued for |
+| the corrected rules | `RULES_AUTONOMOUS`, selected by arm in `system_prompt` | built from `RULES` by three *asserted* replacements, so the ~100 shared lines cannot drift and a reworded needle fails at **import** rather than shipping an arm still told charging is not its decision |
+| the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
+| an unaffordable job takeable | `limits_from(state, autonomous=True)` | refusing it in `validate` would put the offer filter back at the last possible moment |
+| the fallback | `standing_orders=True` (issue #125) | `idle` as bootstrap and as floor, counted separately — already built |
+
+⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
+*presentation*. `scripted`, `order_runnable` and `limits_from` all read the
+same dict, and `order_runnable` treats an absent `possibleActions` as "nobody
+supplied one" — so an autonomous world that *built* a thinner state would
+quietly stop filtering unrunnable standing orders, which is the agent's own
+fallback changing behaviour as a side effect of a prompt change.
+
+⚠ **A0 HAS TO HIDE THE SURVIVAL CLOCK.** `survival.aliveS` and
+`survival.deaths` have been in every world's context since issue #107, so an
+A0 that left them there would already *be* A1 and the ladder's first question
+could never be asked. `RUNGS` is where that lives, and the rung is in the
+record.
+
+#### Two `garbled` sources, fixed on this arm only
+
+The quiet series' residual was 7 malformed answers in 104 decisions, and
+neither cause was what `Overseer.md` §6 predicted:
+
+- **Six were a stale task id** — a real-looking id not on the board, usually
+  an *older* one (`t_0009` when only `t_0011` was offered), copied out of the
+  model's own history or off an offer that had lapsed. `Menu.schema` now
+  takes `task_ids` and makes `task` an **enum**, the move `action` has always
+  used. ⚠ The comment at that field said an enum "buys nothing"; measurement
+  falsifies it. The real cost is a per-call grammar recompile — the A0 smoke
+  run measured a 16.4 s median call against `guarded`'s 7.49, which 90 s
+  covers and the old 8 s would not have.
+- **One was a truncation**, cut off mid-`learn` with the JSON never closed.
+  `MAX_TOKENS_AUTONOMOUS` doubles the budget, as `ESCALATE_MAX_TOKENS` does.
+
+⚠ **Neither is applied to `guarded`.** That arm is the control, the deployed
+world runs it, and its committed series was flown under the old grammar —
+adopting either there is a **re-fly**, not a patch.
 
 ### The ladder
 
@@ -961,7 +1006,7 @@ is narrative, never a capability lock.
    timeouts in five days, the baseline's zero voluntary charges intact across
    104 decisions the model genuinely made, and the discovery that the old
    series' latency column was censored at its own deadline.
-5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
+5. **The `autonomous` arm, as a ladder. Built (issue #115); A0 flies separately.** ⚠ Not "one branch in `run()`" — that
    was written before the rails were counted. Three rails come off (§2), the
    prompt is corrected in the same change because otherwise the arm lies to
    the robot, the fallback becomes the agent's own standing order, and A0→A3

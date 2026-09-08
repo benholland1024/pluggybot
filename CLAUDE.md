@@ -196,6 +196,31 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the old 8 s**. The probe under-measures a mission by ~half (a real prompt
   carries a day of history). Choose the deadline from the probe, confirm it
   with a flight.
+  ⚠ **THE `autonomous` ARM IS BUILT** (issue #115): `--arm autonomous
+  --rung A0|A1`. THREE rails come off together (`HubLifecycle.autonomous`,
+  read by `needs_charge`, `_afford_next` and `claim_budget_wh` and by
+  NOTHING else), the prompt is corrected in the same change
+  (`RULES_AUTONOMOUS`, built from `RULES` by three ASSERTED replacements so
+  a reworded needle fails at import rather than shipping an arm still told
+  charging is not its decision), the code-computed verdicts leave the
+  context (`model_state` drops `affordableActions`/`possibleActions`/
+  `claimable` and keeps `energyCostWh`/`battery.wh`/`reserveWh`), and the
+  fallback is #125's standing order. ⚠ `guarded` is the CONTROL and does
+  not move: its cached prefix is byte-identical, proven against staging.
+  ⚠ **THE VIEW NARROWS, THE STATE DOES NOT** -- `model_state` filters at
+  PRESENTATION, because `order_runnable` reads `possibleActions` off the
+  same dict and an absent list means "nobody supplied one", so a thinner
+  state would silently change what the agent's own fallback can do.
+  ⚠ **A0 MUST HIDE THE SURVIVAL CLOCK** (#107 put it in every world), or A0
+  and A1 are one run and "does seeing the stake change anything" is
+  unaskable.
+  ⚠ **THE TWO `garbled` SOURCES ARE FIXED ON THIS ARM ONLY**: six of seven
+  were a STALE TASK ID (an older id copied out of the model's own history),
+  now an enum via `Menu.schema(task_ids=)` -- the comment saying an enum
+  "buys nothing" is falsified, and the real cost is a per-call grammar
+  recompile (A0 smoke: 16.4 s median call vs guarded's 7.49, which 90 s
+  covers and 8 s would not have). The seventh was a `max_tokens`
+  truncation. Applying either to `guarded` is a RE-FLY, not a patch.
   ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
   LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
   `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
