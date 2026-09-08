@@ -147,11 +147,16 @@ MAX_TOKENS = 512
 #: answer in the quiet series was not malformed at all -- it was TRUNCATED,
 #: cut off mid-`learn` with the JSON never closed, because a model that
 #: writes a long thing to remember spends the budget it needed to finish the
-#: object. Doubling it is the same number `ESCALATE_MAX_TOKENS` already uses
-#: for the same reason. ⚠ Not applied to `guarded`: that arm is the control
+#: object. ⚠ 1024 was not enough either -- A0's first flight truncated again,
+#: mid-`forget` this time, because `learn`, `forget` and `reason` are free
+#: strings with no length in the schema and a model that feels expansive can
+#: fill any budget. 2048 is headroom, not a guarantee; the honest fix is a
+#: `maxLength` on those fields, which the structured-output subset may or may
+#: not accept and which is not worth risking a silent downgrade to prose for
+#: mid-experiment. ⚠ Not applied to `guarded`: that arm is the control
 #: and the deployed world runs it, so its answers must keep the shape the
 #: committed series measured. Adopting either fix there is a re-fly.
-MAX_TOKENS_AUTONOMOUS = 1024
+MAX_TOKENS_AUTONOMOUS = 2048
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
 #: world was started with -- free, if that is the local model -- and the robot
@@ -482,7 +487,7 @@ class Menu:
 
   def schema(self, escalation: bool = False,
              standing_orders: bool = False,
-             task_ids: tuple = ()) -> dict:
+             task_ids: tuple | None = None) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
 
     `escalation` adds the one boolean the robot may set to ask for a more
@@ -502,6 +507,18 @@ class Menu:
     """
     def enum(values):
       return {"type": "string", "enum": [*values, ""]}
+    actions = list(self.available())
+    # ⚠ ...AND `take_task` GOES WHEN THERE IS NOTHING TO TAKE (issue #115).
+    # `available()` offers it unconditionally because the PROMPT is cached
+    # and the board is volatile -- but this schema is built per call, so
+    # the constraint costs the prefix nothing. Measured: with the board
+    # empty the id enum below collapses to a free string, the model names
+    # something it remembers ("task 't_0010' is not on offer (claimable:
+    # nothing)"), and the answer is thrown away. 46 of A0's 76 decisions
+    # went that way. `order_runnable` already draws exactly this line for a
+    # standing order; this is the same line for a decision.
+    if task_ids is not None and not task_ids and "take_task" in actions:
+      actions.remove("take_task")
     return {
       "type": "object",
       "additionalProperties": False,
@@ -510,7 +527,7 @@ class Menu:
                    "learn", "forget"] + (["escalate"] if escalation else [])
       + (["standing_order"] if standing_orders else []),
       "properties": {
-        "action": {"type": "string", "enum": list(self.available())},
+        "action": {"type": "string", "enum": actions},
         "board": enum(self.boards),
         "program": enum(self.programs),
         "zone": enum(self.zones),
@@ -2041,11 +2058,13 @@ class Overseer:
   def _task_ids(self, offered: tuple) -> tuple:
     """The ids that may go in `task`, as a grammar rather than as a hope.
 
-    Empty (a free string) on every arm but `autonomous`, because turning it
-    on costs a per-call grammar recompile and moves the control. See the
-    note at `Menu.schema`.
+    `None` -- do not constrain -- on every arm but `autonomous`, because
+    turning it on costs a per-call grammar recompile and moves the control.
+    An empty TUPLE is different from `None` and says so: the board is empty,
+    so there is no id the model may name and `take_task` comes off the
+    action enum too. See the note at `Menu.schema`.
     """
-    return tuple(i for i in offered if i) if self.autonomous else ()
+    return tuple(i for i in offered if i) if self.autonomous else None
 
   # ---- the call (worker thread; must never touch the sim) ------------------
 
@@ -2105,6 +2124,26 @@ class Overseer:
       self._in_flight = False
       if "decision" in slot:
         self._errors_in_a_row = 0
+      elif slot.get("error") == "garbled":
+        # ⚠ A MALFORMED ANSWER IS NOT A DEAD ENDPOINT (issue #115). This
+        # counter exists for one thing -- an endpoint nobody is answering,
+        # the missing-API-key case `MAX_CONSECUTIVE_ERRORS` was written for
+        # -- and backing off is the right response to that and the wrong one
+        # to a model that replied promptly with a bad task id. Summing them
+        # means three silly answers buy a five-minute silence, doubling.
+        #
+        # Measured, and it cost a flown day: A0's first run took four
+        # `garbled` (all "task 't_0006' is not on offer", the board being
+        # empty), tripped the back-off on the third, and spent the next 238
+        # decisions on `fallback:cooloff` -- the agent's own standing order,
+        # `idle`, at four sim-seconds a turn -- until the pack was flat. 249
+        # decisions, 7 of them the model's. The record read as a robot that
+        # chose to sit still and died.
+        #
+        # The endpoint is fine in that story, so the streak is left where it
+        # is: not incremented, and not reset either, because a garbled answer
+        # is no evidence the transport recovered.
+        pass
       else:
         self._errors_in_a_row += 1
         over = self._errors_in_a_row - MAX_CONSECUTIVE_ERRORS

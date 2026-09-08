@@ -410,7 +410,7 @@ def test_the_write_ups_cover_every_committed_series_and_nothing_else():
   doc = nt.load(RESULTS)
   committed = json.loads((RESULTS / ru.ROLLUP_NAME).read_text())
   ids = [nt.series_id(s["world"], s["arm"], s["pack"], s["model"],
-                      s.get("label", ""))
+                      s.get("label", ""), s.get("rung") or "")
          for s in committed["series"]]
   assert nt.problems(doc, ids) == []
 

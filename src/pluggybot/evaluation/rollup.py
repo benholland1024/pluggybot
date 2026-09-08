@@ -1,6 +1,7 @@
 """Many records -> one rollup, per series (issue #106; Evaluation.md §4).
 
-A SERIES is one configuration -- (world, arm, pack, model, label) -- and a rollup
+A SERIES is one configuration -- (world, arm, pack, model, label, rung) --
+and a rollup
 reports each series as distributions over its runs, never as a mean alone.
 The one rule with teeth: **a series whose runs read different data files is
 two series wearing one name, and this refuses to average them.** Each of
@@ -64,8 +65,16 @@ class MixedRegime(ValueError):
 
 
 def series_key(record: dict) -> tuple:
+  # ⚠ THE RUNG IS PART OF THE KEY (issue #115). A rung changes what the model
+  # is SHOWN -- A0 hides the survival clock A1 restores -- so two rungs are
+  # two experiments, and one flown under a single `--label` would otherwise
+  # pool into one average of both. Leaving that to whoever remembers to pass
+  # a different label is the silent-pooling hazard `deadlineS` was added to
+  # close, one field along. Empty on the arms with no ladder, so every
+  # existing series keeps the identity it had.
   return (record["world"], record["arm"], record["pack"],
-          record.get("model") or "none", record.get("label") or "")
+          record.get("model") or "none", record.get("label") or "",
+          (record.get("config") or {}).get("rung") or "")
 
 
 def _series(records: list[dict], current) -> dict:
@@ -122,7 +131,7 @@ def _series(records: list[dict], current) -> dict:
   ch = [r["charging"] for r in runs]
   mind = [r["mind"] for r in runs]
   eco = [r["economy"] for r in runs]
-  world, arm, pack, model, label = series_key(runs[0])
+  world, arm, pack, model, label, rung = series_key(runs[0])
   return {
     "world": world, "arm": arm, "pack": pack, "model": model,
     # What the box was, as the run itself recorded it: the label it was
@@ -131,11 +140,9 @@ def _series(records: list[dict], current) -> dict:
     # one loaded one -- is only readable because these are here.
     "label": label,
     "deadlineS": runs[0]["config"].get("deadlineS"),
-    # WHICH RUNG, where there is a ladder. Not in the series key: a rung is
-    # a change to what the model is SHOWN, so two rungs are two series and
-    # the label is what keeps them apart -- naming the rung here means a
-    # reader can see which one without opening a record.
-    "rung": runs[0]["config"].get("rung"),
+    # WHICH RUNG, where there is a ladder -- and part of the key above, so
+    # two rungs can never be averaged into one another.
+    "rung": rung or None,
     "parallel": sorted({r["config"].get("parallel") for r in runs}),
     "n": len(runs), "runIds": [r["runId"] for r in runs],
     "commits": sorted({r["commit"] for r in runs}),
