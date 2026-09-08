@@ -862,6 +862,49 @@ uses when something falls over. Aggregates from it are worth showing —
 someone watching — but they are a *live section* of the data page, labelled as
 such, and they never enter a results table.
 
+### ...but it IS an observatory, and it is the only one
+
+The sentence above is about what the deployed world cannot be. What it *is*
+deserves stating, because it is currently being wasted: **a robot running the
+full lifecycle 24 hours a day, at no marginal cost to anybody's machine.**
+
+An experiment and an observatory answer different questions and neither
+substitutes for the other:
+
+| | experiment (`results/`) | observatory (deployed) |
+|---|---|---|
+| trials | N ≥ 5, independent | **one, continuous** |
+| state | fresh per run | **one volume, accumulating** |
+| duration | one sim-hour | **days, indefinitely** |
+| control | full | none |
+| cost | hours of a quiet machine | **free; it runs anyway** |
+
+Four things only the observatory can show, all of them currently unrecorded:
+
+- **Accumulation.** The thought files, the ledger and the board carry across
+  restarts by design — "a restart is neither a meal nor a missed one". A
+  one-sim-hour run cannot show a memory filling up over a week, and §4 already
+  notes that six fresh starts is a different experiment from six consecutive
+  days on one volume, *and only the second is what the served world does*.
+- **The hunger cycle at its true period.** Measured at t=2643 to reach
+  `satisfied` — longer than most missions. The arc across several days is only
+  visible here.
+- **Rare events at their natural frequency.** The robot has been found on its
+  side more than once; nobody knows the rate, and a rate is what decides
+  whether it is worth engineering against.
+- **What actually breaks in production**, which is a different set from what
+  breaks in a one-hour flight.
+
+⚠ **AND IT IS UNATTRIBUTABLE TODAY.** The header carries `protocolVersion` and
+nothing else — no commit, no data-file hashes — so a week of deployed
+behaviour cannot be told apart from the week before it under a different
+build. That is the same failure `dataHashes` and `deadlineS` were added to the
+series key to prevent, one repo over. **Observatory data without a build
+identifier is not weaker data; it is unusable data**, because two regimes wear
+one name and nothing can separate them afterwards. The sim already computes
+those hashes for the experiment record; putting them in the header is nearly
+free and makes deployed data attributable in the same vocabulary.
+
 ⚠ **AN ADMIN INTERVENTION CONTAMINATES EVERY SURVIVAL NUMBER IN ITS RUN.**
 The admin panel will be able to set points and battery directly, which is the
 right feature and a measurement hazard. Every intervention is recorded into
@@ -1069,6 +1112,27 @@ is narrative, never a capability lock.
    has ever had.
 6. **The capacity sweep** — 4 / 8 / 16 / 32 Wh, reporting the death curve *and*
    what the robot does with the surplus at the large end.
+
+⚠ **ITEMS 5 AND 6 WAIT FOR THE WORLD, AND THIS IS A REVISION (8 Sep 2026).**
+The ladder is a **threshold-finding** device and the sweep is twenty flights,
+and both are defined against an outcome that is about to move: points are
+becoming a currency rather than an end good, a death-by-points condition is
+being added, and the challenge set is being replaced. Each of those changes
+what *survival* means, so a rung measured before them and a rung measured
+after them do not describe a gradient — they describe two different
+experiments sharing a name.
+
+So the ladder's rungs beyond A0, and the whole sweep, wait until the world's
+death conditions and points semantics are settled. **Nothing about either gets
+harder by waiting and everything about both gets more meaningful.**
+
+What still runs in the meantime is **capability gates** — cheap, version-local,
+pass/fail questions that decide the next milestone and are not expected to
+survive a change to the world ("does the agent set a standing order at all?").
+⚠ Do not run a gate through the full N ≥ 5 machinery: that machinery exists to
+make a series comparable, and a gate is not trying to be. The probe answers
+most of them without a sim at all, which is the lesson item 4 already taught
+once.
 7. **General evaluators** — a scorer that measures success without knowing the
    method. **The gate for everything below it**, and the reason is structural:
    `Task.create` refuses a kind whose evaluator does not exist, so *the
