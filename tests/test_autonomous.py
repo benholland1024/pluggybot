@@ -203,3 +203,61 @@ def test_the_rails_are_read_in_exactly_one_place_each():
                  lc.HubLifecycle._afford_next,
                  lc.HubLifecycle.claim_budget_wh.fget):
     assert "self.autonomous" in inspect.getsource(method), method
+
+
+# ---- the guard that would have silenced the arm -------------------------------
+
+
+class _Broken:
+  """A client whose every call fails, counting the attempts."""
+
+  def __init__(self) -> None:
+    self.calls = 0
+    self.messages = self
+
+  def create(self, **kw):
+    self.calls += 1
+    raise RuntimeError("no")
+
+
+def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
+  """⚠ THE LATCH (issue #115). `MAX_IDLE_RUN` exists to stop a MODEL that
+  keeps answering `idle` from burning the budget.
+
+  A failed call on `autonomous` fires the agent's STANDING ORDER -- but
+  `idle` is the floor while no order has been set, which is the state every
+  mission starts in. So counting fallbacks means two early failures take the
+  counter to the limit, `_refuse` answers `idle-run` without dispatching,
+  that answer is `idle` too, and it climbs for ever. ⚠ An order can only be
+  set by a SUCCESSFUL call, so the agent can never acquire the thing that
+  would have freed it: the trap springs only when it is defenceless, and it
+  never reopens.
+
+  It would not look like a bug. It would look like the finding: a record
+  full of `idle` and a robot that sat still until its pack ran out.
+  """
+  # The endpoint back-off is a DIFFERENT guard and a correct one (three
+  # failures in a row buy a cooloff), so it is lifted here to leave exactly
+  # one thing under test.
+  monkeypatch.setattr(ov, "MAX_CONSECUTIVE_ERRORS", 99)
+  client = _Broken()
+  boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
+                  calls_per_hour=99)
+  state = {"decisions": 0, "mapDone": True}
+  for _ in range(ov.MAX_IDLE_RUN + 3):
+    decision = boss.decide(state)
+    assert decision.action == ov.STANDING_ORDER_FLOOR
+    assert decision.scripted
+  assert client.calls == ov.MAX_IDLE_RUN + 3, \
+      "the model stopped being asked: the idle guard latched on its own " \
+      "fallbacks"
+  assert "fallback:idle-run" not in [d.source for d in boss.decisions]
+
+
+def test_the_guard_still_catches_a_model_that_really_will_not_stop_idling():
+  """The regression half: the guard is not disabled, it is narrowed to what
+  it was written for. A model ANSWERING `idle` still gets cut off."""
+  boss = Overseer(MENU, client=_Broken(), standing_orders=True)
+  for _ in range(ov.MAX_IDLE_RUN):
+    boss._record(ov.Decision(action="idle", source="llm"), {"decisions": 0})
+  assert boss._refuse({"decisions": 0}) == "idle-run"

@@ -1996,8 +1996,30 @@ class Overseer:
         self.usage.errors.append(decision.source)
     else:
       self.usage.llm_calls += 1
-    self._idle_run = (self._idle_run + 1) if decision.action in IDLE_ACTIONS \
-        else 0
+    # ⚠ ONLY THE MODEL'S OWN IDLING COUNTS (issue #115). The guard exists to
+    # stop a MODEL that keeps answering `idle` from burning the call budget,
+    # so a decision the model did not make must leave it alone -- neither
+    # incremented nor reset, because a fallback is no evidence either way.
+    #
+    # Counting fallbacks LATCHES, and it latches CLOSED. A failed call on
+    # `autonomous` fires the agent's standing order -- but `idle` is the
+    # floor whenever no order has been set, which is exactly the state every
+    # mission STARTS in. So two failures before the agent has left an order
+    # take `_idle_run` to MAX_IDLE_RUN; `_refuse` then answers `idle-run`
+    # WITHOUT dispatching; that answer is `idle` as well, and the counter
+    # climbs for ever.
+    #
+    # ⚠ AND THE ONLY WAY TO SET AN ORDER IS A SUCCESSFUL CALL, so the agent
+    # can never acquire the one thing that would have got it out. The trap
+    # can only spring at the moment it is defenceless, and it never reopens.
+    # The record then reads as "it chose to sit still and died" -- the worst
+    # kind of result, because it is indistinguishable from the finding this
+    # arm was built to be capable of producing honestly.
+    # (A no-op for `guarded` in `home`, where `scripted` falls to `explore`
+    # rather than `idle`; the committed series is unaffected.)
+    if not decision.scripted:
+      self._idle_run = (self._idle_run + 1) \
+          if decision.action in IDLE_ACTIONS else 0
     # WHAT STANDS NOW (issue #125). Only a decision the model actually made
     # can move it: a fallback carries the order that fired, and letting that
     # write back would let a fallback appoint its own successor -- and, in
