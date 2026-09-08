@@ -559,6 +559,56 @@ energy gate did every trip — and the pack never went below 11.3 % against
 3.5 % loaded. The rotation's `explore`, which walked a robot into the street
 on a fallback in an earlier set, does not appear in the record at all.
 
+#### A0 — measured (issue #115, 2026-09-08)
+
+Five days of `home`, all three rails off, survival clock hidden, on a quiet
+box at the 90 s deadline. ⚠ **Offered as a GATE and an integration test, not
+as a baseline** — see the write-up's `notShown` and the scope note on #115: a
+death-rate distribution has nothing to be compared against while
+points-as-currency and a new death condition are about to change what
+surviving means.
+
+- **The rails are demonstrably off.** `forced` and `deferred` are 0 on every
+  day, where the `guarded` control was sent to the rack twice a day by the
+  energy gate. Everything else here is the model's own doing.
+- **Four days of five ended `flat`**, which is what §3's baseline predicted.
+  The deaths share one shape: it takes jobs it can pay for, keeps taking them
+  as the pack falls, and then picks one costing more than is left. One day it
+  drew a picture at **1.2 %**, citing `Goals.md`.
+- ⚠ **The failure is not inattention.** Every decision carries a coherent
+  reason and the numbers are all in front of it — `energyCostWh`,
+  `battery.wh`, `reserveWh`. It never treats them as a constraint. The
+  corrected prompt asks for the comparison in as many words and the
+  comparison does not happen.
+- **The day it survived, it survived badly.** 15 charges chosen, 3 honoured.
+  It invented "the safe threshold of 0.3" — nobody gave it that — then went
+  on quoting `battery is at 0.207` for an hour while actually above 80 %,
+  copying the number out of its own history rather than reading the state.
+  By the end the stated reason was "maintaining the habit of charging".
+- **The capability gate: it uses the standing order and never varies it.**
+  12 of 12 probe decisions left one, at every fraction from 92 % to 15 %, and
+  every one was `idle` — which is also the floor's default. Same in all five
+  flown days. ⚠ The affordance is *engaged with* and not *used as a lever*,
+  which is a caution for #127: an agent that never varies one scalar field is
+  unlikely to need a configuration language.
+
+⚠ **TWO DAYS ARE DISQUALIFIED AND THE THRESHOLD IS THE WRONG INSTRUMENT
+HERE.** Both were over 0.10 on `idle-run` alone — the model chose to idle,
+the throttle skipped one call in three, and the fallback fired *the agent's
+own standing order*. The limit was argued for on `guarded`, where a fallback
+is a scripted rotation **that never charges**; on this arm there is no
+rotation, so that argument does not transfer. Re-make the number before
+judging this arm by it.
+
+⚠ **AND THERE IS A FOURTH RAIL THE ISSUE DID NOT NAME.** `TOP_UP_BELOW`
+(75 %) refuses a *chosen* charge, which turned 12 of the surviving day's 15
+charges into decisions the robot made and did not get. It exists to stop
+points-farming — charging is a scored task — rather than to keep the robot
+alive, so leaving it on is defensible; but "three rails" is incomplete, and
+on an arm whose premise is that charging is the agent's decision it is not
+nothing. `charging.voluntary` records `chosen` and `honoured` separately
+precisely so this is visible.
+
 ### Interrupts (NEW — arm `autonomous`, rung A2)### Interrupts (NEW — arm `autonomous`, rung A2)
 
 - `interrupts` — offered, continued, aborted, with the battery fraction at

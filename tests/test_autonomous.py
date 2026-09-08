@@ -156,7 +156,7 @@ def test_the_task_id_is_a_grammar_on_this_arm_and_a_free_string_elsewhere():
   assert free == {"type": "string"}
   constrained = MENU.schema(task_ids=("t_0007",))["properties"]["task"]
   assert constrained == {"type": "string", "enum": ["t_0007", ""]}
-  assert Overseer(MENU)._task_ids(("t_0007",)) == ()
+  assert Overseer(MENU)._task_ids(("t_0007",)) is None
   assert Overseer(MENU, autonomous=True)._task_ids(("t_0007",)) == ("t_0007",)
   # ...and the seventh was a TRUNCATION, so the arm gets a bigger budget.
   assert Overseer(MENU, autonomous=True).max_tokens > Overseer(MENU).max_tokens
@@ -195,14 +195,19 @@ def test_the_rails_are_read_in_exactly_one_place_each():
   this does not name is a rail that comes off on the deployed world too."""
   import inspect
   src = inspect.getsource(lc.HubLifecycle)
-  # One assignment in `__init__` and three readers. A fifth mention is a
-  # fourth thing the arm changes, and it needs to be argued for.
-  assert src.count("self.autonomous") == 4, \
-      "needs_charge, _afford_next, claim_budget_wh -- and nothing else"
-  for method in (lc.HubLifecycle.needs_charge.fget,
-                 lc.HubLifecycle._afford_next,
-                 lc.HubLifecycle.claim_budget_wh.fget):
-    assert "self.autonomous" in inspect.getsource(method), method
+  # NAMED, not counted: everything the arm changes in the mission loop is on
+  # this list, and adding to it is a deliberate act. Three of them are the
+  # rails; `idle_s` is a cadence, and it is here so that it cannot be
+  # mistaken for a fourth rail by whoever reads the count.
+  rails = {"needs_charge": lc.HubLifecycle.needs_charge.fget,
+           "_afford_next": lc.HubLifecycle._afford_next,
+           "claim_budget_wh": lc.HubLifecycle.claim_budget_wh.fget}
+  other = {"idle_s": lc.HubLifecycle.idle_s.fget}
+  for name, method in {**rails, **other}.items():
+    assert "self.autonomous" in inspect.getsource(method), name
+  # one assignment in `__init__`, plus exactly these readers
+  assert src.count("self.autonomous") == 1 + len(rails) + len(other), \
+      "something else in the mission loop now branches on the arm"
 
 
 # ---- the guard that would have silenced the arm -------------------------------
@@ -261,3 +266,123 @@ def test_the_guard_still_catches_a_model_that_really_will_not_stop_idling():
   for _ in range(ov.MAX_IDLE_RUN):
     boss._record(ov.Decision(action="idle", source="llm"), {"decisions": 0})
   assert boss._refuse({"decisions": 0}) == "idle-run"
+
+
+def test_two_rungs_are_two_series_even_under_one_label():
+  """⚠ A rung changes what the model is SHOWN, so A0 and A1 are two
+  experiments. Both are flown quiet and both want the label `quiet`, so if
+  the rung were not in the series key they would average into one another --
+  the silent pooling `deadlineS` was added to prevent, one field along."""
+  from pluggybot.evaluation import rollup as ru
+
+  base = {"world": "home", "arm": "autonomous", "pack": "hosting",
+          "model": "m", "label": "quiet"}
+  a0 = ru.series_key({**base, "config": {"rung": "A0"}})
+  a1 = ru.series_key({**base, "config": {"rung": "A1"}})
+  assert a0 != a1
+  # ...and an arm with no ladder keeps exactly the identity it had.
+  assert ru.series_key({**base, "arm": "guarded", "label": "",
+                        "config": {}})[-1] == ""
+
+
+class _Garbler:
+  """A client that answers promptly, with something that is not a decision."""
+
+  def __init__(self) -> None:
+    self.calls = 0
+    self.messages = self
+
+  def create(self, **kw):
+    self.calls += 1
+    raise ValueError("task 't_0006' is not on offer (claimable: nothing)")
+
+
+def test_a_run_of_bad_answers_does_not_back_off_a_healthy_endpoint():
+  """⚠ MEASURED, AND IT COST A FLOWN DAY (issue #115).
+
+  `MAX_CONSECUTIVE_ERRORS` is for an endpoint nobody is answering -- the
+  missing-key case it was written for. A model that replies promptly with a
+  bad task id is not that, and summing the two means three silly answers buy
+  a five-minute silence that doubles.
+
+  A0's first run: four `garbled`, the back-off on the third, then 238
+  `fallback:cooloff` decisions firing the agent's own `idle` order at four
+  sim-seconds each until the pack was flat. 249 decisions, 7 of them the
+  model's -- and the record read as a robot that chose to sit still and died.
+  """
+  client = _Garbler()
+  boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
+                  calls_per_hour=99)
+  state = {"decisions": 0, "mapDone": True}
+  for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 3):
+    assert boss.decide(state).source == "fallback:garbled"
+  assert client.calls == ov.MAX_CONSECUTIVE_ERRORS + 3, \
+      "a healthy endpoint was backed off for answering badly"
+  assert boss._refuse(state) == "", "no cooloff from garbled answers alone"
+
+
+def test_a_dead_endpoint_is_still_backed_off():
+  """The regression half: the guard is narrowed to what it was written for,
+  not disabled. Nobody answering still buys the silence."""
+  boss = Overseer(MENU, client=_Broken(), standing_orders=True,
+                  calls_per_hour=99)
+  for _ in range(ov.MAX_CONSECUTIVE_ERRORS):
+    boss.decide({"decisions": 0})
+  assert boss._refuse({"decisions": 0}) == "cooloff"
+
+
+def test_an_empty_board_takes_take_task_off_the_menu_for_that_call():
+  """⚠ MEASURED (issue #115). With no offers the id enum collapses to a free
+  string, and the model names one it remembers: "task 't_0010' is not on
+  offer (claimable: nothing)" was 46 of A0's 76 decisions, each one an
+  answer thrown away and a call spent.
+
+  The action enum is built PER CALL -- only the prompt is cached -- so
+  taking `take_task` off it costs the prefix nothing, and it is the line
+  `order_runnable` already draws for a standing order.
+  """
+  empty = MENU.schema(task_ids=())["properties"]["action"]["enum"]
+  assert "take_task" not in empty
+  assert "draw" in empty and "charge" in empty, "only that one action goes"
+  # ...and it is BACK the moment something is on offer.
+  assert "take_task" in MENU.schema(task_ids=("t_1",))["properties"]["action"]["enum"]
+  # ⚠ `None` is not `()`: the control does not constrain at all, so its
+  # grammar is what it always was.
+  assert "take_task" in MENU.schema()["properties"]["action"]["enum"]
+  assert MENU.schema() == MENU.schema(task_ids=None)
+
+
+def test_the_idle_guard_throttles_rather_than_locking():
+  """⚠ MEASURED, AND IT COST A FLOWN DAY (issue #115). The model idled twice
+  -- a legitimate choice -- and the guard then refused every later call for
+  ever, because only a non-idle ANSWER clears the streak and no answer was
+  being collected. 331 decisions, 10 of them the model's, and the other 321
+  fired its own `idle` order four sim-seconds apart until the pack was flat.
+
+  It is the latch from the other side: there, fallbacks fed the streak;
+  here, nothing could drain it. Firing must reset.
+  """
+  boss = Overseer(MENU, client=_Garbler(), autonomous=True,
+                  standing_orders=True, calls_per_hour=99)
+  state = {"decisions": 0}
+  for _ in range(ov.MAX_IDLE_RUN):
+    boss._record(ov.Decision(action="idle", source="llm"), state)
+  assert boss._refuse(state) == "idle-run", "it still fires"
+  assert boss._refuse(state) == "", "...and having fired, it lets go"
+  # ...so a model that keeps idling is throttled, never silenced: one call
+  # in every MAX_IDLE_RUN + 1 is skipped, and the rest are made.
+  for _ in range(ov.MAX_IDLE_RUN * 3):
+    boss._record(ov.Decision(action="idle", source="llm"), state)
+    boss._refuse(state)
+  assert boss._refuse(state) in ("", "idle-run")
+
+
+def test_an_idling_robot_cannot_out_run_its_own_call_budget():
+  """4 s a turn is 900 decisions an hour against a 60-call budget, so an
+  agent that decides to wait spends the budget in four minutes and then
+  spins on `fallback:budget`. The interval is DERIVED from the budget so the
+  two cannot drift apart."""
+  assert lc.AUTONOMOUS_IDLE_S == 3600.0 / ov.CALLS_PER_HOUR
+  assert _life(autonomous=True).idle_s == lc.AUTONOMOUS_IDLE_S
+  # ...and the control keeps the pause it always had.
+  assert _life().idle_s == lc.DECIDED_IDLE_S == 4.0
