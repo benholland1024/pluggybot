@@ -333,15 +333,27 @@ def test_the_rollup_keeps_an_intervened_run_out_of_survival():
   assert s["withInterventions"] == 1 and s["survival"]["n"] == 1
 
 
-def test_the_autonomous_arm_is_refused_until_it_exists():
-  # `standing_orders` is stated rather than defaulted (issue #125): whose
-  # the fallback is is part of what an arm MEANS, and `guarded` is the
-  # control -- tests/test_standing_orders.py pins the other half.
+def test_every_arm_says_what_it_means_and_the_ladder_is_a_setting():
+  """The arm IS the experiment, so what it turns on is asserted rather than
+  described (issue #115).
+
+  `standing_orders` is stated rather than defaulted (issue #125): whose the
+  fallback is is part of what an arm MEANS, and `guarded` is the control --
+  tests/test_standing_orders.py pins the other half.
+  """
   assert arm_flags("scripted") == {"overseer": False,
                                    "standing_orders": False}
   assert arm_flags("guarded") == {"overseer": True, "standing_orders": False}
-  with pytest.raises(NotImplementedError, match="Evaluation.md"):
-    arm_flags("autonomous")
+  a0, a1 = arm_flags("autonomous"), arm_flags("autonomous", "A1")
+  assert a0["overseer"] and a0["autonomous"] and a0["standing_orders"]
+  # ...and a RUNG is a setting on one arm, changing exactly one thing (§2).
+  # A0 hides the survival clock, because #107 put it in every world's
+  # context and an A0 that left it there would already be A1.
+  assert a0["show_survival"] is False and a1["show_survival"] is True
+  assert {k: v for k, v in a0.items() if k != "show_survival"} == \
+      {k: v for k, v in a1.items() if k != "show_survival"}
+  with pytest.raises(ValueError, match="rung"):
+    arm_flags("autonomous", "A9")
 
 
 def test_the_wall_limit_has_a_floor_for_short_days():

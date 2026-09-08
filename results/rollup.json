@@ -422,6 +422,7 @@
     "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
     "2026-09-07T11-22-07Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,
@@ -932,6 +933,7 @@
     "2026-09-07T21-54-21Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3",
     "2026-09-07T21-54-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,
@@ -1325,6 +1327,7 @@
     "2026-09-07T10-13-16Z_home_scripted_hosting_none_s3",
     "2026-09-07T10-13-17Z_home_scripted_hosting_none_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,

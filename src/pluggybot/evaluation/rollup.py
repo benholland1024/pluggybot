@@ -131,6 +131,11 @@ def _series(records: list[dict], current) -> dict:
     # one loaded one -- is only readable because these are here.
     "label": label,
     "deadlineS": runs[0]["config"].get("deadlineS"),
+    # WHICH RUNG, where there is a ladder. Not in the series key: a rung is
+    # a change to what the model is SHOWN, so two rungs are two series and
+    # the label is what keeps them apart -- naming the rung here means a
+    # reader can see which one without opening a record.
+    "rung": runs[0]["config"].get("rung"),
     "parallel": sorted({r["config"].get("parallel") for r in runs}),
     "n": len(runs), "runIds": [r["runId"] for r in runs],
     "commits": sorted({r["commit"] for r in runs}),
