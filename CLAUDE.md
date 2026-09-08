@@ -184,9 +184,24 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   `ESCALATE_TIMEOUT_S` follows to 120 (it is an ordering, not a number), and
   `llm.LOCAL_TIMEOUT_S` becomes a FLOOR: the local path has the one measured
   slow case (27.3 s cold load) and must never be the impatient one.
-  ⚠ The probe holds calls to its OWN 120 s cap, not to the deadline: a
-  distribution measured through the deadline it is meant to justify is
-  censored at exactly the part it is chosen from.
+  ⚠ The probe holds calls to its OWN cap (2x the deadline), not to the
+  deadline: a distribution measured through the deadline it is meant to
+  justify is censored at exactly the part it is chosen from.
+  ⚠ **AND `mind.wallS` IN EVERY PRE-#117 RECORD IS CENSORED THAT WAY** -- it
+  is built from SUCCESSFUL calls, so a call that outlived the deadline was
+  booked as `fallback:timeout` and never entered the distribution. The
+  loaded series' max is 8.09 s because it CANNOT be higher, and its "6.5 s
+  median" is a median of survivors. Measured uncensored by the quiet flight:
+  median 7.49 s, p95 9.33, max 16.69, **34 % of a QUIET mission's calls over
+  the old 8 s**. The probe under-measures a mission by ~half (a real prompt
+  carries a day of history). Choose the deadline from the probe, confirm it
+  with a flight.
+  ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
+  LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
+  `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
+  provisional autonomous limit of 0.10 that disqualifies three days in five
+  for reasons the box had nothing to do with -- re-argue the threshold (or
+  fix the two sources) before reading that arm, issue #115.
   ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
   `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
   entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
