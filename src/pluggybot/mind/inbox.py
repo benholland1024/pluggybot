@@ -232,6 +232,8 @@ class Inbox:
       if seq <= 0 or not 0.0 <= quality <= 1.0:
         return None
     module = ""
+    # `reset_robot` (issue #107) names nothing: the robot is the robot. It
+    # rides the same admin path as `reset_tool` and carries only who asked.
     if kind == "reset_tool":
       # A name, not free text: same cap as an id, and WHICH modules exist is
       # the handler's question (pluggybot/lifecycle.py), not this queue's.

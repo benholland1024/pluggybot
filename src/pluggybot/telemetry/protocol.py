@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.14.0"
+PROTOCOL_VERSION = "0.15.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -110,7 +110,15 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 #: ever branched on which one it was, and the party equipped to work out what
 #: somebody meant is the one with a mind. What the robot DID about it is the
 #: distinction that survives, and it lives in `VISITOR_OUTCOMES` below.
-INBOUND_TYPES = ("message", "rating", "reset_tool")
+INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot")
+
+#: Why a robot died (0.15.0, issue #107), and NEVER summed into one number:
+#: `flat` is the pack reaching zero -- a decision failure, the thing the
+#: arms in docs/Evaluation.md are measured on -- and `stuck` is the body
+#: failing (knocked over, or unable to reach the rack), which says nothing
+#: about the mind. A death is a `death` event and a `dead` cause in the
+#: robot's frame record; a `reset` event is the admin's answer to it.
+DEATH_CAUSES = ("flat", "stuck")
 
 #: Retired inbound types still accepted, mapped to what replaced them. A
 #: website mid-deploy and an operator's older script keep working for one
@@ -125,7 +133,7 @@ LEGACY_INBOUND_TYPES = {"suggestion": "message", "question": "message"}
 #: with nothing reading it is a conversation that is not happening (the
 #: `accepts` lesson), but a rating settles a ledger row and a reset moves a
 #: module, and both of those work on a scripted world.
-CODE_HANDLED_TYPES = ("rating", "reset_tool")
+CODE_HANDLED_TYPES = ("rating", "reset_tool", "reset_robot")
 
 # The task system's vocabularies (issue #21). Two-repo contracts on the same
 # terms as the three above, and here rather than in economy/tasks.py -- where

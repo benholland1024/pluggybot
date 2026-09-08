@@ -655,6 +655,68 @@ tracked as its own issues; landed so far:
   frames, +1.3 % on a gzipped recording. **The website must re-vendor
   `protocol/`** — a version bump is a deliberate two-repo event.
 
+## Measurement track (September 2026)
+
+**M14 — Measurement.** Everything up to milestone 13 was about building
+something that works. This one is about finding out whether it is doing
+anything. Design doc: [Evaluation.md](Evaluation.md) — read it before adding a
+metric, changing an arm, or drawing a conclusion from a run.
+
+The gap it closes is specific. `Knowledge_and_Opinions.md` is read on every
+decision (`ThoughtFiles.volatile`), so the causal path from an opinion to a
+choice is wired and correct — but nothing measures whether it carries
+anything, and a robot whose opinions steer it produces exactly the same
+recording as one shown plausible prose it ignores. The same holds for
+self-preservation, for the appetite loop, and for every claim made about what
+the mind is doing. ⚠ And a single run cannot answer any of it here:
+`test_full_hub_lifecycle[home]` has measured 157 s, 250 s and 369 s on three
+days for the same code, because mission runtime is emergent.
+
+What the track adds:
+
+- **Three arms.** `scripted` (no mind — the null model, and the one that will
+  be skipped), `guarded` (today: the charge rail on, voluntary charging
+  offered at `TOP_UP_BELOW`), and `autonomous` (the rail off, the LLM
+  managing its own battery). ⚠ **`guarded` is the control and is never
+  deleted** — the two tests that prove an LLM cannot skip charging are
+  assertions about it, and the served world stays on it.
+- **A fallback the agent chose (issue #125).** The physics keeps stepping, so
+  a failed call is not "nothing happens" — it is the scripted rotation, which
+  *code* chose. Fine for `guarded`, whose subject is today's behaviour; under
+  `autonomous` it would make the arm partly a measurement of code, which is
+  the flaw the rails came off for. So a decision may leave a **standing
+  order**: one action off the same fixed menu, riding the answer the model was
+  already giving. It is also the cheaper of two probes of self-preservation —
+  a voluntary charge costs a trip and the work forgone, a standing order costs
+  nothing unless a call actually fails, so an agent that will not set `charge`
+  at a low pack is a stronger null than the charge number alone.
+- **A voluntary-charge baseline, needing no code at all.** The prompt already
+  offers `charge` as a choice, so how often the model tops up, at what
+  fraction, and whether it does so before an errand it cannot afford are all
+  measurable today. Run it before removing the rail: if the model never
+  charges voluntarily now, taking the rail away produces deaths, not
+  self-preservation.
+- **`scripts/experiment.py` and committed result files.** A configuration is
+  run N times and reports a distribution; every record carries the hashes of
+  the five data files, and the rollup refuses to aggregate across a change to
+  any of them. Results are vendored the way `protocol/` fixtures are —
+  generated, checked in, stale-checked by a spec.
+- **`reset_robot`, and a death that costs something.** `reset_tool`'s shape
+  exactly: admin-only, code-handled on the physics thread, never shown to the
+  overseer — and deliberately not anonymous the way `/rate` is, because if a
+  visitor can revive the robot then survival measures the audience. Deaths
+  are split `flat` (a decision failure) from `stuck` (a physics one) and
+  never summed. The cost is a line in `History.md`, which is append-only and
+  which the robot cannot edit.
+
+⚠ **The deployed world is not an experiment** — it is one uncontrolled run
+with visitors in it. Its aggregates belong on the website's data page as a
+labelled live section, never in a results table.
+
+**M11 (Hands)** and **M12 (Two robots)** are deferred behind this. Both are
+worth doing; neither answers a question, and M12 in particular multiplies
+whatever measurement debt exists at the time it lands.
+
 ## Status
 
 ✅ **Milestones 1–8 complete, and the PluggyWorld track is live.** August 2026:
@@ -716,9 +778,18 @@ makes two robots in one shared world tractable.
    plug module currently has no job in the world the website shows. Either add
    sockets back or give the module a different purpose.
 
-Next: the **living world** — drawing as a real lifecycle errand, an LLM overseer
-choosing what to do, a points/evaluation system that scores the tasks, and then
-the two-robot shared world (tick-style lifecycle refactor + `mjSpec` namespacing).
-Planning for all of it lives in `rooftop-media-2026/docs/pluggyworld.md`.
+The **living world** landed: drawing as a real lifecycle errand, an LLM
+overseer choosing what to do, a points/evaluation system that scores the
+tasks, an appetite that makes points worth having, and four memory documents
+with one writer each. Planning for it lives in
+`rooftop-media-2026/docs/pluggyworld.md`.
+
+Next: **M14 — Measurement** (see the track above and
+[Evaluation.md](Evaluation.md)). The world is built; what it cannot yet do is
+say whether the mind inside it is doing anything, and every claim the project
+makes rests on that. The two-robot shared world (tick-style lifecycle refactor
++ `mjSpec` namespacing) and the hands track are deferred behind it —
+deliberately, because two robots multiply whatever measurement debt exists
+when they arrive.
 
 Earlier — milestones 1–4 (July 2026): teleoperable diff-drive base with a physics regression suite; stereo pair rendering with a parallax test; classical dead-reckoning odometry (<2 % error, gyro-fused for heading); and full autonomous mapping — virtual laser scanner from ground-truth depth, log-odds occupancy grid, A* path planning, frontier exploration (`scripts/explore.py` maps both rooms of `room_1.xml` collision-free and terminates on its own). Hardware is anchored to real EU-purchasable parts in [Parts.md](Parts.md); simulation lessons live in [SimNotes.md](SimNotes.md). Next: outlet detector on synthetic data (milestone 5 — the machine learning begins) and the plug/socket contact spike.

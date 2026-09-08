@@ -77,8 +77,15 @@ def test_adding_a_hint_is_not_a_version_bump(fixture):
   primitives for a hint it has no builder for (the browser degrades). So the
   sim may ship a hint before the art exists and the world renders plainly
   rather than breaking.
+
+  ⚠ The literal is re-pinned BY HAND at every bump, deliberately: comparing
+  the fixture to `PROTOCOL_VERSION` alone would agree with any future
+  version and stop saying anything. What it asserts is that the version
+  moved for a reason named in protocol/README.md and NOT for a hint --
+  0.15.0 is deaths and `reset_robot` (issue #107), and the hint vocabulary
+  is untouched by it.
   """
-  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.14.0"
+  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.15.0"
 
 
 def test_the_conformance_bodies_are_the_real_body_shape(fixture):

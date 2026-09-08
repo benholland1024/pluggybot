@@ -1,0 +1,681 @@
+{
+ "schema": 1,
+ "runId": "2026-09-07T11-22-03Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s0",
+ "startedAt": "2026-09-07T11:22:03.126600+00:00",
+ "world": "home",
+ "arm": "guarded",
+ "pack": "hosting",
+ "model": "Qwen/Qwen3-4B-Instruct-2507",
+ "backend": "huggingface",
+ "seed": 0,
+ "commit": "ca7c165",
+ "config": {
+  "errand": "draw",
+  "tasks": true,
+  "metabolism": true,
+  "maxSimS": 3600.0,
+  "packWh": 8.0,
+  "reserveWh": 0.9,
+  "freshState": true,
+  "parallel": 5,
+  "deadlineS": 8.0,
+  "wallLimitS": 10800.0
+ },
+ "simSeconds": 1074.246,
+ "wallSeconds": 966.7,
+ "end": "stranded",
+ "dataHashes": {
+  "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+  "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+  "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+  "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+  "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e",
+  "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
+ },
+ "survival": {
+  "survivalS": [
+   1074.246
+  ],
+  "deaths": {
+   "flat": 0,
+   "stuck": 1
+  },
+  "flatAtS": null,
+  "batteryEnd": 0.03524232229908263,
+  "minFraction": 0.0352
+ },
+ "charging": {
+  "forced": 1,
+  "deferred": 0,
+  "voluntary": {
+   "chosen": 0,
+   "honoured": 0,
+   "chosenFrac": [],
+   "honouredFrac": []
+  },
+  "docked": 0,
+  "cycles": 0,
+  "anticipation": {
+   "offer": 0,
+   "action": 0
+  },
+  "entries": [
+   {
+    "t": 1074.246,
+    "fraction": 0.0352,
+    "wh": 0.2819,
+    "cause": "forced",
+    "docked": false,
+    "marker": "EXPLORE -> GO_CHARGE (battery low)"
+   }
+  ]
+ },
+ "mind": {
+  "decisions": 8,
+  "llmCalls": 7,
+  "fallbacks": 1,
+  "fallbackRate": 0.125,
+  "fallbackReasons": {
+   "fallback:garbled": 1
+  },
+  "errors": [
+   "call: ValueError: task 't_0001' is not on offer (claimable: t_0002, t_0003)"
+  ],
+  "wallS": {
+   "n": 7,
+   "min": 3.461,
+   "median": 5.04,
+   "max": 6.439,
+   "values": [
+    5.04,
+    3.461,
+    4.084,
+    6.439,
+    4.528,
+    5.113,
+    6.045
+   ]
+  },
+  "deadlineS": 8.0,
+  "constrained": true,
+  "budgetLeft": 52,
+  "usd": 0.000361,
+  "priced": true,
+  "inputTokens": 32054,
+  "outputTokens": 1362,
+  "actions": {
+   "take_task": 1,
+   "census": 1,
+   "explore": 5
+  },
+  "fallbackActions": {
+   "take_task": 1
+  },
+  "longestStreak": 4
+ },
+ "decisionRows": [
+  {
+   "kind": "decision",
+   "t": 204.2,
+   "fraction": 0.879,
+   "wh": 7.0329,
+   "spendableWh": 6.1329,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0001",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "garden",
+   "reason": "The task offers a simple math question and pays 20 points\u2014easy, safe, and directly useful. I can solve it in my head: 2 + 3 = 5. Writing that clearly on the board will satisfy the request and earn points.",
+   "wallS": 5.04,
+   "error": "",
+   "learn": true,
+   "forget": false,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0001",
+     "kind": "whiteboard_answer",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 515.8
+    },
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 515.8
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 515.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "hungry",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 327.5,
+   "fraction": 0.804,
+   "wh": 6.4282,
+   "spendableWh": 5.5282,
+   "action": "take_task",
+   "source": "fallback:garbled",
+   "task": "t_0002",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "taking the job that has been waiting longest",
+   "wallS": 4.922,
+   "error": "call: ValueError: task 't_0001' is not on offer (claimable: t_0002, t_0003)",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 392.5
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 392.5
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 376.2,
+   "fraction": 0.781,
+   "wh": 6.2483,
+   "spendableWh": 5.3483,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "I\u2019ve already checked the garden recently and the plants are stable. Taking census now would repeat work and waste energy. Better to explore a new zone today to keep the house in order and grow my usefulness.",
+   "wallS": 3.461,
+   "error": "",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 343.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 538.1,
+   "fraction": 0.637,
+   "wh": 5.0986,
+   "spendableWh": 4.1986,
+   "action": "explore",
+   "source": "llm",
+   "task": "",
+   "board": "",
+   "program": "",
+   "zone": "garden_south",
+   "reason": "I've already completed the garden census and a recent draw task. Exploring a new zone will keep the house in order and expand my usefulness without duplicating work.",
+   "wallS": 4.084,
+   "error": "",
+   "learn": true,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 181.9
+    },
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 662.1
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 629.3,
+   "fraction": 0.54,
+   "wh": 4.3216,
+   "spendableWh": 3.4216,
+   "action": "explore",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "garden_south",
+   "reason": "I\u2019ve already completed the garden census and a recent draw task. Exploring a new zone will keep the house in order and expand my usefulness without duplicating work.",
+   "wallS": 6.439,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 90.7
+    },
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 571.0
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 729.9,
+   "fraction": 0.426,
+   "wh": 3.4119,
+   "spendableWh": 2.5119,
+   "action": "explore",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "garden_south",
+   "reason": "Garden_south has no plants yet \u2014 good place to explore and report.",
+   "wallS": 4.528,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 470.4
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 710.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 849.5,
+   "fraction": 0.286,
+   "wh": 2.285,
+   "spendableWh": 1.385,
+   "action": "explore",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "garden_south",
+   "reason": "Garden_south is empty \u2014 I should explore it to check for plants and update my record.",
+   "wallS": 5.113,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 350.7
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 591.1
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 936.4,
+   "fraction": 0.189,
+   "wh": 1.5084,
+   "spendableWh": 0.6084,
+   "action": "explore",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "sun",
+   "zone": "garden_south",
+   "reason": "Garden_south is empty, and I need to confirm this officially so I don\u2019t waste energy later. This keeps the house in order and helps me stay useful.",
+   "wallS": 6.045,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": [
+    "artwork",
+    "carry",
+    "census",
+    "dance",
+    "draw"
+   ]
+  }
+ ],
+ "errands": [
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.9321,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.5924,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.166,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.1397,
+   "estimateWh": 1.18
+  }
+ ],
+ "whFailed": 0.166,
+ "memory": {
+  "learn": 6,
+  "forget": 4,
+  "notes": 5,
+  "refusals": [
+   "Knowledge_and_Opinions.md: 2 lines on the page match 'Garden_south is empty \u2014 I should explore it to check for pla'"
+  ],
+  "knowledgeChars": 258
+ },
+ "economy": {
+  "earned": 58,
+  "consumed": 7,
+  "spilled": 0,
+  "balance": 51,
+  "identityHolds": true,
+  "hungerEnd": "satisfied",
+  "tasks": {
+   "total": 6,
+   "held": 6,
+   "dropped": 0,
+   "offered": 3,
+   "claimed": 0,
+   "active": 0,
+   "done": 1,
+   "failed": 1,
+   "expired": 1,
+   "offeredToday": 3
+  }
+ },
+ "interventions": []
+}

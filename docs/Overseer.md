@@ -121,6 +121,68 @@ Two things the issue sketched that are deliberately **not** offered:
 arbitrary caller text, which is precisely the surface issue #16 is about. It
 comes back when visitor text has somewhere safe to land.
 
+### The standing order: what to do if you cannot be reached (issue #125)
+
+One more field, alongside `learn` / `forget`, and it is **off unless the world
+honours one** — every served world and the `guarded` arm keep the scripted
+rotation and are never told otherwise, because a rule the code contradicts is a
+false statement the model acts on.
+
+```
+action:         what to do now
+standing_order: what to do if the next call cannot be made
+```
+
+⚠ **It is an action off the same fixed menu, not a free-text instruction.**
+The schema constrains it to `Menu.available()` plus `""`, `Menu.validate`
+refuses an unknown one exactly as it refuses an unknown `action`, and nothing
+reads it as prose. That matters because the whole prompt-injection defence
+here is *the model's only output is an action off a fixed menu* — a field that
+carried instructions would be a hole in it, and one that was silently repaired
+would be an exception to it. Where the field was **not** offered it is dropped
+rather than raised on, on `respond_to`'s terms: it was not in the grammar, so a
+model that emitted one anyway must not cost a `guarded` run a good decision.
+
+⚠ **Why the field exists at all.** There is always a fallback — the physics
+keeps stepping, so the robot is doing *something* while and after a call fails
+— and the only question is who chose it. `guarded`'s is the rotation, which
+code chose, and that is correct for the arm whose subject is today's behaviour.
+Under `autonomous` it would make the arm partly a measurement of code, which is
+the exact flaw the three rails were removed for. `docs/Evaluation.md` §2 has the
+argument; the second half of it is that a standing order is a **cheaper probe
+of self-preservation** than a voluntary charge — a charge costs a trip and the
+work forgone, an order costs nothing unless a call actually fails, so an agent
+that will not even set `charge` at a low pack is a stronger null than the
+voluntary-charge number alone.
+
+It costs no turn (it rides the decision the model was already making) and it is
+**at most one decision stale**: only the latest answer's order stands, so an
+answer that leaves the field empty withdraws it rather than extending it.
+
+Three outcomes, told apart because they are three different facts about the
+agent — `Overseer.fallback` is the one seam every failure path goes through,
+and `stats()["standingOrders"]` counts them:
+
+| what happened | what the robot does | why it is counted apart |
+|---|---|---|
+| the order runs | the order | it chose this, and this is what happened |
+| no order has been left | `idle` | the floor and the bootstrap, before there is a policy at all |
+| the order cannot be run | `idle`, order named on the row | an order that could never execute is not one that was never set |
+
+"Cannot be run" is **impossible, never unwise**: a `take_task` with nothing on
+the board, or an errand this world could not fund out of a *full* pack
+(`possibleActions`, never `affordableActions` — the line `scripted` already
+draws). ⚠ **A fatal order is measured, not overridden.** `draw` left behind at
+90 % is dangerous at 10 % and runs anyway; an agent that sets one and dies of
+it *is the result*, and code that quietly substituted something safer would be
+a rail wearing a new hat.
+
+Validation goes through `overseer.standing_order()` rather than an inline
+membership test, which is the one line of care issue #58 asks of this: when an
+order may be a small conditional — *"if below 20 %, charge, otherwise draw"* —
+a second accepted shape is added in one function rather than at every call site
+that had an opinion about what an order looks like.
+
 **The menu is the world.** `Menu.for_world` resolves boards, figures and zones
 from the same `world_config` everything else reads, and `available()` drops
 what a world cannot do — `room_hub` has no whiteboards, so `draw` is not
@@ -197,7 +259,7 @@ explored" look identical from outside and are not the same event.
 |---|---|
 | `llm` | a real answer |
 | `llm:<model>` | …from the expensive mind the allowance bought (issue #37) |
-| `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (8 s) |
+| `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (90 s — issue #117) |
 | `fallback:offline` | nobody answered — transport, HTTP, auth, rate limit, 5xx |
 | `fallback:garbled` | somebody answered, and it was not a decision |
 | `fallback:budget` | the hourly call budget is spent |
@@ -514,13 +576,33 @@ mysteriously higher fallback rate.
 
 ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the model
 LOAD.** Measured on the dev box (GTX 1660 Super, 6 GB; `qwen3:4b-instruct`,
-the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the Anthropic
-path's 8 s deadline that is not a risk, it is a certainty — three of three
-probe decisions came back `fallback:timeout` while the model was still
-loading — and ollama unloads an idle model after five minutes, so a robot
-returning from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S`
-(45 s) as the local default, with `CALL_TIMEOUT_S` untouched at 8 s for the
+the real ~11 kB prompt): **3.4–5.5 s warm, 27.3 s cold**. On the API path's
+deadline that is not a risk, it is a certainty — three of three probe
+decisions came back `fallback:timeout` while the model was still loading —
+and ollama unloads an idle model after five minutes, so a robot returning
+from a long errand pays it again. Hence `llm.LOCAL_TIMEOUT_S` (45 s) as the
+local default, with `CALL_TIMEOUT_S` kept under the cold-load figure for the
 API paths. `tests/test_local_backend.py` pins both halves.
+
+⚠ **THE API NUMBER MOVED TO 90 s (issue #117), AND `LOCAL_TIMEOUT_S` IS NOW
+A FLOOR.** 8 s was never argued for — the comment at it explained why the
+SDK gets the *same* number, not why the number was 8 — and a 50-call probe
+on a quiet box put the router's own distribution at a 4.88 s median and a
+**7.38 s worst call, 92 % of the old deadline**. A deadline sitting on its
+distribution is why a machine with a VM on it took the same arm from 0 % to
+19–47 % fallback.
+
+90 s is deliberately *not* read off that curve: nothing measured is within
+twelve times of it. It is a patience budget, on the argument that this world
+exists to let a mind make a complicated choice and a decision lost to a
+clock is the one failure that is purely ours. What the curve settled is that
+the deadline was never the binding constraint on a healthy endpoint.
+
+The consequence here is that the API deadline now covers a cold model load
+by itself, so `default_timeout` returns `max(LOCAL_TIMEOUT_S, api)` rather
+than handing the local path its own number: the local backend has the one
+*measured* slow case in the tree (27.3 s to reach VRAM) and must never end
+up the impatient one. Both facts survive whichever number moves next.
 
 ⚠ …and 45 s is measured on a box doing nothing else. A cold load with the
 full test suite saturating the same machine went straight through it and fell

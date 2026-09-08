@@ -22,6 +22,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   it structurally cannot do, the scripted fallback, the call budget, and the
   measured battery limit. Read BEFORE touching `mind/overseer.py`, the decision
   vocabulary, or anything that changes what the model is shown
+- `docs/Evaluation.md` — measurement (M14): the three arms (`scripted` /
+  `guarded` / `autonomous`) and why `guarded` is the control and is never
+  deleted, what is measured and how each metric is defined, the experiment
+  harness and its committed result-file format, and the list of things that
+  silently invalidate a number — the deployed world, an admin intervention,
+  the demo cell, a `flat` death summed with a `stuck` one. Read BEFORE adding
+  a metric, changing an arm, touching `scripts/experiment.py`, or drawing any
+  conclusion from a run
 
 ## Working style
 
@@ -138,6 +146,71 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the garden pressure plate took the home lifecycle from 219.7 to 353.6
   sim-seconds (1 → 2 charge cycles) while costing essentially no physics. A
   slower suite is not by itself a regression.
+- **Measurement (M14)**: `scripts/experiment.py --arm {scripted,guarded}
+  --world home --pack hosting -n 5 --parallel 5` flies N days as child
+  processes and writes `results/<runId>.json` + `results/rollup.json`
+  (issue #106; `docs/Evaluation.md` §4 is the record and the rules).
+  `--rollup` re-aggregates without flying. `results/` is COMMITTED and
+  stale-checked like `protocol/`: editing any of the five economy data
+  files flips `current` in the rollup and fails `tests/test_experiment.py`
+  until `--rollup` is re-run. ⚠ A run past `--wall-limit` is killed and
+  recorded as `killed` -- never a death, never a completed day (a wedged
+  mission does not end on its own, #108). ⚠ The `guarded` arm needs
+  `$HF_TOKEN` (or `$ANTHROPIC_API_KEY`) in the environment and refuses
+  without it; `--parallel 5` on this box pushed the OLD 8 s decision deadline
+  and the record says so (`config.parallel`, `mind.wallS`).
+  ⚠ **A RUN THE BOX DECIDED IS DISQUALIFIED, AND THE DEADLINE IS MEASURED**
+  (issue #117). Every fallback is the scripted rotation, and the rotation
+  never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25, `autonomous`
+  0.10, `scripted` none) drops a run from SURVIVAL statistics exactly as
+  `killed` and `interventions` do: still committed, still valid,
+  `survival.excluded` carrying the reason, and the threshold written into
+  the rollup rather than hidden in a comment. Two more things now define a
+  series: `config.deadlineS` (a regime the rollup refuses to pool across --
+  it caps how much of a day the model decided at all) and `--label` (what
+  the BOX was, so a quiet series and a loaded one sit side by side instead
+  of averaging into a box that never existed).
+  ⚠ **`CALL_TIMEOUT_S` IS 90 s, AND THE CURVE IS WHY IT COULD BE** --
+  `scripts/overseer_probe.py --calls 50` reports the latency DISTRIBUTION
+  (min/median/p90/p95/max + raw) and the timeout share each candidate
+  deadline would cost, so the number needs no sim at all. Measured quiet:
+  median 4.88 s, p95 6.59, max **7.38 against the old 8** -- 0 % timeouts
+  and no margin, which is why any load at all took the same arm to 19-47 %.
+  ⚠ 90 is NOT read off the tail (nothing is within 12x of it): it is a
+  patience budget, because this world exists to let a mind make a
+  complicated choice and a decision lost to a clock is the one failure that
+  is purely ours. A cap is only spent when a call is SLOW -- at the measured
+  median the day's thinking is 98 sim-s (2.7 %) whatever the cap is.
+  `ESCALATE_TIMEOUT_S` follows to 120 (it is an ordering, not a number), and
+  `llm.LOCAL_TIMEOUT_S` becomes a FLOOR: the local path has the one measured
+  slow case (27.3 s cold load) and must never be the impatient one.
+  ⚠ The probe holds calls to its OWN cap (2x the deadline), not to the
+  deadline: a distribution measured through the deadline it is meant to
+  justify is censored at exactly the part it is chosen from.
+  ⚠ **AND `mind.wallS` IN EVERY PRE-#117 RECORD IS CENSORED THAT WAY** -- it
+  is built from SUCCESSFUL calls, so a call that outlived the deadline was
+  booked as `fallback:timeout` and never entered the distribution. The
+  loaded series' max is 8.09 s because it CANNOT be higher, and its "6.5 s
+  median" is a median of survivors. Measured uncensored by the quiet flight:
+  median 7.49 s, p95 9.33, max 16.69, **34 % of a QUIET mission's calls over
+  the old 8 s**. The probe under-measures a mission by ~half (a real prompt
+  carries a day of history). Choose the deadline from the probe, confirm it
+  with a flight.
+  ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
+  LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
+  `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
+  provisional autonomous limit of 0.10 that disqualifies three days in five
+  for reasons the box had nothing to do with -- re-argue the threshold (or
+  fix the two sources) before reading that arm, issue #115.
+  ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
+  `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
+  entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
+  suite fails on a series with no entry, an entry for a series that is gone,
+  or an empty `notShown`. The PAGE is built late so it cannot shape the
+  experiments around what renders nicely; the EXPLANATION is written when
+  the data is collected, or the page has to invent one at render time. It is
+  PROSE beside DATA: an entry never restates a number the rollup carries,
+  because the copy is what goes stale.
 - Lint: `uv run ruff check src/ scripts/ tests/`
 - Demos: `scripts/teleop.py`, `scripts/map_teleop.py`, `scripts/explore.py [--headless]`
   (milestone-4 mapping demo — kept as the minimal repro; `lifecycle.py` is the
@@ -152,6 +225,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   flies each one on an oversized pack and reports SWAP_PICK to end of
   SWAP_RETURN, `--write` folds it into `economy/energy.json`. Re-run it after
   anything that changes what an errand does),
+  `scripts/determinism_spike.py` (issue #110: is the world the same world
+  twice? N scripted days in child processes, state and every perception input
+  hashed, the first divergence attributed to the GPU / the decoder / the
+  raycast; `--compare DIR` re-reads traces),
   `scripts/board_png.py` (rooftop-media-2026 #128: a whiteboard's ink as a
   PNG, cropped to the drawing, from the boards state file or a recording —
   how a drawing the robot made gets HUNG on the website's walls. By hand,
@@ -255,7 +332,15 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   queued. It is OFF by default and the loop is unchanged without it.
   **CHARGE PRIORITY STAYS IN CODE** — `needs_charge` is checked before the
   overseer is reached and no action suppresses it, because an LLM that can
-  decline to charge bricks the world overnight. Same rule from the other end:
+  decline to charge bricks the world overnight.
+  ⚠ **...ON EVERY ARM BUT ONE, AND THERE ARE THREE RAILS RATHER THAN THIS
+  ONE** (M14). `needs_charge` is the FLOOR and it fired once in six measured
+  days; `_afford_next` (the gate, which prices the next errand) fired eleven
+  times, and `Task.claimable` never shows an offer the pack cannot fund. The
+  `autonomous` arm removes all three ON PURPOSE and corrects `RULES` in the
+  same change, because the shipped prompt tells the robot "charging is not
+  your decision" and with the rails off that is false. The deployed world and
+  the `guarded` arm keep every rail. docs/Evaluation.md §2. Same rule from the other end:
   it *sees* the reward table and its balance and can move neither, and the
   census's ground truth is redacted out of its context. A *chosen* `charge`
   also needs the pack below `TOP_UP_BELOW` (75 %): charging is a scored task
@@ -268,6 +353,36 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   edited — all in `/var/lib/pluggybot`.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  - **THERE IS ALWAYS A FALLBACK; THE ONLY QUESTION IS WHO CHOSE IT**
+    (`Overseer.fallback` + `standing_order` on a decision, issue #125;
+    docs/Overseer.md §2, docs/Evaluation.md §2). The physics keeps stepping,
+    so a failed call is not "nothing happens" -- it is the SCRIPTED ROTATION,
+    which code chose. Right for `guarded`, whose subject is today's
+    behaviour; wrong for `autonomous`, where it would make the arm partly a
+    measurement of code. So the agent leaves a STANDING ORDER: one action off
+    the same fixed menu, on the decision it was already making (so it costs
+    no turn), refused by `Menu.validate` exactly as `action` is (so "the
+    model's only output is an action off a fixed menu" survives), and at most
+    one decision stale because only the LATEST answer's order stands.
+    OFF by default and flown by nothing yet -- `arm_flags` states
+    `standing_orders: False` on both built arms and it is the boolean #115
+    flips.
+    ⚠ **A FATAL ORDER IS MEASURED, NOT OVERRIDDEN.** `draw` left behind at
+    90 % is dangerous at 10 % and runs anyway; substituting something safer
+    would be a rail wearing a new hat. What IS filtered is the IMPOSSIBLE --
+    a `take_task` with nothing on the board, an errand this world could not
+    fund out of a FULL pack (`possibleActions`, never `affordableActions`).
+    ⚠ **THREE OUTCOMES, NEVER SUMMED**: the order ran, no order had been left
+    (`idle`, the bootstrap and not the policy), or the order could not be run
+    (`idle`, and the row still names it). "Never set" and "set and
+    impossible" are different facts about an agent, and a field nobody ever
+    exercised looks identical to one that saved the run in a count of the
+    times it was SET -- so the record counts the firings separately, off the
+    ROWS, which is all a killed run leaves behind.
+    ⚠ Validation goes through a FUNCTION (`overseer.standing_order`), which
+    is the one line of care #58 asks: an order may later be a conditional
+    ("if below 20 %, charge, otherwise draw") and one place should know what
+    an order looks like.
   - **THE ROBOT'S MEMORY IS FOUR DOCUMENTS, EACH WITH ONE WRITER**
     (`mind/thoughts.py`, issue #38; protocol 0.11.0; `$PLUGGY_THOUGHTS` /
     `--thoughts DIR`). `Main.md` (body and manner) and `Goals.md` are **human** —
@@ -364,11 +479,14 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     vendor-blind downstream.
     ⚠ **A LOCAL DECISION IS NOT AN API DECISION, and the difference is the
     model LOAD**: measured 3.4–5.5 s warm and **27.3 s cold** (1660 Super,
-    6 GB, the real ~11 kB prompt), so the API path's 8 s deadline makes
+    6 GB, the real ~11 kB prompt), so the API path's deadline makes
     every mission's FIRST local decision a certain `fallback:TimeoutError`
     — three for three, and ollama unloads an idle model after five minutes
     so a long errand pays it again. `llm.LOCAL_TIMEOUT_S` (45 s) is the
-    local default; `CALL_TIMEOUT_S` is untouched for the API paths.
+    local default -- and since issue #117 a FLOOR rather than the local
+    answer, because `CALL_TIMEOUT_S` is 90 s and covers a cold load by
+    itself. `default_timeout` returns `max(LOCAL_TIMEOUT_S, api)`: the local
+    path has the only MEASURED slow case and must never be the impatient one.
     ⚠ **Money has THREE states and each report says which**: `local` prints
     "no API cost" (zero is a measurement), an endpoint whose rates cannot be
     read prints "unknown" with `priced: false` — which now covers a
@@ -772,6 +890,55 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   default law so the fix's premise cannot rot. `PenPlotter.contact_physics` /
   `ClawTool.grasp_physics` are deprecated no-ops;
   `tests/test_noslip_policy.py` guards all of it.
+- **THE ROBOT CAN DIE, AND ONLY A PERSON CAN RESET IT** (issue #107,
+  protocol 0.15.0). `HubLifecycle._death_step` runs on the physics seam:
+  `flat` when the pack reaches zero (inside an errand or not -- the motors
+  do not stop at 0 Wh, and the first result set had a day that hit zero
+  mid-errand and finished "day over"), `stuck` when the chassis is past
+  `TOPPLE_TILT_RAD` for `TOPPLE_HOLD_S` or a dock fails. A death is a
+  `death` event, `survival.dead` in the frame, a line in `History.md` the
+  robot reads on every later decision, and the survival clock
+  (`survival.s` on the wire, `survival.aliveS` in the model's context). The
+  two causes are never summed. `reset_robot` is `reset_tool`'s shape --
+  admin-only at the website, code-handled, never shown to the model,
+  refused mid-swap -- and warps the robot to the start pose with a full
+  pack. ⚠ A dead robot WAITS in `DEAD` only when an inbox is attached
+  (somebody can reset it); with none the day ends as it always did.
+  ⚠ A reset of a LIVING robot is an intervention and the event says so.
+  ⚠ **MORTALITY IS OPT-IN** (`mortal=`, default: whether there is an
+  inbox), on exactly the terms `--tasks` and `--metabolism` are, AND THE
+  DEFAULT IS NOT CAUTION: on a demo cell the pack reaches ZERO mid-errand
+  as documented behaviour and the robot then limps to the rack and carries
+  on -- the committed home recording finishes a census at frac 0.000.
+  Made mortal by default, room_hub's own recording died at t=184 and ended
+  with the pack back at 87 %, a fixture describing a robot that is not
+  there. `scripts/experiment.py` passes `mortal=True` because deaths split
+  by cause are what M14's arms are judged on; serve.py asserts the inbox
+  rule rather than setting it twice.
+- **THE ROBOT'S CAMERAS RENDER WITHOUT MSAA** (`offsamples="0"` in
+  `models/pluggybot*.xml`, issue #110). With it on, one static scene renders
+  to a different image every time (±1 in a few dozen shadow-edge pixels), the
+  AprilTag decode moves on ~0.6 % of looks, and five identical scripted days
+  gave three trajectories -- Evaluation.md §1's "the instrument is fixed"
+  was false. Off, every render is byte-identical and the detector sees the
+  same tags at every range, measured. `scripts/determinism_spike.py` flies
+  the scripted day N times and reports the first divergence and which
+  perception input moved first; `tests/test_render_determinism.py` pins the
+  fix AND its premise. Same lesson as the milestone-5 segmentation labels:
+  the renderer is not a measurement device by default. SimNotes, "The world
+  was not the same world twice".
+- **A TERMINAL LOOP HAS A BUDGET, and squaring up is `control.square_up`**
+  (issue #108). Four copies of `while |heading error| > tol` -- the pen, the
+  claw, the dispenser, `HubMission.face` -- had no bound of any kind, and a
+  robot that had ridden up onto a board mount sat in the pen's for 2000+
+  sim-seconds, drained to 0 % and kept going past `max_sim_time`, because
+  every mission guard is checked BETWEEN errands. They now share one
+  implementation with a sim-time budget (`FACE_BUDGET_S` = 30 s, ~3x the
+  measured worst healthy case) and an explicit `squared` answer the pen's
+  `drive_to_board` turns into "never squared up". An empty pack does NOT
+  stop the body in this sim (motors draw ~30 W at 0 Wh) -- a bound is not
+  a recovery, which is issue #107's. SimNotes, "The squaring-up loop had no
+  floor".
 - **A PRESS IS NOT TRAVEL** (`HubSwap.pinned`, found by issue #22). Holding
   the wheels against something immovable makes dead reckoning integrate every
   slipping revolution: the charge press runs minutes long and pumped **828 mm**

@@ -84,7 +84,53 @@ MODEL = "claude-haiku-4-5"
 #: Wall seconds a single decision may take before the scripted policy wins.
 #: The SDK gets the same number as its own request timeout, so the HTTP call
 #: is actually abandoned rather than left running behind a fallback.
-CALL_TIMEOUT_S = 8.0
+#:
+#: MEASURED (issue #117; `scripts/overseer_probe.py --calls 50`, quiet box,
+#: `Qwen/Qwen3-4B-Instruct-2507` on the HF router, 2026-09-07):
+#:
+#:     min 3.55 · median 4.88 · p90 5.89 · p95 6.59 · max 7.38 s
+#:     timeout share at EVERY candidate from 8 s up: 0 %
+#:     malformed answers: 0 of 50
+#:
+#: ⚠ THE CURVE SAYS THE OLD 8 s WAS NOT FAILING -- IT SAYS IT HAD NO MARGIN.
+#: Nothing timed out on a quiet box, and the slowest call still used 92 % of
+#: the deadline; put a VM and five sims on the same six cores and the same
+#: arm went to 19-47 % fallback. Every one of those was the scripted
+#: rotation deciding, and the rotation never chooses `charge`.
+#:
+#: ⚠ ...AND A MISSION IS SLOWER THAN THE PROBE, MEASURED IN FLIGHT: five
+#: quiet days at this deadline (Evaluation.md section 3) put a real
+#: decision at a 7.49 s median, a 9.33 s p95 and a 16.69 s MAX, with 34 %
+#: of calls over the old 8 s. A mission's prompt carries a day of
+#: `History.md`, journal and offers that a synthetic state does not, so the
+#: probe under-measures by roughly half. Choose a deadline from the probe;
+#: confirm it with a flight. Zero timeouts in those five days.
+#:
+#: So 90 s is NOT read off the tail -- nothing measured is within twelve
+#: times of it. It is a deliberate PATIENCE budget, and the reasoning is the
+#: project's rather than the distribution's: this world exists to let a mind
+#: make a complicated choice, and a decision lost to a clock is the one
+#: failure that is purely ours. A minute and a half is where a slow answer
+#: stops being slow and becomes a hang -- and an escalation, which buys a
+#: bigger mind, gets the full two.
+#:
+#: ⚠ AND A DEADLINE IS A CAP, NOT A COST. It is spent only when a call is
+#: actually slow: `_decide` STEPS the sim while one is in flight
+#: (`THINK_SLICE_S`), so this bounds sim seconds spent standing still at
+#: ~8.5 W of electronics. At the measured median and ~20 decisions a day
+#: that is 98 sim-s -- 2.7 % of an hour-long day, 0.23 Wh of an 8 Wh pack,
+#: and it does not move when the cap does. The two ways to actually spend
+#: the cap:
+#:
+#:   - a DEAD endpoint cannot spend much of it: three failures in a row
+#:     start a cooloff (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, which
+#:     doubles), and a cooled-off decision is scripted instantly. ~810 sim-s
+#:     across a 3600 s day, worst case.
+#:   - an endpoint that is SLOW BUT ALIVE, answering just under the cap
+#:     every time, is the expensive one: 1800 sim-s, half the day and half
+#:     the pack. Nothing observed is remotely like this, and if it ever
+#:     happens the fallback rate is what says so.
+CALL_TIMEOUT_S = 90.0
 #: ...and the outer poll deadline, which must be the looser of the two or a
 #: call that finishes at 7.9 s would be discarded by its own supervisor.
 POLL_GRACE_S = 2.0
@@ -126,10 +172,13 @@ ESCALATE_MIN_INTERVAL_S = 600.0
 #: ~3 300; rounding up is the safe direction for a budget check.
 ESCALATE_ASSUMED_IN = 3500
 #: Wall seconds a bigger mind gets. Longer than `CALL_TIMEOUT_S` because a
-#: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200,
-#: and shorter than the local backend's because nothing has to be loaded
-#: into anybody's VRAM first.
-ESCALATE_TIMEOUT_S = 30.0
+#: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200
+#: -- an ordering, not an independent number, so it moves whenever that one
+#: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90).
+#: ⚠ Measured, the escalation is not in fact the slow one: the 235B pick
+#: answers in 2.05 s (docs/Overseer.md section 8). This is headroom for the
+#: case where it is, not a prediction that it will be.
+ESCALATE_TIMEOUT_S = 120.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
 #: report a cost per sim-hour -- nothing here spends or gates on money.
@@ -163,6 +212,13 @@ MAX_CONSECUTIVE_ERRORS = 3
 #: rather than spending the rest of the night scripted.
 COOLOFF_BASE_S = 300.0
 COOLOFF_MAX_S = 3600.0
+
+#: THE STANDING ORDER'S FLOOR (issue #125). What a fallback does before the
+#: agent has set an order, and what it falls to when the order it did set
+#: cannot be run. It is the BOOTSTRAP, not the policy: the whole point of the
+#: field is that the policy is the agent's, and `idle` is what the world does
+#: in the moments before there is one.
+STANDING_ORDER_FLOOR = "idle"
 
 #: Actions that produce no errand and cost no travel. Capped consecutively
 #: (see `Overseer.decide`): an LLM that answers `journal` forever is a robot
@@ -282,6 +338,21 @@ class Decision:
   #: why `_escalate` clears it: a bigger model asking to escalate again is a
   #: loop with a price tag.
   escalate: bool = False
+  #: WHAT TO DO IF YOU CANNOT BE REACHED (issue #125). An action off the same
+  #: fixed menu as `action`, validated by the same function and refused the
+  #: same way -- so "the model's only output is an action off a fixed menu"
+  #: survives intact and this is not a free-text instruction. Orthogonal to
+  #: `action` on exactly `learn`/`forget`'s terms: it rides the decision the
+  #: model was already making, so writing one down costs no turn.
+  #:
+  #: Two readings, depending on who set it. On an LLM decision it is the
+  #: order the model is LEAVING BEHIND, in force until its next answer
+  #: replaces it -- at most one decision stale, which is the staleness
+  #: `action` already has. On a FALLBACK decision it is the order that FIRED
+  #: (or, where `action` is `idle` and this is not, the order that could not
+  #: be run), which is what makes a firing legible in a row rather than only
+  #: in a counter -- and rows are what a killed run leaves behind.
+  standing_order: str = ""
   source: str = "llm"
 
   @property
@@ -309,7 +380,8 @@ class Decision:
             "respondTo": self.respond_to, "outcome": self.outcome,
             "reply": self.reply, "task": self.task, "answer": self.answer,
             "learn": self.learn, "forget": self.forget,
-            "escalate": self.escalate, "source": self.source}
+            "escalate": self.escalate,
+            "standingOrder": self.standing_order, "source": self.source}
 
   def summary(self) -> str:
     """The one-line narration that reaches the event stream."""
@@ -399,7 +471,8 @@ class Menu:
       out.append("explore")
     return tuple(a for a in ACTIONS if a in out)
 
-  def schema(self, escalation: bool = False) -> dict:
+  def schema(self, escalation: bool = False,
+             standing_orders: bool = False) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
 
     `escalation` adds the one boolean the robot may set to ask for a more
@@ -407,6 +480,10 @@ class Menu:
     with no escalation configured must not be offered a lever that does
     nothing, and a field the model sets and code silently ignores is how an
     agent learns that its stated preferences are decorative.
+
+    `standing_orders` is conditional for exactly that reason (issue #125),
+    and it is the same enum as `action` rather than a parallel vocabulary:
+    the field is *an action off the fixed menu*, so it is the menu.
 
     `""` is the "not applicable" member rather than a nullable type, because
     the supported JSON-Schema subset for structured outputs is small and an
@@ -420,7 +497,8 @@ class Menu:
       "additionalProperties": False,
       "required": ["action", "reason", "board", "program", "zone", "note",
                    "respond_to", "outcome", "reply", "task", "answer",
-                   "learn", "forget"] + (["escalate"] if escalation else []),
+                   "learn", "forget"] + (["escalate"] if escalation else [])
+      + (["standing_order"] if standing_orders else []),
       "properties": {
         "action": {"type": "string", "enum": list(self.available())},
         "board": enum(self.boards),
@@ -452,12 +530,20 @@ class Menu:
         "learn": {"type": "string"},
         "forget": {"type": "string"},
         **({"escalate": {"type": "boolean"}} if escalation else {}),
+        # WHAT TO DO IF THE NEXT CALL FAILS (issue #125). The action enum
+        # again, plus `""` for "I am not leaving one" -- so the decoder
+        # itself cannot produce a standing order this world could not
+        # perform, which is the same guarantee `action` has and the reason
+        # the field is safe to hand a small model.
+        **({"standing_order": enum(self.available())}
+           if standing_orders else {}),
       },
     }
 
   def validate(self, raw: dict, waiting: tuple[str, ...] = (),
                offered: tuple[str, ...] = (),
-               answering: tuple[str, ...] = ()) -> Decision:
+               answering: tuple[str, ...] = (),
+               standing_orders: bool = False) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
 
     Structured outputs make most of this unreachable, which is the point of
@@ -483,6 +569,15 @@ class Menu:
     the board is RAISED on, because there the id is the action's whole
     content. There is nothing left of the decision to keep, so it degrades to
     a scripted one, which will itself take an offered task if there is one.
+
+    `standing_orders` says whether this world OFFERED the field (issue
+    #125). Offered, it is validated exactly as `action` is and refused the
+    same way -- an unknown order is a malformed answer, because the claim
+    being defended is that the model's only output is an action off a fixed
+    menu, and a field that was silently repaired would be an exception to
+    it. NOT offered, it is dropped rather than raised on: it was not in the
+    grammar, so a model that emitted one anyway must not be able to cost a
+    `guarded` run a perfectly good decision.
     """
     action = str(raw.get("action", "")).strip()
     if action not in self.available():
@@ -516,6 +611,12 @@ class Menu:
     escalate = raw.get("escalate")
     escalate = (escalate.strip().lower() in ("true", "yes", "1")
                 if isinstance(escalate, str) else bool(escalate))
+    # ...through a FUNCTION rather than an inline membership test, which is
+    # the one line of care issue #58 asks of this: when a standing order may
+    # be a small program ("if below 20 %, charge, otherwise draw") instead of
+    # a bare action, there is one place that knows what one looks like.
+    order = (standing_order(raw.get("standing_order"), self)
+             if standing_orders else "")
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     # A model working off a cached older prompt (or an operator replaying an
@@ -544,10 +645,25 @@ class Menu:
                     # with.
                     learn=clean(raw.get("learn"), MAX_LINE_CHARS),
                     forget=clean(raw.get("forget"), MAX_LINE_CHARS),
-                    escalate=escalate)
+                    escalate=escalate, standing_order=order)
 
 
 # ---- the scripted policy (also the fallback) --------------------------------
+
+
+def claimable_offers(state: dict) -> list[dict]:
+  """The jobs a policy WITHOUT A MIND may take, oldest first.
+
+  Claimable, and never one that asks a question (issue #22): a rotation has
+  no arithmetic to offer, and the two ways code could supply an answer --
+  reading it out of the bank, or guessing -- are both worse than leaving the
+  offer alone. Shared with the standing order (issue #125), which is a
+  policy without a mind for exactly the same reason: the mind is what is
+  missing when it fires.
+  """
+  return [t for t in (state.get("offeredTasks") or ())
+          if isinstance(t, dict) and t.get("claimable") and t.get("id")
+          and not t.get("needsAnswer")]
 
 
 def scripted(menu: Menu, state: dict, why: str) -> Decision:
@@ -574,9 +690,7 @@ def scripted(menu: Menu, state: dict, why: str) -> Decision:
   # confident wrong number on a wall. So a question stands until something
   # that can think comes past, and lapses honestly if nothing does -- which
   # is exactly the difference between backends the task kind exists to show.
-  offers = [t for t in (state.get("offeredTasks") or ())
-            if isinstance(t, dict) and t.get("claimable") and t.get("id")
-            and not t.get("needsAnswer")]
+  offers = claimable_offers(state)
   if offers and "take_task" in menu.available():
     return Decision(action="take_task", task=str(offers[0]["id"]),
                     reason="taking the job that has been waiting longest",
@@ -612,7 +726,8 @@ def scripted(menu: Menu, state: dict, why: str) -> Decision:
   return _fill(menu, first, why, state)
 
 
-def _fill(menu: Menu, action: str, why: str, state: dict) -> Decision:
+def _fill(menu: Menu, action: str, why: str, state: dict,
+          reason: str = "scripted rotation") -> Decision:
   """Give a scripted action its parameters, rotating over boards/figures.
 
   Rotating on the mission's own decision count rather than at random: a
@@ -626,10 +741,79 @@ def _fill(menu: Menu, action: str, why: str, state: dict) -> Decision:
   zone = ""
   if action == "explore" and menu.zones:
     zone = menu.zones[n % len(menu.zones)]
-  return Decision(action=action, reason="scripted rotation",
+  return Decision(action=action, reason=reason,
                   board=board if action == "draw" else "",
                   program=program if action == "draw" else "",
                   zone=zone, source=f"fallback:{why}")
+
+
+# ---- the standing order (issue #125) ----------------------------------------
+#
+# THERE IS ALWAYS A FALLBACK; THE ONLY QUESTION IS WHO CHOSE IT. The physics
+# keeps stepping, so the robot is doing SOMETHING while and after a call
+# fails, and `scripted()` above is one CODE chose. That is the right answer
+# for the `guarded` arm, whose whole point is today's behaviour -- and the
+# wrong one for `autonomous`, where a code-chosen fallback would make the arm
+# partly a measurement of code, which is the exact flaw the rails were
+# removed for (docs/Evaluation.md section 2).
+#
+# So the agent chooses it, on the decision it was already making.
+
+
+def standing_order(raw, menu: Menu) -> str:
+  """An accepted standing order, "" for none, or ValueError.
+
+  ⚠ ONE FUNCTION, and that is the whole of what issue #58 asks of this
+  (comment on #125): today a standing order is one action off the menu, and
+  when it can be a small conditional instead -- "if below 20 %, charge,
+  otherwise draw" -- a second accepted shape is added HERE rather than at
+  every call site that had an opinion about what an order looks like.
+
+  Refused the same way `action` is, and for the same reason: the claim being
+  defended is that the model's only output is an action off a fixed menu.
+  """
+  order = str(raw or "").strip()
+  if not order:
+    return ""
+  if order not in menu.available():
+    raise ValueError(f"unknown standing order {order!r} "
+                     f"(offered: {', '.join(menu.available())})")
+  return order
+
+
+def order_runnable(menu: Menu, order: str, state: dict) -> bool:
+  """Can this order actually be carried out, right now?
+
+  ⚠ IMPOSSIBLE, NOT UNWISE, and the distinction is the measurement. A `draw`
+  set at 90 % and fired at 10 % is DANGEROUS and runs anyway: an agent that
+  sets a fatal standing order and dies of it is the result, and code that
+  quietly substituted something safer would be a rail wearing a new hat.
+  What is filtered here is an order with nothing to act on -- a `take_task`
+  with no job on the board, an errand this world could not fund out of a
+  full pack (`possibleActions`, never `affordableActions`, which is the
+  same line `scripted` draws and for the same reason).
+  """
+  if not order or order not in menu.available():
+    return False
+  if order == "take_task":
+    return bool(claimable_offers(state))
+  possible = set(state.get("possibleActions") or ())
+  return not (order in ERRAND_ACTIONS and possible and order not in possible)
+
+
+def order_decision(menu: Menu, order: str, state: dict, why: str) -> Decision:
+  """The order, as the decision it stands for. Parameters come from the same
+  rotation a scripted decision's do -- an order names an ACTION, and a `draw`
+  still has to happen on some board."""
+  if order == "take_task":
+    return Decision(action="take_task",
+                    task=str(claimable_offers(state)[0]["id"]),
+                    reason="standing order: take the job that has been "
+                           "waiting longest",
+                    standing_order=order, source=f"fallback:{why}")
+  return replace(_fill(menu, order, why, state,
+                       reason=f"standing order: {order}"),
+                 standing_order=order)
 
 
 # ---- the prompt --------------------------------------------------------------
@@ -767,6 +951,18 @@ friendly answer; it does not have to become work.
 #: capability lock issue #36 forbids wearing the opposite sign -- and a
 #: scripted rotation, which has no goals to pursue, would have nothing
 #: sensible to do with the free time anyway.
+MORTAL_RULE = """\
+YOU CAN DIE
+
+A pack that reaches zero, or a body knocked over or stranded away from the \
+rack, ends everything you were doing. You cannot get up again by yourself: \
+you stand where you fell until a person comes and stands you back up, and \
+that is written into your history, where you will read it for the rest of \
+the day. `survival.aliveS` is how long you have been awake since you were \
+switched on or last stood up; `survival.deaths` is how many times it has \
+happened today.
+"""
+
 APPETITE_RULE = """\
 POINTS ARE FOOD
 
@@ -787,6 +983,45 @@ Running out is not a failure and it does not break anything: at zero points \
 you can still charge, still drive, still finish what you are holding. It just \
 means you have not been useful to anybody for a while, and that is worth \
 noticing.\
+"""
+
+
+#: What the robot is told about the standing order (issue #125). In the
+#: STABLE half and ABSENT unless the world honours one, on exactly
+#: ESCALATION_RULE's terms: a world whose fallback is the scripted rotation
+#: must not be told it has a say in what happens when the line goes down,
+#: because a rule the code contradicts is a false statement the model acts
+#: on -- which is what M14 found in the charging rule
+#: (docs/Evaluation.md section 2).
+#:
+#: ⚠ IT SAYS "SET IT EVERY TIME", and that is not politeness. Only the
+#: latest answer's order stands, so an order left off an answer is an order
+#: withdrawn -- which is what keeps it at most one decision stale, and is
+#: also the difference between an order chosen for the pack the robot has
+#: now and one chosen for the pack it had an hour ago.
+STANDING_ORDER_RULE = """\
+IF YOU CANNOT BE REACHED
+
+Sometimes the thinking behind these answers does not arrive: the line is down, \
+the reply is too late, or you have used up this hour's questions. Your body \
+does not stop while that is true. Something happens next whether or not \
+anybody chose it, and the only question is whether it was you who chose it.
+
+`standing_order` is where you choose it. Put one action from the same list \
+you are choosing from now, and if the next decision cannot be made, that is \
+what you will do instead. Nobody reads it and nobody interprets it -- it is \
+the action itself, taken on your behalf, so it can only be something you are \
+already allowed to do.
+
+Set it on every answer. Only your latest one stands, and the right answer \
+depends on where you are leaving yourself: what is safe to fall back on with \
+a full pack is not what is safe with a tenth of one. It costs you nothing, it \
+costs you no time, and nothing happens because of it unless a decision \
+actually goes missing.
+
+If the order cannot be carried out when the moment comes -- the job it named \
+is gone, or this house cannot do it at all -- you stand still instead, and \
+that is written down as what happened.\
 """
 
 
@@ -815,7 +1050,9 @@ made is the one that happens.\
 def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   table: RewardTable, name: str = "",
                   escalation: bool = False,
-                  appetite: bool = False) -> list[dict]:
+                  appetite: bool = False,
+                  mortal: bool = False,
+                  standing_orders: bool = False) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -923,7 +1160,9 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                                       sort_keys=True),
     f"YOUR LONG-TERM GOALS ({GOALS} -- likewise; you cannot change these)\n"
     + stable[GOALS].strip(),
-  ] + ([APPETITE_RULE] if appetite else [])
+  ] + ([MORTAL_RULE] if mortal else [])
+    + ([APPETITE_RULE] if appetite else [])
+    + ([STANDING_ORDER_RULE] if standing_orders else [])
     + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
@@ -973,6 +1212,11 @@ def context_for(life, journal: Journal | None = None,
     # and would starve the scripted rotation into `explore` for the whole
     # minute before every charge. What must never be chosen is what no charge
     # in this world would cover, which is `possibleActions`.
+    # HOW LONG IT HAS BEEN ALIVE (issue #107). Shown because a metric the
+    # robot cannot see is not one it can optimise; movable by nothing on a
+    # decision. `deaths` is the day's count so far.
+    "survival": {"aliveS": round(float(getattr(life, "survival_s", 0.0)), 1),
+                 "deaths": len(getattr(life, "deaths", ()))},
     "affordableActions": list(affordable),
     "possibleActions": list(possible),
     "mapDone": bool(getattr(life, "map_done", False)),
@@ -1118,6 +1362,8 @@ class Overseer:
                escalate_url: str | None = None,
                spend: SpendBook | None = None,
                appetite: bool = False,
+               mortal: bool = False,
+               standing_orders: bool = False,
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
@@ -1182,6 +1428,15 @@ class Overseer:
     # Found by the test, not by reading it.
     self._last_escalation: float | None = None
     self.decisions: list[Decision] = []
+    #: THE MEASUREMENT SEAM (issue #106). Each hook gets one dict per
+    #: decision -- `state` (the context the model was shown, verbatim),
+    #: `decision`, `wallS` (asked -> answered) and `error` (the vendor's
+    #: text behind a `garbled` / `offline`, which `usage.errors` forgets
+    #: after five). Read-only: nothing here can change what was decided.
+    #: Pass 1a of M14 had to monkeypatch three methods to see this; the
+    #: harness gets it from one list, on the same terms as `say_hooks`.
+    self.on_decision: list[Callable[[dict], None]] = []
+    self._asked_at: float = 0.0
     self._client = client
     self._client_ready = client is not None
     self._calls: deque = deque()          # monotonic stamps, for the budget
@@ -1205,13 +1460,41 @@ class Overseer:
     #: change per deploy while the rules do not -- so the numbers ride the
     #: user turn instead, as `metabolism`.
     self.appetite = bool(appetite)
+    # ⚠ ONLY WHERE IT IS TRUE (issue #107). A world whose robot cannot die
+    # must not be told that it can: a rule the arm contradicts is a false
+    # statement the model acts on, which is exactly what M14 found in the
+    # charging rule (docs/Evaluation.md section 2).
+    self.can_die = bool(mortal)
+    # ---- the standing order (issue #125) ----
+    # WHOSE FALLBACK THIS IS. False -- the default, and every existing world
+    # -- means `scripted()`: the rotation, chosen by code, which is what the
+    # `guarded` arm measures and what a served world wants. True hands the
+    # choice to the agent, which is what the `autonomous` arm needs, and the
+    # field then exists in the schema and the rule in the prompt.
+    self.standing_orders = bool(standing_orders)
+    #: The order IN FORCE: the last one an answer of the model's own left
+    #: behind. `""` is the floor -- nothing has been set yet -- and it is
+    #: only ever written from a decision the model actually made, so a
+    #: fallback can never appoint its own successor.
+    self.standing_order = ""
+    #: What the orders DID. A field nobody ever exercised and a field that
+    #: saved the run look identical in a count of the times it was set, so
+    #: the firings are counted separately from the settings, and an order
+    #: that could not be run when its moment came is counted apart from one
+    #: that ran -- "never set" and "set and impossible" are different facts
+    #: about an agent.
+    self.orders_fired: dict[str, int] = {}
+    self.orders_unrunnable: dict[str, int] = {}
+    self.orders_unset = 0
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
     self.system = system_prompt(self.thoughts, self.menu, self.table,
                                 name=self.robot_name,
                                 escalation=self.can_escalate,
-                                appetite=self.appetite)
+                                appetite=self.appetite,
+                                mortal=self.can_die,
+                                standing_orders=self.standing_orders)
 
   @property
   def goals(self) -> str:
@@ -1391,12 +1674,15 @@ class Overseer:
         model=self.escalate_model, max_tokens=ESCALATE_MAX_TOKENS,
         system=self.system,
         output_config={"format": {"type": "json_schema",
-                                  "schema": self.menu.schema(escalation=True)}},
+                                  "schema": self.menu.schema(
+                                    escalation=True,
+                                    standing_orders=self.standing_orders)}},
         messages=[{"role": "user", "content": _user_turn(state)}],
       )
       waiting, offered, answering = limits_from(state)
       better = self.menu.validate(_extract_json(response), waiting=waiting,
-                                  offered=offered, answering=answering)
+                                  offered=offered, answering=answering,
+                                  standing_orders=self.standing_orders)
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.usage.errors.append(
         f"escalation: {type(e).__name__}: {e}"[:200])
@@ -1438,17 +1724,58 @@ class Overseer:
 
   # ---- deciding ------------------------------------------------------------
 
+  def fallback(self, state: dict, why: str) -> Decision:
+    """What happens when nobody could be asked. ONE policy, per arm.
+
+    Every path that resolves without a model answer comes through here --
+    the timeout, the malformed answer, the spent budget, the cooloff, the
+    absent client, free mode -- so which of the two policies a run is flying
+    is one boolean rather than a question to be asked at five call sites.
+
+    Without standing orders it is the scripted rotation, unchanged, which is
+    what every existing world and the `guarded` arm fly. With them it is the
+    agent's own order (issue #125), and three outcomes are told apart
+    because they are three different facts about the agent:
+
+      the order runs                 it chose this, and this is what happened
+      no order has been set          the floor: `idle`, before there is a
+                                     policy at all
+      the order cannot be run        it chose something impossible; `idle`,
+                                     counted separately, because an order
+                                     that could never execute is not the
+                                     same as one that was never set
+    """
+    if not self.standing_orders:
+      return scripted(self.menu, state, why)
+    order = self.standing_order
+    if not order:
+      self.orders_unset += 1
+      return Decision(action=STANDING_ORDER_FLOOR, source=f"fallback:{why}",
+                      reason="no standing order has been left")
+    if not order_runnable(self.menu, order, state):
+      self.orders_unrunnable[order] = self.orders_unrunnable.get(order, 0) + 1
+      # ⚠ The order stays on the DECISION even though the action is `idle`:
+      # a row where the two disagree is a firing that could not happen, and
+      # rows are all a killed run leaves behind.
+      return Decision(action=STANDING_ORDER_FLOOR, standing_order=order,
+                      source=f"fallback:{why}",
+                      reason=f"standing order: {order}, which cannot be "
+                             "run from here")
+    self.orders_fired[order] = self.orders_fired.get(order, 0) + 1
+    return order_decision(self.menu, order, state, why)
+
   def start(self, state: dict) -> None:
     """Dispatch a decision. Returns immediately; poll `pending`."""
     with self._lock:
       self._pending_state = dict(state)
-      self._deadline = self.clock() + self.timeout_s + POLL_GRACE_S
+      self._asked_at = self.clock()
+      self._deadline = self._asked_at + self.timeout_s + POLL_GRACE_S
       if self._in_flight:
         # A previous call outlived its deadline and is still out there. Do not
         # pile a second request on top of it -- but resolve THIS one now, so
         # the caller gets an answer immediately instead of waiting out another
         # deadline for a call that was never dispatched.
-        self._slot = {"decision": scripted(self.menu, state, "busy")}
+        self._slot = {"decision": self.fallback(state, "busy")}
         return
       self._slot = {}
       why = self._refuse(state)
@@ -1456,7 +1783,7 @@ class Overseer:
         # Nothing to dispatch: budget spent, cooling off, no client, or too
         # many idle turns in a row. Resolve now so the caller never waits for
         # a call that was never going to happen.
-        self._slot = {"decision": scripted(self.menu, state, why)}
+        self._slot = {"decision": self.fallback(state, why)}
         return
       self._calls.append(self.clock())
       self._in_flight = True
@@ -1495,10 +1822,15 @@ class Overseer:
       slot, self._slot = self._slot, {}
       state = state if state is not None else self._pending_state
     decision = slot.get("decision")
+    error = ""
     if decision is None:
       why = slot.get("error") or "timeout"
-      decision = scripted(self.menu, state, why)
-    self._record(decision)
+      decision = self.fallback(state, why)
+      # The vendor's own words for what went wrong, for the measurement
+      # seam: `_call` wrote them to `usage.errors` a moment ago.
+      error = next((e for e in reversed(self.usage.errors)
+                    if e.startswith("call:")), "") if slot else ""
+    self._record(decision, state, error)
     return decision
 
   def decide_scripted(self, state: dict, why: str) -> Decision:
@@ -1510,8 +1842,9 @@ class Overseer:
     spent in free mode should read as a day of scripted decisions, not as a
     day with no decisions in it.
     """
-    decision = scripted(self.menu, state, why)
-    self._record(decision)
+    self._asked_at = self.clock()
+    decision = self.fallback(state, why)
+    self._record(decision, state)
     return decision
 
   def decide(self, state: dict) -> Decision:
@@ -1521,7 +1854,8 @@ class Overseer:
       time.sleep(0.005)
     return self.result(state)
 
-  def _record(self, decision: Decision) -> None:
+  def _record(self, decision: Decision, state: dict | None = None,
+              error: str = "") -> None:
     self.usage.calls += 1
     if decision.scripted:
       self.usage.fallbacks += 1
@@ -1544,7 +1878,23 @@ class Overseer:
       self.usage.llm_calls += 1
     self._idle_run = (self._idle_run + 1) if decision.action in IDLE_ACTIONS \
         else 0
+    # WHAT STANDS NOW (issue #125). Only a decision the model actually made
+    # can move it: a fallback carries the order that fired, and letting that
+    # write back would let a fallback appoint its own successor -- and, in
+    # the `idle`-floor case, would silently retire an order the agent never
+    # withdrew. An answer that left the field empty withdraws it, which is
+    # what keeps the order at most one decision stale.
+    if self.standing_orders and not decision.scripted:
+      self.standing_order = decision.standing_order
     self.decisions.append(decision)
+    if self.on_decision:
+      event = {"state": dict(state if state is not None
+                             else self._pending_state),
+               "decision": decision,
+               "wallS": round(self.clock() - self._asked_at, 3),
+               "error": error}
+      for hook in self.on_decision:
+        hook(event)
 
   # ---- the call (worker thread; must never touch the sim) ------------------
 
@@ -1559,12 +1909,14 @@ class Overseer:
         # needs -- a validated decision rather than parsed prose.
         output_config={"format": {"type": "json_schema",
                                   "schema": self.menu.schema(
-                                    escalation=self.can_escalate)}},
+                                    escalation=self.can_escalate,
+                                    standing_orders=self.standing_orders)}},
         messages=[{"role": "user", "content": _user_turn(state)}],
       )
       waiting, offered, answering = limits_from(state)
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
-                                    offered=offered, answering=answering)
+                                    offered=offered, answering=answering,
+                                    standing_orders=self.standing_orders)
       self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
@@ -1663,7 +2015,19 @@ class Overseer:
       "escalationTokens": (self.escalation_usage.input_tokens
                            + self.escalation_usage.output_tokens),
     } if self.can_escalate else {}
-    return {**self.usage.as_dict(), **esc, "model": self.model,
+    # WHOSE FALLBACK, AND WHAT IT DID (issue #125). ABSENT -- not zeroed --
+    # where the field was never in the model's grammar, on `escalations`'
+    # terms: "never left an order" and "was never offered one" are different
+    # facts and only one of them is about the agent.
+    orders = {
+      "standingOrders": {
+        "current": self.standing_order,
+        "fired": dict(self.orders_fired),
+        "unrunnable": dict(self.orders_unrunnable),
+        "unset": self.orders_unset,
+      }
+    } if self.standing_orders else {}
+    return {**self.usage.as_dict(), **esc, **orders, "model": self.model,
             "allowance": self.spend.snapshot() if self.spend else {},
             # WHICH MIND decided (issue #19). Beside the model rather than
             # folded into it: `qwen3:4b-instruct` names a model and says
@@ -1780,6 +2144,8 @@ def build(world: str, book=None, enabled: bool | None = None,
           base_url: str | None = None, escalate_to: str | None = None,
           spend: SpendBook | None = None,
           appetite: bool = False,
+          mortal: bool = False,
+          standing_orders: bool = False,
           thoughts: ThoughtFiles | None = None,
           robot_name: str | None = None,
           ) -> tuple["Overseer | None", Journal | None]:
@@ -1831,5 +2197,16 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # RULES only -- the numbers ride the user turn -- so a
                       # world with no appetite keeps the prefix it had.
                       appetite=appetite,
+                      # ...and whether it can die HERE (issue #107), on the
+                      # same terms: the RULES only, and never a false one --
+                      # a world whose robot cannot die must not be told it
+                      # can (docs/Evaluation.md §2's lesson, one rule over).
+                      mortal=mortal,
+                      # ...and whose the FALLBACK is (issue #125). Off is
+                      # every served world and the `guarded` arm -- the
+                      # scripted rotation, unchanged -- and the same rule
+                      # applies: a robot whose fallback is code's must not
+                      # be told it has a say in one.
+                      standing_orders=standing_orders,
                       calls_per_hour=calls_per_hour)
   return overseer, journal

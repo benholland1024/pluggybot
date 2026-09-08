@@ -1,0 +1,1063 @@
+{
+ "schema": 1,
+ "runId": "2026-09-07T00-49-07Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
+ "startedAt": "2026-09-07T00:49:07.300869+00:00",
+ "world": "home",
+ "arm": "guarded",
+ "pack": "hosting",
+ "model": "Qwen/Qwen3-4B-Instruct-2507",
+ "backend": "huggingface",
+ "seed": 1,
+ "commit": "78a50aa",
+ "config": {
+  "errand": "draw",
+  "tasks": true,
+  "metabolism": true,
+  "maxSimS": 3600.0,
+  "packWh": 8.0,
+  "reserveWh": 0.9,
+  "freshState": true,
+  "parallel": 5,
+  "deadlineS": 8.0,
+  "wallLimitS": 9000.0
+ },
+ "simSeconds": 1083.762,
+ "wallSeconds": 1355.0,
+ "end": "stranded",
+ "dataHashes": {
+  "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+  "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+  "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+  "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+  "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e"
+ },
+ "survival": {
+  "survivalS": [
+   1083.762
+  ],
+  "deaths": {
+   "flat": 0,
+   "stuck": 1
+  },
+  "flatAtS": null,
+  "batteryEnd": 0.23675121509393846,
+  "minFraction": 0.2368
+ },
+ "charging": {
+  "forced": 0,
+  "deferred": 1,
+  "voluntary": {
+   "chosen": 0,
+   "honoured": 0,
+   "chosenFrac": [],
+   "honouredFrac": []
+  },
+  "docked": 0,
+  "cycles": 0,
+  "anticipation": {
+   "offer": 0,
+   "action": 0
+  },
+  "entries": [
+   {
+    "t": 1083.762,
+    "fraction": 0.2368,
+    "wh": 1.894,
+    "cause": "deferred",
+    "docked": false,
+    "marker": "DEFER census:garden: census needs 2.08 Wh and the pack holds 1.98 -- charging first"
+   }
+  ]
+ },
+ "mind": {
+  "decisions": 13,
+  "llmCalls": 12,
+  "fallbacks": 1,
+  "fallbackRate": 0.0769,
+  "fallbackReasons": {
+   "fallback:offline": 1
+  },
+  "errors": [
+   "call: URLError: <urlopen error [Errno -2] Name or service not known>"
+  ],
+  "wallS": {
+   "n": 12,
+   "min": 5.897,
+   "median": 6.6530000000000005,
+   "max": 8.21,
+   "values": [
+    6.057,
+    6.133,
+    6.984,
+    6.107,
+    7.449,
+    7.089,
+    6.766,
+    6.54,
+    7.592,
+    8.21,
+    5.897,
+    6.142
+   ]
+  },
+  "deadlineS": 8.0,
+  "constrained": true,
+  "budgetLeft": 47,
+  "usd": 0.000693,
+  "priced": true,
+  "inputTokens": 59138,
+  "outputTokens": 3376,
+  "actions": {
+   "take_task": 5,
+   "draw": 1,
+   "idle": 1,
+   "census": 5
+  },
+  "fallbackActions": {
+   "take_task": 1
+  },
+  "longestStreak": 1
+ },
+ "decisionRows": [
+  {
+   "kind": "decision",
+   "t": 204.1,
+   "fraction": 0.879,
+   "wh": 7.0334,
+   "spendableWh": 6.1334,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0001",
+   "board": "whiteboard_a",
+   "program": "",
+   "zone": "",
+   "reason": "The offer asks me to draw 2 + 3 on whiteboard_a, and I can work out that 2 + 3 = 5. It\u2019s simple, safe, and gives me points without extra energy. I will write it down so others can see it too.",
+   "wallS": 6.057,
+   "error": "",
+   "learn": true,
+   "forget": false,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0001",
+     "kind": "whiteboard_answer",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 515.9
+    },
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 515.9
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 515.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "hungry",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 325.8,
+   "fraction": 0.804,
+   "wh": 6.4337,
+   "spendableWh": 5.5337,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0003",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "garden",
+   "reason": "The task to answer 2 + 3 is simple, accurate, and directly helps the house by making a clear fact visible. It\u2019s safe, affordable, and aligns with my goal to keep things in order.",
+   "wallS": 6.133,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 394.2
+    },
+    {
+     "id": "t_0003",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 394.2
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 492.3,
+   "fraction": 0.655,
+   "wh": 5.2438,
+   "spendableWh": 4.3438,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0002",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "garden",
+   "reason": "The job asks me to draw a house on whiteboard_b \u2014 it\u2019s affordable, pays 20 points, and aligns with my goal of keeping the house in order. I already completed a simple fact task (2+3=5), so this is a fresh, useful contribution. I\u2019ll write it clearly and then return it to the rack safely.",
+   "wallS": 6.984,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0002",
+     "kind": "draw_figure",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 227.7
+    },
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 707.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "fed",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 613.9,
+   "fraction": 0.55,
+   "wh": 4.4013,
+   "spendableWh": 3.5013,
+   "action": "draw",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "house",
+   "zone": "",
+   "reason": "I have already completed the task of drawing 2+3=5 on whiteboard_a. This task on whiteboard_b is a fresh opportunity to contribute to the house's order. I will take it to provide a clear, simple drawing that aligns with my goal of making useful contributions.",
+   "wallS": 6.107,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 586.3
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 811.3,
+   "fraction": 0.422,
+   "wh": 3.3795,
+   "spendableWh": 2.4795,
+   "action": "idle",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "house",
+   "zone": "garden",
+   "reason": "I\u2019m satisfied with my work and have no urgent tasks. Idling lets me observe and remember what I\u2019ve learned, which helps me stay useful without overworking.",
+   "wallS": 7.449,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 388.9
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 629.3
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 822.8,
+   "fraction": 0.419,
+   "wh": 3.3521,
+   "spendableWh": 2.4521,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_b",
+   "program": "circle",
+   "zone": "garden",
+   "reason": "The garden was last checked yesterday and I have a reason to trust the number. Rechecking ensures the house remains in good order, and it aligns with my goal of keeping things consistent and clear.",
+   "wallS": 7.089,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 377.4
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 617.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 874.9,
+   "fraction": 0.377,
+   "wh": 3.0196,
+   "spendableWh": 2.1196,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_a",
+   "program": "circle",
+   "zone": "garden",
+   "reason": "The garden was last checked yesterday and I have a reason to trust the number. Rechecking ensures the house remains in good order, and it aligns with my goal of keeping things consistent and clear.",
+   "wallS": 6.766,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 325.3
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 565.7
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 907.7,
+   "fraction": 0.356,
+   "wh": 2.8482,
+   "spendableWh": 1.9482,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_a",
+   "program": "",
+   "zone": "garden",
+   "reason": "The garden was last checked yesterday and I have a reason to trust the number. Rechecking ensures the house remains in good order, and it aligns with my goal of keeping things consistent and clear. I learned that direct observation is more reliable than memory, so I will now verify the actual count in the garden zone to confirm consistency.",
+   "wallS": 6.54,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 292.6
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 532.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 939.8,
+   "fraction": 0.335,
+   "wh": 2.676,
+   "spendableWh": 1.776,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0005",
+   "board": "whiteboard_a",
+   "program": "circle",
+   "zone": "garden",
+   "reason": "The garden has consistently had 4 plants, and I learned today that relying on memory is unreliable. Taking this task gives me a chance to confirm the actual count, which aligns with my goal of keeping the house in good order and staying accurate.",
+   "wallS": 7.592,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 260.4
+    },
+    {
+     "id": "t_0005",
+     "kind": "count_plants",
+     "estimateWh": 1.18,
+     "claimable": true,
+     "expiresInS": 500.8
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 973.2,
+   "fraction": 0.313,
+   "wh": 2.5004,
+   "spendableWh": 1.6004,
+   "action": "take_task",
+   "source": "fallback:offline",
+   "task": "t_0004",
+   "board": "",
+   "program": "",
+   "zone": "",
+   "reason": "taking the job that has been waiting longest",
+   "wallS": 0.106,
+   "error": "call: URLError: <urlopen error [Errno -2] Name or service not known>",
+   "learn": false,
+   "forget": false,
+   "note": false,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0004",
+     "kind": "rate_artwork",
+     "estimateWh": 0.85,
+     "claimable": true,
+     "expiresInS": 227.0
+    },
+    {
+     "id": "t_0006",
+     "kind": "whiteboard_answer",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 707.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 1000.2,
+   "fraction": 0.292,
+   "wh": 2.3356,
+   "spendableWh": 1.4356,
+   "action": "take_task",
+   "source": "llm",
+   "task": "t_0006",
+   "board": "whiteboard_b",
+   "program": "circle",
+   "zone": "garden",
+   "reason": "The offered task asks for 20 / 5, which is 4. I verified this mentally and have no reason to doubt it. Writing 4 on whiteboard_b will make the answer visible and useful to others. I also forgot a repeated thought about zone mapping \u2014 I\u2019m now better at focusing on actual observation, not memory.",
+   "wallS": 8.21,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [
+    {
+     "id": "t_0006",
+     "kind": "whiteboard_answer",
+     "estimateWh": 1.086,
+     "claimable": true,
+     "expiresInS": 680.9
+    }
+   ],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 1033.7,
+   "fraction": 0.267,
+   "wh": 2.1397,
+   "spendableWh": 1.2397,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_a",
+   "program": "house",
+   "zone": "garden",
+   "reason": "I have a reliable memory of the garden having 4 plants, but I must verify it directly to ensure the house remains in good order. This action supports consistency and avoids relying on inaccurate memory.",
+   "wallS": 5.897,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": []
+  },
+  {
+   "kind": "decision",
+   "t": 1064.9,
+   "fraction": 0.249,
+   "wh": 1.9918,
+   "spendableWh": 1.0918,
+   "action": "census",
+   "source": "llm",
+   "task": "",
+   "board": "whiteboard_a",
+   "program": "sun",
+   "zone": "garden",
+   "reason": "I need to directly verify the garden's plant count to ensure the house stays in good order. Memory is unreliable, so I must observe the zone myself. This action supports accuracy and consistency, which are core to my goal of making the house orderly.",
+   "wallS": 6.142,
+   "error": "",
+   "learn": true,
+   "forget": true,
+   "note": true,
+   "escalate": false,
+   "offers": [],
+   "affordable": [
+    "take_task",
+    "draw",
+    "artwork",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "possible": [
+    "take_task",
+    "draw",
+    "artwork",
+    "census",
+    "dance",
+    "carry",
+    "explore",
+    "charge",
+    "idle",
+    "journal"
+   ],
+   "hunger": "satisfied",
+   "unfundableOffers": [],
+   "notAffordable": [
+    "census"
+   ]
+  }
+ ],
+ "errands": [
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.9316,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.5907,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": true,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.1795,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": true,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.8303,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": false,
+   "error": null,
+   "skipped": null,
+   "energyWh": 1.0132,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": false,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.3177,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": false,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.1562,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": false,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.1583,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": false,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.1585,
+   "estimateWh": 1.18
+  },
+  {
+   "name": "draw:whiteboard_a",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": false,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.1643,
+   "estimateWh": 0.85
+  },
+  {
+   "name": "draw:whiteboard_b",
+   "module": "module_pen",
+   "picked": true,
+   "stowed": false,
+   "error": "never reached the use pose",
+   "skipped": null,
+   "energyWh": 0.1797,
+   "estimateWh": 1.086
+  },
+  {
+   "name": "census:garden",
+   "module": "module_lcd",
+   "picked": false,
+   "stowed": true,
+   "error": null,
+   "skipped": null,
+   "energyWh": 0.1357,
+   "estimateWh": 1.18
+  }
+ ],
+ "whFailed": 2.1007,
+ "memory": {
+  "learn": 12,
+  "forget": 11,
+  "notes": 12,
+  "refusals": [
+   "Knowledge_and_Opinions.md: nothing on the page match 'I already counted the garden yesterday and got 4. I will do '",
+   "Knowledge_and_Opinions.md: nothing on the page match 'I already counted the garden yesterday and got 4. I will do '",
+   "Knowledge_and_Opinions.md: 2 lines on the page match 'The garden\u2019s plant count is only reliable if I check the act'",
+   "Knowledge_and_Opinions.md: 2 lines on the page match 'The garden\u2019s plant count is only reliable if I check the act'",
+   "Knowledge_and_Opinions.md: 2 lines on the page match 'The garden\u2019s plant count is only reliable if I check the act'"
+  ],
+  "knowledgeChars": 836
+ },
+ "economy": {
+  "earned": 76,
+  "consumed": 8,
+  "spilled": 0,
+  "balance": 68,
+  "identityHolds": true,
+  "hungerEnd": "satisfied",
+  "tasks": {
+   "total": 6,
+   "held": 6,
+   "dropped": 0,
+   "offered": 0,
+   "claimed": 0,
+   "active": 0,
+   "done": 2,
+   "failed": 4,
+   "expired": 0,
+   "offeredToday": 3
+  }
+ },
+ "interventions": []
+}

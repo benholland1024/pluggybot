@@ -7,7 +7,16 @@
        Fork geometry mirrors rack/coupling.py's spike carrier exactly, via a
        180-degree body rotation so the spike-frame coordinates paste in
        unchanged (the spike approaches along -x; the robot along +x). -->
-  <visual><global offwidth="1280" offheight="720"/></visual>
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <quality offsamples="0"/>
+    <!-- offsamples="0": the robot's cameras are MEASUREMENT devices (issue #110).
+       With MSAA on, the same static scene renders to a different image every
+       time (+-1 in a few dozen shadow-edge pixels), the AprilTag decode moves on
+       ~0.6 % of looks, and five identical scripted days gave three trajectories.
+       Off, every render is byte-identical and the detector sees the same tags at
+       every range. SimNotes, "The world was not the same world twice". -->
+  </visual>
 
   <worldbody>
 
