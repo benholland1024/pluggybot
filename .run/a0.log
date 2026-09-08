@@ -1,7 +1,5 @@
-started 2026-09-08T11-00-56Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0 (pid 2919835)
-done 2026-09-08T11-00-56Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0: day over at t=3647, 18 decisions, voluntary 2, fallbacks 1
-started 2026-09-08T11-00-57Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1 (pid 2933141)
-done 2026-09-08T11-00-57Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1: flat at t=1459, 9 decisions, voluntary 0, fallbacks 0
-started 2026-09-08T11-00-58Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2 (pid 2938750)
-done 2026-09-08T11-00-58Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2: flat at t=2840, 331 decisions, voluntary 1, fallbacks 321
-started 2026-09-08T11-00-59Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3 (pid 2948844)
+started 2026-09-08T12-44-37Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0 (pid 2950731)
+done 2026-09-08T12-44-37Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0: flat at t=1566, 10 decisions, voluntary 0, fallbacks 1
+started 2026-09-08T12-44-38Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1 (pid 2956213)
+done 2026-09-08T12-44-38Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1: complete at t=1728, 10 decisions, voluntary 1, fallbacks 0
+started 2026-09-08T12-44-39Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2 (pid 2962275)
