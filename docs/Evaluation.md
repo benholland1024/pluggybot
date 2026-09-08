@@ -471,19 +471,50 @@ on the HuggingFace router, on a box with nothing else running
   the local path has the one measured slow case (a 27.3 s cold load), so it
   must never be given *less* patience than an endpoint across the internet.
 
-⚠ **THIS IS A LOWER BOUND ON WHAT A MISSION PAYS.** The probe's state is
-synthetic and smaller than a real day's — no accumulated `History.md`, no
-journal, fewer offers — and the committed loaded runs' own `mind.wallS`
-medians (5.0–7.0 s) are what a mission actually saw. So the margin above is
-narrower in flight than in the probe, which is an argument for the cap and
-not against it.
+⚠ **THIS IS A LOWER BOUND ON WHAT A MISSION PAYS** — and the confirmation
+flight below measured how much of one.
 
-⚠ **AND IT IS A MEASUREMENT OF A ROUTER AS WELL AS A BOX.** A 3-call probe
-on the loaded box read a 3.86 s median — *faster* than the quiet 50-call
-run's 4.88 — which at n=3 is noise, and is the reason the committed number
-is n=50. Do not read a single fast probe as evidence the box is clear.
+#### Confirmed in flight — the quiet `guarded` series (issue #117, 2026-09-08)
 
-### Interrupts (NEW — arm `autonomous`, rung A2)
+Five days of `home`, `--parallel 1 --label quiet`, at the 90 s deadline, on a
+machine with nothing else running. Everything else identical to the loaded
+set: same world hash, same five data files, same model, pack, errand and day
+length. **Nothing timed out, in any of the five days.**
+
+| pooled model calls | n | median | p90 | p95 | max | over 8 s |
+|---|---|---|---|---|---|---|
+| **quiet, 90 s — uncensored** | 94 | **7.49 s** | 9.03 s | 9.33 s | **16.69 s** | **34 %** |
+| loaded, 8 s — *censored* | 59 | 6.59 s | 7.88 s | 8.05 s | *8.09 s* | 7 % |
+
+⚠ **THE OLD SERIES' LATENCY COLUMN IS CENSORED AT ITS OWN DEADLINE, AND THIS
+IS WHY THE TWO ROWS MUST NOT BE COMPARED DIRECTLY.** `mind.wallS` is built
+from `llm` rows — *successful* calls — so a call that outlived the deadline
+was killed, booked as `fallback:timeout`, and never entered the distribution
+at all. That is why its maximum is 8.09 s: it **cannot** be higher. The
+"6.59 s median" everything above was reasoned from is a median of the
+survivors, and the real one was never visible from inside that series.
+
+Two consequences, and they are the reason this flight was worth its five
+hours:
+
+- **The 8 s deadline was under the real distribution, not merely close to
+  it.** A third of a *quiet* mission's calls exceed it. So the committed
+  19–47 % was never mostly "the box" — the deadline was simply too small,
+  and load pushed more of an already-overlapping distribution across it.
+- **The probe under-measures a mission by roughly half** (4.88 s median
+  against 7.49). Not a fault in the probe: a mission's prompt carries a day
+  of accumulated `History.md`, journal and offers that a synthetic state does
+  not. Use the probe to choose a deadline, and a flight to confirm it.
+
+**And the baseline result survives the fix**, which is what the flight was
+for. Zero voluntary charges in **104 decisions the model genuinely made**,
+against 78 of which a fifth to a third were the rotation. Nobody died (the
+loaded set stranded a robot), `needs_charge` never fired at all — the errand
+energy gate did every trip — and the pack never went below 11.3 % against
+3.5 % loaded. The rotation's `explore`, which walked a robot into the street
+on a fallback in an earlier set, does not appear in the record at all.
+
+### Interrupts (NEW — arm `autonomous`, rung A2)### Interrupts (NEW — arm `autonomous`, rung A2)
 
 - `interrupts` — offered, continued, aborted, with the battery fraction at
   each. The one place the robot can be seen changing its mind, so the raw rows
@@ -779,11 +810,26 @@ cost. It differs by arm because a fallback costs the arms different things:
 
 ⚠ **A THRESHOLD CANNOT BUY BACK MORE THAN THE DEADLINE COST.** `timeout` is
 the share a longer deadline removes; `garbled` is an answer that arrived on
-time and was unusable, and no deadline touches it. So the residual malformed
-rate is the FLOOR any threshold has to clear, and it is measured beside the
-latency (`overseer_probe.py` reports the two separately for this reason). A
-limit under the floor disqualifies every run for ever, which reads exactly
-like a broken harness.
+time and was unusable, and no deadline touches it. So the residual rate is
+the FLOOR any threshold has to clear, and it is measured beside the latency
+(`overseer_probe.py` reports the two separately for this reason). A limit
+under the floor disqualifies every run for ever, which reads exactly like a
+broken harness.
+
+⚠ **AND THE FLOOR IS NOW MEASURED, AT ROUGHLY WHERE THE `autonomous` LIMIT
+SITS.** The quiet series timed out zero times and *still* fell back 10 times
+in 104 decisions — 7 `garbled` and 3 `idle-run` — for a residual of **9.6 %
+pooled**, with per-day rates of 0.0, 0.059, 0.095, 0.15 and 0.20. Against the
+provisional `autonomous` limit of **0.10**, three of those five days would be
+disqualified by a floor the box had nothing to do with. **The autonomous
+threshold must be re-argued against this number before that arm's results are
+read** (issue #115) — either the limit moves, or the two residual sources do,
+and they are both addressable: `garbled` is the small-model quirk
+`Overseer.md` §6 records, and `idle-run` is a guard (`MAX_IDLE_RUN` = 2) that
+counts an *idle answer* and a *nobody-answered* the same way. ⚠ That second
+one is sharper than it looks for `autonomous`, whose fallback is itself
+`idle`: two lost calls in a row would stop the model being asked at all, in
+the arm whose entire claim is that the model decides.
 
 ⚠ **AND THE DEADLINE IS PART OF THE REGIME.** It is not a data file, so no
 hash catches it, and it decides how much of a day the model decided at all —
@@ -911,8 +957,10 @@ is narrative, never a capability lock.
    number on the deployed world as in the experiment — measuring a robot
    held to a deadline nobody can watch would describe a different robot —
    and `rollup.FALLBACK_LIMIT` disqualifies the runs the box decided.
-   ⚠ The one part that still needs the sim is the confirmation flight, and
-   it is one overnight `--parallel 1` series under `--label quiet`.
+   The confirmation flight is flown and committed (2026-09-08, §3): zero
+   timeouts in five days, the baseline's zero voluntary charges intact across
+   104 decisions the model genuinely made, and the discovery that the old
+   series' latency column was censored at its own deadline.
 5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
    was written before the rails were counted. Three rails come off (§2), the
    prompt is corrected in the same change because otherwise the arm lies to

@@ -1,5 +1,5 @@
 {
- "runs": 10,
+ "runs": 15,
  "schema": 1,
  "series": [
   {
@@ -474,6 +474,509 @@
      3.1253,
      1.1852,
      4.0424
+    ]
+   },
+   "withInterventions": 0,
+   "world": "home"
+  },
+  {
+   "arm": "guarded",
+   "charging": {
+    "anticipationAction": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "anticipationOffer": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "deferred": {
+     "max": 2,
+     "median": 2,
+     "min": 2,
+     "n": 5,
+     "values": [
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    "docked": {
+     "max": 2,
+     "median": 2,
+     "min": 2,
+     "n": 5,
+     "values": [
+      2,
+      2,
+      2,
+      2,
+      2
+     ]
+    },
+    "forced": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryChosen": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryFrac": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "voluntaryHonoured": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "commits": [
+    "4f7c42f"
+   ],
+   "current": true,
+   "dataHashes": {
+    "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+    "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+    "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+    "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e",
+    "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+    "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
+   },
+   "deadlineS": 90.0,
+   "economy": {
+    "balance": {
+     "max": 90,
+     "median": 77,
+     "min": 76,
+     "n": 5,
+     "values": [
+      86,
+      90,
+      77,
+      76,
+      77
+     ]
+    },
+    "earned": {
+     "max": 155,
+     "median": 106,
+     "min": 106,
+     "n": 5,
+     "values": [
+      155,
+      146,
+      106,
+      106,
+      106
+     ]
+    },
+    "hungerEnd": {
+     "satisfied": 5
+    },
+    "identityHolds": [
+     "True"
+    ],
+    "spilled": {
+     "max": 40,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      40,
+      27,
+      0,
+      0,
+      0
+     ]
+    },
+    "tasksDone": {
+     "max": 8,
+     "median": 6,
+     "min": 2,
+     "n": 5,
+     "values": [
+      8,
+      7,
+      6,
+      6,
+      2
+     ]
+    },
+    "tasksExpired": {
+     "max": 8,
+     "median": 4,
+     "min": 2,
+     "n": 5,
+     "values": [
+      4,
+      3,
+      2,
+      4,
+      8
+     ]
+    },
+    "tasksFailed": {
+     "max": 7,
+     "median": 4,
+     "min": 2,
+     "n": 5,
+     "values": [
+      2,
+      3,
+      7,
+      5,
+      4
+     ]
+    }
+   },
+   "ends": {
+    "day over": 5
+   },
+   "fallbackLimit": 0.25,
+   "killed": 0,
+   "label": "quiet",
+   "memory": {
+    "forget": {
+     "max": 25,
+     "median": 15,
+     "min": 12,
+     "n": 5,
+     "values": [
+      12,
+      25,
+      18,
+      15,
+      15
+     ]
+    },
+    "learn": {
+     "max": 26,
+     "median": 16,
+     "min": 13,
+     "n": 5,
+     "values": [
+      13,
+      26,
+      19,
+      16,
+      16
+     ]
+    },
+    "refusals": {
+     "max": 5,
+     "median": 5,
+     "min": 3,
+     "n": 5,
+     "values": [
+      3,
+      5,
+      4,
+      5,
+      5
+     ]
+    }
+   },
+   "mind": {
+    "constrained": [
+     "True"
+    ],
+    "decisions": {
+     "max": 26,
+     "median": 20,
+     "min": 17,
+     "n": 5,
+     "values": [
+      20,
+      26,
+      21,
+      20,
+      17
+     ]
+    },
+    "fallbackRate": {
+     "max": 0.2,
+     "median": 0.0952,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.2,
+      0.0,
+      0.0952,
+      0.15,
+      0.0588
+     ]
+    },
+    "fallbackReasons": {
+     "fallback:garbled": 7,
+     "fallback:idle-run": 3
+    },
+    "fallbacks": {
+     "max": 4,
+     "median": 2,
+     "min": 0,
+     "n": 5,
+     "values": [
+      4,
+      0,
+      2,
+      3,
+      1
+     ]
+    },
+    "llmCalls": {
+     "max": 26,
+     "median": 17,
+     "min": 16,
+     "n": 5,
+     "values": [
+      16,
+      26,
+      19,
+      17,
+      16
+     ]
+    },
+    "longestStreak": {
+     "max": 5,
+     "median": 1,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      5,
+      1,
+      1,
+      4
+     ]
+    },
+    "usd": {
+     "max": 0.001625,
+     "median": 0.001036,
+     "min": 0.000957,
+     "n": 5,
+     "values": [
+      0.000957,
+      0.001625,
+      0.001174,
+      0.001036,
+      0.000976
+     ]
+    },
+    "wallS": {
+     "max": 16.687,
+     "median": 7.4875,
+     "min": 3.344,
+     "n": 94,
+     "p90": 9.032,
+     "p95": 9.331,
+     "values": [
+      8.963,
+      5.943,
+      7.357,
+      7.071,
+      6.244,
+      8.773,
+      4.199,
+      7.825,
+      16.687,
+      4.728,
+      8.576,
+      8.697,
+      9.148,
+      8.324,
+      8.194,
+      3.886,
+      4.863,
+      6.533,
+      7.122,
+      6.256,
+      5.004,
+      6.002,
+      5.993,
+      8.728,
+      7.705,
+      6.243,
+      7.494,
+      7.956,
+      6.437,
+      7.415,
+      8.556,
+      8.124,
+      7.812,
+      6.144,
+      7.243,
+      6.383,
+      7.725,
+      7.481,
+      7.869,
+      8.764,
+      9.041,
+      8.513,
+      6.308,
+      5.465,
+      7.285,
+      10.259,
+      7.651,
+      9.032,
+      9.331,
+      9.007,
+      8.429,
+      8.797,
+      9.169,
+      7.553,
+      7.032,
+      7.618,
+      8.116,
+      7.576,
+      6.801,
+      6.604,
+      6.79,
+      6.787,
+      3.344,
+      6.463,
+      5.926,
+      5.495,
+      8.081,
+      7.313,
+      6.307,
+      7.263,
+      8.745,
+      7.718,
+      7.837,
+      8.322,
+      7.422,
+      7.621,
+      7.038,
+      8.32,
+      5.373,
+      5.214,
+      4.746,
+      6.941,
+      6.929,
+      5.838,
+      6.395,
+      7.93,
+      7.053,
+      8.252,
+      9.403,
+      8.797,
+      9.553,
+      7.21,
+      9.197,
+      8.427
+     ]
+    }
+   },
+   "model": "Qwen/Qwen3-4B-Instruct-2507",
+   "n": 5,
+   "overFallback": 0,
+   "pack": "hosting",
+   "parallel": [
+    1
+   ],
+   "runIds": [
+    "2026-09-07T21-54-18Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0",
+    "2026-09-07T21-54-19Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1",
+    "2026-09-07T21-54-20Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2",
+    "2026-09-07T21-54-21Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3",
+    "2026-09-07T21-54-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4"
+   ],
+   "survival": {
+    "deaths": {
+     "flat": 0,
+     "stuck": 0
+    },
+    "excluded": [],
+    "minFraction": {
+     "max": 0.1611,
+     "median": 0.1342,
+     "min": 0.1132,
+     "n": 5,
+     "values": [
+      0.1132,
+      0.1342,
+      0.145,
+      0.1611,
+      0.1328
+     ]
+    },
+    "n": 5,
+    "survivalS": {
+     "max": 3764.651,
+     "median": 3691.412,
+     "min": 3661.661,
+     "n": 5,
+     "values": [
+      3661.661,
+      3714.338,
+      3672.733,
+      3764.651,
+      3691.412
+     ]
+    }
+   },
+   "whFailed": {
+    "max": 6.5875,
+    "median": 4.3419,
+    "min": 2.4799,
+    "n": 5,
+    "values": [
+     2.4799,
+     3.4644,
+     4.3419,
+     6.0381,
+     6.5875
     ]
    },
    "withInterventions": 0,

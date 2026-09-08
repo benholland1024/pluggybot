@@ -98,6 +98,14 @@ MODEL = "claude-haiku-4-5"
 #: arm went to 19-47 % fallback. Every one of those was the scripted
 #: rotation deciding, and the rotation never chooses `charge`.
 #:
+#: ⚠ ...AND A MISSION IS SLOWER THAN THE PROBE, MEASURED IN FLIGHT: five
+#: quiet days at this deadline (Evaluation.md section 3) put a real
+#: decision at a 7.49 s median, a 9.33 s p95 and a 16.69 s MAX, with 34 %
+#: of calls over the old 8 s. A mission's prompt carries a day of
+#: `History.md`, journal and offers that a synthetic state does not, so the
+#: probe under-measures by roughly half. Choose a deadline from the probe;
+#: confirm it with a flight. Zero timeouts in those five days.
+#:
 #: So 90 s is NOT read off the tail -- nothing measured is within twelve
 #: times of it. It is a deliberate PATIENCE budget, and the reasoning is the
 #: project's rather than the distribution's: this world exists to let a mind
