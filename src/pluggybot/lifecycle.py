@@ -47,7 +47,7 @@ from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
-from pluggybot.mind.overseer import THINK_SLICE_S
+from pluggybot.mind.overseer import CALLS_PER_HOUR, THINK_SLICE_S
 from pluggybot.economy.questions import clean_answer
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
@@ -117,6 +117,17 @@ DECIDED_EXPLORE_S = 45.0
 #: ...and how long `idle` stands still for. Long enough to read on the stream
 #: as a deliberate pause, short enough not to be a way of doing nothing all day.
 DECIDED_IDLE_S = 4.0
+#: ...and how long it stands still on an arm where idling is a STRATEGY
+#: rather than a pause (issue #115).
+#:
+#: ⚠ DERIVED FROM THE CALL BUDGET, because the loop must not ask faster than
+#: it is allowed to call. At 4 s a turn an idling robot re-decides 900 times
+#: an hour against `CALLS_PER_HOUR` = 60, so it spends the budget in four
+#: minutes and then spins on `fallback:budget` -- which on this arm fires the
+#: agent's own order, idles, and asks again. `guarded` never showed it
+#: because idling there is rare (7 turns in five days); on `autonomous` it is
+#: a thing the agent may reasonably decide to do for a while.
+AUTONOMOUS_IDLE_S = 3600.0 / CALLS_PER_HOUR
 #: ...and how long the loop stands by when a PRODUCER world has momentarily
 #: run out of work (issue #23). Short, because the only reason to bound it is
 #: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
@@ -1230,6 +1241,12 @@ class HubLifecycle:
     return max(0.0, self.battery.energy_wh - self.reserve_margin_wh)
 
   @property
+  def idle_s(self) -> float:
+    """How long one `idle` decision stands still for -- see
+    `AUTONOMOUS_IDLE_S`, which is the call budget expressed as an interval."""
+    return AUTONOMOUS_IDLE_S if self.autonomous else DECIDED_IDLE_S
+
+  @property
   def claim_budget_wh(self) -> float | None:
     """What an offer's cost is checked against before it may be claimed --
     or None for "do not check".
@@ -1544,7 +1561,7 @@ class HubLifecycle:
       self.explore(budget=DECIDED_EXPLORE_S, mark_done=False)
       return
     if decision.action in ("idle", "journal"):
-      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      self.mission._drive(self.idle_s, 0.0, 0.0)
       return
     errand = errand_from(decision, self.world, self.boards)
     if errand is None:

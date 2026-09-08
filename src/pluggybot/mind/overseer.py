@@ -1931,6 +1931,20 @@ class Overseer:
     if self.budget_left() <= 0:
       return "budget"
     if self._idle_run >= MAX_IDLE_RUN:
+      # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
+      # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
+      #
+      # Without the reset it never reopens, because only a non-idle answer
+      # clears the streak and no answer is being collected. Measured, and it
+      # cost a flown day: the model idled twice -- a perfectly legitimate
+      # choice -- and the next 321 decisions were `fallback:idle-run` firing
+      # its own `idle` standing order, four sim-seconds apart, until the
+      # pack was flat. 331 decisions, 10 of them the model's.
+      #
+      # It is the same shape as the latch this counter had on its OWN
+      # fallbacks, arrived at from the other side: there, fallbacks fed the
+      # streak; here, nothing could drain it.
+      self._idle_run = 0
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
