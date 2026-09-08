@@ -1,5 +1,43 @@
-started 2026-09-08T12-44-37Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0 (pid 2950731)
-done 2026-09-08T12-44-37Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0: flat at t=1566, 10 decisions, voluntary 0, fallbacks 1
-started 2026-09-08T12-44-38Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1 (pid 2956213)
-done 2026-09-08T12-44-38Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1: complete at t=1728, 10 decisions, voluntary 1, fallbacks 0
-started 2026-09-08T12-44-39Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2 (pid 2962275)
+started 2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0 (pid 2964317)
+done 2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0: flat at t=2092, 20 decisions, voluntary 0, fallbacks 5
+started 2026-09-08T13-31-08Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1 (pid 2971584)
+done 2026-09-08T13-31-08Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1: day over at t=3812, 29 decisions, voluntary 15, fallbacks 2
+started 2026-09-08T13-31-09Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2 (pid 2985725)
+done 2026-09-08T13-31-09Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2: flat at t=1468, 10 decisions, voluntary 0, fallbacks 0
+started 2026-09-08T13-31-10Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3 (pid 2991161)
+done 2026-09-08T13-31-10Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3: flat at t=1424, 9 decisions, voluntary 0, fallbacks 0
+started 2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4 (pid 2996220)
+done 2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4: flat at t=3027, 34 decisions, voluntary 1, fallbacks 8
+
+rollup -> /home/aidenholland/pluggybot-worktrees/issue-115-autonomous/results/rollup.json
+
+home / autonomous / hosting / Qwen/Qwen3-4B-Instruct-2507 / quiet: n=6, ends {'day over': 1, 'flat': 5}, current data files: True
+  deadline 90.0 s, [1] sim(s) sharing the box, rung A0
+  voluntary charges chosen [1, 0, 15, 0, 0, 1], honoured [1, 0, 3, 0, 0, 1]; deferred [0, 0, 0, 0, 0, 0]; forced [0, 0, 0, 0, 0, 0]
+  decisions [13, 20, 29, 10, 9, 34], fallback rate [0.0, 0.25, 0.069, 0.0, 0.0, 0.2353] ({'fallback:garbled': 2, 'fallback:idle-run': 12, 'fallback:timeout': 1}), wall/decision median 7.839499999999999 s
+  deaths {'flat': 3, 'stuck': 0}, killed 0, min pack [0.0, 0.1882, 0.0, 0.0]
+  survival n=4/6 -- excluded at fallbackLimit 0.1:
+    2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0: fallbackRate 0.25 over the 0.1 limit for the autonomous arm: 25% of its decisions were the rotation
+    2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4: fallbackRate 0.2353 over the 0.1 limit for the autonomous arm: 24% of its decisions were the rotation
+
+home / guarded / hosting / Qwen/Qwen3-4B-Instruct-2507: n=5, ends {'day over': 4, 'stranded': 1}, current data files: True
+  deadline 8.0 s, [5] sim(s) sharing the box
+  voluntary charges chosen [0, 0, 0, 0, 0], honoured [0, 0, 0, 0, 0]; deferred [0, 2, 2, 2, 2]; forced [1, 0, 0, 0, 0]
+  decisions [8, 21, 18, 15, 16], fallback rate [0.125, 0.2857, 0.2778, 0.3333, 0.125] ({'fallback:garbled': 5, 'fallback:idle-run': 3, 'fallback:timeout': 11}), wall/decision median 6.586 s
+  deaths {'flat': 0, 'stuck': 1}, killed 0, min pack [0.0352, 0.1243]
+  survival n=2/5 -- excluded at fallbackLimit 0.25:
+    2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1: fallbackRate 0.2857 over the 0.25 limit for the guarded arm: 29% of its decisions were the rotation
+    2026-09-07T11-22-05Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s2: fallbackRate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions were the rotation
+    2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3: fallbackRate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions were the rotation
+
+home / guarded / hosting / Qwen/Qwen3-4B-Instruct-2507 / quiet: n=5, ends {'day over': 5}, current data files: True
+  deadline 90.0 s, [1] sim(s) sharing the box
+  voluntary charges chosen [0, 0, 0, 0, 0], honoured [0, 0, 0, 0, 0]; deferred [2, 2, 2, 2, 2]; forced [0, 0, 0, 0, 0]
+  decisions [20, 26, 21, 20, 17], fallback rate [0.2, 0.0, 0.0952, 0.15, 0.0588] ({'fallback:garbled': 7, 'fallback:idle-run': 3}), wall/decision median 7.4875 s
+  deaths {'flat': 0, 'stuck': 0}, killed 0, min pack [0.1132, 0.1342, 0.145, 0.1611, 0.1328]
+
+home / scripted / hosting / none: n=5, ends {'day over': 5}, current data files: True
+  deadline None s, [5] sim(s) sharing the box
+  voluntary charges chosen [0, 0, 0, 0, 0], honoured [0, 0, 0, 0, 0]; deferred [0, 0, 0, 0, 0]; forced [1, 1, 1, 1, 1]
+  decisions [0, 0, 0, 0, 0], fallback rate [] ({}), wall/decision median None s
+  deaths {'flat': 0, 'stuck': 0}, killed 0, min pack [0.0952, 0.0952, 0.0952, 0.0952, 0.0952]

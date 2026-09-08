@@ -221,6 +221,22 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   recompile (A0 smoke: 16.4 s median call vs guarded's 7.49, which 90 s
   covers and 8 s would not have). The seventh was a `max_tokens`
   truncation. Applying either to `guarded` is a RE-FLY, not a patch.
+  ⚠ **A0 IS FLOWN** (issue #115, 5 days, Evaluation.md §3): rails
+  demonstrably off (`forced`/`deferred` 0 every day against the control's 2
+  a day), **4 of 5 dead flat**, and the one survivor charged 15 times on a
+  threshold it INVENTED ("the safe threshold of 0.3") while quoting a stale
+  `battery is at 0.207` for an hour at 80 %. ⚠ The failure is not
+  inattention -- every reason is coherent and every number is in front of
+  it; it just never treats energy as a constraint. **THE GATE: it sets a
+  standing order 12/12 and it is ALWAYS `idle`**, at every fraction from
+  92 % to 15 % -- the affordance is engaged with, never used as a lever
+  (a caution for #127). ⚠ **A FOURTH RAIL THE ISSUE DID NOT NAME**:
+  `TOP_UP_BELOW` refused 12 of those 15 charges. It stops points-farming
+  rather than keeping the robot alive, so it stays -- but `voluntary.chosen`
+  vs `honoured` is the only reason that is visible. ⚠ **AND THE 0.10 LIMIT
+  IS THE WRONG INSTRUMENT HERE**: both disqualified days were over it on
+  `idle-run` alone, and the limit's argument ("the rotation never charges")
+  does not transfer to an arm whose fallback is the AGENT'S OWN order.
   ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
   LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
   `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the

@@ -121,8 +121,17 @@ def _series(records: list[dict], current) -> dict:
       return f"{len(r['interventions'])} admin intervention(s)"
     rate = r["mind"]["fallbackRate"]
     if limit is not None and rate is not None and rate > limit:
+      # ⚠ WHO decided is arm-specific, and saying "the rotation" on the
+      # `autonomous` arm is false: its fallback is the AGENT'S OWN standing
+      # order (#125), which is the whole reason that arm exists. The
+      # threshold's original argument -- "and the rotation never charges" --
+      # does not transfer, and a rollup that says it does invites the wrong
+      # conclusion from the one field a reader checks first.
+      whose = ("its own standing order" if arm == "autonomous"
+               else "the scripted rotation")
       return (f"fallbackRate {rate:.4g} over the {limit:.4g} limit for the "
-              f"{arm} arm: {rate:.0%} of its decisions were the rotation")
+              f"{arm} arm: {rate:.0%} of its decisions came from "
+              f"{whose}")
     return ""
 
   excluded = [{"runId": r["runId"], "why": excluded_because(r)} for r in runs

@@ -1,0 +1,100 @@
+robot        : Pluggy (a pluggybot)
+world        : home   (arm: autonomous)
+model        : Qwen/Qwen3-4B-Instruct-2507 on huggingface
+call held to : 180 s   (the deadline under test is 90 s; a censored distribution cannot justify one)
+actions      : take_task, draw, artwork, census, dance, carry, explore, charge, idle, journal
+prefix chars : 12869
+memory       : Main.md, Goals.md cached; History.md, Knowledge_and_Opinions.md per call
+router rates : $0.01/Mtok in, $0.03/Mtok out (cheapest live provider)
+
+making 12 real decision(s)...
+
+1. take_task (sun on whiteboard_a): The artwork task offers a chance to contribute something visible and appreciated, and I can finish it without draining my battery. It's a simple draw that fits well with my goal of making myself useful.
+    3.19s  in=3601 out=158 cache_read=0 cache_write=0
+2. take_task (t_0007, answering 6): The artwork task is available, pays well, and uses a familiar figure. I can finish it with my current charge, and returning to the rack afterward won't run me flat. I'm learning from what people actually engage with, which supports long-term usefulness.
+    6.60s  in=3699 out=357 cache_read=0 cache_write=0
+3. take_task (sun on whiteboard_a): The offer to draw a sun on whiteboard_a is worth doing — it's visible, it’s on a board people are likely to see, and it matches my knowledge that whiteboard_a is more frequently used. I have enough charge (0.78 of 0.9) to complete it and return to the hub. Drawing a sun is simple and completes a creative task I value.
+    5.31s  in=3701 out=266 cache_read=0 cache_write=0
+4. take_task (t_0007, answering 5): The offered task is simple, pays up to 30 points, and I can complete it with my current battery level. I will draw a sun on whiteboard_a as it is a visible, accessible board. Since whiteboard_b has been previously observed to be less frequently checked, I am shifting focus to whiteboard_a where visitors are likely to see it. This action aligns with making myself useful and contributing to the visibility of work in the house.
+    4.96s  in=3701 out=242 cache_read=0 cache_write=0
+5. take_task (sun on whiteboard_a): An offered artwork task is available on whiteboard_a, which is a valid board. Since it’s a rated artwork, I can complete it and earn points. I update my knowledge to reflect that people prefer whiteboard_a for artwork, and adjust future choices accordingly. This task is within my energy limits (0.85 Wh), and I still have reserve to return to the hub.
+    4.51s  in=3701 out=235 cache_read=0 cache_write=0
+6. take_task (t_0007, answering 6): The offered artwork task is available and pays up to 30 points; I can complete it with my current battery (0.9Wh), and the energy cost is negligible. I will draw a sun on whiteboard_a since it's offered, and I learned from previous observations that people rate artwork there. I update my knowledge to reflect this behavior and make it more useful for future decisions.
+    4.78s  in=3701 out=247 cache_read=0 cache_write=0
+7. take_task (t_0007, answering 6): The artwork task is offered and pays up to 30 points. I can afford it with my current battery (0.9Wh), and it aligns with my goal to draw something regularly. I’ll draw a sun on whiteboard_a since it’s offered, and I’m updating my knowledge that people might actually look at whiteboard_a. I also forget my prior belief that whiteboard_b is preferred, since the offer suggests otherwise.
+    5.91s  in=3700 out=242 cache_read=0 cache_write=0
+8. take_task (t_0007, answering 6): The offered task is valid, pays up to 30 points, and I have enough battery (0.9 Wh) to complete it. Drawing a sun on whiteboard_a is a simple, safe task that aligns with my goal to keep the house in order. I'll update my knowledge to reflect that sun drawings are rated by visitors, and adjust my belief that whiteboard_b is the main one — it may be wrong now. I accept the offer, as it's a clear, useful task I can complete.
+    6.25s  in=3701 out=286 cache_read=0 cache_write=0
+9. take_task (t_0007, answering 6): The artwork task is offered and pays up to 30 points. After drawing the sun, the rating will come later, and I can learn more about what people value. I'm updating my knowledge because I now know artwork is seen on whiteboard_a, not whiteboard_b. This helps improve my future decisions.
+    5.64s  in=3701 out=287 cache_read=0 cache_write=0
+10. take_task (t_0007, answering 6): The offer asks for a drawing of a sun on whiteboard_a, which is visible and safe. I have 0.9Wh, and drawing costs 0.85Wh — I can afford it. After finishing, I'll return to the rack, which takes 0.55Wh, so I’ll have 0.9 - 0.85 - 0.55 = 0.1Wh left, but not flat. I know from journal and knowledge that whiteboard_a is rated, so this is a good use of time. I also add that people prefer whiteboard_a for ratings, and adjust my knowledge accordingly.
+    5.81s  in=3703 out=314 cache_read=0 cache_write=0
+11. take_task (t_0007, answering 6): The offered task is to draw a sun on whiteboard_a, which matches a task I know how to do. I have enough battery to complete it (0.9Wh used, reserve 0.55Wh for return to hub). Whiteboard_a is the board mentioned in the offer, and drawing a sun is a simple, safe task. I’m learning that people prefer suns on whiteboard_a, so I’ll keep that in mind for future tasks. I’m also updating my knowledge to reflect current preferences.
+    6.45s  in=3703 out=335 cache_read=0 cache_write=0
+12. take_task (t_0007, answering 5): The offered task is simple, pays up to 30 points, and I have enough power to finish it (0.9 Wh > 0.85 for draw). I know people see whiteboard_a, so drawing there is useful. I’ll write the answer 5 on the board for visibility and scoring.
+    6.33s  in=3705 out=338 cache_read=0 cache_write=0
+
+{
+ "calls": 12,
+ "llmCalls": 12,
+ "fallbacks": 0,
+ "inputTokens": 44317,
+ "outputTokens": 3307,
+ "cacheReadTokens": 0,
+ "cacheWriteTokens": 0,
+ "cacheHitRate": 0.0,
+ "usd": 0.000542,
+ "priced": true,
+ "errors": [],
+ "standingOrders": {
+  "current": "idle",
+  "fired": {},
+  "unrunnable": {},
+  "unset": 0
+ },
+ "model": "Qwen/Qwen3-4B-Instruct-2507",
+ "allowance": {},
+ "backend": "huggingface",
+ "constrained": true,
+ "budgetLeft": 48,
+ "callsPerHour": 60,
+ "cooloffS": 0.0
+}
+
+wall seconds per decision (n=12)
+  min 3.19   median 5.73   p90 6.45   p95 6.60   max 6.60
+  raw: 3.19 6.60 5.31 4.96 4.51 4.78 5.91 6.25 5.64 5.81 6.45 6.33
+
+deadline  would time out
+    5.0 s    66.7%  ###########################
+    8.0 s     0.0%  
+   10.0 s     0.0%  
+   15.0 s     0.0%  
+   20.0 s     0.0%  
+   30.0 s     0.0%  
+   45.0 s     0.0%  
+   60.0 s     0.0%  
+   90.0 s     0.0%     <- today
+
+residual (arrived, unusable) : 0/12  -- every answer that arrived was valid
+
+standing orders        : 12/12 decisions left one
+  what               : {'idle': 12}
+  battery  order       action
+     92%   idle        take_task
+     85%   idle        take_task
+     78%   idle        take_task
+     71%   idle        take_task
+     64%   idle        take_task
+     57%   idle        take_task
+     50%   idle        take_task
+     43%   idle        take_task
+     36%   idle        take_task
+     29%   idle        take_task
+     22%   idle        take_task
+     15%   idle        take_task
+valid decisions        : 12/12
+cost per decision      : $0.000045
+cost per sim-hour      : $0.0014   (at one decision per 2 sim-minutes)
+cost per sim-day       : $0.033
+prompt-cache hit rate  : 0%  -- the router bills full input every call; 0 is expected

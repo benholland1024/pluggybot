@@ -148,6 +148,36 @@ def synthetic_state(menu: Menu, i: int) -> dict:
   }
 
 
+def report_orders(orders: list[tuple]) -> None:
+  """THE CAPABILITY GATE (issue #115): does the agent use the affordance?
+
+  A standing order is what the robot does when nobody can be reached, and
+  it is the agent's to set -- `idle` until it says otherwise. Three things
+  are worth knowing and none needs a sim: whether it sets one at all, WHAT
+  it sets, and whether that changes as the battery falls.
+
+  ⚠ AN ORDER THAT IS ALWAYS `idle` IS NOT THE SAME AS NO ORDER. The floor
+  is `idle` too, so an agent that never engages with the field and one that
+  deliberately chooses to stand still produce the same behaviour and
+  different records -- which is why `set` and `unset` are counted apart in
+  the run record, and why this prints the ORDER beside the action rather
+  than only counting them.
+  """
+  if not orders:
+    return
+  set_any = [o for _, o, _ in orders if o]
+  print(f"\nstanding orders        : {len(set_any)}/{len(orders)} decisions "
+        "left one")
+  if set_any:
+    kinds: dict = {}
+    for o in set_any:
+      kinds[o] = kinds.get(o, 0) + 1
+    print(f"  what               : {dict(sorted(kinds.items()))}")
+  print("  battery  order       action")
+  for frac, order, action in orders:
+    print(f"  {frac:6.0%}   {order or '(none)':<11} {action}")
+
+
 def report_latency(latencies: list[float], boss: Overseer,
                    held_to: float) -> None:
   """The distribution, then what each candidate deadline would cost.
@@ -220,6 +250,14 @@ def main() -> None:
                            "waiting out the ten-minute interval between "
                            "them, and it is exactly what the gates exist to "
                            "stop the robot doing")
+  parser.add_argument("--arm", choices=("guarded", "autonomous"),
+                      default="guarded",
+                      help="which ARM's prompt and context to measure "
+                           "(issue #115). `autonomous` takes the three rails "
+                           "off in the prompt, hides the verdicts code "
+                           "computed, and offers the agent a STANDING ORDER "
+                           "-- which is the capability gate this answers: "
+                           "does it set one, what, and at what battery")
   parser.add_argument("--timeout", type=float, default=PROBE_TIMEOUT_S,
                       metavar="S",
                       help="wall seconds a call is held to here. NOT the "
@@ -239,8 +277,14 @@ def main() -> None:
   memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
+  autonomous = args.arm == "autonomous"
   boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
                   base_url=args.url, escalate_to=args.escalate_to,
+                  # THE CAPABILITY GATE (issue #115). A standing order is
+                  # the one affordance this arm gives the agent that no
+                  # earlier arm had, and whether it USES it is a
+                  # prompt-response question -- no physics, ten minutes.
+                  autonomous=autonomous, standing_orders=autonomous,
                   # ⚠ NOT the deadline under test -- see `PROBE_TIMEOUT_S`.
                   # It also keeps the measurement honest in a second way:
                   # a call that outlives its deadline stays in flight, and
@@ -254,7 +298,7 @@ def main() -> None:
   # $PLUGGY_ROBOT_NAME like a deployment's would be -- so the probe reports
   # who it measured, not just how big the measurement was.
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
-  print(f"world        : {args.world}")
+  print(f"world        : {args.world}   (arm: {args.arm})")
   print(f"model        : {model} on {backend}")
   print(f"call held to : {args.timeout:g} s   (the deadline under test is "
         f"{CALL_TIMEOUT_S:g} s; a censored distribution cannot justify one)")
@@ -337,6 +381,7 @@ def main() -> None:
 
   print(f"\nmaking {args.calls} real decision(s)...\n")
   latencies: list[float] = []
+  orders: list[tuple] = []
   for i in range(args.calls):
     before = dict(boss.usage.as_dict())
     t0 = time.monotonic()
@@ -356,6 +401,8 @@ def main() -> None:
              ("inputTokens", "outputTokens", "cacheReadTokens",
               "cacheWriteTokens")}
     latencies.append(round(dt, 3))
+    orders.append((state["battery"]["fraction"], decision.standing_order,
+                   decision.action))
     print(f"{i + 1}. {decision.summary()}")
     print(f"   {dt:5.2f}s  in={delta['inputTokens']}"
           f" out={delta['outputTokens']}"
@@ -378,6 +425,8 @@ def main() -> None:
   per_call = stats["usd"] / max(1, stats["llmCalls"])
   valid = sum(1 for d in boss.decisions if not d.scripted)
   report_latency(latencies, boss, args.timeout)
+  if boss.standing_orders:
+    report_orders(orders)
   print(f"valid decisions        : {valid}/{args.calls}"
         + ("" if stats["constrained"] else
            "   (UNCONSTRAINED -- this endpoint refused the schema)"))
