@@ -77,4 +77,30 @@ ENV HOME=/home/pluggy \
     PLUGGY_GOALS=/var/lib/pluggybot/goals.md \
     PLUGGY_THOUGHTS=/var/lib/pluggybot/thoughts
 
+# WHICH BUILD THIS IS (issue #132; docs/Evaluation.md §5). The deployed sim
+# runs the full lifecycle 24 hours a day, and until this existed nothing in
+# its telemetry said which build produced any of it -- so a week of observed
+# behaviour could not be told apart from the week before it under a different
+# commit. `.git` is dockerignored (and copying the history to name a commit
+# would be an odd trade), so the sha is baked here and `repo_commit()` reads
+# it back out of the environment.
+#
+# ⚠ THE GUARD IS THE POINT, and it is the osmesa smoke test's argument
+# again: a default that quietly stays `unknown` produces a container
+# that streams unattributable data for months and looks perfectly healthy.
+# A missing --build-arg is a RED BUILD instead. Build with:
+#
+#   docker build --build-arg PLUGGY_COMMIT=$(git rev-parse --short HEAD) .
+#
+# tests/test_deploy.py runs this very line under `sh` both ways, so the
+# guard cannot rot into decoration.
+#
+# LAST in the file on purpose: an ARG invalidates every layer after it,
+# and the sha changes on every commit -- declared up by the pip install
+# it would reinstall the six packages and re-run the osmesa render for
+# each one.
+ARG PLUGGY_COMMIT=unknown
+RUN [ "$PLUGGY_COMMIT" != unknown ] || { echo "PLUGGY_COMMIT is unset: build with --build-arg PLUGGY_COMMIT=\$(git rev-parse --short HEAD)" >&2; exit 1; }
+ENV PLUGGY_COMMIT=$PLUGGY_COMMIT
+
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]

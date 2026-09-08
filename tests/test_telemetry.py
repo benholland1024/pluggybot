@@ -1363,3 +1363,94 @@ def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path
     assert "truth" not in s, f"the ground truth was published: {s!r}"
     assert f" {truth} " not in s and f" {truth}," not in s, \
         f"the ground truth was published: {s!r}"
+
+
+# ---- build identity in the header (issue #132) --------------------------------
+
+
+def test_the_header_says_which_build_produced_the_stream(mini_model):
+  """The deployed world is an observatory, and an observation nobody can
+  attribute is not weaker data -- it is unusable data (Evaluation.md §5).
+
+  All six things the experiment's series key is made of, in the experiment's
+  own vocabulary, so a regime change is the same question in both places.
+  """
+  from pluggybot.evaluation.record import build_identity
+
+  data = mujoco.MjData(mini_model)
+  identity = build_identity("room_hub", arm="guarded", model="a/b",
+                            backend="huggingface", pack_wh=8.0,
+                            reserve_wh=0.9, deadline_s=90.0,
+                            hashes={"rewards": "ab" * 32}, commit="deadbee")
+  header = FrameBuilder(mini_model, data, model_name="mini",
+                        build=identity).header()
+
+  assert header["build"]["commit"] == "deadbee"
+  assert header["build"]["arm"] == "guarded"
+  assert header["build"]["model"] == "a/b"
+  assert header["build"]["backend"] == "huggingface"
+  assert header["build"]["dataHashes"] == {"rewards": "ab" * 32}
+  assert (header["build"]["packWh"], header["build"]["reserveWh"],
+          header["build"]["deadlineS"]) == (8.0, 0.9, 90.0)
+
+  # ⚠ NESTED, and this is the assertion that says why: the header's own
+  # `model` is the WORLD -- the field a replayer picks its scene off
+  # (protocol/README.md) -- and the mind's model is a different string one
+  # field away. Flattened, a consumer reading `model` would get whichever
+  # was written last.
+  assert header["model"] == "mini"
+
+  # ...and the stream still has frames in it. `build` is FrameBuilder's own
+  # frame-building method, so holding the identity under that name replaces
+  # it with a dict and every frame after the header stops -- silently, and
+  # only on the one path (serve.py) that passes an identity at all.
+  builder = FrameBuilder(mini_model, data, model_name="mini", build=identity)
+  assert isinstance(builder.build(), dict)
+
+
+def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
+  """ADDITIVE, so no `protocolVersion` bump (protocol/README.md's own rule).
+
+  Two halves, and the second is the one that rots: the version does not
+  move, AND a header built without an identity is byte-identical to the one
+  0.15.0 always produced -- which is what keeps every committed fixture,
+  and every recording made before this, valid.
+  """
+  data = mujoco.MjData(mini_model)
+  bare = FrameBuilder(mini_model, data, model_name="mini").header()
+
+  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.15.0"
+  assert "build" not in bare, \
+    "a run that was handed no identity must not invent one"
+
+  from pluggybot.evaluation.record import build_identity
+  stamped = FrameBuilder(mini_model, data, model_name="mini",
+                         build=build_identity("room_hub", arm="scripted",
+                                              hashes={}, commit="x")).header()
+  assert {k: v for k, v in stamped.items() if k != "build"} == bare, \
+    "the identity changed a field a 0.15.0 consumer already reads"
+
+
+def test_the_header_and_the_experiment_record_hash_the_same_files(monkeypatch,
+                                                                 tmp_path):
+  """One implementation, not two (issue #132's fourth acceptance line).
+
+  A header and a `results/` record that computed their own hashes would
+  agree right up to the day one of them learned about a file the other did
+  not, and nothing would notice. So the header calls `data_hashes`, and the
+  proof is that re-pointing a data file moves BOTH.
+  """
+  from pluggybot.economy import scoring
+  from pluggybot.evaluation import record
+
+  before = record.build_identity("room_hub", arm="scripted")["dataHashes"]
+  assert before == record.data_hashes("room_hub")
+
+  tweaked = tmp_path / "rewards.json"
+  tweaked.write_text(Path(scoring.TABLE_PATH).read_text() + "\n")
+  monkeypatch.setenv(scoring.TABLE_ENV, str(tweaked))
+  after = record.build_identity("room_hub", arm="scripted")["dataHashes"]
+
+  assert after["rewards"] != before["rewards"], \
+    "the env override the sim reads is not the file the header hashed"
+  assert after["world"] == before["world"]

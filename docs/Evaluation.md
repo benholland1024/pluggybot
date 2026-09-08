@@ -895,15 +895,44 @@ Four things only the observatory can show, all of them currently unrecorded:
 - **What actually breaks in production**, which is a different set from what
   breaks in a one-hour flight.
 
-⚠ **AND IT IS UNATTRIBUTABLE TODAY.** The header carries `protocolVersion` and
-nothing else — no commit, no data-file hashes — so a week of deployed
-behaviour cannot be told apart from the week before it under a different
-build. That is the same failure `dataHashes` and `deadlineS` were added to the
-series key to prevent, one repo over. **Observatory data without a build
-identifier is not weaker data; it is unusable data**, because two regimes wear
-one name and nothing can separate them afterwards. The sim already computes
-those hashes for the experiment record; putting them in the header is nearly
-free and makes deployed data attributable in the same vocabulary.
+⚠ **IT WAS UNATTRIBUTABLE, AND IS NOT ANY MORE (issue #132).** The header
+used to carry `protocolVersion` and nothing else — no commit, no data-file
+hashes — so a week of deployed behaviour could not be told apart from the week
+before it under a different build. That is the same failure `dataHashes` and
+`deadlineS` were added to the series key to prevent, one repo over.
+**Observatory data without a build identifier is not weaker data; it is
+unusable data**, because two regimes wear one name and nothing can separate
+them afterwards.
+
+The header now carries a `build` block — `commit`, `dataHashes`, `arm`,
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS` — built by
+`evaluation.record.build_identity`, which is the SAME function the experiment
+record's `commit` and `dataHashes` come from. That is the point of putting it
+there rather than restating six fields in the telemetry layer: a header and a
+record that computed their own hashes would agree until the day one of them
+learned about a file the other did not, and nothing would notice.
+
+Three things this deliberately is not:
+
+- **A version bump.** It is additive, so by `protocol/README.md`'s own rule a
+  consumer that has never heard of it reads the header it always read. A
+  header built without an identity is byte-identical to the one 0.15.0
+  produced, which is what keeps every committed fixture and every older
+  recording valid.
+- **A promotion.** The deployed world is still not an experiment and its
+  numbers still never enter a results table. What is now possible is *saying
+  which robot the observations are of* — without which a live-aggregates
+  section is a chart of an unknown mixture.
+- **A field that may fall back.** `.git` is not in the serving image, so the
+  sha is baked at build (`--build-arg PLUGGY_COMMIT`) and the **build is red
+  without one**. A default that quietly stayed `unknown` in production would
+  be indistinguishable, from the outside, from not having done this at all —
+  which is the osmesa smoke test's argument in the same Dockerfile.
+
+⚠ **STORING IT IS THE OTHER HALF, AND IT LIVES IN THE WEBSITE REPO**
+(rooftop-media-2026 #205). Identity with nothing recorded is a header nobody
+reads; records with no identity are a chart of an unknown mixture. Neither
+issue is much use alone.
 
 ⚠ **AN ADMIN INTERVENTION CONTAMINATES EVERY SURVIVAL NUMBER IN ITS RUN.**
 The admin panel will be able to set points and battery directly, which is the
