@@ -1190,11 +1190,31 @@ deliberately built *after* the first experiments, so that the page does not
 shape the experiments around what renders nicely — but the **explanation** is
 written when the data is collected, not when the page is.
 
-So every result set lands with a short written entry: what was run, what the
+So every **series** lands with a short written entry: what was run, what the
 numbers were, what changed since the last set, and what it does **not** show.
 §3's baseline sections are the format. That prose is what the page renders; a
 page built over undocumented numbers would have to invent the interpretation,
 which is the failure mode the whole document is about.
+
+⚠ **A GATE IS NOT A SERIES, AND DOES NOT GET ONE** (8 Sep 2026). §7 defines a
+capability gate as cheap, version-local and not expected to survive a change to
+the world; this section was written before that distinction existed and asked
+for an entry from everything, so the two disagreed about A0. §7 is right. A
+gate reports into **the decision it informs** — the PR, the issue it settles —
+and its runs are committed as evidence rather than narrated as a finding.
+`notes.json` is keyed per series for the same reason: a gate has no series to
+be an entry for.
+
+A0 is the worked example. It changed the plan — charging is inverted (14 of 52
+decisions above 60 % pack, **0 of 15 below 15 %**), the standing order is set
+on 99 of 102 decisions and set to `idle` on 94 % of them, and the single
+survivor is confounded by a points floor that came off with the safety rails.
+All of that belongs in the economy issues it produced, not in a results
+narrative read against a world that will not exist by the time anyone opens it.
+
+The test for which one you have: **would this number still mean something after
+the next change to the world?** If yes, write the entry. If no, it is a gate —
+land the decision and move on.
 
 ### Where the entry goes: `results/notes.json`
 
