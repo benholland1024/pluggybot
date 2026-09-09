@@ -235,6 +235,49 @@ only for rare failures is a path that is always cold. Letting the agent
 *choose* a cheaper mind is a different and better idea (escalation in reverse,
 issue #37's machinery) and belongs on its own.
 
+### ⚠ NO SCRIPTED ROTATION ON `autonomous`, EVER — INCLUDING LIVE
+
+The rotation is `guarded`'s fallback and `guarded`'s alone. On `autonomous`
+**every action the robot takes must originate with the LLM**: a decision it
+made, a standing order it left, or (later) an event mapping it configured —
+or, on a `seeded` origin, a mapping it was given at its origin and may change.
+
+When no answer can be had and no order has been left, the robot **finishes what
+it is doing, runs whatever is already queued, and then idles — even if that
+ends in death.**
+
+`scripted` and `guarded` exist to show that survival is *possible*.
+`autonomous` exists to find out whether the LLM can *achieve* it, and a
+rotation quietly keeping it alive answers a question nobody asked. This holds
+on a measured flight and on the deployed world equally: an arm is a claim about
+who is deciding, and it has to be true wherever it runs.
+
+*(Already the implementation — `Overseer.fallback` reaches `scripted()` only
+when `standing_orders` is False, and `arm_flags` sets it True on `autonomous`
+alone. Written down because it is a principle rather than a detail, and the
+next person to add a "sensible default" to that path needs to meet it.)*
+
+### ⚠ `FALLBACK_LIMIT` IS A ROLLUP FILTER, NOT A POLICY
+
+Worth stating because the names invite the confusion. `rollup.FALLBACK_LIMIT`
+excludes a **finished** run from survival statistics; it cannot cause or
+prevent a fallback, and nothing reads it during a mission.
+
+Its argument is *"a fallback means CODE decided, so this run is not about the
+model"* — true of `guarded`'s rotation, and **false on `autonomous`**, where a
+fallback means the agent's own standing order decided. That is the thing being
+measured, not contamination of it.
+
+So `autonomous` takes **`None`** — no filter — for the same reason `scripted`
+does. ⚠ **Not `0`**: zero would disqualify a run for a single fallback, which
+is the opposite of the intent and would discard nearly every day.
+
+What still needs a limit is `guarded`, and there the reason class matters:
+`timeout` / `offline` / `garbled` / `busy` / `no-client` are things going
+wrong, while `budget` / `idle-run` / `cooloff` / `scripted-mode` are the policy
+working — `overseer.py` already draws that line and the rollup should use it
+rather than re-deriving one.
+
 ### The low-pack interrupt (A2)
 
 Today an errand is **uninterruptible** — `run_errand` checks `needs_charge`

@@ -237,12 +237,34 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   IS THE WRONG INSTRUMENT HERE**: both disqualified days were over it on
   `idle-run` alone, and the limit's argument ("the rotation never charges")
   does not transfer to an arm whose fallback is the AGENT'S OWN order.
-  ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
-  LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
-  `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
-  provisional autonomous limit of 0.10 that disqualifies three days in five
-  for reasons the box had nothing to do with -- re-argue the threshold (or
-  fix the two sources) before reading that arm, issue #115.
+  ⚠ **NO SCRIPTED ROTATION ON `autonomous`, EVER -- INCLUDING LIVE.** The
+  rotation is `guarded`'s fallback and `guarded`'s alone; on `autonomous`
+  every action must originate with the LLM (a decision, a standing order, or
+  later an event mapping it configured). With no answer and no order the
+  robot finishes what it is doing, runs what is queued, and IDLES -- even if
+  that ends in death. `scripted`/`guarded` show survival is possible;
+  `autonomous` asks whether the LLM can achieve it, and a rotation quietly
+  keeping it alive answers a question nobody asked. Already true in code
+  (`Overseer.fallback` reaches `scripted()` only when `standing_orders` is
+  False) and written down so the next "sensible default" on that path meets
+  it. docs/Evaluation.md §2.
+  ⚠ **`FALLBACK_LIMIT` IS A ROLLUP FILTER, NOT A POLICY**, and on
+  `autonomous` it is `None` -- NOT 0, which would disqualify a day for a
+  single fallback. It excludes a FINISHED run from survival statistics and
+  nothing reads it during a mission. Its argument ("a fallback means CODE
+  decided") is true of `guarded`'s rotation and FALSE where the fallback is
+  the agent's own order. `guarded` keeps a limit, and there the class
+  matters: `timeout`/`offline`/`garbled`/`busy`/`no-client` are failures,
+  `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy WORKING
+  (overseer.py already draws that line). Issue #141.
+  ⚠ **THE A0 FALLBACK NUMBERS, MEASURED OFF `results/`** (this file
+  previously carried "10 in 104, 7 `garbled`, 3 `idle-run`", which does not
+  match the committed records): **15 fallbacks in 102 decisions -- 12
+  `idle-run`, 2 `garbled`, 1 `timeout`**, per-day 0.000-0.250. Twelve of
+  fifteen are the policy working and exactly one is the box. Under the old
+  0.10 limit that excluded two days, **both of them `flat` deaths**, taking
+  survival from 1-in-5 to 1-in-3 -- the filter removing the outcome the arm
+  exists to produce, in the direction that flatters it.
   ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
   `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
   entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
