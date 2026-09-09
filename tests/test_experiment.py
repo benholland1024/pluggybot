@@ -471,12 +471,14 @@ def test_the_script_writes_a_record_and_a_rollup(tmp_path):
 # ---- the deadline, and the runs the box decided (issue #117) ------------------
 
 
-def _fallback_record(seed: int, hashes: dict, rate: float, **cfg) -> dict:
+def _fallback_record(seed: int, hashes: dict, rate: float,
+                     why: str = "timeout", **cfg) -> dict:
   """A record whose fallback rate is `rate`, built from real decision rows so
-  the number is derived rather than asserted into place."""
+  the number is derived rather than asserted into place. `why` picks the
+  CLASS -- `timeout` is the box, `idle-run` is the policy working."""
   n = 8
   rows = [_decision(10.0 * i, 0.5, "draw",
-                    source="fallback:timeout" if i < round(rate * n) else "llm")
+                    source=f"fallback:{why}" if i < round(rate * n) else "llm")
           for i in range(n)]
   return rec.build_record(_config(seed=seed, **{"deadlineS": 8.0, **cfg}),
                           _result(),
@@ -514,13 +516,93 @@ def test_a_run_the_box_decided_is_not_a_survival_data_point():
   assert scripted["survival"]["n"] == 1 and scripted["survival"]["excluded"] == []
 
 
-def test_autonomous_is_the_strict_arm():
-  """The thresholds are a judgement call and differ BY ARM on purpose: a
-  fallback dilutes a `guarded` day, whose rails still charge the robot, and
-  can end an `autonomous` one, where nothing else will. A single number for
-  both would have to be one or the other."""
-  assert ru.FALLBACK_LIMIT["autonomous"] < ru.FALLBACK_LIMIT["guarded"]
+#: The FAILURE-class fallback rates of the committed quiet `guarded` series
+#: -- a healthy endpoint on a box with one sim on it (issue #141). Not one
+#: timeout among them: all seven were `garbled`, which is an answer that
+#: arrived on time and could not be used, and no deadline touches that. Here
+#: so a later change to `FALLBACK_LIMIT["guarded"]` has to say which half it
+#: disagrees with, the measurement or the margin.
+MEASURED_FAILURE_FLOOR = 7 / 104
+MEASURED_WORST_HEALTHY_DAY = 0.15
+
+
+def test_the_guarded_limit_clears_the_measured_failure_floor():
+  """A limit UNDER the residual disqualifies every run for ever and reads
+  exactly like a broken harness (Evaluation.md §5). Re-argued in issue #141
+  against the quantity the limit now measures rather than the one it used
+  to: the quiet series' worst healthy day was 0.15 failure-class, and the
+  loaded series -- the box this was built to catch -- ran to 0.333."""
+  limit = ru.FALLBACK_LIMIT["guarded"]
+  assert limit > MEASURED_WORST_HEALTHY_DAY > MEASURED_FAILURE_FLOOR
+  assert limit == 0.25, \
+      "0.25 keeps every measured healthy day and still drops a third-box day"
+
+
+def test_autonomous_has_no_limit_because_its_fallback_is_its_own():
+  """Issue #141. The limit's premise is "a fallback means CODE decided, so
+  this run is not about the model" -- true of `guarded`'s rotation, FALSE on
+  `autonomous`, where the fallback is the agent's own standing order and
+  there is no rotation at all. That is the measurement, not contamination
+  of it.
+
+  ⚠ `None`, and `0` is its opposite: zero disqualifies a day for a single
+  fallback and would have thrown away nearly every autonomous day flown."""
+  assert ru.FALLBACK_LIMIT["autonomous"] is None
   assert set(ru.FALLBACK_LIMIT) == set(rec.ARMS)
+  a = rec.data_hashes("home")
+  s = ru.rollup([_fallback_record(0, a, 0.5, arm="autonomous",
+                                  rung="A0")])["series"][0]
+  assert s["fallbackLimit"] is None
+  assert s["survival"]["n"] == 1 and s["survival"]["excluded"] == []
+
+
+def test_the_policy_class_is_reported_and_disqualifies_nothing():
+  """Issue #141. `fallbackRate` counted `idle-run` -- the agent having
+  answered `idle` twice running, and the throttle making it skip a turn --
+  the same as a timeout, and threw away two of A0's five days for it. Both
+  were `flat` deaths, so the filter removed the outcome the arm exists to
+  produce, in the direction that flatters it.
+
+  The premise is pinned beside the fix: the two records below have the SAME
+  `fallbackRate`, so the old filter could not have told them apart."""
+  a = rec.data_hashes("home")
+  box = _fallback_record(0, a, 0.5, "timeout")
+  agent = _fallback_record(1, a, 0.5, "idle-run")
+  assert box["mind"]["fallbackRate"] == agent["mind"]["fallbackRate"] == 0.5
+  assert rec.fallback_classes(box["mind"])["failureRate"] == 0.5
+  assert rec.fallback_classes(agent["mind"])["failureRate"] == 0.0
+  assert rec.fallback_classes(agent["mind"])["policyRate"] == 0.5
+  s = ru.rollup([box, agent])["series"][0]
+  assert s["survival"]["n"] == 1 and s["overFallback"] == 1
+  [gone] = s["survival"]["excluded"]
+  assert gone["runId"] == box["runId"], \
+      "the policy class must never be what disqualifies a run"
+  # ...and the split is REPORTED, so a day that idled a lot is legible as
+  # exactly that rather than as a day the box ate.
+  assert s["mind"]["fallbackClasses"] == {"failure": 4, "policy": 4}
+  assert s["mind"]["fallbackFailureRate"]["values"] == [0.5, 0.0]
+  assert s["mind"]["fallbackPolicyRate"]["values"] == [0.0, 0.5]
+
+
+def test_the_two_classes_are_one_partition_of_the_closed_vocabulary():
+  """Issue #141's shape rule: the line lives in `overseer.py`, where
+  `_record` first drew it, and the rollup READS it. A second copy is a copy
+  that disagrees the day a reason is added -- and the reasons are a
+  two-repo vocabulary, so one gets added additively rather than never."""
+  policy = set(overseer_mod.POLICY_FALLBACKS)
+  failure = set(overseer_mod.FAILURE_FALLBACKS)
+  assert policy | failure == set(overseer_mod.FALLBACK_REASONS)
+  assert not policy & failure
+  assert failure == {"timeout", "offline", "garbled", "busy", "no-client"}
+  for why in overseer_mod.FALLBACK_REASONS:
+    cls = overseer_mod.fallback_class(f"fallback:{why}")
+    assert cls == ("policy" if why in policy else "failure")
+  assert overseer_mod.fallback_class("llm") == ""
+  assert overseer_mod.fallback_class("llm:big/model") == ""
+  # ⚠ An unrecognised why reads as a FAILURE: a record written under a
+  # vocabulary this build has not heard of must not be quietly excused from
+  # a threshold that counts failures.
+  assert overseer_mod.fallback_class("fallback:sunspots") == "failure"
 
 
 def test_a_quiet_series_and_a_loaded_one_are_not_one_average():

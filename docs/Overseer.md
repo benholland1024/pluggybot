@@ -255,19 +255,37 @@ why. The `source` field is on every decision and in every narration line,
 because "the robot chose to explore" and "the API was down so the robot
 explored" look identical from outside and are not the same event.
 
-| `source` | cause |
-|---|---|
-| `llm` | a real answer |
-| `llm:<model>` | …from the expensive mind the allowance bought (issue #37) |
-| `fallback:timeout` | the call outlived `CALL_TIMEOUT_S` (90 s — issue #117) |
-| `fallback:offline` | nobody answered — transport, HTTP, auth, rate limit, 5xx |
-| `fallback:garbled` | somebody answered, and it was not a decision |
-| `fallback:budget` | the hourly call budget is spent |
-| `fallback:cooloff` | too many failures in a row; the endpoint is being left alone |
-| `fallback:busy` | the previous call is still out there; a second is not piled on |
-| `fallback:idle-run` | two `idle`/`journal` turns in a row; do something |
-| `fallback:no-client` | no SDK, no key, no endpoint: it was never asked |
-| `fallback:scripted-mode` | the operator turned the spending off (issue #37) |
+| `source` | class | cause |
+|---|---|---|
+| `llm` | — | a real answer |
+| `llm:<model>` | — | …from the expensive mind the allowance bought (issue #37) |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (90 s — issue #117) |
+| `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
+| `fallback:garbled` | failure | somebody answered, and it was not a decision |
+| `fallback:busy` | failure | the previous call is still out there; a second is not piled on |
+| `fallback:no-client` | failure | no SDK, no key, no endpoint: it was never asked |
+| `fallback:budget` | policy | the hourly call budget is spent |
+| `fallback:cooloff` | policy | too many failures in a row; the endpoint is being left alone |
+| `fallback:idle-run` | policy | two `idle`/`journal` turns in a row; do something |
+| `fallback:scripted-mode` | policy | the operator turned the spending off (issue #37) |
+
+⚠ **THE CLASS COLUMN IS LOAD-BEARING, AND IT COST TWO DAYS OF DATA TO LEARN
+THAT** (issue #141). A **failure** is something going wrong — the box, the
+endpoint, or a model that could not hold the grammar. A **policy** fallback is
+this system doing its job on purpose. `_record` has drawn the line since issue
+#37, to keep a healthy run's summary from reading like an incident report, and
+`rollup.FALLBACK_LIMIT` did not: counting `idle-run` — the agent having
+answered `idle` twice running — disqualified two of the `autonomous` arm's five
+days, both of them `flat` deaths, for the disposition that arm was flown to
+measure. `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` / `fallback_class`
+are the one partition, and everything that needs it reads them rather than
+keeping a list of its own.
+
+⚠ And the classes are what issue #127's `decision_failed` event configures
+against: an agent that says *"on `timeout`, charge; on `garbled`, idle"* is
+expressing a policy about its own failure modes, and those two genuinely
+warrant different answers. That inherits the closed-vocabulary contract below
+— adding a reason is additive, renaming one is breaking.
 
 ⚠ **This set is CLOSED** (issue #76). `overseer.FALLBACK_REASONS` is the list,
 `tests/test_narration.py` pins it, and this table is the documentation the

@@ -263,6 +263,45 @@ FALLBACK_REASONS = (
   "scripted-mode",  # the operator turned the spending off (issue #37)
 )
 
+#: ...AND THEY FALL INTO TWO CLASSES, which is the line `_record` had been
+#: drawing since issue #37 without naming it (issue #141). A **failure** is
+#: something going wrong -- the box, the endpoint, or a model that could not
+#: hold the grammar. A **policy** fallback is this system doing its job on
+#: purpose: the budget is spent, the endpoint is being left alone, the
+#: operator turned the spending off, or the model has answered `idle` twice
+#: running and is being made to skip a turn.
+#:
+#: ⚠ THE DIFFERENCE IS WHO DECIDED, AND A DISQUALIFIER THAT IGNORES IT
+#: REMOVES THE EVIDENCE. `rollup.FALLBACK_LIMIT` exists to drop a run the
+#: BOX decided; counting `idle-run` towards it disqualified two of A0's five
+#: days -- both of them `flat` deaths -- for the agent having chosen `idle`
+#: a lot, which is the disposition that arm was flown to measure.
+#:
+#: The classes are also the shape issue #127 configures against: an agent
+#: that says "on `timeout`, charge; on `garbled`, idle" is expressing a
+#: policy about its own failure modes, and the two genuinely warrant
+#: different answers. That inherits `FALLBACK_REASONS`' two-repo contract --
+#: adding a reason is additive, renaming one is breaking.
+POLICY_FALLBACKS = ("budget", "cooloff", "idle-run", "scripted-mode")
+FAILURE_FALLBACKS = tuple(w for w in FALLBACK_REASONS
+                          if w not in POLICY_FALLBACKS)
+
+
+def fallback_class(source: str) -> str:
+  """Which class a `Decision.source` falls into: `failure`, `policy`, or
+  `""` for a source that is not a fallback at all.
+
+  ⚠ AN UNRECOGNISED WHY READS AS A FAILURE. `FALLBACK_REASONS` is closed, so
+  this can only be reached by a record written under a vocabulary this build
+  has not heard of -- and the safe reading of an unknown reason is that
+  something went wrong, because the alternative silently excuses it from
+  every threshold that counts failures.
+  """
+  if not source.startswith("fallback:"):
+    return ""
+  return "policy" if source[len("fallback:"):] in POLICY_FALLBACKS \
+      else "failure"
+
 
 def fallback_reason(e: BaseException) -> str:
   """Which token stands for this exception on the wire.
@@ -2010,20 +2049,18 @@ class Overseer:
     self.usage.calls += 1
     if decision.scripted:
       self.usage.fallbacks += 1
-      # `budget`, `idle-run` and `cooloff` are the policy WORKING, not
-      # something going wrong -- listing them as errors would make a healthy
-      # run's summary read like an incident report, which is how a real
-      # incident gets missed.
-      # ...and `scripted-mode` joins them (issue #37): an operator who put
-      # the robot in free mode is not an incident, and a run that listed
-      # every free decision as an error would bury the ones that are.
+      # `POLICY_FALLBACKS` are the policy WORKING, not something going
+      # wrong -- listing them as errors would make a healthy run's summary
+      # read like an incident report, which is how a real incident gets
+      # missed. ⚠ THE TUPLE, not a fourth copy of the list (issue #141):
+      # this is where the two classes were first drawn, and the rollup's
+      # disqualifier now reads the same partition.
       # ...and `offline` / `garbled` are skipped for the opposite reason
       # (issue #76): `_call` has ALREADY written a line for them carrying the
       # exception class, so re-listing the bucket would bury it.
-      if decision.source not in ("fallback:budget", "fallback:idle-run",
-                                 "fallback:cooloff",
-                                 "fallback:scripted-mode",
-                                 "fallback:offline", "fallback:garbled"):
+      if (fallback_class(decision.source) != "policy"
+          and decision.source not in ("fallback:offline",
+                                      "fallback:garbled")):
         self.usage.errors.append(decision.source)
     else:
       self.usage.llm_calls += 1

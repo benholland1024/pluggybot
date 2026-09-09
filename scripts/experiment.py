@@ -19,7 +19,8 @@ baseline's fallback rate was a measurement of five sims sharing six cores.
 `--label quiet` says the rest of it -- the box the runs had to themselves --
 and puts the two series side by side in the rollup rather than averaging a
 loaded day with a quiet one (issue #117). The rollup also DISQUALIFIES a run
-whose fallback rate says the box decided too much of its day, exactly as it
+whose FAILURE-class fallback rate says the box decided too much of its day
+(issue #141 -- the policy class never disqualifies), exactly as it
 already drops a killed run and one an admin touched; the run stays committed
 and the summary prints why it was dropped.
 
@@ -154,13 +155,21 @@ def summarise(rollup_path: Path) -> None:
     print(f"  decisions {m['decisions']['values']}, fallback rate "
           f"{m['fallbackRate']['values']} ({m['fallbackReasons']}), "
           f"wall/decision median {m['wallS']['median']} s")
+    # ...and the same rate split by class, because only one half is judged
+    # (issue #141). Printed even when the arm has no limit: "8 fallbacks,
+    # all of them the policy" is the sentence that stops a reader concluding
+    # the box ate the day.
+    print(f"  of which failure {m['fallbackClasses']['failure']} "
+          f"{m['fallbackFailureRate']['values']}, policy "
+          f"{m['fallbackClasses']['policy']} "
+          f"{m['fallbackPolicyRate']['values']}")
     print(f"  deaths {s['survival']['deaths']}, killed {s['killed']}, "
           f"min pack {s['survival']['minFraction']['values']}")
     # The disqualifier, out loud: a run silently dropped from the survival
     # column is a run whose absence nobody notices (issue #117).
     if s["survival"]["excluded"]:
       print(f"  survival n={s['survival']['n']}/{s['n']} -- excluded at "
-            f"fallbackLimit {s['fallbackLimit']}:")
+            f"fallbackLimit {s['fallbackLimit']} (failure class):")
       for e in s["survival"]["excluded"]:
         print(f"    {e['runId']}: {e['why']}")
 

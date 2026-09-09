@@ -36,12 +36,21 @@ hash because the field did not exist yet.
 
 A record with `end: "killed"` was stopped on wall clock and is excluded from
 survival statistics; one with a non-empty `interventions` list likewise; and,
-since issue #117, so is one whose `fallbackRate` is over its arm's
-`FALLBACK_LIMIT` -- every fallback is the scripted rotation deciding, and a
-day a third decided by the rotation is a third a `scripted` day. All three
-exclusions leave the run committed and in its series: the rollup's
-`survival.excluded` carries the run id and the reason, and `experiment.py`
-prints them rather than reporting a quietly smaller `n`.
+since issue #117, so is one whose FAILURE-class fallback rate is over its
+arm's `FALLBACK_LIMIT` -- on `guarded` a fallback is the scripted rotation
+deciding, and a day a third decided by the rotation is a third a `scripted`
+day. All three exclusions leave the run committed and in its series: the
+rollup's `survival.excluded` carries the run id and the reason, and
+`experiment.py` prints them rather than reporting a quietly smaller `n`.
+
+⚠ **THE FAILURE CLASS, AND ONLY ON THE ARMS WHERE THE ARGUMENT HOLDS**
+(issue #141). `timeout` / `offline` / `garbled` / `busy` / `no-client` mean
+something went wrong; `budget` / `cooloff` / `idle-run` / `scripted-mode` are
+this system working on purpose, and they are reported
+(`mind.fallbackFailureRate`, `fallbackPolicyRate`, `fallbackClasses`) and
+disqualify nothing. `autonomous` has no limit at all: its fallback is the
+agent's own standing order, so "a fallback means code decided" -- the whole
+premise -- is false there.
 
 Two things also define a series as of #117, and neither is a file hash:
 
