@@ -70,6 +70,27 @@ TOPPLE_HOLD_S = 2.0
 #: step and a quaternion-to-tilt every 2 ms would be the cost, not the check.
 DEATH_CHECK_S = 0.1
 
+#: How long a dead robot lies there before it stands itself up (issue #143),
+#: in SIM seconds. A PARAMETER (`restart_after_s`), not a constant to bury:
+#: this is the number a deployment tunes, and the record carries it.
+#:
+#: ⚠ SIM SECONDS, NOT WALL. The deployed world is paced to real time so the
+#: two agree there; an experiment run is not, and a countdown that took five
+#: WALL minutes in a run flying at 3x real time would be a different world.
+#:
+#: ⚠ OFF BY DEFAULT, and `serve.py` is what turns it on. A measured run is
+#: about ONE life -- `survival.survivalS` is already a list, so several spans
+#: per run are representable, but the rollup's survival statistics were
+#: written against one span per run and turning this on by default would
+#: change what every committed number means without anybody choosing it.
+RESTART_AFTER_S = 300.0
+
+#: Who a `reset` event names when the WORLD did it rather than a person. A
+#: sentinel, because `by` is the label an operator log prints and a consumer
+#: should not have to parse prose to tell an admin's hand from a timer --
+#: `auto` on the same event is the machine-readable half.
+AUTO_RESTART_BY = "auto-restart"
+
 # Reserve is absolute energy, not a fraction of the pack -- the milestone-7
 # lesson: the cost of getting home is set by the ROOM, not by the battery.
 LOW_BATTERY_WH = 0.35
@@ -190,6 +211,7 @@ class HubLifecycle:
                inbox=None, tasks=None, producer=None,
                energy=None, thoughts=None, metabolism=None,
                mortal: bool | None = None,
+               restart_after_s: float | None = None,
                autonomous: bool = False) -> None:
     self.model, self.data = model, data
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
@@ -350,6 +372,30 @@ class HubLifecycle:
     # t=184 and ended with the pack back at 87 %, which is a fixture
     # describing a robot that is not there.
     self.mortal = bool(inbox is not None) if mortal is None else bool(mortal)
+    #: AND HOW LONG IT LIES THERE BEFORE STANDING ITSELF UP (issue #143).
+    #: None -- the default -- is the old behaviour exactly: a dead robot
+    #: waits for a person, for ever if need be. `serve.py` sets
+    #: `RESTART_AFTER_S`; `experiment.py` deliberately does not.
+    #:
+    #: WHY IT EXISTS: on `autonomous` the robot dies most days (A0: four in
+    #: five), and a deployed world whose robot lies on the floor until a
+    #: human notices is not a world anybody can watch.
+    #:
+    #: ⚠ AN AUTO-RESTART IS NOT AN INTERVENTION, and that is the single
+    #: load-bearing line of the whole feature. A run with a non-empty
+    #: `interventions` array is EXCLUDED from survival statistics
+    #: (Evaluation.md §5), because an admin's hand contaminates a survival
+    #: number. This is world behaviour on a timer -- if it wrote an
+    #: intervention, every deployed run and every multi-life run would be
+    #: silently disqualified, and the exclusion would be invisible because
+    #: it is SUPPOSED to be there. `interventions` stays for the human.
+    #:
+    #: ⚠ AND IT IS NOT #136's TRUE DEATH EITHER. This KEEPS the volume, so
+    #: the next life reads its predecessor's `History.md` death line on
+    #: every decision -- which is the whole of what dying costs. True death
+    #: archives the volume and starts a new robot. Do not collapse them.
+    self.restart_after_s = (None if restart_after_s is None
+                            else float(restart_after_s))
     self.dead: dict | None = None
     self.deaths: list[dict] = []
     self.resets: list[dict] = []
@@ -364,6 +410,15 @@ class HubLifecycle:
     self.on_event: list = []
     self._tilted_since: float | None = None
     self._next_death_check = 0.0
+    #: ⚠ A STAND-UP STEPS THE SIM, AND THE RESTART SEAM IS ON EVERY STEP
+    #: (issue #143). `MissionRunner.start_at` ends with a one-second settle
+    #: drive, so `stand_up` re-enters `_power_step` -> `_restart_step` while
+    #: `dead` is still set and the clock is still up, and the second call
+    #: does it again: measured as a RecursionError, not a slow leak. The
+    #: guard covers the ADMIN path too -- an admin resetting a robot whose
+    #: timer had already expired would otherwise have the timer fire inside
+    #: the settle drive of their own reset.
+    self._standing_up = False
     self._end_run = False
     # Callbacks fired with (sim_time, bare_message) on every _say line --
     # the live publisher streams narration through here as event messages.
@@ -387,6 +442,7 @@ class HubLifecycle:
                         tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
     self._screen_step()
     self._death_step()
+    self._restart_step()
 
   # ---- death (issue #107) --------------------------------------------------
 
@@ -447,6 +503,42 @@ class HubLifecycle:
                 "cause": cause, "why": why,
                 "survivalS": round(self.survival_s, 3),
                 "deaths": len(self.deaths)})
+
+  @property
+  def reset_in_s(self) -> float | None:
+    """Sim seconds until the robot stands itself up, or None (issue #143).
+
+    None means there is nothing to count: the robot is alive, or no timer
+    was configured. Never negative -- a countdown that went past zero would
+    say the restart had not happened when it is a step away.
+    """
+    if self.dead is None or self.restart_after_s is None:
+      return None
+    left = (self.dead["t"] + self.restart_after_s) - float(self.data.time)
+    return round(max(0.0, left), 1)
+
+  def _restart_step(self) -> None:
+    """The dead robot's own clock (issue #143).
+
+    On the PHYSICS seam beside `_death_step`, not in `_wait_dead`: a flat
+    death is caught the moment it happens, INSIDE an errand or not, and the
+    errand goes on driving until it returns. The clock has to start where
+    the death did rather than where the loop next looks.
+
+    ⚠ REFUSED WHILE A MODULE IS SEATED, and it RETRIES rather than giving
+    up -- `stand_up`'s rule, and the reason it is a `while`-shaped check
+    rather than a one-shot: a robot that died with the pen on its fork must
+    not have it yanked out of the coupling, but it must still get up once
+    the errand has put the thing down.
+    """
+    if (self.dead is None or self.restart_after_s is None
+        or self.tool_powered or self.home_pose is None):
+      return
+    if self._standing_up:
+      return
+    if float(self.data.time) - self.dead["t"] < self.restart_after_s:
+      return
+    self.stand_up(AUTO_RESTART_BY, auto=True)
 
   def _emit(self, message: dict) -> None:
     for hook in list(self.on_event):
@@ -558,7 +650,15 @@ class HubLifecycle:
       # model's context, because a metric the robot cannot see is not one
       # it can optimise. `dead` is the cause while it waits for a reset.
       "survival": {"s": round(self.survival_s, 1), "deaths": len(self.deaths),
-                   "dead": self.dead["cause"] if self.dead else None},
+                   "dead": self.dead["cause"] if self.dead else None,
+                   # ...and how long until it stands itself up (issue #143).
+                   # ⚠ ABSENT rather than null when there is nothing to
+                   # count -- alive, or no timer configured. A `null` here
+                   # would be a countdown a consumer had to special-case,
+                   # and "this world has no restart timer" and "this robot
+                   # is not dead" are both simply "no number".
+                   **({"resetInS": self.reset_in_s}
+                      if self.reset_in_s is not None else {})},
     }
 
   # ---- scoring (issue #14) -------------------------------------------------
@@ -1104,7 +1204,39 @@ class HubLifecycle:
     if self.home_pose is None:
       self._say("ADMIN reset refused: no start pose to return to")
       return
+    self.stand_up(who, auto=False)
+
+  def stand_up(self, by: str, auto: bool) -> None:
+    """Put the robot back at the start pose with a full pack.
+
+    ONE implementation, two callers (issue #143): an admin reaching in
+    through the visitor channel, and the world's own restart timer. What
+    they share is everything physical -- the pose, the pack, the survival
+    clock, the `reset` event, the line in `History.md`. What differs is
+    WHO, and it is not cosmetic:
+
+      `auto=False`  an admin's hand. A reset of a LIVING robot is an
+                    INTERVENTION and the run stops being a survival data
+                    point (issue #119).
+      `auto=True`   world behaviour on a timer. NEVER an intervention --
+                    see `restart_after_s`. It can only ever follow a
+                    death, because that is the only thing that starts the
+                    clock.
+
+    ⚠ The caller checks `tool_powered` and `home_pose`; the two callers
+    narrate their refusals differently and the timer RETRIES rather than
+    reporting one.
+    """
     was = self.dead
+    assert was is not None or not auto, \
+        "an auto-restart can only follow a death (issue #143)"
+    self._standing_up = True
+    try:
+      self._stand_up(by, auto, was)
+    finally:
+      self._standing_up = False
+
+  def _stand_up(self, by: str, auto: bool, was: dict | None) -> None:
     t = float(self.data.time)
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
@@ -1117,14 +1249,29 @@ class HubLifecycle:
     self.survival_since = float(self.data.time)
     self.state = "EXPLORE"
     event = {"type": "reset", "t": round(t, 3), "robot": ROBOT_ROOT,
-             "by": who, "wasDead": was["cause"] if was else None,
-             "deadS": dead_s, "intervention": was is None}
+             "by": by, "wasDead": was["cause"] if was else None,
+             "deadS": dead_s, "intervention": was is None,
+             # The machine-readable half of WHO (issue #143). `by` is a
+             # label an operator log prints; a consumer telling "the world
+             # stood it up" from "somebody stood it up" should not have to
+             # parse prose to do it.
+             "auto": bool(auto)}
     self.resets.append(dict(event))
-    self._say(f"ADMIN {who} reset me -- back at the start pose with a full "
-              "pack" + (f" after {dead_s:.0f} s dead" if was else
-                        " (I was not dead)"))
-    self._remember(f"reset by {who}" + (f" after {dead_s:.0f} s dead"
-                                        if was else " while still awake"))
+    if auto:
+      # ⚠ THE WORDS MATTER HERE. `History.md` is unrevisable and the robot
+      # reads it on every later decision, so "a person came and helped me"
+      # and "I waited and got up" are two different things to have believed
+      # about your own life. The death line above it survives either way --
+      # that is what dying costs (Evaluation.md §6).
+      self._say(f"UP again after {dead_s:.0f} s down -- back at the start "
+                "pose with a full pack (nobody came; the world stood me up)")
+      self._remember(f"stood back up on my own after {dead_s:.0f} s down")
+    else:
+      self._say(f"ADMIN {by} reset me -- back at the start pose with a full "
+                "pack" + (f" after {dead_s:.0f} s dead" if was else
+                          " (I was not dead)"))
+      self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
+                                         if was else " while still awake"))
     self._emit(event)
     if was is None:
       # ⚠ A RESCUE IS NOT AN INTERVENTION. Standing a DEAD robot up ends one
@@ -1137,7 +1284,15 @@ class HubLifecycle:
       #
       # AFTER the reset, because it is a fact ABOUT the reset rather than a
       # separate act, and the reset is what a reader wants to see first.
-      self._intervene("reset_robot", who,
+      #
+      # ⚠ AND AN AUTO-RESTART CANNOT REACH HERE (issue #143), structurally
+      # rather than by a flag: the timer only ever fires on a DEAD robot,
+      # `was` is therefore never None on that path, and the assert at the
+      # top of this method says so out loud. If world behaviour wrote an
+      # intervention, every deployed run would be silently disqualified
+      # from survival statistics and the exclusion would be invisible,
+      # because an entry in that array is supposed to be believed.
+      self._intervene("reset_robot", by,
                       before={"frac": round(before_frac, 4)},
                       after={"frac": round(self.battery.fraction, 4)},
                       t=t, announce=False)
@@ -2539,6 +2694,7 @@ def run_demo(start=None, view: bool = False,
              stop_when: Callable[["HubLifecycle"], bool] | None = None,
              on_ready: Callable[["HubLifecycle"], None] | None = None,
              mortal: bool | None = None,
+             restart_after_s: float | None = None,
              autonomous: bool = False,
              show_survival: bool = True) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
@@ -2664,7 +2820,8 @@ def run_demo(start=None, view: bool = False,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger,
-                      mortal=mortal, autonomous=autonomous)
+                      mortal=mortal, restart_after_s=restart_after_s,
+                      autonomous=autonomous)
   # Where the pack starts (issue #84). A mission does not have to begin on a
   # full cell -- the milestone-8 test starts half-charged so its one-errand
   # day still needs the hub, now that the grown demo cell can fund a whole

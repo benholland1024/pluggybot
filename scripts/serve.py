@@ -35,6 +35,13 @@ Usage:
                         # §2 argues it stays guarded, and that argument is
                         # updated in the PR that changes it, never
                         # silently contradicted.
+  ... --restart-after 300     # SIM seconds a DEAD robot lies there before
+                        # it stands itself up (issue #143). ON here and off
+                        # in the experiment harness; 0 leaves it waiting for
+                        # a person, as every world did before. ⚠ NOT an
+                        # intervention: world behaviour on a timer is not an
+                        # admin's hand, and `interventions` is what excludes
+                        # a run from survival statistics.
   ... --rate 2.0        # sim seconds per wall second (default 1.0)
   ... --free-run        # no pacing: measure this machine's real-time multiple
   ... --record out.jsonl.gz   # also keep a v0 recording of the same run
@@ -65,8 +72,8 @@ from pluggybot.evaluation.record import build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.lifecycle import (
-  HubLifecycle, attach_mode_stream, board_book, errands_for, points_ledger,
-  task_board, task_producer, world_config, world_screens,
+  RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
+  points_ledger, task_board, task_producer, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
@@ -98,6 +105,16 @@ def main() -> None:
   parser.add_argument("--reserve-wh", type=float, default=None,
                       help="override the world's go-charge reserve, in Wh")
   parser.add_argument("--max-sim-time", type=float, default=600.0)
+  parser.add_argument("--restart-after", type=float, default=RESTART_AFTER_S,
+                      metavar="S",
+                      help="SIM seconds a dead robot lies there before it "
+                           "stands itself up (issue #143; 0 disables it and "
+                           "the robot then waits for a person, which is what "
+                           "every world did before). ON here and off in the "
+                           "experiment harness: a served world whose robot is "
+                           "on the floor until somebody notices is not a "
+                           "world anybody can watch, and a measured run is "
+                           "about ONE life")
   parser.add_argument("--robot-name", default=None, metavar="NAME",
                       help="this robot's display name on the wire (issue "
                            "#39): the identity the site shows, e.g. 'Luca "
@@ -388,7 +405,16 @@ def main() -> None:
                       # `_afford_next` and `claim_budget_wh`. The prompt is
                       # corrected in the same breath by `overseer.build`
                       # above, off the same dict.
-                      autonomous=bool(flags.get("autonomous")))
+                      autonomous=bool(flags.get("autonomous")),
+                      # ...and the dead robot's own clock (issue #143). ON by
+                      # default HERE and nowhere else: this world runs
+                      # continuously and its robot dies most days on the
+                      # `autonomous` arm, and a robot lying on the floor
+                      # until a human notices is not a world anybody can
+                      # watch. ⚠ NOT an intervention -- see
+                      # `HubLifecycle.restart_after_s`.
+                      restart_after_s=(args.restart_after
+                                       if args.restart_after > 0 else None))
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
   # This world is an OBSERVATORY, not an experiment: one uncontrolled

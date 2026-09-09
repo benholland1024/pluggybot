@@ -56,7 +56,13 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
             "packWh": (cfg["battery_wh"] if config["pack"] == "demo"
                        else cfg["hosting_battery_wh"]),
             "reserveWh": cfg["low_battery_wh"],
-            "deadlineS": (ov.CALL_TIMEOUT_S if flags["overseer"] else None)}
+            "deadlineS": (ov.CALL_TIMEOUT_S if flags["overseer"] else None),
+            # The dead robot's restart timer (issue #143), recorded whether
+            # or not it is on: a run whose robot could stand itself up is a
+            # different experiment from one whose robot could not, and a
+            # field that only appeared when the feature was used would make
+            # every older record ambiguous rather than negative.
+            "restartAfterS": config.get("restartAfterS")}
   t0 = time.time()
   result = None
   try:
@@ -80,6 +86,15 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
       # and a run that quietly survived a flat pack would report a
       # survival span that never happened.
       mortal=True,
+      # ...and DELIBERATELY NOT auto-restarting (issue #143). A measured run
+      # is about ONE life. `survival.survivalS` is already a list, so several
+      # spans per run are representable -- but the rollup's survival
+      # statistics were written against one span per run, and turning this on
+      # by default would change what every committed number means without
+      # anybody choosing it. The served world is where it belongs; if the
+      # harness ever wants it, that is a deliberate change to the rollup in
+      # the same breath. `config["restartAfterS"]` records the None.
+      restart_after_s=config.get("restartAfterS"),
       on_ready=probe.attach, **flags)
   finally:
     wall = time.time() - t0

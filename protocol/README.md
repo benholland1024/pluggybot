@@ -138,7 +138,7 @@ survival measures the kindness of the audience (docs/Evaluation.md §5).
 {"type": "death", "t": 2852.1, "robot": "pluggybot", "cause": "flat",
  "why": "the pack reached zero", "survivalS": 2852.1, "deaths": 1}
 {"type": "reset", "t": 3010.0, "robot": "pluggybot", "by": "ben",
- "wasDead": "flat", "deadS": 157.9, "intervention": false}
+ "wasDead": "flat", "deadS": 157.9, "intervention": false, "auto": false}
 ```
 
 `cause` is one of `DEATH_CAUSES`, **`flat`** (the pack reached zero — a
@@ -153,6 +153,7 @@ survival data point.
 
 ```jsonc
 "survival": {"s": 412.3, "deaths": 0, "dead": null}   // dead: null | "flat" | "stuck"
+"survival": {"s": 0.0, "deaths": 1, "dead": "flat", "resetInS": 221.4}
 ```
 
 `s` is sim seconds since mission start or the last reset. While `dead` is
@@ -175,6 +176,45 @@ for the rest of the run, and the prompt tells it what `survival.aliveS` is.
 Additive on the wire (new kind, new events, new field); the bump is for the
 new lifecycle state and because a consumer that renders `deaths` needs to
 know the producer emits them.
+
+### A dead robot stands itself up, and says when
+
+pluggybot #143 (M15). **Additive, and the version does NOT move** — a
+consumer that has never heard of either field reads exactly what it always
+read, and both degrade to "there is no timer here", which is a true statement
+about every producer before this and about any world that turns it off.
+
+**1. `survival.resetInS`** — sim seconds until the robot gets back up.
+
+⚠ **ABSENT rather than null when there is nothing to count**, which is two
+different situations wearing one shape: the robot is alive, or this world has
+no restart timer. Both are simply *no number*, and a `null` would be a
+countdown every consumer had to special-case before rendering one.
+
+⚠ **SIM seconds, not wall.** The deployed world is paced to real time so the
+two agree there; a recording replayed at speed is not, and a consumer ticking
+this between frames should tick it in the stream's own time (companion issue
+rooftop-media-2026 #215, the countdown over the body).
+
+**2. `auto` on the `reset` event** — `true` when the world's own timer stood
+the robot up, `false` when a person did.
+
+⚠ **`by` is a LABEL and `auto` is the fact.** An operator log prints `by`
+(`"ben"`, or `"auto-restart"`), but a consumer telling "somebody stood it up"
+from "it got up by itself" should not have to parse prose to do it.
+
+⚠ **AN AUTO-RESTART IS NEVER AN INTERVENTION**, and `intervention` stays
+exactly what it was: the admin moved a *living* robot, and a measurement
+containing one is not a survival data point. World behaviour on a timer is
+not a hand — if it filled that array, every deployed run would be silently
+disqualified from survival statistics, and the exclusion would be invisible
+because an entry there is supposed to be believed. A rescue was never an
+intervention (0.15.0); what #143 adds is a second party who can perform one.
+
+⚠ **AND IT IS NOT A TRUE DEATH.** This keeps the volume, so the next life
+reads its predecessor's `History.md` death line on every decision — which is
+the whole of what dying costs. A true death archives the volume and starts a
+new robot, and it is a different event.
 
 ### The header says which build produced the stream
 
