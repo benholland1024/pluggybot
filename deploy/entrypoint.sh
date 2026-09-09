@@ -89,12 +89,31 @@ if [ -n "${PLUGGY_ESCALATE_TO:-}" ]; then
 fi
 if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
-  if [ -n "${PLUGGY_JOURNAL:-}" ]; then
-    set -- --journal "${PLUGGY_JOURNAL}" "$@"
-  fi
-  if [ -n "${PLUGGY_OVERSEER_BUDGET:-}" ]; then
-    set -- --overseer-budget "${PLUGGY_OVERSEER_BUDGET}" "$@"
-  fi
+fi
+# WHICH ARM the deployed world flies (pluggybot #142). $PLUGGY_ARM is the
+# stronger statement and overrides $PLUGGY_OVERSEER in both directions --
+# `scripted` turns a mind off, `autonomous` takes the three rails away and
+# corrects the prompt to match. $PLUGGY_RUNG picks A0 or A1, and is refused
+# on any other arm rather than ignored.
+# ⚠ Setting PLUGGY_ARM=autonomous on the DEPLOYED world is a deliberate act
+# and not a tuning change: docs/Evaluation.md §2 argues it stays `guarded`,
+# and A0 died on four days in five.
+if [ -n "${PLUGGY_ARM:-}" ]; then
+  set -- --arm "${PLUGGY_ARM}" "$@"
+fi
+if [ -n "${PLUGGY_RUNG:-}" ]; then
+  set -- --rung "${PLUGGY_RUNG}" "$@"
+fi
+# ⚠ THE JOURNAL AND THE CALL BUDGET ARE NOT UNDER $PLUGGY_OVERSEER (#142).
+# They used to be, and an $PLUGGY_ARM that turned a mind on without it would
+# have silently lost the journal. Both are inert without an overseer --
+# `overseer.build` returns (None, None) and neither path is read -- so the
+# safe shape is to pass them whenever they are set.
+if [ -n "${PLUGGY_JOURNAL:-}" ]; then
+  set -- --journal "${PLUGGY_JOURNAL}" "$@"
+fi
+if [ -n "${PLUGGY_OVERSEER_BUDGET:-}" ]; then
+  set -- --overseer-budget "${PLUGGY_OVERSEER_BUDGET}" "$@"
 fi
 
 exec python scripts/serve.py "$@"

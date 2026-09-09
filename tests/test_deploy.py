@@ -190,6 +190,58 @@ def test_entrypoint_is_executable():
   assert (ROOT / "deploy" / "entrypoint.sh").stat().st_mode & 0o111
 
 
+def _entrypoint_argv(tmp_path, **env) -> list[str]:
+  """What `deploy/entrypoint.sh` hands `serve.py`, for a given environment.
+
+  The REAL script under `sh`, with a fake `python` first on PATH that prints
+  its argv -- the same discipline `_commit_guard` uses on the Dockerfile's
+  guard line. A restated copy of the env-to-flag mapping would keep passing
+  after somebody changed the real one, which is the only failure worth
+  catching here.
+  """
+  bin_dir = tmp_path / "bin"
+  bin_dir.mkdir(parents=True)
+  fake = bin_dir / "python"
+  fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+  fake.chmod(0o755)
+  proc = subprocess.run(
+    ["sh", str(ROOT / "deploy" / "entrypoint.sh")],
+    cwd=ROOT, capture_output=True, text=True,
+    env={"PATH": f"{bin_dir}:{os.environ.get('PATH', '')}", **env})
+  assert proc.returncode == 0, proc.stderr
+  return proc.stdout.split()
+
+
+def test_the_image_can_be_told_which_arm_to_fly(tmp_path):
+  """Issue #142. The image takes ENVIRONMENT, never flags, so `$PLUGGY_ARM`
+  has to reach `serve.py` through the entrypoint or the capability does not
+  exist where it matters."""
+  argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="autonomous", PLUGGY_RUNG="A1")
+  assert "--arm" in argv and argv[argv.index("--arm") + 1] == "autonomous"
+  assert "--rung" in argv and argv[argv.index("--rung") + 1] == "A1"
+  # ...and unset means the deployment behaves exactly as it did: no arm
+  # named, so `$PLUGGY_OVERSEER` decides and the world is `guarded`.
+  bare = _entrypoint_argv(tmp_path / "bare")
+  assert "--arm" not in bare and "--rung" not in bare
+
+
+def test_the_journal_is_not_trapped_behind_the_overseer_flag(tmp_path):
+  """⚠ The trap issue #142 walked into. `--journal` and `--overseer-budget`
+  used to be set only inside the `$PLUGGY_OVERSEER` branch -- so a
+  `$PLUGGY_ARM` that turned a mind on WITHOUT that variable would have
+  silently lost the robot's journal, on a volume where it is world state.
+
+  Both are inert without an overseer (`overseer.build` returns `(None,
+  None)` and neither path is read), so the safe shape is to pass them
+  whenever they are set."""
+  argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="guarded",
+                          PLUGGY_JOURNAL="/var/lib/pluggybot/journal.json",
+                          PLUGGY_OVERSEER_BUDGET="30")
+  assert "--overseer" not in argv, "the arm is what asked for a mind here"
+  assert argv[argv.index("--journal") + 1] == "/var/lib/pluggybot/journal.json"
+  assert argv[argv.index("--overseer-budget") + 1] == "30"
+
+
 # ---- the build's identity (issue #132) ----------------------------------------
 
 

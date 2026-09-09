@@ -149,6 +149,7 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    backend: str | None = None, pack_wh: float | None = None,
                    reserve_wh: float | None = None,
                    deadline_s: float | None = None,
+                   rung: str | None = None,
                    hashes: dict | None = None,
                    commit: str | None = None) -> dict:
   """WHICH BUILD produced a stream, in the experiment's own vocabulary
@@ -185,6 +186,18 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # a data file, so no hash catches it, and which decides how much of a
     # day the model decided at all (issue #117).
     "packWh": pack_wh, "reserveWh": reserve_wh, "deadlineS": deadline_s,
+    # ...and WHICH RUNG, where there is a ladder (issue #142). Part of the
+    # rollup's series key for the same reason it is here: A0 hides the
+    # survival clock A1 restores, so two rungs are two regimes.
+    #
+    # ⚠ ABSENT rather than null on an arm with no ladder, which is the one
+    # place this block departs from `model`/`backend`. Those answer a
+    # question every arm has an answer to ("which mind" -- none, on
+    # `scripted`); "which rung" is not a question `guarded` has an answer
+    # to, and a `"rung": null` beside it invites a reader to look for a
+    # ladder that does not exist. It also keeps a `guarded` header -- the
+    # deployed world's -- byte-identical to the one #132 shipped.
+    **({"rung": rung} if rung else {}),
   }
 
 

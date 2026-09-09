@@ -991,11 +991,21 @@ PLUGGY_OVERSEER=1 PLUGGY_ERRAND=none ANTHROPIC_API_KEY=... \
 ```
 
 Environment (the deploy configures with `environment:` alone):
+`PLUGGY_ARM`, `PLUGGY_RUNG`,
 `PLUGGY_OVERSEER`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`,
 `PLUGGY_OVERSEER_URL`, `PLUGGY_GOALS`, `PLUGGY_THOUGHTS`,
 `PLUGGY_JOURNAL`,
 `PLUGGY_OVERSEER_BUDGET`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
-`PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY`
+`PLUGGY_ENERGY`.
+
+⚠ **`PLUGGY_ARM` IS THE STRONGER STATEMENT** (issue #142; Evaluation.md §2).
+It names the arm — `scripted` / `guarded` / `autonomous` — off the one
+definition the experiment flies (`evaluation/arms.py`), and overrides
+`PLUGGY_OVERSEER` in **both** directions: `scripted` turns a mind off, and
+`autonomous` takes the three rails away and corrects the prompt in the same
+breath. `PLUGGY_RUNG` picks `A0` or `A1` and is refused on an arm with no
+ladder rather than ignored. **Unset changes nothing** — `PLUGGY_OVERSEER`
+decides as it always has, and the deployed world is still `guarded`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY`
 are deliberately **not** turned into flags — the backends read them from the
 environment and they stay out of `ps`, exactly like `PLUGGYWORLD_TOKEN`.
 
