@@ -327,6 +327,43 @@ LANDS.** Three reasons, and the third is the one that will be forgotten:
    because a 4B model had an off afternoon is a broken-looking website, and
    the deployment is not the experiment (§5).
 
+### Which arm the served world flies, and how it is asked for
+
+**Issue #142 built the capability and did not use it.** Until then `serve.py`
+*reported* an arm and could not *set* one: the identity header derived
+`autonomous` from `life.autonomous`, and nothing on that path could make it
+True, so the deployed world could only ever be `scripted` or `guarded`
+whatever anyone intended. It now takes `--arm {scripted,guarded,autonomous}`
+and `--rung {A0,A1}` (`$PLUGGY_ARM` / `$PLUGGY_RUNG`, since the image is
+configured by environment), off **one** definition — `evaluation/arms.py`,
+imported by the experiment and by the server. Two definitions of what an arm
+means is how a stream comes to claim an arm nobody flew.
+
+⚠ **THE DEFAULT DID NOT MOVE, AND POINT 3 ABOVE STILL STANDS.** With no arm
+named, `--overseer` decides exactly as it always did and the arm is read off
+what was *built*. **The deployed world is still `guarded`.**
+
+⚠ **FLIPPING IT IS A DECISION, NOT A CONFIG CHANGE**, and it updates point 3
+in the same pull request rather than silently contradicting it. Two things to
+have in hand before making it:
+
+- **A0 died on four days in five**, with survival spans of 1394–2999 s
+  against a 3600 s day. On a world that runs continuously that is a robot on
+  the floor most of the time, recoverable only by an admin pressing reset —
+  so the auto-restart (issue #143) comes first, or `autonomous` live means
+  a broken-looking website by a different route than the one point 3 feared.
+- The argument in point 3 *is* weaker than it was: there is no traffic yet,
+  `reset_robot` and the admin panel exist, and M15's condition and revival
+  work is what makes a death legible rather than a blank page. Weaker is not
+  gone.
+
+⚠ **AND THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** `--arm guarded`
+on a box with no key builds a mind that answers `fallback:no-client` — still
+`guarded`, and the fallback rate says the rest — but an arm whose overseer
+could not be constructed at all is a `scripted` day and the header says so.
+An arm is a claim about who is deciding; a header that repeated the request
+would be a claim about who was *asked*.
+
 ⚠ **`scripted` is the arm that will be skipped, and it is the cheapest one to
 run.** If the LLM arms do not beat a rotation with no mind in it, that is a
 result — and a more interesting one than most of the alternatives. Run it.

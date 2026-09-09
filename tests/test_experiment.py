@@ -356,6 +356,44 @@ def test_every_arm_says_what_it_means_and_the_ladder_is_a_setting():
     arm_flags("autonomous", "A9")
 
 
+def test_what_an_arm_means_has_exactly_one_definition():
+  """Issue #142. `arm_flags` lived in `evaluation/run.py`, the experiment's
+  child-process entry point -- so `serve.py` could REPORT an arm (its
+  identity header derives one) and had no way to SET one, and the
+  `autonomous` branch of that derivation was unreachable.
+
+  It now lives in `evaluation/arms.py` with two importers. The old name is
+  still the old name, because every caller has found it there for three
+  issues, and this asserts they are the SAME OBJECT rather than two that
+  agree today.
+  """
+  from pluggybot.evaluation import arms, run as run_mod
+
+  assert run_mod.arm_flags is arms.arm_flags
+  assert run_mod.RUNGS is arms.RUNGS
+  # ...and the ladder belongs to the arm that has one. A rung named for any
+  # other arm is refused rather than ignored: A0 hides the survival clock A1
+  # restores, so somebody who typed it believes they changed something.
+  assert arms.rung_for("autonomous", None) == arms.DEFAULT_RUNG == "A0"
+  assert arms.rung_for("autonomous", "A1") == "A1"
+  assert arms.rung_for("guarded", None) is None
+  with pytest.raises(ValueError, match="no ladder"):
+    arms.rung_for("guarded", "A1")
+
+
+def test_a_rung_rides_the_build_identity_only_where_there_is_one():
+  """The rung is part of the regime -- the rollup's series key carries it
+  for the same reason -- so a stream has to say which one it is (issue
+  #142). ⚠ ABSENT rather than null on an arm with no ladder, which keeps a
+  `guarded` header byte-identical to the one #132 shipped."""
+  a0 = rec.build_identity("home", arm="autonomous", rung="A0", commit="abc")
+  assert a0["rung"] == "A0"
+  assert "rung" not in rec.build_identity("home", arm="guarded", commit="abc")
+  bare = rec.build_identity("home", arm="guarded", commit="abc")
+  assert bare == rec.build_identity("home", arm="guarded", rung=None,
+                                    commit="abc")
+
+
 def test_the_wall_limit_has_a_floor_for_short_days():
   """A run's start-up cost does not scale with the day: 3 x 30 s killed the
   slow test below under the full suite's load and called it `killed`."""

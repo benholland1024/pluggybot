@@ -197,7 +197,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   carries a day of history). Choose the deadline from the probe, confirm it
   with a flight.
   ⚠ **THE `autonomous` ARM IS BUILT** (issue #115): `--arm autonomous
-  --rung A0|A1`. THREE rails come off together (`HubLifecycle.autonomous`,
+  --rung A0|A1` -- on `scripts/experiment.py` AND, since issue #142, on
+  `scripts/serve.py` (`$PLUGGY_ARM` / `$PLUGGY_RUNG`). THREE rails come off together (`HubLifecycle.autonomous`,
   read by `needs_charge`, `_afford_next` and `claim_budget_wh` and by
   NOTHING else), the prompt is corrected in the same change
   (`RULES_AUTONOMOUS`, built from `RULES` by three ASSERTED replacements so
@@ -248,6 +249,30 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   (`Overseer.fallback` reaches `scripted()` only when `standing_orders` is
   False) and written down so the next "sensible default" on that path meets
   it. docs/Evaluation.md §2.
+  ⚠ **THE DEPLOYED WORLD CAN NOW FLY AN ARM, AND STILL FLIES `guarded`**
+  (issue #142). `serve.py` REPORTED an arm and could not SET one: the
+  identity header derived `autonomous` off `life.autonomous` and nothing on
+  that path could make it True, so that branch was unreachable. `--arm
+  {scripted,guarded,autonomous}` + `--rung {A0,A1}` (`$PLUGGY_ARM` /
+  `$PLUGGY_RUNG`) fix it off **ONE** definition -- `evaluation/arms.py`,
+  imported by `evaluation/run.py` and by `serve.py`. Two definitions of what
+  an arm means is how a stream claims an arm nobody flew.
+  ⚠ **UNSET CHANGES NOTHING**: `--overseer` decides as it always did and the
+  arm is read off what was BUILT. A named arm is the STRONGER statement and
+  overrides `$PLUGGY_OVERSEER` in both directions; a contradiction
+  (`--overseer --arm scripted`) and a rung on an arm with no ladder are both
+  REFUSED rather than resolved.
+  ⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR** -- `--arm guarded`
+  with no key is still `guarded` (the mind answers `fallback:no-client` and
+  the fallback rate says the rest), but an arm whose overseer could not be
+  built at all is a `scripted` day. `build.rung` is ADDITIVE and ABSENT
+  where there is no ladder, which keeps a `guarded` header byte-identical to
+  #132's.
+  ⚠ **FLIPPING THE DEPLOYED WORLD IS A DECISION, NOT A CONFIG CHANGE.**
+  Evaluation.md §2 argues it stays `guarded` and that argument updates in
+  the PR that changes it. A0 died 4 days in 5 (spans 1394-2999 s of a
+  3600 s day), so without the auto-restart (#143) `autonomous` live is a
+  robot on the floor waiting for an admin.
   ⚠ **`FALLBACK_LIMIT` IS A ROLLUP FILTER, NOT A POLICY**, and on
   `autonomous` it is `None` -- NOT 0, which would disqualify a day for a
   single fallback. It excludes a FINISHED run from survival statistics and
@@ -834,7 +859,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   GPU-less box. `MUJOCO_GL=osmesa` is baked in and the build renders one
   offscreen frame, so headless GL is a red build rather than a mission that
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
-  `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
+  `PLUGGY_WORLD`, `PLUGGY_ARM`, `PLUGGY_RUNG`,
+  `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` — the robot's DISPLAY name on the wire, issue #39:

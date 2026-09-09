@@ -203,7 +203,8 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 |---|---|
 | `commit` | the sim's short git sha, **baked at image build** (`--build-arg PLUGGY_COMMIT=…`; the build is red without one, because `.git` is not in the image and a default that quietly stayed `unknown` is the whole problem) |
 | `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets. The same function the `results/` records use — one implementation, not two |
-| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed |
+| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
+| `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `guarded` has, so a `guarded` header is byte-identical to the one 0.15.0 shipped |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
 
@@ -1165,7 +1166,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "dataHashes": {"rewards": "f55a…", "cadence": "ab3c…", "energy": "144a…",
                   "metabolism": "3937…", "questions": "8554…", "world": "b946…"},
    "arm": "guarded", "model": "Qwen/Qwen3-4B-Instruct-2507",
-   "backend": "huggingface",
+   "backend": "huggingface",       //  ...and "rung": "A0" on `autonomous`
    "packWh": 8.0, "reserveWh": 0.9, "deadlineS": 90.0}}
 
 // frame
