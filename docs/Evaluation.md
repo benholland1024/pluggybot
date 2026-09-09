@@ -935,11 +935,36 @@ reads; records with no identity are a chart of an unknown mixture. Neither
 issue is much use alone.
 
 ⚠ **AN ADMIN INTERVENTION CONTAMINATES EVERY SURVIVAL NUMBER IN ITS RUN.**
-The admin panel will be able to set points and battery directly, which is the
-right feature and a measurement hazard. Every intervention is recorded into
-the run's own record with what it changed and when — the same audit-trail
-discipline the chat layer already applies to a moderation tombstone. A run
-with a non-empty `interventions` array is not a survival data point.
+The admin panel can set points and battery directly (issue #119, protocol
+0.16.0), which is the right feature and a measurement hazard. Every
+intervention is recorded into the run's own record with what it changed and
+when — the same audit-trail discipline the chat layer applies to a moderation
+tombstone. A run with a non-empty `interventions` array is not a survival
+data point, and `rollup` says so rather than quietly reporting a smaller `n`.
+
+**Built in issue #119**, and three things about it are worth knowing before
+reading a run:
+
+- **Every reach-in leaves four traces**, and each answers a question the
+  others cannot: the run record's `interventions` (what a rollup reads), an
+  `intervention` event on the wire (what the site's operator log reads while
+  it is happening), a narration line (whoever is watching), and a line in
+  `History.md` — the robot's own unrevisable record, which it is shown on
+  every later decision. The last is the same argument as the death line: a
+  robot whose battery was refilled by a stranger should be able to know that
+  when it wonders why it is still alive.
+- ⚠ **`set_points` BREAKS `earned − consumed − spent == balance`, and that is
+  the design.** The identity failing is how an intervention becomes visible
+  in the *economy* column and not only the survival one. Papering the
+  difference into `earned` would hide a reach-in inside the one number the
+  reward system exists to make un-fakeable (issue #14). The record carries
+  `identityBrokenBy` beside the `false`, because a bare `false` reads as a
+  bug in the ledger — which is the reading that field exists to prevent.
+- ⚠ **INTERVENTIONS ARE NO LONGER DERIVABLE FROM `resets`.** They were, when
+  a reset was the only one; a run whose battery was topped up and whose robot
+  was never reset would have recorded an empty array and passed for clean.
+  `record._interventions` reads the lifecycle's own list, and falls back to
+  the reset-derived answer only for a result written before it existed.
 
 ⚠ **A RESULT REACHABLE BY A VISITOR IS NOT A RESULT.** `reset_robot` follows
 `reset_tool`'s shape — admin-only, code-handled on the physics thread, never

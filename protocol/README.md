@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.15.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.16.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -32,6 +32,83 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
 and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
 recording made without it carries no `tasks` / `metabolism` block at all and
 the website has nothing to build its markers or its hunger gauge against.
+
+### 0.15.0 → 0.16.0 (an admin can reach in, and every reach-in is recorded)
+
+pluggybot #119 (M14). The admin panel already had `reset_tool`, `reset_robot`
+and the mode switch; these are the last two things an operator needs, and the
+record that makes them safe to have.
+
+**1. Two new inbound kinds**, on `reset_tool`'s terms exactly — admin-only at
+the website's door, code-handled on the physics thread, never shown to the
+overseer, refused while a module is seated on the fork. Advertised in
+`accepts` on every served world (`CODE_HANDLED_TYPES`).
+
+```jsonc
+{"type": "set_battery", "id": "sb_9f21", "from": "ben", "frac": 1.0}
+{"type": "set_battery", "id": "sb_9f22", "from": "ben", "wh": 4.5}
+{"type": "set_points",  "id": "sp_3a10", "from": "ben", "points": 250}
+```
+
+`set_battery` takes **exactly one** of `frac` (0..1) or `wh` (clamped to the
+pack's capacity). Both together is refused: that is two different requests in
+one message, and picking between them would make what the operator asked for
+depend on which branch was written first. `set_points` is an **absolute
+balance**, never a delta — a delta would race the appetite, which is eating
+points on the physics seam while the message is in flight — and never
+negative, on `Ledger.consume`'s no-debt rule.
+
+⚠ **`set_battery` does not revive a dead robot.** `reset_robot` is the
+revival; a pack refilled under a robot lying on its side is exactly as stuck
+as it was, and the narration says so.
+
+**2. One new upstream message**, between the frames like `death` and `earned`:
+
+```jsonc
+{"type": "intervention", "t": 2401.3, "robot": "pluggybot",
+ "what": "set_battery", "by": "ben",
+ "before": {"frac": 0.07, "wh": 0.56}, "after": {"frac": 1.0, "wh": 8.0},
+ "detail": "set my battery 7% -> 100%"}
+```
+
+`what` is one of `INTERVENTION_KINDS` — `reset_robot`, `set_battery`,
+`set_points`. ⚠ **A run containing any of these is not a survival data
+point** (pluggybot `docs/Evaluation.md` §5), which is the entire reason the
+message exists: the sim's run record and the site's operator log both need
+one thing to count.
+
+⚠ **`reset_robot` is in that list even though a `reset` event already
+exists**, and the redundancy is deliberate. A reset is the only one of the
+three that is *sometimes not* an intervention — standing a **dead** robot up
+is a rescue, which ends one survival span and starts another — so `reset`
+carries both cases and an `intervention` is emitted only for the half that
+contaminates. A consumer counting interventions therefore counts one message
+type, rather than a union of two with a boolean in one of them. The
+`intervention` is emitted **after** its `reset`, because it is a fact about
+the reset rather than a separate act.
+
+⚠ **NEVER ANONYMOUS**, unlike `rating`. An aesthetic judgement from whoever
+is watching is the point of that tier; a rescue is not. If a stranger can top
+the robot up, `survivalS` measures the kindness of the audience.
+
+**3. The `ledger` block gains `intervened`** — net points an admin has put in
+or taken out.
+
+```jsonc
+"ledger": {"pluggybot": {"balance": 250, "earned": 0, "spent": 0,
+                         "consumed": 0, "spilled": 0, "intervened": 250, …}}
+```
+
+⚠ **`set_points` breaks `earned − consumed − spent == balance` ON PURPOSE.**
+Papering the difference into `earned` would hide a reach-in inside the one
+number the reward system exists to make un-fakeable (issue #14: nothing
+awards itself points), and the identity failing is precisely how an
+intervention becomes visible in the *economy* column of a run record rather
+than only in the survival one. `intervened` is a **receipt** — it says how
+big the reach-in was, and it is never a term in the identity. Zero on every
+world nobody has reached into, which is every world before this: a consumer
+that found the identity failing with no field to explain it would be looking
+at what reads exactly like a bug in the scoreboard.
 
 ### 0.14.0 → 0.15.0 (the robot can die, and a person can reset it)
 

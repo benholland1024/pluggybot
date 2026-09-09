@@ -353,6 +353,12 @@ class HubLifecycle:
     self.dead: dict | None = None
     self.deaths: list[dict] = []
     self.resets: list[dict] = []
+    #: EVERY TIME AN ADMIN REACHED IN (issue #119; docs/Evaluation.md §5).
+    #: A run with anything in here is not a survival data point, and the
+    #: rollup already excludes one -- this is what fills it. Kept apart from
+    #: `resets` because a reset is the one intervention that is sometimes
+    #: NOT one: standing a DEAD robot up is a rescue.
+    self.interventions: list[dict] = []
     self.survival_since = 0.0
     self.home_pose: tuple[float, float, float] | None = None
     self.on_event: list = []
@@ -993,6 +999,14 @@ class HubLifecycle:
       self._reset_tool(msg)
     for msg in self.inbox.drain(("reset_robot",)):
       self._reset_robot(msg)
+    # The operator reaching into world state directly (issue #119). Handled
+    # by CODE here, like every other admin command: never shown to the
+    # overseer, because an admin command is code's to apply and not the
+    # robot's to weigh.
+    for msg in self.inbox.drain(("set_battery",)):
+      self._set_battery(msg)
+    for msg in self.inbox.drain(("set_points",)):
+      self._set_points(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -1092,6 +1106,7 @@ class HubLifecycle:
       return
     was = self.dead
     t = float(self.data.time)
+    before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.mission.swap.pinned = False
     self.mission.start_at(*self.home_pose)
@@ -1111,6 +1126,143 @@ class HubLifecycle:
     self._remember(f"reset by {who}" + (f" after {dead_s:.0f} s dead"
                                         if was else " while still awake"))
     self._emit(event)
+    if was is None:
+      # ⚠ A RESCUE IS NOT AN INTERVENTION. Standing a DEAD robot up ends one
+      # survival span and starts another, which is the feature working
+      # (issue #107); moving a LIVING one contaminates every survival number
+      # in the run (issue #119). Both leave a `reset` event -- only this half
+      # leaves an `intervention`, which is what makes "is this run still a
+      # data point" one thing to count rather than a union of two message
+      # types with a boolean in one of them.
+      #
+      # AFTER the reset, because it is a fact ABOUT the reset rather than a
+      # separate act, and the reset is what a reader wants to see first.
+      self._intervene("reset_robot", who,
+                      before={"frac": round(before_frac, 4)},
+                      after={"frac": round(self.battery.fraction, 4)},
+                      t=t, announce=False)
+
+  def _intervene(self, what: str, by: str, before: dict, after: dict,
+                 t: float | None = None, detail: str = "",
+                 announce: bool = True) -> dict:
+    """Record that an admin reached into world state (issue #119).
+
+    ⚠ THE RECORD IS THE POINT, not the change. `Evaluation.md` §5: a run
+    with a non-empty `interventions` array is not a survival data point, and
+    `rollup` already excludes one -- until this existed there was simply
+    nothing to exclude on. So every reach-in leaves the same four traces,
+    and each answers a question the others cannot:
+
+      · `self.interventions` -> the run record, which is what a rollup reads
+      · an `intervention` event -> the wire, which is what the website's
+        operator log reads while it is happening
+      · a narration line -> whoever is watching the stream
+      · a line in `History.md` -> the ROBOT, which reads it on every later
+        decision. The same argument as the death line: it is honest, and a
+        robot whose battery was refilled by a stranger should be able to
+        know that when it wonders why it is still alive.
+
+    ⚠ NEVER ANONYMOUS (`by`). If a stranger can top the robot up, every
+    survival number measures the audience rather than the mind.
+    """
+    t = float(self.data.time) if t is None else float(t)
+    event = {"type": "intervention", "t": round(t, 3), "robot": ROBOT_ROOT,
+             "what": what, "by": by, "before": dict(before),
+             "after": dict(after)}
+    if detail:
+      event["detail"] = detail
+    self.interventions.append(dict(event))
+    # `announce` is False where the CALLER has already said it and written
+    # it down -- a reset narrates and remembers itself, and two History
+    # lines for one act would tell the robot it was reached into twice.
+    if announce:
+      self._say(f"ADMIN {by} {detail or what}")
+      self._remember(f"{by} reached in: {detail or what}")
+    self._emit(event)
+    return event
+
+  def _set_battery(self, msg) -> None:
+    """Put the pack where an admin says (issue #119).
+
+    `reset_tool`'s shape: admin-only at the website's door, code-handled on
+    the physics thread, never shown to the overseer, refused while a module
+    is seated on the fork.
+
+    ⚠ REFUSED MID-SWAP, and the reason is not symmetry with `reset_tool`.
+    The energy gate prices the next errand against the pack BETWEEN errands
+    and never inside one (`_afford_next`), so a pack that changes while a
+    module is on the fork changes the arithmetic of a decision already made
+    -- and the swap's own travel budget with it. The window is the swap, not
+    the errand, so a rescue is refused for seconds rather than minutes.
+
+    ⚠ UP IS A RESCUE AND DOWN IS AN EXPERIMENT NOBODY SHOULD RUN ON THE
+    DEPLOYED WORLD. Both are recorded identically and neither is anonymous:
+    the direction is a fact about the operator, not a reason to treat one of
+    them as free.
+
+    ⚠ IT DOES NOT REVIVE A DEAD ROBOT. `reset_robot` is the revival, and
+    conflating them would give an operator two ways to do one thing and no
+    way to do the other -- a pack refilled under a robot lying on its side
+    is exactly as stuck as it was. The narration says so rather than leaving
+    a full gauge next to a corpse unexplained.
+    """
+    who = msg.who or "an admin"
+    if self.tool_powered:
+      self._say(f"ADMIN set_battery refused: {self.module} is seated on the "
+                "fork -- stow it first")
+      return
+    cap = self.battery.capacity_wh
+    wh = cap * msg.frac if msg.frac is not None else msg.wh
+    if wh is None:
+      return                                # refused at the inbox already
+    if wh > cap:
+      # Clamped rather than refused: "fill it up" written as a watt-hour
+      # figure from a bigger world is an operator being approximate, not an
+      # operator being wrong, and a silent clamp is why the narration says
+      # what actually landed.
+      wh = cap
+    before = {"frac": round(self.battery.fraction, 4),
+              "wh": round(self.battery.energy_wh, 4)}
+    self.battery.energy_wh = float(wh)
+    after = {"frac": round(self.battery.fraction, 4),
+             "wh": round(self.battery.energy_wh, 4)}
+    self._intervene("set_battery", who, before, after,
+                    detail=f"set my battery {before['frac']:.0%} -> "
+                           f"{after['frac']:.0%}"
+                           + (" (I am still dead -- reset me to stand up)"
+                              if self.dead else ""))
+
+  def _set_points(self, msg) -> None:
+    """Put the balance where an admin says (issue #119).
+
+    ⚠ THIS BREAKS `earned - consumed - spent == balance`, AND THAT IS THE
+    DESIGN. The identity failing is how an intervention becomes visible in
+    the ECONOMY column and not only the survival one; papering the change
+    into `earned` would hide a reach-in inside the one number the reward
+    system exists to make un-fakeable (issue #14: nothing awards itself
+    points). `Ledger.intervene` is a third door beside `award` and
+    `consume`, named so nobody mistakes it for either.
+
+    Refused mid-swap on `_set_battery`'s terms, and for a weaker reason:
+    there is no physical hazard here. It is refused anyway so that "an
+    admin command is refused while a module is on the fork" is one rule
+    rather than a per-kind table somebody has to remember.
+    """
+    who = msg.who or "an admin"
+    if self.ledger is None:
+      self._say("ADMIN set_points refused: this world keeps no ledger")
+      return
+    if self.tool_powered:
+      self._say(f"ADMIN set_points refused: {self.module} is seated on the "
+                "fork -- stow it first")
+      return
+    change = self.ledger.intervene(int(msg.points), by=who,
+                                   t=float(self.data.time))
+    self._intervene("set_points", who,
+                    before={"points": change["before"]},
+                    after={"points": change["after"]},
+                    detail=f"set my points {change['before']} -> "
+                           f"{change['after']}")
 
   def _reconsider(self, decision) -> None:
     """Apply a decision's `forget` and `learn` to the robot's own file.
@@ -1819,6 +1971,10 @@ class HubLifecycle:
       "dead": self.dead["cause"] if self.dead else None,
       "deaths": list(self.deaths),
       "resets": list(self.resets),
+      # Every time an admin reached into world state (issue #119). A run
+      # with anything in here is not a survival data point, and the rollup
+      # already knows to exclude one -- this is what fills it.
+      "interventions": list(self.interventions),
       "survival_s": round(self.survival_s, 3),
       "charge_cycles": self.charge_cycles,
       "swaps_done": self.swaps_done,
