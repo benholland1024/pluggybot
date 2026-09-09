@@ -160,13 +160,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   without it; `--parallel 5` on this box pushed the OLD 8 s decision deadline
   and the record says so (`config.parallel`, `mind.wallS`).
   ⚠ **A RUN THE BOX DECIDED IS DISQUALIFIED, AND THE DEADLINE IS MEASURED**
-  (issue #117). Every fallback is the scripted rotation, and the rotation
-  never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25, `autonomous`
-  0.10, `scripted` none) drops a run from SURVIVAL statistics exactly as
-  `killed` and `interventions` do: still committed, still valid,
-  `survival.excluded` carrying the reason, and the threshold written into
-  the rollup rather than hidden in a comment. Two more things now define a
-  series: `config.deadlineS` (a regime the rollup refuses to pool across --
+  (issue #117). On `guarded` every fallback is the scripted rotation, and the
+  rotation never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25 of the
+  FAILURE class; `scripted` and `autonomous` none) drops a run from SURVIVAL
+  statistics exactly as `killed` and `interventions` do: still committed,
+  still valid, `survival.excluded` carrying the reason, and the threshold
+  written into the rollup rather than hidden in a comment. Two more things
+  now define a series: `config.deadlineS` (a regime the rollup refuses to pool across --
   it caps how much of a day the model decided at all) and `--label` (what
   the BOX was, so a quiet series and a loaded one sit side by side instead
   of averaging into a box that never existed).
@@ -253,10 +253,25 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   single fallback. It excludes a FINISHED run from survival statistics and
   nothing reads it during a mission. Its argument ("a fallback means CODE
   decided") is true of `guarded`'s rotation and FALSE where the fallback is
-  the agent's own order. `guarded` keeps a limit, and there the class
-  matters: `timeout`/`offline`/`garbled`/`busy`/`no-client` are failures,
-  `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy WORKING
-  (overseer.py already draws that line). Issue #141.
+  the agent's own order. Issue #141, and it is BUILT.
+  ⚠ **AND IT COUNTS THE FAILURE CLASS ONLY.** The nine reasons are two
+  things wearing one count: `timeout`/`offline`/`garbled`/`busy`/`no-client`
+  are FAILURES, `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy
+  WORKING. `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
+  `fallback_class` are the ONE partition -- drawn where `_record` first
+  needed it (issue #37), read by the rollup, and NOT re-derived there;
+  `record.fallback_classes` derives a run's split from `fallbackReasons`,
+  which every record ever written carries, so no re-fly and no split corpus.
+  `guarded`'s 0.25 did not move and the QUANTITY did: measured, the quiet
+  series' failure floor is 6.7 % pooled (7 `garbled`, zero timeouts) with a
+  worst healthy day of 0.150, against a loaded series running to 0.333 --
+  the two distributions OVERLAP, so 0.25 is chosen as the number that keeps
+  every healthy day and drops the two the box decided. Re-rolled: `guarded`
+  loaded 2/5 -> 3/5 survival runs, `autonomous` 3/5 -> 5/5.
+  ⚠ **The classes are also #127's configuration shape** (an agent saying "on
+  `timeout`, charge; on `garbled`, idle"), and they inherit
+  `FALLBACK_REASONS`' two-repo contract: adding a reason is additive,
+  renaming one is breaking.
   ⚠ **THE A0 FALLBACK NUMBERS, MEASURED OFF `results/`** (this file
   previously carried "10 in 104, 7 `garbled`, 3 `idle-run`", which does not
   match the committed records): **15 fallbacks in 102 decisions -- 12
@@ -264,7 +279,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   fifteen are the policy working and exactly one is the box. Under the old
   0.10 limit that excluded two days, **both of them `flat` deaths**, taking
   survival from 1-in-5 to 1-in-3 -- the filter removing the outcome the arm
-  exists to produce, in the direction that flatters it.
+  exists to produce, in the direction that flatters it. Fixed by #141; all
+  five days now read.
   ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
   `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
   entry per series -- `ran` / `found` / `changed` / `notShown` -- and the

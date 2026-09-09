@@ -275,8 +275,13 @@ is the opposite of the intent and would discard nearly every day.
 What still needs a limit is `guarded`, and there the reason class matters:
 `timeout` / `offline` / `garbled` / `busy` / `no-client` are things going
 wrong, while `budget` / `idle-run` / `cooloff` / `scripted-mode` are the policy
-working — `overseer.py` already draws that line and the rollup should use it
-rather than re-deriving one.
+working. `overseer.POLICY_FALLBACKS` is that line, drawn where `_record` first
+needed it, and the rollup reads it rather than keeping a copy.
+
+*(Built in issue #141. `guarded`'s 0.25 applies to the failure class only —
+which returned one loaded day that was over the old limit on `idle-run` — and
+`autonomous` takes `None`. §5 has the argument and the measured floor it is
+made against.)*
 
 ### The low-pack interrupt (A2)
 
@@ -635,13 +640,20 @@ surviving means.
   which is a caution for #127: an agent that never varies one scalar field is
   unlikely to need a configuration language.
 
-⚠ **TWO DAYS ARE DISQUALIFIED AND THE THRESHOLD IS THE WRONG INSTRUMENT
-HERE.** Both were over 0.10 on `idle-run` alone — the model chose to idle,
-the throttle skipped one call in three, and the fallback fired *the agent's
-own standing order*. The limit was argued for on `guarded`, where a fallback
-is a scripted rotation **that never charges**; on this arm there is no
-rotation, so that argument does not transfer. Re-make the number before
-judging this arm by it.
+⚠ **TWO DAYS WERE DISQUALIFIED AND THE THRESHOLD WAS THE WRONG INSTRUMENT
+HERE — FIXED IN ISSUE #141.** Both were over 0.10 on `idle-run` alone: the
+model chose to idle, the throttle skipped one call in three, and the fallback
+fired *the agent's own standing order*. The limit was argued for on `guarded`,
+where a fallback is a scripted rotation **that never charges**; on this arm
+there is no rotation, so the argument does not transfer, and `autonomous`
+now takes no limit at all (§5). **All five days qualify**, and the arm reads
+as it was flown: four `flat` deaths and one survivor. ⚠ Under the old filter
+it read 1-in-3 — both discarded days were deaths, so the number it reported
+was the flattering one.
+
+Pooled, off the committed records: **15 fallbacks in 102 decisions — 12
+`idle-run`, 2 `garbled`, 1 `timeout`.** Twelve of fifteen are the policy
+working and exactly one is the box.
 
 ⚠ **AND THERE IS A FOURTH RAIL THE ISSUE DID NOT NAME.** `TOP_UP_BELOW`
 (75 %) refuses a *chosen* charge, which turned 12 of the surviving day's 15
@@ -666,6 +678,11 @@ precisely so this is visible.
 - `llmCalls`, `fallbacks`, `fallbackRate` — available now. A rising fallback
   rate is the single best early warning that a result is about an API rather
   than about a model.
+- `fallbackFailureRate` / `fallbackPolicyRate` / `fallbackClasses` — the same
+  count split into *something went wrong* and *this system working on purpose*
+  (issue #141). Only the first is an early warning, and only the first is
+  judged: read the rate above without this split and an agent that idles a lot
+  looks exactly like a slow endpoint.
 - `escalations` — requested, granted, refused. Available now via `spend.py`.
 - `constrained` — whether the grammar held. A silent downgrade to prose shows
   up only as a higher fallback rate, so it is recorded per run.
@@ -1016,13 +1033,12 @@ Rating is anonymous because an aesthetic judgement from whoever is watching is
 the point of that tier. A rescue is not: if a stranger can revive the robot,
 `survivalS` measures the kindness of the audience.
 
-⚠ **A RUN WHOSE FALLBACK RATE MEASURED THE BOX IS NOT A RESULT ABOUT A
-MODEL.** Every fallback is the scripted rotation deciding, and the rotation
-never charges — so on `autonomous` a run with a 40 % fallback rate is
-two-fifths a `scripted` arm wearing the `autonomous` name, and pass 1b's one
-`flat` death was exactly that (two timeouts → `fallback:explore` → the street →
-zero on the way back). The baseline measured 19–47 % on a box running five sims
-on six cores against an 8 s deadline; the same call is ~2 s quiet.
+⚠ **A RUN WHOSE *FAILURE-CLASS* FALLBACK RATE MEASURED THE BOX IS NOT A
+RESULT ABOUT A MODEL.** On `guarded` a fallback is the scripted rotation
+deciding, and the rotation never charges — so a run with a 40 % failure rate
+is two-fifths a `scripted` arm wearing the `guarded` name. The baseline
+measured 19–47 % on a box running five sims on six cores against an 8 s
+deadline; the same call is ~2 s quiet.
 
 **Built in issue #117.** `rollup.FALLBACK_LIMIT` disqualifies a run from
 survival statistics the way `killed` and `interventions` already do, and the
@@ -1032,6 +1048,35 @@ the second the box's *clock*, the third the box's *load* through a deadline.
 `survival.excluded` carries the reason; `experiment.py` prints it rather
 than quietly reporting a smaller `n`.
 
+⚠ **AND IT IS THE FAILURE CLASS, NOT THE FALLBACK RATE — THE FIRST VERSION OF
+THIS FILTER DELETED THE EVIDENCE** (issue #141). The nine reasons are two
+different things wearing one count:
+
+| class | reasons | means |
+|---|---|---|
+| **failure** | `timeout` · `offline` · `garbled` · `busy` · `no-client` | something went wrong — the box, an endpoint, or a model that could not hold the grammar |
+| **policy** | `budget` · `cooloff` · `idle-run` · `scripted-mode` | this system doing its job on purpose |
+
+`overseer.py` has drawn that line since issue #37 (`POLICY_FALLBACKS`, so a
+healthy run's summary does not read like an incident report) and the rollup
+did not. Counting them together disqualified **two of A0's five days on
+`idle-run` alone** — the agent having answered `idle` twice running, the
+throttle skipping one call in three, and its own standing order firing.
+Nothing about the box.
+
+⚠ **AND IT WAS NOT LOSING NOISE, IT WAS LOSING THE RESULT.** Both excluded
+days were `flat` deaths. A0 flew four deaths and one survivor; the filter
+dropped two of the four deaths and kept the survivor, taking survival from
+**1 in 5 to 1 in 3** — the outcome the arm exists to produce, removed in the
+direction that flatters it. An agent that idles a lot both dies more *and*
+trips `idle-run` more, so the exclusion is correlated with the result by
+construction. A disqualifier has to be independent of what it is filtering.
+
+The policy class is **reported and never disqualifies**
+(`mind.fallbackFailureRate`, `fallbackPolicyRate`, `fallbackClasses` in every
+series), because "eight fallbacks, all of them the policy" is exactly the
+sentence that stops a reader concluding the box ate the day.
+
 ⚠ **The threshold is a judgement call, which is exactly why the rollup
 WRITES IT DOWN** (`fallbackLimit`, per series) instead of applying it from a
 comment. Whoever disagrees can see the number that was used and the runs it
@@ -1040,8 +1085,24 @@ cost. It differs by arm because a fallback costs the arms different things:
 | arm | limit | why |
 |---|---|---|
 | `scripted` | none | the rotation is not a failure mode here, it *is* the arm |
-| `guarded` | **0.25** | the rails still charge the robot, so a fallback DILUTES the result. A quarter of a day decided by the rotation is the most that can be pooled and still called a result about a model |
-| `autonomous` | **0.10** | nothing else is looking after the pack, so a fallback is the one decision that can END the run — pass 1b's `flat` death was one |
+| `guarded` | **0.25**, failure class | the rails still charge the robot, so a failed call DILUTES the result. A quarter of a day decided by the rotation is the most that can be pooled and still called a result about a model |
+| `autonomous` | **none** | its fallback is the agent's own standing order, and there is no rotation on this arm at all — so a fallback here is the measurement, not contamination of it |
+
+⚠ **`autonomous` TAKES `None`, NOT A BETTER NUMBER** (issue #141). The limit's
+premise is *"a fallback means CODE decided, so this run is not about the
+model"* — true of `guarded`'s rotation, and **false** where the fallback is
+the agent's own standing order (§2's no-rotation rule). No threshold repairs
+a filter whose argument does not apply.
+
+⚠ **`None`, never `0`. They are opposites**: zero disqualifies a run for a
+single fallback and would discard nearly every autonomous day. `None` is no
+filter, which is what `scripted` has and for a related reason.
+
+⚠ **AND IT IS A ROLLUP FILTER, NOT A POLICY.** It excludes a *finished* run
+from survival statistics; nothing reads it during a mission and it cannot
+cause or prevent a fallback. What stops a rotation running on `autonomous` is
+`Overseer.fallback` and the `standing_orders` flag — §2, pinned by
+`tests/test_standing_orders.py`.
 
 ⚠ **A THRESHOLD CANNOT BUY BACK MORE THAN THE DEADLINE COST.** `timeout` is
 the share a longer deadline removes; `garbled` is an answer that arrived on
@@ -1051,20 +1112,28 @@ the FLOOR any threshold has to clear, and it is measured beside the latency
 under the floor disqualifies every run for ever, which reads exactly like a
 broken harness.
 
-⚠ **AND THE FLOOR IS NOW MEASURED, AT ROUGHLY WHERE THE `autonomous` LIMIT
-SITS.** The quiet series timed out zero times and *still* fell back 10 times
-in 104 decisions — 7 `garbled` and 3 `idle-run` — for a residual of **9.6 %
-pooled**, with per-day rates of 0.0, 0.059, 0.095, 0.15 and 0.20. Against the
-provisional `autonomous` limit of **0.10**, three of those five days would be
-disqualified by a floor the box had nothing to do with. **The autonomous
-threshold must be re-argued against this number before that arm's results are
-read** (issue #115) — either the limit moves, or the two residual sources do,
-and they are both addressable: `garbled` is the small-model quirk
-`Overseer.md` §6 records, and `idle-run` is a guard (`MAX_IDLE_RUN` = 2) that
-counts an *idle answer* and a *nobody-answered* the same way. ⚠ That second
-one is sharper than it looks for `autonomous`, whose fallback is itself
-`idle`: two lost calls in a row would stop the model being asked at all, in
-the arm whose entire claim is that the model decides.
+⚠ **AND THE FLOOR IS MEASURED, WHICH IS WHAT THE THRESHOLD IS ARGUED
+AGAINST.** The quiet `guarded` series timed out **zero** times and still fell
+back 10 times in 104 decisions — 7 `garbled` and 3 `idle-run`. Split by class
+that is a residual **failure** rate of **6.7 % pooled**, with per-day rates of
+0.0, 0.050, 0.059, 0.095 and **0.150**; the 3 `idle-run` are the policy and
+count towards nothing. `garbled` is the small-model quirk `Overseer.md` §6
+records, and no deadline touches it.
+
+So a `guarded` limit has to clear a worst healthy day of 0.150. The loaded
+series — the box this filter exists to catch — ran 0.125, 0.125, 0.143, 0.278
+and 0.333, pooled 0.205. **The two distributions overlap, so no threshold
+separates them**, and 0.25 is chosen as the one that keeps every measured
+healthy day and still drops the two where a third of the decisions were the
+box. The number did not move in issue #141; the quantity it measures did, and
+that alone returned one loaded day (0.286 total, 0.143 failure — the rest was
+`idle-run`).
+
+⚠ `idle-run` is sharper than it looks on `autonomous`, whose fallback is
+itself `idle`: two lost calls in a row would stop the model being asked at
+all, in the arm whose entire claim is that the model decides. That is a
+reason to watch `MAX_IDLE_RUN`, and it was never a reason to disqualify the
+day — which is what counting it as a failure did.
 
 ⚠ **AND THE DEADLINE IS PART OF THE REGIME.** It is not a data file, so no
 hash catches it, and it decides how much of a day the model decided at all —

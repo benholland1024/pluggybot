@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Callable
 
 from pluggybot.economy import cadence, energy, metabolism, questions, scoring
+from pluggybot.mind.overseer import fallback_class
 
 SCHEMA = 1
 
@@ -342,6 +343,37 @@ def longest_streak(rows: list[dict]) -> int:
     last = key
     best = max(best, run)
   return best
+
+
+def fallback_classes(mind: dict) -> dict:
+  """One run's fallbacks split into `failure` and `policy` (issue #141),
+  with the FAILURE rate beside them -- the quantity `rollup.FALLBACK_LIMIT`
+  is actually asking about.
+
+  `failureRate` is over the run's DECISIONS, not over its fallbacks, so it
+  is on the same scale as `fallbackRate` and the two can be read side by
+  side: a day at 0.25 total and 0.05 failure is a day the model spent
+  idling, not one the box decided.
+
+  ⚠ DERIVED, NEVER RECORDED. Every record ever written already carries
+  `fallbackReasons`, so one implementation classifies the committed corpus
+  and tomorrow's flights identically. A field added to `build_record`
+  would split the corpus in two -- and the rollup would have to keep this
+  derivation anyway, for the older half.
+
+  ⚠ The partition itself lives in `overseer.py`, which is where the line
+  was first drawn: a second copy here is a copy that disagrees the day a
+  reason is added.
+  """
+  counts = {"failure": 0, "policy": 0}
+  for source, n in (mind.get("fallbackReasons") or {}).items():
+    counts[fallback_class(str(source)) or "failure"] += n
+  n_decisions = mind.get("decisions") or 0
+  return {**counts,
+          "failureRate": (round(counts["failure"] / n_decisions, 4)
+                          if n_decisions else None),
+          "policyRate": (round(counts["policy"] / n_decisions, 4)
+                         if n_decisions else None)}
 
 
 def end_cause(result: dict | None, max_sim_s: float) -> str:

@@ -314,6 +314,42 @@ def test_whose_fallback_it_is_is_part_of_what_an_arm_means():
   assert arm_flags("scripted")["standing_orders"] is False
 
 
+def test_the_rotation_is_unreachable_on_autonomous_by_every_route(menu,
+                                                                 monkeypatch):
+  """⚠ NO SCRIPTED ROTATION ON `autonomous`, EVER -- INCLUDING LIVE (issue
+  #141; Evaluation.md §2). Already the implementation, pinned here because
+  it is a PRINCIPLE and the next "sensible default" on this path has to
+  meet it: `scripted` and `guarded` show survival is possible, and a
+  rotation quietly keeping the autonomous robot alive answers a question
+  nobody asked.
+
+  Booby-trapped rather than asserted about, and swept over every `why` in
+  the closed vocabulary plus all three states an order can be in -- never
+  set, set and runnable, set and impossible. The first is the one that
+  catches a "fall back to the rotation until the agent has left an order",
+  which is exactly the reasonable-sounding change this exists to fail."""
+  def trap(*a, **kw):
+    raise AssertionError("the scripted rotation ran on the autonomous arm")
+
+  monkeypatch.setattr(ov, "scripted", trap)
+  assert arm_flags("autonomous")["standing_orders"] is True
+  for order in (None, "census", "carry"):
+    boss = make(menu)
+    # `carry` is on the menu and not runnable from this state, so the third
+    # sweep is the could-not-be-run branch rather than a repeat of the
+    # second.
+    boss.standing_order = order
+    for why in ov.FALLBACK_REASONS:
+      d = boss.fallback(_state(0.5, possible=ANY if order != "carry"
+                               else ["census", "idle"]), why)
+      assert d.source == f"fallback:{why}"
+      assert d.action in (order, ov.STANDING_ORDER_FLOOR)
+  # ...and the control keeps it: the trap fires the moment it is asked.
+  with pytest.raises(AssertionError, match="scripted rotation"):
+    Overseer(menu, client=1, standing_orders=False).fallback(_state(0.5),
+                                                             "timeout")
+
+
 def test_the_floor_is_the_bootstrap_and_not_a_policy():
   """`idle` is what the world does before the agent has a say, and there is
   no second constant anywhere that could quietly become the policy."""
