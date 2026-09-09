@@ -1063,6 +1063,43 @@ reading a run:
   `record._interventions` reads the lifecycle's own list, and falls back to
   the reset-derived answer only for a result written before it existed.
 
+⚠ **AN AUTO-RESTART IS NOT AN INTERVENTION, AND THIS IS THE LINE THAT
+MATTERS** (issue #143). A dead robot on a served world now waits a
+configured delay — 300 sim-seconds by default — and stands itself up at the
+origin with a full pack, because the deployed world runs continuously and on
+the `autonomous` arm its robot dies most days (A0: four in five).
+
+That is **world behaviour**, not an operator's hand, and it must never reach
+`interventions`. A run with a non-empty `interventions` array is excluded
+from survival statistics by the paragraph above — so if world behaviour
+filled it, every deployed run and every multi-life run would be silently
+disqualified, and the exclusion would be **invisible**, because an entry
+there is supposed to be believed. It is structural rather than a flag check:
+the timer only ever fires on a *dead* robot, and standing a dead robot up was
+never an intervention (issue #107).
+
+⚠ **OFF IN THE HARNESS, ON IN THE SERVED WORLD.** A measured run is about
+ONE life. `survival.survivalS` is already a list, so several spans per run
+are representable — but the rollup's survival statistics were written
+against one span per run, and turning this on by default would change what
+every committed number means without anybody choosing it. If the harness
+ever wants it, that is a deliberate change to the rollup in the same breath;
+`config.restartAfterS` records the `None` either way, so an older run is
+negative rather than ambiguous.
+
+⚠ **AND IT IS NOT A TRUE DEATH** (issue #136). This **keeps** the volume, so
+the next life reads its predecessor's `History.md` death line on every
+decision — which is the whole of what dying costs (§6). A true death
+archives the ledger, the boards and all four thought files and starts a new
+robot. Collapsing them would delete the cost.
+
+**...and it makes the observatory a better instrument**, which is a real
+gain rather than a side effect. The deployed world's weakness above is that
+it is ONE uncontrolled continuous run. Auto-restart makes every death a
+sample boundary and every life a data point — **N=1 continuous becomes
+N=many lifetimes**, on a machine that runs anyway, and the build identity
+already groups them by regime.
+
 ⚠ **A RESULT REACHABLE BY A VISITOR IS NOT A RESULT.** `reset_robot` follows
 `reset_tool`'s shape — admin-only, code-handled on the physics thread, never
 shown to the overseer — and specifically **not** anonymous the way `/rate` is.

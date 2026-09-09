@@ -1080,6 +1080,28 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   pack. ⚠ A dead robot WAITS in `DEAD` only when an inbox is attached
   (somebody can reset it); with none the day ends as it always did.
   ⚠ A reset of a LIVING robot is an intervention and the event says so.
+  ⚠ **...AND ON A SERVED WORLD IT STANDS ITSELF UP** (issue #143;
+  `restart_after_s`, `RESTART_AFTER_S` = 300 SIM seconds, `--restart-after`;
+  `survival.resetInS` on the wire and `auto` on the `reset` event). ON in
+  `serve.py`, OFF in `experiment.py` and everywhere else -- the deployed
+  world runs continuously and dies most days on `autonomous`, while a
+  measured run is about ONE life and the rollup's survival stats were
+  written against one span per run.
+  ⚠ **AN AUTO-RESTART IS NOT AN INTERVENTION**, and it is structural rather
+  than a flag check: the timer only fires on a DEAD robot and a rescue was
+  never one (#107). If world behaviour filled `interventions`, every
+  deployed run would be silently dropped from survival statistics and the
+  exclusion would be INVISIBLE, because an entry there is meant to be
+  believed. `stand_up(by, auto)` is the one implementation both callers use.
+  ⚠ **AND IT IS NOT #136's TRUE DEATH**: this KEEPS the volume, so the next
+  life reads its predecessor's `History.md` death line on every decision --
+  the whole of what dying costs. True death archives it.
+  ⚠ **A STAND-UP STEPS THE SIM** (`start_at` ends with a one-second settle
+  drive) and the restart seam is on every step, so it re-enters itself --
+  measured as a RecursionError, not a slow leak. `_standing_up` is the
+  guard, and it covers the ADMIN path too.
+  ⚠ `resetInS` is ABSENT rather than null with nothing to count (alive, or
+  no timer) -- both are simply no number.
   ⚠ **MORTALITY IS OPT-IN** (`mortal=`, default: whether there is an
   inbox), on exactly the terms `--tasks` and `--metabolism` are, AND THE
   DEFAULT IS NOT CAUTION: on a demo cell the pack reaches ZERO mid-errand

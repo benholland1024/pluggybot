@@ -1018,6 +1018,45 @@ def test_the_served_world_says_which_build_it_is(monkeypatch):
           identity["deadlineS"]) == (None, None, None)
 
 
+def test_a_served_robot_stands_itself_up_and_a_measured_one_does_not(
+    monkeypatch, tmp_path):
+  """Issue #143. Serve-ON, harness-OFF, and the asymmetry is the point: a
+  deployed world runs continuously and its robot dies most days on the
+  `autonomous` arm, while a MEASURED run is about one life -- the rollup's
+  survival statistics were written against one span per run, so turning
+  this on there would change what every committed number means without
+  anybody choosing it."""
+  from pluggybot import lifecycle as lc
+
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
+  assert life.init_kwargs["restart_after_s"] == lc.RESTART_AFTER_S == 300.0
+  # ...and it is a PARAMETER: a deployment can tune it, and 0 turns it off
+  # and leaves the robot waiting for a person, as every world did before.
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                           "--restart-after", "60"])
+  assert life.init_kwargs["restart_after_s"] == 60.0
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                           "--restart-after", "0"])
+  assert life.init_kwargs["restart_after_s"] is None
+  # The harness passes None, and the record says so rather than leaving it
+  # to be inferred from a missing key.
+  from pluggybot.evaluation import run as run_mod
+
+  seen: dict = {}
+
+  def fake_run_demo(**kw):
+    seen.update(kw)
+    raise RuntimeError("far enough")
+
+  monkeypatch.setattr("pluggybot.lifecycle.run_demo", fake_run_demo)
+  with pytest.raises(RuntimeError, match="far enough"):
+    run_mod.run_config({"world": "home", "arm": "scripted", "pack": "demo",
+                        "seed": 0, "stateDir": str(tmp_path / "state")},
+                       tmp_path / "out.json")
+  assert seen["restart_after_s"] is None, \
+      "a measured run is about ONE life (issue #143)"
+
+
 def test_the_served_arm_and_the_flown_arm_are_one_definition(monkeypatch):
   """Issue #142's shape rule. `serve.py` could REPORT an arm and not set one:
   its identity read `autonomous` off `life.autonomous`, which nothing on that
