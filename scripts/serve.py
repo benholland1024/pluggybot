@@ -47,6 +47,7 @@ from pluggybot.mind.overseer import ESCALATE_MODEL
 from pluggybot.mind.spend import WEEKLY_USD, open_book
 from pluggybot.mind.inbox import Inbox
 from pluggybot.economy.cadence import default_cadence
+from pluggybot.evaluation.record import build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.lifecycle import (
@@ -306,6 +307,37 @@ def main() -> None:
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
                       producer=maker, thoughts=memory, metabolism=hunger)
+  # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
+  #
+  # This world is an OBSERVATORY, not an experiment: one uncontrolled
+  # continuous run, an operator who can pause it and an admin who resets it,
+  # and its numbers never enter a results table. What it can be is
+  # ATTRIBUTABLE -- and until this block existed it was not, because the
+  # header carried `protocolVersion` and nothing else, so a week of deployed
+  # behaviour could not be told apart from the week before it under a
+  # different build, a different model or a different rewards.json. That is
+  # the exact failure `dataHashes` and `deadlineS` were added to the
+  # experiment's series key to prevent; the experiment refuses to pool across
+  # those regimes, and the observatory could not even detect one.
+  #
+  # Built HERE rather than inside the builders because it is the RUN's
+  # identity, and both sinks of one run must carry the same one.
+  arm = ("scripted" if boss is None
+         else "autonomous" if life.autonomous
+         else "guarded")
+  identity = build_identity(
+    args.world, arm=arm,
+    model=boss.model if boss is not None else None,
+    backend=boss.backend if boss is not None else None,
+    pack_wh=life.battery.capacity_wh,
+    reserve_wh=life.low_battery_wh,
+    # Not a data file, so no hash catches it, and it caps how much of a day
+    # the model decided at all (issue #117).
+    deadline_s=boss.timeout_s if boss is not None else None)
+  print(f"build: {identity['commit']} / {identity['arm']}"
+        + (f" / {identity['model']} via {identity['backend']}"
+           if identity["model"] else ""))
+
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
@@ -338,7 +370,8 @@ def main() -> None:
                           # ...and how hungry it is (0.13.0, issue #36).
                           metabolism=hunger,
                           steering=boss is not None,
-                          robot_name=args.robot_name)
+                          robot_name=args.robot_name,
+                          build=identity)
   life.mission.step_hooks.append(publisher.step_hook)
   life.say_hooks.append(publisher.event)
   # ...and dying / being reset are typed events too (issue #107).
@@ -389,6 +422,7 @@ def main() -> None:
                                  mode=switch, metabolism=hunger,
                                  steering=boss is not None,
                                  robot_name=args.robot_name,
+                                 build=identity,
                                  grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
     if book is not None:

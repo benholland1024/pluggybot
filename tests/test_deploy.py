@@ -188,3 +188,70 @@ def test_entrypoint_is_executable():
   """COPYed into the image as-is; a lost +x bit is an exec-format failure
   on the server, not here."""
   assert (ROOT / "deploy" / "entrypoint.sh").stat().st_mode & 0o111
+
+
+# ---- the build's identity (issue #132) ----------------------------------------
+
+
+def _commit_guard() -> str:
+  """The Dockerfile's own guard line, as `sh` would see it.
+
+  Read out of the file rather than restated here: a copy would keep passing
+  after somebody softened the real one, which is the whole failure mode
+  this guard exists to prevent, one level up.
+  """
+  for line in (ROOT / "Dockerfile").read_text().splitlines():
+    if line.startswith("RUN [ \"$PLUGGY_COMMIT\""):
+      return line[len("RUN "):]
+  raise AssertionError("the Dockerfile no longer guards $PLUGGY_COMMIT")
+
+
+def test_the_image_refuses_to_build_without_a_commit():
+  """A DEPLOYED CONTAINER MUST BE ABLE TO SAY WHICH BUILD IT IS (issue #132).
+
+  `.git` is dockerignored, so `repo_commit()` inside the image can only read
+  `$PLUGGY_COMMIT` -- and a default that silently stays `unknown` is not a
+  smaller problem than no field at all: it produces months of observatory
+  data nobody can attribute, from a container that looks perfectly healthy.
+  So the BUILD is red instead, which is the osmesa smoke test's argument.
+
+  Run under `sh` rather than through `docker build`, because docker is not
+  on every box the suite runs on and a test that skips itself is decoration.
+  What is actually asserted is the line the image executes, both ways.
+  """
+  guard = _commit_guard()
+  unset = subprocess.run(["sh", "-c", guard], capture_output=True, text=True,
+                         env={"PLUGGY_COMMIT": "unknown"})
+  assert unset.returncode != 0, "an image with no commit built happily"
+  assert "PLUGGY_COMMIT" in unset.stderr, \
+    "the failure does not say what to pass"
+
+  ok = subprocess.run(["sh", "-c", guard], capture_output=True, text=True,
+                      env={"PLUGGY_COMMIT": "1a2b3c4"})
+  assert ok.returncode == 0, "a real sha was rejected"
+
+
+def test_the_baked_commit_is_what_the_sim_reports():
+  """...and the other end of it: the variable the Dockerfile bakes is the
+  one `repo_commit()` reads, in preference to a git call that cannot work
+  inside the image."""
+  dockerfile = (ROOT / "Dockerfile").read_text()
+  assert "ARG PLUGGY_COMMIT" in dockerfile
+  assert "ENV PLUGGY_COMMIT=$PLUGGY_COMMIT" in dockerfile
+
+  from pluggybot.evaluation.record import COMMIT_ENV, repo_commit
+  assert COMMIT_ENV == "PLUGGY_COMMIT"
+  before = os.environ.get(COMMIT_ENV)
+  try:
+    os.environ[COMMIT_ENV] = "1a2b3c4"
+    assert repo_commit() == "1a2b3c4"
+    # ⚠ Blank is not a commit. An empty variable is the classic mis-deploy
+    # ($PLUGGYWORLD_TOKEN's lesson), and reporting "" as an identity is
+    # worse than falling back to the repo.
+    os.environ[COMMIT_ENV] = "   "
+    assert repo_commit() != "   "
+  finally:
+    if before is None:
+      os.environ.pop(COMMIT_ENV, None)
+    else:
+      os.environ[COMMIT_ENV] = before

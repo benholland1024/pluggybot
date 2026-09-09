@@ -108,7 +108,8 @@ class FrameBuilder:
                ledger=None, tasks=None, accepts=(), goals: str = "",
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
-               robot_name: str | None = None) -> None:
+               robot_name: str | None = None,
+               build: dict | None = None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -176,6 +177,22 @@ class FrameBuilder:
     # this is the identity the website's header shows. Resolved here (flag >
     # $PLUGGY_ROBOT_NAME > default) so both sinks of one run agree.
     self.robot_name = robot_display_name(robot_name)
+    # WHICH BUILD is producing this stream (issue #132; evaluation/record.py
+    # `build_identity`). Per-CONNECTION identity, which is what a header is
+    # for and exactly the granularity that matters here -- every mission end
+    # is a restart, so one header per run is one row per run.
+    #
+    # None, and the field absent, unless a caller supplies one. Two reasons,
+    # and neither is timidity: the committed protocol fixtures would
+    # otherwise carry a commit that changes on every commit, and a header
+    # that claims an identity it had to invent is worse than one that says
+    # nothing. `scripts/serve.py` -- the deployed world, which is the
+    # observatory this is for -- always supplies one.
+    #
+    # ⚠ NOT `self.build`: that is this class's frame-building METHOD, and an
+    # attribute of the same name silently replaces it -- the frames stop and
+    # nothing says why, on the one path that passes an identity at all.
+    self.identity = dict(build) if build else None
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -267,6 +284,17 @@ class FrameBuilder:
       # with no appetite -- the same honest answer `taskKinds` gives a world
       # with no board.
       "hungerStates": list(HUNGER_STATES) if self.metabolism else [],
+      # WHICH BUILD, WHICH MIND, WHICH WORLD PARAMETERS (issue #132).
+      # ADDITIVE, so no `protocolVersion` bump by protocol/README.md's own
+      # rule -- a consumer that has never heard of it reads the header it
+      # always read, and `tests/test_telemetry.py` pins that.
+      #
+      # ⚠ NESTED rather than six more top-level fields, and `model` is why:
+      # the header's existing `model` is the WORLD (the field a replayer
+      # picks its scene off), while this block's `model` is the mind. Two
+      # things called `model` one field apart would be read wrongly once and
+      # then for ever.
+      **({"build": self.identity} if self.identity else {}),
     }
 
   def goals_message(self, t: float) -> dict | None:
@@ -540,7 +568,7 @@ class TelemetryRecorder:
                ledger=None, tasks=None, accepts=(), goals: str = "",
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
-               robot_name: str | None = None,
+               robot_name: str | None = None, build: dict | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
@@ -549,7 +577,8 @@ class TelemetryRecorder:
                                  accepts=accepts, goals=goals,
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
-                                 steering=steering, robot_name=robot_name)
+                                 steering=steering, robot_name=robot_name,
+                                 build=build)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False

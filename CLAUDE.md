@@ -623,6 +623,39 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     scale with it — it is the absolute cost of reaching the dock, a property
     of the floor plan (`--reserve-wh` / `$PLUGGY_RESERVE_WH` is for a
     different room, not a different battery).
+- **THE HEADER SAYS WHICH BUILD PRODUCED THE STREAM** (issue #132;
+  `evaluation.record.build_identity`, protocol/README.md, Evaluation.md §5).
+  The deployed world is an OBSERVATORY -- one uncontrolled run, 24 hours a
+  day, free -- and until this it carried `protocolVersion` and no other
+  identity, so a week of it could not be told apart from the week before
+  under a different build. **Observatory data without a build identifier is
+  not weaker data, it is unusable data.** The `build` block carries the same
+  six things the experiment's series key does (`commit`, `dataHashes`, `arm`,
+  `model`/`backend`, `packWh`/`reserveWh`/`deadlineS`) from the SAME function
+  the `results/` records use -- one implementation, or the two agree until
+  one of them learns about a file the other did not.
+  ⚠ **ADDITIVE, so `protocolVersion` does NOT move**, and a header built
+  without an identity is byte-identical to 0.15.0's -- which is what keeps
+  the committed fixtures and every older recording valid. Only
+  `scripts/serve.py` supplies one; a recording that carried a commit would
+  churn on every commit.
+  ⚠ **`build.model` is the MIND, the top-level `model` is the WORLD** (the
+  field a replayer picks its scene off). That collision is why it is a nested
+  block and not six more top-level fields.
+  ⚠ **...and `self.build` on `FrameBuilder` is its frame-building METHOD**, so
+  the identity is held as `self.identity`. The attribute shadowed the method
+  and every frame after the header stopped, silently, on the one path that
+  passes an identity at all.
+  ⚠ **THE COMMIT IS BAKED AND THE BUILD IS RED WITHOUT IT**
+  (`--build-arg PLUGGY_COMMIT=$(git rev-parse --short HEAD)`; `$PLUGGY_COMMIT`
+  wins over git in `repo_commit`). `.git` is dockerignored, so a container has
+  no repo to ask -- and a default that quietly stayed `unknown` in production
+  is indistinguishable from never having done this. `tests/test_deploy.py`
+  runs the Dockerfile's own guard line under `sh`, both ways, rather than
+  building an image the box may not have docker for.
+  ⚠ **STORING IT IS THE OTHER HALF AND IT IS IN THE WEBSITE REPO**
+  (rooftop-media-2026 #205): identity with nothing recorded is a header nobody
+  reads.
 - **A recording carries the robot's MAP** (rooftop-media-2026 #78). `grid` was
   live-only from 0.2.0 until the website drew it, and the site's default view
   is a recording — so the map panel would have been blank for almost every
