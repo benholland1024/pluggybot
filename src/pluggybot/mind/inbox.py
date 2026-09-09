@@ -104,6 +104,18 @@ class VisitorMessage:
   #: bay. A NAME, validated against the model by the handler -- the inbox
   #: cleans, it does not know what modules exist.
   module: str = ""
+  #: `set_battery` only (issue #119): EXACTLY ONE of these. A fraction is
+  #: what an operator thinks in ("put it back to full"); watt-hours are what
+  #: the pack is measured in and what a spike or a sweep speaks. Both are
+  #: accepted and neither is derived from the other here, because this queue
+  #: does not know the capacity -- `None` means "not this one", which is why
+  #: they are optional rather than defaulted to 0.0.
+  frac: float | None = None
+  wh: float | None = None
+  #: `set_points` only (issue #119): an ABSOLUTE balance, never a delta. A
+  #: delta would race the appetite, which is eating points on the physics
+  #: seam while the message is in flight.
+  points: int | None = None
   #: sim seconds when the robot took delivery, not when it was sent
   t: float = 0.0
 
@@ -111,8 +123,9 @@ class VisitorMessage:
     """How the overseer is shown it. Framed as a REPORT of what somebody
     wants, never as a turn in a conversation with the model.
 
-    No `kind`: the only kind that reaches a model is `message` (a rating and
-    a tool reset are code's, and never shown), so the field could only ever
+    No `kind`: the only kind that reaches a model is `message` (a rating, a
+    tool reset, a robot reset and an admin's `set_battery` / `set_points`
+    are code's, and never shown), so the field could only ever
     carry one value -- and since 0.14.0 that is the whole point. Working out
     whether somebody is suggesting, asking or just saying hello is the job
     this is handed to a mind to do (issue #61).
@@ -126,6 +139,10 @@ class VisitorMessage:
       out.update({"seq": self.seq, "quality": self.quality})
     if self.kind == "reset_tool":
       out["module"] = self.module
+    if self.kind == "set_battery":
+      out.update({"frac": self.frac, "wh": self.wh})
+    if self.kind == "set_points":
+      out["points"] = self.points
     return out
 
 
@@ -240,9 +257,44 @@ class Inbox:
       module = clean(raw.get("module"), MAX_ID)
       if not module:
         return None                         # nothing was actually named
+    frac = wh = points = None
+    if kind == "set_battery":
+      # ⚠ EXACTLY ONE OF THE TWO. Both together is not a redundant request,
+      # it is two different requests in one message -- and the handler would
+      # have to pick, which makes what the operator asked for depend on
+      # which branch was written first. Neither is nothing to do.
+      given = [k for k in ("frac", "wh") if raw.get(k) is not None]
+      if len(given) != 1:
+        return None
+      try:
+        value = float(raw[given[0]])
+      except (TypeError, ValueError):
+        return None
+      # NaN fails every comparison below, so it is refused by the range
+      # check rather than by a special case. An upper bound on `wh` is the
+      # handler's: this queue does not know the capacity, and clamping to a
+      # number it invented would be worse than refusing.
+      if given[0] == "frac":
+        if not 0.0 <= value <= 1.0:
+          return None
+        frac = value
+      else:
+        if not value >= 0.0:
+          return None
+        wh = value
+    if kind == "set_points":
+      try:
+        points = int(raw["points"])
+      except (TypeError, ValueError, KeyError):
+        return None
+      # No debt, on `Ledger.consume`'s rule: hunger has a floor at zero, and
+      # a negative balance would be arrears arriving through the front door.
+      if points < 0:
+        return None
     return VisitorMessage(id=clean(raw.get("id"), MAX_ID), kind=kind,
                           text=text, who=clean(raw.get("from"), MAX_WHO),
-                          seq=seq, quality=quality, module=module, t=float(t))
+                          seq=seq, quality=quality, module=module,
+                          frac=frac, wh=wh, points=points, t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 

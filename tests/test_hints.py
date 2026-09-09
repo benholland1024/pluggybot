@@ -82,10 +82,11 @@ def test_adding_a_hint_is_not_a_version_bump(fixture):
   the fixture to `PROTOCOL_VERSION` alone would agree with any future
   version and stop saying anything. What it asserts is that the version
   moved for a reason named in protocol/README.md and NOT for a hint --
-  0.15.0 is deaths and `reset_robot` (issue #107), and the hint vocabulary
-  is untouched by it.
+  0.15.0 is deaths and `reset_robot` (issue #107), 0.16.0 is the admin's
+  reach-ins and the `intervention` event (issue #119), and the hint
+  vocabulary is untouched by either.
   """
-  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.15.0"
+  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.16.0"
 
 
 def test_the_conformance_bodies_are_the_real_body_shape(fixture):

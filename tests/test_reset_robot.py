@@ -69,7 +69,7 @@ def test_the_reset_is_an_admin_kind_code_handles_and_the_wire_bumped():
   assert "reset_robot" in CODE_HANDLED_TYPES
   assert set(CODE_HANDLED_TYPES) <= set(INBOUND_TYPES)
   assert DEATH_CAUSES == ("flat", "stuck")
-  assert PROTOCOL_VERSION == "0.15.0"
+  assert PROTOCOL_VERSION == "0.16.0"
   box = Inbox()
   msg = box.offer({"type": "reset_robot", "id": "rr_01", "from": "ben"})
   assert msg is not None and msg.kind == "reset_robot" and msg.who == "ben"
@@ -190,8 +190,17 @@ def test_a_reset_of_a_living_robot_is_marked_as_an_intervention():
   life.battery.energy_wh *= 0.5
   life.inbox.offer({"type": "reset_robot", "id": "rr_03", "from": "ben"})
   life._visitor_step()
-  assert seen[-1]["type"] == "reset" and seen[-1]["intervention"] is True
-  assert seen[-1]["wasDead"] is None and life.battery.fraction == pytest.approx(1.0)
+  #  Found by TYPE rather than by position: since issue #119 a reset of a
+  #  living robot is followed by an `intervention` event, and an assertion
+  #  on the last message would be about the emit order rather than about
+  #  the reset.
+  reset = next(e for e in seen if e["type"] == "reset")
+  assert reset["intervention"] is True
+  assert reset["wasDead"] is None and life.battery.fraction == pytest.approx(1.0)
+  #  ...and that second event is what a rollup counts (issue #119).
+  assert [e["what"] for e in seen if e["type"] == "intervention"] \
+    == ["reset_robot"]
+  assert life.interventions and life.interventions[0]["by"] == "ben"
 
 
 def test_a_dead_robot_with_an_inbox_waits_and_a_reset_resumes_the_day():

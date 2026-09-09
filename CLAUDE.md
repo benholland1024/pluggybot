@@ -623,6 +623,43 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     scale with it — it is the absolute cost of reaching the dock, a property
     of the floor plan (`--reserve-wh` / `$PLUGGY_RESERVE_WH` is for a
     different room, not a different battery).
+- **AN ADMIN CAN REACH INTO WORLD STATE, AND EVERY REACH-IN IS RECORDED**
+  (issue #119, protocol 0.16.0; Evaluation.md §5, protocol/README.md).
+  `set_battery` (a `frac` OR a `wh`, never both) and `set_points` (an
+  ABSOLUTE balance, never a delta -- a delta would race the appetite eating
+  on the physics seam) join `reset_tool` / `reset_robot` on exactly their
+  terms: inbound kinds, admin-only AT THE WEBSITE (the sim cannot know who is
+  an admin -- `from` is a label), code-handled on the physics thread, never
+  shown to the overseer, refused while a module is seated on the fork.
+  ⚠ **THE RECORD IS THE POINT, NOT THE CHANGE.** §5 has said since M14 began
+  that an intervention contaminates its run and `rollup.excluded_because` has
+  excluded on `interventions` all along -- with nothing filling it. Each
+  reach-in now leaves FOUR traces: `life.interventions` (the run record, what
+  a rollup reads) · an `intervention` event (the wire, the site's operator
+  log) · a narration line · a line in `History.md` (the ROBOT, which reads it
+  on every later decision -- the death line's argument).
+  ⚠ **ONE EVENT TYPE FOR ALL THREE KINDS**, `reset_robot` included, even
+  though a `reset` event already exists: a reset is the only one that is
+  SOMETIMES NOT an intervention (standing a DEAD robot up is a rescue), so
+  `reset` carries both cases and an `intervention` is emitted only for the
+  contaminating half. "Is this run still a data point" is then one thing to
+  count. Emitted AFTER its reset, because it is a fact about it.
+  ⚠ **`set_points` BREAKS `earned - consumed - spent == balance` ON PURPOSE**
+  -- papering it into `earned` would hide a reach-in inside the one number
+  issue #14 exists to make un-fakeable. `Ledger.intervene` is a third door
+  beside `award` and `consume`, named so nobody mistakes it for either;
+  `intervened` is a RECEIPT (persisted, and in the wire's `ledger` block so a
+  consumer can explain the broken identity) and NEVER a term in it. The
+  record carries `identityBrokenBy` beside the `false`, because a bare
+  `false` reads as a bug in the ledger.
+  ⚠ **INTERVENTIONS WERE DERIVED FROM `resets` AND CANNOT BE ANY MORE**: a
+  run whose battery was topped up and whose robot was never reset recorded an
+  empty array and passed for clean.
+  ⚠ **`set_battery` DOES NOT REVIVE A DEAD ROBOT** (`reset_robot` is the
+  revival) and it IS refused mid-swap -- not for symmetry, but because the
+  energy gate prices the next errand between errands and never inside one,
+  so a pack that moves while a module is on the fork changes the arithmetic
+  of a decision already taken.
 - **THE HEADER SAYS WHICH BUILD PRODUCED THE STREAM** (issue #132;
   `evaluation.record.build_identity`, protocol/README.md, Evaluation.md §5).
   The deployed world is an OBSERVATORY -- one uncontrolled run, 24 hours a

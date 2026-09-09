@@ -358,6 +358,27 @@ def end_cause(result: dict | None, max_sim_s: float) -> str:
   return "complete"
 
 
+def _interventions(result: dict | None, resets: list[dict]) -> list[dict]:
+  """Every time an admin reached into world state (issue #119).
+
+  ⚠ THE LIFECYCLE'S OWN LIST IS THE AUTHORITY, and the reset-derived
+  fallback below is only for a result written before it existed. Deriving
+  them from `resets` alone can only ever find one of the three kinds --
+  `set_battery` and `set_points` leave no reset behind — so a run whose
+  battery was topped up would have looked clean, which is the precise
+  failure `interventions` exists to prevent (docs/Evaluation.md §5).
+  """
+  own = (result or {}).get("interventions")
+  if own is not None:
+    return [{"t": i.get("t"), "what": i.get("detail") or i.get("what"),
+             "by": i.get("by"), "kind": i.get("what"),
+             "before": i.get("before"), "after": i.get("after")}
+            for i in own]
+  return [{"t": r["t"], "what": f"reset by {r.get('by', '?')} while alive",
+           "by": r.get("by"), "kind": "reset_robot"}
+          for r in resets if r.get("intervention")]
+
+
 def build_record(config: dict, result: dict | None, events: list[dict],
                  wall_s: float, started_at: datetime,
                  hashes: dict | None = None, commit: str | None = None) -> dict:
@@ -497,15 +518,16 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       spans.append(round(sim_s - since, 3))
     death_counts = {"flat": sum(1 for d in deaths if d["cause"] == "flat"),
                     "stuck": sum(1 for d in deaths if d["cause"] == "stuck")}
-    interventions = [{"t": r["t"], "what": f"reset by {r.get('by', '?')} "
-                                            "while alive"}
-                     for r in resets if r.get("intervention")]
   else:
     spans = ([round(flat_at, 3)] if flat_at is not None
              else [round(sim_s, 3)] if end != "killed" else [])
     death_counts = {"flat": int(flat_at is not None or end == "flat"),
                     "stuck": int(end in ("stuck", "stranded"))}
-    interventions = []
+  # ⚠ OUTSIDE THE BRANCH ABOVE, and that is the fix as much as the function
+  # is: an intervention is no longer something only a RESET can produce
+  # (issue #119), so a run with a topped-up battery and no reset in it used
+  # to take the `else` arm and record an empty list.
+  interventions = _interventions(result, resets)
   record = {
     "schema": SCHEMA,
     # The id the PARENT assigned, when there is one: the file is named by it
@@ -590,7 +612,21 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "earned": (result or {}).get("earned"),
       "consumed": metab.get("consumed"), "spilled": metab.get("spilled"),
       "balance": (result or {}).get("points"),
-      "identityHolds": ledger_ok, "hungerEnd": metab.get("state") or None,
+      "identityHolds": ledger_ok,
+      # ⚠ WHY IT DOES NOT HOLD, WHEN IT DOES NOT (issue #119). An admin's
+      # `set_points` breaks `earned - consumed - spent == balance` ON
+      # PURPOSE: the alternative is papering the reach-in into `earned`,
+      # which hides it inside the one number the reward system exists to
+      # make un-fakeable. So the identity is recorded as broken, WITH the
+      # reason -- a bare `false` here would read as a bug in the ledger, and
+      # that is the reading this field exists to prevent. Absent when the
+      # identity holds, and absent when it fails for some OTHER reason,
+      # which is a real bug and must not be given an excuse.
+      **({"identityBrokenBy": [i["what"] for i in interventions
+                               if i.get("kind") == "set_points"]}
+         if ledger_ok is False and any(i.get("kind") == "set_points"
+                                       for i in interventions) else {}),
+      "hungerEnd": metab.get("state") or None,
       "tasks": {**task_stats, "offeredToday": offered_today},
     },
     "interventions": interventions,

@@ -94,6 +94,11 @@ def _account() -> dict:
   grown-a-second-robot path and `load` cannot disagree about the fields --
   they did not, and then issue #36 added three at once."""
   return {"balance": 0, "earned": 0, "spent": 0, "seq": 0, "dropped": 0,
+          # Net points an ADMIN put in or took out (issue #119). A receipt,
+          # never a term in `earned - consumed - spent == balance`: that
+          # identity is meant to break when somebody reaches in, and this
+          # says by how much.
+          "intervened": 0,
           # Points eaten by living (issue #36), kept apart from `spent` for
           # the reason the module docstring gives: metabolism is not a
           # purchase. `spilled` is what the cap refused, and `owed` the
@@ -189,6 +194,14 @@ class Ledger:
         # nothing has been eaten and nothing refused.
         "consumed": acct["consumed"],
         "spilled": acct["spilled"],
+        # WHY THE ARITHMETIC NO LONGER ADDS UP, when it does not (0.16.0,
+        # issue #119). `earned - consumed - spent == balance` is checkable
+        # off the wire, and an admin's `set_points` breaks it on purpose --
+        # so a consumer that found the identity failing and had no field to
+        # explain it would be looking at what reads exactly like a bug in
+        # the scoreboard. Zero on every world nobody has reached into, which
+        # is every world before this.
+        "intervened": acct.get("intervened", 0),
         "tasks": acct["seq"],
         "pending": sum(1 for e in acct["entries"] if e.get("pending")),
         # Compact on purpose: this rides in every keyframe, and the full
@@ -371,6 +384,43 @@ class Ledger:
     self.save()
     return eaten
 
+  # ---- the third door, and it is an ADMIN's (issue #119) --------------------
+
+  def intervene(self, balance: int, by: str = "an admin", t: float = 0.0,
+                robot: str = ROBOT_ROOT) -> dict:
+    """Set a balance absolutely, because an operator said so.
+
+    ⚠ THIS IS NOT `award` AND NOT `consume`, AND THE NAME IS THE WARNING.
+    Those two are the whole of the reward system's honesty: `award` takes a
+    `Verdict` and re-derives the payout from the table before banking it, so
+    nothing can award itself points (issue #14); `consume` is the appetite,
+    which nothing the robot can influence ever calls. This is a person
+    reaching past both, and the only correct thing to do about that is to
+    make it obvious afterwards.
+
+    ⚠ IT DELIBERATELY BREAKS `earned - consumed - spent == balance`. Adding
+    the difference to `earned` would balance the books and hide the reach-in
+    inside the one number that is supposed to be un-fakeable -- and the
+    identity failing is exactly how an intervention shows up in the ECONOMY
+    column of a run record rather than only in the survival one (issue #119).
+    `intervened` is a RECEIPT, so the size of the reach-in is recoverable;
+    it is not a term in the identity and must never be added to one.
+
+    ⚠ NO DEBT: the floor is zero, on `consume`'s rule.
+    """
+    acct = self._acct(robot)
+    before = acct["balance"]
+    after = max(0, int(balance))
+    acct["balance"] = after
+    acct["intervened"] = int(acct.get("intervened", 0)) + (after - before)
+    self.save()
+    return {"robot": robot, "before": before, "after": after,
+            "by": by, "t": round(float(t), 3)}
+
+  def intervened(self, robot: str = ROBOT_ROOT) -> int:
+    """Net points an admin has put in or taken out. See `intervene`."""
+    return int(self._acct(robot).get("intervened", 0))
+
   def _emit(self, msg: dict) -> None:
     for hook in self.on_event:
       hook(dict(msg))
@@ -425,6 +475,12 @@ class Ledger:
         "consumed": int(acct.get("consumed", 0)),
         "spilled": int(acct.get("spilled", 0)),
         "owed": float(acct.get("owed", 0.0)),
+        # Absent in every file written before issue #119, and zero is again
+        # what one honestly means: nobody had reached in. NO STATE_VERSION
+        # BUMP for it -- a bump makes an older build REFUSE the file
+        # outright ("delete it to start at zero"), which is a wiped balance
+        # to protect a receipt.
+        "intervened": int(acct.get("intervened", 0)),
         "entries": entries,
       }
     return self
