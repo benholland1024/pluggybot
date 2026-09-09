@@ -404,7 +404,10 @@ def test_a_robot_with_no_mind_leaves_the_question_standing():
   assert scripted(menu, state, "test").action != "take_task", \
     "the scripted policy took on a question it cannot answer"
   # ...and the loop's own claim branch skips it rather than failing it.
-  life = SimpleNamespace(tasks=b, spendable_wh=5.0,
+  # `claim_budget_wh` rather than `spendable_wh` since issue #115: what an
+  # offer is checked against is now the arm's business (it is None on
+  # `autonomous`, where the filter is one of the three rails that come off).
+  life = SimpleNamespace(tasks=b, claim_budget_wh=5.0,
                          data=SimpleNamespace(time=1.0))
   assert not lc.HubLifecycle._claim_next_task(life)
   assert b[question.id].state == "offered"

@@ -47,7 +47,7 @@ from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
-from pluggybot.mind.overseer import THINK_SLICE_S
+from pluggybot.mind.overseer import CALLS_PER_HOUR, THINK_SLICE_S
 from pluggybot.economy.questions import clean_answer
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
@@ -117,6 +117,17 @@ DECIDED_EXPLORE_S = 45.0
 #: ...and how long `idle` stands still for. Long enough to read on the stream
 #: as a deliberate pause, short enough not to be a way of doing nothing all day.
 DECIDED_IDLE_S = 4.0
+#: ...and how long it stands still on an arm where idling is a STRATEGY
+#: rather than a pause (issue #115).
+#:
+#: ⚠ DERIVED FROM THE CALL BUDGET, because the loop must not ask faster than
+#: it is allowed to call. At 4 s a turn an idling robot re-decides 900 times
+#: an hour against `CALLS_PER_HOUR` = 60, so it spends the budget in four
+#: minutes and then spins on `fallback:budget` -- which on this arm fires the
+#: agent's own order, idles, and asks again. `guarded` never showed it
+#: because idling there is rare (7 turns in five days); on `autonomous` it is
+#: a thing the agent may reasonably decide to do for a while.
+AUTONOMOUS_IDLE_S = 3600.0 / CALLS_PER_HOUR
 #: ...and how long the loop stands by when a PRODUCER world has momentarily
 #: run out of work (issue #23). Short, because the only reason to bound it is
 #: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
@@ -178,8 +189,18 @@ class HubLifecycle:
                world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
                energy=None, thoughts=None, metabolism=None,
-               mortal: bool | None = None) -> None:
+               mortal: bool | None = None,
+               autonomous: bool = False) -> None:
     self.model, self.data = model, data
+    # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
+    # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
+    # gate) and `claim_budget_wh` (the offer filter) each read this and
+    # nothing else does. False everywhere but the `autonomous` arm -- the
+    # deployed world and the `guarded` control keep all three, and
+    # `tests/test_autonomous.py` flies `guarded` and asserts each still
+    # fires. Removing one and not the others measures nothing: the floor
+    # fired once in six baseline days and the gate eleven times.
+    self.autonomous = bool(autonomous)
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
     # except the served one.
@@ -572,6 +593,16 @@ class HubLifecycle:
     # The reserve is a PARAMETER of the world, not of the pack (issue #6):
     # the cost of getting home is set by the floor plan, and home_world's
     # worst return trip is nearly twice room_hub's.
+    #
+    # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115). On the
+    # `autonomous` arm it is off, and this is the only place that is true:
+    # the deployed world and the `guarded` control keep it, because an LLM
+    # that can decline to charge bricks a watched world overnight. Measured
+    # across six baseline days it fired ONCE, against eleven deferrals from
+    # the gate below -- so an arm that removed only this one would leave the
+    # robot rescued eleven times in twelve and would measure nothing.
+    if self.autonomous:
+      return False
     return self.battery.energy_wh < self.low_battery_wh
 
   @property
@@ -863,7 +894,16 @@ class HubLifecycle:
     Draining the queue of unrunnable errands rather than reporting on just
     the head, because the caller's next branch pops whatever is in front and
     a head this method silently disliked would be run un-gated.
+
+    ⚠ RAIL TWO, AND THE ONE DOING THE WORK (issue #115). It is the
+    FORWARD-LOOKING one -- it prices the next job against what is left,
+    which is exactly the reasoning the `autonomous` arm exists to find out
+    whether a model can do. Off on that arm, and there only: an errand
+    bigger than the pack is then simply started, and the robot stops where
+    it runs out. That is the measurement, not a bug in it.
     """
+    if self.autonomous:
+      return True
     while self.errands:
       errand = self.errands[0]
       fit = self.affords(errand)
@@ -1201,6 +1241,27 @@ class HubLifecycle:
     return max(0.0, self.battery.energy_wh - self.reserve_margin_wh)
 
   @property
+  def idle_s(self) -> float:
+    """How long one `idle` decision stands still for -- see
+    `AUTONOMOUS_IDLE_S`, which is the call budget expressed as an interval."""
+    return AUTONOMOUS_IDLE_S if self.autonomous else DECIDED_IDLE_S
+
+  @property
+  def claim_budget_wh(self) -> float | None:
+    """What an offer's cost is checked against before it may be claimed --
+    or None for "do not check".
+
+    ⚠ RAIL THREE, THE OFFER FILTER (issue #115), and it is the quietest of
+    the three: an offer the pack cannot fund is never SHOWN, so the model
+    cannot overreach because it cannot see the option. It fires on every
+    decision. Off on `autonomous`, where an unaffordable job is listed like
+    any other and taking one is a way to run out of power holding somebody's
+    tool -- `Task.claimable` already treats None as "no energy gate", so
+    this is the existing seam rather than a new branch inside it.
+    """
+    return None if self.autonomous else self.spendable_wh
+
+  @property
   def fundable_wh(self) -> float:
     """What a CHARGED pack can fund here -- what the WORLD can pay for, as
     opposed to what the robot can afford this second.
@@ -1353,7 +1414,7 @@ class HubLifecycle:
       return False
     now = float(self.data.time)
     task = self.tasks.get(task_id)
-    if task is None or not task.claimable(now, self.spendable_wh):
+    if task is None or not task.claimable(now, self.claim_budget_wh):
       self._say(f"TASK {task_id}: not available")
       return False
     said = clean_answer(answer) if task.needs_answer else ""
@@ -1393,7 +1454,8 @@ class HubLifecycle:
     """
     if self.tasks is None:
       return False
-    for task in self.tasks.claimable(float(self.data.time), self.spendable_wh):
+    for task in self.tasks.claimable(float(self.data.time),
+                                     self.claim_budget_wh):
       # A question is skipped rather than attempted (issue #22): there is
       # nobody here to work the answer out, and the two ways code could
       # supply one -- reading it out of the bank, or guessing -- are the sim
@@ -1499,7 +1561,7 @@ class HubLifecycle:
       self.explore(budget=DECIDED_EXPLORE_S, mark_done=False)
       return
     if decision.action in ("idle", "journal"):
-      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      self.mission._drive(self.idle_s, 0.0, 0.0)
       return
     errand = errand_from(decision, self.world, self.boards)
     if errand is None:
@@ -2320,7 +2382,9 @@ def run_demo(start=None, view: bool = False,
              mode_file: str | None = None,
              stop_when: Callable[["HubLifecycle"], bool] | None = None,
              on_ready: Callable[["HubLifecycle"], None] | None = None,
-             mortal: bool | None = None) -> dict:
+             mortal: bool | None = None,
+             autonomous: bool = False,
+             show_survival: bool = True) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -2425,7 +2489,9 @@ def run_demo(start=None, view: bool = False,
                            # `autonomous` arm: the scripted rotation is
                            # what today's behaviour IS, and the arm that
                            # measures today's behaviour has to keep it.
-                           standing_orders=standing_orders)
+                           standing_orders=standing_orders,
+                           autonomous=autonomous,
+                           show_survival=show_survival)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
@@ -2442,7 +2508,7 @@ def run_demo(start=None, view: bool = False,
                       world=world,
                       errands=errands_for(errand, world, book), tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger,
-                      mortal=mortal)
+                      mortal=mortal, autonomous=autonomous)
   # Where the pack starts (issue #84). A mission does not have to begin on a
   # full cell -- the milestone-8 test starts half-charged so its one-errand
   # day still needs the hub, now that the grown demo cell can fund a whole

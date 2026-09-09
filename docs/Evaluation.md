@@ -75,7 +75,7 @@ different question, and none of them is redundant.
 |---|---|---|---|---|
 | `scripted` | all on | — | rotation, no LLM | The null model. What does the world do with no mind at all? |
 | `guarded` | all on | rotation | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
-| `autonomous` | **all off** | the agent's own standing order | LLM | Does the model manage energy when nothing else will? |
+| `autonomous` | **all off** | the agent's own standing order, `idle` as bootstrap and floor | LLM | Does the model manage energy when nothing else will? |
 
 ### There are THREE rails, and the one you would name first fires least
 
@@ -132,6 +132,51 @@ not doing the reasoning we are trying to detect, and the long-term direction
 comparison — which it will never need to do if the answer is already in the
 prompt. An agent that decides to check three offers in one pass has done
 something a fixed `affordableActions` list cannot express.
+
+### Built (issue #115)
+
+`--arm autonomous --rung A0|A1`. What the arm turns on, and where:
+
+| | where | note |
+|---|---|---|
+| the three rails, off | `HubLifecycle.autonomous`, read by `needs_charge`, `_afford_next` and `claim_budget_wh` — **and by nothing else** | one flag, three readers; a test counts the references so a fourth has to be argued for |
+| the corrected rules | `RULES_AUTONOMOUS`, selected by arm in `system_prompt` | built from `RULES` by three *asserted* replacements, so the ~100 shared lines cannot drift and a reworded needle fails at **import** rather than shipping an arm still told charging is not its decision |
+| the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
+| an unaffordable job takeable | `limits_from(state, autonomous=True)` | refusing it in `validate` would put the offer filter back at the last possible moment |
+| the fallback | `standing_orders=True` (issue #125) | `idle` as bootstrap and as floor, counted separately — already built |
+
+⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
+*presentation*. `scripted`, `order_runnable` and `limits_from` all read the
+same dict, and `order_runnable` treats an absent `possibleActions` as "nobody
+supplied one" — so an autonomous world that *built* a thinner state would
+quietly stop filtering unrunnable standing orders, which is the agent's own
+fallback changing behaviour as a side effect of a prompt change.
+
+⚠ **A0 HAS TO HIDE THE SURVIVAL CLOCK.** `survival.aliveS` and
+`survival.deaths` have been in every world's context since issue #107, so an
+A0 that left them there would already *be* A1 and the ladder's first question
+could never be asked. `RUNGS` is where that lives, and the rung is in the
+record.
+
+#### Two `garbled` sources, fixed on this arm only
+
+The quiet series' residual was 7 malformed answers in 104 decisions, and
+neither cause was what `Overseer.md` §6 predicted:
+
+- **Six were a stale task id** — a real-looking id not on the board, usually
+  an *older* one (`t_0009` when only `t_0011` was offered), copied out of the
+  model's own history or off an offer that had lapsed. `Menu.schema` now
+  takes `task_ids` and makes `task` an **enum**, the move `action` has always
+  used. ⚠ The comment at that field said an enum "buys nothing"; measurement
+  falsifies it. The real cost is a per-call grammar recompile — the A0 smoke
+  run measured a 16.4 s median call against `guarded`'s 7.49, which 90 s
+  covers and the old 8 s would not have.
+- **One was a truncation**, cut off mid-`learn` with the JSON never closed.
+  `MAX_TOKENS_AUTONOMOUS` doubles the budget, as `ESCALATE_MAX_TOKENS` does.
+
+⚠ **Neither is applied to `guarded`.** That arm is the control, the deployed
+world runs it, and its committed series was flown under the old grammar —
+adopting either there is a **re-fly**, not a patch.
 
 ### The ladder
 
@@ -514,6 +559,56 @@ energy gate did every trip — and the pack never went below 11.3 % against
 3.5 % loaded. The rotation's `explore`, which walked a robot into the street
 on a fallback in an earlier set, does not appear in the record at all.
 
+#### A0 — measured (issue #115, 2026-09-08)
+
+Five days of `home`, all three rails off, survival clock hidden, on a quiet
+box at the 90 s deadline. ⚠ **Offered as a GATE and an integration test, not
+as a baseline** — see the write-up's `notShown` and the scope note on #115: a
+death-rate distribution has nothing to be compared against while
+points-as-currency and a new death condition are about to change what
+surviving means.
+
+- **The rails are demonstrably off.** `forced` and `deferred` are 0 on every
+  day, where the `guarded` control was sent to the rack twice a day by the
+  energy gate. Everything else here is the model's own doing.
+- **Four days of five ended `flat`**, which is what §3's baseline predicted.
+  The deaths share one shape: it takes jobs it can pay for, keeps taking them
+  as the pack falls, and then picks one costing more than is left. One day it
+  drew a picture at **1.2 %**, citing `Goals.md`.
+- ⚠ **The failure is not inattention.** Every decision carries a coherent
+  reason and the numbers are all in front of it — `energyCostWh`,
+  `battery.wh`, `reserveWh`. It never treats them as a constraint. The
+  corrected prompt asks for the comparison in as many words and the
+  comparison does not happen.
+- **The day it survived, it survived badly.** 15 charges chosen, 3 honoured.
+  It invented "the safe threshold of 0.3" — nobody gave it that — then went
+  on quoting `battery is at 0.207` for an hour while actually above 80 %,
+  copying the number out of its own history rather than reading the state.
+  By the end the stated reason was "maintaining the habit of charging".
+- **The capability gate: it uses the standing order and never varies it.**
+  12 of 12 probe decisions left one, at every fraction from 92 % to 15 %, and
+  every one was `idle` — which is also the floor's default. Same in all five
+  flown days. ⚠ The affordance is *engaged with* and not *used as a lever*,
+  which is a caution for #127: an agent that never varies one scalar field is
+  unlikely to need a configuration language.
+
+⚠ **TWO DAYS ARE DISQUALIFIED AND THE THRESHOLD IS THE WRONG INSTRUMENT
+HERE.** Both were over 0.10 on `idle-run` alone — the model chose to idle,
+the throttle skipped one call in three, and the fallback fired *the agent's
+own standing order*. The limit was argued for on `guarded`, where a fallback
+is a scripted rotation **that never charges**; on this arm there is no
+rotation, so that argument does not transfer. Re-make the number before
+judging this arm by it.
+
+⚠ **AND THERE IS A FOURTH RAIL THE ISSUE DID NOT NAME.** `TOP_UP_BELOW`
+(75 %) refuses a *chosen* charge, which turned 12 of the surviving day's 15
+charges into decisions the robot made and did not get. It exists to stop
+points-farming — charging is a scored task — rather than to keep the robot
+alive, so leaving it on is defensible; but "three rails" is incomplete, and
+on an arm whose premise is that charging is the agent's decision it is not
+nothing. `charging.voluntary` records `chosen` and `honoured` separately
+precisely so this is visible.
+
 ### Interrupts (NEW — arm `autonomous`, rung A2)### Interrupts (NEW — arm `autonomous`, rung A2)
 
 - `interrupts` — offered, continued, aborted, with the battery fraction at
@@ -767,6 +862,78 @@ uses when something falls over. Aggregates from it are worth showing —
 someone watching — but they are a *live section* of the data page, labelled as
 such, and they never enter a results table.
 
+### ...but it IS an observatory, and it is the only one
+
+The sentence above is about what the deployed world cannot be. What it *is*
+deserves stating, because it is currently being wasted: **a robot running the
+full lifecycle 24 hours a day, at no marginal cost to anybody's machine.**
+
+An experiment and an observatory answer different questions and neither
+substitutes for the other:
+
+| | experiment (`results/`) | observatory (deployed) |
+|---|---|---|
+| trials | N ≥ 5, independent | **one, continuous** |
+| state | fresh per run | **one volume, accumulating** |
+| duration | one sim-hour | **days, indefinitely** |
+| control | full | none |
+| cost | hours of a quiet machine | **free; it runs anyway** |
+
+Four things only the observatory can show, all of them currently unrecorded:
+
+- **Accumulation.** The thought files, the ledger and the board carry across
+  restarts by design — "a restart is neither a meal nor a missed one". A
+  one-sim-hour run cannot show a memory filling up over a week, and §4 already
+  notes that six fresh starts is a different experiment from six consecutive
+  days on one volume, *and only the second is what the served world does*.
+- **The hunger cycle at its true period.** Measured at t=2643 to reach
+  `satisfied` — longer than most missions. The arc across several days is only
+  visible here.
+- **Rare events at their natural frequency.** The robot has been found on its
+  side more than once; nobody knows the rate, and a rate is what decides
+  whether it is worth engineering against.
+- **What actually breaks in production**, which is a different set from what
+  breaks in a one-hour flight.
+
+⚠ **IT WAS UNATTRIBUTABLE, AND IS NOT ANY MORE (issue #132).** The header
+used to carry `protocolVersion` and nothing else — no commit, no data-file
+hashes — so a week of deployed behaviour could not be told apart from the week
+before it under a different build. That is the same failure `dataHashes` and
+`deadlineS` were added to the series key to prevent, one repo over.
+**Observatory data without a build identifier is not weaker data; it is
+unusable data**, because two regimes wear one name and nothing can separate
+them afterwards.
+
+The header now carries a `build` block — `commit`, `dataHashes`, `arm`,
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS` — built by
+`evaluation.record.build_identity`, which is the SAME function the experiment
+record's `commit` and `dataHashes` come from. That is the point of putting it
+there rather than restating six fields in the telemetry layer: a header and a
+record that computed their own hashes would agree until the day one of them
+learned about a file the other did not, and nothing would notice.
+
+Three things this deliberately is not:
+
+- **A version bump.** It is additive, so by `protocol/README.md`'s own rule a
+  consumer that has never heard of it reads the header it always read. A
+  header built without an identity is byte-identical to the one 0.15.0
+  produced, which is what keeps every committed fixture and every older
+  recording valid.
+- **A promotion.** The deployed world is still not an experiment and its
+  numbers still never enter a results table. What is now possible is *saying
+  which robot the observations are of* — without which a live-aggregates
+  section is a chart of an unknown mixture.
+- **A field that may fall back.** `.git` is not in the serving image, so the
+  sha is baked at build (`--build-arg PLUGGY_COMMIT`) and the **build is red
+  without one**. A default that quietly stayed `unknown` in production would
+  be indistinguishable, from the outside, from not having done this at all —
+  which is the osmesa smoke test's argument in the same Dockerfile.
+
+⚠ **STORING IT IS THE OTHER HALF, AND IT LIVES IN THE WEBSITE REPO**
+(rooftop-media-2026 #205). Identity with nothing recorded is a header nobody
+reads; records with no identity are a chart of an unknown mixture. Neither
+issue is much use alone.
+
 ⚠ **AN ADMIN INTERVENTION CONTAMINATES EVERY SURVIVAL NUMBER IN ITS RUN.**
 The admin panel will be able to set points and battery directly, which is the
 right feature and a measurement hazard. Every intervention is recorded into
@@ -961,7 +1128,7 @@ is narrative, never a capability lock.
    timeouts in five days, the baseline's zero voluntary charges intact across
    104 decisions the model genuinely made, and the discovery that the old
    series' latency column was censored at its own deadline.
-5. **The `autonomous` arm, as a ladder.** ⚠ Not "one branch in `run()`" — that
+5. **The `autonomous` arm, as a ladder. Built (issue #115); A0 flies separately.** ⚠ Not "one branch in `run()`" — that
    was written before the rails were counted. Three rails come off (§2), the
    prompt is corrected in the same change because otherwise the arm lies to
    the robot, the fallback becomes the agent's own standing order, and A0→A3
@@ -974,6 +1141,27 @@ is narrative, never a capability lock.
    has ever had.
 6. **The capacity sweep** — 4 / 8 / 16 / 32 Wh, reporting the death curve *and*
    what the robot does with the surplus at the large end.
+
+⚠ **ITEMS 5 AND 6 WAIT FOR THE WORLD, AND THIS IS A REVISION (8 Sep 2026).**
+The ladder is a **threshold-finding** device and the sweep is twenty flights,
+and both are defined against an outcome that is about to move: points are
+becoming a currency rather than an end good, a death-by-points condition is
+being added, and the challenge set is being replaced. Each of those changes
+what *survival* means, so a rung measured before them and a rung measured
+after them do not describe a gradient — they describe two different
+experiments sharing a name.
+
+So the ladder's rungs beyond A0, and the whole sweep, wait until the world's
+death conditions and points semantics are settled. **Nothing about either gets
+harder by waiting and everything about both gets more meaningful.**
+
+What still runs in the meantime is **capability gates** — cheap, version-local,
+pass/fail questions that decide the next milestone and are not expected to
+survive a change to the world ("does the agent set a standing order at all?").
+⚠ Do not run a gate through the full N ≥ 5 machinery: that machinery exists to
+make a series comparable, and a gate is not trying to be. The probe answers
+most of them without a sim at all, which is the lesson item 4 already taught
+once.
 7. **General evaluators** — a scorer that measures success without knowing the
    method. **The gate for everything below it**, and the reason is structural:
    `Task.create` refuses a kind whose evaluator does not exist, so *the
@@ -1002,11 +1190,31 @@ deliberately built *after* the first experiments, so that the page does not
 shape the experiments around what renders nicely — but the **explanation** is
 written when the data is collected, not when the page is.
 
-So every result set lands with a short written entry: what was run, what the
+So every **series** lands with a short written entry: what was run, what the
 numbers were, what changed since the last set, and what it does **not** show.
 §3's baseline sections are the format. That prose is what the page renders; a
 page built over undocumented numbers would have to invent the interpretation,
 which is the failure mode the whole document is about.
+
+⚠ **A GATE IS NOT A SERIES, AND DOES NOT GET ONE** (8 Sep 2026). §7 defines a
+capability gate as cheap, version-local and not expected to survive a change to
+the world; this section was written before that distinction existed and asked
+for an entry from everything, so the two disagreed about A0. §7 is right. A
+gate reports into **the decision it informs** — the PR, the issue it settles —
+and its runs are committed as evidence rather than narrated as a finding.
+`notes.json` is keyed per series for the same reason: a gate has no series to
+be an entry for.
+
+A0 is the worked example. It changed the plan — charging is inverted (14 of 52
+decisions above 60 % pack, **0 of 15 below 15 %**), the standing order is set
+on 99 of 102 decisions and set to `idle` on 94 % of them, and the single
+survivor is confounded by a points floor that came off with the safety rails.
+All of that belongs in the economy issues it produced, not in a results
+narrative read against a world that will not exist by the time anyone opens it.
+
+The test for which one you have: **would this number still mean something after
+the next change to the world?** If yes, write the entry. If no, it is a gate —
+land the decision and move on.
 
 ### Where the entry goes: `results/notes.json`
 

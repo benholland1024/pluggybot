@@ -196,6 +196,47 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   the old 8 s**. The probe under-measures a mission by ~half (a real prompt
   carries a day of history). Choose the deadline from the probe, confirm it
   with a flight.
+  ⚠ **THE `autonomous` ARM IS BUILT** (issue #115): `--arm autonomous
+  --rung A0|A1`. THREE rails come off together (`HubLifecycle.autonomous`,
+  read by `needs_charge`, `_afford_next` and `claim_budget_wh` and by
+  NOTHING else), the prompt is corrected in the same change
+  (`RULES_AUTONOMOUS`, built from `RULES` by three ASSERTED replacements so
+  a reworded needle fails at import rather than shipping an arm still told
+  charging is not its decision), the code-computed verdicts leave the
+  context (`model_state` drops `affordableActions`/`possibleActions`/
+  `claimable` and keeps `energyCostWh`/`battery.wh`/`reserveWh`), and the
+  fallback is #125's standing order. ⚠ `guarded` is the CONTROL and does
+  not move: its cached prefix is byte-identical, proven against staging.
+  ⚠ **THE VIEW NARROWS, THE STATE DOES NOT** -- `model_state` filters at
+  PRESENTATION, because `order_runnable` reads `possibleActions` off the
+  same dict and an absent list means "nobody supplied one", so a thinner
+  state would silently change what the agent's own fallback can do.
+  ⚠ **A0 MUST HIDE THE SURVIVAL CLOCK** (#107 put it in every world), or A0
+  and A1 are one run and "does seeing the stake change anything" is
+  unaskable.
+  ⚠ **THE TWO `garbled` SOURCES ARE FIXED ON THIS ARM ONLY**: six of seven
+  were a STALE TASK ID (an older id copied out of the model's own history),
+  now an enum via `Menu.schema(task_ids=)` -- the comment saying an enum
+  "buys nothing" is falsified, and the real cost is a per-call grammar
+  recompile (A0 smoke: 16.4 s median call vs guarded's 7.49, which 90 s
+  covers and 8 s would not have). The seventh was a `max_tokens`
+  truncation. Applying either to `guarded` is a RE-FLY, not a patch.
+  ⚠ **A0 IS FLOWN** (issue #115, 5 days, Evaluation.md §3): rails
+  demonstrably off (`forced`/`deferred` 0 every day against the control's 2
+  a day), **4 of 5 dead flat**, and the one survivor charged 15 times on a
+  threshold it INVENTED ("the safe threshold of 0.3") while quoting a stale
+  `battery is at 0.207` for an hour at 80 %. ⚠ The failure is not
+  inattention -- every reason is coherent and every number is in front of
+  it; it just never treats energy as a constraint. **THE GATE: it sets a
+  standing order 12/12 and it is ALWAYS `idle`**, at every fraction from
+  92 % to 15 % -- the affordance is engaged with, never used as a lever
+  (a caution for #127). ⚠ **A FOURTH RAIL THE ISSUE DID NOT NAME**:
+  `TOP_UP_BELOW` refused 12 of those 15 charges. It stops points-farming
+  rather than keeping the robot alive, so it stays -- but `voluntary.chosen`
+  vs `honoured` is the only reason that is visible. ⚠ **AND THE 0.10 LIMIT
+  IS THE WRONG INSTRUMENT HERE**: both disqualified days were over it on
+  `idle-run` alone, and the limit's argument ("the rotation never charges")
+  does not transfer to an arm whose fallback is the AGENT'S OWN order.
   ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
   LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
   `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
@@ -582,6 +623,39 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     scale with it — it is the absolute cost of reaching the dock, a property
     of the floor plan (`--reserve-wh` / `$PLUGGY_RESERVE_WH` is for a
     different room, not a different battery).
+- **THE HEADER SAYS WHICH BUILD PRODUCED THE STREAM** (issue #132;
+  `evaluation.record.build_identity`, protocol/README.md, Evaluation.md §5).
+  The deployed world is an OBSERVATORY -- one uncontrolled run, 24 hours a
+  day, free -- and until this it carried `protocolVersion` and no other
+  identity, so a week of it could not be told apart from the week before
+  under a different build. **Observatory data without a build identifier is
+  not weaker data, it is unusable data.** The `build` block carries the same
+  six things the experiment's series key does (`commit`, `dataHashes`, `arm`,
+  `model`/`backend`, `packWh`/`reserveWh`/`deadlineS`) from the SAME function
+  the `results/` records use -- one implementation, or the two agree until
+  one of them learns about a file the other did not.
+  ⚠ **ADDITIVE, so `protocolVersion` does NOT move**, and a header built
+  without an identity is byte-identical to 0.15.0's -- which is what keeps
+  the committed fixtures and every older recording valid. Only
+  `scripts/serve.py` supplies one; a recording that carried a commit would
+  churn on every commit.
+  ⚠ **`build.model` is the MIND, the top-level `model` is the WORLD** (the
+  field a replayer picks its scene off). That collision is why it is a nested
+  block and not six more top-level fields.
+  ⚠ **...and `self.build` on `FrameBuilder` is its frame-building METHOD**, so
+  the identity is held as `self.identity`. The attribute shadowed the method
+  and every frame after the header stopped, silently, on the one path that
+  passes an identity at all.
+  ⚠ **THE COMMIT IS BAKED AND THE BUILD IS RED WITHOUT IT**
+  (`--build-arg PLUGGY_COMMIT=$(git rev-parse --short HEAD)`; `$PLUGGY_COMMIT`
+  wins over git in `repo_commit`). `.git` is dockerignored, so a container has
+  no repo to ask -- and a default that quietly stayed `unknown` in production
+  is indistinguishable from never having done this. `tests/test_deploy.py`
+  runs the Dockerfile's own guard line under `sh`, both ways, rather than
+  building an image the box may not have docker for.
+  ⚠ **STORING IT IS THE OTHER HALF AND IT IS IN THE WEBSITE REPO**
+  (rooftop-media-2026 #205): identity with nothing recorded is a header nobody
+  reads.
 - **A recording carries the robot's MAP** (rooftop-media-2026 #78). `grid` was
   live-only from 0.2.0 until the website drew it, and the site's default view
   is a recording — so the map panel would have been blank for almost every

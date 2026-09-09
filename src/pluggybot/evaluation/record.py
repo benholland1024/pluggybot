@@ -33,7 +33,7 @@ SCHEMA = 1
 #: The three arms (Evaluation.md §2). `autonomous` is named so a record can
 #: carry it, and refused by `run.py` until the arm exists (§7, item 4).
 ARMS = ("scripted", "guarded", "autonomous")
-BUILT_ARMS = ("scripted", "guarded")
+BUILT_ARMS = ("scripted", "guarded", "autonomous")
 
 #: How a run ended. CLOSED, because a rollup groups on it. `stuck` is listed
 #: and currently unreachable: a wedged mission does not end (#108), so the
@@ -60,6 +60,12 @@ DATA_FILES: dict[str, tuple[Path, str]] = {
   "metabolism": (metabolism.METABOLISM_PATH, metabolism.METABOLISM_ENV),
   "questions": (questions.BANK_PATH, questions.BANK_ENV),
 }
+
+#: Where the serving image bakes its git sha (issue #132). `.git` is
+#: dockerignored, so a container has no repo to ask -- and `repo_commit`
+#: answering `unknown` in production is precisely the unattributable
+#: observatory this variable exists to end.
+COMMIT_ENV = "PLUGGY_COMMIT"
 
 #: `voluntary.honoured` is a `charge` decision below this; at or above it
 #: the loop refuses the trip as a points farm. Imported lazily from the
@@ -118,12 +124,67 @@ def data_hashes(world: str) -> dict[str, str]:
 
 
 def repo_commit() -> str:
+  """Which build this is, as a short sha.
+
+  `$PLUGGY_COMMIT` wins over git because the SERVING IMAGE has no `.git`
+  (it is in `.dockerignore`, and copying the history to name a commit
+  would be an odd trade) -- the sha is baked at image build and the
+  Dockerfile fails the build without one, so a deployed container can say
+  what it is rather than reporting `unknown` for ever. Locally the
+  variable is unset and this is the git call it always was.
+  """
+  baked = os.environ.get(COMMIT_ENV, "").strip()
+  if baked:
+    return baked
   try:
     return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                           capture_output=True, text=True, check=True,
                           cwd=Path(__file__).parent).stdout.strip()
   except Exception:  # noqa: BLE001 -- no git, no repo: still a record
     return "unknown"
+
+
+def build_identity(world: str, *, arm: str, model: str | None = None,
+                   backend: str | None = None, pack_wh: float | None = None,
+                   reserve_wh: float | None = None,
+                   deadline_s: float | None = None,
+                   hashes: dict | None = None,
+                   commit: str | None = None) -> dict:
+  """WHICH BUILD produced a stream, in the experiment's own vocabulary
+  (issue #132; docs/Evaluation.md §5).
+
+  The deployed world is an observatory rather than an experiment -- one
+  uncontrolled continuous run whose numbers never enter a results table --
+  but an observation nobody can attribute is not weaker data, it is
+  unusable data: a week under one build and the week after it under
+  another wear one name, and nothing separates them afterwards. That is
+  the exact failure `dataHashes` and `deadlineS` were added to a SERIES
+  KEY to prevent, so this is deliberately the same six things, computed
+  HERE so a record and a header can never disagree about what a file
+  hashes to.
+
+  It lives beside `build_record` for that reason and no other: this module
+  is where "which regime is this" is defined, and the telemetry header is
+  a second reader of it rather than a second implementation.
+  """
+  return {
+    "commit": commit if commit is not None else repo_commit(),
+    "dataHashes": dict(hashes if hashes is not None else data_hashes(world)),
+    "arm": arm,
+    # WHICH MIND, and it is two fields because they answer different
+    # questions: `Qwen/Qwen3-4B-Instruct-2507` is the model and
+    # `huggingface` is the road it took to get there -- the same id served
+    # locally is a different regime (docs/Overseer.md §6).
+    "model": model,
+    "backend": backend,
+    # The three world parameters that have each been shown to move
+    # behaviour: the pack size (Evaluation.md §5, "an experimental
+    # parameter, not a comfort setting"), the return-trip margin every
+    # errand must leave behind, and the decision deadline -- which is not
+    # a data file, so no hash catches it, and which decides how much of a
+    # day the model decided at all (issue #117).
+    "packWh": pack_wh, "reserveWh": reserve_wh, "deadlineS": deadline_s,
+  }
 
 
 def slug(text: str) -> str:
@@ -474,6 +535,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "parallel": int(config.get("parallel", 1)),
       "deadlineS": config.get("deadlineS"),
       "wallLimitS": config.get("wallLimitS"),
+      # WHICH RUNG of the autonomous ladder, and absent on the arms that
+      # have no ladder -- "flown at A0" and "the question did not apply"
+      # are different claims, on `escalations`' terms (issue #115).
+      **({"rung": config.get("rung") or "A0"}
+         if config["arm"] == "autonomous" else {}),
     },
     "simSeconds": round(sim_s, 3), "wallSeconds": round(float(wall_s), 1),
     "end": end,

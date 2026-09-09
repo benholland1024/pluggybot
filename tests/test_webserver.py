@@ -732,6 +732,13 @@ class _FakeLife:
     # it; serve.py ASSERTS that rather than setting it, so the rule lives
     # in the lifecycle alone.
     self.mortal = kw.get("inbox") is not None
+    # What the header's build identity is read off (issue #132): whether the
+    # three rails are off, and the two world parameters the pack is flown
+    # with. Held off the kwargs for the mode hooks' reason above -- the real
+    # lifecycle always has all three.
+    self.autonomous = bool(kw.get("autonomous", False))
+    self.battery = types.SimpleNamespace(capacity_wh=kw.get("battery_wh"))
+    self.low_battery_wh = kw.get("low_battery_wh")
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 
@@ -985,3 +992,45 @@ def test_serve_shows_no_wallet_on_a_world_that_cannot_spend(monkeypatch):
   not have."""
   _, pub, _ = _serve_wiring(monkeypatch, ["--world", "room_hub", "--free-run"])
   assert pub.init_kwargs["spend"] is None
+
+
+def test_the_served_world_says_which_build_it_is(monkeypatch):
+  """The observatory's whole premise (issue #132; Evaluation.md §5).
+
+  ⚠ It is the deployed world that needs this, so it is `serve.py` that
+  supplies it -- and the run's OWN parameters, not the world's defaults: a
+  `--pack hosting` day and a demo-cell day are two regimes, and reading the
+  pack off `world_config` would have described them identically.
+  """
+  life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                             "--pack", "hosting",
+                                             "--reserve-wh", "1.25"])
+  identity = pub.init_kwargs["build"]
+  assert identity["commit"] and identity["commit"] != "unknown"
+  assert identity["packWh"] == life.init_kwargs["battery_wh"]
+  assert identity["reserveWh"] == 1.25
+  assert set(identity["dataHashes"]) >= {"rewards", "cadence", "energy",
+                                         "metabolism", "questions", "world"}
+  # No overseer: the arm is the null model and the mind fields are absent
+  # rather than filled in with a default nothing is running.
+  assert identity["arm"] == "scripted"
+  assert (identity["model"], identity["backend"],
+          identity["deadlineS"]) == (None, None, None)
+
+
+def test_the_arm_and_the_mind_come_off_the_overseer_that_was_built(monkeypatch):
+  """`guarded` is the deployed arm and it should SAY so rather than be
+  assumed -- and which model, by which road, since the same id on the router
+  and served locally are different regimes."""
+  from pluggybot.mind import overseer as overseer_mod
+
+  monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
+  _, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                          "--overseer"])
+  identity = pub.init_kwargs["build"]
+  boss = pub.init_kwargs["steering"]
+  assert boss is True
+  assert identity["arm"] == "guarded"
+  assert identity["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+  assert identity["backend"] == "huggingface"
+  assert identity["deadlineS"] == overseer_mod.CALL_TIMEOUT_S

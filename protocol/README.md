@@ -99,6 +99,50 @@ Additive on the wire (new kind, new events, new field); the bump is for the
 new lifecycle state and because a consumer that renders `deaths` needs to
 know the producer emits them.
 
+### The header says which build produced the stream
+
+pluggybot #132 (M14). **Additive, and the version does NOT move** — by this
+file's own rule a consumer ignores a field it has never heard of, and
+`tests/test_telemetry.py` pins both halves: `protocolVersion` is unchanged and
+a header built without an identity is byte-identical to the one 0.15.0 always
+produced. Every recording made before this is still valid and carries no
+`build`.
+
+The deployed sim runs the full lifecycle 24 hours a day and, until this,
+carried `protocolVersion` and no other identity — so a week of observed
+behaviour could not be told apart from the week before it under a different
+commit, a different model or a different `rewards.json`. That is the exact
+failure `dataHashes` and `deadlineS` were added to the *experiment's* series
+key to prevent (docs/Evaluation.md §4): the experiment refuses to pool across
+two regimes, and the observatory could not even detect one. **Observatory
+data without a build identifier is not weaker data, it is unusable data.**
+
+It is in the header because it is per-CONNECTION identity, which is what a
+header is for, and because every mission end is a restart — so one header per
+run is exactly the granularity a consumer wants to group by. `accepts` and
+`robotNames` are there for the same reason.
+
+| field | what it says |
+|---|---|
+| `commit` | the sim's short git sha, **baked at image build** (`--build-arg PLUGGY_COMMIT=…`; the build is red without one, because `.git` is not in the image and a default that quietly stayed `unknown` is the whole problem) |
+| `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets. The same function the `results/` records use — one implementation, not two |
+| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed |
+| `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
+| `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
+
+⚠ **`build.model` is the MIND; the header's top-level `model` is the WORLD** —
+the field a replayer picks its scene off. That collision is why this is a
+nested block rather than six more top-level fields.
+
+⚠ **This does not make the deployed world an experiment.** It stays one
+uncontrolled run with an operator who can pause it and an admin who resets it,
+and its numbers never enter a results table (docs/Evaluation.md §5). What it
+makes possible is *saying which robot the observations are of*.
+
+⚠ **`arm` is fixed at connection like `accepts`**, so an operator flipping the
+switch to `scripted` mid-run does not restate it here; the `mode` message
+carries every flip as it happens.
+
 ### 0.13.0 → 0.14.0 (one visitor message, and the robot sorts it)
 
 pluggybot #61. A visitor used to have to declare whether they were
@@ -1038,7 +1082,14 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "screens": ["module_lcd"],                             // display modules
  "ledger": ["pluggybot"],                               // robots with a balance
  "taskKinds": ["draw_figure", "count_plants"],          // jobs it can offer
- "accepts": ["message", "rating"]}                      // what it will act on
+ "accepts": ["message", "rating"],                      // what it will act on
+ "build": {                                            // WHICH BUILD (0.15.0+,
+   "commit": "21f44dc",                                //  additive; see below)
+   "dataHashes": {"rewards": "f55a…", "cadence": "ab3c…", "energy": "144a…",
+                  "metabolism": "3937…", "questions": "8554…", "world": "b946…"},
+   "arm": "guarded", "model": "Qwen/Qwen3-4B-Instruct-2507",
+   "backend": "huggingface",
+   "packWh": 8.0, "reserveWh": 0.9, "deadlineS": 90.0}}
 
 // frame
 {"t": 123.45,                                  // sim seconds

@@ -46,7 +46,7 @@ FIELDS = ("series", "title", "date", "ran", "found", "changed", "notShown")
 
 
 def series_id(world: str, arm: str, pack: str, model: str | None,
-              label: str = "") -> str:
+              label: str = "", rung: str = "") -> str:
   """The rollup's series key as one string. `none` for a model-less arm,
   matching `rollup.series_key`, so an entry names a series the same way the
   numbers do and a typo cannot silently address nothing.
@@ -56,8 +56,9 @@ def series_id(world: str, arm: str, pack: str, model: str | None,
   id it had before labels existed. Two series that differ only by label
   are two write-ups, which is the point of flying the pair: what a quiet
   box was worth is a sentence, and it goes in the labelled one."""
-  return f"{world}/{arm}/{pack}/{model or 'none'}" + (f"/{label}" if label
-                                                      else "")
+  return (f"{world}/{arm}/{pack}/{model or 'none'}"
+          + (f"/{label}" if label else "")
+          + (f"/{rung}" if rung else ""))
 
 
 def load(results_dir: Path) -> dict:

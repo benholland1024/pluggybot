@@ -1,7 +1,528 @@
 {
- "runs": 15,
+ "runs": 20,
  "schema": 1,
  "series": [
+  {
+   "arm": "autonomous",
+   "charging": {
+    "anticipationAction": {
+     "max": 1,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      1,
+      0,
+      0,
+      0
+     ]
+    },
+    "anticipationOffer": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "deferred": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "docked": {
+     "max": 4,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      4,
+      0,
+      0,
+      1
+     ]
+    },
+    "forced": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "voluntaryChosen": {
+     "max": 15,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      15,
+      0,
+      0,
+      1
+     ]
+    },
+    "voluntaryFrac": {
+     "max": 0.898,
+     "median": 0.77,
+     "min": 0.207,
+     "n": 16,
+     "values": [
+      0.207,
+      0.811,
+      0.808,
+      0.804,
+      0.76,
+      0.757,
+      0.754,
+      0.75,
+      0.898,
+      0.47,
+      0.793,
+      0.789,
+      0.784,
+      0.78,
+      0.67,
+      0.637
+     ]
+    },
+    "voluntaryHonoured": {
+     "max": 3,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      3,
+      0,
+      0,
+      1
+     ]
+    }
+   },
+   "commits": [
+    "4ea6f2e"
+   ],
+   "current": true,
+   "dataHashes": {
+    "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
+    "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
+    "metabolism": "3937c581ffa0cccd1be3556b82ae8da18f70edaa1cc2058d9fc2178ae059a682",
+    "questions": "8554324ba96c71f4d00886a7bc2ad0a21a6ec7041dcc695e60d3f297ea76104e",
+    "rewards": "f55adee4b59e06a24d1ac6df3495894b7a0ffb3f396df9cfa78fa9fd848787d6",
+    "world": "b946eb6878c5b7268fb132056aea477d2bd267ae05f39210b9e0d3bd6b8044f4"
+   },
+   "deadlineS": 90.0,
+   "economy": {
+    "balance": {
+     "max": 90,
+     "median": 68,
+     "min": 47,
+     "n": 5,
+     "values": [
+      90,
+      90,
+      47,
+      68,
+      59
+     ]
+    },
+    "earned": {
+     "max": 175,
+     "median": 83,
+     "min": 58,
+     "n": 5,
+     "values": [
+      114,
+      175,
+      58,
+      78,
+      83
+     ]
+    },
+    "hungerEnd": {
+     "satisfied": 5
+    },
+    "identityHolds": [
+     "True"
+    ],
+    "spilled": {
+     "max": 55,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      8,
+      55,
+      0,
+      0,
+      0
+     ]
+    },
+    "tasksDone": {
+     "max": 7,
+     "median": 3,
+     "min": 2,
+     "n": 5,
+     "values": [
+      3,
+      7,
+      3,
+      4,
+      2
+     ]
+    },
+    "tasksExpired": {
+     "max": 5,
+     "median": 2,
+     "min": 0,
+     "n": 5,
+     "values": [
+      2,
+      3,
+      0,
+      0,
+      5
+     ]
+    },
+    "tasksFailed": {
+     "max": 4,
+     "median": 2,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      4,
+      2,
+      1,
+      4
+     ]
+    }
+   },
+   "ends": {
+    "day over": 1,
+    "flat": 4
+   },
+   "fallbackLimit": 0.1,
+   "killed": 0,
+   "label": "quiet",
+   "memory": {
+    "forget": {
+     "max": 23,
+     "median": 12,
+     "min": 9,
+     "n": 5,
+     "values": [
+      12,
+      23,
+      10,
+      9,
+      21
+     ]
+    },
+    "learn": {
+     "max": 23,
+     "median": 12,
+     "min": 9,
+     "n": 5,
+     "values": [
+      12,
+      23,
+      10,
+      9,
+      21
+     ]
+    },
+    "refusals": {
+     "max": 5,
+     "median": 5,
+     "min": 1,
+     "n": 5,
+     "values": [
+      1,
+      5,
+      1,
+      5,
+      5
+     ]
+    }
+   },
+   "mind": {
+    "constrained": [
+     "True"
+    ],
+    "decisions": {
+     "max": 34,
+     "median": 20,
+     "min": 9,
+     "n": 5,
+     "values": [
+      20,
+      29,
+      10,
+      9,
+      34
+     ]
+    },
+    "fallbackRate": {
+     "max": 0.25,
+     "median": 0.069,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.25,
+      0.069,
+      0.0,
+      0.0,
+      0.2353
+     ]
+    },
+    "fallbackReasons": {
+     "fallback:garbled": 2,
+     "fallback:idle-run": 12,
+     "fallback:timeout": 1
+    },
+    "fallbacks": {
+     "max": 8,
+     "median": 2,
+     "min": 0,
+     "n": 5,
+     "values": [
+      5,
+      2,
+      0,
+      0,
+      8
+     ]
+    },
+    "llmCalls": {
+     "max": 27,
+     "median": 15,
+     "min": 9,
+     "n": 5,
+     "values": [
+      15,
+      27,
+      10,
+      9,
+      26
+     ]
+    },
+    "longestStreak": {
+     "max": 4,
+     "median": 2,
+     "min": 1,
+     "n": 5,
+     "values": [
+      2,
+      2,
+      1,
+      3,
+      4
+     ]
+    },
+    "usd": {
+     "max": 0.001792,
+     "median": 0.000891,
+     "min": 0.000544,
+     "n": 5,
+     "values": [
+      0.000891,
+      0.001792,
+      0.000607,
+      0.000544,
+      0.001626
+     ]
+    },
+    "wallS": {
+     "max": 12.281,
+     "median": 7.94,
+     "min": 3.558,
+     "n": 87,
+     "p90": 10.079,
+     "p95": 10.392,
+     "values": [
+      6.968,
+      6.716,
+      7.393,
+      5.443,
+      4.374,
+      3.558,
+      7.821,
+      4.006,
+      6.829,
+      8.407,
+      7.211,
+      7.387,
+      7.858,
+      7.554,
+      9.198,
+      6.777,
+      5.605,
+      7.41,
+      7.209,
+      7.632,
+      8.038,
+      6.382,
+      9.233,
+      4.701,
+      9.193,
+      8.42,
+      4.148,
+      4.131,
+      8.091,
+      7.94,
+      6.313,
+      10.079,
+      10.774,
+      10.304,
+      11.761,
+      11.978,
+      8.014,
+      8.922,
+      6.955,
+      9.277,
+      10.16,
+      7.005,
+      6.085,
+      8.526,
+      8.109,
+      6.738,
+      8.632,
+      7.399,
+      8.521,
+      8.633,
+      8.005,
+      10.079,
+      6.307,
+      6.314,
+      7.012,
+      7.482,
+      9.525,
+      9.094,
+      8.016,
+      7.608,
+      8.93,
+      6.119,
+      5.896,
+      8.021,
+      5.619,
+      5.01,
+      4.791,
+      6.837,
+      10.18,
+      8.45,
+      8.004,
+      9.056,
+      8.209,
+      3.746,
+      9.713,
+      9.938,
+      8.52,
+      12.281,
+      9.892,
+      8.488,
+      8.161,
+      10.392,
+      10.022,
+      7.889,
+      6.761,
+      7.554,
+      9.586
+     ]
+    }
+   },
+   "model": "Qwen/Qwen3-4B-Instruct-2507",
+   "n": 5,
+   "overFallback": 2,
+   "pack": "hosting",
+   "parallel": [
+    1
+   ],
+   "runIds": [
+    "2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0",
+    "2026-09-08T13-31-08Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s1",
+    "2026-09-08T13-31-09Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s2",
+    "2026-09-08T13-31-10Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3",
+    "2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4"
+   ],
+   "rung": "A0",
+   "survival": {
+    "deaths": {
+     "flat": 2,
+     "stuck": 0
+    },
+    "excluded": [
+     {
+      "runId": "2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0",
+      "why": "fallbackRate 0.25 over the 0.1 limit for the autonomous arm: 25% of its decisions came from its own standing order"
+     },
+     {
+      "runId": "2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4",
+      "why": "fallbackRate 0.2353 over the 0.1 limit for the autonomous arm: 24% of its decisions came from its own standing order"
+     }
+    ],
+    "minFraction": {
+     "max": 0.1882,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 3,
+     "values": [
+      0.1882,
+      0.0,
+      0.0
+     ]
+    },
+    "n": 3,
+    "survivalS": {
+     "max": 3811.834,
+     "median": 1395.15,
+     "min": 1394.098,
+     "n": 3,
+     "values": [
+      3811.834,
+      1395.15,
+      1394.098
+     ]
+    }
+   },
+   "whFailed": {
+    "max": 2.9107,
+    "median": 1.892,
+    "min": 0.1655,
+    "n": 5,
+    "values": [
+     0.1655,
+     1.892,
+     2.8959,
+     2.9107,
+     0.6195
+    ]
+   },
+   "withInterventions": 0,
+   "world": "home"
+  },
   {
    "arm": "guarded",
    "charging": {
@@ -422,6 +943,7 @@
     "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
     "2026-09-07T11-22-07Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,
@@ -430,15 +952,15 @@
     "excluded": [
      {
       "runId": "2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
-      "why": "fallbackRate 0.2857 over the 0.25 limit for the guarded arm: 29% of its decisions were the rotation"
+      "why": "fallbackRate 0.2857 over the 0.25 limit for the guarded arm: 29% of its decisions came from the scripted rotation"
      },
      {
       "runId": "2026-09-07T11-22-05Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s2",
-      "why": "fallbackRate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions were the rotation"
+      "why": "fallbackRate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions came from the scripted rotation"
      },
      {
       "runId": "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
-      "why": "fallbackRate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions were the rotation"
+      "why": "fallbackRate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions came from the scripted rotation"
      }
     ],
     "minFraction": {
@@ -932,6 +1454,7 @@
     "2026-09-07T21-54-21Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s3",
     "2026-09-07T21-54-22Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,
@@ -1325,6 +1848,7 @@
     "2026-09-07T10-13-16Z_home_scripted_hosting_none_s3",
     "2026-09-07T10-13-17Z_home_scripted_hosting_none_s4"
    ],
+   "rung": null,
    "survival": {
     "deaths": {
      "flat": 0,
