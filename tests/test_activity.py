@@ -273,7 +273,7 @@ def test_header_advertises_activities(builder_pair):
   # to reach the rack, a physics one), never summed -- and stands where it
   # fell until an admin's `reset_robot` picks it up, with the survival
   # clock riding every frame beside the battery.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.15.0"
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.16.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

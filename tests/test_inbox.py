@@ -397,7 +397,8 @@ def test_the_reply_the_visitor_reads_is_capped_too():
 def test_the_inbound_vocabulary_is_the_protocols():
   """One source: mind/inbox.py parses exactly what protocol.py publishes, so
   the wire spec and the parser cannot drift."""
-  assert INBOUND_TYPES == ("message", "rating", "reset_tool", "reset_robot")
+  assert INBOUND_TYPES == ("message", "rating", "reset_tool", "reset_robot",
+                          "set_battery", "set_points")
   assert "move" not in INBOUND_TYPES and "clear_board" not in INBOUND_TYPES
 
 
