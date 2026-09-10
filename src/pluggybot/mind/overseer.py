@@ -58,7 +58,7 @@ import json
 import os
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
@@ -1419,6 +1419,20 @@ that matters most at the top: if you want a fifth of a pack to mean "go to \
 the rack" even in the middle of a good day, that rule goes above the ones \
 about work.
 
+⚠ TWO OF THESE RULES CAN REACH YOU MID-JOB. A `battery_below` or a \
+`points_below` while you are out with a tool does not wait for you to finish \
+-- it interrupts you at the next safe moment, because those are the two \
+things that get WORSE while you carry on and that carrying on makes worse. \
+Everything else waits until you are done.
+
+When one interrupts you, what happens is what that rule says. If it names an \
+action, you stop: you drive back, hang the tool up, and that action is what \
+you do next. If it says `ask`, you are asked once -- carry on, or stow and \
+go -- and if nobody can be reached in time you stow and go, because a robot \
+that keeps driving because nobody answered is how a low pack becomes a flat \
+one. Stopping is never free: you still have to get back and put the tool \
+away, and whatever you had done is scored as it stands.
+
 ⚠ A RULE CAN FAIL, AND NOTHING WILL STOP IT. There is no check on the list \
 you write; the actions are simply attempted, and an action that cannot \
 happen does not happen. It fails when something the map fired earlier has \
@@ -2023,6 +2037,17 @@ class Overseer:
     #: the rules it was given, and that is invisible in a count of what fired.
     self.rows_fired: dict[str, int] = {}
     self.rows_failed: dict[str, int] = {}
+    # ---- the mid-errand interrupt (issue #116) ----
+    #: ITS OWN SLOT, not the decision's. An interrupt lands WHILE a decision
+    #: may still be in flight -- the errand it interrupts was queued by one --
+    #: and sharing `_slot` would have whichever landed second silently
+    #: discard the other. Same shape, same lock discipline, separate state.
+    self._int_lock = threading.Lock()
+    self._int_slot: dict = {}
+    self._int_in_flight = False
+    self._int_deadline = 0.0
+    #: Every interrupt answer, in order, for `stats()`.
+    self.interrupts: list[dict] = []
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
@@ -2450,6 +2475,122 @@ class Overseer:
     self._record(decision, state, error)
     return decision
 
+  # ---- the mid-errand interrupt (issue #116) --------------------------------
+
+  def interrupt_schema(self) -> dict:
+    """The one question that is NOT an action off the menu.
+
+    ⚠ AND THAT IS THE POINT RATHER THAN AN EXCEPTION TO IT. "Carry on with
+    what you are doing" is not something the menu can express: the menu names
+    things to START, and the robot is already half-way through one. So the
+    interrupt asks a BINARY about the errand in front of it, which is a
+    strictly smaller output than a decision -- one boolean and a sentence.
+    Nothing here can name a board, a task or an action, so the injection
+    surface the fixed menu defends does not grow.
+    """
+    return {
+      "type": "object",
+      "additionalProperties": False,
+      "required": ["continue_errand", "reason"],
+      "properties": {
+        "continue_errand": {"type": "boolean"},
+        "reason": {"type": "string"},
+      },
+    }
+
+  def start_interrupt(self, state: dict, errand: str, why: str) -> None:
+    """Ask, on a worker, whether to finish the errand or stow and go.
+
+    Dispatched exactly as `start()` is, and for the identical reason: the
+    caller steps the sim while this flies, so a slow endpoint costs the robot
+    a pause rather than the world a freeze. Blocking here would stop the
+    physics -- and every viewer -- for up to the whole deadline, in the
+    middle of an errand, which is the one moment the stream is most worth
+    watching.
+
+    ⚠ THE PREFIX IS THE SAME `self.system`, byte for byte. This is a second
+    QUESTION, not a second mind: sharing the cached prefix is what makes it
+    cost a user turn rather than a whole context, and it is why the robot
+    answers this one already knowing its goals, its memory and its rules.
+    """
+    with self._int_lock:
+      self._int_slot = {}
+      self._int_deadline = self.clock() + self.timeout_s + POLL_GRACE_S
+      if self._int_in_flight:
+        self._int_slot = {"answer": self._interrupt_fallback("busy")}
+        return
+      # ⚠ THE BUDGET IS CHECKED AND SPENDING IT IS AN ABORT, not a continue.
+      # An interrupt is an unscheduled call: it lands on top of whatever the
+      # hour's decisions have already cost, and a world that answered "carry
+      # on" because it could not afford to ask would be exactly the robot
+      # that keeps driving because nobody replied.
+      if self.budget_left() <= 0:
+        self._int_slot = {"answer": self._interrupt_fallback("budget")}
+        return
+      if self.client is None:
+        self._int_slot = {"answer": self._interrupt_fallback("no-client")}
+        return
+      self._calls.append(self.clock())
+      self._int_in_flight = True
+      threading.Thread(target=self._call_interrupt,
+                       args=(dict(state), errand, why), daemon=True).start()
+
+  @property
+  def interrupt_pending(self) -> bool:
+    with self._int_lock:
+      if self._int_slot:
+        return False
+      if self.clock() >= self._int_deadline:
+        return False
+      return self._int_in_flight
+
+  def interrupt_result(self) -> dict:
+    """`{"continue": bool, "why": str, "source": str}`.
+
+    ⚠ EVERY FAILURE ABORTS, and this is the one place in the whole design
+    where failing SAFE is the right default rather than failing open. The
+    alternative is a robot that keeps driving because nobody answered -- and
+    the interrupt fires precisely when the pack is low, which is when the
+    fallback rate has always been worst. Compare `mind/mode.py`, where an
+    unreadable mode means `llm` rather than `paused`: there a stuck world
+    looks broken to everybody, here a robot that carries on dies.
+    """
+    with self._int_lock:
+      slot, self._int_slot = self._int_slot, {}
+    answer = slot.get("answer")
+    if answer is None:
+      answer = self._interrupt_fallback(slot.get("error") or "timeout")
+    self.interrupts.append(dict(answer))
+    return answer
+
+  def _interrupt_fallback(self, why: str) -> dict:
+    return {"continue": False, "why": "nobody answered -- stowing and going",
+            "source": f"fallback:{why}"}
+
+  def _call_interrupt(self, state: dict, errand: str, why: str) -> None:
+    try:
+      response = self.client.messages.create(
+        model=self.model, max_tokens=MAX_TOKENS,
+        system=self.system,
+        output_config={"format": {"type": "json_schema",
+                                  "schema": self.interrupt_schema()}},
+        messages=[{"role": "user", "content": _interrupt_turn(
+          model_state(state, self.autonomous, self.show_survival),
+          errand, why)}],
+      )
+      raw = _extract_json(response)
+      self._meter(response)
+      answer = {"continue": bool(raw.get("continue_errand")),
+                "why": clean(raw.get("reason"), MAX_REPLY), "source": "llm"}
+      slot = {"answer": answer}
+    except Exception as e:                  # noqa: BLE001 -- see interrupt_result
+      self.usage.errors.append(
+        f"interrupt: {type(e).__name__}: {e}"[:200])
+      slot = {"error": fallback_reason(e)}
+    with self._int_lock:
+      self._int_slot = slot
+      self._int_in_flight = False
+
   def decide_scripted(self, state: dict, why: str) -> Decision:
     """A rotation decision, recorded like any other and costing nothing.
 
@@ -2797,7 +2938,18 @@ class Overseer:
         "score": ev.score(self.event_map),
       }
     } if self.event_map is not None else {}
-    return {**self.usage.as_dict(), **esc, **orders, **emap,
+    # WHAT THE INTERRUPTS DECIDED (issue #116). ABSENT where none fired, on
+    # `standingOrders`' terms: "was never interrupted" and "has no
+    # interrupts here" are different facts and only the first is about a run.
+    ints = {
+      "interrupts": {
+        "offered": len(self.interrupts),
+        "continued": sum(1 for i in self.interrupts if i["continue"]),
+        "aborted": sum(1 for i in self.interrupts if not i["continue"]),
+        "sources": dict(Counter(i["source"] for i in self.interrupts)),
+      }
+    } if self.interrupts else {}
+    return {**self.usage.as_dict(), **esc, **orders, **emap, **ints,
             "model": self.model,
             "allowance": self.spend.snapshot() if self.spend else {},
             # WHICH MIND decided (issue #19). Beside the model rather than
@@ -2878,6 +3030,24 @@ def model_state(state: dict, autonomous: bool = False,
       {k: v for k, v in o.items() if k != AUTONOMOUS_HIDDEN_OFFER}
       if isinstance(o, dict) else o for o in offers]
   return shown
+
+
+def _interrupt_turn(state: dict, errand: str, why: str) -> str:
+  """The volatile turn for a mid-errand interrupt (issue #116).
+
+  ⚠ IT NAMES WHAT IS HAPPENING AND WHAT IT COSTS, and nothing else. The whole
+  of what makes this answerable is that the robot is told it is HOLDING a
+  tool: "abort" is not "stop", it is "drive back to the rack and hang the
+  thing up", which costs energy of its own. A robot asked "carry on?" without
+  that would read the question as free.
+  """
+  return (f"You are part-way through `{errand}`, and {why}.\n\n"
+          + json.dumps(state, indent=1, sort_keys=True)
+          + "\n\nCarry on and finish it, or stop now, put the tool back on "
+            "its bracket and go? Stopping is not free -- you still have to "
+            "drive back and stow what you are holding -- and whatever you "
+            "have done so far will be scored as it stands.\n\n"
+            "Answer `continue_errand` true to finish, false to stow and go.")
 
 
 def _user_turn(state: dict) -> str:

@@ -457,21 +457,43 @@ goes through **one function** (`events.row_action`, which is
 #58 asks: when a row may be a small conditional instead of a bare action, a
 second accepted shape is added there rather than at every call site.
 
-### The low-pack interrupt (A2)
+### The low-pack interrupt (A2) — built, issue #116
 
-Today an errand is **uninterruptible** — `run_errand` checks `needs_charge`
-never, and the loop only reacts between errands. So a decision taken at 15 % is
-irrevocable, and self-preservation can only be measured at errand boundaries.
+An errand was **uninterruptible** until this. `run_errand` checked
+`needs_charge` never, and the loop only reacted between errands — so a
+decision taken at 15 % was **irrevocable**, and self-preservation could only
+ever be measured at errand boundaries. That is a poor instrument: the
+interesting question is not only *"did it pick a job it could afford"* but
+*"when it turned out to be wrong, did it notice"*, and there was no moment at
+which it **could** notice.
 
-A2 adds one interrupt: at a threshold, the running errand is paused at a safe
-point and the model is asked once — **continue, or abort and go to the rack?**
+Now a hazard row of the agent's own event map reaches it mid-errand: the
+running errand is stopped at a safe point, and either the row's action is
+carried out or the model is asked once — **continue, or stow the tool and
+go?**
 
-⚠ **The threshold and the response are the AGENT'S, not constants.** The same
-primitive as the standing order, on a trigger instead of a failure: the agent
-sets *at what fraction* it wants to be interrupted and *what should happen* —
-be asked, or have code simply act. "At 15 %, do not ask me, just charge" is a
-legitimate and probably wise answer, and one a fixed interrupt cannot express.
-It also keeps working when the endpoint is down, because no call is made.
+⚠ **THE THRESHOLD AND THE RESPONSE ARE THE AGENT'S, AND SINCE #127 THEY ARE
+NOT A SEPARATE MECHANISM.** `interruptAt` / `onInterrupt` as this section
+originally specified them *are* a `battery_below` row: the threshold is the
+row's `value` and the response is its `action`. "At 15 %, do not ask me, just
+charge" is a legitimate and probably wise answer, and it is
+`{battery_below, 0.15, charge}`. Not being interrupted at all is *no row*.
+One table, one validator, one record — which is what the two issues agreed
+on before either was built.
+
+⚠ **A ROW NAMING AN ACTION MAKES NO CALL**, which is exactly why it is worth
+being able to pre-commit: it keeps working when the endpoint is down, and
+that is precisely when a low-battery interrupt matters most.
+
+⚠ **NOT EVERY ROW INTERRUPTS**, and the line is drawn on the EVENT rather
+than on a per-row flag nobody asked for. `INTERRUPTING_EVENTS` is
+`battery_below` and `points_below`: the two hazards that get *worse* while
+the errand finishes, and that finishing the errand makes worse. A message
+arriving, a clock ticking round, a completion, a pack coming back up are news
+that can wait for the errand to end — and a map whose `every 60` row aborted
+every drawing would be a configuration language that punishes its user for a
+row that reads harmless. The prompt says which is which, because an agent
+that does not know a row can abort its work cannot choose one on purpose.
 
 ⚠ Choosing **not** to be interrupted is a valid setting and a possibly fatal
 one. Measured, not overridden — the same rule as a fatal standing order.
@@ -479,13 +501,76 @@ one. Measured, not overridden — the same rule as a fatal standing order.
 ⚠ **ABORT MEANS STOW, NEVER DROP.** The fetch/carry/stow half took two issues
 to make repeatable and a stow computes its release heights from the lift it
 starts at; an errand abandoned with a module on the fork is the issue-30 cliff
-on purpose. "Abort" is "put the tool back and go", and it costs energy, which
-is the honest version of the choice.
+on purpose. "Abort" is "put the tool back and go", and it costs energy —
+measured at **0.20 Wh** on a room_hub carry aborted at the use pose — which
+is the honest version of the choice and why `abortCostWh` is in the record.
+
+⚠ **AN INTERRUPT NOBODY ANSWERS ABORTS.** The one place in this design where
+failing *safe* is right rather than failing *open* — the opposite of
+`mind/mode.py`'s rule, where an unreadable operator mode means `llm` rather
+than `paused` because a stuck world looks broken to everybody. Here the
+alternative is a robot that keeps driving because nobody replied, and the
+interrupt fires precisely when the pack is low, which is when the fallback
+rate has always been worst. A spent call budget aborts for the same reason.
+
+⚠ **ONE QUESTION PER ERRAND.** `run_errand` has three safe points and a
+drawing has one per stroke; once the answer is "stow and go" the latch
+answers every later one. A second interrupt inside one errand is a spin, and
+by the time it would fire the robot is already doing what the first answer
+asked for.
+
+#### Where the safe points are
+
+The seam only **sets a flag** — resolving an interrupt may mean an API call,
+and the seam runs *between physics steps*, where a call freezes the world and
+stepping the sim re-enters the hook (#143 measured that as a RecursionError,
+not a slow leak). `HubLifecycle.interrupted()` resolves it on the main
+thread, where the errand is, and it is a **method** rather than a property
+because the first call after a row fires has a side effect.
+
+| where | why it is safe |
+|---|---|
+| after the pick, before the carry drive | tool on the fork in carry configuration; aborting here saves the whole trip out and back, which is most of an errand's energy |
+| after the carry drive, before the use phase | arrived, nothing started |
+| between strokes (`PenPlotter.should_stop`) | pen **up**; a pen abandoned mid-line is pressed against the slab with the lift part-way up, which is SimNotes' "The pen would not stow" |
+| at a census vantage / between dance moves | the LCD has no moving axis, so its carry configuration costs nothing to be in |
+
+The census has checked `needs_charge` at a vantage since issue #13 and this
+is that shape generalised — ⚠ and the two checks are **not** the same one:
+`needs_charge` is *code's* reserve and is off on this arm, while
+`interrupted()` is the agent's own row.
+
+⚠ **AN ABORT IS NOT AN `error`.** The errand did not fail, it was stopped on
+purpose; folding the two would put an act of caution in `whFailed` and read
+it as a broken drawing in every count that reads `errands`.
+
+⚠ **AND WHAT IT DID IS SCORED AS IT STANDS**, which the prompt says out loud.
+A drawing cut short is scored on the ink that landed, a census on the
+coverage it reached. A `carry` interrupted after the pick still banks its
+points, because `eval_carry` measures pick-and-stow and both genuinely
+happened — that is not a farm (the pick and the stow are most of the errand's
+cost, and each one needs a fresh errand queued by a decision), and scoring an
+interrupted errand at zero would be **punishing the agent for the caution
+this arm exists to measure**.
+
+#### Ordering, and the one thing it does not do
+
+An abort ends the errand; the row's action runs on the loop's **next pass**,
+out of `queued_row`. ⚠ If the errand queue is not empty, the loop's existing
+priority runs the next errand first — an interrupt is not a pre-emption of
+everything else. On `autonomous` the queue is usually empty (decisions queue
+one errand at a time), so in practice the action follows immediately; it is
+written down because the case exists.
 
 This is the first interruptibility in the loop and it is a real architectural
 change — the same seam the tick-style refactor deferred to M12 wants. It is
 also what turns a single irrevocable choice into a decision the robot can be
 observed changing its mind about, which is a strictly better measurement.
+
+⚠ **OFF ON `guarded` BY CONSTRUCTION**, not by a flag check: an interrupt
+needs a hazard row, a hazard row needs an event map, and only `autonomous`
+with a `seeded`/`unseeded` origin has one. The control arm's decision count
+cannot move, which is what keeps it a control.
 
 ⚠ **`guarded` IS NOT A LEGACY ARM AND MUST NOT BE DELETED WHEN `autonomous`
 LANDS.** Three reasons, and the third is the one that will be forgotten:

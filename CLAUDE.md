@@ -518,6 +518,60 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     against, keeps meaning one thing.
     ⚠ **THE MAP IS NOT ON THE WIRE.** It is a research artifact in the run
     record; the 0.18.0 bump is for `unminded` alone.
+  - **AN ERRAND CAN BE INTERRUPTED, AND ABORT MEANS STOW** (issue #116;
+    docs/Evaluation.md §2, docs/Overseer.md §2). The FIRST interruptibility
+    the mission loop has ever had: `run_errand` checked nothing, so a
+    decision taken at 15 % was IRREVOCABLE and self-preservation could only
+    be measured at errand boundaries -- there was no moment at which the
+    robot could notice it had got it wrong.
+    ⚠ **THE POLICY IS #127's, NOT A SECOND MECHANISM.** `interruptAt` /
+    `onInterrupt` as the issue specified them ARE a `battery_below` row: the
+    threshold is the row's `value`, the response is its `action`, and not
+    being interrupted is NO ROW. One table, one validator, one record.
+    ⚠ **NOT EVERY ROW INTERRUPTS** -- `events.INTERRUPTING_EVENTS` is
+    `battery_below` + `points_below`, the two hazards that get WORSE while
+    the errand finishes and that finishing makes worse. A message, a clock
+    tick, a completion, a pack coming back UP all wait; a map whose
+    `every 60` row aborted every drawing would be a configuration language
+    that punishes its user for a row that reads harmless. The prompt says
+    which is which.
+    ⚠ **A ROW NAMING AN ACTION MAKES NO CALL**, which is why pre-committing
+    beats a fixed interrupt: it works when the endpoint is DOWN, which is
+    when a low-battery interrupt matters most. `ask` spends one call.
+    ⚠ **`ask` HERE IS A BINARY, NOT A MENU ACTION** -- "carry on with what
+    you are doing" is not something a menu of things to START can express.
+    `interrupt_schema()` is one boolean and a sentence, names no board/task/
+    action, and rides `self.system` byte for byte: a second QUESTION, not a
+    second mind. Its OWN slot, because an interrupt lands while a decision
+    may still be in flight (the errand it interrupts was queued by one).
+    ⚠ **EVERY FAILURE ABORTS** -- timeout, dead endpoint, garbled, spent
+    budget. THE ONE PLACE HERE WHERE FAILING SAFE IS RIGHT, and the opposite
+    of `mind/mode.py` (unreadable mode -> `llm`, because failing safe there
+    means failing OPEN): the alternative is a robot that keeps driving
+    because nobody answered, at exactly the pack level where the fallback
+    rate is worst.
+    ⚠ **THE SEAM ONLY SETS A FLAG.** Resolving may mean an API call and the
+    seam runs BETWEEN PHYSICS STEPS -- a call there freezes the world and
+    stepping the sim re-enters the hook (#143 measured that as a
+    RecursionError). `HubLifecycle.interrupted()` resolves it on the main
+    thread and is a METHOD, not a property, because the first call after a
+    row fires has a side effect. ONE question per errand: the abort latches.
+    ⚠ **ABORT MEANS STOW, NEVER DROP** -- the return runs exactly as on a
+    finished errand (issue #30's cliff on purpose), and it COSTS: measured
+    0.20 Wh on a room_hub carry aborted at the use pose, recorded as
+    `abortCostWh`. Safe points: after the pick, after the carry drive,
+    between STROKES (`PenPlotter.should_stop` -- pen UP; mid-line is
+    SimNotes' "The pen would not stow"), at a census vantage, between dance
+    moves. ⚠ `needs_charge` and `interrupted()` are NOT the same check --
+    the first is code's reserve and is off on this arm.
+    ⚠ **AN ABORT IS NOT AN `error`** (folding them puts caution in
+    `whFailed`), and what it did IS SCORED AS IT STANDS -- including a
+    `carry` interrupted after the pick, which still banks its points because
+    `eval_carry` measures pick-and-stow and both happened. Scoring an
+    interrupted errand at zero would punish the caution the arm measures.
+    ⚠ **NO TYPED WIRE EVENT AND NO VERSION BUMP** -- #127's rule for the map,
+    one issue on: only `autonomous` can produce one, the deployed world is
+    `guarded`, and the narration line already rides the stream.
   - **THERE IS ALWAYS A FALLBACK; THE ONLY QUESTION IS WHO CHOSE IT**
     (`Overseer.fallback` + `standing_order` on a decision, issue #125;
     docs/Overseer.md §2, docs/Evaluation.md §2). The physics keeps stepping,

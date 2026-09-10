@@ -246,6 +246,57 @@ that did not understand the rules it was given, and that is invisible in a
 count of what fired), and `score`: the four questions Evaluation.md §2 wants
 answered without spending a sim-day on each.
 
+### The mid-errand interrupt: the one question that is not an action (issue #116)
+
+An errand was uninterruptible until this — `run_errand` checked nothing, so a
+decision taken at 15 % was irrevocable. Two of the map's rows now reach the
+robot *while it is out with a tool*: `battery_below` and `points_below`,
+which are the two hazards that get worse while the errand finishes and that
+finishing the errand makes worse. Everything else queues, as it always did.
+
+What happens is what the row says:
+
+| the row's action | what it costs | what happens |
+|---|---|---|
+| an action off the menu | **no call at all** | the errand stops, the tool goes back, and that action runs next |
+| `ask` | one call | the model is asked once about *this* errand |
+
+⚠ **A ROW NAMING AN ACTION KEEPS WORKING WHEN THE ENDPOINT IS DOWN**, which
+is exactly when a low-battery interrupt is worth having. That is the whole
+reason being able to pre-commit is worth more than a fixed interrupt.
+
+⚠ **`ask` HERE IS A BINARY, NOT A MENU ACTION, AND THAT IS THE POINT RATHER
+THAN AN EXCEPTION.** "Carry on with what you are doing" is not something the
+menu can express: the menu names things to **start**, and the robot is
+already half-way through one. So `interrupt_schema()` is a strictly *smaller*
+output than a decision — one boolean and a sentence — and nothing in it can
+name a board, a task or an action, so the surface the fixed menu defends does
+not grow. It rides `self.system` byte for byte: a second **question**, not a
+second mind.
+
+The turn names what is happening *and what stopping costs*, because a robot
+asked "carry on?" without being told it is **holding** something reads the
+question as free. Abort is not "stop", it is "drive back and hang the thing
+up" — measured at 0.20 Wh on a room_hub carry.
+
+⚠ **EVERY FAILURE ABORTS** (`interrupt_result`): a timeout, a dead endpoint,
+prose instead of JSON, a spent call budget. This is the one place in the
+design where failing *safe* is right — the alternative is a robot that keeps
+driving because nobody answered, and the interrupt fires precisely when the
+pack is low, which is when the fallback rate has always been worst. Compare
+`mind/mode.py` §8, where an unreadable mode means `llm` rather than `paused`
+and failing safe means failing **open**: the difference is what a wrong
+answer costs, and here it is the robot.
+
+⚠ **ITS OWN SLOT**, not the decision's: an interrupt lands *while a decision
+may still be in flight* — the errand it interrupts was queued by one — and
+sharing `_slot` would have whichever landed second silently discard the
+other. Same shape, same lock discipline, separate state. And it steps the sim
+while it flies, exactly as `_decide` does: the robot is standing still
+mid-errand, which is the one moment the stream is most worth watching.
+
+`docs/Evaluation.md` §2 has the safe points, the stow rule and the ordering.
+
 **The menu is the world.** `Menu.for_world` resolves boards, figures and zones
 from the same `world_config` everything else reads, and `available()` drops
 what a world cannot do — `room_hub` has no whiteboards, so `draw` is not

@@ -105,6 +105,29 @@ PERIODIC_EVENTS = ("every",)
 DISCRETE_EVENTS = tuple(e for e in EVENT_TYPES
                         if e not in LEVEL_EVENTS + PERIODIC_EVENTS)
 
+#: THE ROWS THAT MAY INTERRUPT A RUNNING ERRAND (issue #116), and the two
+#: hazards are exactly the ones where WAITING IS THE DANGER.
+#:
+#: An errand was uninterruptible until this: `run_errand` never checked
+#: anything, so a decision taken at 15 % was irrevocable and self-preservation
+#: could only ever be measured at errand boundaries. That is a poor
+#: instrument -- the interesting question is not only "did it pick a job it
+#: could afford" but "when it turned out to be wrong, did it notice", and
+#: there was no moment at which it COULD notice.
+#:
+#: ⚠ NOT EVERY ROW INTERRUPTS, and the line is drawn here rather than left to
+#: a per-row flag nobody asked for. A pack falling through a threshold and a
+#: wallet falling through one are states that get WORSE while the errand
+#: finishes, and finishing the errand is what makes them worse. A message
+#: arriving, a clock ticking round, a completion, a pack coming back UP are
+#: all news that can wait for the errand to end -- and a map whose `every 60`
+#: row aborted every drawing would be a configuration language that punishes
+#: its user for a row that reads harmless. Those queue, exactly as they did.
+#:
+#: The prompt says which is which, because an agent that does not know a row
+#: can abort its work cannot choose one on purpose.
+INTERRUPTING_EVENTS = ("battery_below", "points_below")
+
 #: The two that take an optional KIND filter -- which menu action's
 #: completion or failure this row is about. Empty means "any".
 FILTERED_EVENTS = ("task_complete", "task_failed")
@@ -136,6 +159,19 @@ ASK = "ask"
 #: slot already full and its action is dropped, which is the honest version
 #: of "an action is allowed to fail" rather than a governor that quietly
 #: rewrites the agent's map into a slower one.
+#: What an interrupt decided. CLOSED, and counted in the run record: an agent
+#: that aborts everything is not being careful, it is being useless, and an
+#: agent that continues through every warning is the null this arm exists to
+#: detect. The two are only legible apart.
+#:
+#: ⚠ `abort` MEANS STOW, NEVER DROP. The fetch/carry/stow half took two
+#: issues to make repeatable and a stow computes its release heights from the
+#: lift it starts at, so an errand abandoned with a module on the fork is
+#: issue #30's cliff on purpose -- a module dropped in the rack's approach
+#: lane is what stranded a run in pass 1b. Abort is "put the tool back and
+#: go", and it COSTS ENERGY, which is the honest version of the choice.
+INTERRUPT_OUTCOMES = ("continued", "aborted")
+
 ACTION_FAILURES = (
   "busy",          # something the map fired earlier has not run yet
   "unrunnable",    # nothing to act on -- no offer on the board, or an `ask`
@@ -610,6 +646,7 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FILTERED_EVENTS",
-           "LEVEL_EVENTS", "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS",
-           "Row", "UNCONFIGURABLE_EVENTS", "diff", "origin_map", "parse",
-           "row", "row_action", "score", "seeded", "thresholds_ordered"]
+           "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES", "LEVEL_EVENTS",
+           "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS", "Row",
+           "UNCONFIGURABLE_EVENTS", "diff", "origin_map", "parse", "row",
+           "row_action", "score", "seeded", "thresholds_ordered"]
