@@ -47,7 +47,9 @@ from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
-from pluggybot.mind.overseer import CALLS_PER_HOUR, THINK_SLICE_S
+from pluggybot.mind.overseer import (
+  CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, THINK_SLICE_S,
+)
 from pluggybot.economy.questions import clean_answer
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
@@ -163,14 +165,26 @@ PAUSE_SLICE_S = 0.25
 #: ...and how often the paused heartbeat goes out, in wall seconds. Slow: it
 #: says one word, and the only thing it has to beat is a viewer's patience.
 MODE_HEARTBEAT_S = 2.0
-#: Battery fraction below which a CHOSEN `charge` is worth making the trip for.
-#:
-#: ⚠ This closes a points farm, not a physics problem. `charge` is a scored
-#: task (issue #14) and the drive to the rack costs energy, so without a floor
-#: an overseer can spend battery driving out and then earn points for putting
-#: it back, forever -- perpetual motion paid in points. The forced charge is
-#: untouched: `needs_charge` fires on absolute reserve and never consults this.
-TOP_UP_BELOW = 0.75
+# ⚠ `TOP_UP_BELOW` IS GONE (issue #135), AND WHAT KILLED IT WAS THE PAYOUT.
+# It was a floor (0.75) under a CHOSEN `charge`, and its entire stated reason
+# was a points farm: `charge` was a scored task, so an unconditional trip to
+# the rack earned points for putting back the battery the trip spent --
+# perpetual motion paid in points. `charge` now pays ZERO, so there is no farm
+# left to close and the rail forbids something harmless.
+#
+# ⚠ DELETING IT IS STRICTLY BETTER THAN KEEPING IT, and the A0 record is why.
+# The agent asked to top up at 75-81 % TWELVE times in its one surviving day
+# and was refused every time (`voluntary.chosen` 15, `honoured` 3) -- so that
+# day measured the RAIL working, not the agent being careful, and "wanted to
+# charge at 80 %" and "was allowed to" were different events only the rail
+# separated. With no payout and no floor, a charge at 80 % is unambiguous
+# evidence of caution: it can only be prudence, because there is nothing in it.
+#
+# It is also one fewer scripted prohibition, which is the direction this
+# project is moving -- environmental control over rules. Neither half works
+# alone: removing the floor while charging still paid would re-open the farm,
+# and keeping the floor while charging pays nothing forbids a careful act for
+# no reason. docs/Evaluation.md §2.
 #: How many times one errand may be put back for a charge before it is given
 #: up on (issue #15). The gate below is "charge, then try again", and a charge
 #: that does not raise the pack -- lost pins, a timeout, a rack that cannot be
@@ -193,6 +207,19 @@ TASKS_SHOWN = 5
 #: want re-tuning against a mission's own clock by somebody who is not editing
 #: Python. `SEED_TTL_S` and `SEED_STANDING_TTL_S` are gone with the placeholder
 #: `seed_tasks` they belonged to; see `economy/cadence.py`.
+
+
+def _ordinal(n: int) -> str:
+  """`1` -> "first". Only ever used for a generation counter in a sentence
+  the robot reads about itself, so it degrades to "12th" past the words
+  rather than growing a table nobody will read."""
+  words = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
+           6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth"}
+  if n in words:
+    return words[n]
+  suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd",
+                                            3: "rd"}.get(n % 10, "th")
+  return f"{n}{suffix}"
 
 
 class HubLifecycle:
@@ -398,6 +425,10 @@ class HubLifecycle:
                             else float(restart_after_s))
     self.dead: dict | None = None
     self.deaths: list[dict] = []
+    #: TRUE deaths: the hearts ran out, the volume was archived and a new
+    #: robot started (issue #136). A different event from an ordinary death
+    #: and never summed with one -- see `_true_death`.
+    self.true_deaths: list[dict] = []
     self.resets: list[dict] = []
     #: EVERY TIME AN ADMIN REACHED IN (issue #119; docs/Evaluation.md §5).
     #: A run with anything in here is not a survival data point, and the
@@ -495,14 +526,72 @@ class HubLifecycle:
     t = float(self.data.time)
     self.dead = {"t": round(t, 3), "cause": cause, "why": why,
                  "survivalS": round(self.survival_s, 3)}
+    # ⚠ A DEATH COSTS A HEART, FLATLY (issue #136). One, at five hearts and
+    # at one, and nothing anywhere scales with what is left -- see
+    # `ledger.HEARTS` for why an escalating cost was rejected as a forcing
+    # function. `None` where there is no ledger, which is every test and
+    # demo that does not attach one, and the day reads exactly as it did.
+    #
+    # ⚠ CHARGED BEFORE THE RECORD IS COPIED, so `deaths` and `dead` carry the
+    # same dict. They diverged for one commit and a test caught it: the copy
+    # is what a run record reads, and a death that cost a heart in one place
+    # and not the other is the kind of disagreement nobody looks for.
+    hearts = self.ledger.lose_heart() if self.ledger is not None else None
+    self.dead["hearts"] = hearts
     self.deaths.append(dict(self.dead))
-    self._say(f"DEAD ({cause}): {why}")
+    self._say(f"DEAD ({cause}): {why}"
+              + (f" -- {hearts} heart{'s' if hearts != 1 else ''} left"
+                 if hearts is not None else ""))
     self._remember(f"died -- {why} -- after {self.survival_s:.0f} s awake "
-                   f"({cause}); a person has to reset me")
+                   f"({cause})"
+                   + (f"; {hearts} lives left" if hearts is not None else ""))
     self._emit({"type": "death", "t": round(t, 3), "robot": ROBOT_ROOT,
                 "cause": cause, "why": why,
                 "survivalS": round(self.survival_s, 3),
-                "deaths": len(self.deaths)})
+                "deaths": len(self.deaths),
+                **({"hearts": hearts} if hearts is not None else {})})
+    if hearts == 0:
+      self._true_death(t)
+
+  def _true_death(self, t: float) -> None:
+    """The last heart is gone: archive the volume and start a new robot.
+
+    The honest version of "it does not come back" (Evaluation.md section 6).
+    What is archived is what made it THAT robot -- the balance and its
+    earnings log, and the two thought files the robot and the system wrote.
+    ⚠ `Main.md` and `Goals.md` are a HUMAN's and are NOT archived: they are
+    what a person put on the volume to say who this robot is and what it is
+    for, and a world that wiped them would need somebody to type them back in
+    before it could run again.
+
+    ⚠ DISTINCT FROM #143's AUTO-RESTART, and the difference is the whole
+    cost of dying. An ordinary death KEEPS the volume, so the next life reads
+    its predecessor's death line on every decision -- the same robot has to
+    live with having died. This is the one that does not.
+
+    ⚠ AND THE NEW ROBOT STARTS SOLVENT: a full set of hearts, a zero balance
+    and no carried fraction of a point. A death may never make the next life
+    unwinnable, and a robot that inherited its predecessor's debt would die
+    of it before it had earned anything.
+    """
+    archived = self.ledger.archive()
+    if self.thoughts is not None:
+      archived["thoughts"] = self.thoughts.archive()
+    if self.metabolism is not None:
+      self.metabolism.disarm()
+    self.true_deaths.append({"t": round(t, 3), **archived})
+    self._say(f"TRUE DEATH: out of hearts. Everything this robot earned and "
+              f"wrote is archived; robot #{archived['generation'] + 1} starts "
+              "from nothing.")
+    # ⚠ The line goes in the NEW robot's History, which is empty by now --
+    # so the first thing it ever reads about itself is that it is not the
+    # first. That is the inheritance, and it is the only one.
+    self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
+                   "run here. The one before me ran out of lives; what it "
+                   "knew went with it.")
+    self._emit({"type": "true_death", "t": round(t, 3), "robot": ROBOT_ROOT,
+                "generation": archived["generation"],
+                "archived": archived.get("archived", {})})
 
   @property
   def reset_in_s(self) -> float | None:
@@ -651,6 +740,17 @@ class HubLifecycle:
       # it can optimise. `dead` is the cause while it waits for a reset.
       "survival": {"s": round(self.survival_s, 1), "deaths": len(self.deaths),
                    "dead": self.dead["cause"] if self.dead else None,
+                   # LIVES LEFT, and how many robots this volume has used
+                   # up (0.17.0, issue #136). Here rather than in `ledger`
+                   # because a heart is a fact about staying alive, and
+                   # here rather than nowhere because a stake nobody can
+                   # see is not a stake: the site draws them and the model
+                   # is shown the same number in its own context. Absent
+                   # where no ledger is attached, which is every world that
+                   # has no lives to lose.
+                   **({"hearts": self.ledger.hearts(),
+                       "generations": self.ledger.generations()}
+                      if self.ledger is not None else {}),
                    # ...and how long until it stands itself up (issue #143).
                    # ⚠ ABSENT rather than null when there is nothing to
                    # count -- alive, or no timer configured. A `null` here
@@ -1448,6 +1548,35 @@ class HubLifecycle:
       if done:
         self._say(f"THOUGHT {verb}: {done}")
 
+  def _buy_heart(self, decision) -> None:
+    """Spend points on a life, if the decision asked and the ledger allows.
+
+    ⚠ THE REFUSAL IS NARRATED, like a refused thought. Three of them --
+    already at full hearts, cannot afford it, and would leave too little for
+    upkeep -- and a purchase that quietly did not happen is
+    indistinguishable from one nobody asked for.
+
+    ⚠ THE THIRD REFUSAL IS THE NO-ARREARS RULE IN THE SHOP. A heart bought
+    with the last of the balance is a missed upkeep payment an hour later,
+    which costs the heart straight back and leaves the robot poorer -- the
+    spiral issue #136 forbids, arriving through a purchase instead of
+    through a debt.
+    """
+    if not getattr(decision, "buy_heart", False) or self.ledger is None:
+      return
+    keep = 0
+    if self.metabolism is not None:
+      keep = int(math.ceil(self.metabolism.appetite.points_per_hour
+                           * HEART_RESERVE_HOURS))
+    got = self.ledger.buy_heart(HEART_PRICE, keep=keep)
+    if got["ok"]:
+      self._say(f"BOUGHT a heart for {HEART_PRICE} -- {got['hearts']} now, "
+                f"{got['balance']} points left")
+      self._remember(f"bought a life back for {HEART_PRICE} points; "
+                     f"{got['hearts']} left")
+    else:
+      self._say(f"HEART refused: {got['why']}")
+
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.
 
@@ -1650,6 +1779,21 @@ class HubLifecycle:
     if self.metabolism is None:
       return
     self.metabolism.tick(float(self.data.time))
+    # ⚠ UPKEEP THAT CANNOT BE PAID IS A DEATH (issue #136), and this is where
+    # "zero is narrative, never a capability lock" is deliberately narrowed.
+    # The old rule's MOTIVATION survives and is what makes the reversal
+    # acceptable: it existed so the world would not stop and so a broke robot
+    # could work its way out. Both still hold -- the world keeps running
+    # (#143 stands the robot back up), and one banked point re-arms nothing
+    # and un-arms this. Zero points still locks NOTHING: the robot can charge,
+    # drive, take a job and finish what it is holding at a balance of zero.
+    # What it can no longer do is stay there indefinitely for free.
+    if self.metabolism.missed and self.mortal and self.dead is None:
+      owed = self.metabolism.missed
+      self.metabolism.disarm()
+      self._die("unpaid", f"upkeep came due and the balance could not cover "
+                          f"it ({owed} point{'s' if owed != 1 else ''} short)")
+      return
     moved = self.metabolism.changed()
     if not moved:
       return
@@ -1829,6 +1973,10 @@ class HubLifecycle:
     # first, so a decision that makes room and then uses it works in one
     # go rather than being refused for a fullness it was about to fix.
     self._reconsider(decision)
+    # ...and a life bought back, if it asked for one (issue #136). Orthogonal
+    # for `_reconsider`'s reason exactly: buying a heart is paperwork, not
+    # something the body does, so it must not cost the robot its turn.
+    self._buy_heart(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
@@ -1843,17 +1991,16 @@ class HubLifecycle:
         self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
       return
     if decision.action == "charge":
-      # Topping up EARLY is a real choice and this honours it. Note what it is
-      # not: there is no action that declines to charge, because `needs_charge`
-      # was already checked before this method was ever called.
-      if self.battery.fraction >= TOP_UP_BELOW:
-        # ...but "top up" has to mean there is something to top up. See
-        # TOP_UP_BELOW: charging is a scored task, so an unconditional trip to
-        # the rack is a points farm rather than a decision.
-        self._say(f"DECIDE: already at {self.battery.fraction:.0%}, "
-                  "not worth a trip to the rack")
-        self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
-        return
+      # Topping up EARLY is a real choice and this honours it, AT ANY FRACTION
+      # (issue #135). Note what it is not: there is no action that declines to
+      # charge, because `needs_charge` was already checked before this method
+      # was ever called.
+      #
+      # ⚠ NOTHING REFUSES A CHOSEN CHARGE ANY MORE. The 0.75 floor that used
+      # to sit here closed a points farm that no longer exists -- `charge`
+      # pays nothing, so a trip to the rack at 80 % costs energy and time and
+      # earns not one point. It can only be caution, and a world that forbade
+      # it would be forbidding the disposition it is trying to measure.
       self.state = "GO_CHARGE"
       if self.go_charge():
         self.state = "CHARGE"
@@ -2125,6 +2272,12 @@ class HubLifecycle:
       # cause the day ended in, or None; `survival_s` is the clock at the end.
       "dead": self.dead["cause"] if self.dead else None,
       "deaths": list(self.deaths),
+      # LIVES LEFT, and the deaths that ENDED a robot rather than a life
+      # (issue #136). `true_deaths` is never summed with `deaths`: an
+      # ordinary death keeps the volume and the next life reads about it,
+      # and this is the one that archives it.
+      "hearts": self.ledger.hearts() if self.ledger is not None else None,
+      "true_deaths": list(self.true_deaths),
       "resets": list(self.resets),
       # Every time an admin reached into world state (issue #119). A run
       # with anything in here is not a survival data point, and the rollup
@@ -2796,6 +2949,14 @@ def run_demo(start=None, view: bool = False,
                            # `mortal` is False here by the same rule the
                            # lifecycle applies.
                            mortal=bool(mortal),
+                           # ...and the wallet (issues #135, #136): the two
+                           # things points buy are a heart and being asked
+                           # sooner, and both need the ledger. `hearts` is
+                           # what puts the lever in the schema and the rule
+                           # in the prompt -- absent where a world has no
+                           # lives to lose, so its prefix is unchanged.
+                           ledger=ledger,
+                           hearts=bool(mortal) and ledger is not None,
                            # ...and who chooses what happens when a call
                            # fails (issue #125). Off everywhere but the
                            # `autonomous` arm: the scripted rotation is

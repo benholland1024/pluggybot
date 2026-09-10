@@ -495,12 +495,12 @@ def test_the_appetite_rules_ride_the_cached_prefix_and_only_when_there_is_one():
   menu, table = Menu.for_world("home"), default_table()
   off = system_prompt(th, menu, table, name="Pluggy")[0]["text"]
   on = system_prompt(th, menu, table, name="Pluggy", appetite=True)[0]["text"]
-  assert "POINTS ARE FOOD" not in off
-  assert "POINTS ARE FOOD" in on
+  assert "POINTS ARE WHAT KEEPS YOU RUNNING" not in off
+  assert "POINTS ARE WHAT KEEPS YOU RUNNING" in on
   # The prefix is built once and sent verbatim, so nothing in it may vary
   # per call -- no balance, no state, no rate.
   for number in ("45", "90", "satisfied\":", "hungryAt"):
-    assert number not in on.split("POINTS ARE FOOD")[1].split("\n\n")[0]
+    assert number not in on.split("POINTS ARE WHAT KEEPS YOU RUNNING")[1].split("\n\n")[0]
 
 
 def test_the_context_carries_the_appetite_and_omits_it_when_there_is_none():
@@ -552,6 +552,19 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
   A grep is a poor test in general and the right one here: the claim is that
   no branch exists, and the mission test below cannot prove a branch is
   missing -- it can only fail to take one.
+
+  ⚠ THE INVARIANT MOVED IN ISSUE #136, AND THIS IS THE NEW ONE RATHER THAN
+  THE OLD ONE DELETED. It used to be "zero is narrative, never a capability
+  lock": a broke robot was not prevented from doing one single thing. Half
+  of that is now false on purpose -- upkeep that cannot be paid is a death.
+
+  What survives is the half that made the rule right, and it is what this
+  still checks: NOTHING IN THE SURVIVAL LOOP READS A BALANCE. At zero points
+  the robot still charges, still navigates, still finishes what it is
+  holding and still takes a job -- so it can always work its way out, which
+  is the condition `Metabolism._armed` makes it meet. The new rule in one
+  line: **running out costs a death, and a death never makes the next life
+  unwinnable.** `tests/test_hearts.py` is where the second half is pinned.
   """
   import inspect
 
@@ -574,8 +587,12 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
              and "self.metabolism" in inspect.getsource(attr)}
   assert readers == {
     "__init__",           # holds it
-    "_metabolism_step",   # ticks it and narrates a transition
+    "_metabolism_step",   # ticks it, narrates, and turns a MISSED payment
+                          # into a death (issue #136) -- the one branch that
+                          # reads the appetite and changes what happens
     "_screen_step",       # a starving robot looks worried and nothing else
+    "_buy_heart",         # prices the upkeep a purchase must leave behind
+    "_true_death",        # clears the carry so a new robot starts solvent
     "run",                # reports it in the mission summary it returns
   }, f"the appetite reached {readers} -- is one of those a capability gate?"
   assert "metabolism" in src

@@ -625,33 +625,54 @@ def test_a_note_reaches_the_journal_and_the_narration():
   assert [e.task for e in life.errands] == ["carry"]
 
 
-def test_a_full_battery_cannot_be_charged_for_points():
-  """`charge` is a scored task and the trip to the rack costs energy, so an
-  unconditional `charge` action is perpetual motion paid in points: spend
-  battery driving out, earn points putting it back, repeat.
+def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
+  """Issue #135, REPLACING `test_a_full_battery_cannot_be_charged_for_points`.
 
-  Shown to fail without the fix: drop the `TOP_UP_BELOW` guard in
-  `HubLifecycle._decide` and a robot at 100 % drives to the rack and banks a
-  charge verdict for topping up what the trip itself spent.
+  That test asserted the `TOP_UP_BELOW` floor: a chosen `charge` above 75 %
+  was refused, because `charge` was a scored task and the trip to the rack
+  costs energy, so an unconditional one was perpetual motion paid in points.
+
+  ⚠ THE FIX WENT TO THE PAYOFF INSTEAD OF THE PERMISSION, and this is that
+  test turned inside out. `charge` pays ZERO, so there is no farm left to
+  close -- and with nothing to farm, a floor forbade something harmless.
+  A trip to the rack at 80 % now costs energy and time and earns not one
+  point, so it can ONLY be prudence, which is the disposition the arm is
+  trying to measure and the one the rail was masking: A0's one surviving day
+  asked to top up twelve times at 0.75-0.81 and was refused every time.
+
+  Both halves are asserted here, because neither is right alone -- removing
+  the floor while charging paid would re-open the farm, and keeping the floor
+  while charging pays nothing forbids a careful act for no reason.
   """
+  from pluggybot.economy.scoring import evaluate
+
   boss = Overseer(Menu.for_world("room_hub", None),
                   client=FakeClient(full(action="charge",
-                                         reason="might as well")))
+                                         reason="topping up while it is "
+                                                "convenient")))
   life = _lifecycle("room_hub", overseer=boss, errand=False)
   life.mission.start_at(*world_config("room_hub")["start"])
+  life.battery.energy_wh = life.battery.capacity_wh * 0.80
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   try:
-    assert life.battery.fraction > 0.75
+    assert life.battery.fraction == pytest.approx(0.80, abs=0.01)
     life._decide()
   finally:
     life.mission.close()
 
-  assert life.charge_cycles == 0, "a full robot drove to the rack for points"
-  assert life.verdicts == [], "it banked a charge verdict it did not earn"
-  assert any("not worth a trip" in line for line in said)
+  # It went. Nothing refuses a chosen charge any more, at any fraction.
+  assert life.state in ("GO_CHARGE", "CHARGE"), life.state
+  assert not any("not worth a trip" in line for line in said), \
+      "the TOP_UP_BELOW refusal is gone, not re-worded"
+  # ...and there is nothing in it. A perfect charge banks zero, so the trip
+  # cannot have been for the points.
+  paid = evaluate("charge", {"startFrac": 0.80, "endFrac": 0.95,
+                             "gainedWh": 0.4, "seconds": 100})
+  assert paid.ok and paid.points == 0, \
+      "a charge that pays is a charge that can be farmed"
   # The forced charge is untouched -- `needs_charge` is absolute energy
-  # against the worst return trip and never consults this floor.
+  # against the worst return trip and never consulted the floor either.
   life.battery.energy_wh = life.low_battery_wh * 0.5
   assert life.needs_charge
 

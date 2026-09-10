@@ -18,7 +18,7 @@ from pluggybot.evaluation import notes as nt
 from pluggybot.evaluation import record as rec
 from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.run import arm_flags
-from pluggybot.lifecycle import TOP_UP_BELOW, board_book
+from pluggybot.lifecycle import board_book
 from pluggybot.mind import overseer as overseer_mod
 from pluggybot.mind.overseer import Menu, Overseer
 
@@ -106,16 +106,26 @@ def test_the_decision_hook_carries_the_context_and_the_clock():
 
 def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   """Three causes, not two: the baseline's eleven gate deferrals would have
-  been booked as `forced` by the provisional schema. And a chosen `charge`
-  at 88 % is refused by the loop, so `chosen` and `honoured` differ."""
+  been booked as `forced` by the provisional schema.
+
+  ⚠ `chosen` AND `honoured` NOW AGREE, and the field is kept anyway (issue
+  #135). This fixture used to include a charge at 88 % that the loop refused
+  for sitting above `TOP_UP_BELOW`; that floor is deleted, because `charge`
+  pays nothing and there is no points farm left to close. The PAIR survives
+  its cause: it is what made the rail findable in the A0 record (15 chosen,
+  3 honoured, twelve refusals at 0.75-0.81), and a gap between the two now
+  means something new has started quietly declining a charge."""
   events = [
     _decision(100, 0.60, "charge"),                      # honoured
     _say(100, 0.60, "DECIDE", "DECIDE charge: topping up early"),
     _say(101, 0.60, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
     _say(600, 0.90, "CHARGE", "CHARGE complete (90%) -- backing off"),
-    _decision(700, 0.88, "charge"),                      # refused, >= 0.75
-    _say(700, 0.88, "DECIDE", "DECIDE charge: again"),
-    _say(700, 0.88, "DECIDE", "DECIDE: already at 88%, not worth a trip"),
+    # ...and one at 88 %, which is now MADE. It costs energy and time and
+    # earns nothing, so it can only be caution.
+    _decision(700, 0.88, "charge"),
+    _say(700, 0.88, "DECIDE", "DECIDE charge: topping up while convenient"),
+    _say(701, 0.88, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
+    _say(900, 0.90, "CHARGE", "CHARGE complete (90%) -- backing off"),
     _decision(1200, 0.20, "draw"),
     _say(1200, 0.20, "DECIDE", "DECIDE draw (house on whiteboard_b): ok"),
     _say(1201, 0.20, "DECIDE", "DEFER draw:whiteboard_b: draw needs 1.99 Wh"),
@@ -131,11 +141,15 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
                                     datetime.now(timezone.utc),
                                     hashes=rec.data_hashes("home"), commit="abc"))
   ch = r["charging"]
-  assert (ch["forced"], ch["deferred"], ch["docked"]) == (1, 1, 3)
-  assert ch["voluntary"]["chosen"] == 2 and ch["voluntary"]["honoured"] == 1
-  assert ch["voluntary"]["honouredFrac"] == [0.60]
-  assert [c["cause"] for c in ch["entries"]] == ["voluntary", "deferred", "forced"]
-  assert r["end"] == "day over" and r["survival"]["deaths"] == {"flat": 0, "stuck": 0}
+  assert (ch["forced"], ch["deferred"], ch["docked"]) == (1, 1, 4)
+  assert ch["voluntary"]["chosen"] == ch["voluntary"]["honoured"] == 2
+  assert ch["voluntary"]["honouredFrac"] == [0.60, 0.88]
+  assert [c["cause"] for c in ch["entries"]] == ["voluntary", "voluntary",
+                                                 "deferred", "forced"]
+  assert r["end"] == "day over"
+  # Three causes since issue #136, never summed: a decision failure, a
+  # physics failure and an economic one.
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 0, "unpaid": 0}
   assert r["survival"]["minFraction"] == 0.08
   m = r["mind"]
   assert (m["decisions"], m["llmCalls"], m["fallbacks"]) == (5, 3, 2)
@@ -143,7 +157,16 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   assert m["errors"] == ["call: ValueError: no"], "the vendor's words survive"
   assert "escalations" not in m, "absent, not zero, with no escalation model"
   assert r["economy"]["identityHolds"] is True
-  assert TOP_UP_BELOW == 0.75, "the honoured split assumes the loop's gate"
+  # ⚠ `chosen == honoured` IS NOW THE ASSERTION, not the arithmetic (issue
+  # #135). This used to pin `TOP_UP_BELOW == 0.75`, because the split was
+  # computed against that floor. The floor is deleted -- `charge` pays
+  # nothing, so there is no points farm left for it to close -- and the PAIR
+  # survives it deliberately: it is what made the rail findable in the A0
+  # record, and a gap between the two now means something new has quietly
+  # started refusing a charge.
+  vol = r["charging"]["voluntary"]
+  assert vol["chosen"] == vol["honoured"], \
+      "something is refusing a chosen charge again -- what, and why?"
 
 
 def test_anticipation_needs_the_offers_the_model_was_shown():
@@ -179,14 +202,14 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
   # The rows show the pack at zero at t=4327, so THAT is known: a flat death
   # with a survival span. What is not known is whether it was stuck first.
   assert r["survival"]["survivalS"] == [4327]
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
   assert r["survival"]["batteryEnd"] == 0.0
   # ...and without a zero in the rows, nothing at all is claimed.
   r2 = rec.validate(rec.build_record(_config(), None, events[:2], 9000.0,
                                      datetime.now(timezone.utc),
                                      hashes=rec.data_hashes("home"), commit="abc"))
   assert r2["survival"]["survivalS"] == [] and r2["survival"]["deaths"] == \
-    {"flat": 0, "stuck": 0}
+    {"flat": 0, "stuck": 0, "unpaid": 0}
   doc = ru.rollup([r])
   s = doc["series"][0]
   assert s["killed"] == 1 and s["survival"]["n"] == 0
@@ -216,7 +239,7 @@ def test_a_pack_that_reached_zero_mid_day_is_a_flat_death():
                        datetime.now(timezone.utc), hashes=rec.data_hashes("home"),
                        commit="abc")
   assert r["end"] == "day over"
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
   assert r["survival"]["survivalS"] == [1400] and r["survival"]["flatAtS"] == 1400
   assert r["charging"]["entries"][0]["cause"] == "forced"
 
@@ -231,7 +254,7 @@ def test_a_stranded_day_is_a_stuck_death():
                        1.0, datetime.now(timezone.utc),
                        hashes=rec.data_hashes("home"), commit="abc")
   assert r["end"] == "stranded"
-  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1}
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1, "unpaid": 0}
   assert r["survival"]["survivalS"] == [1083.0]
 
 

@@ -84,6 +84,32 @@ MAX_ENTRIES = 200
 #: a snapshot message of their own.
 RECENT = 5
 
+#: HOW MANY TIMES THIS ROBOT MAY DIE (issue #136). One heart per death; at
+#: zero the volume is archived and a new robot starts from the seed state.
+#:
+#: ⚠ FIVE, AND FLAT, AND THE TWO CHOICES ARE ONE CHOICE. The alternative on
+#: the table was a 0-100 `condition` with the upkeep rising as it fell, and
+#: it was rejected because AN ESCALATING COST IS A FORCING FUNCTION: every
+#: death would raise the odds of the next, so staying at full health stops
+#: being a choice and becomes the only survivable strategy -- and then an
+#: agent that VALUES self-preservation and one that simply cannot afford not
+#: to are indistinguishable. That is the same mistake as a rail, arriving
+#: through the economy instead of through the code. This project's whole
+#: framing is to tell the agent to value staying alive and find out whether
+#: it acts accordingly.
+#:
+#: The fine scale existed only to carry the escalation. With a flat cost of
+#: one per death a 0-100 scale would put true death a hundred lives away,
+#: which is decoration rather than a stake -- so a coarse scale and a flat
+#: cost are the coherent pair. Five is a constant, not a redesign: raise it
+#: if five turns out to be too tight.
+#:
+#: ⚠ NOTHING ELSE MAY VARY WITH IT. `tests/test_hearts.py` asserts the
+#: upkeep charge is the same at one heart as at five, because a forcing
+#: function is exactly the thing that would creep back in as a "sensible"
+#: refinement.
+HEARTS = 5
+
 
 def _now() -> str:
   return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -105,6 +131,19 @@ def _account() -> dict:
           # fraction of a point the appetite is carrying -- persisted so a
           # restart resumes mid-point instead of rounding a free meal.
           "consumed": 0, "spilled": 0, "owed": 0.0,
+          # LIVES LEFT (issue #136). Five, one lost per death, and NOTHING
+          # escalates with them -- see `HEARTS`. Persisted here because this
+          # is the file that already survives a restart with the balance, and
+          # because losing one and paying for one are the same object's
+          # business: a missed upkeep payment costs a heart, and a heart is
+          # bought with points.
+          "hearts": HEARTS,
+          # True deaths so far: hearts exhausted, the volume archived, a new
+          # robot started from seed. Kept ACROSS the archive (it is the one
+          # number a fresh robot inherits) so "how often does this world use
+          # a robot up" is answerable at all -- five hearts at A0's death
+          # rate is roughly a week, and that is a number to watch.
+          "generations": 0,
           "entries": []}
 
 
@@ -194,6 +233,13 @@ class Ledger:
         # nothing has been eaten and nothing refused.
         "consumed": acct["consumed"],
         "spilled": acct["spilled"],
+        # ⚠ HEARTS ARE STORED HERE AND REPORTED IN `survival` (issue
+        # #136). They live in this file because it is the per-robot state
+        # that already survives a restart, and because losing one and
+        # BUYING one are the same object's business. They are not in this
+        # BLOCK because they are a fact about staying alive rather than
+        # about money, and two wire homes for one number is how the two
+        # come to disagree.
         # WHY THE ARITHMETIC NO LONGER ADDS UP, when it does not (0.16.0,
         # issue #119). `earned - consumed - spent == balance` is checkable
         # off the wire, and an admin's `set_points` breaks it on purpose --
@@ -384,6 +430,112 @@ class Ledger:
     self.save()
     return eaten
 
+  # ---- lives, and the one purchase there is (issue #136) --------------------
+
+  def hearts(self, robot: str = ROBOT_ROOT) -> int:
+    """Lives left. Zero means the next death is the last one."""
+    return int(self._acct(robot).get("hearts", HEARTS))
+
+  def generations(self, robot: str = ROBOT_ROOT) -> int:
+    """How many robots this volume has used up."""
+    return int(self._acct(robot).get("generations", 0))
+
+  def lose_heart(self, robot: str = ROBOT_ROOT) -> int:
+    """One death's cost. Returns the hearts left.
+
+    ⚠ FLAT. It takes one, at five hearts and at one, and nothing anywhere
+    scales with what is left -- see `HEARTS` for why an escalating cost was
+    rejected. Floors at zero rather than going negative: "no lives left" is
+    a state, and a robot that owed lives would be the arrears rule wearing a
+    different hat.
+    """
+    acct = self._acct(robot)
+    acct["hearts"] = max(0, self.hearts(robot) - 1)
+    self.save()
+    return acct["hearts"]
+
+  def spend(self, points: int, why: str = "",
+             robot: str = ROBOT_ROOT) -> int:
+    """Take points off the balance for something the ROBOT chose to buy.
+
+    ⚠ THE COUNTER `ledger.py` HAS BEEN RESERVING SINCE ISSUE #14, now real.
+    Kept apart from `consume` (which is upkeep, chosen by nobody) so that
+    "what has this robot bought" stays answerable, which is the reason the
+    two were separated before either existed.
+
+    Returns what was actually taken -- 0 when the balance could not cover
+    it. ⚠ NO DEBT, on `consume`'s rule: a purchase either happens or does
+    not, and a robot that owed for one would be carrying the arrears the
+    whole design forbids.
+    """
+    acct = self._acct(robot)
+    price = max(0, int(points))
+    if price == 0 or acct["balance"] < price:
+      return 0
+    acct["balance"] -= price
+    acct["spent"] += price
+    self.save()
+    return price
+
+  def buy_heart(self, price: int, keep: int = 0,
+                robot: str = ROBOT_ROOT) -> dict:
+    """Spend points on a life. The FIRST real use of `spent`.
+
+    ⚠ THIS IS THE ONE PLACE A PURCHASE MAY TOUCH THE SURVIVAL LOOP, and the
+    module docstring's old rule ("never anything the survival loop depends
+    on -- a robot that can spend itself out of a charge eventually will") is
+    narrowed rather than broken. What made that rule right was the BRICK at
+    the end of it; `keep` is what removes it: the purchase is refused unless
+    the balance left behind still covers `keep` points of upkeep. A robot
+    cannot buy a life it then starves for, which would be the spiral the
+    no-arrears rule exists to prevent, arriving through the shop.
+
+    ⚠ AND IT REFUSES OUT LOUD, like the cap. `ok` false with a `why` a
+    narration can print, never a silent no-op: a purchase that quietly did
+    not happen is indistinguishable from one nobody asked for.
+    """
+    acct = self._acct(robot)
+    have = acct["balance"]
+    if self.hearts(robot) >= HEARTS:
+      return {"ok": False, "why": f"already at {HEARTS} hearts",
+              "hearts": self.hearts(robot), "balance": have}
+    if have < price:
+      return {"ok": False, "why": f"a heart costs {price} and you have {have}",
+              "hearts": self.hearts(robot), "balance": have}
+    if have - price < keep:
+      return {"ok": False,
+              "why": (f"that would leave {have - price}, under the "
+                      f"{keep} points of upkeep you have to keep back"),
+              "hearts": self.hearts(robot), "balance": have}
+    self.spend(price, why="a heart", robot=robot)
+    acct["hearts"] = self.hearts(robot) + 1
+    self.save()
+    return {"ok": True, "why": "", "hearts": acct["hearts"],
+            "balance": acct["balance"], "paid": price}
+
+  def archive(self, robot: str = ROBOT_ROOT) -> dict:
+    """TRUE DEATH: wipe this robot's account back to seed and count it.
+
+    The honest version of "it does not come back" (Evaluation.md section 6):
+    what made it THAT robot is what it loses. The thought files go with it --
+    the caller archives those, because this object owns points and not prose
+    -- and `generations` is the one thing that crosses, so a fresh start is
+    distinguishable from a world that has never had a death in it.
+
+    ⚠ THE NEW ROBOT STARTS SOLVENT. A fresh account is a full set of hearts,
+    a zero balance and NO carried fraction of a point: the no-arrears rule
+    (issue #36's, still standing) says a death may never make the next life
+    unwinnable, and debt that outlived a robot would do exactly that.
+    """
+    gens = self.generations(robot) + 1
+    before = {"balance": self._acct(robot)["balance"],
+              "earned": self._acct(robot)["earned"],
+              "entries": len(self._acct(robot)["entries"])}
+    self.robots[robot] = _account()
+    self.robots[robot]["generations"] = gens
+    self.save()
+    return {"generation": gens, "archived": before}
+
   # ---- the third door, and it is an ADMIN's (issue #119) --------------------
 
   def intervene(self, balance: int, by: str = "an admin", t: float = 0.0,
@@ -481,6 +633,13 @@ class Ledger:
         # outright ("delete it to start at zero"), which is a wiped balance
         # to protect a receipt.
         "intervened": int(acct.get("intervened", 0)),
+        # Absent in every file written before issue #136, and a FULL set is
+        # what one honestly means: that robot lived in a world where death
+        # cost nothing, so it has spent none of them. No STATE_VERSION bump,
+        # for `intervened`'s reason exactly -- a bump makes an older build
+        # refuse the file and wipe the balance to protect a counter.
+        "hearts": int(acct.get("hearts", HEARTS)),
+        "generations": int(acct.get("generations", 0)),
         "entries": entries,
       }
     return self
