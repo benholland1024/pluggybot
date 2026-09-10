@@ -504,6 +504,45 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     seeded map carrying only `task_complete -> ask` goes quiet on its first
     tick. `points_below` is there from the start on the issue's own M15
     instruction -- design against the FINAL hazard set.
+    ⚠ **`decision_failed` NARROWS TO *WHY***, on the same `kind` field
+    `task_complete` uses -- one of `FALLBACK_REASONS`, one of the two CLASSES
+    (`failure`/`policy`), or `""` for any. Three levels, a hierarchy rather
+    than three flavours, and FIRST MATCH WINS makes the ordering mean what it
+    reads like ("on `timeout` charge, on any other `failure` idle, otherwise
+    journal"). This is the shape CLAUDE.md predicted before the map existed,
+    and the reasons really are different advice -- a `timeout` says retry may
+    work, a `garbled` says it will probably happen again, a `budget` says
+    nothing answers for a while.
+    ⚠ **THE PARTITION IS `overseer.POLICY_FALLBACKS`, NOT A COPY**
+    (`events.matches_kind` calls `fallback_class`); a test MOVES a reason
+    across the line and watches the matcher move with it, because a grep
+    passes on a comment citing the constant.
+    ⚠ **THE SCHEMA OFFERS THE UNION AND `events.row` DRAWS THE LINE** --
+    structured outputs have no "this enum depends on that field" in the
+    subset used here. A cross-event token is REFUSED, not dropped: a dropped
+    filter leaves a row that READS narrow and BEHAVES as a catch-all.
+    ⚠ **`EventMap.with_row` KEYS ON `(event, kind)`** -- a scalar
+    `standingOrder` is an UNFILTERED row, and keying on the event alone would
+    have it overwrite the agent's `on timeout, charge` rule every answer.
+    ⚠ **`Overseer.failure_order` IS A METHOD TAKING THE REASON**, not a
+    property: reading the map without knowing which failure it was is how a
+    narrow rule silently becomes a broad one.
+    ⚠ **NO WORKED EXAMPLE IN `EVENT_MAP_RULE` MAY USE `charge`, A BATTERY
+    THRESHOLD OR THE RACK.** `score` answers "did it write itself a charging
+    rule, and at what fraction" off a CONFIG, so an example showing one hands
+    the agent the answer -- `affordableActions`' mistake arriving through the
+    prompt instead of the context. The block SHIPPED with "if you want a
+    fifth of a pack to mean go to the rack ... that rule goes above the ones
+    about work", and with "0.2 is a fifth of a pack" as its units example;
+    both are cut, the ordering lesson re-taught on `journal`/`idle`/`explore`
+    and the units on 0.5, which is not a threshold anybody would pick. ⚠ The
+    ARM'S RULES stay (`RULES_AUTONOMOUS`, `APPETITE_RULE`): saying survival
+    matters and that charging pays nothing are facts about the WORLD, and a
+    rule the code contradicts is what M14 found. ⚠ No committed series moves
+    -- `guarded` and `autonomous` at origin `none` never carried this block.
+    ⚠ **A BROAD RULE ABOVE A NARROW ONE STARVES IT** and is NOT prevented --
+    it is visible in `score.failureKinds` / `failureCatchAll`, and the prompt
+    states the trap.
     ⚠ **`standingOrder` MIGRATES AND KEEPS WORKING FOR ONE VERSION**: it
     writes a `decision_failed` row IN PLACE (`STANDING_ORDER_RULE` says set
     one every answer, so an append grows the map by a row an hour), and

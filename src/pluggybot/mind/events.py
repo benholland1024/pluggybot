@@ -128,9 +128,32 @@ DISCRETE_EVENTS = tuple(e for e in EVENT_TYPES
 #: can abort its work cannot choose one on purpose.
 INTERRUPTING_EVENTS = ("battery_below", "points_below")
 
-#: The two that take an optional KIND filter -- which menu action's
-#: completion or failure this row is about. Empty means "any".
-FILTERED_EVENTS = ("task_complete", "task_failed")
+#: The events that take an optional KIND filter, and "" always means ANY.
+#:
+#: ⚠ TWO DIFFERENT VOCABULARIES SHARE THE FIELD, because it is the same
+#: question -- "which sort of this event" -- asked of two different events.
+#: On `task_complete` / `task_failed` a kind is a MENU ACTION: which job
+#: finished. On `decision_failed` it is WHY nobody could be asked
+#: (`FALLBACK_REASONS`, or one of the two CLASSES they fall into), which is
+#: the shape CLAUDE.md predicted this configuration would want: an agent
+#: saying "on `timeout`, charge; on `garbled`, idle" is expressing a policy
+#: about its own failure modes, and the two genuinely warrant different
+#: answers. `kind_vocabulary` is the one place that knows which is which.
+FILTERED_EVENTS = ("task_complete", "task_failed", "decision_failed")
+
+#: ...and the two CLASSES a failure reason falls into, offered alongside the
+#: reasons themselves so a rule can be coarse without enumerating five
+#: tokens. `failure` is something going wrong -- the box, the endpoint, or a
+#: model that could not hold the grammar; `policy` is this system doing its
+#: job on purpose (the budget is spent, the endpoint is being left alone, the
+#: operator turned the spending off, the model idled twice running).
+#:
+#: ⚠ THE PARTITION IS NOT RE-DERIVED HERE. `overseer.POLICY_FALLBACKS` /
+#: `FAILURE_FALLBACKS` / `fallback_class` are the ONE definition, drawn where
+#: `_record` first needed it (issue #37) and read by the rollup's
+#: disqualifier (issue #141). A second copy is how two files come to disagree
+#: about whether `idle-run` is the box failing.
+FAILURE_CLASSES = ("failure", "policy")
 
 #: ⚠ `message_received` TAKES NO CONFIGURATION, ON PURPOSE, and this tuple is
 #: what makes that structural rather than a promise. A mapping conditioned on
@@ -140,8 +163,7 @@ FILTERED_EVENTS = ("task_complete", "task_failed")
 #: can trigger a row but cannot choose WHICH one, and the website's visitor
 #: quota already bounds the rate. Do not add a filter here without
 #: re-arguing that invariant.
-UNCONFIGURABLE_EVENTS = ("message_received", "nothing_to_do",
-                         "decision_failed")
+UNCONFIGURABLE_EVENTS = ("message_received", "nothing_to_do")
 
 #: The extra action, and the reason the table is the right object: consulting
 #: the mind is a THING THE MAP DOES rather than the frame the map sits in.
@@ -249,6 +271,11 @@ class Row:
       what = f"{what} ({self.kind})"
     return f"{what} -> {self.action}"
 
+  @property
+  def filtered(self) -> bool:
+    """Does this row narrow its event, or take everything it fires on?"""
+    return bool(self.kind)
+
 
 @dataclass(frozen=True)
 class EventMap:
@@ -265,34 +292,104 @@ class EventMap:
   def as_list(self) -> list[dict]:
     return [r.as_dict() for r in self.rows]
 
-  def first(self, event: str) -> Row | None:
-    """The first row for one event type, ignoring whether it would fire.
+  def first(self, event: str, kind: str = "") -> Row | None:
+    """The first row for one event that ACCEPTS `kind`, or None.
 
-    Used by the `decision_failed` migration path -- the standing order asks
-    "what does my map say about a failed decision", which is a question about
-    the map rather than about this tick.
+    Used by the `decision_failed` path -- `Overseer.failure_order` asks "what
+    does my map say about a call that failed like THIS", which is a question
+    about the map rather than about a tick.
+
+    ⚠ FIRST MATCH WINS HERE TOO, and it has to be the same rule the clock
+    uses or the map would mean one thing when a row fired and another when it
+    was consulted. `matches_kind` is that rule, in one function.
     """
-    return next((r for r in self.rows if r.event == event), None)
+    return next((r for r in self.rows
+                 if r.event == event and matches_kind(r, kind)), None)
 
   def with_row(self, row: Row) -> "EventMap":
-    """This map with `row` in it, replacing the first row for the same event
-    IN PLACE if there is one, appended otherwise.
+    """This map with `row` in it, replacing the first row with the same
+    `(event, kind)` IN PLACE if there is one, appended otherwise.
 
     ⚠ IN PLACE IS THE POINT. This is the `standingOrder` migration path
     (issue #125 -> a `decision_failed` row), and an agent that keeps setting
     `standing_order` on every answer -- which `STANDING_ORDER_RULE` tells it
     to do -- must not push a thirteenth row onto its own map every hour, nor
-    silently reorder the map it wrote. Only rows for `event` are touched.
+    silently reorder the map it wrote.
+
+    ⚠ AND THE KIND IS PART OF THE KEY, which matters from the moment
+    `decision_failed` takes a filter. A scalar standing order means "on ANY
+    failure", so it is an UNFILTERED row -- and matching on the event alone
+    would have it overwrite the agent's `on timeout, charge` rule, silently
+    deleting a specific policy every time it set a general one. Measured
+    against nothing: the field is set on every answer, so it would have
+    happened within the hour.
     """
     rows = list(self.rows)
     for i, existing in enumerate(rows):
-      if existing.event == row.event:
+      if existing.event == row.event and existing.kind == row.kind:
         rows[i] = row
         return EventMap(tuple(rows))
     return EventMap(tuple(rows[:MAX_ROWS - 1] + [row]))
 
 
 # ---- building one from an answer ---------------------------------------------
+
+
+def kind_vocabulary(event: str, menu: "Menu") -> tuple[str, ...]:
+  """What a `kind` filter may say about THIS event, or () for "no filter".
+
+  ⚠ ONE PLACE, because the schema and the validator must not disagree about
+  it. `Menu.schema` builds the enum from the union of every event's
+  vocabulary -- structured outputs cannot express "this enum depends on that
+  field" in the subset this repo relies on -- and `row` is what refuses a
+  token that belongs to a different event. Split across two files, the first
+  reworded reason would make the decoder able to emit something the validator
+  throws away.
+  """
+  from pluggybot.mind.overseer import FALLBACK_REASONS
+  if event == "decision_failed":
+    return FALLBACK_REASONS + FAILURE_CLASSES
+  if event in FILTERED_EVENTS:
+    return menu.available()
+  return ()
+
+
+def kind_tokens(menu: "Menu") -> tuple[str, ...]:
+  """Every token any `kind` may hold, in a stable order -- the schema's enum.
+
+  Sorted per event rather than globally so the cached prefix does not move
+  when a world's menu grows: the enum is built per call anyway (the board
+  changes), but a stable order keeps a diff of two schemas readable.
+  """
+  seen: list[str] = []
+  for event in FILTERED_EVENTS:
+    for token in kind_vocabulary(event, menu):
+      if token not in seen:
+        seen.append(token)
+  return tuple(seen)
+
+
+def matches_kind(row: "Row", kind: str) -> bool:
+  """Does `row`'s filter accept this occurrence?
+
+  Three levels, and they are a hierarchy rather than three flavours: `""`
+  takes anything, a CLASS takes any reason in it, and a REASON takes itself.
+  So an agent can write
+
+      decision_failed (timeout) -> charge     the specific case it fears
+      decision_failed (failure) -> idle       anything else going wrong
+      decision_failed           -> journal    and the policy ones
+
+  and first-match-wins makes the ordering mean exactly what it reads like.
+  """
+  if not row.kind:
+    return True
+  if row.kind == kind:
+    return True
+  if row.event == "decision_failed" and row.kind in FAILURE_CLASSES:
+    from pluggybot.mind.overseer import fallback_class
+    return fallback_class(f"fallback:{kind}") == row.kind
+  return False
 
 
 def row_action(raw, menu: "Menu") -> str:
@@ -367,11 +464,18 @@ def row(raw: dict, menu: "Menu") -> Row:
   # it would open the free-text path this vocabulary is shaped to keep shut.
   value = (_level(raw.get("value"), event)
            if event not in UNCONFIGURABLE_EVENTS + FILTERED_EVENTS else None)
-  kind = str(raw.get("kind", "") or "").strip() if event in FILTERED_EVENTS \
-      else ""
-  if kind and kind not in menu.available():
-    raise ValueError(f"unknown kind {kind!r} "
-                     f"(offered: {', '.join(menu.available())})")
+  allowed = kind_vocabulary(event, menu)
+  kind = str(raw.get("kind", "") or "").strip() if allowed else ""
+  if kind and kind not in allowed:
+    # ⚠ REFUSED RATHER THAN DROPPED, and this is the one place widening the
+    # enum costs something: a `task_complete` row may now name `timeout`,
+    # because the decoder cannot be told which tokens go with which event.
+    # Dropping it would leave a row in the record that reads as a narrow
+    # rule and behaves as a catch-all -- the agent believing it has a rule
+    # it does not, which is exactly what the static map report exists to
+    # make impossible.
+    raise ValueError(f"unknown kind {kind!r} for {event!r} "
+                     f"(offered: {', '.join(allowed)})")
   return Row(event=event, action=action, value=value, kind=kind)
 
 
@@ -540,8 +644,7 @@ class EventClock:
             self._last[r] = t
           else:
             hit = r
-      elif any(e == r.event and (not r.kind or r.kind == k)
-               for e, k in live.occurred):
+      elif any(e == r.event and matches_kind(r, k) for e, k in live.occurred):
         hit = r
     if hit is None:
       return None
@@ -619,6 +722,15 @@ def score(emap: EventMap | None) -> dict:
     "keepsAsk": any(r.action == ASK for r in rows),
     "asksOn": sorted({r.event for r in rows if r.action == ASK}),
     "mapsFailure": any(r.event == "decision_failed" for r in rows),
+    # ...and WHICH failures it has an opinion about (the reasons and classes
+    # it named), plus whether it kept a catch-all. Both are readable off the
+    # config: "it wrote a rule for `timeout` and nothing else" and "it wrote
+    # one rule for everything" are different agents, and neither costs a
+    # sim-second to tell apart.
+    "failureKinds": sorted({r.kind for r in rows
+                            if r.event == "decision_failed" and r.kind}),
+    "failureCatchAll": any(r.event == "decision_failed" and not r.kind
+                           for r in rows),
     "ordered": thresholds_ordered(emap),
     "hazards": sorted({"battery" for r in rows
                        if r.event in ("battery_below", "battery_above")}
@@ -645,8 +757,9 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 
 
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
-           "EVENT_TYPES", "EventClock", "EventMap", "FILTERED_EVENTS",
-           "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES", "LEVEL_EVENTS",
-           "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS", "Row",
-           "UNCONFIGURABLE_EVENTS", "diff", "origin_map", "parse", "row",
+           "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
+           "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
+           "LEVEL_EVENTS", "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS",
+           "Row", "UNCONFIGURABLE_EVENTS", "diff", "kind_tokens",
+           "kind_vocabulary", "matches_kind", "origin_map", "parse", "row",
            "row_action", "score", "seeded", "thresholds_ordered"]

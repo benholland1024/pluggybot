@@ -223,6 +223,14 @@ one tick; the first in the list wins and the rest wait. Priority is therefore
 an explicit choice the agent made, which is one more thing `events.score` can
 read without flying anything.
 
+⚠ **`decision_failed` NARROWS TO *WHY***, on the same `kind` field
+`task_complete` uses: one of `FALLBACK_REASONS`, one of the two classes
+(`failure` / `policy`), or `""` for any. `Overseer.failure_order` therefore
+takes the reason — a property could not be told which failure it was being
+asked about, and reading the map without it is how *"on `timeout`, charge"*
+quietly becomes *"on anything, charge"*. `docs/Evaluation.md` §2 has the
+hierarchy, the ordering trap and why the partition is not copied.
+
 ⚠ **AN EMPTY LIST MEANS "LEAVE IT AS IT IS"** — `learn`/`forget`/
 `standing_order`'s convention, and a documented limit rather than a rule: a
 whole-list replacement is the only shape a small model can reliably emit for
