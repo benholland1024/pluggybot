@@ -568,10 +568,14 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
       "the ask stamps the clock before the call, so a failure cannot unstamp it"
   # ...and nothing else in the file writes it except the two places a LIFE
   # starts: mission start and a stand-up.
-  # ...and nothing else writes it except the two places a LIFE starts --
-  # mission start and a stand-up -- plus the constructor's zero.
+  # ...and every OTHER write is a moment a life starts or a mind is
+  # consulted, never an answer arriving. Five: the constructor's zero,
+  # mission start, a stand-up, and `_arbitrate`'s two asks (the bootstrap
+  # and an `ask` row firing). Counted so a sixth has to be argued for --
+  # the one that would break this is a write next to a RESULT.
   whole = inspect.getsource(HubLifecycle)
-  assert whole.count("self._last_ask_t = ") == 4
+  assert whole.count("self._last_ask_t = ") == 5
+  assert "_last_ask_t" not in inspect.getsource(HubLifecycle._after_decision)
 
 
 def test_a_world_with_no_map_can_never_die_unminded(menu):
@@ -660,7 +664,15 @@ def test_a_seeded_mission_asks_where_the_old_one_asked(menu, tmp_path):
   # back is comparing the fallback with itself -- which is what this test did
   # until the fake client was attached without `_client_ready` and the
   # property quietly built a real one over it.
-  assert {d["source"] for d in plain["decisions"]} == {"llm"}
+  #
+  # ⚠ NOT "every source is `llm`": the fake answers `idle` forever, so
+  # `MAX_IDLE_RUN` makes every third decision `fallback:idle-run` -- the
+  # POLICY working, which is `fallback_class`'s whole distinction (#141).
+  # What must not appear is a FAILURE-class fallback, which is what a client
+  # nobody attached looks like.
+  sources = [d["source"] for d in plain["decisions"]]
+  assert "llm" in sources
+  assert not [x for x in sources if ov.fallback_class(x) == "failure"], sources
   assert [d["source"] for d in plain["decisions"]] == \
          [d["source"] for d in seeded["decisions"]]
   assert seeded["overseer"]["eventMap"]["fired"].get("nothing_to_do") \
