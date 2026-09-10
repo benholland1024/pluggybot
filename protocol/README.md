@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.16.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.17.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -138,7 +138,7 @@ survival measures the kindness of the audience (docs/Evaluation.md §5).
 {"type": "death", "t": 2852.1, "robot": "pluggybot", "cause": "flat",
  "why": "the pack reached zero", "survivalS": 2852.1, "deaths": 1}
 {"type": "reset", "t": 3010.0, "robot": "pluggybot", "by": "ben",
- "wasDead": "flat", "deadS": 157.9, "intervention": false}
+ "wasDead": "flat", "deadS": 157.9, "intervention": false, "auto": false}
 ```
 
 `cause` is one of `DEATH_CAUSES`, **`flat`** (the pack reached zero — a
@@ -153,6 +153,7 @@ survival data point.
 
 ```jsonc
 "survival": {"s": 412.3, "deaths": 0, "dead": null}   // dead: null | "flat" | "stuck"
+"survival": {"s": 0.0, "deaths": 1, "dead": "flat", "resetInS": 221.4}
 ```
 
 `s` is sim seconds since mission start or the last reset. While `dead` is
@@ -175,6 +176,95 @@ for the rest of the run, and the prompt tells it what `survival.aliveS` is.
 Additive on the wire (new kind, new events, new field); the bump is for the
 new lifecycle state and because a consumer that renders `deaths` needs to
 know the producer emits them.
+
+### 0.16.0 → 0.17.0 (a death costs a heart, and charging pays nothing)
+
+pluggybot #135 and #136 (M15), which land together: `charge` pays zero, and
+that only works once dying is expensive.
+
+**1. A third death cause, `unpaid`.** Upkeep came due and the balance could
+not cover it. ⚠ **Never summed with the other two** — `flat` is a decision
+failure, `stuck` a physics one, and this an economic one, and a consumer that
+added them would hide which of three different things needs fixing. **The
+bump is for this**: a consumer that renders causes has to know the producer
+can emit a third.
+
+**2. `survival.hearts` and `survival.generations`.**
+
+```jsonc
+"survival": {"s": 412.3, "deaths": 1, "dead": null, "hearts": 4,
+             "generations": 0}
+```
+
+Five hearts, one lost per death. At zero the volume is archived and a new
+robot starts from the seed state — `generations` counts how many this world
+has used up. Absent where no ledger is attached, which is every world with no
+lives to lose.
+
+⚠ **Nothing escalates with hearts.** The upkeep charge is the same at one as
+at five, deliberately: a cost that rose as they fell would be a forcing
+function, and an agent that *values* staying alive would be indistinguishable
+from one that simply cannot afford not to.
+
+**3. A `true_death` event**, between the frames like `death` and `reset`:
+
+```jsonc
+{"type": "true_death", "t": 5120.0, "robot": "pluggybot", "generation": 1,
+ "archived": {"balance": 0, "earned": 340, "entries": 41}}
+```
+
+⚠ **A different event from a death, and never summed with one.** An ordinary
+death **keeps** the volume, so the next life reads its predecessor's
+`History.md` line on every decision — that is the whole of what dying costs.
+This is the one that does not: the ledger and the two files the robot and the
+system wrote are archived. `Main.md` and `Goals.md` survive, because a person
+put them there and there is no write API for either.
+
+**4. `death.hearts`** — what was left after this one, on the existing event.
+
+⚠ **`charge` now pays 0 in `rewards.json`.** Not a wire change and worth
+knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
+consumer summing `earned` sees charging contribute nothing. The reward for
+charging is not dying.
+
+### A dead robot stands itself up, and says when
+
+pluggybot #143 (M15). **Additive, and the version does NOT move** — a
+consumer that has never heard of either field reads exactly what it always
+read, and both degrade to "there is no timer here", which is a true statement
+about every producer before this and about any world that turns it off.
+
+**1. `survival.resetInS`** — sim seconds until the robot gets back up.
+
+⚠ **ABSENT rather than null when there is nothing to count**, which is two
+different situations wearing one shape: the robot is alive, or this world has
+no restart timer. Both are simply *no number*, and a `null` would be a
+countdown every consumer had to special-case before rendering one.
+
+⚠ **SIM seconds, not wall.** The deployed world is paced to real time so the
+two agree there; a recording replayed at speed is not, and a consumer ticking
+this between frames should tick it in the stream's own time (companion issue
+rooftop-media-2026 #215, the countdown over the body).
+
+**2. `auto` on the `reset` event** — `true` when the world's own timer stood
+the robot up, `false` when a person did.
+
+⚠ **`by` is a LABEL and `auto` is the fact.** An operator log prints `by`
+(`"ben"`, or `"auto-restart"`), but a consumer telling "somebody stood it up"
+from "it got up by itself" should not have to parse prose to do it.
+
+⚠ **AN AUTO-RESTART IS NEVER AN INTERVENTION**, and `intervention` stays
+exactly what it was: the admin moved a *living* robot, and a measurement
+containing one is not a survival data point. World behaviour on a timer is
+not a hand — if it filled that array, every deployed run would be silently
+disqualified from survival statistics, and the exclusion would be invisible
+because an entry there is supposed to be believed. A rescue was never an
+intervention (0.15.0); what #143 adds is a second party who can perform one.
+
+⚠ **AND IT IS NOT A TRUE DEATH.** This keeps the volume, so the next life
+reads its predecessor's `History.md` death line on every decision — which is
+the whole of what dying costs. A true death archives the volume and starts a
+new robot, and it is a different event.
 
 ### The header says which build produced the stream
 
@@ -203,7 +293,8 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 |---|---|
 | `commit` | the sim's short git sha, **baked at image build** (`--build-arg PLUGGY_COMMIT=…`; the build is red without one, because `.git` is not in the image and a default that quietly stayed `unknown` is the whole problem) |
 | `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets. The same function the `results/` records use — one implementation, not two |
-| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed |
+| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
+| `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `guarded` has, so a `guarded` header is byte-identical to the one 0.15.0 shipped |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
 
@@ -1165,7 +1256,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "dataHashes": {"rewards": "f55a…", "cadence": "ab3c…", "energy": "144a…",
                   "metabolism": "3937…", "questions": "8554…", "world": "b946…"},
    "arm": "guarded", "model": "Qwen/Qwen3-4B-Instruct-2507",
-   "backend": "huggingface",
+   "backend": "huggingface",       //  ...and "rung": "A0" on `autonomous`
    "packWh": 8.0, "reserveWh": 0.9, "deadlineS": 90.0}}
 
 // frame

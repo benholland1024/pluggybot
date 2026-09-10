@@ -124,7 +124,7 @@
    "commits": [
     "4ea6f2e"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -224,7 +224,7 @@
     "day over": 1,
     "flat": 4
    },
-   "fallbackLimit": 0.1,
+   "fallbackLimit": null,
    "killed": 0,
    "label": "quiet",
    "memory": {
@@ -283,6 +283,36 @@
       10,
       9,
       34
+     ]
+    },
+    "fallbackClasses": {
+     "failure": 3,
+     "policy": 12
+    },
+    "fallbackFailureRate": {
+     "max": 0.069,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.05,
+      0.069,
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
+    "fallbackPolicyRate": {
+     "max": 0.2353,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.2,
+      0.0,
+      0.0,
+      0.0,
+      0.2353
      ]
     },
     "fallbackRate": {
@@ -455,7 +485,7 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
-   "overFallback": 2,
+   "overFallback": 0,
    "pack": "hosting",
    "parallel": [
     1
@@ -470,40 +500,35 @@
    "rung": "A0",
    "survival": {
     "deaths": {
-     "flat": 2,
+     "flat": 4,
      "stuck": 0
     },
-    "excluded": [
-     {
-      "runId": "2026-09-08T13-31-07Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s0",
-      "why": "fallbackRate 0.25 over the 0.1 limit for the autonomous arm: 25% of its decisions came from its own standing order"
-     },
-     {
-      "runId": "2026-09-08T13-31-11Z_home_autonomous_hosting_qwen-qwen3-4b-instruct-2507_quiet_s4",
-      "why": "fallbackRate 0.2353 over the 0.1 limit for the autonomous arm: 24% of its decisions came from its own standing order"
-     }
-    ],
+    "excluded": [],
     "minFraction": {
      "max": 0.1882,
      "median": 0.0,
      "min": 0.0,
-     "n": 3,
+     "n": 5,
      "values": [
+      0.0,
       0.1882,
+      0.0,
       0.0,
       0.0
      ]
     },
-    "n": 3,
+    "n": 5,
     "survivalS": {
      "max": 3811.834,
-     "median": 1395.15,
+     "median": 2031.347,
      "min": 1394.098,
-     "n": 3,
+     "n": 5,
      "values": [
+      2031.347,
       3811.834,
       1395.15,
-      1394.098
+      1394.098,
+      2999.275
      ]
     }
    },
@@ -628,7 +653,7 @@
    "commits": [
     "ca7c165"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -789,6 +814,36 @@
       16
      ]
     },
+    "fallbackClasses": {
+     "failure": 16,
+     "policy": 3
+    },
+    "fallbackFailureRate": {
+     "max": 0.3333,
+     "median": 0.1429,
+     "min": 0.125,
+     "n": 5,
+     "values": [
+      0.125,
+      0.1429,
+      0.2778,
+      0.3333,
+      0.125
+     ]
+    },
+    "fallbackPolicyRate": {
+     "max": 0.1429,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.0,
+      0.1429,
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
     "fallbackRate": {
      "max": 0.3333,
      "median": 0.2778,
@@ -931,7 +986,7 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
-   "overFallback": 3,
+   "overFallback": 2,
    "pack": "hosting",
    "parallel": [
     5
@@ -951,36 +1006,34 @@
     },
     "excluded": [
      {
-      "runId": "2026-09-07T11-22-04Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s1",
-      "why": "fallbackRate 0.2857 over the 0.25 limit for the guarded arm: 29% of its decisions came from the scripted rotation"
-     },
-     {
       "runId": "2026-09-07T11-22-05Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s2",
-      "why": "fallbackRate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions came from the scripted rotation"
+      "why": "failure-class fallback rate 0.2778 over the 0.25 limit for the guarded arm: 28% of its decisions were the scripted rotation standing in for a call that failed"
      },
      {
       "runId": "2026-09-07T11-22-06Z_home_guarded_hosting_qwen-qwen3-4b-instruct-2507_s3",
-      "why": "fallbackRate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions came from the scripted rotation"
+      "why": "failure-class fallback rate 0.3333 over the 0.25 limit for the guarded arm: 33% of its decisions were the scripted rotation standing in for a call that failed"
      }
     ],
     "minFraction": {
-     "max": 0.1243,
-     "median": 0.07975,
+     "max": 0.1628,
+     "median": 0.1243,
      "min": 0.0352,
-     "n": 2,
+     "n": 3,
      "values": [
       0.0352,
+      0.1628,
       0.1243
      ]
     },
-    "n": 2,
+    "n": 3,
     "survivalS": {
-     "max": 3720.447,
-     "median": 2397.3465,
+     "max": 3733.981,
+     "median": 3720.447,
      "min": 1074.246,
-     "n": 2,
+     "n": 3,
      "values": [
       1074.246,
+      3733.981,
       3720.447
      ]
     }
@@ -1106,7 +1159,7 @@
    "commits": [
     "4f7c42f"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -1264,6 +1317,36 @@
       21,
       20,
       17
+     ]
+    },
+    "fallbackClasses": {
+     "failure": 7,
+     "policy": 3
+    },
+    "fallbackFailureRate": {
+     "max": 0.15,
+     "median": 0.0588,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.05,
+      0.0,
+      0.0952,
+      0.15,
+      0.0588
+     ]
+    },
+    "fallbackPolicyRate": {
+     "max": 0.15,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 5,
+     "values": [
+      0.15,
+      0.0,
+      0.0,
+      0.0,
+      0.0
      ]
     },
     "fallbackRate": {
@@ -1610,7 +1693,7 @@
    "commits": [
     "ca7c165"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -1769,6 +1852,24 @@
       0,
       0
      ]
+    },
+    "fallbackClasses": {
+     "failure": 0,
+     "policy": 0
+    },
+    "fallbackFailureRate": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
+    },
+    "fallbackPolicyRate": {
+     "max": null,
+     "median": null,
+     "min": null,
+     "n": 0,
+     "values": []
     },
     "fallbackRate": {
      "max": null,

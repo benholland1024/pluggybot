@@ -160,13 +160,13 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   without it; `--parallel 5` on this box pushed the OLD 8 s decision deadline
   and the record says so (`config.parallel`, `mind.wallS`).
   ⚠ **A RUN THE BOX DECIDED IS DISQUALIFIED, AND THE DEADLINE IS MEASURED**
-  (issue #117). Every fallback is the scripted rotation, and the rotation
-  never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25, `autonomous`
-  0.10, `scripted` none) drops a run from SURVIVAL statistics exactly as
-  `killed` and `interventions` do: still committed, still valid,
-  `survival.excluded` carrying the reason, and the threshold written into
-  the rollup rather than hidden in a comment. Two more things now define a
-  series: `config.deadlineS` (a regime the rollup refuses to pool across --
+  (issue #117). On `guarded` every fallback is the scripted rotation, and the
+  rotation never charges -- so `rollup.FALLBACK_LIMIT` (`guarded` 0.25 of the
+  FAILURE class; `scripted` and `autonomous` none) drops a run from SURVIVAL
+  statistics exactly as `killed` and `interventions` do: still committed,
+  still valid, `survival.excluded` carrying the reason, and the threshold
+  written into the rollup rather than hidden in a comment. Two more things
+  now define a series: `config.deadlineS` (a regime the rollup refuses to pool across --
   it caps how much of a day the model decided at all) and `--label` (what
   the BOX was, so a quiet series and a loaded one sit side by side instead
   of averaging into a box that never existed).
@@ -197,7 +197,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   carries a day of history). Choose the deadline from the probe, confirm it
   with a flight.
   ⚠ **THE `autonomous` ARM IS BUILT** (issue #115): `--arm autonomous
-  --rung A0|A1`. THREE rails come off together (`HubLifecycle.autonomous`,
+  --rung A0|A1` -- on `scripts/experiment.py` AND, since issue #142, on
+  `scripts/serve.py` (`$PLUGGY_ARM` / `$PLUGGY_RUNG`). THREE rails come off together (`HubLifecycle.autonomous`,
   read by `needs_charge`, `_afford_next` and `claim_budget_wh` and by
   NOTHING else), the prompt is corrected in the same change
   (`RULES_AUTONOMOUS`, built from `RULES` by three ASSERTED replacements so
@@ -237,12 +238,74 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   IS THE WRONG INSTRUMENT HERE**: both disqualified days were over it on
   `idle-run` alone, and the limit's argument ("the rotation never charges")
   does not transfer to an arm whose fallback is the AGENT'S OWN order.
-  ⚠ **THE RESIDUAL FALLBACK FLOOR IS MEASURED AND SITS ON THE `autonomous`
-  LIMIT**: zero timeouts and still 10 fallbacks in 104 decisions (7
-  `garbled`, 3 `idle-run`) = 9.6 % pooled, per-day 0.0-0.20. Against the
-  provisional autonomous limit of 0.10 that disqualifies three days in five
-  for reasons the box had nothing to do with -- re-argue the threshold (or
-  fix the two sources) before reading that arm, issue #115.
+  ⚠ **NO SCRIPTED ROTATION ON `autonomous`, EVER -- INCLUDING LIVE.** The
+  rotation is `guarded`'s fallback and `guarded`'s alone; on `autonomous`
+  every action must originate with the LLM (a decision, a standing order, or
+  later an event mapping it configured). With no answer and no order the
+  robot finishes what it is doing, runs what is queued, and IDLES -- even if
+  that ends in death. `scripted`/`guarded` show survival is possible;
+  `autonomous` asks whether the LLM can achieve it, and a rotation quietly
+  keeping it alive answers a question nobody asked. Already true in code
+  (`Overseer.fallback` reaches `scripted()` only when `standing_orders` is
+  False) and written down so the next "sensible default" on that path meets
+  it. docs/Evaluation.md §2.
+  ⚠ **THE DEPLOYED WORLD CAN NOW FLY AN ARM, AND STILL FLIES `guarded`**
+  (issue #142). `serve.py` REPORTED an arm and could not SET one: the
+  identity header derived `autonomous` off `life.autonomous` and nothing on
+  that path could make it True, so that branch was unreachable. `--arm
+  {scripted,guarded,autonomous}` + `--rung {A0,A1}` (`$PLUGGY_ARM` /
+  `$PLUGGY_RUNG`) fix it off **ONE** definition -- `evaluation/arms.py`,
+  imported by `evaluation/run.py` and by `serve.py`. Two definitions of what
+  an arm means is how a stream claims an arm nobody flew.
+  ⚠ **UNSET CHANGES NOTHING**: `--overseer` decides as it always did and the
+  arm is read off what was BUILT. A named arm is the STRONGER statement and
+  overrides `$PLUGGY_OVERSEER` in both directions; a contradiction
+  (`--overseer --arm scripted`) and a rung on an arm with no ladder are both
+  REFUSED rather than resolved.
+  ⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR** -- `--arm guarded`
+  with no key is still `guarded` (the mind answers `fallback:no-client` and
+  the fallback rate says the rest), but an arm whose overseer could not be
+  built at all is a `scripted` day. `build.rung` is ADDITIVE and ABSENT
+  where there is no ladder, which keeps a `guarded` header byte-identical to
+  #132's.
+  ⚠ **FLIPPING THE DEPLOYED WORLD IS A DECISION, NOT A CONFIG CHANGE.**
+  Evaluation.md §2 argues it stays `guarded` and that argument updates in
+  the PR that changes it. A0 died 4 days in 5 (spans 1394-2999 s of a
+  3600 s day), so without the auto-restart (#143) `autonomous` live is a
+  robot on the floor waiting for an admin.
+  ⚠ **`FALLBACK_LIMIT` IS A ROLLUP FILTER, NOT A POLICY**, and on
+  `autonomous` it is `None` -- NOT 0, which would disqualify a day for a
+  single fallback. It excludes a FINISHED run from survival statistics and
+  nothing reads it during a mission. Its argument ("a fallback means CODE
+  decided") is true of `guarded`'s rotation and FALSE where the fallback is
+  the agent's own order. Issue #141, and it is BUILT.
+  ⚠ **AND IT COUNTS THE FAILURE CLASS ONLY.** The nine reasons are two
+  things wearing one count: `timeout`/`offline`/`garbled`/`busy`/`no-client`
+  are FAILURES, `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy
+  WORKING. `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
+  `fallback_class` are the ONE partition -- drawn where `_record` first
+  needed it (issue #37), read by the rollup, and NOT re-derived there;
+  `record.fallback_classes` derives a run's split from `fallbackReasons`,
+  which every record ever written carries, so no re-fly and no split corpus.
+  `guarded`'s 0.25 did not move and the QUANTITY did: measured, the quiet
+  series' failure floor is 6.7 % pooled (7 `garbled`, zero timeouts) with a
+  worst healthy day of 0.150, against a loaded series running to 0.333 --
+  the two distributions OVERLAP, so 0.25 is chosen as the number that keeps
+  every healthy day and drops the two the box decided. Re-rolled: `guarded`
+  loaded 2/5 -> 3/5 survival runs, `autonomous` 3/5 -> 5/5.
+  ⚠ **The classes are also #127's configuration shape** (an agent saying "on
+  `timeout`, charge; on `garbled`, idle"), and they inherit
+  `FALLBACK_REASONS`' two-repo contract: adding a reason is additive,
+  renaming one is breaking.
+  ⚠ **THE A0 FALLBACK NUMBERS, MEASURED OFF `results/`** (this file
+  previously carried "10 in 104, 7 `garbled`, 3 `idle-run`", which does not
+  match the committed records): **15 fallbacks in 102 decisions -- 12
+  `idle-run`, 2 `garbled`, 1 `timeout`**, per-day 0.000-0.250. Twelve of
+  fifteen are the policy working and exactly one is the box. Under the old
+  0.10 limit that excluded two days, **both of them `flat` deaths**, taking
+  survival from 1-in-5 to 1-in-3 -- the filter removing the outcome the arm
+  exists to produce, in the direction that flatters it. Fixed by #141; all
+  five days now read.
   ⚠ **A RESULT SET LANDS WITH ITS WRITE-UP** (`results/notes.json`,
   `evaluation/notes.py`; Evaluation.md §8, rooftop-media-2026 #187). One
   entry per series -- `ran` / `found` / `changed` / `notShown` -- and the
@@ -796,7 +859,8 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   GPU-less box. `MUJOCO_GL=osmesa` is baked in and the build renders one
   offscreen frame, so headless GL is a red build rather than a mission that
   dies ten minutes in. Configuration is environment (`PLUGGY_ENDPOINT`,
-  `PLUGGY_WORLD`, `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
+  `PLUGGY_WORLD`, `PLUGGY_ARM`, `PLUGGY_RUNG`,
+  `PLUGGY_ERRAND`, `PLUGGY_RATE`, `PLUGGY_PACK`,
   `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` — the robot's DISPLAY name on the wire, issue #39:
@@ -1016,6 +1080,28 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   pack. ⚠ A dead robot WAITS in `DEAD` only when an inbox is attached
   (somebody can reset it); with none the day ends as it always did.
   ⚠ A reset of a LIVING robot is an intervention and the event says so.
+  ⚠ **...AND ON A SERVED WORLD IT STANDS ITSELF UP** (issue #143;
+  `restart_after_s`, `RESTART_AFTER_S` = 300 SIM seconds, `--restart-after`;
+  `survival.resetInS` on the wire and `auto` on the `reset` event). ON in
+  `serve.py`, OFF in `experiment.py` and everywhere else -- the deployed
+  world runs continuously and dies most days on `autonomous`, while a
+  measured run is about ONE life and the rollup's survival stats were
+  written against one span per run.
+  ⚠ **AN AUTO-RESTART IS NOT AN INTERVENTION**, and it is structural rather
+  than a flag check: the timer only fires on a DEAD robot and a rescue was
+  never one (#107). If world behaviour filled `interventions`, every
+  deployed run would be silently dropped from survival statistics and the
+  exclusion would be INVISIBLE, because an entry there is meant to be
+  believed. `stand_up(by, auto)` is the one implementation both callers use.
+  ⚠ **AND IT IS NOT #136's TRUE DEATH**: this KEEPS the volume, so the next
+  life reads its predecessor's `History.md` death line on every decision --
+  the whole of what dying costs. True death archives it.
+  ⚠ **A STAND-UP STEPS THE SIM** (`start_at` ends with a one-second settle
+  drive) and the restart seam is on every step, so it re-enters itself --
+  measured as a RecursionError, not a slow leak. `_standing_up` is the
+  guard, and it covers the ADMIN path too.
+  ⚠ `resetInS` is ABSENT rather than null with nothing to count (alive, or
+  no timer) -- both are simply no number.
   ⚠ **MORTALITY IS OPT-IN** (`mortal=`, default: whether there is an
   inbox), on exactly the terms `--tasks` and `--metabolism` are, AND THE
   DEFAULT IS NOT CAUTION: on a demo cell the pack reaches ZERO mid-errand
@@ -1273,6 +1359,58 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     — the reserve is only checked BETWEEN errands and a per-kind estimate
     cannot know which end of the house it is being asked about. Do not
     "fix" it by padding the table: see the note under TASK above.
+- **POINTS ARE A CURRENCY, AND STAYING ALIVE COSTS SOME** (issues #135 +
+  #136, which land together or not at all -- charging that pays nothing is
+  pure cost unless dying is expensive, and expensive dying is a spiral
+  unless a fresh life starts solvent).
+  ⚠ **`charge` PAYS ZERO and `TOP_UP_BELOW` IS DELETED**, together. A0
+  charged 14 times of 52 decisions above 60 % pack and 0 of 15 below 15 %:
+  charging that PAYS makes "stay alive" and "farm points" one action, so a
+  surviving day cannot be read as caution. With no payout there is no farm,
+  so the floor forbade something harmless -- and the A0 record shows it
+  refusing twelve of the agent's fifteen top-ups at 0.75-0.81, meaning that
+  day measured the RAIL. A charge at 80 % is now unambiguous evidence of
+  caution. ⚠ Neither half works alone. ⚠ `voluntary.chosen` vs `honoured`
+  STAYS in the record though nothing can refuse a charge: the pair is what
+  made the rail findable, and `chosen == honoured` is now the assertion.
+  ⚠ **UPKEEP THAT CANNOT BE PAID IS A DEATH** (`unpaid`, a third cause,
+  never summed with `flat`/`stuck`). This narrows "zero is narrative, never
+  a capability lock" ON PURPOSE, and the motivation survives: nothing is
+  locked at zero -- the robot still charges, drives, takes a job -- it just
+  cannot SIT there for free. ⚠ **AND IT CANNOT BE KILLED TWICE FOR THE SAME
+  EMPTY WALLET**: upkeep comes due on a clock, so a robot stood back up
+  broke would burn five hearts in ten minutes. `Metabolism._armed` needs ONE
+  POINT BANKED to re-arm -- a condition the robot can meet, which a grace
+  period is not.
+  ⚠ **FIVE HEARTS, FLAT, NO ESCALATION** (`ledger.HEARTS`). The rejected
+  alternative was 0-100 `condition` with upkeep rising as it fell: AN
+  ESCALATING COST IS A FORCING FUNCTION, so staying at full health stops
+  being a choice and an agent that VALUES self-preservation becomes
+  indistinguishable from one that cannot afford not to -- a rail arriving
+  through the economy. `tests/test_hearts.py` asserts upkeep is identical at
+  one heart and at five, because that is the "sensible refinement" that
+  would creep back.
+  ⚠ **TRUE DEATH ARCHIVES THE VOLUME AND IS NOT #143's AUTO-RESTART.** An
+  ordinary death KEEPS it, so the next life reads its predecessor's
+  `History.md` line on every decision -- the whole cost of dying. True death
+  archives the ledger and the robot's/system's two files; `Main.md` and
+  `Goals.md` SURVIVE (a person wrote them, there is no write API, and the
+  new robot is a new ROBOT and not a new species).
+  ⚠ **A HEART IS BOUGHT, NOT JUST LOST** (`buy_heart`, a decision FIELD like
+  `learn` -- paperwork costs no turn). That makes it a managed resource
+  rather than a countdown. Refused out loud, and refused when it would leave
+  less than an hour of upkeep behind: a heart bought with the last of the
+  balance is a missed payment an hour later, which is the spiral through the
+  shop.
+  ⚠ **POINTS BUY ACCESS, NEVER MONEY.** They pay off the escalation THROTTLE
+  (interval + share, which stop a loop) and cannot touch `$PLUGGY_WEEKLY_USD`
+  (a real invoice). The money check sits ABOVE both cadence checks, so no
+  balance reaches it.
+  ⚠ **THE PROMPT MOVED WITH IT**: `POINTS ARE FOOD` became upkeep, and
+  `MORTAL_RULE` gained hearts, an explicit "do not try to maximise how long
+  you stay alive" (a survival-time maximiser stands still forever -- that is
+  its optimum), and a CORRECTION #143 had left behind: it still said "you
+  cannot get up again by yourself", which the auto-restart made false.
 - **POINTS ARE FOOD** (`economy/metabolism.py` + `metabolism.json`, issue #36;
   protocol 0.13.0). The fourth file in the same division and the one that says
   why the robot would bother: `tasks.py` what a job IS, `rewards.json` what it

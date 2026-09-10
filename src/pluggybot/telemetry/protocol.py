@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.16.0"
+PROTOCOL_VERSION = "0.17.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -123,7 +123,13 @@ INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
 #: failing (knocked over, or unable to reach the rack), which says nothing
 #: about the mind. A death is a `death` event and a `dead` cause in the
 #: robot's frame record; a `reset` event is the admin's answer to it.
-DEATH_CAUSES = ("flat", "stuck")
+#:
+#: ...and `unpaid` (0.17.0, issue #136) is the third: UPKEEP came due and the
+#: balance could not cover it. Kept apart from the other two for the same
+#: reason they are kept apart from each other -- it is an ECONOMIC failure,
+#: not a decision one and not a physics one, and a consumer that added them
+#: would hide which of three different things needs fixing.
+DEATH_CAUSES = ("flat", "stuck", "unpaid")
 
 #: Retired inbound types still accepted, mapped to what replaced them. A
 #: website mid-deploy and an operator's older script keep working for one

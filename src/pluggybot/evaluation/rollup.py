@@ -18,9 +18,11 @@ Issue #117 adds the two halves of "under what conditions": the DEADLINE is
 part of the regime as well (no hash catches it, and it caps how much of a
 day the model decided at all), and the `label` is part of the series key,
 so a quiet box and a loaded one are two series rather than one average of
-both. And a run whose fallback rate says the BOX decided too much of its
-day is dropped from the survival statistics -- never deleted, and never
-silently: see `FALLBACK_LIMIT`.
+both. And a run whose FAILURE-class fallback rate says the BOX decided too much
+of its day is dropped from the survival statistics -- never deleted, and
+never silently: see `FALLBACK_LIMIT`, which issue #141 narrowed to that
+class and turned off entirely on the one arm whose fallback is the agent's
+own.
 """
 
 import json
@@ -29,35 +31,63 @@ from pathlib import Path
 
 from pluggybot.evaluation.notes import NOTES_NAME
 from pluggybot.evaluation.record import (
-  LATENCY_PERCENTILES, SCHEMA, data_hashes, dist, problems,
+  LATENCY_PERCENTILES, SCHEMA, data_hashes, dist, fallback_classes, problems,
 )
 
 ROLLUP_NAME = "rollup.json"
 
 #: The most of a run's decisions that may have come from the SCRIPTED
 #: ROTATION before the run stops being a measurement of a model (issue
-#: #117; Evaluation.md section 5). Every fallback is `scripted()` deciding,
-#: and the rotation never chooses `charge` -- so a `guarded` day at 40 %
-#: fallback is two-fifths a `scripted` day wearing the guarded name, and
-#: on `autonomous`, where no rail charges either, that is what killed pass
-#: 1b's one `flat` death: two timeouts, `fallback:explore`, the street, and
-#: zero on the way back.
+#: #117; Evaluation.md section 5). Every fallback on `guarded` is
+#: `scripted()` deciding, and the rotation never chooses `charge` -- so a
+#: `guarded` day at 40 % fallback is two-fifths a `scripted` day wearing the
+#: guarded name.
 #:
 #: ⚠ A JUDGEMENT CALL, and that is exactly why it is a value the rollup
 #: WRITES DOWN (`fallbackLimit`, per series) rather than a comment beside a
 #: filter. Whoever disagrees with the number can see which one was applied.
 #:
-#: The arms want different numbers because a fallback costs them different
-#: things. On `guarded` the rails still charge the robot, so a fallback
-#: dilutes the result; on `autonomous` nothing else is looking after the
-#: pack, so a fallback is the one decision that can end the run. `scripted`
-#: has no limit at all: the rotation is not a failure mode there, it is the
-#: arm.
+#: ⚠ AND IT COUNTS THE **FAILURE** CLASS ONLY (issue #141). The limit is
+#: asking "did the BOX decide too much of this day", and half the reasons
+#: are not the box: `budget` / `cooloff` / `idle-run` / `scripted-mode` are
+#: this system working on purpose (`overseer.POLICY_FALLBACKS`, which is
+#: where the line is drawn -- not a second copy here). Counting them cost
+#: A0 two of its five days on `idle-run` alone, for the agent having chosen
+#: `idle` a lot, which is the disposition the arm was flown to measure.
+#:
+#: ⚠ AND `autonomous` TAKES `None`, NOT A BETTER NUMBER. The limit's whole
+#: premise -- "a fallback means CODE decided, so this run is not about the
+#: model" -- is true of `guarded`'s rotation and FALSE on `autonomous`,
+#: where the fallback is the agent's own standing order (#125) and there is
+#: no rotation at all (Evaluation.md section 2). That is the measurement,
+#: not contamination of it. ⚠ `None`, never `0`: they are opposites, and
+#: zero would disqualify a day for a single fallback.
+#:
+#: `scripted` has no limit for the third reason: the rotation is not a
+#: failure mode there, it is the arm.
+#:
+#: 0.25 for `guarded` is unchanged in NUMBER and re-argued on the quantity
+#: it now measures, against the committed sets. Failure-class day rates:
+#: the quiet series (a healthy endpoint, one sim on the box) ran 0.0, 0.050,
+#: 0.059, 0.095, 0.150 -- pooled 7 garbled in 104 decisions, **0.067**, and
+#: not one timeout. The loaded series ran 0.125, 0.125, 0.143, 0.278, 0.333,
+#: pooled 0.205. The two distributions OVERLAP, so no threshold separates
+#: them; 0.25 is the one that keeps every healthy day measured (the worst is
+#: 0.150) and still drops the two where a third of the decisions were the
+#: box. ⚠ A limit under the measured floor disqualifies every run for ever
+#: and reads exactly like a broken harness.
 FALLBACK_LIMIT: dict[str, float | None] = {
   "scripted": None,
   "guarded": 0.25,
-  "autonomous": 0.10,
+  "autonomous": None,
 }
+
+
+#: How an over-the-limit exclusion opens its reason. One string, because
+#: `overFallback` counts the exclusions by reading it back -- and the reason
+#: is prose a human reads, so a reworded sentence must not silently take a
+#: count to zero.
+OVER_FALLBACK = "failure-class fallback rate"
 
 
 class MixedRegime(ValueError):
@@ -119,19 +149,16 @@ def _series(records: list[dict], current) -> dict:
       return "killed on wall clock"
     if r["interventions"]:
       return f"{len(r['interventions'])} admin intervention(s)"
-    rate = r["mind"]["fallbackRate"]
+    # ⚠ THE FAILURE CLASS, NOT THE FALLBACK RATE (issue #141). The policy
+    # class is reported beside it and disqualifies nothing: `idle-run` is
+    # the agent having answered `idle` twice, and a filter that counts it
+    # removes the days an idling agent produced -- which on A0 were the
+    # deaths, in the direction that flattered the arm.
+    rate = fallback_classes(r["mind"])["failureRate"]
     if limit is not None and rate is not None and rate > limit:
-      # ⚠ WHO decided is arm-specific, and saying "the rotation" on the
-      # `autonomous` arm is false: its fallback is the AGENT'S OWN standing
-      # order (#125), which is the whole reason that arm exists. The
-      # threshold's original argument -- "and the rotation never charges" --
-      # does not transfer, and a rollup that says it does invites the wrong
-      # conclusion from the one field a reader checks first.
-      whose = ("its own standing order" if arm == "autonomous"
-               else "the scripted rotation")
-      return (f"fallbackRate {rate:.4g} over the {limit:.4g} limit for the "
-              f"{arm} arm: {rate:.0%} of its decisions came from "
-              f"{whose}")
+      return (f"{OVER_FALLBACK} {rate:.4g} over the {limit:.4g} limit for "
+              f"the {arm} arm: {rate:.0%} of its decisions were the "
+              f"scripted rotation standing in for a call that failed")
     return ""
 
   excluded = [{"runId": r["runId"], "why": excluded_because(r)} for r in runs
@@ -139,6 +166,7 @@ def _series(records: list[dict], current) -> dict:
   clean = [r for r in runs if not excluded_because(r)]
   ch = [r["charging"] for r in runs]
   mind = [r["mind"] for r in runs]
+  classes = [fallback_classes(m) for m in mind]
   eco = [r["economy"] for r in runs]
   world, arm, pack, model, label, rung = series_key(runs[0])
   return {
@@ -167,7 +195,8 @@ def _series(records: list[dict], current) -> dict:
     # comment -- a reader who disagrees with it can see the number and the
     # runs it cost (issue #117).
     "fallbackLimit": limit,
-    "overFallback": sum(1 for e in excluded if "fallbackRate" in e["why"]),
+    "overFallback": sum(1 for e in excluded
+                        if e["why"].startswith(OVER_FALLBACK)),
     "survival": {
       "n": len(clean),
       "excluded": excluded,
@@ -191,6 +220,16 @@ def _series(records: list[dict], current) -> dict:
       "llmCalls": dist([m["llmCalls"] for m in mind]),
       "fallbacks": dist([m["fallbacks"] for m in mind]),
       "fallbackRate": dist([m["fallbackRate"] for m in mind]),
+      # ...and the same rate split by CLASS (issue #141): what went WRONG,
+      # and what this system did on purpose. Only the first is judged
+      # against `fallbackLimit`, and reporting the second is what keeps a
+      # day that idled a lot legible as exactly that.
+      "fallbackFailureRate": dist([c["failureRate"] for c in classes]),
+      "fallbackPolicyRate": dist([c["policyRate"] for c in classes]),
+      "fallbackClasses": {
+        "failure": sum(c["failure"] for c in classes),
+        "policy": sum(c["policy"] for c in classes),
+      },
       "fallbackReasons": dict(sum((Counter(m["fallbackReasons"]) for m in mind),
                                   Counter())),
       # Pooled across the series and read at its TAIL, because the

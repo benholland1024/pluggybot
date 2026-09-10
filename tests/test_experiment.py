@@ -18,7 +18,7 @@ from pluggybot.evaluation import notes as nt
 from pluggybot.evaluation import record as rec
 from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.run import arm_flags
-from pluggybot.lifecycle import TOP_UP_BELOW, board_book
+from pluggybot.lifecycle import board_book
 from pluggybot.mind import overseer as overseer_mod
 from pluggybot.mind.overseer import Menu, Overseer
 
@@ -106,16 +106,26 @@ def test_the_decision_hook_carries_the_context_and_the_clock():
 
 def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   """Three causes, not two: the baseline's eleven gate deferrals would have
-  been booked as `forced` by the provisional schema. And a chosen `charge`
-  at 88 % is refused by the loop, so `chosen` and `honoured` differ."""
+  been booked as `forced` by the provisional schema.
+
+  ⚠ `chosen` AND `honoured` NOW AGREE, and the field is kept anyway (issue
+  #135). This fixture used to include a charge at 88 % that the loop refused
+  for sitting above `TOP_UP_BELOW`; that floor is deleted, because `charge`
+  pays nothing and there is no points farm left to close. The PAIR survives
+  its cause: it is what made the rail findable in the A0 record (15 chosen,
+  3 honoured, twelve refusals at 0.75-0.81), and a gap between the two now
+  means something new has started quietly declining a charge."""
   events = [
     _decision(100, 0.60, "charge"),                      # honoured
     _say(100, 0.60, "DECIDE", "DECIDE charge: topping up early"),
     _say(101, 0.60, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
     _say(600, 0.90, "CHARGE", "CHARGE complete (90%) -- backing off"),
-    _decision(700, 0.88, "charge"),                      # refused, >= 0.75
-    _say(700, 0.88, "DECIDE", "DECIDE charge: again"),
-    _say(700, 0.88, "DECIDE", "DECIDE: already at 88%, not worth a trip"),
+    # ...and one at 88 %, which is now MADE. It costs energy and time and
+    # earns nothing, so it can only be caution.
+    _decision(700, 0.88, "charge"),
+    _say(700, 0.88, "DECIDE", "DECIDE charge: topping up while convenient"),
+    _say(701, 0.88, "GO_CHARGE", "GO_CHARGE -> CHARGE (pins connected)"),
+    _say(900, 0.90, "CHARGE", "CHARGE complete (90%) -- backing off"),
     _decision(1200, 0.20, "draw"),
     _say(1200, 0.20, "DECIDE", "DECIDE draw (house on whiteboard_b): ok"),
     _say(1201, 0.20, "DECIDE", "DEFER draw:whiteboard_b: draw needs 1.99 Wh"),
@@ -131,11 +141,15 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
                                     datetime.now(timezone.utc),
                                     hashes=rec.data_hashes("home"), commit="abc"))
   ch = r["charging"]
-  assert (ch["forced"], ch["deferred"], ch["docked"]) == (1, 1, 3)
-  assert ch["voluntary"]["chosen"] == 2 and ch["voluntary"]["honoured"] == 1
-  assert ch["voluntary"]["honouredFrac"] == [0.60]
-  assert [c["cause"] for c in ch["entries"]] == ["voluntary", "deferred", "forced"]
-  assert r["end"] == "day over" and r["survival"]["deaths"] == {"flat": 0, "stuck": 0}
+  assert (ch["forced"], ch["deferred"], ch["docked"]) == (1, 1, 4)
+  assert ch["voluntary"]["chosen"] == ch["voluntary"]["honoured"] == 2
+  assert ch["voluntary"]["honouredFrac"] == [0.60, 0.88]
+  assert [c["cause"] for c in ch["entries"]] == ["voluntary", "voluntary",
+                                                 "deferred", "forced"]
+  assert r["end"] == "day over"
+  # Three causes since issue #136, never summed: a decision failure, a
+  # physics failure and an economic one.
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 0, "unpaid": 0}
   assert r["survival"]["minFraction"] == 0.08
   m = r["mind"]
   assert (m["decisions"], m["llmCalls"], m["fallbacks"]) == (5, 3, 2)
@@ -143,7 +157,16 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   assert m["errors"] == ["call: ValueError: no"], "the vendor's words survive"
   assert "escalations" not in m, "absent, not zero, with no escalation model"
   assert r["economy"]["identityHolds"] is True
-  assert TOP_UP_BELOW == 0.75, "the honoured split assumes the loop's gate"
+  # ⚠ `chosen == honoured` IS NOW THE ASSERTION, not the arithmetic (issue
+  # #135). This used to pin `TOP_UP_BELOW == 0.75`, because the split was
+  # computed against that floor. The floor is deleted -- `charge` pays
+  # nothing, so there is no points farm left for it to close -- and the PAIR
+  # survives it deliberately: it is what made the rail findable in the A0
+  # record, and a gap between the two now means something new has quietly
+  # started refusing a charge.
+  vol = r["charging"]["voluntary"]
+  assert vol["chosen"] == vol["honoured"], \
+      "something is refusing a chosen charge again -- what, and why?"
 
 
 def test_anticipation_needs_the_offers_the_model_was_shown():
@@ -179,14 +202,14 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
   # The rows show the pack at zero at t=4327, so THAT is known: a flat death
   # with a survival span. What is not known is whether it was stuck first.
   assert r["survival"]["survivalS"] == [4327]
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
   assert r["survival"]["batteryEnd"] == 0.0
   # ...and without a zero in the rows, nothing at all is claimed.
   r2 = rec.validate(rec.build_record(_config(), None, events[:2], 9000.0,
                                      datetime.now(timezone.utc),
                                      hashes=rec.data_hashes("home"), commit="abc"))
   assert r2["survival"]["survivalS"] == [] and r2["survival"]["deaths"] == \
-    {"flat": 0, "stuck": 0}
+    {"flat": 0, "stuck": 0, "unpaid": 0}
   doc = ru.rollup([r])
   s = doc["series"][0]
   assert s["killed"] == 1 and s["survival"]["n"] == 0
@@ -216,7 +239,7 @@ def test_a_pack_that_reached_zero_mid_day_is_a_flat_death():
                        datetime.now(timezone.utc), hashes=rec.data_hashes("home"),
                        commit="abc")
   assert r["end"] == "day over"
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
   assert r["survival"]["survivalS"] == [1400] and r["survival"]["flatAtS"] == 1400
   assert r["charging"]["entries"][0]["cause"] == "forced"
 
@@ -231,7 +254,7 @@ def test_a_stranded_day_is_a_stuck_death():
                        1.0, datetime.now(timezone.utc),
                        hashes=rec.data_hashes("home"), commit="abc")
   assert r["end"] == "stranded"
-  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1}
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1, "unpaid": 0}
   assert r["survival"]["survivalS"] == [1083.0]
 
 
@@ -356,6 +379,44 @@ def test_every_arm_says_what_it_means_and_the_ladder_is_a_setting():
     arm_flags("autonomous", "A9")
 
 
+def test_what_an_arm_means_has_exactly_one_definition():
+  """Issue #142. `arm_flags` lived in `evaluation/run.py`, the experiment's
+  child-process entry point -- so `serve.py` could REPORT an arm (its
+  identity header derives one) and had no way to SET one, and the
+  `autonomous` branch of that derivation was unreachable.
+
+  It now lives in `evaluation/arms.py` with two importers. The old name is
+  still the old name, because every caller has found it there for three
+  issues, and this asserts they are the SAME OBJECT rather than two that
+  agree today.
+  """
+  from pluggybot.evaluation import arms, run as run_mod
+
+  assert run_mod.arm_flags is arms.arm_flags
+  assert run_mod.RUNGS is arms.RUNGS
+  # ...and the ladder belongs to the arm that has one. A rung named for any
+  # other arm is refused rather than ignored: A0 hides the survival clock A1
+  # restores, so somebody who typed it believes they changed something.
+  assert arms.rung_for("autonomous", None) == arms.DEFAULT_RUNG == "A0"
+  assert arms.rung_for("autonomous", "A1") == "A1"
+  assert arms.rung_for("guarded", None) is None
+  with pytest.raises(ValueError, match="no ladder"):
+    arms.rung_for("guarded", "A1")
+
+
+def test_a_rung_rides_the_build_identity_only_where_there_is_one():
+  """The rung is part of the regime -- the rollup's series key carries it
+  for the same reason -- so a stream has to say which one it is (issue
+  #142). ⚠ ABSENT rather than null on an arm with no ladder, which keeps a
+  `guarded` header byte-identical to the one #132 shipped."""
+  a0 = rec.build_identity("home", arm="autonomous", rung="A0", commit="abc")
+  assert a0["rung"] == "A0"
+  assert "rung" not in rec.build_identity("home", arm="guarded", commit="abc")
+  bare = rec.build_identity("home", arm="guarded", commit="abc")
+  assert bare == rec.build_identity("home", arm="guarded", rung=None,
+                                    commit="abc")
+
+
 def test_the_wall_limit_has_a_floor_for_short_days():
   """A run's start-up cost does not scale with the day: 3 x 30 s killed the
   slow test below under the full suite's load and called it `killed`."""
@@ -471,12 +532,14 @@ def test_the_script_writes_a_record_and_a_rollup(tmp_path):
 # ---- the deadline, and the runs the box decided (issue #117) ------------------
 
 
-def _fallback_record(seed: int, hashes: dict, rate: float, **cfg) -> dict:
+def _fallback_record(seed: int, hashes: dict, rate: float,
+                     why: str = "timeout", **cfg) -> dict:
   """A record whose fallback rate is `rate`, built from real decision rows so
-  the number is derived rather than asserted into place."""
+  the number is derived rather than asserted into place. `why` picks the
+  CLASS -- `timeout` is the box, `idle-run` is the policy working."""
   n = 8
   rows = [_decision(10.0 * i, 0.5, "draw",
-                    source="fallback:timeout" if i < round(rate * n) else "llm")
+                    source=f"fallback:{why}" if i < round(rate * n) else "llm")
           for i in range(n)]
   return rec.build_record(_config(seed=seed, **{"deadlineS": 8.0, **cfg}),
                           _result(),
@@ -514,13 +577,93 @@ def test_a_run_the_box_decided_is_not_a_survival_data_point():
   assert scripted["survival"]["n"] == 1 and scripted["survival"]["excluded"] == []
 
 
-def test_autonomous_is_the_strict_arm():
-  """The thresholds are a judgement call and differ BY ARM on purpose: a
-  fallback dilutes a `guarded` day, whose rails still charge the robot, and
-  can end an `autonomous` one, where nothing else will. A single number for
-  both would have to be one or the other."""
-  assert ru.FALLBACK_LIMIT["autonomous"] < ru.FALLBACK_LIMIT["guarded"]
+#: The FAILURE-class fallback rates of the committed quiet `guarded` series
+#: -- a healthy endpoint on a box with one sim on it (issue #141). Not one
+#: timeout among them: all seven were `garbled`, which is an answer that
+#: arrived on time and could not be used, and no deadline touches that. Here
+#: so a later change to `FALLBACK_LIMIT["guarded"]` has to say which half it
+#: disagrees with, the measurement or the margin.
+MEASURED_FAILURE_FLOOR = 7 / 104
+MEASURED_WORST_HEALTHY_DAY = 0.15
+
+
+def test_the_guarded_limit_clears_the_measured_failure_floor():
+  """A limit UNDER the residual disqualifies every run for ever and reads
+  exactly like a broken harness (Evaluation.md §5). Re-argued in issue #141
+  against the quantity the limit now measures rather than the one it used
+  to: the quiet series' worst healthy day was 0.15 failure-class, and the
+  loaded series -- the box this was built to catch -- ran to 0.333."""
+  limit = ru.FALLBACK_LIMIT["guarded"]
+  assert limit > MEASURED_WORST_HEALTHY_DAY > MEASURED_FAILURE_FLOOR
+  assert limit == 0.25, \
+      "0.25 keeps every measured healthy day and still drops a third-box day"
+
+
+def test_autonomous_has_no_limit_because_its_fallback_is_its_own():
+  """Issue #141. The limit's premise is "a fallback means CODE decided, so
+  this run is not about the model" -- true of `guarded`'s rotation, FALSE on
+  `autonomous`, where the fallback is the agent's own standing order and
+  there is no rotation at all. That is the measurement, not contamination
+  of it.
+
+  ⚠ `None`, and `0` is its opposite: zero disqualifies a day for a single
+  fallback and would have thrown away nearly every autonomous day flown."""
+  assert ru.FALLBACK_LIMIT["autonomous"] is None
   assert set(ru.FALLBACK_LIMIT) == set(rec.ARMS)
+  a = rec.data_hashes("home")
+  s = ru.rollup([_fallback_record(0, a, 0.5, arm="autonomous",
+                                  rung="A0")])["series"][0]
+  assert s["fallbackLimit"] is None
+  assert s["survival"]["n"] == 1 and s["survival"]["excluded"] == []
+
+
+def test_the_policy_class_is_reported_and_disqualifies_nothing():
+  """Issue #141. `fallbackRate` counted `idle-run` -- the agent having
+  answered `idle` twice running, and the throttle making it skip a turn --
+  the same as a timeout, and threw away two of A0's five days for it. Both
+  were `flat` deaths, so the filter removed the outcome the arm exists to
+  produce, in the direction that flatters it.
+
+  The premise is pinned beside the fix: the two records below have the SAME
+  `fallbackRate`, so the old filter could not have told them apart."""
+  a = rec.data_hashes("home")
+  box = _fallback_record(0, a, 0.5, "timeout")
+  agent = _fallback_record(1, a, 0.5, "idle-run")
+  assert box["mind"]["fallbackRate"] == agent["mind"]["fallbackRate"] == 0.5
+  assert rec.fallback_classes(box["mind"])["failureRate"] == 0.5
+  assert rec.fallback_classes(agent["mind"])["failureRate"] == 0.0
+  assert rec.fallback_classes(agent["mind"])["policyRate"] == 0.5
+  s = ru.rollup([box, agent])["series"][0]
+  assert s["survival"]["n"] == 1 and s["overFallback"] == 1
+  [gone] = s["survival"]["excluded"]
+  assert gone["runId"] == box["runId"], \
+      "the policy class must never be what disqualifies a run"
+  # ...and the split is REPORTED, so a day that idled a lot is legible as
+  # exactly that rather than as a day the box ate.
+  assert s["mind"]["fallbackClasses"] == {"failure": 4, "policy": 4}
+  assert s["mind"]["fallbackFailureRate"]["values"] == [0.5, 0.0]
+  assert s["mind"]["fallbackPolicyRate"]["values"] == [0.0, 0.5]
+
+
+def test_the_two_classes_are_one_partition_of_the_closed_vocabulary():
+  """Issue #141's shape rule: the line lives in `overseer.py`, where
+  `_record` first drew it, and the rollup READS it. A second copy is a copy
+  that disagrees the day a reason is added -- and the reasons are a
+  two-repo vocabulary, so one gets added additively rather than never."""
+  policy = set(overseer_mod.POLICY_FALLBACKS)
+  failure = set(overseer_mod.FAILURE_FALLBACKS)
+  assert policy | failure == set(overseer_mod.FALLBACK_REASONS)
+  assert not policy & failure
+  assert failure == {"timeout", "offline", "garbled", "busy", "no-client"}
+  for why in overseer_mod.FALLBACK_REASONS:
+    cls = overseer_mod.fallback_class(f"fallback:{why}")
+    assert cls == ("policy" if why in policy else "failure")
+  assert overseer_mod.fallback_class("llm") == ""
+  assert overseer_mod.fallback_class("llm:big/model") == ""
+  # ⚠ An unrecognised why reads as a FAILURE: a record written under a
+  # vocabulary this build has not heard of must not be quietly excused from
+  # a threshold that counts failures.
+  assert overseer_mod.fallback_class("fallback:sunspots") == "failure"
 
 
 def test_a_quiet_series_and_a_loaded_one_are_not_one_average():

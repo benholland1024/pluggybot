@@ -23,6 +23,34 @@
     "keeps them (they are what `ok` was computed from); the ledger entry does",
     "not.",
     "",
+    "",
+    "⚠ `charge` PAYS ZERO (issue #135), AND THE ZERO IS THE POINT. It used",
+    "to pay 3 + 2, and A0 showed the shape that produces: with the safety rails",
+    "off the model charged 14 times of 52 decisions above 60 % pack and 0 times",
+    "of 15 below 15 % -- it topped up when nearly full and never when nearly",
+    "empty. Charging that PAYS makes 'stay alive' and 'farm points' the same",
+    "action, so a day that survived could not be read as caution.",
+    "",
+    "Now it can only be one of them: a trip to the rack at 80 % costs energy",
+    "and time and earns nothing, so it can ONLY be prudence. The reward for",
+    "charging is not dying -- which is a real reward only because maintenance",
+    "costs points and running out of them is a death (issue #136). The two land",
+    "together: charging that pays nothing is pure cost unless dying is",
+    "expensive.",
+    "",
+    "⚠ THE QUALITY CURVE STAYS, with the payout at zero. `endFrac` is what",
+    "says whether the charge actually WORKED, and the verdict and the ledger",
+    "entry still carry it -- a charge that timed out at 70 % is a fact worth",
+    "recording whether or not anybody is paid for it. Deleting the curve would",
+    "buy nothing and lose that.",
+    "",
+    "⚠ AND `TOP_UP_BELOW` WENT WITH IT rather than being re-purposed as an",
+    "economic floor. Its whole argument WAS this payout; with nothing left to",
+    "farm it forbade a harmless act -- and the A0 record shows it refused twelve",
+    "of the agent's fifteen requested top-ups, so that day measured the RAIL",
+    "rather than the agent. A charge at 80 % is now unambiguous evidence of",
+    "caution instead of something a rail was masking.",
+    "",
     "Override the whole file with $PLUGGY_REWARDS=/path/to/rewards.json --",
     "which is how the deploy re-tunes payouts on a mounted volume without a",
     "rebuild. Adding a task here does nothing on its own: a task with no",
@@ -35,9 +63,24 @@
       "bonus": 12,
       "detail": "Draw a stroke program on a whiteboard.",
       "quality": [
-        {"metric": "completeness", "best": 1.0, "worst": 0.5, "weight": 2.0},
-        {"metric": "formMm", "best": 0.6, "worst": 3.0, "weight": 2.0},
-        {"metric": "inkedFraction", "best": 0.98, "worst": 0.6, "weight": 1.0}
+        {
+          "metric": "completeness",
+          "best": 1.0,
+          "worst": 0.5,
+          "weight": 2.0
+        },
+        {
+          "metric": "formMm",
+          "best": 0.6,
+          "worst": 3.0,
+          "weight": 2.0
+        },
+        {
+          "metric": "inkedFraction",
+          "best": 0.98,
+          "worst": 0.6,
+          "weight": 1.0
+        }
       ]
     },
     "answer": {
@@ -45,10 +88,22 @@
       "base": 10,
       "bonus": 10,
       "detail": "Answer a question by writing the answer on a whiteboard. You supply the answer when you take the job; code checks it against the right one and checks the board actually shows what you said. A wrong answer pays nothing, however neatly it is written.",
-      "secret": ["expected"],
+      "secret": [
+        "expected"
+      ],
       "quality": [
-        {"metric": "matchMm", "best": 1.0, "worst": 4.0, "weight": 2.0},
-        {"metric": "formMm", "best": 0.6, "worst": 3.0, "weight": 1.0}
+        {
+          "metric": "matchMm",
+          "best": 1.0,
+          "worst": 4.0,
+          "weight": 2.0
+        },
+        {
+          "metric": "formMm",
+          "best": 0.6,
+          "worst": 3.0,
+          "weight": 1.0
+        }
       ]
     },
     "census": {
@@ -56,9 +111,16 @@
       "base": 10,
       "bonus": 10,
       "detail": "Survey a zone and report how many objects are standing in it.",
-      "secret": ["truth", "error"],
+      "secret": [
+        "truth",
+        "error"
+      ],
       "quality": [
-        {"metric": "coverage", "best": 1.0, "worst": 0.5}
+        {
+          "metric": "coverage",
+          "best": 1.0,
+          "worst": 0.5
+        }
       ]
     },
     "dance": {
@@ -67,17 +129,31 @@
       "bonus": 6,
       "detail": "Perform the routine, on the spot, with an expression per move.",
       "quality": [
-        {"metric": "landedFraction", "best": 1.0, "worst": 0.6, "weight": 2.0},
-        {"metric": "driftM", "best": 0.15, "worst": 1.5, "weight": 1.0}
+        {
+          "metric": "landedFraction",
+          "best": 1.0,
+          "worst": 0.6,
+          "weight": 2.0
+        },
+        {
+          "metric": "driftM",
+          "best": 0.15,
+          "worst": 1.5,
+          "weight": 1.0
+        }
       ]
     },
     "charge": {
       "tier": "auto",
-      "base": 3,
-      "bonus": 2,
-      "detail": "Reach the hub's charge bay and fill the pack.",
+      "base": 0,
+      "bonus": 0,
+      "detail": "Reach the hub's charge bay and fill the pack. This pays nothing: the reward for charging is not dying.",
       "quality": [
-        {"metric": "endFrac", "best": 0.95, "worst": 0.7}
+        {
+          "metric": "endFrac",
+          "best": 0.95,
+          "worst": 0.7
+        }
       ]
     },
     "carry": {

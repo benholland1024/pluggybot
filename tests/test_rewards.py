@@ -378,11 +378,19 @@ def test_the_ledger_survives_a_restart(tmp_path):
   second = Ledger(path=path)
   assert second.balance() == banked
   assert [e["task"] for e in second.entries()] == ["draw", "carry"]
-  # ...and it keeps counting from there rather than starting over
-  second.award(evaluate("charge", {"startFrac": 0.2, "endFrac": 0.95,
-                                   "gainedWh": 0.4, "seconds": 100}))
+  # ...and it keeps counting from there rather than starting over. ⚠ A
+  # PAYING task, since issue #135: `charge` used to be the third award here
+  # and now banks nothing, which would have made this assert about the reward
+  # table rather than about the file.
+  second.award(evaluate("dance", {"moves": 9, "landed": 9, "driftM": 0.1}))
   assert second.balance() > banked
   assert second.entries()[-1]["seq"] == 3
+  # ...and a charge is still an ENTRY, at zero: the day it happened is worth
+  # recording even though nobody was paid for it.
+  second.award(evaluate("charge", {"startFrac": 0.2, "endFrac": 0.95,
+                                   "gainedWh": 0.4, "seconds": 100}))
+  assert second.entries()[-1]["task"] == "charge"
+  assert second.entries()[-1]["points"] == 0
 
 
 def test_the_state_file_is_written_on_every_award_not_at_shutdown(tmp_path):

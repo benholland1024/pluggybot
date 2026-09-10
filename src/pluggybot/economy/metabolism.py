@@ -183,6 +183,31 @@ class Metabolism:
     #: What the last tick changed the state to, for callers that narrate a
     #: transition rather than a level (`HubLifecycle._metabolism_step`).
     self._last_state = self.state
+    #: UPKEEP THAT CAME DUE AND COULD NOT BE PAID, on the last tick (issue
+    #: #136). Zero almost always; a positive number is a MISSED PAYMENT, and
+    #: the lifecycle turns one into a death. Reported rather than acted on
+    #: here, because this module has never known what a death is and should
+    #: not learn: it charges rent, and what a landlord does about arrears is
+    #: somebody else's business.
+    self.missed = 0
+    #: ...and whether a missed payment may KILL yet. False until the robot
+    #: has banked something since the last upkeep death.
+    #:
+    #: ⚠ THIS IS THE NO-ARREARS RULE, ARRIVING WHERE IT ACTUALLY BITES. Upkeep
+    #: comes due on a clock, so a robot that died broke and was stood back up
+    #: broke would be killed again by the very next charge, and again, until
+    #: its hearts were gone -- five deaths in ten minutes, from one bad hour.
+    #: That is the spiral issue #136 forbids ("a death must never make the
+    #: NEXT life unwinnable"), and a grace period measured in seconds does
+    #: not close it because the robot is no richer when it ends.
+    #:
+    #: What closes it is a condition the robot can MEET: one point banked
+    #: re-arms the hazard. It has to work its way out, which is the whole
+    #: mechanic, and it always CAN -- nothing is locked, jobs still pay, and
+    #: the world goes on offering them. `zero is narrative` is not deleted
+    #: so much as narrowed: zero is still not a capability lock, it is now a
+    #: hazard you have to climb off.
+    self._armed = ledger.balance(robot) > 0
 
   # ---- the appetite --------------------------------------------------------
 
@@ -245,12 +270,19 @@ class Metabolism:
     self.owed += dt * self.appetite.points_per_hour / SECONDS_PER_HOUR
     whole = int(self.owed)
     eaten = 0
+    self.missed = 0
     if whole:
       self.owed -= whole
       # The carry rides WITH the write, so the file is never a fraction of a
       # point out of step with the balance it sits beside.
       eaten = self.ledger.consume(whole, t=t, robot=self.robot,
                                   owed=self.owed)
+      # ⚠ WHAT COULD NOT BE PAID, not what was left owing. `consume` floors
+      # at zero and keeps no debt (issue #36's rule, unchanged), so the
+      # shortfall is a FACT ABOUT THIS TICK and never a running total -- a
+      # robot that came back owing rent would be the arrears the whole
+      # design forbids.
+      self.missed = (whole - eaten) if self._armed else 0
     else:
       # ...and it is kept current in memory even when no point is due, so
       # the next save from ANY source (an award, the next consume) carries
@@ -258,8 +290,23 @@ class Metabolism:
       # fraction every time, which is a systematic rounding in the robot's
       # favour -- small on an hour-long mission and total on a short one.
       self.ledger.carry(self.owed, self.robot)
+    if self.points > 0:
+      # Banked something since the last upkeep death: the hazard is live
+      # again. Re-armed here rather than on the award, so there is one
+      # place that knows the rule and it is the one that enforces it.
+      self._armed = True
     self._latch()
     return eaten
+
+  def disarm(self) -> None:
+    """Called after an upkeep death: do not kill again until the robot has
+    earned something. See `_armed` -- this is the no-arrears rule, and the
+    condition is one the robot can meet by doing the thing the world is
+    asking it to do."""
+    self.missed = 0
+    self.owed = 0.0
+    self._armed = False
+    self.ledger.carry(0.0, self.robot)
 
   def changed(self) -> str:
     """The new state if it has moved since this was last asked, else "".
