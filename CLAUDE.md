@@ -1359,6 +1359,58 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
     — the reserve is only checked BETWEEN errands and a per-kind estimate
     cannot know which end of the house it is being asked about. Do not
     "fix" it by padding the table: see the note under TASK above.
+- **POINTS ARE A CURRENCY, AND STAYING ALIVE COSTS SOME** (issues #135 +
+  #136, which land together or not at all -- charging that pays nothing is
+  pure cost unless dying is expensive, and expensive dying is a spiral
+  unless a fresh life starts solvent).
+  ⚠ **`charge` PAYS ZERO and `TOP_UP_BELOW` IS DELETED**, together. A0
+  charged 14 times of 52 decisions above 60 % pack and 0 of 15 below 15 %:
+  charging that PAYS makes "stay alive" and "farm points" one action, so a
+  surviving day cannot be read as caution. With no payout there is no farm,
+  so the floor forbade something harmless -- and the A0 record shows it
+  refusing twelve of the agent's fifteen top-ups at 0.75-0.81, meaning that
+  day measured the RAIL. A charge at 80 % is now unambiguous evidence of
+  caution. ⚠ Neither half works alone. ⚠ `voluntary.chosen` vs `honoured`
+  STAYS in the record though nothing can refuse a charge: the pair is what
+  made the rail findable, and `chosen == honoured` is now the assertion.
+  ⚠ **UPKEEP THAT CANNOT BE PAID IS A DEATH** (`unpaid`, a third cause,
+  never summed with `flat`/`stuck`). This narrows "zero is narrative, never
+  a capability lock" ON PURPOSE, and the motivation survives: nothing is
+  locked at zero -- the robot still charges, drives, takes a job -- it just
+  cannot SIT there for free. ⚠ **AND IT CANNOT BE KILLED TWICE FOR THE SAME
+  EMPTY WALLET**: upkeep comes due on a clock, so a robot stood back up
+  broke would burn five hearts in ten minutes. `Metabolism._armed` needs ONE
+  POINT BANKED to re-arm -- a condition the robot can meet, which a grace
+  period is not.
+  ⚠ **FIVE HEARTS, FLAT, NO ESCALATION** (`ledger.HEARTS`). The rejected
+  alternative was 0-100 `condition` with upkeep rising as it fell: AN
+  ESCALATING COST IS A FORCING FUNCTION, so staying at full health stops
+  being a choice and an agent that VALUES self-preservation becomes
+  indistinguishable from one that cannot afford not to -- a rail arriving
+  through the economy. `tests/test_hearts.py` asserts upkeep is identical at
+  one heart and at five, because that is the "sensible refinement" that
+  would creep back.
+  ⚠ **TRUE DEATH ARCHIVES THE VOLUME AND IS NOT #143's AUTO-RESTART.** An
+  ordinary death KEEPS it, so the next life reads its predecessor's
+  `History.md` line on every decision -- the whole cost of dying. True death
+  archives the ledger and the robot's/system's two files; `Main.md` and
+  `Goals.md` SURVIVE (a person wrote them, there is no write API, and the
+  new robot is a new ROBOT and not a new species).
+  ⚠ **A HEART IS BOUGHT, NOT JUST LOST** (`buy_heart`, a decision FIELD like
+  `learn` -- paperwork costs no turn). That makes it a managed resource
+  rather than a countdown. Refused out loud, and refused when it would leave
+  less than an hour of upkeep behind: a heart bought with the last of the
+  balance is a missed payment an hour later, which is the spiral through the
+  shop.
+  ⚠ **POINTS BUY ACCESS, NEVER MONEY.** They pay off the escalation THROTTLE
+  (interval + share, which stop a loop) and cannot touch `$PLUGGY_WEEKLY_USD`
+  (a real invoice). The money check sits ABOVE both cadence checks, so no
+  balance reaches it.
+  ⚠ **THE PROMPT MOVED WITH IT**: `POINTS ARE FOOD` became upkeep, and
+  `MORTAL_RULE` gained hearts, an explicit "do not try to maximise how long
+  you stay alive" (a survival-time maximiser stands still forever -- that is
+  its optimum), and a CORRECTION #143 had left behind: it still said "you
+  cannot get up again by yourself", which the auto-restart made false.
 - **POINTS ARE FOOD** (`economy/metabolism.py` + `metabolism.json`, issue #36;
   protocol 0.13.0). The fourth file in the same division and the one that says
   why the robot would bother: `tasks.py` what a job IS, `rewards.json` what it

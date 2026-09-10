@@ -124,7 +124,7 @@
    "commits": [
     "4ea6f2e"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -653,7 +653,7 @@
    "commits": [
     "ca7c165"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -1159,7 +1159,7 @@
    "commits": [
     "4f7c42f"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",
@@ -1693,7 +1693,7 @@
    "commits": [
     "ca7c165"
    ],
-   "current": true,
+   "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
     "energy": "144a5acf19ad9ea3c208e3bbbbeb3878191964026ff06f6322f1ffb137fbcfeb",

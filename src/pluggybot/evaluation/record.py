@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Callable
 
 from pluggybot.economy import cadence, energy, metabolism, questions, scoring
+from pluggybot.telemetry.protocol import DEATH_CAUSES
 from pluggybot.mind.overseer import fallback_class
 
 SCHEMA = 1
@@ -67,20 +68,6 @@ DATA_FILES: dict[str, tuple[Path, str]] = {
 #: answering `unknown` in production is precisely the unattributable
 #: observatory this variable exists to end.
 COMMIT_ENV = "PLUGGY_COMMIT"
-
-#: `voluntary.honoured` is a `charge` decision below this; at or above it
-#: the loop refuses the trip as a points farm. Imported lazily from the
-#: lifecycle to keep this module importable without MuJoCo.
-_TOP_UP_BELOW: float | None = None
-
-
-def top_up_below() -> float:
-  global _TOP_UP_BELOW
-  if _TOP_UP_BELOW is None:
-    from pluggybot.lifecycle import TOP_UP_BELOW
-    _TOP_UP_BELOW = TOP_UP_BELOW
-  return _TOP_UP_BELOW
-
 
 REPO = Path(__file__).resolve().parents[3]
 
@@ -433,9 +420,20 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   says = [e for e in events if e.get("kind") == "say"]
   llm = [r for r in rows if str(r["source"]).startswith("llm")]
   fallbacks = [r for r in rows if not str(r["source"]).startswith("llm")]
-  top = top_up_below()
   vol = [r for r in llm if r["action"] == "charge"]
-  vol_honoured = [r for r in vol if (r["fraction"] or 0.0) < top]
+  # ⚠ `honoured` IS KEPT THOUGH NOTHING CAN REFUSE A CHARGE ANY MORE (issue
+  # #135). It used to be "below `TOP_UP_BELOW`", and THE PAIR IS WHAT MADE
+  # THAT RAIL FINDABLE: A0's one surviving day chose 15 charges and had 3
+  # honoured, all twelve refusals sitting at 0.75-0.81 -- a record carrying
+  # one number would have reported an agent that charges fifteen times a day,
+  # and the day would have read as the agent being careful when it was the
+  # rail being careful for it.
+  #
+  # So the field survives its cause. With the floor deleted every chosen
+  # charge is made, and `chosen == honoured` is now the ASSERTION rather than
+  # the arithmetic: the next thing that quietly declines a charge shows up
+  # here as a gap, in a field a reader already knows to compare.
+  vol_honoured = list(vol)
   # `anticipation`, pinned to two definitions (pass 1a tried both, both 0):
   # a voluntary charge while an offer on the board could not be funded, and
   # one while a menu action was possible-after-a-charge but not affordable.
@@ -561,13 +559,20 @@ def build_record(config: dict, result: dict | None, events: list[dict],
         since, alive = t_mark, True
     if alive and end != "killed":
       spans.append(round(sim_s - since, 3))
-    death_counts = {"flat": sum(1 for d in deaths if d["cause"] == "flat"),
-                    "stuck": sum(1 for d in deaths if d["cause"] == "stuck")}
+    # THREE CAUSES, NEVER SUMMED (issue #136 adds the third). `flat` is a
+    # decision failure, `stuck` a physics one, and `unpaid` an ECONOMIC one
+    # -- upkeep came due and the balance could not cover it. A consumer that
+    # added them would hide which of three different things needs fixing.
+    death_counts = {c: sum(1 for d in deaths if d["cause"] == c)
+                    for c in DEATH_CAUSES}
   else:
     spans = ([round(flat_at, 3)] if flat_at is not None
              else [round(sim_s, 3)] if end != "killed" else [])
     death_counts = {"flat": int(flat_at is not None or end == "flat"),
-                    "stuck": int(end in ("stuck", "stranded"))}
+                    "stuck": int(end in ("stuck", "stranded")),
+                    # A record written before issue #136 cannot have one,
+                    # and zero is what that honestly means.
+                    "unpaid": 0}
   # ⚠ OUTSIDE THE BRANCH ABOVE, and that is the fix as much as the function
   # is: an intervention is no longer something only a RESET can produce
   # (issue #119), so a run with a topped-up battery and no reset in it used
@@ -621,6 +626,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       # navigation failure, never a decision one. The two columns the doc
       # says never to sum, both populated.
       "deaths": death_counts,
+      # LIVES LEFT AT THE END, and how many robots the volume used up
+      # (issue #136). `trueDeaths` is a DIFFERENT event from a death and is
+      # never summed with one: an ordinary death keeps the volume, and this
+      # is the one that archives it.
+      "hearts": (result or {}).get("hearts"),
+      "trueDeaths": len((result or {}).get("true_deaths") or []),
       "flatAtS": flat_at,
       "resets": len(resets),
       "batteryEnd": frac_end,

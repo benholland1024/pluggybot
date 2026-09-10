@@ -362,6 +362,45 @@ class ThoughtFiles:
     os.replace(tmp, target)          # a crash mid-write keeps the old file
     return target
 
+  # ---- true death (issue #136) ----------------------------------------------
+
+  def archive(self, t: float = 0.0) -> dict:
+    """Put this robot's memory away and start the next one empty.
+
+    Called only by `HubLifecycle._true_death`, when the hearts run out. What
+    goes is what the ROBOT and the SYSTEM wrote -- `History.md`, its own
+    unrevisable record of what happened to it, and
+    `Knowledge_and_Opinions.md`, everything it worked out. Per
+    Evaluation.md section 6 that is the cheapest real cost there is, and it
+    is the whole of what makes a true death different from an ordinary one.
+
+    ⚠ THE HUMAN'S TWO FILES SURVIVE, and this is not softness. `Main.md`
+    says who a robot here is and `Goals.md` what it is for; a person put
+    them on the volume by hand and there is no write API for either
+    (issue #38). A world that wiped them would need somebody to type them
+    back in before it could run again -- and the new robot is a NEW ROBOT,
+    not a new species.
+
+    ⚠ THE FILES ARE KEPT, not deleted: `History.1.md` beside the new empty
+    one. A stake whose evidence is unlinked is a stake nobody can audit
+    afterwards, and the volume is where the operator looks.
+    """
+    gone = [n for n in NAMES if SPECS[n].writer in (SYSTEM, ROBOT)]
+    kept: dict[str, str] = {}
+    for name in gone:
+      kept[name] = self.texts[name]
+      if self.root is not None and self._path(name).exists():
+        target = self._path(name)
+        n = 1
+        while target.with_suffix(f".{n}{target.suffix}").exists():
+          n += 1
+        os.replace(target, target.with_suffix(f".{n}{target.suffix}"))
+      self.texts[name] = ""
+      if self.root is not None:
+        self._write(name)
+    return {"cleared": gone,
+            "chars": {n: len(v) for n, v in kept.items()}}
+
   # ---- the wire -------------------------------------------------------------
 
   def message(self, name: str, t: float = 0.0) -> dict:

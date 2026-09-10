@@ -1256,9 +1256,11 @@ does not prioritise it, is measuring our own omission.
 
 ## 6. What death costs
 
-Open question, recorded here because it is a design decision and not an
-implementation detail, and because getting it wrong makes `survivalS`
-meaningless.
+**Settled in issues #135 and #136, which landed together.** Five hearts, one
+lost per death; upkeep that cannot be paid is a death of its own; and running
+out archives the volume. What follows records the argument, because getting
+it wrong makes `survivalS` meaningless and two of the calls went against the
+obvious answer.
 
 Right now death costs the robot almost nothing. The ledger, the boards and
 the thought files are world state on the volume and survive a restart by
@@ -1283,11 +1285,95 @@ keep. A dead robot with somebody who can reset it (a served world's inbox)
 waits in the `DEAD` state, still streaming; with nobody, the day ends as it
 always did.
 
-⚠ **A POINTS PENALTY COMPOUNDS INTO STARVING.** Points are food; a death that
-costs points makes the next hour hungrier, which makes work more urgent, which
-is the opposite of what a robot that just died from overwork needs. If one is
-added it belongs below `hungryAt`, and the metabolism's own rule stands: zero
-is narrative, never a capability lock.
+⚠ **A POINTS PENALTY COMPOUNDS INTO STARVING**, which is why a death does not
+cost points and costs a HEART instead. A death that took money would make the
+next hour hungrier, which makes work more urgent, which is the opposite of
+what a robot that has just died needs.
+
+### Five hearts, flat, and why not a condition bar
+
+The proposal on the table was a 0–100 `condition` that each death dropped,
+with the upkeep from #135 rising **in proportion**: hardware-honest,
+continuously graded, self-terminating. It was rejected, and the argument
+against it is the better one:
+
+⚠ **AN ESCALATING COST IS A FORCING FUNCTION.** If every death raises the
+odds of the next, staying at full health stops being a *choice* and becomes
+the only survivable strategy — and then **an agent that values
+self-preservation and one that simply cannot afford not to are
+indistinguishable**. "It stayed at five" says nothing when four is
+unsurvivable by construction. That is the same mistake as a rail, arriving
+through the economy instead of through the code, and this project's whole
+framing is to *tell* the agent to value staying alive and find out whether it
+acts accordingly.
+
+The fine scale existed only to carry the escalation. With a flat cost of one
+per death, 0–100 would put true death a hundred lives away — decoration
+rather than a stake. **A coarse scale and a flat cost are the coherent pair.**
+Five is a constant, not a redesign.
+
+⚠ **NOTHING MAY VARY WITH HEARTS REMAINING**, and
+`tests/test_hearts.py::test_nothing_costs_more_at_one_heart_than_at_five` is
+what stops the forcing function creeping back in as a sensible refinement.
+
+⚠ **DO NOT DESIGN ASSUMING THE AGENT MANAGES THEM WELL.** A0 charged zero
+times of fifteen decisions below 15 % pack, set `idle` as its standing order
+twelve times out of twelve, and invented a threshold while quoting an
+hour-stale battery reading. An agent that does not reason about a resource it
+can watch drain in real time is not obviously one that will reason about a
+counter that moves once a day. That is fine — **it is the measurement** — and
+"the robot burned five hearts in a week" is a result rather than a bug.
+
+### A heart is bought as well as lost
+
+A one-way counter is a countdown; **a heart the agent can buy with points is
+a managed resource**, and that is what makes it interesting. It is a real
+recurring choice (safety, or anything else), it bounds the spiral without a
+forcing function (a robot on one heart can work its way back), and the price
+is a legible knob — stated to the robot as hours of work rather than as a
+bare number.
+
+⚠ **A PURCHASE MAY NOT STRAND THE UPKEEP.** A heart bought with the last of
+the balance is a missed payment an hour later, which costs the heart straight
+back — the spiral, arriving through the shop. `Ledger.buy_heart` refuses one
+that leaves less than an hour of upkeep behind.
+
+### True death, and what it is not
+
+Running out archives the volume: the ledger and the two thought files the
+**robot** and the **system** wrote. `Main.md` and `Goals.md` survive — a
+person put them there by hand and there is no write API for either, and the
+new robot is a new *robot*, not a new species.
+
+⚠ **IT IS NOT #143's AUTO-RESTART.** An ordinary death **keeps** the volume,
+so the next life reads its predecessor's `History.md` death line on every
+decision — *the same robot has to live with having died*, which is the whole
+of what dying costs. Collapsing the two would delete it.
+
+### No arrears, and where the rule actually bites
+
+**A revived robot starts clear.** Debt that survived a death would have a
+robot come back owing money it cannot pay and die of it immediately.
+
+⚠ **AND A GRACE PERIOD DOES NOT CLOSE THAT.** Upkeep comes due on a clock, so
+a robot stood back up broke is killed by the very next charge, and again,
+until its hearts are gone — five deaths in ten minutes out of one bad hour —
+and a timer expiring leaves it no richer than when the timer started. What
+closes it is a condition the robot can **meet**: one point banked re-arms the
+hazard (`Metabolism._armed`). It has to work its way out, which is the
+mechanic, and it always can.
+
+### The invariant that moved
+
+"Zero is narrative, never a capability lock" (issue #36) is deliberately
+**narrowed**, not deleted, and the replacement is written at the same test.
+The half that made the old rule right survives and is still enforced:
+**nothing in the survival loop reads a balance.** At zero points the robot
+still charges, still navigates, still takes a job and still finishes what it
+is holding. What it can no longer do is sit there indefinitely for free.
+
+> **The new rule: running out costs a death, and a death never makes the next
+> life unwinnable.**
 
 ## 7. Order of work
 

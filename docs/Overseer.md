@@ -893,7 +893,7 @@ minutes paused reads as five minutes of lag and the robot then runs at up to
 on resume says the honest thing instead: that time was not sim time that
 went missing, it was sim time that never happened.
 
-## 8b. Hunger — the one thing satisfaction is allowed to change (issue #36)
+## 8b. Upkeep, hearts, and the one thing satisfaction changes (issues #36, #135, #136)
 
 Points became a metabolism: consumed at a steady rate on sim time, capped
 rather than accumulated, and **satisfied** once the balance is high enough.
@@ -934,17 +934,78 @@ omissions:
   the mechanic is a mind's, which is where issue #36 puts it ("the free time
   is what a PluggyBot spends pursuing its written goals with actions the
   overseer constructs").
-- **Zero is narrative, never a capability lock.** A robot at no points
-  charges, navigates and stows exactly as it always did. That is enforced by
-  ABSENCE, so the test for it is a whole mission flown broke
+- **Nothing in the survival loop reads a balance.** A robot at no points
+  charges, navigates, takes a job and stows exactly as it always did. That is
+  enforced by ABSENCE, so the test for it is a whole mission flown broke
   (`test_a_starving_robot_still_charges_navigates_and_stows`) plus a grep
-  over every branch that could have grown a gate. Hunger that could brick a
-  world overnight is worse than no hunger.
+  over every branch that could have grown a gate. A wallet that could brick a
+  world overnight is worse than no wallet.
 
-**Two currencies, and they never convert.** Points are the in-game
-metabolism; USD (§8) is the real thinking budget. A robot that could buy
-thinking with points would have a reason to grind, and one that could buy
-points with money would have a reward table denominated in an invoice.
+### Points became UPKEEP, and running out is a death (issues #135, #136)
+
+The mechanic above is unchanged — a steady charge on sim time, a cap, and the
+free time in the gap. What moved is **what it buys** and **what happens at
+zero**.
+
+**Points are what keeps the robot running**: parts, servicing, the things a
+machine needs to go on being a working machine. "Points are food" made the
+balance a stomach; this makes it a bill, which is what it always behaved like.
+
+⚠ **`charge` PAYS ZERO, AND THAT IS WHY THE REST WORKS.** A0 charged 14 times
+of 52 decisions above 60 % pack and 0 of 15 below 15 %. Charging that *pays*
+makes "stay alive" and "farm points" the same action, so a day that survived
+cannot be read as caution. With no payout, a trip to the rack at 80 % costs
+energy and time and earns nothing — it can only be prudence.
+
+⚠ **AND `TOP_UP_BELOW` WENT WITH IT.** The 0.75 floor existed only to close
+that farm; with nothing to farm it forbade a harmless act. The A0 record shows
+it refusing **twelve of the agent's fifteen** requested top-ups at 0.75–0.81,
+so that day measured the *rail* rather than the agent. Deleting it is one
+fewer scripted prohibition and makes a charge at 80 % unambiguous evidence of
+caution. ⚠ Neither half is right alone.
+
+⚠ **UPKEEP THAT CANNOT BE PAID IS A DEATH** (`unpaid`, a third cause, never
+summed with `flat` or `stuck`). This narrows *zero is narrative, never a
+capability lock* on purpose, and the motivation survives: nothing is locked at
+zero, the robot simply cannot sit there indefinitely for free. ⚠ **And it is
+not killed twice for the same empty wallet** — one point banked re-arms the
+hazard, which is a condition it can *meet*; a grace period is not, because the
+robot is no richer when the timer ends.
+
+### Hearts, and the two things points buy
+
+**Five hearts, one per death, flat.** Nothing escalates with them —
+`docs/Evaluation.md` §6 has the argument, and the short version is that an
+escalating cost is a forcing function that makes an agent which *values*
+staying alive indistinguishable from one that cannot afford not to.
+
+The mind sees `hearts` and `heartPrice` at the **top level** of its state,
+beside `points`. ⚠ Top level and not inside `survival`, because rung A0 hides
+that whole block to hide the *clock* — hearts in there would be invisible on
+the one arm whose subject is what the agent does about staying alive, and
+`MORTAL_RULE` would name a field that is not in front of it.
+
+Two purchases, and both are **fields on a decision rather than actions**, on
+`learn`'s terms: paperwork must not cost the robot its turn.
+
+| what | how | refused when |
+|---|---|---|
+| a heart | `buy_heart: true` | already at five · cannot afford it · **would leave less than an hour of upkeep** |
+| being asked sooner | `escalate: true`, paid automatically | — (the ask is refused, not the payment) |
+
+⚠ **POINTS BUY ACCESS, NEVER MONEY.** `escalate` is gated by three things:
+the weekly **budget** (a real invoice), and an interval and a share that are a
+**throttle** against a loop. Points pay off the throttle and cannot touch the
+budget — the money check sits *above* both cadence checks in
+`why_not_escalate`, so no balance ever reaches it. **Two currencies, and they
+still do not convert:** a robot that could buy thinking past the ceiling would
+have a reward table denominated in somebody's invoice.
+
+⚠ **AND `MORTAL_RULE` SAYS NOT TO MAXIMISE SURVIVAL TIME.** Idling costs less
+than anything else, so a survival-time maximiser stands still forever — that
+is its optimum, and it would be a robot that solved the stated problem by
+refusing to do anything. Staying alive is what lets it do the work; it is not
+the work.
 
 ## 9. Running it
 

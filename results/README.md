@@ -34,6 +34,14 @@ when the world was not repeatable. They are the record of that spread --
 the scripted five gave three trajectories -- and they carry no `world`
 hash because the field did not exist yet.
 
+⚠ **EVERY SERIES HERE IS NOW `current: false`, AND THAT IS THE FLAG WORKING**
+(issues #135 + #136). The economy changed underneath them: `charge` pays
+nothing, the wallet cap went from 90 to 400, and running out of points is a
+death. These runs were flown under the previous regime — they are not wrong
+and they are not deleted, they describe a world that no longer exists, and
+nothing may be compared against them without re-flying. That is exactly what
+`dataHashes` and `current` were added for.
+
 A record with `end: "killed"` was stopped on wall clock and is excluded from
 survival statistics; one with a non-empty `interventions` list likewise; and,
 since issue #117, so is one whose FAILURE-class fallback rate is over its

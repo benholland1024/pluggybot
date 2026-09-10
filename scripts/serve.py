@@ -358,6 +358,10 @@ def main() -> None:
                                  # rule is only true where that holds, so it
                                  # is stated only there.
                                  mortal=True,
+                                 # ...and the wallet (issues #135, #136): a
+                                 # served world always has a ledger, so it
+                                 # always has lives to lose and to buy back.
+                                 ledger=ledger, hearts=True,
                                  # ...and WHOSE the fallback is, whether the
                                  # rails are off, and whether the robot may
                                  # see its own survival clock -- the three

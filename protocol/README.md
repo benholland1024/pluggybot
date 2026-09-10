@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.16.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.17.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -176,6 +176,56 @@ for the rest of the run, and the prompt tells it what `survival.aliveS` is.
 Additive on the wire (new kind, new events, new field); the bump is for the
 new lifecycle state and because a consumer that renders `deaths` needs to
 know the producer emits them.
+
+### 0.16.0 → 0.17.0 (a death costs a heart, and charging pays nothing)
+
+pluggybot #135 and #136 (M15), which land together: `charge` pays zero, and
+that only works once dying is expensive.
+
+**1. A third death cause, `unpaid`.** Upkeep came due and the balance could
+not cover it. ⚠ **Never summed with the other two** — `flat` is a decision
+failure, `stuck` a physics one, and this an economic one, and a consumer that
+added them would hide which of three different things needs fixing. **The
+bump is for this**: a consumer that renders causes has to know the producer
+can emit a third.
+
+**2. `survival.hearts` and `survival.generations`.**
+
+```jsonc
+"survival": {"s": 412.3, "deaths": 1, "dead": null, "hearts": 4,
+             "generations": 0}
+```
+
+Five hearts, one lost per death. At zero the volume is archived and a new
+robot starts from the seed state — `generations` counts how many this world
+has used up. Absent where no ledger is attached, which is every world with no
+lives to lose.
+
+⚠ **Nothing escalates with hearts.** The upkeep charge is the same at one as
+at five, deliberately: a cost that rose as they fell would be a forcing
+function, and an agent that *values* staying alive would be indistinguishable
+from one that simply cannot afford not to.
+
+**3. A `true_death` event**, between the frames like `death` and `reset`:
+
+```jsonc
+{"type": "true_death", "t": 5120.0, "robot": "pluggybot", "generation": 1,
+ "archived": {"balance": 0, "earned": 340, "entries": 41}}
+```
+
+⚠ **A different event from a death, and never summed with one.** An ordinary
+death **keeps** the volume, so the next life reads its predecessor's
+`History.md` line on every decision — that is the whole of what dying costs.
+This is the one that does not: the ledger and the two files the robot and the
+system wrote are archived. `Main.md` and `Goals.md` survive, because a person
+put them there and there is no write API for either.
+
+**4. `death.hearts`** — what was left after this one, on the existing event.
+
+⚠ **`charge` now pays 0 in `rewards.json`.** Not a wire change and worth
+knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
+consumer summing `earned` sees charging contribute nothing. The reward for
+charging is not dying.
 
 ### A dead robot stands itself up, and says when
 
