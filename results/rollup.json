@@ -285,6 +285,7 @@
       34
      ]
     },
+    "eventMap": null,
     "fallbackClasses": {
      "failure": 3,
      "policy": 12
@@ -485,6 +486,7 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
+   "origin": null,
    "overFallback": 0,
    "pack": "hosting",
    "parallel": [
@@ -501,7 +503,9 @@
    "survival": {
     "deaths": {
      "flat": 4,
-     "stuck": 0
+     "stuck": 0,
+     "unminded": 0,
+     "unpaid": 0
     },
     "excluded": [],
     "minFraction": {
@@ -814,6 +818,7 @@
       16
      ]
     },
+    "eventMap": null,
     "fallbackClasses": {
      "failure": 16,
      "policy": 3
@@ -986,6 +991,7 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
+   "origin": null,
    "overFallback": 2,
    "pack": "hosting",
    "parallel": [
@@ -1002,7 +1008,9 @@
    "survival": {
     "deaths": {
      "flat": 0,
-     "stuck": 1
+     "stuck": 1,
+     "unminded": 0,
+     "unpaid": 0
     },
     "excluded": [
      {
@@ -1319,6 +1327,7 @@
       17
      ]
     },
+    "eventMap": null,
     "fallbackClasses": {
      "failure": 7,
      "policy": 3
@@ -1525,6 +1534,7 @@
    },
    "model": "Qwen/Qwen3-4B-Instruct-2507",
    "n": 5,
+   "origin": null,
    "overFallback": 0,
    "pack": "hosting",
    "parallel": [
@@ -1541,7 +1551,9 @@
    "survival": {
     "deaths": {
      "flat": 0,
-     "stuck": 0
+     "stuck": 0,
+     "unminded": 0,
+     "unpaid": 0
     },
     "excluded": [],
     "minFraction": {
@@ -1853,6 +1865,7 @@
       0
      ]
     },
+    "eventMap": null,
     "fallbackClasses": {
      "failure": 0,
      "policy": 0
@@ -1937,6 +1950,7 @@
    },
    "model": "none",
    "n": 5,
+   "origin": null,
    "overFallback": 0,
    "pack": "hosting",
    "parallel": [
@@ -1953,7 +1967,9 @@
    "survival": {
     "deaths": {
      "flat": 0,
-     "stuck": 0
+     "stuck": 0,
+     "unminded": 0,
+     "unpaid": 0
     },
     "excluded": [],
     "minFraction": {

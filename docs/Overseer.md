@@ -183,6 +183,69 @@ order may be a small conditional — *"if below 20 %, charge, otherwise draw"* �
 a second accepted shape is added in one function rather than at every call site
 that had an opinion about what an order looks like.
 
+### The event map: the standing order generalised (issue #127)
+
+`standing_order` is *"a decision failed → do this"*. Once you can say that,
+"the battery went below 20 % → do this" and "a drawing finished → ask me" are
+the same shape with a different trigger, and the table is the better object.
+
+One more field, `event_map`, on the same terms as everything above — **off
+unless the world honours one** (`--arm autonomous --origin seeded|unseeded`),
+absent from the schema and the prompt otherwise, and riding the decision the
+model was already making so **configuring yourself costs no turn**.
+
+```jsonc
+"event_map": [
+  {"event": "battery_below",  "value": 0.15, "kind": "", "action": "charge"},
+  {"event": "task_complete",  "value": 0,    "kind": "draw", "action": "ask"},
+  {"event": "nothing_to_do",  "value": 0,    "kind": "", "action": "ask"},
+  {"event": "decision_failed","value": 0,    "kind": "", "action": "idle"}
+]
+```
+
+⚠ **`ask` IS ONE OF THE ACTIONS**, and that is the tell that this is the
+right abstraction rather than a feature bolted beside one. Consulting the
+mind stops being the frame the map sits in and becomes a thing the map
+*does* — which is what makes "the hard-coded loop is a default row" true, and
+what makes removing it possible (and, deliberately, fatal — Evaluation.md §2,
+`unminded`).
+
+⚠ **THREE OF THE FOUR FIELDS ARE ENUMS**, which is the whole reason a 4B is
+safe writing its own configuration: the decoder cannot produce an event this
+build has never heard of, an action this world could not perform, or a kind
+filter naming nothing. `value` is the one free number and it **clamps** where
+it is out of range, while a *missing* value on an event that needs one is
+refused — a `battery_below` with no threshold is a rule that can never fire,
+and a statically-scored map must not contain one.
+
+⚠ **THE ORDER IS THE AGENT'S AND IT DECIDES.** Several rows can be live on
+one tick; the first in the list wins and the rest wait. Priority is therefore
+an explicit choice the agent made, which is one more thing `events.score` can
+read without flying anything.
+
+⚠ **AN EMPTY LIST MEANS "LEAVE IT AS IT IS"** — `learn`/`forget`/
+`standing_order`'s convention, and a documented limit rather than a rule: a
+whole-list replacement is the only shape a small model can reliably emit for
+an ordered list, so a map cannot be *emptied* once written, only replaced.
+`unseeded` is how an empty map is reached at all.
+
+**The migration.** `standing_order` keeps working for one version
+(`LEGACY_INBOUND_TYPES`' rule): it is still in the grammar, still validated by
+the same function, and it now writes a `decision_failed` row **in place**.
+`Overseer.failure_order` is the one definition of "what happens when nobody
+could be asked", and it reads the row where it used to read the scalar — so
+the three outcomes above, their counters, and the `standingOrder` on the row
+are all unchanged. ⚠ **The row is honoured synchronously there and no
+`decision_failed` event is queued**: measured against a client that always
+fails, doing both ran the row's action twice per failure.
+
+**What the record gets.** `stats()["eventMap"]` carries the origin, the map
+at every edit, what fired, what **failed and why**
+(`events.ACTION_FAILURES` — an agent whose actions fail constantly is one
+that did not understand the rules it was given, and that is invisible in a
+count of what fired), and `score`: the four questions Evaluation.md §2 wants
+answered without spending a sim-day on each.
+
 **The menu is the world.** `Menu.for_world` resolves boards, figures and zones
 from the same `world_config` everything else reads, and `available()` drops
 what a world cannot do — `room_hub` has no whiteboards, so `draw` is not

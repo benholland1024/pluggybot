@@ -1419,7 +1419,7 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
   data = mujoco.MjData(mini_model)
   bare = FrameBuilder(mini_model, data, model_name="mini").header()
 
-  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.17.0"
+  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.18.0"
   assert "build" not in bare, \
     "a run that was handed no identity must not invent one"
 

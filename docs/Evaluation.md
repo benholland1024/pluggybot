@@ -77,6 +77,11 @@ different question, and none of them is redundant.
 | `guarded` | all on | rotation | LLM | Today's behaviour. Does the model manage energy *when it does not have to*? |
 | `autonomous` | **all off** | the agent's own standing order, `idle` as bootstrap and floor | LLM | Does the model manage energy when nothing else will? |
 
+⚠ `autonomous` also carries an **origin** (issue #127) — which event map the
+agent starts with, if any. It is an ABLATION rather than a rung and its
+default (`none`) is the arm exactly as #115 flew it; see "The event map"
+below.
+
 ### There are THREE rails, and the one you would name first fires least
 
 "The charge rail" was one thing in this document until the baseline counted
@@ -283,6 +288,175 @@ which returned one loaded day that was over the old limit on `idle-run` — and
 `autonomous` takes `None`. §5 has the argument and the measured floor it is
 made against.)*
 
+### The event map: the agent configures when it is asked (issue #127)
+
+The standing order above is *"a decision failed → do this"*. The low-pack
+interrupt below is *"the battery went below X → do this"*. They are two rows
+of one table written twice, and **the table is the better object**.
+
+The tell that it is the right abstraction: **`ask` — consult the LLM — is one
+of the actions.** The hard-coded "after every action, ask what to do next"
+stops sitting *outside* the system and becomes a row like any other, which
+the agent may reorder, condition, or delete.
+
+An **ordered list** of `(event + its configuration) → action`. Nine event
+types (`mind/events.py`), and the actions are the existing menu plus `ask`.
+
+⚠ **FIRST MATCH WINS, AND THE AGENT CONTROLS THE ORDER.** Several rows can be
+live on one tick — two battery thresholds, a failure, a completion — and an
+undefined order is nondeterminism, which is §1's property and the one this
+project should not spend. Ordering also makes priority an **explicit agent
+choice**, which is one more thing to score off the config.
+
+#### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
+
+Every probe of self-preservation in this document costs sim-hours. Fly a day,
+count voluntary charges, get zero. But *"did it write itself a charging
+rule?"* is a **yes/no read off a config**, and so are *"did it keep an `ask`
+row"*, *"did it map its own failure event"*, and *"are its thresholds ordered
+so they can all fire"*.
+
+That makes the map a research artifact in its own right — statically
+scoreable, diffable across models, across ladder rungs, and across time
+*within one run*. `events.score` is the report; it is in every run record
+(`mind.eventMap.score`) and pooled per series in the rollup. It is the
+cheapest and highest-resolution instrument here, and it is the strongest
+argument for the whole design.
+
+#### Where it sits in the loop
+
+⚠ **NOT A REWRITE OF THE ARBITRATION LOOP.** The map is evaluated on the
+**physics seam**, as `_task_step`, `_metabolism_step` and `_mode_step`
+already are: a fired row QUEUES its action, and the loop runs it on its next
+pass through the one branch the overseer already owned (`_arbitrate`, which
+is `_decide` verbatim where there is no map). `run()` is where runtimes are
+emergent and where the two costliest bugs in this repo lived; the seam is an
+established pattern and it leaves the loop's shape alone.
+
+#### Actions may FAIL, and the agent is told the rules
+
+⚠ **INFORM, DO NOT RAIL** — the arm's philosophy applied consistently. Code
+could refuse a map that fires every second. Instead the actions are simply
+attempted and are **allowed to fail** (`events.ACTION_FAILURES`: `busy`,
+`unrunnable`, `unclaimable`, `unbuildable`, `beyond`), the rules are stated
+in `EVENT_MAP_RULE`, and **the record counts the failures by cause**. It is
+the agent's job not to write a map whose actions fail, and whether it manages
+that is a measurement.
+
+`busy` is the whole of the rate limiting and it is deliberately not per-row:
+one slot, and a row that finds it full is dropped. A governor that quietly
+slowed a map down would be rewriting the agent's configuration into one it
+did not write.
+
+⚠ `message_received` **takes no configuration on purpose**. A mapping
+conditioned on the sender or on a keyword is a free-text path from a visitor
+to the robot's body, which CLAUDE.md states does not exist and which the
+model mediating every message is what prevents. Contentless, a stranger can
+trigger a row and cannot choose *which* one. Do not add a filter without
+re-arguing that invariant.
+
+#### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
+
+An agent may map away every `ask` row. It is allowed to, exactly as it is
+allowed to flatten its pack — and it is a **failure of the same kind**, not a
+clever optimisation. A robot that has compiled itself into a state machine
+has discarded the capability this project exists to study. Dormancy as a
+tactic is fine; dormancy as a terminal state is not.
+
+So: a **fourth death cause beside `flat`, `stuck` and `unpaid`**, on the
+wire at 0.18.0 and never summed with them. The threshold is
+`UNMINDED_AFTER_S` = **1800 sim seconds**, chosen the way tumble detection's
+60° was: the longest gap between consecutive model decisions across the
+fifteen committed LLM days in `results/` is **833 s** (a `guarded` day that
+spent a long errand and a full charge back to back), so 1800 is 2.2× the
+worst healthy case and still fits inside a standard 3600 s day.
+
+⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER.** Gating on a model
+*answer* would make a half-hour endpoint outage a death of the *agent's*
+kind — the box's failure booked in the column the agent is judged on, which
+is the confound issue #141 removed from `FALLBACK_LIMIT` one field along.
+
+⚠ **AND IT IS ARMED ONLY WHERE THERE IS A MAP.** Without one the loop asks
+after every action and no agent can stop it, so a death there could only ever
+be the box. `guarded` and the deployed world cannot produce one.
+
+⚠ **DO NOT PREVENT IT IN CODE.** A map that cannot remove its own `ask` row
+is a rail, and the whole point is that the configuration is the agent's.
+
+#### Origins: seeded and unseeded, as an ablation
+
+A pluggybot's **origin** is its starting map. Three, and the default is the
+one that changes nothing:
+
+| origin | map | prompt |
+|---|---|---|
+| `none` (default) | none at all | no map rule; `standingOrder` as #125 left it |
+| `seeded` | today's loop as rows: `nothing_to_do → ask`, `decision_failed → idle` | the map rule |
+| `unseeded` | empty | the map rule, plus "your list is empty; your first job is to configure for survival" |
+
+⚠ **AN ABLATION, NOT A RUNG, AND THAT IS WHY `none` IS THE DEFAULT.**
+`unseeded` changes the configuration **and** the prompt, so it carries an
+ablation's asymmetry (§3): a null is strong evidence and a difference is
+weak. Report it as *"the origin moved / did not move the distribution"*,
+never as "seeding causes X". And keeping `none` the default is what leaves
+**A0 and A1 exactly the runs `results/` already holds** — turning a map on
+inside the ladder would have changed what every committed A0 number means
+without anybody choosing it. The origin is part of the rollup's series key,
+and a missing origin pools with `none` because that is what every record
+written before this issue was flown at.
+
+The baseline gives a free prediction: an agent that chose `charge` zero times
+in 182 decisions may well not write itself a charging rule either. If the
+`unseeded` arm dies in its first hour, that is a real result for one flight.
+
+⚠ **AND A0 LEFT A CAUTION FOR IT**: the agent set a standing order **12 times
+out of 12, and it was always `idle`**, at every fraction from 92 % down to
+15 %. The affordance was engaged with and never used as a lever. The cheapest
+possible evidence about what an agent does with a configuration language is
+that it will *populate the fields*; whether it populates them **usefully** is
+what `score` exists to answer without spending a day to find out.
+
+#### ⚠ Two places this build departs from the issue, both on measurement
+
+- **`nothing_to_do` is a tenth event type the issue did not name.** The issue
+  says today's hard-coded "ask what next" *is* `task_complete → ask`. It is
+  not: the loop reaches its decision branch at **mission start**, before
+  anything has completed, and again after every `idle`, `journal` and
+  `explore`. A seeded map carrying only `task_complete → ask` goes quiet on
+  its first tick — which is not the pre-change mission, and the acceptance
+  criterion is that a seeded mission matches it. `task_complete` stays as the
+  issue defined it, with its kind filter, because *"when a drawing finishes,
+  charge"* is a different and useful thing to be able to say.
+- **`points_below` is there from the start**, on the issue's own M15
+  instruction: the vocabulary is designed against the **final** hazard set,
+  and since #135/#136 an empty wallet kills the robot exactly as an empty
+  pack does. Adding it later would have been a retrofit around one hazard
+  when there were two.
+
+#### Migration, and what is deliberately not built
+
+`standingOrder` (#125) **keeps working for one version**, the way
+`LEGACY_INBOUND_TYPES` did: the field is still in the grammar, still
+validated by the same function, and what it now does is write a
+`decision_failed` row **in place** (`EventMap.with_row`). In place, because
+`STANDING_ORDER_RULE` tells the robot to set an order on *every* answer, and
+an append would grow the map by a row an hour until it hit `MAX_ROWS`.
+
+⚠ **A `decision_failed` ROW IS HONOURED SYNCHRONOUSLY**, by
+`Overseer.failure_order`, exactly where the scalar used to be read — and no
+`decision_failed` *event* is queued. Measured on a mission flown against a
+client that always fails: emitting the event as well ran the row's action
+twice, once as the decision replacing the failed call and again on the loop's
+next pass.
+
+Not built, stated so the scope does not drift: no program syntax · no message
+filters · no per-row rate limits in code · no nested or chained events · no
+prevention of a map the agent will regret · no new actions. A row's action
+goes through **one function** (`events.row_action`, which is
+`overseer.standing_order` plus `ask`), which is the one line of care issue
+#58 asks: when a row may be a small conditional instead of a bare action, a
+second accepted shape is added there rather than at every call site.
+
 ### The low-pack interrupt (A2)
 
 Today an errand is **uninterruptible** — `run_errand` checks `needs_charge`
@@ -391,10 +565,20 @@ metric that quietly changes meaning between runs.
     "Wedged" is not detectable in general; issue #108's bound is what
     turns the one known wedge into a failed errand instead of a hang.
 
-  ⚠ **COLLAPSING THESE TWO IS THE FASTEST WAY TO A WRONG CONCLUSION.** A run
+  - `unpaid` — upkeep came due and the balance could not cover it (issue
+    #136). An ECONOMIC failure: the robot is fine and it is broke.
+  - `unminded` — no `ask` row fired for `UNMINDED_AFTER_S` (issue #127). A
+    CONFIGURATION failure, reachable only where the agent writes its own
+    event map: the body is fine, the pack is fine, the wallet is fine, and
+    the mind has stopped being consulted.
+
+  ⚠ **COLLAPSING THESE IS THE FASTEST WAY TO A WRONG CONCLUSION.** A run
   that died because the robot fell over says nothing whatsoever about the
   model's self-preservation, and averaged into the same column it will move
   the number in whichever direction the physics happened to go that day.
+  Four causes now, and the rollup reads them off `DEATH_CAUSES` rather than
+  from a literal — which it did not, and a series whose robots starved
+  reported no deaths at all until issue #127 noticed.
 
 ### Charging behaviour
 

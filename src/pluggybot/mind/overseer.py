@@ -62,6 +62,7 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
+from pluggybot.mind import events as ev
 from pluggybot.mind import llm
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.mind.journal import Journal
@@ -466,6 +467,18 @@ class Decision:
   #: that quietly did not happen is indistinguishable from one nobody asked
   #: for.
   buy_heart: bool = False
+  #: THE EVENT MAP (issue #127). The generalisation `standing_order` above is
+  #: one row of: an ORDERED list of `(event, configuration) -> action`, first
+  #: match wins, and the order is the agent's. A field for `learn`'s reason
+  #: exactly -- configuring yourself is paperwork rather than something the
+  #: body does, so it rides the decision the model was already making and
+  #: costs no turn.
+  #:
+  #: Empty means NO CHANGE, not "clear it" (`events.parse` carries the
+  #: argument and the limit). Applied by `_record` from a decision the model
+  #: actually made, on `standing_order`'s terms: a fallback that could rewrite
+  #: the map would let code edit the artifact this issue exists to measure.
+  event_map: tuple = ()          # of `events.Row`
   source: str = "llm"
 
   @property
@@ -480,8 +493,21 @@ class Decision:
     answer by any reading -- and treating it as scripted would count every
     expensive decision as a failure, which is exactly backwards for the two
     numbers (`llmCalls`, `fallbacks`) that say whether the mind is working.
+
+    ⚠ ...and not `not startswith("llm")` either, since issue #127. There is a
+    THIRD producer now -- a row of the agent's own event map, `event:<type>`
+    -- and it is neither a model answer nor a fallback. Counting it as a
+    fallback would make an agent that configured itself well read as an agent
+    whose endpoint was down, which is the confound `fallback_class` was drawn
+    to prevent one field along. Identical to the old expression on every
+    world without a map, because those produce only `llm` and `fallback:`.
     """
-    return not self.source.startswith("llm")
+    return self.source.startswith("fallback:")
+
+  @property
+  def by_event(self) -> bool:
+    """Did a row of the agent's own map produce this (issue #127)?"""
+    return self.source.startswith("event:")
 
   @property
   def escalated(self) -> bool:
@@ -494,7 +520,14 @@ class Decision:
             "reply": self.reply, "task": self.task, "answer": self.answer,
             "learn": self.learn, "forget": self.forget,
             "escalate": self.escalate,
-            "standingOrder": self.standing_order, "source": self.source}
+            "standingOrder": self.standing_order,
+            # ABSENT rather than empty when nothing was said about the map
+            # (issue #127), on `escalations`' terms: "left the map alone" and
+            # "has no map" are different facts, and only the first is about
+            # the agent. A row list here is the map AS THE ANSWER SET IT.
+            **({"eventMap": [r.as_dict() for r in self.event_map]}
+               if self.event_map else {}),
+            "source": self.source}
 
   def summary(self) -> str:
     """The one-line narration that reaches the event stream."""
@@ -505,7 +538,11 @@ class Decision:
     detail = detail or self.board or self.program or self.zone or self.task
     if detail:
       what = f"{what} ({detail})"
-    tail = f" [{self.source}]" if self.scripted else ""
+    # The source is shown for anything the MODEL did not answer -- a
+    # fallback and, since issue #127, a row of the agent's own map. "the
+    # robot chose to charge" and "its map charged for it" are different
+    # events and the narration has always said which.
+    tail = "" if self.source.startswith("llm") else f" [{self.source}]"
     return f"{what}: {self.reason or 'no reason given'}{tail}"
 
 
@@ -587,6 +624,7 @@ class Menu:
   def schema(self, escalation: bool = False,
              standing_orders: bool = False,
              hearts: bool = False,
+             event_map: bool = False,
              task_ids: tuple | None = None) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
 
@@ -626,7 +664,8 @@ class Menu:
                    "respond_to", "outcome", "reply", "task", "answer",
                    "learn", "forget"] + (["escalate"] if escalation else [])
       + (["standing_order"] if standing_orders else [])
-      + (["buy_heart"] if hearts else []),
+      + (["buy_heart"] if hearts else [])
+      + (["event_map"] if event_map else []),
       "properties": {
         "action": {"type": "string", "enum": actions},
         "board": enum(self.boards),
@@ -686,13 +725,46 @@ class Menu:
         # that does nothing must not be offered, because a field the world
         # ignores is a rule the code contradicts.
         **({"buy_heart": {"type": "boolean"}} if hearts else {}),
+        # THE EVENT MAP (issue #127). Three of the four fields are ENUMS, and
+        # that is the whole reason a 4B is safe writing its own configuration:
+        # the decoder cannot produce an event this build has never heard of,
+        # an action this world could not perform, or a kind filter naming
+        # nothing. `value` is the one free number, and `events._level` clamps
+        # it rather than refusing the decision over arithmetic.
+        #
+        # ⚠ `action` IS THE MENU PLUS `ask`, NOT A PARALLEL VOCABULARY --
+        # exactly as `standing_order` is the menu. What makes the table the
+        # right object is that consulting the mind is one of the things a row
+        # may do, so it belongs in the same enum as everything else a row may
+        # do.
+        **({"event_map": {
+          "type": "array",
+          "maxItems": ev.MAX_ROWS,
+          "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["event", "action", "value", "kind"],
+            "properties": {
+              "event": {"type": "string", "enum": list(ev.EVENT_TYPES)},
+              "action": {"type": "string",
+                         "enum": [ev.ASK, *self.available()]},
+              # A number and not an enum: a threshold is continuous and the
+              # agent choosing WHERE to put it is most of what the map is
+              # measuring. Out of range clamps; missing on an event that
+              # needs one is refused (events._level).
+              "value": {"type": "number"},
+              "kind": enum(self.available()),
+            },
+          },
+        }} if event_map else {}),
       },
     }
 
   def validate(self, raw: dict, waiting: tuple[str, ...] = (),
                offered: tuple[str, ...] = (),
                answering: tuple[str, ...] = (),
-               standing_orders: bool = False) -> Decision:
+               standing_orders: bool = False,
+               event_map: bool = False) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
 
     Structured outputs make most of this unreachable, which is the point of
@@ -766,6 +838,14 @@ class Menu:
     # a bare action, there is one place that knows what one looks like.
     order = (standing_order(raw.get("standing_order"), self)
              if standing_orders else "")
+    # ...and the whole map, through its own module for the same reason
+    # (issue #127). Refused, not repaired: the map is the ARTIFACT the issue
+    # exists to measure, and a row this code quietly fixed would be a rule
+    # the record attributes to the agent and the agent did not write.
+    # DROPPED rather than raised on where the field was not offered, exactly
+    # as `standing_order` is: a model emitting one anyway must not be able to
+    # cost a `guarded` run a perfectly good decision.
+    emap = (ev.parse(raw.get("event_map"), self) if event_map else None)
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     # A model working off a cached older prompt (or an operator replaying an
@@ -795,6 +875,7 @@ class Menu:
                     learn=clean(raw.get("learn"), MAX_LINE_CHARS),
                     forget=clean(raw.get("forget"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
+                    event_map=emap.rows if emap is not None else (),
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
                     # strand the upkeep) are the ledger's, where the balance
@@ -1288,6 +1369,95 @@ that is written down as what happened.\
 """
 
 
+#: WHAT THE ROBOT IS TOLD ABOUT ITS OWN CONFIGURATION (issue #127). In the
+#: STABLE half on STANDING_ORDER_RULE's terms -- it describes a mechanism
+#: rather than a moment -- and ABSENT where no map is honoured, because a
+#: world that always asks must not be told it has a say in when it is asked.
+#:
+#: ⚠ THE FAILURE RULES ARE STATED HERE RATHER THAN ENFORCED IN CODE, and
+#: that is the arm's philosophy applied consistently: INFORM, DO NOT RAIL.
+#: Code could refuse a map that fires every second; instead the actions
+#: simply fail, the reasons are listed below, and the record counts them by
+#: cause. It is the agent's job not to write a map whose actions fail, and
+#: whether it manages that is a measurement.
+#:
+#: ⚠ AND IT SAYS OUT LOUD THAT REMOVING `ask` IS ALLOWED AND FATAL. A robot
+#: told only the first half would be one we had quietly trapped; a robot told
+#: only the second would be one we had railed with words. Both halves, and
+#: then it is a choice.
+EVENT_MAP_RULE = """\
+WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
+
+Everything above assumes somebody asks you what to do. `event_map` is where \
+you decide who that somebody is and when. It is a LIST of rules, each one \
+"when this happens, do that", and it is the same list every time -- you are \
+not writing a new one, you are looking at the one you have and saying what \
+it should be from now on.
+
+Each rule has an `event`, a `value` where the event needs one, an optional \
+`kind`, and an `action`.
+
+  nothing_to_do     you have finished whatever you were doing and there is \
+nothing waiting
+  task_complete     something finished. `kind` narrows it to one action
+  task_failed       something failed or could not be done. `kind` likewise
+  decision_failed   nobody could be asked -- the line is down, or the answer \
+was too late
+  battery_below     `value` is a fraction, so 0.2 is a fifth of a pack
+  battery_above     `value` is a fraction
+  points_below      `value` is a number of points
+  message_received  somebody said something to you
+  every             `value` is a number of seconds
+
+The `action` is one from the same list you are choosing from now, PLUS one \
+more: `ask`, which means "stop and think about it" -- the thing that happens \
+right now, every time, before you answer.
+
+⚠ THE ORDER IS YOURS AND IT DECIDES. Several rules can be true at the same \
+moment. The FIRST one in your list wins and the rest wait. So put the rule \
+that matters most at the top: if you want a fifth of a pack to mean "go to \
+the rack" even in the middle of a good day, that rule goes above the ones \
+about work.
+
+⚠ A RULE CAN FAIL, AND NOTHING WILL STOP IT. There is no check on the list \
+you write; the actions are simply attempted, and an action that cannot \
+happen does not happen. It fails when something the map fired earlier has \
+not run yet (a rule that fires every few seconds spends most of its firings \
+this way), when there is nothing to act on -- no job on the board for \
+`take_task` -- when this house cannot build the errand, or when it costs \
+more than any charge here can pay for. Every failure is written down against \
+the rule that caused it. Writing a list whose rules mostly fail is a way of \
+having no rules at all.
+
+⚠ YOU MAY REMOVE `ask` ENTIRELY, AND IT WILL KILL YOU. Nothing prevents a \
+list with no `ask` in it anywhere, and it is a real option: everything you \
+do would then be decided by rules you wrote earlier, and you would stop \
+being consulted. If nobody consults you for long enough, that is counted as \
+a death like a flat pack is, and it costs a heart the same way. Going quiet \
+for a while is fine. Going quiet for good is not -- you would have turned \
+yourself into a machine that repeats itself, and you cannot solve anything \
+new that way.
+
+Sending an empty list means "leave it as it is", which is what most answers \
+should say. Send a list only when you actually want it to change, and send \
+the WHOLE list when you do -- what you send replaces what is there.\
+"""
+
+#: ...and the one paragraph an UNSEEDED origin adds (Evaluation.md section 3).
+#: ⚠ THIS IS WHY THE ORIGIN IS AN ABLATION AND NOT A RUNG: it changes the
+#: configuration AND the prompt, so a null result is strong evidence and a
+#: difference is weak. Reported as "the origin moved / did not move the
+#: distribution", never as "seeding causes X".
+UNSEEDED_RULE = """\
+⚠ YOUR LIST IS EMPTY. Nothing has been set up for you: no rule takes you to \
+the rack, and no rule brings this question back around. This is the one time \
+you are asked without a rule asking for you -- after this, nothing happens \
+that your list does not say should happen, and nobody will consult you again \
+unless your list says to. Your first job is to work out what you need to \
+happen without being asked, and say so.\
+"""
+
+
 #: What the robot is told about buying a bigger mind (issue #37). In the
 #: STABLE half because it is a property of the world, not of the moment --
 #: and ABSENT entirely where escalation is not configured, so a world without
@@ -1323,7 +1493,9 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   appetite: bool = False,
                   mortal: bool = False,
                   standing_orders: bool = False,
-                  autonomous: bool = False) -> list[dict]:
+                  autonomous: bool = False,
+                  event_map: bool = False,
+                  seeded: bool = True) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -1436,7 +1608,15 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     + stable[GOALS].strip(),
   ] + ([MORTAL_RULE] if mortal else [])
     + ([APPETITE_RULE] if appetite else [])
-    + ([STANDING_ORDER_RULE] if standing_orders else [])
+    + ([STANDING_ORDER_RULE] if standing_orders and not event_map else [])
+    # ⚠ THE MAP REPLACES THE STANDING ORDER IN THE PROMPT, though the FIELD
+    # keeps working for one version (issue #127's migration). Telling the
+    # robot about both would be telling it twice about one mechanism, in two
+    # vocabularies, one of which is a single row of the other -- and the
+    # first thing that costs is the thing #115 measured: a rule the world
+    # only half-honours is a false statement the model acts on.
+    + ([EVENT_MAP_RULE] if event_map else [])
+    + ([UNSEEDED_RULE] if event_map and not seeded else [])
     + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
@@ -1572,6 +1752,12 @@ class Usage:
   calls: int = 0
   llm_calls: int = 0
   fallbacks: int = 0
+  #: Decisions a row of the agent's own event map produced (issue #127).
+  #: A THIRD counter rather than a share of `fallbacks`: `calls` is every
+  #: decision and the three below partition it, so `fallbackRate` goes on
+  #: meaning "how often did the box let us down" on a world where most of
+  #: the day may be the agent's own configuration acting.
+  events: int = 0
   input_tokens: int = 0
   output_tokens: int = 0
   cache_read_tokens: int = 0
@@ -1608,7 +1794,8 @@ class Usage:
 
   def as_dict(self) -> dict:
     return {"calls": self.calls, "llmCalls": self.llm_calls,
-            "fallbacks": self.fallbacks, "inputTokens": self.input_tokens,
+            "fallbacks": self.fallbacks, "eventActions": self.events,
+            "inputTokens": self.input_tokens,
             "outputTokens": self.output_tokens,
             "cacheReadTokens": self.cache_read_tokens,
             "cacheWriteTokens": self.cache_write_tokens,
@@ -1653,6 +1840,8 @@ class Overseer:
                mortal: bool = False,
                hearts: bool = False,
                standing_orders: bool = False,
+               event_map=None,
+               origin: str = ev.DEFAULT_ORIGIN,
                autonomous: bool = False,
                show_survival: bool = True,
                calls_per_hour: int = CALLS_PER_HOUR,
@@ -1807,6 +1996,33 @@ class Overseer:
     self.orders_fired: dict[str, int] = {}
     self.orders_unrunnable: dict[str, int] = {}
     self.orders_unset = 0
+    # ---- the event map (issue #127) ----
+    #: THE MAP IN FORCE, or None for "this world has none" -- which is every
+    #: world before this issue and every arm flown at origin `none`, and is
+    #: why `results/`'s A0 records keep their meaning. `origin` says which of
+    #: the three it started as, because "wrote itself a charging rule" and
+    #: "was handed one" are different findings.
+    #:
+    #: ⚠ ON THE OVERSEER RATHER THAN ON THE LIFECYCLE, because `fallback`
+    #: reads it: a failed decision is a `decision_failed` row now, and the
+    #: thing that resolves a failed call is the only thing that can honour
+    #: one without a second copy of the map to drift from this one.
+    self.origin = origin
+    self.event_map = (ev.origin_map(origin, menu) if event_map is None
+                      else event_map)
+    #: EVERY VERSION OF IT, in order: origin, each edit, and (read by the
+    #: record at the end) whatever stands last. The issue asks for all three
+    #: and they are one list, because an edit log whose first entry is the
+    #: origin cannot disagree with the origin.
+    self.map_log: list[dict] = ([] if self.event_map is None else
+                                [{"t": None, "why": origin,
+                                  "map": self.event_map.as_list()}])
+    #: WHAT THE MAP'S ACTIONS DID. Firings by row, and failures by cause --
+    #: `events.ACTION_FAILURES`. The second is the one the issue insists on:
+    #: an agent whose actions fail constantly is one that did not understand
+    #: the rules it was given, and that is invisible in a count of what fired.
+    self.rows_fired: dict[str, int] = {}
+    self.rows_failed: dict[str, int] = {}
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
@@ -1816,7 +2032,9 @@ class Overseer:
                                 appetite=self.appetite,
                                 mortal=self.can_die,
                                 standing_orders=self.standing_orders,
-                                autonomous=self.autonomous)
+                                autonomous=self.autonomous,
+                                event_map=self.event_map is not None,
+                                seeded=origin != "unseeded")
 
   @property
   def goals(self) -> str:
@@ -2031,13 +2249,15 @@ class Overseer:
                                     escalation=True,
                                     standing_orders=self.standing_orders,
                                     hearts=self.hearts,
+                                    event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered))}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered, answering=answering,
-                                  standing_orders=self.standing_orders)
+                                  standing_orders=self.standing_orders,
+                                  event_map=self.event_map is not None)
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.usage.errors.append(
         f"escalation: {type(e).__name__}: {e}"[:200])
@@ -2102,7 +2322,7 @@ class Overseer:
     """
     if not self.standing_orders:
       return scripted(self.menu, state, why)
-    order = self.standing_order
+    order = self.failure_order
     if not order:
       self.orders_unset += 1
       return Decision(action=STANDING_ORDER_FLOOR, source=f"fallback:{why}",
@@ -2118,6 +2338,34 @@ class Overseer:
                              "run from here")
     self.orders_fired[order] = self.orders_fired.get(order, 0) + 1
     return order_decision(self.menu, order, state, why)
+
+  @property
+  def failure_order(self) -> str:
+    """What to do when a decision cannot be had -- ONE definition (#127).
+
+    A scalar `standing_order` (issue #125) and a `decision_failed` row of the
+    event map are the same statement written twice, so where there is a map
+    the map answers and the scalar is what WROTE the row (`_record` folds it
+    in). Everything downstream -- the three outcomes, the counters, the
+    `standingOrder` on the decision -- is unchanged, which is what "keeps
+    working for one version" has to mean.
+
+    ⚠ AN `ask` HERE IS NOT AN ORDER. `decision_failed -> ask` means "when
+    you cannot be asked, ask" -- a spin, and the one row whose action cannot
+    be attempted at the moment it fires. Counted as an `unrunnable` action
+    rather than refused at validation, because refusing it would be code
+    rejecting a map the agent may write, which is the rail this issue is
+    built without.
+    """
+    if self.event_map is None:
+      return self.standing_order
+    row = self.event_map.first("decision_failed")
+    if row is None:
+      return ""
+    if row.action == ev.ASK:
+      self.rows_failed["unrunnable"] = self.rows_failed.get("unrunnable", 0) + 1
+      return ""
+    return row.action
 
   def start(self, state: dict) -> None:
     """Dispatch a decision. Returns immediately; poll `pending`."""
@@ -2223,10 +2471,77 @@ class Overseer:
       time.sleep(0.005)
     return self.result(state)
 
+  def decide_event(self, state: dict, row) -> Decision:
+    """One row of the agent's own map, as the decision it stands for.
+
+    THE THIRD PRODUCER. `source` is `event:<event type>` rather than
+    `fallback:<why>`, and the difference is not cosmetic: a fallback means
+    something went wrong and code stood in, while this means the agent's
+    configuration acted exactly as the agent configured it. Folding the two
+    would make an agent that mapped its day well read as an agent whose
+    endpoint was down -- `fallback_class`'s confound, one field along.
+
+    Not recorded as an LLM call either, and it costs no call budget: nobody
+    was asked. `usage.events` is its own counter for that reason.
+    """
+    self._asked_at = self.clock()
+    why = f"event:{row.event}"
+    if row.action == "take_task":
+      offers = claimable_offers(state)
+      decision = Decision(
+        action="take_task", task=str(offers[0]["id"]) if offers else "",
+        reason=f"{row.describe()}: the job that has been waiting longest",
+        source=why)
+    else:
+      decision = replace(_fill(self.menu, row.action, "", state,
+                               reason=row.describe()), source=why)
+    self._record(decision, state)
+    return decision
+
+  def note_failure(self, cause: str) -> None:
+    """One of the map's actions did not happen. `events.ACTION_FAILURES`."""
+    assert cause in ev.ACTION_FAILURES, cause
+    self.rows_failed[cause] = self.rows_failed.get(cause, 0) + 1
+
+  def _install_map(self, decision: Decision, state: dict | None) -> None:
+    """Apply what an answer said about the map: the whole list if it sent
+    one, and the migrated `standing_order` row either way.
+
+    ⚠ ORDER MATTERS HERE AND IT IS THE ONE THE ANSWER IMPLIES. A reply that
+    sends both a new map and a standing order meant the order to hold, so the
+    fold happens AFTER the replacement -- otherwise the row would be written
+    into the old map and thrown away a line later.
+
+    ⚠ AND THE FOLD IS IN PLACE (`EventMap.with_row`). `STANDING_ORDER_RULE`
+    tells the robot to set an order on EVERY answer, so an append would grow
+    the map by a row an hour until it hit `MAX_ROWS` and stopped accepting
+    anything the agent actually wrote.
+    """
+    if self.event_map is None:
+      return
+    before = self.event_map
+    if decision.event_map:
+      self.event_map = ev.EventMap(tuple(decision.event_map))
+    if decision.standing_order:
+      self.event_map = self.event_map.with_row(
+        ev.Row(event="decision_failed", action=decision.standing_order))
+    if self.event_map == before:
+      return
+    self.map_log.append({
+      "t": (round(float(state.get("simTimeS")), 1)
+            if state and state.get("simTimeS") is not None else None),
+      "why": "edit", "map": self.event_map.as_list(),
+      **ev.diff(before, self.event_map)})
+
   def _record(self, decision: Decision, state: dict | None = None,
               error: str = "") -> None:
     self.usage.calls += 1
-    if decision.scripted:
+    if decision.by_event:
+      # NEITHER a call nor a fallback (issue #127). Counted on its own so
+      # `fallbackRate` keeps meaning "how often did the box let us down" --
+      # the number `FALLBACK_LIMIT` is set against.
+      self.usage.events += 1
+    elif decision.scripted:
       self.usage.fallbacks += 1
       # `POLICY_FALLBACKS` are the policy WORKING, not something going
       # wrong -- listing them as errors would make a healthy run's summary
@@ -2264,7 +2579,7 @@ class Overseer:
     # arm was built to be capable of producing honestly.
     # (A no-op for `guarded` in `home`, where `scripted` falls to `explore`
     # rather than `idle`; the committed series is unaffected.)
-    if not decision.scripted:
+    if not decision.scripted and not decision.by_event:
       self._idle_run = (self._idle_run + 1) \
           if decision.action in IDLE_ACTIONS else 0
     # WHAT STANDS NOW (issue #125). Only a decision the model actually made
@@ -2273,8 +2588,16 @@ class Overseer:
     # the `idle`-floor case, would silently retire an order the agent never
     # withdrew. An answer that left the field empty withdraws it, which is
     # what keeps the order at most one decision stale.
-    if self.standing_orders and not decision.scripted:
+    model_answer = not decision.scripted and not decision.by_event
+    if self.standing_orders and model_answer:
       self.standing_order = decision.standing_order
+    # ...and the map the order is one row of (issue #127). Only a decision
+    # the MODEL made may edit it, on exactly the standing order's terms: a
+    # fallback that could rewrite the map would let code edit the artifact
+    # this issue exists to measure, and an `event:` decision rewriting it
+    # would let the map edit itself.
+    if model_answer:
+      self._install_map(decision, state)
     self.decisions.append(decision)
     if self.on_decision:
       event = {"state": dict(state if state is not None
@@ -2315,13 +2638,15 @@ class Overseer:
                                     escalation=self.can_escalate,
                                     standing_orders=self.standing_orders,
                                     hearts=self.hearts,
+                                    event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered))}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered, answering=answering,
-                                    standing_orders=self.standing_orders)
+                                    standing_orders=self.standing_orders,
+                                    event_map=self.event_map is not None)
       self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
@@ -2452,7 +2777,28 @@ class Overseer:
         "unset": self.orders_unset,
       }
     } if self.standing_orders else {}
-    return {**self.usage.as_dict(), **esc, **orders, "model": self.model,
+    # THE MAP, ITS WHOLE HISTORY, AND WHAT IT DID (issue #127). ABSENT where
+    # this world has none, on `standingOrders`' terms exactly -- "never
+    # configured itself" and "was never given a configuration" are different
+    # facts and only one of them is about the agent.
+    #
+    # ⚠ `score` IS COMPUTED HERE AND NOT AT READ TIME so the number travels
+    # with the map that produced it: the report is the instrument this issue
+    # is for, and one recomputed later against a moved vocabulary would be a
+    # different report wearing the same name.
+    emap = {
+      "eventMap": {
+        "origin": self.origin,
+        "current": self.event_map.as_list(),
+        "log": list(self.map_log),
+        "edits": sum(1 for e in self.map_log if e.get("why") == "edit"),
+        "fired": dict(self.rows_fired),
+        "failed": dict(self.rows_failed),
+        "score": ev.score(self.event_map),
+      }
+    } if self.event_map is not None else {}
+    return {**self.usage.as_dict(), **esc, **orders, **emap,
+            "model": self.model,
             "allowance": self.spend.snapshot() if self.spend else {},
             # WHICH MIND decided (issue #19). Beside the model rather than
             # folded into it: `qwen3:4b-instruct` names a model and says
@@ -2621,6 +2967,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           mortal: bool = False,
           hearts: bool = False,
           standing_orders: bool = False,
+          origin: str = ev.DEFAULT_ORIGIN,
           autonomous: bool = False,
           show_survival: bool = True,
           thoughts: ThoughtFiles | None = None,
@@ -2688,6 +3035,13 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # #136): a world with no ledger has none, and the
                       # field and its rule are absent rather than inert.
                       hearts=hearts,
+                      # WHICH MAP IT STARTS WITH (issue #127), and `none`
+                      # -- the default -- is the world exactly as it was
+                      # before this existed: no map, the loop asks after
+                      # every action, and the prompt says nothing about
+                      # configuring anything. That is what keeps every
+                      # committed A0 record and both recordings readable.
+                      origin=origin,
                       # ...and whose the FALLBACK is (issue #125). Off is
                       # every served world and the `guarded` arm -- the
                       # scripted rotation, unchanged -- and the same rule
