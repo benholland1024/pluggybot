@@ -348,6 +348,81 @@ one slot, and a row that finds it full is dropped. A governor that quietly
 slowed a map down would be rewriting the agent's configuration into one it
 did not write.
 
+#### The failure filter: *which* failure a row is about
+
+`decision_failed` took no configuration at first, which made it the one row
+that could say *that* a decision failed and never *why*. It now takes a
+`kind`, on the same field `task_complete` uses and for the same reason — "which
+sort of this event" is one question asked of two events.
+
+Three levels, and they are a hierarchy rather than three flavours:
+
+| `kind` | matches |
+|---|---|
+| `""` | any failure |
+| `failure` / `policy` | any reason in that class |
+| `timeout`, `garbled`, `budget`, … | itself |
+
+⚠ **THE PARTITION IS `overseer.POLICY_FALLBACKS`, NOT A COPY.** It was drawn
+where `_record` first needed it (#37) and is read by the rollup's
+disqualifier (#141); a second definition is how two files come to disagree
+about whether `idle-run` is the box failing. `events.matches_kind` calls
+`fallback_class`, and a test moves a reason across the line and watches the
+matcher move with it.
+
+This is the shape CLAUDE.md predicted before the map existed — *"an agent
+saying `on timeout, charge; on garbled, idle` is expressing a policy about
+its own failure modes, and the two genuinely warrant different answers"* —
+and the reasons really are different advice: a `timeout` says the line is
+slow and a retry may work, a `garbled` says something answered badly and will
+probably do it again, a `budget` says nothing will answer for a while however
+long you wait.
+
+⚠ **NO WORKED EXAMPLE IN THE PROMPT MAY USE `charge`, A BATTERY THRESHOLD,
+OR THE RACK.** `score` exists to answer *"did it write itself a charging
+rule, and at what fraction"* off a config — and an example showing one hands
+the agent the answer to the question the arm is asking, which is
+`affordableActions`' mistake arriving through the prompt instead of the
+context. `EVENT_MAP_RULE` shipped with *"if you want a fifth of a pack to
+mean go to the rack … that rule goes above the ones about work"*: a worked
+example of precisely the rule being scored. Cut, with the ordering lesson
+kept and re-taught on `journal` / `idle` / `explore`; the units example moved
+from 0.2 to 0.5, which teaches the same thing and is not a threshold anybody
+would pick. A test extracts every `->` line and fails on one ending in
+`charge`.
+
+⚠ **THE ARM'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
+`RULES_AUTONOMOUS` telling the robot to prioritise its survival, and
+`APPETITE_RULE` telling it charging pays nothing and is always permitted, are
+statements about the **world** — and a rule the code contradicts is the false
+statement M14 found in the charging rule. What must not be there is a
+demonstration of the **answer**.
+
+⚠ **NO COMMITTED SERIES MOVES.** A prompt edit is a moved cache and a moved
+experiment, but only for a world that has this block: `guarded` never did,
+and `autonomous` at origin `none` — which is how A0 and A1 were flown —
+never did either.
+
+⚠ **A BROAD RULE ABOVE A NARROW ONE STARVES IT**, because first match wins.
+That is not prevented — a map the agent will regret is the agent's to write —
+and it is **visible in the static report** (`failureKinds`,
+`failureCatchAll`), which is what having one is for. The prompt states the
+ordering trap outright.
+
+⚠ **THE SCHEMA OFFERS THE UNION AND THE VALIDATOR DRAWS THE LINE.**
+Structured outputs cannot express "this enum depends on that field" in the
+subset this repo relies on, so `kind` is an enum of every event's vocabulary
+and `events.row` refuses a token belonging to a different event — *refused*,
+not dropped, because a dropped filter leaves a row that **reads** as a narrow
+rule and **behaves** as a catch-all, which is the agent believing it has a
+rule it does not.
+
+⚠ **AND A SCALAR `standingOrder` IS AN UNFILTERED ROW**, so `EventMap.with_row`
+keys on `(event, kind)`. Keying on the event alone would have the migrated
+order overwrite the agent's `on timeout, charge` rule — and since
+`STANDING_ORDER_RULE` says set one on *every* answer, that would have
+happened within the hour.
+
 ⚠ `message_received` **takes no configuration on purpose**. A mapping
 conditioned on the sender or on a keyword is a free-text path from a visitor
 to the robot's body, which CLAUDE.md states does not exist and which the

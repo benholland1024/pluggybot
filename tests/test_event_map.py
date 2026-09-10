@@ -251,7 +251,7 @@ def test_a_standing_order_becomes_a_decision_failed_row(menu):
   boss = make(menu, full(action="draw", standing_order="charge"))
   boss.decide(_state(0.9))
   assert boss.event_map.first("decision_failed").action == "charge"
-  assert boss.failure_order == "charge"
+  assert boss.failure_order("timeout") == "charge"
   dead = boss.fallback(_state(0.2), "timeout")
   assert dead.action == "charge" and dead.standing_order == "charge"
 
@@ -278,7 +278,7 @@ def test_a_new_map_and_an_order_on_one_answer_both_land(menu):
   boss.decide(_state(0.9))
   assert [r.event for r in boss.event_map.rows] == [
     "battery_below", "nothing_to_do", "decision_failed"]
-  assert boss.failure_order == "explore"
+  assert boss.failure_order("timeout") == "explore"
 
 
 def test_a_fallback_cannot_rewrite_the_map(menu):
@@ -301,8 +301,212 @@ def test_an_ask_on_decision_failed_is_a_failed_action_not_an_order(menu):
   boss = make(menu, full(action="idle", event_map=rows(
     ("decision_failed", ev.ASK, 0, ""))))
   boss.decide(_state(0.9))
-  assert boss.failure_order == ""
+  assert boss.failure_order("timeout") == ""
   assert boss.rows_failed["unrunnable"] >= 1
+
+
+# ---- the failure filter (a `decision_failed` kind) --------------------------
+
+
+def test_a_failure_row_may_name_a_reason_a_class_or_nothing(menu):
+  """⚠ THREE LEVELS, AND THEY ARE A HIERARCHY RATHER THAN THREE FLAVOURS.
+  `""` takes anything, a CLASS takes any reason in it, a REASON takes itself
+  -- and first-match-wins makes the ordering mean what it reads like.
+
+  CLAUDE.md predicted this shape before it was built: "an agent saying `on
+  timeout, charge; on garbled, idle` is expressing a policy about its own
+  failure modes, and the two genuinely warrant different answers"."""
+  boss = make(menu, full(action="idle", event_map=rows(
+    ("decision_failed", "charge", 0, "timeout"),
+    ("decision_failed", "idle", 0, "failure"),
+    ("decision_failed", "journal", 0, ""))))
+  boss.decide(_state(0.9))
+  assert boss.failure_order("timeout") == "charge", "the specific rule"
+  assert boss.failure_order("garbled") == "idle", "...then the class"
+  assert boss.failure_order("offline") == "idle"
+  assert boss.failure_order("budget") == "journal", "...then the catch-all"
+  assert boss.failure_order("idle-run") == "journal"
+
+
+def test_a_broad_rule_above_a_narrow_one_starves_it(menu):
+  """The other half of the same fact, and the one the prompt warns about: put
+  the catch-all first and the specific rule can never be the first match. It
+  is NOT prevented -- a map the agent will regret is the agent's to write --
+  and it IS visible in the static report, which is the whole point of having
+  one."""
+  broad = ev.Row(event="decision_failed", action="journal")
+  narrow = ev.Row(event="decision_failed", action="charge", kind="timeout")
+  assert ev.EventMap((narrow, broad)).first("decision_failed",
+                                            "timeout") is narrow
+  assert ev.EventMap((broad, narrow)).first("decision_failed",
+                                            "timeout") is broad
+
+
+def test_the_classes_are_read_off_the_one_partition_not_a_copy(monkeypatch):
+  """⚠ `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` / `fallback_class`
+  are the ONE definition -- drawn where `_record` first needed it (#37) and
+  read by the rollup's disqualifier (#141). A second copy here is how two
+  files come to disagree about whether `idle-run` is the box failing.
+
+  Asserted by MOVING a reason across the line and watching the matcher move
+  with it. A grep for the constant would pass on this file's own comment
+  citing it, and would fail on a copy that happened to be spelled
+  differently -- neither of which is the claim."""
+  failure = ev.Row(event="decision_failed", action="idle", kind="failure")
+  policy = ev.Row(event="decision_failed", action="idle", kind="policy")
+  #  As shipped: the partition is exactly `overseer`'s.
+  for reason in ov.FAILURE_FALLBACKS:
+    assert ev.matches_kind(failure, reason) and not ev.matches_kind(policy,
+                                                                    reason)
+  for reason in ov.POLICY_FALLBACKS:
+    assert ev.matches_kind(policy, reason) and not ev.matches_kind(failure,
+                                                                   reason)
+  #  ...and it FOLLOWS that definition rather than agreeing with it by
+  #  coincidence: reclassify `timeout` and this module reclassifies too.
+  monkeypatch.setattr(ov, "POLICY_FALLBACKS",
+                      ov.POLICY_FALLBACKS + ("timeout",))
+  assert ev.matches_kind(policy, "timeout")
+  assert not ev.matches_kind(failure, "timeout")
+
+
+def test_every_reason_the_code_can_produce_is_offerable(menu):
+  """A reason the fallback can emit and the map cannot name is a failure mode
+  the agent is not allowed to have an opinion about. `FALLBACK_REASONS` is
+  closed, so this is checkable rather than a promise."""
+  offered = ev.kind_vocabulary("decision_failed", menu)
+  assert set(ov.FALLBACK_REASONS) <= set(offered)
+  assert set(ev.FAILURE_CLASSES) <= set(offered)
+
+
+def test_a_kind_belonging_to_another_event_is_refused(menu):
+  """⚠ THE ONE PLACE WIDENING THE ENUM COSTS SOMETHING. The decoder cannot be
+  told which tokens go with which event -- structured outputs have no
+  "this enum depends on that field" in the subset this repo relies on -- so
+  the union is offered and the validator draws the line.
+
+  Refused rather than dropped: a dropped filter leaves a row in the record
+  that READS as a narrow rule and BEHAVES as a catch-all, which is the agent
+  believing it has a rule it does not."""
+  with pytest.raises(ValueError, match="unknown kind"):
+    ev.row({"event": "task_complete", "action": "idle", "kind": "timeout"},
+           menu)
+  with pytest.raises(ValueError, match="unknown kind"):
+    ev.row({"event": "decision_failed", "action": "idle", "kind": "draw"},
+           menu)
+  #  ...and the schema offers both vocabularies, because it has to.
+  kinds = set(menu.schema(event_map=True)["properties"]["event_map"]
+              ["items"]["properties"]["kind"]["enum"])
+  assert {"draw", "timeout", "failure", ""} <= kinds
+
+
+def test_an_event_that_takes_no_filter_still_drops_one(menu):
+  """`message_received` did not become configurable by this change, and that
+  is the invariant rather than an oversight: a mapping conditioned on the
+  sender or a keyword is a free-text path from a visitor to the robot's
+  body."""
+  assert ev.kind_vocabulary("message_received", menu) == ()
+  assert ev.row({"event": "message_received", "action": "idle",
+                 "kind": "timeout"}, menu).kind == ""
+  assert "decision_failed" not in ev.UNCONFIGURABLE_EVENTS
+  assert "message_received" in ev.UNCONFIGURABLE_EVENTS
+
+
+def test_a_standing_order_does_not_delete_a_specific_failure_rule(menu):
+  """⚠ THE BUG THIS CHANGE WOULD HAVE CREATED. A scalar standing order means
+  "on ANY failure", so it is an UNFILTERED row -- and `with_row` matching on
+  the EVENT alone would have it overwrite the agent's `on timeout, charge`
+  rule every time it set one. `STANDING_ORDER_RULE` says set an order on
+  every answer, so it would have happened within the hour."""
+  boss = make(menu, full(action="idle", event_map=rows(
+    ("decision_failed", "charge", 0, "timeout"))),
+    full(action="idle", standing_order="explore"))
+  boss.decide(_state(0.9))
+  boss.decide(_state(0.9))
+  kinds = {r.kind: r.action for r in boss.event_map.rows
+           if r.event == "decision_failed"}
+  assert kinds == {"timeout": "charge", "": "explore"}
+  assert boss.failure_order("timeout") == "charge", "the narrow rule survives"
+  assert boss.failure_order("budget") == "explore", "...and the order stands"
+
+
+def test_the_report_says_which_failures_it_has_an_opinion_about(menu):
+  """Readable off the config, which is the whole argument for the map: "it
+  wrote a rule for `timeout` and nothing else" and "it wrote one rule for
+  everything" are different agents and neither costs a sim-second to tell
+  apart."""
+  narrow = ev.EventMap(tuple(ev.row(r, menu) for r in rows(
+    ("decision_failed", "charge", 0, "timeout"))))
+  assert ev.score(narrow)["failureKinds"] == ["timeout"]
+  assert ev.score(narrow)["failureCatchAll"] is False
+  broad = ev.EventMap(tuple(ev.row(r, menu) for r in rows(
+    ("decision_failed", "idle", 0, ""))))
+  assert ev.score(broad)["failureKinds"] == []
+  assert ev.score(broad)["failureCatchAll"] is True
+
+
+def test_no_worked_example_hands_the_agent_the_answer(menu):
+  """⚠ `events.score` EXISTS TO ANSWER "did it write itself a charging rule,
+  and at what fraction" OFF A CONFIG. An example in the prompt showing one
+  hands the agent the answer to the question the whole arm is asking --
+  which is `affordableActions`' mistake (Evaluation.md §2, "DO NOT HAND IT
+  THE ANSWER"), arriving through the prompt instead of the context.
+
+  This block shipped with "if you want a fifth of a pack to mean go to the
+  rack ... that rule goes above the ones about work", which is a worked
+  example of precisely the rule being scored.
+
+  ⚠ THE ARM'S OWN RULES ARE A DIFFERENT THING. `RULES_AUTONOMOUS` telling
+  the robot to prioritise survival and `APPETITE_RULE` telling it charging
+  pays nothing are statements about the WORLD, and a rule the code
+  contradicts is the false statement M14 found. What is checked here is the
+  map block alone, and only its DEMONSTRATIONS."""
+  rule = ov.EVENT_MAP_RULE
+  #  A DEMONSTRATION ROW is a line that shows a whole rule: `event -> action`.
+  #  Checked as lines rather than as a substring, because the block has to be
+  #  free to SAY the word -- "more than any charge here can pay for" is the
+  #  `beyond` failure cause, which is a rule of the world and must stay.
+  shown = [ln.strip() for ln in rule.splitlines() if "->" in ln]
+  assert shown, "the ordering lesson still shows worked rows"
+  for line in shown:
+    assert not line.endswith("charge"), \
+        f"a worked example names the measured action: {line!r}"
+  #  ...and no example THRESHOLD, which is the other half of the score. The
+  #  units still have to be explained -- a model told "a fraction" without a
+  #  number writes `value: 20` and means a fifth -- so what is checked is
+  #  that the illustration is not a threshold anybody would pick.
+  assert "fifth of a pack" not in rule
+  assert "half a pack" in rule, "the units are still explained"
+  assert "go to the rack" not in rule.replace("\n", " ")
+  #  The events themselves are still offered, of course -- what is cut is
+  #  the demonstration, never the vocabulary.
+  assert "battery_below" in rule
+  #  The ordering lesson survives it, which is what makes the cut safe.
+  assert "The FIRST one in your list wins" in rule
+  assert "the broad rule wins every time" in rule
+
+
+def test_the_committed_series_prefixes_do_not_move(menu):
+  """A prompt edit is a moved cache and a moved experiment -- but only for a
+  world that HAS this block. `guarded` never did, and `autonomous` at origin
+  `none` (which is how A0 and A1 were flown) never did either, so every
+  committed record's prefix is untouched by the cut above."""
+  for kw in ({"standing_orders": True}, {"standing_orders": True,
+                                         "autonomous": True}):
+    boss = Overseer(menu, client=1, **kw)
+    assert boss.event_map is None
+    assert "WHEN YOU ARE ASKED" not in boss.system[0]["text"]
+
+
+def test_the_agent_is_told_the_reasons_and_the_two_groups(menu):
+  """A filter the code honours and the prompt never mentions is a lever the
+  agent cannot know it has."""
+  text = make(menu).system[0]["text"]
+  for reason in ov.FALLBACK_REASONS:
+    assert reason in text, reason
+  assert "`failure` is something going WRONG" in text
+  assert "`policy` is this working" in text
+  # ...and the ordering trap, which is the one way a filter goes wrong.
+  assert "the broad rule wins every time" in text
 
 
 # ---- the record ------------------------------------------------------------
