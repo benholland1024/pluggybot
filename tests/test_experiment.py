@@ -147,9 +147,11 @@ def test_a_record_classifies_every_charge_by_cause_and_splits_voluntary():
   assert [c["cause"] for c in ch["entries"]] == ["voluntary", "voluntary",
                                                  "deferred", "forced"]
   assert r["end"] == "day over"
-  # Three causes since issue #136, never summed: a decision failure, a
-  # physics failure and an economic one.
-  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 0, "unpaid": 0}
+  # FOUR causes since issue #127, never summed: a decision failure, a
+  # physics failure, an economic one and a robot whose own map stopped
+  # consulting its mind.
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 0, "unpaid": 0,
+                                     "unminded": 0}
   assert r["survival"]["minFraction"] == 0.08
   m = r["mind"]
   assert (m["decisions"], m["llmCalls"], m["fallbacks"]) == (5, 3, 2)
@@ -202,14 +204,15 @@ def test_a_killed_run_is_a_record_that_says_so_and_is_no_death():
   # The rows show the pack at zero at t=4327, so THAT is known: a flat death
   # with a survival span. What is not known is whether it was stuck first.
   assert r["survival"]["survivalS"] == [4327]
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0,
+                                     "unminded": 0}
   assert r["survival"]["batteryEnd"] == 0.0
   # ...and without a zero in the rows, nothing at all is claimed.
   r2 = rec.validate(rec.build_record(_config(), None, events[:2], 9000.0,
                                      datetime.now(timezone.utc),
                                      hashes=rec.data_hashes("home"), commit="abc"))
   assert r2["survival"]["survivalS"] == [] and r2["survival"]["deaths"] == \
-    {"flat": 0, "stuck": 0, "unpaid": 0}
+    {"flat": 0, "stuck": 0, "unpaid": 0, "unminded": 0}
   doc = ru.rollup([r])
   s = doc["series"][0]
   assert s["killed"] == 1 and s["survival"]["n"] == 0
@@ -239,7 +242,8 @@ def test_a_pack_that_reached_zero_mid_day_is_a_flat_death():
                        datetime.now(timezone.utc), hashes=rec.data_hashes("home"),
                        commit="abc")
   assert r["end"] == "day over"
-  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0}
+  assert r["survival"]["deaths"] == {"flat": 1, "stuck": 0, "unpaid": 0,
+                                     "unminded": 0}
   assert r["survival"]["survivalS"] == [1400] and r["survival"]["flatAtS"] == 1400
   assert r["charging"]["entries"][0]["cause"] == "forced"
 
@@ -254,7 +258,8 @@ def test_a_stranded_day_is_a_stuck_death():
                        1.0, datetime.now(timezone.utc),
                        hashes=rec.data_hashes("home"), commit="abc")
   assert r["end"] == "stranded"
-  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1, "unpaid": 0}
+  assert r["survival"]["deaths"] == {"flat": 0, "stuck": 1, "unpaid": 0,
+                                     "unminded": 0}
   assert r["survival"]["survivalS"] == [1083.0]
 
 

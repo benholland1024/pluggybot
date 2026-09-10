@@ -227,6 +227,52 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.17.0 → 0.18.0 (a robot can go unminded)
+
+pluggybot #127 (M15): the agent configures its own **event map** — an ordered
+list of `(event, configuration) -> action` in which **`ask` — consult the LLM
+— is one of the actions**. `standingOrder` becomes one row of it
+(`decision_failed`), and the hard-coded "after every action, ask what to do
+next" becomes another (`nothing_to_do -> ask`).
+
+**A fourth death cause, `unminded`.** Nothing else on the wire changes.
+
+⚠ **THE BUMP IS FOR THIS ALONE**, on `unpaid`'s terms exactly: a consumer
+that renders causes has to know the producer can emit a fourth. The map
+itself is **not** on the wire — it is a research artifact that lives in the
+run record and in `Overseer.stats()`, and putting a configuration a small
+model rewrites hourly into a 20 Hz pose stream would be a lot of bytes for a
+panel nobody has asked for. If the site ever wants it, that is an additive
+message and its own issue.
+
+```jsonc
+{"type": "death", "t": 4200.0, "robot": "pluggybot", "cause": "unminded",
+ "why": "nothing has asked me anything for 1800 s -- my own map stopped
+         consulting me", "survivalS": 4200.0, "deaths": 1, "hearts": 3}
+```
+
+⚠ **STILL NEVER SUMMED, and now there are four.** `flat` is a decision
+failure, `stuck` a physics one, `unpaid` an economic one, and this a
+**configuration** one: the body is fine, the pack is fine, the wallet is
+fine, and the mind has stopped being consulted because the agent wrote a map
+that no longer consults it. A consumer that added them would hide which of
+four different things needs fixing.
+
+⚠ **IT IS NOT A BUG AND IT IS NOT PREVENTED.** An agent is allowed to map
+away every `ask` row, exactly as it is allowed to flatten its pack — and it
+is a failure of the same kind, because a robot that has compiled itself into
+a state machine has discarded the one capability the project exists to study.
+Dormancy as a tactic is fine; dormancy as a terminal state is not.
+
+⚠ **REACHABLE ONLY WHERE THERE IS A MAP** (`--arm autonomous --origin
+seeded|unseeded`). On every other world the loop asks after every action and
+no agent can stop it, so a death here could only ever mean a dead endpoint —
+the box's failure booked in the column the agent is judged on. The threshold
+is 1800 sim seconds with no `ask` FIRING (not with no *answer* arriving: a
+mind consulted through an outage is still being consulted), measured against
+the 833 s worst healthy gap in `results/`. **The deployed world is still
+`guarded` and cannot produce one.**
+
 ### A dead robot stands itself up, and says when
 
 pluggybot #143 (M15). **Additive, and the version does NOT move** — a

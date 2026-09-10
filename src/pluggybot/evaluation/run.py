@@ -22,7 +22,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pluggybot.evaluation.arms import DEFAULT_RUNG, RUNGS, arm_flags  # noqa: F401
+from pluggybot.evaluation.arms import (  # noqa: F401
+  DEFAULT_ORIGIN, DEFAULT_RUNG, RUNGS, arm_flags,
+)
 from pluggybot.evaluation.record import Probe, build_record, data_hashes, validate
 
 # `arm_flags` and `RUNGS` moved to `evaluation/arms.py` in issue #142, when
@@ -35,7 +37,8 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
   from pluggybot.lifecycle import run_demo, world_config
   from pluggybot.mind import overseer as ov
 
-  flags = arm_flags(config["arm"], config.get("rung") or DEFAULT_RUNG)
+  flags = arm_flags(config["arm"], config.get("rung") or DEFAULT_RUNG,
+                    config.get("origin") or DEFAULT_ORIGIN)
   started = datetime.now(timezone.utc)
   sink_file = open(partial, "w") if partial is not None else None
 

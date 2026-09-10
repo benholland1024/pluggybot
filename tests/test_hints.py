@@ -86,7 +86,7 @@ def test_adding_a_hint_is_not_a_version_bump(fixture):
   reach-ins and the `intervention` event (issue #119), and the hint
   vocabulary is untouched by either.
   """
-  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.17.0"
+  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.18.0"
 
 
 def test_the_conformance_bodies_are_the_real_body_shape(fixture):

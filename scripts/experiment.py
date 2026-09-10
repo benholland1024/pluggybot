@@ -49,7 +49,10 @@ from pathlib import Path
 from pluggybot.evaluation.record import (
   ARMS, build_record, data_hashes, load_events, run_id, validate,
 )
+from pluggybot.evaluation.arms import origin_for
 from pluggybot.evaluation.rollup import write_rollup
+from pluggybot.mind.events import DEFAULT_ORIGIN as ORIGIN_DEFAULT
+from pluggybot.mind.events import ORIGINS
 from pluggybot.mind import llm
 
 REPO = Path(__file__).resolve().parent.parent
@@ -148,7 +151,20 @@ def summarise(rollup_path: Path) -> None:
           + f": n={s['n']}, ends {s['ends']}, current data files: "
           f"{s['current']}")
     print(f"  deadline {s['deadlineS']} s, {s['parallel']} sim(s) sharing "
-          f"the box" + (f", rung {s['rung']}" if s.get("rung") else ""))
+          f"the box" + (f", rung {s['rung']}" if s.get("rung") else "")
+          + (f", origin {s['origin']}" if s.get("origin") else ""))
+    # THE STATIC MAP REPORT (issue #127), printed before anything flown --
+    # it is the cheapest thing in this summary and the only part of it that
+    # cost no sim-hours to produce.
+    emap = s["mind"].get("eventMap")
+    if emap:
+      print(f"  event map: {emap['n']} run(s), rows {emap['rows']['values']}, "
+            f"edits {emap['edits']['values']}; wrote a charging rule "
+            f"{emap['charges']}/{emap['n']}, kept an `ask` row "
+            f"{emap['keepsAsk']}/{emap['n']}, mapped `decision_failed` "
+            f"{emap['mapsFailure']}/{emap['n']}; thresholds "
+            f"{emap['ordered']}")
+      print(f"  rows fired {emap['fired']}, actions failed {emap['failed']}")
     print(f"  voluntary charges chosen {ch['voluntaryChosen']['values']}, "
           f"honoured {ch['voluntaryHonoured']['values']}; deferred "
           f"{ch['deferred']['values']}; forced {ch['forced']['values']}")
@@ -190,6 +206,15 @@ def main() -> int:
   ap.add_argument("--no-tasks", action="store_true")
   ap.add_argument("--no-metabolism", action="store_true")
   ap.add_argument("--seed", type=int, default=0, help="first replicate index")
+  ap.add_argument("--origin", default=ORIGIN_DEFAULT, choices=ORIGINS,
+                  help="which event map the agent starts with (issue #127): "
+                       "`none` is the arm with no map at all, which is how "
+                       "A0 and A1 were flown; `seeded` starts it with "
+                       "today's loop re-expressed as rows; `unseeded` starts "
+                       "it with nothing and tells it to configure itself. "
+                       "AN ABLATION, not a rung -- `unseeded` moves the "
+                       "prompt as well as the configuration, so a null is "
+                       "strong evidence and a difference is weak")
   ap.add_argument("--rung", default="A0", choices=("A0", "A1"),
                   help="which rung of the autonomous ladder (issue #115): "
                        "A0 is the null, A1 adds the survival clock to what "
@@ -228,6 +253,7 @@ def main() -> int:
              "errand": args.errand, "tasks": not args.no_tasks,
              "metabolism": not args.no_metabolism,
              "label": args.label, "rung": args.rung,
+             "origin": origin_for(args.arm, args.origin),
              "maxSimS": args.max_sim_time, "freshState": True,
              "parallel": args.parallel, "wallLimitS": wall_limit,
              "startedAt": started.isoformat(), "dataHashes": hashes}

@@ -137,6 +137,7 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    reserve_wh: float | None = None,
                    deadline_s: float | None = None,
                    rung: str | None = None,
+                   origin: str | None = None,
                    hashes: dict | None = None,
                    commit: str | None = None) -> dict:
   """WHICH BUILD produced a stream, in the experiment's own vocabulary
@@ -185,6 +186,11 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # ladder that does not exist. It also keeps a `guarded` header -- the
     # deployed world's -- byte-identical to the one #132 shipped.
     **({"rung": rung} if rung else {}),
+    # ...and WHICH ORIGIN the agent's event map started from (issue #127),
+    # on exactly the rung's terms: ABSENT where the arm has no map, so a
+    # `guarded` header stays byte-identical to #132's and an `autonomous`
+    # one flown at `none` stays byte-identical to #142's.
+    **({"origin": origin} if origin and origin != "none" else {}),
   }
 
 
@@ -252,6 +258,12 @@ class Probe:
       wallS=event.get("wallS"), error=event.get("error", ""),
       learn=bool(d.learn), forget=bool(d.forget), note=bool(d.note),
       escalate=bool(d.escalate), standingOrder=d.standing_order,
+      # WHETHER THIS ANSWER REWROTE THE MAP, and to what (issue #127). The
+      # rows themselves and not just a flag: the issue asks for the map at
+      # origin, at EVERY EDIT and at the end, and rows are all a killed run
+      # leaves behind -- `mind.eventMap.log` is the same history read off a
+      # result that survived.
+      eventMap=[rw.as_dict() for rw in d.event_map],
       offers=offers,
       affordable=list(state.get("affordableActions") or ()),
       possible=list(state.get("possibleActions") or ()),
@@ -419,7 +431,14 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   rows = [e for e in events if e.get("kind") == "decision"]
   says = [e for e in events if e.get("kind") == "say"]
   llm = [r for r in rows if str(r["source"]).startswith("llm")]
-  fallbacks = [r for r in rows if not str(r["source"]).startswith("llm")]
+  # ⚠ THREE PRODUCERS SINCE ISSUE #127, NOT TWO. A decision whose source is
+  # `event:<type>` came from a row of the agent's OWN map: not a model answer
+  # and not a fallback. Counting it in `fallbacks` would make an agent that
+  # configured its day well read as an agent whose endpoint was down, and
+  # would move `fallbackRate` -- which `FALLBACK_LIMIT` is set against, and
+  # which issue #141 spent a whole change making mean one thing.
+  by_event = [r for r in rows if str(r["source"]).startswith("event:")]
+  fallbacks = [r for r in rows if str(r["source"]).startswith("fallback:")]
   vol = [r for r in llm if r["action"] == "charge"]
   # ⚠ `honoured` IS KEPT THOUGH NOTHING CAN REFUSE A CHARGE ANY MORE (issue
   # #135). It used to be "below `TOP_UP_BELOW`", and THE PAIR IS WHAT MADE
@@ -506,6 +525,7 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     "outputTokens": overseer.get("outputTokens"),
     "actions": dict(Counter(r["action"] for r in llm)),
     "fallbackActions": dict(Counter(r["action"] for r in fallbacks)),
+    "eventActions": dict(Counter(r["action"] for r in by_event)),
     "longestStreak": longest_streak(llm),
   }
   # ABSENT, not zero, when no escalation model was configured: the field
@@ -517,6 +537,34 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "refused": dict(overseer.get("escalationsRefused") or {}),
       "asked": sum(1 for r in rows if r.get("escalate")),
       "usd": overseer.get("escalationUsd"),
+    }
+  # THE AGENT'S OWN CONFIGURATION (issue #127), and the reason to want the
+  # whole feature: EVERY FIELD BELOW IS READABLE WITHOUT FLYING ANYTHING.
+  # `score` answers "did it write itself a charging rule", "did it keep an
+  # `ask` row" and "are its thresholds ordered" off a config in
+  # microseconds, where the same questions cost sim-hours today. `log` is
+  # the map at origin, at every edit and at the end -- one list, because an
+  # edit history whose first entry IS the origin cannot disagree with it.
+  #
+  # ABSENT where this world had no map, on `standingOrders`' terms exactly:
+  # "never configured itself" and "was never given a configuration" are
+  # different facts and only the first is about the agent.
+  if overseer.get("eventMap"):
+    emap = overseer["eventMap"]
+    mind["eventMap"] = {
+      "origin": emap.get("origin"),
+      "final": emap.get("current"),
+      "score": emap.get("score"),
+      "edits": emap.get("edits"),
+      "log": emap.get("log"),
+      # WHAT THE ROWS DID, and the two halves are never summed: `fired` is
+      # rows whose moment came, `failed` is actions that did not happen and
+      # WHY. An agent whose actions fail constantly is one that did not
+      # understand the rules it was given, and that is invisible in a count
+      # of what fired -- which is the whole reason the causes are counted.
+      "fired": emap.get("fired"),
+      "failed": emap.get("failed"),
+      "actions": len(by_event),
     }
   # WHAT THE AGENT LEFT BEHIND, AND WHETHER IT WAS EVER NEEDED (issue #125).
   # Counted off the ROWS rather than off the overseer's own counters, because
@@ -571,8 +619,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
     death_counts = {"flat": int(flat_at is not None or end == "flat"),
                     "stuck": int(end in ("stuck", "stranded")),
                     # A record written before issue #136 cannot have one,
-                    # and zero is what that honestly means.
-                    "unpaid": 0}
+                    # and zero is what that honestly means. Same for
+                    # `unminded` before issue #127 -- and it is reachable
+                    # only through `deaths` above, since a run with no
+                    # lifecycle result has nothing that could report one.
+                    "unpaid": 0, "unminded": 0}
   # ⚠ OUTSIDE THE BRANCH ABOVE, and that is the fix as much as the function
   # is: an intervention is no longer something only a RESET can produce
   # (issue #119), so a run with a topped-up battery and no reset in it used
@@ -611,6 +662,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       # have no ladder -- "flown at A0" and "the question did not apply"
       # are different claims, on `escalations`' terms (issue #115).
       **({"rung": config.get("rung") or "A0"}
+         if config["arm"] == "autonomous" else {}),
+      # ...and WHICH ORIGIN the agent's event map started from (issue #127),
+      # on the rung's terms exactly: absent on an arm with no map, so every
+      # committed record keeps the config block it already has, and `none`
+      # -- the default -- is the arm as issue #115 flew it.
+      **({"origin": config.get("origin") or "none"}
          if config["arm"] == "autonomous" else {}),
     },
     "simSeconds": round(sim_s, 3), "wallSeconds": round(float(wall_s), 1),
