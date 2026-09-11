@@ -313,9 +313,9 @@ HOME_DEMO_CAPACITY_WH = 3.0
 #:
 #: ⚠ THE RESERVE IS NOT SCALED WITH IT, deliberately. It is the absolute
 #: energy needed to reach the dock -- a property of the FLOOR PLAN, not a
-#: fraction of the pack (the milestone-7 lesson) -- so it is the same 0.55 Wh
-#: on either cell. What changes on a hosting pack is that the reserve becomes
-#: a margin the robot can afford to KEEP: economy/energy.py then requires every
+#: fraction of the pack (the milestone-7 lesson) -- so it is the same
+#: HOME_LOW_BATTERY_WH on either cell. What changes on a hosting pack is that
+#: the reserve becomes a margin the robot can afford to KEEP: economy/energy.py then requires every
 #: errand to finish with it intact, which is what stops a mid-errand death.
 HOME_HOSTING_CAPACITY_WH = 8.0
 
