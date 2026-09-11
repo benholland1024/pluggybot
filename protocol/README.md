@@ -720,7 +720,7 @@ before.
 
 ```jsonc
 {"type": "goals", "t": 0.0, "robot": "pluggybot",
- "text": "Keep the house in good order and make yourself useful.\n\n- Draw …",
+ "text": "This is what the person who looks after you hopes for you. …",
  "steering": false}
 ```
 

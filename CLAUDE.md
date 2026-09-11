@@ -1,7 +1,12 @@
 # PluggyBot — notes for Claude
 
-Simulated self-charging robot in MuJoCo. Before doing anything, read:
-- `docs/PluggyPlan.md` — goals, milestone status, architecture
+A simulated, hardware-honest robot and the autonomous agent that lives in it.
+**The project is agent-autonomy research, not a product**: the mission, the
+five qualities the agent is meant to maximise, and the next milestone batch
+are in `docs/PluggyPlan.md` § "What this project is for" — provisional
+wording, settled direction. Before doing anything, read:
+- `docs/PluggyPlan.md` — the mission and the five qualities, status,
+  architecture, the next batch
 - `docs/SimNotes.md` — hard-won simulation lessons; read BEFORE touching `models/` or contact/actuator params
 - `docs/Parts.md` — locked hardware decisions and the sim parameters they feed
 - `docs/ToolPattern.md` — the recipe for adding a tool module (coupling
@@ -52,11 +57,17 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   of the comments here and they are why nobody "fixes" something deliberate —
   while the narrative of how it was found belongs in SimNotes, ToolPattern,
   ActivityPattern, TaskPattern, Overseer or `protocol/README.md`.
-  ⚠ **This is not a deletion pass and a falling prose:code ratio is not the
-  goal.** Removing a short why-comment is a net loss. What was actually wrong
-  was PLACEMENT: `telemetry/protocol.py` carried a 273-line changelog that
-  `protocol/README.md` already told better, and reconciling the two meant
-  MOVING the one spec (`reset_tool`) the README was missing, not cutting it.
+  ⚠ **Placement was the first problem; length is the second** (Ben,
+  2026-09-11). This project is mostly written by agents, and agents do not
+  delete: each one documents everything interesting about its own task,
+  including what has since stopped being true. So a short why-comment stays
+  and a measured number stays at its constant — but a detail that is no
+  longer relevant is DELETED, not kept for the record; git history is the
+  record. A narrative of how something was found, once the thing has moved
+  on, becomes one sentence of what is true now. When two docs tell one story
+  the better one keeps it and the other gets a one-line pointer (that is
+  how `telemetry/protocol.py`'s 273-line changelog met `protocol/README.md`).
+  Shorter is the goal wherever nothing true is lost.
 
 ## Commands
 
@@ -446,10 +457,10 @@ Simulated self-charging robot in MuJoCo. Before doing anything, read:
   your decision" and with the rails off that is false. The deployed world and
   the `guarded` arm keep every rail. docs/Evaluation.md §2. Same rule from the other end:
   it *sees* the reward table and its balance and can move neither, and the
-  census's ground truth is redacted out of its context. A *chosen* `charge`
-  also needs the pack below `TOP_UP_BELOW` (75 %): charging is a scored task
-  and the trip costs energy, so an unconditional one is perpetual motion paid
-  in points. Every failure
+  census's ground truth is redacted out of its context. A chosen `charge`
+  is allowed at any level and pays nothing (#135 deleted the 75 %
+  `TOP_UP_BELOW` floor with the payout; see POINTS ARE A CURRENCY below).
+  Every failure
   (timeout, error, malformed answer, spent budget) resolves to a scripted
   rotation tagged `fallback:<why>`, because "the robot chose to explore" and
   "the API was down" must not look the same on the wire. Memory is the THOUGHT

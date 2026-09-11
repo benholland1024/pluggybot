@@ -328,7 +328,10 @@ def test_the_prompt_says_what_dying_costs_without_asking_for_a_high_score():
   rule = ov.MORTAL_RULE.lower()
   assert "hearts" in rule and "archived" in rule
   assert "do not try to maximise" in rule
-  assert "staying alive is what lets you do the work" in rule
+  # ...and says which way round survival and work go (Ben, 2026-09-11):
+  # the robot works to stay alive, not the reverse.
+  assert "you do not stay alive in order to work" in rule
+  assert "staying alive is what lets you do the work" not in rule
   # ...and the upkeep rule stopped calling points food and started saying
   # what happens when they run out.
   upkeep = ov.APPETITE_RULE.lower()

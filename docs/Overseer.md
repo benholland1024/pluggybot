@@ -1,8 +1,12 @@
 # The LLM overseer — what the robot decides, and what it cannot (issue #15)
 
-An LLM chooses **which errand the robot does next**. That is the whole feature,
-and the boundary is the interesting part: everything that keeps the robot alive
-stays in code, and the model is given exactly one branch of one loop.
+An LLM chooses **what the robot does next**. On the `guarded` arm — the
+deployed world, and the control — everything that keeps the robot alive stays
+in code and the model is given one branch of one loop. On the `autonomous` arm
+the rails are off, the agent configures its own event map (§2), and the
+direction of travel is an agent that writes its own procedures and builds its
+own tools — the mission in `PluggyPlan.md`. This doc is written from the
+guarded end and says where the arm changes it.
 
 Design doc: `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
 Code: `src/pluggybot/mind/overseer.py` (decide) and `mind/journal.py` (remember).
@@ -25,9 +29,10 @@ while the mission is running:
 
 Read the order downwards, because it is the design:
 
-- **Charging outranks the overseer and is checked first.** There is no action
-  in the vocabulary that declines to charge, defers charging, or raises the
-  reserve. `charge` exists so the robot may top up *early*; it cannot put it
+- **Charging outranks the overseer and is checked first** — on `guarded`; the
+  `autonomous` arm removes this rail and two more on purpose (Evaluation.md
+  §2). There is no action in the vocabulary that declines to charge, defers
+  charging, or raises the reserve. `charge` exists so the robot may top up *early*; it cannot put it
   off. An LLM that can decline to charge is an LLM that bricks the world at
   3am, and the recovery is a human noticing.
 - **An explicit errand queue still outranks a chosen one.** `--errand draw`
@@ -50,7 +55,7 @@ passing test, or to a branch the lifecycle already had:
 | `dance` | fetch the LCD, drive somewhere visible, perform the routine | — |
 | `carry` | fetch a module, carry it across the room, hang it back up | — |
 | `explore` | frontier-drive for a bounded slice; optionally head for a zone first | `zone` |
-| `charge` | go and top up **now**, before the reserve forces it (only below 75 %) | — |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135) | — |
 | `idle` | stand still for a moment | — |
 | `journal` | write a note to yourself | `note` |
 
@@ -266,14 +271,13 @@ argument from here. The overseer chooses what to attempt; code decides what it
 was worth. An agent that can score its own work learns to declare victory, and
 it learns it fast.
 
-**It cannot farm points by charging.** `charge` is itself a scored task
-(issue #14) and the drive to the rack costs energy, so an unconditional
-`charge` action would be perpetual motion paid in points: spend battery
-driving out, earn points putting it back, repeat forever. A *chosen* charge
-below `TOP_UP_BELOW` (75 %) makes the trip; above it, the robot says it is not
-worth going and stands still. The **forced** charge is untouched —
-`needs_charge` is absolute energy against the worst return trip and never
-consults this floor.
+**It cannot farm points by charging — because charging pays nothing**
+(issue #135). Until then `charge` was a scored task behind a 75 % floor
+(`TOP_UP_BELOW`), and A0 showed the floor measured the rail rather than the
+robot: twelve of its fifteen chosen top-ups were refused by it. With the
+payout gone there is nothing to farm and the floor is deleted; a charge at
+80 % is now plain evidence of caution. The **forced** charge on `guarded` is
+untouched — `needs_charge` is absolute energy against the worst return trip.
 
 **It cannot see a hidden answer.** The context is built from
 `Verdict.public_metrics()` and `TaskReward.as_context()`, both of which drop
