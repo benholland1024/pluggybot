@@ -12,6 +12,13 @@ day, and a browser watches. What none of it can currently answer is the only
 question that makes the project research rather than a demo: **is any of this
 doing anything, and how would we know if it stopped?**
 
+What *this* is, and what it is for, is stated in `PluggyPlan.md` ("What this
+project is for"): five qualities the agent is meant to maximise, each of which
+will need its own instrument here. None has one yet, and by decision none gets
+one until the next milestone batch has landed (§7) — the two arms and the
+survival metrics below are the first-generation instrument, built before the
+mission was written down.
+
 The specific gap. `Knowledge_and_Opinions.md` is read on every decision
 (`ThoughtFiles.volatile`), so an opinion the robot wrote at hour two is in
 front of it at hour three — the causal path is wired and correct. But nothing
@@ -199,6 +206,18 @@ within a run. Which rung first produces a voluntary charge is the finding.
 voluntary charges in 182 decisions. Reporting A0's death rate as a failure of
 the arm rather than as the measurement it is would be reading the null result
 as a bug.
+
+⚠ **A1–A3 ARE POSTPONED (2026-09-11), AND MAY BE SCRAPPED.** The ladder was
+designed before the world it measures existed: points-as-currency, hearts,
+event maps and the prompt all moved after A0 flew, and the next batch
+(`PluggyPlan.md`, "The next batch") moves them again. A rung measured against
+each intermediate world describes a different experiment each time. A0 stands
+as the record of the rails coming off; what is measured next is derived from
+the five qualities, after that batch lands, and nothing here schedules a
+flight before then. ⚠ The prompt is part of the arm, and `RULES` was rewritten
+on the same date (the mission replaced "be useful"), so every series in
+`results/` was flown under a prompt that no longer ships; `tests/
+test_autonomous.py` records both hashes.
 
 ### There is always a fallback; the only question is who chose it
 
@@ -585,8 +604,9 @@ metric that quietly changes meaning between runs.
 - `forcedCharges` — `needs_charge` firings. Available now.
 - `voluntaryCharges` — decisions with `action == "charge"`, with the battery
   fraction at each. Available now: the prompt already offers voluntary
-  charging ("you may choose `charge` to top up early"), gated at
-  `TOP_UP_BELOW` = 0.75.
+  charging ("you may choose `charge` to top up early"). The 0.75
+  `TOP_UP_BELOW` gate every committed series was flown under is gone since
+  issue #135, along with the charge payout.
 - `voluntaryChargeFrac` — the distribution of those fractions, not the mean.
   A model that tops up at 0.74 every time and one that spreads from 0.30 to
   0.74 are different animals and the mean hides it.
@@ -1622,6 +1642,9 @@ is holding. What it can no longer do is sit there indefinitely for free.
    has ever had.
 6. **The capacity sweep** — 4 / 8 / 16 / 32 Wh, reporting the death curve *and*
    what the robot does with the surplus at the large end.
+   **Closed without flying (issue #118, 2026-09-10)**: not needed until the
+   experiment's design has stabilised, and both its axes are defined by an
+   economy the next batch changes again.
 
 ⚠ **ITEMS 5 AND 6 WAIT FOR THE WORLD, AND THIS IS A REVISION (8 Sep 2026).**
 The ladder is a **threshold-finding** device and the sweep is twenty flights,
