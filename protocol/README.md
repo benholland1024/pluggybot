@@ -1068,7 +1068,7 @@ Additive; a 0.2.0 consumer ignores the new block and needs no changes.
 
 - Frames may carry an **`activities`** object: the task state machines'
   discrete world state (issue #8), e.g.
-  `{"garden_gate": {"state": "open", "pressed": false, "depressMm": 1}}`.
+  `{"garden_light": {"state": "on", "pressed": false, "depressMm": 1}}`.
   Sparse like body poses — only activities whose flags changed appear, and
   the block is omitted when nothing did — and re-shipped in full on every
   keyframe, so a mid-stream joiner is complete within one keyframe interval
@@ -1291,7 +1291,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
- "activities": ["garden_gate"],                         // task state machines
+ "activities": ["garden_light"],                        // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
  "screens": ["module_lcd"],                             // display modules
  "ledger": ["pluggybot"],                               // robots with a balance
@@ -1316,7 +1316,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    //  below before a consumer prints either one.
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
  "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
- "activities": {"garden_gate": {"state": "open", "pressed": false}},
+ "activities": {"garden_light": {"state": "on", "pressed": false}},
  "boards": {"whiteboard_a": {"programs": ["house"], "strokes": 7,
                              "inkM": 0.459,          // metres of ink laid down
                              "fill": 0.191,          // of the pen's REACH

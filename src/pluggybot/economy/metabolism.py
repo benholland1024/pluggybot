@@ -51,12 +51,13 @@ money would have a reward table denominated in Ben's invoice.
 
 The numbers are DATA (`economy/metabolism.json`, `$PLUGGY_METABOLISM`), the
 fifth such file after rewards, cadence, questions and energy, and they are
-MEASURED: two unattended 1-sim-hour `home` runs bank 102 points/hour on the
-hosting pack of the OLD house; the expanded one measures 65 (issue #70,
-the data file's note has the decomposition), so the shipped 30/hour is
-~46 % of the world's income and the
-robot's own time is the other half. The file's own note carries the runs, the
-rhythm that falls out of them, and what to re-run before re-tuning.
+MEASURED, and RE-MEASURED whenever the economy moves: three chained
+1-sim-hour `home` runs on the hosting pack bank 80 points/hour under the
+#135/#136 economy (65 before it, when `charge` still paid), so the shipped
+30/hour is ~38 % of the world's income and the robot's own time is the rest.
+The FRACTION is what is being held, not the rate. The file's own note carries
+the runs, the rhythm that falls out of them, the decomposition of the income,
+and what to re-run before re-tuning.
 
 ⚠ TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL. The demo run banked a
 comparable 80 points/hour and completed ZERO JOBS: a charged demo pack holds

@@ -180,43 +180,27 @@ The hardware MVP bar is **a physical robot swapping plug ↔ LCD at a real
 hub**. What stands between here and ordering parts:
 
 **Blocking**
-1. ✅ **Compute budget on the Pi 5 — measured (Aug 2026), and the hub pivot's
-   bet pays off.** Profiled by separating costs that TRANSFER to hardware from
-   simulation artefacts (rendering is sim-only — a real robot is handed images
-   by its cameras). Desktop timings, scaled by a deliberately pessimistic 5×
-   for a Cortex-A76:
 
-   | stage | here | Pi 5 est | transfers? |
-   |---|---|---|---|
-   | AprilTag decode 1280×720 | 7.2 ms | 36 ms | yes |
-   | stereo SGBM 640×480 | 12.1 ms | 60 ms | yes — **not paid today** |
-   | occupancy grid update | ~~8.3 ms~~ 1.3 ms | ~~42 ms~~ ~6 ms | yes |
-   | tag render / scanner | 2.1 ms | — | no (sim artefact) |
-
-   **~138 ms per perception cycle → 7.3 Hz**, against a loop that looks for a
-   tag every 0.3 s and drives at ≤0.25 m/s. So **the hub MVP does not need an
-   accelerator** — YOLO is only in the plug-anywhere path, which is exactly
-   what the pivot predicted, and that is ~€150 of Hailo HAT not spent.
-   Caveats worth keeping honest: the 5× penalty is an estimate, not a
-   measurement on real silicon; SGBM is untuned; all four Pi cores are
-   available, so pipelining has headroom. The surprise was the **occupancy
-   grid update costing as much as the tag decode** — a per-ray Python loop,
-   and the cheapest thing on this list to optimise. Optimised (Aug 2026,
-   issue #2): numpy-vectorized to 1.3 ms/scan, 7.4× (SimNotes).
-2. ✅ **Third camera routing — closed (Aug 2026) by the LIDAR swap.** Dropping
-   stereo frees a CSI port: nav camera + dock camera on the Pi's two ports,
-   no multiplexer, LIDAR on USB/UART. A *blocking* item resolved as a side
-   effect of a decision taken for entirely different reasons.
-3. 🟡 **Sensor-realism pass — the ranging half is DONE (Aug 2026): stereo is
-   gone, replaced by a 2D LIDAR + one camera.** Measuring it is what killed
-   it: real SGBM on the sim's own stereo pair produced disparity for 49.7 % of
-   the mapper's scan row at 593 mm median error, against a 50 mm grid cell
-   (see Parts.md "Vision & ranging" and SimNotes). `perception/lidar.py` casts
-   360 rays via `mj_ray` with ±10 mm + 1 % noise, 2 % dropout and a real
-   self-filter; the hub mission and the full battery lifecycle both still
-   close on it, collision-free. Side effects: blocking item #2 below is now
-   closed, the Pi budget drops to ~78 ms/cycle, and `ELECTRONICS_W` rose
-   6.0 → 8.5 W for the unit's 2.5 W.
+1. ✅ **Compute budget on the Pi 5 — measured, and the hub pivot's bet pays
+   off.** Desktop timings for the stages that TRANSFER to hardware (rendering
+   is a sim artefact — a real robot is handed images by its cameras), scaled
+   by a deliberately pessimistic 5× for a Cortex-A76, came to **~138 ms per
+   perception cycle → 7.3 Hz**, against a loop that looks for a tag every
+   0.3 s and drives at ≤ 0.25 m/s. So **the hub MVP needs no accelerator** —
+   YOLO is only in the plug-anywhere path, exactly what the pivot predicted,
+   and that is ~€150 of Hailo HAT not spent. The 5× is an estimate, not a
+   measurement on silicon. Two things fell out: the occupancy grid update
+   cost as much as the tag decode until it was vectorized to 1.3 ms per scan
+   (issue #2, SimNotes), and dropping stereo (item 3) took the budget to
+   ~78 ms.
+2. ✅ **Third camera routing — closed by the LIDAR swap.** Nav camera and dock
+   camera on the Pi's two CSI ports, no multiplexer, LIDAR on USB/UART. A
+   *blocking* item resolved as a side effect of a decision taken for entirely
+   different reasons.
+3. 🟡 **Sensor-realism pass — the ranging half is done.** Stereo is gone,
+   replaced by a 2D LIDAR plus one camera, and measuring it is what killed it
+   (Parts.md "Vision & ranging", SimNotes); `ELECTRONICS_W` rose 6.0 → 8.5 W
+   to pay for the unit's 2.5 W.
    **Still open on this item:** gyro bias/drift and encoder quantization
    (odometry is currently perfect-encoder), and camera realism for the tag
    path — rendered tag images are noise-free, perfectly focused and perfectly
@@ -231,96 +215,50 @@ hub**. What stands between here and ordering parts:
 5. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
    every physics threshold derived from the current model). Do this LAST,
    after the other hardware choices settle.
-6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed (Aug 2026).**
-   The y=+0.06 counterweight was tuned against a measured 26 cm veer over 4 m
-   and predates carrying anything. Open-loop straight runs: bare −9.7 mm,
-   LCD −13.6 mm, **pen module (182 g) −15.2 mm** over 2.69 m. The heaviest
-   module costs 5.5 mm more than the bare robot — two orders off what
-   motivated the counterweight. Tool mass is bounded by the coupling and the
-   tip-load budget, not by veer.
+6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed.** Open-loop
+   straight runs over 2.69 m: bare −9.7 mm, LCD −13.6 mm, and the heaviest
+   module (the 182 g pen) −15.2 mm — **5.5 mm more than bare**, two orders
+   off the measured 26 cm veer over 4 m that motivated the y=+0.06
+   counterweight. Tool mass is bounded by the coupling and the tip-load
+   budget, not by veer.
 
 **Hub-specific (cheap, physical)**
-5. **Print-tolerance trial**: print the fork + one V-tray, measure the real
+
+7. **Print-tolerance trial**: print the fork + one V-tray, measure the real
    capture envelope by hand against the sim's ±4 mm / <2°. PLA is fine for
    this (stiffer and more dimensionally accurate than PETG; the 150 g load
    is nowhere near creep). PETG only matters if the rack lives somewhere hot.
-6. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
+8. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
    motion, recessed, dead-by-default with a hub-side handshake.
-7. ✅ **Lean-pad — built in sim (Aug 2026)**, on `pluggybot_fork.xml`.
-   **Re-scoped by measurement first**: its job is not damping sway, it is
-   letting the tool exert force *at all*. A peg-hung module gave out at
-   **0.1 N** of tool force (restoring and disturbing arms are both the peg's
-   22 mm) and ran away past 0.25 N, flopping 51° at 0.5 N; a marker wants
-   0.5–2 N. With the pad, 2 N holds the pen tip inside **0.26 mm** and the
-   response is linear. Shape was bounded by the *parked* envelope (~60 mm
-   between chassis top and the scanner row), not by the lever — see SimNotes.
-   ⚠ **The power contacts do NOT belong on it** (this list said they did): the
-   pad's gravity preload caps at 0.56 N and is realistically ~0.1 N, under
-   what a pogo pin needs. The **peg in its V-notches** already carries
-   0.43–0.47 N per plate, free, self-wiping, and already the one metal part
-   in the design — that is where the module electrical interface goes.
-8. ✅ **Module electrical interface — built in sim (Aug 2026)**. The peg is
-   the connector: split into two conductors around an insulated centre, the
-   fork's left and right V-notch pairs become the two poles of the power-only
-   coupling. No extra parts and no extra alignment, because the alignment is
-   the gravity latch that was already there. `module_power_state` reports each
-   pole separately (a half-seated coupling is a real failure mode); a coupled
-   module draws 0.6 W from the battery, gated on the electrical criterion
-   rather than on "are we carrying it". Measured over a full errand:
-   **0 brown-outs while carrying**, all interruptions confined to the
-   mating/release transitions, worst 50 ms at release — which is the number
-   that sizes the module's holding capacitor. Demo:
-   `scripts/module_power.py` (`--view` to watch it live).
-9. 🚧 **Drawing tool (pen carriage)** — groundwork done, controller next. The
-   rack now has a **third bay** (bays at 0.125 / −0.125 / 0.375; the bay↔tag
-   pairing is by index via `coupling.bay_tag_id`, replacing a hardcoded
-   two-bay check that would have steered every bay-C swap onto bay B's
-   marker). `module_pen` hangs there: a standard module frame plus a rail and
-   a **carriage on its own actuated slide joint along the peg axis**
-   (±55 mm), carrying a pen. That axis is the point — the base owns x/yaw,
-   the lift owns z, the arm owns reach, and *nothing* owns lateral, because a
-   differential drive cannot translate sideways. The module supplies the
-   missing DoF and pairs with the lift to make an X-Y plotter against a
-   vertical board. Verified: hangs, is picked, conducts through the coupling,
-   drives its carriage end-to-end without shaking off the fork, and its sweep
-   clears the robot. **Mass 182 g** (vs LCD 130 g, plug 156 g) — over the
-   150 g soft budget, inside the 300 g the latch was validated to.
-   **It draws.** `tools/drawing.py` assembles an X-Y plotter from the module's
-   carriage (horizontal), the robot's lift (vertical), and the arm's reach
-   through a sprung quill (pen pressure); the base stays parked, so nothing
-   in a drawing is integrated from wheel odometry. Calibration is measured
-   two-point per axis, then re-zeroed with the pen pressed. Measured end to
-   end — fetch the tool from bay C, carry it to a board, plot a figure:
-   **form error 0.79 mm (square) / 1.84 mm (circle)**, 94-99 % inked,
-   tool still electrically seated afterwards. Error is reported decomposed:
-   a rigid offset (a calibration constant, still ~16 mm on the square) versus
-   FORM (is it the right shape). Much of what was first blamed on module yaw
-   under drag turned out to be MuJoCo's regularized-friction creep — the
-   `noslip` solver pass took square form error 2.14 -> 0.79 mm and ink
-   63 % -> 94 %. Demo: `scripts/draw.py` (`--view`, `--shape square`).
-   Still to build: a stiffer yaw constraint (or a measured-while-sweeping
-   fit) for that residual, and the drawing surface in `room_hub` so the errand
-   runs in the real room rather than the bare world.
-10. 🚧 **Claw module (the fourth tool)** — grasp and lift verified, carrying
-   open. A pendant straight down the peg axis, because the coupling takes
-   ~0.45 N·m of pitch moment and reach costs `W × L`: 800 g on the axis is
-   fine, 400 g at 150 mm out unseats the module. The chassis — the obvious
-   worry — was never close (800 g costs 2.4 N of wheel load; tipping needs
-   ~5 kg). The rack grew a fourth bay for it (rail now 1.36 m). Verified:
-   fetched from bay D, powered through the coupling, aimed to 1.9 mm, gripped
-   and lifted a 60 g block **99.6 mm** off the floor, module still seated.
-   Demo: `scripts/pickup.py`. The full pick-carry-place now works: gripped,
-   lifted **122 mm**, carried through a turn with zero dropouts, set down,
-   module still seated. Getting there needed MuJoCo's `noslip` pass — a
-   gripped object otherwise creeps out of the jaws at ~8 mm/s regardless of
-   clamp force (see SimNotes; it was degrading the pen module too).
-   The arm angles **55 mm forward** so the tool's own camera can see its grip
-   point — 0.03 N·m of the 0.45 N·m budget. **`claw_eye` is the first camera
-   on a TOOL rather than the chassis**, and costs no CSI port because module
-   data already crosses the coupling wirelessly. **Open:** nothing can yet
-   *find* a floor object autonomously — the LIDAR plane is 223 mm up and the
-   nav camera is blind to the floor inside 0.48 m, so the approach is still
-   driven from a known object pose.
+9. ✅ **Lean-pad — built in sim** on `pluggybot_fork.xml`, and re-scoped by
+   measurement: its job is not damping sway, it is letting the tool exert
+   force *at all*. A peg-hung module gave out at **0.1 N**; with the pad, 2 N
+   holds the pen tip inside **0.26 mm**, linearly. ⚠ The power contacts do
+   NOT belong on it — its gravity preload caps at 0.56 N, under what a pogo
+   pin needs. ToolPattern.md ("the force budget"), SimNotes.
+10. ✅ **Module electrical interface — the peg IS the connector.** Split into
+    two conductors around an insulated centre, the fork's left and right
+    V-notch pairs become the two poles of a power-only coupling: no extra
+    parts and no extra alignment, because the alignment is the gravity latch
+    that was already there. `module_power_state` reports each pole separately,
+    since a half-seated coupling is a real failure mode. There are no
+    brown-outs while carrying — every interruption is a mating or release
+    transition, worst measured **178 ms** under hard driving, which is what
+    sizes the module's holding capacitor at ~200 ms (Parts.md, SimNotes).
+    Demo: `scripts/module_power.py`.
+11. ✅ **Drawing tool (pen carriage)** — built, and it draws. The module
+    supplies the lateral DoF nothing else owns (a carriage on its own
+    actuated slide joint along the peg axis, ±55 mm) and pairs with the lift
+    to make an X-Y plotter against a vertical board, base parked so nothing
+    in a drawing is integrated from wheel odometry. **0.57 mm form error** on
+    the square. ToolPattern.md; demo `scripts/draw.py`.
+12. ✅ **Claw module** — full pick-carry-place verified. A pendant straight
+    down the peg axis, because the coupling takes ~0.45 N·m of pitch moment
+    and reach costs `W × L`; the arm angles 55 mm forward so `claw_eye` — the
+    first camera on a TOOL rather than the chassis — can see its grip point.
+    ToolPattern.md; demo `scripts/pickup.py`. **Open:** nothing can yet
+    *find* a floor object autonomously, so a grasp still runs from a
+    memorised pose — the perception ladder, TaskPattern.md §3.
 
 **Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
 igus stroke quote, chassis material, motor brackets).

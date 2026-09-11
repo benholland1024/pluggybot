@@ -5,7 +5,7 @@ gardening step — anything the robot does to the world that the world then
 has to remember. Companion to `docs/ToolPattern.md`, which covers the things
 the robot picks up; this covers the things it acts on.
 
-Written alongside its first consumer, the **pressure plate and gate**
+Written alongside its first consumer, the **pressure plate and light**
 (`activity/plate.py`, demo `scripts/plate.py`), so every rule here is one the
 build actually paid for.
 
@@ -138,17 +138,10 @@ The fix is MuJoCo's own mechanism for this: make it a **mocap body**
 its pose is an *input*, re-read from `data.mocap_pos` on every forward pass.
 One attribute in the world, and `MocapToggle` does the rest.
 
-> ⚠ **The worked example of this — the garden gate — was removed by issue
-> #93** (the plate turns on a light now; a bulb is `rgba` work and needs no
-> mocap). The lesson stands undiminished, and so does `MocapToggle`, guarded
-> by synthetic-model tests in `tests/test_activity.py` rather than by a live
-> consumer: the next activity that must MOVE something starts here, not at
-> `geom_pos`.
-
-> ⚠ This corrects `rooftop-media-2026/docs/pluggyworld.md`, which lists
-> `geom_pos` among the mutable fields without the static-body caveat. Digging
-> ("swap a mound geom for a hole visual") happens to be safe because it is
-> `rgba`/`size` work — but anything that *moves* needs mocap.
+> ⚠ **`MocapToggle` has no live consumer** — the reference activity latches
+> a light, which is `rgba` work. It is guarded by synthetic-model tests in
+> `tests/test_activity.py` instead, and the next activity that must MOVE
+> something starts here, not at `geom_pos`.
 
 Note the state lives in different places, which matters for the shared world:
 geom toggles are **model-global** (every `MjData` sees them), a mocap pose is
@@ -185,11 +178,11 @@ Activity flags ride in the frame, beside `state` and `battery`:
 {"t": 123.45, "key": true,
  "robots": {"pluggybot": {...}},
  "world": {"module_lcd": [...]},
- "activities": {"garden_gate": {"state": "open", "pressed": false,
-                                "depressMm": 1}}}
+ "activities": {"garden_light": {"state": "on", "pressed": false,
+                                 "depressMm": 1}}}
 ```
 
-and the header advertises the names: `"activities": ["garden_gate"]`.
+and the header advertises the names: `"activities": ["garden_light"]`.
 
 **Sparse, like body poses.** Only activities whose flags changed appear; the
 block is omitted entirely when nothing changed. A replayer holds the last
@@ -200,8 +193,7 @@ poses. An activity's visible effect usually lives on a **static body**: the
 garden light's bulb ships once in the scene description and never again, and
 its `rgba` is not in the pose stream at all. So for a change like that **the
 flag is the only record anywhere in the stream**. A consumer that missed it
-has no other way to learn the light is on. (This was written about the gate
-the light replaced — issue #93 — and is just as true of the bulb.)
+has no other way to learn the light is on.
 
 ⚠ **The emitted-state memory belongs to the sink, not the activity.**
 `FrameBuilder` keeps `_last_acts`, exactly where it keeps `_last` for poses.
@@ -228,14 +220,13 @@ deltas and each shipped a random half of the state changes. Guarded by
 3. **Write the module**: geometry emitter + `Activity` subclass, together.
 4. **Add it to a world generator** — one import, one call, and regenerate.
 5. **Demo with a filmstrip**, and *sweep the camera* (`ToolPattern.md` §5.4).
-   The first cut of the plate demo framed the fence as an undifferentiated
-   brown wall in which the gate was invisible in both states — and the gate
-   was painted nearly the fence's own colour, so even a good angle would not
-   have saved it. A toggle you cannot see in the filmstrip is a toggle you
-   cannot debug.
+   A toggle you cannot see in the filmstrip is a toggle you cannot debug, and
+   the first cut of the plate demo lost its toggle twice over: a bad angle,
+   and an effect painted nearly its background's own colour, which no angle
+   would have saved. Colour the two states apart as well as framing them.
    ⚠ Grab the frame **one step after** the toggle: `sense()` selects it, but
-   a mocap pose only reaches `geom_xpos` on the next forward pass. The first
-   version photographed a closed gate under a caption saying it was open.
+   a mocap pose only reaches `geom_xpos` on the next forward pass — the first
+   version captioned a photograph of the un-toggled state.
 6. **pytest**, per the house rule — every debugged failure becomes an
    assertion shown to fail without its fix. For activities that means:
    the plate rests below its own trigger; pressing latches; releasing does
@@ -251,23 +242,27 @@ deltas and each shipped a random half of the state changes. Guarded by
 
 ## 6. Known gaps
 
-1. **The reference gate blocks nothing the robot needs.** It sits in the
-   garden's outer fence, so opening it changes no route. That was chosen to
-   keep the world exactly as navigable as it was while the pattern was
-   proven. Gating a real passage (the house-to-garden doorway) is the same
-   code with the geometry moved — and is the point at which exploration and
-   the occupancy grid start to care, which is a question this doc has not
-   answered.
-2. **Nothing scores an activity yet.** Flags reach the wire; no rule turns
-   "the gate opened" into points or into an LLM-visible event. That is the
-   evaluation layer in the design doc, and it is the natural next consumer.
+1. **No activity changes a route.** The reference one latches a light, so
+   the world stays exactly as navigable as it was while the pattern was
+   proven. Gating a real passage is the same code with the geometry moved —
+   and is the point at which exploration and the occupancy grid start to
+   care, which is a question this doc has not answered. ⚠ The one attempt
+   was withdrawn: a gate designed under "blocks no route the robot needs"
+   had the street put behind it, and a robot that drove at the shut panel
+   ground its wheels and pumped metres of imaginary travel into its odometry
+   (issues #68, #93, #94; `activity/plate.py`, SimNotes).
+2. **Nothing scores an activity yet.** Flags reach the wire, but no sampler
+   in `economy/scoring.py` reads one, so no rule turns "the light latched"
+   into points or into an LLM-visible event. A task kind whose verdict is
+   *the mechanism ran* is the natural next consumer (`TaskPattern.md`).
 3. **The robot has no verb for "operate a mechanism".** The plate is tripped
    by driving over it, which needs no manipulation. A lever or a valve needs
    a claw grip on a fixed mechanism at a known pose — the sink-lever problem
    — and that is a tool-side capability, not an activity-side one.
-4. **Activity state is not in the occupancy grid.** A closed gate is a wall
-   the planner does not know about; a mocap body that moves is geometry the
-   map never re-observes. Fine today because the gate blocks nothing (gap 1).
+4. **Activity state is not in the occupancy grid.** A mocap body that moves
+   is geometry the map never re-observes, and a state that blocked a passage
+   would be a wall the planner does not know about. Fine today because of
+   gap 1.
 
 ---
 
