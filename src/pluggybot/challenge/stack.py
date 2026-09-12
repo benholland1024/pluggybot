@@ -24,6 +24,12 @@ Everything else is the robot's business: which block goes where, whether it
 uses the claw at all, how long it takes. The grader knows only the blocks'
 poses and contacts, and `sample_stack` reads nothing off the errand's report.
 
+Perception ladder (TaskPattern.md §3): written for TIER 1. When the tower is
+offered the blocks carry AprilTags and are found by the same `TagDetector`
+that finds the rack; until then they are untagged props, because the grader
+reads `xpos` and is tier-agnostic, and a 20 mm tag's decode range is measured
+against the attempt (issues #58, #166), not before it.
+
 The hold is the issue's own "still standing after 10 s": a tower whose centre
 of mass is past its support passes every geometric check the instant it is
 let go and is on the floor 0.2-0.3 s later (measured). Props are the

@@ -185,6 +185,13 @@ than discovered:
 
 ## 7. What it takes to offer the tower
 
+The tower is written for perception-ladder tier 1 (`TaskPattern.md` §3): when
+offered, the blocks carry AprilTags. They are untagged today because the
+grader reads `xpos` and does not care, and a 20 mm tag's decode range is a
+measurement to make against the attempt, not before it. Building the tower
+against `TaskPattern.md` validated that doc's grading half (issue #24's last
+box) and folded four gaps back in, marked ⓘ there.
+
 Not done here, and listed so the next PR knows its shape: a `TaskKind` whose
 discharge is not an errand but a procedure the robot writes (PluggyPlan.md
 batch item 3 — the tower is the first job with no `Errand` behind it); the
