@@ -48,6 +48,21 @@ wording, settled direction. Before doing anything, read:
   all found this way, and two of them were hiding behind green metrics.
 - Every debugged failure becomes a pytest assertion, and the assertion must be
   shown to fail without the fix — a regression test that cannot fail is décor.
+  **And it is written as cheaply as it can be while still failing for the
+  right reason** (Ben, 2026-09-12): pin the RULE — the inequality, the
+  branch order, the one line of wiring — with a fake press, a stubbed drive,
+  a direct call; fly a whole mission only when the claim is genuinely about
+  the integration, and then stop it on the claim (`stop_when`). A flown
+  proof whose rule is already pinned goes behind `--endurance`.
+- ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
+  APPROVAL.** The full suite is **6:54** on a quiet box (2026-09-12). Any
+  change to testing that would take it past **10 minutes on a quiet machine,
+  or 15 on a busy one**, must be stated as such in the PR — the number, the
+  test, and why it cannot be cheaper — and approved by Ben personally before
+  it merges. Reducing suite time is a project priority: the suite was
+  slowing development considerably at 18 minutes, and it gets there one
+  reasonable-looking mission test at a time. Do not rely on full runs where
+  a fast test settles the claim.
 - **An inline comment states a constraint the code cannot show. Anything that
   is a story goes to `docs/`, with a one-line pointer left behind** (issue
   #51). Prose in a `.py` is loaded every time anything reads that file,
@@ -80,12 +95,17 @@ wording, settled direction. Before doing anything, read:
   test, for `--pdb`, and whenever you want readable live output. Scaling is
   ~1.8×, not 6×, because the mission tests contend for memory bandwidth, and
   the floor is the LONGEST SINGLE TEST — no worker count beats an indivisible
-  test, so the lever is shortening the long poles.
-- **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  1091 of the 1111 tests. The 20 `slow` ones are very nearly all of the
-  clock: the FULL suite measured **17:58** on this box (2026-09-11, 1109
-  passed + 2 skipped). The `not slow` half has NOT been re-timed since the
-  suite passed a thousand tests — measure it before quoting one.
+  test, so the lever is shortening the long poles. ⚠ Measured (issue #158):
+  reordering the collection longest-first did NOT help and may hurt — the
+  mission tests inflate each other's runtimes, so starting six heavy ones at
+  once is the worst case; deleting the plug-era tests saves 8 s; model
+  compilation is 12–28 ms. Only sim-seconds count.
+- **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"`.
+  The 16 `slow` tests are very nearly all of the clock: the FULL suite
+  measured **6:54** on this box (2026-09-12, 1114 passed + 6 skipped; it was
+  17:58 the day before, see the endurance bullet). The `not slow` half has
+  NOT been re-timed since the suite passed a thousand tests — measure it
+  before quoting one.
   ⚠ Wall-clock figures track the MACHINE,
   not the repo: the same mission test has measured 157 s and 369 s on
   different days. Before believing a slower suite, time ONE unchanged mission
@@ -94,8 +114,10 @@ wording, settled direction. Before doing anything, read:
   _is_5x_faster` read 4.9× under load against a bar it clears at 6.8–7.1×
   quiet; `process_time` is NOT the fix, the contention is memory bandwidth.)
 - **Before calling any work done: the FULL suite**, `MUJOCO_GL=egl uv run
-  pytest -q`, and run it while iterating whenever the change touches something
-  a whole mission exercises: `models/` or a world generator (`home.world`,
+  pytest -q` — ⚠ and if your change makes it slower, the budget in "Working
+  style" applies: past 10 minutes quiet (15 busy) is Ben's call, stated in
+  the PR, never absorbed. Run it while iterating whenever the change touches
+  something a whole mission exercises: `models/` or a world generator (`home.world`,
   `rack.coupling`) · contact or actuator params · `control.py` /
   `behavior/navigation.py` · the swap/coupling/mission stack · the telemetry
   frame format or `protocol/` fixtures. The two costliest bugs in this repo
@@ -112,16 +134,28 @@ wording, settled direction. Before doing anything, read:
   declines is not slow, whatever it costs. **Shorten before you mark.**
 - **A mission test ENDS WHEN ITS CLAIM IS SETTLED**, not when its budget runs
   out — `HubLifecycle.stop_when` is where the rules live (issue #54 halved
-  the slow suite this way). Three resist it, each for a reason, so do not
-  retry them without reading why: `test_a_charge_completes_on_a_pack_the_old
-  _flat_timeout_could_not_fill` needs a charge LONGER than the old 400 s cap
-  (≥ 5.3 Wh of pack) or it cannot fail without its fix;
-  `test_a_question_is_asked_answered_and_graded_twice_unattended` (issue #22)
-  already stops on its claim, and "**twice**, with nobody watching" is the
-  claim; `test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies`
-  (issue #15) asserts two COMPLETED errands, the acceptance criterion — it
-  and `test_charge_priority_survives_an_overseer_that_never_charges` are the
-  only proofs that an LLM cannot skip charging on `guarded`.
+  the slow suite this way). One resists it for a reason: `test_a_question_is
+  _asked_answered_and_graded_twice_unattended` (issue #22) already stops on
+  its claim, and "**twice**, with nobody watching" IS the claim.
+- **A flown proof whose RULE is pinned by a fast test goes behind
+  `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
+  `pyproject.toml`). Four are there: the dearest-errand survival, the two
+  charge-cap proofs, and the starving robot's whole mission — 1243 s of
+  serial work, and the first of them was the suite's 8:33 floor. What each
+  guards is an inequality or one line of wiring, now asserted in milliseconds
+  and shown to fail without its fix; the flown version proves the
+  INTEGRATION (that the refusal produces a charge and a completed errand on
+  real physics) and is run deliberately, before a release or after touching
+  the mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`.
+  ⚠ The decision behind it (Ben, 2026-09-12): while the design is moving, a
+  generous pack is ASSUMED to fund any single errand and a battery death
+  costs a heart rather than the world, so twenty minutes per issue defending
+  an invariant the design is moving away from was the wrong trade.
+  ⚠ A flag, not `-m 'not endurance'` in `addopts`: pytest keeps the LAST
+  `-m`, so the everyday `-m "not slow"` would silently switch them back on.
+  ⚠ `test_charge_priority_survives_an_overseer_that_never_charges` (89 s)
+  stays in the default run: it is the proof that an LLM cannot skip charging
+  on `guarded`, and cheap for what it buys.
 - Lint: `uv run ruff check src/ scripts/ tests/`
 
 ### Measurement (M14; `docs/Evaluation.md` is the record and the rules)

@@ -537,7 +537,98 @@ def home_lifecycle(**kw) -> lc.HubLifecycle:
                          boards=lc.board_book("home"), world="home", **kw)
 
 
+# ---- the gate and the cap, as rules (issue #158) -----------------------------
+# The flown proofs below are behind `--endurance`. What actually regresses in
+# each is a RULE -- an inequality in `_afford_next`, the loop bound in
+# `charge()`, the two factors of `charge_timeout` agreeing -- and a rule is
+# pinned in milliseconds. The flown versions prove the INTEGRATION (that the
+# refusal produces a charge and then the errand, on real physics), which is
+# worth running before a release and not on every issue.
+
+
+def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_can():
+  """The rule the dearest-errand proof flies: `_afford_next` is False when
+  cost plus the return-trip reserve exceeds what is in the pack, and True
+  when it does not. Shown to fail with `_afford_next` returning True
+  unconditionally, which is the regression the flown test was written for.
+  """
+  from pluggybot.mission.errand import Errand
+  life = home_lifecycle(battery_wh=MARGIN_PACK_WH, errands=[])
+  assert life.reserve_margin_wh == HOME_RESERVE, "not in the margin regime"
+  cost = life.energy.cost("census")
+  assert cost + HOME_RESERVE <= life.charged_wh, "census must be fundable"
+
+  def queue_census():
+    life.errands = [Errand("census", module="module_lcd", station_y=0.125,
+                           use_at=(0.0, 0.0), use=None)]
+
+  # Just short of cost + reserve: the gate must send the robot to charge.
+  queue_census()
+  life.battery.energy_wh = cost + HOME_RESERVE - 0.01
+  assert life._afford_next() is False, "started an errand it could not finish"
+  assert life.errands, "a deferred errand was dropped rather than kept"
+  # Just over: the same errand runs.
+  queue_census()
+  life.battery.energy_wh = cost + HOME_RESERVE + 0.01
+  assert life._afford_next() is True, "refused an errand the pack covers"
+
+
+def test_the_charge_loop_is_bounded_by_the_scaled_cap_not_the_old_constant(
+    monkeypatch):
+  """The wiring the 513 s proof flew: `charge()` gives a cycle
+  `self.charge_timeout` seconds, sized to THIS pack, and not the flat
+  `CHARGE_TIMEOUT` that ended every deployed charge at 65 %.
+
+  The press is FAKED -- `_drive` advances the sim clock and steps no physics
+  -- and the pack is held below full, so the loop runs to its bound and the
+  bound is what is measured. Shown to fail by putting `CHARGE_TIMEOUT` back
+  in place of `self.charge_timeout` in `HubLifecycle.charge`: the elapsed
+  time collapses to 400 s.
+  """
+  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=1.0)
+  assert life.charge_timeout > lc.CHARGE_TIMEOUT, "pick a bigger pack"
+
+  def fake_press(seconds, *_a, **_k):
+    life.data.time += float(seconds)
+  monkeypatch.setattr(life.mission, "_drive", fake_press)
+  monkeypatch.setattr(life.mission, "anchor_at_dock", lambda: None)
+  monkeypatch.setattr(life.mission.swap, "_drive_until",
+                      lambda *_a, **_k: None)
+  life.charging_now = True                   # the pins conduct throughout
+  life.battery.energy_wh = 0.9               # ...and it never fills
+
+  t0 = life.data.time
+  life.charge()
+  elapsed = life.data.time - t0
+  assert elapsed == pytest.approx(life.charge_timeout, abs=1.0), \
+      f"the cycle ran {elapsed:.0f} s against a cap of {life.charge_timeout:.0f}"
+  assert elapsed > lc.CHARGE_TIMEOUT * 1.5, \
+      "the loop is still reading the flat 400 s constant"
+
+
+@pytest.mark.parametrize("scale", [1.0, 2.0, 5.0])
+@pytest.mark.parametrize("pack_wh", [0.7, 6.0])
+def test_the_scaled_cap_still_clears_the_time_a_full_charge_takes(pack_wh,
+                                                                  scale):
+  """The two factors of `charge_timeout` agreeing, which the 158 s scaled
+  proof flew: the cap divides by the scale and so does the fill time, so at
+  every scale the cap stays `CHARGE_TIMEOUT_SLACK` above what a charge from
+  empty actually needs. The two ways it goes wrong are named in that proof
+  -- forget the SLACK and a press that drops contact once is cut off short
+  of full; forget the FLOOR and a demo cell's cap shrinks under the time it
+  takes to seat the pins -- and each is a mutation this catches. The rate is
+  the SLOWEST measured press, which is the one the cap has to cover.
+  """
+  life = home_lifecycle(battery_wh=pack_wh, errands=[], charge_scale=scale)
+  fill_s = life.charged_wh * 3600.0 / (life.energy.charge_w * scale)
+  assert life.charge_timeout >= fill_s * lc.CHARGE_TIMEOUT_SLACK * 0.999, \
+      "the cap sits under the slack a real press needs"
+  assert life.charge_timeout >= lc.CHARGE_TIMEOUT_MIN, \
+      "the floor is gone: a small pack gets less than it takes to seat the pins"
+
+
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
   """⚠ THE ACCEPTANCE CRITERION, flown, and the adversarial version of it.
 
@@ -616,6 +707,7 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
 
 
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
   """⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, flown.
 
@@ -663,6 +755,7 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
 
 
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_scaled_charge_still_completes_inside_its_own_cap():
   """The other half of issue #84's timeout warning, flown rather than argued.
 

@@ -114,6 +114,19 @@ it prices the *next job* against what is left, which is exactly the reasoning
 we want to find out whether a model can do. On `guarded` the model gets credit
 for arithmetic that code performed on its behalf.
 
+⚠ **THE FLOWN PROOF THAT THE GATE SAVES THE ROBOT NO LONGER GATES THE
+DEFAULT TEST RUN** (issue #158, Ben 2026-09-12). `test_an_overseer_that_only
+_ever_picks_the_dearest_errand_never_dies` — an overseer answering `census`
+to every question, the robot deferring, charging and completing two — is
+behind `--endurance`, with the gate's inequality pinned by a fast test in
+its place. The reason is a design decision rather than a speed one: while
+the design is still moving, a pack generous enough to fund any single
+errand is *assumed*, and a battery death costs a heart rather than the
+world, so the gate is no longer what stands between the robot and a corpse.
+The rails still exist and are still measured off (the `autonomous` arm
+still removes all three); what changed is how much of every test run is
+spent proving the second one end to end. Run it before a release.
+
 ### The prompt is part of the arm, not a later refinement
 
 `RULES` tells a `guarded` robot that charging is not its decision and that the
