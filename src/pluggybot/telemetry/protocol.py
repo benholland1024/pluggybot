@@ -301,8 +301,11 @@ THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/
 #: `stopped`. The program itself rides every one whole, like a thought
 #: document. Additive on the wire; a consumer ignores an unknown type.
-#: Rung two (#166) adds `defined` when the robot keeps a library.
-PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted")
+#: `defined` / `undefined` (issue #166) are the library's: what the robot
+#: wrote, with its `source`, and what it took out; a `refused` carrying
+#: `verb` is a library refusal rather than a run's.
+PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted",
+                      "defined", "undefined")
 
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then

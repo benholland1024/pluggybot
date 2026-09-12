@@ -59,8 +59,9 @@ def main() -> None:
                            "in between), none")
   parser.add_argument("--program", default=None, metavar="PATH",
                       help="fly a COMPOSED errand instead of --errand: a JSON "
-                           "program over the step vocabulary (issue #58; "
-                           "scripts/programs/*.json are examples), validated "
+                           "program over the step vocabulary (issue #58) or a "
+                           ".procedure in the language (issue #166); "
+                           "scripts/programs/ has examples of both, validated "
                            "against the world before anything moves")
   parser.add_argument("--program-task", default="program", metavar="TASK",
                       help="which evaluator grades the program (default: the "

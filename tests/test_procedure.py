@@ -60,7 +60,9 @@ def test_the_single_role_shorthand_is_stored_in_the_full_shape():
 
 def test_the_vocabulary_is_the_issues_verbs():
   assert set(st.VERBS) == {"fetch", "stow", "drive_to", "face", "set_lift",
-                           "grip", "release", "draw", "look", "wait"}
+                           "grip", "release", "draw", "look", "wait",
+                           # the motor level, issue #166
+                           "move", "drive"}
   assert all(d["doc"] for d in st.describe_vocabulary())
 
 
@@ -399,8 +401,9 @@ def test_the_procedure_event_replays_from_a_recording(tmp_path):
 def test_the_example_programs_validate_against_home():
   """`scripts/programs/*.json` are what `hub_lifecycle.py --program` flies;
   an example that no longer validates is a demo that refuses to start."""
-  for path in sorted((SRC.parents[1] / "scripts" / "programs").glob("*.json")):
-    assert st.validate(Program.from_json(path.read_text()), HOME) == [], path.name
+  from pluggybot.lifecycle import load_program
+  for path in sorted((SRC.parents[1] / "scripts" / "programs").iterdir()):
+    assert load_program(str(path), "home").name, path.name
 
 
 # ---- the fence: the vocabulary is the only surface -----------------------------

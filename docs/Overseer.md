@@ -92,6 +92,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135) | — |
 | `idle` | stand still for `DECIDED_IDLE_S` (4 s) — or `AUTONOMOUS_IDLE_S` (60 s) on that arm, so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `journal` | write a note to yourself | `note` |
+| `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166; `autonomous` only, §2b) | — |
 
 **The menu is the world.** `Menu.for_world` resolves boards, figures and
 zones from the same `world_config` everything else reads, and `available()`
@@ -118,6 +119,69 @@ separate actions (an action names a whole errand, never a step — a stow
 computes its release heights from the lift it starts at, so a model that could
 fetch without stowing could leave a module wedged with no recovery), and
 `erase_board` (erasing is part of the drawing errand).
+
+### 2b. Procedures: the robot's own library (issue #166; `autonomous` only)
+
+The `autonomous` arm may **write small procedures and run them by name** —
+the second rung of agent-written code, on top of #58's step vocabulary. A
+procedure is Python-*shaped* text that is parsed with `ast` into the
+language's own tree and interpreted as a routine (`procedure/lang.py`); it is
+never executed. What it may say is closed: the twelve verbs (`fetch stow
+drive_to face set_lift grip release draw look wait move drive`), `read` of a
+named sensor, locals and arithmetic, `if/elif/else`, `for name in range(N)`
+with a literal N, `while` with a hard iteration cap, `return`. Anything else
+— an import, an attribute, a string outside a verb's argument, another call
+— is refused with the line at fault, before a step runs, and every reason at
+once (`tests/test_language.py` has one case per construct).
+
+**The motor level** is `move("<axis>", target)` and `read("<sensor>")` over
+two registries (`procedure/axes.py`): an axis is one actuator's setpoint
+with the range and speed its tool already ramps with, run through
+`HubSwap.ramp_routine`; a sensor is one scalar measured off the world. A
+tool built from a spec (#168) registers its own and the language does not
+change. Nothing in `procedure/` writes `data.ctrl` (the fence,
+`tests/test_procedure.py`).
+
+**Total by construction:** a procedure declares `budget(steps=N,
+seconds=S)` and code caps both (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800); every
+loop is bounded; the interpreter checks budgets and `interrupted()` at every
+verb, which is a safe point; a runaway `while` stops at `MAX_ITER` as
+`loop-cap`; a failed step, an arithmetic fault (division by zero, a local
+read before it was set) or a computed argument outside a verb's range ends
+the procedure with the step and the reason in the record. Abort means stow:
+the errand around it hangs back whatever is on the fork.
+
+**The library** (`procedure/library.py`) is a directory of sources beside the
+four thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
+`Goals.md`'s terms, capped at `MAX_PROCEDURES` (8, because every source
+rides the user turn so the robot can read what it wrote). Two verbs, both
+decision *fields* so writing one costs no turn: `define: {name, source}` and
+`undefine: name`. **No replace** — a redefinition is refused; undefine first,
+in a decision of its own — so one bad generation cannot rewrite everything
+the robot knows how to do. A full library, a source that does not compile, a
+name that does not match its `def`: each refuses out loud, narrated and
+counted (`library.refusals`), and a `procedure` event carries `defined` /
+`undefined` / `refused` with the source. Sources survive a restart and are
+recompiled against *today's* world when the library loads; one that no
+longer validates is kept and shown marked not runnable, with the reasons.
+
+**Where it can be invoked from:** the action `procedure:<name>`, a standing
+order of the same form, and an event-map row whose action is
+`procedure:<name>` — so "on `battery_below` 0.2, run `go_home`" is a row
+naming a procedure the robot wrote. The name is an enum per call
+(`Menu.schema(procedures=)`, `task_ids`' shape) so the decoder cannot name a
+procedure that is not there; a row written before an `undefine` fails at
+fire time as `unbuildable`. It runs as a composed errand (`programmed_errand`)
+graded by `eval_program` — every step ok and every fetched tool hung.
+
+**Only on `autonomous`.** `Menu.procedures` is set by `build()` when the arm
+is, and everything keys off it: the family on the menu, the two fields and
+the tokens in the schema, `PROCEDURE_RULE` in the prompt. `guarded`'s menu,
+schema and prefix are byte-identical to what they were (`GUARDED_RULES_SHA`).
+⚠ The rule's worked example must not show a survival policy — no charge, no
+battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
+agent the answer the arm is measured on. It looks around with the LCD and
+probes with the arm.
 
 ### The one thing only the overseer can do (issue #22)
 
@@ -1000,7 +1064,14 @@ escaping would. What answers that is not string handling: the text reaches the
 model as a **labelled report of what somebody wants**, never a message role;
 and the model's only output is an **action off a fixed menu**, validated
 before anything moves — so the best a successful injection achieves is a
-decision the robot could have made anyway.
+decision the robot could have made anyway. ⚠ **On `autonomous` that argument
+widens** (issue #166): a procedure written in response to a message *is* a
+path from free text to the body. What bounds it is the closed verb list, the
+axis and sensor registries, the budgets, and that the program is validated
+whole before a step runs — a procedure can only do what the vocabulary can
+do, at the pace the verbs allow, for as long as its budget lasts. It cannot
+reach the scoring path (a `Verdict` is sealed) or the control register (the
+fence). The worst an injected procedure achieves is a bad errand, stowed.
 `tests/test_inbox.py::test_a_prompt_injection_is_still_only_a_request` lets
 the attack arrive and shows the menu refusing every action it asked for.
 

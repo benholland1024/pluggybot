@@ -256,6 +256,14 @@ document, so a replayer needs no other source for what the robot ran; the
 per-step verdicts are in the run record (`errands[].procedure`), not on the
 wire.
 
+**pluggybot #166 adds the library's outcomes**, still additive: `defined`
+(`name`, and `program.source` — the text the robot wrote, Python-shaped and
+never executed) and `undefined` (`name`); a `refused` that carries `verb:
+"define" | "undefine"` and `reasons` is the library saying no, as against a
+run's refusal. A program written in the language has `program.source` in
+place of `program.roles`. "What has it written" is therefore
+`?kind=procedure` on the observatory, beside `?kind=thought`.
+
 ### 0.18.0 → 0.19.0 (the robot writes its own goals)
 
 pluggybot #154: the four thought documents had two writers between them and a

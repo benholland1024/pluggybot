@@ -97,6 +97,10 @@ class WorldFacts:
   tools: tuple[str, ...]
   bounds: tuple[float, float, float, float]    # x_min, y_min, x_max, y_max
   figures: tuple[str, ...]
+  #: the motor-and-sensor level (procedure/axes.py, issue #166): what
+  #: `move` may move and `read` may read, presence checked at run time
+  axes: tuple[str, ...] = ()
+  sensors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,15 @@ class Program:
 
   def steps(self, role: str = DEFAULT_ROLE) -> tuple:
     return tuple(self.roles.get(role, ()))
+
+  def first(self, verb: str, arg: str, role: str = DEFAULT_ROLE):
+    """The first literal `arg` a `verb` step names, or None -- what the
+    errand plumbing reads for its bookkeeping (the first tool fetched, the
+    board drawn on)."""
+    for step in self.steps(role):
+      if step.verb == verb and arg in step.args:
+        return step.args[arg]
+    return None
 
   def as_dict(self) -> dict:
     return {"name": self.name, "budgetS": self.budget_s,
@@ -298,11 +311,16 @@ def _draw(life, args: dict) -> Routine:
 
 def _look(life, args: dict) -> Routine:
   """One decode from the dock camera, no motion: the sensed result a rung-two
-  program may branch on. Camera-frame `t` is (lateral, vertical, forward)."""
+  program branches on through `read("look.tag")` / `look.range` /
+  `look.lateral` (procedure/axes.py), which read the NEAREST decode of the
+  last look. Camera-frame `t` is (lateral, vertical, forward)."""
   found = life.mission.tags.detect(life.data)
   tags = [{"id": int(tid), "lateralM": round(float(d["t"][0]), 3),
            "forwardM": round(float(d["t"][2]), 3)}
           for tid, d in sorted(found.items())]
+  nearest = min(tags, key=lambda t: t["forwardM"], default=None)
+  life._last_look = ({"tag": nearest["id"], "range": nearest["forwardM"],
+                      "lateral": nearest["lateralM"]} if nearest else {})
   return {"ok": True, "tags": tags}
   yield  # a routine that steps nothing
 
@@ -310,6 +328,39 @@ def _look(life, args: dict) -> Routine:
 def _wait(life, args: dict) -> Routine:
   yield from life.mission._drive_routine(float(args["seconds"]), 0.0, 0.0)
   return {"ok": True}
+
+
+#: The base's command envelope for `drive`: the cruise the navigation law
+#: uses, and the spin rate `_spin` turns at (mission/mission.py).
+DRIVE_V_MAX = 0.25
+DRIVE_W_MAX = 1.5
+
+
+def _drive(life, args: dict) -> Routine:
+  """The base at the motor level: (v, w) for a bounded time, through the
+  same `_drive_routine` every errand's holds and creeps go through."""
+  yield from life.mission._drive_routine(float(args["seconds"]),
+                                         float(args["v"]), float(args["w"]))
+  return {"ok": True}
+
+
+def _move(life, args: dict) -> Routine:
+  """One axis to a setpoint, ramped (procedure/axes.py). The axis has to be
+  present -- a tool's axis needs that tool on the fork -- and the target
+  inside its envelope, or the step fails and says which."""
+  from pluggybot.procedure import axes
+  axis = axes.AXES.get(args["axis"])
+  if axis is None:
+    return {"ok": False, "reason": f"no axis {args['axis']!r}"}
+  if axis.requires and _carried(life) != axis.requires:
+    return {"ok": False, "reason": f"axis {axis.name!r} needs {axis.requires} "
+                                    "on the fork"}
+  target = float(args["target"])
+  if not axis.lo <= target <= axis.hi:
+    return {"ok": False, "reason": f"{axis.name} target {target} is outside "
+                                    f"{axis.lo}..{axis.hi} {axis.unit}".rstrip()}
+  yield from axis.run(life, target)
+  return {"ok": True, "axis": axis.name, "target": target}
 
 
 VERBS: dict[str, Verb] = {
@@ -331,6 +382,13 @@ VERBS: dict[str, Verb] = {
   "look": Verb("look", {}, _look, "one tag decode from the dock camera, no motion"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
+  # The motor level (issue #166): what every verb above is built from.
+  "move": Verb("move", {"axis": Arg("str", choices="axes"), "target": Arg("float")},
+               _move, "walk one axis to a setpoint, ramped, inside its envelope"),
+  "drive": Verb("drive", {"v": Arg("float", lo=-DRIVE_V_MAX, hi=DRIVE_V_MAX),
+                          "w": Arg("float", lo=-DRIVE_W_MAX, hi=DRIVE_W_MAX),
+                          "seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)},
+                _drive, "the base at (v m/s, w rad/s) for a bounded time"),
 }
 
 
@@ -341,6 +399,62 @@ def describe_vocabulary() -> list[dict]:
 
 
 # ---- validation: total, before a single step runs ----------------------------
+
+
+def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
+  """One argument against its `Arg`: type, range, and the world's choices.
+  Shared by a program's validator (every argument is literal) and the
+  language's (a computed argument is checked when it is computed)."""
+  arg = verb.args[name]
+  if arg.kind == "float":
+    if isinstance(value, bool) or not isinstance(value, (int, float)) \
+        or not math.isfinite(float(value)):
+      return [f"{name} must be a finite number, not {value!r}"]
+    bad = []
+    if arg.lo is not None and float(value) < arg.lo:
+      bad.append(f"{name}={value} is below {arg.lo}")
+    if arg.hi is not None and float(value) > arg.hi:
+      bad.append(f"{name}={value} is above {arg.hi}")
+    return bad
+  if not isinstance(value, str):
+    return [f"{name} must be a name, not {value!r}"]
+  allowed = getattr(facts, arg.choices) if arg.choices else None
+  if allowed is not None and value not in allowed:
+    return [f"{name}={value!r} is not one of "
+            f"{', '.join(allowed) or 'nothing this world has'}"]
+  return []
+
+
+def check_step(verb: Verb, args: dict, facts: WorldFacts,
+               partial: bool = False) -> list[str]:
+  """Every argument of one step. `partial` skips the missing-argument rule,
+  for a language checking only the literal half of a call."""
+  bad = []
+  extra = set(args) - set(verb.args)
+  missing = set(verb.args) - set(args)
+  if extra:
+    bad.append(f"{verb.name} takes no {', '.join(sorted(extra))}")
+  if missing and not partial:
+    bad.append(f"{verb.name} needs {', '.join(sorted(missing))}")
+  for name in verb.args:
+    if name in args:
+      bad += check_arg(verb, name, args[name], facts)
+  if verb.name == "drive_to" and all(
+      isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
+      for k in ("x", "y")):
+    x0, y0, x1, y1 = facts.bounds
+    x, y = float(args["x"]), float(args["y"])
+    if not (x0 <= x <= x1 and y0 <= y <= y1):
+      bad.append(f"({x}, {y}) is outside the map [{x0}, {x1}] x [{y0}, {y1}]")
+  if verb.name == "move" and isinstance(args.get("axis"), str) \
+      and isinstance(args.get("target"), (int, float)) \
+      and not isinstance(args.get("target"), bool):
+    from pluggybot.procedure import axes
+    axis = axes.AXES.get(args["axis"])
+    if axis is not None and not axis.lo <= float(args["target"]) <= axis.hi:
+      bad.append(f"{axis.name} target {args['target']} is outside "
+                 f"{axis.lo}..{axis.hi} {axis.unit}".rstrip())
+  return bad
 
 
 def validate(program: Program, facts: WorldFacts) -> list[str]:
@@ -367,40 +481,7 @@ def validate(program: Program, facts: WorldFacts) -> list[str]:
         bad.append(f"{where}: unknown verb {step.verb!r} "
                    f"(have: {', '.join(VERBS)})")
         continue
-      extra = set(step.args) - set(verb.args)
-      missing = set(verb.args) - set(step.args)
-      if extra:
-        bad.append(f"{where}: {step.verb} takes no {', '.join(sorted(extra))}")
-      if missing:
-        bad.append(f"{where}: {step.verb} needs {', '.join(sorted(missing))}")
-      for name, arg in verb.args.items():
-        if name not in step.args:
-          continue
-        value = step.args[name]
-        if arg.kind == "float":
-          if isinstance(value, bool) or not isinstance(value, (int, float)) \
-              or not math.isfinite(float(value)):
-            bad.append(f"{where}: {name} must be a finite number, not {value!r}")
-            continue
-          if arg.lo is not None and float(value) < arg.lo:
-            bad.append(f"{where}: {name}={value} is below {arg.lo}")
-          if arg.hi is not None and float(value) > arg.hi:
-            bad.append(f"{where}: {name}={value} is above {arg.hi}")
-        elif arg.kind == "str":
-          if not isinstance(value, str):
-            bad.append(f"{where}: {name} must be a name, not {value!r}")
-            continue
-          allowed = getattr(facts, arg.choices) if arg.choices else None
-          if allowed is not None and value not in allowed:
-            bad.append(f"{where}: {name}={value!r} is not one of "
-                       f"{', '.join(allowed) or 'nothing this world has'}")
-      if step.verb == "drive_to" and all(
-          isinstance(step.args.get(k), (int, float)) for k in ("x", "y")):
-        x0, y0, x1, y1 = facts.bounds
-        x, y = float(step.args["x"]), float(step.args["y"])
-        if not (x0 <= x <= x1 and y0 <= y <= y1):
-          bad.append(f"{where}: ({x}, {y}) is outside the map "
-                     f"[{x0}, {x1}] x [{y0}, {y1}]")
+      bad += [f"{where}: {r}" for r in check_step(verb, step.args, facts)]
   return bad
 
 

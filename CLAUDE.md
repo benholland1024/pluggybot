@@ -439,6 +439,37 @@ save a filmstrip PNG named after the script.
   the telemetry header — one string by construction (`$PLUGGY_ROBOT_NAME`).
   #154 makes `Main.md` the constitution and `Goals.md` the robot's; the
   fixture recordings pin `DEFAULT_MAIN` and are re-recorded when it moves.
+- **The `autonomous` arm can write procedures, and only it can** (issue
+  #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
+  Python-SHAPED, parsed with `ast` into the language's own tree and
+  interpreted as a routine — NEVER executed (a test asserts no `exec`/
+  `eval`/`compile` in the module). The grammar is closed: the twelve verbs
+  as statements, `read("sensor")` as the one expression call, locals,
+  arithmetic, comparisons, `if/elif/else`, `for name in range(N)` with a
+  literal N ≤ `MAX_ITER` (100), `while` capped at `MAX_ITER` (`loop-cap`),
+  `return`; anything else is refused with its line, every reason at once,
+  before a step runs (one test per construct). ⚠ THE MOTOR LEVEL IS
+  `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
+  `axes.SENSORS`): an axis is one actuator's setpoint with the range and
+  speed its tool already ramps with, run through `HubSwap.ramp_routine`;
+  a tool built from a spec (#168) registers its own and the language does
+  not change. Budgets (`budget(steps=, seconds=)`) are capped by code
+  (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a
+  computed argument is checked when computed, by the same `check_arg`. ⚠
+  THE LIBRARY is `$PLUGGY_THOUGHTS/procedures/`, `MAX_PROCEDURES` 8, two
+  decision FIELDS `define {name, source}` / `undefine`, NO REPLACE (refused;
+  undefine first), full refuses out loud, sources survive a restart and are
+  recompiled against today's world (an invalid one is kept, marked, shown).
+  ⚠ Invoked as `procedure:<name>` — the action, a standing order, or an
+  event-map row (`standing_order()` accepts the token; `order_runnable`
+  reads `state["procedures"]`); the name is an enum per call
+  (`Menu.schema(procedures=)`). ⚠ `Menu.procedures` is set by `build()` on
+  `autonomous` ONLY and everything keys off it; `guarded`'s menu, schema
+  and prefix are byte-identical (`GUARDED_RULES_SHA`). ⚠ `PROCEDURE_RULE`'s
+  worked example may not show charge, a battery threshold or the rack
+  (EVENT_MAP_RULE's rule; a test reads the example block). The flown proof
+  (a procedure the agent wrote, invoked by its own `every` row, 84 s) is
+  behind `--endurance`; every rule in it is pinned in milliseconds.
 - **The allowance** (`mind/spend.py`, `mind/mode.py`, issue #37): the model is
   SHOWN what its thinking cost and has one boolean (`escalate`) to ask for a
   bigger mind; every gate is code — `$PLUGGY_WEEKLY_USD` (default $10,
