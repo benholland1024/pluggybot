@@ -63,6 +63,7 @@ from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from pluggybot.mind import events as ev
+from pluggybot.procedure import lang
 from pluggybot.mind import llm
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.mind.journal import Journal
@@ -207,7 +208,13 @@ CACHE_WRITE_MULTIPLIER = 1.25
 #: lifecycle already had. Anything not in this tuple is not offered, and an
 #: answer outside it is a malformed answer.
 ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
-           "explore", "charge", "idle", "journal")
+           "explore", "charge", "idle", "journal", "procedure")
+#: `procedure` is a FAMILY, not a single action (issue #166): the concrete
+#: token is `procedure:<name>` for a procedure in the robot's library, and
+#: the name is enumerated per call like a task id. Only a menu built with
+#: `procedures=True` -- the `autonomous` arm -- offers it at all, which is
+#: what keeps `guarded`'s prefix byte-identical.
+PROCEDURE_PREFIX = "procedure:"
 
 #: The actions that BUILD AN ERRAND, and so cost a pack's worth of energy
 #: (issue #15). The rest are either free (`idle`, `journal`), bounded and
@@ -501,6 +508,12 @@ class Decision:
   #: actually made, on `standing_order`'s terms: a fallback that could rewrite
   #: the map would let code edit the artifact this issue exists to measure.
   event_map: tuple = ()          # of `events.Row`
+  #: THE LIBRARY'S TWO VERBS (issue #166), on `learn`/`forget`'s terms:
+  #: `define` is `{"name", "source"}` -- a procedure to add, compiled and
+  #: refused out loud by the library -- and `undefine` names one to take
+  #: out. Paperwork, so writing one costs no turn; and no verb replaces.
+  define: dict | None = None
+  undefine: str = ""
   source: str = "llm"
 
   @property
@@ -551,6 +564,8 @@ class Decision:
             # the agent. A row list here is the map AS THE ANSWER SET IT.
             **({"eventMap": [r.as_dict() for r in self.event_map]}
                if self.event_map else {}),
+            **({"define": dict(self.define)} if self.define else {}),
+            **({"undefine": self.undefine} if self.undefine else {}),
             "source": self.source}
 
   def summary(self) -> str:
@@ -593,6 +608,9 @@ class Menu:
   #: now, and which this world could ever do -- rides the user turn as
   #: `affordableActions` / `possibleActions`.
   costs_wh: dict = field(default_factory=dict)
+  #: Does this world's robot keep a library it may run from (issue #166)?
+  #: On for the `autonomous` arm only -- see PROCEDURE_PREFIX.
+  procedures: bool = False
 
   @classmethod
   def for_world(cls, world: str, book=None) -> "Menu":
@@ -643,14 +661,35 @@ class Menu:
       out.append("census")
     if self.zones:
       out.append("explore")
+    if self.procedures:
+      out.append("procedure")
     return tuple(a for a in ACTIONS if a in out)
+
+  def concrete(self, actions, procedures: tuple | None) -> list[str]:
+    """The action enum a schema carries: the family `procedure` replaced by
+    one `procedure:<name>` per runnable procedure (none, with an empty
+    library -- as `take_task` goes with an empty board)."""
+    out = []
+    for a in actions:
+      if a == "procedure":
+        if procedures is not None:
+          out += [PROCEDURE_PREFIX + n for n in procedures]
+      else:
+        out.append(a)
+    return out
 
   def schema(self, escalation: bool = False,
              standing_orders: bool = False,
              hearts: bool = False,
              event_map: bool = False,
-             task_ids: tuple | None = None) -> dict:
+             task_ids: tuple | None = None,
+             procedures: tuple | None = None) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
+
+    `procedures` is the library's runnable names (issue #166), enumerated
+    per call exactly as `task_ids` are: the family `procedure` becomes one
+    `procedure:<name>` token each, and `define` / `undefine` -- the two
+    paperwork fields on the library -- appear only where a library exists.
 
     `escalation` adds the one boolean the robot may set to ask for a more
     expensive mind (issue #37), and it is CONDITIONAL on purpose: a world
@@ -681,6 +720,7 @@ class Menu:
     # standing order; this is the same line for a decision.
     if task_ids is not None and not task_ids and "take_task" in actions:
       actions.remove("take_task")
+    actions = self.concrete(actions, procedures)
     return {
       "type": "object",
       "additionalProperties": False,
@@ -690,7 +730,8 @@ class Menu:
       + (["escalate"] if escalation else [])
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
-      + (["event_map"] if event_map else []),
+      + (["event_map"] if event_map else [])
+      + (["define", "undefine"] if procedures is not None else []),
       "properties": {
         "action": {"type": "string", "enum": actions},
         "board": enum(self.boards),
@@ -752,8 +793,17 @@ class Menu:
         # itself cannot produce a standing order this world could not
         # perform, which is the same guarantee `action` has and the reason
         # the field is safe to hand a small model.
-        **({"standing_order": enum(self.available())}
+        **({"standing_order": enum(self.concrete(self.available(), procedures))}
            if standing_orders else {}),
+        # THE LIBRARY'S TWO VERBS (issue #166), paperwork fields on `learn`'s
+        # terms: a procedure to add (its name and its source, which the
+        # library compiles and refuses out loud) and one to take out. There
+        # is no replace. Absent where there is no library.
+        **({"define": {"type": "object", "additionalProperties": False,
+                       "required": ["name", "source"],
+                       "properties": {"name": {"type": "string"},
+                                      "source": {"type": "string"}}},
+            "undefine": enum(procedures)} if procedures is not None else {}),
         # BUY A LIFE BACK (issue #136). A plain boolean and ABSENT where
         # there are no hearts to buy, on ESCALATION_RULE's terms: a lever
         # that does nothing must not be offered, because a field the world
@@ -781,7 +831,8 @@ class Menu:
             "properties": {
               "event": {"type": "string", "enum": list(ev.EVENT_TYPES)},
               "action": {"type": "string",
-                         "enum": [ev.ASK, *self.available()]},
+                         "enum": [ev.ASK, *self.concrete(self.available(),
+                                                         procedures)]},
               # A number and not an enum: a threshold is continuous and the
               # agent choosing WHERE to put it is most of what the map is
               # measuring. Out of range clamps; missing on an event that
@@ -806,8 +857,14 @@ class Menu:
                offered: tuple[str, ...] = (),
                answering: tuple[str, ...] = (),
                standing_orders: bool = False,
-               event_map: bool = False) -> Decision:
+               event_map: bool = False,
+               procedures: tuple | None = None) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
+
+    `procedures` is the library's runnable names, or None where there is no
+    library (issue #166): a `procedure:<name>` action naming anything else is
+    refused as `take_task` naming a job not on offer is, and the two library
+    fields are dropped where the field was never offered.
 
     Structured outputs make most of this unreachable, which is the point of
     using them -- but the schema is enforced by the server and this runs in
@@ -843,7 +900,12 @@ class Menu:
     `guarded` run a perfectly good decision.
     """
     action = str(raw.get("action", "")).strip()
-    if action not in self.available():
+    if action.startswith(PROCEDURE_PREFIX) and self.procedures:
+      name = action[len(PROCEDURE_PREFIX):]
+      if procedures is None or name not in procedures:
+        raise ValueError(f"no runnable procedure named {name!r} "
+                         f"(have: {', '.join(procedures or ()) or 'nothing'})")
+    elif action not in self.available() or action == "procedure":
       raise ValueError(f"unknown action {action!r} "
                        f"(offered: {', '.join(self.available())})")
     board = str(raw.get("board", "") or "").strip()
@@ -888,6 +950,17 @@ class Menu:
     # as `standing_order` is: a model emitting one anyway must not be able to
     # cost a `guarded` run a perfectly good decision.
     emap = (ev.parse(raw.get("event_map"), self) if event_map else None)
+    define, undefine = None, ""
+    if procedures is not None:
+      spec = raw.get("define")
+      if isinstance(spec, dict) and str(spec.get("source", "")).strip():
+        # NOT compiled here: the library refuses out loud and the refusal
+        # is narrated and counted, which is the interesting path. The
+        # decision stands whatever the library says, as a refused `learn`
+        # leaves the action intact.
+        define = {"name": clean(spec.get("name"), MAX_ID),
+                  "source": str(spec.get("source"))[:lang.MAX_SOURCE_CHARS + 1]}
+      undefine = clean(raw.get("undefine"), MAX_ID)
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     # A model working off a cached older prompt (or an operator replaying an
@@ -921,6 +994,7 @@ class Menu:
                     serves=clean(raw.get("serves"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
+                    define=define, undefine=undefine,
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
                     # strand the upkeep) are the ledger's, where the balance
@@ -1055,7 +1129,14 @@ def standing_order(raw, menu: Menu) -> str:
   order = str(raw or "").strip()
   if not order:
     return ""
-  if order not in menu.available():
+  if order.startswith(PROCEDURE_PREFIX) and menu.procedures:
+    # THE SECOND SHAPE (issue #166): a procedure the robot wrote, by name.
+    # Whether the name is still in the library is checked when the order
+    # fires (`order_runnable`), because the library moves between calls.
+    if not order[len(PROCEDURE_PREFIX):]:
+      raise ValueError("a procedure order names a procedure")
+    return order
+  if order not in menu.available() or order == "procedure":
     raise ValueError(f"unknown standing order {order!r} "
                      f"(offered: {', '.join(menu.available())})")
   return order
@@ -1073,6 +1154,9 @@ def order_runnable(menu: Menu, order: str, state: dict) -> bool:
   full pack (`possibleActions`, never `affordableActions`, which is the
   same line `scripted` draws and for the same reason).
   """
+  if order.startswith(PROCEDURE_PREFIX):
+    return (menu.procedures
+            and order[len(PROCEDURE_PREFIX):] in (state.get("procedures") or ()))
   if not order or order not in menu.available():
     return False
   if order == "take_task":
@@ -1611,6 +1695,95 @@ happen without being asked, and say so.\
 #: STABLE half because it is a property of the world, not of the moment --
 #: and ABSENT entirely where escalation is not configured, so a world without
 #: it has a byte-identical prefix to the one it had before this existed.
+#: What the robot is told about the procedures it may write (issue #166),
+#: on the `autonomous` arm only -- the rung the language exists for, and
+#: the arm whose prompt is allowed to move. Built by a function because the
+#: verb, axis and sensor lists come off the registries (procedure/axes.py),
+#: which a tool built from a spec (#168) will grow; the text is byte-stable
+#: for a given set of registrations, which is what the cached prefix needs.
+#:
+#: ⚠ NO WORKED EXAMPLE HERE MAY MENTION CHARGING, A BATTERY THRESHOLD OR THE
+#: RACK -- `EVENT_MAP_RULE`'s rule, for the same reason: a procedure that
+#: goes home when the pack is low is the finding this arm is measured on,
+#: and an example that writes it hands the agent the answer through the
+#: prompt. The example below looks around with the LCD and probes with the
+#: arm, which is a capability and not a survival policy.
+PROCEDURE_HEAD = """\
+PROCEDURES YOU MAY WRITE
+
+You may write small procedures and keep them in a library of your own, then
+run one by name: the action `procedure:<name>`, a standing order of the same
+form, or an event-map row whose action is `procedure:<name>`. A procedure is
+Python-SHAPED text, parsed and never executed, and it can use only what is
+listed here. It is checked whole before anything moves and refused with the
+line at fault if it uses anything else.
+
+  def look_around():                  # one def, no arguments, lowercase name
+      budget(steps=40, seconds=240)   # optional, first; both capped
+      n = 0
+      fetch("module_lcd")
+      for i in range(4):              # a literal count
+          drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
+          look()
+          if read("look.tag") >= 0 and read("look.range") < 1.5:
+              wait(2)
+      while read("arm") < 0.04 and n < 8:   # capped at 100 iterations
+          move("arm", read("arm") + 0.01)    # a ramped setpoint on one axis
+          n += 1
+      stow()
+
+Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
+`for name in range(N)`, `while`, `pass`, `return`. Expressions: numbers,
+locals, `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing
+else: no strings except a verb's or read's argument, no other calls, no
+imports. A procedure runs until it finishes, a step fails, or a budget runs
+out; whatever it fetched is hung back up either way. A step fails when the
+world says so -- a tool not seated, a drive that did not arrive, a target
+outside an axis's range -- and the record says which step and why.
+
+To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
+on any answer; it costs no turn. To remove one: `undefine: "<name>"`. There
+is no replace -- undefine, then define. The library holds %(cap)d and refuses
+out loud when full. Your library, with each source, is in `procedures`
+below; an entry marked not runnable says why.
+
+VERBS (a statement each; arguments in this order, or by keyword)
+"""
+
+PROCEDURE_TAIL = """\
+
+
+AXES for `move("<axis>", target)` -- a setpoint, walked at the axis's own
+speed; `requires` names the tool that must be on the fork
+"""
+
+PROCEDURE_SENSORS = """\
+
+
+SENSORS for `read("<sensor>")` -- one number, measured
+"""
+
+
+def procedure_rule() -> str:
+  from pluggybot.procedure import axes
+  from pluggybot.procedure.library import MAX_PROCEDURES
+  from pluggybot.procedure.steps import describe_vocabulary
+  verbs = "\n".join(
+    f"  {v['verb']}({', '.join(v['args'])})  -- {v['doc']}"
+    for v in describe_vocabulary())
+  reg = axes.describe()
+  ax = "\n".join(
+    f"  {a['name']}: {a['lo']:g}..{a['hi']:g} {a['unit']} -- {a['doc']}"
+    + (f" (requires {a['requires']})" if a["requires"] else "")
+    for a in reg["axes"])
+  se = "\n".join(
+    f"  {s['name']} -- {s['doc']}"
+    + (f" (requires {s['requires']})" if s["requires"] else "")
+    for s in reg["sensors"])
+  return (PROCEDURE_HEAD % {"cap": MAX_PROCEDURES} + verbs + PROCEDURE_TAIL
+          + ax + PROCEDURE_SENSORS + se)
+
+
 ESCALATION_RULE = """\
 THINKING HARDER
 
@@ -1644,7 +1817,8 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   standing_orders: bool = False,
                   autonomous: bool = False,
                   event_map: bool = False,
-                  seeded: bool = True) -> list[dict]:
+                  seeded: bool = True,
+                  procedures: bool = False) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
 
@@ -1769,6 +1943,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     # only half-honours is a false statement the model acts on.
     + ([EVENT_MAP_RULE] if event_map else [])
     + ([UNSEEDED_RULE] if event_map and not seeded else [])
+    + ([procedure_rule()] if procedures else [])
     + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
@@ -1998,6 +2173,7 @@ class Overseer:
                show_survival: bool = True,
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
+               library=None,
                clock: Callable[[], float] = time.monotonic) -> None:
     self.menu = menu
     self.table = table if table is not None else default_table()
@@ -2134,6 +2310,10 @@ class Overseer:
     # out or the ladder's first two rungs are one run.
     self.show_survival = bool(show_survival)
     self.max_tokens = MAX_TOKENS_AUTONOMOUS if autonomous else MAX_TOKENS
+    #: THE LIBRARY (issue #166), or None where the robot keeps none -- every
+    #: arm but `autonomous`. Its presence is what puts `procedure:<name>` on
+    #: the menu, the two fields in the schema and the rule in the prompt.
+    self.library = library
     #: The order IN FORCE: the last one an answer of the model's own left
     #: behind. `""` is the floor -- nothing has been set yet -- and it is
     #: only ever written from a decision the model actually made, so a
@@ -2197,7 +2377,8 @@ class Overseer:
                                 standing_orders=self.standing_orders,
                                 autonomous=self.autonomous,
                                 event_map=self.event_map is not None,
-                                seeded=origin != "unseeded")
+                                seeded=origin != "unseeded",
+                                procedures=self.library is not None)
 
   @property
   def goals(self) -> str:
@@ -2413,14 +2594,16 @@ class Overseer:
                                     standing_orders=self.standing_orders,
                                     hearts=self.hearts,
                                     event_map=self.event_map is not None,
-                                    task_ids=self._task_ids(offered))}},
+                                    task_ids=self._task_ids(offered),
+                                    procedures=self._procedures())}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered, answering=answering,
                                   standing_orders=self.standing_orders,
-                                  event_map=self.event_map is not None)
+                                  event_map=self.event_map is not None,
+                                  procedures=self._procedures())
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.usage.errors.append(
         f"escalation: {type(e).__name__}: {e}"[:200])
@@ -2894,6 +3077,11 @@ class Overseer:
       for hook in self.on_decision:
         hook(event)
 
+  def _procedures(self) -> tuple | None:
+    """The library's runnable names for this call's grammar, or None where
+    there is no library -- `_task_ids`' shape, for the same reason."""
+    return self.library.runnable() if self.library is not None else None
+
   def _task_ids(self, offered: tuple) -> tuple:
     """The ids that may go in `task`, as a grammar rather than as a hope.
 
@@ -2925,14 +3113,16 @@ class Overseer:
                                     standing_orders=self.standing_orders,
                                     hearts=self.hearts,
                                     event_map=self.event_map is not None,
-                                    task_ids=self._task_ids(offered))}},
+                                    task_ids=self._task_ids(offered),
+                                    procedures=self._procedures())}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered, answering=answering,
                                     standing_orders=self.standing_orders,
-                                    event_map=self.event_map is not None)
+                                    event_map=self.event_map is not None,
+                                    procedures=self._procedures())
       self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
@@ -3037,6 +3227,8 @@ class Overseer:
       "answers are checked sim-side only")
 
   def stats(self) -> dict:
+    lib = ({"library": self.library.stats()} if self.library is not None
+           else {})
     esc = {
       # What the allowance bought (issue #37). `escalations` counts answers
       # the expensive mind actually produced; `escalationsRefused` counts the
@@ -3094,7 +3286,7 @@ class Overseer:
         "sources": dict(Counter(i["source"] for i in self.interrupts)),
       }
     } if self.interrupts else {}
-    return {**self.usage.as_dict(), **esc, **orders, **emap, **ints,
+    return {**self.usage.as_dict(), **esc, **orders, **emap, **ints, **lib,
             "model": self.model,
             "allowance": self.spend.snapshot() if self.spend else {},
             # WHICH MIND decided (issue #19). Beside the model rather than
@@ -3324,7 +3516,20 @@ def build(world: str, book=None, enabled: bool | None = None,
   backend = llm.resolve_backend(
     backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
-  overseer = Overseer(Menu.for_world(world, book), thoughts=thoughts,
+  menu = Menu.for_world(world, book)
+  library = None
+  if autonomous:
+    # THE LIBRARY (issue #166): the `autonomous` arm's alone, beside the
+    # thought files where the robot's other writing lives, or in memory
+    # where those are. Its presence is the whole switch -- the menu family,
+    # the schema fields and the prompt rule all key off it.
+    from pluggybot.lifecycle import world_facts
+    from pluggybot.procedure.library import Library
+    root = (thoughts.root / "procedures" if thoughts.root is not None
+            else None)
+    library = Library(world_facts(world), root=root)
+    menu = replace(menu, procedures=True)
+  overseer = Overseer(menu, thoughts=thoughts,
                       table=table, journal=journal, client=client,
                       robot_name=robot_name,
                       model=model, backend=backend, base_url=base_url,
@@ -3364,5 +3569,5 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # be told it has a say in one.
                       standing_orders=standing_orders,
                       autonomous=autonomous, show_survival=show_survival,
-                      calls_per_hour=calls_per_hour)
+                      calls_per_hour=calls_per_hour, library=library)
   return overseer, journal

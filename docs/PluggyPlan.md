@@ -95,15 +95,16 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
 2. ✅ #120 as a written decision, with one predicate-graded challenge: criteria
    first, a passing run, a failing run — `Challenges.md`, the three-block
    tower (`challenge/stack.py`).
-3. **Agent-written procedures.** Rung one is #58 — composable errands over
-   the guarded primitives, with a test that only that vocabulary writes
-   `data.ctrl` — landed: the tick refactor (every manoeuvre a routine ticked
-   from one physics loop, `pluggybot/tick.py`, parity-exact) and the
-   vocabulary (`procedure/steps.py`: ten verbs, total validation, one verdict
-   per step, the `roles` slot, the fence). Rung two is a small, total procedure language: conditionals
-   and bounded loops over sensed scalars, arithmetic, a step budget and a
-   sim-time budget, per-step verdicts, abort meaning stow. Not sandboxed
-   Python; callable from event-map rows and standing orders.
+3. ✅ **Agent-written procedures.** Rung one, #58: composable errands over
+   the guarded primitives — the tick refactor (`pluggybot/tick.py`,
+   parity-exact) and the vocabulary (`procedure/steps.py`: the verbs, total
+   validation, one verdict per step, the `roles` slot, the `data.ctrl`
+   fence). Rung two, #166: the procedure language (`procedure/lang.py`) —
+   Python-shaped, parsed never executed, conditionals and bounded loops over
+   sensed scalars, arithmetic, budgets capped by code, `move`/`read` as the
+   motor-and-sensor level (`procedure/axes.py`, the floor #168's tools stand
+   on), a library the robot owns, callable from a decision, a standing order
+   or an event-map row. `autonomous` only. Overseer.md §2b.
 4. **Novel tasks.** A curated challenge set with no scripted solution, chosen
    to need no new sensing, rewarded generously; one two-tool job resolving to
    one verdict.

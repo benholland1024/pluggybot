@@ -157,6 +157,15 @@ reasoning we are trying to detect, and the direction of the project is an
 agent that writes its own procedure to make that comparison — which it never
 needs to do if the answer is already in the prompt.
 
+**And now it can write that procedure** (issue #166): the `autonomous` prompt
+carries `PROCEDURE_RULE` — the language, the verbs, the axes and the sensors
+— and the schema carries `procedure:<name>`, `define` and `undefine`. That is
+a changed prefix for the `autonomous` arm, on purpose and in the open: any
+`autonomous` series flown after 2026-09-12 is a different experiment from A0,
+and the rollup's series key already separates them. `guarded` is untouched
+(`GUARDED_RULES_SHA`, and its menu never carries the family). The rule's
+worked example shows no survival policy, for the reason above.
+
 ### What the `autonomous` arm turns on, and where
 
 | | where | note |

@@ -1109,7 +1109,10 @@ class HubLifecycle:
     closing) is deliberately NOT caught -- that is a request to stop, not a
     failure to recover from.
     """
-    self.module = errand.module
+    # A composed errand that fetches nothing (a look-around, issue #166)
+    # names no module, and `self.module` is what the end-of-day summary
+    # reads: keep the last real one rather than an empty name.
+    self.module = errand.module or self.module
     # ---- interruptible from here to the stow (issue #116) ----
     # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
     # out: an errand that raises must not leave the NEXT one already
@@ -1326,14 +1329,23 @@ class HubLifecycle:
     steps with one verdict each, and hang back whatever is still on the fork
     -- abort means stow, for a program exactly as for a native errand. The
     `procedure` event says how it went; a refusal never runs a step."""
+    from pluggybot.procedure import lang
     from pluggybot.procedure import steps as procedure
     program = errand.program
     facts = world_facts(self.world)
     t = float(self.data.time)
     base = {"type": "procedure", "robot": ROBOT_ROOT, "name": program.name,
             "program": program.as_dict()}
+    # A PROCEDURE (issue #166) or a PROGRAM (#58): one validator and one
+    # runner each, the same result shape out, so everything below reads both.
+    is_proc = isinstance(program, lang.Procedure)
     try:
-      procedure.compile_program(program, facts)
+      if is_proc:
+        reasons = lang.validate(program, facts)
+        if reasons:
+          raise procedure.Refused(reasons)
+      else:
+        procedure.compile_program(program, facts)
     except procedure.Refused as e:
       self._say(f"PROCEDURE {program.name} refused: {e}")
       self._emit({**base, "t": round(t, 3), "outcome": "refused",
@@ -1347,7 +1359,10 @@ class HubLifecycle:
                 "steps": len(program.steps())})
     self.state = "USE_TOOL"
     try:
-      run = yield from procedure.run_program_routine(self, program, facts)
+      if is_proc:
+        run = yield from lang.run_procedure_routine(self, program, facts)
+      else:
+        run = yield from procedure.run_program_routine(self, program, facts)
     except MissionAborted:
       raise
     except Exception as e:                        # noqa: BLE001 -- as run_errand
@@ -1891,6 +1906,48 @@ class HubLifecycle:
                      f"{got['hearts']} left")
     else:
       self._say(f"HEART refused: {got['why']}")
+
+  def _define(self, decision) -> None:
+    """Apply a decision's `define` / `undefine` to the library (issue #166).
+
+    Remove before add, as `_reconsider` does, so a full library plus a
+    decision that retires one procedure and writes another works in one
+    go. Every refusal is narrated and a `procedure` event says what was
+    defined, undefined or refused -- what the robot wrote rides the event
+    whole, as a thought does.
+    """
+    library = getattr(self.overseer, "library", None)
+    if library is None or not (decision.define or decision.undefine):
+      return
+    from pluggybot.procedure.library import LibraryRefused
+    t = float(self.data.time)
+    base = {"type": "procedure", "t": round(t, 3), "robot": ROBOT_ROOT}
+    if decision.undefine:
+      try:
+        library.undefine(decision.undefine, t=t)
+      except LibraryRefused as e:
+        self._say(f"PROCEDURE undefine refused: {e}")
+        self._emit({**base, "outcome": "refused", "name": decision.undefine,
+                    "verb": "undefine", "reasons": list(e.reasons)})
+      else:
+        self._say(f"PROCEDURE undefined {decision.undefine}")
+        self._remember(f"forgot the procedure {decision.undefine}")
+        self._emit({**base, "outcome": "undefined", "name": decision.undefine})
+    if decision.define:
+      name = decision.define.get("name", "")
+      source = decision.define.get("source", "")
+      try:
+        proc = library.define(name, source, t=t)
+      except LibraryRefused as e:
+        self._say(f"PROCEDURE define {name!r} refused: {e}")
+        self._emit({**base, "outcome": "refused", "name": name,
+                    "verb": "define", "reasons": list(e.reasons),
+                    "source": source})
+      else:
+        self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
+        self._remember(f"wrote the procedure {proc.name}")
+        self._emit({**base, "outcome": "defined", "name": proc.name,
+                    "program": proc.as_dict()})
 
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.
@@ -2586,6 +2643,10 @@ class HubLifecycle:
     # for `_reconsider`'s reason exactly: buying a heart is paperwork, not
     # something the body does, so it must not cost the robot its turn.
     self._buy_heart(decision)
+    # ...and the library's two verbs (issue #166), paperwork like the four
+    # above: compiled and refused out loud by the library, narrated either
+    # way, and the action stands whatever the library said.
+    self._define(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
@@ -2627,7 +2688,8 @@ class HubLifecycle:
     if decision.action in ("idle", "journal"):
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
-    errand = errand_from(decision, self.world, self.boards)
+    errand = errand_from(decision, self.world, self.boards,
+                         library=getattr(self.overseer, "library", None))
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
@@ -3175,14 +3237,25 @@ def draw_errand_for(world: str, book, board_name: str,
 # ---- the overseer's seams (issue #15) ---------------------------------------
 
 
-def errand_from(decision, world: str, book=None):
+def errand_from(decision, world: str, book=None, library=None):
   """An overseer decision -> an errand, or None if this world cannot build it.
 
   None rather than an exception: a decision is untrusted input in exactly the
   way a visitor message will be (issue #16), and the mission loop's response
   to "I cannot do that" should be to ask again, not to end.
+
+  `procedure:<name>` (issue #166) builds a composed errand from the robot's
+  own library -- None if the name is not there or the entry no longer
+  validates, which a row written before an `undefine` can ask for.
   """
+  from pluggybot.mind.overseer import PROCEDURE_PREFIX
   try:
+    if decision.action.startswith(PROCEDURE_PREFIX):
+      name = decision.action[len(PROCEDURE_PREFIX):]
+      proc = library.get(name) if library is not None else None
+      if proc is None:
+        return None
+      return programmed_errand(proc, task="program", name="procedure")
     if decision.action in ("draw", "artwork"):
       # Same errand, different TIER. `artwork` is the visitor-judged slot
       # (issue #14): code confirms ink landed and banks zero, and the points
@@ -3266,10 +3339,22 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   return errand
 
 
+def load_program(path: str, world: str):
+  """A program to fly by hand (`hub_lifecycle.py --program`): a JSON program
+  over the step vocabulary (#58), or a `.procedure` in the language (#166),
+  compiled against the world before anything moves."""
+  text = Path(path).read_text()
+  if str(path).endswith(".json"):
+    return compile_program(Program.from_json(text), world_facts(world))
+  from pluggybot.procedure.lang import compile_procedure
+  return compile_procedure(text, world_facts(world))
+
+
 def world_facts(world: str):
   """What a program is validated against (procedure/steps.py): this world's
   boards, the tools on its rack, the box its map covers, the figures the
   pen knows."""
+  from pluggybot.procedure import axes
   from pluggybot.procedure.steps import TOOL_BAYS, WorldFacts
   cfg = world_config(world)
   boards: tuple = ()
@@ -3278,7 +3363,8 @@ def world_facts(world: str):
   return WorldFacts(boards=boards, tools=tuple(TOOL_BAYS),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
-                                  if n not in ("text", "answer")))
+                                  if n not in ("text", "answer")),
+                    axes=tuple(axes.AXES), sensors=tuple(axes.SENSORS))
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -3351,6 +3437,14 @@ def overseer_context(life) -> dict:
                                      if life.metabolism is not None
                                      else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
+  # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
+  # half because it changes during a run, on `Goals.md`'s terms. Absent
+  # where there is none. `procedures` (the runnable names) is what
+  # `order_runnable` reads for a `procedure:<name>` order.
+  library = getattr(life.overseer, "library", None) if life.overseer else None
+  if library is not None:
+    state["procedures"] = list(library.runnable())
+    state["library"] = library.as_context()
   return state
 
 
@@ -3647,9 +3741,8 @@ def run_demo(start=None, view: bool = False,
                       world=world,
                       errands=(errands_for(errand, world, book)
                                if program is None else
-                               [programmed_errand(compile_program(
-                                  Program.from_json(Path(program).read_text()),
-                                  world_facts(world)), task=program_task)]),
+                               [programmed_errand(load_program(program, world),
+                                                  task=program_task)]),
                       tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,

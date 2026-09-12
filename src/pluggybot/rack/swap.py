@@ -318,18 +318,25 @@ class HubSwap:
         return "stalled"
     return "timeout"
 
-  def set_lift_routine(self, target: float, speed: float,
-                       settle: float = 1.2) -> Routine:
-    """Walk the lift setpoint to `target` at `speed` (m/s), then settle --
-    CLAUDE.md's ramping rule for the mast, the step vocabulary's `set_lift`.
+  def ramp_routine(self, act: int, target: float, speed: float,
+                   settle: float = 0.0) -> Routine:
+    """Walk ONE actuator's setpoint to `target` at `speed` (units/s), then
+    settle -- CLAUDE.md's ramping rule as the one primitive every position
+    axis goes through, and the `move` verb's whole body (procedure/axes.py).
     A stiff servo handed a step delivers the whole difference as an impulse
     and has thrown a module off the fork (tools/gripper.py, `set_lift`)."""
-    cur = float(self.data.ctrl[self.lift_act])
+    cur = float(self.data.ctrl[act])
     steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
     for k in range(steps):
-      self.data.ctrl[self.lift_act] = cur + (target - cur) * (k + 1) / steps
+      self.data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
       yield 0.0, 0.0
-    yield from self._run_routine(settle, 0.0)
+    if settle:
+      yield from self._run_routine(settle, 0.0)
+
+  def set_lift_routine(self, target: float, speed: float,
+                       settle: float = 1.2) -> Routine:
+    """The mast, ramped: the step vocabulary's `set_lift`."""
+    yield from self.ramp_routine(self.lift_act, target, speed, settle)
 
   # ---- the verbs -----------------------------------------------------------
 

@@ -134,9 +134,9 @@ def programmed_errand(program, task: str = "program",
   """
   from pluggybot.procedure.steps import TOOL_BAYS
   steps = program.steps()
-  first_tool = next((s.args["tool"] for s in steps if s.verb == "fetch"), "")
-  board = next((s.args["board"] for s in steps if s.verb == "draw"), None)
-  figure = next((s.args["figure"] for s in steps if s.verb == "draw"), None)
+  first_tool = program.first("fetch", "tool") or ""
+  board = program.first("draw", "board")
+  figure = program.first("draw", "figure")
   detail = {"program": program.name, "steps": len(steps)}
   if board is not None:
     detail.update({"board": board, "figure": figure})
