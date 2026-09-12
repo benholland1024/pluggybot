@@ -63,6 +63,7 @@ from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
 from pluggybot.telemetry.protocol import DEATH_CAUSES, ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
+from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
@@ -279,7 +280,8 @@ class HubLifecycle:
                energy=None, thoughts=None, metabolism=None,
                mortal: bool | None = None,
                restart_after_s: float | None = None,
-               autonomous: bool = False) -> None:
+               autonomous: bool = False,
+               handle: RobotHandle = FIRST) -> None:
     self.model, self.data = model, data
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
@@ -361,11 +363,15 @@ class HubLifecycle:
     self._face_state: str | None = None
     self._face_shown: tuple[str, str] | None = None
     self._next_screen_sense = 0.0
+    # WHICH ROBOT this life is (issue #167): the mission, the swap, the
+    # lidar, the cameras and the battery all resolve their elements through
+    # it. `FIRST` is the bare names, so a single-robot world is unchanged.
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
-                              rack=rack, grid_bounds=grid_bounds)
+                              rack=rack, grid_bounds=grid_bounds, handle=handle)
     self.battery = Battery(model, capacity_wh=battery_wh,
                            charge_scale=(charge_scale if charge_scale is not None
-                                         else charge_scale_from_env()))
+                                         else charge_scale_from_env()),
+                           prefix=handle.prefix)
     # What an errand COSTS here, measured (issue #15). Read per world from
     # economy/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
     # unlike the ledger or the task board: "can I finish this before the pack
@@ -558,8 +564,10 @@ class HubLifecycle:
     is gated on contact and not on position.
     """
     dt = self.model.opt.timestep
-    self.charging_now = rack_charge_contact(self.model, self.data)
-    self.tool_powered = module_power_contact(self.model, self.data, self.module)
+    prefix = self.mission.handle.prefix
+    self.charging_now = rack_charge_contact(self.model, self.data, prefix)
+    self.tool_powered = module_power_contact(self.model, self.data, self.module,
+                                            prefix)
     if self.tool_powered:
       self.tool_powered_s += dt
     self.battery.update(self.data, dt, charging=self.charging_now,
@@ -624,7 +632,8 @@ class HubLifecycle:
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and the world's."""
-    w, x, y, z = self.data.qpos[3:7]
+    q = self.mission.swap.root_qadr
+    w, x, y, z = self.data.qpos[q + 3:q + 7]
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
 
@@ -1035,7 +1044,7 @@ class HubLifecycle:
     # fires -- position is believed, contact is known.
     why = yield from self.mission.charge_approach_routine(CHARGE_APPROACH_MAX,
                                                           CHARGE_CREEP)
-    if not rack_charge_contact(self.model, self.data):
+    if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
       self._say(f"GO_CHARGE: no charge contact ({why})")
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
@@ -3605,7 +3614,8 @@ def run_demo(start=None, view: bool = False,
              restart_after_s: float | None = None,
              autonomous: bool = False,
              show_survival: bool = True,
-             origin: str = ev.DEFAULT_ORIGIN) -> dict:
+             origin: str = ev.DEFAULT_ORIGIN,
+             second_robot=None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -3629,7 +3639,11 @@ def run_demo(start=None, view: bool = False,
   if pack not in ("demo", "hosting"):
     raise ValueError(f"unknown pack {pack!r} (demo or hosting)")
   default_wh = cfg["battery_wh"] if pack == "demo" else cfg["hosting_battery_wh"]
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  # A SECOND ROBOT, parked (issue #167, slice A): attached with its prefix
+  # and never driven -- the parity instrument's "with the second robot
+  # parked" arm. Driving it is the next slice.
+  from pluggybot.robot import world_with_robots
+  model = world_with_robots(cfg["model"], second_at=second_robot)
   data = mujoco.MjData(model)
   viewer = None
   if view:

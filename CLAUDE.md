@@ -737,6 +737,29 @@ save a filmstrip PNG named after the script.
   refactor landed IDENTICAL over a 1500 s scripted `home` day. `_ask_
   interrupt` and the dispenser are still blocking, on purpose and by
   omission respectively.
+- **A robot's elements are reached through its `RobotHandle`, never by
+  bare name** (issue #167, M12; `pluggybot/robot.py`). A second robot is
+  `models/pluggybot_fork.xml` ATTACHED with a prefix (`MjSpec.attach`,
+  `r2_`), so its names are `r2_chassis`, `r2_lift`, `r2_dock_eye`; the
+  first robot's handle is `FIRST` (prefix `""`) and a single-robot world is
+  byte-identical. `HubSwap`, `HubMission`, `Battery`, the tools and the
+  lifecycle take `handle=`; the swap owns the resolved ids (`lift_act`,
+  `arm_act`, `root_qadr`, `vertex_sid`, `chassis_bid`) and everything reads
+  them from there; the electrical criteria take `prefix=` (a module on the
+  OTHER robot's fork is not powered by this one). ⚠ `qpos[0..7]` is the
+  first robot only — use `swap.root_qadr`. The rack, bays and modules are
+  the WORLD's and never prefixed (tool contention is the minds' to
+  negotiate). ⚠ Measured: a parked second robot leaves the first robot
+  byte-identical over a spin, a drive and a whole drawing, but a full
+  `home` day diverges at t = 98 s by 10⁻¹⁵ — the solver's rounding with an
+  extra island, not a code path (SimNotes). So a CODE change on this stack
+  is proven by flying it ALONE against the baseline (IDENTICAL); a WORLD
+  change is judged on `ctrl` and the perception trace
+  (`determinism_spike.py --second-robot X,Y`). `tests/test_two_robots.py::
+  test_mission_code_resolves_every_robot_element_through_the_handle` is
+  the fence: a bare robot name in mission code fails it. The wire
+  (`ROBOT_ROOT` on events, the body census) is still first-robot-only —
+  slice E of #167.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

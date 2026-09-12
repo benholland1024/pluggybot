@@ -202,7 +202,8 @@ def _fetch(life, args: dict) -> Routine:
   life.module = tool
   why = yield from life.mission.swap_at_bay_routine(station, "pick", module=tool)
   st = life.mission.swap.module_state(tool)
-  ok = bool(st["on_fork"]) and module_power_contact(life.model, life.data, tool)
+  ok = bool(st["on_fork"]) and module_power_contact(
+    life.model, life.data, tool, life.mission.swap.handle.prefix)
   life.swaps_done += 1
   return {"ok": ok, "tool": tool, "why": why, "powered": ok}
 
@@ -261,7 +262,7 @@ def _holding_anything(claw) -> str | None:
   model, data = claw.model, claw.data
   pad = next(iter(claw._jaw_gids))
   own = {int(model.body_rootid[model.geom_bodyid[pad]]),
-         int(model.body_rootid[model.geom_bodyid[model.geom("chassis").id]])}
+         int(model.body_rootid[claw.swap.chassis_bid])}
   touched: dict[int, set] = {}
   for i in range(data.ncon):
     c = data.contact[i]

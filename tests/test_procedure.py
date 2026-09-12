@@ -273,7 +273,7 @@ def _stub_swaps(life, monkeypatch, fetch_ok=True, hung=True):
   life.mission.swap.module_state = lambda tool: {
     "on_fork": on_fork.get(tool, False),
     "hung": hung and not on_fork.get(tool, False)}
-  monkeypatch.setattr(st, "module_power_contact", lambda m, d, t: True)
+  monkeypatch.setattr(st, "module_power_contact", lambda *a, **k: True)
   life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   life.mission._drive_routine = lambda *a, **kw: tick.result(None)
   return on_fork

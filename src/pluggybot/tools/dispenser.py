@@ -79,8 +79,8 @@ class SeedDispenser:
 
   def __init__(self, model, data, swap, ground: str = "floor") -> None:
     self.model, self.data, self.swap = model, data, swap
-    self.lift_act = model.actuator("lift").id
-    self.arm_act = model.actuator("arm").id
+    self.lift_act = swap.lift_act
+    self.arm_act = swap.arm_act
     self.gate_act = model.actuator("seed_gate").id
     self.outlet_site = model.site("seed_outlet").id
     self.module_bid = model.body(SEED_MODULE).id

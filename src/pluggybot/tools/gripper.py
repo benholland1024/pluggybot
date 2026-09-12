@@ -79,8 +79,8 @@ class ClawTool:
 
   def __init__(self, model, data, swap) -> None:
     self.model, self.data, self.swap = model, data, swap
-    self.lift_act = model.actuator("lift").id
-    self.arm_act = model.actuator("arm").id
+    self.lift_act = swap.lift_act
+    self.arm_act = swap.arm_act
     self.jaw_acts = [model.actuator("claw_l").id, model.actuator("claw_r").id]
     self.grip_site = model.site("claw_grip").id
     self._jaw_gids = {model.geom(g).id for g in JAW_GEOMS}

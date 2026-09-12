@@ -1226,6 +1226,29 @@ centre of mass is over its support and falls inside 0.31 s otherwise. **What
 is true now:** any free body meant to REST on another for longer than a few
 seconds needs the hard contact, or the sim grades the solver (Challenges.md §4).
 
+## A second robot perturbs the first at the last bit, and not before 98 s (issue #167)
+
+Measured while M12's namespacing was built. With a second copy of the robot
+attached (`MjSpec.attach`, prefix `r2_`) and left parked, the first robot's
+spin and 15 s drive in `room_hub`, and a whole pen drawing in `hub_world`,
+hashed **byte-identical** to the same runs alone — near or far, contacts on or
+off. The full 1500 s scripted `home` day did not: the state diverged at
+**t = 98.2 s**, mid-drawing, by **1.4 × 10⁻¹⁴** on the pen module's free
+joint and 10⁻¹⁵ on the fork's compliant joints and the modules hanging on the
+rack, with `ctrl` identical at that sample and no perception input differing
+for the next 70 s. That is the constraint solver's rounding with an extra
+island in the problem, not a code path (the code path was ruled out by flying
+the refactored code alone against the baseline: IDENTICAL), and chaos does the
+rest — 0.02 mm on that drawing's form error, a different day by 1500 s.
+Enabling `mjENBL_SLEEP` to drop the parked body from the solve changes the
+first robot's numbers on its own. **What is true now:** the parity instrument
+proves a CODE change exact (fly the new code alone); a WORLD change — another
+body, even one that touches nothing — is a different day at the 10⁻¹⁵ level
+and its parity claim is "same code path, same decisions", read off `ctrl` and
+the perception trace, never off the state hash. `determinism_spike.py
+--second-robot X,Y` is the flight; `tests/test_two_robots.py` pins the short
+identical cases.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,
