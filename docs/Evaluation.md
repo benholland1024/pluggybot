@@ -166,6 +166,13 @@ and the rollup's series key already separates them. `guarded` is untouched
 (`GUARDED_RULES_SHA`, and its menu never carries the family). The rule's
 worked example shows no survival policy, for the reason above.
 
+**A paired world is a different experiment again** (issue #167): with a
+second robot present, both minds' prefixes carry `OTHER_ROBOT_RULE` and
+their contexts carry `others`, on `guarded` and `autonomous` alike — so a
+two-robot series is never pooled with a single-robot one, and the rollup's
+series key must carry the robot count when the wire lands (slice E). The
+single-robot prefix is unchanged.
+
 ### What the `autonomous` arm turns on, and where
 
 | | where | note |

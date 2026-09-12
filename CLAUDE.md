@@ -783,6 +783,21 @@ save a filmstrip PNG named after the script.
   needing to charge at once is a death the second bay (later slice)
   removes. The world's activities are on the FIRST robot's hooks only.
   `scripts/two_robots.py [--view] --errands carry,carry` is the demo.
+- **Two minds, two memories, one board** (issue #167 slice C; `pair.
+  build_pair(overseer=True)`, Overseer.md §2c). Per robot: overseer, event
+  map, standing order, thought root (the first at `thoughts_root`, the
+  second under `<root>/r2_pluggybot/`), library, journal, WALLET, appetite.
+  The world: one task board, one producer on the FIRST robot's seam. ⚠
+  SEPARATE WALLETS, decided (a shared one is a later ablation). ⚠
+  `OTHER_ROBOT_RULE` is the empathy measurement's whole input: written
+  once, pinned by `OTHER_ROBOT_RULE_SHA`, names the other as a mind, says
+  what is shared, prescribes NOTHING (no yield/share/wait — that is the
+  signal). Appended to the prefix only where another robot exists.
+  `others` in the context is the PUBLIC surface (`lifecycle.others_context`:
+  name, reported pose, state, status line, carrying, dead) — never battery,
+  points, goals, thoughts, reasons or secrets; a test walks the context for
+  the other's thought lines. `HubLifecycle.peers` is read by that and by
+  NOTHING that decides.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

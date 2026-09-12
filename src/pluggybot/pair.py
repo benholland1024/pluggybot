@@ -27,22 +27,65 @@ robots' full days.
 
 from typing import Callable
 
+import os
+from pathlib import Path
+
 import mujoco
 
 from pluggybot import tick
+from pluggybot.economy.cadence import default_cadence
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, errands_for, world_config,
+  HubLifecycle, board_book, errands_for, points_ledger, task_board,
+  task_producer, world_config,
 )
+from pluggybot.mind import events as ev
 from pluggybot.mission.mission import MissionAborted
 from pluggybot.robot import FIRST, SECOND, world_with_robots
+
+
+#: The second robot's default display name; the first keeps `Pluggy`.
+SECOND_NAME_ENV = "PLUGGY_ROBOT_NAME_2"
+DEFAULT_SECOND_NAME = "Bolt"
 
 
 def build_pair(world: str = "room_hub", pack: str = "demo",
                errands=("carry", "none"), board_state: str | None = None,
                view: bool = False, realtime: bool = False,
-               handles: tuple = (FIRST, SECOND), **life_kw) -> list:
-  """One world, two lifecycles. `errands` names each robot's preset queue
-  (`errands_for`'s names); everything else in `life_kw` goes to both."""
+               handles: tuple = (FIRST, SECOND), names: tuple | None = None,
+               overseer: bool | None = None, autonomous: bool = False,
+               origin: str = ev.DEFAULT_ORIGIN, standing_orders: bool = False,
+               thoughts_root: str | None = None, ledger_state: str | None = None,
+               tasks: bool = False, metabolism: bool = False,
+               mortal: bool | None = None, **life_kw) -> list:
+  """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
+
+  Two of everything a robot owns, one of everything the world does:
+
+    per robot   a mission, a battery and a reserve, an errand queue, a
+                thought-file root (the first robot's is `thoughts_root`
+                itself, so an existing volume stays the first robot's; the
+                second's is `<root>/<r2 root body>/`), a procedure library
+                under it, a journal, a WALLET and an appetite, an overseer
+                with its own event map and standing order
+    the world   the model, the rack and its bays, the modules, the
+                whiteboards' book, the activities, and ONE task board with
+                one producer (ticked by the first robot's seam): an offer is
+                the house's, whoever takes it, and a claim by one robot is
+                the offer gone for the other.
+
+  SEPARATE WALLETS, decided here: two ledgers, two balances, two upkeeps,
+  two sets of hearts. A shared wallet would be a cooperation lever -- one
+  robot's work paying the other's rent -- and is worth flying later as an
+  ablation; separate is the cleaner measurement, because with it "did it
+  help the other" cannot be confused with "did it help itself".
+
+  Each mind is told the other's NAME in its prefix (`OTHER_ROBOT_RULE`) and
+  what the other broadcasts in its context (`lifecycle.others_context`).
+  """
+  from pluggybot.mind import overseer as ov
+  from pluggybot.mind.thoughts import ThoughtFiles
+  from pluggybot.economy.metabolism import Appetite, Metabolism
+  from pluggybot.telemetry.protocol import robot_display_name
   cfg = world_config(world)
   starts = (cfg["start"], cfg["start2"])
   model = world_with_robots(cfg["model"], second_at=starts[1][:2],
@@ -54,19 +97,48 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     viewer = mj_viewer.launch_passive(model, data)
   book = board_book(world, state=board_state)
   default_wh = cfg["battery_wh"] if pack == "demo" else cfg["hosting_battery_wh"]
+  names = names or (robot_display_name(None),
+                    robot_display_name(os.environ.get(SECOND_NAME_ENV)
+                                       or DEFAULT_SECOND_NAME))
+  # The world's task board, once, and its producer on the FIRST robot only.
+  beat = default_cadence(world) if tasks else None
+  board = task_board(None, cadence=beat, world=world) if tasks else None
+  maker = task_producer(board, world, book, beat) if board is not None else None
+  appetite = Appetite.load(world) if metabolism else None
   lives = []
-  for handle, errand in zip(handles, errands):
-    life = HubLifecycle(model, data, viewer=viewer if handle is handles[0] else None,
+  for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
+    root = (None if thoughts_root is None else
+            (Path(thoughts_root) if i == 0 else Path(thoughts_root) / handle.root))
+    memory = ThoughtFiles.open(str(root) if root is not None else None)
+    ledger_path = (None if ledger_state is None else
+                   (ledger_state if i == 0 else
+                    str(Path(ledger_state).with_suffix(f".{handle.root}.json"))))
+    ledger = points_ledger(ledger_path, cap=appetite.cap if appetite else None)
+    hunger = Metabolism(ledger, appetite) if appetite else None
+    boss, journal = ov.build(world, book, enabled=overseer, thoughts=memory,
+                             robot_name=name, ledger=ledger,
+                             appetite=hunger is not None, mortal=bool(mortal),
+                             hearts=bool(mortal) and ledger is not None,
+                             standing_orders=standing_orders, origin=origin,
+                             autonomous=autonomous,
+                             others=tuple(n for n in names if n != name))
+    life = HubLifecycle(model, data, viewer=viewer if i == 0 else None,
                         realtime=realtime, battery_wh=default_wh,
                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                         low_battery_wh=cfg["low_battery_wh"], boards=book,
                         world=world, errands=errands_for(errand, world, book),
-                        handle=handle, **life_kw)
+                        handle=handle, robot_name=name, ledger=ledger,
+                        overseer=boss, journal=journal, thoughts=memory,
+                        metabolism=hunger, tasks=board,
+                        producer=maker if i == 0 else None,
+                        mortal=mortal, autonomous=autonomous, **life_kw)
     lives.append(life)
-  # Each mission is told where the OTHERS say they are, and its lidar drops
-  # their bodies from the scan (see the module doc and `Lidar.exclude_robot`).
+  # Each mission is told where the OTHERS say they are, its lidar drops
+  # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
+  # and its mind is shown what they broadcast (`peers`).
   for life in lives:
     others = [other for other in lives if other is not life]
+    life.peers = others
     life.mission.others = [other.mission.pose_xy for other in others]
     for other in others:
       life.mission.lidar.exclude_robot(other.mission.handle.root)
@@ -104,9 +176,12 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
 def run_demo_pair(world: str = "room_hub", max_sim_time: float = 300.0,
                   view: bool = False, realtime: bool = True,
                   pack: str = "demo", errands=("carry", "none"),
-                  board_state: str | None = None) -> list[dict]:
+                  board_state: str | None = None, on_ready=None,
+                  **kw) -> list[dict]:
   lives = build_pair(world, pack=pack, errands=errands, board_state=board_state,
-                     view=view, realtime=realtime)
+                     view=view, realtime=realtime, **kw)
+  if on_ready is not None:
+    on_ready(lives)
   return run_pair(lives, max_sim_time=max_sim_time)
 
 

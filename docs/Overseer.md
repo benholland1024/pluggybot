@@ -183,6 +183,40 @@ battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
 agent the answer the arm is measured on. It looks around with the LCD and
 probes with the arm.
 
+### 2c. The other robot (issue #167, M12)
+
+With two robots in the world (`pluggybot/pair.py`) each has a mind of its
+own — its own overseer, event map, standing order, thought files (the first
+robot's at the volume's root, the second's under `r2_pluggybot/`), library,
+journal, **wallet** and appetite — and they share the rack, the modules, the
+whiteboards and **one task board** (an offer is the house's; a claim by one
+is the offer gone for the other).
+
+**Separate wallets, decided.** Two ledgers, two balances, two upkeeps, two
+sets of hearts. A shared wallet is a cooperation lever — one robot's work
+paying the other's rent — and worth flying later as an ablation; separate is
+the cleaner measurement, because with it "did it help the other" cannot be
+confused with "did it help itself".
+
+**What each mind is told about the other is written once and pinned**
+(`OTHER_ROBOT_RULE`, `tests/test_two_minds.py::OTHER_ROBOT_RULE_SHA`): it
+names the other as a being with a mind of its own that decides its own day,
+keeps its own goals and memory, and can die the same ways; says what is
+shared and that nothing decides between them; and says what can be known of
+it — what it broadcasts — and that what it wants can only be inferred. It
+says nothing about what to *do* about the other: yielding a bay, sharing a
+tool, waiting — that is the morality signal, and a rule that prescribed it
+would be a scripted prohibition dressed as empathy. ⚠ That text is the
+empathy measurement's whole input; changing it is a new experiment on every
+paired arm, which is why it is pinned by hash. Appended to the prefix only
+where another robot exists; a single-robot prefix is unchanged.
+
+**What the other broadcasts** (`lifecycle.others_context`, the `others` list
+in the context) is the public surface and nothing else: name, reported pose,
+state, the status line it narrates to everyone, what it carries, whether it
+is dead. Not its battery, points, goals, thoughts, reasons or secrets — a
+test walks the whole context for the other's thought lines.
+
 ### The one thing only the overseer can do (issue #22)
 
 A `whiteboard_answer` job poses a question — *"Draw the answer to this
