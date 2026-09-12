@@ -544,6 +544,17 @@ save a filmstrip PNG named after the script.
   dockerignored) and the build is RED without it (`tests/test_deploy.py`
   runs the Dockerfile's guard line). Storing it is the website's half
   (rooftop-media-2026 #205).
+- **The deployed world is READ through one route, and the commit comes
+  first** (issue #159; Evaluation.md §5 "How the observatory is read"):
+  `GET /api/pluggyworld/observe` on the website with `Authorization: Bearer
+  $PLUGGYWORLD_READ_TOKEN` — a SECOND secret, never the ingest token — returns
+  the build, the four documents, the digest, events (`?kind=thought` is "what
+  has it written"), decisions and balances. Not SSH: a route is in the repo,
+  scoped to reading, and an agent can use it. ⚠ `THOUGHT <verb>: <line>`
+  (`protocol.THOUGHT_VERBS`, `tests/test_thoughts.py`) is a two-repo
+  contract: the site's observatory parses it into a `thought` row, because
+  the documents ride the wire whole and WHEN a line was written rides this
+  line alone. Renaming a verb or the prefix breaks the site's history.
 - **A recording carries the robot's map** (rooftop-media-2026 #78):
   `GridSampler` is the one implementation both sinks share. A RECORDING
   skips an image identical to the last and writes at 0.2 Hz; the LIVE stream

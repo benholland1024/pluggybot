@@ -20,6 +20,7 @@ that actually runs the robot rather than by a test calling the API directly.
 """
 
 import json
+import re
 
 import pytest
 
@@ -31,6 +32,7 @@ from pluggybot.mind.thoughts import (
   NAMES, SPECS, ThoughtFiles, ThoughtRefused,
 )
 from pluggybot.telemetry.protocol import (
+  THOUGHT_VERBS,
   DEFAULT_ROBOT_NAME, ROBOT_ROOT, THOUGHT_FILES, THOUGHT_WRITERS,
 )
 
@@ -584,6 +586,40 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   assert "one thing too many" not in files.read(KNOWLEDGE)
   # ...and a mission is never ended by a memory write.
   assert life.thoughts.refusals
+
+
+def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_path):
+  """`THOUGHT <verb>: <line>` is a two-repo contract (issue #159): the
+  website's observatory reads it into a `thought` row, because the documents
+  ride the wire whole and WHEN a line was written is carried by this line
+  alone. Pinned cheaply -- one lifecycle, four verbs and a refusal through
+  `_reconsider` -- and the vocabulary is asserted EQUAL to `THOUGHT_VERBS`,
+  so a fifth verb added to `_reconsider` without the constant fails here
+  rather than silently vanishing from the site's history."""
+  from test_overseer import _lifecycle
+
+  files = ThoughtFiles(tmp_path / "thoughts")
+  life = _lifecycle("room_hub", thoughts=files, errand=False)
+  said: list[str] = []
+  life.say_hooks.append(lambda t, line: said.append(line))
+
+  life._reconsider(ov.Decision(action="idle", learn="bay C sticks",
+                               intend="tidy bay C"))
+  life._reconsider(ov.Decision(action="idle", forget="bay C sticks",
+                               drop_goal="tidy bay C"))
+  life._reconsider(ov.Decision(action="idle", forget="nothing says this"))
+
+  lines = [line for line in said if line.startswith("THOUGHT")]
+  shape = re.compile(r"^THOUGHT ([a-z_]+): (.+)$")
+  seen = {}
+  for line in lines:
+    m = shape.match(line)
+    assert m, f"not the shape the site parses: {line!r}"
+    seen[m.group(1)] = m.group(2)
+  assert set(seen) == set(THOUGHT_VERBS)
+  assert seen["learn"] == "bay C sticks"
+  assert seen["forget"] == "bay C sticks"
+  assert "nothing" in seen["refused"]
 
 
 # ---- the robot's own goals (issue #154) --------------------------------------
