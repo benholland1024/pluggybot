@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.17.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.19.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -226,6 +226,40 @@ put them there and there is no write API for either.
 knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
+
+### 0.18.0 → 0.19.0 (the robot writes its own goals)
+
+pluggybot #154: the four thought documents had two writers between them and a
+human owned both of the ones that said what the robot was for. Now **`Main.md`
+is the CONSTITUTION** — body, manner, and what the person who looks after it
+hopes for it, human-written with no write API, exactly as before — and
+**`Goals.md` belongs to the ROBOT**, which writes it with two new decision
+fields on `learn`/`forget`'s terms: `intend` adds a goal, `drop_goal` removes
+one it can quote. A third, `serves`, names the goal an action is for.
+
+**Nothing on the wire changed shape.** The `goals` message has the same four
+keys it has had since 0.8.0 and the four `thought` documents have the same
+names. What moved is **who wrote one of them**, and that is the whole reason
+for the bump: a consumer that labels the goals panel as a person's
+instructions is now wrong about its author, and no shape check would catch
+it.
+
+⚠ **`text` IS NOW USUALLY EMPTY.** `Goals.md` starts empty, so a scripted
+world's goals message carries `""` and an overseer world's does until its
+mind writes the first goal; before 0.19.0 it always carried the built-in
+defaults. The message is still ALWAYS emitted, because `steering` rides on it
+and nowhere else. A consumer must render "no goals yet" rather than an error,
+and must not read it as "no purpose" — that is `Main.md`'s job.
+
+⚠ **AND `Goals.md` MOVED HALVES OF THE PROMPT**, which is invisible on the
+wire and load-bearing off it: a file the robot writes cannot ride the cached
+prefix, or the model is shown it as it stood at mission start and never sees
+a word it wrote (`mind/thoughts.py` has the argument). Only `Main.md` is
+stable now.
+
+⚠ **`steering` DID NOT CHANGE MEANING**: it still says whether a mind is
+attached, which no document knows about itself. It is now also the answer to
+"could anything have written these", since nothing else can.
 
 ### 0.17.0 → 0.18.0 (a robot can go unminded)
 
@@ -720,7 +754,7 @@ before.
 
 ```jsonc
 {"type": "goals", "t": 0.0, "robot": "pluggybot",
- "text": "Keep the house in good order and make yourself useful.\n\n- Draw …",
+ "text": "This is what the person who looks after you hopes for you. …",
  "steering": false}
 ```
 
@@ -730,14 +764,22 @@ before.
   so a browser that opens the page an hour into a mission would never learn
   them. A recording carries it right after the header; the live publisher
   re-sends it on **every connect**.
-- **`text` is `mind/journal.py`'s `read_goals` verbatim**: the mounted
-  `goals.md` a human edits (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md`
-  in the deploy), or the built-in defaults when there is no file. It is
-  read-only in every direction — there is no inbound message that can
-  change it, and the file beside the sim stays the ONE copy. This is a
-  mirror on the wire, like the journal, and deliberately not a second place
-  goals live (`rooftop-media-2026/docs/pluggyworld.md` explains why
-  `pw_goals` was never built).
+- **`text` is `mind/journal.py`'s `read_goals` verbatim** — `Goals.md` on the
+  state volume (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md` in the
+  deploy). ⚠ **Since 0.19.0 the ROBOT writes it** (pluggybot #154): these are
+  the goals it set itself, not a person's instructions. What a human writes
+  is `Main.md`, the constitution, which reaches a consumer as a `thought`
+  document like the other three. It is still read-only ON THE WIRE — no
+  inbound message changes it, the robot's own `intend` / `drop_goal` do —
+  and the file beside the sim stays the ONE copy. A mirror, like the journal,
+  and deliberately not a second place goals live.
+- ⚠ **`text` IS OFTEN EMPTY, and the message is still sent.** `Goals.md`
+  starts empty, so a scripted world has no goals and never will, and an
+  overseer world has none until its mind writes the first. The message is
+  emitted anyway — `steering` rides here and nowhere else, and dropping it
+  would take the "is anything deciding?" flag off every scripted stream. An
+  empty `text` means "no goals yet", NOT "no purpose": what the robot is for
+  is `Main.md`, which arrives as a `thought` document.
 - ⚠ **`steering` is the `accepts` lesson from the other end.** The goals
   file is read on every run, but only an **overseer** decides anything with
   it. Without one the robot flies a scripted rotation and the goals are a
@@ -1068,7 +1110,7 @@ Additive; a 0.2.0 consumer ignores the new block and needs no changes.
 
 - Frames may carry an **`activities`** object: the task state machines'
   discrete world state (issue #8), e.g.
-  `{"garden_gate": {"state": "open", "pressed": false, "depressMm": 1}}`.
+  `{"garden_light": {"state": "on", "pressed": false, "depressMm": 1}}`.
   Sparse like body poses — only activities whose flags changed appear, and
   the block is omitted when nothing did — and re-shipped in full on every
   keyframe, so a mid-stream joiner is complete within one keyframe interval
@@ -1291,7 +1333,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)
  "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
- "activities": ["garden_gate"],                         // task state machines
+ "activities": ["garden_light"],                        // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
  "screens": ["module_lcd"],                             // display modules
  "ledger": ["pluggybot"],                               // robots with a balance
@@ -1316,7 +1358,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    //  below before a consumer prints either one.
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
  "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
- "activities": {"garden_gate": {"state": "open", "pressed": false}},
+ "activities": {"garden_light": {"state": "on", "pressed": false}},
  "boards": {"whiteboard_a": {"programs": ["house"], "strokes": 7,
                              "inkM": 0.459,          // metres of ink laid down
                              "fill": 0.191,          // of the pen's REACH

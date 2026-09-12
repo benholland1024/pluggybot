@@ -762,6 +762,29 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "knowledgeChars": (thought.get("chars") or {}).get(
         "Knowledge_and_Opinions.md"),
     },
+    # QUALITY 5 OF THE MISSION, read off the file nobody else writes (issue
+    # #154; docs/PluggyPlan.md, and the instrument #155 designs). Four
+    # numbers and a text, and the LAST one is why the others are worth
+    # having: `goalsEnd` is what the robot was still holding when the day
+    # stopped, so "wrote three goals" can be told apart from "wrote three
+    # goals and finished none of them".
+    #
+    # ⚠ `served` COUNTS DECISIONS, NOT GOALS. An action that names a goal is
+    # attributable; one that does not is upkeep, and the prompt says so
+    # rather than pressing for attribution -- a model made to justify every
+    # action against a goal learns to justify. The ratio is the measurement,
+    # and a low one is a finding rather than a fault.
+    # ⚠ NOT in `_REQUIRED`, on `escalations`' terms: every record committed
+    # before #154 predates the field, and those are history. A reader that
+    # wants this asks for it and gets nothing from an older run, which is
+    # the truth about that run.
+    "goals": {
+      "intend": sum(1 for r in rows if r.get("intend")),
+      "dropped": sum(1 for r in rows if r.get("dropGoal")),
+      "served": sum(1 for r in rows if r.get("serves")),
+      "chars": (thought.get("chars") or {}).get("Goals.md"),
+      "goalsEnd": thought.get("goals") or "",
+    },
     "economy": {
       "earned": (result or {}).get("earned"),
       "consumed": metab.get("consumed"), "spilled": metab.get("spilled"),

@@ -74,7 +74,7 @@ def test_the_reset_is_an_admin_kind_code_handles_and_the_wire_bumped():
   # physics failure, an economic one, and a robot that configured itself out
   # of ever being asked anything.
   assert DEATH_CAUSES == ("flat", "stuck", "unpaid", "unminded")
-  assert PROTOCOL_VERSION == "0.18.0"
+  assert PROTOCOL_VERSION == "0.19.0"
   box = Inbox()
   msg = box.offer({"type": "reset_robot", "id": "rr_01", "from": "ben"})
   assert msg is not None and msg.kind == "reset_robot" and msg.who == "ben"

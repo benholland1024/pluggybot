@@ -215,12 +215,24 @@ def record(model, seconds=2.0, path=None, status_fn=None, tmp=None,
   return rec, lines
 
 
+def frames_of(lines):
+  """Just the pose frames: no `type` means frame, which is the dispatch rule
+  the protocol has had since 0.4.0.
+
+  ⚠ FILTER, NEVER SLICE. These tests used `lines[1:]` and `lines[2:]`, which
+  silently became wrong the moment the recording opened with one more typed
+  message than it used to -- 0.19.0's always-emitted `goals` line did exactly
+  that. A count of frames should not depend on how many things precede them.
+  """
+  return [ln for ln in lines if "type" not in ln]
+
+
 def test_recorder_honours_the_keyframe_cadence(mini_model, tmp_path):
   """The recorder's keyframe_s must reach its builder: `serve.py --record`
   writes a recording of the SAME run it streams, so a cadence that applied
   to one and not the other would make the two artifacts disagree."""
   rec, lines = record(mini_model, seconds=3.0, tmp=tmp_path, keyframe_s=0.5)
-  header, frames = lines[0], lines[1:]
+  header, frames = lines[0], frames_of(lines)
   assert header["keyframeS"] == 0.5
   keys = [f for f in frames if f.get("key")]
   assert len(keys) >= 5, f"expected ~6 keyframes over 3 s, got {len(keys)}"
@@ -232,7 +244,7 @@ def test_recorder_honours_the_keyframe_cadence(mini_model, tmp_path):
 def test_recorder_header_and_decimation(mini_model, tmp_path, monkeypatch):
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
   rec, lines = record(mini_model, seconds=2.0, tmp=tmp_path)
-  header, frames = lines[0], lines[1:]
+  header, frames = lines[0], frames_of(lines)
   assert header["type"] == "header"
   assert header["protocolVersion"] == PROTOCOL_VERSION
   assert header["robots"] == {"pluggybot": ["pluggybot"]}
@@ -260,7 +272,7 @@ def test_a_named_robot_re_keys_nothing(mini_model, tmp_path):
   from pluggybot.telemetry.protocol import ROBOT_ROOT
   rec, lines = record(mini_model, seconds=1.0, tmp=tmp_path,
                       robot_name="Luca")
-  header, frames = lines[0], lines[1:]
+  header, frames = lines[0], frames_of(lines)
   assert header["robotNames"] == {"pluggybot": "Luca"}
   assert ROBOT_ROOT == "pluggybot"
   assert header["robots"] == {"pluggybot": ["pluggybot"]}
@@ -293,7 +305,7 @@ def test_first_frame_is_keyframe_then_sparse(mini_model, tmp_path):
   """Frame 0 carries every dynamic body; once the ball has settled on the
   floor it stops being shipped (absent = unchanged, the replayer holds)."""
   _, lines = record(mini_model, seconds=3.0, tmp=tmp_path)
-  first, last = lines[1], lines[-1]
+  first, last = frames_of(lines)[0], frames_of(lines)[-1]
   assert "pluggybot" in first["robots"]["pluggybot"]["bodies"]
   assert "ball" in first["world"]
   pose = first["world"]["ball"]
@@ -304,7 +316,7 @@ def test_first_frame_is_keyframe_then_sparse(mini_model, tmp_path):
 def test_static_scene_sends_no_poses_after_keyframe(mini_model, tmp_path):
   mini_model.opt.gravity[:] = 0                # nothing will ever move
   _, lines = record(mini_model, seconds=1.0, tmp=tmp_path)
-  for frame in lines[2:]:
+  for frame in frames_of(lines)[1:]:
     assert "bodies" not in frame["robots"]["pluggybot"]
     assert "world" not in frame
 
@@ -321,7 +333,7 @@ def test_recorder_status_fn_and_gzip(mini_model, tmp_path):
 
   _, lines = record(mini_model, seconds=1.0, status_fn=status,
                     path=str(tmp_path / "out.jsonl.gz"))
-  frames = lines[1:]
+  frames = frames_of(lines)
   assert calls["n"] == len(frames), "status_fn runs once per frame, not per step"
   assert frames[0]["robots"]["pluggybot"]["state"] == "EXPLORE"
   assert frames[-1]["robots"]["pluggybot"]["status"] == f"frame {len(frames)}"
@@ -474,7 +486,8 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   assert lines[0]["type"] == "header"
   snaps = [x for x in lines if x.get("type") == "board_snapshot"]
   assert len(snaps) == 1, "the recording never said what was on the board"
-  assert lines.index(snaps[0]) == 1, "the snapshot must precede the frames"
+  assert lines.index(snaps[0]) < lines.index(frames_of(lines)[0]), \
+    "the snapshot must precede the frames"
   assert snaps[0]["board"] == "whiteboard_a"
   assert len(snaps[0]["strokes"]) == 1
   assert snaps[0]["strokes"][0]["points"][0] == [0.0, 0.0]
@@ -570,7 +583,8 @@ def test_a_recording_opens_by_saying_what_the_robot_is_for(mini_model,
                       goals="Keep the house in good order.", steering=True)
   goals = [x for x in lines if x.get("type") == "goals"]
   assert len(goals) == 1, "the recording never said what the robot is for"
-  assert lines.index(goals[0]) == 1, "goals must precede the frames"
+  assert lines.index(goals[0]) < lines.index(frames_of(lines)[0]), \
+    "goals must precede the frames"
   assert goals[0]["text"] == "Keep the house in good order."
   assert goals[0]["robot"] == "pluggybot"
   assert goals[0]["steering"] is True
@@ -637,22 +651,39 @@ def test_goals_say_whether_anything_is_actually_reading_them(mini_model,
   assert msg["steering"] is False, \
     "a scripted rotation claimed an overseer was steering by these"
 
-  # ...and a run with no goals at all emits no message, rather than an empty
-  # one a consumer would render as a robot that wants nothing.
+  # ⚠ ...AND A RUN WITH NO GOALS STILL EMITS THE MESSAGE (0.19.0, issue
+  # #154). `Goals.md` is the ROBOT's now and starts empty, so "absent when
+  # empty" would take this message off every scripted world -- and `steering`
+  # rides HERE AND NOWHERE ELSE, so the flag saying whether anything is
+  # deciding would vanish from exactly the streams it describes. An empty
+  # `text` with `steering: false` says both things at once.
   _, silent = record(mini_model, seconds=0.4, tmp=tmp_path, goals="")
-  assert not [x for x in silent if x.get("type") == "goals"]
+  empty = [x for x in silent if x.get("type") == "goals"]
+  assert len(empty) == 1, "the steering flag went missing with the prose"
+  assert empty[0]["text"] == "" and empty[0]["steering"] is False
 
 
-def test_the_goals_file_is_read_whether_or_not_an_overseer_runs():
+def test_the_goals_file_is_read_whether_or_not_an_overseer_runs(tmp_path):
   """`overseer.build` answers (None, None) when disabled, which is why the
   telemetry path cannot get its prose from there. It reads the file itself.
+
+  ⚠ AND SINCE ISSUE #154 IT IS USUALLY EMPTY, which is the honest answer
+  rather than a gap: `Goals.md` is the ROBOT's now and starts blank, so a
+  scripted world has no goals to stream and never will. What a scripted
+  world still has is a CONSTITUTION, and that rides a `thought` document
+  like the other three. The helper must keep READING the right file either
+  way -- returning the constitution here would report a person's hopes as
+  the robot's own goals.
   """
   from pluggybot.mind import overseer as ov
+  from pluggybot.mind.thoughts import ThoughtFiles
 
   assert ov.build("home", enabled=False) == (None, None)
-  # ...and yet there is prose to stream, which is the whole point of the
-  # helper: a scripted mission still has a purpose to display.
-  assert ov.goals_text(None).strip()
+  assert ov.goals_text(None) == "", "a fresh robot reported goals it never set"
+  # ...and when the robot HAS set one, that is what the stream carries.
+  files = ThoughtFiles(tmp_path / "thoughts")
+  files.intend("ink both boards this week", t=1.0)
+  assert ov.goals_text(thoughts=files).strip() == "ink both boards this week"
 
 
 def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
@@ -944,12 +975,19 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # nothing later in the stream repairs it.
   events = [x for x in lines[1:] if "type" in x]
   goals = [e for e in events if e["type"] == "goals"]
-  assert len(goals) == 1, "the fixture never says what the robot is for"
-  assert goals[0]["text"].strip(), "an empty statement of purpose"
-  # ...and it says so honestly: these missions run the scripted rotation, so
-  # nothing is reading the goals and the fixture must not claim otherwise.
+  assert len(goals) == 1, "the fixture lost the steering flag"
+  # ⚠ AND ITS TEXT IS EMPTY, WHICH IS THE POINT (0.19.0, issue #154).
+  # `Goals.md` is the ROBOT's now and these missions run the scripted
+  # rotation, so there is no mind to set a goal and there never will be.
+  # The message is emitted anyway because `steering` rides on it and nowhere
+  # else. What the robot is FOR is the constitution, asserted below with the
+  # other documents.
+  assert goals[0]["text"] == "", \
+    "a scripted fixture reported goals nothing could have written"
+  # ...and it says so honestly: nothing is reading or writing them here.
   assert goals[0]["steering"] is False
-  assert lines.index(goals[0]) <= 2, "goals must precede the frames"
+  assert lines.index(goals[0]) < lines.index(frames_of(lines)[0]), \
+    "goals must precede the frames"
 
   # ...and the memory documents behind it (0.11.0, issue #38), on exactly the
   # same terms and for the same reason: the site's Thoughts tab is built
@@ -1419,7 +1457,7 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
   data = mujoco.MjData(mini_model)
   bare = FrameBuilder(mini_model, data, model_name="mini").header()
 
-  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.18.0"
+  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.19.0"
   assert "build" not in bare, \
     "a run that was handed no identity must not invent one"
 

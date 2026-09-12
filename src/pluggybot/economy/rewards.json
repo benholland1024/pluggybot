@@ -166,7 +166,7 @@
       "tier": "visitor",
       "base": 0,
       "bonus": 20,
-      "detail": "A drawing offered for visitors to rate. The evaluator only checks that ink landed; the RATING arrives later over the inbound channel (issue #16) and settles the entry. Nothing produces this task yet -- it is the deferred slot, kept real so the ledger's pending path is exercised rather than imagined."
+      "detail": "A drawing offered for visitors to rate. The evaluator only checks that ink landed; the RATING arrives later over the inbound channel (issue #16) and settles the entry, which is the only path in the ledger that pays out after the task is over. Offered on `home` by the cadence (`rate_artwork`), so the pending path is exercised on every run of that world."
     }
   }
 }

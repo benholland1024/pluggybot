@@ -1705,7 +1705,12 @@ class HubLifecycle:
                            f"{change['after']}")
 
   def _reconsider(self, decision) -> None:
-    """Apply a decision's `forget` and `learn` to the robot's own file.
+    """Apply a decision's writes to the two files the ROBOT owns.
+
+    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38), and
+    `drop_goal`/`intend` on `Goals.md` (issue #154) -- four verbs, one code
+    path, because the refusal rule and the drop-before-add rule are the same
+    argument in both files and two copies of them would drift.
 
     THE REFUSAL IS THE INTERESTING PATH (issue #38). A write the permission
     table or the size cap forbids is narrated, counted, and left in
@@ -1715,18 +1720,20 @@ class HubLifecycle:
     learned anything, which is indistinguishable from a model that has
     nothing to say.
 
-    `forget` before `learn`: a full file plus a decision that clears one
-    line and writes another is a robot tidying up, and doing these in the
-    other order would refuse the write for a fullness the same decision was
-    about to fix.
+    REMOVE BEFORE ADD, in both files: a full file plus a decision that clears
+    one line and writes another is a robot tidying up, and the other order
+    would refuse the write for a fullness the same decision was about to fix.
     """
     t = float(self.data.time)
-    for verb, text in (("forget", decision.forget), ("learn", decision.learn)):
+    verbs = (("forget", decision.forget, self.thoughts.unlearn),
+             ("learn", decision.learn, self.thoughts.learn),
+             ("drop_goal", decision.drop_goal, self.thoughts.drop_goal),
+             ("intend", decision.intend, self.thoughts.intend))
+    for verb, text, write in verbs:
       if not text:
         continue
       try:
-        done = (self.thoughts.unlearn(text, t=t) if verb == "forget"
-                else self.thoughts.learn(text, t=t))
+        done = write(text, t=t)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
         continue
@@ -1850,10 +1857,12 @@ class HubLifecycle:
     distinction was worth a wrong fixture to learn. The reserve is a
     RETURN-TRIP margin: on a cell smaller than one errand it is a margin the
     robot cannot afford to keep, because one errand costs roughly one full
-    pack in both demo worlds (0.487-0.570 Wh in room_hub against a 0.700 Wh
-    cell, 0.866-0.929 Wh in home against 1.100 Wh) while the energy ABOVE the
-    reserve is 0.28 and 0.44 Wh. Gating on that would refuse every job in
-    every world forever -- a task system that silently does nothing.
+    pack (room_hub still: 0.528-0.570 Wh against a 0.700 Wh cell, leaving
+    0.28 Wh above the reserve). Gating on that would refuse every job in that
+    world forever -- a task system that silently does nothing. home LEFT that
+    regime at issue #84: a 3.0 Wh demo cell against errands re-priced to
+    0.658-1.180 Wh (#70) funds the dearest job AND the margin, so home now
+    charges the full 0.90 Wh reserve.
 
     On a hosting-sized pack there IS margin to keep, the errand is required to
     finish with the return trip still in hand, and the mid-errand death this

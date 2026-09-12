@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.18.0"
+PROTOCOL_VERSION = "0.19.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised

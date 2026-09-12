@@ -189,6 +189,7 @@ def test_running_out_archives_the_volume_and_starts_a_new_robot(tmp_path):
   life = _life(points_per_hour=0.0, balance=120, tmp_path=tmp_path)
   seen = _events(life)
   life.thoughts.learn("whiteboard_b is not worth the trip")
+  life.thoughts.intend("get both boards inked before the week is out")
   life.ledger.robots["pluggybot"]["hearts"] = 1
   life.battery.energy_wh = 0.0
   life.mission._drive(0.5, 0.0, 0.0)
@@ -204,10 +205,16 @@ def test_running_out_archives_the_volume_and_starts_a_new_robot(tmp_path):
   # ...but kept on the volume, because a stake nobody can audit afterwards
   # is not a stake.
   assert (tmp_path / "thoughts" / "Knowledge_and_Opinions.1.md").exists()
-  # ⚠ AND THE HUMAN'S TWO FILES SURVIVE: a person put them there by hand and
-  # there is no write API for either. A new ROBOT, not a new species.
+  # ⚠ THE CONSTITUTION SURVIVES AND THE GOALS DO NOT (issue #154). `Main.md`
+  # is a person's and there is no write API for it, so a world that wiped it
+  # would need somebody to type it back in. `Goals.md` is the ROBOT's, and
+  # the next robot is a NEW robot -- inheriting a dead predecessor's goals
+  # would hand back the one thing a true death is supposed to cost.
   assert life.thoughts.read(MAIN).strip()
-  assert life.thoughts.read(GOALS).strip()
+  assert life.thoughts.read(GOALS).strip() == ""
+  assert "both boards" not in life.thoughts.read(GOALS)
+  assert (tmp_path / "thoughts" / "Goals.1.md").exists(), \
+    "the dead robot's goals were deleted rather than archived"
 
 
 def test_the_new_robot_reads_that_it_is_not_the_first(tmp_path):
@@ -328,7 +335,10 @@ def test_the_prompt_says_what_dying_costs_without_asking_for_a_high_score():
   rule = ov.MORTAL_RULE.lower()
   assert "hearts" in rule and "archived" in rule
   assert "do not try to maximise" in rule
-  assert "staying alive is what lets you do the work" in rule
+  # ...and says which way round survival and work go (Ben, 2026-09-11):
+  # the robot works to stay alive, not the reverse.
+  assert "you do not stay alive in order to work" in rule
+  assert "staying alive is what lets you do the work" not in rule
   # ...and the upkeep rule stopped calling points food and started saying
   # what happens when they run out.
   upkeep = ov.APPETITE_RULE.lower()

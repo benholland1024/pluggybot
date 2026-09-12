@@ -12,13 +12,15 @@ up is memory the robot loses in exactly the situation it most needs it.
 
 Two files, and the asymmetry between them is the point:
 
-  GOALS are READ and never written. A plain text file, human-editable, mounted
-  into the container (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md` in the
-  deploy). Ben changes what the robot is for by editing a file and the next
-  decision reflects it -- no redeploy, no API, no code. Because it rides in the
-  overseer's STABLE prefix, editing it invalidates the prompt cache, which is
-  correct: the goals changing is exactly the moment the cached prefix should
-  stop being reused.
+  GOALS are the ROBOT's since issue #154: it writes them itself through
+  `thoughts.intend` / `drop_goal`, and `read_goals` below still reads them.
+  A plain text file on the state volume (`$PLUGGY_GOALS`,
+  `/var/lib/pluggybot/goals.md` in the deploy), so they survive a restart the
+  way the ledger and the boards do. What a HUMAN writes is the CONSTITUTION
+  (`Main.md`) -- edit that file and the next decision reflects it, no
+  redeploy, no API, no code, which is how goals themselves used to work.
+  Because the robot writes this one it rides the VOLATILE half of the prompt
+  rather than the cached prefix; `thoughts.py` has the argument.
 
   The JOURNAL is written and never edited. Append-only notes the overseer
   writes to itself, most-recent-N of which come back in the volatile half of
@@ -53,20 +55,15 @@ RECENT_NOTES = 10
 #: LLM handed an unbounded text field will eventually write an essay into the
 #: thing that gets replayed into all of its future prompts.
 MAX_NOTE_CHARS = 400
-#: Longest goals file read, in characters. Same reasoning from the other side:
-#: this one is human-authored, so the cap is a guard against a mounted file
-#: being something other than what anyone intended (a log, a core dump), not
-#: against the author.
+#: Longest goals file, in characters. Since issue #154 the ROBOT writes this
+#: one, so the cap is a real bound on an author rather than a guard against a
+#: mounted file being something nobody intended: a full file REFUSES, the way
+#: `Knowledge_and_Opinions.md` does, and `drop_goal` is the remedy. Roomier
+#: than the opinions file (3000) because a goal is a commitment and a robot
+#: that has to abandon one to think of another is being rushed by an
+#: implementation detail.
 MAX_GOALS_CHARS = 8000
 
-DEFAULT_GOALS = """\
-Keep the house in good order and make yourself useful.
-
-- Draw something on a whiteboard now and then; vary the figure and the board.
-- Count the plants in the garden when you have not checked recently.
-- Finish what you start: a tool you fetched belongs back in its bay.
-- Do not let the battery run flat.
-"""
 
 
 def _now() -> str:

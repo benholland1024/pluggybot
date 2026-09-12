@@ -3,18 +3,12 @@
 The recipe for adding a *task kind* to PluggyWorld: a job the world (or a
 visitor, or eventually the overseer itself) puts up on a board, that the robot
 may take on, and that ends in a verdict somebody else computed. Third of the
-three pattern docs, extracted retrospectively from the system issues #21
-(the task model), #22 (the first task kind, `whiteboard_answer`), #23 (cadence)
-and #14 (scoring) built — so, like `ToolPattern.md` before the dispenser,
-every rule here is one an existing build paid for, and none has yet been
-tested by a fresh consumer.
+three pattern docs, and every rule here is one an existing build paid for.
 
-**Validation pending, deliberately.** `ToolPattern.md` was proven by building
-the seed dispenser against it and folding four gaps back in. This doc gets the
-same treatment when the **second task kind** is built against it — M11's
-*fetch a tagged object* (§3, tier 1) is the intended one. Whatever that build
-finds missing here belongs here; mark it ⓘ *found by building X*, as the
-sibling docs do.
+**Not yet validated by a fresh consumer**, unlike `ToolPattern.md` — which the
+seed dispenser proved, folding four gaps back in. The second task kind does
+that job here (§7, gap 1). Whatever it finds missing belongs in this file;
+mark it ⓘ *found by building X*, as the sibling docs do.
 
 Read alongside, not instead of:
 - `docs/ToolPattern.md` — the things the robot picks up. An errand's fetch
@@ -124,21 +118,15 @@ inherits all of it for free:
   `reason` — which reaches the site *and* the overseer's context — never
   contains the hidden value. `Verdict.public_metrics()` redacts the `secret`
   metrics the reward row names, for the same audience.
-- ⚠ **...AND SO MUST THE ERRAND'S OWN NARRATION** (issue #75). Three
-  mechanisms guarded the census's ground truth — `secret` in the reward row,
-  `public_metrics()`, and a reason line written not to say it — and the
-  use-phase then put it on the wire anyway with one `_say`. `_say` writes
-  `life.status`; `telemetry_status()` puts that in EVERY telemetry frame; the
-  site renders it verbatim under the robot's portrait and the overseer reads
-  the same frames. So the answer to a hidden-truth task was published to
-  precisely the two readers it is hidden from, and it shipped in the
-  committed home recording, which is the site's default view.
-  The lesson generalises past the census: **`secret` is a property of the
-  VALUE, not of the channel you happened to think of.** A hidden value has
-  three exits, not one — the ledger, the reason line, and any `_say`
-  anywhere in the errand — and the comment above the offending line
-  ("`verdict["truth"]` never reaches the screen") was true of the robot's
-  LCD and false of the website. Name which screen.
+- ⚠ **...AND SO MUST THE ERRAND'S OWN NARRATION.** **`secret` is a property
+  of the VALUE, not of the channel you happened to think of.** A hidden value
+  has three exits, not one: the ledger, the reason line, and any `_say`
+  anywhere in the errand. `_say` writes `life.status`, `telemetry_status()`
+  puts that in EVERY frame, and the site renders it under the robot's
+  portrait while the overseer reads the same frames — so the census's ground
+  truth was once published to precisely the two readers it is hidden from,
+  with all three of the other guards in place (issue #75). A comment saying a
+  value "never reaches the screen" must name WHICH screen.
 - **Answers travel one way.** For `whiteboard_answer`, the answer comes from
   the mind (`Decision.answer`), is frozen into the task at CLAIM time, and
   the errand that draws it is handed glyphs and never told the question.
@@ -186,18 +174,21 @@ way a tool states its tolerance class):
    `TagDetector` that finds the rack and the bays. Honest and realistic —
    warehouse robots fiducial their totes — and it makes "find" a genuinely
    *failable* verb: a tag out of view is a search, not a lookup. **This is
-   the tier M11 builds first**, and building it against this doc is what
-   validates the doc (see the header).
+   the tier to build first**, and building it against this doc is what
+   validates the doc (see the header). It is M11's, which is deferred rather
+   than dropped (PluggyPlan.md, "The next batch").
 2. **Untagged object on a raised surface.** Within the sensor envelope
    (table height clears both the LIDAR plane and the camera's near blind
    zone); needs a small detector, on the outlet detector's template — with
    that project's lesson attached: the val split sharing the training
    generator scored 0.99 mAP while calling a light switch an outlet, so the
    eval that matters is poses the generator never made.
-3. **Untagged object on the floor.** Blocked on real perception work. **A
-   research question, not a task** — do not write a kind at this tier and
-   quietly deliver the pose over the wire to make it work; that is the
-   honesty rule's ❌ row wearing a feature's clothes.
+3. **Untagged object on the floor.** Blocked on real perception work — the
+   near-field sensor decision (#34) and a robot-centric height map are what
+   open it (PluggyPlan.md, "The next batch"). Until then, **a research
+   question, not a task**: do not write a kind at this tier and quietly
+   deliver the pose over the wire to make it work, which is the honesty
+   rule's ❌ row wearing a feature's clothes.
 
 The ladder is also the reason the rule's second ✅ row is safe: a whiteboard's
 pose is tier-0 — *immovable, surveyed infrastructure* — and delivering it is
@@ -267,26 +258,34 @@ let the measurement pick the bar.
 A task system's failure modes are economic before they are mechanical, and
 every one below was hit, measured, and given a gate.
 
-- **Priced by measurement, gated against reality.** One errand costs roughly
-  one full pack in both demo worlds (0.49–0.57 Wh in room_hub against a
-  0.70 Wh cell; 0.85–1.25 Wh in home against 1.10), so there is no headroom
-  and a guessed estimate is fatal in either direction: the first table
-  guessed 0.35 Wh for a drawing that measures 0.929, and the home fixture
-  recorded a robot claiming the job at 88 % and dying mid-stroke. Costs come
-  from `scripts/energy_spike.py` into `economy/energy.json`; a cost key may name
-  a TARGET (`draw:whiteboard_b`) and wins over the bare action, because the
-  far whiteboard measurably costs more than the near one and one number for
-  both either kills the robot or prices a board off the demo cell. Where two
-  honest measurements disagree, the table carries the dearer. Do not pad —
-  the headroom being padded against does not exist.
-- **`Task.claimable` compares against the WHOLE remaining pack**, not the
-  part above the reserve: the reserve is a return-trip margin errands have
-  always been allowed to spend into, and gating above it refuses every job
-  in every world forever — a task system that silently does nothing,
-  dressed as a safety feature. The producer, meanwhile, gates new offers on
+- **Priced by measurement, gated against reality.** One errand can cost most
+  of a pack — room_hub's 0.53–0.57 Wh against its 0.70 Wh demo cell, still
+  zero-margin — so a guessed estimate is fatal in either direction: the first
+  table guessed 0.35 Wh for a drawing that measured 0.929, and the home
+  fixture recorded a robot claiming the job at 88 % and dying mid-stroke.
+  home left that regime at issue #84: its errands re-price 0.658–1.180 Wh
+  against a 3.0 Wh demo cell, which funds the dearest job AND the 0.90 Wh
+  return-trip reserve off one charge. Costs come from
+  `scripts/energy_spike.py` into `economy/energy.json`; a cost key may name a
+  TARGET (`draw:whiteboard_b`) and wins over the bare action, because the far
+  whiteboard measurably costs more than the near one and one number for both
+  either kills the robot or prices a board off the cell. Where two honest
+  measurements disagree, the table carries the dearer. Do not pad — the
+  headroom being padded against does not exist.
+- **A claim is compared against the pack less the MARGIN, and the margin is
+  all-or-nothing.** On a cell too small to fund its dearest job PLUS the
+  return trip, the margin is zero and a claim sees the WHOLE remaining pack —
+  because the reserve is a return-trip margin errands have always been
+  allowed to spend into, and gating above it there would refuse every job in
+  every world forever: measured, room_hub has 0.28 Wh above the reserve
+  against a cheapest errand of 0.487, which is a task system that silently
+  does nothing, dressed as a safety feature. Where a charged pack DOES clear
+  that bar the full margin is kept and the errand must finish with the return
+  trip still in hand, which is what puts the mid-errand death out of reach
+  (`HubLifecycle.spendable_wh`). The producer, meanwhile, gates new offers on
   `fundable_wh` (what a *charged* pack could pay), for the mirror-image
-  reason: gated on the instantaneous charge, home fell from 58 offers in
-  four sim-hours to 14.
+  reason: gated on the instantaneous charge, home fell from 58 offers in four
+  sim-hours to 14.
 - **Charge priority is untouched, and the test for it is subtle.** Claiming
   only QUEUES an errand, and the errand queue already sits below
   `needs_charge` — so a test watching the swap states passes even with the
@@ -305,113 +304,60 @@ every one below was hit, measured, and given a gate.
 
 ---
 
-## 5b. Points are food — the metabolism (issue #36)
+## 5b. Points are food — how a task kind meets the appetite
 
-The fourth file in the same division, and it changes what the other three are
-FOR. `tasks.py` says what a job is, `rewards.json` what it pays,
-`cadence.json` when it turns up — and `metabolism.json` says **why the robot
-would bother**. Before it, points only went up and the robot only ever wanted
-more; 1 400 points and 1 420 points were the same day.
+The fourth file in the same division: `tasks.py` says what a job IS,
+`rewards.json` what it PAYS, `cadence.json` when it TURNS UP, and
+`economy/metabolism.json` how fast the robot gets HUNGRY. Points are consumed
+at a steady rate on sim time, stop being banked at a **cap**, and past a
+threshold the robot is **satisfied** — and the hours it did not have to spend
+earning are the entire mechanic. What it means for the mind — upkeep, five
+hearts, the `unpaid` death, what the prompt says — lives in **Overseer.md
+§8b**, and the numbers with their measurement live in
+`economy/metabolism.json`'s own note. What a *new task kind* has to know is
+here.
 
-**Points are consumed by living.** A steady rate on sim time
-(`pointsPerHour`), a **cap** past which earnings are not banked, and a
-**satisfied** state once the balance is high enough. The free time — the
-hours the robot did not have to spend earning — is the entire mechanic;
-everything in `economy/metabolism.py` exists to make sure there is some.
-
-Six rules, and each is a way the mechanic deletes itself.
-
-- **Calibrate against measured throughput, never intuition.** Two unattended
-  1-sim-hour `home` runs, no overseer, measure what the robot actually
-  **banks**:
-
-  | | banked/sim-hour | jobs done |
-  |---|---|---|
-  | hosting cell (8 Wh) | **102 pts** | 6 done, 4 failed, 6 expired |
-  | demo cell (1.1 Wh) | 80 pts | **zero** |
-
-  So the shipped 45/hour is ~44 % of the hosting world's income — issue #36's
-  "roughly half". A third run, the same hour with `--metabolism` on, banked
-  102 and ate 43 (independently confirming both numbers) and shows the arc:
-
-  ```
-  t=   0  starving   0     t= 875  fed       32
-  t= 230  fed       20     t=2643  satisfied 51   ← 44 min in
-  t= 240  hungry    19     t=3601  satisfied 59/90
-  ```
-- ⚠ **The cycle is longer than one mission, and that is the honest reading.**
-  The idealised arithmetic says ~26 min up and ~33 min down; the measured
-  climb took **44 min** from cold, because real income is *lumpy* — a 640 s
-  charge, four failed jobs and a stretch of exploring all happen inside it.
-  A watcher sees the full arc across several missions, not within one, which
-  is exactly why hunger lives in the ledger's file and survives a restart.
-  Do not re-tune to make one mission show a whole cycle: that is tuning for
-  a demo, and it would take roughly halving the rate.
-  `test_the_shipped_file_leaves_the_robot_half_its_day` guards a re-tune from
-  both ends — too steep is nothing but earning, too shallow is a cycle that
-  is absurd before lumpiness is even added.
-- **A one-point wobble at `hungryAt` is expected and bounded.** Only the
-  *satisfied* latch is hysteretic; `fed`/`hungry` is a plain threshold, so an
-  award landing exactly on the line followed by a point eaten reads as
-  `fed → hungry` ten seconds apart. Measured: **once** in a sim-hour. Both
-  states mean the same thing to the robot, the latch that gates behaviour is
-  the hysteretic one, and buying this off would cost a fourth threshold
-  nobody could calibrate.
-- ⚠ **TUNE ON `--pack hosting`, NEVER ON THE DEMO CELL.** The demo run banked
-  a comparable-looking 80 points/hour and completed **no jobs at all**: a
-  charged demo pack holds 0.990 Wh and every target but `whiteboard_a`
-  (0.929 Wh) costs more — `whiteboard_b` 1.113, the census 1.141 — so every
-  single point came from **charging**. A rate calibrated there makes charging
-  the food and work optional, which is this section upside down. It is also
-  the configuration every mission test and both committed recordings run on,
-  so it is the number you will reach for by accident.
-- ⚠ **A third of the work pays nothing, and the rate has to survive that.**
-  Of 11 resolved jobs on the hosting run, 4 failed outright (three of them
-  the far-whiteboard navigation problem) and 6 more expired unclaimed. The
-  102 is already net of that, but the *variance* is real: a bad hour with no
-  income takes the robot from `satisfiedAt` to zero in almost exactly one
-  hour. `starving` is a state this world reaches for real rather than
-  theoretically — which is the mechanic working, and exactly why it must
-  never lock anything.
-- **Zero is narrative, never a capability lock**, and so is full. A starving
-  robot shows it — a worried face, a line in `History.md`, a prompt that says
-  go and earn something — and is prevented from nothing. This is the rule
-  that decides the *shape* of the whole feature: **satisfaction changes what
-  the robot is TOLD and nothing else.** There is no branch that reads
-  `satisfied` and declines a job, which is why the scripted rotation is
-  untouched (it has no goals to pursue, so it would have nothing to do with
-  the free time) and why every existing mission behaves identically with the
-  appetite on. It also means the criterion is enforced by ABSENCE, and the
-  test for it is a whole mission flown broke plus a grep over the branches
-  that could have grown a gate.
-- **Arrears are the sneaky lock.** Hunger stops at zero and never goes
-  negative: a robot that owed an hour of appetite would see its first job
-  back pay nothing, which is a discouragement gradient at exactly the wrong
-  moment.
-- **Decay ticks on the PHYSICS seam**, like `TaskProducer` and for a sharper
-  version of the same reason — an appetite ticked on the arbitration loop
-  would not charge the robot for the twenty minutes it spent inside one
-  errand, which is most of its day.
-- **A restart is neither a meal nor a missed one.** Sim time begins again at
-  0 every mission, so the anchor is re-taken and the gap costs nothing; what
-  survives is the BALANCE, in the ledger's file, plus the fraction of a point
-  owed. Both failures are the same bug wearing opposite signs. The carry is
-  kept in memory every tick and written by the next save from any source —
-  saving a file a second on the physics thread to persist a hundredth of a
-  point is paying for accuracy in the wrong currency.
-- **The cap refuses out loud.** `points` on a ledger entry stays what the
-  reward table paid; `banked` and `spilled` say how much of it fit. Silently
-  paying less than the published table would undo the reward system's whole
-  design — a robot cannot check its own arithmetic, so a number that quietly
-  disagrees with the published one is indistinguishable to it from a bug.
-
-The hysteresis is the ordinary `ActivityPattern.md` rule applied to a sensed
-BALANCE: `satisfiedAt` latches on, the lower `hungryAt` latches off, and the
-gap is both the anti-flap band and the period of the rhythm —
-`(satisfiedAt - hungryAt) / pointsPerHour` is how long the free time lasts.
-The latch is **not persisted** and is seeded on the hungry side, because a
-robot that came back from a restart still coasting on a satisfaction it could
-no longer justify would idle through the first stretch of every mission.
+- **Satisfaction changes what the robot is TOLD and nothing else.** There is
+  no branch that reads `satisfied` and declines a job, and none that reads
+  `starving` and declines anything at all: zero is narrative, never a
+  capability lock. So a kind may not assume either state, and must not add
+  the first gate. The rule is enforced by ABSENCE, which is why the test for
+  it is a whole mission flown broke plus a grep over the branches that could
+  have grown one.
+- **The cap refuses out loud, and your row may not be paid in full.** `points`
+  on a ledger entry stays what the reward table paid; `banked` and `spilled`
+  say how much of it fit. Silently paying less than the published table would
+  undo the reward system's whole design — a robot cannot check its own
+  arithmetic, so a number that quietly disagrees with the published one is
+  indistinguishable to it from a bug. Score and reason against the table,
+  never against what landed.
+- **Charging pays zero, and a kind must not reintroduce a payout for staying
+  alive.** A trip to the rack costs energy and time and earns nothing, so it
+  can only ever be prudence; with a payout it would be indistinguishable from
+  farming (Overseer.md §8b has the A0 evidence). The other half of that
+  bargain is that upkeep is charged on a clock and a payment that cannot be
+  made is a death — so what your row pays is part of whether the robot can
+  meet the rent.
+- **A payout is calibrated against MEASURED throughput, on `--pack hosting`.**
+  The shipped 30 points/hour of upkeep is ~38 % of measured income (**80
+  banked per sim-hour**, three chained unattended `home` runs on
+  `--pack hosting`); the rest of the day is the robot's own. ⚠ Never tune on a
+  demo cell. It is sized to flatten in minutes so that a test always reaches
+  the rack, which makes the day mostly charging and the task economy a
+  minority of it — an hour on the old 1.1 Wh home cell completed ZERO jobs,
+  every point coming from a charge that now pays nothing at all. It is also
+  what every mission test and both committed recordings run on, so it is the
+  configuration you reach for by accident.
+  **Adding a kind moves the income**: re-run the hour and re-read
+  `metabolism.json`'s note before touching the rate, rather than adjusting by
+  feel. ⚠ And the cycle is longer than one mission — income is lumpy, so the
+  arc shows across several — which is why hunger lives in the ledger's file;
+  do not re-tune to fit a whole cycle into one run.
+- **The cap is not only a ceiling on hoarding, it is the savings account.**
+  It is sized so that a heart (`HEART_PRICE`) is reachable — so a kind that
+  pays enough to matter also shortens the robot's road back from a death.
+  `satisfiedAt` and `hungryAt` are a buffer measured in HOURS OF UPKEEP and
+  deliberately do not scale with the cap.
 
 ---
 
@@ -510,26 +456,29 @@ as a checklist for the new kind:
 
 ### 8. Write it down, and re-emit the fixtures
 
-SimNotes for what was measured; PluggyPlan status; a CLAUDE.md entry if a
-demo script came with it; **fold this doc's gaps back in** — that is what
-makes kind N+2 cheaper than yours was. Then regenerate the recordings **with
-`--tasks`** — it is load-bearing: offers are off by default, and a recording
-made without it carries no `tasks` block for the website to build against.
+SimNotes for what was measured; a CLAUDE.md entry if a demo script came with
+it; **fold this doc's gaps back in** — that is what makes kind N+2 cheaper
+than yours was. Then regenerate the recordings **with `--tasks --metabolism`**
+— both are load-bearing: offers and hunger are off by default, so a recording
+made without them carries no `tasks` and no `metabolism` block for the website
+to build against.
 
 ---
 
 ## 7. Known gaps
 
 1. **This doc has not yet been validated by a consumer.** The second task
-   kind — M11's *fetch a tagged object*, ladder tier 1 — is the intended
-   test, and issue #24's third acceptance box stays open until it is built
-   against this doc and the gaps are folded back.
+   kind — *fetch a tagged object*, ladder tier 1 — is the intended test, and
+   issue #24's third acceptance box stays open until it is built against this
+   doc and the gaps are folded back. It is M11's, and M11 is deferred.
 2. **Only tier 1 of the ladder has a build path.** Tier 2 needs a detector
    nobody has trained; tier 3 is a research question. A kind must not climb
    the ladder by delivering poses over the wire.
 3. **One task resolves to one errand.** A job needing two tools, or a tool
    and an activity in sequence, has no representation — the queue can hold
-   the errands, but nothing ties them to one verdict.
+   the errands, but nothing ties them to one verdict. Closing this is named
+   work (PluggyPlan.md, "The next batch": one two-tool job resolving to one
+   verdict).
 4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
    offers, and there is no verb for giving a job up gracefully — related to
    tool dropping (issue #30), and unowned by any pattern yet.
@@ -560,7 +509,7 @@ made without it carries no `tasks` block for the website to build against.
     acceptance-time vs battery clock, no-run == failure, no secret anywhere,
     visible expiry, restart fails active tasks
 [ ] every new assertion shown failing without its fix; one test run alone
-[ ] SimNotes; PluggyPlan; CLAUDE.md; fixtures regenerated WITH --tasks
+[ ] SimNotes; CLAUDE.md; fixtures regenerated WITH --tasks --metabolism
 [ ] fold this doc's gaps back in, marked "found by building <kind>"
 [ ] MUJOCO_GL=egl uv run pytest -q; uv run ruff check src/ scripts/ tests/
 ```

@@ -277,7 +277,7 @@ def test_header_advertises_activities(builder_pair):
   # -> 0.18.0 for the fourth, `unminded` (issue #127) -- an agent that
   # configured its own event map so that nothing consults its mind any more.
   # A consumer that renders causes has to know the producer can emit it.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.18.0"
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.19.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

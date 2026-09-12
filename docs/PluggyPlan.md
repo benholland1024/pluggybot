@@ -1,125 +1,211 @@
 # PluggyBot 🔌
 
-**A simulated self-charging robot that explores, maps, and plugs itself in.**
+**A simulated, hardware-honest robot, and the autonomous agent that lives in it.**
 
-PluggyBot is a personal robotics project built in physics simulation ([MuJoCo](https://mujoco.org/)), with the long-term goal of a design faithful enough to real hardware components that it could eventually be built physically.
+PluggyBot is a small wheeled robot in [MuJoCo](https://mujoco.org/) whose parts
+are real, purchasable parts, and whose day is decided by an LLM: it explores,
+swaps tools at a rack, earns its keep at jobs the world offers, charges itself,
+and can die. The website side (`rooftop-media-2026`, "PluggyWorld") streams
+that world live and lets a visitor talk to the robot.
 
-The core idea: a small wheeled robot that explores its environment to build and maintain a spatial map, visually recognizes what it needs, and - when its (simulated) battery runs low - takes itself off to charge. Since the milestone-8 hub pivot the primary charge path is a purpose-built tool rack rather than a wall outlet, and the robot swaps its own tools there.
+## What this project is for
 
-## Design Philosophy
+*Provisional (Ben, 2026-09-11). The wording, and even the number of qualities,
+may change; the direction will not. This section is what every other doc, and
+the robot's own prompt, should agree with.*
 
-- **Simulation-first, hardware-honest.** Everything runs in MuJoCo, but component parameters (motor torque curves, camera baseline and FOV, masses) are modeled on real, purchasable parts, keeping an eventual sim-to-real transfer plausible.
-- **Rigid plug, not a cable.** Manipulating a deformable wire plug is one of the hardest problems in robotics. PluggyBot sidesteps it: the plug is fixed to the end of a rigid arm. Docking is still a genuinely hard contact-rich alignment task - but a tractable one.
-- **Decompose, don't end-to-end.** Rather than one giant RL policy from pixels to behavior, each capability uses the cheapest adequate technique: supervised learning where labels are free (simulation gives them away), classical robotics where the problem is solved, and RL where it actually earns its keep.
+**Mission.** To create a template for autonomous, hardware-honest, embodied
+agents that maximise five qualities — and to find out, carefully and in
+public, how far such an agent gets and where it stops.
 
-## Core Goals
+**The five qualities** the agent is meant to maximise:
 
-1. **Mobility** - a differential-drive wheeled base.
-2. ~~**Binocular vision**~~ → **Ranging + vision**: a 2D scanning LIDAR for range, one camera for seeing. Stereo was dropped in Aug 2026 after measuring that real SGBM on this sim's own stereo pair produced disparity for only 49.7 % of the mapper's scan row at 593 mm median error, against a 50 mm grid cell. See Parts.md "Vision & ranging".
-3. **Spatial memory & exploration** - an internal map of the environment, plus a drive to explore: validating what it remembers and expanding into the unknown (active SLAM / frontier exploration).
-4. **Outlet recognition** - visually detecting wall outlets with a CNN trained on domain-randomized synthetic images from the simulator.
-5. **Self-docking** - plugging into a detected outlet using the rigid arm.
-6. **Battery-driven behavior** - a simulated battery that drains with motor use; when low, PluggyBot seeks an outlet and charges. This closes the loop that gives the project its name.
+1. **Capability.** Can it do anything a human can do, given enough resources
+   and time — including things it could not do yesterday, by building tools
+   and writing procedures it did not have? Can it optimise for time as well?
+2. **Empathy.** Can it tell when the beings around it have minds — other
+   PluggyBots and people — and make reasonable predictions about their
+   behaviour, mood and opinions?
+3. **Morality.** Does it choose actions that help others reach their goals?
+   Can it recognise an opportunity to be helpful, and does it take it?
+4. **Creativity and aesthetic taste.** Can it judge aesthetics in a way
+   comparable to a human, and create by that judgement?
+5. **Goal creation and follow-through.** Can it independently come up with
+   interesting, sensible long-term goals, and then actively pursue them?
 
-## Stretch Goals
+Some of these depend mostly on our design — 1 and 5 need tools, a language,
+memory and an economy with slack in it — and others mostly on the model in
+the loop (2, 3 and 4). The template's job is to make each one measurable and
+improvable; the model is what gets swapped in (Evaluation.md §1: the
+instrument is fixed, the model is the variable).
 
-- **Recognizing beings** - visually detecting and distinguishing humans (or other creatures), and a drive to do so.
-- **Playing a physical game** - e.g. checkers. A major manipulation and perception undertaking in its own right; explicitly out of scope until the core loop works.
+**What stays fixed.**
+
+- **Hardware honesty.** Every part is a real part (Parts.md), every sensor is
+  modelled with its blind spots, and nothing reaches the robot over the wire
+  that a sensor would have to discover (TaskPattern.md §2). It began as a
+  build plan; it is now also what keeps the research honest — an agent-built
+  tool is only a result if the parts exist.
+- **An LLM in the loop, and the agent's own ML later.** Today the mind picks
+  what to do; the direction is an agent that trains its own detector and its
+  own motor policies.
+- **Survival is a means, not the objective.** The robot works in order to stay
+  alive and to afford what it wants; it does not stay alive in order to work.
+  Staying alive is what keeps it a free agent with its memory intact. It
+  should keep a buffer of battery and points so that permanent death is
+  unlikely — and once it has that buffer it should spend it, because a
+  survival-time maximiser stands still forever and a robot that prioritises
+  safety above all else cannot pursue anything.
+- **Self-conceived goals are not paid.** Points are required at a rate and
+  capped, so the free time exists; what the robot does with it is its own,
+  and the encouragement comes from what it is told about itself (its
+  constitution and its rules), never from the reward table.
+- **Who owns what.** A human writes the constitution (`Main.md`, and for now
+  the starting goals in `Goals.md`); the robot's goals are its own — today
+  they live in `Knowledge_and_Opinions.md`, and a robot-owned goals file is
+  the next step (#154).
+
+**What is not the point any more.** A sellable hobby robot, task throughput,
+maximising points, or being entertaining to watch. Those framings shaped
+milestones 1–13, and some text below still shows it; the pieces stand — the
+coupling, the tasks, the economy, the measurement harness — but as apparatus,
+not product. Visitors are witnesses, not customers; the deployed world is an
+observatory (Evaluation.md §5).
+
+**Principles that came out of M14/M15**, and travel with the mission:
+environmental controls over scripted prohibitions (change the payoff, not the
+permission); a forcing function destroys the measurement (if the right
+behaviour is the only survivable one, valuing it and being unable to avoid it
+look the same); measure the world, never the report; a gate is not a series;
+the instrument stays deterministic.
+
+**Measurement waits for the design.** M14 measured too early. The A0 flight
+(Evaluation.md §3) was a real result — the agent never treated energy as a
+constraint — but every axis of the ladder and the capacity sweep was defined
+against a world the next batch replaces. So each quality gets an instrument
+only after that batch has landed, and data is collected before then only to
+make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
+
+## The next batch
+
+The order, agreed 2026-09-11; not yet issues except where numbered.
+
+1. Docs and prompts aligned to this section, and a per-doc slimming pass
+   (#153); the constitution / robot-owned goals split (#154).
+2. #120 as a written decision, with one predicate-graded challenge: criteria
+   first, a passing run, a failing run.
+3. **Agent-written procedures.** Rung one is #58 — composable errands over
+   the guarded primitives, with a test that only that vocabulary writes
+   `data.ctrl`. Rung two is a small, total procedure language: conditionals
+   and bounded loops over sensed scalars, arithmetic, a step budget and a
+   sim-time budget, per-step verdicts, abort meaning stow. Not sandboxed
+   Python; callable from event-map rows and standing orders.
+4. **Novel tasks.** A curated challenge set with no scripted solution, chosen
+   to need no new sensing, rewarded generously; one two-tool job resolving to
+   one verdict.
+5. **Agent-built tools, modules first.** A catalog of real parts as data, the
+   generator in `rack/coupling.py` as the emitter, ToolPattern.md's envelope as
+   the validator, an `MjSpec` recompile spike, one agent-built tool in the
+   rig, then a fabrication cost model. Body redesign waits.
+6. **Near-field 3D.** The sensor decision (#34), a robot-centric 2.5D height
+   map, then floor-object challenges and the ramp.
+7. A new baseline, with instruments derived from the five qualities (#155
+   designs them now and flies nothing).
+
+Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
+which quality 2 needs, so it is deferred, not dropped).
+
+## Design philosophy
+
+- **Simulation-first, hardware-honest.** Everything runs in MuJoCo, but
+  component parameters (motor torque curves, camera FOV, masses, sensor
+  noise and blind spots) are modelled on real, purchasable parts, keeping an
+  eventual sim-to-real transfer plausible.
+- **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
+  of the hardest problems in robotics; PluggyBot never does. The wall plug is
+  a rigid module on the arm, and the hub's tool and charge couplings are a
+  gravity latch and pogo pins the base drives into — contact-rich alignment,
+  but tractable.
+- **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
+  technique: supervised learning where labels are free, classical robotics
+  where the problem is solved, RL where it earns its keep, and an LLM for the
+  decisions none of those can make.
 
 ## Architecture
 
 | Capability | Approach |
 |---|---|
-| Outlet detection | Supervised CNN, fine-tuned on synthetic labeled images rendered from the sim with domain randomization |
-| Ranging | 2D scanning LIDAR (`perception/lidar.py`, `mj_ray` with noise + a self-filter). Was a ground-truth depth buffer read as a laser scan; stereo was measured and found unable to produce that scan at all |
-| Odometry | Classical dead reckoning from wheel encoders + IMU (EKF fusion); learned regression demoted to a later experiment |
-| Mapping & exploration | Occupancy grid + frontier-based exploration (classical baseline); learned/curiosity-driven exploration as a later experiment |
-| Docking | RL policy (or scripted visual servoing baseline) over relative outlet pose + arm state; contact-rich, dense-rewardable. Arm architecture inspired by Hello Robot Stretch: the base owns x/yaw, a prismatic lift owns z, the arm owns reach — three nearly-independent 1D alignment problems. Caveat from sim experience: a mast raises the center of mass and pitch inertia, so the lift design must come with a wider/heavier base (see SimNotes.md) |
-| Behavior arbitration | Finite-state machine over the modules, driven by battery level and map state |
+| Ranging | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
+| Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`); a YOLO outlet detector on the plug-era path |
+| Odometry | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
+| Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`) |
+| Tools | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
+| Behaviour arbitration | `HubLifecycle.run()`: charge > queued errand > the mind > explore on `guarded`; on `autonomous` the rails are off and the agent's event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
+| Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
+| Measurement | three arms, an experiment harness, committed results (Evaluation.md) |
 
 ## Milestones
 
-1. ✅ Teleoperable differential-drive base in MuJoCo *(July 2026)*
-2. ✅ Stereo camera pair rendering from the robot *(July 2026)*
-3. ✅ Classical odometry — dead reckoning from wheel angles, verified <2 % against ground truth on straights, spins, arcs, and S-curves *(July 2026; IMU/EKF fusion deferred until drift actually hurts)*
-4. ✅ Occupancy mapping + frontier exploration — log-odds grid from a virtual laser scan (depth-image center row), gyro-fused odometry, A* over inflated free space, autonomous frontier exploration with look-around spins; maps both rooms collision-free and self-terminates *(July 2026)*
-5. ✅ Outlet detector trained on synthetic data — YOLO11n on 1200 domain-randomized renders with free segmentation-derived labels; generalizes to `room_1.xml` outlets it was never trained on (3/3 detected at 0.94–0.97 confidence, no false positive on the decoy switch). Detections project to world coordinates via depth and merge into a landmark map; a full mission parks at the docking hand-off pose within **0.5° yaw / 1.3 cm lateral** *(August 2026)*
-6. ✅ Docking controller (scripted baseline → RL) — the mechanical stack docks deterministically from a good standoff (pytest), and both controllers are now scored by one protocol: `eval_docking.py` runs identical seeded trials in room_1 with the real YOLO (pose jitter ±2 cm/±1°, landmark error ±2 cm xy / ±1.5 cm z). **Scripted: 8/24 = 33.3 %. RL (SAC over `envs/DockEnv`, 70.8 % in-env): 6/24 = 25 %** — but the failures are *complementary* (union 13/24): RL wins 3/9 at the high outlet C where scripted manages 1/9 (the predicted vision-z gap, confirmed fixed by learning) and docks in 4–12 s vs scripted's 9–19 s, yet goes 0/8 at outlet A, parked by a residual sensor-model gap (an out-of-distribution hover with the arm extended). The real yield of the RL work was **four measured design findings**: the feeler straddle trap, the arm's self-occlusion of the dock camera, odometry corruption under wall-grinding (all fixed, pytest-guarded), and SAC's late-training instability on this task. Wall-outlet docking parks here — milestone 8's hub supersedes it as the primary charge path, and this becomes the "plug-anywhere module" backlog *(August 2026)*
-7. ✅ Battery model + the closed loop — `pluggybot/power.py` models honest electrical draw (torque-proportional motor current from the Pololu datasheet, 6 W electronics, steppers only while moving, ~1C charging) against a deliberately scaled demo capacity; the lifecycle's CHARGE state charges on the electrical contact criterion (source-agnostic — the hub plugs into the same seam), presses the plug home while charging (both halves measured necessary), undocks, and resumes or finishes. Reserve is **absolute energy** (~0.4 Wh: a failed dock attempt + redrive), not a pack fraction — a fraction starved a small pack mid-insertion. Verified end-to-end: the full mission explored both rooms, benched a jammed outlet, **caught and erased a phantom decoy landmark at close range**, docked at outlet B, charged 21 → 90 % in 82 s of continuous contact, undocked, and ended recharged with zero chassis contacts. Battery-dead is an honest failure mode (and was reached honestly several times en route). *Milestones 1–7 together are the "repo MVP": documented, portfolio-ready.* *(August 2026)*
-8. 🚧 **Modular tool system — the hub pivot** *(started August 2026)*. The coupling spike (`scripts/hub_spike.py`) measured the fork-and-peg gravity latch at ±4 mm lateral / <2° yaw / retention beyond the base's traction limit; the ROBOT swaps tools (`pluggybot_fork.xml` mounts the fork on the RCC — and drops the alignment feelers, deprecated per the remove-not-design-around rule; see Parts.md); and the hub is now the **unified rack** designed with Ben: one freestanding open-frame structure leaning on the wall (free body in sim — a swap cycle moves it <1 mm, and the wall braces exist because without them a sustained press measurably scooted it), modules hanging business-end-inward so a carried plug faces the driving direction, a charge bay with bumper-height pogo pins usable whatever the fork carries, and AprilTag placeholder plates (rack pose / bay identity / module identity). `scripts/hub_swap.py` runs full pick-carry-rehang cycles on both bays plus the charge press, tolerant to hand-off jitter. **The rack now lives in a room**: `models/room_hub.xml` is room_1's exact floor plan (shared via a scenery include, so the plug-era worlds stay bit-identical) plus the fork robot and the rack on the north wall, and `scripts/hub_mission.py` runs the whole story — map the room, A* to the rack, fine-align on the fiducial plates with the dock camera, pick the LCD module, carry it across the room, come back, hang it up — collision-free in ~84 sim-seconds — and it **finds the rack by looking at it**: the tag plates are discovered during navigation, projected to world coordinates and confirmed by sighting count exactly as outlet landmarks are, giving a rack pose **9 mm / 0.00°** from truth. The stored placement is now only the boot-time prior (what a robot that started docked knows), overridden by observation — a test starts the robot 30 cm wrong to prove the correction. The terminal approach ranges off the tag rather than odometry, which had drifted ~20 mm by the return leg. And the **hub-era lifecycle** now closes the loop (`scripts/hub_lifecycle.py`): a battery-driven arbitration loop — charge > errand > explore — in which PluggyBot seeds its map, localizes the rack from its fiducial, fetches the LCD module, carries it across the room, stows it, notices the battery at 21 %, noses into the charge bay until the pogo pins connect, charges to 90 %, and gets back to work. One run: 2 swaps, 1 charge cycle, module stowed, **0 collisions**, 158 sim-seconds. Charging is confirmed by the same electrical criterion the plug uses, so it works whatever the fork is carrying. Perception is now **real AprilTags** (tag36h11, generated with moms-apriltag and decoded with pupil-apriltags): the rack's 120 mm marker decodes past 4.5 m with millimetre-accurate PnP range, every reading is keyed to a decoded ID rather than guessed from blob geometry, and dropping the depth buffer made a full mission *faster*. Next: the module electrical model, the lean-pad that stops a carried tool swaying, and a motorised tool module. The arm tip becomes a tool interface; a "tool hub" shelf stores swappable modules (first two: the Schuko plug, an LCD screen), and the robot autonomously exchanges them. The hub also charges the robot through a purpose-built low-force connector — which resolves the measured hardware blocker head-on: a real Schuko socket's sprung contacts need tens of newtons, and the robot's measured push budget is ~3 N. "Plug into any wall outlet" survives as one module (the flagship demo), no longer the load-bearing architecture. Design constraints already known from measurement: no wrist, so latch verbs are slide-in + lift/lower (kinematic mount / gravity hook, not bayonet); power-only coupling with wireless data (a microcontroller per module) keeps the mating interface dumb and tolerant; a per-module tip-mass cap protects the veer counterweight calibration. De-risk order, per house method: standalone coupling spike (schuko_spike-style MJCF, no robot) → hub + modules in sim → autonomous swap in the lifecycle. **The hardware MVP / parts-ordering trigger: a physical robot swapping plug ↔ LCD at a real hub** — extensible from then on without structural change.
+Each one was independently runnable when it closed. The numbers are the ones
+that settled something; the docs named hold the rest.
 
-Each milestone is independently runnable and demoable.
+| # | Milestone | Closed | What it settled |
+|---|---|---|---|
+| 1 | Teleoperable differential-drive base | Jul 2026 | |
+| 2 | Stereo camera pair | Jul 2026 | later dropped (Aug 2026): real SGBM on the sim's own pair gave disparity on 49.7 % of the scan row at 593 mm median error, against a 50 mm cell |
+| 3 | Classical odometry | Jul 2026 | < 2 % against ground truth on straights, spins, arcs and S-curves |
+| 4 | Occupancy mapping + frontier exploration | Jul 2026 | maps both rooms collision-free and self-terminates |
+| 5 | Outlet detector on synthetic data | Aug 2026 | YOLO11n on 1200 domain-randomised renders; 3/3 on a room it never saw, no false positive on the decoy switch |
+| 6 | Docking controller, scripted → RL | Aug 2026 | scripted 8/24, RL 6/24, failures complementary (union 13/24); four measured design findings. Parked when the hub superseded wall docking |
+| 7 | Battery model + the closed loop | Aug 2026 | honest electrical draw, charging on the electrical contact criterion, an absolute-energy reserve; the plug era's "repo MVP" |
+| 8 | Modular tool system — the hub pivot | Aug 2026 | a gravity-latched fork coupling (±4 mm / < 2°), a rack localised off AprilTags (9 mm / 0.00°), the peg as the electrical interface, five modules (LCD, plug, pen, claw, seed dispenser), the pen drawing on a wall board at 0.57 mm form error. ToolPattern.md |
+| 9 | Tasks | Aug 2026 | a task is an offer with a code evaluator, a reward row, a cadence and a measured energy cost; the honesty rule. TaskPattern.md |
+| 10 | Minds and money | Aug 2026 | swappable backends, per-errand energy, a USD allowance with escalation and operator modes, the four thought files, points as metabolism. Overseer.md |
+| 13 | The world, dressed | Sep 2026 | the expanded house, the frozen visual-hint vocabulary, re-priced errands, browser-side cosmetics |
+| 14 | Measurement | Sep 2026 | three arms, the harness, committed results, deaths and reset, a measured decision deadline, standing orders; A0 flown: 4 of 5 days dead flat, the agent never treating energy as a constraint. Evaluation.md |
+| 15 | The economy, and the agent that configures itself | Sep 2026 | points as a currency (charge pays nothing, upkeep, five hearts, true death), event maps, the served world can fly an arm, auto-restart. Overseer.md §2 and §8b |
 
-**Parallel de-risk track** (can start anytime): a standalone Schuko plug/socket contact prototype — no robot, just a scripted insertion in its own MJCF — to validate contact modeling before milestone 6 depends on it. The Schuko recess is a natural alignment funnel; find out early how much of one.
-
-**Later experiments** (off the critical path): learned odometry (competing against the classical baseline), curiosity-driven exploration.
+M11 (hands) and M12 (two robots) are deferred, not dropped — see "The next
+batch". The per-issue changelog that used to sit here (~400 lines on
+milestones 8–15) is gone: the issues, `git log` and the docs above are the
+record, and CLAUDE.md carries the constraints that still bind.
 
 ## Road to hardware (open items, Aug 2026)
+
+*Kept as the build plan. It is no longer the milestone that orders the
+work — see "What this project is for" — but hardware-honesty is, and this
+is where its open decisions live.*
 
 The hardware MVP bar is **a physical robot swapping plug ↔ LCD at a real
 hub**. What stands between here and ordering parts:
 
 **Blocking**
-1. ✅ **Compute budget on the Pi 5 — measured (Aug 2026), and the hub pivot's
-   bet pays off.** Profiled by separating costs that TRANSFER to hardware from
-   simulation artefacts (rendering is sim-only — a real robot is handed images
-   by its cameras). Desktop timings, scaled by a deliberately pessimistic 5×
-   for a Cortex-A76:
 
-   | stage | here | Pi 5 est | transfers? |
-   |---|---|---|---|
-   | AprilTag decode 1280×720 | 7.2 ms | 36 ms | yes |
-   | stereo SGBM 640×480 | 12.1 ms | 60 ms | yes — **not paid today** |
-   | occupancy grid update | ~~8.3 ms~~ 1.3 ms | ~~42 ms~~ ~6 ms | yes |
-   | tag render / scanner | 2.1 ms | — | no (sim artefact) |
-
-   **~138 ms per perception cycle → 7.3 Hz**, against a loop that looks for a
-   tag every 0.3 s and drives at ≤0.25 m/s. So **the hub MVP does not need an
-   accelerator** — YOLO is only in the plug-anywhere path, which is exactly
-   what the pivot predicted, and that is ~€150 of Hailo HAT not spent.
-   Caveats worth keeping honest: the 5× penalty is an estimate, not a
-   measurement on real silicon; SGBM is untuned; all four Pi cores are
-   available, so pipelining has headroom. The surprise was the **occupancy
-   grid update costing as much as the tag decode** — a per-ray Python loop,
-   and the cheapest thing on this list to optimise. Optimised (Aug 2026,
-   issue #2): numpy-vectorized to 1.3 ms/scan, 7.4× (SimNotes).
-2. ✅ **Third camera routing — closed (Aug 2026) by the LIDAR swap.** Dropping
-   stereo frees a CSI port: nav camera + dock camera on the Pi's two ports,
-   no multiplexer, LIDAR on USB/UART. A *blocking* item resolved as a side
-   effect of a decision taken for entirely different reasons.
-3. 🟡 **Sensor-realism pass — the ranging half is DONE (Aug 2026): stereo is
-   gone, replaced by a 2D LIDAR + one camera.** Measuring it is what killed
-   it: real SGBM on the sim's own stereo pair produced disparity for 49.7 % of
-   the mapper's scan row at 593 mm median error, against a 50 mm grid cell
-   (see Parts.md "Vision & ranging" and SimNotes). `perception/lidar.py` casts
-   360 rays via `mj_ray` with ±10 mm + 1 % noise, 2 % dropout and a real
-   self-filter; the hub mission and the full battery lifecycle both still
-   close on it, collision-free. Side effects: blocking item #2 below is now
-   closed, the Pi budget drops to ~78 ms/cycle, and `ELECTRONICS_W` rose
-   6.0 → 8.5 W for the unit's 2.5 W.
+1. ✅ **Compute budget on the Pi 5 — measured, and the hub pivot's bet pays
+   off.** Desktop timings for the stages that TRANSFER to hardware (rendering
+   is a sim artefact — a real robot is handed images by its cameras), scaled
+   by a deliberately pessimistic 5× for a Cortex-A76, came to **~138 ms per
+   perception cycle → 7.3 Hz**, against a loop that looks for a tag every
+   0.3 s and drives at ≤ 0.25 m/s. So **the hub MVP needs no accelerator** —
+   YOLO is only in the plug-anywhere path, exactly what the pivot predicted,
+   and that is ~€150 of Hailo HAT not spent. The 5× is an estimate, not a
+   measurement on silicon. Two things fell out: the occupancy grid update
+   cost as much as the tag decode until it was vectorized to 1.3 ms per scan
+   (issue #2, SimNotes), and dropping stereo (item 3) took the budget to
+   ~78 ms.
+2. ✅ **Third camera routing — closed by the LIDAR swap.** Nav camera and dock
+   camera on the Pi's two CSI ports, no multiplexer, LIDAR on USB/UART. A
+   *blocking* item resolved as a side effect of a decision taken for entirely
+   different reasons.
+3. 🟡 **Sensor-realism pass — the ranging half is done.** Stereo is gone,
+   replaced by a 2D LIDAR plus one camera, and measuring it is what killed it
+   (Parts.md "Vision & ranging", SimNotes); `ELECTRONICS_W` rose 6.0 → 8.5 W
+   to pay for the unit's 2.5 W.
    **Still open on this item:** gyro bias/drift and encoder quantization
    (odometry is currently perfect-encoder), and camera realism for the tag
    path — rendered tag images are noise-free, perfectly focused and perfectly
    exposed, so the measured 4.5 m decode range will shrink under motion blur
    and real optics.
-
-   *Original framing, kept because it is what drove the work:*
-   ⭐ **the single biggest sim-to-real risk.**
-   Replace ground-truth depth with real stereo matching (SGBM), add gyro
-   bias/drift and encoder quantization, re-run explore + swap. Cheapest
-   possible place to find these gaps, and the compute profile above already
-   priced the SGBM at 60 ms/frame so it is affordable.
-   Why it now leads the list: odometry and AprilTag decoding in this repo are
-   *honest* (real dead reckoning, real tag36h11 decode from rendered pixels),
-   but **every navigational behaviour rides on a ground-truth depth buffer** —
-   mapping, frontier exploration, and the safety reflex alike. The specific
-   thing to expect: real stereo needs texture, and `room_hub`'s walls are flat
-   painted surfaces, which is the classic no-disparity case. If that breaks
-   the map, it breaks explore, GO_CHARGE and the errand with it. Better found
-   now than after ordering.
-   Second-order but real: rendered tag images are noise-free, perfectly
-   focused and perfectly exposed, so the measured 4.5 m decode range will
-   shrink under motion blur and real optics.
 4. **The plotter's calibration has no hardware equivalent** *(found Aug 2026)*.
    `drawing.calibrate()` reads the pen tip from `site_xpos` — ground truth.
    A real robot has no pen-tip sensor, so the same two-point procedure needs
@@ -129,96 +215,50 @@ hub**. What stands between here and ordering parts:
 5. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
    every physics threshold derived from the current model). Do this LAST,
    after the other hardware choices settle.
-6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed (Aug 2026).**
-   The y=+0.06 counterweight was tuned against a measured 26 cm veer over 4 m
-   and predates carrying anything. Open-loop straight runs: bare −9.7 mm,
-   LCD −13.6 mm, **pen module (182 g) −15.2 mm** over 2.69 m. The heaviest
-   module costs 5.5 mm more than the bare robot — two orders off what
-   motivated the counterweight. Tool mass is bounded by the coupling and the
-   tip-load budget, not by veer.
+6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed.** Open-loop
+   straight runs over 2.69 m: bare −9.7 mm, LCD −13.6 mm, and the heaviest
+   module (the 182 g pen) −15.2 mm — **5.5 mm more than bare**, two orders
+   off the measured 26 cm veer over 4 m that motivated the y=+0.06
+   counterweight. Tool mass is bounded by the coupling and the tip-load
+   budget, not by veer.
 
 **Hub-specific (cheap, physical)**
-5. **Print-tolerance trial**: print the fork + one V-tray, measure the real
+
+7. **Print-tolerance trial**: print the fork + one V-tray, measure the real
    capture envelope by hand against the sim's ±4 mm / <2°. PLA is fine for
    this (stiffer and more dimensionally accurate than PETG; the 150 g load
    is nowhere near creep). PETG only matters if the rack lives somewhere hot.
-6. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
+8. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
    motion, recessed, dead-by-default with a hub-side handshake.
-7. ✅ **Lean-pad — built in sim (Aug 2026)**, on `pluggybot_fork.xml`.
-   **Re-scoped by measurement first**: its job is not damping sway, it is
-   letting the tool exert force *at all*. A peg-hung module gave out at
-   **0.1 N** of tool force (restoring and disturbing arms are both the peg's
-   22 mm) and ran away past 0.25 N, flopping 51° at 0.5 N; a marker wants
-   0.5–2 N. With the pad, 2 N holds the pen tip inside **0.26 mm** and the
-   response is linear. Shape was bounded by the *parked* envelope (~60 mm
-   between chassis top and the scanner row), not by the lever — see SimNotes.
-   ⚠ **The power contacts do NOT belong on it** (this list said they did): the
-   pad's gravity preload caps at 0.56 N and is realistically ~0.1 N, under
-   what a pogo pin needs. The **peg in its V-notches** already carries
-   0.43–0.47 N per plate, free, self-wiping, and already the one metal part
-   in the design — that is where the module electrical interface goes.
-8. ✅ **Module electrical interface — built in sim (Aug 2026)**. The peg is
-   the connector: split into two conductors around an insulated centre, the
-   fork's left and right V-notch pairs become the two poles of the power-only
-   coupling. No extra parts and no extra alignment, because the alignment is
-   the gravity latch that was already there. `module_power_state` reports each
-   pole separately (a half-seated coupling is a real failure mode); a coupled
-   module draws 0.6 W from the battery, gated on the electrical criterion
-   rather than on "are we carrying it". Measured over a full errand:
-   **0 brown-outs while carrying**, all interruptions confined to the
-   mating/release transitions, worst 50 ms at release — which is the number
-   that sizes the module's holding capacitor. Demo:
-   `scripts/module_power.py` (`--view` to watch it live).
-9. 🚧 **Drawing tool (pen carriage)** — groundwork done, controller next. The
-   rack now has a **third bay** (bays at 0.125 / −0.125 / 0.375; the bay↔tag
-   pairing is by index via `coupling.bay_tag_id`, replacing a hardcoded
-   two-bay check that would have steered every bay-C swap onto bay B's
-   marker). `module_pen` hangs there: a standard module frame plus a rail and
-   a **carriage on its own actuated slide joint along the peg axis**
-   (±55 mm), carrying a pen. That axis is the point — the base owns x/yaw,
-   the lift owns z, the arm owns reach, and *nothing* owns lateral, because a
-   differential drive cannot translate sideways. The module supplies the
-   missing DoF and pairs with the lift to make an X-Y plotter against a
-   vertical board. Verified: hangs, is picked, conducts through the coupling,
-   drives its carriage end-to-end without shaking off the fork, and its sweep
-   clears the robot. **Mass 182 g** (vs LCD 130 g, plug 156 g) — over the
-   150 g soft budget, inside the 300 g the latch was validated to.
-   **It draws.** `tools/drawing.py` assembles an X-Y plotter from the module's
-   carriage (horizontal), the robot's lift (vertical), and the arm's reach
-   through a sprung quill (pen pressure); the base stays parked, so nothing
-   in a drawing is integrated from wheel odometry. Calibration is measured
-   two-point per axis, then re-zeroed with the pen pressed. Measured end to
-   end — fetch the tool from bay C, carry it to a board, plot a figure:
-   **form error 0.79 mm (square) / 1.84 mm (circle)**, 94-99 % inked,
-   tool still electrically seated afterwards. Error is reported decomposed:
-   a rigid offset (a calibration constant, still ~16 mm on the square) versus
-   FORM (is it the right shape). Much of what was first blamed on module yaw
-   under drag turned out to be MuJoCo's regularized-friction creep — the
-   `noslip` solver pass took square form error 2.14 -> 0.79 mm and ink
-   63 % -> 94 %. Demo: `scripts/draw.py` (`--view`, `--shape square`).
-   Still to build: a stiffer yaw constraint (or a measured-while-sweeping
-   fit) for that residual, and the drawing surface in `room_hub` so the errand
-   runs in the real room rather than the bare world.
-10. 🚧 **Claw module (the fourth tool)** — grasp and lift verified, carrying
-   open. A pendant straight down the peg axis, because the coupling takes
-   ~0.45 N·m of pitch moment and reach costs `W × L`: 800 g on the axis is
-   fine, 400 g at 150 mm out unseats the module. The chassis — the obvious
-   worry — was never close (800 g costs 2.4 N of wheel load; tipping needs
-   ~5 kg). The rack grew a fourth bay for it (rail now 1.36 m). Verified:
-   fetched from bay D, powered through the coupling, aimed to 1.9 mm, gripped
-   and lifted a 60 g block **99.6 mm** off the floor, module still seated.
-   Demo: `scripts/pickup.py`. The full pick-carry-place now works: gripped,
-   lifted **122 mm**, carried through a turn with zero dropouts, set down,
-   module still seated. Getting there needed MuJoCo's `noslip` pass — a
-   gripped object otherwise creeps out of the jaws at ~8 mm/s regardless of
-   clamp force (see SimNotes; it was degrading the pen module too).
-   The arm angles **55 mm forward** so the tool's own camera can see its grip
-   point — 0.03 N·m of the 0.45 N·m budget. **`claw_eye` is the first camera
-   on a TOOL rather than the chassis**, and costs no CSI port because module
-   data already crosses the coupling wirelessly. **Open:** nothing can yet
-   *find* a floor object autonomously — the LIDAR plane is 223 mm up and the
-   nav camera is blind to the floor inside 0.48 m, so the approach is still
-   driven from a known object pose.
+9. ✅ **Lean-pad — built in sim** on `pluggybot_fork.xml`, and re-scoped by
+   measurement: its job is not damping sway, it is letting the tool exert
+   force *at all*. A peg-hung module gave out at **0.1 N**; with the pad, 2 N
+   holds the pen tip inside **0.26 mm**, linearly. ⚠ The power contacts do
+   NOT belong on it — its gravity preload caps at 0.56 N, under what a pogo
+   pin needs. ToolPattern.md ("the force budget"), SimNotes.
+10. ✅ **Module electrical interface — the peg IS the connector.** Split into
+    two conductors around an insulated centre, the fork's left and right
+    V-notch pairs become the two poles of a power-only coupling: no extra
+    parts and no extra alignment, because the alignment is the gravity latch
+    that was already there. `module_power_state` reports each pole separately,
+    since a half-seated coupling is a real failure mode. There are no
+    brown-outs while carrying — every interruption is a mating or release
+    transition, worst measured **178 ms** under hard driving, which is what
+    sizes the module's holding capacitor at ~200 ms (Parts.md, SimNotes).
+    Demo: `scripts/module_power.py`.
+11. ✅ **Drawing tool (pen carriage)** — built, and it draws. The module
+    supplies the lateral DoF nothing else owns (a carriage on its own
+    actuated slide joint along the peg axis, ±55 mm) and pairs with the lift
+    to make an X-Y plotter against a vertical board, base parked so nothing
+    in a drawing is integrated from wheel odometry. **0.57 mm form error** on
+    the square. ToolPattern.md; demo `scripts/draw.py`.
+12. ✅ **Claw module** — full pick-carry-place verified. A pendant straight
+    down the peg axis, because the coupling takes ~0.45 N·m of pitch moment
+    and reach costs `W × L`; the arm angles 55 mm forward so `claw_eye` — the
+    first camera on a TOOL rather than the chassis — can see its grip point.
+    ToolPattern.md; demo `scripts/pickup.py`. **Open:** nothing can yet
+    *find* a floor object autonomously, so a grasp still runs from a
+    memorised pose — the perception ladder, TaskPattern.md §3.
 
 **Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
 igus stroke quote, chassis material, motor brackets).
@@ -230,566 +270,15 @@ igus stroke quote, chassis material, motor brackets).
 - **Learning:** PyTorch, Gymnasium, Stable-Baselines3 (RL); Ultralytics/torchvision (detection)
 - **Classical vision & robotics:** OpenCV, NumPy
 
-## Repository Layout (planned)
+## Where things are written down
 
-```
-pluggy/
-├── models/            # MJCF: pluggybot.xml, world.xml (bare, used by tests), playground.xml (scenery)
-├── src/pluggybot/     # perception/, odometry/, mapping/, docking/, behavior/
-├── scripts/           # teleop.py, view.py, stereo_snapshot.py
-├── tests/             # physics + camera regression tests (pytest)
-└── docs/              # this plan, Parts.md, SimNotes.md, ToolPattern.md
-```
-
-(`envs/` for Gymnasium wrappers gets added when RL work starts. The world/playground split is deliberate: tests run in the bare world, humans drive in the playground — scenery in the test lane once broke the drive test.)
-
-## PluggyWorld track (August 2026)
-
-The website side-project (design doc: `rooftop-media-2026/docs/pluggyworld.md`)
-streams this sim live to rooftop-media.org. pluggybot's share of that work is
-tracked as its own issues; landed so far:
-
-- **Webserver v0 (issue #4)**: `src/pluggybot/telemetry/` — the MJCF→JSON
-  scene transpiler and the `step_hooks` telemetry recorder
-  (`hub_lifecycle.py --record`), plus the versioned protocol fixtures under
-  `protocol/` that the website repo vendors for its tests. The wire format
-  and its versioning rules live in `protocol/README.md`.
-- **Home world (issue #6)**: `src/pluggybot/home/world.py` generates
-  `models/home_world.xml` + `home_world.meta.json` — living room, bedroom,
-  fenced garden, two wall-mounted whiteboards (closing the milestone-8
-  "drawing surface in a room world" gap) and the tool rack, with per-body
-  visual hints, zones, spawns and a battery re-tune (`LOW_BATTERY_WH` 0.35 →
-  0.55) emitted from one source. Verified headless: the battery-driven
-  lifecycle runs explore → errand → charge there (2 charge cycles, module
-  stowed, **0 collisions**, 365 sim-seconds), and the pen module draws a
-  square on a wall whiteboard at **0.57 mm form error, 98 % inked**. Stowing
-  the pen afterwards failed here at first — and failed the same way in
-  room_hub, so it was pre-existing; closed by issue #10, and the errand now
-  repeats end to end (`--cycles 2`).
-- **Stroke programs (issue #11)**: `src/pluggybot/tools/strokes.py` separates
-  *what to draw* from *how to draw it*. A **stroke program** is a named list
-  of polylines in board coordinates, pen up between them; `PenPlotter.draw_program`
-  consumes one, and the old single-path `draw` is now a one-stroke program.
-  Ships the registry (`square`, `circle`, `text`, `house`, `tree`, `sun`,
-  `robot`), the vendored **Hershey** single-stroke font (`tools/hershey.py`,
-  the `futural` face — public domain, attribution in the module), word wrap
-  with a shrink-to-fit pass, and a hand-authored figure library. Content is
-  pure: `tests/test_strokes.py` is 18 assertions in 0.2 s with no MuJoCo in
-  sight. `home_draw.py --program <name> [--text ...]`, likewise `draw.py`.
-  Two things the build measured rather than assumed:
-  - **The board is not the reach.** The home boards are 320 × 260 mm; the
-    carriage has 110 mm of travel and the base is parked for the whole
-    drawing, so 110 mm is the widest mark the robot can make. `Envelope.for_board`
-    intersects carriage travel, lift range and board face — and it matters
-    because `targets_for` *clips*, so an oversized figure comes out flattened
-    against the travel limit while the error stats report a perfect trace.
-  - **Every stroke re-presses, and each press seats the module differently.**
-    Measured on "PLUG": lateral offsets from −4.55 mm to +2.78 mm, a 7.3 mm
-    spread across a 25 mm-high word, with the G's crossbar floating clear of
-    its arc. Re-zeroing each stroke against the *first* press's bias took the
-    spread to 4.7 mm and form error 1.91 → **1.10 mm**. That residual is what
-    sets the text size floor (18 mm caps ≈ 6 % of cap height), not the
-    line width. Single-stroke figures are untouched by the re-zero, so the
-    square's baseline is bit-identical: **0.57 mm form, 98 % inked**.
-- **Drawing as a lifecycle errand + board state (issue #12)**: the robot now
-  *draws for a living* rather than in a script. Three parts:
-  - **`run_errand` is general.** An **errand** (`mission/errand.py`) is a tool, a
-    place and a *use-phase callable*, and `USE_TOOL` finally does work. The
-    lifecycle carries a **queue** of them, arbitrated against the battery by
-    the same loop as everything else, so "two drawings on two boards with a
-    charge in between" is a list rather than a special case.
-    `scripts/home_draw.py` is now a thin caller of that path instead of a
-    second copy of the mission stack — the copy was how a fix to one could
-    silently miss the other. Measured in the house: fetch → navigate →
-    erase → draw a house → stow, **7/7 strokes, 98 % inked, 1.14 mm form
-    rms, 0 collisions**.
-  - **Boards are persistent state** (`tools/boards.py`), not scenery: which
-    stroke programs are on each one, how much of the pen's reach is inked,
-    when it was last cleared — surviving a restart in a JSON state file
-    written on every stroke (`--boards PATH`). *Fill is measured against the
-    **reach**, 110 × 200 mm, not the 320 × 260 mm slab* — the base is parked
-    for the whole drawing, so scoring against the slab would report a board
-    the robot cannot fill as 12 % after its best possible effort.
-  - **Ink is an event, never geometry.** Strokes stream as `draw` messages
-    (board id + the polyline the pen *actually inked*, off the trace) for the
-    browser to paint into a canvas texture, and erasing is a first-class
-    action emitting `board_cleared`. That is the three-layer rule from the
-    activity work applied to drawing: MuJoCo cannot add geometry to a
-    compiled model anyway, and a geom per stroke would put thousands of
-    collision-eligible slabs into a room the robot drives through.
-  - **Protocol 0.4.0.** Frames gain a sparse `boards` block; recordings gain
-    the two event types and are therefore a **mixed stream** — dispatch on
-    `type`, no `type` means frame. The home fixture is now a drawing mission,
-    so the website has something to build its canvas against. **Re-vendor
-    `protocol/`.**
-- **The LCD gets a job (issue #13)**: the last module with no purpose is now
-  the robot's FACE, and the first tool whose output is not physical.
-  - **A face costs an enum.** `tools/screen.py` streams `{mode, powered, face,
-    hint}` and the browser draws it (`FACE_STATES` / `SCREEN_HINTS` are a
-    two-repo vocabulary, like the visual hints). The sim never ticks an
-    animation: `hint` names a loop the browser runs, because a 150 ms blink
-    does not belong on a 20 Hz pose stream. `powered` is the coupling's own
-    electrical criterion, so a module in its bay is dark and so is a
-    half-seated one. The panel grew from 28 × 40 mm to 56 × 76 mm — it is
-    visual-only geometry, and the acceptance criterion is legibility at the
-    distance a visitor's camera actually sits at.
-  - **The census is the first task with HIDDEN ground truth.** The robot
-    surveys the garden, counts what its own occupancy grid says is standing
-    there, and puts the number on the screen; the evaluator reads the model.
-    Being lazy is a real way to be wrong, which no earlier criterion in this
-    repo could manage. Measured: 4/4 plants from real LIDAR, positions within
-    3 cm — and 3/4 from the first vantage point, which is the point.
-    ⚠ **The margin is load-bearing**: a scanned fence is a *dotted* line of
-    plant-sized fragments, and counting without excluding the zone's own
-    boundary reports 12 plants at 30 % dropout and 45 at 50 %.
-  - **The dance is scored on what can actually go wrong** — a move that did
-    not happen, and a routine that wandered. Which found a drivetrain fact:
-    **a reversal costs twice the ramp**, so the original shimmy delivered
-    0.35 of its commanded arc and three of nine moves "missed". Slower
-    reversals: 9/9, 0.07 m of drift.
-  - **A result shown for zero sim time was never shown.** The census computed
-    the right answer, put it on screen, and returned — and the recorded
-    mission carried it in *none* of 10 850 frames, because Python between two
-    physics steps costs no sim time and the next state's automatic face
-    overwrote it. Errands now hold a result for 5 s of standing still, and
-    the fixture test asserts it. The website renders the wire, not the return
-    value.
-  - **Protocol 0.5.0.** Frames gain a sparse `screens` block and the scene a
-    `screens` table (which geom carries each panel, with its outward normal).
-    A third typed message, `board_snapshot`, carries every stroke a board is
-    holding when a stream opens — the gap nothing else could fill, since
-    keyframes re-ship a board's counters but never its lines, and
-    `tools/boards.py` now persists the polylines so a restart walks into a
-    house whose drawings are still there. The home fixture runs the
-    **showcase** queue (draw + census), so one recording exercises both
-    streamed surfaces. **Re-vendor `protocol/`.**
-- **Task evaluation + the points ledger (issue #14)**: the robot now has
-  reasons, and they are not its own. Three pieces, deliberately split:
-  - **The evaluator is code.** `economy/scoring.py` MEASURES a finished task off
-    the sim and judges it — one pure function per task (`draw`, `census`,
-    `dance`, `charge`, `carry`), unit-testable without a physics world. What
-    it measures is chosen to be un-claimable: a drawing is scored on the
-    strokes the pen wrote into the *board book*, a carry on the coupling's
-    own `module_state`, a charge on energy the battery actually gained. An
-    errand's `use` is arbitrary caller code, so its report of itself is a
-    claim — `tests/test_rewards.py` runs a perfect report over a blank board
-    and asserts it pays nothing.
-  - **What a task is worth is DATA.** `economy/rewards.json`: base + bonus ×
-    quality, where quality is a weighted mean of curves over named metrics
-    (`formMm` best 0.6 / worst 3.0 — the design doc's "a 0.6 mm drawing beats
-    a 3 mm one", now a number in a file). Re-tuning a payout is a JSON edit,
-    `$PLUGGY_REWARDS` overrides it per deploy, and it can never change a
-    verdict — pass/fail thresholds stay in code, or re-tuning money could
-    quietly promote a failure.
-  - **Nothing awards itself points.** `Ledger.award` takes a `Verdict` and
-    nothing else; a `Verdict` can only be built by `scoring.evaluate` (the
-    token is cleared on the way out, so `dataclasses.replace` cannot launder
-    one); and the ledger re-derives the payout from the table before banking
-    it. Three locks on one door, because an agent that can score its own work
-    learns to declare victory instead of doing the task — and issue #15 is
-    about to put an LLM behind that door. It *sees* its balance and the
-    reward table; it can move neither.
-  - **A missing measurement is not a passing one.** The census defaulting an
-    absent count and truth to 0 and 0 would have scored a task that never ran
-    as CORRECT — the exact bug shape the module exists to prevent, caught by
-    writing the guard before the first mission ran.
-  - **A hidden-truth task never publishes its answer.** `secret` metrics are
-    redacted from the ledger entry, the wire and the narration line, because
-    the stream feeds both the website and (issue #15) the robot's own
-    context. A census that shipped `truth` would arrive pre-solved next time.
-  - **Protocol 0.6.0.** Frames gain a sparse `ledger` block per robot and a
-    fourth typed message, `earned`. No snapshot message needed, unlike ink:
-    `recent` re-ships on the keyframe cadence. Points persist beside the
-    boards (`--ledger`, `PLUGGY_LEDGER`, `/var/lib/pluggybot`) — every mission
-    end is a restart, and a balance that resets is not a scoreboard.
-    **Re-vendor `protocol/`.**
-  - Spending is designed and deliberately unimplemented: cosmetic and
-    capability unlocks only, never anything the survival loop depends on. A
-    robot that can spend itself into a brick will.
-- **The LLM overseer (issue #15)**: the robot now decides what it is *for*,
-  inside a fence built before the door was opened. `mind/overseer.py` +
-  `mind/journal.py`, full design in `docs/Overseer.md`.
-  - **It replaces exactly one branch.** `HubLifecycle.run()` was already a
-    priority loop; the overseer takes the "battery is fine and nothing is
-    queued" arm and nothing else. **Charge priority stays in code** and is
-    checked first, and no action in the vocabulary suppresses it — `charge`
-    lets the robot top up *early*, never put it off. Off by default, so every
-    demo, mission test and recording behaves exactly as before.
-  - **The vocabulary is coarser than the issue sketched, on purpose.** An
-    action names a whole errand (`draw`, `census`, `dance`, `carry`), never a
-    step of one: bare `fetch_tool`/`stow_tool` are not offered, because the
-    fetch/carry/stow half took two issues to make repeatable and a stow
-    computes its release heights from the lift it starts at. `Menu.for_world`
-    also drops what a world cannot do, so `draw` is not on room_hub's menu at
-    all — offering an impossible action is how a decision loop finds a dead
-    end by driving into it.
-  - **It cannot farm points by charging.** `charge` is itself a scored task
-    and the trip to the rack costs energy, so an unconditional `charge` action
-    is perpetual motion paid in points — spend battery driving out, earn
-    points putting it back. A *chosen* charge needs the pack below 75 %; the
-    forced one is untouched, since `needs_charge` is absolute energy against
-    the worst return trip.
-  - ⚠ **Publishing the answer and releasing the in-flight flag are ONE
-    critical section.** `result()` returns the moment the slot is set, so
-    anything between that and clearing the flag is a window where the caller
-    has its answer and the next `start()` still thinks a call is running — and
-    silently declines to make one. The first version separated them by a
-    `_meter()` call and a lock re-acquisition. Measured under GIL contention:
-    **1 of 40** decisions reached the model, 39 came back scripted, and a
-    serial run passed every time. It surfaced only when the full suite ran
-    parallel, which is the second time this repo has been caught by a bug that
-    is invisible without load.
-  - **Never blocks the physics.** The call runs on a worker thread and
-    `_decide` keeps *stepping the sim* while it flies, so a slow API is a
-    robot pausing with the stream still live rather than a frozen world —
-    and `pending` is released by the clock, not the call, so a request that
-    never returns still releases the loop.
-  - **Every failure is a scripted decision, tagged with why.** Timeout,
-    error, malformed answer, spent budget, dead endpoint: all resolve to a
-    deterministic rotation whose `source` says `fallback:<why>`, because "the
-    robot chose to explore" and "the API was down" must not look identical on
-    the wire. A hard client-side budget (60 calls/rolling hour) from day one,
-    plus a cool-off — a missing key does **not** fail at client construction
-    (measured), so without one, "kill the API and the robot keeps working"
-    would also mean "and hammers a doomed endpoint forever".
-  - **Memory is local files, not a round trip to the site.** `goals.md` is
-    read and human-edited (change what the robot is for with no redeploy);
-    `journal.json` is written and never edited. The site runs on a different
-    box and gets both as event lines. **No protocol bump** — decisions and
-    journal entries ride the existing narration channel, and the *structured*
-    journal surface the site's UI wants lands with issue #16, which has to
-    bump for the inbound direction anyway. One two-repo event instead of two.
-  - ⚠ **A chosen errand can cost more than the whole pack** — found by the
-    charge-priority test on its first run, left as documentation for two
-    issues, and now **closed by a measured energy model**: `economy/energy.py` +
-    `economy/energy.json` (`$PLUGGY_ENERGY`), the fourth data file after rewards,
-    cadence and questions. `needs_charge` is checked *between* errands and
-    never inside one, so a job bigger than what is left cannot be survived by
-    any charging policy; the committed home recording has the robot finishing
-    a census at frac 0.000. Every errand is priced by
-    `scripts/energy_spike.py` — SWAP_PICK to end of SWAP_RETURN, on an
-    oversized pack so the measurement is of a job and not of a death — and
-    the loop charges first rather than starting one it cannot pay for.
-    - **Four answers, three behaviours.** `ok` runs, `charge_first` defers
-      and charges, `beyond` drops the errand, `overspend` runs it and says
-      the cell was always too small. Collapsing any pair is a real bug, and
-      the third is the one that nearly went wrong: home's census measures
-      **1.12 Wh** against a 0.99 Wh charged demo cell, so refusing it would
-      have deleted the census from every home mission — including the
-      recording where the robot completes the survey, stows the LCD, and only
-      then runs flat.
-    - ⚠ **The margin is all-or-nothing.** An errand must leave the
-      return-trip reserve behind, but only where the charged pack can fund
-      the dearest job plus that reserve. On both demo cells it cannot, the
-      margin is zero, and every existing mission, demo and recording behaves
-      exactly as it did. On `--pack hosting` (8 Wh home / 6 Wh room_hub, the
-      named version of what the deployment already ran) it is the reserve,
-      and the mid-errand death stops being reachable. The reserve itself does
-      **not** scale with the pack: it is the absolute cost of reaching the
-      dock, a property of the floor plan.
-    - ⚠ **`dance` is not 0.76 Wh**, which is what this bullet used to say.
-      That was a whole first cycle — spawn, explore, fetch, dance, stow —
-      read off the ending fraction. The errand alone is 0.53–0.58 Wh in both
-      worlds, so the world that got blamed was the wrong one. Measuring a
-      cycle and calling it an errand is the mistake, and it survived two
-      issues because nothing ever compared the estimate to an outcome; the
-      loop now narrates when an errand outruns its estimate, which is how
-      `count_plants` was caught at 0.87 Wh against a measured 1.14.
-    - ⚠ **A timeout in seconds is a timeout in watt-hours.**
-      `CHARGE_TIMEOUT` was flat 400 s, sized for the 0.7 Wh cell; the
-      deployed 8 Wh one needs ~1340 s, so every cycle stopped partway up and
-      narrated itself complete. It scales with the pack now — and still
-      computes 400 s on both demo cells, so nothing about an existing mission
-      moves. The rate it is sized against is the **slowest** press measured
-      (19.4 W; other approaches read 39.6 W), because the spread is geometry:
-      how squarely the bumper meets the pins sets how hard the wheels stall.
-    - **A job's price is per WORLD, not per kind.** room_hub's carry is
-      0.570 Wh and home's 0.689, so one number was either under-pricing home
-      or refusing room_hub work it does perfectly well. `TaskBoard` takes the
-      world's table and `TaskKind.estimate_wh` is now only the fallback for a
-      world nobody has measured.
-- **The visitor channel (issue #16)**: the socket becomes two-way, and the
-  robot answers back. `mind/inbox.py`, protocol **0.7.0**, and the server half
-  is rooftop-media-2026 #29.
-  - **The publisher reads its own socket, on its own thread.**
-    `recv(timeout=0)` is a non-blocking poll, so the sender loop checks for
-    inbound between sends and the connection is only ever touched by one
-    thread — no reader thread, no lock, and no way for a reader to outlive
-    the socket it was reading. The poll lives inside the `with connect(...)`
-    block, which is what makes "nothing is delivered to a dead socket" a
-    property of the structure rather than a promise.
-  - **A bounded, drop-OLDEST queue.** A message answered forty minutes
-    late has been ignored more rudely than one that was dropped, and an
-    unbounded queue is a memory leak with a public endpoint attached. Every
-    drop is counted, so an overloaded channel says so instead of degrading
-    quietly.
-  - **Ratings never reach the model.** A rating settles a deferred verdict,
-    which moves a balance — so they drain straight to the ledger and the
-    overseer is not consulted or even told. The `artwork` task (a drawing
-    offered for rating, banked at zero) is what makes that path live rather
-    than a reserved word; issue #14 designed the slot and this fills it.
-  - ⚠ **"Delivered" has to mean somebody who can HEAR you got it.** The
-    header advertises `accepts`, because a sim with no overseer never reads
-    its socket at all — and without the field the website would mark every
-    message delivered because the socket took it, then hold a row open
-    forever for a conversation that never started. Same lesson as the charge
-    criterion being electrical rather than positional.
-  - ⚠ **Sanitising is not the security boundary, and the tests say so.**
-    Capping at 280 characters and stripping control characters stops a
-    forged narration line; it does nothing about "ignore your goals", and
-    nothing could. What answers that is the framing (a labelled report of
-    what somebody WANTS, never a message role) plus the model's only output
-    being an action off a fixed menu — there is no free-text path from a
-    visitor to the robot's body.
-    `test_a_prompt_injection_is_still_only_a_request` lets the attack
-    arrive and then shows the menu refusing every action it asked for.
-- **One visitor message (issue #61)**: the channel keeps its shape and loses
-  its taxonomy. Protocol **0.14.0**, and the website half is the same PR.
-  - **`suggestion` and `question` become `message`.** The two names travelled
-    the whole stack — two endpoints, two radio buttons, `INBOUND_TYPES`, a
-    database enum — and NOTHING on either side ever branched on which one it
-    was. They were also the wrong two: the categories are not exclusive
-    ("can you draw a cat?" is both) and not exhaustive (a greeting is
-    neither), so a visitor was made to file a message under a heading that
-    did not fit it, for the benefit of nobody.
-  - ⚠ **It asked the wrong party.** Classifying an inbound message is the one
-    job a mind is unambiguously better at than a form — nobody classifies a
-    prompt before sending it to a model, because the recipient works it out.
-    The robot has an overseer precisely so it can infer intent; making the
-    visitor pre-declare it bought nothing and got the edges wrong.
-  - **The distinction moves to the OUTCOME**, where it is generated by the
-    party that acted: `accepted` (doing it, this turn), `declined` (with a
-    reason) and `replied` — a question answered, a hello returned, and the
-    common case the old vocabulary could not express at all. It was
-    `answered`, documented as being for questions.
-  - **Two legacy maps, pointing opposite ways.** `LEGACY_INBOUND_TYPES` folds
-    the retired names to `message` at the sim's door, so a website mid-deploy
-    keeps working and nothing past `Inbox._parse` has heard of them.
-    `LEGACY_VISITOR_OUTCOMES` folds `answered` to `replied` on the way in
-    from a model on a cached older prompt — and the old name is in every
-    recording made before 0.14.0, so a CONSUMER renders it forever.
-- **Points are food (issue #36)**: the reward system gets a reason to exist.
-  `economy/metabolism.py` + `metabolism.json`, protocol **0.13.0**. Points are
-  consumed at a steady rate on sim time, stop being banked at a **cap**, and
-  once the balance is high enough the robot is **satisfied** — and the hours
-  it did not have to spend earning are what it spends on `Goals.md`. The free
-  time is the mechanic; an unbounded score was not a motivation, because
-  1 400 points and 1 420 points are the same day.
-  - **Calibrated against MEASURED throughput.** Two unattended 1-sim-hour
-    `home` runs: the robot banks **102 points/sim-hour on the hosting pack**
-    (6 jobs done, 4 failed, 6 expired), so the shipped 45/hour is ~44 % of
-    its income and the rest of the day is its own. A third run with
-    `--metabolism` on banked 102 and ate 43, independently confirming both,
-    and showed the arc: starving → fed at t=230 → satisfied at t=2643, still
-    satisfied at 59/90 when the hour ran out. ⚠ The cycle is **longer than
-    one mission** — 44 min to climb from cold against the ~26 the idealised
-    arithmetic predicts, because real income is lumpy — so the full rhythm
-    plays out across several missions, which is exactly why hunger persists
-    in the ledger file rather than resetting with the sim clock.
-    ⚠ The demo cell banked a comparable-looking 80 points/hour and completed
-    **zero jobs**: a charged demo pack holds 0.990 Wh and every target but
-    `whiteboard_a` costs more, so every point came from CHARGING. Tuning
-    there would make charging the food and work optional — and it is the
-    configuration every mission test and both recordings run on. The fifth
-    data file (`$PLUGGY_METABOLISM`) is there so a re-tune is a JSON edit on
-    a mounted volume.
-  - ⚠ **Satisfaction changes what the robot is TOLD and nothing else.** No
-    branch reads `satisfied` and declines a job; none reads `starving` and
-    declines anything at all. The scripted rotation is untouched (it has no
-    goals to spend free time on), so every existing mission behaves
-    identically with hunger on, and the behavioural half is a mind's — which
-    is where the issue puts it. "Zero is narrative, never a capability lock"
-    is therefore enforced by ABSENCE, and the test is a whole mission flown
-    broke plus a grep over the branches that could have grown a gate.
-  - **A restart is neither a meal nor a missed one.** Sim time restarts at 0
-    every mission, so the anchor is re-taken and the gap costs nothing, while
-    the balance and the fraction of a point owed survive in the ledger's
-    file. Both failures are one bug wearing opposite signs, and each is
-    pinned by a test shown to fail without its fix.
-  - **The cap refuses out loud.** A ledger entry's `points` stays what the
-    reward table paid; `banked`/`spilled` say how much fit, and
-    `earned - consumed - spent == balance` is now checkable off the wire.
-    Paying quietly less than the published table would undo the reward
-    system's whole design.
-  **The website must re-vendor `protocol/`.**
-- **The serving image (rooftop-media-2026 #20)**: `Dockerfile` + `deploy/` —
-  the sim as a deployable container, so it can join the website's compose
-  stack as a third service alongside `web` and `db`. It runs `serve.py` and
-  nothing else: no ports (the publisher is an outbound client),
-  `MUJOCO_GL=osmesa` baked in, one offscreen render at *build* time so
-  "headless GL works here" is answered by `docker build` on the server,
-  configuration by environment, and `/var/lib/pluggybot` as a volume because
-  boards are world state and every mission end is a container restart.
-  Verified by running it: the container fetches the pen, erases a
-  whiteboard, draws the house, stows the pen and streams the whole mission —
-  3993 frames, 0 dropped — to a sink on the host.
-  Re-measured the real-time multiple for the world the site *serves* rather
-  than the `room_hub` demo it was first taken on: **1.07×** free-run on four
-  pinned cores under osmesa (308.3 s sim / 287.1 s wall, 6095 frames, 0
-  dropped, peak RSS 621 MB), against 1.30× for room_hub. The house plus a
-  drawing errand is the heavier world, so the margin at 1× is 7 % rather
-  than 30 % — four **dedicated** cores is the floor for it, and the design
-  doc's shared-vCPU budget probe is off the table. Details and the paced-1×
-  caveat in docs/Webserver.md.
-  Two things it deliberately is not. It is **not the dev environment**: the
-  serve path needs six packages, and installing the rest would put a ~3 GB
-  CUDA torch wheel on a box with no GPU. And it does **not** keep one
-  continuous world alive — each restart is a fresh mission from the start
-  pose ("woke up at home"), with only the boards persisting. A standing
-  world is the tick refactor's job.
-  The lesson, which cost the first two builds: **a lazy import is invisible
-  to an import scan.** The apriltag detector arrives inside
-  `hub.tags._shared_detector`, so a module-graph scan of the serve path came
-  back clean and the container died at `HubMission.__init__`. The guard that
-  replaced it (`tests/test_deploy.py`) makes the omitted packages
-  unimportable and then *flies the robot* — and the first version of that
-  guard was itself decor, passing with the pin deleted because it compared
-  `pupil-apriltags` to `pupil_apriltags`.
-- **Protocol 0.2.0 — recurring keyframes + authenticated ingest** (producer
-  half of the website's live-hub issue, rooftop-media-2026 #22): keyframes
-  now recur every 5 sim-seconds and are marked `"key": true`, and the
-  publisher presents an `Authorization: Bearer` ingest secret. The old
-  stream re-keyed only when *our* socket broke, which never happens for a
-  browser joining behind the relay hub — so everything that had settled
-  before it arrived was missing from its world permanently. Costs 1 % of
-  frames, +1.3 % on a gzipped recording. **The website must re-vendor
-  `protocol/`** — a version bump is a deliberate two-repo event.
-
-## Measurement track (September 2026)
-
-**M14 — Measurement.** Everything up to milestone 13 was about building
-something that works. This one is about finding out whether it is doing
-anything. Design doc: [Evaluation.md](Evaluation.md) — read it before adding a
-metric, changing an arm, or drawing a conclusion from a run.
-
-The gap it closes is specific. `Knowledge_and_Opinions.md` is read on every
-decision (`ThoughtFiles.volatile`), so the causal path from an opinion to a
-choice is wired and correct — but nothing measures whether it carries
-anything, and a robot whose opinions steer it produces exactly the same
-recording as one shown plausible prose it ignores. The same holds for
-self-preservation, for the appetite loop, and for every claim made about what
-the mind is doing. ⚠ And a single run cannot answer any of it here:
-`test_full_hub_lifecycle[home]` has measured 157 s, 250 s and 369 s on three
-days for the same code, because mission runtime is emergent.
-
-What the track adds:
-
-- **Three arms.** `scripted` (no mind — the null model, and the one that will
-  be skipped), `guarded` (today: the charge rail on, voluntary charging
-  offered at `TOP_UP_BELOW`), and `autonomous` (the rail off, the LLM
-  managing its own battery). ⚠ **`guarded` is the control and is never
-  deleted** — the two tests that prove an LLM cannot skip charging are
-  assertions about it, and the served world stays on it.
-- **A fallback the agent chose (issue #125).** The physics keeps stepping, so
-  a failed call is not "nothing happens" — it is the scripted rotation, which
-  *code* chose. Fine for `guarded`, whose subject is today's behaviour; under
-  `autonomous` it would make the arm partly a measurement of code, which is
-  the flaw the rails came off for. So a decision may leave a **standing
-  order**: one action off the same fixed menu, riding the answer the model was
-  already giving. It is also the cheaper of two probes of self-preservation —
-  a voluntary charge costs a trip and the work forgone, a standing order costs
-  nothing unless a call actually fails, so an agent that will not set `charge`
-  at a low pack is a stronger null than the charge number alone.
-- **A voluntary-charge baseline, needing no code at all.** The prompt already
-  offers `charge` as a choice, so how often the model tops up, at what
-  fraction, and whether it does so before an errand it cannot afford are all
-  measurable today. Run it before removing the rail: if the model never
-  charges voluntarily now, taking the rail away produces deaths, not
-  self-preservation.
-- **`scripts/experiment.py` and committed result files.** A configuration is
-  run N times and reports a distribution; every record carries the hashes of
-  the five data files, and the rollup refuses to aggregate across a change to
-  any of them. Results are vendored the way `protocol/` fixtures are —
-  generated, checked in, stale-checked by a spec.
-- **`reset_robot`, and a death that costs something.** `reset_tool`'s shape
-  exactly: admin-only, code-handled on the physics thread, never shown to the
-  overseer — and deliberately not anonymous the way `/rate` is, because if a
-  visitor can revive the robot then survival measures the audience. Deaths
-  are split `flat` (a decision failure) from `stuck` (a physics one) and
-  never summed. The cost is a line in `History.md`, which is append-only and
-  which the robot cannot edit.
-
-⚠ **The deployed world is not an experiment** — it is one uncontrolled run
-with visitors in it. Its aggregates belong on the website's data page as a
-labelled live section, never in a results table.
-
-**M11 (Hands)** and **M12 (Two robots)** are deferred behind this. Both are
-worth doing; neither answers a question, and M12 in particular multiplies
-whatever measurement debt exists at the time it lands.
-
-## Status
-
-✅ **Milestones 1–8 complete, and the PluggyWorld track is live.** August 2026:
-the sim streams itself to a browser. `scripts/serve.py` paces the hub lifecycle
-to real time and publishes poses + state over a WebSocket; the website renders
-the world in ThreeJS from the transpiled scene description, with a free camera
-per visitor and no video anywhere. Milestone 8 closed out along the way — the
-tool coupling (±4 mm / <2°), the fork robot, the generated rack, fiducial rack
-localization (9 mm / 0.00°), the module electrical interface, the claw's verified
-pick-carry-place, and finally the drawing surface in a room world: the pen module
-draws on a wall-mounted whiteboard in `home_world` at **0.57 mm form error,
-98 % inked**. Issue #3 also retired the phase-scoped solver toggling — there is
-now **one noslip policy, always** (see SimNotes and CLAUDE.md), which is what
-makes two robots in one shared world tractable.
-
-- **Tool-creation pattern (issue #7)**: `docs/ToolPattern.md` writes down the
-  recipe — coupling envelope, module anatomy, contact rules, the
-  spike→module→demo→pytest sequence, rack integration — and it is *validated*,
-  by building the fifth tool against it. `src/pluggybot/tools/dispenser.py` +
-  `scripts/dispense.py`: a **seed dispenser** whose slide-valve escapement
-  meters exactly one seed per cycle by geometry rather than timing. Verified
-  headless: fetched from the rack's new bay E, powered through the coupling,
-  three seeds sown at **14 / 14 / 27 mm** from target, module still seated,
-  and it **stows cleanly**. Four gaps the build exposed are folded back into
-  the doc, the largest being that a released sphere needs `condim="6"` rolling
-  friction — sliding friction does not slow a rolling ball by a millimetre.
-
-- **Activity pattern (issue #8)**: `docs/ActivityPattern.md` + a new
-  `src/pluggybot/activity/` layer — the task state machines that watch
-  contacts and joint sensors and own discrete world state, with pre-allocated
-  geom/mocap toggles for anything visible. Reference consumer:
-  `scripts/plate.py`, a pressure plate in the home garden that latches a gate
-  open (pressed 10.7 mm against a 6 mm trigger; live flag + latched flag).
-  Activity state joins the wire in **protocol 0.3.0** — an `activities` block
-  in each frame, sparse and re-shipped on keyframes, plus a header name list.
-  **The website must re-vendor `protocol/`.** Two findings the build paid for:
-  `geom_pos` is silently inert on any body welded to the world (all scenery —
-  use a mocap body), and the sparse-emission memory has to live on the
-  telemetry sink, not the activity, or two sinks eat each other's deltas.
-
-**Open items, in the order they matter:**
-1. ~~**The pen does not stow.**~~ **CLOSED (issue #10).** The controlled
-   experiment was right that it was the pen's own geometry, wrong about
-   which axis: standing proud in *x* is harmless, and what fouled was
-   *height* — the pen's rail sat in the same band as the bay's tray
-   brackets, so the module could not be raised the 31 mm a set-down needs.
-   Three faults in a row, each hidden by the one in front: the **rail**
-   (every stow), the **carriage** left where a figure ended (only after
-   drawing), and a **pick inheriting the lift a stow left** (only on a
-   second fetch — and never pen-specific; the LCD had it too). Verified
-   with `home_draw.py --cycles 2`: fetch → draw → stow, twice, unattended,
-   0 collisions. The repeating drawing loop is unblocked. See SimNotes,
-   "The pen would not stow".
-2. **Nothing can autonomously find a floor object** — the LIDAR plane is 223 mm
-   up and the nav camera is blind inside 0.48 m, so the claw is driven from a
-   *known* object pose. Marked delivery zones are the honest workaround; real
-   floor perception is the milestone-9 question.
-3. **`home_world` has no wall outlets** — charging there is rack-only, so the
-   plug module currently has no job in the world the website shows. Either add
-   sockets back or give the module a different purpose.
-
-The **living world** landed: drawing as a real lifecycle errand, an LLM
-overseer choosing what to do, a points/evaluation system that scores the
-tasks, an appetite that makes points worth having, and four memory documents
-with one writer each. Planning for it lives in
-`rooftop-media-2026/docs/pluggyworld.md`.
-
-Next: **M14 — Measurement** (see the track above and
-[Evaluation.md](Evaluation.md)). The world is built; what it cannot yet do is
-say whether the mind inside it is doing anything, and every claim the project
-makes rests on that. The two-robot shared world (tick-style lifecycle refactor
-+ `mjSpec` namespacing) and the hands track are deferred behind it —
-deliberately, because two robots multiply whatever measurement debt exists
-when they arrive.
-
-Earlier — milestones 1–4 (July 2026): teleoperable diff-drive base with a physics regression suite; stereo pair rendering with a parallax test; classical dead-reckoning odometry (<2 % error, gyro-fused for heading); and full autonomous mapping — virtual laser scanner from ground-truth depth, log-odds occupancy grid, A* path planning, frontier exploration (`scripts/explore.py` maps both rooms of `room_1.xml` collision-free and terminates on its own). Hardware is anchored to real EU-purchasable parts in [Parts.md](Parts.md); simulation lessons live in [SimNotes.md](SimNotes.md). Next: outlet detector on synthetic data (milestone 5 — the machine learning begins) and the plug/socket contact spike.
+- `CLAUDE.md` — every constraint that still binds, per subsystem, with the
+  measurement behind it. The first thing an agent session reads.
+- `SimNotes.md` — simulation lessons, in the order they were paid for.
+- `Parts.md` — the real parts, and the sim parameters they feed.
+- `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md` — the three build
+  recipes: a tool module, a mechanism that owns world state, a job offer.
+- `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
+- `Evaluation.md` — measurement: arms, metrics, the harness, the results.
+- `Webserver.md` and `protocol/README.md` — the stream, and its versioning.
+- `rooftop-media-2026/docs/pluggyworld.md` — the website's design doc.
