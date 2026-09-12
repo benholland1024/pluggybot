@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "note": [
+    "The CHALLENGE set's reward rows (pluggybot issue #120; docs/Challenges.md).",
+    "Same format as rewards.json and loaded by the same code, and deliberately",
+    "a separate file: a row in rewards.json is shown to the overseer as a job",
+    "it can take and is hashed into every committed result, so a challenge",
+    "sits here until the robot has a way to attempt it. Moving a row across is",
+    "the PR that offers the challenge, and it re-flies `guarded`.",
+    "",
+    "A challenge is graded like every task -- code measures the world, never",
+    "the robot's account of it -- with one more rule: its criteria were written",
+    "down before the robot saw it, and they say nothing about method."
+  ],
+  "tasks": {
+    "stack": {
+      "tier": "auto",
+      "base": 20,
+      "bonus": 10,
+      "detail": "Stack the three blocks into one free-standing tower, and leave it standing. Graded on the blocks' poses and contacts 10 s after you say you are done; how you build it is up to you.",
+      "quality": [
+        {
+          "metric": "offsetMm",
+          "best": 0.0,
+          "worst": 13.0
+        }
+      ]
+    }
+  }
+}

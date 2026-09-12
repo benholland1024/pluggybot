@@ -92,8 +92,9 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
 
 1. Docs and prompts aligned to this section, and a per-doc slimming pass
    (#153); the constitution / robot-owned goals split (#154).
-2. #120 as a written decision, with one predicate-graded challenge: criteria
-   first, a passing run, a failing run.
+2. ✅ #120 as a written decision, with one predicate-graded challenge: criteria
+   first, a passing run, a failing run — `Challenges.md`, the three-block
+   tower (`challenge/stack.py`).
 3. **Agent-written procedures.** Rung one is #58 — composable errands over
    the guarded primitives, with a test that only that vocabulary writes
    `data.ctrl`. Rung two is a small, total procedure language: conditionals
@@ -276,8 +277,9 @@ igus stroke quote, chassis material, motor brackets).
   measurement behind it. The first thing an agent session reads.
 - `SimNotes.md` — simulation lessons, in the order they were paid for.
 - `Parts.md` — the real parts, and the sim parameters they feed.
-- `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md` — the three build
-  recipes: a tool module, a mechanism that owns world state, a job offer.
+- `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md`, `Challenges.md`
+  — the build recipes: a tool module, a mechanism that owns world state, a
+  job offer, a job nobody scripted.
 - `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
 - `Evaluation.md` — measurement: arms, metrics, the harness, the results.
 - `Webserver.md` and `protocol/README.md` — the stream, and its versioning.

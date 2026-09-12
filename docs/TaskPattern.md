@@ -5,10 +5,12 @@ visitor, or eventually the overseer itself) puts up on a board, that the robot
 may take on, and that ends in a verdict somebody else computed. Third of the
 three pattern docs, and every rule here is one an existing build paid for.
 
-**Not yet validated by a fresh consumer**, unlike `ToolPattern.md` — which the
-seed dispenser proved, folding four gaps back in. The second task kind does
-that job here (§7, gap 1). Whatever it finds missing belongs in this file;
-mark it ⓘ *found by building X*, as the sibling docs do.
+**Validated once by a fresh consumer** (issue #24's last box, folded into
+#120): the three-block tower — `docs/Challenges.md`, `challenge/stack.py` —
+was built against this doc and found four gaps, each marked ⓘ *found by
+building the tower* where it was folded in (§1, §2.2, §3, §4). It is a
+CHALLENGE rather than an offered kind, so the offer-side half of the recipe
+(§5, §6 steps 2, 4 and 5) is still unvalidated by a second consumer.
 
 Read alongside, not instead of:
 - `docs/ToolPattern.md` — the things the robot picks up. An errand's fetch
@@ -16,6 +18,8 @@ Read alongside, not instead of:
 - `docs/ActivityPattern.md` — the things the robot acts on. Its three-layer
   rule (MuJoCo owns contacts, Python owns state machines, the browser owns
   visuals) is assumed everywhere below.
+- `docs/Challenges.md` — a task nobody wrote a scorer for: the same grading
+  chain, with the criteria written before the robot sees the job.
 - `docs/Overseer.md` — the mind that will be choosing among these offers, and
   the hard limits on what it may be shown and what it may move.
 - `CLAUDE.md` — the short forms, including the measured energy figures.
@@ -35,7 +39,11 @@ doc exists to prevent:
 
 **An errand is HOW a task gets done; the task is WHY.** One task resolves to
 one errand today, and the split is what lets a visitor ask for something
-without knowing that "whiteboard" means "fetch the pen from bay C". The three
+without knowing that "whiteboard" means "fetch the pen from bay C".
+ⓘ *Found by building the tower:* a task may have NO errand behind it. A
+challenge's discharge is whatever the robot writes (issues #58, #166), so
+the HOW is not machinery this repo ships; what the pattern requires of it is
+only that the verdict is reachable from the world afterwards (§4). The three
 compose in one direction:
 
 > a **task** is offered → claiming it queues an **errand** → the errand's
@@ -151,6 +159,14 @@ price in the sentence**: a description is written once and frozen, while
 first time the table was re-tuned — with the stale figure being the half a
 person reads.
 
+ⓘ *Found by building the tower:* a row for a job the robot cannot yet
+attempt does not go in `rewards.json`. That file is shown to the overseer as
+the jobs it can take and is hashed into every committed result
+(`evaluation/record.py`), so a row there is both a lie about what the robot
+can do and a regime change in the rollup. Such rows live in
+`economy/challenges.json` (same format, `scoring.challenge_table()`) and
+move across in the PR that offers the kind — which re-flies `guarded`.
+
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
 text on exactly the inbox's terms — capped at 280 chars and cleaned on the
@@ -190,6 +206,12 @@ way a tool states its tolerance class):
    deliver the pose over the wire to make it work, which is the honesty
    rule's ❌ row wearing a feature's clothes.
 
+ⓘ *Found by building the tower:* the tier is a property of the ATTEMPT, not
+of the grader. The tower's grader reads `xpos` and would score a tower built
+at any tier; the module still states tier 1, because the moment the job is
+offered the blocks must be findable, and the tags come with the procedure
+that finds them.
+
 The ladder is also the reason the rule's second ✅ row is safe: a whiteboard's
 pose is tier-0 — *immovable, surveyed infrastructure* — and delivering it is
 the same class of fact as delivering the rack's position. The moment the
@@ -225,6 +247,16 @@ example:
   zero, because a consolation payout for showing up is the gradient that
   teaches a robot to attempt the cheapest task it can fail at, over and over.
   Quality curves scale the *bonus* on a success; they cannot buy a failure.
+
+ⓘ *Found by building the tower:* **a success that has to PERSIST is sampled
+twice.** `score_errand` reads the world once, when the errand ends, which is
+right for ink on a board and wrong for a tower: a stack whose centre of mass
+is past its base passes every geometric check at the instant it is let go and
+is on the floor 0.3 s later. So the sampler takes the `before` reading at the
+CALL and the verdict reading after a HOLD (`stack.HOLD_S`, 10 s) during which
+nothing may touch the work, and both must pass. The hold is a criterion of
+the challenge, not an implementation detail, and it belongs in its written
+criteria.
 
 ### 4.1 The worked example: `whiteboard_answer`
 
@@ -467,10 +499,11 @@ to build against.
 
 ## 7. Known gaps
 
-1. **This doc has not yet been validated by a consumer.** The second task
-   kind — *fetch a tagged object*, ladder tier 1 — is the intended test, and
-   issue #24's third acceptance box stays open until it is built against this
-   doc and the gaps are folded back. It is M11's, and M11 is deferred.
+1. **The offer side is not yet validated by a consumer.** The tower validated
+   the grading half (§4) and found the gaps marked ⓘ above; it is not
+   offered, so `TaskKind`, cadence, energy pricing and the claim gates (§5,
+   §6) have had one consumer only. The PR that offers the tower (or M11's
+   *fetch a tagged object*) is the second.
 2. **Only tier 1 of the ladder has a build path.** Tier 2 needs a detector
    nobody has trained; tier 3 is a research question. A kind must not climb
    the ladder by delivering poses over the wire.
@@ -500,7 +533,8 @@ to build against.
     dearer of two honest measurements; NO padding
 [ ] evaluator: pure, streamable reason, missing measurement == failure
 [ ] sampler: measures the WORLD (board book / module_state / battery), with
-    a before-reading where prior state could contaminate
+    a before-reading where prior state could contaminate -- and a HOLD where
+    the success has to persist (§4)
 [ ] rewards.json row; quality curves only over metrics actually returned
 [ ] errand: reuse the fetch/stow half; decide needs_use_pose deliberately
 [ ] cadence.json rotation entry (or a deliberate absence, written down)
