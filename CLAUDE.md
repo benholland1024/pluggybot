@@ -48,6 +48,21 @@ wording, settled direction. Before doing anything, read:
   all found this way, and two of them were hiding behind green metrics.
 - Every debugged failure becomes a pytest assertion, and the assertion must be
   shown to fail without the fix — a regression test that cannot fail is décor.
+  **And it is written as cheaply as it can be while still failing for the
+  right reason** (Ben, 2026-09-12): pin the RULE — the inequality, the
+  branch order, the one line of wiring — with a fake press, a stubbed drive,
+  a direct call; fly a whole mission only when the claim is genuinely about
+  the integration, and then stop it on the claim (`stop_when`). A flown
+  proof whose rule is already pinned goes behind `--endurance`.
+- ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
+  APPROVAL.** The full suite is **6:54** on a quiet box (2026-09-12). Any
+  change to testing that would take it past **10 minutes on a quiet machine,
+  or 15 on a busy one**, must be stated as such in the PR — the number, the
+  test, and why it cannot be cheaper — and approved by Ben personally before
+  it merges. Reducing suite time is a project priority: the suite was
+  slowing development considerably at 18 minutes, and it gets there one
+  reasonable-looking mission test at a time. Do not rely on full runs where
+  a fast test settles the claim.
 - **An inline comment states a constraint the code cannot show. Anything that
   is a story goes to `docs/`, with a one-line pointer left behind** (issue
   #51). Prose in a `.py` is loaded every time anything reads that file,
@@ -99,8 +114,10 @@ wording, settled direction. Before doing anything, read:
   _is_5x_faster` read 4.9× under load against a bar it clears at 6.8–7.1×
   quiet; `process_time` is NOT the fix, the contention is memory bandwidth.)
 - **Before calling any work done: the FULL suite**, `MUJOCO_GL=egl uv run
-  pytest -q`, and run it while iterating whenever the change touches something
-  a whole mission exercises: `models/` or a world generator (`home.world`,
+  pytest -q` — ⚠ and if your change makes it slower, the budget in "Working
+  style" applies: past 10 minutes quiet (15 busy) is Ben's call, stated in
+  the PR, never absorbed. Run it while iterating whenever the change touches
+  something a whole mission exercises: `models/` or a world generator (`home.world`,
   `rack.coupling`) · contact or actuator params · `control.py` /
   `behavior/navigation.py` · the swap/coupling/mission stack · the telemetry
   frame format or `protocol/` fixtures. The two costliest bugs in this repo
