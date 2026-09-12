@@ -23,6 +23,11 @@ wording, settled direction. Before doing anything, read:
   grading, and how tasks, errands and activities compose. Read BEFORE adding
   a task kind or touching `economy/tasks.py`, `economy/scoring.py` or
   `economy/cadence.py` — and fold any gap it left back in
+- `docs/Challenges.md` — how a job nobody wrote a scorer for is graded: a
+  success predicate written BEFORE the robot sees it, through `scoring.py`'s
+  chain, with a hold; the three candidates rejected and why; what it cannot
+  grade. Read BEFORE adding a challenge, touching `challenge/`, or reaching
+  for an LLM judge
 - `docs/Overseer.md` — the mind: where it sits in the arbitration loop and
   which rails each arm keeps, the action vocabulary, the standing order and
   the event map, what it structurally cannot do on any arm, the fallbacks,
@@ -673,7 +678,9 @@ save a filmstrip PNG named after the script.
   strokes, hershey, boards) · `mind/` (overseer, llm, events, thoughts,
   journal, inbox, mode, spend) · `economy/` (tasks, scoring, ledger, cadence,
   questions, energy, metabolism, census, and the five `.json` data files) ·
-  `mission/` (mission, errand) · `evaluation/` (arms, record, rollup, notes) ·
+  `mission/` (mission, errand) · `challenge/` (stack: criteria, props,
+  measurement — one module per challenge) · `evaluation/` (arms, record,
+  rollup, notes) ·
   `lifecycle.py` at top level, because arbitration ties them together. A
   module goes where its CONCERN lives; a module that fits none is a new
   domain, not a reason to widen an old one. `tests/` is flat.
@@ -866,6 +873,19 @@ save a filmstrip PNG named after the script.
   lift it starts at). ⚠ A result has to outlive a frame: Python between two
   physics steps costs zero sim time, so hold a screen result
   (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING, not the return value.
+- **A challenge is a task whose criteria were written before the robot saw
+  it** (issue #120; `challenge/stack.py`, Challenges.md). Same MEASURE / JUDGE
+  / PAY door as every task: its evaluator and sampler are on `scoring.py`'s
+  registries, the sampler reads the WORLD and never the errand's `result`
+  (a test hands it a report that says "built"), and it is graded twice — at
+  the call and after a hold (`stack.HOLD_S` = 10 s; an overhung tower is on
+  the floor inside 0.31 s). ⚠ Its reward row is `economy/challenges.json`,
+  NOT `rewards.json`: a row there is shown to the overseer and hashed into
+  every committed result, so moving one across is the PR that offers the
+  challenge and a re-fly of `guarded`. ⚠ Props come through `MjSpec`
+  (`stack.add_blocks`), never a committed world, until offered. ⚠ The blocks
+  carry `GRIP_SOLIMP`: on default contact a 2 + 4 mm lean crept over at
+  16.9 s, which grades the solver rather than the robot.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):
   `economy/scoring.py` measures the world and judges (`EVALUATORS`, pure),
   `rewards.json` says what it pays, `economy/ledger.py` banks it; a `Verdict`

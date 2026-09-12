@@ -1215,6 +1215,17 @@ contention (per render, not per machine). ⚠ The committed `scripted` series
 in `results/` predates the fix and is the record of the pre-fix spread;
 `tests/test_render_determinism.py` pins the fix and its premise.
 
+## Stacked blocks creep on default contact (issue #120): the grip that leaked, again
+
+Three 26 mm cubes stacked with 2 and 4 mm of lean — a tower by any standard —
+fell at 16.9 s on MuJoCo's default soft contact; 6 and 12 mm of lean fell at
+2.6 s; only a perfect stack stood 60 s. The same regularised-friction drift
+as the jaw pads, fixed the same way, at the source: the challenge's blocks
+carry `GRIP_SOLIMP`, after which a tower stands for the 30 s measured iff its
+centre of mass is over its support and falls inside 0.31 s otherwise. **What
+is true now:** any free body meant to REST on another for longer than a few
+seconds needs the hard contact, or the sim grades the solver (Challenges.md §4).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

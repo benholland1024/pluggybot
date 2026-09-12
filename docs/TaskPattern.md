@@ -16,6 +16,8 @@ Read alongside, not instead of:
 - `docs/ActivityPattern.md` — the things the robot acts on. Its three-layer
   rule (MuJoCo owns contacts, Python owns state machines, the browser owns
   visuals) is assumed everywhere below.
+- `docs/Challenges.md` — a task nobody wrote a scorer for: the same grading
+  chain, with the criteria written before the robot sees the job.
 - `docs/Overseer.md` — the mind that will be choosing among these offers, and
   the hard limits on what it may be shown and what it may move.
 - `CLAUDE.md` — the short forms, including the measured energy figures.

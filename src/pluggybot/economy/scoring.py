@@ -54,6 +54,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from pluggybot.challenge import stack
+
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
 
@@ -63,6 +65,11 @@ TIERS = ("auto", "hidden", "visitor", "narrative")
 TABLE_PATH = Path(__file__).with_name("rewards.json")
 TABLE_ENV = "PLUGGY_REWARDS"
 TABLE_VERSION = 1
+#: The CHALLENGE set's rows (docs/Challenges.md), same format, kept OUT of the
+#: shipped table until the robot can attempt one: a row in `rewards.json` is
+#: shown to the overseer and hashed into every committed result, so moving a
+#: challenge across is the PR that offers it, and a re-fly of `guarded`.
+CHALLENGES_PATH = Path(__file__).with_name("challenges.json")
 
 # ---- pass/fail thresholds ---------------------------------------------------
 # These are the EVALUATORS' and live in code on purpose. The table decides what
@@ -497,6 +504,11 @@ def eval_carry(m: dict) -> tuple[bool, dict, str]:
           f"{'stowed' if stowed else 'NOT stowed'} {m.get('module')}")
 
 
+def challenge_table() -> RewardTable:
+  """The challenge set's reward rows, loaded fresh (it is small and rare)."""
+  return RewardTable.load(CHALLENGES_PATH)
+
+
 def eval_artwork(m: dict) -> tuple[bool, dict, str]:
   """The deferred slot (design doc, "visitor-judged").
 
@@ -521,6 +533,10 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "carry": eval_carry,
   "artwork": eval_artwork,
   "answer": eval_answer,
+  # The first CHALLENGE (issue #120): a pre-declared predicate over the
+  # blocks' poses and contacts. Criteria and evaluator live with the
+  # challenge; the registry is here because this is the one door.
+  "stack": stack.eval_stack,
 }
 
 
@@ -686,6 +702,7 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "census": sample_census,
   "dance": sample_dance,
   "carry": sample_carry,
+  "stack": stack.sample_stack,
 }
 
 
