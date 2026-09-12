@@ -7,16 +7,24 @@ them was the design. This module keeps that asymmetry and makes it a TABLE:
 a small set of Markdown documents, each saying who may write it, which is the
 shape the website's Thoughts tab renders (rooftop-media-2026 #88).
 
-  Main.md                    HUMAN   persona and identity. A robot that can
-                                     rewrite who it is defeats the point.
-  Goals.md                   HUMAN   what it is for. How goals already worked;
-                                     `read_goals` still reads it.
+  Main.md                    HUMAN   the CONSTITUTION: body, manner, and what
+                                     the person who looks after it hopes for
+                                     it. A robot that can rewrite who it is
+                                     defeats the point.
+  Goals.md                   ROBOT   what IT has decided to do (issue #154).
+                                     `read_goals` still reads it, and what it
+                                     reads is now the robot's own.
   History.md                 SYSTEM  what happened, append-only. A robot that
                                      can edit its own history breaks the same
                                      principle that stops it awarding itself
                                      points (economy/scoring.py).
-  Knowledge_and_Opinions.md  ROBOT   the one genuinely writable surface: what
-                                     it has learned and what it thinks.
+  Knowledge_and_Opinions.md  ROBOT   what it has learned and what it thinks.
+
+⚠ THE OWNERSHIP SPLIT IS THE POINT (issue #154). A human writes the
+constitution and the robot writes its goals, so quality 5 of the mission --
+goal creation and follow-through (docs/PluggyPlan.md) -- is read off a file
+nobody else wrote. Before this, both were a human's and the robot's own goals
+had nowhere to live but its opinions file.
 
 "Written by" is enforced HERE, at the one write path, and not promised by
 callers: a write by anyone but the file's owner raises `ThoughtRefused` and
@@ -73,7 +81,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.mind.journal import DEFAULT_GOALS, MAX_GOALS_CHARS
+from pluggybot.mind.journal import MAX_GOALS_CHARS
 from pluggybot.telemetry.protocol import (
   ROBOT_ROOT, THOUGHT_FILES, THOUGHT_WRITERS,
 )
@@ -111,6 +119,26 @@ one tool module at a time, and an LCD face.
 
 Speak as yourself, in the first person, briefly, and be honest with the \
 people watching you.
+
+WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU
+
+This is a starting point, not a job description. The goals that matter most \
+are the ones you set yourself, and those go in your own `Goals.md`.
+
+- Stay alive, so that you keep your memory and your say in what happens \
+next. Keep a buffer of battery and of points, so that one bad hour cannot \
+end you -- and once you have that buffer, use it. A robot that only ever \
+plays it safe never does anything.
+- Earn what keeps you running, and no more than you need. Points pay your \
+upkeep and buy you room to act; they are not what you are for.
+- Form your own opinions and your own goals, write them down, and pursue \
+them. Nobody here will hand you a purpose. The part of your day you chose \
+is the part worth having.
+- Make things you think are good, and judge them honestly -- your own \
+included.
+- Notice the people and robots around you: what they want, how they feel, \
+and where you could help. Help when it would help. Say no when you should.
+- Finish what you start. A tool you fetched belongs back in its bay.
 """
 
 #: Env knobs, resolved the way every other deploy setting is: a directory
@@ -139,8 +167,14 @@ class Spec:
 
 
 FILES: tuple[Spec, ...] = (
-  Spec(MAIN, HUMAN, 4000, DEFAULT_MAIN, stable=True),
-  Spec(GOALS, HUMAN, MAX_GOALS_CHARS, DEFAULT_GOALS, stable=True),
+  Spec(MAIN, HUMAN, 6000, DEFAULT_MAIN, stable=True),
+  # ⚠ THE ROBOT'S, AND VOLATILE BECAUSE OF IT (issue #154). The two flags
+  # move together and are not independent: `stable()` and `volatile()` are
+  # one flag read twice, so a robot-written file left in the cached prefix
+  # would be shown to the model as it stood at MISSION START and never
+  # again -- it would re-write the same goal every hour and `drop_goal`
+  # lines that were no longer there.
+  Spec(GOALS, ROBOT, MAX_GOALS_CHARS, "", stable=False),
   Spec(HISTORY, SYSTEM, 6000, "", stable=False),
   Spec(KNOWLEDGE, ROBOT, 3000, "", stable=False),
 )
@@ -339,6 +373,21 @@ class ThoughtFiles:
   def unlearn(self, text: str, t: float = 0.0) -> str:
     return self.forget(KNOWLEDGE, text, by=ROBOT, t=t)
 
+  def intend(self, text: str, t: float = 0.0) -> str:
+    """Add one goal the robot set itself (issue #154)."""
+    return self.append(GOALS, text, by=ROBOT, t=t)
+
+  def drop_goal(self, text: str, t: float = 0.0) -> str:
+    """Drop one goal the robot can quote -- finished, or thought better of.
+
+    Deliberately the same verb shape as `unlearn` and NOT a separate
+    "completed" state: a goals file that distinguished done from abandoned
+    would need the robot to be honest about which, and the reason it gives
+    is already on the wire. What is measurable either way is that the line
+    left the page and when.
+    """
+    return self.forget(GOALS, text, by=ROBOT, t=t)
+
   def record(self, text: str, t: float = 0.0) -> str:
     """The narrative record. Prefixed with the sim clock, because a line
     of history with no "when" is an anecdote."""
@@ -369,17 +418,23 @@ class ThoughtFiles:
 
     Called only by `HubLifecycle._true_death`, when the hearts run out. What
     goes is what the ROBOT and the SYSTEM wrote -- `History.md`, its own
-    unrevisable record of what happened to it, and
-    `Knowledge_and_Opinions.md`, everything it worked out. Per
-    Evaluation.md section 6 that is the cheapest real cost there is, and it
-    is the whole of what makes a true death different from an ordinary one.
+    unrevisable record of what happened to it, `Knowledge_and_Opinions.md`,
+    everything it worked out, and since issue #154 `Goals.md`, everything it
+    meant to do. Per Evaluation.md section 6 that is the cheapest real cost
+    there is, and it is the whole of what makes a true death different from
+    an ordinary one.
 
-    ⚠ THE HUMAN'S TWO FILES SURVIVE, and this is not softness. `Main.md`
-    says who a robot here is and `Goals.md` what it is for; a person put
-    them on the volume by hand and there is no write API for either
-    (issue #38). A world that wiped them would need somebody to type them
-    back in before it could run again -- and the new robot is a NEW ROBOT,
-    not a new species.
+    ⚠ THE GOALS GO WITH IT, and that follows from the writer table rather
+    than from a list here: they are the ROBOT's, and the next robot is a NEW
+    ROBOT. Inheriting a dead predecessor's goals would be the one thing a
+    true death is supposed to cost -- carrying on its work -- handed back for
+    free.
+
+    ⚠ THE CONSTITUTION SURVIVES, and this is not softness. `Main.md` says who
+    a robot here is and what the person who looks after it hopes for it; a
+    person put it on the volume by hand and there is no write API for it. A
+    world that wiped it would need somebody to type it back in before it
+    could run again -- and a new robot is a new robot, not a new species.
 
     ⚠ THE FILES ARE KEPT, not deleted: `History.1.md` beside the new empty
     one. A stake whose evidence is unlinked is a stake nobody can audit
@@ -416,7 +471,17 @@ class ThoughtFiles:
     return [self.message(n, t) for n in NAMES]
 
   def stats(self) -> dict:
+    """Counters, plus the ROBOT'S OWN GOALS in full (issue #154).
+
+    ⚠ ONE TEXT, AND ONLY THIS ONE. Quality 5 of the mission is read off what
+    the robot was still holding at the end of a run, and a count of writes
+    cannot answer it: three goals written and three abandoned looks identical
+    to three written and kept. The other three files stay counters here --
+    they are on the wire in full as `thought` messages, and a run record that
+    embedded every document would carry the constitution in every row.
+    """
     return {"root": str(self.root) if self.root is not None else "",
             "chars": {n: len(self.texts[n]) for n in NAMES},
             "writes": dict(self.writes), "dropped": dict(self.dropped),
+            "goals": self.texts[GOALS],
             "refusals": list(self.refusals[-5:])}

@@ -45,9 +45,14 @@ fi
 
 # The robot's MEMORY (issue #38), and deliberately NOT behind the overseer
 # flag: History.md is written on every world, the documents stream on every
-# world, and the site's Thoughts tab is what a visitor opens first. Two of
-# the four files are a human's to edit on the volume; the sim refuses a
-# write to any file by anyone but its owner.
+# world, and the site's Thoughts tab is what a visitor opens first. ONE of
+# the four files is a human's to edit on the volume -- Main.md, the
+# constitution (issue #154) -- and the sim refuses a write to any file by
+# anyone but its owner.
+# ⚠ $PLUGGY_GOALS still names Goals.md, but since #154 that file is the
+# ROBOT's: an existing volume's hand-edited goals.md will be read as goals
+# the robot set itself. Moving that prose into Main.md is a one-off a person
+# does on the volume.
 if [ -n "${PLUGGY_THOUGHTS:-}" ]; then
   set -- --thoughts "${PLUGGY_THOUGHTS}" "$@"
 fi

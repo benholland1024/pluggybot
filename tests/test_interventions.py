@@ -70,7 +70,7 @@ def test_the_two_kinds_are_admin_kinds_code_handles_and_the_wire_bumped():
   #  because it is the one that is SOMETIMES not an intervention -- see the
   #  vocabulary's own note. Counting interventions must be one query.
   assert INTERVENTION_KINDS == ("reset_robot", "set_battery", "set_points")
-  assert PROTOCOL_VERSION == "0.18.0", \
+  assert PROTOCOL_VERSION == "0.19.0", \
     "new inbound kinds and a new event type are a two-repo event"
 
 

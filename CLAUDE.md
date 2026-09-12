@@ -297,13 +297,25 @@ save a filmstrip PNG named after the script.
     meaning one thing. The map is NOT on the wire (a research artifact in the
     run record).
 - **The robot's memory is four documents, each with one writer**
-  (`mind/thoughts.py`, issue #38; `$PLUGGY_THOUGHTS`). `Main.md` (body and
-  manner) and `Goals.md` are HUMAN — no write API, edited on the volume;
-  `History.md` is SYSTEM, append-only; `Knowledge_and_Opinions.md` is the
-  ROBOT's, with only `learn` and `forget` (decision fields, so writing costs
-  no turn) and deliberately no verb that REPLACES a file. Permissions are
-  enforced at the one write path and a refusal is narrated (`THOUGHT
+  (`mind/thoughts.py`, issues #38 and #154; `$PLUGGY_THOUGHTS`). `Main.md` is
+  the CONSTITUTION and the one HUMAN file — body, manner, and what the person
+  who looks after it hopes for it; no write API, edited on the volume.
+  `History.md` is SYSTEM, append-only. **`Goals.md` and
+  `Knowledge_and_Opinions.md` are the ROBOT's**, with two verbs each —
+  `intend`/`drop_goal` and `learn`/`forget`, all decision fields so writing
+  costs no turn — and deliberately no verb that REPLACES a file. Permissions
+  are enforced at the one write path and a refusal is narrated (`THOUGHT
   refused: …`), never swallowed. Attached on EVERY world, overseer or not.
+  ⚠ **The ownership split is the instrument** for the mission's fifth quality
+  (goal creation and follow-through): the goals are read off a file nobody
+  else wrote. `serves` names the goal an action is for, optional and
+  unvalidated, so `goals.served` in the run record is a count of DECISIONS
+  and a low ratio is a finding. Nothing in `economy/` may read the file — a
+  self-conceived goal is not paid, and a test walks the syntax tree to keep
+  that true. ⚠ A true death archives the goals with the rest of what the
+  robot wrote; only the constitution survives. ⚠ An existing volume's
+  hand-edited `goals.md` becomes the ROBOT's on upgrade: move that prose into
+  `Main.md`.
   ⚠ The two caps fail in opposite directions on purpose: `History.md` rolls,
   `Knowledge_and_Opinions.md` REFUSES when full (silently dropping a line
   leaves the robot believing it remembers something it does not).

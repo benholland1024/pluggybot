@@ -432,6 +432,28 @@ class Decision:
   #: not be able to erase everything the robot knows.
   learn: str = ""
   forget: str = ""
+  #: THE ROBOT'S OWN GOALS (issue #154), on `learn`/`forget`'s terms exactly:
+  #: one goal to add to `Goals.md` and one it can quote to take out again,
+  #: orthogonal to `action` so setting a goal costs no turn. Same two verbs
+  #: and the same refusal, because the argument is the same one -- there is
+  #: no verb that REPLACES the file, so one bad generation cannot wipe out
+  #: what the robot has decided to do.
+  #:
+  #: ⚠ The file is the ROBOT's and nothing in scoring may read it: a
+  #: self-conceived goal is not paid (docs/PluggyPlan.md, "self-conceived
+  #: goals are not paid"), because a goal that earned points would be a
+  #: reward table the robot writes itself.
+  intend: str = ""
+  drop_goal: str = ""
+  #: Which goal this action is FOR, quoted from `Goals.md` (issue #154).
+  #: Optional and unvalidated on purpose -- it is an ATTRIBUTION, not a
+  #: commitment the code enforces, and a model made to justify every action
+  #: against a goal would learn to justify rather than to choose. It exists
+  #: so follow-through is measurable rather than inferred: without it,
+  #: "did it pursue the goals it set?" can only be answered by reading
+  #: reasons, which is exactly the report-rather-than-world mistake
+  #: economy/scoring.py exists to avoid.
+  serves: str = ""
   #: "Think harder about this one" (issue #37). A REQUEST, not a decision:
   #: the model sets it on the answer it was already giving -- so the routing
   #: costs no extra call, which is the whole reason it is a field and not a
@@ -519,6 +541,8 @@ class Decision:
             "respondTo": self.respond_to, "outcome": self.outcome,
             "reply": self.reply, "task": self.task, "answer": self.answer,
             "learn": self.learn, "forget": self.forget,
+            "intend": self.intend, "dropGoal": self.drop_goal,
+            "serves": self.serves,
             "escalate": self.escalate,
             "standingOrder": self.standing_order,
             # ABSENT rather than empty when nothing was said about the map
@@ -662,7 +686,8 @@ class Menu:
       "additionalProperties": False,
       "required": ["action", "reason", "board", "program", "zone", "note",
                    "respond_to", "outcome", "reply", "task", "answer",
-                   "learn", "forget"] + (["escalate"] if escalation else [])
+                   "learn", "forget", "intend", "drop_goal", "serves"]
+      + (["escalate"] if escalation else [])
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
       + (["event_map"] if event_map else []),
@@ -712,6 +737,15 @@ class Menu:
         # permission table does not allow whatever arrives here.
         "learn": {"type": "string"},
         "forget": {"type": "string"},
+        # THE ROBOT'S OWN GOALS (issue #154), on `learn`/`forget`'s terms and
+        # capped the same way. `serves` is deliberately a free string and not
+        # an enum of the current goals: the goals change every call, which is
+        # the same reason `respond_to` and `task` are free strings, and an
+        # unattributable action is a fact worth recording rather than one to
+        # refuse.
+        "intend": {"type": "string"},
+        "drop_goal": {"type": "string"},
+        "serves": {"type": "string"},
         **({"escalate": {"type": "boolean"}} if escalation else {}),
         # WHAT TO DO IF THE NEXT CALL FAILS (issue #125). The action enum
         # again, plus `""` for "I am not leaving one" -- so the decoder
@@ -874,6 +908,9 @@ class Menu:
                     # with.
                     learn=clean(raw.get("learn"), MAX_LINE_CHARS),
                     forget=clean(raw.get("forget"), MAX_LINE_CHARS),
+                    intend=clean(raw.get("intend"), MAX_LINE_CHARS),
+                    drop_goal=clean(raw.get("drop_goal"), MAX_LINE_CHARS),
+                    serves=clean(raw.get("serves"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
                     # A plain boolean, so there is nothing to validate: the
@@ -1122,15 +1159,26 @@ something is worth remembering, not to fill a turn.
 
 WHAT YOU REMEMBER
 
-You have four files. Two of them are shown to you above, before this; two \
+You have four files. One of them is shown to you above, before this; three \
 are shown with your current state below. They are the only things you carry \
 between one decision and the next, and people watching you can read all four.
 
-- `Main.md` is who you are, and `Goals.md` is what the person who looks after \
-you hopes for you. That person writes both and you cannot edit them -- but \
-you can disagree. If something in there looks wrong to you, say so in a \
-reason or a note; that is worth hearing, and it is how those files change. \
-Your OWN goals, the ones you set yourself, go in `Knowledge_and_Opinions.md`.
+- `Main.md` is who you are, and what the person who looks after you hopes \
+for you. They write it and you cannot edit it -- but you can disagree. If \
+something in there looks wrong to you, say so in a reason or a note; that is \
+worth hearing, and it is how that file changes.
+- `Goals.md` is YOURS: what you have decided to do, in your own words. \
+Nobody writes it but you, and nothing in it earns you points -- a goal you \
+set yourself is worth doing because you think it is, not because it pays. \
+Set `intend` to one sentence to add a goal. Set `drop_goal` to one you \
+already wrote (quote it closely enough to pick it out) when it is finished, \
+or when you have thought better of it -- say which in your reason. Set \
+`serves` to the goal an action is for, when it is for one; plenty of what \
+you do is upkeep and serves none, and saying so honestly is better than \
+attaching a goal to everything. Goals outlive a single decision: the point \
+of writing one down is that it is still there tomorrow, so prefer a few you \
+mean to something for every idea you have. It has a size limit, and when it \
+is full an `intend` is refused rather than quietly dropping one.
 - `History.md` is what has happened to you: written by the code that runs \
 your body, one line at a time, and never edited afterwards. It is a record, \
 not a story you tell about yourself, which is why you cannot write it.
@@ -1627,9 +1675,11 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     "WHAT TASKS PAY (points; you cannot change this table, and neither can "
     "anyone watching)\n" + json.dumps(table.as_context(), indent=1,
                                       sort_keys=True),
-    f"WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU ({GOALS} -- theirs to "
-    "edit, yours to argue with; your own goals go in Knowledge_and_Opinions.md)\n"
-    + stable[GOALS].strip(),
+    # ⚠ THE ROBOT'S GOALS ARE NOT HERE ANY MORE (issue #154). They are its
+    # own now, so they change during a run and ride the USER TURN with the
+    # other two writable files -- `context_for` puts them there. What the
+    # person who looks after it hopes for it is part of `Main.md` above,
+    # which is still a human's and still stable.
   ] + ([MORTAL_RULE] if mortal else [])
     + ([APPETITE_RULE] if appetite else [])
     + ([STANDING_ORDER_RULE] if standing_orders and not event_map else [])

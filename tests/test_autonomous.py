@@ -37,11 +37,15 @@ def _life(world: str = "home", **kw):
 #: control that no longer matches the runs it is the control for. Changing
 #: it is a deliberate act with a re-fly attached, which is exactly what a
 #: failing hash should prompt an argument about.
-#: It has moved once: on 2026-09-11 the mission statement (docs/PluggyPlan.md)
-#: replaced "make yourself useful" with "this life is yours", so every series
-#: in `results/` was flown under the PREVIOUS text, whose hash was
-#: cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05.
-GUARDED_RULES_SHA = "03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0"
+#: It has moved TWICE, and every series in `results/` predates both:
+#:   2026-09-11, the mission statement (docs/PluggyPlan.md) replaced "make
+#:     yourself useful" with "this life is yours" --
+#:     cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05
+#:     was the text before it;
+#:   2026-09-12, issue #154 gave the robot its own `Goals.md` and the rules
+#:     had to stop telling it a person writes them --
+#:     03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0.
+GUARDED_RULES_SHA = "4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0"
 
 
 def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():

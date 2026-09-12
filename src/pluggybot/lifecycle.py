@@ -1619,7 +1619,12 @@ class HubLifecycle:
                            f"{change['after']}")
 
   def _reconsider(self, decision) -> None:
-    """Apply a decision's `forget` and `learn` to the robot's own file.
+    """Apply a decision's writes to the two files the ROBOT owns.
+
+    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38), and
+    `drop_goal`/`intend` on `Goals.md` (issue #154) -- four verbs, one code
+    path, because the refusal rule and the drop-before-add rule are the same
+    argument in both files and two copies of them would drift.
 
     THE REFUSAL IS THE INTERESTING PATH (issue #38). A write the permission
     table or the size cap forbids is narrated, counted, and left in
@@ -1629,18 +1634,20 @@ class HubLifecycle:
     learned anything, which is indistinguishable from a model that has
     nothing to say.
 
-    `forget` before `learn`: a full file plus a decision that clears one
-    line and writes another is a robot tidying up, and doing these in the
-    other order would refuse the write for a fullness the same decision was
-    about to fix.
+    REMOVE BEFORE ADD, in both files: a full file plus a decision that clears
+    one line and writes another is a robot tidying up, and the other order
+    would refuse the write for a fullness the same decision was about to fix.
     """
     t = float(self.data.time)
-    for verb, text in (("forget", decision.forget), ("learn", decision.learn)):
+    verbs = (("forget", decision.forget, self.thoughts.unlearn),
+             ("learn", decision.learn, self.thoughts.learn),
+             ("drop_goal", decision.drop_goal, self.thoughts.drop_goal),
+             ("intend", decision.intend, self.thoughts.intend))
+    for verb, text, write in verbs:
       if not text:
         continue
       try:
-        done = (self.thoughts.unlearn(text, t=t) if verb == "forget"
-                else self.thoughts.learn(text, t=t))
+        done = write(text, t=t)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
         continue
