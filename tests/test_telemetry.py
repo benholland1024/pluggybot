@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
+from pluggybot import tick
 from pluggybot.telemetry.protocol import (HUNGER_STATES, PROTOCOL_VERSION,
                                           body_census, dynamic_flags)
 from pluggybot.telemetry.recorder import (FrameBuilder, GridSampler,
@@ -1371,9 +1372,9 @@ def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path
   life.mission.step_hooks.append(rec.step_hook)
   errand, = [e for e in lc.errands_for("census", "home", None)
              if e.task == "census"]
-  life.mission.drive_to = lambda *a, **kw: False     # every vantage falls short
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
   try:
-    result = errand.use(life)
+    result = life.mission.run(errand.use(life))
   finally:
     rec.close()
 

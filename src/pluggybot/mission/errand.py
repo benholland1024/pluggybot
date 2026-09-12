@@ -39,6 +39,7 @@ from typing import Callable
 from pluggybot.control import wrap_angle
 from pluggybot.economy.census import Zone, count_objects, score, survey_route, true_count
 from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.tick import Routine
 from pluggybot.tools.drawing import Board, Envelope, PenPlotter, board_standoff
 from pluggybot.tools.strokes import StrokeProgram, from_cli
 
@@ -54,6 +55,12 @@ class Errand:
   at `use_at` with the tool on the fork, and whatever dict it returns is
   reported alongside the swap verdicts. Returning nothing is fine -- that is
   the milestone-8 carry errand, which proves the swap and does no work.
+
+  A use-phase may be a ROUTINE (pluggybot/tick.py, issue #58): a generator
+  yielding one drive command per physics step and returning its dict, which
+  is what the four native errands are, so the lifecycle ticks them from its
+  own loop. A plain callable that blocks -- steps the physics itself and
+  returns -- still works, and is the shape a demo script may hand in.
   """
 
   name: str
@@ -149,7 +156,7 @@ def drawing_errand(book, board_name: str, board: Board,
   if not figure.fits(envelope):
     figure = figure.fitted(envelope)
 
-  def use(life) -> dict:
+  def use(life) -> Routine:
     plotter = PenPlotter(life.model, life.data, life.mission.swap, board=board)
     # The stroke hook is wired HERE rather than in the plotter's constructor
     # signature at the call site, because it needs the errand's program name:
@@ -182,19 +189,19 @@ def drawing_errand(book, board_name: str, board: Board,
     # `carry_config()` below runs either way, so a figure cut short stows
     # exactly as a finished one does.
     plotter.should_stop = life.interrupted
-    squared = plotter.drive_to_board()
+    squared = yield from plotter.drive_to_board_routine()
     if not squared:
       # Not even at the BELIEVED standoff -- the drive stagnated or hit the
       # reflex. Skip the press entirely, restore the carry pose, and say so:
       # the evaluator finds no new ink and fails the job honestly.
-      plotter.carry_config()
+      yield from plotter.carry_config_routine()
       life._say(f"USE_TOOL: never squared up to {board_name} -- "
                 "skipping the drawing")
       return {"squared": False, "board": board_name, "figure": figure.name,
               "error": "never squared up to the board"}
     life._say(f"USE_TOOL: drawing {figure.name} on {board_name} "
               f"({len(figure.strokes)} strokes, {figure.ink_length:.2f} m of ink)")
-    result = plotter.draw_program(figure)
+    result = yield from plotter.draw_program_routine(figure)
     # `on_drawn(life, plotter, result)` fires with the robot STILL AT THE
     # BOARD, which is the only moment a photograph of the drawing is worth
     # taking -- scripts/home_draw.py's filmstrip hangs off this, and without
@@ -204,7 +211,7 @@ def drawing_errand(book, board_name: str, board: Board,
     # Back to the carry pose BEFORE the stow drives anywhere: lift to carry
     # height and centre the carriage, or the module fouls its bay's brackets
     # on the way in (issue #10).
-    plotter.carry_config()
+    yield from plotter.carry_config_routine()
     rec = book[board_name]
     if not result.get("drew"):
       # The reason, out loud: "drew None/None strokes" was the validation
@@ -320,15 +327,15 @@ def census_errand(zone: Zone, label: str = "plants",
   """
   points = survey_route(zone, entry=entry)
 
-  def use(life) -> dict:
+  def use(life) -> Routine:
     screen = getattr(life, "screen", None)
     if screen is not None:
       screen.face("curious", "blink", hold=True)
     tally: dict = {"count": 0, "objects": [], "coverage": 0.0}
     stopped, vantages = "route", 0
     for i, (wx, wy) in enumerate(points, start=1):
-      arrived = life.mission.drive_to(wx, wy, timeout=timeout)
-      life.mission._spin()          # a vantage point is only worth the look
+      arrived = yield from life.mission.drive_to_routine(wx, wy, timeout=timeout)
+      yield from life.mission._spin_routine()   # a vantage point is only worth the look
       vantages = i
       tally = count_objects(life.mission.grid, zone)
       if screen is not None:
@@ -384,7 +391,7 @@ def census_errand(zone: Zone, label: str = "plants",
               f"{verdict['coverage']:.0%} of the zone surveyed")
     # Stand still and SHOW it. See PRESENT_S: the alternative is a number
     # that exists only inside this function.
-    life.mission._drive(PRESENT_S, 0.0, 0.0)
+    yield from life.mission._drive_routine(PRESENT_S, 0.0, 0.0)
     return {"census": verdict, "zone": zone.name, "label": label,
             "objects": tally["objects"], "vantages": vantages,
             "stopped": stopped}
@@ -411,7 +418,7 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
   started has driven off, whatever its expressions said.
   """
 
-  def use(life) -> dict:
+  def use(life) -> Routine:
     screen = getattr(life, "screen", None)
     mission = life.mission
     x0, y0, _ = mission.pose
@@ -431,7 +438,7 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
       slices = max(1, round(seconds / DANCE_SLICE))
       for _ in range(slices):
         px, py, pth = mission.pose
-        mission._drive(seconds / slices, v, w)
+        yield from mission._drive_routine(seconds / slices, v, w)
         nx, ny, nth = mission.pose
         turned += wrap_angle(nth - pth)
         travelled += math.hypot(nx - px, ny - py)
@@ -452,7 +459,7 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
       screen.face("happy" if done == len(landed) else "worried", "bounce")
     life._say(f"USE_TOOL: danced {done}/{len(landed)} moves, "
               f"{drift:.2f} m of drift")
-    mission._drive(PRESENT_S, 0.0, 0.0)     # hold the bow (see PRESENT_S)
+    yield from mission._drive_routine(PRESENT_S, 0.0, 0.0)   # hold the bow (see PRESENT_S)
     return {"dance": {"moves": len(landed), "landed": done,
                       "driftM": round(drift, 3),
                       # ⚠ AGAINST THE ROUTINE, NOT AGAINST WHAT IT MANAGED.

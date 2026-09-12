@@ -57,6 +57,17 @@ cost to the detector, and `tests/test_render_determinism.py` pins both halves.
 The re-flown `scripted` series is the evidence it holds: five days, ONE
 trajectory. SimNotes, "The world was not the same world twice".
 
+**...and it is what makes the mission stack affordable to refactor.** One
+trajectory per configuration means "behaviour parity" is a hash, not an
+opinion: fly the scripted `home` day on each side (`determinism_spike.py
+--runs 1 --sim-s 1500 --out DIR`, ~20 min a side) and `--compare` says
+IDENTICAL or names the first sim-second they part and which perception input
+moved first. Issue #58's tick refactor — every manoeuvre turned into a routine
+ticked from one physics loop, `pluggybot/tick.py` — landed this way,
+identical over all 1500 s, through the code where the two costliest bugs in
+the repo had lived. A refactor of anything on the path from `run()` to
+`mj_step` shows this hash in its PR.
+
 ⚠ **Anything that makes the world random destroys this**, and the temptation
 will come dressed as realism ("jitter the task times so it feels alive").
 Variation belongs in the ARM, held fixed within a run and varied between them.

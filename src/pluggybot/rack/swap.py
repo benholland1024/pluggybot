@@ -13,11 +13,13 @@ import math
 
 import mujoco
 
-from pluggybot.control import slew, wheel_targets
+from pluggybot import tick
+from pluggybot.control import slew
 from pluggybot.rack.coupling import (
   HUB_PEG_Z, HUB_STATION_YS, LIFT_STEP, PEG_R, RACK_HANG_X, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
+from pluggybot.tick import Routine
 
 PLUG_LATERAL = 0.05       # the fork line rides 5 cm right of the robot
                           # centerline, same as the plug did
@@ -246,17 +248,38 @@ class HubSwap:
     if self.on_step is not None:
       self.on_step()
 
+  # ---- the seam (issue #58) ------------------------------------------------
+  # Every manoeuvre below is a ROUTINE -- a generator that yields the (v, w)
+  # command for each physics step and returns its result -- and each keeps a
+  # one-line blocking twin under its old name, driven by `tick.run`. The
+  # routine is the implementation; the twin is for scripts, tests and every
+  # caller that wants the old shape. See pluggybot/tick.py.
+
+  def run(self, routine, name: str = ""):
+    """Drive a routine to completion on this robot's physics."""
+    return tick.run(self, routine, name)
+
   def _run(self, seconds: float, v: float,
            lift_target: float | None = None) -> None:
+    return self.run(self._run_routine(seconds, v, lift_target))
+
+  def _run_routine(self, seconds: float, v: float,
+                   lift_target: float | None = None) -> Routine:
     if lift_target is not None:
       self.data.ctrl[self.lift_act] = lift_target
-    tl, tr = wheel_targets(v, 0.0)
     for _ in range(round(seconds / self.model.opt.timestep)):
-      self._step_once(tl, tr)
+      yield v, 0.0
 
   def _drive_until(self, distance: float, v: float, timeout: float = 20.0,
                    stall_stop: bool = True, steer_fn=None, stop_fn=None,
                    stall_time: float = STALL_TIME) -> str:
+    return self.run(self._drive_until_routine(
+      distance, v, timeout, stall_stop, steer_fn, stop_fn, stall_time))
+
+  def _drive_until_routine(self, distance: float, v: float,
+                           timeout: float = 20.0, stall_stop: bool = True,
+                           steer_fn=None, stop_fn=None,
+                           stall_time: float = STALL_TIME) -> Routine:
     """Travel `distance` of ODOMETRY path along the current heading; with
     stall_stop, ending early on no-progress (bottomed against the hub).
     steer_fn() -> w lets a terminal visual servo trim the heading while
@@ -276,13 +299,13 @@ class HubSwap:
     pins, measured) sets longer than STALL_TIME.
     """
     x0, y0 = self.reckoner.x, self.reckoner.y
-    tl, tr = wheel_targets(v, 0.0)
+    w = 0.0
     t0 = self.data.time
     last_dist, last_progress = 0.0, t0
     while self.data.time - t0 < timeout:
       if steer_fn is not None:
-        tl, tr = wheel_targets(v, float(steer_fn()))
-      self._step_once(tl, tr)
+        w = float(steer_fn())
+      yield v, w
       if stop_fn is not None and stop_fn():
         return "stopped"
       dist = math.hypot(self.reckoner.x - x0, self.reckoner.y - y0)
@@ -298,6 +321,9 @@ class HubSwap:
   # ---- the verbs -----------------------------------------------------------
 
   def pick(self, steer_fn=None, dist: float | None = None) -> str:
+    return self.run(self.pick_routine(steer_fn, dist))
+
+  def pick_routine(self, steer_fn=None, dist: float | None = None) -> Routine:
     """Slide under the module's peg, lift it off the trays, back away.
 
     dist overrides the approach travel: callers that know their believed
@@ -305,16 +331,20 @@ class HubSwap:
     travel assumes a perfect standoff, and the coupling's capture window is
     +/-11 mm while navigation's arrival radius is 80.
     """
-    why = self._drive_until(APPROACH_DIST if dist is None else dist,
-                            APPROACH_V, steer_fn=steer_fn)
-    self._run(0.5, 0.0)                                     # settle
+    why = yield from self._drive_until_routine(
+      APPROACH_DIST if dist is None else dist, APPROACH_V, steer_fn=steer_fn)
+    yield from self._run_routine(0.5, 0.0)                  # settle
     lift_now = float(self.data.ctrl[self.lift_act])
-    self._run(2.0, 0.0, lift_target=lift_now + LIFT_STEP)
-    self._drive_until(RETREAT_DIST, -0.08, stall_stop=False)
-    self._run(1.0, 0.0)
+    yield from self._run_routine(2.0, 0.0, lift_target=lift_now + LIFT_STEP)
+    yield from self._drive_until_routine(RETREAT_DIST, -0.08, stall_stop=False)
+    yield from self._run_routine(1.0, 0.0)
     return why
 
   def put_back(self, steer_fn=None, dist: float | None = None) -> str:
+    return self.run(self.put_back_routine(steer_fn, dist))
+
+  def put_back_routine(self, steer_fn=None,
+                       dist: float | None = None) -> Routine:
     """Carry the module back in, lower it onto the trays, leave empty.
 
     dist as in pick(). The default mirrors the bare-world choreography
@@ -330,13 +360,15 @@ class HubSwap:
     away again. Exactly what a person does setting a tool on a rack.
     """
     lift_now = float(self.data.ctrl[self.lift_act])
-    self._run(0.8, 0.0, lift_target=lift_now + RETURN_CLEARANCE)
-    why = self._drive_until(RETURN_DIST if dist is None else dist,
-                            APPROACH_V, steer_fn=steer_fn)
-    self._run(0.5, 0.0)
-    self._run(2.0, 0.0, lift_target=lift_now - LIFT_STEP - RELEASE_DROP)
-    self._drive_until(RETREAT_DIST, -0.08, stall_stop=False)
-    self._run(1.0, 0.0)
+    yield from self._run_routine(0.8, 0.0,
+                                 lift_target=lift_now + RETURN_CLEARANCE)
+    why = yield from self._drive_until_routine(
+      RETURN_DIST if dist is None else dist, APPROACH_V, steer_fn=steer_fn)
+    yield from self._run_routine(0.5, 0.0)
+    yield from self._run_routine(
+      2.0, 0.0, lift_target=lift_now - LIFT_STEP - RELEASE_DROP)
+    yield from self._drive_until_routine(RETREAT_DIST, -0.08, stall_stop=False)
+    yield from self._run_routine(1.0, 0.0)
     return why
 
   # ---- truth checks (script-level verification only) -----------------------
