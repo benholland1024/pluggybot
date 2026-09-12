@@ -63,10 +63,11 @@ from pluggybot.mind import llm, overseer
 from pluggybot.mind.mode import open_switch
 from pluggybot.mind.overseer import ESCALATE_MODEL
 from pluggybot.mind.spend import WEEKLY_USD, open_book
+from pluggybot.mind.events import DEFAULT_ORIGIN, ORIGINS
 from pluggybot.mind.inbox import Inbox
 from pluggybot.economy.cadence import default_cadence
 from pluggybot.evaluation.arms import (
-  ARM_ENV, RUNGS, RUNG_ENV, arm_flags, rung_for,
+  ARM_ENV, ORIGIN_ENV, RUNGS, RUNG_ENV, arm_flags, origin_for, rung_for,
 )
 from pluggybot.evaluation.record import build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
@@ -159,6 +160,16 @@ def main() -> None:
                            "the fallback the agent's own standing order. "
                            "Unset behaves exactly as before: --overseer "
                            "decides, and the arm is READ OFF what was built")
+  parser.add_argument("--origin", choices=ORIGINS,
+                      default=os.environ.get(ORIGIN_ENV) or None,
+                      metavar="{none,seeded,unseeded}",
+                      help="which event map the agent starts with, on the "
+                           "`autonomous` arm (issue #127). `none` (the "
+                           "default) is the arm with no map at all; "
+                           "`seeded` starts it with today's loop as rows; "
+                           "`unseeded` starts it with nothing. "
+                           f"${ORIGIN_ENV} is the deployment's way of "
+                           "saying it")
   parser.add_argument("--rung", choices=tuple(sorted(RUNGS)),
                       default=os.environ.get(RUNG_ENV) or None,
                       help="which rung of the `autonomous` ladder "
@@ -259,10 +270,12 @@ def main() -> None:
   # are off under.
   flags = {}
   rung = None
+  origin = None
   if args.arm:
     try:
       rung = rung_for(args.arm, args.rung)
-      flags = arm_flags(args.arm, rung or "A0")
+      origin = origin_for(args.arm, args.origin)
+      flags = arm_flags(args.arm, rung or "A0", origin or DEFAULT_ORIGIN)
     except (ValueError, NotImplementedError) as e:
       parser.error(str(e))
     # ⚠ A CONTRADICTION IS REFUSED, NOT RESOLVED. `--overseer --arm scripted`
@@ -274,6 +287,9 @@ def main() -> None:
   elif args.rung:
     parser.error("--rung names a rung of the `autonomous` ladder, so it "
                  "needs --arm autonomous (docs/Evaluation.md §2)")
+  elif args.origin and args.origin != DEFAULT_ORIGIN:
+    parser.error("--origin names the event map the `autonomous` arm starts "
+                 "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
 
   cfg = world_config(args.world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
@@ -453,9 +469,13 @@ def main() -> None:
     deadline_s=boss.timeout_s if boss is not None else None,
     # ...and which RUNG, where there is a ladder -- off the arm that was
     # BUILT, so a rung cannot outlive the arm it belongs to.
-    rung=rung if arm == "autonomous" else None)
+    rung=rung if arm == "autonomous" else None,
+    # ...and which map it started from, off what was BUILT for the rung's
+    # reason exactly: an origin cannot outlive the arm it belongs to.
+    origin=origin if arm == "autonomous" else None)
   print(f"build: {identity['commit']} / {identity['arm']}"
         + (f" {identity['rung']}" if identity.get("rung") else "")
+        + (f" {identity['origin']}" if identity.get("origin") else "")
         + (f" / {identity['model']} via {identity['backend']}"
            if identity["model"] else ""))
 

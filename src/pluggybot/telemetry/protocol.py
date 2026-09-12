@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.17.0"
+PROTOCOL_VERSION = "0.19.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -129,7 +129,16 @@ INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
 #: reason they are kept apart from each other -- it is an ECONOMIC failure,
 #: not a decision one and not a physics one, and a consumer that added them
 #: would hide which of three different things needs fixing.
-DEATH_CAUSES = ("flat", "stuck", "unpaid")
+#:
+#: ...and `unminded` (0.18.0, issue #127) is the fourth, and the strangest:
+#: the ROBOT is fine and its MIND stopped being consulted. It is reachable
+#: only where the agent configures its own event map, because that is the
+#: only world where it can map away every `ask` row -- and it is a failure
+#: of the same kind as flattening the pack rather than a bug, because an
+#: agent that has compiled itself into a state machine has discarded the
+#: capability this project exists to study. Dormancy as a tactic is fine;
+#: dormancy as a terminal state is not.
+DEATH_CAUSES = ("flat", "stuck", "unpaid", "unminded")
 
 #: Retired inbound types still accepted, mapped to what replaced them. A
 #: website mid-deploy and an operator's older script keep working for one
@@ -276,6 +285,16 @@ THOUGHT_WRITERS = ("human", "system", "robot")
 #: breaking change in both repos, like a FACE_STATE.
 THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
                  "Knowledge_and_Opinions.md")
+
+#: What a write to the robot's memory is narrated as: `THOUGHT <verb>: <line>`
+#: (issue #159). The four verbs are the robot's whole write vocabulary --
+#: `learn`/`forget` on Knowledge_and_Opinions.md, `intend`/`drop_goal` on
+#: Goals.md -- and `refused` is the one write path saying no. The website's
+#: observatory parses this line into a `thought` row (the documents ride the
+#: wire whole, but WHEN a line was written is carried by this line alone), so
+#: it is a two-repo vocabulary like THOUGHT_FILES: adding a verb is additive,
+#: renaming one is breaking. `tests/test_thoughts.py` pins the shape.
+THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
 
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then

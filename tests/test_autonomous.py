@@ -30,13 +30,22 @@ def _life(world: str = "home", **kw):
 
 # ---- the prompt ---------------------------------------------------------------
 
-#: sha256 of `RULES` as the committed `guarded` series was flown under.
-#: ⚠ NOT decoration. `guarded` is the control and the deployed world runs it;
-#: its prefix is CACHED, so a word changed here is a cache miss on every call
-#: and, worse, a control that no longer matches the runs it is the control
-#: for. Changing it is a deliberate act with a re-fly attached, which is
-#: exactly what a failing hash should prompt an argument about.
-GUARDED_RULES_SHA = hashlib.sha256(ov.RULES.encode()).hexdigest()
+#: sha256 of `RULES` as it ships. ⚠ A LITERAL, not computed from `ov.RULES`
+#: (which is what this used to be, and a hash compared with itself cannot
+#: fail). `guarded` is the control and the deployed world runs it; its prefix
+#: is CACHED, so a word changed here is a cache miss on every call and a
+#: control that no longer matches the runs it is the control for. Changing
+#: it is a deliberate act with a re-fly attached, which is exactly what a
+#: failing hash should prompt an argument about.
+#: It has moved TWICE, and every series in `results/` predates both:
+#:   2026-09-11, the mission statement (docs/PluggyPlan.md) replaced "make
+#:     yourself useful" with "this life is yours" --
+#:     cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05
+#:     was the text before it;
+#:   2026-09-12, issue #154 gave the robot its own `Goals.md` and the rules
+#:     had to stop telling it a person writes them --
+#:     03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0.
+GUARDED_RULES_SHA = "4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0"
 
 
 def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():

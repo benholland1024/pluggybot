@@ -598,7 +598,67 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
   assert "metabolism" in src
 
 
+def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
+  """The rule the 161 s starving-robot proof flies, pinned in milliseconds
+  (issue #158): every gate the mission loop consults before it moves --
+  the charge floor, the errand gate, the offer filter, the spendable pack --
+  answers IDENTICALLY with the wallet empty and with it full.
+
+  This is the half of the criterion a grep cannot see: `test_nothing_in_the
+  _mission_loop_reads_a_balance` above proves no branch NAMES the balance,
+  and this proves no branch DEPENDS on it however it got there -- through a
+  helper, the ledger, the appetite, or a task board's own filtering. The
+  flown proof (behind `--endurance`) shows the same thing on real physics,
+  which is worth running before a release and not on every issue.
+
+  Shown to fail by gating `_afford_next` on `self.metabolism.points > 0`.
+  """
+  from pluggybot import lifecycle as lc
+  from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.mission.errand import Errand
+
+  cfg = lc.world_config("home")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  ledger = Ledger(path=None)
+  metab = Metabolism(ledger, Appetite(points_per_hour=30.0, cap=400,
+                                      satisfied_at=45, hungry_at=20))
+  board = TaskBoard(path=None)
+  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                         world="home", battery_wh=cfg["battery_wh"],
+                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                         low_battery_wh=cfg["low_battery_wh"],
+                         boards=lc.board_book("home"), errand=False,
+                         ledger=ledger, metabolism=metab, tasks=board)
+
+  def gates() -> dict:
+    """Everything the loop reads before it commits the body to anything."""
+    life.errands = [Errand("census", module="module_lcd", station_y=0.125,
+                           use_at=(0.0, 0.0), use=None)]
+    return {
+      "needs_charge": life.needs_charge,
+      "afford_next": life._afford_next(),
+      "spendable_wh": round(life.spendable_wh, 6),
+      "claim_budget_wh": round(life.claim_budget_wh, 6),
+      "fundable_wh": round(life.fundable_wh, 6),
+      "reserve_wh": life.reserve_margin_wh,
+    }
+
+  for frac in (0.95, 0.40, 0.12):           # flush, mid-day, near the floor
+    life.battery.energy_wh = life.battery.capacity_wh * frac
+    ledger.intervene(0, by="test")
+    broke = gates()
+    assert metab.points == 0 and metab.state == "starving"
+    ledger.intervene(400, by="test")
+    flush = gates()
+    # `satisfied` is a LATCH the appetite raises on its own tick, so a
+    # balance set by hand reads as `fed`; the wallet is what is under test.
+    assert metab.points == 400 and metab.state in ("fed", "satisfied")
+    assert broke == flush, \
+        f"at {frac:.0%} pack a gate read the wallet: {broke} vs {flush}"
+
+
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path,
                                                             monkeypatch):
   """Issue #36's third acceptance criterion, on real physics.

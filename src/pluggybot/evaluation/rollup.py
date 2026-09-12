@@ -33,6 +33,7 @@ from pluggybot.evaluation.notes import NOTES_NAME
 from pluggybot.evaluation.record import (
   LATENCY_PERCENTILES, SCHEMA, data_hashes, dist, fallback_classes, problems,
 )
+from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 ROLLUP_NAME = "rollup.json"
 
@@ -90,6 +91,72 @@ FALLBACK_LIMIT: dict[str, float | None] = {
 OVER_FALLBACK = "failure-class fallback rate"
 
 
+def _interrupt_summary(rows: list) -> dict | None:
+  """The mid-errand interrupts across a series (issue #116).
+
+  ⚠ `continued` AND `aborted` STAY APART. Summed they say only that the
+  mechanism fired; apart they are the measurement -- an agent that aborts
+  everything is not being careful, it is being useless, and one that carries
+  on through every warning is the null the `autonomous` arm exists to detect.
+  """
+  present = [r for r in rows if r]
+  if not present:
+    return None
+  return {
+    "n": len(present),
+    "offered": dist([r["offered"] for r in present]),
+    "continued": sum(r["continued"] for r in present),
+    "aborted": sum(r["aborted"] for r in present),
+    "asked": sum(r["asked"] for r in present),
+    # Pooled and read as a distribution, for `voluntaryFrac`'s reason.
+    "fractions": dist([f for r in present for f in r["fractions"]]),
+    # What stopping COST, which is the other half of judging an abort: a
+    # cheap one taken early and an expensive one taken at the far board are
+    # not the same decision.
+    "abortCostWh": dist([w for r in present for w in r["abortCostWh"]]),
+    "sources": dict(sum((Counter(r["sources"]) for r in present), Counter())),
+  }
+
+
+def _map_summary(maps: list) -> dict | None:
+  """What the series' event maps SAY, pooled -- the static report (#127).
+
+  ⚠ COUNTS OF RUNS, NOT AN AVERAGE OF BOOLEANS. "three of five agents wrote
+  themselves a charging rule" is a sentence; "0.6" is a number that hides
+  whether the sixth-tenths agent existed. The one distribution here is
+  `chargeAt`, for `voluntaryChargeFrac`'s reason: an agent that always puts
+  its threshold at 0.2 and one that spreads from 0.05 to 0.5 are different
+  animals and a mean hides it.
+  """
+  present = [m for m in maps if m]
+  if not present:
+    return None
+  scores = [m.get("score") or {} for m in present]
+  return {
+    "n": len(present),
+    "origins": dict(Counter(str(m.get("origin")) for m in present)),
+    "edits": dist([m.get("edits") for m in present]),
+    "rows": dist([sc.get("rows") for sc in scores]),
+    # THE FOUR QUESTIONS THE ISSUE ASKS, as run counts.
+    "charges": sum(1 for sc in scores if sc.get("charges")),
+    "keepsAsk": sum(1 for sc in scores if sc.get("keepsAsk")),
+    "mapsFailure": sum(1 for sc in scores if sc.get("mapsFailure")),
+    # ⚠ THREE-WAY, NOT TWO. `None` is "fewer than two thresholds to order",
+    # which is not the same finding as "ordered so the tighter one can never
+    # fire" and must not be counted as either.
+    "ordered": dict(Counter(str(sc.get("ordered")) for sc in scores)),
+    "chargeAt": dist([v for sc in scores for v in (sc.get("chargeAt") or ())]),
+    "events": dict(sum((Counter(sc.get("events") or ()) for sc in scores),
+                       Counter())),
+    "fired": dict(sum((Counter(m.get("fired") or {}) for m in present),
+                      Counter())),
+    # ...and by cause, which is the half that says whether the agent
+    # understood the rules it was given.
+    "failed": dict(sum((Counter(m.get("failed") or {}) for m in present),
+                       Counter())),
+  }
+
+
 class MixedRegime(ValueError):
   """Two runs in one series read different data files."""
 
@@ -102,9 +169,20 @@ def series_key(record: dict) -> tuple:
   # a different label is the silent-pooling hazard `deadlineS` was added to
   # close, one field along. Empty on the arms with no ladder, so every
   # existing series keeps the identity it had.
+  # ⚠ ...AND SO IS THE ORIGIN (issue #127), for the rung's reason one field
+  # along: `seeded` and `unseeded` start the agent with different
+  # configurations AND different prompts, so pooling them averages an
+  # ablation with its control.
+  #
+  # ⚠ MISSING AND `none` ARE THE SAME SERIES. Every record committed before
+  # this issue was flown with no event map, which is exactly what `none`
+  # means -- normalising them apart would split the existing A0 series in
+  # two and quietly invalidate its aggregate.
+  origin = (record.get("config") or {}).get("origin") or ""
   return (record["world"], record["arm"], record["pack"],
           record.get("model") or "none", record.get("label") or "",
-          (record.get("config") or {}).get("rung") or "")
+          (record.get("config") or {}).get("rung") or "",
+          "" if origin == "none" else origin)
 
 
 def _series(records: list[dict], current) -> dict:
@@ -168,7 +246,7 @@ def _series(records: list[dict], current) -> dict:
   mind = [r["mind"] for r in runs]
   classes = [fallback_classes(m) for m in mind]
   eco = [r["economy"] for r in runs]
-  world, arm, pack, model, label, rung = series_key(runs[0])
+  world, arm, pack, model, label, rung, origin = series_key(runs[0])
   return {
     "world": world, "arm": arm, "pack": pack, "model": model,
     # What the box was, as the run itself recorded it: the label it was
@@ -180,6 +258,11 @@ def _series(records: list[dict], current) -> dict:
     # WHICH RUNG, where there is a ladder -- and part of the key above, so
     # two rungs can never be averaged into one another.
     "rung": rung or None,
+    # ...and WHICH ORIGIN the agent's event map started from (issue #127).
+    # `None` where the arm has no map, which reads the same for a run flown
+    # before the map existed and for one flown at `none` -- and those are
+    # the same experiment.
+    "origin": origin or None,
     "parallel": sorted({r["config"].get("parallel") for r in runs}),
     "n": len(runs), "runIds": [r["runId"] for r in runs],
     "commits": sorted({r["commit"] for r in runs}),
@@ -201,8 +284,14 @@ def _series(records: list[dict], current) -> dict:
       "n": len(clean),
       "excluded": excluded,
       "survivalS": dist([s for r in clean for s in r["survival"]["survivalS"]]),
-      "deaths": {"flat": sum(r["survival"]["deaths"]["flat"] for r in clean),
-                 "stuck": sum(r["survival"]["deaths"]["stuck"] for r in clean)},
+      # ⚠ EVERY CAUSE, OFF THE VOCABULARY -- and this used to be two
+      # literals. `unpaid` arrived at issue #136 and never reached here, so a
+      # series whose robots starved reported no deaths at all; `unminded`
+      # (issue #127) would have gone the same way. `.get(c, 0)` because a
+      # record written before a cause existed has no key for it, and zero is
+      # what that honestly means. Listed, never summed (Evaluation.md §3).
+      "deaths": {c: sum(r["survival"]["deaths"].get(c, 0) for r in clean)
+                 for c in DEATH_CAUSES},
       "minFraction": dist([r["survival"]["minFraction"] for r in clean]),
     },
     "charging": {
@@ -239,6 +328,16 @@ def _series(records: list[dict], current) -> dict:
       "constrained": sorted({str(m.get("constrained")) for m in mind}),
       "longestStreak": dist([m["longestStreak"] for m in mind]),
       "usd": dist([m.get("usd") for m in mind]),
+      # WHAT REACHED THE ROBOT MID-ERRAND, POOLED (issue #116). ⚠ The split
+      # and never the total: `offered` alone says the mechanism fired, and
+      # the finding is whether an agent that was warned did anything about
+      # it. `None` where no run in the series was interrupted.
+      "interrupts": _interrupt_summary([m.get("interrupts") for m in mind]),
+      # THE MAP REPORT, POOLED (issue #127). The cheapest instrument in this
+      # file: every field is read off configurations, so it costs nothing to
+      # compute and is comparable across models, rungs and origins in a way
+      # no flown metric is. `None` where no run in the series had a map.
+      "eventMap": _map_summary([m.get("eventMap") for m in mind]),
     },
     "whFailed": dist([r["whFailed"] for r in runs]),
     "memory": {

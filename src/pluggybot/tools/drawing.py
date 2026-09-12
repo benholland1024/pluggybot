@@ -248,6 +248,17 @@ class PenPlotter:
     self.model, self.data, self.swap = model, data, swap
     self.board = board or Board.hub()
     self.on_stroke = on_stroke
+    #: `should_stop()` -> bool, checked BETWEEN STROKES with the pen up
+    #: (issue #116). The one place in a drawing where stopping is legal:
+    #: the carriage and lift are wherever the last stroke left them and
+    #: `carry_config()` is still the caller's next move, so the module goes
+    #: back into its brackets exactly as it would after a finished figure.
+    #:
+    #: ⚠ NOT INSIDE A STROKE. A pen abandoned mid-line is a pen pressed
+    #: against a slab with the lift part-way up, which is the pose
+    #: docs/SimNotes.md ("The pen would not stow") is about -- and the mark
+    #: it leaves is scored as the robot's work.
+    self.should_stop = None
     self.pen_act = model.actuator("pen_carriage").id
     self.lift_act = model.actuator("lift").id
     self.arm_act = model.actuator("arm").id
@@ -585,7 +596,16 @@ class PenPlotter:
                                        # figure has always carried is left
                                        # exactly as it was, and only the
                                        # stroke-to-stroke DRIFT is removed.
+    stopped = ""
     for i, path in enumerate(strokes):
+      # ⚠ THE SAFE POINT (issue #116), and it is here rather than one line
+      # down because `lift_pen` is already the first thing a stroke does: at
+      # the top of this loop the pen is up from the last stroke's own lift,
+      # so breaking costs nothing and leaves the figure exactly as far as it
+      # got. `strokes_drawn` against `strokes` is what says how far.
+      if i and self.should_stop is not None and self.should_stop():
+        stopped = "interrupted"
+        break
       # Move to the start with the pen clear, then press: dragging the pen to
       # the start would draw a line that is not part of the figure.
       self.lift_pen()
@@ -628,6 +648,10 @@ class PenPlotter:
                        getattr(program, "name", None))
     self.lift_pen()
     return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,
+            # Absent on a figure that ran to the end, so "finished" and "cut
+            # short after four strokes" cannot read the same to an evaluator
+            # that only counts ink.
+            **({"stopped": stopped} if stopped else {}),
             **self.error_stats()}
 
   def inked_polyline(self, stroke: int) -> list[tuple[float, float]]:

@@ -69,10 +69,12 @@ def test_the_reset_is_an_admin_kind_code_handles_and_the_wire_bumped():
   assert "reset_robot" in CODE_HANDLED_TYPES
   assert set(CODE_HANDLED_TYPES) <= set(INBOUND_TYPES)
   # ...and `unpaid` since issue #136: upkeep came due and could not be paid.
-  # Three causes, never summed -- a decision failure, a physics failure and
-  # an economic one.
-  assert DEATH_CAUSES == ("flat", "stuck", "unpaid")
-  assert PROTOCOL_VERSION == "0.17.0"
+  # ...and `unminded` since issue #127: the agent's own event map stopped
+  # consulting its mind. FOUR causes, never summed -- a decision failure, a
+  # physics failure, an economic one, and a robot that configured itself out
+  # of ever being asked anything.
+  assert DEATH_CAUSES == ("flat", "stuck", "unpaid", "unminded")
+  assert PROTOCOL_VERSION == "0.19.0"
   box = Inbox()
   msg = box.offer({"type": "reset_robot", "id": "rr_01", "from": "ben"})
   assert msg is not None and msg.kind == "reset_robot" and msg.who == "ben"

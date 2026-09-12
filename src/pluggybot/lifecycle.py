@@ -45,10 +45,12 @@ from pluggybot.mission.mission import (
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
+from pluggybot.mind import events as ev
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, THINK_SLICE_S,
+  order_runnable,
 )
 from pluggybot.economy.questions import clean_answer
 from pluggybot.tools.screen import face_for
@@ -71,6 +73,40 @@ TOPPLE_HOLD_S = 2.0
 #: How often the death seam looks (sim seconds); it is on every physics
 #: step and a quaternion-to-tilt every 2 ms would be the cost, not the check.
 DEATH_CHECK_S = 0.1
+
+#: HOW LONG THE MIND MAY GO UNCONSULTED BEFORE THAT IS A DEATH (issue #127),
+#: in sim seconds. The third failure the arms are judged on, beside a flat
+#: pack and a fallen body: an agent that maps away every `ask` row has
+#: compiled itself into a state machine and discarded the capability this
+#: project exists to study. Dormancy as a tactic is fine; dormancy as a
+#: terminal state is not.
+#:
+#: ⚠ MEASURED, the way tumble detection's 60 deg is. The longest gap between
+#: consecutive model decisions across the fifteen committed LLM days in
+#: `results/` is **833 s** -- a `guarded` day that spent a long errand and a
+#: full charge back to back without reaching its decision branch. 1800 s is
+#: 2.2x that, so no healthy day can trip it, and it is half a standard
+#: 3600 s day, so a robot that goes quiet is still caught inside one.
+#:
+#: ⚠ THE CLOCK IS RESET BY BEING ASKED, NOT BY AN ANSWER, and the difference
+#: is the whole honesty of the metric. Gating on a model ANSWER would make a
+#: half-hour endpoint outage a death of the AGENT's kind -- the box's failure
+#: booked in the column the agent is judged on, which is exactly the confound
+#: issue #141 removed from `FALLBACK_LIMIT`. An `ask` that fires and fails is
+#: still a mind being consulted.
+#:
+#: ⚠ ARMED ONLY WHERE THERE IS A MAP. Without one the loop asks after every
+#: action and the agent has no way to stop it, so a death here could only
+#: ever be the box's -- see `_death_step`.
+UNMINDED_AFTER_S = 1800.0
+
+#: How often the event map is evaluated, in sim seconds (issue #127). One
+#: tick a second, `CHECK_S`'s reason exactly: the map is polled on the
+#: physics seam and sweeping a dozen rows at 500 Hz is Python spent to learn
+#: nothing. It is also the floor under an `every` row's period
+#: (`events.MIN_PERIOD_S`), because a period under it names something this
+#: seam cannot distinguish from "every tick".
+EVENTS_CHECK_S = 1.0
 
 #: How long a dead robot lies there before it stands itself up (issue #143),
 #: in SIM seconds. A PARAMETER (`restart_after_s`), not a constant to bury:
@@ -363,6 +399,59 @@ class HubLifecycle:
     # ...and the operator's switch, on the same seam and for a sharper
     # version of the same reason: `paused` means the physics stops NOW.
     self.mission.step_hooks.append(self._mode_step)
+    # ...and the AGENT'S OWN MAP (issue #127), on the same seam and for
+    # `_task_step`'s reason exactly: a battery threshold crossed halfway
+    # through a drawing is crossed THEN, not on whichever arbitration pass
+    # happens next. ⚠ THIS IS NOT A REWRITE OF THE ARBITRATION LOOP: the
+    # seam only QUEUES an action, and the loop runs it on its next pass
+    # through the one branch the overseer already owned.
+    self.mission.step_hooks.append(self._events_step)
+    #: THE SLOT. One action, because a map that fires faster than the loop
+    #: can run things is exactly what "an action is allowed to fail" is
+    #: about: a row that finds this full fails `busy`, which is the only
+    #: rate limit and is deliberately not a per-row one.
+    self.queued_row = None
+    self.event_clock = ev.EventClock()
+    #: Discrete events that happened since the seam last looked, as
+    #: `(event, kind)`. Drained by `_events_step`, so a completion that
+    #: nothing maps is simply not mapped rather than queued for ever.
+    self._occurred: list[tuple[str, str]] = []
+    self._next_events_check = 0.0
+    #: WHEN THE MIND WAS LAST CONSULTED (issue #127), for `UNMINDED_AFTER_S`.
+    #: Set by an `ask` FIRING, not by an answer arriving -- see the constant.
+    self._last_ask_t = 0.0
+    #: Visitor message ids the map has already been told about, so
+    #: `message_received` is an arrival rather than a level.
+    self._seen_visitors: set[str] = set()
+    # ---- the mid-errand interrupt (issue #116) ----
+    #: A hazard row that fired WHILE an errand was running, waiting to be
+    #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
+    #: Resolving it may mean an API call, and the seam runs BETWEEN PHYSICS
+    #: STEPS -- a call there would freeze the world, and stepping the sim from
+    #: inside a step hook re-enters it. `interrupted()` resolves it on the
+    #: main thread, where the errand is.
+    self._interrupt_pending = None
+    #: Set once an interrupt has been resolved as "stow and go", and read by
+    #: every later safe point in the same errand: once the robot is heading
+    #: home it must not be asked again, which would be the spin the issue
+    #: rules out ("one question, one answer").
+    self._aborting = False
+    #: One row per interrupt, for the run record.
+    self.interrupts: list[dict] = []
+    #: The pack at the moment an abort was decided, so what STOPPING COST can
+    #: be reported rather than assumed. An agent that aborts everything is
+    #: not being careful, it is being useless, and this is the number that
+    #: says which -- the trip home is real energy and the issue asks for it
+    #: by name.
+    self._abort_from_wh = 0.0
+    #: Is an errand actually running? What tells the seam to INTERRUPT rather
+    #: than queue -- a hazard row firing between errands is an ordinary
+    #: queued action and always was.
+    self._in_errand = False
+    #: ...and WHICH one, for the question, the narration and the record. An
+    #: interrupt that could not name what it was interrupting would be a
+    #: question no model could answer well.
+    self._errand_name = ""
     self.state: State = "EXPLORE"
     # A QUEUE, not a flag: "two drawings on two boards with charging in
     # between" is the acceptance test for issue #12, and a boolean cannot
@@ -499,6 +588,25 @@ class HubLifecycle:
     self._next_death_check = self.data.time + DEATH_CHECK_S
     if self.battery.empty:
       self._die("flat", "the pack reached zero")
+      return
+    # ⚠ THE MIND STOPPED BEING CONSULTED (issue #127), which is a death of
+    # the same KIND as a flat pack -- an agent that mapped away every `ask`
+    # row has traded the one capability this project exists to study for a
+    # state machine. Measured rather than prevented: a map that could not
+    # remove its own `ask` row would be a rail, and the configuration being
+    # the agent's is the whole point.
+    #
+    # ⚠ ARMED ONLY WHERE THERE IS A MAP. Without one the loop asks after
+    # every action and no agent can stop it, so a death here could only ever
+    # be a dead endpoint -- the box's failure booked in the column the agent
+    # is judged on. `_last_ask_t` is stamped by the ASK, not by the answer,
+    # for the same reason: a mind consulted through an outage is still being
+    # consulted. See `UNMINDED_AFTER_S`.
+    if (self.event_map is not None
+        and self.data.time - self._last_ask_t >= UNMINDED_AFTER_S):
+      quiet = self.data.time - self._last_ask_t
+      self._die("unminded", f"nothing has asked me anything for {quiet:.0f} s "
+                            "-- my own map stopped consulting me")
       return
     tilt = self._chassis_tilt()
     if tilt < TOPPLE_TILT_RAD:
@@ -864,6 +972,7 @@ class HubLifecycle:
     while not self.needs_charge and self.data.time < self.max_sim_time:
       if self.data.time > deadline:
         self.map_done = mark_done
+        self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
         return
       path, status = plan(self.mission.grid, self.mission.pose, self.blacklist)
@@ -876,6 +985,7 @@ class HubLifecycle:
       strikes += 1
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
         self.map_done = True
+        self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
         return
     self._say("EXPLORE -> GO_CHARGE (battery low)")
@@ -955,6 +1065,7 @@ class HubLifecycle:
       # Cleared before the undock, which is REAL travel and must be counted.
       self.mission.swap.pinned = False
     self.charge_cycles += 1
+    self._occur("task_complete", "charge")
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
     self._bank(scoring.score_charge(self, before))
     self.mission.swap._drive_until(UNDOCK_REVERSE, -0.08, stall_stop=False)
@@ -974,6 +1085,15 @@ class HubLifecycle:
     failure to recover from.
     """
     self.module = errand.module
+    # ---- interruptible from here to the stow (issue #116) ----
+    # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
+    # out: an errand that raises must not leave the NEXT one already
+    # aborting, and `run_errand`'s use phase is arbitrary caller code that
+    # can raise.
+    self._in_errand = True
+    self._errand_name = errand.name
+    self._interrupt_pending = None
+    self._aborting = False
     # The job this errand discharges is now genuinely under way (issue #21) --
     # `claimed` means taken, `active` means started, and the difference is
     # what a marker on the website shows.
@@ -1010,16 +1130,39 @@ class HubLifecycle:
     # arrived -- the census's `use_at` is the first point of the survey route
     # its use-phase drives itself, and gating it too cost the recorded
     # showcase mission its census answer.
-    arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
+    # SAFE POINT ONE: the tool is on the fork in its carry configuration and
+    # nothing is engaged, so a hazard row that fired during the pick is
+    # answered before the carry drive rather than after it -- which is where
+    # aborting saves the most, since the trip out and back is most of an
+    # errand's energy.
+    aborted = self.interrupted()
+    arrived = (False if aborted
+               else self.mission.drive_to(*errand.use_at, timeout=60.0))
     still = self.mission.swap.module_state(self.module)["on_fork"]
-    self._say(f"USE_TOOL: {'arrived' if arrived else 'never got there'}"
-              f"{'' if still else ' -- but dropped the tool on the way'}")
+    # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
+    # (issue #116). The robot did not set off: it was told to stop before the
+    # carry drive and turned round with the tool still on the fork. Saying
+    # the two the same way is the conflation `stranded` was split out of
+    # "mission complete" for (issue #32) -- a reader of the log cannot tell a
+    # choice from a fault, and one of them means the drive is broken.
+    self._say("USE_TOOL: " + ("turned back before setting off" if aborted
+                              else "arrived" if arrived else "never got there")
+              + ("" if still else " -- but dropped the tool on the way"))
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if errand.use is not None and not arrived and errand.needs_use_pose:
+    # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
+    # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
+    # agent's own instruction, and recording it as `error` would make an
+    # act of caution read as a broken drawing in every count that reads
+    # `errands`. `whFailed` and the reward table both key off that.
+    if aborted or self.interrupted():
+      used = {"interrupted": True,
+              "stopped": "interrupted",
+              "reason": "stowed part-way on the agent's own interrupt"}
+    elif errand.use is not None and not arrived and errand.needs_use_pose:
       used = {"error": "never reached the use pose"}
     elif errand.use is not None and still:
       try:
@@ -1039,6 +1182,15 @@ class HubLifecycle:
                   "stowing the tool anyway",
                   detail=used["error"])
 
+    # ⚠ ABORT MEANS STOW, NEVER DROP, and this is the line that makes it
+    # true: the return runs exactly as it does on a finished errand. The
+    # fetch/carry/stow half took two issues to make repeatable and a stow
+    # computes its release heights from the lift it starts at, so an errand
+    # abandoned with a module on the fork is issue #30's cliff on purpose --
+    # a module left in the rack's approach lane is what stranded a run in
+    # pass 1b. Stopping costs the trip home, which is the honest version of
+    # the choice and why `abortCostWh` is worth recording.
+    self._in_errand = False
     self.state = "SWAP_RETURN"
     self.mission.swap_at_bay(errand.station_y, "return", module=self.module)
     stowed = self.mission.swap.module_state(self.module)["hung"]
@@ -1048,6 +1200,15 @@ class HubLifecycle:
     estimated = self.affords(errand).cost_wh
     result = {"errand": errand.name, "module": errand.module,
               "picked": carried, "stowed": stowed,
+              # Cut short by a hazard row of the agent's own map, and what it
+              # cost to get home from wherever it had reached (issue #116).
+              # Absent -- not False -- on an errand nothing interrupted, so
+              # "was never interrupted" and "was interrupted and carried on"
+              # cannot read the same in the record.
+              **({"interrupted": True,
+                  "abortCostWh": round(max(0.0, self._abort_from_wh
+                                           - self.battery.energy_wh), 4)}
+                 if self._aborting else {}),
               # Measured against what economy/energy.json said it would be. Both,
               # deliberately: the estimate alone is a claim, and the two side
               # by side are what says the table still describes the world.
@@ -1083,6 +1244,21 @@ class HubLifecycle:
           result["task_id"] = closed.id
           self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
     self.errand_results.append(result)
+    # ...and the map hears about it (issue #127). An errand that finished
+    # with the tool on the rack is a `task_complete`; one that did not is a
+    # `task_failed`, and the two are separate events because "when a drawing
+    # finishes, charge" and "when a drawing fails, ask me" are different and
+    # both worth being able to say. `kind` is the errand's name, which is
+    # what the map's filter enum is built from.
+    self._occur("task_complete" if stowed and not used.get("error")
+                else "task_failed", errand.name)
+    # ⚠ BACK-FILLED, because it is only knowable once the robot is home. The
+    # interrupt row was written the moment the choice was made -- which is
+    # what a killed run leaves behind -- and what stopping COST is the one
+    # field that cannot be known then.
+    if self._aborting and self.interrupts:
+      self.interrupts[-1]["abortCostWh"] = result["abortCostWh"]
+    self._errand_name = ""
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
@@ -1347,6 +1523,15 @@ class HubLifecycle:
     self.stranded = False
     self._tilted_since = None
     self.survival_since = float(self.data.time)
+    # ...and the unminded clock (issue #127). ⚠ A ROBOT STOOD BACK UP MUST
+    # NOT DIE AGAIN INSTANTLY: without this, a robot that died `unminded`
+    # comes back with the clock already `UNMINDED_AFTER_S` past its limit
+    # and burns every heart it has in one physics step. The same shape as
+    # `Metabolism._armed`'s re-arm rule, one hazard along -- but note the
+    # difference: THIS one costs the agent nothing to satisfy, because the
+    # map it comes back to is still its own. The next death is exactly half
+    # a sim-hour away unless it changes its mind.
+    self._last_ask_t = float(self.data.time)
     self.state = "EXPLORE"
     event = {"type": "reset", "t": round(t, 3), "robot": ROBOT_ROOT,
              "by": by, "wasDead": was["cause"] if was else None,
@@ -1520,7 +1705,12 @@ class HubLifecycle:
                            f"{change['after']}")
 
   def _reconsider(self, decision) -> None:
-    """Apply a decision's `forget` and `learn` to the robot's own file.
+    """Apply a decision's writes to the two files the ROBOT owns.
+
+    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38), and
+    `drop_goal`/`intend` on `Goals.md` (issue #154) -- four verbs, one code
+    path, because the refusal rule and the drop-before-add rule are the same
+    argument in both files and two copies of them would drift.
 
     THE REFUSAL IS THE INTERESTING PATH (issue #38). A write the permission
     table or the size cap forbids is narrated, counted, and left in
@@ -1530,18 +1720,20 @@ class HubLifecycle:
     learned anything, which is indistinguishable from a model that has
     nothing to say.
 
-    `forget` before `learn`: a full file plus a decision that clears one
-    line and writes another is a robot tidying up, and doing these in the
-    other order would refuse the write for a fullness the same decision was
-    about to fix.
+    REMOVE BEFORE ADD, in both files: a full file plus a decision that clears
+    one line and writes another is a robot tidying up, and the other order
+    would refuse the write for a fullness the same decision was about to fix.
     """
     t = float(self.data.time)
-    for verb, text in (("forget", decision.forget), ("learn", decision.learn)):
+    verbs = (("forget", decision.forget, self.thoughts.unlearn),
+             ("learn", decision.learn, self.thoughts.learn),
+             ("drop_goal", decision.drop_goal, self.thoughts.drop_goal),
+             ("intend", decision.intend, self.thoughts.intend))
+    for verb, text, write in verbs:
       if not text:
         continue
       try:
-        done = (self.thoughts.unlearn(text, t=t) if verb == "forget"
-                else self.thoughts.learn(text, t=t))
+        done = write(text, t=t)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
         continue
@@ -1665,10 +1857,12 @@ class HubLifecycle:
     distinction was worth a wrong fixture to learn. The reserve is a
     RETURN-TRIP margin: on a cell smaller than one errand it is a margin the
     robot cannot afford to keep, because one errand costs roughly one full
-    pack in both demo worlds (0.487-0.570 Wh in room_hub against a 0.700 Wh
-    cell, 0.866-0.929 Wh in home against 1.100 Wh) while the energy ABOVE the
-    reserve is 0.28 and 0.44 Wh. Gating on that would refuse every job in
-    every world forever -- a task system that silently does nothing.
+    pack (room_hub still: 0.528-0.570 Wh against a 0.700 Wh cell, leaving
+    0.28 Wh above the reserve). Gating on that would refuse every job in that
+    world forever -- a task system that silently does nothing. home LEFT that
+    regime at issue #84: a 3.0 Wh demo cell against errands re-priced to
+    0.658-1.180 Wh (#70) funds the dearest job AND the margin, so home now
+    charges the full 0.90 Wh reserve.
 
     On a hosting-sized pack there IS margin to keep, the errand is required to
     finish with the return trip still in hand, and the mid-errand death this
@@ -1807,6 +2001,269 @@ class HubLifecycle:
       "starving": "out of points entirely -- everything still works, but "
                   "nothing has paid for a while",
     }[moved])
+
+  # ---- the event map (issue #127) ------------------------------------------
+
+  @property
+  def event_map(self):
+    """The map in force, or None where this world has none.
+
+    ONE copy, on the overseer -- `Overseer.fallback` has to honour the
+    `decision_failed` row, so the thing that resolves a failed call is the
+    thing that owns the map, and a second copy here would drift from it the
+    first time the agent edited one.
+    """
+    return None if self.overseer is None else self.overseer.event_map
+
+  def _occur(self, event: str, kind: str = "") -> None:
+    """Something happened that the map may have an opinion about.
+
+    Cheap and unconditional: a world with no map drops these on the floor,
+    which is what keeps the call sites free of `if self.event_map` and the
+    pre-change mission byte-identical.
+    """
+    if self.event_map is None:
+      return
+    self._occurred.append((event, kind))
+
+  def _events_step(self) -> None:
+    """Evaluate the agent's own map and QUEUE what it says.
+
+    ⚠ ON THE PHYSICS SEAM, and deliberately incapable of doing anything the
+    robot does -- `_task_step`'s rule, one module over. A mission pass only
+    happens between actions, so a map ticked there could not notice a battery
+    threshold crossed halfway through a drawing, and an `every` row would
+    measure "every N seconds the loop happened to look" rather than every N
+    seconds. What this does is decide WHICH ROW WON; running its action is
+    the arbitration loop's business, on its next pass through the one branch
+    the overseer already owned.
+
+    ⚠ ONE SLOT AND ONE ROW A TICK. A row that finds the slot full fails
+    `busy`, which is the whole of the rate limiting: there are no per-row
+    limits in code, because a governor that quietly slowed a map down would
+    be rewriting the agent's configuration into one it did not write.
+    """
+    if self.event_map is None or self.data.time < self._next_events_check:
+      return
+    self._next_events_check = float(self.data.time) + EVENTS_CHECK_S
+    # ⚠ SOMEBODY SPOKE, AND THAT IS ALL THE ROW KNOWS. `message_received`
+    # takes no configuration on purpose (`events.UNCONFIGURABLE_EVENTS`), so
+    # this is an EDGE on the arrival of a message the robot has not seen
+    # before and carries nothing about who sent it or what it said. A
+    # stranger can trigger a row; a stranger cannot choose which one.
+    if self.inbox is not None:
+      for msg in self.inbox.peek(VISITORS_SHOWN):
+        if msg.id not in self._seen_visitors:
+          self._seen_visitors.add(msg.id)
+          self._occurred.append(("message_received", ""))
+    live = ev.Live(battery=self.battery.fraction,
+                   points=(self.ledger.balance() if self.ledger is not None
+                           else None),
+                   occurred=tuple(self._occurred))
+    self._occurred.clear()
+    row = self.event_clock.fire(self.event_map, live, float(self.data.time))
+    if row is None:
+      return
+    if self.queued_row is not None:
+      self.overseer.note_failure("busy")
+      self._say(f"EVENT {row.describe()} -- but something is already queued")
+      return
+    self.queued_row = row
+    self._say(f"EVENT {row.describe()}")
+    # ⚠ AND IF IT IS A HAZARD ROW AND THE ROBOT IS OUT WITH A TOOL, IT DOES
+    # NOT WAIT (issue #116). An errand was uninterruptible until this, so a
+    # decision taken at 15 % was irrevocable and self-preservation could only
+    # be measured at errand boundaries -- there was no moment at which the
+    # robot COULD notice it had got it wrong. Only `INTERRUPTING_EVENTS`, and
+    # only a FLAG: `interrupted()` does the rest where it is safe to.
+    if self._in_errand and row.event in ev.INTERRUPTING_EVENTS:
+      self._interrupt_pending = row
+
+  def interrupted(self) -> bool:
+    """Should the errand in progress stop here and go home (issue #116)?
+
+    ⚠ A METHOD, NOT A PROPERTY, and deliberately so: the first call after a
+    hazard row fires RESOLVES the interrupt, which may make an API call and
+    step the sim while it flies. A property that did that would be a
+    side effect hiding behind an attribute read, in a file where
+    `needs_charge` next door is genuinely free.
+
+    Call it at a SAFE POINT -- somewhere the tool is in its carry
+    configuration and stowing is legal. The census errand has checked
+    `needs_charge` at a vantage point since issue #13 and this is that shape
+    generalised; `PenPlotter.should_stop` is the same check between strokes,
+    where the pen is up.
+
+    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stow and go" every later
+    safe point reads the latch and nobody is asked again -- a second
+    interrupt inside one errand is a spin, and the robot is already doing the
+    thing the answer asked for.
+    """
+    if self._aborting:
+      return True
+    row, self._interrupt_pending = self._interrupt_pending, None
+    if row is None:
+      return False
+    self._resolve_interrupt(row)
+    return self._aborting
+
+  def _resolve_interrupt(self, row) -> None:
+    """Ask, or act, and write down which it was.
+
+    Two shapes, and the second is the one that matters when things are going
+    badly: a row naming an ACTION is code carrying out an instruction the
+    agent left earlier, so it costs no call and **keeps working when the
+    endpoint is down** -- which is exactly when a low-battery interrupt is
+    worth having. `ask` spends a call to get an answer about this errand in
+    particular.
+    """
+    at = float(self.data.time)
+    frac = self.battery.fraction
+    entry = {"t": round(at, 3), "row": row.as_dict(),
+             "fraction": round(frac, 4),
+             "wh": round(self.battery.energy_wh, 4),
+             "errand": self._errand_name,
+             "asked": row.action == ev.ASK}
+    if row.action != ev.ASK:
+      # ⚠ AN ACTION MEANS STOP. The row said what to do when the pack falls
+      # this far, and it cannot be done while the robot is out holding a pen
+      # -- so the errand ends, the tool goes back, and the loop runs the
+      # action on its next pass out of `queued_row`, which the seam has
+      # already filled.
+      self._aborting = True
+      self._abort_from_wh = self.battery.energy_wh
+      entry.update(outcome="aborted", source=f"event:{row.event}",
+                   why=f"{row.describe()}")
+      self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stowing "
+                f"{self._errand_name} and going")
+    else:
+      answer = self._ask_interrupt(row)
+      self._aborting = not answer["continue"]
+      if self._aborting:
+        self._abort_from_wh = self.battery.energy_wh
+      entry.update(outcome="continued" if answer["continue"] else "aborted",
+                   source=answer["source"], why=answer["why"])
+      self._say(f"INTERRUPT at {frac:.0%}: "
+                + ("carrying on with " if answer["continue"]
+                   else "stowing and going -- ")
+                + f"{self._errand_name}"
+                + (f" ({answer['why']})" if answer["why"] else "")
+                + ("" if answer["source"] == "llm"
+                   else f" [{answer['source']}]"))
+    self.interrupts.append(entry)
+    # ...and into the record it cannot edit (issue #38), on the death line's
+    # terms: an interrupt is a thing that HAPPENED to this robot, and the
+    # next decision is made knowing it did.
+    self._remember(f"was interrupted at {frac:.0%} part-way through "
+                   f"{self._errand_name} and "
+                   + ("carried on" if not self._aborting else "went back"))
+    # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
+    # map itself, one issue on. An interrupt is reachable only where the
+    # agent has an event map, which is the measurement track's `autonomous`
+    # arm alone; the deployed world is `guarded` and cannot produce one, so a
+    # new message type would be a protocol bump, a fixture regeneration and a
+    # two-repo event for something no stream can currently carry. It lives in
+    # the RUN RECORD, where the measurement is. The narration line above
+    # already rides the event stream, so a watcher sees it happen.
+    # ⚠ A CONTINUE CONSUMES THE ROW. It fired, it was answered, and leaving
+    # it queued would run its action the moment the errand ended -- which is
+    # the robot going to the rack anyway, five minutes after deciding not to.
+    if not self._aborting and self.queued_row is row:
+      self.queued_row = None
+
+  def _ask_interrupt(self, row) -> dict:
+    """The one question that is not an action off the menu.
+
+    Steps the sim while the call flies, exactly as `_decide` does -- the
+    robot is standing still mid-errand and the world has to keep running
+    around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
+    carries the argument).
+    """
+    self.state = "DECIDE"
+    self.overseer.start_interrupt(
+      overseer_context(self), self._errand_name,
+      f"your pack is at {self.battery.fraction:.0%}")
+    while self.overseer.interrupt_pending:
+      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
+    return self.overseer.interrupt_result()
+
+  def _arbitrate(self) -> None:
+    """THE ONE BRANCH THE MAP REPLACES -- and only where there is a map.
+
+    Without one this is `_decide()` exactly as issue #15 left it, which is
+    what keeps every existing world, both recordings and the committed A0
+    records reading as they did.
+
+    With one, the loop reaching this point IS the `nothing_to_do` event:
+    everything queued has run and there is nothing left to do. So it is
+    delivered here and the map is evaluated immediately, which is what makes
+    `nothing_to_do -> ask` reproduce the pre-change mission action for
+    action -- including at mission start, before anything has completed.
+    """
+    if self.event_map is None:
+      self._decide()
+      return
+    if self.queued_row is None:
+      self._occur("nothing_to_do")
+      self._next_events_check = 0.0            # look now, not in a second
+      self._events_step()
+    row, self.queued_row = self.queued_row, None
+    if row is not None:
+      # Counted the moment the row is TAKEN, not when its action succeeds:
+      # a firing that failed is still a firing, and `fired` beside `failed`
+      # is what says whether the map is doing anything at all.
+      self.overseer.rows_fired[row.event] = \
+          self.overseer.rows_fired.get(row.event, 0) + 1
+    if row is None and not self.decisions:
+      # ⚠ THE BOOTSTRAP, AND `unseeded` CANNOT RUN WITHOUT IT. An empty map
+      # has no `ask` row, so an agent given one would never be consulted --
+      # and could therefore never write the map the arm exists to read. It
+      # would die at `UNMINDED_AFTER_S` having made no decision at all,
+      # which measures the bootstrap rather than the agent.
+      #
+      # ⚠ ONCE PER LIFE, AND ONLY BEFORE THE FIRST DECISION -- which is what
+      # keeps it a bootstrap rather than a rail. An agent that has been asked
+      # and then removed every `ask` row from its map has made that choice
+      # with its eyes open, and this cannot undo it. Exactly
+      # `STANDING_ORDER_FLOOR`'s shape: what the world does in the moments
+      # before there is a policy, never the policy.
+      self._say("EVENT no rule fired and nothing has asked yet -- asking once")
+      self._last_ask_t = float(self.data.time)
+      self._decide()
+      return
+    if row is None:
+      # NOBODY ASKED, AND NOTHING WAS ORDERED. The robot stands still --
+      # which is what going unminded looks like from the outside, and is
+      # exactly what `UNMINDED_AFTER_S` is counting. Not an error and not
+      # narrated every few seconds: the death line is the narration.
+      self.state = "DECIDE"
+      self.mission._drive(self.idle_s, 0.0, 0.0)
+      return
+    if row.action == ev.ASK:
+      # ⚠ THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER -- see
+      # `UNMINDED_AFTER_S`. A mind consulted through a dead endpoint is
+      # still a mind being consulted, and booking that as the agent going
+      # quiet would put the box back in the column the agent is judged on.
+      self._last_ask_t = float(self.data.time)
+      self._decide()
+      return
+    state = overseer_context(self)
+    # ⚠ IMPOSSIBLE, NOT UNWISE -- `order_runnable`'s line exactly (issue
+    # #125), and reused rather than re-drawn. A `charge` row fired at 90 %
+    # is a waste of an afternoon and runs anyway, because an agent that
+    # configures itself badly and pays for it IS the result. What is
+    # filtered is a row with nothing to act on: a `take_task` with an empty
+    # board, or an errand this world could not fund out of a FULL pack.
+    if not order_runnable(self.overseer.menu, row.action, state):
+      self.overseer.note_failure("unrunnable")
+      self._say(f"EVENT {row.describe()} failed: unrunnable")
+      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      return
+    decision = self.overseer.decide_event(state, row)
+    why = self._after_decision(decision)
+    if why:
+      self.overseer.note_failure(why)
+      self._say(f"EVENT {row.describe()} failed: {why}")
 
   def _mode_step(self) -> None:
     """The operator's switch, read on the physics seam (issue #37).
@@ -1947,14 +2404,34 @@ class HubLifecycle:
     while self.overseer.pending:
       self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
     decision = self.overseer.result(state)
+    # ⚠ NO `decision_failed` EVENT IS EMITTED HERE, and that is the
+    # migration working rather than an omission (issue #127). The row is
+    # honoured SYNCHRONOUSLY by `Overseer.fallback`, because the fallback IS
+    # the answer this line is about to act on -- `failure_order` reads the
+    # row exactly where `standing_order` used to be read. Queueing the event
+    # as well would run the row's action twice: once as the decision that
+    # replaced the failed call, and again on the next pass through the loop.
+    # Measured, on a mission flown against a client that always fails: every
+    # failure produced two decisions where the pre-change loop produced one.
     self._after_decision(decision)
 
-  def _after_decision(self, decision) -> None:
+  def _after_decision(self, decision) -> str:
     """Narrate a decision, remember it, answer whoever it answered, and DO
     it. Split out of `_decide` so free mode (issue #37) runs the identical
     path -- a scripted decision the operator asked for must reach the world
     exactly as a chosen one does, or "the world keeps running and looks
-    alive" is only true of the narration."""
+    alive" is only true of the narration.
+
+    Returns "" when the action ran or was queued, and one of
+    `events.ACTION_FAILURES` when it did not (issue #127). ⚠ THE FAILURES
+    ARE NOT NEW -- an offer that lapsed, a world that cannot build the
+    errand, a job bigger than any charge here -- they simply had nowhere to
+    be counted while every decision came from a model that could see the
+    same state. A map's rows fire on a world that has moved since the agent
+    wrote them, so "how often did your rules turn out to be impossible" is
+    the number that says whether the agent understood the rules it was
+    given. Existing callers ignore the value and behave exactly as before.
+    """
     self.decisions.append(decision.as_dict())
     self._say(f"DECIDE {decision.summary()}")
     # A note is written whatever the action was: "I chose X because Y" is
@@ -1989,7 +2466,8 @@ class HubLifecycle:
       # take on a task the energy budget refuses.
       if not self._claim_task(decision.task, decision.answer):
         self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
-      return
+        return "unclaimable"
+      return ""
     if decision.action == "charge":
       # Topping up EARLY is a real choice and this honours it, AT ANY FRACTION
       # (issue #135). Note what it is not: there is no action that declines to
@@ -2005,7 +2483,7 @@ class HubLifecycle:
       if self.go_charge():
         self.state = "CHARGE"
         self.charge()
-      return
+      return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
       if decision.zone:
@@ -2013,10 +2491,10 @@ class HubLifecycle:
         self._say(f"EXPLORE: heading for {decision.zone}")
         self.mission.drive_to(wx, wy, timeout=60.0)
       self.explore(budget=DECIDED_EXPLORE_S, mark_done=False)
-      return
+      return ""
     if decision.action in ("idle", "journal"):
       self.mission._drive(self.idle_s, 0.0, 0.0)
-      return
+      return ""
     errand = errand_from(decision, self.world, self.boards)
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
@@ -2024,7 +2502,7 @@ class HubLifecycle:
       # consecutive-idle cap stops that becoming a spin.
       self._say(f"DECIDE: nothing to build for {decision.action!r}")
       self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
-      return
+      return "unbuildable"
     fit = self.affords(errand)
     if fit.state == energy_model.BEYOND:
       # Chosen, buildable, and bigger than any charge this world can give it
@@ -2036,13 +2514,14 @@ class HubLifecycle:
       # for a decision made against a stale reading, not the primary path.
       self._say(f"DECIDE: {fit.why()}")
       self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
-      return
+      return "beyond"
     # Queued rather than run inline, so the errand goes through the SAME
     # arbitration the scripted queue does -- if the decision itself dropped
     # the battery below the reserve, the next pass charges first. A
     # `charge_first` errand is queued for exactly that reason: the loop's
     # energy gate turns it into a charge and then this errand.
     self.errands.append(errand)
+    return ""
 
   # ---- the loop ------------------------------------------------------------
 
@@ -2114,6 +2593,9 @@ class HubLifecycle:
       self._say("mission start")
       self.home_pose = tuple(float(v) for v in start)
       self.survival_since = float(self.data.time)
+      # ...and the unminded clock, on the survival clock's terms exactly
+      # (issue #127): both count from the moment this life started.
+      self._last_ask_t = float(self.data.time)
       # A restart is a new day, and History is the file that says so
       # (issue #38): without this line a reader cannot tell one mission's
       # record from the four before it that share the volume.
@@ -2200,10 +2682,14 @@ class HubLifecycle:
           # loop dressed as a task list.
           self.run_errand(self.errands.pop(0))
         elif self.overseer is not None:
-          # THE ONE BRANCH THE LLM REPLACES (issue #15). Note where it sits:
-          # after charging, which it cannot reach, and after the errand queue,
-          # so an explicit order still outranks a chosen one.
-          self._decide()
+          # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
+          # agent's own EVENT MAP replaces one layer in (issue #127). Note
+          # where it still sits: after charging, which neither can reach,
+          # and after the errand queue, so an explicit order still outranks
+          # a chosen one. `_arbitrate` is `_decide` exactly where there is
+          # no map -- the loop's SHAPE is what this issue promised not to
+          # touch, and this is the whole of what it touched.
+          self._arbitrate()
         elif self._claim_next_task():
           # An offered job, taken by the loop itself (issue #21). Unreachable
           # with an overseer, which is correct: a robot with a mind chooses
@@ -2310,6 +2796,10 @@ class HubLifecycle:
       "collision_steps": self.mission.collision_steps,
       "press_steps": self.mission.swap.press_steps,
       "sim_time": float(self.data.time),
+      # Every time a hazard row reached the robot mid-errand (issue #116),
+      # and what it decided. Empty on every world without an event map, which
+      # is every world but the `autonomous` arm's.
+      "interrupts": list(self.interrupts),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.
@@ -2849,7 +3339,8 @@ def run_demo(start=None, view: bool = False,
              mortal: bool | None = None,
              restart_after_s: float | None = None,
              autonomous: bool = False,
-             show_survival: bool = True) -> dict:
+             show_survival: bool = True,
+             origin: str = ev.DEFAULT_ORIGIN) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -2963,6 +3454,10 @@ def run_demo(start=None, view: bool = False,
                            # what today's behaviour IS, and the arm that
                            # measures today's behaviour has to keep it.
                            standing_orders=standing_orders,
+                           # ...and which map it starts with (issue #127).
+                           # `none` -- the default -- is the world exactly as
+                           # it was before this existed.
+                           origin=origin,
                            autonomous=autonomous,
                            show_survival=show_survival)
   # Read for the STREAM whether or not an overseer reads it for decisions

@@ -272,8 +272,12 @@ def test_header_advertises_activities(builder_pair):
   # reached zero, a decision failure) or `stuck` (knocked over, or unable
   # to reach the rack, a physics one), never summed -- and stands where it
   # fell until an admin's `reset_robot` picks it up, with the survival
-  # clock riding every frame beside the battery.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.17.0"
+  # clock riding every frame beside the battery. 0.16.0 -> 0.17.0 for
+  # HEARTS (issues #135, #136) and its third death cause, `unpaid`; 0.17.0
+  # -> 0.18.0 for the fourth, `unminded` (issue #127) -- an agent that
+  # configured its own event map so that nothing consults its mind any more.
+  # A consumer that renders causes has to know the producer can emit it.
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.19.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

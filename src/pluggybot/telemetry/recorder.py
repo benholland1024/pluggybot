@@ -305,15 +305,26 @@ class FrameBuilder:
     content -- and content a viewer joining an hour in still needs, which is
     why the live publisher re-sends it on every connect.
 
-    `steering` is the honest half. The goals file is read on every run, but
-    only an overseer decides anything with it; a scripted rotation is living
-    by these in the sense that they were chosen with it in mind, and in no
-    other sense. Reporting both identically would be the `accepts` mistake
-    over again -- a website saying "following its goals" about a robot with
-    nothing reading them.
+    ⚠ SINCE 0.19.0 THESE ARE THE ROBOT'S OWN (pluggybot #154). The file is
+    written by the robot and by nobody else, so this is no longer "what a
+    person wants of it" -- that moved into `Main.md`, the constitution, which
+    reaches a consumer as a `thought` document like the other three. A
+    consumer rendering this as a human's instructions would now be wrong
+    about who wrote it, which is why the version moved for a message whose
+    SHAPE did not.
+
+    ⚠ EMITTED EVEN WHEN THE ROBOT HAS SET NO GOALS, which is a change of
+    rule at 0.19.0 and deliberate. `Goals.md` starts empty now, so "absent
+    when empty" would take the message off every scripted world and off an
+    overseer world until its first goal -- and `steering` rides HERE and
+    nowhere else, so a consumer would lose the one field that says whether
+    anything is deciding at all. An empty `text` with `steering: false` is
+    the honest statement: no goals, and nothing that could set one.
+
+    `steering` keeps its meaning exactly. It says whether a MIND is attached,
+    which no document knows about itself; it is now also the answer to "could
+    anything have written these", since nothing else can.
     """
-    if not self.goals:
-      return None
     return {"type": "goals", "t": round(float(t), 3), "robot": ROBOT_ROOT,
             "text": self.goals, "steering": self.steering}
 

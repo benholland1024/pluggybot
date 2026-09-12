@@ -1,17 +1,10 @@
-"""2D scanning LIDAR, modelled by ray casts (sensor-realism pass, Aug 2026).
+"""2D scanning LIDAR, modelled by ray casts.
 
-Replaces the stereo pair as the mapper's range source. The measurement that
-forced this (docs/SimNotes.md): running real SGBM on the sim's own stereo pair,
-mid-room facing a painted wall, produced disparity for only **49.7 %** of the
-scan row and was **593 mm** out at the median — against a 50 mm grid cell.
-Flat painted walls are the classic no-disparity case, and this room is made of
-them. Stereo cannot build this map.
-
-The swap is cheap because the abstraction was already right: `Scanner.scan()`
-has always returned `(angles, ranges)`, which is a laser scan's interface, and
-`scanner.py` was never actually stereo — it read a depth image from ONE camera
-and took the centre row. The mapping has been a 2D laser scan wearing a
-camera's clothes since milestone 4.
+The mapper's range source since the sensor-realism pass (Aug 2026), when it
+replaced a stereo pair that measured unable to build the map (docs/Parts.md
+"Vision & ranging" keeps the decision and the numbers). `Scanner.scan()`
+already returned `(angles, ranges)`, a laser scan's interface, so the swap
+changed the sensor and not the mapping.
 
 Modelled on an RPLIDAR C1-class unit: 360°, ~10 Hz, 12 m, ±30 mm.
 
@@ -47,11 +40,21 @@ LIDAR_PERIOD = 0.1        # s between scans: 10 Hz, the part's real rate. The
                           # is free in sim; a spinning mirror is not.
 
 
+#: 8 m, under the part's 12 m, on purpose. `OccupancyGrid.update` samples
+#: every ray to its full length at half a cell, so max_range sets the per-scan
+#: cost (360 rays x 320 samples at 8 m, 480 at 12 m), and a no-return ray only
+#: clears free space the robot will scan again as it drives. Under-ranging the
+#: part is the conservative error -- a return past 8 m is dropped, never
+#: invented -- and it has not been measured to cost the map anything. Raise
+#: it if a world grows a sightline the map needs from a standstill.
+MAX_RANGE = 8.0
+
+
 class Lidar:
   """360-degree planar LIDAR over MuJoCo ray casts."""
 
   def __init__(self, model, site_name: str = "lidar", n_rays: int = 360,
-               max_range: float = 8.0, sigma_m: float = 0.010,
+               max_range: float = MAX_RANGE, sigma_m: float = 0.010,
                sigma_frac: float = 0.01, dropout: float = 0.02,
                robot_body: str = "pluggybot", seed: int = 0) -> None:
     self.model = model

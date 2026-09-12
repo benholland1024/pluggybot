@@ -178,6 +178,10 @@ def drawing_errand(book, board_name: str, board: Board,
                   t=float(life.data.time))
 
     plotter.on_stroke = on_stroke
+    # THE MID-DRAWING SAFE POINT (issue #116). Between strokes, pen up --
+    # `carry_config()` below runs either way, so a figure cut short stows
+    # exactly as a finished one does.
+    plotter.should_stop = life.interrupted
     squared = plotter.drive_to_board()
     if not squared:
       # Not even at the BELIEVED standoff -- the drive stagnated or hit the
@@ -343,10 +347,21 @@ def census_errand(zone: Zone, label: str = "plants",
       # reported is the count off however much of the zone was surveyed, and
       # `coverage` is what says so. A robot that dies in the garden holding a
       # perfect answer has not done the task.
+      #
+      # ⚠ TWO CHECKS, AND THEY ARE NOT THE SAME ONE. `needs_charge` is CODE's
+      # reserve and is off on the `autonomous` arm; `interrupted()` is the
+      # agent's OWN hazard row reaching it mid-errand (issue #116). A vantage
+      # point is a safe point for both: the LCD has no moving axis, so its
+      # carry configuration costs nothing to be in.
       if life.needs_charge:
         stopped = "battery"
         life._say(f"USE_TOOL: breaking off the census at {vantages} vantage(s)"
                   f" -- battery down to {life.battery.fraction:.0%}")
+        break
+      if life.interrupted():
+        stopped = "interrupted"
+        life._say(f"USE_TOOL: breaking off the census at {vantages} "
+                  "vantage(s) -- interrupted")
         break
 
     # The evaluator. Deliberately after the last look, and its answer is
@@ -401,7 +416,14 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
     mission = life.mission
     x0, y0, _ = mission.pose
     landed = []
+    stopped = ""
     for step, face, hint, v, w, seconds in routine:
+      # BETWEEN MOVES (issue #116). The LCD has no moving axis, so the safe
+      # point is simply "not mid-move" -- and a routine cut short reports the
+      # moves it landed rather than pretending to a bow it never took.
+      if landed and life.interrupted():
+        stopped = "interrupted"
+        break
       if screen is not None:
         screen.face(face, hint, hold=True)
       turned = 0.0
@@ -433,7 +455,13 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
     mission._drive(PRESENT_S, 0.0, 0.0)     # hold the bow (see PRESENT_S)
     return {"dance": {"moves": len(landed), "landed": done,
                       "driftM": round(drift, 3),
-                      "complete": done == len(landed)},
+                      # ⚠ AGAINST THE ROUTINE, NOT AGAINST WHAT IT MANAGED.
+                      # `landed` is only as long as the robot got, so
+                      # `done == len(landed)` reads "complete" for a routine
+                      # abandoned after one move -- which is the evaluator
+                      # being told a cut-short dance finished.
+                      "complete": done == len(routine)},
+            **({"stopped": stopped} if stopped else {}),
             "steps": landed}
 
   return Errand(name=name, module=module, station_y=station_y, use_at=at,

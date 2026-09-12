@@ -76,7 +76,16 @@ markers = [
     # ⚠ Shorten before you mark. A mission test that stops on its claim rather
     # than its budget is worth more than one moved out of the iterate loop --
     # see `HubLifecycle.stop_when`.
+    # ⚠ AND THE FULL SUITE HAS A BUDGET (CLAUDE.md, "Working style"): past
+    # 10 minutes quiet / 15 busy needs Ben's explicit approval, stated in the
+    # PR. It is 7:35 as of 2026-09-12 and it was 18 minutes the day before,
+    # one reasonable-looking mission test at a time.
     "slow: expensive, and cannot catch a regression while you iterate",
+    # `endurance` is a SUBSET of `slow` that does not run at all unless asked
+    # (`--endurance`; tests/conftest.py has the argument): a flown proof whose
+    # regressable claim is also pinned by a fast unit test beside it, kept for
+    # the integration it demonstrates rather than the rule it guards.
+    "endurance: a flown proof; skipped unless --endurance is passed",
 ]
 
 [dependency-groups]
