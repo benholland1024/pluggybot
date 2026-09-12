@@ -1169,7 +1169,7 @@ this repo's image never sees it.
 
 ```
 curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
-  'https://benh.cloud/api/pluggyworld/observe?kind=thought&days=7' \
+  'https://rooftop-media.org/api/pluggyworld/observe?kind=thought&days=7' \
   | jq '{commit, live, thoughts, written: [.events[] | "\(.simTime)s \(.subject): \(.detail)"]}'
 ```
 
