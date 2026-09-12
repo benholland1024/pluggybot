@@ -31,11 +31,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import square_up, wheel_targets, wrap_angle
+from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.rack.coupling import (
   BOARD_HALF, BOARD_X, BOARD_Y, BOARD_Z, LIFT_STEP, PEN_TRAVEL,
 )
 from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, align_lift
+from pluggybot import tick
+from pluggybot.tick import Routine
 
 PEN_MODULE = "module_pen"
 
@@ -295,8 +297,18 @@ class PenPlotter:
   def board_standoff(self, standoff: float = BOARD_STANDOFF) -> tuple[float, float]:
     return board_standoff(self.board, standoff)
 
+  # ---- the seam (issue #58) ------------------------------------------------
+  # Every manoeuvre below is a ROUTINE yielding one (v, w) command per
+  # physics step (pluggybot/tick.py), with a one-line blocking twin under its
+  # old name. The plotter's steps carry no mission bookkeeping (no scan, no
+  # tag look) -- they never did -- so its routines yield bare commands.
+
   def drive_to_board(self, standoff: float = BOARD_STANDOFF,
                      timeout: float = 40.0) -> bool:
+    return self.swap.run(self.drive_to_board_routine(standoff, timeout))
+
+  def drive_to_board_routine(self, standoff: float = BOARD_STANDOFF,
+                             timeout: float = 40.0) -> Routine:
     """Carry the tool to the board and square up to it.
 
     This DRIVES rather than teleporting, and not for realism points: the
@@ -310,21 +322,19 @@ class PenPlotter:
     """
     tx, ty = self.board_standoff(standoff)
     self.data.ctrl[self.arm_act] = 0.0
-    self.swap._run(1.0, 0.0)
+    yield from self.swap._run_routine(1.0, 0.0)
     t0 = self.data.time
     while self.data.time - t0 < timeout:
       pose = (self.swap.reckoner.x, self.swap.reckoner.y,
               self.swap.reckoner.theta)
       if math.hypot(tx - pose[0], ty - pose[1]) < 0.03:
         break
-      v, w = drive_toward(pose, (tx, ty))
-      tl, tr = wheel_targets(v, w)
-      self.swap._step_once(tl, tr)
-    self._face(self.board.heading)
+      yield drive_toward(pose, (tx, ty))
+    yield from self._face_routine(self.board.heading)
     lift0 = align_lift(self.board.z + PEN_BELOW_PEG)
     self.data.ctrl[self.lift_act] = lift0
     self.data.ctrl[self.arm_act] = ARM_EXT
-    self.swap._run(2.0, 0.0)
+    yield from self.swap._run_routine(2.0, 0.0)
     # A face that gave up is "never squared up", whatever the distance says
     # (issue #108): the caller skips the press and stows, which is the only
     # thing that makes the mission's between-errand checks reachable again.
@@ -333,6 +343,11 @@ class PenPlotter:
 
   def ramp(self, act: int, target: float, speed: float = CARRIAGE_SPEED,
            settle: float = 0.0, record: int | None = None) -> None:
+    return self.swap.run(self.ramp_routine(act, target, speed, settle, record))
+
+  def ramp_routine(self, act: int, target: float,
+                   speed: float = CARRIAGE_SPEED, settle: float = 0.0,
+                   record: int | None = None) -> Routine:
     """Walk an actuator's SETPOINT to a target at a bounded speed.
 
     Never write a position setpoint directly across a gap -- see
@@ -346,11 +361,11 @@ class PenPlotter:
     steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
     for k in range(steps):
       self.data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
-      self.swap._step_once(0.0, 0.0)
+      yield 0.0, 0.0
       if record is not None:
         self._trace(record)
     if settle:
-      self.swap._run(settle, 0.0)
+      yield from self.swap._run_routine(settle, 0.0)
 
   def _trace(self, stroke: int, cy: float = math.nan,
              cz: float = math.nan) -> None:
@@ -361,6 +376,10 @@ class PenPlotter:
 
   def _face(self, heading: float, tol: float = 0.004,
             tries: int = 6) -> float:
+    return self.swap.run(self._face_routine(heading, tol, tries))
+
+  def _face_routine(self, heading: float, tol: float = 0.004,
+                    tries: int = 6) -> Routine:
     """Square up to a heading, then STOP AND CHECK -- repeatedly, and for a
     BOUNDED time (issue #108; `control.square_up` is the one implementation
     the pen, the claw, the dispenser and the mission share).
@@ -373,14 +392,17 @@ class PenPlotter:
     Returns the final error in radians; `self.squared` says whether the
     budget ran out first.
     """
-    err, self.squared = square_up(
+    err, self.squared = yield from square_up_routine(
       lambda: wrap_angle(heading - self.swap.reckoner.theta),
-      lambda w: self.swap._step_once(*wheel_targets(0.0, w)),
-      lambda: self.swap._run(0.6, 0.0),      # brake, let the slew unwind
+      lambda w: tick.once(0.0, w),
+      lambda: self.swap._run_routine(0.6, 0.0),   # brake, let the slew unwind
       lambda: float(self.data.time), tol=tol, tries=tries)
     return err
 
   def press(self) -> bool:
+    return self.swap.run(self.press_routine())
+
+  def press_routine(self) -> Routine:
     """Extend the arm until the pen touches, then a little more.
 
     The same depth-referencing-by-gentle-press the docking and coupling work
@@ -391,19 +413,25 @@ class PenPlotter:
     while ext < PRESS_MAX:
       ext += PRESS_STEP
       self.data.ctrl[self.arm_act] = ext
-      self.swap._run(0.12, 0.0)
+      yield from self.swap._run_routine(0.12, 0.0)
       if pen_on_board(self.model, self.data, self.board.geom):
         self.data.ctrl[self.arm_act] = min(ext + PRESS_EXTRA, PRESS_MAX)
-        self.swap._run(0.6, 0.0)
+        yield from self.swap._run_routine(0.6, 0.0)
         return True
     return False
 
   def lift_pen(self, by: float = 0.02) -> None:
+    return self.swap.run(self.lift_pen_routine(by))
+
+  def lift_pen_routine(self, by: float = 0.02) -> Routine:
     self.data.ctrl[self.arm_act] = max(
       float(self.data.ctrl[self.arm_act]) - by, 0.0)
-    self.swap._run(0.5, 0.0)
+    yield from self.swap._run_routine(0.5, 0.0)
 
   def carry_config(self) -> None:
+    return self.swap.run(self.carry_config_routine())
+
+  def carry_config_routine(self) -> Routine:
     """Restore the CARRY configuration after a drawing, before driving off
     to stow the tool. The figure leaves the lift wherever its last stroke
     ended, and `put_back` computes every release height from the CURRENT
@@ -429,32 +457,35 @@ class PenPlotter:
     a moving axis has a STOW POSE, and returning to it is part of putting
     the tool away, like retracting the arm."""
     carry = align_lift() + LIFT_STEP
-    self.ramp(self.lift_act, carry, settle=1.0)
-    self.ramp(self.pen_act, 0.0, settle=0.5)   # centred is the stow pose
+    yield from self.ramp_routine(self.lift_act, carry, settle=1.0)
+    yield from self.ramp_routine(self.pen_act, 0.0, settle=0.5)   # centred is the stow pose
     self.data.ctrl[self.arm_act] = 0.0     # stowed is the driving config
-    self.swap._run(1.5, 0.0)
+    yield from self.swap._run_routine(1.5, 0.0)
 
   # ---- calibration ---------------------------------------------------------
 
   def calibrate(self) -> dict:
+    return self.swap.run(self.calibrate_routine())
+
+  def calibrate_routine(self) -> Routine:
     """Two-point calibration per axis: command, settle, read the pen tip.
 
-    Yields board = origin + gain * command, per axis, with sign and scale
+    Gives board = origin + gain * command, per axis, with sign and scale
     measured rather than reasoned from the model's frames.
     """
     lift0 = float(self.data.ctrl[self.lift_act])
-    self.ramp(self.pen_act, 0.0, settle=1.0)
+    yield from self.ramp_routine(self.pen_act, 0.0, settle=1.0)
     y0, z0 = self.pen_board()
 
     probe = PEN_TRAVEL * 0.6
-    self.ramp(self.pen_act, probe, settle=1.0)
+    yield from self.ramp_routine(self.pen_act, probe, settle=1.0)
     y1, _ = self.pen_board()
-    self.ramp(self.pen_act, 0.0, settle=0.5)
+    yield from self.ramp_routine(self.pen_act, 0.0, settle=0.5)
 
     dl = 0.04
-    self.ramp(self.lift_act, lift0 + dl, settle=1.0)
+    yield from self.ramp_routine(self.lift_act, lift0 + dl, settle=1.0)
     _, z1 = self.pen_board()
-    self.ramp(self.lift_act, lift0, settle=1.0)
+    yield from self.ramp_routine(self.lift_act, lift0, settle=1.0)
 
     self.cal = {
       "y0": y0, "z0": z0, "lift0": lift0,
@@ -464,6 +495,9 @@ class PenPlotter:
     return self.cal
 
   def calibrate_loaded(self, extent: float = PEN_TRAVEL * 0.6) -> dict:
+    return self.swap.run(self.calibrate_loaded_routine(extent))
+
+  def calibrate_loaded_routine(self, extent: float = PEN_TRAVEL * 0.6) -> Routine:
     """Re-measure the carriage gain WITH THE PEN ON THE BOARD.
 
     The free-air calibration is a claim about a condition the tool never
@@ -487,20 +521,20 @@ class PenPlotter:
     at all (8.2 -> 12.7 mm) while helping a circle. Fitting the SECANT across
     exactly the span the figure will use is the honest linear approximation.
     """
-    self.ramp(self.pen_act, 0.0, settle=0.8)
-    if not self.press():
+    yield from self.ramp_routine(self.pen_act, 0.0, settle=0.8)
+    if not (yield from self.press_routine()):
       return self.cal
     probe = min(abs(extent), PEN_TRAVEL * 0.95)
-    self.ramp(self.pen_act, -probe, settle=0.8)
+    yield from self.ramp_routine(self.pen_act, -probe, settle=0.8)
     y_lo, _ = self.pen_board()
-    self.ramp(self.pen_act, probe, settle=0.8)
+    yield from self.ramp_routine(self.pen_act, probe, settle=0.8)
     y_hi, _ = self.pen_board()
-    self.ramp(self.pen_act, 0.0, settle=0.8)
+    yield from self.ramp_routine(self.pen_act, 0.0, settle=0.8)
     y_mid, _ = self.pen_board()
     self.cal["dy_dcarriage"] = (y_hi - y_lo) / (2 * probe)
     self.cal["y0"] = y_mid
     self.cal["loaded"] = True
-    self.lift_pen()
+    yield from self.lift_pen_routine()
     return self.cal
 
   def targets_for(self, by: float, bz: float) -> tuple[float, float]:
@@ -537,7 +571,7 @@ class PenPlotter:
     """Follow a single board-space path. A one-stroke program (issue #11)."""
     return self.draw_program([path])
 
-  def _reseat(self, target) -> bool:
+  def _reseat_routine(self, target) -> Routine:
     """Lift, move to a corrected start, and press again. Returns whether the
     board was found.
 
@@ -546,13 +580,16 @@ class PenPlotter:
     4 mm tick to the start of every stroke, which is exactly the kind of mark
     nobody commanded that this class keeps trying to eliminate.
     """
-    self.lift_pen()
+    yield from self.lift_pen_routine()
     carriage, lift = self.targets_for(*target)
-    self.ramp(self.pen_act, carriage, record=-1)
-    self.ramp(self.lift_act, lift, settle=0.5, record=-1)
-    return self.press()
+    yield from self.ramp_routine(self.pen_act, carriage, record=-1)
+    yield from self.ramp_routine(self.lift_act, lift, settle=0.5, record=-1)
+    return (yield from self.press_routine())
 
   def draw_program(self, program) -> dict:
+    return self.swap.run(self.draw_program_routine(program))
+
+  def draw_program_routine(self, program) -> Routine:
     """Draw a stroke program: polylines in board coordinates, pen UP between
     them (issue #11).
 
@@ -570,10 +607,10 @@ class PenPlotter:
     if not strokes:
       return {"drew": False, "reason": "the program draws nothing"}
     if not self.cal:
-      self.calibrate()
+      yield from self.calibrate_routine()
     # Fit the loaded gain across the span this figure actually uses.
     half = max(abs(py) for s in strokes for py, _ in s) or PEN_TRAVEL * 0.6
-    self.calibrate_loaded(half / abs(self.cal["dy_dcarriage"]))
+    yield from self.calibrate_loaded_routine(half / abs(self.cal["dy_dcarriage"]))
     # Centre the figure on where the pen ACTUALLY is, not on the board's
     # middle. The base parks to a few cm and the pen inherits the fork's
     # lateral offset, so the pen's home sat 23 mm off board centre -- and a
@@ -608,15 +645,15 @@ class PenPlotter:
         break
       # Move to the start with the pen clear, then press: dragging the pen to
       # the start would draw a line that is not part of the figure.
-      self.lift_pen()
+      yield from self.lift_pen_routine()
       c0, l0 = self.targets_for(*path[0])
       # The FIRST approach is not recorded, which keeps a one-stroke program's
       # trace byte-identical to what it was before programs existed -- the
       # square's 0.57 mm baseline is measured off these samples.
       travel = None if i == 0 else -1
-      self.ramp(self.pen_act, c0, record=travel)
-      self.ramp(self.lift_act, l0, settle=1.0, record=travel)
-      if not self.press():
+      yield from self.ramp_routine(self.pen_act, c0, record=travel)
+      yield from self.ramp_routine(self.lift_act, l0, settle=1.0, record=travel)
+      if not (yield from self.press_routine()):
         if i == 0:
           return {"drew": False, "reason": "never reached the board"}
         continue                       # a stroke that missed is a gap, not a
@@ -626,8 +663,8 @@ class PenPlotter:
         ref, corr = bias, np.zeros(2)
       else:
         corr = ref - bias
-        if np.linalg.norm(corr) > REZERO_DEADBAND and not self._reseat(
-            path[0] + corr):
+        if np.linalg.norm(corr) > REZERO_DEADBAND and not (
+            yield from self._reseat_routine(path[0] + corr)):
           continue
       drawn += 1
       for (ay, az), (by, bz) in zip(path, path[1:]):
@@ -641,12 +678,12 @@ class PenPlotter:
           carriage, lift = self.targets_for(cy + corr[0], cz + corr[1])
           self.data.ctrl[self.pen_act] = carriage
           self.data.ctrl[self.lift_act] = lift
-          self.swap._step_once(0.0, 0.0)
+          yield 0.0, 0.0
           self._trace(i, cy, cz)
       if self.on_stroke is not None:
         self.on_stroke(i, self.inked_polyline(i),
                        getattr(program, "name", None))
-    self.lift_pen()
+    yield from self.lift_pen_routine()
     return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,
             # Absent on a figure that ran to the end, so "finished" and "cut
             # short after four strokes" cannot read the same to an evaluator

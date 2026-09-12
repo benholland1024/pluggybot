@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 
+from pluggybot import tick
 from pluggybot import lifecycle as lc
 from pluggybot.economy.cadence import (
   CADENCE_ENV, CADENCE_VERSION, Cadence, TaskProducer, default_cadence,
@@ -448,8 +449,8 @@ def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
   # test is one branch, not a mission.
   errand = Errand(name="draw:nowhere", module="module_pen", station_y=0.0,
                   use_at=(500.0, 500.0), use=use)
-  life.mission.drive_to = lambda *a, **kw: False
-  life.mission.swap_at_bay = lambda *a, **kw: None
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
   life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
                                                      "hung": True}
   result = life.run_errand(errand)
@@ -492,8 +493,8 @@ def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
 
   errand = Errand(name="census:garden", module="module_lcd", station_y=0.0,
                   use_at=(500.0, 500.0), use=use, needs_use_pose=False)
-  life.mission.drive_to = lambda *a, **kw: False      # the drive gave up
-  life.mission.swap_at_bay = lambda *a, **kw: None
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)      # the drive gave up
+  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
   life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
                                                      "hung": True}
   result = life.run_errand(errand)
@@ -554,8 +555,8 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
                                {"module": ["module_lcd"]})
   # Nothing physical: the branch under test is the last one in `run()`, and
   # mapping a room to reach it would make this a mission test.
-  life.explore = lambda *a, **kw: setattr(life, "map_done", True)
-  life.mission.drive_to = lambda *a, **kw: True
+  life.explore_routine = lambda *a, **kw: tick.result(setattr(life, "map_done", True))
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
 
   # Two stand-by slices is the whole claim; 30 s of real physics for it was
   # 27 s of wall clock in a suite where this file costs under a second.
@@ -572,7 +573,7 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                           grid_bounds=cfg["grid_bounds"],
                           low_battery_wh=cfg["low_battery_wh"])
-  quiet.explore = lambda *a, **kw: setattr(quiet, "map_done", True)
-  quiet.mission.drive_to = lambda *a, **kw: True
+  quiet.explore_routine = lambda *a, **kw: tick.result(setattr(quiet, "map_done", True))
+  quiet.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   quiet.run(cfg["start"], max_sim_time=budget)
   assert quiet.data.time < budget, "a preset-errand mission stopped ending"

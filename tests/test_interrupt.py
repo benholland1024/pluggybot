@@ -421,11 +421,11 @@ def test_the_pen_stops_between_strokes_and_never_inside_one():
   import inspect
 
   from pluggybot.tools.drawing import PenPlotter
-  src = inspect.getsource(PenPlotter.draw_program)
+  src = inspect.getsource(PenPlotter.draw_program_routine)
   stop = src.index("self.should_stop()")
   #  The check sits above the lift/press machinery of the stroke it guards.
-  assert stop < src.index("self.lift_pen()", stop)
-  assert stop < src.index("self.press()", stop)
+  assert stop < src.index("self.lift_pen_routine()", stop)
+  assert stop < src.index("self.press_routine()", stop)
   #  ...and the inner segment loop, which is where "inside a stroke" is.
   assert stop < src.index("for k in range(steps)", stop)
 

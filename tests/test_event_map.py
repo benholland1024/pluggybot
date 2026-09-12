@@ -767,9 +767,9 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  src = inspect.getsource(HubLifecycle._arbitrate)
+  src = inspect.getsource(HubLifecycle._arbitrate_routine)
   stamp = src.index("_last_ask_t")
-  assert stamp < src.index("self._decide()", stamp), \
+  assert stamp < src.index("yield from self._decide_routine()", stamp), \
       "the ask stamps the clock before the call, so a failure cannot unstamp it"
   # ...and nothing else in the file writes it except the two places a LIFE
   # starts: mission start and a stand-up.
@@ -780,7 +780,8 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   # the one that would break this is a write next to a RESULT.
   whole = inspect.getsource(HubLifecycle)
   assert whole.count("self._last_ask_t = ") == 5
-  assert "_last_ask_t" not in inspect.getsource(HubLifecycle._after_decision)
+  assert "_last_ask_t" not in inspect.getsource(
+    HubLifecycle._after_decision_routine)
 
 
 def test_a_world_with_no_map_can_never_die_unminded(menu):
@@ -939,11 +940,14 @@ def test_the_arbitration_loops_shape_is_unchanged():
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  run = inspect.getsource(HubLifecycle.run)
-  assert run.count("self._arbitrate()") == 1
-  assert "self._decide()" not in run
-  arb = inspect.getsource(HubLifecycle._arbitrate)
-  assert "self._decide()" in arb, "no map is `_decide`, exactly as before"
+  # The loop is `_day_routine` since issue #58 -- `run()` drives it -- and
+  # every branch is spelled `yield from`; the shape is the same.
+  run = inspect.getsource(HubLifecycle._day_routine)
+  assert run.count("yield from self._arbitrate_routine()") == 1
+  assert "_decide_routine()" not in run
+  arb = inspect.getsource(HubLifecycle._arbitrate_routine)
+  assert "yield from self._decide_routine()" in arb, \
+    "no map is `_decide`, exactly as before"
   init = inspect.getsource(HubLifecycle.__init__)
   assert "step_hooks.append(self._events_step)" in init
 

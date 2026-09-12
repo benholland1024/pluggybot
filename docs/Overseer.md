@@ -23,7 +23,10 @@ is `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
 ## 1. Where it sits
 
 `HubLifecycle.run()` is a priority arbitration loop, and the mind is one
-branch of it:
+branch of it. Since issue #58 the loop is `_day_routine` — a ROUTINE, with
+every branch yielding its drive commands to the one loop that steps the
+physics (`pluggybot/tick.py`) — and `run()` drives it; the branch order and
+every rail below are exactly as they were:
 
 ```
 while the day is running:

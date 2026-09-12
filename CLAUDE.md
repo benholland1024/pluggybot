@@ -688,6 +688,24 @@ save a filmstrip PNG named after the script.
   `room_1.xml` add scenery. Never put scenery in the test world.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy, ix]`.
 - Odometry tracks the axle midpoint; `qpos` tracks the body origin 8 cm ahead.
+- **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue
+  #58; `pluggybot/tick.py`). A routine is a generator yielding one `(v, w)`
+  drive command per physics step and returning its result; `HubLifecycle.
+  run()` drives `_day_routine`, and every branch, errand, swap, drive and
+  tool motion beneath it is composed with `yield from`. Each keeps a
+  ONE-LINE blocking twin under its old name (`drive_to` = `run(drive_to_
+  routine(...))`) for scripts and tests — keep the twins thin, they are the
+  thing M12 deletes. ⚠ A ROUTINE CALL IS NOTHING UNTIL IT IS DRIVEN:
+  `self.drive_to_routine(x, y)` without `yield from` is a truthy object that
+  moved nothing; `tests/test_tick.py` walks the syntax tree for it. ⚠ An
+  exception from the step (`stop_when`'s `MissionAborted`) is THROWN INTO
+  the routine so `finally` blocks run where they always ran. ⚠ A test that
+  stubs a drive stubs the ROUTINE (`life.mission.drive_to_routine = lambda
+  *a, **kw: tick.result(False)`), never the twin. Parity is the trajectory
+  hash: `scripts/determinism_spike.py --compare` before and after, and the
+  refactor landed IDENTICAL over a 1500 s scripted `home` day. `_ask_
+  interrupt` and the dispenser are still blocking, on purpose and by
+  omission respectively.
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws. `control.slew` for wheels;

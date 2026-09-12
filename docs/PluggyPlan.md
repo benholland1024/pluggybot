@@ -97,7 +97,9 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    tower (`challenge/stack.py`).
 3. **Agent-written procedures.** Rung one is #58 — composable errands over
    the guarded primitives, with a test that only that vocabulary writes
-   `data.ctrl`. Rung two is a small, total procedure language: conditionals
+   `data.ctrl`. Its first half, the tick refactor (every manoeuvre a routine
+   ticked from one physics loop, `pluggybot/tick.py`), landed with parity;
+   the vocabulary is the second. Rung two is a small, total procedure language: conditionals
    and bounded loops over sensed scalars, arithmetic, a step budget and a
    sim-time budget, per-step verdicts, abort meaning stow. Not sandboxed
    Python; callable from event-map rows and standing orders.

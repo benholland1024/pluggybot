@@ -29,6 +29,7 @@ import json
 import mujoco
 import pytest
 
+from pluggybot import tick
 from pluggybot.economy import energy as en
 from pluggybot import lifecycle as lc
 from pluggybot.mind.thoughts import GOALS, ThoughtFiles
@@ -590,10 +591,12 @@ def test_the_charge_loop_is_bounded_by_the_scaled_cap_not_the_old_constant(
 
   def fake_press(seconds, *_a, **_k):
     life.data.time += float(seconds)
-  monkeypatch.setattr(life.mission, "_drive", fake_press)
+    return
+    yield
+  monkeypatch.setattr(life.mission, "_drive_routine", fake_press)
   monkeypatch.setattr(life.mission, "anchor_at_dock", lambda: None)
-  monkeypatch.setattr(life.mission.swap, "_drive_until",
-                      lambda *_a, **_k: None)
+  monkeypatch.setattr(life.mission.swap, "_drive_until_routine",
+                      lambda *_a, **_k: tick.result(None))
   life.charging_now = True                   # the pins conduct throughout
   life.battery.energy_wh = 0.9               # ...and it never fills
 

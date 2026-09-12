@@ -14,6 +14,7 @@ import math
 import mujoco
 import pytest
 
+from pluggybot import tick
 from pluggybot import lifecycle as lc
 from pluggybot.lifecycle import HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
@@ -131,7 +132,7 @@ def test_a_failed_dock_is_a_stuck_death_and_ends_a_day_nobody_can_reset(
   still ends, as it always did."""
   life = _life()
   life.battery.energy_wh = life.low_battery_wh * 0.5
-  monkeypatch.setattr(life, "go_charge", lambda: False)
+  monkeypatch.setattr(life, "go_charge_routine", lambda: tick.result(False))
   r = life.run(world_config("room_hub")["start"], max_sim_time=30.0,
                explore_budget=5.0)
   assert r["stranded"] and r["dead"] == "stuck"

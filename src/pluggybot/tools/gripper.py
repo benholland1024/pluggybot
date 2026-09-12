@@ -31,9 +31,11 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
-from pluggybot.control import square_up, wheel_targets, wrap_angle
+from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.rack.coupling import CLAW_JAW_TRAVEL
 from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
+from pluggybot import tick
+from pluggybot.tick import Routine
 
 CLAW_MODULE = "module_claw"
 JAW_GEOMS = ("module_claw_pad_l", "module_claw_pad_r")
@@ -135,8 +137,17 @@ class ClawTool:
 
   # ---- primitives ----------------------------------------------------------
 
+  # ---- the seam (issue #58) ------------------------------------------------
+  # Every manoeuvre below is a ROUTINE yielding one (v, w) command per
+  # physics step (pluggybot/tick.py), with a one-line blocking twin under its
+  # old name. The claw's steps carry no mission bookkeeping, as they never did.
+
   def jaws(self, opening: float, settle: float = SETTLE,
            speed: float = JAW_SPEED) -> None:
+    return self.swap.run(self.jaws_routine(opening, settle, speed))
+
+  def jaws_routine(self, opening: float, settle: float = SETTLE,
+                   speed: float = JAW_SPEED) -> Routine:
     """opening 0 = wide, 1 = fully closed. Ramped, like every other position
     setpoint on this robot.
 
@@ -152,11 +163,15 @@ class ClawTool:
     for k in range(steps):
       for act in self.jaw_acts:
         self.data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
-      self.swap._step_once(0.0, 0.0)
-    self.swap._run(settle, 0.0)
+      yield 0.0, 0.0
+    yield from self.swap._run_routine(settle, 0.0)
 
   def set_lift(self, target: float, settle: float = 1.2,
                speed: float = LIFT_SPEED) -> None:
+    return self.swap.run(self.set_lift_routine(target, settle, speed))
+
+  def set_lift_routine(self, target: float, settle: float = 1.2,
+                       speed: float = LIFT_SPEED) -> Routine:
     """Walk the lift setpoint at a bounded speed -- never write it across a
     gap. A stiff position servo handed a step delivers the whole difference
     as an impulse: raising to carry height in one command (184 mm) threw the
@@ -169,10 +184,14 @@ class ClawTool:
     steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
     for k in range(steps):
       self.data.ctrl[self.lift_act] = cur + (target - cur) * (k + 1) / steps
-      self.swap._step_once(0.0, 0.0)
-    self.swap._run(settle, 0.0)
+      yield 0.0, 0.0
+    yield from self.swap._run_routine(settle, 0.0)
 
   def lower_grip_to(self, world_z: float, settle: float = 1.5) -> float:
+    return self.swap.run(self.lower_grip_to_routine(world_z, settle))
+
+  def lower_grip_to_routine(self, world_z: float,
+                            settle: float = 1.5) -> Routine:
     """Put the jaw centre at a world height, by measured correction.
 
     The lift-to-grip offset includes RCC droop and the module's lean, so it
@@ -191,17 +210,21 @@ class ClawTool:
       err = world_z - float(self.grip_world()[2])
       if abs(err) < 0.0015:
         break
-      self.set_lift(now + err, settle=settle)
+      yield from self.set_lift_routine(now + err, settle=settle)
     return float(self.grip_world()[2]) - world_z
 
   def _face(self, heading: float, tol: float = 0.004, tries: int = 6) -> float:
+    return self.swap.run(self._face_routine(heading, tol, tries))
+
+  def _face_routine(self, heading: float, tol: float = 0.004,
+                    tries: int = 6) -> Routine:
     """Settle-and-recheck, as the plotter needed, and bounded (issue #108):
     `control.square_up` is the one implementation. Returns the final error;
     `self.squared` says whether the budget ran out first."""
-    err, self.squared = square_up(
+    err, self.squared = yield from square_up_routine(
       lambda: wrap_angle(heading - self.swap.reckoner.theta),
-      lambda w: self.swap._step_once(*wheel_targets(0.0, w)),
-      lambda: self.swap._run(SETTLE, 0.0),
+      lambda w: tick.once(0.0, w),
+      lambda: self.swap._run_routine(SETTLE, 0.0),
       lambda: float(self.data.time), tol=tol, tries=tries)
     return err
 
@@ -222,15 +245,19 @@ class ClawTool:
     return ax, ay
 
   def drive_over(self, obj_xy, heading: float, timeout: float = 45.0) -> bool:
+    return self.swap.run(self.drive_over_routine(obj_xy, heading, timeout))
+
+  def drive_over_routine(self, obj_xy, heading: float,
+                         timeout: float = 45.0) -> Routine:
     """Approach until the grip point is above the object, arm stowed.
 
     Stowed for the drive -- the rack taught that one, when an extended fork
     swept a module off its trays -- then deployed once lined up.
     """
     tx, ty = self.axle_pose_for(obj_xy, heading)
-    self.set_lift(APPROACH_LIFT, settle=0.5)
+    yield from self.set_lift_routine(APPROACH_LIFT, settle=0.5)
     self.data.ctrl[self.arm_act] = 0.0
-    self.swap._run(1.0, 0.0)
+    yield from self.swap._run_routine(1.0, 0.0)
     t0 = self.data.time
 
     # STAGE 1: go to a staging point back along the approach line, and only
@@ -247,23 +274,19 @@ class ClawTool:
               self.swap.reckoner.theta)
       if math.hypot(sx - pose[0], sy - pose[1]) < 0.03:
         break
-      v, w = drive_toward(pose, (sx, sy))
-      tl, tr = wheel_targets(v, w)
-      self.swap._step_once(tl, tr)
-    self._face(heading)
+      yield drive_toward(pose, (sx, sy))
+    yield from self._face_routine(heading)
 
-    def run_in():
+    def run_in_routine():
       while self.data.time - t0 < timeout:
         pose = (self.swap.reckoner.x, self.swap.reckoner.y,
                 self.swap.reckoner.theta)
         if math.hypot(tx - pose[0], ty - pose[1]) < 0.010:
           return
-        v, w = drive_toward(pose, (tx, ty))
-        tl, tr = wheel_targets(v, w)
-        self.swap._step_once(tl, tr)
+        yield drive_toward(pose, (tx, ty))
 
-    run_in()
-    self._face(heading)
+    yield from run_in_routine()
+    yield from self._face_routine(heading)
     # Back up and take another run at it. drive_toward's arrival radius is
     # happy to stop a couple of cm off the line, and the open jaws only span
     # +/-22 mm around a 26 mm object -- the first approach measured 26 mm
@@ -276,42 +299,48 @@ class ClawTool:
       lat = -dx * math.sin(heading) + dy * math.cos(heading)
       if abs(lat) < 0.006:
         break
-      self.swap._drive_until(0.30, -0.10, stall_stop=False)
-      run_in()
-      self._face(heading)
+      yield from self.swap._drive_until_routine(0.30, -0.10, stall_stop=False)
+      yield from run_in_routine()
+      yield from self._face_routine(heading)
 
     # Null the remaining along-track error by creeping.
     dx, dy = tx - self.swap.reckoner.x, ty - self.swap.reckoner.y
     along = dx * math.cos(heading) + dy * math.sin(heading)
     if abs(along) > 0.003:
-      self.swap._drive_until(abs(along), 0.04 * (1 if along > 0 else -1),
-                             stall_stop=False)
-    self.swap._run(SETTLE, 0.0)
+      yield from self.swap._drive_until_routine(
+        abs(along), 0.04 * (1 if along > 0 else -1), stall_stop=False)
+    yield from self.swap._run_routine(SETTLE, 0.0)
 
     self.data.ctrl[self.arm_act] = ARM_EXT
-    self.swap._run(1.5, 0.0)
+    yield from self.swap._run_routine(1.5, 0.0)
     return math.hypot(tx - self.swap.reckoner.x,
                       ty - self.swap.reckoner.y) < 0.03
 
   # ---- the verbs -----------------------------------------------------------
 
   def pick_up(self) -> dict:
+    return self.swap.run(self.pick_up_routine())
+
+  def pick_up_routine(self) -> Routine:
     """Open, drop astride the object, close, lift.
 
     Grasp physics stays ON from here until set_down(), because the carry in
     between is exactly the sustained hold that needs it.
     """
-    self.jaws(0.0)
-    residual = self.lower_grip_to(GRIP_Z)
-    self.jaws(1.0, settle=1.2)
+    yield from self.jaws_routine(0.0)
+    residual = yield from self.lower_grip_to_routine(GRIP_Z)
+    yield from self.jaws_routine(1.0, settle=1.2)
     gripped = self.holding()
-    self.set_lift(CARRY_LIFT, settle=1.5)
+    yield from self.set_lift_routine(CARRY_LIFT, settle=1.5)
     return {"gripped_before_lift": gripped, "holding": self.holding(),
             "lower_residual_mm": residual * 1000}
 
   def set_down(self) -> dict:
+    return self.swap.run(self.set_down_routine())
+
+  def set_down_routine(self) -> Routine:
     """Lower until the object is back on the floor, release, retreat upward."""
-    self.lower_grip_to(GRIP_Z)
-    self.jaws(0.0, settle=1.0)
-    self.set_lift(APPROACH_LIFT, settle=1.5)
+    yield from self.lower_grip_to_routine(GRIP_Z)
+    yield from self.jaws_routine(0.0, settle=1.0)
+    yield from self.set_lift_routine(APPROACH_LIFT, settle=1.5)
     return {"released": not self.holding()}
