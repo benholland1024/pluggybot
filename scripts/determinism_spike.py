@@ -90,12 +90,33 @@ def child(cfg: dict, trace_path: Path) -> None:
 
   def on_ready(life):
     d = life.data
+    # Hash the FIRST robot's world only (issue #167): with a second robot
+    # parked, its own qpos/qvel/ctrl are extra numbers in the arrays, and
+    # the parity claim is about the first robot's trajectory through a world
+    # that now holds another body. Everything else -- the modules, the
+    # world's free bodies -- stays in the hash.
+    m = life.model
+    other = [i for i in range(m.nbody)
+             if m.body(i).name.startswith("r2_")]
+    qmask = np.ones(m.nq, bool)
+    vmask = np.ones(m.nv, bool)
+    cmask = np.ones(m.nu, bool)
+    for j in range(m.njnt):
+      if int(m.jnt_bodyid[j]) in other:
+        qn = 7 if m.jnt_type[j] == 0 else (4 if m.jnt_type[j] == 1 else 1)
+        vn = 6 if m.jnt_type[j] == 0 else (3 if m.jnt_type[j] == 1 else 1)
+        qmask[m.jnt_qposadr[j]:m.jnt_qposadr[j] + qn] = False
+        vmask[m.jnt_dofadr[j]:m.jnt_dofadr[j] + vn] = False
+    for a in range(m.nu):
+      if m.actuator(a).name.startswith("r2_"):
+        cmask[a] = False
 
     def step():
       if d.time >= state["next"]:
         state["next"] = d.time + TRACE_EVERY_S
         log(k="step", t=round(float(d.time), 4),
-            q=_h(np.concatenate([d.qpos, d.qvel])), c=_h(d.ctrl),
+            q=_h(np.concatenate([d.qpos[qmask], d.qvel[vmask]])),
+            c=_h(d.ctrl[cmask]),
             wh=round(life.battery.energy_wh, 6), s=life.state)
     life.mission.step_hooks.append(step)
     life.say_hooks.append(lambda t, msg: log(k="say", t=round(float(t), 3), msg=msg))
@@ -108,7 +129,7 @@ def child(cfg: dict, trace_path: Path) -> None:
                thoughts_root=str(st / "thoughts"), ledger_state=str(st / "ledger.json"),
                board_state=str(st / "boards.json"), tasks_state=str(st / "tasks.json"),
                journal_state=str(st / "journal.json"), spend_state=str(st / "spend.json"),
-               on_ready=on_ready)
+               second_robot=cfg.get("secondRobot"), on_ready=on_ready)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
   out.close()
@@ -209,6 +230,10 @@ def main() -> int:
   ap.add_argument("--nthreads", type=int, default=None,
                   help="AprilTag detector threads (the shipped detector uses 2)")
   ap.add_argument("--sequential", action="store_true")
+  ap.add_argument("--second-robot", default=None, metavar="X,Y",
+                  help="park a second robot at X,Y (issue #167): the parity "
+                       "flight's other arm -- the first robot's day should "
+                       "hash identical to one flown alone")
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", default=None, metavar="DIR")
   args = ap.parse_args()
@@ -221,7 +246,9 @@ def main() -> int:
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   cfg = {"world": args.world, "pack": args.pack, "simS": args.sim_s,
-         "errand": args.errand, "nthreads": args.nthreads}
+         "errand": args.errand, "nthreads": args.nthreads,
+         "secondRobot": ([float(v) for v in args.second_robot.split(",")]
+                         if args.second_robot else None)}
   cfg_path = out / "config.json"
   cfg_path.write_text(json.dumps(cfg))
   env = {**os.environ, "MUJOCO_GL": os.environ.get("MUJOCO_GL", "egl")}

@@ -89,7 +89,8 @@ class Battery:
   """Tracks stored energy against the robot's actual actuator effort."""
 
   def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
-               fraction: float = 1.0, charge_scale: float = 1.0) -> None:
+               fraction: float = 1.0, charge_scale: float = 1.0,
+               prefix: str = "") -> None:
     if charge_scale <= 0.0:
       raise ValueError(f"charge_scale must be > 0, got {charge_scale}")
     self.capacity_wh = capacity_wh
@@ -101,12 +102,13 @@ class Battery:
     #: faster charge means more cycles an hour, more points, and a
     #: metabolism calibrated against a throughput that is not the real one.
     self.charge_scale = float(charge_scale)
-    self._wheel_acts = [model.actuator("left_motor").id,
-                        model.actuator("right_motor").id]
-    self._wheel_dofs = [model.joint("left_wheel_joint").dofadr[0],
-                        model.joint("right_wheel_joint").dofadr[0]]
-    self._screw_dofs = [model.joint("lift_joint").dofadr[0],
-                        model.joint("arm_joint").dofadr[0]]
+    # WHOSE motors (issue #167): the second robot's carry its prefix.
+    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
+                        model.actuator(prefix + "right_motor").id]
+    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
+                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
+    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
+                        model.joint(prefix + "arm_joint").dofadr[0]]
     self.last_power_w = 0.0
 
   def power_draw(self, data) -> float:

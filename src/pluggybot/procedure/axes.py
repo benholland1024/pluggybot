@@ -68,7 +68,10 @@ GATE_SPEED = 0.02
 def _ramp(actuator: str, settle: float = 0.5):
   def run(life, target: float) -> Routine:
     axis = next(a for a in AXES.values() if a.actuator == actuator)
-    act = life.model.actuator(actuator).id
+    # a body axis (lift, arm) is THIS robot's; a tool's axis is the module's
+    # and shared (issue #167) -- the handle says which
+    name = actuator if axis.requires else life.mission.swap.handle.el(actuator)
+    act = life.model.actuator(name).id
     yield from life.mission.swap.ramp_routine(act, float(target), axis.speed,
                                               settle=settle)
   return run
@@ -103,7 +106,11 @@ for _a in list(AXES.values()):
     AXES[_a.name] = Axis(**{**_a.__dict__, "run": _ramp(_a.actuator)})
 
 
-def _joint(life, name: str) -> float:
+def _joint(life, name: str, body: bool = True) -> float:
+  """A joint position, measured. `body` joints are this robot's (prefixed
+  by its handle, issue #167); a module's joint is the world's."""
+  if body:
+    name = life.mission.swap.handle.el(name)
   return float(life.data.qpos[life.model.joint(name).qposadr[0]])
 
 
@@ -134,7 +141,8 @@ def _seated(life) -> float:
   from pluggybot.procedure.steps import _carried
   from pluggybot.rack.coupling import module_power_contact
   tool = _carried(life)
-  return 1.0 if tool and module_power_contact(life.model, life.data, tool) else 0.0
+  return 1.0 if tool and module_power_contact(
+    life.model, life.data, tool, life.mission.swap.handle.prefix) else 0.0
 
 
 def _last_look(life, key: str, default: float) -> float:
@@ -161,7 +169,7 @@ SENSORS: dict[str, Sensor] = {
   "pen.contact": Sensor("pen.contact", _pen_contact,
                         "1 while the pen touches something", requires="module_pen"),
   "pen.carriage": Sensor("pen.carriage",
-                         lambda life: _joint(life, "pen_carriage_joint"),
+                         lambda life: _joint(life, "pen_carriage_joint", body=False),
                          "the carriage's position, m", requires="module_pen"),
   "claw.holding": Sensor("claw.holding", _claw_holding,
                          "1 while both pads hold something", requires="module_claw"),

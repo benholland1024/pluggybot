@@ -19,6 +19,7 @@ from pluggybot.rack.coupling import (
   HUB_PEG_Z, HUB_STATION_YS, LIFT_STEP, PEG_R, RACK_HANG_X, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
+from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
 PLUG_LATERAL = 0.05       # the fork line rides 5 cm right of the robot
@@ -105,15 +106,22 @@ def press_opposes_drive(contact_x_body: float, v_wheels: float) -> bool:
 class HubSwap:
   """Scripted pick/return cycles for one robot in hub_world.xml."""
 
-  def __init__(self, model, data) -> None:
+  def __init__(self, model, data, handle: RobotHandle = FIRST) -> None:
     self.model, self.data = model, data
-    m = model
-    self.left_act = m.actuator("left_motor").id
-    self.right_act = m.actuator("right_motor").id
-    self.lift_act = m.actuator("lift").id
-    self.left_adr = m.joint("left_wheel_joint").qposadr[0]
-    self.right_adr = m.joint("right_wheel_joint").qposadr[0]
-    self.gyro_adr = m.sensor("imu_gyro").adr[0]
+    #: WHICH ROBOT (issue #167): every element below resolves through it,
+    #: and the first robot's handle is the bare names the world always had.
+    self.handle = handle
+    m, el = model, handle.el
+    self.left_act = m.actuator(el("left_motor")).id
+    self.right_act = m.actuator(el("right_motor")).id
+    self.lift_act = m.actuator(el("lift")).id
+    self.arm_act = m.actuator(el("arm")).id
+    self.lift_qadr = m.joint(el("lift_joint")).qposadr[0]
+    self.arm_qadr = m.joint(el("arm_joint")).qposadr[0]
+    self.root_qadr = handle.qpos_adr(m)
+    self.left_adr = m.joint(el("left_wheel_joint")).qposadr[0]
+    self.right_adr = m.joint(el("right_wheel_joint")).qposadr[0]
+    self.gyro_adr = m.sensor(el("imu_gyro")).adr[0]
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
     #: PRESSED AGAINST SOMETHING THAT WILL NOT MOVE. While this is set, dead
     #: reckoning stops integrating TRAVEL -- the heading still comes off the
@@ -147,10 +155,16 @@ class HubSwap:
     #: -- which is why the signal is the BUMPER (scripts/stall_spike.py).
     self.pressing = False
     self.press_steps = 0
-    self.chassis_gid = m.geom("chassis").id
+    self.chassis_gid = m.geom(el("chassis")).id
     self.chassis_bid = int(m.geom_bodyid[self.chassis_gid])
-    self.left_dof = m.joint("left_wheel_joint").dofadr[0]
-    self.right_dof = m.joint("right_wheel_joint").dofadr[0]
+    self.left_dof = m.joint(el("left_wheel_joint")).dofadr[0]
+    self.right_dof = m.joint(el("right_wheel_joint")).dofadr[0]
+    # The plug-era robot has no fork (tests/test_rack_belief.py drives the
+    # swap's reckoner on it); the site is what `module_state` reads.
+    try:
+      self.vertex_sid = m.site(el("fork_vertex")).id
+    except KeyError:
+      self.vertex_sid = -1
     self._press_side = 0.0      # sign of the last pressing contact's x_body
     self._press_until = -1.0    # sim time the release dwell runs to
     # Optional per-step callback. Every phase of both the swap and the
@@ -167,16 +181,16 @@ class HubSwap:
     yaw = math.pi + math.radians(dyaw_deg)
     axle_x = RACK_HANG_X + STANDOFF
     axle_y = station_y - PLUG_LATERAL + dy
-    d = self.data
-    d.qpos[0] = axle_x + 0.08 * math.cos(yaw)
-    d.qpos[1] = axle_y + 0.08 * math.sin(yaw)
-    d.qpos[2] = 0.045
-    d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+    d, q = self.data, self.root_qadr
+    d.qpos[q] = axle_x + 0.08 * math.cos(yaw)
+    d.qpos[q + 1] = axle_y + 0.08 * math.sin(yaw)
+    d.qpos[q + 2] = 0.045
+    d.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
     lift0 = align_lift()
-    d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
+    d.qpos[self.lift_qadr] = lift0
     d.ctrl[self.lift_act] = lift0
-    d.ctrl[self.model.actuator("arm").id] = ARM_EXT
-    d.qpos[self.model.joint("arm_joint").qposadr[0]] = ARM_EXT
+    d.ctrl[self.arm_act] = ARM_EXT
+    d.qpos[self.arm_qadr] = ARM_EXT
     mujoco.mj_forward(self.model, d)
     self._run(1.0, 0.0)                  # settle
     self.reckoner.x, self.reckoner.y, self.reckoner.theta = axle_x, axle_y, yaw
@@ -411,7 +425,7 @@ class HubSwap:
     the fork, or hanging in a bay. Bay membership is checked too -- without
     it, a module dropped one bay over reads as correctly stowed."""
     p = self.data.xpos[self.model.body(name).id]
-    vx = self.data.site_xpos[self.model.site("fork_vertex").id]
+    vx = self.data.site_xpos[self.vertex_sid]
     lx, ly, lz = self.rack_frame(p)
     peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
     on_fork = (abs(float(p[0]) - float(vx[0])) < 0.03

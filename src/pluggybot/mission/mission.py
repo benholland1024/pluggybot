@@ -52,6 +52,7 @@ from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
+from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
@@ -165,8 +166,9 @@ class TagSpotter:
                 depth buffer, which is also what hardware will have.
   """
 
-  def __init__(self, model) -> None:
-    self.detector = TagDetector(model, "dock_eye", tag_size=SMALL_TAG_SIZE)
+  def __init__(self, model, handle: RobotHandle = FIRST) -> None:
+    self.detector = TagDetector(model, handle.el("dock_eye"),
+                                tag_size=SMALL_TAG_SIZE)
 
   def detect(self, data) -> dict:
     return self.detector.detect(data)
@@ -228,9 +230,12 @@ class HubMission:
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                rack: RackPose | None = None,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
-               ) -> None:
+               handle: RobotHandle = FIRST) -> None:
     self.model, self.data = model, data
-    self.swap = HubSwap(model, data)
+    #: WHICH ROBOT (issue #167). The swap, the lidar, the cameras and every
+    #: element below resolve through it; `FIRST` is the bare names.
+    self.handle = handle
+    self.swap = HubSwap(model, data, handle=handle)
     # What the robot believes about the rack. The prior is what a robot
     # that booted on its dock knows; discover_rack() replaces it with what
     # the robot has actually seen.
@@ -263,7 +268,8 @@ class HubMission:
     # not per phase, or a long terminal creep is free.
     self.step_hooks: list = []
     self.swap.on_step = self._on_step
-    self.lidar = Lidar(model)
+    self.lidar = Lidar(model, site_name=handle.el("lidar"),
+                       robot_body=handle.root)
     self._next_scan = 0.0
     # Bounds are per-WORLD (issue #6): room_hub keeps its historical box,
     # home_world passes its own from the generator's meta -- a grid sized
@@ -271,13 +277,13 @@ class HubMission:
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
                               resolution=0.05)
-    self.tags = TagSpotter(model)
+    self.tags = TagSpotter(model, handle=handle)
     self.cruise_timestep = model.opt.timestep
     self.backoff_until = 0.0
     self.step_count = 0
     self.collision_steps = 0
-    self.chassis_gid = model.geom("chassis").id
-    self._cam_id = model.camera("dock_eye").id
+    self.chassis_gid = model.geom(handle.el("chassis")).id
+    self._cam_id = model.camera(handle.el("dock_eye")).id
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
 
@@ -307,19 +313,19 @@ class HubMission:
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Place the robot and initialize odometry from the known start pose."""
-    d = self.data
-    d.qpos[0] = x + 0.08 * math.cos(yaw)
-    d.qpos[1] = y + 0.08 * math.sin(yaw)
-    d.qpos[2] = 0.045
-    d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+    d, q = self.data, self.swap.root_qadr
+    d.qpos[q] = x + 0.08 * math.cos(yaw)
+    d.qpos[q + 1] = y + 0.08 * math.sin(yaw)
+    d.qpos[q + 2] = 0.045
+    d.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
     # swap's lift preset. Imported, NOT re-typed: these were duplicated as
     # bare 0.016/0.008 here, so raising the fork mount for the lean-pad would
     # have silently left this copy pointing at the old geometry.
     lift0 = align_lift()
-    d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
-    d.ctrl[self.model.actuator("lift").id] = lift0
-    d.ctrl[self.model.actuator("arm").id] = 0.0     # stowed for driving
-    d.qpos[self.model.joint("arm_joint").qposadr[0]] = 0.0
+    d.qpos[self.swap.lift_qadr] = lift0
+    d.ctrl[self.swap.lift_act] = lift0
+    d.ctrl[self.swap.arm_act] = 0.0     # stowed for driving
+    d.qpos[self.swap.arm_qadr] = 0.0
     mujoco.mj_forward(self.model, d)
     r = self.swap.reckoner
     r.x, r.y, r.theta = x, y, yaw
@@ -408,7 +414,8 @@ class HubMission:
   def start_discovery(self) -> None:
     """Begin watching for the rack tag (every maneuver from here on)."""
     if self.finder is None:
-      self.finder = RackFinder(self.model)
+      self.finder = RackFinder(self.model,
+                               camera_name=self.handle.el("left_eye"))
 
   def refresh_rack(self) -> RackPose | None:
     """Adopt the discovered rack pose if the tag has been confirmed.
@@ -581,13 +588,13 @@ class HubMission:
     measured, after a successful stow, by the robot driving along the rack
     to the charge bay and knocking the module it had just put away off its
     trays. Tuck the arm before you drive."""
-    self.data.ctrl[self.model.actuator("arm").id] = extension
+    self.data.ctrl[self.swap.arm_act] = extension
     yield from self._drive_routine(settle, 0.0, 0.0)
 
   def _vertex_ahead_of_camera(self) -> float:
     """Fork vertex forward of the dock camera, along the current heading."""
     cam = self.data.cam_xpos[self._cam_id]
-    vtx = self.data.site_xpos[self.model.site("fork_vertex").id]
+    vtx = self.data.site_xpos[self.swap.vertex_sid]
     h = self.pose[2]
     return ((float(vtx[0]) - float(cam[0])) * math.cos(h)
             + (float(vtx[1]) - float(cam[1])) * math.sin(h))
@@ -677,7 +684,7 @@ class HubMission:
     det = dets.get(tag_id)
     if det is None:
       return None
-    bid = int(self.model.geom("chassis").bodyid[0])
+    bid = self.swap.chassis_bid
     body_r = self.data.xmat[bid].reshape(3, 3)
     cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
     cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
@@ -846,8 +853,9 @@ class HubMission:
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
         # and it is the CHASSIS that must meet the pins (see steer_fn)
         steer_fn=self.steer_fn(CHARGE_TAG_ID, target=-PLUG_LATERAL),
-        stop_fn=lambda: rack_charge_contact(self.model, self.data))
-      if rack_charge_contact(self.model, self.data):
+        stop_fn=lambda: rack_charge_contact(self.model, self.data,
+                                            self.handle.prefix))
+      if rack_charge_contact(self.model, self.data, self.handle.prefix):
         return why
     return why
 
@@ -912,7 +920,7 @@ class HubMission:
     if verb == "pick":
       lift_entry = align_lift()
     else:
-      lift_entry = float(self.data.ctrl[self.model.actuator("lift").id])
+      lift_entry = float(self.data.ctrl[self.swap.lift_act])
     for attempt in range(max(tries, 1)):
       if verb == "pick" or attempt:
         yield from self.swap._run_routine(1.5, 0.0, lift_target=lift_entry)
@@ -972,7 +980,7 @@ class HubMission:
       st = self.swap.module_state(module)
       if verb == "pick":
         ok = st["on_fork"] and module_power_contact(self.model, self.data,
-                                                    module)
+                                                    module, self.handle.prefix)
       else:
         ok = st["hung"]
       if ok:

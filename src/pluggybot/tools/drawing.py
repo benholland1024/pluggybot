@@ -262,8 +262,8 @@ class PenPlotter:
     #: it leaves is scored as the robot's work.
     self.should_stop = None
     self.pen_act = model.actuator("pen_carriage").id
-    self.lift_act = model.actuator("lift").id
-    self.arm_act = model.actuator("arm").id
+    self.lift_act = swap.lift_act
+    self.arm_act = swap.arm_act
     self.pen_site = model.site("pen_tip").id
     self.cal: dict = {}
     # (t, board_y, board_z, commanded_y, commanded_z, touching, stroke)

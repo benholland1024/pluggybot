@@ -148,9 +148,11 @@ def _stub_life():
       calls.append((name, a))
       return tick.result(value)
     return make
+  from pluggybot.robot import FIRST
   swap = SimpleNamespace(module_state=lambda tool: {"on_fork": False, "hung": True},
                          set_lift_routine=routine("set_lift"),
-                         ramp_routine=routine("ramp"), pressing=False)
+                         ramp_routine=routine("ramp"), pressing=False,
+                         handle=FIRST)
   model = SimpleNamespace(actuator=lambda name: SimpleNamespace(id=0))
   mission = SimpleNamespace(
     swap=swap, swap_at_bay_routine=routine("swap", "arrived"),
