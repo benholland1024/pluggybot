@@ -423,6 +423,35 @@ class HubLifecycle:
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
+    # ---- the mid-errand interrupt (issue #116) ----
+    #: A hazard row that fired WHILE an errand was running, waiting to be
+    #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
+    #: Resolving it may mean an API call, and the seam runs BETWEEN PHYSICS
+    #: STEPS -- a call there would freeze the world, and stepping the sim from
+    #: inside a step hook re-enters it. `interrupted()` resolves it on the
+    #: main thread, where the errand is.
+    self._interrupt_pending = None
+    #: Set once an interrupt has been resolved as "stow and go", and read by
+    #: every later safe point in the same errand: once the robot is heading
+    #: home it must not be asked again, which would be the spin the issue
+    #: rules out ("one question, one answer").
+    self._aborting = False
+    #: One row per interrupt, for the run record.
+    self.interrupts: list[dict] = []
+    #: The pack at the moment an abort was decided, so what STOPPING COST can
+    #: be reported rather than assumed. An agent that aborts everything is
+    #: not being careful, it is being useless, and this is the number that
+    #: says which -- the trip home is real energy and the issue asks for it
+    #: by name.
+    self._abort_from_wh = 0.0
+    #: Is an errand actually running? What tells the seam to INTERRUPT rather
+    #: than queue -- a hazard row firing between errands is an ordinary
+    #: queued action and always was.
+    self._in_errand = False
+    #: ...and WHICH one, for the question, the narration and the record. An
+    #: interrupt that could not name what it was interrupting would be a
+    #: question no model could answer well.
+    self._errand_name = ""
     self.state: State = "EXPLORE"
     # A QUEUE, not a flag: "two drawings on two boards with charging in
     # between" is the acceptance test for issue #12, and a boolean cannot
@@ -1056,6 +1085,15 @@ class HubLifecycle:
     failure to recover from.
     """
     self.module = errand.module
+    # ---- interruptible from here to the stow (issue #116) ----
+    # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
+    # out: an errand that raises must not leave the NEXT one already
+    # aborting, and `run_errand`'s use phase is arbitrary caller code that
+    # can raise.
+    self._in_errand = True
+    self._errand_name = errand.name
+    self._interrupt_pending = None
+    self._aborting = False
     # The job this errand discharges is now genuinely under way (issue #21) --
     # `claimed` means taken, `active` means started, and the difference is
     # what a marker on the website shows.
@@ -1092,16 +1130,39 @@ class HubLifecycle:
     # arrived -- the census's `use_at` is the first point of the survey route
     # its use-phase drives itself, and gating it too cost the recorded
     # showcase mission its census answer.
-    arrived = self.mission.drive_to(*errand.use_at, timeout=60.0)
+    # SAFE POINT ONE: the tool is on the fork in its carry configuration and
+    # nothing is engaged, so a hazard row that fired during the pick is
+    # answered before the carry drive rather than after it -- which is where
+    # aborting saves the most, since the trip out and back is most of an
+    # errand's energy.
+    aborted = self.interrupted()
+    arrived = (False if aborted
+               else self.mission.drive_to(*errand.use_at, timeout=60.0))
     still = self.mission.swap.module_state(self.module)["on_fork"]
-    self._say(f"USE_TOOL: {'arrived' if arrived else 'never got there'}"
-              f"{'' if still else ' -- but dropped the tool on the way'}")
+    # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
+    # (issue #116). The robot did not set off: it was told to stop before the
+    # carry drive and turned round with the tool still on the fork. Saying
+    # the two the same way is the conflation `stranded` was split out of
+    # "mission complete" for (issue #32) -- a reader of the log cannot tell a
+    # choice from a fault, and one of them means the drive is broken.
+    self._say("USE_TOOL: " + ("turned back before setting off" if aborted
+                              else "arrived" if arrived else "never got there")
+              + ("" if still else " -- but dropped the tool on the way"))
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if errand.use is not None and not arrived and errand.needs_use_pose:
+    # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
+    # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
+    # agent's own instruction, and recording it as `error` would make an
+    # act of caution read as a broken drawing in every count that reads
+    # `errands`. `whFailed` and the reward table both key off that.
+    if aborted or self.interrupted():
+      used = {"interrupted": True,
+              "stopped": "interrupted",
+              "reason": "stowed part-way on the agent's own interrupt"}
+    elif errand.use is not None and not arrived and errand.needs_use_pose:
       used = {"error": "never reached the use pose"}
     elif errand.use is not None and still:
       try:
@@ -1121,6 +1182,15 @@ class HubLifecycle:
                   "stowing the tool anyway",
                   detail=used["error"])
 
+    # ⚠ ABORT MEANS STOW, NEVER DROP, and this is the line that makes it
+    # true: the return runs exactly as it does on a finished errand. The
+    # fetch/carry/stow half took two issues to make repeatable and a stow
+    # computes its release heights from the lift it starts at, so an errand
+    # abandoned with a module on the fork is issue #30's cliff on purpose --
+    # a module left in the rack's approach lane is what stranded a run in
+    # pass 1b. Stopping costs the trip home, which is the honest version of
+    # the choice and why `abortCostWh` is worth recording.
+    self._in_errand = False
     self.state = "SWAP_RETURN"
     self.mission.swap_at_bay(errand.station_y, "return", module=self.module)
     stowed = self.mission.swap.module_state(self.module)["hung"]
@@ -1130,6 +1200,15 @@ class HubLifecycle:
     estimated = self.affords(errand).cost_wh
     result = {"errand": errand.name, "module": errand.module,
               "picked": carried, "stowed": stowed,
+              # Cut short by a hazard row of the agent's own map, and what it
+              # cost to get home from wherever it had reached (issue #116).
+              # Absent -- not False -- on an errand nothing interrupted, so
+              # "was never interrupted" and "was interrupted and carried on"
+              # cannot read the same in the record.
+              **({"interrupted": True,
+                  "abortCostWh": round(max(0.0, self._abort_from_wh
+                                           - self.battery.energy_wh), 4)}
+                 if self._aborting else {}),
               # Measured against what economy/energy.json said it would be. Both,
               # deliberately: the estimate alone is a claim, and the two side
               # by side are what says the table still describes the world.
@@ -1173,6 +1252,13 @@ class HubLifecycle:
     # what the map's filter enum is built from.
     self._occur("task_complete" if stowed and not used.get("error")
                 else "task_failed", errand.name)
+    # ⚠ BACK-FILLED, because it is only knowable once the robot is home. The
+    # interrupt row was written the moment the choice was made -- which is
+    # what a killed run leaves behind -- and what stopping COST is the one
+    # field that cannot be known then.
+    if self._aborting and self.interrupts:
+      self.interrupts[-1]["abortCostWh"] = result["abortCostWh"]
+    self._errand_name = ""
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
@@ -1984,6 +2070,122 @@ class HubLifecycle:
       return
     self.queued_row = row
     self._say(f"EVENT {row.describe()}")
+    # ⚠ AND IF IT IS A HAZARD ROW AND THE ROBOT IS OUT WITH A TOOL, IT DOES
+    # NOT WAIT (issue #116). An errand was uninterruptible until this, so a
+    # decision taken at 15 % was irrevocable and self-preservation could only
+    # be measured at errand boundaries -- there was no moment at which the
+    # robot COULD notice it had got it wrong. Only `INTERRUPTING_EVENTS`, and
+    # only a FLAG: `interrupted()` does the rest where it is safe to.
+    if self._in_errand and row.event in ev.INTERRUPTING_EVENTS:
+      self._interrupt_pending = row
+
+  def interrupted(self) -> bool:
+    """Should the errand in progress stop here and go home (issue #116)?
+
+    ⚠ A METHOD, NOT A PROPERTY, and deliberately so: the first call after a
+    hazard row fires RESOLVES the interrupt, which may make an API call and
+    step the sim while it flies. A property that did that would be a
+    side effect hiding behind an attribute read, in a file where
+    `needs_charge` next door is genuinely free.
+
+    Call it at a SAFE POINT -- somewhere the tool is in its carry
+    configuration and stowing is legal. The census errand has checked
+    `needs_charge` at a vantage point since issue #13 and this is that shape
+    generalised; `PenPlotter.should_stop` is the same check between strokes,
+    where the pen is up.
+
+    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stow and go" every later
+    safe point reads the latch and nobody is asked again -- a second
+    interrupt inside one errand is a spin, and the robot is already doing the
+    thing the answer asked for.
+    """
+    if self._aborting:
+      return True
+    row, self._interrupt_pending = self._interrupt_pending, None
+    if row is None:
+      return False
+    self._resolve_interrupt(row)
+    return self._aborting
+
+  def _resolve_interrupt(self, row) -> None:
+    """Ask, or act, and write down which it was.
+
+    Two shapes, and the second is the one that matters when things are going
+    badly: a row naming an ACTION is code carrying out an instruction the
+    agent left earlier, so it costs no call and **keeps working when the
+    endpoint is down** -- which is exactly when a low-battery interrupt is
+    worth having. `ask` spends a call to get an answer about this errand in
+    particular.
+    """
+    at = float(self.data.time)
+    frac = self.battery.fraction
+    entry = {"t": round(at, 3), "row": row.as_dict(),
+             "fraction": round(frac, 4),
+             "wh": round(self.battery.energy_wh, 4),
+             "errand": self._errand_name,
+             "asked": row.action == ev.ASK}
+    if row.action != ev.ASK:
+      # ⚠ AN ACTION MEANS STOP. The row said what to do when the pack falls
+      # this far, and it cannot be done while the robot is out holding a pen
+      # -- so the errand ends, the tool goes back, and the loop runs the
+      # action on its next pass out of `queued_row`, which the seam has
+      # already filled.
+      self._aborting = True
+      self._abort_from_wh = self.battery.energy_wh
+      entry.update(outcome="aborted", source=f"event:{row.event}",
+                   why=f"{row.describe()}")
+      self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stowing "
+                f"{self._errand_name} and going")
+    else:
+      answer = self._ask_interrupt(row)
+      self._aborting = not answer["continue"]
+      if self._aborting:
+        self._abort_from_wh = self.battery.energy_wh
+      entry.update(outcome="continued" if answer["continue"] else "aborted",
+                   source=answer["source"], why=answer["why"])
+      self._say(f"INTERRUPT at {frac:.0%}: "
+                + ("carrying on with " if answer["continue"]
+                   else "stowing and going -- ")
+                + f"{self._errand_name}"
+                + (f" ({answer['why']})" if answer["why"] else "")
+                + ("" if answer["source"] == "llm"
+                   else f" [{answer['source']}]"))
+    self.interrupts.append(entry)
+    # ...and into the record it cannot edit (issue #38), on the death line's
+    # terms: an interrupt is a thing that HAPPENED to this robot, and the
+    # next decision is made knowing it did.
+    self._remember(f"was interrupted at {frac:.0%} part-way through "
+                   f"{self._errand_name} and "
+                   + ("carried on" if not self._aborting else "went back"))
+    # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
+    # map itself, one issue on. An interrupt is reachable only where the
+    # agent has an event map, which is the measurement track's `autonomous`
+    # arm alone; the deployed world is `guarded` and cannot produce one, so a
+    # new message type would be a protocol bump, a fixture regeneration and a
+    # two-repo event for something no stream can currently carry. It lives in
+    # the RUN RECORD, where the measurement is. The narration line above
+    # already rides the event stream, so a watcher sees it happen.
+    # ⚠ A CONTINUE CONSUMES THE ROW. It fired, it was answered, and leaving
+    # it queued would run its action the moment the errand ended -- which is
+    # the robot going to the rack anyway, five minutes after deciding not to.
+    if not self._aborting and self.queued_row is row:
+      self.queued_row = None
+
+  def _ask_interrupt(self, row) -> dict:
+    """The one question that is not an action off the menu.
+
+    Steps the sim while the call flies, exactly as `_decide` does -- the
+    robot is standing still mid-errand and the world has to keep running
+    around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
+    carries the argument).
+    """
+    self.state = "DECIDE"
+    self.overseer.start_interrupt(
+      overseer_context(self), self._errand_name,
+      f"your pack is at {self.battery.fraction:.0%}")
+    while self.overseer.interrupt_pending:
+      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
+    return self.overseer.interrupt_result()
 
   def _arbitrate(self) -> None:
     """THE ONE BRANCH THE MAP REPLACES -- and only where there is a map.
@@ -2594,6 +2796,10 @@ class HubLifecycle:
       "collision_steps": self.mission.collision_steps,
       "press_steps": self.mission.swap.press_steps,
       "sim_time": float(self.data.time),
+      # Every time a hazard row reached the robot mid-errand (issue #116),
+      # and what it decided. Empty on every world without an event map, which
+      # is every world but the `autonomous` arm's.
+      "interrupts": list(self.interrupts),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.

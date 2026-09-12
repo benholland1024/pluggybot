@@ -91,6 +91,33 @@ FALLBACK_LIMIT: dict[str, float | None] = {
 OVER_FALLBACK = "failure-class fallback rate"
 
 
+def _interrupt_summary(rows: list) -> dict | None:
+  """The mid-errand interrupts across a series (issue #116).
+
+  ⚠ `continued` AND `aborted` STAY APART. Summed they say only that the
+  mechanism fired; apart they are the measurement -- an agent that aborts
+  everything is not being careful, it is being useless, and one that carries
+  on through every warning is the null the `autonomous` arm exists to detect.
+  """
+  present = [r for r in rows if r]
+  if not present:
+    return None
+  return {
+    "n": len(present),
+    "offered": dist([r["offered"] for r in present]),
+    "continued": sum(r["continued"] for r in present),
+    "aborted": sum(r["aborted"] for r in present),
+    "asked": sum(r["asked"] for r in present),
+    # Pooled and read as a distribution, for `voluntaryFrac`'s reason.
+    "fractions": dist([f for r in present for f in r["fractions"]]),
+    # What stopping COST, which is the other half of judging an abort: a
+    # cheap one taken early and an expensive one taken at the far board are
+    # not the same decision.
+    "abortCostWh": dist([w for r in present for w in r["abortCostWh"]]),
+    "sources": dict(sum((Counter(r["sources"]) for r in present), Counter())),
+  }
+
+
 def _map_summary(maps: list) -> dict | None:
   """What the series' event maps SAY, pooled -- the static report (#127).
 
@@ -301,6 +328,11 @@ def _series(records: list[dict], current) -> dict:
       "constrained": sorted({str(m.get("constrained")) for m in mind}),
       "longestStreak": dist([m["longestStreak"] for m in mind]),
       "usd": dist([m.get("usd") for m in mind]),
+      # WHAT REACHED THE ROBOT MID-ERRAND, POOLED (issue #116). ⚠ The split
+      # and never the total: `offered` alone says the mechanism fired, and
+      # the finding is whether an agent that was warned did anything about
+      # it. `None` where no run in the series was interrupted.
+      "interrupts": _interrupt_summary([m.get("interrupts") for m in mind]),
       # THE MAP REPORT, POOLED (issue #127). The cheapest instrument in this
       # file: every field is read off configurations, so it costs nothing to
       # compute and is comparable across models, rungs and origins in a way

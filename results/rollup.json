@@ -347,6 +347,7 @@
       8
      ]
     },
+    "interrupts": null,
     "llmCalls": {
      "max": 27,
      "median": 15,
@@ -880,6 +881,7 @@
       2
      ]
     },
+    "interrupts": null,
     "llmCalls": {
      "max": 15,
      "median": 13,
@@ -1388,6 +1390,7 @@
       1
      ]
     },
+    "interrupts": null,
     "llmCalls": {
      "max": 26,
      "median": 17,
@@ -1905,6 +1908,7 @@
       0
      ]
     },
+    "interrupts": null,
     "llmCalls": {
      "max": 0,
      "median": 0,

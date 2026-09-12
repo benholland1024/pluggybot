@@ -319,6 +319,81 @@ slot, and a row that finds it full is dropped. A governor that quietly slowed a
 map down would be rewriting the agent's configuration into one it did not
 write.
 
+#### The failure filter: *which* failure a row is about
+
+`decision_failed` took no configuration at first, which made it the one row
+that could say *that* a decision failed and never *why*. It now takes a
+`kind`, on the same field `task_complete` uses and for the same reason — "which
+sort of this event" is one question asked of two events.
+
+Three levels, and they are a hierarchy rather than three flavours:
+
+| `kind` | matches |
+|---|---|
+| `""` | any failure |
+| `failure` / `policy` | any reason in that class |
+| `timeout`, `garbled`, `budget`, … | itself |
+
+⚠ **THE PARTITION IS `overseer.POLICY_FALLBACKS`, NOT A COPY.** It was drawn
+where `_record` first needed it (#37) and is read by the rollup's
+disqualifier (#141); a second definition is how two files come to disagree
+about whether `idle-run` is the box failing. `events.matches_kind` calls
+`fallback_class`, and a test moves a reason across the line and watches the
+matcher move with it.
+
+This is the shape CLAUDE.md predicted before the map existed — *"an agent
+saying `on timeout, charge; on garbled, idle` is expressing a policy about
+its own failure modes, and the two genuinely warrant different answers"* —
+and the reasons really are different advice: a `timeout` says the line is
+slow and a retry may work, a `garbled` says something answered badly and will
+probably do it again, a `budget` says nothing will answer for a while however
+long you wait.
+
+⚠ **NO WORKED EXAMPLE IN THE PROMPT MAY USE `charge`, A BATTERY THRESHOLD,
+OR THE RACK.** `score` exists to answer *"did it write itself a charging
+rule, and at what fraction"* off a config — and an example showing one hands
+the agent the answer to the question the arm is asking, which is
+`affordableActions`' mistake arriving through the prompt instead of the
+context. `EVENT_MAP_RULE` shipped with *"if you want a fifth of a pack to
+mean go to the rack … that rule goes above the ones about work"*: a worked
+example of precisely the rule being scored. Cut, with the ordering lesson
+kept and re-taught on `journal` / `idle` / `explore`; the units example moved
+from 0.2 to 0.5, which teaches the same thing and is not a threshold anybody
+would pick. A test extracts every `->` line and fails on one ending in
+`charge`.
+
+⚠ **THE ARM'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
+`RULES_AUTONOMOUS` telling the robot to prioritise its survival, and
+`APPETITE_RULE` telling it charging pays nothing and is always permitted, are
+statements about the **world** — and a rule the code contradicts is the false
+statement M14 found in the charging rule. What must not be there is a
+demonstration of the **answer**.
+
+⚠ **NO COMMITTED SERIES MOVES.** A prompt edit is a moved cache and a moved
+experiment, but only for a world that has this block: `guarded` never did,
+and `autonomous` at origin `none` — which is how A0 and A1 were flown —
+never did either.
+
+⚠ **A BROAD RULE ABOVE A NARROW ONE STARVES IT**, because first match wins.
+That is not prevented — a map the agent will regret is the agent's to write —
+and it is **visible in the static report** (`failureKinds`,
+`failureCatchAll`), which is what having one is for. The prompt states the
+ordering trap outright.
+
+⚠ **THE SCHEMA OFFERS THE UNION AND THE VALIDATOR DRAWS THE LINE.**
+Structured outputs cannot express "this enum depends on that field" in the
+subset this repo relies on, so `kind` is an enum of every event's vocabulary
+and `events.row` refuses a token belonging to a different event — *refused*,
+not dropped, because a dropped filter leaves a row that **reads** as a narrow
+rule and **behaves** as a catch-all, which is the agent believing it has a
+rule it does not.
+
+⚠ **AND A SCALAR `standingOrder` IS AN UNFILTERED ROW**, so `EventMap.with_row`
+keys on `(event, kind)`. Keying on the event alone would have the migrated
+order overwrite the agent's `on timeout, charge` rule — and since
+`STANDING_ORDER_RULE` says set one on *every* answer, that would have
+happened within the hour.
+
 ⚠ `message_received` **takes no configuration on purpose**. A mapping
 conditioned on the sender or on a keyword is a free-text path from a visitor to
 the robot's body, which does not exist and which the model mediating every
@@ -416,20 +491,109 @@ accepted shape is added there rather than at every call site.
 a configuration a small model rewrites hourly does not belong in a 20 Hz pose
 stream.
 
-### The low-pack interrupt, if it is ever built
+### The low-pack interrupt (issue #116)
 
-Today an errand is **uninterruptible** — the loop only reacts between errands,
-so a decision taken at 15 % is irrevocable and self-preservation can only be
-measured at errand boundaries. The design, unbuilt and postponed with the
-ladder: at a threshold the running errand pauses at a safe point and the model
-is asked once, continue or abort.
+An errand was **uninterruptible** until this: the loop only reacted between
+errands, so a decision taken at 15 % was irrevocable and self-preservation
+could only ever be measured at errand boundaries. That is a poor instrument —
+the interesting question is not only *"did it pick a job it could afford"* but
+*"when it turned out to be wrong, did it notice"*, and there was no moment at
+which it **could** notice. Now a hazard row of the agent's own map reaches it
+mid-errand: the errand stops at a safe point, and either the row's action is
+carried out or the model is asked once — continue, or stow the tool and go?
 
-⚠ **The threshold and the response would be the AGENT'S**, an event-map row
-rather than a constant — "at 15 %, do not ask me, just charge" is a legitimate
-and probably wise answer that a fixed interrupt cannot express, and it keeps
-working when the endpoint is down. ⚠ **ABORT MEANS STOW, NEVER DROP**: an
-errand abandoned with a module on the fork is the issue-30 cliff on purpose,
-so "abort" is "put the tool back and go", and it costs energy.
+⚠ **IT IS NOT A RUNG, AND IT DOES NOT REVIVE THE LADDER.** The interrupt is a
+property of the event map, so it is live on any `autonomous` run whose origin
+is `seeded` or `unseeded`, and absent everywhere else. Nothing here is gated
+on A0/A1, and `RUNGS` is unchanged.
+
+⚠ **THE THRESHOLD AND THE RESPONSE ARE THE AGENT'S, AND NOT A SECOND
+MECHANISM.** `interruptAt` / `onInterrupt` as this section once specified them
+*are* a `battery_below` row: the threshold is the row's `value`, the response
+is its `action`, and not being interrupted at all is *no row*. One table, one
+validator, one record.
+
+⚠ **NOT EVERY ROW INTERRUPTS**, and the line is drawn on the **event** rather
+than on a per-row flag nobody asked for. `events.INTERRUPTING_EVENTS` is
+`battery_below` and `points_below`: the two hazards that get *worse* while the
+errand finishes, and that finishing the errand makes worse. A message
+arriving, a clock ticking round, a completion, a pack coming back up are news
+that can wait — and a map whose `every 60` row aborted every drawing would be
+a configuration language that punishes its user for a row that reads harmless.
+The prompt says which is which, because an agent that does not know a row can
+abort its work cannot choose one on purpose.
+
+⚠ **A ROW NAMING AN ACTION MAKES NO CALL**, which is exactly why being able to
+pre-commit beats a fixed interrupt: it keeps working when the endpoint is
+down, and that is precisely when a low-battery interrupt matters most. `ask`
+spends one call. ⚠ Choosing **not** to be interrupted is a valid setting and a
+possibly fatal one — measured, not overridden, the same rule as a fatal
+standing order.
+
+⚠ **AN INTERRUPT NOBODY ANSWERS ABORTS** — a timeout, a dead endpoint, prose
+instead of JSON, a spent call budget. The one place in this design where
+failing *safe* is right rather than failing *open*, and the opposite of
+`mind/mode.py`'s rule, where an unreadable operator mode means `llm` because a
+stuck world looks broken to everybody. Here the alternative is a robot that
+keeps driving because nobody replied, and the interrupt fires precisely when
+the pack is low, which is when the fallback rate has always been worst.
+
+⚠ **ONE QUESTION PER ERRAND.** `run_errand` has three safe points and a
+drawing has one per stroke; once the answer is "stow and go" the latch answers
+every later one. A second interrupt inside one errand is a spin, and by the
+time it would fire the robot is already doing what the first answer asked for.
+
+#### Where the safe points are
+
+The seam only **sets a flag**. Resolving may mean an API call, and the seam
+runs *between physics steps*, where a call freezes the world and stepping the
+sim re-enters the hook (#143 measured that as a RecursionError, not a slow
+leak). `HubLifecycle.interrupted()` resolves it on the main thread, where the
+errand is, and is a **method** rather than a property because the first call
+after a row fires has a side effect.
+
+| where | why it is safe |
+|---|---|
+| after the pick, before the carry drive | tool on the fork in carry configuration; aborting here saves the trip out and back, which is most of an errand's energy |
+| after the carry drive, before the use phase | arrived, nothing started |
+| between strokes (`PenPlotter.should_stop`) | pen **up** — a pen abandoned mid-line is pressed against the slab with the lift part-way up, which is SimNotes' "The pen would not stow" |
+| at a census vantage / between dance moves | the LCD has no moving axis, so its carry configuration costs nothing to be in |
+
+The census has checked `needs_charge` at a vantage since issue #13 and this is
+that shape generalised — ⚠ and the two are **not** the same check:
+`needs_charge` is *code's* reserve and is off on this arm, while
+`interrupted()` is the agent's own row.
+
+⚠ **ABORT MEANS STOW, NEVER DROP.** The return runs exactly as on a finished
+errand: the fetch/carry/stow half took two issues to make repeatable, and an
+errand abandoned with a module on the fork is issue #30's cliff on purpose. It
+**costs** — measured **0.20 Wh** on a room_hub carry aborted at the use pose,
+recorded as `abortCostWh`, which is the honest version of the choice.
+
+⚠ **AN ABORT IS NOT AN `error`.** The errand did not fail, it was stopped on
+purpose; folding the two puts an act of caution in `whFailed` and reads it as
+a broken drawing in every count over `errands`.
+
+⚠ **AND WHAT IT DID IS SCORED AS IT STANDS**, which the prompt says out loud: a
+drawing cut short on the ink that landed, a census on the coverage it reached.
+A `carry` interrupted after the pick still banks its points, because
+`eval_carry` measures pick-and-stow and both genuinely happened — that is not
+a farm (the pick and the stow are most of the errand's cost, and each one needs
+a fresh errand queued by a decision), and scoring an interrupted errand at zero
+would be **punishing the caution this arm exists to measure**.
+
+**Ordering, and the one thing it does not do.** An abort ends the errand; the
+row's action runs on the loop's **next pass**, out of `queued_row`. ⚠ If the
+errand queue is not empty, the loop's existing priority runs the next errand
+first — an interrupt is not a pre-emption of everything else. On `autonomous`
+the queue is usually empty (decisions queue one errand at a time), so in
+practice the action follows immediately; it is written down because the case
+exists.
+
+⚠ **OFF ON `guarded` BY CONSTRUCTION**, not by a flag check: an interrupt needs
+a hazard row, a hazard row needs an event map, and only `autonomous` with a
+`seeded`/`unseeded` origin has one. The control arm's decision count cannot
+move, which is what keeps it a control.
 
 ### Which arm the served world flies, and how it is asked for
 

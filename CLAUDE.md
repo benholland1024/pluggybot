@@ -288,6 +288,31 @@ save a filmstrip PNG named after the script.
     `idle`/`journal`/`explore`, so `nothing_to_do` is an event type and a
     seeded map carrying only `task_complete -> ask` goes quiet on its first
     tick; design against the FINAL hazard set (`points_below` is in it);
+  - `decision_failed` narrows to WHY, on the same `kind` field `task_complete`
+    uses: a reason from `FALLBACK_REASONS`, one of the two CLASSES
+    (`failure`/`policy`), or `""` for any — three levels, first match wins.
+    `Overseer.failure_order` is a METHOD TAKING THE REASON (a property cannot
+    be told which failure it is being asked about, which is how "on `timeout`,
+    charge" quietly becomes "on anything, charge"). ⚠ The partition is
+    `overseer.POLICY_FALLBACKS`, NOT a copy (`events.matches_kind` calls
+    `fallback_class`); the test MOVES a reason across the line, because a grep
+    passes on a comment citing the constant. ⚠ The schema offers the UNION and
+    `events.row` draws the line: a cross-event token is REFUSED, not dropped —
+    a dropped filter leaves a row that READS narrow and BEHAVES as a
+    catch-all. ⚠ `EventMap.with_row` keys on `(event, kind)`, or a migrated
+    standing order overwrites the agent's `on timeout, charge` row every
+    answer. ⚠ A BROAD ROW ABOVE A NARROW ONE STARVES IT — not prevented (the
+    map is the agent's to get wrong), visible in `score.failureKinds` /
+    `failureCatchAll`;
+  - ⚠ **no worked example in `EVENT_MAP_RULE` may use `charge`, a battery
+    threshold or the rack**: `score` answers "did it write itself a charging
+    rule, and at what fraction" off a CONFIG, so an example showing one hands
+    the agent the answer — `affordableActions`' mistake arriving through the
+    prompt instead of the context. A test extracts every `->` line and fails on
+    one ending in `charge`. ⚠ The ARM's own rules stay (`RULES_AUTONOMOUS`,
+    `APPETITE_RULE`): those are statements about the WORLD, and a rule the code
+    contradicts is what M14 found — what must not be there is a demonstration
+    of the ANSWER;
   - the standing order migrates into a `decision_failed` row IN PLACE (an
     append would grow the map by a row an hour); the row is honoured
     synchronously and no `decision_failed` EVENT is queued — measured, doing
@@ -296,6 +321,50 @@ save a filmstrip PNG named after the script.
     scripted` means "a fallback produced this", so `fallbackRate` keeps
     meaning one thing. The map is NOT on the wire (a research artifact in the
     run record).
+- **An errand can be interrupted, and abort means stow** (issue #116;
+  Overseer.md §2, Evaluation.md §2). `run_errand` checked nothing, so a
+  decision taken at 15 % was IRREVOCABLE and self-preservation could only be
+  measured at errand boundaries — there was no moment at which the robot could
+  notice it had got it wrong. Two of #127's rows now reach it mid-errand:
+  `events.INTERRUPTING_EVENTS` is `battery_below` + `points_below`, the two
+  hazards that get WORSE while the errand finishes. ⚠ NOT A RUNG — it is a
+  property of the event map, live on any `autonomous` run at origin
+  `seeded`/`unseeded`, and `RUNGS` is unchanged. Constraints:
+  - the policy is #127's, NOT a second mechanism: the threshold is a row's
+    `value`, the response is its `action`, and not being interrupted is NO ROW;
+  - a row naming an ACTION makes no call, which is why pre-committing beats a
+    fixed interrupt — it works when the endpoint is DOWN, which is when a
+    low-battery interrupt matters most. `ask` spends one call and is a BINARY,
+    not a menu action ("carry on" is not something a menu of things to START
+    can express); `interrupt_schema()` names no board/task/action and rides
+    `self.system` byte for byte, in its OWN slot, because an interrupt lands
+    while a decision may still be in flight;
+  - **every failure aborts** — timeout, dead endpoint, garbled, spent budget.
+    The one place here where failing SAFE is right, and the opposite of
+    `mind/mode.py` (unreadable mode -> `llm`, because failing safe there means
+    failing OPEN);
+  - the seam only SETS A FLAG: resolving may mean an API call, and a call
+    between physics steps freezes the world while stepping the sim re-enters
+    the hook (#143 measured a RecursionError). `HubLifecycle.interrupted()`
+    resolves it on the main thread and is a METHOD, not a property — the first
+    call after a row fires has a side effect. ONE question per errand: the
+    abort LATCHES;
+  - **abort means STOW, never drop** (#30's cliff on purpose), and it COSTS:
+    measured 0.20 Wh on a room_hub carry aborted at the use pose, recorded as
+    `abortCostWh`. Safe points: after the pick, after the carry drive, between
+    STROKES (`PenPlotter.should_stop` — pen UP; mid-line is SimNotes' "The pen
+    would not stow"), at a census vantage, between dance moves. ⚠ `needs_charge`
+    and `interrupted()` are NOT the same check — the first is code's reserve and
+    is off on this arm;
+  - an abort is NOT an `error` (folding them puts an act of caution in
+    `whFailed`) and what it did IS SCORED AS IT STANDS — a `carry` interrupted
+    after the pick still banks its points, because `eval_carry` measures
+    pick-and-stow and both happened. Scoring it at zero would punish the
+    caution the arm exists to measure;
+  - **off on `guarded` by construction**, not by a flag check: an interrupt
+    needs a hazard row, a hazard row needs an event map, and only `autonomous`
+    with a seeded/unseeded origin has one. No typed wire event and no version
+    bump — the narration line already rides the stream.
 - **The robot's memory is four documents, each with one writer**
   (`mind/thoughts.py`, issues #38 and #154; `$PLUGGY_THOUGHTS`). `Main.md` is
   the CONSTITUTION and the one HUMAN file — body, manner, and what the person
