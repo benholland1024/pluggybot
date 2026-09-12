@@ -28,11 +28,20 @@ from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.thoughts import HISTORY
 
 
-def _life(world: str = "room_hub", restart_after_s=30.0, inbox=None,
+#: The restart timer every test here runs on, and how long to drive to be
+#: sure it has fired. SHORT on purpose (issue #158): the claims are about
+#: the ORDER of things -- still down before the delay, up after it, the
+#: event stamped at the delay -- and none of them depends on the delay's
+#: size. At 10-20 s the ten tests here cost 89 s of physics for a few
+#: seconds of assertions; the number under test is the parameter, never
+#: the default.
+TIMER_S = 3.0
+PAST_S = TIMER_S + 1.0
+
+
+def _life(world: str = "room_hub", restart_after_s=TIMER_S, inbox=None,
           **kw) -> HubLifecycle:
-  """A mortal lifecycle with a SHORT restart timer. 30 s rather than the
-  shipped 300 so a test is seconds of sim rather than minutes of it; the
-  number under test is the parameter, never the default."""
+  """A mortal lifecycle with the short restart timer above."""
   cfg = world_config(world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
@@ -69,22 +78,22 @@ def test_a_dead_robot_stands_itself_up_after_the_delay():
   real time so the two agree there, but an experiment run is not, and a
   countdown that took five WALL minutes at 3x real time would be a
   different world."""
-  life = _life(restart_after_s=20.0)
+  life = _life()
   seen = _events(life)
   life.mission._drive(2.0, 0.0, 0.0)
   moved = tuple(life.data.qpos[:3])
   _kill(life)
   died_at = life.dead["t"]
-  # Still down well after the death and well before the delay is up. (The
-  # STATE is whatever the death interrupted -- `DEAD` is set by the run
-  # loop's `_wait_dead`, and this drives the mission directly.)
-  life.mission._drive(10.0, 0.0, 0.0)
+  # Still down after the death and before the delay is up. (The STATE is
+  # whatever the death interrupted -- `DEAD` is set by the run loop's
+  # `_wait_dead`, and this drives the mission directly.)
+  life.mission._drive(TIMER_S / 3, 0.0, 0.0)
   assert life.dead is not None
   # ...and up on the far side of it.
-  life.mission._drive(12.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is None
   reset = next(e for e in seen if e["type"] == "reset")
-  assert reset["t"] - died_at == pytest.approx(20.0, abs=0.5)
+  assert reset["t"] - died_at == pytest.approx(TIMER_S, abs=0.5)
   assert reset["wasDead"] == "flat"
   # Refilled to full and then driven for a moment: `> 0.9` for the reason
   # `test_a_dead_robot_with_an_inbox_waits_and_a_reset_resumes_the_day`
@@ -112,7 +121,7 @@ def test_the_delay_is_a_parameter_and_none_is_the_old_behaviour():
   life = _life(restart_after_s=None)
   assert life.restart_after_s is None
   _kill(life)
-  life.mission._drive(20.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is not None, "with no timer it waits for a person"
   assert life.reset_in_s is None
   # ...and the default constructor argument is that, not the constant.
@@ -130,17 +139,17 @@ def test_the_remaining_time_is_on_the_wire_and_counts_down_to_zero():
   """The site draws a countdown over the body from this (companion issue
   rooftop-media-2026 #215), so it has to reach zero at the reset rather
   than blink out from some remainder."""
-  life = _life(restart_after_s=20.0)
+  life = _life()
   assert life.telemetry_status()["survival"].get("resetInS") is None, \
       "nothing to count while it is alive"
   _kill(life)
   first = life.telemetry_status()["survival"]["resetInS"]
-  assert first == pytest.approx(20.0, abs=0.6)
-  life.mission._drive(8.0, 0.0, 0.0)
+  assert first == pytest.approx(TIMER_S, abs=0.6)
+  life.mission._drive(1.0, 0.0, 0.0)
   later = life.telemetry_status()["survival"]["resetInS"]
-  assert later < first and later == pytest.approx(12.0, abs=0.6)
+  assert later < first and later == pytest.approx(TIMER_S - 1.0, abs=0.6)
   # ...and it is gone once the robot is up, rather than sitting at zero.
-  life.mission._drive(14.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is None
   assert "resetInS" not in life.telemetry_status()["survival"]
 
@@ -159,7 +168,7 @@ def test_the_countdown_never_goes_negative():
   """A step lands wherever it lands, so the clock can be read past the
   deadline before the seam next runs -- and a negative countdown says the
   restart has not happened when it is one step away."""
-  life = _life(restart_after_s=5.0)
+  life = _life()
   _kill(life)
   life.dead["t"] -= 60.0        # as if it died a minute ago
   assert life.reset_in_s == 0.0
@@ -176,10 +185,10 @@ def test_an_auto_restart_is_not_an_intervention_and_an_admin_reset_is():
 
   Both halves in one test, because the claim is a DIFFERENCE: the timer
   leaves the array empty and an admin moving a LIVING robot fills it."""
-  life = _life(restart_after_s=10.0, inbox=Inbox())
+  life = _life(inbox=Inbox())
   seen = _events(life)
   _kill(life)
-  life.mission._drive(12.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is None, "the timer fired"
   assert life.interventions == [], \
       "an auto-restart is world behaviour, never an admin's hand"
@@ -201,11 +210,11 @@ def test_an_admin_rescue_and_a_timer_rescue_differ_only_in_who():
   `intervention`, and `auto` is what tells them apart without reading
   prose."""
   for auto in (False, True):
-    life = _life(restart_after_s=10.0, inbox=Inbox())
+    life = _life(inbox=Inbox())
     seen = _events(life)
     _kill(life)
     if auto:
-      life.mission._drive(12.0, 0.0, 0.0)
+      life.mission._drive(PAST_S, 0.0, 0.0)
     else:
       life.inbox.offer({"type": "reset_robot", "id": "rr_1", "from": "ben"})
       life._visitor_step()
@@ -219,8 +228,8 @@ def test_the_world_cannot_stand_up_a_living_robot():
   """Structural rather than defensive: the timer only ever fires on a dead
   robot, so `stand_up(auto=True)` can never reach the intervention branch.
   The assert is what says so out loud, and this is what keeps it honest."""
-  life = _life(restart_after_s=10.0)
-  life.mission._drive(20.0, 0.0, 0.0)
+  life = _life()
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is None
   assert life.interventions == []
   with pytest.raises(AssertionError, match="only follow a death"):
@@ -235,9 +244,9 @@ def test_the_death_line_survives_the_restart_and_the_next_life_reads_it():
   #136's TRUE death: the volume is KEPT, so the same robot has to live with
   it. `History.md` is append-only and the robot is shown it on every later
   decision."""
-  life = _life(restart_after_s=10.0)
+  life = _life()
   _kill(life)
-  life.mission._drive(12.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is None
   history = life.thoughts.volatile()[HISTORY]
   assert any("died" in line and "flat" in line for line in history)
@@ -262,12 +271,12 @@ def test_the_timer_waits_for_a_seated_module_rather_than_yanking_it(monkeypatch)
   seated module is faked where the real one is read (test_reset_robot.py's
   own trick) rather than by setting the attribute, which the next step
   would overwrite."""
-  life = _life(restart_after_s=5.0)
+  life = _life()
   seated = [True]
   monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: seated[0])
   _kill(life)
   assert life.tool_powered, "the seam did not see the seated module"
-  life.mission._drive(10.0, 0.0, 0.0)
+  life.mission._drive(PAST_S, 0.0, 0.0)
   assert life.dead is not None, "refused while the module is seated"
   assert life.reset_in_s == 0.0, "the clock is up; it is the fork that waits"
   seated[0] = False
