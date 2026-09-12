@@ -78,7 +78,7 @@ markers = [
     # see `HubLifecycle.stop_when`.
     # ⚠ AND THE FULL SUITE HAS A BUDGET (CLAUDE.md, "Working style"): past
     # 10 minutes quiet / 15 busy needs Ben's explicit approval, stated in the
-    # PR. It is 6:54 as of 2026-09-12 and it was 18 minutes the day before,
+    # PR. It is 7:35 as of 2026-09-12 and it was 18 minutes the day before,
     # one reasonable-looking mission test at a time.
     "slow: expensive, and cannot catch a regression while you iterate",
     # `endurance` is a SUBSET of `slow` that does not run at all unless asked

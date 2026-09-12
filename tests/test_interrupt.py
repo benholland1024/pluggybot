@@ -250,6 +250,7 @@ def fly(tmp_path, tag, row, client=None, errand="carry", extra=0,
                   on_ready=ready, **kw)
 
 
+@pytest.mark.slow
 def test_an_aborted_errand_puts_the_module_back_on_its_bracket(tmp_path):
   """⚠ THE RULE THAT CANNOT BE GOT WRONG. The fetch/carry/stow half took two
   issues to make repeatable and a stow computes its release heights from the
@@ -284,7 +285,14 @@ def test_an_aborted_errand_puts_the_module_back_on_its_bracket(tmp_path):
       "and it says what actually happened"
 
 
+# ⚠ BEHIND `--endurance` (issue #158): at 317 s this is the suite's longest
+# test, and its regressable half -- an aborted errand hangs its module back
+# -- is proved in the default run by
+# `test_an_aborted_errand_puts_the_module_back_on_its_bracket`. What only
+# this one shows is that the errand AFTER a cut-short stow also fetches
+# cleanly, which is an integration claim: run it before a release.
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_later_errand_runs_cleanly_after_an_abort(tmp_path):
   """The acceptance criterion, and the reason it is worth a whole mission: a
   stow that half-worked shows up on the NEXT FETCH, not on the errand that
@@ -315,6 +323,7 @@ def test_a_later_errand_runs_cleanly_after_an_abort(tmp_path):
   assert out["module_stowed"]
 
 
+@pytest.mark.slow
 def test_a_row_naming_an_action_needs_no_call_at_all(tmp_path):
   """⚠ WHICH IS WHY IT KEEPS WORKING WHEN THE ENDPOINT IS DOWN -- exactly
   when a low-battery interrupt is worth having. The agent pre-committed, so

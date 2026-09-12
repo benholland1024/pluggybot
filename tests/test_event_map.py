@@ -655,6 +655,7 @@ def test_the_default_origin_leaves_a0_exactly_as_it_was_flown():
     arm_flags("autonomous", "A0", "invented")
 
 
+@pytest.mark.slow
 def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   """⚠ THE BOOTSTRAP, AND `unseeded` CANNOT RUN WITHOUT IT. An empty map has
   no `ask` row, so without this the agent is never consulted, never writes a
@@ -839,6 +840,7 @@ def test_the_seeded_map_reproduces_the_pre_change_loop_decision_for_decision():
                               0.0) is None
 
 
+@pytest.mark.slow
 def test_a_seeded_mission_asks_where_the_old_one_asked(menu, tmp_path):
   """The same claim end to end, through the real lifecycle: a mission flown
   with the seeded map makes the same decisions, in the same order, as one
