@@ -50,14 +50,19 @@ def test_the_four_files_and_their_writers_are_the_wire_vocabulary():
   document on the wire under a name no client has a renderer for."""
   assert NAMES == THOUGHT_FILES
   assert {s.writer for s in SPECS.values()} <= set(THOUGHT_WRITERS)
-  assert SPECS[MAIN].writer == SPECS[GOALS].writer == HUMAN
+  # ⚠ ONE human file since issue #154: `Main.md` is the CONSTITUTION and
+  # `Goals.md` became the robot's own. The ownership is the whole point of
+  # that issue -- quality 5 of the mission is read off a file nobody but the
+  # robot writes -- so it is pinned here rather than left to the table.
+  assert SPECS[MAIN].writer == HUMAN
+  assert SPECS[GOALS].writer == ROBOT
   assert SPECS[HISTORY].writer == SYSTEM
   assert SPECS[KNOWLEDGE].writer == ROBOT
 
 
 @pytest.mark.parametrize("name,by", [
-  (MAIN, ROBOT), (MAIN, SYSTEM),          # nothing writes the persona
-  (GOALS, ROBOT), (GOALS, SYSTEM),        # nor the goals
+  (MAIN, ROBOT), (MAIN, SYSTEM),          # nothing writes the constitution
+  (GOALS, HUMAN), (GOALS, SYSTEM),        # the goals are the ROBOT's (#154)
   (HISTORY, ROBOT),                       # the robot cannot edit its past
   (KNOWLEDGE, SYSTEM),                    # ...and code does not think for it
 ])
@@ -75,30 +80,34 @@ def test_a_write_by_the_wrong_writer_is_refused_and_visible(files, name, by):
   assert files.writes[name] == 0
 
 
-def test_the_robot_writes_exactly_one_file(files):
-  """...and the one it writes is its own."""
+def test_the_robot_writes_exactly_two_files(files):
+  """...and both of them are its own (issue #154)."""
   assert files.learn("whiteboard_b is the one people look at", t=2.0)
   assert files.read(KNOWLEDGE) == "whiteboard_b is the one people look at"
-  # The other three are unreachable from the robot's two verbs: `learn` and
-  # `unlearn` name KNOWLEDGE in code, and the general `append` checks the
-  # table. There is no verb that takes a file name from a model at all.
-  assert files.writes[KNOWLEDGE] == 1
-  assert all(files.writes[n] == 0 for n in NAMES if n != KNOWLEDGE)
+  assert files.intend("ink both boards this week", t=3.0)
+  assert files.read(GOALS) == "ink both boards this week"
+  # The other two are unreachable from the robot's four verbs: each names its
+  # file in code, and the general `append` checks the table. There is no verb
+  # that takes a file name from a model at all.
+  assert files.writes[KNOWLEDGE] == 1 and files.writes[GOALS] == 1
+  assert all(files.writes[n] == 0 for n in (MAIN, HISTORY))
 
 
-def test_a_human_file_is_read_from_disk_and_never_written_back(tmp_path):
+def test_the_constitution_is_read_from_disk_and_never_written_back(tmp_path):
   root = tmp_path / "thoughts"
   ThoughtFiles(root)
-  # Missing human files are materialised once, so there is something to edit.
-  assert (root / MAIN).exists() and (root / GOALS).exists()
-  (root / GOALS).write_text("Draw a robot on every wall.\n")
+  # The one human file is materialised once, so there is something to edit.
+  assert (root / MAIN).exists()
+  (root / MAIN).write_text("You are a careful robot who likes the garden.\n")
 
   reopened = ThoughtFiles(root)
-  assert reopened.read(GOALS) == "Draw a robot on every wall."
+  assert reopened.read(MAIN) == "You are a careful robot who likes the garden."
   # A whole run's worth of the robot's own writing must not touch it.
   reopened.learn("the garden is bigger than it looks", t=3.0)
+  reopened.intend("plant the empty row", t=3.5)
   reopened.record("charged to 92%", t=4.0)
-  assert (root / GOALS).read_text() == "Draw a robot on every wall.\n"
+  assert (root / MAIN).read_text() == \
+    "You are a careful robot who likes the garden.\n"
 
 
 def test_the_pre_38_goals_file_still_wins(tmp_path):
@@ -114,19 +123,30 @@ def test_the_pre_38_goals_file_still_wins(tmp_path):
   assert legacy.read_text() == "Water the garden, then rest.\n"
 
 
-def test_a_fresh_deploy_finds_files_to_edit(tmp_path):
-  """The human half is only editable if a person can FIND it. A missing
-  Main.md or Goals.md is written out with the defaults the robot is already
-  living by -- at the resolved path, so `$PLUGGY_GOALS` gets the file rather
-  than the thoughts directory getting a second one."""
+def test_a_fresh_deploy_finds_the_constitution_to_edit(tmp_path):
+  """The human half is only editable if a person can FIND it, so a missing
+  `Main.md` is written out with the defaults the robot is already living by.
+
+  ⚠ AND `Goals.md` IS NOT ONE OF THEM SINCE ISSUE #154. The bootstrap exists
+  so a PERSON finds a file to edit; the goals are the robot's, and laying out
+  an empty file for them would invite exactly the edit the ownership split
+  exists to stop. It appears when the robot writes its first goal, like the
+  other two files nobody hand-edits.
+  """
   root, legacy = tmp_path / "thoughts", tmp_path / "goals.md"
   files = ThoughtFiles(root, goals_path=legacy)
   assert (root / MAIN).read_text().strip() == files.read(MAIN)
-  assert legacy.read_text().strip() == files.read(GOALS)
+  assert not legacy.exists(), "an empty goals file was laid out for a human"
   # The files code and the robot write are NOT created up front: they do not
   # exist until there is something in them, and a bootstrap is not a write.
   assert not (root / HISTORY).exists() and not (root / KNOWLEDGE).exists()
   assert all(n == 0 for n in files.writes.values())
+  # ...and the robot's first goal lands at the RESOLVED path, so a deploy
+  # pointing `$PLUGGY_GOALS` at a file still gets that file rather than the
+  # thoughts directory quietly growing a second one.
+  files.intend("ink both boards this week", t=1.0)
+  assert legacy.read_text().strip() == "ink both boards this week"
+  assert not (root / GOALS).exists()
 
   # ...and reading without a root creates nothing at all: `goals_text(path)`
   # must not have a file as a side effect.
@@ -266,8 +286,11 @@ def test_every_change_is_published_as_it_happens(files):
   assert seen[0]["text"] == "bay C sticks"
   # A REFUSED write publishes nothing: the file did not change.
   with pytest.raises(ThoughtRefused):
-    files.append(GOALS, "mine now", by=ROBOT, t=3.0)
+    files.append(MAIN, "I hereby rewrite myself", by=ROBOT, t=3.0)
   assert len(seen) == 2
+  # ...and the robot's own goals stream exactly as its opinions do (#154).
+  files.intend("ink both boards", t=4.0)
+  assert [m["name"] for m in seen] == [KNOWLEDGE, HISTORY, GOALS]
 
 
 # ---- the prompt cache, which is the issue's trap ------------------------------
@@ -280,8 +303,13 @@ def test_only_the_human_files_ride_the_cached_prefix():
   through neither, which looks from outside exactly like a robot that never
   learns anything."""
   files = ThoughtFiles()
-  assert set(files.stable()) == {MAIN, GOALS}
-  assert set(files.volatile()) == {HISTORY, KNOWLEDGE}
+  # ⚠ ONE file rides the prefix since issue #154: `Goals.md` became the
+  # ROBOT's, so it had to move to the volatile half with the other two the
+  # robot and the code write. The flags are not independent -- a
+  # robot-written file left in the prefix is shown as it stood at mission
+  # start for the rest of the run.
+  assert set(files.stable()) == {MAIN}
+  assert set(files.volatile()) == {GOALS, HISTORY, KNOWLEDGE}
   assert set(files.stable()) | set(files.volatile()) == set(NAMES)
   assert not set(files.stable()) & set(files.volatile())
 
@@ -299,9 +327,14 @@ def test_what_the_robot_writes_it_can_read_back_the_same_run():
   files = ThoughtFiles()
   files.learn("bay C sticks a little", t=1.0)
   files.record("charged to 92%", t=2.0)
+  files.intend("draw on the far board this week", t=3.0)
   turn = ov._user_turn({"thoughts": files.volatile()})
   assert "bay C sticks a little" in turn
   assert "charged to 92%" in turn
+  # ...and the robot's GOALS, which is the same failure with higher stakes
+  # (issue #154): a goal the model cannot read back is a goal it sets again
+  # every hour, and quality 5 of the mission is measured off this file.
+  assert "draw on the far board this week" in turn
 
 
 def test_the_prefix_does_not_move_when_the_robot_writes():
@@ -315,6 +348,7 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
 
   files.learn("whiteboard_b is the one people look at", t=1.0)
   files.record("drew a house on whiteboard_a", t=2.0)
+  files.intend("keep both boards inked", t=3.0)
 
   assert boss.system[0]["text"] == before, \
     "a self-edit moved the cached prefix -- every call now pays full price"
@@ -329,9 +363,11 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
   # draws between quoted JSON keys and prose.
   assert "whiteboard_b is the one people look at" not in before
   assert "drew a house on whiteboard_a" not in before
+  assert "keep both boards inked" not in before
   turn = ov._user_turn({"thoughts": files.volatile()})
   assert "whiteboard_b is the one people look at" in turn
   assert "drew a house on whiteboard_a" in turn
+  assert "keep both boards inked" in turn
 
 
 def test_the_history_the_model_sees_is_the_tail(files):
@@ -350,16 +386,21 @@ def test_the_history_the_model_sees_is_the_tail(files):
 
 
 def test_a_human_edit_is_the_one_thing_that_should_move_it(tmp_path):
-  """The other side of the same coin: editing Goals.md between runs SHOULD
-  invalidate the cache, because the prefix genuinely changed. This is not a
-  bug being tolerated -- it is the reason the split is safe."""
+  """The other side of the same coin: editing the CONSTITUTION between runs
+  SHOULD invalidate the cache, because the prefix genuinely changed. Not a
+  bug being tolerated -- it is the reason the split is safe.
+
+  ⚠ `Main.md` rather than `Goals.md` since issue #154: the goals are the
+  robot's and no longer in the prefix at all, so an edit to them cannot move
+  it. The file a human edits is the one that can.
+  """
   root = tmp_path / "thoughts"
   menu = Menu(boards=("whiteboard_a",), programs=("house",))
   first = Overseer(menu, thoughts=ThoughtFiles(root), client=FakeClient())
-  (root / GOALS).write_text("Draw a robot on every wall.\n")
+  (root / MAIN).write_text("You are a robot who draws on every wall.\n")
   second = Overseer(menu, thoughts=ThoughtFiles(root), client=FakeClient())
   assert first.system != second.system
-  assert "Draw a robot on every wall." in second.system[0]["text"]
+  assert "draws on every wall" in second.system[0]["text"]
 
 
 def test_the_persona_is_the_file_rather_than_the_code(tmp_path):
@@ -543,3 +584,129 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   assert "one thing too many" not in files.read(KNOWLEDGE)
   # ...and a mission is never ended by a memory write.
   assert life.thoughts.refusals
+
+
+# ---- the robot's own goals (issue #154) --------------------------------------
+
+
+def test_a_full_goals_file_refuses_out_loud_rather_than_dropping_one(files):
+  """The issue's constraint, and the same one `Knowledge_and_Opinions.md`
+  has: silently dropping the oldest goal leaves the robot believing it still
+  holds a goal it no longer has, which is worse than being told no.
+
+  ⚠ THE OPPOSITE OF `History.md`, deliberately. That file ROLLS because it is
+  a record nobody acts on; these two REFUSE because the robot is meant to
+  curate them, and `drop_goal` is the remedy the prompt names.
+  """
+  cap = SPECS[GOALS].cap
+  # Distinct lines, because `drop_goal` quotes ONE line and refuses an
+  # ambiguous quote -- which is itself the behaviour the remedy depends on.
+  i = 0
+  while len(files.read(GOALS)) + 220 < cap:
+    files.intend(f"goal number {i} " + "x" * 200, t=1.0)
+    i += 1
+  before = files.read(GOALS)
+  with pytest.raises(ThoughtRefused) as e:
+    files.intend(f"goal number {i} " + "x" * 200, t=2.0)
+  assert "full" in str(e.value)
+  assert files.read(GOALS) == before, "a refused goal changed the file"
+  assert files.dropped[GOALS] == 0, "a goal was silently dropped"
+  # ...and the remedy works: make room and the write lands.
+  assert files.drop_goal("goal number 0 ", t=3.0)
+  assert files.intend("one I actually mean", t=4.0)
+
+
+def test_no_verb_replaces_the_goals_file(files):
+  """One bad generation must not be able to wipe out what the robot has
+  decided to do -- the argument that shaped `learn`/`forget`, applied to the
+  file that now carries the mission's fifth quality.
+
+  Enforced by ABSENCE, so this is a grep over the surface a decision can
+  reach rather than a call: there is no verb to call.
+  """
+  import inspect
+  from pluggybot.mind import thoughts as th
+  verbs = [n for n, _ in inspect.getmembers(th.ThoughtFiles, inspect.isfunction)
+           if not n.startswith("_")]
+  assert "intend" in verbs and "drop_goal" in verbs
+  for banned in ("set_goals", "replace_goals", "rewrite", "clear_goals"):
+    assert banned not in verbs
+  # The write path itself only ever appends one line or removes one line.
+  assert not hasattr(files, "write_goals")
+
+
+def test_a_decision_can_set_and_drop_a_goal_without_spending_a_turn(files):
+  """`intend` / `drop_goal` / `serves` are FIELDS, like `learn` and
+  `forget`: the robot sets a goal on the decision it was already making, so
+  writing one down costs it nothing."""
+  d = ov.Decision(action="draw", board="whiteboard_a",
+                  intend="ink both boards this week",
+                  serves="ink both boards this week")
+  assert d.action == "draw", "the action was spent on paperwork"
+  assert d.as_dict()["intend"] == "ink both boards this week"
+  assert d.as_dict()["serves"] == "ink both boards this week"
+  assert d.as_dict()["dropGoal"] == ""
+
+
+def test_nothing_in_scoring_can_read_the_goals_file():
+  """The mission's rule: self-conceived goals are NOT paid. A goal that
+  earned points would be a reward table the robot writes itself, which is
+  the one thing economy/scoring.py exists to prevent."""
+  import ast
+  from pathlib import Path
+  root = Path(__file__).parent.parent / "src" / "pluggybot" / "economy"
+  for path in root.glob("*.py"):
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+      # An IMPORT of the memory module is the only way to reach the file,
+      # and checking the syntax tree rather than the text is what keeps a
+      # docstring that MENTIONS the goals from failing this.
+      if isinstance(node, ast.ImportFrom) and node.module:
+        assert "thoughts" not in node.module, \
+          f"{path.name} imports the robot's memory"
+      names = ([a.name for a in node.names]
+               if isinstance(node, ast.Import) else [])
+      assert not any("thoughts" in n for n in names), \
+        f"{path.name} imports the robot's memory"
+      if isinstance(node, ast.Attribute):
+        assert node.attr not in ("intend", "drop_goal", "read_goals"), \
+          f"{path.name} calls a goals verb"
+
+
+def test_a_goal_written_in_one_mission_is_read_back_in_the_next(tmp_path):
+  """⚠ THE RESTART IS THE WHOLE POINT (issue #154). The deployed world ends
+  a mission and starts another every hour, and `/var/lib/pluggybot` is a
+  VOLUME -- so a goals file that did not survive that boundary would give
+  the robot an hour's memory of what it meant to do and no more, which is
+  indistinguishable from not having the file.
+
+  This is the ledger's and the boards' rule applied to the robot's goals:
+  world state persists, run state does not. `History.md` carries the death
+  line across for the same reason (Evaluation.md section 6).
+  """
+  root = tmp_path / "thoughts"
+  first = ThoughtFiles(root)
+  first.intend("get the far whiteboard inked before the week is out", t=10.0)
+  first.intend("find out why bay C sticks", t=20.0)
+  first.learn("whiteboard_b is worth the trip after all", t=30.0)
+
+  # The mission ends. Nothing is handed over in memory -- the next one opens
+  # the same directory from scratch, which is what a restart actually does.
+  second = ThoughtFiles(root)
+  assert second.lines(GOALS) == [
+    "get the far whiteboard inked before the week is out",
+    "find out why bay C sticks",
+  ], "the robot woke up with no idea what it had decided to do"
+  assert second.read(KNOWLEDGE) == "whiteboard_b is worth the trip after all"
+
+  # ...and it can still act on them: drop one it finished, add another, and
+  # a third mission sees exactly that.
+  second.drop_goal("find out why bay C sticks", t=40.0)
+  second.intend("keep the garden surveyed", t=50.0)
+  third = ThoughtFiles(root)
+  assert third.lines(GOALS) == [
+    "get the far whiteboard inked before the week is out",
+    "keep the garden surveyed",
+  ]
+  # The goals reach the next decision's prompt, not just the next process.
+  assert "keep the garden surveyed" in ov._user_turn({"thoughts": third.volatile()})

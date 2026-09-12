@@ -539,6 +539,38 @@ need an instrument here and none has one yet — §7.
   decisions because the prompt invites it, and the file fills and starts
   refusing within an hour.
 
+### Goals the robot set itself (issue #154)
+
+The mission's fifth quality — goal creation and follow-through — read off
+`Goals.md`, which since #154 the ROBOT writes and nobody else can. Four
+numbers in every run record, under `goals`:
+
+- `intend` / `dropped` — goals written and goals removed, per run.
+- `served` — decisions naming a goal in `serves`. ⚠ **A count of DECISIONS,
+  not of goals**, and deliberately not pressed for: plenty of what the robot
+  does is upkeep and serves none, and a model made to justify every action
+  against a goal learns to justify rather than to choose. The RATIO is the
+  measurement and a low one is a finding.
+- `goalsEnd` — the file as it stood when the day stopped. The one that makes
+  the others worth having: "wrote three goals" and "wrote three goals and
+  finished none" are the same three numbers and different results.
+
+⚠ **A STATIC INSTRUMENT, like the event map's `score`.** "Did it set itself a
+goal at all", "did it ever drop one", "do its actions attribute to anything"
+are read off an artifact rather than a five-day series — which §7 prefers,
+and which is most of why the ownership split is the instrument rather than a
+tidier filing system.
+
+⚠ **NOTHING IN SCORING MAY READ IT.** A self-conceived goal is not paid
+(PluggyPlan): a goal that earned points would be a reward table the robot
+writes itself, which is the one thing `economy/scoring.py` exists to prevent.
+`tests/test_thoughts.py` walks every `economy/` module's syntax tree to keep
+it true rather than merely intended.
+
+⚠ **AND THE FIELD IS NOT IN `_REQUIRED`.** Every record committed before #154
+predates it, and those are history; a reader asking an older run about its
+goals gets nothing, which is the truth about that run.
+
 ### Are opinions load-bearing?
 
 The interesting one, and it needs an ablation rather than a counter.

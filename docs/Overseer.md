@@ -628,7 +628,7 @@ inert. `overseer_probe.py --tokens-only` prints the prefix size (a free
 endpoint, not a local tokenizer — it still needs a key), and padding it until
 the number looks right is not one of the honest options.
 
-## 7. Memory — the thought files (issue #38)
+## 7. Memory — the thought files (issues #38, #154)
 
 Local files beside the sim in `/var/lib/pluggybot`, never a round trip to the
 website: memory that only works when the site is up is memory the robot loses
@@ -637,10 +637,23 @@ enforced at the single write path (`mind/thoughts.py`):
 
 | File | Written by | Cap | Why |
 |---|---|---|---|
-| `Main.md` | **human** | 4000 | Body and manner. A robot that can rewrite who it is defeats the point |
-| `Goals.md` | **human** | 8000 | What the person who looks after it hopes for; still `$PLUGGY_GOALS`' file |
+| `Main.md` | **human** | 6000 | The CONSTITUTION: body, manner, and what the person who looks after it hopes for it. A robot that can rewrite who it is defeats the point |
+| `Goals.md` | **robot** | 8000 | What IT has decided to do. `$PLUGGY_GOALS`' file, and quality 5 of the mission is read off it |
 | `History.md` | **system**, append-only | 6000 | What happened. A robot that can edit its own history breaks the principle that stops it awarding itself points |
-| `Knowledge_and_Opinions.md` | **robot** | 3000 | The one writable surface: what it has learned, what it thinks, and its own goals (#154 is the split) |
+| `Knowledge_and_Opinions.md` | **robot** | 3000 | What it has learned and what it thinks |
+
+⚠ **THE OWNERSHIP IS THE DESIGN** (issue #154). A human writes the
+constitution and the robot writes its goals, so "does it set itself sensible
+long-term goals and pursue them" — the mission's fifth quality — is answered
+off a file nobody else touched. Before this both were a human's, the robot's
+own goals had nowhere to live but its opinions file, and the prompt had to
+tell it so.
+
+⚠ **AND AN EXISTING VOLUME'S `goals.md` BECOMES THE ROBOT'S.** The read path
+did not move, so a deploy that has been hand-editing that file will find its
+text presented as goals the robot set itself. Migrating is a person's job and
+a one-off: move the prose into `Main.md`, which is where a human's hopes now
+belong, and let the robot start its own file empty.
 
 - ⚠ **The name is not in `Main.md`** (issue #39): `pluggybot` is the species,
   the name is per instance (`robot_display_name`, `$PLUGGY_ROBOT_NAME`, default
@@ -651,13 +664,26 @@ enforced at the single write path (`mind/thoughts.py`):
   narrated (`THOUGHT refused: …`). Human files have no write API at all. A
   memory that silently stopped accepting writes looks like a model with
   nothing to say.
-- **The verbs are `learn` and `forget`, and there is no third.** Fields on a
-  decision, orthogonal to `action`, so writing a line costs no turn. `forget`
-  quotes a line and refuses on a miss *or* an ambiguity. There is deliberately
-  no verb that replaces a file — one bad generation must not erase everything
-  the robot knows — and no parameter names a file.
-- **The two caps fail in opposite directions.** `History.md` rolls (oldest
-  lines off the front); `Knowledge_and_Opinions.md` **refuses** when full,
+- **Four verbs, two per file, and there is no fifth.** `learn` / `forget` on
+  the opinions, `intend` / `drop_goal` on the goals. All are fields on a
+  decision, orthogonal to `action`, so writing a line costs no turn; the
+  removing ones quote a line and refuse on a miss *or* an ambiguity. There is
+  deliberately no verb that replaces a file — one bad generation must not
+  erase everything the robot knows or everything it meant to do — and no
+  parameter names a file.
+- **`serves` names the goal an action is for**, and is deliberately optional
+  and unvalidated: plenty of what the robot does is upkeep and serves no
+  goal, and a model made to justify every action against one learns to
+  justify rather than to choose. It exists so follow-through is measured
+  rather than inferred — `goals.served` in the run record is a count of
+  DECISIONS, and a low ratio is a finding, not a fault.
+- ⚠ **Nothing in scoring may read `Goals.md`.** A self-conceived goal is not
+  paid (PluggyPlan, "self-conceived goals are not paid"): a goal that earned
+  points would be a reward table the robot writes itself.
+  `tests/test_thoughts.py` walks the syntax tree of every `economy/` module
+  to keep that true by construction.
+- **The caps fail in opposite directions.** `History.md` rolls (oldest
+  lines off the front); the robot's two files **refuse** when full,
   because silently dropping its oldest line leaves the robot believing it
   remembers something it does not. `forget` is the remedy and the prompt says
   so. The model is shown the last `HISTORY_SHOWN` (12) History lines; the whole
@@ -787,8 +813,10 @@ has no goals to spend free time on.
   escalating cost is a forcing function, and an agent that *values* staying
   alive becomes indistinguishable from one that cannot afford not to
   (Evaluation.md §6; `tests/test_hearts.py` asserts upkeep is identical at one
-  heart and at five). At zero the volume is archived — `Main.md` and
-  `Goals.md` survive — and a new robot starts with none of it.
+  heart and at five). At zero the volume is archived — only `Main.md`, the
+  human's constitution, survives — and a new robot starts with none of it,
+  its predecessor's goals included (issue #154: they were the dead robot's,
+  and inheriting them would hand back the one thing dying costs).
 - The mind sees `hearts` and `heartPrice` at the **top level** of its state,
   not inside `survival`, because rung A0 hides that block to hide the *clock*.
 - **A heart is bought as well as lost**, and both purchases are fields on a
@@ -930,14 +958,15 @@ JOURNAL whiteboard_a is nearly full -- use b next time
 The typed messages, all additive (`protocol/README.md` has each version's
 shape): `visitor_reply` (`{id, kind, outcome, reply, action}`) and `journal`
 (0.7.0); `goals` (`{robot, t, text, steering}`, 0.8.0), emitted when a stream
-opens and read by `overseer.goals_text` on **every** run — `steering` says
-whether anything is *reading* the goals, because a scripted rotation still has
-a purpose to display and a site shown the prose with no such flag would report
+opens and read by `overseer.goals_text` on **every** run — since 0.19.0 the
+text is the ROBOT's own goals and is often empty, and the message is sent
+anyway because `steering` rides here and nowhere else: it says whether
+anything is *deciding*, and a site shown prose with no such flag would report
 a robot following goals that steer nothing; `thought` (`{robot, t, name,
 writer, text, cap}`, 0.11.0), one per memory document, on open and on every
 change; `mode` with its heartbeat (0.12.0); `death`, `reset` and
-`intervention` (0.15.0–0.16.0); and `unminded` as a death cause (0.18.0). The
-event map itself is **not** on the wire.
+`intervention` (0.15.0–0.16.0); `unminded` as a death cause (0.18.0); and the
+goals changing hands at 0.19.0. The event map itself is **not** on the wire.
 
 The mission result dict carries `decisions`, `journal`, `overseer` (the
 `stats()` block: calls, fallbacks by reason, tokens, cache hit rate, USD,
