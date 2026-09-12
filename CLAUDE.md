@@ -80,12 +80,17 @@ wording, settled direction. Before doing anything, read:
   test, for `--pdb`, and whenever you want readable live output. Scaling is
   ~1.8×, not 6×, because the mission tests contend for memory bandwidth, and
   the floor is the LONGEST SINGLE TEST — no worker count beats an indivisible
-  test, so the lever is shortening the long poles.
-- **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"` —
-  1091 of the 1111 tests. The 20 `slow` ones are very nearly all of the
-  clock: the FULL suite measured **17:58** on this box (2026-09-11, 1109
-  passed + 2 skipped). The `not slow` half has NOT been re-timed since the
-  suite passed a thousand tests — measure it before quoting one.
+  test, so the lever is shortening the long poles. ⚠ Measured (issue #158):
+  reordering the collection longest-first did NOT help and may hurt — the
+  mission tests inflate each other's runtimes, so starting six heavy ones at
+  once is the worst case; deleting the plug-era tests saves 8 s; model
+  compilation is 12–28 ms. Only sim-seconds count.
+- **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"`.
+  The 16 `slow` tests are very nearly all of the clock: the FULL suite
+  measured **6:54** on this box (2026-09-12, 1114 passed + 6 skipped; it was
+  17:58 the day before, see the endurance bullet). The `not slow` half has
+  NOT been re-timed since the suite passed a thousand tests — measure it
+  before quoting one.
   ⚠ Wall-clock figures track the MACHINE,
   not the repo: the same mission test has measured 157 s and 369 s on
   different days. Before believing a slower suite, time ONE unchanged mission
@@ -112,16 +117,28 @@ wording, settled direction. Before doing anything, read:
   declines is not slow, whatever it costs. **Shorten before you mark.**
 - **A mission test ENDS WHEN ITS CLAIM IS SETTLED**, not when its budget runs
   out — `HubLifecycle.stop_when` is where the rules live (issue #54 halved
-  the slow suite this way). Three resist it, each for a reason, so do not
-  retry them without reading why: `test_a_charge_completes_on_a_pack_the_old
-  _flat_timeout_could_not_fill` needs a charge LONGER than the old 400 s cap
-  (≥ 5.3 Wh of pack) or it cannot fail without its fix;
-  `test_a_question_is_asked_answered_and_graded_twice_unattended` (issue #22)
-  already stops on its claim, and "**twice**, with nobody watching" is the
-  claim; `test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies`
-  (issue #15) asserts two COMPLETED errands, the acceptance criterion — it
-  and `test_charge_priority_survives_an_overseer_that_never_charges` are the
-  only proofs that an LLM cannot skip charging on `guarded`.
+  the slow suite this way). One resists it for a reason: `test_a_question_is
+  _asked_answered_and_graded_twice_unattended` (issue #22) already stops on
+  its claim, and "**twice**, with nobody watching" IS the claim.
+- **A flown proof whose RULE is pinned by a fast test goes behind
+  `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
+  `pyproject.toml`). Four are there: the dearest-errand survival, the two
+  charge-cap proofs, and the starving robot's whole mission — 1243 s of
+  serial work, and the first of them was the suite's 8:33 floor. What each
+  guards is an inequality or one line of wiring, now asserted in milliseconds
+  and shown to fail without its fix; the flown version proves the
+  INTEGRATION (that the refusal produces a charge and a completed errand on
+  real physics) and is run deliberately, before a release or after touching
+  the mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`.
+  ⚠ The decision behind it (Ben, 2026-09-12): while the design is moving, a
+  generous pack is ASSUMED to fund any single errand and a battery death
+  costs a heart rather than the world, so twenty minutes per issue defending
+  an invariant the design is moving away from was the wrong trade.
+  ⚠ A flag, not `-m 'not endurance'` in `addopts`: pytest keeps the LAST
+  `-m`, so the everyday `-m "not slow"` would silently switch them back on.
+  ⚠ `test_charge_priority_survives_an_overseer_that_never_charges` (89 s)
+  stays in the default run: it is the proof that an LLM cannot skip charging
+  on `guarded`, and cheap for what it buys.
 - Lint: `uv run ruff check src/ scripts/ tests/`
 
 ### Measurement (M14; `docs/Evaluation.md` is the record and the rules)

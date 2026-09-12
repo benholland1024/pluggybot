@@ -77,6 +77,11 @@ markers = [
     # than its budget is worth more than one moved out of the iterate loop --
     # see `HubLifecycle.stop_when`.
     "slow: expensive, and cannot catch a regression while you iterate",
+    # `endurance` is a SUBSET of `slow` that does not run at all unless asked
+    # (`--endurance`; tests/conftest.py has the argument): a flown proof whose
+    # regressable claim is also pinned by a fast unit test beside it, kept for
+    # the integration it demonstrates rather than the rule it guards.
+    "endurance: a flown proof; skipped unless --endurance is passed",
 ]
 
 [dependency-groups]
