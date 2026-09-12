@@ -227,6 +227,35 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.19.0, additive: the `procedure` event (a composed errand)
+
+pluggybot #58. An errand may be a PROGRAM -- validated steps over a fixed
+verb vocabulary (`procedure/steps.py`), ticked from the physics loop with one
+verdict per step -- and the stream says so. **No bump**: a new event type is
+additive (a consumer ignores a type it does not know), and no existing block
+changed shape. A task that carries the program that discharges it does so in
+`tasks[].params.procedure`, which the `tasks` block already ships whole.
+
+```jsonc
+{"type": "procedure", "t": 412.3, "robot": "pluggybot", "name": "two-tools",
+ "outcome": "validated",                  // then "ran" | "aborted", or "refused"
+ "program": {"name": "two-tools", "budgetS": 600.0,
+             "roles": {"robot": [{"verb": "fetch", "args": {"tool": "module_pen"}},
+                                 {"verb": "drive_to", "args": {"x": 1.5, "y": 1.8}},
+                                 {"verb": "draw", "args": {"figure": "sun",
+                                                           "board": "whiteboard_a"}},
+                                 {"verb": "stow"}]}},
+ "steps": 4}                              // validated: how many will run
+// ran / aborted add: "completed": 3, "total": 4, "failedAt": 2, "stopped": null
+// refused adds:      "reasons": ["robot[1]: unknown verb 'fly' (have: ...)"]
+```
+
+`outcome` is `telemetry.protocol.PROCEDURE_OUTCOMES`, a two-repo vocabulary on
+`FACE_STATES`' terms. The program rides every event whole, like a thought
+document, so a replayer needs no other source for what the robot ran; the
+per-step verdicts are in the run record (`errands[].procedure`), not on the
+wire.
+
 ### 0.18.0 → 0.19.0 (the robot writes its own goals)
 
 pluggybot #154: the four thought documents had two writers between them and a

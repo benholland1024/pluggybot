@@ -39,6 +39,7 @@ from pluggybot.rack.coupling import (
 )
 from pluggybot.economy.census import Zone
 from pluggybot.mission.errand import (
+  programmed_errand,
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
@@ -61,6 +62,7 @@ from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
 from pluggybot.telemetry.protocol import DEATH_CAUSES, ROBOT_ROOT
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
+from pluggybot.procedure.steps import Program, compile_program
 from pluggybot.tick import Routine
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
@@ -1131,6 +1133,31 @@ class HubLifecycle:
     # worth pricing. `scripts/energy_spike.py` reads the same figure.
     spent_from = self.battery.energy_wh
     began_at = float(self.data.time)
+    if errand.program is not None:
+      used = yield from self._run_program_routine(errand)
+      result = {"errand": errand.name, "module": errand.module,
+                "energyWh": round(max(0.0, spent_from - self.battery.energy_wh), 4),
+                "estimateWh": round(self.affords(errand).cost_wh, 4),
+                "energySeconds": round(float(self.data.time) - began_at, 2),
+                **used}
+      self._in_errand = False
+      self._deferrals.pop(errand.name, None)
+      verdict = scoring.score_errand(self, errand, result, {})
+      entry = self._bank(verdict)
+      if verdict is not None:
+        result["verdict"] = verdict.as_dict()
+        result["points"] = entry["points"] if entry is not None else 0
+        if errand.task_id and self.tasks is not None:
+          closed = self.tasks.resolve(errand.task_id, verdict,
+                                      t=float(self.data.time))
+          if closed is not None:
+            result["task_id"] = closed.id
+            self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+      self.errand_results.append(result)
+      self._occur("task_complete" if used["stowed"] and "error" not in used
+                  else "task_failed", errand.name)
+      self._errand_name = ""
+      return result
     yield from self.mission.swap_at_bay_routine(errand.station_y, "pick",
                                                 module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
@@ -1293,6 +1320,71 @@ class HubLifecycle:
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
+
+  def _run_program_routine(self, errand) -> Routine:
+    """The composed errand's middle AND ends (issue #58): validate, run the
+    steps with one verdict each, and hang back whatever is still on the fork
+    -- abort means stow, for a program exactly as for a native errand. The
+    `procedure` event says how it went; a refusal never runs a step."""
+    from pluggybot.procedure import steps as procedure
+    program = errand.program
+    facts = world_facts(self.world)
+    t = float(self.data.time)
+    base = {"type": "procedure", "robot": ROBOT_ROOT, "name": program.name,
+            "program": program.as_dict()}
+    try:
+      procedure.compile_program(program, facts)
+    except procedure.Refused as e:
+      self._say(f"PROCEDURE {program.name} refused: {e}")
+      self._emit({**base, "t": round(t, 3), "outcome": "refused",
+                  "reasons": list(e.reasons)})
+      return {"procedure": {"program": program.name, "refused": e.reasons,
+                            "total": len(program.steps()), "completed": 0,
+                            "steps": [], "ok": False},
+              "picked": False, "stowed": True,
+              "error": f"refused: {e}"}
+    self._emit({**base, "t": round(t, 3), "outcome": "validated",
+                "steps": len(program.steps())})
+    self.state = "USE_TOOL"
+    try:
+      run = yield from procedure.run_program_routine(self, program, facts)
+    except MissionAborted:
+      raise
+    except Exception as e:                        # noqa: BLE001 -- as run_errand
+      run = {"program": program.name, "total": len(program.steps()),
+             "completed": 0, "steps": [], "ok": False,
+             "error": f"{type(e).__name__}: {e}"}
+      self._say("PROCEDURE FAILED: something went wrong -- stowing anyway",
+                detail=run["error"])
+    # ⚠ ABORT MEANS STOW, NEVER DROP. Whatever ended the program, a module
+    # still on the fork goes home before the verdict.
+    carried = procedure._carried(self)
+    if carried is not None:
+      self.state = "SWAP_RETURN"
+      self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
+                " -- stowing it")
+      yield from self.mission.swap_at_bay_routine(
+        procedure._tool_station(carried), "return", module=carried)
+      self.swaps_done += 1
+    fetched = [st["tool"] for st in run["steps"]
+               if st["verb"] == "fetch" and st.get("ok")]
+    hung = all(self.mission.swap.module_state(tool)["hung"] for tool in fetched)
+    run["toolsHung"] = hung
+    self._emit({**base, "t": round(float(self.data.time), 3),
+                "outcome": "ran" if run.get("ok") else "aborted",
+                "completed": run["completed"], "total": run["total"],
+                "failedAt": run.get("failedAt"), "stopped": run.get("stopped")})
+    self._say(f"PROCEDURE {program.name} "
+              f"{'complete' if run.get('ok') else 'cut short'}: "
+              f"{run['completed']}/{run['total']} steps")
+    result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
+              **({"error": run["error"]} if "error" in run else {})}
+    # A draw step's own measurements ride at the top level, so the ink
+    # evaluator reads a composed drawing exactly as it reads the native one.
+    for st in run["steps"]:
+      if st["verb"] == "draw" and "used" in st:
+        result.update(st["used"])
+    return result
 
   def _afford_next(self) -> bool:
     """True if the head of the queue can be started RIGHT NOW.
@@ -3129,7 +3221,18 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   if spec is None:
     return None
   try:
-    if task.kind == "whiteboard_answer":
+    if isinstance(task.params.get("procedure"), dict):
+      # A task carrying the PROCEDURE that discharges it (issue #58): the
+      # steps are data on the task, validated here against this world, and
+      # the kind's own evaluator grades the result. A program that does not
+      # validate builds nothing, and the loop leaves the offer alone.
+      # (`params["program"]` is a drawing task's FIGURE name; this is a
+      # different key on purpose.)
+      from pluggybot.procedure.steps import Program, compile_program
+      program = compile_program(Program.from_dict(task.params["procedure"]),
+                                world_facts(world))
+      errand = programmed_errand(program, task=spec.task)
+    elif task.kind == "whiteboard_answer":
       # A drawing errand like any other; only the figure is different. The
       # `answer` program is the one door text has into the plotter, and what
       # goes through it has already been through `questions.clean_answer`.
@@ -3161,6 +3264,21 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   # by construction with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
   return errand
+
+
+def world_facts(world: str):
+  """What a program is validated against (procedure/steps.py): this world's
+  boards, the tools on its rack, the box its map covers, the figures the
+  pen knows."""
+  from pluggybot.procedure.steps import TOOL_BAYS, WorldFacts
+  cfg = world_config(world)
+  boards: tuple = ()
+  if cfg["meta"]:
+    boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
+  return WorldFacts(boards=boards, tools=tuple(TOOL_BAYS),
+                    bounds=tuple(float(v) for v in cfg["grid_bounds"]),
+                    figures=tuple(n for n in strokes.PROGRAMS
+                                  if n not in ("text", "answer")))
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -3371,6 +3489,7 @@ def run_demo(start=None, view: bool = False,
              record: str | None = None,
              world: str = "room_hub",
              errand: str = "carry", board_state: str | None = None,
+             program: str | None = None, program_task: str = "program",
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
              standing_orders: bool = False,
@@ -3526,7 +3645,12 @@ def run_demo(start=None, view: bool = False,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, mode=switch,
                       world=world,
-                      errands=errands_for(errand, world, book), tasks=board,
+                      errands=(errands_for(errand, world, book)
+                               if program is None else
+                               [programmed_errand(compile_program(
+                                  Program.from_json(Path(program).read_text()),
+                                  world_facts(world)), task=program_task)]),
+                      tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,
                       autonomous=autonomous)

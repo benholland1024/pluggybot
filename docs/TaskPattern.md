@@ -43,7 +43,13 @@ without knowing that "whiteboard" means "fetch the pen from bay C".
 ⓘ *Found by building the tower:* a task may have NO errand behind it. A
 challenge's discharge is whatever the robot writes (issues #58, #166), so
 the HOW is not machinery this repo ships; what the pattern requires of it is
-only that the verdict is reachable from the world afterwards (§4). The three
+only that the verdict is reachable from the world afterwards (§4).
+**Since #58 that HOW has a shape**: a task may carry a *program* —
+validated steps over the verb vocabulary (`procedure/steps.py`) — in
+`params["procedure"]`, and `errand_for_task` builds a `programmed_errand`
+from it, graded by the kind's own evaluator. A program spans tools and
+places (fetch and stow are verbs), so the "one task, one errand" limit in §7
+is now only a limit on *offering* such a job, not on running one. The three
 compose in one direction:
 
 > a **task** is offered → claiming it queues an **errand** → the errand's
@@ -507,11 +513,12 @@ to build against.
 2. **Only tier 1 of the ladder has a build path.** Tier 2 needs a detector
    nobody has trained; tier 3 is a research question. A kind must not climb
    the ladder by delivering poses over the wire.
-3. **One task resolves to one errand.** A job needing two tools, or a tool
-   and an activity in sequence, has no representation — the queue can hold
-   the errands, but nothing ties them to one verdict. Closing this is named
-   work (PluggyPlan.md, "The next batch": one two-tool job resolving to one
-   verdict).
+3. **No task KIND offers a two-tool job yet.** Running one is solved: a
+   program (`procedure/steps.py`, issue #58) spans tools and places and
+   resolves to one verdict — `eval_program`, or the kind's own evaluator when
+   the program discharges a kind's task. What is missing is an offered kind
+   whose discharge is a program and whose energy cost has been measured;
+   that is batch item 4 (PluggyPlan.md).
 4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
    offers, and there is no verb for giving a job up gracefully — related to
    tool dropping (issue #30), and unowned by any pattern yet.

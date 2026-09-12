@@ -1,0 +1,10 @@
+{
+  "name": "sun",
+  "budgetS": 600.0,
+  "steps": [
+    {"verb": "fetch", "args": {"tool": "module_pen"}},
+    {"verb": "drive_to", "args": {"x": -1.62, "y": 0.95}},
+    {"verb": "draw", "args": {"figure": "sun", "board": "whiteboard_a"}},
+    {"verb": "stow"}
+  ]
+}

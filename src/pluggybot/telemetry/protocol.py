@@ -296,6 +296,14 @@ THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
 #: renaming one is breaking. `tests/test_thoughts.py` pins the shape.
 THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
 
+#: What a `procedure` event says about a composed errand (issue #58):
+#: `validated` before its first step, `refused` (with `reasons`) instead of
+#: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/
+#: `stopped`. The program itself rides every one whole, like a thought
+#: document. Additive on the wire; a consumer ignores an unknown type.
+#: Rung two (#166) adds `defined` when the robot keeps a library.
+PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.
