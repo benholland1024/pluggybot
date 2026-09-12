@@ -10,7 +10,9 @@
     "",
     "A challenge is graded like every task -- code measures the world, never",
     "the robot's account of it -- with one more rule: its criteria were written",
-    "down before the robot saw it, and they say nothing about method."
+    "down before the robot saw it, and they say nothing about method.",
+    "",
+    "`program` (issue #58) is the generic verdict for a COMPOSED errand: every step ok and every fetched tool hung. A program that discharges an existing kind's task is graded by that kind's evaluator instead, and this row is not consulted."
   ],
   "tasks": {
     "stack": {
@@ -25,6 +27,12 @@
           "worst": 13.0
         }
       ]
+    },
+    "program": {
+      "tier": "auto",
+      "base": 5,
+      "bonus": 0,
+      "detail": "Run a procedure you composed from the step vocabulary, every step to its verdict, and hang every tool back. A program cut short pays nothing; the per-step verdicts say how far it got."
     }
   }
 }

@@ -109,10 +109,42 @@ class Errand:
   #: which `tests/test_telemetry.py` guards and which is half of what the
   #: showcase recording exists to show.
   needs_use_pose: bool = True
+  #: a COMPOSED errand (issue #58, `procedure/steps.py`): the whole job --
+  #: fetching and stowing included -- as validated steps ticked from the
+  #: loop, instead of the fixed fetch -> `use` -> stow around a callable.
+  #: `module`/`station_y` then name the FIRST tool the program fetches (or
+  #: nothing), for the bookkeeping that reads them; `use` and `use_at` are
+  #: unused. Abort still means stow: the loop hangs back whatever the program
+  #: left on the fork.
+  program: object | None = None
 
   def __post_init__(self) -> None:
     if not self.task:
       self.task = self.name.split(":", 1)[0]
+
+
+def programmed_errand(program, task: str = "program",
+                      name: str | None = None) -> Errand:
+  """An errand whose middle AND ends are a program's steps (issue #58).
+
+  `task` names the evaluator that grades the finished job -- "program" for
+  the generic per-step verdict, or an existing kind's evaluator ("draw")
+  when the program discharges that kind's task, in which case the sampler
+  reads the same board it reads for the native errand (`detail["board"]`).
+  """
+  from pluggybot.procedure.steps import TOOL_BAYS
+  steps = program.steps()
+  first_tool = next((s.args["tool"] for s in steps if s.verb == "fetch"), "")
+  board = next((s.args["board"] for s in steps if s.verb == "draw"), None)
+  figure = next((s.args["figure"] for s in steps if s.verb == "draw"), None)
+  detail = {"program": program.name, "steps": len(steps)}
+  if board is not None:
+    detail.update({"board": board, "figure": figure})
+  return Errand(name=name or f"{task}:{program.name}", module=first_tool,
+                station_y=(HUB_STATION_YS[TOOL_BAYS[first_tool]]
+                           if first_tool else 0.0),
+                use_at=(0.0, 0.0), use=None, task=task, program=program,
+                needs_use_pose=False, detail=detail)
 
 
 def carry_errand(module: str = "module_lcd", station_y: float = LCD_BAY,

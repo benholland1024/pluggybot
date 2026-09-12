@@ -318,6 +318,19 @@ class HubSwap:
         return "stalled"
     return "timeout"
 
+  def set_lift_routine(self, target: float, speed: float,
+                       settle: float = 1.2) -> Routine:
+    """Walk the lift setpoint to `target` at `speed` (m/s), then settle --
+    CLAUDE.md's ramping rule for the mast, the step vocabulary's `set_lift`.
+    A stiff servo handed a step delivers the whole difference as an impulse
+    and has thrown a module off the fork (tools/gripper.py, `set_lift`)."""
+    cur = float(self.data.ctrl[self.lift_act])
+    steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
+    for k in range(steps):
+      self.data.ctrl[self.lift_act] = cur + (target - cur) * (k + 1) / steps
+      yield 0.0, 0.0
+    yield from self._run_routine(settle, 0.0)
+
   # ---- the verbs -----------------------------------------------------------
 
   def pick(self, steer_fn=None, dist: float | None = None) -> str:

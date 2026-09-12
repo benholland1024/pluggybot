@@ -66,7 +66,12 @@ def test_the_challenge_row_is_scoreable_and_not_in_the_shipped_table():
   for name, row in TABLE.tasks.items():
     assert name in scoring.EVALUATORS and name in scoring.SAMPLERS
     assert row.tier in scoring.TIERS
-  assert not set(TABLE.names) & set(scoring.default_table().names)
+    assert not row.offered
+  # Merged into the lifecycle's table UNOFFERED (issue #58 needed the ledger
+  # to bank one): never in the shipped file, never shown to the overseer.
+  shipped = scoring.default_table()
+  assert not set(TABLE.names) & set(shipped.offered)
+  assert not set(TABLE.names) & {r["task"] for r in shipped.as_context()}
 
 
 def test_the_criteria_are_the_issues_own():

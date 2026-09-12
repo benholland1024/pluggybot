@@ -706,6 +706,29 @@ save a filmstrip PNG named after the script.
   refactor landed IDENTICAL over a 1500 s scripted `home` day. `_ask_
   interrupt` and the dispenser are still blocking, on purpose and by
   omission respectively.
+- **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
+  `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
+  DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
+  verbs (`fetch stow drive_to face set_lift grip release draw look wait`),
+  each an existing routine with the ramping inside it; the runner gives one
+  verdict per step, measured off the world, stops at the first failure, and
+  the errand around it hangs back whatever is on the fork (abort means
+  stow). ⚠ VALIDATION IS TOTAL AND FIRST: `validate` returns every reason,
+  `run_program_routine` raises `Refused` before step one; caps are code's
+  (`MAX_STEPS` 24, `MAX_BUDGET_S` 1800, `MAX_WAIT_S` 60), choices are the
+  world's (`lifecycle.world_facts`). ⚠ `roles` is M12's slot: any number
+  validates, more than one is REFUSED to run, single-role is the default
+  shape. ⚠ THE FENCE: `data.ctrl` is written only by the modules listed in
+  `tests/test_procedure.py::CTRL_WRITERS` — never `procedure/`, never the
+  runner — and adding a writer is editing that list on purpose. ⚠ A task
+  carries the procedure that discharges it in `params["procedure"]`
+  (`params["program"]` is a drawing's FIGURE name); the kind's own evaluator
+  grades it, and `program` (the generic per-step verdict) is a
+  `challenges.json` row: challenge rows are merged into `default_table()`
+  UNOFFERED — bankable by the ledger, shown to no overseer, hashed into no
+  result (`RewardTable.offered`). The `procedure` event is additive on the
+  wire (`PROCEDURE_OUTCOMES`; no bump). Rung two — conditionals, loops, a
+  library — is #166 and adds no verb that bypasses the fence.
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws. `control.slew` for wheels;

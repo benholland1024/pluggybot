@@ -57,6 +57,15 @@ def main() -> None:
                            "(the milestone-8 LCD errand), draw (pen -> erase a "
                            "whiteboard -> draw), draw2 (two boards, charging "
                            "in between), none")
+  parser.add_argument("--program", default=None, metavar="PATH",
+                      help="fly a COMPOSED errand instead of --errand: a JSON "
+                           "program over the step vocabulary (issue #58; "
+                           "scripts/programs/*.json are examples), validated "
+                           "against the world before anything moves")
+  parser.add_argument("--program-task", default="program", metavar="TASK",
+                      help="which evaluator grades the program (default: the "
+                           "generic per-step verdict; 'draw' for a composed "
+                           "drawing)")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -131,7 +140,8 @@ def main() -> None:
                realtime=not args.fast, battery_wh=args.battery_wh,
                max_sim_time=args.max_sim_time, record=args.record,
                world=args.world, errand=args.errand,
-               board_state=args.boards, ledger_state=args.ledger,
+               board_state=args.boards, program=args.program,
+               program_task=args.program_task, ledger_state=args.ledger,
                overseer=args.overseer or None, goals=args.goals,
                journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
