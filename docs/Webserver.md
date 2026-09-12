@@ -166,7 +166,10 @@ things about it are decisions rather than boilerplate:
 - **The commit is baked, and the build is red without it.** `.git` is
   dockerignored, so `PLUGGY_COMMIT` is a required build arg and the stream's
   header carries it (Evaluation.md §5: observatory data without a build
-  identity is unusable data).
+  identity is unusable data). Reading it back — the commit, the documents,
+  every decision, event and memory write — is one `curl` against the site's
+  `GET /api/pluggyworld/observe` with a read token; Evaluation.md §5 "How the
+  observatory is read" is the record and the worked example.
 - **No ports, no `depends_on`.** The sim is an outbound client that retries
   every second, so it needs no inbound rule and no place in the reverse
   proxy, and it survives the website being restarted underneath it.

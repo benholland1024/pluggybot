@@ -1117,6 +1117,101 @@ did not, and nothing would notice. Three things it deliberately is not:
 (rooftop-media-2026 #205). Identity with nothing recorded is a header nobody
 reads; records with no identity are a chart of an unknown mixture.
 
+### How the observatory is read (issue #159)
+
+**The decision** (Ben, 2026-09-12): hour-long sim runs do not block
+development; behavioural results are read off the deployed world, and reading
+it has to be easy enough that a Claude Code agent can do it. So the read path
+is **a token-authenticated route in the website repo**, not a production
+shell: `GET /api/pluggyworld/observe`, behind `Authorization: Bearer
+$PLUGGYWORLD_READ_TOKEN`, or an admin session for whoever is already signed in
+in a browser. A route rather than SSH not for convenience but because a route
+is *in the repo* — reviewable, scoped to reading, and equally usable by a
+person, a script and an agent — where a shell is a far larger grant that lives
+outside the repo with nothing documenting it. SSH stays whatever it already is
+for operating the box.
+
+What the site keeps, and where — all of it attributable to a commit through
+`pw_runs`, 90 days of retention on the observatory tables:
+
+| where | what |
+|---|---|
+| `pw_runs` | one row per producer connection: the `build` block above |
+| `pw_decisions` | every `DECIDE` line: action, detail, reason, `source`, battery fraction |
+| `pw_events` | `death` / `charge` / `task` / `intervention` / `hunger` / **`thought`**, each one run, one sim-second, one battery reading, one word |
+| `pw_journal`, `pw_earnings`, `pw_messages` | journal notes, the ledger mirror, visitor messages |
+| the `pluggy_state` volume | the four thought documents, `ledger.json`, `boards.json`, `tasks.json`, `journal.json`, `mode.json`, `spend.json` — the CURRENT state, no history |
+
+**`thought` is the one kind this issue added**, and it closes the measurement
+half of #65. The four documents ride the wire whole (`thought` messages) and
+the hub caches them for late joiners, but that cache is wiped on every
+producer reconnect — hourly — and nothing wrote them to Postgres; the
+narration line `THOUGHT learn: …` was on the wire too and was dropped with the
+rest. Now every `learn` / `forget` / `intend` / `drop_goal` / `refused` is a
+row, so *what did the robot write, and when* has a history, and the digest
+tallies them per window — the write rate #65 asked for, counted rather than
+flown. ⚠ The line's shape is a two-repo contract: `THOUGHT_VERBS` in
+`telemetry/protocol.py`, pinned by `tests/test_thoughts.py`; the site's
+`thoughtFrom` parses it.
+
+⚠ **THE FIRST FIELD IS THE COMMIT.** The `sim` service is redeployed by hand —
+the website's push-to-branch workflow does not rebuild it — so production can
+sit several merges behind with nothing saying so. `live` beside it says whether
+that build is streaming now or is the last one that did.
+
+⚠ **`PLUGGYWORLD_READ_TOKEN` is a SECOND secret.** Reusing the ingest token
+would make a leaked publisher credential a reader as well; the site refuses a
+configuration where the two are equal, and has no default for it (unset, the
+route answers 503 and names the variable). It is a website-side variable —
+this repo's image never sees it.
+
+**The worked example** — "what has the deployed robot written this week":
+
+```
+curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
+  'https://benh.cloud/api/pluggyworld/observe?kind=thought&days=7' \
+  | jq '{commit, live, thoughts, written: [.events[] | "\(.simTime)s \(.subject): \(.detail)"]}'
+```
+
+Flown 2026-09-12 against a local copy of the site (`PORT=3100`, the read token
+set) with this repo's `serve.py --world home --pack hosting --overseer --arm
+guarded --tasks --metabolism --free-run` (Qwen3-4B via the HF router), read
+at t≈13 sim-minutes — a day's worth of this is the same shape with more rows:
+
+```json
+{
+  "commit": "0b38057",
+  "live": true,
+  "thoughts": { "drop_goal": 1, "forget": 2, "intend": 8, "learn": 8, "refused": 5 },
+  "written": [
+    "717.514s intend: Build a reliable visual map of the garden by drawing a sun and a tree on whiteboard_b, using precise placement and pressure to ensure the ink lands.",
+    "717.514s refused: Goals.md: 2 lines on the page match 'Learn what the garden has to offer by counting its plants.'",
+    "717.514s learn: The sun is consistently near the tree in the garden, suggesting a natural layout where sunlight hits plantings. I will use this spatial relationship to guide my drawing and improve my understanding of the garden's structure.",
+    "717.514s forget: The garden has three types of plants: sun, tree, and square. The sun is yellow, the tree has leaves, and the square is still in the ground. I need to count them properly.",
+    "669.62s drop_goal: Learn more about the garden by drawing what I see in it — a sun and a tree — to better understand how the environment is structured.",
+    "669.62s refused: Knowledge_and_Opinions.md: nothing on the page match 'Drawing consistently on whiteboard_b is needed to build a re'",
+    "160.079s intend: Learn what the garden has to offer by counting its plants.",
+    "15.384s intend: Learn what the garden has to offer by counting its plants.",
+    "15.384s learn: The garden has three types of plants: sun, tree, and square. The sun is yellow, the tree has leaves, and the square is still in the ground. I need to count them properly."
+  ]
+}
+```
+
+(24 rows in 13 sim-minutes; 15 shown elided.) Two things a reader of #65
+can already take from it: the first `learn` restates the frame before the
+census has happened, and three of the five refusals are the same duplicate
+goal — `intend` does not dedupe, so the second `intend` at t=160 put the
+t=15 line on the page twice and every later `drop_goal` of it is refused as
+ambiguous.
+
+`?kind=` takes any event kind (`death`, `charge`, `task`, `intervention`,
+`hunger`, `thought`) or none for all of them; `days` (1–90, default 7) and
+`limit` (default 200, cap 1000) fall back when nonsense. The unfiltered answer
+also carries `build` (the whole block), `documents` (the four files as they
+stand, off the hub's cache — empty while no sim is connected), the admin
+page's digest (`deaths`, `charges`, `tasks`, `hunger`, `thoughts`, `sources`,
+`runs`, `contaminatedRuns`), `decisionRows` and the ledger's `balances`.
+
 ### An admin intervention contaminates every survival number in its run
 
 The admin panel can set points and battery directly (protocol 0.16.0), which is

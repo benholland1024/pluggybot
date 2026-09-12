@@ -286,6 +286,16 @@ THOUGHT_WRITERS = ("human", "system", "robot")
 THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
                  "Knowledge_and_Opinions.md")
 
+#: What a write to the robot's memory is narrated as: `THOUGHT <verb>: <line>`
+#: (issue #159). The four verbs are the robot's whole write vocabulary --
+#: `learn`/`forget` on Knowledge_and_Opinions.md, `intend`/`drop_goal` on
+#: Goals.md -- and `refused` is the one write path saying no. The website's
+#: observatory parses this line into a `thought` row (the documents ride the
+#: wire whole, but WHEN a line was written is carried by this line alone), so
+#: it is a two-repo vocabulary like THOUGHT_FILES: adding a verb is additive,
+#: renaming one is breaking. `tests/test_thoughts.py` pins the shape.
+THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.
