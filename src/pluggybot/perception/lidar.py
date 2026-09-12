@@ -70,7 +70,21 @@ class Lidar:
                            np.sin(self.ray_angles),
                            np.zeros(n_rays)], axis=1)
     self._self_geoms = self._robot_geoms(model, robot_body)
+    #: OTHER robots' geoms (issue #167), dropped from the scan exactly as
+    #: the robot's own are: a bearing that hit another robot is no
+    #: information about the room. A fleet does this by subtracting each
+    #: robot's broadcast pose and footprint from the scan; here the pose is
+    #: exact and the footprint is the body itself. Without it a robot that
+    #: drove past painted a wake of occupied cells into the map, inflated to
+    #: 0.35 m, and the robot it passed was walled in by the ghost (measured:
+    #: robot 1 planned None from its own cell for 12 s and gave up the bay).
+    #: Avoidance is `HubMission.others`, the reported pose, in real time.
+    self._other_geoms: set = set()
     self._geomid = np.zeros(1, dtype=np.int32)
+
+  def exclude_robot(self, root_name: str) -> None:
+    """Drop another robot's body from every scan (see `_other_geoms`)."""
+    self._other_geoms |= self._robot_geoms(self.model, root_name)
 
   @staticmethod
   def _robot_geoms(model, root_name: str) -> set:
@@ -115,7 +129,8 @@ class Lidar:
       vec = np.ascontiguousarray(world_dirs[i])
       dist = mujoco.mj_ray(self.model, data, pos, vec, None, 1, -1,
                            self._geomid)
-      if dist >= 0.0 and int(self._geomid[0]) in self._self_geoms:
+      if dist >= 0.0 and (int(self._geomid[0]) in self._self_geoms
+                          or int(self._geomid[0]) in self._other_geoms):
         continue                              # self-filter: no information
       if dist < 0.0 or dist >= self.max_range:
         angles.append(self.ray_angles[i])     # nothing out there: free to max

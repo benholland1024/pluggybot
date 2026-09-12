@@ -168,12 +168,11 @@ def _routine_calls(tree):
 
 def _driven(call):
   """A routine call is DRIVEN when it is the operand of `yield from`, an
-  argument to a driver (`run`, `Step`), or a lambda's body (a factory
-  handed to something that will drive it)."""
+  argument to a driver (`run`, `Step`), or a factory's result -- a lambda's
+  body, or a `return` (`HubLifecycle.begin` hands the day to whoever runs
+  the loop, issue #167)."""
   parent = call._parent  # type: ignore[attr-defined]
-  if isinstance(parent, ast.YieldFrom):
-    return True
-  if isinstance(parent, ast.Lambda):
+  if isinstance(parent, (ast.YieldFrom, ast.Lambda, ast.Return)):
     return True
   if isinstance(parent, ast.Call) and call in parent.args:
     f = parent.func

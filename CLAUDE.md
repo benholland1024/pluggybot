@@ -760,6 +760,29 @@ save a filmstrip PNG named after the script.
   the fence: a bare robot name in mission code fails it. The wire
   (`ROBOT_ROOT` on events, the body census) is still first-robot-only —
   slice E of #167.
+- **Two robots run from ONE physics loop** (issue #167 slice B;
+  `pluggybot/pair.py`, `tick.run_many`). `HubSwap._step_once` is
+  `_before_step` (the wheel setpoints) + `mj_step` + `_after_step` (press,
+  reckoner, hooks), and `run_many` does every robot's before, ONE step,
+  every robot's after — the same three things in the same order, so a
+  robot alone is unchanged (parity flown). `HubLifecycle.run()` is
+  `begin()` (setup → the day routine) + `end()` (the summary), which is
+  what `run_pair` shares one loop between. ⚠ A hook's `MissionAborted` is
+  thrown into EVERY live routine, then re-raised: one robot's stop is the
+  day's stop. ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
+  mission's `others` (callables → the other's dead-reckoned x, y — a
+  network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
+  the traversable mask at plan time, a stagnated drive with another
+  robot within `OTHER_NEAR_M` WAITS (`OTHER_WAIT_S`) instead of failing,
+  and each lidar DROPS the other robot's body from its scans
+  (`Lidar.exclude_robot`) — measured: painted into the grid and inflated,
+  a robot driving past walled in the robot it passed, which planned None
+  from its own cell for 12 s and gave up the bay. ⚠ One rack, one charge
+  bay, contended and unarbitrated: a scripted pair sent for the same tool
+  ends with the second's pick failing honestly at an empty bay; two robots
+  needing to charge at once is a death the second bay (later slice)
+  removes. The world's activities are on the FIRST robot's hooks only.
+  `scripts/two_robots.py [--view] --errands carry,carry` is the demo.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

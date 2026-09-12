@@ -1249,6 +1249,24 @@ the perception trace, never off the state hash. `determinism_spike.py
 --second-robot X,Y` is the flight; `tests/test_two_robots.py` pins the short
 identical cases.
 
+## The other robot's wake walls you in (issue #167)
+
+The first contested bay: two scripted robots sent for the LCD, and the one
+that arrived first reported "no route" after 16 s with the module a metre
+away. The trace showed its planner returning None from its OWN cell for
+12 s: the other robot had driven past at 0.6 m, every scan painted its
+body into the occupancy grid, the 7-cell inflation (0.35 m) grew each of
+those cells into a 0.7 m disc, and the wake of discs covered the cell the
+first robot stood on — `nearest_traversable`'s halo could not find a way out
+of a ghost. A real fleet subtracts each robot's broadcast footprint from its
+scans; so does this one now (`Lidar.exclude_robot`), and avoidance reads the
+other robot's REPORTED pose in real time (`HubMission.others`, masked at plan
+time; a stagnated drive with the other within 1.2 m waits 2 s and looks
+again instead of giving up). **What is true now:** another robot is never in
+the map, only in the mask; the pick lands at 50 s with the other robot
+crossing its path, and the second robot's pick fails honestly at the empty
+bay.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,
