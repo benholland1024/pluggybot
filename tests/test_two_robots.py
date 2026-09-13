@@ -428,7 +428,7 @@ def test_a_pair_recording_is_named_for_the_pair_world():
   assert "pair_model_name(cfg[\"model_name\"])" in inspect.getsource(pair.record_pair)
 
 
-def test_a_robot_standing_by_for_work_clears_the_rack_first():
+def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
   """Measured on the pair fixture: the second robot stood by at the bay
   standoff after a stow and the first robot's next pick failed 0.4 m from
   it. Standing by within `RACK_CLEAR_M` of the rack prior drives home first;
@@ -438,6 +438,7 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first():
   from pluggybot.rack.coupling import RACK_ROOM_POS
   cfg = lc.world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])
+  monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)   # the slice length is not the claim
 
   def life_at(x, y):
     life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
@@ -456,7 +457,10 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first():
 
     life.explore_routine = explored
     life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
-    life.run(cfg["start"], max_sim_time=12.0)   # the opening spin alone is ~7 s
+    # The opening spin is 7 s of real physics and says nothing about this
+    # branch; stubbed, two stand-by slices are the whole day.
+    life.mission._spin_routine = lambda *a, **kw: tick.result(None)
+    life.run(cfg["start"], max_sim_time=1.5)
     return drives
 
   rx, ry = RACK_ROOM_POS

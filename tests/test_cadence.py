@@ -517,7 +517,7 @@ def test_the_real_census_errand_navigates_itself():
   assert all(e.needs_use_pose for e in lc.errands_for("carry", "room_hub", None))
 
 
-def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
+def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   """⚠ MEASURED, and it is the difference between a mission and a world.
 
   `run()` broke the moment it had nothing to do, which was right when the
@@ -580,8 +580,10 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
   shared.expects_work = True
   shared.explore_routine = lambda *a, **kw: tick.result(setattr(shared, "map_done", True))
   shared.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  shared.run(cfg["start"], max_sim_time=budget)
-  assert shared.data.time >= budget, \
+  shared.mission._spin_routine = lambda *a, **kw: tick.result(None)   # 7 s of physics, off-topic
+  monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)                      # nor is the slice length
+  shared.run(cfg["start"], max_sim_time=1.0)
+  assert shared.data.time >= 1.0, \
     f"the second robot went home at t={shared.data.time:.1f}s with work coming"
   # ...and a world with NO producer still ends the moment it is done, which
   # is what every other mission test in this suite depends on.
