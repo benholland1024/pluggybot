@@ -38,6 +38,13 @@ from pluggybot.rack.tags import (
 )
 
 # -- geometry (meters) --------------------------------------------------------
+#: The plate + peg budget every module is emitted at (ToolPattern.md §2 "Mass
+#: and geometry class"); the `face` adds its own on top. `PEG_MASS` is the
+#: 150 mm rod's share, split 8 + 8 + 4 g over the two conductors and the
+#: bush by `peg_xml`. Both are read into `protocol/parts.json` by
+#: `rack/catalog.py`, which is where the part behind each number is named.
+MODULE_MASS = 0.12
+PEG_MASS = 0.02
 PEG_R = 0.003           # peg axle radius (6 mm rod)
 PEG_HALF = 0.075        # peg half-length: 150 mm rod
 TOOL_HALF_Y = 0.020     # tool body half-width: 40 mm plate
@@ -116,7 +123,7 @@ def _v_notch_xml(prefix: str, pos: tuple[float, float, float],
 
 
 def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-              tool_mass: float = 0.12, noslip: int = 0) -> str:
+              tool_mass: float = MODULE_MASS, noslip: int = 0) -> str:
   """Hub shelf + hanging tool at the origin; carrier approaching from +x.
 
   dy/dz: lateral/vertical offset of the carrier's approach line (m).
@@ -177,9 +184,9 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
       <freejoint/>
       <geom name="tool_body" type="box"
             size="{TOOL_HALF_X} {TOOL_HALF_Y} {TOOL_HALF_Z}"
-            mass="{tool_mass - 0.02:.3f}" rgba="0.20 0.45 0.75 1"/>
+            mass="{tool_mass - PEG_MASS:.3f}" rgba="0.20 0.45 0.75 1"/>
       <geom name="tool_peg" type="cylinder" size="{PEG_R} {PEG_HALF}"
-            zaxis="0 1 0" pos="0 0 {PEG_ABOVE_BODY:.4f}" mass="0.02"
+            zaxis="0 1 0" pos="0 0 {PEG_ABOVE_BODY:.4f}" mass="{PEG_MASS}"
             rgba="{peg_len_color}"/>
     </body>
 
@@ -210,7 +217,7 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
 
 
 def module_xml(name: str, x: float, y: float, peg_z: float,
-               rgba: str, mass: float = 0.12, face: str = "",
+               rgba: str, mass: float = MODULE_MASS, face: str = "",
                yaw_deg: float = 0.0) -> str:
   """A tool module as a FREE body hanging at a station. `face` injects
   extra visual-only geoms (screen, plug, tag) in the module's frame."""
@@ -221,7 +228,7 @@ def module_xml(name: str, x: float, y: float, peg_z: float,
       <freejoint/>
       <geom name="{name}_body" type="box"
             size="{TOOL_HALF_X} {TOOL_HALF_Y} {TOOL_HALF_Z}"
-            mass="{mass - 0.02:.3f}" rgba="{rgba}"/>
+            mass="{mass - PEG_MASS:.3f}" rgba="{rgba}"/>
       {peg_xml(name)}
       {face}
     </body>"""
@@ -1160,7 +1167,7 @@ def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
 
 
 def run_pick(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-             tool_mass: float = 0.12, shake_accel: float = 0.0,
+             tool_mass: float = MODULE_MASS, shake_accel: float = 0.0,
              n_frames: int = 0, noslip: int = 0) -> tuple[dict, list[np.ndarray]]:
   """One scripted pick: approach, lift, retreat (then optionally shake).
 
@@ -1231,7 +1238,7 @@ def run_pick(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
 
 
 def run_cycle(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-              tool_mass: float = 0.12, n_frames: int = 0, noslip: int = 0,
+              tool_mass: float = MODULE_MASS, n_frames: int = 0, noslip: int = 0,
               ) -> tuple[dict, list[np.ndarray]]:
   """Full pick-and-RETURN cycle: take the tool off the hub, carry it out,
   bring it back, hang it up, leave empty. The offsets apply to BOTH
