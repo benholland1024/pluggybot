@@ -445,6 +445,55 @@ PARTS: tuple[Part, ...] = (
          "is not published there, so a tool cannot budget for it yet.",
   ),
   Part(
+    "realsense_d435", "RealSense D435 depth camera (active IR stereo)",
+    "sensor", "chosen", ("body",), ("pluggybot",), partNumber="D435",
+    massG=72, dimensionsMm={"length": 90, "width": 25, "height": 25},
+    quantity=1,
+    capabilities={"fovHDeg": 87, "fovVDeg": 58, "depthStream": "848x480 @ 30 Hz",
+                  "minZM": 0.28, "specRangeM": 10, "baselineMm": 50,
+                  "projector": "IR dot pattern: depth on textureless "
+                               "surfaces, which passive stereo could not do "
+                               "here", "interface": "USB 3", "powerW": None},
+    feeds=(
+      Feed("depth_eye.fovy", camera("depth_eye"), "°",
+           "the near-field camera on the mast top, pitched 40° at the "
+           "floor ahead", expect=58),
+      Feed("depth_cam_body.mass", geom("depth_cam_body", "mass"), "kg",
+           "the unit, on the mast top over the axle: CoM +10.7 mm, cruise "
+           "launch pitch 0.9 -> 1.3°", expect=0.072),
+      Feed("depth_cam_body.size", geom("depth_cam_body", "size"), "m",
+           "box half-extents"),
+      code("perception.depth.MIN_Z", "m",
+           "the datasheet's min-Z at full resolution; does not bind on the "
+           "mast-top mount", expect=0.28),
+      code("perception.depth.MAX_Z", "m",
+           "3 m, UNDER the part's 10 m: σ is 32 mm there and the map is "
+           "near-field; also the ray cutoff, so the cost"),
+      code("perception.depth.BASELINE", "m",
+           "the imager baseline: the occlusion shadow's width and, with the "
+           "sub-pixel error, the noise", expect=0.05),
+      code("perception.depth.NOISE_K", "1/m",
+           "σ_z = NOISE_K · z²: 0.08 px of disparity error on the real "
+           "447 px focal length and 50 mm baseline"),
+      code("perception.depth.PERIOD", "s",
+           "10 Hz in sim, the LIDAR's rate; the part streams 30"),
+    ),
+    why={"source": "RealSense left Intel in 2025; order from a distributor "
+         "(Mouser, Reichelt) -- link not verified",
+         "priceEur": "roughly €300-400 at EU distributors in 2026, "
+         "unverified"},
+    note="Issue #34: the near-field sensor, so the robot can find things "
+         "on the floor the scan plane looks over. Chosen over the D405 "
+         "(7-50 cm, but PASSIVE stereo: fails on painted floors and matte "
+         "printed modules exactly as the DIY pair did), a CSI time-of-flight "
+         "module (the Pi 5's two CSI ports are the two cameras) and a second "
+         "LIDAR tilted at the floor (a line, only while moving; cannot look "
+         "at a thing from a standstill). Its draw is NOT in "
+         "`power.ELECTRONICS_W` yet: nothing in the mission loop reads it, "
+         "and the electrical budget lands with the loop integration and the "
+         "energy table's re-measure (docs/Parts.md \"near-field depth camera\").",
+  ),
+  Part(
     "stereo_pair_diy", "DIY stereo: 2× Camera Module 3 on a custom 60 mm "
     "bracket", "sensor", "removed", ("body",), ("pluggybot",),
     capabilities={"baselineMm": 60},

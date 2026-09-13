@@ -153,6 +153,80 @@ Superseded, for the record: **DIY stereo** (2× Camera Module 3 on a custom
 Lite** (€193–199, 75 mm baseline, 35 cm minimum depth), but the question
 neither asked was whether any stereo pair could produce the mapper's scan.
 
+### ✅ CHOSEN (Sep 2026): near-field depth camera — RealSense D435 (issue #34)
+
+**Decision.** A third ranging sensor, for the one place the scan plane never
+looks: the floor. An **Intel/RealSense D435** (active IR stereo, 87° × 58°,
+848 × 480 depth, 50 mm baseline, 72 g, 90 × 25 × 25 mm, USB 3) on the **mast
+top, over the axle, pitched 40° down**. Applied to `pluggybot_fork.xml`
+(`depth_cam_body`, `depth_eye`); `perception/depth.py` is the sim,
+`perception/heightmap.py` the robot-centric 2.5D map it feeds, and
+`scripts/nearfield_spike.py` keeps every number below measured.
+
+**The candidates, and why each lost** — decided on lessons this repo had
+already paid for, not on a spec sheet:
+- **RealSense D405** (7–50 cm, the true near-field unit): *passive* stereo,
+  no projector. The DIY pair's measured failure (49.7 % of a scan row, on
+  painted surfaces) is this camera's failure on a painted floor and on the
+  matte printed modules it would be looking for. Rejected on that number.
+- **A CSI time-of-flight module** (Arducam ToF class, ~€50): honest and
+  cheap, but the Pi 5's two CSI ports are the two cameras — it reopens the
+  third-camera blocker the LIDAR swap closed.
+- **A second RPLIDAR tilted at the floor** (~€90, 110 g): one line across the
+  floor, swept only while driving; it cannot look at a thing from a
+  standstill, which is what grasping from a discovered pose needs (#34's
+  step 4). Also 110 g more, high.
+- **D435** wins because the projector makes textureless surfaces work, the
+  depth is computed on the unit (no Pi 5 budget beyond USB), and it is the
+  standard mast-top pick (Stretch carries one at its head).
+
+**The mount, measured** (`--mount`; the deck lesson in SimNotes). Head height
+was tried first and the frame was all chassis deck and LIDAR body. From the
+mast top the centre column sees the floor from **0.26 m ahead of the axle
+(6 cm past the bumper) at ANY pitch ≥ 35°** — the deck shadows nearer floor
+whatever the pitch — so pitch sets the FAR edge alone: 2.1 m at 40°, 1.7 at
+45°, 1.0 at 55°. 40° keeps 88 % of the frame on the floor and 3.9 % on the
+robot itself. Above the LIDAR plane, so the blind sector is unchanged; 15 mm
+above the carriage's top of travel.
+
+**What it costs the body.** Mass 2.444 → 2.516 kg; CoM +10.7 mm; a
+full-throttle step launch pitches 3.9° → 6.4° (the mission ramps at
+30 rad/s² and never commands that), a cruise launch 0.9° → 1.3°; braking and
+open-loop veer unchanged. The y-counterbalance test still holds (CoM
+−6.4 → −7.7 mm, bar 10 mm).
+
+**What the sim keeps honest** (each pinned in `tests/test_depth.py`): axial
+depth with the datasheet's limits on z (`MIN_Z` 0.28 m — which does not bind
+on this mount, nothing in frame but the robot is inside 0.5 m — and `MAX_Z`
+3 m, under the part's 10 on purpose); noise **quadratic in z**
+(0.08 px of disparity → 3.6 mm at 1 m, 14 mm at 2 m); the **occlusion
+shadow** on the image-left of every near edge, `f·B·(1/z_near − 1/z_far)`
+pixels wide; the robot's own deck dropped (and still occluding); and **no
+return is NOT a reading** — the LIDAR's rule inverted: an out-of-range pixel
+is unknown, never free space. Sim resolution is 120 × 70 (the part's aspect
+at 1/7), 8400 batched ray casts at **~5–7 ms a frame** on both worlds
+(60 × 35 is ~1.7 ms), deterministic and off the GPU. ⚠ Its draw (~1.5–3.5 W
+streaming, unverified) is **not in `power.ELECTRONICS_W`**: nothing in the
+mission loop reads it yet, and the electrical budget lands with the loop
+integration and the energy table's re-measure.
+
+**The representation, measured** (`--cost`; the issue's own question). A
+robot-centric **2.5D height map**, 4 m square at 2 cm = **40 000 cells**
+(the 2D grid is 56 000 at 5 cm), world-axis aligned and recentred by whole
+cells, the highest point per cell from the LAST frame to see it: **0.7 ms an
+update**, 480 KB. A voxel map of the same window to 0.5 m is 250 000 cells at
+2 cm (2 M at 1 cm) and, with the free-space carving that lets it forget a
+moved object, **111 ms an update** as written in the spike (~25 ms even at
+the 2D grid's per-sample efficiency) — 25× the cells and 40–200× the time to
+answer a question the height map answers. Voxels earn their keep only when
+what is UNDER an overhang matters; today that is nothing.
+
+**What it finds from a standstill** (`--find`): a 5 cm cube at 0.4–1.6 m and
+a 10 cm one to 1.2 m, height to 3 mm; a 3 cm cube only inside ~0.8 m, a 2 cm
+one never — the rows land ~3 cm apart on the floor at 1 m, so the map
+integrates over motion and `HeightMap.things` bridges one unmeasured cell.
+
+
 ---
 
 ## Arm & docking (milestone 6)
@@ -320,3 +394,6 @@ threshold derived from the model — the mass re-budget in PluggyPlan.md
    the docking tolerance envelope depends on it.
 9. **Lift/arm stroke + price** — get an igus quote for two NEMA11 lead-screw actuators
    (~0.25 m and ~0.20 m stroke) and their masses.
+10. **Depth camera sourcing and draw** — RealSense left Intel in 2025: confirm
+    an EU distributor and price for the D435 (roughly €300–400, unverified),
+    and its streaming draw, before it enters `power.ELECTRONICS_W`.
