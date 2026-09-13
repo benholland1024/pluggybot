@@ -309,10 +309,6 @@ def main() -> None:
                  "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
 
   if args.pair:
-    if args.goals or args.journal:
-      parser.error("--pair keeps each robot's documents under --thoughts "
-                   "(<root>/ and <root>/r2_pluggybot/); --goals/--journal "
-                   "name one robot's files and cannot be shared")
     serve_pair(args, flags, rung, origin)
     return
 
@@ -682,6 +678,11 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      metabolism=appetite_on, mortal=True, inboxes=inboxes,
                      mode=switch, overseer_kw=overseer_kw,
                      battery_wh=args.battery_wh, reserve_wh=args.reserve_wh,
+                     # The FIRST robot's documents, as a single robot's were
+                     # (the image sets both): the volume that served one
+                     # robot keeps that robot's goals and journal. The
+                     # second's live under its own root -- `build_pair`.
+                     goals_path=args.goals, journal_path=args.journal,
                      restart_after_s=(args.restart_after
                                       if args.restart_after > 0 else None))
   first, second = lives
