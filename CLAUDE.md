@@ -697,7 +697,10 @@ save a filmstrip PNG named after the script.
   refuses to write a mismatch. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null`
   WITH A `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a
   field that is not null is a stale excuse and fails. `partNumber` is what
-  you order by; a series or a class of part stays null. `coupling.
+  you order by; a series or a class of part stays null. Each entry carries
+  `workshop: {usable, why}` off `workshop.spec.unbuildable` — the
+  validator's predicate, so the parts page marks exactly what a spec may
+  name. `coupling.
   MODULE_MASS` / `PEG_MASS` name the 0.12 / 0.02 the emitters used as
   literals. Nothing in `economy/` imports it (a test walks the
   tree: a tool is graded on the world, never on its part list); the MIND

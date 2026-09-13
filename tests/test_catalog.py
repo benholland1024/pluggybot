@@ -189,3 +189,17 @@ def test_nothing_in_the_economy_reads_the_catalog():
       elif isinstance(node, ast.Import):
         names = [a.name for a in node.names]
       assert not any("catalog" in n for n in names), path
+
+
+def test_the_fixture_says_what_the_workshop_may_build_from(fixture):
+  """`workshop.usable` per part is the validator's own predicate (issue
+  #168), so the parts page marks exactly what a spec may name. Today: the
+  micro servo and the scaffold, and every other part says why not."""
+  from pluggybot.workshop.spec import unbuildable
+  by_id = catalog.by_id()
+  usable = sorted(p["id"] for p in fixture["parts"] if p["workshop"]["usable"])
+  assert usable == sorted(p.id for p in catalog.PARTS if unbuildable(p) is None)
+  assert usable == ["scaffold_pla_box", "servo_fs90"]
+  for p in fixture["parts"]:
+    if not p["workshop"]["usable"]:
+      assert p["workshop"]["why"] == unbuildable(by_id[p["id"]])
