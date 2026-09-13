@@ -60,7 +60,7 @@ wording, settled direction. Before doing anything, read:
   the integration, and then stop it on the claim (`stop_when`). A flown
   proof whose rule is already pinned goes behind `--endurance`.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **7:35** on a quiet box (2026-09-12). Any
+  APPROVAL.** The full suite is **7:10** on a quiet box (2026-09-13). Any
   change to testing that would take it past **10 minutes on a quiet machine,
   or 15 on a busy one**, must be stated as such in the PR — the number, the
   test, and why it cannot be cheaper — and approved by Ben personally before
@@ -106,8 +106,10 @@ wording, settled direction. Before doing anything, read:
   once is the worst case; deleting the plug-era tests saves 8 s; model
   compilation is 12–28 ms. Only sim-seconds count.
 - **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"`.
-  Measured 2026-09-12 on this box: **2:54** for `not slow` (1134 passed),
-  **7:35** for the FULL suite (1154 passed + 7 skipped). It was 17:58 the day
+  Measured 2026-09-13 on this box: **7:10** for the FULL suite (1315 passed
+  + 15 skipped) after four flown proofs moved behind `--endurance` and two
+  interrupt flights became one; it was 10:24 the same morning. 2026-09-12:
+  **2:54** for `not slow` (1134 passed), **7:35** full (1154 passed). It was 17:58 the day
   before (see the endurance bullet) and 11:27 for a few hours in between,
   when #151 and #152 merged five whole-mission tests, four of them unmarked —
   which is the drift the budget below exists to catch.
@@ -144,15 +146,19 @@ wording, settled direction. Before doing anything, read:
   its claim, and "**twice**, with nobody watching" IS the claim.
 - **A flown proof whose RULE is pinned by a fast test goes behind
   `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
-  `pyproject.toml`). Five are there: the dearest-errand survival, the two
-  charge-cap proofs, the starving robot's whole mission, and the interrupt's
-  "next errand after an abort" — 1560 s of serial work, and the first was
-  the suite's 8:33 floor and the last its 5:17 one. What each
-  guards is an inequality or one line of wiring, now asserted in milliseconds
+  `pyproject.toml`). Fourteen are there (2026-09-13): the dearest-errand
+  survival, the two charge-cap proofs, the starving robot's whole mission,
+  the interrupt's "next errand after an abort", the composed draw, the
+  agent-written procedure, the two-minds day, hide-and-seek, the one-loop
+  fetch beside another robot, the live pair recording, the seeded-map
+  mission and `test_full_hub_lifecycle[room_hub]` (the HOME arm stays — the
+  served world, the harder room, the guard on `world_config`). What each
+  guards is an inequality or one line of wiring, asserted in milliseconds
   and shown to fail without its fix; the flown version proves the
-  INTEGRATION (that the refusal produces a charge and a completed errand on
-  real physics) and is run deliberately, before a release or after touching
+  INTEGRATION and is run deliberately, before a release or after touching
   the mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`.
+  ⚠ Moving a test there is a claim that its rule IS pinned fast — name the
+  pin in the comment above the mark, as each of these does.
   ⚠ The decision behind it (Ben, 2026-09-12): while the design is moving, a
   generous pack is ASSUMED to fund any single errand and a battery death
   costs a heart rather than the world, so twenty minutes per issue defending

@@ -841,7 +841,13 @@ def test_the_seeded_map_reproduces_the_pre_change_loop_decision_for_decision():
                               0.0) is None
 
 
+# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): two 90 s missions,
+# 222 s under the parallel suite. The RULE -- a seeded map asks wherever the
+# pre-change loop asked -- is `test_the_seeded_map_reproduces_the_pre_change_
+# loop_decision_for_decision` above, in milliseconds; this is its flown
+# proof through the real lifecycle.
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_seeded_mission_asks_where_the_old_one_asked(menu, tmp_path):
   """The same claim end to end, through the real lifecycle: a mission flown
   with the seeded map makes the same decisions, in the same order, as one
