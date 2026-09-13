@@ -248,6 +248,55 @@ def test_a_blocked_drive_waits_for_the_other_robot_instead_of_giving_up():
   assert data.time - t0 >= 13.5, "gave up before its timeout"
 
 
+def test_explore_does_not_spin_when_the_other_robot_blocks_the_only_route(monkeypatch):
+  """Flown in the deployed pair: the frontier planner, which does not mask
+  the other robot, called a frontier "ok" that the drive planner, which
+  does, could not route to -- so the drive returned without stepping and
+  explore asked again at the same sim instant, forever. A walled corridor
+  with the other robot standing in it is that geometry; the plan count is
+  the tripwire, because a regression here is a hang, not a failure."""
+  from pluggybot import lifecycle as lc, tick
+  cfg = lc.world_config("room_hub")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                         world="room_hub", errand=False,
+                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                         grid_bounds=cfg["grid_bounds"],
+                         low_battery_wh=cfg["low_battery_wh"])
+  life.max_sim_time, life.blacklist = 3600.0, set()   # what run() sets up
+  m = life.mission
+  m.start_at(1.0, 1.0, 0.0)
+  g = m.grid
+  g.grid[:] = 5.0                                  # walls everywhere...
+  x0, y0 = g.world_to_cell(0.2, 0.2)
+  x1, y1 = g.world_to_cell(3.0, 1.8)
+  g.grid[y0:y1, x0:x1] = -5.0                      # ...but a known-free corridor
+  g.grid[y0:y1, x1:g.world_to_cell(3.6, 0.0)[0]] = 0.0   # the only frontier
+  m.others = [lambda: (2.2, 1.0)]                  # standing across it
+
+  # The premise: the two planners disagree about this frontier.
+  path, status = lc.plan(g, m.pose, set())
+  assert status == "ok"
+  assert m._plan_to(*g.cell_to_world(*path[-1])) is None
+
+  real, plans = lc.plan, []
+
+  def counted(*a, **kw):
+    plans.append(life.data.time)
+    if len(plans) > 50:
+      raise AssertionError(f"explore replanned {len(plans)} times at sim "
+                           f"time {life.data.time:.3f} without stepping")
+    return real(*a, **kw)
+
+  monkeypatch.setattr(lc, "plan", counted)
+  # The spin is 7 s of physics and not the claim; stubbed, nothing here steps.
+  m._spin_routine = lambda *a, **kw: tick.result(None)
+  step = tick.Step(life.explore_routine(budget=30.0))
+  assert step.tick() is None and step.done, "explore neither stepped nor ended"
+  assert len(plans) == lc.STRIKES_TO_FINISH
+  assert life.map_done
+
+
 def test_the_lidar_drops_the_other_robots_body_from_the_scan():
   model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
   data = mujoco.MjData(model)
