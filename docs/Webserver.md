@@ -123,6 +123,14 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
+`serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
+`<world>_pair`: `--errand2` is the second robot's errand (default `none` —
+it explores, then stands by for the shared board's work), `--robot-name-2`
+its display name (default `Rowan`), and the documents live under
+`--thoughts` (`<root>/` and `<root>/r2_pluggybot/`; `--goals`/`--journal`
+are refused, they name one robot's files). One publisher, one board, one
+ledger file with an account each, one operator switch on the primary.
+
 `serve.py --rate 2.0` runs faster than life; `--free-run` disables pacing to
 measure the machine's real-time multiple; `--record` keeps a v0 recording of
 the same run; `--keyframe-s` tunes the keyframe cadence (0 disables, and late
@@ -215,5 +223,12 @@ frames lost. Keyframes are 1 % of frames and 2.6 % of bytes.
 expanded house, more errands, an overseer): re-measure with `--free-run`
 before trusting the margin, on the box that will serve, with nothing else
 running — a full-suite `pytest` starting on the same box once turned a paced
-1× run into 0.71× and −123 s of drift. A second robot in the shared world
-needs this measured again rather than assumed.
+1× run into 0.71× and −123 s of drift.
+
+**A pair costs 2.15× one robot** (2026-09-13, dev machine, EGL, all cores,
+`--world home --pack hosting --tasks --metabolism --free-run`, 180 s
+budget): one robot **1.25×** real time (321.8 s sim / 258.4 s wall), the
+pair **0.58×** (274.7 s / 473.9 s), 5 420 frames, 0 dropped. Against the
+deploy box's 1.07× for one robot on four pinned cores, a pair there lands
+near 0.5×: serve it at `PLUGGY_RATE=0.5`, or give the service ~8 cores and
+re-measure with `--pair --free-run` before trusting 1×.

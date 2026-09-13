@@ -269,7 +269,7 @@ save a filmstrip PNG named after the script.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand {carry,draw,draw2,census,dance,showcase,none}` (`showcase` = draw + census, the queue both streamed surfaces are recorded from), `--boards PATH`, `--tasks`, `--metabolism`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | M14 harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
@@ -645,7 +645,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
-  `"Pluggy"`), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
+  `"Pluggy"`), `PLUGGY_PAIR` / `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
+  (the second robot, issue #181), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
   `PLUGGY_CADENCE`, `PLUGGY_ENERGY`, `PLUGGY_METABOLISM` — naming the last
   turns hunger on), `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`,
   `PLUGGY_ESCALATE_TO`, `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`,
@@ -846,8 +847,15 @@ save a filmstrip PNG named after the script.
   one recording under the PAIR world's name (`robot.pair_model_name`,
   `room_hub_pair` — a replayer picks its scene off `model`, and the second
   robot's bodies are in no single-robot scene); `activity/encounter.py`
-  emits `encounter` (`met`/`parted`, hysteresis). ⚠ `serve.py` still
-  flies one robot.
+  emits `encounter` (`met`/`parted`, hysteresis). **`serve.py --pair`**
+  (`$PLUGGY_PAIR`, issue #181) serves both from one loop under
+  `<world>_pair` through ONE publisher (`build_pair` + a `StreamRobot`);
+  a reach-in's `robot` picks its inbox, absent means the primary; the
+  operator switch is the primary's (one pause stops the one loop); a
+  stroke's `draw` names `life.root` (it said `pluggybot` for both until
+  #181). ⚠ Measured here: one robot free-runs at 1.25×, a pair at 0.58×
+  (2.15× the cost); the deploy box holds one at 1.07× on four cores, so a
+  pair there wants `PLUGGY_RATE=0.5` or twice the cores.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

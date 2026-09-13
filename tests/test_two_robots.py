@@ -517,3 +517,15 @@ def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hyster
   assert [e["phase"] for e in events] == ["met", "parted"]
   assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
   assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)
+
+
+def test_a_second_robots_strokes_are_its_own_on_the_wire():
+  """A `draw` / `board_cleared` message names the robot that drew (0.20.0),
+  and the drawing errand is the one place strokes are made -- it must pass
+  THIS robot's root, or a second robot's drawing is the first's on the wire
+  (found flying `serve.py --pair`, issue #181: Rowan took a draw task off the
+  board and every stroke said `pluggybot`)."""
+  import inspect
+  from pluggybot.mission import errand
+  src = inspect.getsource(errand.drawing_errand)
+  assert src.count("by=life.root") == 2, "clear AND stroke name the robot"

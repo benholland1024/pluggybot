@@ -215,11 +215,13 @@ def drawing_errand(book, board_name: str, board: Board,
     def on_stroke(i, points, name):
       nonlocal erased
       if erase and not erased:
-        book.clear(board_name, t=float(life.data.time))
+        book.clear(board_name, t=float(life.data.time), by=life.root)
         life._say(f"USE_TOOL: erased {board_name}")
         erased = True
+      # `by` is THIS robot's root (issue #181): a second robot's strokes
+      # were the first's on the wire until it was passed.
       book.stroke(board_name, name or figure.name, points,
-                  t=float(life.data.time))
+                  t=float(life.data.time), by=life.root)
 
     plotter.on_stroke = on_stroke
     # THE MID-DRAWING SAFE POINT (issue #116). Between strokes, pen up --
