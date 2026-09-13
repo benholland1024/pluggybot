@@ -33,6 +33,10 @@ wording, settled direction. Before doing anything, read:
   the event map, what it structurally cannot do on any arm, the fallbacks,
   memory, money, visitors. Read BEFORE touching `mind/`, the decision
   vocabulary, or anything that changes what the model is shown
+- `docs/Testing.md` — how to pin a rule without paying for a mission: the
+  three kinds of test, the cheap levers (stub the routine, the spin, the
+  slice; place the belief; read a fixture), how to measure. Read BEFORE
+  writing a test that flies anything
 - `docs/Evaluation.md` — measurement: the three arms (`scripted` / `guarded`
   / `autonomous`) and why `guarded` is the control and is never deleted, the
   metrics, the harness and its committed result-file format, the flown
