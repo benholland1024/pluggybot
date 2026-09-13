@@ -518,7 +518,13 @@ to build against.
    resolves to one verdict — `eval_program`, or the kind's own evaluator when
    the program discharges a kind's task. What is missing is an offered kind
    whose discharge is a program and whose energy cost has been measured;
-   that is batch item 4 (PluggyPlan.md).
+   that is batch item 4 (PluggyPlan.md). ⓘ *Found by building hide and
+   seek (issue #167):* a job for TWO robots is a kind with `roles`, claimed
+   one role per robot with the offer staying open until every role is held,
+   each robot running its role's steps, and ONE verdict — from a referee
+   ACTIVITY that measures both robots off the world — banked on the
+   winner's wallet by the pair, never by either robot's errand (its task
+   name has no evaluator on purpose).
 4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
    offers, and there is no verb for giving a job up gracefully — related to
    tool dropping (issue #30), and unowned by any pattern yet.

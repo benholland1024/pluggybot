@@ -486,6 +486,10 @@ class HubLifecycle:
     #: that decides: what one robot does about another is its mind's.
     self.peers: list = []
     self.robot_name = robot_display_name(robot_name)
+    #: THE GAME this robot is in, if any (issue #167): the referee activity
+    #: the pair attached. Read for its clock and by the sampler; never by
+    #: anything that decides.
+    self.game = None
     # DEATH AND RESET (issue #107). `dead` is the cause of the current death
     # or None; `deaths` and `resets` are the day's record of both; the
     # survival clock runs from mission start or the last reset. Typed events
@@ -1382,11 +1386,17 @@ class HubLifecycle:
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
     self.state = "USE_TOOL"
+    # A GAME'S referee starts its clock when a role's errand begins (issue
+    # #167); the first of the two to begin starts it, the second is a no-op.
+    game = getattr(self, "game", None)
+    if game is not None and errand.role:
+      game.start(float(self.data.time))
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
       else:
-        run = yield from procedure.run_program_routine(self, program, facts)
+        run = yield from procedure.run_program_routine(
+          self, program, facts, role=errand.role or None)
     except MissionAborted:
       raise
     except Exception as e:                        # noqa: BLE001 -- as run_errand
@@ -1930,6 +1940,11 @@ class HubLifecycle:
                      f"{got['hearts']} left")
     else:
       self._say(f"HEART refused: {got['why']}")
+
+  def role_in(self, task_id: str) -> str:
+    """This robot's role in a job with roles, or "" (issue #167)."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    return task.role_of(self.mission.handle.root) if task is not None else ""
 
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
@@ -2540,18 +2555,26 @@ class HubLifecycle:
       # touched it.
       self._say(f"TASK {task.id}: asks a question and nobody answered it")
       return False
-    errand = errand_for_task(task, self.world, self.boards, answer=said)
+    # A job with ROLES (issue #167): this robot takes the first one open,
+    # and its errand is that role's steps.
+    role = next(iter(task.open_roles()), "") if task.roles else ""
+    if task.roles and (not role or task.role_of(self.mission.handle.root)):
+      return False
+    errand = errand_for_task(task, self.world, self.boards, answer=said,
+                             role=role)
     if errand is None:
       # Offered in a world that cannot build it. Not fatal and not a claim:
       # leaving it offered lets it lapse honestly rather than be marked
       # failed by a robot that never touched it.
       self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
       return False
-    if self.tasks.claim(task.id, t=now, pack_wh=self.spendable_wh,
-                        answer=said) is None:
+    if self.tasks.claim(task.id, robot=self.mission.handle.root, t=now,
+                        pack_wh=self.spendable_wh, answer=said,
+                        role=role) is None:
       return False
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed: {task.description}"
+    self._say(f"TASK {task.id} claimed{f' as {role}' if role else ''}: "
+              f"{task.description}"
               + (f" -- answering {said}" if said else ""))
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
@@ -3309,7 +3332,8 @@ def errand_from(decision, world: str, book=None, library=None):
   return None
 
 
-def errand_for_task(task, world: str, book=None, answer: str = ""):
+def errand_for_task(task, world: str, book=None, answer: str = "",
+                    role: str = ""):
   """A claimed TASK -> the errand that discharges it, or None (issue #21).
 
   The sibling of `errand_from` and deliberately the same shape: a task is
@@ -3363,6 +3387,17 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
     elif task.kind == "fetch_module":
       errand = carry_errand(module=task.target,
                             use_at=world_config(world)["use_at"])
+    elif task.kind == "hide_and_seek":
+      # The first two-role game (issue #167): this robot's ROLE's steps,
+      # from #58's `roles` slot. `task` is "game" on purpose -- a name with
+      # NO evaluator, so the lifecycle scores nothing: the referee
+      # (activity/hideseek.py) scores the game ONCE for both robots and
+      # the pair banks it on the winner. An errand scored here as well
+      # would be a second scorer.
+      if role not in ("hider", "seeker"):
+        return None
+      errand = programmed_errand(hide_and_seek_program(world), task="game",
+                                 name=f"game:hide_and_seek:{role}", role=role)
     else:
       return None
   except (ValueError, KeyError, IndexError):
@@ -3375,6 +3410,46 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   # by construction with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
   return errand
+
+
+#: Where the hider goes and where the seeker looks, per world (issue #167):
+#: surveyed places, a work order's kind of fact. The hider's spot is out of
+#: the seeker's opening line of sight; the seeker's route is a sweep of the
+#: room from its start, ending where the hider is likely to be.
+HIDE_AND_SEEK_SPOTS = {
+  # room_hub: an 8 x 8 room, x -2..6, y -2..6, a divider at x = 2 with its
+  # gap in the middle, boxes at (1.5, -1.5), (0, 4) and (4, 1). The hider
+  # (the first robot, from (0.5, 3)) tucks into the south-west corner behind
+  # the corner box; the seeker (from (3, 3)) sweeps north-east, north-west,
+  # west and south, ending beside the box.
+  "room_hub": {"hide": (-1.2, -1.2), "seek": [(4.5, 4.5), (0.5, 4.8),
+                                              (-1.0, 2.0), (0.8, -1.0)]},
+  # home: the hider (from the living room) goes to the bedroom's far side;
+  # the seeker (from the hall) sweeps the living room, then the bedroom.
+  "home": {"hide": (3.5, 4.5), "seek": [(1.5, 1.0), (-1.0, 1.5), (1.0, 4.0),
+                                        (3.5, 4.5)]},
+}
+
+
+def hide_and_seek_program(world: str):
+  """The two roles' steps, in #58's vocabulary (issue #167). No tool for
+  either: the hider drives to its spot and waits out the seeking; the seeker
+  counts to twenty (a `wait`) and sweeps the room. The referee decides."""
+  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S
+  from pluggybot.procedure.steps import MAX_WAIT_S, Program, Step
+  spots = HIDE_AND_SEEK_SPOTS[world]
+  hx, hy = spots["hide"]
+  waits, left = [], SEEK_HEAD_START_S + SEEK_S
+  while left > 0:
+    waits.append(Step("wait", {"seconds": min(MAX_WAIT_S, left)}))
+    left -= MAX_WAIT_S
+  return Program(name="hide_and_seek", budget_s=SEEK_HEAD_START_S + SEEK_S + 240,
+                 roles={
+                   "hider": (Step("drive_to", {"x": hx, "y": hy}), *waits),
+                   "seeker": (Step("wait", {"seconds": SEEK_HEAD_START_S}),
+                              *[s for x, y in spots["seek"]
+                                for s in (Step("drive_to", {"x": x, "y": y}),
+                                          Step("look"))])})
 
 
 def load_program(path: str, world: str):

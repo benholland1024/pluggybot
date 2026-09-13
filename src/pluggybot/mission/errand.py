@@ -117,6 +117,9 @@ class Errand:
   #: unused. Abort still means stow: the loop hangs back whatever the program
   #: left on the fork.
   program: object | None = None
+  #: WHICH ROLE of a multi-role program this robot plays (issue #167), or
+  #: "" for a program with one.
+  role: str = ""
 
   def __post_init__(self) -> None:
     if not self.task:
@@ -124,7 +127,7 @@ class Errand:
 
 
 def programmed_errand(program, task: str = "program",
-                      name: str | None = None) -> Errand:
+                      name: str | None = None, role: str = "") -> Errand:
   """An errand whose middle AND ends are a program's steps (issue #58).
 
   `task` names the evaluator that grades the finished job -- "program" for
@@ -133,18 +136,20 @@ def programmed_errand(program, task: str = "program",
   reads the same board it reads for the native errand (`detail["board"]`).
   """
   from pluggybot.procedure.steps import TOOL_BAYS
-  steps = program.steps()
-  first_tool = program.first("fetch", "tool") or ""
-  board = program.first("draw", "board")
-  figure = program.first("draw", "figure")
-  detail = {"program": program.name, "steps": len(steps)}
+  steps = program.steps(role) if role else program.steps()
+  first_tool = (program.first("fetch", "tool", role) if role
+                else program.first("fetch", "tool")) or ""
+  board = program.first("draw", "board", role) if role else program.first("draw", "board")
+  figure = program.first("draw", "figure", role) if role else program.first("draw", "figure")
+  detail = {"program": program.name, "steps": len(steps),
+            **({"role": role} if role else {})}
   if board is not None:
     detail.update({"board": board, "figure": figure})
   return Errand(name=name or f"{task}:{program.name}", module=first_tool,
                 station_y=(HUB_STATION_YS[TOOL_BAYS[first_tool]]
                            if first_tool else 0.0),
                 use_at=(0.0, 0.0), use=None, task=task, program=program,
-                needs_use_pose=False, detail=detail)
+                role=role, needs_use_pose=False, detail=detail)
 
 
 def carry_errand(module: str = "module_lcd", station_y: float = LCD_BAY,

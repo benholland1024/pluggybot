@@ -798,6 +798,24 @@ save a filmstrip PNG named after the script.
   points, goals, thoughts, reasons or secrets; a test walks the context for
   the other's thought lines. `HubLifecycle.peers` is read by that and by
   NOTHING that decides.
+- **The first two-role errand is hide and seek** (issue #167 slice D;
+  `activity/hideseek.py`, `pair.arrange_game`, `lifecycle.
+  hide_and_seek_program`). A `TaskKind` may carry `roles`; the offer stays
+  OFFERED until every role is held, one role per robot, first claimant
+  first role (`TaskBoard.claim(role=)`, `Task.claims`, `open_roles`,
+  `role_of`); the claim event carries `claims`. Each robot runs its role's
+  steps from #58's `roles` slot (`run_program_routine(role=)`,
+  `Errand.role`), as an errand whose task is `game` — a name with NO
+  evaluator, so the lifecycle scores nothing. ⚠ THE REFEREE IS AN
+  ACTIVITY: `HideAndSeek` senses both chassis and a lidar-to-hider raycast
+  every step on the first robot's seam, latches `found` (within
+  `FIND_WITHIN_M` WITH line of sight) or `over` (`SEEK_S` after the
+  `SEEK_HEAD_START_S` head start), and the pair evaluates ONE verdict
+  (`eval_hide_and_seek`, `challenges.json`) and banks it on the WINNER's
+  wallet only; the task resolves for both. No new sensing: the seeker need
+  not know it found anything. ⚠ The referee is built when the second
+  claim lands (it has to know who is who); `HubLifecycle.game` is read for
+  its clock and by the sampler, never by anything that decides.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

@@ -183,6 +183,19 @@ than discovered:
    attempted — most of what "arbitrary" meant in #45 — is a research question
    until someone can write its predicate, and writing it is the work.
 
+## 6b. The hiding spot, graded (issue #167)
+
+The first example's predicate now exists and runs: `activity/hideseek.py`
+is the referee — the seeker within `FIND_WITHIN_M` of the hider **with line
+of sight** (a raycast from the seeker's lidar to the hider's chassis; a wall
+between them is not a find) inside `SEEK_S` of seeking, after a
+`SEEK_HEAD_START_S` head start — sensed every step, latched, and evaluated
+once for both robots (`eval_hide_and_seek`). It needed the second robot
+(M12), not new sensing: the seeker does not have to *know* it found anyone.
+What is still ungradeable is the *quality* of a hiding spot — that is §6's
+item 3, method, and the hider's win rate over many games is the nearest
+honest proxy.
+
 ## 7. What it takes to offer the tower
 
 The tower is written for perception-ladder tier 1 (`TaskPattern.md` §3): when
