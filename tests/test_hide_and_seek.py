@@ -125,10 +125,18 @@ def test_the_pair_arranges_the_game_and_pays_the_winner_only(monkeypatch):
   task, state = arrange_game(lives)
   assert task.state == "offered" and state["game"] is None
   a, b = lives
+  # The referee is in the world's activities FROM THE OFFER (0.20.0): the
+  # stream's header lists activities once, so one added at the claim would
+  # ship flags under a name no consumer was told about. Idle and unassigned
+  # until both roles are held; `start` before then is a no-op.
+  assert "hide_and_seek" in a.activities.names and a.game is not None
+  assert not a.game.assigned and a.game.phase == "idle"
+  a.game.start(0.0)
+  assert a.game.phase == "idle", "a game with no roles started"
   assert a._claim_task(task.id) and state["game"] is None
   assert b._claim_task(task.id) and state["game"] is not None
   game = state["game"]
-  assert game.hider is a.mission.handle and game.seeker is b.mission.handle
+  assert game.assigned and game.hider is a.mission.handle and game.seeker is b.mission.handle
   assert a.game is game and b.game is game
   assert a.role_in(task.id) == "hider" and b.role_in(task.id) == "seeker"
   assert a.tasks.get(task.id).state == "claimed"

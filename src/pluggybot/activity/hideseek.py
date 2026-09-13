@@ -40,15 +40,22 @@ FIND_WITHIN_M = 1.0
 class HideAndSeek(Activity):
   name = "hide_and_seek"
 
-  def __init__(self, model, hider: RobotHandle, seeker: RobotHandle,
+  def __init__(self, model, hider: RobotHandle | None = None,
+               seeker: RobotHandle | None = None,
                head_start_s: float = SEEK_HEAD_START_S, seek_s: float = SEEK_S,
                find_within_m: float = FIND_WITHIN_M) -> None:
     super().__init__()
-    self.hider, self.seeker = hider, seeker
-    self.hider_bid = model.body(hider.root).id
-    self.seeker_bid = model.body(seeker.root).id
-    self.seeker_eye = model.site(seeker.el("lidar")).id
-    self.hider_geom = model.geom(hider.el("chassis")).id
+    self.model = model
+    # The roles are known only once both are CLAIMED, but the referee has to
+    # be in the world's activity set from the moment the game is offered --
+    # the stream's header lists activities once, and a referee added later
+    # would ship flags under a name no consumer was told about. So it is
+    # built unassigned (`idle`) and `assign`ed at the claim.
+    self.hider: RobotHandle | None = None
+    self.seeker: RobotHandle | None = None
+    self.hider_bid = self.seeker_bid = self.seeker_eye = self.hider_geom = -1
+    if hider is not None and seeker is not None:
+      self.assign(hider, seeker)
     self.head_start_s, self.seek_s = head_start_s, seek_s
     self.find_within_m = find_within_m
     self.started_at: float | None = None
@@ -59,9 +66,21 @@ class HideAndSeek(Activity):
     self.set(phase="idle", distanceM=None, los=False, foundAtS=None,
              overAtS=None, winner="")
 
+  def assign(self, hider: RobotHandle, seeker: RobotHandle) -> None:
+    """Who hides and who seeks -- both roles claimed."""
+    self.hider, self.seeker = hider, seeker
+    self.hider_bid = self.model.body(hider.root).id
+    self.seeker_bid = self.model.body(seeker.root).id
+    self.seeker_eye = self.model.site(seeker.el("lidar")).id
+    self.hider_geom = self.model.geom(hider.el("chassis")).id
+
+  @property
+  def assigned(self) -> bool:
+    return self.hider is not None and self.seeker is not None
+
   def start(self, t: float) -> None:
     """The game is on: both roles claimed, both errands under way."""
-    if self.started_at is None:
+    if self.started_at is None and self.assigned:
       self.started_at = float(t)
       self.set(phase="hiding")
 

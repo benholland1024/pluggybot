@@ -199,6 +199,13 @@ AUTONOMOUS_IDLE_S = 3600.0 / CALLS_PER_HOUR
 #: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
 #: an idle moment.
 WAIT_FOR_WORK_S = 5.0
+#: A robot standing by for work must not stand at the RACK (issue #167):
+#: measured on the pair fixture, the second robot finished a stow and stood
+#: by at the bay standoff for six minutes, and the first robot's next pick
+#: failed 0.4 m from it. Standing by begins by clearing this radius of the
+#: rack prior, back to the robot's own start pose. The bay standoff is
+#: ~1.2 m and `OTHER_NEAR_M` (what a planner routes round) is 1.2 m.
+RACK_CLEAR_M = 2.0
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
 #: moving -- this is the cadence of the heartbeat that tells the site it is
@@ -343,6 +350,8 @@ class HubLifecycle:
     # wants the board without a world generating more behind its back, and a
     # restart against a persisted board resumes work rather than re-seeding.
     self.producer = producer
+    self._expects_work: bool | None = None
+    self._cleared_rack = False
     # THE APPETITE (issue #36). Optional, like the ledger it eats out of and
     # for a stricter version of the same reason: hunger reshuffles nothing on
     # its own but it does change what the robot is TOLD, and every existing
@@ -771,9 +780,38 @@ class HubLifecycle:
       return
     self.stand_up(AUTO_RESTART_BY, auto=True)
 
+  @property
+  def expects_work(self) -> bool:
+    """Whether work can still ARRIVE when the loop has nothing to do -- what
+    the stand-by branch of the day keys on. Follows `producer` unless set:
+    a pair shares one board with the producer on the FIRST robot's seam
+    (issue #167), so the second robot has no producer and a board that
+    grows anyway. Measured on the pair fixture: keyed on `producer`, the
+    hider called its day complete at t = 146 s, mid-game, and every carry
+    the cadence offered after that went to the other robot by default."""
+    if self._expects_work is not None:
+      return self._expects_work
+    return self.producer is not None
+
+  @expects_work.setter
+  def expects_work(self, value: bool) -> None:
+    self._expects_work = bool(value)
+
   def _emit(self, message: dict) -> None:
     for hook in list(self.on_event):
       hook(dict(message))
+
+  def _clear_rack_routine(self) -> Routine:
+    """Stand by away from the rack: within `RACK_CLEAR_M` of the rack prior,
+    drive back to the start pose; anywhere else, stay put."""
+    px, py, _ = self.mission.pose
+    r = self.mission.rack_prior
+    if self.home_pose is None or math.hypot(px - r.x, py - r.y) >= RACK_CLEAR_M:
+      return
+    hx, hy = self.home_pose[0], self.home_pose[1]
+    self._say(f"standing by: clearing the rack for the others -- back to "
+              f"({hx:.1f}, {hy:.1f})")
+    yield from self.mission.drive_to_routine(hx, hy)
 
   def _wait_dead_routine(self) -> Routine:
     """A dead robot with somebody who can reset it stands still and keeps
@@ -3011,6 +3049,7 @@ class HubLifecycle:
       # is actually running.
       self._metabolism_step()
       if self.needs_charge:
+        self._cleared_rack = False
         self.state = "GO_CHARGE"
         if not (yield from self.go_charge_routine()):
           self._strand()
@@ -3018,6 +3057,7 @@ class HubLifecycle:
         self.state = "CHARGE"
         yield from self.charge_routine()
       elif self.errands and not self._afford_next():
+        self._cleared_rack = False
         # ⚠ AN ERRAND THAT WILL NOT FIT IS CHARGED FOR FIRST (issue #15).
         # `needs_charge` above is checked BETWEEN errands and never inside
         # one, so a job bigger than what is left in the pack cannot be
@@ -3036,6 +3076,7 @@ class HubLifecycle:
         # Pop BEFORE running: an errand that raises must not be retried
         # forever, and a queue that only shortens on success is an infinite
         # loop dressed as a task list.
+        self._cleared_rack = False
         yield from self.run_errand_routine(self.errands.pop(0))
       elif self.overseer is not None:
         # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
@@ -3054,9 +3095,15 @@ class HubLifecycle:
         # the reason the errand queue does, because somebody asked for it.
         continue
       elif not self.map_done:
+        self._cleared_rack = False
         self.state = "EXPLORE"
         yield from self.explore_routine()
-      elif self.producer is not None:
+      elif self.expects_work:
+        if not self._cleared_rack:
+          # ...and not AT THE RACK (issue #167; RACK_CLEAR_M). Once per
+          # idle stretch: any branch above that moves the robot resets it.
+          self._cleared_rack = True
+          yield from self._clear_rack_routine()
         # WAITING FOR WORK IS NOT BEING FINISHED (issue #23). The loop used
         # to break the moment it had nothing to do, which was right when
         # the only work was a preset queue -- that queue never grows. A

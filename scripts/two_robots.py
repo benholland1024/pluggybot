@@ -35,6 +35,9 @@ def main() -> None:
                   help="both minds on the autonomous arm (rails off, standing "
                        "orders, procedures)")
   ap.add_argument("--tasks", action="store_true", help="one shared task board")
+  ap.add_argument("--metabolism", action="store_true",
+                  help="points are food, for both robots (each its own "
+                       "appetite over its own account)")
   ap.add_argument("--thoughts", default=None, metavar="DIR",
                   help="thought-file root; the second robot's live under "
                        "<DIR>/r2_pluggybot/")
@@ -58,6 +61,7 @@ def main() -> None:
                           overseer=args.overseer or None,
                           autonomous=args.autonomous,
                           standing_orders=args.autonomous, tasks=args.tasks,
+                          metabolism=args.metabolism,
                           thoughts_root=args.thoughts, names=names,
                           record=args.record, game=args.game)
   for i, r in enumerate(results, 1):

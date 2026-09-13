@@ -324,6 +324,9 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
   assert header["ledger"] == [FIRST.root, SECOND.root]
+  assert header["model"] == "room_hub_pair"
+  goals = [r for r in rows if r.get("type") == "goals"]
+  assert [g["robot"] for g in goals] == [FIRST.root, SECOND.root]
   frames = [r for r in rows if "type" not in r]
   assert frames and all(set(f["robots"]) == {FIRST.root, SECOND.root} for f in frames)
   assert frames[0]["robots"][SECOND.root]["bodies"]
@@ -331,4 +334,169 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   assert {t["robot"] for t in thoughts} == {FIRST.root, SECOND.root}
   claims = [r for r in rows if r.get("type") == "task_claimed"]
   assert claims and claims[-1]["claims"] == {"hider": FIRST.root, "seeker": SECOND.root}
-  assert header["activities"] == ["encounters"]
+  assert header["activities"] == ["encounters", "hide_and_seek"], "the referee must be advertised"
+
+
+class _Block:
+  """A `snapshot()` duck (a spend book, an appetite) that returns what it is
+  told to, so the builder's per-robot change detection is the only thing
+  under test."""
+  def __init__(self, value: dict):
+    self.value = value
+
+  def snapshot(self) -> dict:
+    return dict(self.value)
+
+
+class _Docs:
+  """A `ThoughtFiles` duck: one document, keyed by its robot."""
+  def __init__(self, robot: str):
+    self.robot = robot
+
+  def messages(self, t: float = 0.0) -> list[dict]:
+    return [{"type": "thought", "t": t, "robot": self.robot, "name": "Main.md",
+             "text": f"I am {self.robot}"}]
+
+
+def _two_robot_builder(**second):
+  from pluggybot.telemetry.recorder import FrameBuilder, StreamRobot
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  data = mujoco.MjData(model)
+  other = StreamRobot(SECOND.root, "Rowan", lambda: {"state": "IDLE"}, **second)
+  return model, data, other, FrameBuilder
+
+
+def test_spend_and_metabolism_ride_each_robots_own_record():
+  """0.20.0: the two blocks are keyed by robot like everything else on the
+  wire, and each robot's change detection is its own -- the second robot
+  eating does not re-ship the first robot's unchanged block."""
+  model, data, other, FrameBuilder = _two_robot_builder(
+    metabolism=_Block({"state": "starving", "points": 0}))
+  hunger1 = _Block({"state": "satisfied", "points": 15})
+  purse = _Block({"spentUsd": 0.0})
+  b = FrameBuilder(model, data, metabolism=hunger1, spend=purse, others=[other])
+  first = b.build()
+  assert "metabolism" not in first and "spend" not in first, \
+    "a top-level block is the first robot's alone -- the pre-0.20.0 shape"
+  assert first["robots"][FIRST.root]["metabolism"]["state"] == "satisfied"
+  assert first["robots"][FIRST.root]["spend"] == {"spentUsd": 0.0}
+  assert first["robots"][SECOND.root]["metabolism"]["state"] == "starving"
+  assert "spend" not in first["robots"][SECOND.root], "no purse, no block"
+  other.metabolism.value = {"state": "hungry", "points": 3}
+  data.time = 0.1
+  second = b.build()
+  assert second["robots"][SECOND.root]["metabolism"]["state"] == "hungry"
+  assert "metabolism" not in second["robots"][FIRST.root], \
+    "the first robot's unchanged appetite was re-sent"
+  b.reset()
+  data.time = 0.2
+  key = b.build()
+  assert key["robots"][FIRST.root]["metabolism"] and key["robots"][SECOND.root]["metabolism"], \
+    "a keyframe must re-ship every robot's block"
+  assert b.header()["hungerStates"], "any robot with an appetite advertises the vocabulary"
+
+
+def test_goals_thoughts_and_the_map_are_one_message_per_robot():
+  """0.20.0: `goals`, `thought` and `grid` each carry the ROOT of the robot
+  they belong to, and there is one per robot that has the thing."""
+  from pluggybot.telemetry.recorder import GridSampler, grid_samplers
+  grid2 = object()
+  model, data, other, FrameBuilder = _two_robot_builder(
+    thoughts=_Docs(SECOND.root), goals="find the other one", steering=True,
+    grid=grid2)
+  b = FrameBuilder(model, data, thoughts=_Docs(FIRST.root), goals="",
+                   steering=False, others=[other])
+  goals = b.goals_messages(1.0)
+  assert [(g["robot"], g["text"], g["steering"]) for g in goals] == \
+    [(FIRST.root, "", False), (SECOND.root, "find the other one", True)]
+  assert [(m["robot"], m["text"]) for m in b.thought_messages(1.0)] == \
+    [(FIRST.root, f"I am {FIRST.root}"), (SECOND.root, f"I am {SECOND.root}")]
+  samplers = grid_samplers(None, [other], hz=1.0, dedupe=False)
+  assert [(s.root, s.grid) for s in samplers] == [(FIRST.root, None), (SECOND.root, grid2)]
+  assert GridSampler(None).root == FIRST.root, "a single-robot caller's map is the first robot's"
+  assert b.header()["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
+
+
+def test_a_pair_recording_is_named_for_the_pair_world():
+  """A replayer picks its scene off the header's `model`, and the second
+  robot's bodies are in no single-robot scene: the pair world has a name of
+  its own, and the scene generator knows it."""
+  from pluggybot.robot import pair_model_name
+  assert pair_model_name("room_hub") == "room_hub_pair"
+  import inspect
+  from pluggybot import pair
+  assert "pair_model_name(cfg[\"model_name\"])" in inspect.getsource(pair.record_pair)
+
+
+def test_a_robot_standing_by_for_work_clears_the_rack_first():
+  """Measured on the pair fixture: the second robot stood by at the bay
+  standoff after a stow and the first robot's next pick failed 0.4 m from
+  it. Standing by within `RACK_CLEAR_M` of the rack prior drives home first;
+  standing by anywhere else stays put -- the branch is checked with the
+  drive stubbed, on the loop that actually runs it."""
+  from pluggybot import lifecycle as lc, tick
+  from pluggybot.rack.coupling import RACK_ROOM_POS
+  cfg = lc.world_config("room_hub")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+
+  def life_at(x, y):
+    life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                           world="room_hub", errand=False,
+                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                           grid_bounds=cfg["grid_bounds"],
+                           low_battery_wh=cfg["low_battery_wh"])
+    life.expects_work = True
+    drives = []
+
+    def explored(*a, **kw):
+      # Where the robot BELIEVES it ended up exploring, without driving.
+      life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
+      life.map_done = True
+      return tick.result(None)
+
+    life.explore_routine = explored
+    life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+    life.run(cfg["start"], max_sim_time=12.0)   # the opening spin alone is ~7 s
+    return drives
+
+  rx, ry = RACK_ROOM_POS
+  near = life_at(rx + 0.3, ry - 0.6)               # the bay standoff
+  assert near and near[0][:2] == cfg["start"][:2], \
+    f"a robot idling at the rack did not clear it: drives={near}"
+  far = life_at(cfg["start"][0], cfg["start"][1])
+  assert not far, f"a robot already clear of the rack drove anyway: {far}"
+
+
+def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hysteresis():
+  """`activity/encounter.py`: `met` at <= 1.5 m, `parted` at >= 2.0 m, and
+  NOTHING in between -- a pair hovering at 1.7 m does not chatter. Poses
+  are written straight into the data (the referee test's `_place`): what is
+  under test is the rule, not the drive."""
+  from pluggybot.activity.encounter import ENCOUNTER_M, PARTED_M, Encounters
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  data = mujoco.MjData(model)
+  meetings = Encounters(model, FIRST, SECOND)
+  events = []
+  meetings.on_event.append(events.append)
+
+  def apart(d):
+    q1, q2 = FIRST.qpos_adr(model), SECOND.qpos_adr(model)
+    data.qpos[q1:q1 + 2] = [0.0, 0.0]
+    data.qpos[q2:q2 + 2] = [d, 0.0]
+    mujoco.mj_forward(model, data)
+    data.time += 0.1
+    meetings.sense(model, data)
+
+  for d in (3.0, 1.7, 1.51):
+    apart(d)
+  assert events == [], "met before the threshold"
+  apart(1.5)
+  assert [e["phase"] for e in events] == ["met"]
+  assert events[0]["robots"] == [FIRST.root, SECOND.root] and events[0]["distanceM"] == 1.5
+  for d in (1.7, 1.9, 1.99):
+    apart(d)
+  assert len(events) == 1, "a pair hovering between the thresholds chattered"
+  apart(2.0)
+  assert [e["phase"] for e in events] == ["met", "parted"]
+  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
+  assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)

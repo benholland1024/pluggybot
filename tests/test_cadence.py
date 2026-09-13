@@ -566,6 +566,23 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day():
   assert r["state"] == "DONE"
   assert life.data.time >= budget, \
     f"the robot went home at t={life.data.time:.1f}s with work coming"
+  # A robot with NO producer of its own but a board that grows anyway -- the
+  # second robot of a pair, whose board is ticked by the first (issue #167)
+  # -- stands by on the same terms. `expects_work` is the rule, not the
+  # producer: keyed on the producer, the pair fixture's hider called its day
+  # complete mid-game and never saw another offer.
+  shared = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                           world="room_hub", errand=False, tasks=b,
+                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                           grid_bounds=cfg["grid_bounds"],
+                           low_battery_wh=cfg["low_battery_wh"])
+  assert shared.producer is None and not shared.expects_work
+  shared.expects_work = True
+  shared.explore_routine = lambda *a, **kw: tick.result(setattr(shared, "map_done", True))
+  shared.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  shared.run(cfg["start"], max_sim_time=budget)
+  assert shared.data.time >= budget, \
+    f"the second robot went home at t={shared.data.time:.1f}s with work coming"
   # ...and a world with NO producer still ends the moment it is done, which
   # is what every other mission test in this suite depends on.
   quiet = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
