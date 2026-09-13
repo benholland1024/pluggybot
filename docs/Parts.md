@@ -5,7 +5,15 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
-> **Sourcing note:** Pololu (US) parts are stocked by German/EU distributors — mainly [Eckstein-shop.de](https://eckstein-shop.de/Pololu_EN), plus BerryBase, EXP-Tech, Welectron, Botland and TME.eu — so no US import is needed. All prices below are **approximate, incl. 19% VAT, as of July 2026** — re-check before ordering.
+> **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
+> pluggybot.rack.catalog` (issue #185) — every part below with its number,
+> source, mass, price and the sim constant it feeds, the constant's value
+> READ OFF THE MODEL when the file is built, so the fixture cannot describe a
+> number the sim does not use. A number this doc does not know is `null`
+> there with a reason, never a guess. The website's parts page renders it.
+> This doc keeps the reasoning; the spec→parameter tables live there.
+
+> **Sourcing note:** Pololu (US) parts are stocked by German/EU distributors — mainly [Eckstein-shop.de](https://eckstein-shop.de/Pololu_EN), plus BerryBase, EXP-Tech, Welectron, Botland and TME.eu — so no US import is needed. All prices are **approximate, incl. 19% VAT, as of July 2026** — re-check before ordering.
 
 ---
 
@@ -47,18 +55,15 @@ needed (PluggyPlan.md "Road to hardware", item 1).
 **Pololu 50:1 Metal Gearmotor 37Dx70L mm 12V with 64 CPR Encoder (Helical Pinion)** — Pololu #4753
 
 - Source: [Eckstein-shop.de](https://eckstein-shop.de/Pololu-501-Metal-Gearmotor-37Dx70L-mm-12V-with-64CPR-EncoderHelical-Pinion-EN) — **€84,43 each**. Datasheet: [pololu.com/product/4753](https://www.pololu.com/product/4753)
-
-| Spec | Value | → Sim / MJCF parameter |
-|---|---|---|
-| Gear ratio | 50:1 | wheel-joint `armature="0.012"` (reflected rotor inertia ∝ ratio²) and `damping="0.05"` (the gearbox's ~30–35 % torque loss, per Pololu's ~65 % efficiency). Both load-bearing for sim stability — SimNotes "Physics modeling rules" |
-| No-load speed @ 12 V | 200 rpm = **20.9 rad/s** | actuator `ctrlrange` ±21; `power.NOLOAD_SPEED` |
-| Stall torque @ 12 V | 21 kg·cm = **2.06 N·m** | actuator `forcerange` ±2.06; `power.STALL_TORQUE` |
-| Stall current @ 12 V | 5.5 A | `power.STALL_A` (brushed-DC current ∝ torque); motor driver sizing |
-| No-load current | 0.2 A | `power.NOLOAD_A` |
-| Encoder | 64 CPR motor shaft = **3200 CPR at output** | future encoder-quantization model (odometry is perfect-encoder today) |
-| Mass | **205 g** | motor `geom` mass |
-| Output shaft | 16 mm long, **6 mm D-shaft** | wheel/hub compatibility (below) |
-| Dimensions | ⌀37 × 70 mm (excl. shaft) | motor geom size |
+- Catalog entry `gearmotor_37d_50`: the 50:1 ratio is the wheel joint's
+  `armature` (reflected rotor inertia ∝ ratio²) and `damping` (the gearbox's
+  ~30–35 % torque loss), both load-bearing for sim stability — SimNotes
+  "Physics modeling rules"; stall torque 2.06 N·m and no-load 20.9 rad/s are
+  the motor actuator's `forcerange` / `ctrlrange` and `power.STALL_TORQUE` /
+  `NOLOAD_SPEED`; 5.5 A stall / 0.2 A no-load are `power.STALL_A` /
+  `NOLOAD_A`. The 64 CPR encoder (3200 CPR at the output) has no model yet
+  — odometry is perfect-encoder today. 6 mm D-shaft, which sets the wheel
+  choice below.
 
 Runner-up, not selected: the 30:1 sibling (#4752, same price; 330 rpm /
 1.37 N·m) — passed over for the 50:1's push force, because speed is a low
@@ -68,11 +73,10 @@ priority for this robot.
 
 ⚠ **Finding:** Pololu's 60–70 mm wheels only fit 3 mm shafts. For the 37D's **6 mm D-shaft**, the verified Pololu path is a 90 mm (or 80 mm) wheel + universal mounting hub.
 
-| Part | Source | Price | Notes |
-|---|---|---|---|
-| **Pololu Wheel 90×10 mm pair** (#1435–1439) | [Eckstein-shop.de](https://eckstein-shop.de/Pololu-Wheel-90x10mm-Pair-Red-for-Micro-Metal-Gearmotors-EN) | **€11,13 / pair** | Six M3/#4-40 mounting holes matching Pololu universal hubs. Mass: TBD (verify on datasheet) |
-| **Pololu Universal Aluminum Mounting Hub, 6 mm shaft, M3 holes (2-pack)** (#1999) | [Eckstein-shop.de](https://eckstein-shop.de/PololuUniversalAluminumMountingHubfor6mmShaft2CM3Holes2-PackEN) | **€11,95 / 2-pack** | Set-screw hub for the 6 mm D-shaft; wheel bolts to hub |
-| Alt: Pololu Multi-Hub Wheel 80×10 mm (2-pack) | [Eckstein-shop.de](https://eckstein-shop.de/Pololu-Multi-Hub-Wheel-w-Inserts-for-3mm-and-4mm-Shafts-8010mm-Black-2-pack-EN) | €14,20 / 2-pack | Inserts are 3/4 mm only — **TBD: verify it accepts the 6 mm universal hub** before buying |
+Catalog entries `wheel_90x10` (#1435–1439, €11,13 / pair, mass TBD),
+`hub_6mm_m3` (#1999, the set-screw hub the wheel bolts to) and the
+alternative `wheel_80x10_multihub` (whose inserts are 3/4 mm only — unverified
+that it accepts the 6 mm hub).
 
 ✅ **Decided (July 2026): 90×10 mm** → wheel geom r = 0.045 m
 (`control.WHEEL_RADIUS`), half-width 0.005. With the 50:1 motor, top speed
@@ -84,12 +88,19 @@ compliance (`solref="0.05 1"`) and gearbox damping were modelled — SimNotes.
 
 ## Chassis & mechanical
 
-| Part | Source | Price | Specs → sim |
-|---|---|---|---|
-| **Pololu Ball Caster with 3/4″ metal ball** (#955) | [EXP-Tech](https://www.exp-tech.de/zubehoer/mechanische-bauteile/5551/pololu-ball-caster-with-3/4-metal-ball) (in stock); also [BerryBase](https://www.berrybase.at/pololu-ball-caster-0-75-zoll-metallkugel-abs-gehaeuse-hoehenverstellbar-fuer-kleine-roboter), [TME.eu](https://www.tme.eu/en/details/pololu-955/accessories-for-robotics-and-rc/pololu/ball-caster-with-3-4-metal-ball/) | **≈ €4,50** (€3,72 net) | Ball ⌀ 19 mm → caster `sphere` geom; height 0.83″–≈1″ (21–25 mm) adjustable via spacers → chassis ground clearance. Mass: TBD (verify on datasheet). ⚠ Its low friction needs `priority="1"` or MuJoCo takes the pair MAX — SimNotes "THE caster lesson" |
-| Pololu 37D Metal Gearmotor Bracket (pair) | [Eckstein Pololu mounts category](https://eckstein-shop.de/Pololu-Motor-Mounts-Wheel-EN) | TBD | Sets motor axle height above chassis plate |
-| Chassis plate | TBD (laser-cut acrylic/alu, or Misumi/igus stock profiles) | TBD | Track width target 0.21 m — set by motor bracket spacing, verify wheel-to-wheel once brackets chosen |
-| **Front bumper switch** (issue #94) | a sprung bumper bar over 1–2 lever microswitches (e.g. Omron D2F / any "roller lever" micro, ~€1 each) on the chassis' front face, 6–12 cm off the floor; a rear one is optional | **≈ €2–5** | Feeds `HubSwap.pressing`: dead reckoning HOLDS its travel while the bumper is pressed on the side the wheels are rolling toward (wheel direction from the encoders). In the sim the "switch" is the chassis box's front face read off the contact list, reduced to front/back — nothing a €1 switch does not report. Why it exists: a drive stalled against a fence pumped 4.28 m of imaginary travel in 30 s, and motor torque cannot tell a stall from a cruise (0.44 vs 0.35 N·m — the tyres slip long before the motors saturate). The sim holds the press `PRESS_RELEASE_S` = 50 ms past the last contact because a rigid chassis bounces off a rigid fence; a sprung bar stays pressed through that. Blind spot, same on both: anything between the bumper's top (~12 cm) and the lidar plane (22 cm) meets the fork, not the bar. SimNotes "A stalled drive is an odometry pump" |
+Catalog entries `ball_caster_19mm` (Pololu #955, ≈ €4,50; ⚠ its low
+friction needs `priority="1"` or MuJoCo takes the pair MAX — SimNotes "THE
+caster lesson"; ⚠ the sim's sphere is 40 mm across, the caster's stance
+rather than its 19 mm ball), `bracket_37d` (sets axle height; open decision
+4 is blocked on it), `chassis_plate` (track width 0.21 m is set by the
+bracket spacing) and `bumper_switch` (issue #94: a sprung bar over 1–2
+roller-lever microswitches, 6–12 cm off the floor, feeding
+`HubSwap.pressing` — dead reckoning holds its travel while the bumper is
+pressed on the side the wheels roll toward. Why: a drive stalled against a
+fence pumped 4.28 m of imaginary travel in 30 s, and motor torque cannot
+tell a stall from a cruise. A rigid chassis bounces off a rigid fence, so the
+sim holds the press `PRESS_RELEASE_S` past the last contact; a sprung bar
+stays pressed through that. SimNotes "A stalled drive is an odometry pump").
 
 ---
 
@@ -109,11 +120,14 @@ cell; geometry agrees (σ_z ±649 mm at 5 m on a 60 mm baseline). Stereo cannot
 build this map: the room is flat painted walls, the classic no-disparity
 case. Tables and method: SimNotes "Sensor-realism pass".
 
-| Part | Source | Price | Specs → sim |
-|---|---|---|---|
-| **2D LIDAR** — Slamtec RPLIDAR C1 (or A1M8) | Botland / EXP-Tech / Welectron | **≈ €65–100** | 360°, 10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W over USB/UART. `perception/lidar.py`: 360 `mj_ray` casts at `LIDAR_PERIOD` 0.1 s, ±10 mm + 1 % noise, 2 % dropout, `max_range` 8 m, self-hits dropped. Its offset from the axle is `LIDAR_ORIGIN`, which the grid update bakes in — move the unit, move the constant |
-| **Navigation camera** — 1× Pi Camera Module 3 | [Welectron](https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3) | €25,50 | IMX708, 66° × **41°** FOV → `fovy="41"`; PDAF ~10 cm–∞; 4 g. `left_eye` on the head: AprilTags (+ outlet detection if the plug module is ever built) |
-| **Docking camera** — 1× Pi Camera Module 3 | as above | €25,50 | `dock_eye` on the lift carriage, so it rises with the fork; same optics |
+Catalog entries `lidar_rplidar_c1` (Slamtec RPLIDAR C1 or A1M8: 360°,
+10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W. `perception/lidar.py` casts 360
+`mj_ray`s at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
+under-ranges it to 8 m on purpose, drops self-hits; its offset from the axle
+is `LIDAR_ORIGIN`, which the grid update bakes in — move the unit, move the
+constant) and `pi_camera_3` (×2: `left_eye` on the head for AprilTags,
+`dock_eye` on the lift carriage so it rises with the fork; the IMX708's 41°
+vertical FOV is both cameras' `fovy`).
 
 **What it bought**
 - Two cameras on the Pi 5's two CSI ports — no multiplexer (the old
@@ -176,17 +190,14 @@ Two things that came out of it and still bind:
 **igus drylin® E lead-screw stepper linear actuator, NEMA11** — igus DLE-LA-0001
 
 - Source: [igus.com/product/DLE-LA-0001](https://www.igus.com/product/DLE-LA-0001). Price: **TBD** — igus quotes stroke-configured units through their configurator, not a fixed list price. Get a quote for both axes together.
-
-| Spec | Value | → Sim / MJCF parameter |
-|---|---|---|
-| Max thrust | **50 N** | actuator `forcerange` ±50 — 6× the worst-case 7.8 N insertion |
-| Holding torque | 0.12 N·m | holds position unpowered → `power.ACTUATOR_W` (5 W) is drawn only while moving, and a parked module axis is a position servo at its target (`rack/coupling.py`) |
-| Lead screw | dryspin® high helix DST 6.35 × 5.08 | 5.08 mm travel per revolution |
-| Linear feed per step | **0.0254 mm** (1.8° step) | far finer than the ±3 mm docking budget; positioning is not the limit |
-| Motor flange | NEMA11 / 28 mm | mount design |
-| Lubrication | none required (dryspin®) | — |
-| Stroke | configurable — want **~0.25 m lift**, **~0.20 m reach** | joint `range` (the model's lift travels 0.31 m) |
-| Mass | TBD (verify on datasheet) | body mass — matters, see mass budget above |
+- Catalog entry `igus_dle_la_0001`: 50 N thrust is both axes' `forcerange`
+  (6× the worst-case 7.8 N insertion); the 0.12 N·m holding torque holds
+  position unpowered, which is why `power.ACTUATOR_W` is drawn only while
+  moving and a parked module axis is a position servo at its target; the
+  dryspin® 6.35 × 5.08 screw feeds 0.0254 mm per 1.8° step, far finer than
+  the ±3 mm docking budget. Stroke is configurable — want ~0.25 m lift and
+  ~0.20 m reach (the model's lift travels 0.31 m). Mass TBD, and it matters
+  (mass budget above).
 
 Stroke rationale: the lift must span outlet heights 0.26–0.38 m in
 `room_1.xml` and carry the docking camera high enough to keep a 0.38 m
@@ -198,13 +209,9 @@ is unaffordable on this chassis.
 
 **Rewireable Schuko CEE 7/7 plug (Type F)** — e.g. [Leads Direct rewireable right-angle](https://leadsdirect.co.uk/shop/schuko-cee77-plug-rewireable-black-right-angle/); equivalents at Reichelt/Conrad. Price ≈ **€3–6**. A right-angle plug puts the cable exit parallel to the wall instead of along the arm axis.
 
-| Spec | Real part | Spike model (`docking/schuko.py`) |
-|---|---|---|
-| Pin length | 19 mm | `PIN_LEN = 0.019` ✅ |
-| Pin diameter | 4.8 mm | `R_PIN = 0.0024` ✅ |
-| Pin centres | 19 mm | `PIN_SEP = 0.0095` ✅ |
-| Body diameter | **36.7 mm** | `R_BODY = 0.01775` → 35.5 mm ⚠ |
-| Rating | 16 A / 250 V | not simulated |
+Catalog entry `schuko_plug`: pin length, diameter and pitch are
+`docking/schuko.py`'s `PIN_LEN` / `R_PIN` / `PIN_SEP`, pinned equal; the
+body diameter is not.
 
 ⚠ **Open (decision 8):** the real body is 36.7 mm, not the 35.5 mm the spike
 assumed. Against a 37 mm recess that is **0.15 mm clearance per side, not
