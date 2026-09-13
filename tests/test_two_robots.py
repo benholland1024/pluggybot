@@ -321,7 +321,7 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   header = rows[0]
   assert header["type"] == "header"
   assert set(header["robots"]) == {FIRST.root, SECOND.root}
-  assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Bolt"}
+  assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
   assert header["ledger"] == [FIRST.root, SECOND.root]
   frames = [r for r in rows if "type" not in r]

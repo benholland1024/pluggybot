@@ -45,7 +45,7 @@ def main() -> None:
                   help="put hide and seek on the board (needs --tasks; "
                        "implies it)")
   ap.add_argument("--names", default=None, metavar="A,B",
-                  help="the two display names (default Pluggy,Bolt; "
+                  help="the two display names (default Pluggy,Rowan; "
                        "$PLUGGY_ROBOT_NAME_2 sets the second)")
   args = ap.parse_args()
   errands = tuple(args.errands.split(","))

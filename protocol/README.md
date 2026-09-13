@@ -238,7 +238,7 @@ carry is at the end.
 - **The header lists both.** `robots` gains a second key — the second
   robot's ROOT body, `r2_pluggybot` (`telemetry.protocol.robot_roots`), with
   its own body list, every name prefixed; `robotNames` names both
-  (`{"pluggybot": "Pluggy", "r2_pluggybot": "Bolt"}`); `ledger` lists both
+  (`{"pluggybot": "Pluggy", "r2_pluggybot": "Rowan"}`); `ledger` lists both
   accounts. The first robot's key is still the species name, so a consumer
   written for one robot keeps reading it.
 - **Every frame carries `robots[<root>]` for each robot**: its `bodies`

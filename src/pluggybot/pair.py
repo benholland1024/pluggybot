@@ -45,7 +45,7 @@ from pluggybot.robot import FIRST, SECOND, world_with_robots
 
 #: The second robot's default display name; the first keeps `Pluggy`.
 SECOND_NAME_ENV = "PLUGGY_ROBOT_NAME_2"
-DEFAULT_SECOND_NAME = "Bolt"
+DEFAULT_SECOND_NAME = "Rowan"
 
 
 def build_pair(world: str = "room_hub", pack: str = "demo",
