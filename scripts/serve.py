@@ -122,6 +122,23 @@ def main() -> None:
                            "the pluggybot'. Default $PLUGGY_ROBOT_NAME, then "
                            "'Pluggy'. Never the body name: renaming a robot "
                            "must not re-key its telemetry")
+  parser.add_argument("--pair", action="store_true",
+                      default=bool(os.environ.get("PLUGGY_PAIR")),
+                      help="serve TWO robots from one loop (issue #181; "
+                           "M12): the second attached with the r2_ prefix, "
+                           "its own mind, memory, wallet and appetite, one "
+                           "shared board. The header's model is "
+                           "<world>_pair. Default $PLUGGY_PAIR")
+  parser.add_argument("--errand2", choices=("carry", "draw", "draw2", "census",
+                                           "dance", "artwork", "showcase",
+                                           "none"),
+                      default=os.environ.get("PLUGGY_ERRAND_2", "none"),
+                      help="--pair: what the SECOND robot is for this run "
+                           "(default $PLUGGY_ERRAND_2, then none -- it "
+                           "explores, then stands by for the board's work)")
+  parser.add_argument("--robot-name-2", default=None, metavar="NAME",
+                      help="--pair: the second robot's display name. Default "
+                           "$PLUGGY_ROBOT_NAME_2, then 'Rowan'")
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="also write a v0 JSONL recording of this run")
   parser.add_argument("--token", default=os.environ.get("PLUGGYWORLD_TOKEN"),
@@ -290,6 +307,14 @@ def main() -> None:
   elif args.origin and args.origin != DEFAULT_ORIGIN:
     parser.error("--origin names the event map the `autonomous` arm starts "
                  "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
+
+  if args.pair:
+    if args.goals or args.journal:
+      parser.error("--pair keeps each robot's documents under --thoughts "
+                   "(<root>/ and <root>/r2_pluggybot/); --goals/--journal "
+                   "name one robot's files and cannot be shared")
+    serve_pair(args, flags, rung, origin)
+    return
 
   cfg = world_config(args.world)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
@@ -603,6 +628,172 @@ def main() -> None:
       recorder.close()
   wall = time.monotonic() - wall0
 
+  report(r, wall, life, publisher, pacer)
+
+
+def serve_pair(args, flags: dict, rung, origin) -> None:
+  """Two robots from one loop on the wire (issue #181): `build_pair` makes
+  the world and the two lifecycles exactly as the pair demo and the pair
+  fixture do, and this wires ONE publisher with a `StreamRobot` for the
+  second robot -- the shape `pair.record_pair` gives the recorder.
+
+  What is shared and what is not follows `build_pair`: one board, one
+  producer (on the first robot's seam), one ledger file with an account per
+  robot, one operator switch (on the first robot: pausing blocks inside a
+  step hook, and one loop steps both), one spend book (the allowance is the
+  operator's, and two minds spend the same one), one activity set with the
+  pair's encounters. A reach-in is addressed to a robot: an inbound
+  message's `robot` (a root body name) picks the inbox it lands in, and an
+  absent or unknown one lands in the PRIMARY robot's, which is what every
+  single-robot client sends today.
+  """
+  from pluggybot.pair import build_pair, run_pair
+  from pluggybot.robot import FIRST, SECOND, pair_model_name
+  from pluggybot.telemetry.protocol import robot_display_name
+  from pluggybot.telemetry.recorder import StreamRobot
+
+  cfg = world_config(args.world)
+  appetite_on = bool(args.metabolism or os.environ.get(METABOLISM_ENV))
+  purse = open_book(args.spend_state, weekly_usd=args.weekly_usd)
+  switch = open_switch(args.mode_file)
+  inboxes = (Inbox(), Inbox())
+  overseer_kw = {"backend": args.overseer_backend, "model": args.overseer_model,
+                 "base_url": args.overseer_url, "escalate_to": args.escalate_to,
+                 "spend": purse,
+                 **({"calls_per_hour": args.overseer_budget}
+                    if args.overseer_budget else {}),
+                 **{k: v for k, v in flags.items()
+                    if k not in ("overseer", "autonomous", "origin",
+                                 "standing_orders")}}
+  names = (robot_display_name(args.robot_name),
+           robot_display_name(args.robot_name_2
+                              or os.environ.get("PLUGGY_ROBOT_NAME_2")
+                              or "Rowan"))
+  lives = build_pair(args.world, pack=args.pack,
+                     errands=(args.errand, args.errand2),
+                     board_state=args.boards, names=names,
+                     overseer=(flags["overseer"] if flags
+                               else args.overseer or None),
+                     autonomous=bool(flags.get("autonomous")),
+                     origin=flags.get("origin", DEFAULT_ORIGIN),
+                     standing_orders=bool(flags.get("standing_orders")),
+                     thoughts_root=args.thoughts, ledger_state=args.ledger,
+                     tasks=bool(args.tasks), task_state=args.task_state,
+                     metabolism=appetite_on, mortal=True, inboxes=inboxes,
+                     mode=switch, overseer_kw=overseer_kw,
+                     battery_wh=args.battery_wh, reserve_wh=args.reserve_wh,
+                     restart_after_s=(args.restart_after
+                                      if args.restart_after > 0 else None))
+  first, second = lives
+  model, data = first.model, first.data
+  screens = world_screens(model, data)
+  for life in lives:
+    life.screen = next(iter(screens), None)
+  boss = first.overseer
+  arm = ("scripted" if boss is None
+         else "autonomous" if first.autonomous else "guarded")
+  identity = build_identity(
+    args.world, arm=arm,
+    model=boss.model if boss is not None else None,
+    backend=boss.backend if boss is not None else None,
+    pack_wh=first.battery.capacity_wh, reserve_wh=first.low_battery_wh,
+    deadline_s=boss.timeout_s if boss is not None else None,
+    rung=rung if arm == "autonomous" else None,
+    origin=origin if arm == "autonomous" else None)
+  print(f"build: {identity['commit']} / {identity['arm']} / PAIR "
+        f"{names[0]} + {names[1]}"
+        + (f" / {identity['model']} via {identity['backend']}"
+           if identity["model"] else ""))
+  book, tasks, ledger = first.boards, first.tasks, first.ledger._ledger
+  can_spend = boss is not None and boss.can_escalate
+  others = [StreamRobot(second.mission.handle.root, second.robot_name,
+                        second.telemetry_status,
+                        spend=purse if can_spend else None,
+                        metabolism=second.metabolism, thoughts=second.thoughts,
+                        goals=overseer.goals_text(thoughts=second.thoughts),
+                        steering=second.overseer is not None,
+                        grid=second.mission.grid)]
+  sink_kw = dict(model_name=pair_model_name(cfg["model_name"]),
+                 status_fn=first.telemetry_status, keyframe_s=args.keyframe_s,
+                 activities=first.activities, boards=book, screens=screens,
+                 ledger=ledger, tasks=tasks,
+                 goals=overseer.goals_text(thoughts=first.thoughts),
+                 thoughts=first.thoughts, spend=purse if can_spend else None,
+                 mode=switch, metabolism=first.metabolism,
+                 steering=boss is not None, robot_name=names[0],
+                 build=identity, grid=first.mission.grid, others=others)
+  publisher = WsPublisher(model, data, args.endpoint, token=args.token,
+                          accepts=(INBOUND_TYPES if boss is not None
+                                   else CODE_HANDLED_TYPES), **sink_kw)
+  recorder = (TelemetryRecorder(model, data, args.record, **sink_kw)
+              if args.record is not None else None)
+  sinks = [publisher.message] + ([recorder.emit] if recorder else [])
+  first.mission.step_hooks.append(publisher.step_hook)
+  if recorder is not None:
+    first.mission.step_hooks.append(recorder.step_hook)
+  for life in lives:
+    root = life.mission.handle.root
+    # A narration line says WHOSE it is, so the observatory files it under
+    # the right history (protocol 0.20.0).
+    life.say_hooks.append(lambda t, line, root=root: publisher.event(t, line, root))
+    for sink in sinks:
+      life.on_event.append(sink)
+      life.visitor_hooks.append(sink)
+      life.thoughts.on_event.append(sink)
+      if life.journal is not None:
+        life.journal.on_event.append(sink)
+    assert life.mortal, "a served world has an inbox and must be mortal"
+  for sink in sinks:
+    if book is not None:
+      book.on_event.append(sink)
+    ledger.on_event.append(sink)
+    if tasks is not None:
+      tasks.on_event.append(sink)
+    first.encounters.on_event.append(sink)
+  print("mortal: a death ends nothing -- an admin stands the robot up")
+
+  by_root = {FIRST.root: inboxes[0], SECOND.root: inboxes[1]}
+
+  def route(raw: object) -> None:
+    """Which robot a reach-in is for. Runs on the socket thread and must
+    not raise: an unreadable message is the primary's to drop."""
+    robot = None
+    try:
+      import json
+      parsed = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+      robot = parsed.get("robot") if isinstance(parsed, dict) else None
+    except Exception:                       # noqa: BLE001 -- see docstring
+      robot = None
+    by_root.get(robot, inboxes[0]).offer(raw)
+
+  publisher.on_inbound.append(route)
+  pacer = None
+  if not args.free_run:
+    pacer = RealTimePacer(data, rate=args.rate)
+    first.mission.step_hooks.append(pacer.step_hook)
+  attach_mode_stream(first, sinks, pacer=pacer)
+  maker = first.producer
+  if maker is not None and not tasks.open_tasks():
+    maker.seed(pack_wh=first.fundable_wh)
+
+  wall0 = time.monotonic()
+  try:
+    results = run_pair(lives, max_sim_time=args.max_sim_time,
+                       explore_budget=cfg["explore_budget"])
+  finally:
+    publisher.close()
+    if recorder is not None:
+      recorder.close()
+  wall = time.monotonic() - wall0
+  for life, r, name in zip(lives, results, names):
+    report(r, wall, life, publisher, pacer, label=name)
+
+
+def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> None:
+  """The close-of-mission summary, one robot at a time; `label` prefixes a
+  pair's second robot so the two do not read as one."""
+  if label:
+    print(f"\n---- {label} ----")
   print()
   print(f"mission state          : {r['state']}"
         f" (swaps={r['swaps_done']}, charges={r['charge_cycles']},"

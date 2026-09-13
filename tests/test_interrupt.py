@@ -11,20 +11,20 @@ agent's own event map, validated by the same function as everything else.
 What is here is the MECHANICS, which is what the issue's own last comment
 calls its substance:
 
-  `test_an_aborted_errand_puts_the_module_back_on_its_bracket`
-      ⚠ ABORT MEANS STOW, NEVER DROP -- the one rule that cannot be got wrong
+  `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`
+      ⚠ ABORT MEANS STOW, NEVER DROP -- the one rule that cannot be got
+      wrong -- flown with a dead client, because a row naming an action
+      asks nobody and so still works when the endpoint is down
   `test_an_interrupt_nobody_answers_aborts_rather_than_carries_on`
       the one place in this design where failing SAFE is right
-  `test_a_row_naming_an_action_needs_no_call_at_all`
-      which is why it still works when the endpoint is down
   `test_the_control_arm_cannot_be_interrupted_at_all`
       `guarded` has no map, so it cannot be interrupted, so it is unchanged
 
 ⚠ ONE test here is `slow` and the other two mission runs are not, which is
 issue #54's rule rather than an oversight: `slow` means expensive AND unable
-to catch a regression while you iterate. `..._puts_the_module_back_on_its_
-bracket` is this issue's acceptance criterion and runs in 73 s, so it stays
-in the loop; `..._a_later_errand_runs_cleanly` needs three whole errands and
+to catch a regression while you iterate. `..._puts_the_module_back_even_
+with_the_endpoint_down` is this issue's acceptance criterion and runs in
+73 s, so it stays in the loop; `..._a_later_errand_runs_cleanly` needs three whole errands and
 cannot be shortened past them.
 
 Nothing here touches the network: the client is the injected seam, as in
@@ -251,7 +251,7 @@ def fly(tmp_path, tag, row, client=None, errand="carry", extra=0,
 
 
 @pytest.mark.slow
-def test_an_aborted_errand_puts_the_module_back_on_its_bracket(tmp_path):
+def test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down(tmp_path):
   """⚠ THE RULE THAT CANNOT BE GOT WRONG. The fetch/carry/stow half took two
   issues to make repeatable and a stow computes its release heights from the
   lift it starts at, so an errand abandoned with a module on the fork is
@@ -260,12 +260,25 @@ def test_an_aborted_errand_puts_the_module_back_on_its_bracket(tmp_path):
 
   What is asserted is where the module ENDS UP: hung, on its bracket,
   exactly as a finished errand leaves it. Measured on the real swap stack,
-  because that is the only place this claim can be made."""
+  because that is the only place this claim can be made.
+
+  ⚠ FLOWN WITH A CLIENT THAT RAISES ON EVERY CALL, which is the stronger
+  form of the same flight and the reason a row naming an action beats a
+  fixed interrupt: the agent pre-committed, so code carries the instruction
+  out and asks nobody -- it keeps working when the endpoint is DOWN, which
+  is exactly when a low-battery interrupt is worth having. The interrupt
+  still fires, still aborts, and its source is the ROW, not a fallback.
+  (Two flights until 2026-09-13 -- one with a live fake, one dead -- asserted
+  disjoint halves of this one mission; the dead flight covers both.)"""
   row = ev.Row(event="battery_below", action="charge", value=MID_ERRAND)
   said: list[str] = []
-  out = fly(tmp_path, "abort", row, lines=said)
+  out = fly(tmp_path, "abort", row, client=FakeClient(RuntimeError("down")),
+            lines=said)
   assert out["interrupts"], "a hazard row fired mid-errand"
-  assert out["interrupts"][0]["outcome"] == "aborted"
+  entry = out["interrupts"][0]
+  assert entry["outcome"] == "aborted"
+  assert entry["asked"] is False, "a row naming an action makes no call"
+  assert entry["source"] == "event:battery_below"
   assert out["module_stowed"], "abort means STOW, never drop"
   assert out["errands"][0]["stowed"] is True
   assert out["errands"][0]["interrupted"] is True
@@ -288,7 +301,7 @@ def test_an_aborted_errand_puts_the_module_back_on_its_bracket(tmp_path):
 # ⚠ BEHIND `--endurance` (issue #158): at 317 s this is the suite's longest
 # test, and its regressable half -- an aborted errand hangs its module back
 # -- is proved in the default run by
-# `test_an_aborted_errand_puts_the_module_back_on_its_bracket`. What only
+# `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`. What only
 # this one shows is that the errand AFTER a cut-short stow also fetches
 # cleanly, which is an integration claim: run it before a release.
 @pytest.mark.slow
@@ -320,23 +333,6 @@ def test_a_later_errand_runs_cleanly_after_an_abort(tmp_path):
     assert e["picked"], f"errand {i} could not fetch its module"
     assert e["stowed"], f"errand {i} could not hang its module back"
     assert not e.get("error"), f"errand {i}: {e.get('error')}"
-  assert out["module_stowed"]
-
-
-@pytest.mark.slow
-def test_a_row_naming_an_action_needs_no_call_at_all(tmp_path):
-  """⚠ WHICH IS WHY IT KEEPS WORKING WHEN THE ENDPOINT IS DOWN -- exactly
-  when a low-battery interrupt is worth having. The agent pre-committed, so
-  code carries the instruction out and asks nobody.
-
-  Flown with a client that raises on every call: the interrupt still fires,
-  still aborts, and its source is the ROW rather than a fallback."""
-  row = ev.Row(event="battery_below", action="charge", value=MID_ERRAND)
-  out = fly(tmp_path, "dead", row, client=FakeClient(RuntimeError("down")))
-  entry = out["interrupts"][0]
-  assert entry["outcome"] == "aborted"
-  assert entry["asked"] is False
-  assert entry["source"] == "event:battery_below"
   assert out["module_stowed"]
 
 

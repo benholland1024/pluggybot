@@ -33,6 +33,10 @@ wording, settled direction. Before doing anything, read:
   the event map, what it structurally cannot do on any arm, the fallbacks,
   memory, money, visitors. Read BEFORE touching `mind/`, the decision
   vocabulary, or anything that changes what the model is shown
+- `docs/Testing.md` — how to pin a rule without paying for a mission: the
+  three kinds of test, the cheap levers (stub the routine, the spin, the
+  slice; place the belief; read a fixture), how to measure. Read BEFORE
+  writing a test that flies anything
 - `docs/Evaluation.md` — measurement: the three arms (`scripted` / `guarded`
   / `autonomous`) and why `guarded` is the control and is never deleted, the
   metrics, the harness and its committed result-file format, the flown
@@ -60,7 +64,7 @@ wording, settled direction. Before doing anything, read:
   the integration, and then stop it on the claim (`stop_when`). A flown
   proof whose rule is already pinned goes behind `--endurance`.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **7:35** on a quiet box (2026-09-12). Any
+  APPROVAL.** The full suite is **7:10** on a quiet box (2026-09-13). Any
   change to testing that would take it past **10 minutes on a quiet machine,
   or 15 on a busy one**, must be stated as such in the PR — the number, the
   test, and why it cannot be cheaper — and approved by Ben personally before
@@ -106,8 +110,10 @@ wording, settled direction. Before doing anything, read:
   once is the worst case; deleting the plug-era tests saves 8 s; model
   compilation is 12–28 ms. Only sim-seconds count.
 - **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"`.
-  Measured 2026-09-12 on this box: **2:54** for `not slow` (1134 passed),
-  **7:35** for the FULL suite (1154 passed + 7 skipped). It was 17:58 the day
+  Measured 2026-09-13 on this box: **7:10** for the FULL suite (1315 passed
+  + 15 skipped) after four flown proofs moved behind `--endurance` and two
+  interrupt flights became one; it was 10:24 the same morning. 2026-09-12:
+  **2:54** for `not slow` (1134 passed), **7:35** full (1154 passed). It was 17:58 the day
   before (see the endurance bullet) and 11:27 for a few hours in between,
   when #151 and #152 merged five whole-mission tests, four of them unmarked —
   which is the drift the budget below exists to catch.
@@ -144,15 +150,19 @@ wording, settled direction. Before doing anything, read:
   its claim, and "**twice**, with nobody watching" IS the claim.
 - **A flown proof whose RULE is pinned by a fast test goes behind
   `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
-  `pyproject.toml`). Five are there: the dearest-errand survival, the two
-  charge-cap proofs, the starving robot's whole mission, and the interrupt's
-  "next errand after an abort" — 1560 s of serial work, and the first was
-  the suite's 8:33 floor and the last its 5:17 one. What each
-  guards is an inequality or one line of wiring, now asserted in milliseconds
+  `pyproject.toml`). Fourteen are there (2026-09-13): the dearest-errand
+  survival, the two charge-cap proofs, the starving robot's whole mission,
+  the interrupt's "next errand after an abort", the composed draw, the
+  agent-written procedure, the two-minds day, hide-and-seek, the one-loop
+  fetch beside another robot, the live pair recording, the seeded-map
+  mission and `test_full_hub_lifecycle[room_hub]` (the HOME arm stays — the
+  served world, the harder room, the guard on `world_config`). What each
+  guards is an inequality or one line of wiring, asserted in milliseconds
   and shown to fail without its fix; the flown version proves the
-  INTEGRATION (that the refusal produces a charge and a completed errand on
-  real physics) and is run deliberately, before a release or after touching
+  INTEGRATION and is run deliberately, before a release or after touching
   the mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`.
+  ⚠ Moving a test there is a claim that its rule IS pinned fast — name the
+  pin in the comment above the mark, as each of these does.
   ⚠ The decision behind it (Ben, 2026-09-12): while the design is moving, a
   generous pack is ASSUMED to fund any single errand and a battery death
   costs a heart rather than the world, so twenty minutes per issue defending
@@ -259,7 +269,7 @@ save a filmstrip PNG named after the script.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand {carry,draw,draw2,census,dance,showcase,none}` (`showcase` = draw + census, the queue both streamed surfaces are recorded from), `--boards PATH`, `--tasks`, `--metabolism`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | M14 harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
@@ -635,7 +645,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
-  `"Pluggy"`), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
+  `"Pluggy"`), `PLUGGY_PAIR` / `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
+  (the second robot, issue #181), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
   `PLUGGY_CADENCE`, `PLUGGY_ENERGY`, `PLUGGY_METABOLISM` — naming the last
   turns hunger on), `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`,
   `PLUGGY_ESCALATE_TO`, `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`,
@@ -836,8 +847,15 @@ save a filmstrip PNG named after the script.
   one recording under the PAIR world's name (`robot.pair_model_name`,
   `room_hub_pair` — a replayer picks its scene off `model`, and the second
   robot's bodies are in no single-robot scene); `activity/encounter.py`
-  emits `encounter` (`met`/`parted`, hysteresis). ⚠ `serve.py` still
-  flies one robot.
+  emits `encounter` (`met`/`parted`, hysteresis). **`serve.py --pair`**
+  (`$PLUGGY_PAIR`, issue #181) serves both from one loop under
+  `<world>_pair` through ONE publisher (`build_pair` + a `StreamRobot`);
+  a reach-in's `robot` picks its inbox, absent means the primary; the
+  operator switch is the primary's (one pause stops the one loop); a
+  stroke's `draw` names `life.root` (it said `pluggybot` for both until
+  #181). ⚠ Measured here: one robot free-runs at 1.25×, a pair at 0.58×
+  (2.15× the cost); the deploy box holds one at 1.07× on four cores, so a
+  pair there wants `PLUGGY_RATE=0.5` or twice the cores.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

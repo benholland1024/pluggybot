@@ -264,7 +264,13 @@ def test_the_lidar_drops_the_other_robots_body_from_the_scan():
     "the other robot's body is still in the scan"
 
 
+# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): 137 s under the
+# parallel suite. Its RULE -- every robot's command applied, one step, every
+# robot booked, an exception thrown into every live routine -- is
+# `test_run_many_*` above in milliseconds; what only this proves is that a
+# real fetch survives being ticked beside another robot's day.
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
   """The pair, flown: one `mj_step` loop, two days; robot 1 fetches the LCD
   while robot 2 explores, and both are alive when the pick lands. Stops on
@@ -302,7 +308,14 @@ def test_the_census_and_the_scene_key_every_robot_by_its_root():
   assert owners["rack"] is None and owners["module_pen"] is None
 
 
+# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): 226 s under the
+# parallel suite -- `build_pair` + `arrange_game` + two lifecycles for 12 s
+# of sim. The wire SHAPE it flies for is proved in a second by the vendored
+# pair fixture (`test_the_pair_recording_gives_every_robot_the_same_shape`)
+# and the per-role claim by `test_a_two_role_task_is_claimed_per_role_*`;
+# what only this proves is the recorder wired live into a running pair.
 @pytest.mark.slow
+@pytest.mark.endurance
 def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   """The stream with a second robot on it: the header names both, every
   frame carries `robots[<root>]` for each, and the ledger's, thoughts',
@@ -504,3 +517,15 @@ def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hyster
   assert [e["phase"] for e in events] == ["met", "parted"]
   assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
   assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)
+
+
+def test_a_second_robots_strokes_are_its_own_on_the_wire():
+  """A `draw` / `board_cleared` message names the robot that drew (0.20.0),
+  and the drawing errand is the one place strokes are made -- it must pass
+  THIS robot's root, or a second robot's drawing is the first's on the wire
+  (found flying `serve.py --pair`, issue #181: Rowan took a draw task off the
+  board and every stroke said `pluggybot`)."""
+  import inspect
+  from pluggybot.mission import errand
+  src = inspect.getsource(errand.drawing_errand)
+  assert src.count("by=life.root") == 2, "clear AND stroke name the robot"
