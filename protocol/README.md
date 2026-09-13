@@ -298,6 +298,19 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.20.0, additive: the `tool` event (the robot builds a tool)
+
+pluggybot #168 (slice D). On the `autonomous` arm the robot may design a
+tool from the parts catalog and hang it on the rack; every step is a
+`tool` event, `procedure`'s shape: `{"type": "tool", "t", "robot",
+"outcome", "name", ...}` with `outcome` one of `TOOL_OUTCOMES` --
+`specified` (the `spec` as the robot wrote it, whole), `refused` (`verb`
+and `reasons`: the envelope, the price, the bay), `built` (the itemised
+`cost`: points, printed grams, seconds), `hung` (`module`, `bay`, `verbs`,
+`retired`) and `retired`. A hang or a retire is followed by the world's
+`scene_changed` (below). Additive; a consumer ignores an unknown type. The
+observatory's "what has it built" is `?kind=tool`.
+
 ### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
 
 pluggybot #168 (slice C). The scene was "fetched once" because the model

@@ -314,6 +314,8 @@ class HubLifecycle:
     self.rack_inventory: dict[str, int] = dict(TOOL_BAYS)
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
+    self.tools_built = 0
+    self.tools_retired = 0
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
     # gate) and `claim_budget_wh` (the offer filter) each read this and
@@ -1224,7 +1226,53 @@ class HubLifecycle:
     """
     from pluggybot.workshop import build as wbuild
     from pluggybot.workshop import seam
-    from pluggybot.telemetry.scene import scene_dict
+    self.can_reshape(bay)
+    if tool.body in self.rack_inventory:
+      raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
+    retired = next((m for m, b in self.rack_inventory.items() if b == bay), None)
+    record = {"tool": tool.name, "module": tool.body, "bay": bay,
+              "retired": retired, "t": round(float(self.data.time), 3)}
+    if retired is not None:
+      record["retiredWhat"] = self._retire_from_spec(retired)
+    prior = self.mission.rack_prior
+    cfg = world_config(self.world)
+    record["attached"] = seam.attach(self.spec, tool, bay, (prior.x, prior.y),
+                                     math.degrees(prior.yaw),
+                                     model_dir=Path(cfg["model"]).parent)
+    record["recompileMs"] = self._recompile(reason="tool", tool=tool.name,
+                                            module=tool.body, bay=bay,
+                                            retired=retired)
+    self.rack_inventory[tool.body] = bay
+    self.built[tool.body] = tool
+    record["verbs"] = wbuild.register(tool)
+    self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)}"
+              + (f", retiring the {retired.removeprefix('module_')}" if retired else ""),
+              detail=f"recompile {record['recompileMs']} ms")
+    return record
+
+  def retire_tool(self, module: str) -> dict:
+    """Take a module off the rack for good: its bay goes empty. A built
+    tool's verbs leave the registries with it; a hand-built module's stay
+    (they are the language's), gated on a module that is no longer there.
+    Same preconditions as `hang_tool`."""
+    from pluggybot.workshop import seam
+    if module not in self.rack_inventory:
+      raise seam.SeamRefused(f"{module} is not on the rack")
+    bay = self.rack_inventory[module]
+    self.can_reshape(bay)
+    record = {"module": module, "bay": bay, "t": round(float(self.data.time), 3),
+              "retiredWhat": self._retire_from_spec(module)}
+    record["recompileMs"] = self._recompile(reason="retire", tool=None,
+                                            module=None, bay=bay, retired=module)
+    self._say(f"I took the {module.removeprefix('module_')} off the rack; bay "
+              f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
+    return record
+
+  def can_reshape(self, bay: int) -> None:
+    """Every reason the world may not be recompiled right now, or nothing.
+    Checked BEFORE a build spends anything, so a refused hang never
+    follows a paid print."""
+    from pluggybot.workshop import seam
     if self.spec is None:
       raise seam.SeamRefused("this world was compiled without its spec; "
                              "build it through `build()` to hang tools")
@@ -1237,38 +1285,144 @@ class HubLifecycle:
                              "empty, never mid-errand")
     if not 0 <= bay < len(HUB_STATION_YS):
       raise seam.SeamRefused(f"no bay {bay}; the rack has {len(HUB_STATION_YS)}")
-    if tool.body in self.rack_inventory:
-      raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
-    retired = next((m for m, b in self.rack_inventory.items() if b == bay), None)
-    record = {"tool": tool.name, "module": tool.body, "bay": bay,
-              "retired": retired, "t": round(float(self.data.time), 3)}
-    if retired is not None:
-      record["retiredWhat"] = seam.retire(self.spec, retired)
-      del self.rack_inventory[retired]
-      self.built.pop(retired, None)
-      wbuild.unregister(retired)
-    prior = self.mission.rack_prior
-    cfg = world_config(self.world)
-    record["attached"] = seam.attach(self.spec, tool, bay, (prior.x, prior.y),
-                                     math.degrees(prior.yaw),
-                                     model_dir=Path(cfg["model"]).parent)
+
+  def _retire_from_spec(self, module: str) -> dict:
+    from pluggybot.workshop import build as wbuild
+    from pluggybot.workshop import seam
+    gone = seam.retire(self.spec, module)
+    del self.rack_inventory[module]
+    self.built.pop(module, None)
+    wbuild.unregister(module)
+    return gone
+
+  def _recompile(self, **why) -> float:
+    """Recompile the edited spec, rebind everything, tell the wire. Returns
+    the milliseconds it took."""
+    from pluggybot.workshop import seam
+    from pluggybot.telemetry.scene import scene_dict
     t0 = time.perf_counter()
     model, data = seam.recompile(self.spec, self.model, self.data)
-    record["recompileMs"] = round((time.perf_counter() - t0) * 1000, 2)
+    ms = round((time.perf_counter() - t0) * 1000, 2)
     self.rebind(model, data)
-    self.rack_inventory[tool.body] = bay
-    self.built[tool.body] = tool
-    record["verbs"] = wbuild.register(tool)
     # The wire (protocol/README.md "scene_changed"): the whole new scene,
     # so a consumer rebuilds its scene graph; the next frame is a keyframe.
-    self._emit({"type": "scene_changed", "t": record["t"],
-                "robot": self.root, "reason": "tool", "tool": tool.name,
-                "module": tool.body, "bay": bay, "retired": retired,
-                "scene": scene_dict(model, cfg["model_name"])})
-    self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)}"
-              + (f", retiring the {retired.removeprefix('module_')}" if retired else ""),
-              detail=f"recompile {record['recompileMs']} ms")
-    return record
+    self._emit({"type": "scene_changed", "t": round(float(self.data.time), 3),
+                "robot": self.root, **why,
+                "scene": scene_dict(model, world_config(self.world)["model_name"])})
+    return ms
+
+  # ---- the workshop as the agent's (issue #168 slice D) --------------------
+
+  def _workshop_routine(self, decision) -> Routine:
+    """Apply a decision's `build_tool` / `retire_tool` (issue #168).
+
+    Retire before build, as `_reconsider` does. A build is: the spec
+    checked against the envelope, the seam's preconditions checked, the
+    points PAID (`Ledger.spend`, no debt: unaffordable is refused before
+    anything prints), the print and assembly time WAITED where the robot
+    stands, the module hung. Every step is a `tool` event with its
+    outcome, and a refusal carries its reasons -- what the robot wrote
+    rides the event whole, as a procedure does.
+    """
+    shop = getattr(self.overseer, "workshop", None)
+    if shop is None or not (decision.build_tool or decision.retire_tool):
+      return
+    from pluggybot.workshop import cost as wcost
+    from pluggybot.workshop.library import BAYS, WorkshopRefused
+    from pluggybot.workshop.seam import SeamRefused
+    t = float(self.data.time)
+    base = {"type": "tool", "t": round(t, 3), "robot": self.root}
+    if decision.retire_tool:
+      name = decision.retire_tool
+      try:
+        entry = shop.entries.get(name)
+        if entry is None:
+          raise WorkshopRefused([f"no built tool {name!r} to retire"])
+        self.retire_tool(f"module_{name}")
+        shop.retire(name)
+      except (WorkshopRefused, SeamRefused) as e:
+        reasons = getattr(e, "reasons", [str(e)])
+        shop.refuse(name, reasons, t)
+        self._say(f"WORKSHOP retire {name!r} refused: {e}")
+        self._emit({**base, "outcome": "refused", "verb": "retire_tool",
+                    "name": name, "reasons": list(reasons)})
+      else:
+        self.tools_retired += 1
+        self._remember(f"retired my tool {name}")
+        self._emit({**base, "outcome": "retired", "name": name, "bay": BAYS[entry.bay]})
+    if decision.build_tool:
+      raw = decision.build_tool
+      name, bay, spec = raw.get("name", ""), raw.get("bay", ""), raw.get("spec")
+      self._emit({**base, "outcome": "specified", "name": name, "bay": bay,
+                  "spec": spec})
+      try:
+        tool, idx = shop.check(name, spec, bay)
+        self.can_reshape(idx)
+        if tool.body in self.rack_inventory:
+          raise WorkshopRefused([f"{tool.body} already hangs on the rack"])
+        bill = wcost.price(tool)
+        balance = self.ledger.balance() if self.ledger is not None else 0
+        if bill["points"] > 0 and (self.ledger is None or
+                                   self.ledger.spend(bill["points"], why=f"tool {name}")
+                                   < bill["points"]):
+          raise WorkshopRefused([f"cannot afford it: {bill['points']} points for the "
+                                 f"parts, balance {balance}"])
+      except (WorkshopRefused, SeamRefused) as e:
+        reasons = getattr(e, "reasons", [str(e)])
+        shop.refuse(name, reasons, t)
+        self._say(f"WORKSHOP build {name!r} refused: {e}")
+        self._emit({**base, "outcome": "refused", "verb": "build_tool",
+                    "name": name, "bay": bay, "reasons": list(reasons)})
+        return
+      self._say(f"WORKSHOP printing and assembling my {name}: {bill['printedG']:g} g "
+                f"of PLA, {len(tool.parts)} parts, {bill['points']} points",
+                detail=f"wait {bill['waitS']} s")
+      self._emit({**base, "outcome": "built", "name": name, "bay": bay,
+                  "cost": bill})
+      yield from self._fabricate_routine(bill["waitS"])
+      try:
+        hung = self.hang_tool(tool, idx)
+      except SeamRefused as e:
+        # the preconditions held before the wait and broke during it (a
+        # death mid-print): the parts are bought and the module is not on
+        # the rack, which is what happened, and is said so
+        shop.refuse(name, [str(e)], t)
+        self._emit({**base, "outcome": "refused", "verb": "hang", "name": name,
+                    "bay": bay, "reasons": [str(e)], "cost": bill})
+        return
+      shop.record(tool, spec, idx, bill, t)
+      self.tools_built += 1
+      self._remember(f"built my tool {name} and hung it in bay {bay}")
+      self._emit({**base, "outcome": "hung", "name": name, "bay": bay,
+                  "module": tool.body, "retired": hung["retired"],
+                  "verbs": hung["verbs"], "cost": bill})
+
+  def _fabricate_routine(self, seconds: float) -> Routine:
+    """The print and the assembly: the robot stands where it is for this
+    long, drawing what an idle robot draws. Its own routine so a test can
+    stub it (the way `drive_to_routine` is stubbed) and pin the seconds
+    without stepping fifteen sim-minutes of physics."""
+    yield from self.mission._drive_routine(seconds, 0.0, 0.0)
+
+  def restore_tools(self) -> list[str]:
+    """Hang every tool the workshop's records say the robot built (a
+    restart recompiles the world from a file that knows nothing of them).
+    Paid for once; not paid again. Returns what was hung."""
+    shop = getattr(self.overseer, "workshop", None)
+    if shop is None:
+      return []
+    hung = []
+    for entry in shop.hung():
+      if entry.tool.body in self.rack_inventory:
+        continue
+      try:
+        self.hang_tool(entry.tool, entry.bay)
+      except Exception as e:      # noqa: BLE001 -- said, never silent
+        entry.tool, entry.reasons = None, [f"could not be hung again: {e}"]
+        self._say(f"WORKSHOP could not hang my {entry.name} again: {e}")
+        continue
+      hung.append(entry.name)
+    return hung
 
   def run_errand(self, errand) -> dict:
     return self.mission.run(self.run_errand_routine(errand))
@@ -2109,6 +2263,10 @@ class HubLifecycle:
     if library is None or not (decision.define or decision.undefine):
       return
     from pluggybot.procedure.library import LibraryRefused
+    # TODAY's world, not the one the library was built against (issue
+    # #168): a tool the workshop hung is a `fetch` target and its verbs
+    # are axes, and both live in the facts a procedure compiles against.
+    library.facts = world_facts(self.world, rack=self.rack_inventory)
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
     if decision.undefine:
@@ -2844,6 +3002,9 @@ class HubLifecycle:
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
     self._define(decision)
+    # ...and the workshop's two verbs (issue #168): a build PAYS and WAITS,
+    # which is why this one is a routine and not paperwork.
+    yield from self._workshop_routine(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
@@ -2886,7 +3047,8 @@ class HubLifecycle:
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
     errand = errand_from(decision, self.world, self.boards,
-                         library=getattr(self.overseer, "library", None))
+                         library=getattr(self.overseer, "library", None),
+                         rack=self.rack_inventory)
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
@@ -2998,6 +3160,9 @@ class HubLifecycle:
     self._end_run = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
+    # What the robot built before today hangs again (issue #168): the
+    # world file knows nothing of built tools.
+    self.restore_tools()
     return self._day_routine(start, max_sim_time, explore_budget)
 
   def end(self, aborted: bool = False) -> dict:
@@ -3458,7 +3623,7 @@ def draw_errand_for(world: str, book, board_name: str,
 # ---- the overseer's seams (issue #15) ---------------------------------------
 
 
-def errand_from(decision, world: str, book=None, library=None):
+def errand_from(decision, world: str, book=None, library=None, rack=None):
   """An overseer decision -> an errand, or None if this world cannot build it.
 
   None rather than an exception: a decision is untrusted input in exactly the
@@ -3476,7 +3641,7 @@ def errand_from(decision, world: str, book=None, library=None):
       proc = library.get(name) if library is not None else None
       if proc is None:
         return None
-      return programmed_errand(proc, task="program", name="procedure")
+      return programmed_errand(proc, task="program", name="procedure", rack=rack)
     if decision.action in ("draw", "artwork"):
       # Same errand, different TIER. `artwork` is the visitor-judged slot
       # (issue #14): code confirms ink landed and banks zero, and the points
@@ -3739,6 +3904,14 @@ def overseer_context(life) -> dict:
   if library is not None:
     state["procedures"] = list(library.runnable())
     state["library"] = library.as_context()
+  # THE WORKSHOP (issue #168): what hangs in which bay, the tools the
+  # robot built, and their names for `retire_tool`'s grammar.
+  shop = getattr(life.overseer, "workshop", None) if life.overseer else None
+  if shop is not None:
+    from pluggybot.workshop.library import BAYS
+    state["rack"] = {BAYS[b]: m for m, b in sorted(life.rack_inventory.items(),
+                                                    key=lambda kv: kv[1])}
+    state["tools"] = shop.as_context()
   return state
 
 
