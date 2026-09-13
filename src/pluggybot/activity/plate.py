@@ -158,6 +158,10 @@ class PlateLight(Activity):
     self.lamp.select("off")
     self.set(state="off", pressed=False, depressMm=0.0)
 
+  def rebind(self, model, data) -> None:
+    self.sensor_adr = int(model.sensor(f"{self.prefix}_plate_pos").adr[0])
+    self.lamp.rebind(model)
+
   def depth(self, data) -> float:
     """How far the plate is pushed down, in metres (positive = down).
 

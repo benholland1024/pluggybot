@@ -182,6 +182,11 @@ SENSORS: dict[str, Sensor] = {
 }
 
 
+#: The ramp as the public name a built tool registers its axes with
+#: (workshop/build.py): one actuator, the axis's own speed, settled.
+ramped = _ramp
+
+
 def register_axis(axis: Axis) -> None:
   """A tool's axis, added by the thing that built the tool (#168)."""
   AXES[axis.name] = axis

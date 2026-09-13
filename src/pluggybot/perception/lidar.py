@@ -50,6 +50,31 @@ LIDAR_PERIOD = 0.1        # s between scans: 10 Hz, the part's real rate. The
 MAX_RANGE = 8.0
 
 
+def robot_geoms(model, root_name: str) -> set:
+  """Every geom belonging to the robot, root body and all descendants.
+
+  Needed because MuJoCo's ray `bodyexclude` skips a single body, while the
+  robot is a tree -- mast, head, carriage, arm and fork are separate bodies
+  and all of them can stand in the scan plane (or the depth camera's frame,
+  `perception/depth.py`, which filters with the same set).
+  """
+  try:
+    root = model.body(root_name).id
+  except KeyError:
+    return set()
+  bodies = set()
+  for b in range(model.nbody):
+    p = b
+    while p > 0:
+      if p == root:
+        bodies.add(b)
+        break
+      p = int(model.body_parentid[p])
+  bodies.add(root)
+  return {g for g in range(model.ngeom)
+          if int(model.geom_bodyid[g]) in bodies}
+
+
 class Lidar:
   """360-degree planar LIDAR over MuJoCo ray casts."""
 
@@ -58,6 +83,7 @@ class Lidar:
                sigma_frac: float = 0.01, dropout: float = 0.02,
                robot_body: str = "pluggybot", seed: int = 0) -> None:
     self.model = model
+    self.site_name, self.robot_body = site_name, robot_body
     self.site_id = model.site(site_name).id
     self.n_rays = n_rays
     self.max_range = max_range
@@ -80,35 +106,27 @@ class Lidar:
     #: robot 1 planned None from its own cell for 12 s and gave up the bay).
     #: Avoidance is `HubMission.others`, the reported pose, in real time.
     self._other_geoms: set = set()
+    self._other_roots: list[str] = []
     self._geomid = np.zeros(1, dtype=np.int32)
 
+  def rebind(self, model) -> None:
+    """A recompiled world: the site and the geom sets by name again
+    (issue #168 slice C). The excluded OTHER robots are re-resolved too."""
+    self.model = model
+    self.site_id = model.site(self.site_name).id
+    self._self_geoms = self._robot_geoms(model, self.robot_body)
+    self._other_geoms = set()
+    for root in list(self._other_roots):
+      self._other_geoms |= self._robot_geoms(model, root)
+
   def exclude_robot(self, root_name: str) -> None:
+    self._other_roots.append(root_name)
     """Drop another robot's body from every scan (see `_other_geoms`)."""
     self._other_geoms |= self._robot_geoms(self.model, root_name)
 
   @staticmethod
   def _robot_geoms(model, root_name: str) -> set:
-    """Every geom belonging to the robot, root body and all descendants.
-
-    Needed because MuJoCo's ray `bodyexclude` skips a single body, while the
-    robot is a tree -- mast, head, carriage, arm and fork are separate bodies
-    and all of them can stand in the scan plane.
-    """
-    try:
-      root = model.body(root_name).id
-    except KeyError:
-      return set()
-    bodies = set()
-    for b in range(model.nbody):
-      p = b
-      while p > 0:
-        if p == root:
-          bodies.add(b)
-          break
-        p = int(model.body_parentid[p])
-    bodies.add(root)
-    return {g for g in range(model.ngeom)
-            if int(model.geom_bodyid[g]) in bodies}
+    return robot_geoms(model, root_name)
 
   def scan(self, data) -> tuple[np.ndarray, np.ndarray]:
     """(angles, ranges) in the ROBOT's frame; self-occluded bearings absent.

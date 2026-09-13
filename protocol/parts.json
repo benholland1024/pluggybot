@@ -130,7 +130,11 @@
     }
    ],
    "why": {},
-   "note": "Passed over: the 30:1 sibling (#4752, same price) -- push force over top speed. The motor has no geom of its own; its 205 g is inside the chassis slab's 0.9 kg."
+   "note": "Passed over: the 30:1 sibling (#4752, same price) -- push force over top speed. The motor has no geom of its own; its 205 g is inside the chassis slab's 0.9 kg.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "gearmotor_37d_30",
@@ -160,7 +164,11 @@
     "massG": "Parts.md does not weigh the runner-up",
     "dimensionsMm": "same 37D family; not recorded for the runner-up"
    },
-   "note": "The runner-up: 330 rpm and 1.37 N·m against the 50:1's 200 rpm and 2.06 N·m. Speed is a low priority for this robot."
+   "note": "The runner-up: 330 rpm and 1.37 N·m against the 50:1's 200 rpm and 2.06 N·m. Speed is a low priority for this robot.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "wheel_90x10",
@@ -224,7 +232,11 @@
    "why": {
     "massG": "Parts.md: TBD (verify on the datasheet)"
    },
-   "note": "Pololu's 60-70 mm wheels fit 3 mm shafts only; for the 37D's 6 mm D-shaft the verified path is a 90 mm wheel on a universal hub. Top speed 20.9 × 0.045 ≈ 0.94 m/s, stall push ≈ 46 N per wheel."
+   "note": "Pololu's 60-70 mm wheels fit 3 mm shafts only; for the 37D's 6 mm D-shaft the verified path is a 90 mm wheel on a universal hub. Top speed 20.9 × 0.045 ≈ 0.94 m/s, stall push ≈ 46 N per wheel.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "hub_6mm_m3",
@@ -253,7 +265,11 @@
     "massG": "Parts.md does not weigh it",
     "dimensionsMm": "not recorded in Parts.md"
    },
-   "note": "Set-screw hub for the 6 mm D-shaft; the wheel bolts to it."
+   "note": "Set-screw hub for the 6 mm D-shaft; the wheel bolts to it.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "wheel_80x10_multihub",
@@ -282,7 +298,11 @@
     "partNumber": "Parts.md names no number for the alternative",
     "massG": "Parts.md does not weigh it"
    },
-   "note": "The alternative. Its inserts are 3 and 4 mm only -- whether it accepts the 6 mm universal hub is unverified."
+   "note": "The alternative. Its inserts are 3 and 4 mm only -- whether it accepts the 6 mm universal hub is unverified.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "ball_caster_19mm",
@@ -343,7 +363,11 @@
    "why": {
     "massG": "Parts.md: TBD (verify on the datasheet)"
    },
-   "note": ""
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "bracket_37d",
@@ -371,7 +395,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "Parts.md: TBD"
    },
-   "note": "Sets the motor axle height above the chassis plate, and the bracket spacing sets the track width. Open decision 4 (chassis material) is blocked on this choice."
+   "note": "Sets the motor axle height above the chassis plate, and the bracket spacing sets the track width. Open decision 4 (chassis material) is blocked on this choice.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "chassis_plate",
@@ -435,7 +463,11 @@
     "dimensionsMm": "set by the motor brackets, once chosen",
     "priceEur": "Parts.md: TBD"
    },
-   "note": ""
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "bumper_switch",
@@ -478,7 +510,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "€2-5 depending on the switch (Parts.md)"
    },
-   "note": "Feeds `HubSwap.pressing`: dead reckoning holds its travel while the bumper is pressed on the side the wheels roll toward. In the sim the switch is the chassis box's front face read off the contact list -- nothing a €1 switch does not report. Blind spot: anything between the bumper's top (~12 cm) and the lidar plane (22 cm) meets the fork, not the bar."
+   "note": "Feeds `HubSwap.pressing`: dead reckoning holds its travel while the bumper is pressed on the side the wheels roll toward. In the sim the switch is the chassis box's front face read off the contact list -- nothing a €1 switch does not report. Blind spot: anything between the bumper's top (~12 cm) and the lidar plane (22 cm) meets the fork, not the bar.",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not recorded)"
+   }
   },
   {
    "id": "lidar_rplidar_c1",
@@ -554,7 +590,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "€65-100 depending on the stockist and the A1M8 alternative (Parts.md)"
    },
-   "note": "Replaced the stereo pair (Aug 2026): a ~17° blind sector behind-right where the mast stands in the scan plane is measured by `Lidar.blind_fraction`, and self-hits are dropped rather than reported as free space."
+   "note": "Replaced the stereo pair (Aug 2026): a ~17° blind sector behind-right where the mast stands in the scan plane is measured by `Lidar.blind_fraction`, and self-hits are dropped rather than reported as free space.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "pi_camera_3",
@@ -571,7 +611,11 @@
    "partNumber": "Camera Module 3",
    "source": "https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3",
    "massG": 4,
-   "dimensionsMm": null,
+   "dimensionsMm": {
+    "length": 25,
+    "width": 24,
+    "height": 11.5
+   },
    "priceEur": 25.5,
    "priceFor": "each",
    "quantity": 2,
@@ -579,7 +623,8 @@
     "sensor": "IMX708",
     "fovHDeg": 66,
     "fovVDeg": 41,
-    "autofocus": "PDAF, ~10 cm to infinity"
+    "autofocus": "PDAF, ~10 cm to infinity",
+    "powerW": null
    },
    "feeds": [
     {
@@ -599,10 +644,121 @@
      "expect": 41
     }
    ],
-   "why": {
-    "dimensionsMm": "not recorded in Parts.md"
+   "why": {},
+   "note": "Two cameras on the Pi 5's two CSI ports -- no multiplexer. Size and mass from raspberrypi.com's camera documentation; its draw is not published there, so a tool cannot budget for it yet.",
+   "workshop": {
+    "usable": false,
+    "why": "draw unknown, so the peg's power budget cannot be checked"
+   }
+  },
+  {
+   "id": "realsense_d435",
+   "name": "RealSense D435 depth camera (active IR stereo)",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "body"
+   ],
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "D435",
+   "source": null,
+   "massG": 72,
+   "dimensionsMm": {
+    "length": 90,
+    "width": 25,
+    "height": 25
    },
-   "note": "Two cameras on the Pi 5's two CSI ports -- no multiplexer."
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "fovHDeg": 87,
+    "fovVDeg": 58,
+    "depthStream": "848x480 @ 30 Hz",
+    "minZM": 0.28,
+    "specRangeM": 10,
+    "baselineMm": 50,
+    "projector": "IR dot pattern: depth on textureless surfaces, which passive stereo could not do here",
+    "interface": "USB 3",
+    "powerW": null
+   },
+   "feeds": [
+    {
+     "constant": "depth_eye.fovy",
+     "where": "model",
+     "value": 58,
+     "unit": "°",
+     "note": "the near-field camera on the mast top, pitched 40° at the floor ahead",
+     "expect": 58
+    },
+    {
+     "constant": "depth_cam_body.mass",
+     "where": "model",
+     "value": 0.072,
+     "unit": "kg",
+     "note": "the unit, on the mast top over the axle: CoM +10.7 mm, cruise launch pitch 0.9 -> 1.3°",
+     "expect": 0.072
+    },
+    {
+     "constant": "depth_cam_body.size",
+     "where": "model",
+     "value": [
+      0.0125,
+      0.045,
+      0.0125
+     ],
+     "unit": "m",
+     "note": "box half-extents"
+    },
+    {
+     "constant": "perception.depth.MIN_Z",
+     "where": "code",
+     "value": 0.28,
+     "unit": "m",
+     "note": "the datasheet's min-Z at full resolution; does not bind on the mast-top mount",
+     "expect": 0.28
+    },
+    {
+     "constant": "perception.depth.MAX_Z",
+     "where": "code",
+     "value": 3,
+     "unit": "m",
+     "note": "3 m, UNDER the part's 10 m: σ is 32 mm there and the map is near-field; also the ray cutoff, so the cost"
+    },
+    {
+     "constant": "perception.depth.BASELINE",
+     "where": "code",
+     "value": 0.05,
+     "unit": "m",
+     "note": "the imager baseline: the occlusion shadow's width and, with the sub-pixel error, the noise",
+     "expect": 0.05
+    },
+    {
+     "constant": "perception.depth.NOISE_K",
+     "where": "code",
+     "value": 0.0036,
+     "unit": "1/m",
+     "note": "σ_z = NOISE_K · z²: 0.08 px of disparity error on the real 447 px focal length and 50 mm baseline"
+    },
+    {
+     "constant": "perception.depth.PERIOD",
+     "where": "code",
+     "value": 0.1,
+     "unit": "s",
+     "note": "10 Hz in sim, the LIDAR's rate; the part streams 30"
+    }
+   ],
+   "why": {
+    "source": "RealSense left Intel in 2025; order from a distributor (Mouser, Reichelt) -- link not verified",
+    "priceEur": "roughly €300-400 at EU distributors in 2026, unverified"
+   },
+   "note": "Issue #34: the near-field sensor, so the robot can find things on the floor the scan plane looks over. Chosen over the D405 (7-50 cm, but PASSIVE stereo: fails on painted floors and matte printed modules exactly as the DIY pair did), a CSI time-of-flight module (the Pi 5's two CSI ports are the two cameras) and a second LIDAR tilted at the floor (a line, only while moving; cannot look at a thing from a standstill). Its draw is NOT in `power.ELECTRONICS_W` yet: nothing in the mission loop reads it, and the electrical budget lands with the loop integration and the energy table's re-measure (docs/Parts.md \"near-field depth camera\").",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "stereo_pair_diy",
@@ -633,7 +789,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "two cameras and a printed bracket; never priced as one"
    },
-   "note": "Superseded Aug 2026 by LIDAR + one camera. Measured on this sim's own pair: real SGBM produced disparity for 49.7 % of the mapper's scan row at 593 mm median error, against a 50 mm grid cell. Flat painted walls are the classic no-disparity case. The plug robot (`pluggybot.xml`) keeps its pair, frozen for milestone 6-7."
+   "note": "Superseded Aug 2026 by LIDAR + one camera. Measured on this sim's own pair: real SGBM produced disparity for 49.7 % of the mapper's scan row at 593 mm median error, against a 50 mm grid cell. Flat painted walls are the classic no-disparity case. The plug robot (`pluggybot.xml`) keeps its pair, frozen for milestone 6-7.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "oak_d_lite",
@@ -664,7 +824,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "€193-199 (Parts.md)"
    },
-   "note": "The stereo alternative the DIY pair was picked over, before the question of whether any stereo pair could build the map was asked."
+   "note": "The stereo alternative the DIY pair was picked over, before the question of whether any stereo pair could build the map was asked.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "igus_dle_la_0001",
@@ -685,6 +849,7 @@
    "priceFor": "each",
    "quantity": 2,
    "capabilities": {
+    "motion": "slide",
     "forceN": 50,
     "holdingTorqueNm": 0.12,
     "leadMmPerRev": 5.08,
@@ -753,7 +918,11 @@
     "dimensionsMm": "stroke-configured; the length depends on the quote",
     "priceEur": "quote-only: igus prices stroke-configured units through a configurator, not a list price"
    },
-   "note": "Open decision 9: get one quote for both axes. The lift must span outlet heights 0.26-0.38 m and carry the docking camera high enough to keep a 0.38 m outlet in frame."
+   "note": "Open decision 9: get one quote for both axes. The lift must span outlet heights 0.26-0.38 m and carry the docking camera high enough to keep a 0.38 m outlet in frame.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "schuko_plug",
@@ -828,7 +997,11 @@
     "massG": "not recorded",
     "priceEur": "€3-6 depending on the example (Parts.md)"
    },
-   "note": ""
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not recorded)"
+   }
   },
   {
    "id": "rcc_wrist",
@@ -890,7 +1063,11 @@
     "massG": "not weighed",
     "dimensionsMm": "not recorded"
    },
-   "note": "Published RCC devices recover ~4 mm and ~9°, more than the ±3 mm / ±3° docking budget, with no control loop."
+   "note": "Published RCC devices recover ~4 mm and ~9°, more than the ±3 mm / ±3° docking budget, with no control loop.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "alignment_feelers",
@@ -919,7 +1096,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "3D-printed, not bought"
    },
-   "note": "Removed from the hub robot: they bake in an outlet-housing width real outlets do not standardise. The plug robot keeps them (`prong_l`/`prong_r`) frozen for milestone 6-7; the fork's tines are a different part."
+   "note": "Removed from the hub robot: they bake in an outlet-housing width real outlets do not standardise. The plug robot keeps them (`prong_l`/`prong_r`) frozen for milestone 6-7; the fork's tines are a different part.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "battery_3s_5000",
@@ -1007,7 +1188,11 @@
     "dimensionsMm": "no pack chosen",
     "priceEur": "no pack chosen"
    },
-   "note": "Open decision 6. A real pack of a different mass or footprint moves every physics threshold derived from the model."
+   "note": "Open decision 6. A real pack of a different mass or footprint moves every physics threshold derived from the model.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "charger_3s_board",
@@ -1036,7 +1221,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "€10-15 class (Parts.md)"
    },
-   "note": "Hub power: replaces wall-outlet charging as the primary path; balance leads handled robot-side by a 3S BMS."
+   "note": "Hub power: replaces wall-outlet charging as the primary path; balance leads handled robot-side by a 3S BMS.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "pogo_pins",
@@ -1080,7 +1269,11 @@
     "massG": "not recorded",
     "dimensionsMm": "not recorded"
    },
-   "note": "Open for the physical design: placement that engages by the same drive-in motion, with no extra alignment."
+   "note": "Open for the physical design: placement that engages by the same drive-in motion, with no extra alignment.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "raspberry_pi_5",
@@ -1110,7 +1303,11 @@
    "why": {
     "massG": "not recorded"
    },
-   "note": "€202.90 is the cheapest Geizhals listing (July 2026) INCLUDING an active-cooler kit, well above the historical ~€90 board price; verify the standalone board before budgeting. No accelerator HAT."
+   "note": "€202.90 is the cheapest Geizhals listing (July 2026) INCLUDING an active-cooler kit, well above the historical ~€90 board price; verify the standalone board before budgeting. No accelerator HAT.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "motor_driver_mdd10a",
@@ -1145,7 +1342,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "Parts.md: TBD, ~€20 class"
    },
-   "note": "10 A continuous per channel comfortably covers the 5.5 A stall current per motor."
+   "note": "10 A continuous per channel comfortably covers the 5.5 A stall current per motor.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "module_esp32",
@@ -1186,7 +1387,11 @@
     "massG": "not recorded",
     "dimensionsMm": "not recorded"
    },
-   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant."
+   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant.",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not recorded)"
+   }
   },
   {
    "id": "lcd_display",
@@ -1228,7 +1433,11 @@
     "dimensionsMm": "not recorded",
     "priceEur": "no display chosen"
    },
-   "note": "Display-only; the face is drawn in the browser off a streamed enum."
+   "note": "Display-only; the face is drawn in the browser off a streamed enum.",
+   "workshop": {
+    "usable": false,
+    "why": "no display chosen"
+   }
   },
   {
    "id": "peg_rod_6mm",
@@ -1324,7 +1533,11 @@
     "massG": "not weighed. ⚠ The sim's peg totals 20 g; a 150 mm length of 6 mm steel would weigh ~33 g -- an open discrepancy for #168's validator to carry, not a number to invent here",
     "priceEur": "stock material, not a catalog part"
    },
-   "note": "The one loaded part AND the electrical connector: split peg + the fork's two V-notch pairs are a two-pole coupling with 0.43-0.47 N of gravity preload per plate, self-wiping on the seating slide."
+   "note": "The one loaded part AND the electrical connector: split peg + the fork's two V-notch pairs are a two-pole coupling with 0.43-0.47 N of gravity preload per plate, self-wiping on the seating slide.",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not weighed. ⚠ The sim's peg totals 20 g; a 150 mm length of 6 mm steel would weigh ~33 g -- an open discrepancy for #168's validator to carry, not a number to invent here)"
+   }
   },
   {
    "id": "module_frame",
@@ -1393,7 +1606,11 @@
     "massG": "not weighed; the sim budgets 100 g for the plate",
     "priceEur": "printed: filament only, unpriced"
    },
-   "note": "The moment budget is the number that shapes tools: the gravity latch takes ~0.45 N·m of pitch before the peg rides out of its V, so reach is far dearer than mass (ToolPattern.md §2)."
+   "note": "The moment budget is the number that shapes tools: the gravity latch takes ~0.45 N·m of pitch before the peg rides out of its V, so reach is far dearer than mass (ToolPattern.md §2).",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not weighed; the sim budgets 100 g for the plate)"
+   }
   },
   {
    "id": "rack_rail_stock",
@@ -1479,7 +1696,11 @@
     "massG": "not weighed",
     "priceEur": "stock material, not a catalog part"
    },
-   "note": "Does NOT fit a 220 × 220 mm print bed and should not try. 2020 extrusion makes the bay pitch adjustable later. Only the parts that touch the peg need print accuracy."
+   "note": "Does NOT fit a 220 × 220 mm print bed and should not try. 2020 extrusion makes the bay pitch adjustable later. Only the parts that touch the peg need print accuracy.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "rack_printed_parts",
@@ -1555,7 +1776,11 @@
     "dimensionsMm": "many parts; each is a `rack/coupling.py` constant",
     "priceEur": "3D-printed, not bought"
    },
-   "note": "Open: whether the trays need steel wear inserts."
+   "note": "Open: whether the trays need steel wear inserts.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
   },
   {
    "id": "m3_fasteners",
@@ -1586,7 +1811,11 @@
     "dimensionsMm": "assorted",
     "priceEur": "not priced"
    },
-   "note": "The wheel's six mounting holes and the universal hub are M3."
+   "note": "The wheel's six mounting holes and the universal hub are M3.",
+   "workshop": {
+    "usable": false,
+    "why": "mass unknown (not recorded)"
+   }
   },
   {
    "id": "module_lead_screw",
@@ -1607,8 +1836,10 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
+    "motion": "slide",
     "forceN": null,
-    "strokeMm": 110
+    "strokeMm": 110,
+    "powerW": null
    },
    "feeds": [
     {
@@ -1654,7 +1885,11 @@
     "dimensionsMm": "no part chosen",
     "priceEur": "no part chosen"
    },
-   "note": "The pen module's own axis: it brings an axis the base does not have. Its ±15 N is a sim guess with no datasheet behind it."
+   "note": "The pen module's own axis: it brings an axis the base does not have. Its ±15 N is a sim guess with no datasheet behind it.",
+   "workshop": {
+    "usable": false,
+    "why": "no part chosen"
+   }
   },
   {
    "id": "module_servo",
@@ -1676,7 +1911,9 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
-    "forceN": null
+    "motion": "hinge",
+    "forceN": null,
+    "powerW": null
    },
    "feeds": [
     {
@@ -1729,7 +1966,50 @@
     "dimensionsMm": "no part chosen",
     "priceEur": "no part chosen"
    },
-   "note": "Both modules' ±20 N is a sim guess. Prices and models TBD (Parts.md, 'Tool hub & modules')."
+   "note": "Both modules' ±20 N is a sim guess. Prices and models TBD (Parts.md, 'Tool hub & modules').",
+   "workshop": {
+    "usable": false,
+    "why": "no part chosen"
+   }
+  },
+  {
+   "id": "servo_fs90",
+   "name": "FEETECH FS90-FB micro servo (analog, position feedback)",
+   "kind": "actuator",
+   "status": "chosen",
+   "shelves": [
+    "catalog"
+   ],
+   "usedBy": [],
+   "partNumber": "FS90-FB",
+   "source": "https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-servo-with-position-feedback-5904422327088.html",
+   "massG": 13,
+   "dimensionsMm": {
+    "length": 23,
+    "width": 13,
+    "height": 22
+   },
+   "priceEur": 2.9,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {
+    "motion": "hinge",
+    "angleDeg": 120,
+    "torqueNm": 0.147,
+    "speedDegS": 600,
+    "voltageV": [
+     4.8,
+     6.0
+    ],
+    "stallA": 0.8,
+    "powerW": 4.8
+   },
+   "feeds": [],
+   "why": {},
+   "note": "The first catalog actuator with every number a tool needs: Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the same servo with a position wire added. 9 g there, 13 g here.",
+   "workshop": {
+    "usable": true
+   }
   },
   {
    "id": "module_camera",
@@ -1750,7 +2030,8 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
-    "fovDeg": null
+    "fovDeg": null,
+    "powerW": null
    },
    "feeds": [
     {
@@ -1768,7 +2049,11 @@
     "dimensionsMm": "no part chosen",
     "priceEur": "no part chosen"
    },
-   "note": "Mounted on the MODULE, a first: module data crosses the coupling wirelessly, so a tool camera costs no CSI port on the Pi."
+   "note": "Mounted on the MODULE, a first: module data crosses the coupling wirelessly, so a tool camera costs no CSI port on the Pi.",
+   "workshop": {
+    "usable": false,
+    "why": "no part chosen"
+   }
   },
   {
    "id": "scaffold_pla_box",
@@ -1802,7 +2087,10 @@
     "dimensionsMm": "chosen by the spec, within the print bed",
     "priceEur": "priced per kg of filament, not per part; #168 sets the fabrication cost"
    },
-   "note": "Rigid, at PLA's density, and no larger than a 220 × 220 × 250 mm bed (an Ender-3 class printer) in any one piece. The rack's trays and brackets and every module frame are this primitive; the rack itself is not, and could not be."
+   "note": "Rigid, at PLA's density, and no larger than a 220 × 220 × 250 mm bed (an Ender-3 class printer) in any one piece. The rack's trays and brackets and every module frame are this primitive; the rack itself is not, and could not be.",
+   "workshop": {
+    "usable": true
+   }
   }
  ]
 }

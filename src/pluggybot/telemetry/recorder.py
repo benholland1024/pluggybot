@@ -245,13 +245,7 @@ class FrameBuilder:
     self._next_t: float | None = None
     self._next_key: float | None = None
     self._key_due = True             # frame 1 is always a keyframe
-    robot, world = body_census(model)
-    self.robot_names, self.world_names = robot, world
-    self._robot = [(n, model.body(n).id) for n in robot]
-    self._world = [(n, model.body(n).id) for n in world]
-    self._other_robots = {r.root: [(n, model.body(n).id)
-                                   for n in body_census(model, r.root)[0]]
-                          for r in self.others}
+    self._census(model)
     self._last: dict[int, tuple[list[float], list[float]]] = {}
     # Sparse-emission memory for activity flags -- this builder's own, so
     # two sinks over one world (serve.py --record) never eat each other's
@@ -285,6 +279,26 @@ class FrameBuilder:
     if self.mode is not None and not self.mode.thinking:
       return [k for k in self.accepts if k in CODE_HANDLED_TYPES]
     return list(self.accepts)
+
+  def _census(self, model) -> None:
+    robot, world = body_census(model)
+    self.robot_names, self.world_names = robot, world
+    self._robot = [(n, model.body(n).id) for n in robot]
+    self._world = [(n, model.body(n).id) for n in world]
+    self._other_robots = {r.root: [(n, model.body(n).id)
+                                   for n in body_census(model, r.root)[0]]
+                          for r in self.others}
+
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168 slice C): the census again by name,
+    the pose memory dropped -- ids may have shifted and a body may be
+    gone -- and the next frame a keyframe, because a consumer's sparse
+    state was built on bodies that no longer all exist. The `scene_changed`
+    message that precedes it on the wire is the lifecycle's."""
+    self.model, self.data = model, data
+    self._census(model)
+    self._last = {}
+    self._key_due = True
 
   def header(self) -> dict:
     return {
@@ -713,6 +727,10 @@ class TelemetryRecorder:
         sample = sampler.due(frame["t"])
         if sample is not None:
           self._queue.put(sample)
+
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168 slice C): the builder's census again."""
+    self._builder.rebind(model, data)
 
   # ---- out-of-band messages ------------------------------------------------
 

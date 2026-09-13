@@ -276,6 +276,7 @@ save a filmstrip PNG named after the script.
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack (SWAP_PICK to end of SWAP_RETURN); `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin. Re-run after anything that changes what an errand does |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR` |
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
+| `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording — how a drawing gets hung on the website, by hand and on purpose. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/teleop.py`, `map_teleop.py`, `explore.py`, `lifecycle.py`, `spot_outlets.py` | plug-era: teleop, mapping, the milestone-4 exploration demo, the wall-socket lifecycle, the outlet detector. `--views` saves the camera panel |
@@ -697,10 +698,72 @@ save a filmstrip PNG named after the script.
   refuses to write a mismatch. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null`
   WITH A `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a
   field that is not null is a stale excuse and fails. `partNumber` is what
-  you order by; a series or a class of part stays null. `coupling.
+  you order by; a series or a class of part stays null. Each entry carries
+  `workshop: {usable, why}` off `workshop.spec.unbuildable` — the
+  validator's predicate, so the parts page marks exactly what a spec may
+  name. `coupling.
   MODULE_MASS` / `PEG_MASS` name the 0.12 / 0.02 the emitters used as
-  literals. Not agent-facing: nothing in `economy/` or `mind/` imports it
-  (a test walks the tree); #168 decides how a mind sees it.
+  literals. Nothing in `economy/` imports it (a test walks the
+  tree: a tool is graded on the world, never on its part list); the MIND
+  sees it through `workshop_rule()` on `autonomous` alone (#168 slice D).
+- **A tool appears in a RUNNING world through the recompile seam, and
+  every holder of the old world follows it** (issue #168 slice C;
+  `workshop/seam.py`, `HubLifecycle.hang_tool`, `tests/test_recompile.py`).
+  The lifecycle keeps the `MjSpec` it was compiled from (`robot.world_spec`
+  — MEASURED trajectory-identical to `from_xml_path` on both worlds, so
+  keeping it costs nothing; `build()` and `serve.py` pass `spec=`). A BAY
+  IS A REPLACED MODULE: `hang_tool(tool, bay)` retires the module there
+  (`seam.retire`: the body and its subtree, the actuators on its joints,
+  its payload — the dispenser's seeds), attaches the built module with its
+  tag (`seam.attach`, tag id `15 + bay`, PNG written once atomically) and
+  `spec.recompile(model, data)`s: **~4–13 ms, `time` and `qpos` carried
+  across BY NAME, and NEW `MjModel`/`MjData` objects** — the old handles
+  keep stepping a stale world. ⚠ So `HubLifecycle.rebind(model, data)` is
+  the whole point: it re-points what the lifecycle owns (mission → swap,
+  lidar, tag detector (a Renderer is recreated, the old closed); screen;
+  activities; game) and calls every `on_rebind` callback (the recorder,
+  the publisher, the pacer register theirs where they attach). ⚠ EVERY
+  REBIND RE-RESOLVES IDS BY NAME: deleting a module shifts the ids of
+  everything after it in the tree (the claw moved 34 → 31). Two fences,
+  both shown to fail: the RUNTIME walk (`_holders(life)`: nothing reachable
+  from the lifecycle holds the old model or data — skipping one rebind
+  names it) and the STATIC one (every class in `src/` assigning
+  `self.model`/`self.data` defines `rebind` or is on `TRANSIENT_HOLDERS`
+  with a reason: the three tool controllers are built per errand and never
+  outlive a recompile, `DockEnv` owns its own world, `Overseer.model` is an
+  LLM id). ⚠ BETWEEN ERRANDS ONLY, fork empty, single robot — refused out
+  loud otherwise (a pair shares one world and two lifecycles). The wire:
+  `scene_changed` (additive, no bump; protocol/README.md) carries the whole
+  new `scene_dict`, the next frame is a keyframe, a late joiner's header is
+  the new census. `rack_inventory` (module → bay) is the lifecycle's and the
+  seam edits it; `procedure/steps.py` reads it (`_rack(life)`), `world_facts
+  (world, rack=)` takes it. The website's half (rebuild the scene on the
+  message, vendor `tag15..19.png`) is a rooftop issue. Parity: a 600 s
+  scripted home day hashed identical before and after (`determinism_spike
+  --compare`).
+- **The workshop is the agent's, on `autonomous` only** (issue #168 slice
+  D; Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
+  `HubLifecycle._workshop_routine`). Two decision FIELDS on `define`'s
+  terms — `build_tool {name, bay, spec}`, `retire_tool name` — no replace:
+  a bay is NAMED and whatever hangs there is retired for good. Order, all
+  before a point moves: the envelope (`validate.check`), the seam's
+  preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
+  points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
+  60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
+  DECISIONS, said so at the constants) via `Ledger.spend` (no debt), then
+  `_fabricate_routine` (its own routine so a test STUBS the ~15 sim-minute
+  wait and pins the seconds), then `hang_tool`. Every step a `tool` event
+  (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
+  `spec.unbuildable` is ONE predicate for the validator and the prompt's
+  parts list (`workshop_rule()`, built off the catalog) — today only
+  `servo_fs90` and `scaffold_pla_box` are buildable-from and the prompt
+  says why the rest are not. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
+  survive a restart and are RE-HUNG by `restore_tools()` in `begin()`,
+  paid once; an invalid one is kept, marked, shown. ⚠ `Menu.workshop` /
+  `Overseer.workshop` are set by `build()` on `autonomous` alone;
+  `guarded`'s schema, prefix and `GUARDED_RULES_SHA` are unchanged (a
+  guarded parse DROPS the fields). ⚠ The prompt's example may not mention
+  charge / battery / survival (a test reads the example block).
 - **A recording is a MIXED stream** (protocol 0.4.0): `draw`, `board_cleared`,
   `earned` and other event lines ride between frames; dispatch on `type`, no
   `type` means frame, ignore a type you do not know. Ink is NEVER MuJoCo
@@ -919,6 +982,26 @@ save a filmstrip PNG named after the script.
   controllers go through `control.turn_command` (breakaway floor).
   `PenPlotter.contact_physics` / `ClawTool.grasp_physics` are deprecated
   no-ops; `tests/test_noslip_policy.py` guards all of it.
+- **The floor is seen by a depth camera on the mast top, and no return is
+  NOT a reading** (issue #34; `perception/depth.py`, `heightmap.py`;
+  Parts.md "near-field depth camera", SimNotes "Near-field 3D"). A
+  D435-class unit as 8400 `mj_multiRay` casts a frame (~5–7 ms; ⚠ the
+  call's `cutoff` is a max distance and `0` tests nothing), honest in
+  `MIN_Z`/`MAX_Z` on AXIAL z, z² noise, the image-left occlusion shadow and
+  the self-view; an out-of-range pixel is UNKNOWN — the LIDAR's "free to
+  max range" inverted — and the height map inherits it (an unmeasured cell
+  is unseen, never floor). Points come out in the ROBOT frame through the
+  nominal mount; the map takes the believed pose. ⚠ The mount is measured:
+  the deck sets the near edge (0.26 m ahead of the axle at any pitch ≥ 35°),
+  pitch sets the far one (40° → 2.1 m); a camera at head height sees only
+  deck; the lens stands 1.5 mm proud of its housing or every ray hits the
+  housing. ⚠ The height map is `SIZE_M` 4 m at `CELL_M` 2 cm = 40 000 cells
+  (fewer than the 2D grid), the LAST frame's highest point per cell, `Z_MAX`
+  0.5 m (a 2.5D map cannot say what is under an overhang; voxels are 25× the
+  cells and 40–200× the update, MEASURED in the spike). ⚠ NOTHING IN THE
+  MISSION LOOP READS IT YET, and its ~1.5–3.5 W is not in `ELECTRONICS_W`:
+  both land together, with `energy_spike.py --write`, in the first change
+  that builds on it.
 - **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
   does not.** The default pure-pursuit law cannot converge on a destination
   closer than its own overshoot and ORBITS it (~900° of turning per 200 mm

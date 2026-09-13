@@ -107,21 +107,10 @@ class HubSwap:
   """Scripted pick/return cycles for one robot in hub_world.xml."""
 
   def __init__(self, model, data, handle: RobotHandle = FIRST) -> None:
-    self.model, self.data = model, data
     #: WHICH ROBOT (issue #167): every element below resolves through it,
     #: and the first robot's handle is the bare names the world always had.
     self.handle = handle
-    m, el = model, handle.el
-    self.left_act = m.actuator(el("left_motor")).id
-    self.right_act = m.actuator(el("right_motor")).id
-    self.lift_act = m.actuator(el("lift")).id
-    self.arm_act = m.actuator(el("arm")).id
-    self.lift_qadr = m.joint(el("lift_joint")).qposadr[0]
-    self.arm_qadr = m.joint(el("arm_joint")).qposadr[0]
-    self.root_qadr = handle.qpos_adr(m)
-    self.left_adr = m.joint(el("left_wheel_joint")).qposadr[0]
-    self.right_adr = m.joint(el("right_wheel_joint")).qposadr[0]
-    self.gyro_adr = m.sensor(el("imu_gyro")).adr[0]
+    self.rebind(model, data)
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
     #: PRESSED AGAINST SOMETHING THAT WILL NOT MOVE. While this is set, dead
     #: reckoning stops integrating TRAVEL -- the heading still comes off the
@@ -155,16 +144,6 @@ class HubSwap:
     #: -- which is why the signal is the BUMPER (scripts/stall_spike.py).
     self.pressing = False
     self.press_steps = 0
-    self.chassis_gid = m.geom(el("chassis")).id
-    self.chassis_bid = int(m.geom_bodyid[self.chassis_gid])
-    self.left_dof = m.joint(el("left_wheel_joint")).dofadr[0]
-    self.right_dof = m.joint(el("right_wheel_joint")).dofadr[0]
-    # The plug-era robot has no fork (tests/test_rack_belief.py drives the
-    # swap's reckoner on it); the site is what `module_state` reads.
-    try:
-      self.vertex_sid = m.site(el("fork_vertex")).id
-    except KeyError:
-      self.vertex_sid = -1
     self._press_side = 0.0      # sign of the last pressing contact's x_body
     self._press_until = -1.0    # sim time the release dwell runs to
     # Optional per-step callback. Every phase of both the swap and the
@@ -342,6 +321,34 @@ class HubSwap:
             and self.data.time - t0 > 0.5):
         return "stalled"
     return "timeout"
+
+  def rebind(self, model, data) -> None:
+    """Point this swap at a (re)compiled world and re-resolve EVERY id by
+    name (issue #168 slice C). Called by `__init__` and by the lifecycle's
+    `rebind` after a recompile; nothing here trusts a cached id, because
+    deleting a module shifts the ids of everything after it in the tree."""
+    self.model, self.data = model, data
+    m, el = model, self.handle.el
+    self.left_act = m.actuator(el("left_motor")).id
+    self.right_act = m.actuator(el("right_motor")).id
+    self.lift_act = m.actuator(el("lift")).id
+    self.arm_act = m.actuator(el("arm")).id
+    self.lift_qadr = m.joint(el("lift_joint")).qposadr[0]
+    self.arm_qadr = m.joint(el("arm_joint")).qposadr[0]
+    self.root_qadr = self.handle.qpos_adr(m)
+    self.left_adr = m.joint(el("left_wheel_joint")).qposadr[0]
+    self.right_adr = m.joint(el("right_wheel_joint")).qposadr[0]
+    self.gyro_adr = m.sensor(el("imu_gyro")).adr[0]
+    self.chassis_gid = m.geom(el("chassis")).id
+    self.chassis_bid = int(m.geom_bodyid[self.chassis_gid])
+    self.left_dof = m.joint(el("left_wheel_joint")).dofadr[0]
+    self.right_dof = m.joint(el("right_wheel_joint")).dofadr[0]
+    # The plug-era robot has no fork (tests/test_rack_belief.py drives the
+    # swap's reckoner on it); the site is what `module_state` reads.
+    try:
+      self.vertex_sid = m.site(el("fork_vertex")).id
+    except KeyError:
+      self.vertex_sid = -1
 
   def ramp_routine(self, act: int, target: float, speed: float,
                    settle: float = 0.0) -> Routine:

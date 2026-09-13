@@ -167,7 +167,17 @@ class TagSpotter:
   """
 
   def __init__(self, model, handle: RobotHandle = FIRST) -> None:
-    self.detector = TagDetector(model, handle.el("dock_eye"),
+    self.handle = handle
+    self.rebind(model)
+
+  def rebind(self, model) -> None:
+    """A renderer is bound to its model at construction, so a recompile
+    means a new detector (issue #168 slice C) -- and the old one closed
+    now, not by the collector after the GL context has gone."""
+    old = getattr(self, "detector", None)
+    if old is not None:
+      old.renderer.close()
+    self.detector = TagDetector(model, self.handle.el("dock_eye"),
                                 tag_size=SMALL_TAG_SIZE)
 
   def detect(self, data) -> dict:
@@ -293,16 +303,31 @@ class HubMission:
     self.backoff_until = 0.0
     self.step_count = 0
     self.collision_steps = 0
-    self.chassis_gid = model.geom(handle.el("chassis")).id
-    self._cam_id = model.camera(handle.el("dock_eye")).id
+    self._resolve(model)
     #: THE OTHER ROBOTS (issue #167): callables returning each one's believed
     #: (x, y), read at plan time so A* routes round a footprint the lidar
     #: may not have marked yet. What a robot may know of another over the
     #: network is its reported pose -- odometry is a work order's kind of
     #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
     self.others: list = []
+
+  def _resolve(self, model) -> None:
+    """Every id this mission caches, by name. Shared by `__init__` and
+    `rebind` so a recompile cannot leave one behind."""
+    self.chassis_gid = model.geom(self.handle.el("chassis")).id
+    self._cam_id = model.camera(self.handle.el("dock_eye")).id
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
+
+  def rebind(self, model, data) -> None:
+    """Point the mission and everything it owns at a recompiled world
+    (issue #168 slice C). The map, the belief and the reckoner are STATE
+    and stay; only handles and ids move."""
+    self.model, self.data = model, data
+    self.swap.rebind(model, data)
+    self.lidar.rebind(model)
+    self.tags.rebind(model)
+    self._resolve(model)
 
   def _on_step(self) -> None:
     for hook in self.step_hooks:

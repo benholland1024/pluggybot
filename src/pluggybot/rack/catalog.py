@@ -429,9 +429,10 @@ PARTS: tuple[Part, ...] = (
     "pi_camera_3", "Raspberry Pi Camera Module 3", "sensor", "chosen",
     ("body", "catalog"), ("pluggybot",), partNumber="Camera Module 3",
     source="https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3",
-    massG=4, priceEur=25.50, quantity=2,
+    massG=4, dimensionsMm={"length": 25, "width": 24, "height": 11.5},
+    priceEur=25.50, quantity=2,
     capabilities={"sensor": "IMX708", "fovHDeg": 66, "fovVDeg": 41,
-                  "autofocus": "PDAF, ~10 cm to infinity"},
+                  "autofocus": "PDAF, ~10 cm to infinity", "powerW": None},
     feeds=(
       Feed("left_eye.fovy", camera("left_eye"), "°",
            "the navigation camera on the head: AprilTags", expect=41),
@@ -439,8 +440,58 @@ PARTS: tuple[Part, ...] = (
            "the docking camera on the lift carriage, so it rises with the "
            "fork", expect=41),
     ),
-    why={"dimensionsMm": "not recorded in Parts.md"},
-    note="Two cameras on the Pi 5's two CSI ports -- no multiplexer.",
+    note="Two cameras on the Pi 5's two CSI ports -- no multiplexer. Size "
+         "and mass from raspberrypi.com's camera documentation; its draw "
+         "is not published there, so a tool cannot budget for it yet.",
+  ),
+  Part(
+    "realsense_d435", "RealSense D435 depth camera (active IR stereo)",
+    "sensor", "chosen", ("body",), ("pluggybot",), partNumber="D435",
+    massG=72, dimensionsMm={"length": 90, "width": 25, "height": 25},
+    quantity=1,
+    capabilities={"fovHDeg": 87, "fovVDeg": 58, "depthStream": "848x480 @ 30 Hz",
+                  "minZM": 0.28, "specRangeM": 10, "baselineMm": 50,
+                  "projector": "IR dot pattern: depth on textureless "
+                               "surfaces, which passive stereo could not do "
+                               "here", "interface": "USB 3", "powerW": None},
+    feeds=(
+      Feed("depth_eye.fovy", camera("depth_eye"), "°",
+           "the near-field camera on the mast top, pitched 40° at the "
+           "floor ahead", expect=58),
+      Feed("depth_cam_body.mass", geom("depth_cam_body", "mass"), "kg",
+           "the unit, on the mast top over the axle: CoM +10.7 mm, cruise "
+           "launch pitch 0.9 -> 1.3°", expect=0.072),
+      Feed("depth_cam_body.size", geom("depth_cam_body", "size"), "m",
+           "box half-extents"),
+      code("perception.depth.MIN_Z", "m",
+           "the datasheet's min-Z at full resolution; does not bind on the "
+           "mast-top mount", expect=0.28),
+      code("perception.depth.MAX_Z", "m",
+           "3 m, UNDER the part's 10 m: σ is 32 mm there and the map is "
+           "near-field; also the ray cutoff, so the cost"),
+      code("perception.depth.BASELINE", "m",
+           "the imager baseline: the occlusion shadow's width and, with the "
+           "sub-pixel error, the noise", expect=0.05),
+      code("perception.depth.NOISE_K", "1/m",
+           "σ_z = NOISE_K · z²: 0.08 px of disparity error on the real "
+           "447 px focal length and 50 mm baseline"),
+      code("perception.depth.PERIOD", "s",
+           "10 Hz in sim, the LIDAR's rate; the part streams 30"),
+    ),
+    why={"source": "RealSense left Intel in 2025; order from a distributor "
+         "(Mouser, Reichelt) -- link not verified",
+         "priceEur": "roughly €300-400 at EU distributors in 2026, "
+         "unverified"},
+    note="Issue #34: the near-field sensor, so the robot can find things "
+         "on the floor the scan plane looks over. Chosen over the D405 "
+         "(7-50 cm, but PASSIVE stereo: fails on painted floors and matte "
+         "printed modules exactly as the DIY pair did), a CSI time-of-flight "
+         "module (the Pi 5's two CSI ports are the two cameras) and a second "
+         "LIDAR tilted at the floor (a line, only while moving; cannot look "
+         "at a thing from a standstill). Its draw is NOT in "
+         "`power.ELECTRONICS_W` yet: nothing in the mission loop reads it, "
+         "and the electrical budget lands with the loop integration and the "
+         "energy table's re-measure (docs/Parts.md \"near-field depth camera\").",
   ),
   Part(
     "stereo_pair_diy", "DIY stereo: 2× Camera Module 3 on a custom 60 mm "
@@ -471,7 +522,7 @@ PARTS: tuple[Part, ...] = (
     "NEMA11", "actuator", "chosen", ("body",), ("pluggybot",),
     partNumber="DLE-LA-0001",
     source="https://www.igus.com/product/DLE-LA-0001", quantity=2,
-    capabilities={"forceN": 50, "holdingTorqueNm": 0.12,
+    capabilities={"motion": "slide", "forceN": 50, "holdingTorqueNm": 0.12,
                   "leadMmPerRev": 5.08, "stepMm": 0.0254,
                   "flange": "NEMA11 / 28 mm",
                   "strokeMm": {"lift": "~250 wanted", "reach": "~200 wanted"}},
@@ -789,7 +840,8 @@ PARTS: tuple[Part, ...] = (
   Part(
     "module_lead_screw", "Small lead-screw slide for a module axis "
     "(unspecified)", "actuator", "candidate", ("catalog",), ("module_pen",),
-    capabilities={"forceN": None, "strokeMm": 110},
+    capabilities={"motion": "slide", "forceN": None, "strokeMm": 110,
+                  "powerW": None},
     feeds=(
       Feed("pen_carriage.forcerange", actuator("pen_carriage", "forcerange"),
            "N", "a GUESS: no part chosen"),
@@ -810,7 +862,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "module_servo", "Small servo for a module axis (unspecified)", "actuator",
     "candidate", ("catalog",), ("module_claw", "module_seed"),
-    capabilities={"forceN": None},
+    capabilities={"motion": "hinge", "forceN": None, "powerW": None},
     feeds=(
       Feed("claw_l.forcerange",
            same(actuator("claw_l", "forcerange"),
@@ -832,9 +884,25 @@ PARTS: tuple[Part, ...] = (
          "(Parts.md, 'Tool hub & modules').",
   ),
   Part(
+    "servo_fs90", "FEETECH FS90-FB micro servo (analog, position feedback)",
+    "actuator", "chosen", ("catalog",), (), partNumber="FS90-FB",
+    source="https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-"
+    "servo-with-position-feedback-5904422327088.html",
+    massG=13, dimensionsMm={"length": 23, "width": 13, "height": 22},
+    priceEur=2.90,
+    capabilities={"motion": "hinge", "angleDeg": 120, "torqueNm": 0.147,
+                  "speedDegS": 600, "voltageV": [4.8, 6.0], "stallA": 0.8,
+                  "powerW": 4.8},
+    note="The first catalog actuator with every number a tool needs: "
+         "Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° "
+         "and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) "
+         "is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the "
+         "same servo with a position wire added. 9 g there, 13 g here.",
+  ),
+  Part(
     "module_camera", "Module camera: wide-angle, wireless through the "
     "module's ESP32 (unspecified)", "sensor", "candidate", ("catalog",),
-    ("module_claw",), capabilities={"fovDeg": None},
+    ("module_claw",), capabilities={"fovDeg": None, "powerW": None},
     feeds=(
       Feed("claw_eye.fovy", camera("claw_eye"), "°",
            "wider than the Camera Module 3's 41°: it works at ~140 mm and "
@@ -939,8 +1007,17 @@ def mismatches(fixture: dict) -> list[str]:
 def build(world: str = WORLD) -> dict:
   """Read every feed off the compiled world and emit the fixture."""
   import mujoco
+  from pluggybot.workshop.spec import unbuildable   # lazy: it imports this module
   spec = mujoco.MjSpec.from_file(world)
-  parts = [p.as_dict(spec) for p in PARTS]
+  parts = []
+  for p in PARTS:
+    entry = p.as_dict(spec)
+    # WHETHER THE WORKSHOP MAY BUILD FROM IT (issue #168): the validator's
+    # own predicate, so the page marks exactly the parts a spec may name
+    # -- and says why the rest cannot be, in the validator's words.
+    why = unbuildable(p)
+    entry["workshop"] = {"usable": why is None, **({"why": why} if why else {})}
+    parts.append(entry)
   ids = [p["id"] for p in parts]
   assert len(ids) == len(set(ids)), "duplicate part id"
   return {

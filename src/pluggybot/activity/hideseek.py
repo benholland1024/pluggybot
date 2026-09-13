@@ -74,6 +74,11 @@ class HideAndSeek(Activity):
     self.seeker_eye = self.model.site(seeker.el("lidar")).id
     self.hider_geom = self.model.geom(hider.el("chassis")).id
 
+  def rebind(self, model, data) -> None:
+    self.model = model
+    if self.assigned:
+      self.assign(self.hider, self.seeker)
+
   @property
   def assigned(self) -> bool:
     return self.hider is not None and self.seeker is not None
