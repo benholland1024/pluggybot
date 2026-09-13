@@ -1089,10 +1089,17 @@ class HubLifecycle:
         return
       path, status = plan(self.mission.grid, self.mission.pose, self.blacklist)
       if status == "ok":
-        strikes = 0
         wx, wy = self.mission.grid.cell_to_world(*path[-1])
+        t0 = self.data.time
         yield from self.mission.drive_to_routine(wx, wy, timeout=25.0)
-        continue
+        if self.data.time > t0:
+          strikes = 0
+          continue
+        # ⚠ A DRIVE THAT STEPPED NOTHING IS A PATHLESS REPLAN, not progress:
+        # `plan` does not mask the other robot and `_plan_to` does (#167), so
+        # a frontier behind it is "ok" here and unroutable there, and looping
+        # on it never advances sim time. The spin steps, so the other moves.
+        status = "blocked"
       yield from self.mission._spin_routine()
       strikes += 1
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
