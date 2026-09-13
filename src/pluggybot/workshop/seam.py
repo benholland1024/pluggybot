@@ -126,12 +126,26 @@ def write_tag_png(tag_id: int, directory: Path = TAG_DIR) -> Path:
   return path
 
 
-def write_built_tag_pngs(directory: Path = TAG_DIR) -> list[int]:
+def write_built_tag_pngs(directory: Path = TAG_DIR,
+                         textures: Path | None = Path("protocol/textures")) -> list[int]:
   """The five built-module tags, committed beside the hand-built ones so
   the website can vendor them once (`python -m pluggybot.rack.coupling`
-  writes them with the rest)."""
-  return [write_tag_png(tag_id_for_bay(b), directory) and tag_id_for_bay(b)
-          for b in range(len(HUB_STATION_YS))]
+  writes them with the rest) -- as the model's texture files under
+  `models/tags/`, and as `protocol/textures/tagtex<id>.png` in the exact
+  shape `telemetry.scene.export_textures` gives the others (RGB), which is
+  what a `scene_changed` message's scene names and the site vendors."""
+  from PIL import Image
+  ids = []
+  for b in range(len(HUB_STATION_YS)):
+    tag_id = tag_id_for_bay(b)
+    path = write_tag_png(tag_id, directory)
+    if textures is not None:
+      textures.mkdir(parents=True, exist_ok=True)
+      out = textures / f"tagtex{tag_id}.png"
+      if not out.exists():
+        Image.open(path).convert("RGB").save(out)
+    ids.append(tag_id)
+  return ids
 
 
 def tag_face_xml(body: str, tag_id: int) -> str:
