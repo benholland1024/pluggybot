@@ -2263,6 +2263,10 @@ class HubLifecycle:
     if library is None or not (decision.define or decision.undefine):
       return
     from pluggybot.procedure.library import LibraryRefused
+    # TODAY's world, not the one the library was built against (issue
+    # #168): a tool the workshop hung is a `fetch` target and its verbs
+    # are axes, and both live in the facts a procedure compiles against.
+    library.facts = world_facts(self.world, rack=self.rack_inventory)
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
     if decision.undefine:
@@ -3043,7 +3047,8 @@ class HubLifecycle:
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
     errand = errand_from(decision, self.world, self.boards,
-                         library=getattr(self.overseer, "library", None))
+                         library=getattr(self.overseer, "library", None),
+                         rack=self.rack_inventory)
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
@@ -3618,7 +3623,7 @@ def draw_errand_for(world: str, book, board_name: str,
 # ---- the overseer's seams (issue #15) ---------------------------------------
 
 
-def errand_from(decision, world: str, book=None, library=None):
+def errand_from(decision, world: str, book=None, library=None, rack=None):
   """An overseer decision -> an errand, or None if this world cannot build it.
 
   None rather than an exception: a decision is untrusted input in exactly the
@@ -3636,7 +3641,7 @@ def errand_from(decision, world: str, book=None, library=None):
       proc = library.get(name) if library is not None else None
       if proc is None:
         return None
-      return programmed_errand(proc, task="program", name="procedure")
+      return programmed_errand(proc, task="program", name="procedure", rack=rack)
     if decision.action in ("draw", "artwork"):
       # Same errand, different TIER. `artwork` is the visitor-judged slot
       # (issue #14): code confirms ink landed and banks zero, and the points

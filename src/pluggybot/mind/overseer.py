@@ -3442,6 +3442,8 @@ class Overseer:
   def stats(self) -> dict:
     lib = ({"library": self.library.stats()} if self.library is not None
            else {})
+    if self.workshop is not None:
+      lib["workshop"] = self.workshop.stats()
     esc = {
       # What the allowance bought (issue #37). `escalations` counts answers
       # the expensive mind actually produced; `escalationsRefused` counts the

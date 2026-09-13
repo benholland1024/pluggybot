@@ -64,7 +64,7 @@ def _life(tmp_path, world="room_hub", points=100, workshop=None):
   spec = world_spec(cfg["model"])
   model = spec.compile()
   data = mujoco.MjData(model)
-  ledger = Ledger(str(tmp_path / "ledger.json"))
+  ledger = Ledger(path=str(tmp_path / "ledger.json"))
   if points:
     ledger.intervene(points, t=0.0)
   life = HubLifecycle(model, data, realtime=False, world=world,
@@ -273,3 +273,52 @@ def test_the_example_is_a_capability_not_a_policy():
   example = head[head.index('{"name": "scoop"'):head.index("the envelope")]
   for word in ("charge", "battery", "survive", "die"):
     assert word not in example
+
+
+# ---- the integration, on demand -------------------------------------------------
+
+
+@pytest.mark.endurance
+def test_a_tool_the_agent_specified_is_built_fetched_used_and_stowed(tmp_path, monkeypatch):
+  """The flown proof #168 asks for: the model specifies a tool, the world
+  builds it mid-mission, the model writes a procedure that fetches it,
+  moves the axis it named, and stows it -- and the procedure runs, with no
+  scripted rotation anywhere (the arm is `autonomous`). Behind --endurance:
+  every rule it exercises (the spec, the envelope, the price, the seam, the
+  registries, the fetch by name, the stow) is pinned in milliseconds above
+  and in tests/test_recompile.py. The print wait is shortened -- its length
+  is pinned fast, and fifteen sim-minutes of standing still proves nothing
+  about the integration."""
+  from test_event_map import attach
+  from test_overseer import FakeClient, full
+  from pluggybot.lifecycle import run_demo
+  monkeypatch.setattr(cost, "PRINT_S_PER_G", 1.0)
+  monkeypatch.setattr(cost, "ASSEMBLE_S_PER_PART", 5.0)
+  ledger = Ledger(path=str(tmp_path / "ledger.json"))
+  ledger.intervene(50, t=0.0)
+  src = ("def scoop_up():\n  fetch(\"module_scoop\")\n  move(\"scoop.tilt\", 1.2)\n"
+         "  wait(1)\n  move(\"scoop.tilt\", 0)\n  stow()\n")
+  answers = [
+    full(action="idle", reason="building a scoop",
+         build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}),
+    full(action="idle", reason="writing how to use it",
+         define={"name": "scoop_up", "source": src}),
+    full(action="procedure:scoop_up", reason="using it"),
+    full(action="idle", reason="done"),
+  ]
+  client = FakeClient(*answers)
+  out = run_demo(view=False, realtime=False, world="room_hub", errand="none",
+                 max_sim_time=300.0, battery_wh=3.0, overseer=True, standing_orders=True,
+                 autonomous=True, origin="seeded",
+                 thoughts_root=str(tmp_path / "t"),
+                 ledger_state=str(tmp_path / "ledger.json"),
+                 on_ready=attach(client))
+  shop = out["overseer"]["workshop"]
+  assert shop["built"] == 1 and shop["hung"] == 1 and shop["refused"] == 0
+  assert shop["spentPoints"] == 3
+  runs = [e for e in out["errands"] if e.get("procedure")]
+  assert runs, out["errands"]
+  proc = runs[0]["procedure"]
+  assert proc["ok"] and proc["completed"] == 5, proc
+  assert (tmp_path / "t" / "tools" / "scoop.tool.json").exists()
+  assert not [d for d in out["decisions"] if ov.fallback_class(d["source"]) == "failure"]
