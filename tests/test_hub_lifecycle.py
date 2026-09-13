@@ -84,8 +84,16 @@ def test_low_battery_is_an_absolute_reserve(room_model):
   assert life.needs_charge
 
 
+# ⚠ THE room_hub ARM IS BEHIND `--endurance` (suite budget, 2026-09-13):
+# 254 s under the parallel suite, and its pieces are proved in the default
+# run by `test_hub_mission::test_full_hub_mission` (fetch, use, stow on
+# room_hub) and the charge-approach tests. The HOME arm stays: it is the
+# served world, the harder room, and the guard on `world_config`.
 @pytest.mark.slow
-@pytest.mark.parametrize("world", ["room_hub", "home"])
+@pytest.mark.parametrize("world", [
+  pytest.param("room_hub", marks=pytest.mark.endurance),
+  "home",
+])
 def test_full_hub_lifecycle(world):
   """The milestone-8 claim end to end: find the hub by looking, fetch a
   tool, use it elsewhere, stow it, then notice the battery and charge at
