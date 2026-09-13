@@ -56,7 +56,10 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                origin: str = ev.DEFAULT_ORIGIN, standing_orders: bool = False,
                thoughts_root: str | None = None, ledger_state: str | None = None,
                tasks: bool = False, metabolism: bool = False,
-               mortal: bool | None = None, **life_kw) -> list:
+               mortal: bool | None = None, task_state: str | None = None,
+               inboxes: tuple | None = None, mode=None,
+               overseer_kw: dict | None = None, battery_wh: float | None = None,
+               reserve_wh: float | None = None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -81,6 +84,14 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
 
   Each mind is told the other's NAME in its prefix (`OTHER_ROBOT_RULE`) and
   what the other broadcasts in its context (`lifecycle.others_context`).
+
+  The served world's knobs (issue #181): `task_state` persists the shared
+  board; `inboxes` is one `Inbox` PER ROBOT (a reach-in is addressed to a
+  robot, so each drains its own); `mode` is the operator's switch and goes
+  to the FIRST robot only -- pausing blocks inside its step hook, and one
+  loop steps both, so one pause stops the world; `overseer_kw` reaches
+  every mind's `overseer.build` (backend, model, spend book...);
+  `battery_wh` / `reserve_wh` override the pack's figures.
   """
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.thoughts import ThoughtFiles
@@ -101,8 +112,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                     robot_display_name(os.environ.get(SECOND_NAME_ENV)
                                        or DEFAULT_SECOND_NAME))
   # The world's task board, once, and its producer on the FIRST robot only.
+  tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
-  board = task_board(None, cadence=beat, world=world) if tasks else None
+  board = task_board(task_state, cadence=beat, world=world) if tasks else None
   maker = task_producer(board, world, book, beat) if board is not None else None
   appetite = Appetite.load(world) if metabolism else None
   # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate
@@ -127,11 +139,16 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                              hearts=bool(mortal) and ledger is not None,
                              standing_orders=standing_orders, origin=origin,
                              autonomous=autonomous,
-                             others=tuple(n for n in names if n != name))
+                             others=tuple(n for n in names if n != name),
+                             **(overseer_kw or {}))
     life = HubLifecycle(model, data, viewer=viewer if i == 0 else None,
-                        realtime=realtime, battery_wh=default_wh,
+                        realtime=realtime, battery_wh=battery_wh or default_wh,
                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                        low_battery_wh=cfg["low_battery_wh"], boards=book,
+                        low_battery_wh=(reserve_wh if reserve_wh is not None
+                                        else cfg["low_battery_wh"]),
+                        boards=book,
+                        inbox=inboxes[i] if inboxes else None,
+                        mode=mode if i == 0 else None,
                         world=world, errands=errands_for(errand, world, book),
                         handle=handle, robot_name=name, ledger=ledger,
                         overseer=boss, journal=journal, thoughts=memory,

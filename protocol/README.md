@@ -33,15 +33,22 @@ and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
 recording made without it carries no `tasks` / `metabolism` block at all and
 the website has nothing to build its markers or its hunger gauge against.
 
-**The pair world is a third world** (0.20.0, issue #167): `room_hub_pair` is
-`room_hub` with the second robot attached where the pair demo parks it, and
-a replayer treats it like any other world -- one scene, one recording, keyed
-by that name (`pluggybot.robot.pair_model_name`):
+**A pair world is a world of its own** (0.20.0, issue #167): `<model>_pair`
+is the world with the second robot attached where the pair demo parks it,
+and a replayer treats it like any other world -- one scene, one recording,
+keyed by that name (`pluggybot.robot.pair_model_name`). Two are committed:
+`room_hub_pair` (the game) and `home_world_pair` (what `serve.py --pair`
+streams, issue #181: the first robot draws, the second explores and stands
+by for the board's work):
 
 ```sh
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair
 MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks \
   --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair
+MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting \
+  --tasks --metabolism --errands draw,none --max-sim-time 600 \
+  --record protocol/telemetry.home_world_pair.jsonl.gz
 ```
 
 ⚠ `--pack hosting` is load-bearing: on the demo cell the hider took the
@@ -80,6 +87,22 @@ Fixtures: both single-robot recordings re-flown at the new version, plus the
 pair world above (`scene.room_hub_pair.json`,
 `telemetry.room_hub_pair.jsonl.gz`: two scripted robots on `room_hub`, a
 shared board with hide-and-seek on it, both appetites).
+
+**Serving a pair (issue #181, additive).** `serve.py --pair` puts both robots
+on the live stream under `<world>_pair`, exactly the recording's shape. Two
+things a consumer of a LIVE pair needs to know:
+
+- **A reach-in is addressed to a robot.** An inbound `reset_robot` /
+  `set_battery` / `set_points` / `reset_tool` / `rating` / `message` may
+  carry `robot` (a root body name); it lands in that robot's inbox. Absent
+  or unknown means the PRIMARY robot -- the first the header lists -- which
+  is what every single-robot client sends today, so nothing already written
+  changes.
+- **The operator `mode` is the world's**: one switch, on the primary robot;
+  a pause stops the one loop that steps both. The `mode` message and the
+  primary's frame field carry it; the second robot's record has none.
+- **A narration `event` line carries the root of the robot that said it**,
+  so an observatory files each robot's lines under its own history.
 
 ### 0.15.0 → 0.16.0 (an admin can reach in, and every reach-in is recorded)
 
@@ -1272,6 +1295,8 @@ against the body census.
 | `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
 | `scene.room_hub_pair.json` | `room_hub` with the SECOND robot attached where the pair demo parks it (0.20.0, issue #167): every `r2_*` body marked `"robot": "r2_pluggybot"` | `uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair` |
 | `telemetry.room_hub_pair.jsonl.gz` | Two scripted robots on `room_hub` from one loop, a shared board with **hide-and-seek** on it (one robot per role), both **appetites**, both **maps**, the pair's **encounters** | `MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz` |
+| `scene.home_world_pair.json` | The home world with the second robot attached (issue #181): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair` |
+| `telemetry.home_world_pair.jsonl.gz` | The SERVED pair shape: two robots on `home`, the first drawing, the second exploring then standing by for the board's work, both appetites and maps | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting --tasks --metabolism --errands draw,none --max-sim-time 600 --record protocol/telemetry.home_world_pair.jsonl.gz` |
 
 ⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
 off by default — a task board adds errands, which reshuffles a whole mission

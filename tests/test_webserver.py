@@ -766,8 +766,10 @@ class _FakePublisher:
   def step_hook(self) -> None:
     pass
 
-  def event(self, t, msg) -> None:
-    pass
+  def event(self, t, msg, robot="pluggybot") -> None:
+    # A narration line names its robot since 0.20.0 (issue #181).
+    self.events: list = getattr(self, "events", [])
+    self.events.append((t, msg, robot))
 
   def message(self, msg) -> None:
     # `draw` / `board_cleared` reach the browser through here (issue #12)
@@ -1206,3 +1208,83 @@ def test_the_arm_and_the_mind_come_off_the_overseer_that_was_built(monkeypatch):
   assert identity["model"] == "Qwen/Qwen3-4B-Instruct-2507"
   assert identity["backend"] == "huggingface"
   assert identity["deadlineS"] == overseer_mod.CALL_TIMEOUT_S
+
+
+def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
+    monkeypatch, tmp_path):
+  """`serve.py --pair` (issue #181): the REAL `build_pair` (two lifecycles on
+  the two-robot model) with the publisher faked and the flight stubbed, so
+  what is checked is the wiring: one publisher under the PAIR world's name
+  carrying a `StreamRobot` for the second robot, every per-robot sink on
+  both lifecycles, a narration line naming its robot, and a reach-in landing
+  in the inbox of the robot it names -- or the primary's when it names
+  none, which is what every single-robot client sends today."""
+  import json
+  from pluggybot import pair as pair_mod
+  from pluggybot.robot import FIRST, SECOND
+  serve = _load_serve()
+  built: dict = {}
+
+  def pub_factory(model, data, endpoint, **kw):
+    built["pub"] = _FakePublisher(model, data, endpoint, **kw)
+    return built["pub"]
+
+  flown: dict = {}
+
+  def fake_run_pair(lives, **kw):
+    flown["lives"], flown["kw"] = lives, kw
+    for life in lives:
+      life.mission.close()
+    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
+             "module_stowed": True, "sim_time": 1.0, "errands": [],
+             "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+            for _ in lives]
+
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "room_hub", "--free-run", "--tasks",
+    "--metabolism", "--robot-name", "Luca", "--robot-name-2", "Rowan",
+    "--thoughts", str(tmp_path / "t"), "--ledger", str(tmp_path / "l.json"),
+    "--max-sim-time", "5"])
+  serve.main()
+
+  pub = built["pub"]
+  a, b = flown["lives"]
+  assert flown["kw"]["max_sim_time"] == 5.0
+  assert pub.init_kwargs["model_name"] == "room_hub_pair"
+  assert pub.init_kwargs["robot_name"] == "Luca"
+  (other,) = pub.init_kwargs["others"]
+  assert (other.root, other.name) == (SECOND.root, "Rowan")
+  assert other.metabolism is b.metabolism and other.thoughts is b.thoughts
+  assert other.grid is b.mission.grid and other.status_fn == b.telemetry_status
+  assert pub.init_kwargs["metabolism"] is a.metabolism
+  assert pub.init_kwargs["ledger"] is a.ledger._ledger is b.ledger._ledger
+  assert pub.init_kwargs["tasks"] is a.tasks is b.tasks
+  assert a.mode is not None and b.mode is None, "one switch, on the primary"
+  # Every per-robot sink on BOTH lifecycles, and a line says whose it is.
+  for life in (a, b):
+    assert pub.message in life.on_event and pub.message in life.visitor_hooks
+    assert pub.message in life.thoughts.on_event
+  b.say_hooks[0](1.0, "hello")
+  assert pub.events[-1] == (1.0, "hello", SECOND.root)
+  a.say_hooks[0](2.0, "hi")
+  assert pub.events[-1] == (2.0, "hi", FIRST.root)
+  # A reach-in lands in the inbox of the robot it names; none means primary.
+  (route,) = pub.on_inbound
+  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r1",
+                    "robot": SECOND.root}))
+  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r2"}))
+  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r3",
+                    "robot": "nobody"}))
+  route("not even json")
+  assert [m.id for m in b.inbox.drain()] == ["r1"]
+  assert [m.id for m in a.inbox.drain()] == ["r2", "r3"]
+
+
+def test_serve_pair_refuses_one_robots_document_paths(monkeypatch, tmp_path):
+  serve = _load_serve()
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--pair", "--goals",
+                                    str(tmp_path / "g.md")])
+  with pytest.raises(SystemExit):
+    serve.main()

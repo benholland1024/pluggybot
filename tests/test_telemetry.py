@@ -856,46 +856,61 @@ def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
     f"models/{world_xml}"
 
 
-def test_the_pair_scene_fixture_is_current():
-  """The third world (0.20.0, issue #167): `room_hub` with the second robot
-  attached where the pair demo parks it. Stale on the same terms as the
-  other two, and additionally on `world_config["start2"]` moving."""
+PAIR_WORLDS = [("room_hub", "room_hub.xml", None, "room_hub_pair"),
+               ("home", "home_world.xml", "home_world.meta.json", "home_world_pair")]
+
+
+@pytest.mark.parametrize("world,world_xml,meta_file,model_name", PAIR_WORLDS,
+                         ids=[w[3] for w in PAIR_WORLDS])
+def test_the_pair_scene_fixture_is_current(world, world_xml, meta_file, model_name):
+  """The pair worlds (0.20.0, issue #167; #181 serves one): a world with the
+  second robot attached where the pair demo parks it. Stale on the same
+  terms as the single-robot scenes, and additionally on `world_config
+  ["start2"]` moving."""
   from pluggybot.lifecycle import world_config
   from pluggybot.robot import SECOND, pair_model_name, world_with_robots
-  path = PROTOCOL / "scene.room_hub_pair.json"
+  path = PROTOCOL / f"scene.{model_name}.json"
   scene = json.loads(path.read_text())
   assert scene["protocolVersion"] == PROTOCOL_VERSION
-  assert scene["model"] == pair_model_name("room_hub") == "room_hub_pair"
-  cfg = world_config("room_hub")
-  model = world_with_robots(str(REPO / "models" / "room_hub.xml"),
+  cfg = world_config(world)
+  assert scene["model"] == pair_model_name(cfg["model_name"]) == model_name
+  meta = (json.loads((REPO / "models" / meta_file).read_text())
+          if meta_file else None)
+  model = world_with_robots(str(REPO / "models" / world_xml),
                             second_at=cfg["start2"][:2])
-  assert scene == scene_dict(model, "room_hub_pair"), \
-    "stale fixture: uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair"
+  assert scene == scene_dict(model, model_name, meta=meta), \
+    f"stale fixture: uv run python -m pluggybot.telemetry.scene models/{world_xml} --pair"
   owners = {b["name"]: b["robot"] for b in scene["bodies"]}
   assert owners[SECOND.root] == SECOND.root and owners["rack"] is None
   assert [n for n, o in owners.items() if o == SECOND.root] == \
     [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
 
 
-def test_the_pair_recording_gives_every_robot_the_same_shape():
-  """The pair fixture (0.20.0): two robots from one loop, and everything the
+@pytest.mark.parametrize("model_name,game", [("room_hub_pair", True),
+                                             ("home_world_pair", False)],
+                         ids=["room_hub_pair", "home_world_pair"])
+def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
+  """The pair fixtures (0.20.0): two robots from one loop, and everything the
   wire keys by robot present for BOTH -- bodies, status, appetite, goals,
-  documents, map -- plus the things only a pair produces: a two-role claim,
-  the referee, an encounter."""
+  documents, map. `room_hub_pair` also carries what only a game produces: a
+  two-role claim and the referee. `home_world_pair` is the SERVED shape
+  (#181): the first robot draws, the second explores and stands by for the
+  board's work."""
   from pluggybot.mind.thoughts import NAMES
   from pluggybot.robot import FIRST, SECOND
-  with gzip.open(PROTOCOL / "telemetry.room_hub_pair.jsonl.gz", "rt") as f:
+  with gzip.open(PROTOCOL / f"telemetry.{model_name}.jsonl.gz", "rt") as f:
     lines = [json.loads(line) for line in f]
   header, frames = lines[0], frames_of(lines)
   events = [x for x in lines[1:] if "type" in x]
   roots = [FIRST.root, SECOND.root]
   assert header["protocolVersion"] == PROTOCOL_VERSION
-  assert header["model"] == "room_hub_pair"
+  assert header["model"] == model_name
   assert list(header["robots"]) == roots
   assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
   assert header["ledger"] == roots and header["hungerStates"]
-  assert {"encounters", "hide_and_seek"} <= set(header["activities"])
+  assert "encounters" in header["activities"]
+  assert ("hide_and_seek" in header["activities"]) == game
   # Every frame carries both; the keyframes carry both bodies whole.
   assert all(set(f["robots"]) == set(roots) for f in frames)
   last_hunger = {}
@@ -907,9 +922,13 @@ def test_the_pair_recording_gives_every_robot_the_same_shape():
     last_hunger[root] = hunger[-1]
     states = {f["robots"][root]["state"] for f in frames}
     assert "DEAD" not in states, f"{root} died -- re-fly on --pack hosting"
-    assert len(states) > 3, f"{root} barely moved: {states}"
-  # Two APPETITES, not one block copied twice: the seeker won and carried,
-  # so it ate; the hider lost, earned nothing, and had nothing to eat.
+    # The first robot works a whole day; the second's day on the served
+    # shape may honestly be "explore, then stand by" -- home's cadence is
+    # sparse and `run_many` steps the first robot first, so an offer that
+    # lands while both are idle is the first robot's (noted on #181).
+    assert len(states) > (3 if root == FIRST.root else 1), f"{root} barely moved: {states}"
+  # Two APPETITES, not one block copied twice: the first robot earned and
+  # ate; the second's block is its own account's story, not a copy.
   assert last_hunger[FIRST.root]["consumed"] > 0
   assert last_hunger[FIRST.root] != last_hunger[SECOND.root]
   # One goals message per robot, and every document for each.
@@ -920,21 +939,27 @@ def test_the_pair_recording_gives_every_robot_the_same_shape():
     assert docs[:len(NAMES)] == list(NAMES), f"{root}: opening documents {docs[:4]}"
     assert any(e["type"] == "grid" and e["robot"] == root for e in events), \
       f"{root}: no map of its own"
-  # What only a pair produces.
+  # What only a game produces.
   claims = [e for e in events if e["type"] == "task_claimed" and e.get("claims")]
-  # Roles are claimed one at a time: the first claim holds one, the last both.
-  assert claims and len(claims[0]["claims"]) == 1
-  assert set(claims[-1]["claims"]) == {"hider", "seeker"}
-  assert set(claims[-1]["claims"].values()) == set(roots), "one robot per role"
   referee = [f["activities"]["hide_and_seek"] for f in frames
              if "hide_and_seek" in f.get("activities", {})]
-  # Sparse like every activity block: the last flags shipped are the verdict.
-  assert referee and referee[-1]["phase"] in ("found", "over") and referee[-1]["winner"]
-  # ⚠ NO ENCOUNTER IN THIS FLIGHT, and that is the honest fixture: the hider
-  # won and the two never came within 1.5 m (closest 1.62 m, at 12.9 s). The
-  # activity is advertised and its shape is pinned in tests/test_two_robots.py;
-  # a fixture cannot be made to meet on request without steering a robot at
-  # the other for the camera.
+  if game:
+    # Roles are claimed one at a time: the first claim holds one, the last both.
+    assert claims and len(claims[0]["claims"]) == 1
+    assert set(claims[-1]["claims"]) == {"hider", "seeker"}
+    assert set(claims[-1]["claims"].values()) == set(roots), "one robot per role"
+    # Sparse like every activity block: the last flags shipped are the verdict.
+    assert referee and referee[-1]["phase"] in ("found", "over") and referee[-1]["winner"]
+  else:
+    assert not claims and not referee
+    drawn = [e for e in events if e["type"] == "draw"]
+    assert drawn and {d["robot"] for d in drawn} == {FIRST.root}, \
+      "the served shape: the first robot draws"
+  # ⚠ room_hub_pair carries NO ENCOUNTER, and that is the honest fixture:
+  # the hider won and the two never came within 1.5 m (closest 1.62 m, at
+  # 12.9 s). The activity's shape is pinned in tests/test_two_robots.py; a
+  # fixture cannot be made to meet on request without steering a robot at
+  # the other for the camera. Whatever a flight does carry is well-formed.
   for e in (e for e in events if e["type"] == "encounter"):
     assert e["phase"] in ("met", "parted") and set(e["robots"]) == set(roots)
 
