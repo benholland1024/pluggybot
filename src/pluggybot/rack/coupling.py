@@ -144,7 +144,10 @@ def _v_notch_xml(prefix: str, pos: tuple[float, float, float],
 
 
 def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-              tool_mass: float = MODULE_MASS, noslip: int = 0) -> str:
+              tool_mass: float = MODULE_MASS, noslip: int = 0,
+              face: str = "", actuators: str = "",
+              push: float = PUSH_FORCE, back_x: float = -0.018,
+              peg_z: float = PEG_Z) -> str:
   """Hub shelf + hanging tool at the origin; carrier approaching from +x.
 
   dy/dz: lateral/vertical offset of the carrier's approach line (m).
@@ -154,18 +157,30 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   its V, so the coupling is the behavior a global noslip policy is most
   likely to break, and the spike must be able to measure it under that
   policy (issue #3).
+  face / actuators: a BUILT module's parts and servos (workshop/build.py,
+  issue #168), strings in the module's frame. With a face the tool carries
+  the real split peg (`peg_xml`) so the rig can read its poles; without,
+  the plain rod the envelope was measured with.
+  push / back_x / peg_z: the approach force, the back wall's x and the peg's
+  rest height. The defaults are the SPIKE's -- a 10 N push reacted by a
+  wall 4 mm behind the plate, a stand-in for the robot's measured approach
+  depth, with the peg at 0.15 -- and are what the ±4 mm envelope was swept
+  with. A built module has parts on the wall side and may hang as deep as
+  the claw, so its rig puts the wall at the rack's real distance
+  (RACK_HANG_X), the peg at the rack's height (HUB_PEG_Z), and advances to
+  a measured standoff instead of to the wall (workshop/build.py).
   """
   peg_len_color = "0.75 0.75 0.78 1"
   # The tool spawns HANGING: peg resting at the tray vertices (+ its radius).
-  peg_rest_z = PEG_Z - TRAY_VERTEX_DROP + PEG_R
+  peg_rest_z = peg_z - TRAY_VERTEX_DROP + PEG_R
   tool_body_z = peg_rest_z - PEG_ABOVE_BODY
 
   trays = "\n      ".join(
-    _v_notch_xml(f"tray_{lbl}_", (0.0, s * TRAY_Y, PEG_Z - TRAY_VERTEX_DROP),
+    _v_notch_xml(f"tray_{lbl}_", (0.0, s * TRAY_Y, peg_z - TRAY_VERTEX_DROP),
                  0.008, "0.55 0.57 0.60 1")
     + f'\n      <geom name="tray_{lbl}_post" type="box" '
-      f'size="0.006 0.008 {(PEG_Z - 0.02) / 2:.4f}" '
-      f'pos="0 {s * TRAY_Y:.4f} {(PEG_Z - 0.02) / 2:.4f}" '
+      f'size="0.006 0.008 {(peg_z - 0.02) / 2:.4f}" '
+      f'pos="0 {s * TRAY_Y:.4f} {(peg_z - 0.02) / 2:.4f}" '
       f'rgba="0.45 0.47 0.50 1"/>'
     for lbl, s in (("l", 1), ("r", -1)))
 
@@ -190,13 +205,13 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   <worldbody>
     <light pos="0.3 -0.2 0.5" dir="-0.5 0.35 -0.8"/>
     <light pos="0.2 0.3 0.4" dir="-0.4 -0.6 -0.7"/>
-    <camera name="side" pos="0.30 -0.30 0.28" xyaxes="0.707 0.707 0 -0.25 0.25 0.93"/>
+    <camera name="side" pos="0.30 -0.30 {peg_z + 0.13:.2f}" xyaxes="0.707 0.707 0 -0.25 0.25 0.93"/>
     <geom name="floor" type="plane" size="2 2 0.1" rgba="0.5 0.5 0.5 1"/>
 
     <!-- Hub shelf: back wall + two V-tray posts -->
     <body name="hub">
-      <geom name="hub_back" type="box" size="0.004 0.10 0.10"
-            pos="-0.018 0 0.10" rgba="0.60 0.62 0.65 1"/>
+      <geom name="hub_back" type="box" size="0.004 0.10 {peg_z / 1.5:.4g}"
+            pos="{back_x:.4g} 0 {peg_z / 1.5:.4g}" rgba="0.60 0.62 0.65 1"/>
       {trays}
     </body>
 
@@ -206,17 +221,19 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
       <geom name="tool_body" type="box"
             size="{TOOL_HALF_X} {TOOL_HALF_Y} {TOOL_HALF_Z}"
             mass="{tool_mass - PEG_MASS:.3f}" rgba="0.20 0.45 0.75 1"/>
-      <geom name="tool_peg" type="cylinder" size="{PEG_R} {PEG_HALF}"
-            zaxis="0 1 0" pos="0 0 {PEG_ABOVE_BODY:.4f}" mass="{PEG_MASS}"
-            rgba="{peg_len_color}"/>
+      {peg_xml("tool") if face else
+       f'<geom name="tool_peg" type="cylinder" size="{PEG_R} {PEG_HALF}" '
+       f'zaxis="0 1 0" pos="0 0 {PEG_ABOVE_BODY:.4f}" mass="{PEG_MASS}" '
+       f'rgba="{peg_len_color}"/>'}
+      {face}
     </body>
 
     <!-- Carrier: approach rail with force-limited x + position-servo lift z,
          the fork hanging through compliant y/yaw (arm + base flex). -->
-    <body name="rail" pos="{START_X:.4f} {dy:.4f} {PEG_Z + dz:.4f}"
+    <body name="rail" pos="{START_X:.4f} {dy:.4f} {peg_z + dz:.4f}"
           euler="0 0 {yaw_deg:.3f}">
       <inertial pos="0 0 0" mass="0.10" diaginertia="2e-5 2e-5 2e-5"/>
-      <joint name="advance" type="slide" axis="-1 0 0" damping="{PUSH_FORCE / 0.03:.0f}"/>
+      <joint name="advance" type="slide" axis="-1 0 0" damping="{push / 0.03:.1f}"/>
       <joint name="lift" type="slide" axis="0 0 1" damping="20"/>
       <body name="fork" pos="0 0 0">
         <joint name="lat_y" type="slide" axis="0 1 0"
@@ -230,9 +247,10 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
     </body>
   </worldbody>
   <actuator>
-    <motor name="push" joint="advance" ctrlrange="-{PUSH_FORCE} {PUSH_FORCE}"/>
+    <motor name="push" joint="advance" ctrlrange="-{push} {push}"/>
     <position name="lift" joint="lift" kp="400" kv="30"
               ctrlrange="-0.05 0.08" forcerange="-30 30"/>
+    {actuators}
   </actuator>
 </mujoco>"""
 
@@ -285,7 +303,7 @@ def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
 
 
 def module_power_state(model, data, name: str = "module_lcd",
-                       prefix: str = "") -> dict:
+                       prefix: str = "", poles: dict | None = None) -> dict:
   """Is this module's coupling conducting, and if not, which pole is open?
 
   `prefix` names WHOSE fork (issue #167): the first robot's plates are the
@@ -303,8 +321,9 @@ def module_power_state(model, data, name: str = "module_lcd",
   (the feelers taught this: one prong 39 mm short wrecked everything while
   the other looked perfect), and a bare boolean would hide it as "off".
   """
+  plates_by_side = poles or FORK_POLE_GEOMS
   poles = {}
-  for side, plates in FORK_POLE_GEOMS.items():
+  for side, plates in plates_by_side.items():
     try:
       peg = model.geom(f"{name}_peg_{side}").id
       plate_ids = {model.geom(prefix + g).id for g in plates}
