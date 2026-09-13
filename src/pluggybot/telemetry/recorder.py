@@ -109,13 +109,22 @@ class FrameBuilder:
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None,
-               build: dict | None = None) -> None:
+               build: dict | None = None,
+               others: list | None = None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
       raise ValueError(f"keyframe_s must be >= 0, got {keyframe_s}")
     self.model, self.data = model, data
     self.status_fn = status_fn
+    #: THE OTHER ROBOTS on this stream (issue #167): `(root, name,
+    #: status_fn)` each. Their bodies and status ride `robots[<root>]`
+    #: beside the first robot's, and the header lists them; a stream with
+    #: none is byte-identical to what it was. What is still the FIRST
+    #: robot's alone: the top-level `metabolism`, `spend` and `goals`
+    #: blocks -- moving those under `robots[<root>]` for every robot is
+    #: the 0.20.0 bump, a two-repo event (protocol/README.md).
+    self.others = list(others or [])
     self.activities = activities
     # Boards present the same duck type an ActivitySet does (`names` +
     # `snapshot()`), so they diff through the same code below -- and they are
@@ -206,6 +215,9 @@ class FrameBuilder:
     self.robot_names, self.world_names = robot, world
     self._robot = [(n, model.body(n).id) for n in robot]
     self._world = [(n, model.body(n).id) for n in world]
+    self._other_robots = {root: [(n, model.body(n).id)
+                                 for n in body_census(model, root)[0]]
+                          for root, _, _ in self.others}
     self._last: dict[int, tuple[list[float], list[float]]] = {}
     # Sparse-emission memory for activity flags -- this builder's own, so
     # two sinks over one world (serve.py --record) never eat each other's
@@ -247,13 +259,16 @@ class FrameBuilder:
       "model": self.model_name,
       "hz": self.hz,
       "keyframeS": self.keyframe_s,
-      "robots": {ROBOT_ROOT: self.robot_names},
+      "robots": {ROBOT_ROOT: self.robot_names,
+                 **{root: [n for n, _ in bodies]
+                    for root, bodies in self._other_robots.items()}},
       # Display name per robot id (0.10.0, issue #39). The KEY is the
       # species (ROBOT_ROOT); the value is this instance's identity. Header
       # only: it never changes during a run, so repeating it at 20 Hz would
       # buy nothing, and a consumer holding an older recording (field
       # absent) falls back to a default rather than rendering blank.
-      "robotNames": {ROBOT_ROOT: self.robot_name},
+      "robotNames": {ROBOT_ROOT: self.robot_name,
+                     **{root: name for root, name, _ in self.others}},
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
@@ -414,6 +429,18 @@ class FrameBuilder:
     if self.status_fn is not None:
       robot_rec.update(self.status_fn())
     frame["robots"] = {ROBOT_ROOT: robot_rec}
+    for root, _, status_fn in self.others:
+      rec: dict = {}
+      moved = {}
+      for name, bid in self._other_robots[root]:
+        pose = self._pose_if_moved(bid)
+        if pose is not None:
+          moved[name] = pose
+      if moved:
+        rec["bodies"] = moved
+      if status_fn is not None:
+        rec.update(status_fn())
+      frame["robots"][root] = rec
     world = {}
     for name, bid in self._world:
       pose = self._pose_if_moved(bid)
@@ -580,7 +607,8 @@ class TelemetryRecorder:
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None, build: dict | None = None,
-               grid=None, grid_hz: float = RECORD_GRID_HZ) -> None:
+               grid=None, grid_hz: float = RECORD_GRID_HZ,
+               others: list | None = None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
@@ -589,7 +617,7 @@ class TelemetryRecorder:
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
-                                 build=build)
+                                 build=build, others=others)
     self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False

@@ -227,6 +227,43 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.19.0, additive: a second robot on the stream (M12)
+
+pluggybot #167. Two robots share one world and one stream, and the wire
+already keyed everything by robot — this makes the second key real. **No
+bump yet**: a single-robot stream is byte-identical to what it was (the
+fixture test), and everything below is additive. What the bump (0.20.0) will
+carry is at the end.
+
+- **The header lists both.** `robots` gains a second key — the second
+  robot's ROOT body, `r2_pluggybot` (`telemetry.protocol.robot_roots`), with
+  its own body list, every name prefixed; `robotNames` names both
+  (`{"pluggybot": "Pluggy", "r2_pluggybot": "Bolt"}`); `ledger` lists both
+  accounts. The first robot's key is still the species name, so a consumer
+  written for one robot keeps reading it.
+- **Every frame carries `robots[<root>]` for each robot**: its `bodies`
+  (sparse, as ever) and its status record (`state`, `battery`, ...).
+- **Every event says whose it is** in `robot`: `death`, `reset`, `thought`,
+  `journal`, `goals`, `procedure`, `earned`, `intervention`, narration lines.
+  `task_claimed` on a job with roles carries `claims` (`{"hider":
+  "pluggybot", "seeker": "r2_pluggybot"}`); a task's `claims` also rides the
+  `tasks` block.
+- **The scene marks every body with its robot's root** (`"robot":
+  "r2_pluggybot"` on the second robot's bodies); shared bodies (the rack,
+  the modules) stay `null`.
+- **Two new event types**, both additive: `encounter` (`phase: "met" |
+  "parted"`, `robots: [a, b]`, `distanceM`) from `activity/encounter.py`
+  when the two come within 1.5 m / part beyond 2.0 m; and the referee of a
+  two-role game rides `activities` as `hide_and_seek` (its flags: `phase`,
+  `distanceM`, `los`, `foundAtS`, `overAtS`, `winner`).
+
+⚠ **What is still the FIRST robot's alone**: the top-level `metabolism`,
+`spend` and `goals` blocks and the `grid` message. Moving those under
+`robots[<root>]` for every robot — so a consumer reads one shape per robot —
+is the **0.20.0 bump**, a two-repo event, and the deployed world flies one
+robot until it lands; `scripts/two_robots.py --record` produces a two-robot
+recording to build the site's side against.
+
 ### 0.19.0, additive: the `procedure` event (a composed errand)
 
 pluggybot #58. An errand may be a PROGRAM -- validated steps over a fixed

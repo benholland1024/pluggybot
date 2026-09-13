@@ -147,6 +147,43 @@ def _account() -> dict:
           "entries": []}
 
 
+class Account:
+  """ONE ROBOT's view of a ledger (issue #167): every method with `robot`
+  filled in, everything else passed through. Two robots sharing a world
+  share one ledger FILE with one account each -- separate wallets, one
+  state -- and each lifecycle holds its own view, so the calls it always
+  made (`balance()`, `award(v)`, `hearts()`) address its own account and
+  every event the ledger emits names the right robot."""
+
+  def __init__(self, ledger: "Ledger", robot: str) -> None:
+    self._ledger, self.robot = ledger, robot
+    self._ledger._acct(robot)          # the account exists from the start
+
+  def __getattr__(self, name: str):
+    attr = getattr(self._ledger, name)
+    if not callable(attr):
+      return attr
+    import inspect
+    try:
+      params = list(inspect.signature(attr).parameters)
+    except (TypeError, ValueError):
+      return attr
+    if "robot" not in params:
+      return attr
+    at = params.index("robot")
+
+    def bound(*args, **kw):
+      # Fill `robot` in only where the caller did not: a caller naming a
+      # robot (positionally or by keyword) means it, and gets it.
+      if "robot" not in kw and len(args) <= at:
+        kw["robot"] = self.robot
+      return attr(*args, **kw)
+    return bound
+
+  def __repr__(self) -> str:
+    return f"Account({self.robot!r} on {self._ledger!r})"
+
+
 class Ledger:
   """Per-robot balances and their earnings log.
 

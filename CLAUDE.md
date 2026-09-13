@@ -816,6 +816,21 @@ save a filmstrip PNG named after the script.
   not know it found anything. ⚠ The referee is built when the second
   claim lands (it has to know who is who); `HubLifecycle.game` is read for
   its clock and by the sampler, never by anything that decides.
+- **The wire keys everything by the robot's ROOT** (issue #167 slice E;
+  protocol/README.md "a second robot on the stream"). `HubLifecycle.root`
+  is what every event this lifecycle emits carries; `ThoughtFiles(robot=)`,
+  `Journal(robot=)`, `Metabolism(robot=)` likewise; `ledger.Account` is
+  ONE robot's view of a shared `Ledger` (fills `robot=` where the caller
+  did not) — a pair shares one ledger FILE with one account each.
+  `protocol.robot_roots(model)` lists the robots; `body_census(model,
+  root)` and the scene's per-body `robot` are per root; `FrameBuilder(
+  others=[(root, name, status_fn)])` puts every other robot's bodies and
+  status under `robots[<root>]` and names it in the header; `pair.
+  record_pair` wires a whole pair into one recording; `activity/encounter.
+  py` emits `encounter` (`met`/`parted`, hysteresis). ⚠ A single-robot
+  stream is BYTE-IDENTICAL (fixture test). ⚠ NOT YET per robot: the
+  top-level `metabolism`, `spend`, `goals` and `grid` — the 0.20.0 bump,
+  a two-repo event; `serve.py` still flies one robot.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten

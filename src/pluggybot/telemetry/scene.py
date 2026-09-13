@@ -38,7 +38,7 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.telemetry.protocol import (
-  PROTOCOL_VERSION, ROBOT_ROOT, VISUAL_HINTS, dynamic_flags, robot_body_ids,
+  PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags, robot_body_ids, robot_roots,
 )
 
 GEOM_TYPE_NAMES = {
@@ -198,7 +198,12 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   dyn = dynamic_flags(model)
-  rob = robot_body_ids(model)
+  # Every robot's bodies carry their robot's ROOT (issue #167): the first
+  # robot's is the species name, so a single-robot scene is what it was.
+  owner: dict[int, str] = {}
+  for root in robot_roots(model):
+    for b in robot_body_ids(model, root):
+      owner[b] = root
 
   bodies = []
   used_textures: set[str] = set()
@@ -227,7 +232,7 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
       "name": name,
       "parent": None if b == 0 else model.body(int(model.body_parentid[b])).name,
       "dynamic": dyn[b],
-      "robot": ROBOT_ROOT if b in rob else None,
+      "robot": owner.get(b),
       "visual": hints.get(name),
       "pos": _round(data.xpos[b]),
       "quat": _round(data.xquat[b]),

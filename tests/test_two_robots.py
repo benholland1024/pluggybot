@@ -278,3 +278,57 @@ def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
   assert all(r["dead"] is None for r in results)
   assert results[0]["collision_steps"] == 0 and results[1]["collision_steps"] == 0
   assert lives[0].data.time == lives[1].data.time
+
+
+# ---- slice E: the wire ------------------------------------------------------
+
+
+def test_the_census_and_the_scene_key_every_robot_by_its_root():
+  from pluggybot.telemetry.protocol import body_census, robot_roots
+  from pluggybot.telemetry.scene import scene_dict
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  assert robot_roots(model) == [FIRST.root, SECOND.root]
+  alone = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  assert robot_roots(alone) == [FIRST.root]
+  r1, world = body_census(model)
+  r2, world2 = body_census(model, SECOND.root)
+  assert r1 and r2 == [SECOND.el(n) for n in r1]
+  assert world == world2 and not any(n.startswith("r2_") for n in world)
+  assert body_census(alone) == (r1, world), "a single-robot census moved"
+  scene = scene_dict(model, "room_hub")
+  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
+  assert owners[SECOND.root] == SECOND.root and owners[FIRST.root] == FIRST.root
+  assert owners[SECOND.el("head")] == SECOND.root
+  assert owners["rack"] is None and owners["module_pen"] is None
+
+
+@pytest.mark.slow
+def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
+  """The stream with a second robot on it: the header names both, every
+  frame carries `robots[<root>]` for each, and the ledger's, thoughts',
+  encounters' and referee's events say whose they are. A single-robot
+  stream is what it was (the fixture test)."""
+  import json
+  from pluggybot.pair import arrange_game, build_pair, run_pair
+  lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
+                     tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
+  arrange_game(lives)
+  lives[0].thoughts.learn("the other one is quick", t=0.0)
+  lives[1].thoughts.learn("the first one is slow", t=0.0)
+  path = str(tmp_path / "pair.jsonl")
+  run_pair(lives, max_sim_time=12.0, record=path)
+  rows = [json.loads(line) for line in open(path)]
+  header = rows[0]
+  assert header["type"] == "header"
+  assert set(header["robots"]) == {FIRST.root, SECOND.root}
+  assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Bolt"}
+  assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
+  assert header["ledger"] == [FIRST.root, SECOND.root]
+  frames = [r for r in rows if "type" not in r]
+  assert frames and all(set(f["robots"]) == {FIRST.root, SECOND.root} for f in frames)
+  assert frames[0]["robots"][SECOND.root]["bodies"]
+  thoughts = [r for r in rows if r.get("type") == "thought"]
+  assert {t["robot"] for t in thoughts} == {FIRST.root, SECOND.root}
+  claims = [r for r in rows if r.get("type") == "task_claimed"]
+  assert claims and claims[-1]["claims"] == {"hider": FIRST.root, "seeker": SECOND.root}
+  assert header["activities"] == ["encounters"]

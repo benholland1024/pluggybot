@@ -38,6 +38,12 @@ def main() -> None:
   ap.add_argument("--thoughts", default=None, metavar="DIR",
                   help="thought-file root; the second robot's live under "
                        "<DIR>/r2_pluggybot/")
+  ap.add_argument("--record", default=None, metavar="PATH",
+                  help="record both robots' stream (protocol fixtures: "
+                       "protocol/telemetry.<world>_pair.jsonl.gz)")
+  ap.add_argument("--game", action="store_true",
+                  help="put hide and seek on the board (needs --tasks; "
+                       "implies it)")
   ap.add_argument("--names", default=None, metavar="A,B",
                   help="the two display names (default Pluggy,Bolt; "
                        "$PLUGGY_ROBOT_NAME_2 sets the second)")
@@ -52,7 +58,8 @@ def main() -> None:
                           overseer=args.overseer or None,
                           autonomous=args.autonomous,
                           standing_orders=args.autonomous, tasks=args.tasks,
-                          thoughts_root=args.thoughts, names=names)
+                          thoughts_root=args.thoughts, names=names,
+                          record=args.record, game=args.game)
   for i, r in enumerate(results, 1):
     print(f"robot {i}: {r['state']} at {r['battery']:.0%}, "
           f"{r['swaps_done']} swaps, {len(r['errands'])} errand(s), "

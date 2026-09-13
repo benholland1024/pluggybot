@@ -54,9 +54,13 @@ def test_two_minds_have_two_memories_two_wallets_and_one_board(tmp_path):
   assert a.thoughts.root == tmp_path / "t"
   assert b.thoughts.root == tmp_path / "t" / "r2_pluggybot"
   assert a.overseer.thoughts is a.thoughts and b.overseer.thoughts is b.thoughts
-  # two wallets, two appetites
+  # two wallets -- two ACCOUNTS on one ledger file since slice E, each
+  # lifecycle holding its own view -- and two appetites
   assert a.ledger is not b.ledger and a.metabolism is not b.metabolism
-  assert a.ledger.path != b.ledger.path
+  assert a.ledger.robot == "pluggybot" and b.ledger.robot == "r2_pluggybot"
+  assert a.ledger.path == b.ledger.path
+  a.ledger.intervene(50, by="test", t=0.0)
+  assert a.ledger.balance() == 50 and b.ledger.balance() == 0
   # one job board, one producer, on the first robot
   assert a.tasks is b.tasks and a.producer is not None and b.producer is None
   # and each knows the other as a peer

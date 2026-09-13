@@ -105,16 +105,22 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   board = task_board(None, cadence=beat, world=world) if tasks else None
   maker = task_producer(board, world, book, beat) if board is not None else None
   appetite = Appetite.load(world) if metabolism else None
+  # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate
+  # wallets, one state, and every entry on the wire names its robot. Each
+  # lifecycle holds its own `Account` view, so the calls it always made
+  # address its own account.
+  from pluggybot.economy.ledger import Account
+  book_of_points = points_ledger(ledger_state, cap=appetite.cap if appetite else None,
+                                 robots=tuple(h.root for h in handles))
   lives = []
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     root = (None if thoughts_root is None else
             (Path(thoughts_root) if i == 0 else Path(thoughts_root) / handle.root))
-    memory = ThoughtFiles.open(str(root) if root is not None else None)
-    ledger_path = (None if ledger_state is None else
-                   (ledger_state if i == 0 else
-                    str(Path(ledger_state).with_suffix(f".{handle.root}.json"))))
-    ledger = points_ledger(ledger_path, cap=appetite.cap if appetite else None)
-    hunger = Metabolism(ledger, appetite) if appetite else None
+    memory = ThoughtFiles.open(str(root) if root is not None else None,
+                               robot=handle.root)
+    ledger = Account(book_of_points, handle.root)
+    hunger = (Metabolism(book_of_points, appetite, robot=handle.root)
+              if appetite else None)
     boss, journal = ov.build(world, book, enabled=overseer, thoughts=memory,
                              robot_name=name, ledger=ledger,
                              appetite=hunger is not None, mortal=bool(mortal),
@@ -143,10 +149,18 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     for other in others:
       life.mission.lidar.exclude_robot(other.mission.handle.root)
   # The world's activities sense once per step, on the first robot's hooks:
-  # they are the world's, and two copies would sense everything twice.
-  activities = cfg["activities"](model, data) if cfg["activities"] else None
-  if activities is not None:
-    lives[0].mission.step_hooks.append(activities.step_hook(model, data))
+  # they are the world's, and two copies would sense everything twice. The
+  # pair's own -- the ENCOUNTERS between the two (activity/encounter.py) --
+  # joins them, and its events reach whatever records the pair.
+  from pluggybot.activity.base import ActivitySet
+  from pluggybot.activity.encounter import Encounters
+  activities = cfg["activities"](model, data) if cfg["activities"] else ActivitySet()
+  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle)
+  activities.add(meetings)
+  lives[0].mission.step_hooks.append(activities.step_hook(model, data))
+  for life in lives:
+    life.activities = activities
+    life.encounters = meetings
   return lives
 
 
@@ -205,15 +219,56 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
   return task, state
 
 
+def record_pair(lives: list, path: str):
+  """One recording of both robots (issue #167 slice E): the first robot's
+  stream as it always was, the second under `robots[<r2 root>]` beside it,
+  the header naming both, and every event keyed by the robot that emitted
+  it -- two ledgers' accounts, two robots' thoughts, the pair's encounters
+  and the game's referee. What is still the first robot's alone is the
+  top-level `metabolism`, `spend` and `goals` (the 0.20.0 bump moves them;
+  protocol/README.md)."""
+  from pluggybot.mind import overseer as ov
+  from pluggybot.telemetry.recorder import TelemetryRecorder
+  first, others = lives[0], lives[1:]
+  cfg = world_config(first.world)
+  recorder = TelemetryRecorder(
+    first.model, first.data, path, model_name=cfg["model_name"],
+    status_fn=first.telemetry_status, activities=first.activities,
+    boards=first.boards, ledger=(first.ledger._ledger
+                                 if hasattr(first.ledger, "_ledger") else first.ledger),
+    tasks=first.tasks, thoughts=first.thoughts, metabolism=first.metabolism,
+    grid=first.mission.grid, robot_name=first.robot_name,
+    goals=ov.goals_text(thoughts=first.thoughts),
+    steering=first.overseer is not None,
+    others=[(o.mission.handle.root, o.robot_name, o.telemetry_status)
+            for o in others])
+  first.mission.step_hooks.append(recorder.step_hook)
+  if first.boards is not None:
+    first.boards.on_event.append(recorder.emit)
+  if first.ledger is not None:
+    first.ledger.on_event.append(recorder.emit)
+  if first.tasks is not None:
+    first.tasks.on_event.append(recorder.emit)
+  for life in lives:
+    life.on_event.append(recorder.emit)
+    life.thoughts.on_event.append(recorder.emit)
+    if life.journal is not None:
+      life.journal.on_event.append(recorder.emit)
+  first.encounters.on_event.append(recorder.emit)
+  return recorder
+
+
 def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              explore_budget: float | None = None,
-             stop_when: Callable | None = None) -> list[dict]:
+             stop_when: Callable | None = None,
+             record: str | None = None) -> list[dict]:
   """Both days from one loop; each robot's summary in order."""
   cfg = world_config(lives[0].world)
   starts = starts or (cfg["start"], cfg["start2"])
   budget = explore_budget if explore_budget is not None else cfg["explore_budget"]
   if stop_when is not None:
     lives[0].stop_when(lambda: stop_when(lives))
+  recorder = record_pair(lives, record) if record is not None else None
   days = [life.begin(start, max_sim_time=max_sim_time, explore_budget=budget)
           for life, start in zip(lives, starts)]
   aborted = False
@@ -225,6 +280,8 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   finally:
     for life in lives:
       life.mission.close()
+    if recorder is not None:
+      recorder.close()
   return [life.end(aborted) for life in lives]
 
 
@@ -232,12 +289,16 @@ def run_demo_pair(world: str = "room_hub", max_sim_time: float = 300.0,
                   view: bool = False, realtime: bool = True,
                   pack: str = "demo", errands=("carry", "none"),
                   board_state: str | None = None, on_ready=None,
+                  record: str | None = None, game: bool = False,
                   **kw) -> list[dict]:
   lives = build_pair(world, pack=pack, errands=errands, board_state=board_state,
-                     view=view, realtime=realtime, **kw)
+                     view=view, realtime=realtime, tasks=kw.pop("tasks", False) or game,
+                     **kw)
+  if game:
+    arrange_game(lives)
   if on_ready is not None:
     on_ready(lives)
-  return run_pair(lives, max_sim_time=max_sim_time)
+  return run_pair(lives, max_sim_time=max_sim_time, record=record)
 
 
 

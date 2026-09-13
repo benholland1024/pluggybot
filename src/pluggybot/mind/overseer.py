@@ -3559,7 +3559,8 @@ def build(world: str, book=None, enabled: bool | None = None,
       "1", "true", "yes", "on")
   if not enabled:
     return None, None
-  journal = Journal(journal_path or os.environ.get(JOURNAL_ENV) or None)
+  journal = Journal(journal_path or os.environ.get(JOURNAL_ENV) or None,
+                    robot=thoughts.robot if thoughts is not None else ROBOT_ROOT)
   if thoughts is None:
     thoughts = ThoughtFiles.open(goals_path=goals_path)
   model = model or os.environ.get(MODEL_ENV, "").strip()
