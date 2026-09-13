@@ -29,11 +29,14 @@ class Encounters(Activity):
                met_m: float = ENCOUNTER_M, parted_m: float = PARTED_M) -> None:
     super().__init__()
     self.a, self.b = a, b
-    self.a_bid, self.b_bid = model.body(a.root).id, model.body(b.root).id
+    self.rebind(model, None)
     self.met_m, self.parted_m = met_m, parted_m
     self.on_event: list = []
     self.count = 0
     self.set(near=False, distanceM=None, met=0)
+
+  def rebind(self, model, data) -> None:
+    self.a_bid, self.b_bid = model.body(self.a.root).id, model.body(self.b.root).id
 
   def sense(self, model, data) -> None:
     pa, pb = data.xpos[self.a_bid], data.xpos[self.b_bid]

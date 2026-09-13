@@ -201,6 +201,13 @@ class WsPublisher:
     its own, so the observatory files the line under the right history."""
     self.message({"type": "event", "t": round(t, 3), "robot": robot, "line": line})
 
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168 slice C): the census again, and the
+    clock read off the new data. The sender re-sends the header on its
+    next connect, which now carries the new body census."""
+    self._builder.rebind(model, data)
+    self.data = data
+
   def message(self, msg: dict) -> None:
     """Queue any typed low-frequency message (wire into BoardBook.on_event
     for `draw` / `board_cleared`, and Ledger.on_event for `earned`).

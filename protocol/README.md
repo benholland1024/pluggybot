@@ -298,6 +298,36 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
+
+pluggybot #168 (slice C). The scene was "fetched once" because the model
+was compiled once per mission; an agent-built tool is compiled INTO a
+running world, so the scene can now change while a stream is open. **No
+bump**: nothing existing changes shape, and a consumer that ignores a type
+it does not know plays on with a rack that is one module out of date --
+which is the degradation, not a break.
+
+- **`{"type": "scene_changed", "t", "robot", "reason": "tool", "tool",
+  "module", "bay", "retired", "scene"}`**, an event line between frames.
+  `scene` is the WHOLE new scene in exactly the shape the scene fixture
+  has (`scene_dict`), so a consumer rebuilds its scene graph from it the
+  way it built the first one from the fetched file; `retired` names the
+  module that left the rack (a bay is a replaced module), `module` the one
+  that hangs there now. The frame after it is a keyframe: the producer's
+  pose memory is dropped with the census, because a body may be gone.
+- **The header a late joiner receives is the current census.** The
+  publisher re-sends its header on connect, built from the recompiled
+  model, so a consumer arriving after the change never sees the old rack.
+- **A built module's identity tag** is a real tag36h11 like the others,
+  id `15 + bay` (`workshop/seam.py`), one per BAY: a retired tool's id is
+  reused by the next tool in that bay. Its texture rides the scene as
+  `tags/tag<id>.png`; the five PNGs are committed beside the hand-built
+  modules' so the site can vendor them once.
+
+The website's half -- rebuilding the three.js scene on the message and
+carrying the five textures -- is rooftop-media-2026's issue; until it
+lands the site draws the previous rack.
+
 ### 0.19.0, additive: a second robot on the stream (M12)
 
 pluggybot #167. Two robots share one world and one stream, and the wire

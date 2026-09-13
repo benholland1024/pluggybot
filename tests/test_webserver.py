@@ -728,6 +728,7 @@ class _FakeLife:
     # real object always has turns a wiring bug into a test failure about
     # the double.
     self.on_event: list = []
+    self.on_rebind: list = []      # the recompile seam's hook (issue #168)
     # A served world is mortal because it has an inbox and an admin behind
     # it; serve.py ASSERTS that rather than setting it, so the rule lives
     # in the lifecycle alone.
@@ -765,6 +766,10 @@ class _FakePublisher:
 
   def step_hook(self) -> None:
     pass
+
+  def rebind(self, model, data) -> None:
+    """The recompile seam's hook (issue #168): serve.py registers it."""
+    self.rebound = (model, data)
 
   def event(self, t, msg, robot="pluggybot") -> None:
     # A narration line names its robot since 0.20.0 (issue #181).

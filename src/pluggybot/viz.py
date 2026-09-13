@@ -183,8 +183,7 @@ class Recorder:
     self._label = ""
     self.frames_written = 0
 
-    self.model = model
-    self.renderer = mujoco.Renderer(model, self.height, self.width)
+    self.rebind(model, None)
     self.cam = mujoco.MjvCamera()
     if track_body is not None:
       self.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -197,8 +196,7 @@ class Recorder:
     self.inset_camera = inset_camera
     self.inset = None
     if inset_camera is not None:
-      iw = self.width // 4
-      self.inset = mujoco.Renderer(model, (iw * self.height) // self.width, iw)
+      self._make_inset(model)
 
     self._font = self._load_font(max(14, self.height // 30))
     # A GIF is encoded from a finished video, not frame by frame: ffmpeg's
@@ -293,6 +291,22 @@ class Recorder:
              fill=SHADOW, anchor=anchor)      # drop shadow: the scene behind
       d.text(xy, text, font=self._font, fill=LABEL, anchor=anchor)
 
+
+  def rebind(self, model, data) -> None:
+    """A renderer is bound to its model (issue #168 slice C): a recompiled
+    world means a new one, the old closed first."""
+    old = getattr(self, "renderer", None)
+    if old is not None:
+      old.close()
+    self.model = model
+    self.renderer = mujoco.Renderer(model, self.height, self.width)
+    if getattr(self, "inset", None) is not None:
+      self.inset.close()
+      self._make_inset(model)
+
+  def _make_inset(self, model) -> None:
+    iw = self.width // 4
+    self.inset = mujoco.Renderer(model, (iw * self.height) // self.width, iw)
   def close(self) -> str:
     self.writer.close()
     self.renderer.close()

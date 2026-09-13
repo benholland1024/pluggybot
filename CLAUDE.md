@@ -701,6 +701,41 @@ save a filmstrip PNG named after the script.
   MODULE_MASS` / `PEG_MASS` name the 0.12 / 0.02 the emitters used as
   literals. Not agent-facing: nothing in `economy/` or `mind/` imports it
   (a test walks the tree); #168 decides how a mind sees it.
+- **A tool appears in a RUNNING world through the recompile seam, and
+  every holder of the old world follows it** (issue #168 slice C;
+  `workshop/seam.py`, `HubLifecycle.hang_tool`, `tests/test_recompile.py`).
+  The lifecycle keeps the `MjSpec` it was compiled from (`robot.world_spec`
+  — MEASURED trajectory-identical to `from_xml_path` on both worlds, so
+  keeping it costs nothing; `build()` and `serve.py` pass `spec=`). A BAY
+  IS A REPLACED MODULE: `hang_tool(tool, bay)` retires the module there
+  (`seam.retire`: the body and its subtree, the actuators on its joints,
+  its payload — the dispenser's seeds), attaches the built module with its
+  tag (`seam.attach`, tag id `15 + bay`, PNG written once atomically) and
+  `spec.recompile(model, data)`s: **~4–13 ms, `time` and `qpos` carried
+  across BY NAME, and NEW `MjModel`/`MjData` objects** — the old handles
+  keep stepping a stale world. ⚠ So `HubLifecycle.rebind(model, data)` is
+  the whole point: it re-points what the lifecycle owns (mission → swap,
+  lidar, tag detector (a Renderer is recreated, the old closed); screen;
+  activities; game) and calls every `on_rebind` callback (the recorder,
+  the publisher, the pacer register theirs where they attach). ⚠ EVERY
+  REBIND RE-RESOLVES IDS BY NAME: deleting a module shifts the ids of
+  everything after it in the tree (the claw moved 34 → 31). Two fences,
+  both shown to fail: the RUNTIME walk (`_holders(life)`: nothing reachable
+  from the lifecycle holds the old model or data — skipping one rebind
+  names it) and the STATIC one (every class in `src/` assigning
+  `self.model`/`self.data` defines `rebind` or is on `TRANSIENT_HOLDERS`
+  with a reason: the three tool controllers are built per errand and never
+  outlive a recompile, `DockEnv` owns its own world, `Overseer.model` is an
+  LLM id). ⚠ BETWEEN ERRANDS ONLY, fork empty, single robot — refused out
+  loud otherwise (a pair shares one world and two lifecycles). The wire:
+  `scene_changed` (additive, no bump; protocol/README.md) carries the whole
+  new `scene_dict`, the next frame is a keyframe, a late joiner's header is
+  the new census. `rack_inventory` (module → bay) is the lifecycle's and the
+  seam edits it; `procedure/steps.py` reads it (`_rack(life)`), `world_facts
+  (world, rack=)` takes it. The website's half (rebuild the scene on the
+  message, vendor `tag15..19.png`) is a rooftop issue. Parity: a 600 s
+  scripted home day hashed identical before and after (`determinism_spike
+  --compare`).
 - **A recording is a MIXED stream** (protocol 0.4.0): `draw`, `board_cleared`,
   `earned` and other event lines ride between frames; dispatch on `type`, no
   `type` means frame, ignore a type you do not know. Ink is NEVER MuJoCo

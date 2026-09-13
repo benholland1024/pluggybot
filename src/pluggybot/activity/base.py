@@ -84,11 +84,14 @@ class GeomToggle:
 
   def __init__(self, model, geom: str, states: dict[str, dict]) -> None:
     """`states` maps a state name to any of pos / size / rgba."""
-    self.model = model
-    self.gid = model.geom(geom).id
     self.geom = geom
     self.states = states
     self.current: str | None = None
+    self.rebind(model)
+
+  def rebind(self, model) -> None:
+    self.model = model
+    self.gid = model.geom(self.geom).id
 
   def select(self, state: str) -> None:
     if state == self.current:
@@ -123,16 +126,19 @@ class MocapToggle:
   """
 
   def __init__(self, model, data, body: str, states: dict[str, dict]) -> None:
-    self.model, self.data = model, data
-    self.bid = model.body(body).id
-    self.mocapid = int(model.body_mocapid[self.bid])
+    self.body = body
+    self.rebind(model, data)
     if self.mocapid < 0:
       raise ValueError(
         f"{body} is not a mocap body -- add mocap=\"true\" to it. Without "
         "that, moving static scenery silently does nothing (GeomToggle).")
-    self.body = body
     self.states = states
     self.current: str | None = None
+
+  def rebind(self, model, data) -> None:
+    self.model, self.data = model, data
+    self.bid = model.body(self.body).id
+    self.mocapid = int(model.body_mocapid[self.bid])
 
   def select(self, state: str) -> None:
     if state == self.current:
@@ -171,6 +177,10 @@ class Activity:
     self.on_change: list[Callable[[str, dict], None]] = []
 
   # ---- subclass surface ----------------------------------------------------
+
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168 slice C): re-resolve every cached id
+    by name. The default caches none; a subclass that does overrides."""
 
   def sense(self, model, data) -> None:
     """Read the physics and update `self.flags`. Called every step."""
@@ -254,11 +264,20 @@ class ActivitySet:
     return len(self.activities)
 
   def step_hook(self, model, data) -> Callable[[], None]:
-    """A zero-argument callback for `HubMission.step_hooks`."""
+    """A zero-argument callback for `HubMission.step_hooks`. Reads the
+    set's CURRENT model and data, not the ones it was made with, so a
+    rebind reaches a hook already registered."""
+    self.model, self.data = model, data
+
     def hook() -> None:
       for act in self.activities:
-        act.sense(model, data)
+        act.sense(self.model, self.data)
     return hook
+
+  def rebind(self, model, data) -> None:
+    self.model, self.data = model, data
+    for act in self.activities:
+      act.rebind(model, data)
 
   def snapshot(self) -> dict:
     """{name: flags} for every activity: the whole world state at once.

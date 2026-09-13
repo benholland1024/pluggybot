@@ -38,6 +38,10 @@ class RealTimePacer:
     self.max_lag = 0.0                  # worst wall-seconds behind schedule
     self.slept = 0.0                    # total wall-seconds slept
 
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168 slice C): the clock is the new data's."""
+    self.data = data
+
   def step_hook(self) -> None:
     t = float(self.data.time)
     if self._wall0 is None:
