@@ -682,6 +682,25 @@ save a filmstrip PNG named after the script.
   showcase (`test_the_home_fixture_shows_the_census_answer`). Format and
   versioning rules are in `protocol/README.md`; a `protocolVersion` bump is a
   deliberate two-repo event (the website vendors these fixtures).
+- **The parts list is DATA, and the fixture is read off the sim** (issue
+  #185; `rack/catalog.py` → `protocol/parts.json`, `schema` 1, not on the
+  wire, vendored to the website's parts page). Two shelves: `body` (what
+  Pluggy and its rack are made of — `docs/Parts.md` as data) and `catalog`
+  (what the agent may build from: the body's parts that fit a module, parts
+  that exist only for building, ONE `scaffold` primitive at PLA density with
+  a print bed). ⚠ EVERY `feeds` VALUE IS READ OFF `models/room_hub.xml` or
+  the live constant at build time — never typed (`test_no_feed_is_typed`
+  walks the tree) — so a moved literal is a STALE fixture (`uv run python -m
+  pluggybot.rack.catalog`), and a feed with `expect` pins the datasheet's
+  number to the sim's (34 of them: the igus 50 N is the lift's
+  `forcerange`, `WHEEL_RADIUS` is half the 90 mm wheel); the generator
+  refuses to write a mismatch. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null`
+  WITH A `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a
+  field that is not null is a stale excuse and fails. `partNumber` is what
+  you order by; a series or a class of part stays null. `coupling.
+  MODULE_MASS` / `PEG_MASS` name the 0.12 / 0.02 the emitters used as
+  literals. Not agent-facing: nothing in `economy/` or `mind/` imports it
+  (a test walks the tree); #168 decides how a mind sees it.
 - **A recording is a MIXED stream** (protocol 0.4.0): `draw`, `board_cleared`,
   `earned` and other event lines ride between frames; dispatch on `type`, no
   `type` means frame, ignore a type you do not know. Ink is NEVER MuJoCo
