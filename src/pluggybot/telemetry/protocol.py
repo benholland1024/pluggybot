@@ -307,6 +307,15 @@ THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
 PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted",
                       "defined", "undefined")
 
+#: The `tool` event (issue #168, additive): what the workshop did with a
+#: spec the robot wrote. `specified` carries the spec whole as the robot
+#: wrote it; `refused` its `reasons` and `verb` (`build_tool`, `retire_tool`
+#: or `hang`); `built` the itemised `cost` once the points are paid and the
+#: print begins; `hung` the `module`, `bay`, `verbs` and what it `retired`;
+#: `retired` a built tool taken off the rack. The `scene_changed` message
+#: that follows a hang or a retire is the world's, not the workshop's.
+TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.

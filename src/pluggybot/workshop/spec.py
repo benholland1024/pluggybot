@@ -226,6 +226,38 @@ def extent(part: catalog.Part, size_mm=None) -> tuple[str, tuple[float, float, f
   return f"the catalog's dimensions ({', '.join(d)}) do not describe a box or a cylinder"
 
 
+def unbuildable(part: catalog.Part) -> str | None:
+  """Why a catalog part cannot be built from, or None. ONE predicate for
+  the validator's refusals and the prompt's list (issue #168 slice D), so
+  the robot is never told a part is usable that `parse` would refuse."""
+  if "catalog" not in part.shelves:
+    return "on the body shelf, not the catalog"
+  if part.kind == "scaffold":
+    return None
+  if part.status != "chosen":
+    return part.why.get("partNumber") or f"{part.status}, not chosen"
+  if part.massG is None:
+    return f"mass unknown ({part.why.get('massG', 'no reason')})"
+  ext = extent(part)
+  if isinstance(ext, str):
+    return ext
+  cap = part.capabilities
+  if part.kind == "actuator":
+    kind = cap.get("motion")
+    if kind == "hinge":
+      needed = ("angleDeg", "speedDegS", "torqueNm")
+    elif kind == "slide":
+      needed = ("strokeMm", "speedMmS", "forceN")
+    else:
+      return "motion unknown"
+    for key in needed:
+      if cap.get(key) is None:
+        return f"{key} unknown"
+  if part.kind in ("actuator", "sensor", "electronics") and cap.get("powerW") is None:
+    return "draw unknown, so the peg's power budget cannot be checked"
+  return None
+
+
 def _scaffold_mass(part: catalog.Part, half) -> float:
   density = float(part.capabilities["densityKgM3"])
   return density * 8.0 * half[0] * half[1] * half[2]

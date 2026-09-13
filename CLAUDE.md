@@ -699,8 +699,9 @@ save a filmstrip PNG named after the script.
   field that is not null is a stale excuse and fails. `partNumber` is what
   you order by; a series or a class of part stays null. `coupling.
   MODULE_MASS` / `PEG_MASS` name the 0.12 / 0.02 the emitters used as
-  literals. Not agent-facing: nothing in `economy/` or `mind/` imports it
-  (a test walks the tree); #168 decides how a mind sees it.
+  literals. Nothing in `economy/` imports it (a test walks the
+  tree: a tool is graded on the world, never on its part list); the MIND
+  sees it through `workshop_rule()` on `autonomous` alone (#168 slice D).
 - **A tool appears in a RUNNING world through the recompile seam, and
   every holder of the old world follows it** (issue #168 slice C;
   `workshop/seam.py`, `HubLifecycle.hang_tool`, `tests/test_recompile.py`).
@@ -736,6 +737,29 @@ save a filmstrip PNG named after the script.
   message, vendor `tag15..19.png`) is a rooftop issue. Parity: a 600 s
   scripted home day hashed identical before and after (`determinism_spike
   --compare`).
+- **The workshop is the agent's, on `autonomous` only** (issue #168 slice
+  D; Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
+  `HubLifecycle._workshop_routine`). Two decision FIELDS on `define`'s
+  terms — `build_tool {name, bay, spec}`, `retire_tool name` — no replace:
+  a bay is NAMED and whatever hangs there is retired for good. Order, all
+  before a point moves: the envelope (`validate.check`), the seam's
+  preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
+  points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
+  60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
+  DECISIONS, said so at the constants) via `Ledger.spend` (no debt), then
+  `_fabricate_routine` (its own routine so a test STUBS the ~15 sim-minute
+  wait and pins the seconds), then `hang_tool`. Every step a `tool` event
+  (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
+  `spec.unbuildable` is ONE predicate for the validator and the prompt's
+  parts list (`workshop_rule()`, built off the catalog) — today only
+  `servo_fs90` and `scaffold_pla_box` are buildable-from and the prompt
+  says why the rest are not. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
+  survive a restart and are RE-HUNG by `restore_tools()` in `begin()`,
+  paid once; an invalid one is kept, marked, shown. ⚠ `Menu.workshop` /
+  `Overseer.workshop` are set by `build()` on `autonomous` alone;
+  `guarded`'s schema, prefix and `GUARDED_RULES_SHA` are unchanged (a
+  guarded parse DROPS the fields). ⚠ The prompt's example may not mention
+  charge / battery / survival (a test reads the example block).
 - **A recording is a MIXED stream** (protocol 0.4.0): `draw`, `board_cleared`,
   `earned` and other event lines ride between frames; dispatch on `type`, no
   `type` means frame, ignore a type you do not know. Ink is NEVER MuJoCo

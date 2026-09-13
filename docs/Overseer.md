@@ -183,6 +183,60 @@ battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
 agent the answer the arm is measured on. It looks around with the LCD and
 probes with the arm.
 
+### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
+
+The fifth quality, taken one step further than a procedure: the robot may
+describe a **tool** — real parts from the catalog (`rack/catalog.py`,
+`protocol/parts.json`, the same table the website's parts page shows) at
+positions on the standard module frame, a printed PLA box or two, an
+actuator with an axis and a verb — and the world builds it and hangs it on
+the rack. Two decision fields on `define`'s terms, paperwork that costs no
+turn: `build_tool: {name, bay, spec}` and `retire_tool: name`. No replace:
+a bay is **named**, and whatever hangs there — one of the five hand-built
+modules or a tool of the robot's own — is retired for good (the rack has
+five bays; a sixth needs the rail to grow, ToolPattern.md §6).
+
+What code keeps, in order, before anything moves:
+
+1. **The envelope** (`workshop/validate.py`, ToolPattern §2 as constants):
+   mass, moment about the peg, the fork's and trays' volumes, the bracket
+   band, the wall, the peg's power budget, the print bed. Refused with every
+   reason at once; the robot never sees a warning.
+2. **The parts** must be ones the catalog fully knows. `spec.unbuildable`
+   is ONE predicate for the validator's refusal and the prompt's list, so
+   the robot is never told a part is usable that the code would refuse.
+   Today that is a micro servo and printed PLA — the camera's draw is
+   unpublished and the rest are candidates — and the prompt says why.
+3. **The price** (`workshop/cost.py`): the catalog's euros as points, one
+   per euro, filament by the gram; then print and assembly **time** stood
+   still. Paid before anything prints (`Ledger.spend`, no debt); an
+   unaffordable tool is refused before a second passes.
+4. **The seam** (`HubLifecycle.hang_tool`, §2c of the slice plan on #168):
+   between errands, fork empty, single robot. Checked before the points
+   move, so a refused hang never follows a paid print.
+
+Every step is a `tool` event with its outcome — `specified` (the spec
+whole, as written), `refused` (with reasons), `built` (the itemised cost),
+`hung` (the module, the bay, the verbs, what it retired), `retired` — and
+a hang or a retire is followed by the world's `scene_changed`. What the
+robot built is shown back to it: `rack` (what hangs where) and `tools`
+(each spec, its bay, its cost) ride the volatile half of the context. A
+built tool's axis is `<name>.<verb>` in the procedure language, and the
+tool is fetched like any module.
+
+What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
+JSON per tool. Each is re-validated against today's catalog when the
+workshop loads and, if it still validates, **hung again** at the start of
+the day — a world file knows nothing of built tools. One that no longer
+validates is kept, marked and shown; the robot wrote it. The points were
+paid once.
+
+⚠ `guarded` is byte-identical: the fields, the grammar and the rule exist
+only where a workshop does (`Menu.workshop`, set by `build()` on
+`autonomous` alone), and `GUARDED_RULES_SHA` does not move. ⚠ The prompt's
+example is a capability, not a policy — a test reads it for the words
+that would hand the agent the charging answer.
+
 ### 2c. The other robot (issue #167, M12)
 
 With two robots in the world (`pluggybot/pair.py`) each has a mind of its

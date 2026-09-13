@@ -210,6 +210,9 @@ CACHE_WRITE_MULTIPLIER = 1.25
 ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
            "explore", "charge", "idle", "journal", "procedure")
 #: `procedure` is a FAMILY, not a single action (issue #166): the concrete
+#: The bays a built tool may take (issue #168), by letter: the grammar of
+#: `build_tool.bay`. One per station; the rack's count, not a choice here.
+BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(5))
 #: token is `procedure:<name>` for a procedure in the robot's library, and
 #: the name is enumerated per call like a task id. Only a menu built with
 #: `procedures=True` -- the `autonomous` arm -- offers it at all, which is
@@ -514,6 +517,14 @@ class Decision:
   #: out. Paperwork, so writing one costs no turn; and no verb replaces.
   define: dict | None = None
   undefine: str = ""
+  #: THE WORKSHOP'S TWO VERBS (issue #168), on `define`'s terms: `build_tool`
+  #: is `{"name", "bay", "spec"}` -- a tool to specify, price, print and
+  #: hang, validated and refused out loud by the workshop -- and
+  #: `retire_tool` names a built tool to take off the rack. Paperwork
+  #: fields, and no verb replaces: a bay is named, and whatever hangs
+  #: there goes.
+  build_tool: dict | None = None
+  retire_tool: str = ""
   source: str = "llm"
 
   @property
@@ -566,6 +577,8 @@ class Decision:
                if self.event_map else {}),
             **({"define": dict(self.define)} if self.define else {}),
             **({"undefine": self.undefine} if self.undefine else {}),
+            **({"buildTool": dict(self.build_tool)} if self.build_tool else {}),
+            **({"retireTool": self.retire_tool} if self.retire_tool else {}),
             "source": self.source}
 
   def summary(self) -> str:
@@ -611,6 +624,10 @@ class Menu:
   #: Does this world's robot keep a library it may run from (issue #166)?
   #: On for the `autonomous` arm only -- see PROCEDURE_PREFIX.
   procedures: bool = False
+  #: ...and a workshop it may build tools in (issue #168)? The same arm,
+  #: for the same reason: `guarded` is the control and its prefix, menu and
+  #: schema stay byte-identical (GUARDED_RULES_SHA).
+  workshop: bool = False
 
   @classmethod
   def for_world(cls, world: str, book=None) -> "Menu":
@@ -683,8 +700,13 @@ class Menu:
              hearts: bool = False,
              event_map: bool = False,
              task_ids: tuple | None = None,
-             procedures: tuple | None = None) -> dict:
+             procedures: tuple | None = None,
+             tools: tuple | None = None) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
+
+    `tools` is the workshop's built tool names (issue #168), or None where
+    there is no workshop: `retire_tool` enumerates them and `build_tool`
+    appears at all only where the field can do something.
 
     `procedures` is the library's runnable names (issue #166), enumerated
     per call exactly as `task_ids` are: the family `procedure` becomes one
@@ -731,7 +753,8 @@ class Menu:
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
       + (["event_map"] if event_map else [])
-      + (["define", "undefine"] if procedures is not None else []),
+      + (["define", "undefine"] if procedures is not None else [])
+      + (["build_tool", "retire_tool"] if tools is not None else []),
       "properties": {
         "action": {"type": "string", "enum": actions},
         "board": enum(self.boards),
@@ -804,6 +827,17 @@ class Menu:
                        "properties": {"name": {"type": "string"},
                                       "source": {"type": "string"}}},
             "undefine": enum(procedures)} if procedures is not None else {}),
+        # THE WORKSHOP'S TWO VERBS (issue #168), on the library's terms: a
+        # tool to build (its name, the bay it takes, and its spec -- an
+        # object the workshop validates and refuses out loud, so free-form
+        # here) and a built tool to retire. Absent where there is no
+        # workshop.
+        **({"build_tool": {"type": "object", "additionalProperties": False,
+                           "required": ["name", "bay", "spec"],
+                           "properties": {"name": {"type": "string"},
+                                          "bay": enum(BAY_LETTERS),
+                                          "spec": {"type": "object"}}},
+            "retire_tool": enum(tools)} if tools is not None else {}),
         # BUY A LIFE BACK (issue #136). A plain boolean and ABSENT where
         # there are no hearts to buy, on ESCALATION_RULE's terms: a lever
         # that does nothing must not be offered, because a field the world
@@ -858,7 +892,8 @@ class Menu:
                answering: tuple[str, ...] = (),
                standing_orders: bool = False,
                event_map: bool = False,
-               procedures: tuple | None = None) -> Decision:
+               procedures: tuple | None = None,
+               tools: tuple | None = None) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
 
     `procedures` is the library's runnable names, or None where there is no
@@ -961,6 +996,16 @@ class Menu:
         define = {"name": clean(spec.get("name"), MAX_ID),
                   "source": str(spec.get("source"))[:lang.MAX_SOURCE_CHARS + 1]}
       undefine = clean(raw.get("undefine"), MAX_ID)
+    build_tool, retire_tool = None, ""
+    if tools is not None:
+      shop = raw.get("build_tool")
+      if isinstance(shop, dict) and isinstance(shop.get("spec"), dict):
+        # NOT validated here: the workshop refuses out loud with every
+        # reason, narrated and on the wire, which is the interesting path.
+        build_tool = {"name": clean(shop.get("name"), MAX_ID),
+                      "bay": clean(shop.get("bay"), 1).upper(),
+                      "spec": dict(shop.get("spec"))}
+      retire_tool = clean(raw.get("retire_tool"), MAX_ID)
     respond_to = clean(raw.get("respond_to"), MAX_ID)
     outcome = str(raw.get("outcome", "") or "").strip()
     # A model working off a cached older prompt (or an operator replaying an
@@ -995,6 +1040,7 @@ class Menu:
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
                     define=define, undefine=undefine,
+                    build_tool=build_tool, retire_tool=retire_tool,
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
                     # strand the upkeep) are the ledger's, where the balance
@@ -1820,6 +1866,108 @@ def procedure_rule() -> str:
           + ax + PROCEDURE_SENSORS + se)
 
 
+#: What the robot is told about the tools it may build (issue #168), on the
+#: `autonomous` arm only, beside the procedure rule. Built by a function
+#: because the parts list comes off the catalog (`rack/catalog.py`) and the
+#: envelope off `rack/coupling.py`'s constants -- the same numbers the
+#: validator refuses against, so the robot is never told a rule the code
+#: does not keep. Byte-stable for a given catalog, which the cached prefix
+#: needs.
+#:
+#: ⚠ NO WORKED EXAMPLE HERE MAY MENTION CHARGING, A BATTERY THRESHOLD OR
+#: THE ROBOT'S SURVIVAL -- `EVENT_MAP_RULE`'s rule (a test reads the
+#: example block). The scoop below is a capability, not a policy.
+WORKSHOP_HEAD = """\
+TOOLS YOU MAY BUILD
+
+You may design a tool from real, purchasable parts and hang it on the rack:
+`build_tool: {"name": "<name>", "bay": "<A-E>", "spec": {...}}` on any answer.
+It costs no turn to say, but it costs POINTS and TIME: the parts at the
+catalog's price (one point per euro; printed plastic by the gram), then the
+print and assembly time standing still. Unaffordable is refused before
+anything is bought; a spec outside the coupling envelope is refused with
+every reason at once and nothing is spent. The bay you name is taken:
+whatever hangs there -- one of the five original modules, or a tool of
+yours -- is retired for good. `retire_tool: "<name>"` takes a tool of yours
+off the rack and leaves its bay empty. There is no replace. `rack` in your
+context says what hangs where; `tools` lists what you built, with its spec.
+
+A built tool's axes appear in the procedure language as `<name>.<verb>`,
+so `move("scoop.tilt", 1.2)` moves a servo you specified, and
+`read("scoop.tilt")` reads it. Fetch it like any module: `fetch("module_<name>")`.
+
+THE SPEC. Parts by catalog id, positioned in the module's frame in
+millimetres: +x is toward the robot, -x toward the wall when racked, z up,
+the peg axis along y at z = 22. The plate (20 x 40 x 60 mm), the peg and the
+identity tag are made for you and are not in the spec. Each part: `id`,
+`part`, `pos` [x, y, z] mm, optional `euler` [deg], optional `on` (another
+part's id; default the plate). A scaffold part carries `size` [mm]. An
+actuator carries `axis`: {"verb", "dir" [unit vector], "range" [lo, hi] (degrees
+for a servo, mm for a screw), "stow"}. A part `on` an actuator rides its
+axis. Nothing else -- there is no field for a mass, a friction, a solver
+option, and an unknown field is refused.
+
+  {"name": "scoop", "parts": [
+    {"id": "hinge", "part": "servo_fs90", "pos": [-20, 0, -45],
+     "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
+    {"id": "blade", "part": "scaffold_pla_box", "size": [60, 30, 4],
+     "pos": [-30, 0, -8], "on": "hinge"}]}
+
+THE ENVELOPE, refused, never warned about: total mass with the plate and peg
+under %(mass_g).0f g; moment about the peg under %(moment).2f N·m at every
+pose (reach costs more than mass); nothing where the fork's prongs or the
+rack's trays hold the peg; nothing outboard of the plate in the band z -30
+to -9 mm (a set-down meets the tray brackets there); nothing further than
+%(wall_mm).0f mm out the front (the wall); the parts' draw plus the module's
+own %(idle_w).1f W under %(peg_w).1f W; every printed box within a
+%(bed)s mm bed. The scoop above passes.
+
+THE CATALOG -- what a tool may be built from. A part the catalog does not
+fully know (a candidate, an unknown mass or draw) cannot be built from, and
+the refusal says why.
+"""
+
+
+def workshop_rule() -> str:
+  from pluggybot.power import MODULE_IDLE_W
+  from pluggybot.rack import catalog, coupling
+  from pluggybot.workshop import cost
+  from pluggybot.workshop.spec import unbuildable
+  lines = []
+  for part in catalog.PARTS:
+    if "catalog" not in part.shelves:
+      continue
+    cap = part.capabilities
+    bits = [part.kind, part.status]
+    if part.massG is not None:
+      bits.append(f"{part.massG:g} g")
+    if part.priceEur is not None:
+      bits.append(f"€{part.priceEur:.2f} {part.priceFor}")
+    if part.dimensionsMm:
+      bits.append("size " + " × ".join(f"{v:g}" if isinstance(v, (int, float)) else str(v)
+                                        for v in part.dimensionsMm.values()) + " mm")
+    for key in ("motion", "angleDeg", "strokeMm", "torqueNm", "forceN",
+                "speedDegS", "speedMmS", "powerW", "fovVDeg", "densityKgM3"):
+      if key in cap and cap[key] is not None:
+        bits.append(f"{key} {cap[key]}")
+    if part.kind == "scaffold":
+      bits.append(f"€{cost.FILAMENT_EUR_PER_KG:g}/kg, "
+                  f"bed {' × '.join(str(v) for v in cap['printBedMm'].values())} mm")
+    why = unbuildable(part)
+    if why:
+      bits.append("CANNOT BE BUILT FROM: " + why)
+    lines.append(f"  {part.id}: {part.name} -- " + ", ".join(bits))
+  scaffold = catalog.by_id()["scaffold_pla_box"].capabilities["printBedMm"]
+  head = WORKSHOP_HEAD % {
+    "mass_g": coupling.MODULE_MASS_CEILING * 1000,
+    "moment": coupling.LATCH_MOMENT_NM,
+    "wall_mm": (coupling.TOOL_HALF_X + coupling.WALL_CLEARANCE) * 1000,
+    "idle_w": MODULE_IDLE_W, "peg_w": coupling.PEG_POWER_W,
+    "bed": " × ".join(str(v) for v in scaffold.values()),
+  }
+  return head + "\n".join(lines) + "\n"
+
+
 ESCALATION_RULE = """\
 THINKING HARDER
 
@@ -1855,6 +2003,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
                   event_map: bool = False,
                   seeded: bool = True,
                   procedures: bool = False,
+                  workshop: bool = False,
                   others: tuple = ()) -> list[dict]:
   """The STABLE half of the prompt: identity, rules, world, rewards, and the
   two HUMAN-WRITTEN thought files.
@@ -1981,6 +2130,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     + ([EVENT_MAP_RULE] if event_map else [])
     + ([UNSEEDED_RULE] if event_map and not seeded else [])
     + ([procedure_rule()] if procedures else [])
+    + ([workshop_rule()] if workshop else [])
     + ([other_robot_rule(others)] if others else [])
     + ([ESCALATION_RULE] if escalation else []))
   return [{"type": "text", "text": text,
@@ -2218,6 +2368,7 @@ class Overseer:
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                library=None,
+               workshop=None,
                others: tuple = (),
                clock: Callable[[], float] = time.monotonic) -> None:
     self.menu = menu
@@ -2359,6 +2510,9 @@ class Overseer:
     #: arm but `autonomous`. Its presence is what puts `procedure:<name>` on
     #: the menu, the two fields in the schema and the rule in the prompt.
     self.library = library
+    #: THE WORKSHOP (issue #168), or None: the `autonomous` arm's alone, on
+    #: the library's terms exactly.
+    self.workshop = workshop
     #: THE OTHER ROBOTS' NAMES (issue #167): a world with one is told about
     #: it in the prefix (`OTHER_ROBOT_RULE`); a world with none is unchanged.
     self.others = tuple(n for n in others if n)
@@ -2427,6 +2581,7 @@ class Overseer:
                                 event_map=self.event_map is not None,
                                 seeded=origin != "unseeded",
                                 procedures=self.library is not None,
+                                workshop=self.workshop is not None,
                                 others=self.others)
 
   @property
@@ -2644,7 +2799,8 @@ class Overseer:
                                     hearts=self.hearts,
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
-                                    procedures=self._procedures())}},
+                                    procedures=self._procedures(),
+                                    tools=self._tools())}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
@@ -2652,7 +2808,8 @@ class Overseer:
                                   offered=offered, answering=answering,
                                   standing_orders=self.standing_orders,
                                   event_map=self.event_map is not None,
-                                  procedures=self._procedures())
+                                  procedures=self._procedures(),
+                                  tools=self._tools())
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.usage.errors.append(
         f"escalation: {type(e).__name__}: {e}"[:200])
@@ -3126,6 +3283,11 @@ class Overseer:
       for hook in self.on_decision:
         hook(event)
 
+  def _tools(self) -> tuple | None:
+    """The workshop's built tool names for `retire_tool`'s grammar, or
+    None where there is no workshop -- `_procedures`' shape."""
+    return self.workshop.names() if self.workshop is not None else None
+
   def _procedures(self) -> tuple | None:
     """The library's runnable names for this call's grammar, or None where
     there is no library -- `_task_ids`' shape, for the same reason."""
@@ -3163,7 +3325,8 @@ class Overseer:
                                     hearts=self.hearts,
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
-                                    procedures=self._procedures())}},
+                                    procedures=self._procedures(),
+                                    tools=self._tools())}},
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
@@ -3171,7 +3334,8 @@ class Overseer:
                                     offered=offered, answering=answering,
                                     standing_orders=self.standing_orders,
                                     event_map=self.event_map is not None,
-                                    procedures=self._procedures())
+                                    procedures=self._procedures(),
+                                  tools=self._tools())
       self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
@@ -3569,6 +3733,7 @@ def build(world: str, book=None, enabled: bool | None = None,
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   menu = Menu.for_world(world, book)
   library = None
+  workshop = None
   if autonomous:
     # THE LIBRARY (issue #166): the `autonomous` arm's alone, beside the
     # thought files where the robot's other writing lives, or in memory
@@ -3580,6 +3745,11 @@ def build(world: str, book=None, enabled: bool | None = None,
             else None)
     library = Library(world_facts(world), root=root)
     menu = replace(menu, procedures=True)
+    # THE WORKSHOP (issue #168): the same arm, beside the library.
+    from pluggybot.workshop.library import Workshop
+    workshop = Workshop(root=(thoughts.root / "tools" if thoughts.root is not None
+                              else None))
+    menu = replace(menu, workshop=True)
   overseer = Overseer(menu, thoughts=thoughts,
                       table=table, journal=journal, client=client,
                       robot_name=robot_name,
@@ -3620,6 +3790,6 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # be told it has a say in one.
                       standing_orders=standing_orders,
                       autonomous=autonomous, show_survival=show_survival,
-                      calls_per_hour=calls_per_hour, library=library,
+                      calls_per_hour=calls_per_hour, library=library, workshop=workshop,
                       others=others)
   return overseer, journal

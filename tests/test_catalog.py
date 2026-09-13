@@ -173,12 +173,14 @@ def test_the_generator_reads_its_module_mass_off_the_named_constants(parts):
   assert 'mass="0.100"' in coupling.module_xml("m", 0, 0, 0.3, "0 0 0 1")
 
 
-def test_nothing_in_the_economy_or_the_mind_reads_the_catalog():
-  """The catalog is not agent-facing yet (issue #185, "Not in scope"): #168
-  decides how a mind sees it. A grep would pass on a comment; the syntax
-  tree does not."""
-  for path in list((ROOT / "src/pluggybot/economy").glob("*.py")) + \
-      list((ROOT / "src/pluggybot/mind").glob("*.py")):
+def test_nothing_in_the_economy_reads_the_catalog():
+  """The scoring path never reads the catalog (issue #185): a tool's
+  usefulness is graded by predicates on the world, never by what it is
+  made of, and nothing awards itself points for a part list. (#168 slice D
+  decided how a MIND sees it -- through `overseer.workshop_rule()`, on the
+  `autonomous` arm alone -- so `mind/` left this fence then.) A grep would
+  pass on a comment; the syntax tree does not."""
+  for path in (ROOT / "src/pluggybot/economy").glob("*.py"):
     tree = ast.parse(path.read_text())
     for node in ast.walk(tree):
       names = []
