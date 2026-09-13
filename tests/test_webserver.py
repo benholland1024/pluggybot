@@ -1282,9 +1282,51 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   assert [m.id for m in a.inbox.drain()] == ["r2", "r3"]
 
 
-def test_serve_pair_refuses_one_robots_document_paths(monkeypatch, tmp_path):
+def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_documents(
+    monkeypatch, tmp_path):
+  """⚠ THE PRODUCTION IMAGE SETS $PLUGGY_GOALS AND $PLUGGY_JOURNAL (one
+  robot's files) and its entrypoint passes both as flags. `--pair` refused
+  them, which in production is a container in a restart loop; and merely
+  skipping the flags would not have done, because `ThoughtFiles.open` and
+  `overseer.build` fall back to the same environment -- both minds would
+  have shared one goals file and one journal.
+
+  So: the environment and the flags exactly as the image has them, and the
+  claim is that the pair STARTS, the first robot keeps the single-robot
+  files (a volume that served one robot keeps that robot's goals), and the
+  second robot's documents live under its own root and touch neither."""
+  from pluggybot import pair as pair_mod
+  from pluggybot.robot import SECOND
   serve = _load_serve()
-  monkeypatch.setattr(sys, "argv", ["serve.py", "--pair", "--goals",
-                                    str(tmp_path / "g.md")])
-  with pytest.raises(SystemExit):
-    serve.main()
+  root = tmp_path / "thoughts"
+  goals, journal = tmp_path / "goals.md", tmp_path / "journal.json"
+  monkeypatch.setenv("PLUGGY_THOUGHTS", str(root))
+  monkeypatch.setenv("PLUGGY_GOALS", str(goals))
+  monkeypatch.setenv("PLUGGY_JOURNAL", str(journal))
+  built: dict = {}
+  monkeypatch.setattr(serve, "WsPublisher",
+                      lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
+  flown: dict = {}
+
+  def fake_run_pair(lives, **kw):
+    flown["lives"] = lives
+    for life in lives:
+      life.mission.close()
+    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
+             "module_stowed": True, "sim_time": 1.0, "errands": [],
+             "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+            for _ in lives]
+
+  monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "room_hub", "--free-run", "--overseer",
+    "--thoughts", str(root), "--goals", str(goals), "--journal", str(journal),
+    "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
+  serve.main()                                   # no SystemExit: it starts
+  a, b = flown["lives"]
+  assert a.thoughts.goals_path == goals, "the first robot keeps its goals"
+  assert a.journal.path == journal, "...and its journal"
+  assert b.thoughts.goals_path is None
+  assert b.thoughts.root == root / SECOND.root
+  assert b.journal.path == root / SECOND.root / "journal.json"
+  assert a.thoughts._path("Goals.md") != b.thoughts._path("Goals.md")

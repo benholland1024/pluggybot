@@ -59,7 +59,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                mortal: bool | None = None, task_state: str | None = None,
                inboxes: tuple | None = None, mode=None,
                overseer_kw: dict | None = None, battery_wh: float | None = None,
-               reserve_wh: float | None = None, **life_kw) -> list:
+               reserve_wh: float | None = None, goals_path: str | None = None,
+               journal_path: str | None = None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -92,6 +93,15 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   loop steps both, so one pause stops the world; `overseer_kw` reaches
   every mind's `overseer.build` (backend, model, spend book...);
   `battery_wh` / `reserve_wh` override the pack's figures.
+
+  ⚠ THE DOCUMENTS ARE PER ROBOT, AND ONLY THE FIRST ROBOT'S COME FROM THE
+  SINGLE-ROBOT KNOBS. The first robot keeps `goals_path` / `journal_path`
+  and their environment fallbacks (`$PLUGGY_GOALS`, `$PLUGGY_JOURNAL`,
+  which the image sets), so a volume that served one robot keeps that
+  robot's goals and journal where they were. The second robot's live under
+  ITS root (`<thoughts root>/<r2 root>/Goals.md`, `.../journal.json`) and
+  ignore both flag and environment -- measured: the environment alone
+  handed both minds one goals file and one journal.
   """
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.thoughts import ThoughtFiles
@@ -125,15 +135,24 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   book_of_points = points_ledger(ledger_state, cap=appetite.cap if appetite else None,
                                  robots=tuple(h.root for h in handles))
   lives = []
+  from pluggybot.mind.thoughts import ROOT_ENV
+  thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
-    root = (None if thoughts_root is None else
-            (Path(thoughts_root) if i == 0 else Path(thoughts_root) / handle.root))
-    memory = ThoughtFiles.open(str(root) if root is not None else None,
-                               robot=handle.root)
+    if i == 0:
+      memory = ThoughtFiles.open(thoughts_root, goals_path=goals_path,
+                                 robot=handle.root)
+      own_journal = journal_path
+    else:
+      root = None if thoughts_root is None else Path(thoughts_root) / handle.root
+      # The constructor, not `open`: `open` falls back to $PLUGGY_GOALS.
+      memory = ThoughtFiles(str(root) if root is not None else None,
+                            goals_path=None, robot=handle.root)
+      own_journal = str(root / "journal.json") if root is not None else None
     ledger = Account(book_of_points, handle.root)
     hunger = (Metabolism(book_of_points, appetite, robot=handle.root)
               if appetite else None)
     boss, journal = ov.build(world, book, enabled=overseer, thoughts=memory,
+                             journal_path=own_journal,
                              robot_name=name, ledger=ledger,
                              appetite=hunger is not None, mortal=bool(mortal),
                              hearts=bool(mortal) and ledger is not None,
