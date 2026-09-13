@@ -50,6 +50,31 @@ LIDAR_PERIOD = 0.1        # s between scans: 10 Hz, the part's real rate. The
 MAX_RANGE = 8.0
 
 
+def robot_geoms(model, root_name: str) -> set:
+  """Every geom belonging to the robot, root body and all descendants.
+
+  Needed because MuJoCo's ray `bodyexclude` skips a single body, while the
+  robot is a tree -- mast, head, carriage, arm and fork are separate bodies
+  and all of them can stand in the scan plane (or the depth camera's frame,
+  `perception/depth.py`, which filters with the same set).
+  """
+  try:
+    root = model.body(root_name).id
+  except KeyError:
+    return set()
+  bodies = set()
+  for b in range(model.nbody):
+    p = b
+    while p > 0:
+      if p == root:
+        bodies.add(b)
+        break
+      p = int(model.body_parentid[p])
+  bodies.add(root)
+  return {g for g in range(model.ngeom)
+          if int(model.geom_bodyid[g]) in bodies}
+
+
 class Lidar:
   """360-degree planar LIDAR over MuJoCo ray casts."""
 
@@ -101,27 +126,7 @@ class Lidar:
 
   @staticmethod
   def _robot_geoms(model, root_name: str) -> set:
-    """Every geom belonging to the robot, root body and all descendants.
-
-    Needed because MuJoCo's ray `bodyexclude` skips a single body, while the
-    robot is a tree -- mast, head, carriage, arm and fork are separate bodies
-    and all of them can stand in the scan plane.
-    """
-    try:
-      root = model.body(root_name).id
-    except KeyError:
-      return set()
-    bodies = set()
-    for b in range(model.nbody):
-      p = b
-      while p > 0:
-        if p == root:
-          bodies.add(b)
-          break
-        p = int(model.body_parentid[p])
-    bodies.add(root)
-    return {g for g in range(model.ngeom)
-            if int(model.geom_bodyid[g]) in bodies}
+    return robot_geoms(model, root_name)
 
   def scan(self, data) -> tuple[np.ndarray, np.ndarray]:
     """(angles, ranges) in the ROBOT's frame; self-occluded bearings absent.

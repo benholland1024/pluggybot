@@ -1267,6 +1267,60 @@ the map, only in the mask; the pick lands at 50 s with the other robot
 crossing its path, and the second robot's pick fails honestly at the empty
 bay.
 
+## Near-field 3D: the sensor before the map (issue #34)
+
+The LIDAR looks along one plane at 0.223 m and the navigation camera is
+blind inside 0.48 m, so "find a thing on the floor" had no sensor. The
+decision (a RealSense D435 on the mast top; the runners-up and why each
+lost) is Parts.md "near-field depth camera"; what the sim taught on the
+way, each with what is true now:
+
+- **A depth image is ray casts here, not a render.** `mj_multiRay` at
+  ~0.6 µs a ray gives a 120 × 70 frame for ~5 ms with a geom id per pixel
+  (the self-filter for free), byte-deterministic and off the GPU — the
+  MSAA lesson (#110) never arises. ⚠ Its `cutoff` is a MAX DISTANCE and
+  `0` tests nothing: the first timing table read "100 % hit" off arrays the
+  call had never written. `perception/depth.py` passes `MAX_Z`.
+- **The camera sat on its own housing's face and every ray hit the
+  housing.** On the box face exactly, the model settles to a hair of pitch
+  and the origin is inside the box. The lens stands 1.5 mm proud.
+- **A camera at head height sees only deck.** Pitched down from the head
+  (z 0.135), the top of the frame was the LIDAR body and everything steeper
+  than −24° was the chassis top: nothing but the robot in the central
+  column. Height buys the near field twice — the deck clears sooner and
+  the datasheet's min-Z stops binding — so the unit went to the mast top
+  (0.51 m), which is also over the axle (the cantilever lesson above).
+- **The deck sets the near edge; the pitch sets the far one.** Measured
+  30°–55°: the centre column's floor starts at 0.26–0.27 m ahead of the
+  axle at every pitch ≥ 35°, and ends at 2.1 / 1.7 / 1.3 / 1.0 m at
+  40 / 45 / 50 / 55°. Steeper only spends rows on the deck. 40°.
+- **72 g at 0.51 m is affordable, and the numbers are recorded, not
+  assumed** (`scripts/nearfield_spike.py` is the sensor; the launch probe
+  was a scratch script): CoM +10.7 mm, step launch 3.9 → 6.4° at full
+  throttle (never commanded — `MAX_WHEEL_ACCEL` ramps), cruise launch
+  0.9 → 1.3°, braking and veer unchanged, the y-counterbalance still inside
+  its 10 mm bar.
+- **The stereo shadow is angular, so at sim resolution it is often
+  sub-pixel.** The band a near edge hides from the right imager is
+  `f·B·(1/z_near − 1/z_far)` pixels; a 30 cm post at 0.7 m against the floor
+  at ITS OWN depth is 0.6 px and rightly casts nothing, against the floor
+  1.6 m behind its top it is 2.2 px. A test that looked in the wrong row
+  "found" no shadow. The real unit at 447 px focal length sees 1.7 px where
+  the sim sees 0.24; same angle.
+- **Standing still, the floor is sampled in rows ~3 cm apart at 1 m**, so a
+  5 cm cube arrives as two stripes with an unmeasured cell between and a
+  2 cm cube is never seen (`--find`). The map bridges ONE unmeasured cell
+  in `things()` and otherwise integrates over motion; nothing invents
+  samples.
+- **A voxel map was measured, not assumed away.** Same frame, same window:
+  the 2.5D map is 40 000 cells and 0.7 ms an update; voxels at 2 cm are
+  250 000 cells and, with the free-space carving that lets a map forget a
+  moved object, 111 ms as written (the 2D grid's per-sample efficiency
+  would make it ~25 ms). The occupied-only voxel update is 0.2 ms — and
+  cannot forget, which is the cost hiding in every "voxels are cheap" claim.
+  **What is true now:** the height map is the representation; voxels are
+  the answer if what is under an overhang ever matters, and nothing asks.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

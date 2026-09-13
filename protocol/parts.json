@@ -652,6 +652,115 @@
    }
   },
   {
+   "id": "realsense_d435",
+   "name": "RealSense D435 depth camera (active IR stereo)",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "body"
+   ],
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "D435",
+   "source": null,
+   "massG": 72,
+   "dimensionsMm": {
+    "length": 90,
+    "width": 25,
+    "height": 25
+   },
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "fovHDeg": 87,
+    "fovVDeg": 58,
+    "depthStream": "848x480 @ 30 Hz",
+    "minZM": 0.28,
+    "specRangeM": 10,
+    "baselineMm": 50,
+    "projector": "IR dot pattern: depth on textureless surfaces, which passive stereo could not do here",
+    "interface": "USB 3",
+    "powerW": null
+   },
+   "feeds": [
+    {
+     "constant": "depth_eye.fovy",
+     "where": "model",
+     "value": 58,
+     "unit": "°",
+     "note": "the near-field camera on the mast top, pitched 40° at the floor ahead",
+     "expect": 58
+    },
+    {
+     "constant": "depth_cam_body.mass",
+     "where": "model",
+     "value": 0.072,
+     "unit": "kg",
+     "note": "the unit, on the mast top over the axle: CoM +10.7 mm, cruise launch pitch 0.9 -> 1.3°",
+     "expect": 0.072
+    },
+    {
+     "constant": "depth_cam_body.size",
+     "where": "model",
+     "value": [
+      0.0125,
+      0.045,
+      0.0125
+     ],
+     "unit": "m",
+     "note": "box half-extents"
+    },
+    {
+     "constant": "perception.depth.MIN_Z",
+     "where": "code",
+     "value": 0.28,
+     "unit": "m",
+     "note": "the datasheet's min-Z at full resolution; does not bind on the mast-top mount",
+     "expect": 0.28
+    },
+    {
+     "constant": "perception.depth.MAX_Z",
+     "where": "code",
+     "value": 3,
+     "unit": "m",
+     "note": "3 m, UNDER the part's 10 m: σ is 32 mm there and the map is near-field; also the ray cutoff, so the cost"
+    },
+    {
+     "constant": "perception.depth.BASELINE",
+     "where": "code",
+     "value": 0.05,
+     "unit": "m",
+     "note": "the imager baseline: the occlusion shadow's width and, with the sub-pixel error, the noise",
+     "expect": 0.05
+    },
+    {
+     "constant": "perception.depth.NOISE_K",
+     "where": "code",
+     "value": 0.0036,
+     "unit": "1/m",
+     "note": "σ_z = NOISE_K · z²: 0.08 px of disparity error on the real 447 px focal length and 50 mm baseline"
+    },
+    {
+     "constant": "perception.depth.PERIOD",
+     "where": "code",
+     "value": 0.1,
+     "unit": "s",
+     "note": "10 Hz in sim, the LIDAR's rate; the part streams 30"
+    }
+   ],
+   "why": {
+    "source": "RealSense left Intel in 2025; order from a distributor (Mouser, Reichelt) -- link not verified",
+    "priceEur": "roughly €300-400 at EU distributors in 2026, unverified"
+   },
+   "note": "Issue #34: the near-field sensor, so the robot can find things on the floor the scan plane looks over. Chosen over the D405 (7-50 cm, but PASSIVE stereo: fails on painted floors and matte printed modules exactly as the DIY pair did), a CSI time-of-flight module (the Pi 5's two CSI ports are the two cameras) and a second LIDAR tilted at the floor (a line, only while moving; cannot look at a thing from a standstill). Its draw is NOT in `power.ELECTRONICS_W` yet: nothing in the mission loop reads it, and the electrical budget lands with the loop integration and the energy table's re-measure (docs/Parts.md \"near-field depth camera\").",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
+  },
+  {
    "id": "stereo_pair_diy",
    "name": "DIY stereo: 2× Camera Module 3 on a custom 60 mm bracket",
    "kind": "sensor",

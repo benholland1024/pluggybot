@@ -276,6 +276,7 @@ save a filmstrip PNG named after the script.
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack (SWAP_PICK to end of SWAP_RETURN); `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin. Re-run after anything that changes what an errand does |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR` |
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
+| `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording — how a drawing gets hung on the website, by hand and on purpose. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/teleop.py`, `map_teleop.py`, `explore.py`, `lifecycle.py`, `spot_outlets.py` | plug-era: teleop, mapping, the milestone-4 exploration demo, the wall-socket lifecycle, the outlet detector. `--views` saves the camera panel |
@@ -981,6 +982,26 @@ save a filmstrip PNG named after the script.
   controllers go through `control.turn_command` (breakaway floor).
   `PenPlotter.contact_physics` / `ClawTool.grasp_physics` are deprecated
   no-ops; `tests/test_noslip_policy.py` guards all of it.
+- **The floor is seen by a depth camera on the mast top, and no return is
+  NOT a reading** (issue #34; `perception/depth.py`, `heightmap.py`;
+  Parts.md "near-field depth camera", SimNotes "Near-field 3D"). A
+  D435-class unit as 8400 `mj_multiRay` casts a frame (~5–7 ms; ⚠ the
+  call's `cutoff` is a max distance and `0` tests nothing), honest in
+  `MIN_Z`/`MAX_Z` on AXIAL z, z² noise, the image-left occlusion shadow and
+  the self-view; an out-of-range pixel is UNKNOWN — the LIDAR's "free to
+  max range" inverted — and the height map inherits it (an unmeasured cell
+  is unseen, never floor). Points come out in the ROBOT frame through the
+  nominal mount; the map takes the believed pose. ⚠ The mount is measured:
+  the deck sets the near edge (0.26 m ahead of the axle at any pitch ≥ 35°),
+  pitch sets the far one (40° → 2.1 m); a camera at head height sees only
+  deck; the lens stands 1.5 mm proud of its housing or every ray hits the
+  housing. ⚠ The height map is `SIZE_M` 4 m at `CELL_M` 2 cm = 40 000 cells
+  (fewer than the 2D grid), the LAST frame's highest point per cell, `Z_MAX`
+  0.5 m (a 2.5D map cannot say what is under an overhang; voxels are 25× the
+  cells and 40–200× the update, MEASURED in the spike). ⚠ NOTHING IN THE
+  MISSION LOOP READS IT YET, and its ~1.5–3.5 W is not in `ELECTRONICS_W`:
+  both land together, with `energy_spike.py --write`, in the first change
+  that builds on it.
 - **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
   does not.** The default pure-pursuit law cannot converge on a destination
   closer than its own overshoot and ORBITS it (~900° of turning per 200 mm

@@ -197,6 +197,24 @@
       <geom name="lift_motor" type="box" size="0.015 0.02 0.02"
             pos="-0.105 -0.05 0.095" mass="0.15" rgba="0.3 0.3 0.32 1"/>
 
+      <!-- Near-field depth camera (Intel RealSense D435 class: active IR
+           stereo, 87 x 58 deg, 72 g, 90 x 25 x 25 mm; issue #34, Parts.md
+           "Near-field 3D"). On the MAST TOP, over the axle, pitched 40 deg
+           down: measured (scripts/nearfield_spike.py --mount), the deck
+           shadows the floor to 7 cm past the bumper at ANY pitch >= 35 deg,
+           so pitch only sets the far edge (~1.9 m here); at head height the
+           frame was all deck and LIDAR body. Above the scan plane, so the
+           LIDAR's blind sector is unchanged; above the carriage's top of
+           travel (0.44) by 15 mm. The body is `depth_cam_body`; the camera
+           element is what `perception/depth.py` casts its rays from, and it
+           stands 1.5 mm PROUD of the housing's front face: on the face, the
+           first settled pitch put it inside the box and every ray hit the
+           housing. -->
+      <geom name="depth_cam_body" type="box" size="0.0125 0.045 0.0125"
+            pos="-0.10 -0.05 0.4675" mass="0.072" rgba="0.15 0.15 0.18 1"/>
+      <camera name="depth_eye" pos="-0.086 -0.05 0.4675"
+              xyaxes="0 -1 0  0.6428 0 0.7660" fovy="58"/>
+
       <!-- Carriage: rides the mast. Body origin sits ON the plug axis, so
            lift_joint qpos 0 parks the plug axis at world z=0.145 — below the
            scanner's z=0.18 center row, so the parked arm cannot corrupt the
