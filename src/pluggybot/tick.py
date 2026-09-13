@@ -94,6 +94,57 @@ class Step:
       return None
 
 
+def run_many(pairs, name: str = "", step=None) -> list:
+  """Drive several robots' routines from ONE physics loop (issue #167).
+
+  `pairs` is `[(swap, routine), ...]`, one per robot. Each step: every
+  robot's command is applied (`_before_step`), the world steps ONCE, every
+  robot's bookkeeping runs (`_after_step`) -- the three things `_step_once`
+  does for one robot, in the same order, so a robot alone here is the robot
+  alone there. A robot whose routine has returned keeps its last command
+  at zero and waits for the others; the loop ends when all have returned.
+
+  An exception from the step -- a hook's `MissionAborted` -- is thrown into
+  EVERY live routine, so each one's cleanup runs (the swap timestep, the
+  press flag), and then re-raised: one robot's stop is the day's stop.
+  Returns each routine's result, in order.
+  """
+  steps = [Step(r, f"{name}:{i}") for i, (_, r) in enumerate(pairs)]
+  swaps = [sw for sw, _ in pairs]
+  if step is None:
+    import mujoco
+    model, data = swaps[0].model, swaps[0].data
+
+    def step():
+      mujoco.mj_step(model, data)
+  cmds = [st.tick() for st in steps]
+  while any(c is not None for c in cmds):
+    exc = None
+    try:
+      for sw, c in zip(swaps, cmds):
+        sw._before_step(*wheel_targets(*(c if c is not None else (0.0, 0.0))))
+      step()
+      for sw in swaps:
+        sw._after_step()
+    except BaseException as e:  # noqa: BLE001 -- re-raised inside every routine
+      exc = e
+    if exc is not None:
+      first = None
+      for i, st in enumerate(steps):
+        if cmds[i] is None:
+          continue
+        try:
+          cmds[i] = st.tick(exc)
+        except BaseException as e:  # noqa: BLE001
+          first = first or e
+          cmds[i] = None
+      if first is not None:
+        raise first
+      continue
+    cmds = [st.tick() if c is not None else None for st, c in zip(steps, cmds)]
+  return [st.result for st in steps]
+
+
 def run(swap, routine: Routine, name: str = "") -> Any:
   """Drive a routine to completion, stepping `swap` with every command, and
   return what it returned. The blocking twin of `yield from`."""

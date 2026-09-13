@@ -239,11 +239,22 @@ class HubSwap:
             and press_opposes_drive(self._press_side, v_wheels))
 
   def _step_once(self, tl: float, tr: float) -> None:
-    d, m = self.data, self.model
-    ts = m.opt.timestep
+    """One physics step for ONE robot: its wheel setpoints, the step, its
+    bookkeeping. Two robots share the step (issue #167, `tick.run_many`):
+    each robot's `_before_step`, one `mj_step`, each robot's `_after_step`
+    -- the same three things in the same order, which is what keeps a
+    single robot's day byte-identical."""
+    self._before_step(tl, tr)
+    mujoco.mj_step(self.model, self.data)
+    self._after_step()
+
+  def _before_step(self, tl: float, tr: float) -> None:
+    d, ts = self.data, self.model.opt.timestep
     d.ctrl[self.left_act] = slew(d.ctrl[self.left_act], tl, ts)
     d.ctrl[self.right_act] = slew(d.ctrl[self.right_act], tr, ts)
-    mujoco.mj_step(m, d)
+
+  def _after_step(self) -> None:
+    d, ts = self.data, self.model.opt.timestep
     self.pressing = self._pressing()
     if self.pressing:
       self.press_steps += 1

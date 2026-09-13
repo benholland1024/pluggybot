@@ -813,7 +813,10 @@ class HubLifecycle:
     traceback for something that did not crash.
     """
     self.status = msg
-    line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
+    # A second robot's lines say whose they are (issue #167); the first
+    # robot's read exactly as they always did.
+    who = f" {self.mission.handle.root}" if self.mission.handle.prefix else ""
+    line = f"t={self.data.time:6.1f}s{who}  bat={self.battery.fraction:5.0%}  {msg}"
     if detail:
       line = f"{line}  [{detail}]"
     self.log.append(line)
@@ -2780,26 +2783,40 @@ class HubLifecycle:
           use_at: tuple[float, float] = (-1.2, 2.5),
           max_sim_time: float = 600.0,
           explore_budget: float = 90.0) -> dict:
-    self.max_sim_time = max_sim_time
-    self.blacklist: set = set()
-    self.map_done = False
-    self.stranded = False
-    self._end_run = False
+    """One robot's day, driven from its own loop. `begin` and `end` are the
+    two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
+    issue #167): the setup, then the routine, then the summary."""
+    day = self.begin(start, station_y, use_at, max_sim_time, explore_budget)
     aborted = False
-    if self.want_default_errand:
-      self.errands = [carry_errand(self.module, station_y, use_at)]
     try:
       # THE DAY IS A ROUTINE (issue #58): every branch of `_day_routine` yields its drive
       # commands and this is the ONE loop that steps the physics. Two robots
       # are two of these ticked in turn; a composed errand is a routine of
       # routines ticked from here.
-      self.mission.run(self._day_routine(start, max_sim_time, explore_budget),
-                       name="day")
+      self.mission.run(day, name="day")
     except MissionAborted:
       aborted = True
     finally:
       self.mission.close()
+    return self.end(aborted)
 
+  def begin(self, start: tuple[float, float, float],
+            station_y: float = HUB_STATION_YS[0],
+            use_at: tuple[float, float] = (-1.2, 2.5),
+            max_sim_time: float = 600.0,
+            explore_budget: float = 90.0) -> Routine:
+    """The day's setup, returning the routine that IS the day."""
+    self.max_sim_time = max_sim_time
+    self.blacklist: set = set()
+    self.map_done = False
+    self.stranded = False
+    self._end_run = False
+    if self.want_default_errand:
+      self.errands = [carry_errand(self.module, station_y, use_at)]
+    return self._day_routine(start, max_sim_time, explore_budget)
+
+  def end(self, aborted: bool = False) -> dict:
+    """The day's summary, after its routine has returned."""
     module = self.mission.swap.module_state(self.module)
     return {
       "state": self.state,
@@ -3525,6 +3542,10 @@ def world_config(world: str) -> dict:
                        math.radians(home.HOME_RACK_YAW)),
       "grid_bounds": home.GRID_BOUNDS,
       "start": tuple(home.SPAWNS["start"]),
+      # Where a SECOND robot starts (issue #167): the hall, facing the
+      # living-room doorway -- a room away from the first, in sight of
+      # nothing it needs first.
+      "start2": tuple(home.SPAWNS["hall"]),
       "use_at": (1.5, 1.8),
       "battery_wh": home.HOME_DEMO_CAPACITY_WH,
       "hosting_battery_wh": home.HOME_HOSTING_CAPACITY_WH,
@@ -3568,6 +3589,7 @@ def world_config(world: str) -> dict:
       "rack": None,                       # RackPose.prior() is this world's
       "grid_bounds": (-3, -3, 7, 7),
       "start": (0.5, 3.0, math.pi / 2),
+      "start2": (3.0, 3.0, math.pi / 2),
       "use_at": (-1.2, 2.5),
       "battery_wh": DEMO_CAPACITY_WH,
       "hosting_battery_wh": HOSTING_CAPACITY_WH,

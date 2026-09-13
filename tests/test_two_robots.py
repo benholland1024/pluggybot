@@ -8,6 +8,7 @@ mission scale, and the first test here is it at the scale of a spin and a
 drive.
 """
 
+import math
 import pathlib
 import re
 
@@ -15,6 +16,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.control import wheel_targets
 from pluggybot.mission.mission import HubMission
 from pluggybot.rack.coupling import (
   HUB_STATION_YS, module_power_contact, rack_charge_contact,
@@ -135,3 +137,144 @@ def test_mission_code_resolves_every_robot_element_through_the_handle():
       if bare.search(line) or root_index.search(line):
         bad.append(f"{rel}:{n}: {line.strip()}")
   assert not bad, "bare robot names in mission code:\n  " + "\n  ".join(bad)
+
+
+# ---- slice B: one loop, two controllers, mutual awareness ----------------------
+
+
+class _Swap:
+  """Records the order the loop calls it in; raises from a hook on cue."""
+
+  def __init__(self, log, name, raise_at=None):
+    self.log, self.name, self.raise_at, self.after = log, name, raise_at, 0
+
+  def _before_step(self, tl, tr):
+    self.log.append((self.name, "before", round(tl, 3)))
+
+  def _after_step(self):
+    self.after += 1
+    self.log.append((self.name, "after"))
+    if self.raise_at is not None and self.after == self.raise_at:
+      raise RuntimeError("hook")
+
+
+def test_run_many_applies_every_command_steps_once_then_books_every_robot():
+  from pluggybot import tick
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+
+  def ra():
+    yield 0.1, 0.0
+    yield 0.1, 0.0
+    return "a-done"
+
+  def rb():
+    yield 0.2, 0.0
+    return "b-done"
+  results = tick.run_many([(a, ra()), (b, rb())],
+                          step=lambda: log.append(("world", "step")))
+  assert results == ["a-done", "b-done"]
+  # step 1: both commands, one world step, both bookkeepings -- in order
+  assert log[:5] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
+                     ("b", "before", round(wheel_targets(0.2, 0.0)[0], 3)),
+                     ("world", "step"), ("a", "after"), ("b", "after")]
+  # step 2: b has returned and holds zero while a finishes
+  assert log[5:10] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
+                       ("b", "before", 0.0),
+                       ("world", "step"), ("a", "after"), ("b", "after")]
+  assert len(log) == 10
+
+
+def test_run_many_throws_a_hook_exception_into_every_live_routine():
+  from pluggybot import tick
+  log: list = []
+  a, b = _Swap(log, "a", raise_at=1), _Swap(log, "b")
+  seen: list = []
+
+  def ra():
+    try:
+      yield 0.1, 0.0
+      yield 0.1, 0.0
+    finally:
+      seen.append("a-finally")
+
+  def rb():
+    try:
+      yield 0.1, 0.0
+      yield 0.1, 0.0
+    finally:
+      seen.append("b-finally")
+  with pytest.raises(RuntimeError, match="hook"):
+    tick.run_many([(a, ra()), (b, rb())], step=lambda: None)
+  assert sorted(seen) == ["a-finally", "b-finally"]
+
+
+def test_the_planner_routes_round_the_other_robots_reported_pose():
+  """Unit test on the grid, no mission: a free room, the other robot
+  reported on the straight line, and every waypoint keeps clear of it."""
+  from pluggybot.mission.mission import OTHER_ROBOT_CELLS
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  m.grid.grid[:] = -5.0                      # everything known free
+  goal = (4.0, 1.0)
+  straight = m._plan_to(*goal)
+  assert straight is not None
+  m.others = [lambda: (2.5, 1.0)]
+  bent = m._plan_to(*goal)
+  assert bent is not None
+  clearance = OTHER_ROBOT_CELLS * m.grid.resolution
+  assert all(math.hypot(x - 2.5, y - 1.0) > clearance - m.grid.resolution
+             for x, y in bent), "a waypoint passes through the other robot"
+  assert any(math.hypot(x - 2.5, y - 1.0) < clearance for x, y in straight)
+  assert m._other_in_the_way(*goal) is False
+  assert m._other_in_the_way(2.6, 1.2) is True
+
+
+def test_a_blocked_drive_waits_for_the_other_robot_instead_of_giving_up():
+  """The other robot reported ON the goal: the drive stagnates, sees the
+  other in the way, and waits out its timeout rather than returning False
+  after ten seconds of no progress."""
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  m.grid.grid[:] = -5.0
+  m.others = [lambda: (1.6, 1.0)]
+  t0 = data.time
+  arrived = m.drive_to(1.6, 1.0, timeout=14.0)
+  assert not arrived
+  assert data.time - t0 >= 13.5, "gave up before its timeout"
+
+
+def test_the_lidar_drops_the_other_robots_body_from_the_scan():
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(0.5, 3.0, 0.0)                  # facing +x, the other 1.5 m ahead
+  mujoco.mj_forward(model, data)
+  angles, ranges = m.lidar.scan(data)
+  ahead = np.abs(angles) < 0.15
+  assert ranges[ahead].min() < 1.6, "the other robot is not in the scan"
+  m.lidar.exclude_robot(SECOND.root)
+  angles, ranges = m.lidar.scan(data)
+  ahead = np.abs(angles) < 0.15
+  assert not ahead.any() or ranges[ahead].min() > 3.0, \
+    "the other robot's body is still in the scan"
+
+
+@pytest.mark.slow
+def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
+  """The pair, flown: one `mj_step` loop, two days; robot 1 fetches the LCD
+  while robot 2 explores, and both are alive when the pick lands. Stops on
+  its claim."""
+  from pluggybot.pair import build_pair, run_pair
+  lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"))
+  assert lives[0].mission.others and lives[1].mission.others
+  results = run_pair(lives, max_sim_time=200.0,
+                     stop_when=lambda ls: ls[0].swaps_done >= 1)
+  assert results[0]["swaps_done"] >= 1 and results[0]["aborted"]
+  assert all(r["dead"] is None for r in results)
+  assert results[0]["collision_steps"] == 0 and results[1]["collision_steps"] == 0
+  assert lives[0].data.time == lives[1].data.time

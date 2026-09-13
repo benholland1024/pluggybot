@@ -593,7 +593,9 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
     "_screen_step",       # a starving robot looks worried and nothing else
     "_buy_heart",         # prices the upkeep a purchase must leave behind
     "_true_death",        # clears the carry so a new robot starts solvent
-    "run",                # reports it in the mission summary it returns
+    "end",                # reports it in the mission summary it returns
+                          # (`run`'s second half since issue #167, so a pair
+                          # of robots can share one loop)
   }, f"the appetite reached {readers} -- is one of those a capability gate?"
   assert "metabolism" in src
 

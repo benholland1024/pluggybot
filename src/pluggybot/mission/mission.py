@@ -210,6 +210,17 @@ class TagSpotter:
     self.detector.close()
 
 
+#: How far round another robot's believed centre A* keeps this robot's
+#: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
+#: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
+#: (0.15 m bare, 0.27 m armed) -- two armed robots passing at 0.62 m.
+OTHER_ROBOT_CELLS = 12
+#: A stagnated drive with another robot this close to us or to the goal is
+#: a robot in the way, and the drive WAITS this long before looking again.
+OTHER_NEAR_M = 1.2
+OTHER_WAIT_S = 2.0
+
+
 class MissionAborted(RuntimeError):
   """The viewer window was closed mid-mission."""
 
@@ -284,6 +295,12 @@ class HubMission:
     self.collision_steps = 0
     self.chassis_gid = model.geom(handle.el("chassis")).id
     self._cam_id = model.camera(handle.el("dock_eye")).id
+    #: THE OTHER ROBOTS (issue #167): callables returning each one's believed
+    #: (x, y), read at plan time so A* routes round a footprint the lidar
+    #: may not have marked yet. What a robot may know of another over the
+    #: network is its reported pose -- odometry is a work order's kind of
+    #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
+    self.others: list = []
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
 
@@ -305,6 +322,10 @@ class HubMission:
       ahead = self.data.time - (time.time() - self._wall0)
       if ahead > 0:
         time.sleep(min(ahead, 0.05))
+
+  def pose_xy(self) -> tuple[float, float]:
+    """Where this robot SAYS it is -- what another robot may be told."""
+    return (self.swap.reckoner.x, self.swap.reckoner.y)
 
   @property
   def pose(self) -> tuple[float, float, float]:
@@ -435,6 +456,7 @@ class HubMission:
 
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     trav = traversable_mask(self.grid.grid)
+    self._mask_others(trav)
     rows, cols = trav.shape
     # The halo escape, shared with `navigation.plan` since issue #92 -- this
     # inline version is where the idea was born, and exploration's planner
@@ -481,6 +503,17 @@ class HubMission:
       if dist < best_dist - 0.02:
         best_dist, last_improve = dist, self.data.time
       elif self.data.time - last_improve > 10.0:
+        if self._other_in_the_way(wx, wy):
+          # ANOTHER ROBOT IS WHERE THIS ONE NEEDS TO BE (issue #167). A
+          # blocked route is a wait, not a failure: stand still, let it
+          # move, look again -- bounded by `timeout`, which is the whole
+          # of this robot's patience. Giving up here was measured: two
+          # robots sent for the same bay, and the first to arrive reported
+          # "no route" after 16 s with the other crossing its path.
+          yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
+          last_improve = self.data.time
+          waypoints = []
+          continue
         return dist < 0.15               # stagnated: close enough or fail
       if self.data.time < self.backoff_until:
         yield from self._nav_routine(-0.15, 0.0)
@@ -526,6 +559,35 @@ class HubMission:
     return squared
 
   # ---- the mission ---------------------------------------------------------
+
+  def _other_in_the_way(self, wx: float, wy: float) -> bool:
+    """Is another robot within reach of this one, or of its goal?"""
+    px, py, _ = self.pose
+    for where in self.others:
+      ox, oy = where()
+      if (math.hypot(ox - px, oy - py) < OTHER_NEAR_M
+          or math.hypot(ox - wx, oy - wy) < OTHER_NEAR_M):
+        return True
+    return False
+
+  def _mask_others(self, trav) -> None:
+    """Take every other robot's footprint out of the traversable mask,
+    inflated as the map's obstacles are (issue #167). The lidar sees the
+    other robot too, but a scan marks where it WAS; this is where it says
+    it is now."""
+    if not self.others:
+      return
+    rows, cols = trav.shape
+    r = OTHER_ROBOT_CELLS
+    for where in self.others:
+      ox, oy = where()
+      cx, cy = self.grid.world_to_cell(ox, oy)
+      x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
+      y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
+      if x0 >= x1 or y0 >= y1:
+        continue
+      ys, xs = np.ogrid[y0:y1, x0:x1]
+      trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
 
   def steer_fn(self, tag_id: int, target: float = 0.0):
     """Terminal-servo callback for HubSwap: steer on ONE named bay marker,
