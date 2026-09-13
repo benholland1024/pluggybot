@@ -60,7 +60,9 @@ from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
-from pluggybot.telemetry.protocol import DEATH_CAUSES, ROBOT_ROOT
+from pluggybot.telemetry.protocol import (
+  DEATH_CAUSES, ROBOT_ROOT, robot_display_name,
+)
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
 from pluggybot.robot import FIRST, RobotHandle
@@ -281,7 +283,8 @@ class HubLifecycle:
                mortal: bool | None = None,
                restart_after_s: float | None = None,
                autonomous: bool = False,
-               handle: RobotHandle = FIRST) -> None:
+               handle: RobotHandle = FIRST,
+               robot_name: str | None = None) -> None:
     self.model, self.data = model, data
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
@@ -478,6 +481,11 @@ class HubLifecycle:
     self.tool_powered_s = 0.0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
+    #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
+    #: Read by `others_context` for what each broadcasts, and by nothing
+    #: that decides: what one robot does about another is its mind's.
+    self.peers: list = []
+    self.robot_name = robot_display_name(robot_name)
     # DEATH AND RESET (issue #107). `dead` is the cause of the current death
     # or None; `deaths` and `resets` are the day's record of both; the
     # survival clock runs from mission start or the last reset. Typed events
@@ -779,7 +787,11 @@ class HubLifecycle:
       self.screen.sense(self.model, self.data, powered=self.tool_powered)
     elif self.data.time >= self._next_screen_sense:
       self._next_screen_sense = self.data.time + SCREEN_SENSE_S
-      self.screen.sense(self.model, self.data)
+      # ...powered by THIS robot's fork (issue #167): the screen's own
+      # check reads the first robot's plates, and a second robot carrying
+      # the display would read it as dark.
+      self.screen.sense(self.model, self.data, powered=module_power_contact(
+        self.model, self.data, self.screen.module, self.mission.handle.prefix))
     if self.state != self._face_state:
       self._face_state = self.state
       self.screen.release()
@@ -3376,6 +3388,24 @@ def load_program(path: str, world: str):
   return compile_procedure(text, world_facts(world))
 
 
+def others_context(life) -> list[dict]:
+  """What the OTHER robots broadcast (issue #167): the public surface and
+  nothing else -- name, reported pose, state, the status line they narrate
+  to everyone, and what they carry. Not their battery, points, goals,
+  thoughts, reasons or secrets: those are theirs, and a robot that could
+  read them would not need to infer them."""
+  out = []
+  for other in life.peers:
+    x, y = other.mission.pose_xy()
+    carried = other.module if (other.module and other.mission.swap.module_state(
+      other.module)["on_fork"]) else ""
+    out.append({"name": other.robot_name, "robot": other.mission.handle.root,
+                "x": round(x, 2), "y": round(y, 2), "state": other.state,
+                "doing": other.status[:120], "carrying": carried,
+                "dead": other.dead["cause"] if other.dead else None})
+  return out
+
+
 def world_facts(world: str):
   """What a program is validated against (procedure/steps.py): this world's
   boards, the tools on its rack, the box its map covers, the figures the
@@ -3463,6 +3493,8 @@ def overseer_context(life) -> dict:
                                      if life.metabolism is not None
                                      else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
+  if life.peers:
+    state["others"] = others_context(life)
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what
