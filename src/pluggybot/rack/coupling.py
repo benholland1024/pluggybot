@@ -45,6 +45,27 @@ from pluggybot.rack.tags import (
 #: `rack/catalog.py`, which is where the part behind each number is named.
 MODULE_MASS = 0.12
 PEG_MASS = 0.02
+
+# -- the coupling envelope a NEW tool must fit (ToolPattern.md §2) ------------
+# Measured numbers, pinned by tests/test_hub_coupling.py, refused (never
+# warned about) by workshop/validate.py. A spec does not renegotiate them.
+LATCH_MOMENT_NM = 0.45      # pitch moment before the peg rides out of its V:
+                            # 400 g unseats at 150 mm out, 800 g hangs at 0
+MODULE_MASS_CEILING = 0.25  # kg; the class the lift preset, DROOP_COMP and
+                            # the pad geometry were tuned for (143-211 g built)
+WALL_CLEARANCE = 0.080      # m between a racked module's front face and the
+                            # wall: what a tool sticks out the front points at
+                            # the wall when stowed
+BRACKET_BAND_Z = (-0.030, -0.009)  # the rack's, outboard of the plate: a
+                            # set-down raises the module 31 mm through it, and
+                            # a part in the band arrives under the tray
+                            # brackets and jams (the pen's carriage at +37 mm)
+#: DESIGN DECISION, NOT MEASURED: what the two-pole peg coupling delivers.
+#: 6 W is 0.5 A at 12 V -- a current a sub-newton steel-on-steel V contact
+#: carries without heating, sized so one hobby servo at stall (4.8 W) plus
+#: the module's ESP32 fits and two stalled together do not. Re-measure on
+#: the built coupling; the holding capacitor (~200 ms) is the other half.
+PEG_POWER_W = 6.0
 PEG_R = 0.003           # peg axle radius (6 mm rod)
 PEG_HALF = 0.075        # peg half-length: 150 mm rod
 TOOL_HALF_Y = 0.020     # tool body half-width: 40 mm plate

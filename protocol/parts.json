@@ -571,7 +571,11 @@
    "partNumber": "Camera Module 3",
    "source": "https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3",
    "massG": 4,
-   "dimensionsMm": null,
+   "dimensionsMm": {
+    "length": 25,
+    "width": 24,
+    "height": 11.5
+   },
    "priceEur": 25.5,
    "priceFor": "each",
    "quantity": 2,
@@ -579,7 +583,8 @@
     "sensor": "IMX708",
     "fovHDeg": 66,
     "fovVDeg": 41,
-    "autofocus": "PDAF, ~10 cm to infinity"
+    "autofocus": "PDAF, ~10 cm to infinity",
+    "powerW": null
    },
    "feeds": [
     {
@@ -599,10 +604,8 @@
      "expect": 41
     }
    ],
-   "why": {
-    "dimensionsMm": "not recorded in Parts.md"
-   },
-   "note": "Two cameras on the Pi 5's two CSI ports -- no multiplexer."
+   "why": {},
+   "note": "Two cameras on the Pi 5's two CSI ports -- no multiplexer. Size and mass from raspberrypi.com's camera documentation; its draw is not published there, so a tool cannot budget for it yet."
   },
   {
    "id": "stereo_pair_diy",
@@ -685,6 +688,7 @@
    "priceFor": "each",
    "quantity": 2,
    "capabilities": {
+    "motion": "slide",
     "forceN": 50,
     "holdingTorqueNm": 0.12,
     "leadMmPerRev": 5.08,
@@ -1607,8 +1611,10 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
+    "motion": "slide",
     "forceN": null,
-    "strokeMm": 110
+    "strokeMm": 110,
+    "powerW": null
    },
    "feeds": [
     {
@@ -1676,7 +1682,9 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
-    "forceN": null
+    "motion": "hinge",
+    "forceN": null,
+    "powerW": null
    },
    "feeds": [
     {
@@ -1732,6 +1740,42 @@
    "note": "Both modules' ±20 N is a sim guess. Prices and models TBD (Parts.md, 'Tool hub & modules')."
   },
   {
+   "id": "servo_fs90",
+   "name": "FEETECH FS90-FB micro servo (analog, position feedback)",
+   "kind": "actuator",
+   "status": "chosen",
+   "shelves": [
+    "catalog"
+   ],
+   "usedBy": [],
+   "partNumber": "FS90-FB",
+   "source": "https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-servo-with-position-feedback-5904422327088.html",
+   "massG": 13,
+   "dimensionsMm": {
+    "length": 23,
+    "width": 13,
+    "height": 22
+   },
+   "priceEur": 2.9,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {
+    "motion": "hinge",
+    "angleDeg": 120,
+    "torqueNm": 0.147,
+    "speedDegS": 600,
+    "voltageV": [
+     4.8,
+     6.0
+    ],
+    "stallA": 0.8,
+    "powerW": 4.8
+   },
+   "feeds": [],
+   "why": {},
+   "note": "The first catalog actuator with every number a tool needs: Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the same servo with a position wire added. 9 g there, 13 g here."
+  },
+  {
    "id": "module_camera",
    "name": "Module camera: wide-angle, wireless through the module's ESP32 (unspecified)",
    "kind": "sensor",
@@ -1750,7 +1794,8 @@
    "priceFor": "each",
    "quantity": 0,
    "capabilities": {
-    "fovDeg": null
+    "fovDeg": null,
+    "powerW": null
    },
    "feeds": [
     {
