@@ -498,14 +498,18 @@ def compile_program(program: Program, facts: WorldFacts) -> Program:
 
 
 def run_program_routine(life, program: Program, facts: WorldFacts,
-                        role: str = DEFAULT_ROLE) -> Routine:
-  """Run one role of a validated program; the result is honest about how
+                        role: str | None = None) -> Routine:
+  """Run ONE ROLE of a validated program; the result is honest about how
   far it got. Refuses (raises `Refused`) before the first step on anything
-  validation catches, and on a program with more roles than robots."""
+  validation catches. A program with several roles needs the role named --
+  by the robot that claimed it (issue #167) -- and a single-role program
+  runs its one role unnamed."""
   reasons = validate(program, facts)
-  if len(program.roles) > 1:
-    reasons.append(f"{len(program.roles)} roles need {len(program.roles)} "
-                   "robots and this world has one (M12)")
+  if role is None:
+    if len(program.roles) > 1:
+      reasons.append(f"{len(program.roles)} roles: this robot must be told "
+                     "which one it plays")
+    role = next(iter(program.roles), DEFAULT_ROLE)
   if role not in program.roles:
     reasons.append(f"no role {role!r} in this program")
   if reasons:

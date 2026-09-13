@@ -176,7 +176,7 @@ def test_two_roles_validate_but_one_robot_refuses_to_run_them():
   p = Program(name="hide", roles={"hider": (Step("look"),),
                                   "seeker": (Step("look"),)})
   assert st.validate(p, HOME) == []
-  with pytest.raises(Refused, match="2 roles need 2 robots"):
+  with pytest.raises(Refused, match="2 roles: this robot must be told"):
     tick.run(SimpleNamespace(_step_once=lambda *a: None),
              st.run_program_routine(_stub_life(), p, HOME))
 

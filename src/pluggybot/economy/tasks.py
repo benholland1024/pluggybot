@@ -147,6 +147,10 @@ class TaskKind:
   #: the scripted rotation leaves a question standing and it lapses honestly
   #: rather than being attempted by something that cannot think.
   needs_answer: bool = False
+  #: A job for MORE THAN ONE ROBOT (issue #167): the roles it has, claimed
+  #: one per robot, and the offer stays open until every role is taken.
+  #: Empty is today's shape, one robot doing the whole job.
+  roles: tuple = ()
 
   def describe(self, target: str, params: dict) -> str:
     try:
@@ -188,6 +192,16 @@ KINDS: dict[str, TaskKind] = {
     # by side, and only one of them is derived.
     template="Draw the answer to this question on {target}: {question}",
     estimate_wh=1.15, needs_answer=True),
+  "hide_and_seek": TaskKind(
+    "hide_and_seek", task="hide_and_seek", target_kind="world",
+    template="Hide and seek in {target}: one of you hides, the other counts "
+             "to twenty and seeks.",
+    # Two roles (issue #167), claimed one per robot; the offer stays open
+    # until both are held. The referee is activity/hideseek.py. Priced off
+    # the flown game (room_hub, hosting pack): the seeker's sweep cost
+    # 0.54 Wh, the hider's drive-and-wait 0.30 -- the dearer role, rounded
+    # up; neither fetches a tool.
+    estimate_wh=0.6, roles=("hider", "seeker")),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
@@ -254,6 +268,20 @@ class Task:
   #: sensor data, but it is not a work order either, and there is no path
   #: from here to the wire or to the model's context.
   secret: dict = field(default_factory=dict, repr=False)
+  #: role -> robot, for a job with roles (issue #167); {} for one robot's.
+  claims: dict = field(default_factory=dict)
+
+  @property
+  def roles(self) -> tuple:
+    spec = KINDS.get(self.kind)
+    return tuple(spec.roles) if spec is not None else ()
+
+  def open_roles(self) -> tuple:
+    return tuple(r for r in self.roles if r not in self.claims)
+
+  def role_of(self, robot: str) -> str:
+    """Which role this robot holds, or ""."""
+    return next((r for r, who in self.claims.items() if who == robot), "")
 
   @classmethod
   def create(cls, kind: str, target: str, task_id: str,
@@ -365,6 +393,9 @@ class Task:
       "createdT": self.created_t, "claimedT": self.claimed_t,
       "resolvedT": self.resolved_t, "claimedBy": self.claimed_by,
       "points": self.points,
+      # A job with ROLES (issue #167) says who holds which; absent
+      # otherwise, so every single-role task reads exactly as it did.
+      **({"claims": dict(self.claims)} if self.roles else {}),
     }
     if self.verdict is not None:
       out["verdict"] = dict(self.verdict)
@@ -435,6 +466,7 @@ class Task:
       resolved_t=(None if spec.get("resolvedT") is None
                   else float(spec["resolvedT"])),
       claimed_by=str(spec.get("claimedBy", "")),
+      claims={str(k): str(v) for k, v in (spec.get("claims") or {}).items()},
       verdict=(dict(spec["verdict"]) if spec.get("verdict") else None),
       points=int(spec.get("points") or 0),
       answer=str(spec.get("answer", "")),
@@ -608,7 +640,8 @@ class TaskBoard:
   # ---- transitions ---------------------------------------------------------
 
   def claim(self, task_id: str, robot: str = ROBOT_ROOT, t: float = 0.0,
-            pack_wh: float | None = None, answer: str = "") -> Task | None:
+            pack_wh: float | None = None, answer: str = "",
+            role: str = "") -> Task | None:
     """Take a job on. `None` if it is gone, taken, lapsed or unaffordable.
 
     None rather than an exception: the caller is a mission loop acting on an
@@ -628,6 +661,22 @@ class TaskBoard:
     said = clean_answer(answer) if task.needs_answer else ""
     if task.needs_answer and not said:
       return None
+    if task.roles:
+      # A JOB WITH ROLES (issue #167): one role per robot, and the offer
+      # stays open -- still `offered`, still claimable by the other robot --
+      # until every role is held. A robot holding one role may not take a
+      # second; a role already held is not on offer.
+      role = role or next(iter(task.open_roles()), "")
+      if role not in task.open_roles() or task.role_of(robot):
+        return None
+      claims = {**task.claims, role: robot}
+      whole = len(claims) == len(task.roles)
+      return self._move(replace(task, claims=claims,
+                                state="claimed" if whole else "offered",
+                                claimed_by=(robot if whole else task.claimed_by),
+                                claimed_t=(round(float(t), 3) if whole
+                                           else task.claimed_t)),
+                        "task_claimed", t)
     return self._move(replace(task, state="claimed", claimed_by=robot,
                               claimed_t=round(float(t), 3), answer=said),
                       "task_claimed", t)
@@ -683,7 +732,10 @@ class TaskBoard:
   def _move(self, task: Task, kind: str, t: float) -> Task:
     self.tasks[task.id] = task
     msg = {"type": kind, "t": round(float(t), 3), "id": task.id,
-           "state": task.state, "robot": task.claimed_by or ROBOT_ROOT}
+           "state": task.state, "robot": task.claimed_by or ROBOT_ROOT,
+           # who holds which role, for a job with roles (issue #167);
+           # absent otherwise, so a single-role event is what it was
+           **({"claims": dict(task.claims)} if task.roles else {})}
     if kind == "task_resolved":
       msg.update({"points": task.points, "verdict": task.verdict,
                   "task": task.snapshot(self.table)})

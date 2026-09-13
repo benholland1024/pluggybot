@@ -560,6 +560,30 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
   return True, metrics, f"{metrics['program']}: {total}/{total} steps, tools hung"
 
 
+def eval_hide_and_seek(m: dict) -> tuple[bool, dict, str]:
+  """The first two-role game (issue #167): ONE verdict for both robots off
+  the referee's flags (activity/hideseek.py), never either robot's account.
+  `ok` means the game was PLAYED to a decision -- the hider hid, the seeker
+  sought, the referee called it -- and `winner` says who; the pair banks
+  the payout on the winner's wallet. A game nobody finished pays nobody."""
+  played = m.get("played")
+  winner = m.get("winner") or ""
+  metrics = {"played": bool(played), "winner": winner,
+             "foundAtS": m.get("foundAtS"), "overAtS": m.get("overAtS"),
+             "distanceM": m.get("distanceM"), "los": bool(m.get("los")),
+             "seekS": m.get("seekS"), "findWithinM": m.get("findWithinM")}
+  if played is None:
+    return False, metrics, "the game was never refereed"
+  if not played:
+    return False, metrics, "the game was not played to a decision"
+  if winner == "seeker":
+    return True, metrics, (f"found after {float(m.get('foundAtS') or 0):.0f} s, "
+                           f"{float(m.get('distanceM') or 0):.2f} m apart with "
+                           "line of sight -- the seeker wins")
+  return True, metrics, (f"not found in {float(m.get('seekS') or 0):.0f} s of "
+                         "seeking -- the hider wins")
+
+
 def challenge_table() -> RewardTable:
   """The challenge set's rows ALONE, loaded fresh -- what a test of a
   challenge grades against. The lifecycle sees them merged, unoffered, in
@@ -602,6 +626,9 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # the tools back on the rack. Its row sits in challenges.json until a
   # programmed job is offered.
   "program": eval_program,
+  # The first two-role game (issue #167): the referee's flags in, one
+  # verdict out; the pair pays the winner.
+  "hide_and_seek": eval_hide_and_seek,
 }
 
 
@@ -774,6 +801,13 @@ def sample_program(life, errand, result: dict, before: dict) -> dict:
           "toolsHung": hung if run else None}
 
 
+def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
+  """The referee's measurements, off the ACTIVITY on the world -- never the
+  errand's report."""
+  game = getattr(errand, "game", None)
+  return game.measurements() if game is not None else {}
+
+
 SAMPLERS: dict[str, Callable[..., dict]] = {
   "draw": sample_draw,
   "artwork": sample_draw,
@@ -783,6 +817,7 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "carry": sample_carry,
   "stack": stack.sample_stack,
   "program": sample_program,
+  "hide_and_seek": sample_hide_and_seek,
 }
 
 

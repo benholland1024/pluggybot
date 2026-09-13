@@ -343,7 +343,7 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.name == name
     assert spec.task in scoring.EVALUATORS, name
     assert spec.task in TABLE, name
-    assert spec.target_kind in ("board", "zone", "module"), name
+    assert spec.target_kind in ("board", "zone", "module", "world"), name
     assert spec.estimate_wh > 0.0, name
 
 

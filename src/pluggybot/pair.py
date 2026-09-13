@@ -150,6 +150,61 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   return lives
 
 
+def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
+  """Put a two-role game on the pair's board (issue #167) and referee it.
+
+  The offer is the house's: whichever robot claims first takes the first
+  open role (the hider), the other the second, and the referee
+  (`activity/hideseek.py`) is built once both roles are held -- it has to
+  know who is who. It senses on the first robot's seam, and when it calls
+  the game, ONE verdict is evaluated off its flags and banked on the
+  WINNER's wallet; the task resolves with that verdict for both.
+  """
+  from pluggybot.activity.hideseek import HideAndSeek
+  from pluggybot.economy import scoring
+  board = lives[0].tasks
+  if board is None:
+    raise ValueError("a game needs the pair's task board (tasks=True)")
+  model, data = lives[0].model, lives[0].data
+  task = board.offer(kind, lives[0].world, t=t)
+  if task is None:
+    raise ValueError(f"the board would not offer {kind}")
+  by_root = {life.mission.handle.root: life for life in lives}
+  state: dict = {"game": None}
+
+  def settle(game) -> None:
+    verdict = scoring.evaluate(kind, game.measurements())
+    claims = board.get(task.id).claims
+    winner = by_root[claims[verdict.metrics["winner"]]]
+    for life in lives:
+      if life is winner:
+        life._bank(verdict)
+      else:
+        life._say(f"GAME {kind}: {verdict.reason} -- nothing for the "
+                  f"{life.role_in(task.id) or 'other'}")
+    board.resolve(task.id, verdict, t=float(data.time))
+
+  def on_claim(event: dict) -> None:
+    if (event.get("type") != "task_claimed" or state["game"] is not None
+        or event.get("id") != task.id):
+      return
+    claims = event.get("claims") or {}
+    if set(claims) != {"hider", "seeker"}:
+      return
+    game = HideAndSeek(model, hider=by_root[claims["hider"]].mission.handle,
+                       seeker=by_root[claims["seeker"]].mission.handle)
+    state["game"] = game
+    for life in lives:
+      life.game = game
+    lives[0].mission.step_hooks.append(lambda: game.sense(model, data))
+    game.on_over.append(settle)
+    for life in lives:
+      life._say(f"GAME {kind}: {by_root[claims['hider']].robot_name} hides, "
+                f"{by_root[claims['seeker']].robot_name} seeks")
+  board.on_event.append(on_claim)
+  return task, state
+
+
 def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              stop_when: Callable | None = None) -> list[dict]:
