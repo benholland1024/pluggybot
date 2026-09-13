@@ -529,3 +529,25 @@ def test_a_second_robots_strokes_are_its_own_on_the_wire():
   from pluggybot.mission import errand
   src = inspect.getsource(errand.drawing_errand)
   assert src.count("by=life.root") == 2, "clear AND stroke name the robot"
+
+
+def test_the_second_robot_wears_its_own_livery_and_nothing_else_is_repainted():
+  """An attached robot is repainted on exactly the geoms that carry the
+  first robot's livery colour (the chassis and the head mount), so two
+  robots in one room are told apart at a glance -- on the site, which keeps
+  the producer's colour per geom, and in each other's cameras. Everything
+  else keeps its colour: the battery's red and the tags are how a reader
+  tells parts apart, and a hint never rides as a colour."""
+  import numpy as np
+  from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, world_with_robots
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  name = lambda i: mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, i)  # noqa: E731
+  purple = {name(i) for i in range(model.ngeom)
+            if np.allclose(model.geom_rgba[i], SECOND_CHASSIS_RGBA, atol=1e-6)}
+  blue = {name(i) for i in range(model.ngeom)
+          if np.allclose(model.geom_rgba[i], CHASSIS_RGBA, atol=1e-6)}
+  assert purple == {SECOND.el("chassis"), SECOND.el("head_mount")}
+  assert blue == {"chassis", "head_mount"}, "the first robot keeps its paint"
+  # ...and the paint is opt-out: `None` attaches an identical twin.
+  twin = world_with_robots("models/room_hub.xml", second_at=PARK, chassis_rgba=None)
+  assert np.allclose(twin.geom(SECOND.el("chassis")).rgba, CHASSIS_RGBA)
