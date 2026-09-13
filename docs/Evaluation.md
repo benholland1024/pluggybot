@@ -57,6 +57,17 @@ cost to the detector, and `tests/test_render_determinism.py` pins both halves.
 The re-flown `scripted` series is the evidence it holds: five days, ONE
 trajectory. SimNotes, "The world was not the same world twice".
 
+**...and it is what makes the mission stack affordable to refactor.** One
+trajectory per configuration means "behaviour parity" is a hash, not an
+opinion: fly the scripted `home` day on each side (`determinism_spike.py
+--runs 1 --sim-s 1500 --out DIR`, ~20 min a side) and `--compare` says
+IDENTICAL or names the first sim-second they part and which perception input
+moved first. Issue #58's tick refactor — every manoeuvre turned into a routine
+ticked from one physics loop, `pluggybot/tick.py` — landed this way,
+identical over all 1500 s, through the code where the two costliest bugs in
+the repo had lived. A refactor of anything on the path from `run()` to
+`mj_step` shows this hash in its PR.
+
 ⚠ **Anything that makes the world random destroys this**, and the temptation
 will come dressed as realism ("jitter the task times so it feels alive").
 Variation belongs in the ARM, held fixed within a run and varied between them.
@@ -145,6 +156,22 @@ Two reasons, the second strategic: a model shown the verdict is not doing the
 reasoning we are trying to detect, and the direction of the project is an
 agent that writes its own procedure to make that comparison — which it never
 needs to do if the answer is already in the prompt.
+
+**And now it can write that procedure** (issue #166): the `autonomous` prompt
+carries `PROCEDURE_RULE` — the language, the verbs, the axes and the sensors
+— and the schema carries `procedure:<name>`, `define` and `undefine`. That is
+a changed prefix for the `autonomous` arm, on purpose and in the open: any
+`autonomous` series flown after 2026-09-12 is a different experiment from A0,
+and the rollup's series key already separates them. `guarded` is untouched
+(`GUARDED_RULES_SHA`, and its menu never carries the family). The rule's
+worked example shows no survival policy, for the reason above.
+
+**A paired world is a different experiment again** (issue #167): with a
+second robot present, both minds' prefixes carry `OTHER_ROBOT_RULE` and
+their contexts carry `others`, on `guarded` and `autonomous` alike — so a
+two-robot series is never pooled with a single-robot one, and the rollup's
+series key must carry the robot count when the wire lands (slice E). The
+single-robot prefix is unchanged.
 
 ### What the `autonomous` arm turns on, and where
 
@@ -1169,7 +1196,7 @@ this repo's image never sees it.
 
 ```
 curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
-  'https://benh.cloud/api/pluggyworld/observe?kind=thought&days=7' \
+  'https://rooftop-media.org/api/pluggyworld/observe?kind=thought&days=7' \
   | jq '{commit, live, thoughts, written: [.events[] | "\(.simTime)s \(.subject): \(.detail)"]}'
 ```
 

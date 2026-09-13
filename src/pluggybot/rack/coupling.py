@@ -256,8 +256,13 @@ def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
   return "\n      ".join(out)
 
 
-def module_power_state(model, data, name: str = "module_lcd") -> dict:
+def module_power_state(model, data, name: str = "module_lcd",
+                       prefix: str = "") -> dict:
   """Is this module's coupling conducting, and if not, which pole is open?
+
+  `prefix` names WHOSE fork (issue #167): the first robot's plates are the
+  bare `fork_v*` geoms, the second's carry its prefix. A module seated on
+  the other robot's fork is not powered by this one.
 
   The rack-side sibling of `rack_charge_contact`, and the same lesson behind
   both: an electrical criterion beats a positional one. Milestone 6 burned
@@ -274,7 +279,7 @@ def module_power_state(model, data, name: str = "module_lcd") -> dict:
   for side, plates in FORK_POLE_GEOMS.items():
     try:
       peg = model.geom(f"{name}_peg_{side}").id
-      plate_ids = {model.geom(g).id for g in plates}
+      plate_ids = {model.geom(prefix + g).id for g in plates}
     except KeyError:
       poles[side] = False
       continue
@@ -289,9 +294,10 @@ def module_power_state(model, data, name: str = "module_lcd") -> dict:
           "powered": poles["l"] and poles["r"]}
 
 
-def module_power_contact(model, data, name: str = "module_lcd") -> bool:
+def module_power_contact(model, data, name: str = "module_lcd",
+                         prefix: str = "") -> bool:
   """Both poles conducting -- the module is coupled and powered."""
-  return module_power_state(model, data, name)["powered"]
+  return module_power_state(model, data, name, prefix)["powered"]
 
 
 # ---- rack v2 layout (the "bike rack for tools", designed with Ben) ---------
@@ -377,11 +383,12 @@ def bay_prefix(i: int) -> str:
   return f"bay{chr(ord('a') + i)}_"
 
 
-def rack_charge_contact(model, data) -> bool:
+def rack_charge_contact(model, data, prefix: str = "") -> bool:
   """Both charge-bay pins touching the robot's bumper face: the rack-side
-  sibling of the plug's electrical criterion, and milestone 8's charge hook."""
+  sibling of the plug's electrical criterion, and milestone 8's charge hook.
+  `prefix` names whose chassis (issue #167)."""
   pins = {model.geom("rack_pin_l").id, model.geom("rack_pin_r").id}
-  chassis = model.geom("chassis").id
+  chassis = model.geom(prefix + "chassis").id
   touching = set()
   for i in range(data.ncon):
     c = data.contact[i]

@@ -450,15 +450,16 @@ def test_the_frame_carries_the_block_and_the_header_the_vocabulary(tmp_path):
   header = builder.header()
   assert header["protocolVersion"] == PROTOCOL_VERSION
   assert header["hungerStates"] == list(HUNGER_STATES)
-  first = builder.build()
+  # The block rides the ROBOT's record (0.20.0): one appetite per robot.
+  first = builder.build()["robots"]["pluggybot"]
   assert first["metabolism"]["state"] == "starving"
   # Whole-block on change, like `spend`: an unchanged appetite costs no bytes.
   data.time = 0.05
-  assert "metabolism" not in builder.build()
+  assert "metabolism" not in builder.build()["robots"]["pluggybot"]
   fed(led, 12)
   m.tick(1.0)
   data.time = 1.0
-  assert builder.build()["metabolism"]["state"] == "satisfied"
+  assert builder.build()["robots"]["pluggybot"]["metabolism"]["state"] == "satisfied"
 
 
 def test_a_world_with_no_appetite_advertises_none(tmp_path):
@@ -593,7 +594,9 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
     "_screen_step",       # a starving robot looks worried and nothing else
     "_buy_heart",         # prices the upkeep a purchase must leave behind
     "_true_death",        # clears the carry so a new robot starts solvent
-    "run",                # reports it in the mission summary it returns
+    "end",                # reports it in the mission summary it returns
+                          # (`run`'s second half since issue #167, so a pair
+                          # of robots can share one loop)
   }, f"the appetite reached {readers} -- is one of those a capability gate?"
   assert "metabolism" in src
 

@@ -1215,6 +1215,58 @@ contention (per render, not per machine). ⚠ The committed `scripted` series
 in `results/` predates the fix and is the record of the pre-fix spread;
 `tests/test_render_determinism.py` pins the fix and its premise.
 
+## Stacked blocks creep on default contact (issue #120): the grip that leaked, again
+
+Three 26 mm cubes stacked with 2 and 4 mm of lean — a tower by any standard —
+fell at 16.9 s on MuJoCo's default soft contact; 6 and 12 mm of lean fell at
+2.6 s; only a perfect stack stood 60 s. The same regularised-friction drift
+as the jaw pads, fixed the same way, at the source: the challenge's blocks
+carry `GRIP_SOLIMP`, after which a tower stands for the 30 s measured iff its
+centre of mass is over its support and falls inside 0.31 s otherwise. **What
+is true now:** any free body meant to REST on another for longer than a few
+seconds needs the hard contact, or the sim grades the solver (Challenges.md §4).
+
+## A second robot perturbs the first at the last bit, and not before 98 s (issue #167)
+
+Measured while M12's namespacing was built. With a second copy of the robot
+attached (`MjSpec.attach`, prefix `r2_`) and left parked, the first robot's
+spin and 15 s drive in `room_hub`, and a whole pen drawing in `hub_world`,
+hashed **byte-identical** to the same runs alone — near or far, contacts on or
+off. The full 1500 s scripted `home` day did not: the state diverged at
+**t = 98.2 s**, mid-drawing, by **1.4 × 10⁻¹⁴** on the pen module's free
+joint and 10⁻¹⁵ on the fork's compliant joints and the modules hanging on the
+rack, with `ctrl` identical at that sample and no perception input differing
+for the next 70 s. That is the constraint solver's rounding with an extra
+island in the problem, not a code path (the code path was ruled out by flying
+the refactored code alone against the baseline: IDENTICAL), and chaos does the
+rest — 0.02 mm on that drawing's form error, a different day by 1500 s.
+Enabling `mjENBL_SLEEP` to drop the parked body from the solve changes the
+first robot's numbers on its own. **What is true now:** the parity instrument
+proves a CODE change exact (fly the new code alone); a WORLD change — another
+body, even one that touches nothing — is a different day at the 10⁻¹⁵ level
+and its parity claim is "same code path, same decisions", read off `ctrl` and
+the perception trace, never off the state hash. `determinism_spike.py
+--second-robot X,Y` is the flight; `tests/test_two_robots.py` pins the short
+identical cases.
+
+## The other robot's wake walls you in (issue #167)
+
+The first contested bay: two scripted robots sent for the LCD, and the one
+that arrived first reported "no route" after 16 s with the module a metre
+away. The trace showed its planner returning None from its OWN cell for
+12 s: the other robot had driven past at 0.6 m, every scan painted its
+body into the occupancy grid, the 7-cell inflation (0.35 m) grew each of
+those cells into a 0.7 m disc, and the wake of discs covered the cell the
+first robot stood on — `nearest_traversable`'s halo could not find a way out
+of a ghost. A real fleet subtracts each robot's broadcast footprint from its
+scans; so does this one now (`Lidar.exclude_robot`), and avoidance reads the
+other robot's REPORTED pose in real time (`HubMission.others`, masked at plan
+time; a stagnated drive with the other within 1.2 m waits 2 s and looks
+again instead of giving up). **What is true now:** another robot is never in
+the map, only in the mask; the pick lands at 50 s with the other robot
+crossing its path, and the second robot's pick fails honestly at the empty
+bay.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

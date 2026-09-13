@@ -11,7 +11,7 @@ deliberate two-repo event -- never a side effect of an unrelated edit.
 
 import os
 
-PROTOCOL_VERSION = "0.19.0"
+PROTOCOL_VERSION = "0.20.0"
 #: What changed at each version -- every entry from 0.2.0 on, with the
 #: worked JSON and the reasoning -- is `protocol/README.md`, which is the
 #: canonical spec and the half the website repo reads. It is not summarised
@@ -296,6 +296,17 @@ THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
 #: renaming one is breaking. `tests/test_thoughts.py` pins the shape.
 THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
 
+#: What a `procedure` event says about a composed errand (issue #58):
+#: `validated` before its first step, `refused` (with `reasons`) instead of
+#: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/
+#: `stopped`. The program itself rides every one whole, like a thought
+#: document. Additive on the wire; a consumer ignores an unknown type.
+#: `defined` / `undefined` (issue #166) are the library's: what the robot
+#: wrote, with its `source`, and what it took out; a `refused` carrying
+#: `verb` is a library refusal rather than a run's.
+PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted",
+                      "defined", "undefined")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.
@@ -343,9 +354,19 @@ def dynamic_flags(model) -> list[bool]:
   return dyn
 
 
-def robot_body_ids(model) -> set[int]:
-  """Ids of every body in the robot's subtree (ROBOT_ROOT and below)."""
-  root = model.body(ROBOT_ROOT).id
+def robot_roots(model) -> list[str]:
+  """Every robot in the model, by root body name, in model order (issue
+  #167): `pluggybot`, and `r2_pluggybot` when a second is attached. The
+  first is always the species name; the key of everything on the wire is
+  the root, so a stream with two robots has two keys."""
+  return [model.body(b).name for b in range(model.nbody)
+          if model.body(b).name.endswith(ROBOT_ROOT)
+          and int(model.body_parentid[b]) == 0]
+
+
+def robot_body_ids(model, root_name: str = ROBOT_ROOT) -> set[int]:
+  """Ids of every body in ONE robot's subtree (`root_name` and below)."""
+  root = model.body(root_name).id
   ids: set[int] = set()
   for b in range(model.nbody):
     x = b
@@ -356,7 +377,7 @@ def robot_body_ids(model) -> set[int]:
   return ids
 
 
-def body_census(model) -> tuple[list[str], list[str]]:
+def body_census(model, root_name: str = ROBOT_ROOT) -> tuple[list[str], list[str]]:
   """(robot, world) name lists of the DYNAMIC bodies, in model order.
 
   The split mirrors the frame shape: the robot's own bodies stream under
@@ -365,9 +386,14 @@ def body_census(model) -> tuple[list[str], list[str]]:
   them once the shared world lands.
   """
   dyn = dynamic_flags(model)
-  rob = robot_body_ids(model)
+  rob = robot_body_ids(model, root_name)
+  every = set()
+  for r in robot_roots(model):
+    every |= robot_body_ids(model, r)
   robot = [model.body(b).name for b in range(model.nbody)
            if dyn[b] and b in rob]
+  # The world's bodies are nobody's limbs: not this robot's, and not any
+  # OTHER robot's either (issue #167) -- those stream under their own key.
   world = [model.body(b).name for b in range(model.nbody)
-           if dyn[b] and b not in rob]
+           if dyn[b] and b not in every]
   return robot, world

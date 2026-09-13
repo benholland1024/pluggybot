@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.19.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.20.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -32,6 +32,54 @@ MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
 and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
 recording made without it carries no `tasks` / `metabolism` block at all and
 the website has nothing to build its markers or its hunger gauge against.
+
+**The pair world is a third world** (0.20.0, issue #167): `room_hub_pair` is
+`room_hub` with the second robot attached where the pair demo parks it, and
+a replayer treats it like any other world -- one scene, one recording, keyed
+by that name (`pluggybot.robot.pair_model_name`):
+
+```sh
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair
+MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks \
+  --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz
+```
+
+⚠ `--pack hosting` is load-bearing: on the demo cell the hider took the
+game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
+pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
+dead robot. The hosting pack funds the game and the carries that follow.
+
+### 0.19.0 → 0.20.0 (every robot on the stream reads the same shape)
+
+pluggybot #167 (M12), the bump the additive half below promised. With two
+robots on one stream, the three things that were still the FIRST robot's
+alone move to where everything else about a robot already was:
+
+- **`spend` and `metabolism` ride the robot's own record** --
+  `robots[<root>].spend`, `robots[<root>].metabolism` -- and are gone from
+  the top level of the frame. Same content, same whole-block-on-change rule,
+  now per robot: the second robot eating does not re-ship the first robot's
+  unchanged block, and a keyframe re-ships every robot's. A consumer that
+  read `frame.metabolism` reads `frame.robots[id].metabolism`; a robot with
+  no appetite (or no purse) simply has no block, as before.
+- **One `goals` message per robot**, each carrying its `robot`, in the same
+  opening slot, on every connect. `steering` is per robot too: with two
+  minds, "is anything deciding this one" has two answers. `thought` messages
+  already carried `robot`; now there is a set per robot that has documents.
+- **One `grid` message per robot that has a map**, keyed by `robot` -- the
+  relay hub already caches the newest grid PER ROBOT, so a late joiner gets
+  both maps.
+- **The header's `hungerStates`** is advertised if ANY robot has an
+  appetite.
+
+What did not move: `mode` is the OPERATOR's switch, one per world, and keeps
+its shape; `ledger` in the frame is keyed by account and already listed both
+robots' accounts at 0.19.0.
+
+Fixtures: both single-robot recordings re-flown at the new version, plus the
+pair world above (`scene.room_hub_pair.json`,
+`telemetry.room_hub_pair.jsonl.gz`: two scripted robots on `room_hub`, a
+shared board with hide-and-seek on it, both appetites).
 
 ### 0.15.0 → 0.16.0 (an admin can reach in, and every reach-in is recorded)
 
@@ -226,6 +274,76 @@ put them there and there is no write API for either.
 knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
+
+### 0.19.0, additive: a second robot on the stream (M12)
+
+pluggybot #167. Two robots share one world and one stream, and the wire
+already keyed everything by robot — this makes the second key real. **No
+bump for this half**: a single-robot stream is byte-identical to what it was
+(the fixture test), and everything below is additive.
+
+- **The header lists both.** `robots` gains a second key — the second
+  robot's ROOT body, `r2_pluggybot` (`telemetry.protocol.robot_roots`), with
+  its own body list, every name prefixed; `robotNames` names both
+  (`{"pluggybot": "Pluggy", "r2_pluggybot": "Rowan"}`); `ledger` lists both
+  accounts. The first robot's key is still the species name, so a consumer
+  written for one robot keeps reading it.
+- **Every frame carries `robots[<root>]` for each robot**: its `bodies`
+  (sparse, as ever) and its status record (`state`, `battery`, ...).
+- **Every event says whose it is** in `robot`: `death`, `reset`, `thought`,
+  `journal`, `goals`, `procedure`, `earned`, `intervention`, narration lines.
+  `task_claimed` on a job with roles carries `claims` (`{"hider":
+  "pluggybot", "seeker": "r2_pluggybot"}`); a task's `claims` also rides the
+  `tasks` block.
+- **The scene marks every body with its robot's root** (`"robot":
+  "r2_pluggybot"` on the second robot's bodies); shared bodies (the rack,
+  the modules) stay `null`.
+- **Two new event types**, both additive: `encounter` (`phase: "met" |
+  "parted"`, `robots: [a, b]`, `distanceM`) from `activity/encounter.py`
+  when the two come within 1.5 m / part beyond 2.0 m; and the referee of a
+  two-role game rides `activities` as `hide_and_seek` (its flags: `phase`,
+  `distanceM`, `los`, `foundAtS`, `overAtS`, `winner`).
+
+The rest -- the top-level `metabolism`, `spend` and `goals` and the `grid`
+message -- stayed the first robot's alone at 0.19.0 and moved at 0.20.0
+(above).
+
+### 0.19.0, additive: the `procedure` event (a composed errand)
+
+pluggybot #58. An errand may be a PROGRAM -- validated steps over a fixed
+verb vocabulary (`procedure/steps.py`), ticked from the physics loop with one
+verdict per step -- and the stream says so. **No bump**: a new event type is
+additive (a consumer ignores a type it does not know), and no existing block
+changed shape. A task that carries the program that discharges it does so in
+`tasks[].params.procedure`, which the `tasks` block already ships whole.
+
+```jsonc
+{"type": "procedure", "t": 412.3, "robot": "pluggybot", "name": "two-tools",
+ "outcome": "validated",                  // then "ran" | "aborted", or "refused"
+ "program": {"name": "two-tools", "budgetS": 600.0,
+             "roles": {"robot": [{"verb": "fetch", "args": {"tool": "module_pen"}},
+                                 {"verb": "drive_to", "args": {"x": 1.5, "y": 1.8}},
+                                 {"verb": "draw", "args": {"figure": "sun",
+                                                           "board": "whiteboard_a"}},
+                                 {"verb": "stow"}]}},
+ "steps": 4}                              // validated: how many will run
+// ran / aborted add: "completed": 3, "total": 4, "failedAt": 2, "stopped": null
+// refused adds:      "reasons": ["robot[1]: unknown verb 'fly' (have: ...)"]
+```
+
+`outcome` is `telemetry.protocol.PROCEDURE_OUTCOMES`, a two-repo vocabulary on
+`FACE_STATES`' terms. The program rides every event whole, like a thought
+document, so a replayer needs no other source for what the robot ran; the
+per-step verdicts are in the run record (`errands[].procedure`), not on the
+wire.
+
+**pluggybot #166 adds the library's outcomes**, still additive: `defined`
+(`name`, and `program.source` — the text the robot wrote, Python-shaped and
+never executed) and `undefined` (`name`); a `refused` that carries `verb:
+"define" | "undefine"` and `reasons` is the library saying no, as against a
+run's refusal. A program written in the language has `program.source` in
+place of `program.roles`. "What has it written" is therefore
+`?kind=procedure` on the observatory, beside `?kind=thought`.
 
 ### 0.18.0 → 0.19.0 (the robot writes its own goals)
 
@@ -1152,6 +1270,8 @@ against the body census.
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --metabolism --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
 | `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `scene.room_hub_pair.json` | `room_hub` with the SECOND robot attached where the pair demo parks it (0.20.0, issue #167): every `r2_*` body marked `"robot": "r2_pluggybot"` | `uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair` |
+| `telemetry.room_hub_pair.jsonl.gz` | Two scripted robots on `room_hub` from one loop, a shared board with **hide-and-seek** on it (one robot per role), both **appetites**, both **maps**, the pair's **encounters** | `MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz` |
 
 ⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
 off by default — a task board adds errands, which reshuffles a whole mission

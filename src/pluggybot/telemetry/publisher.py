@@ -71,7 +71,7 @@ from typing import Callable
 
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.telemetry.recorder import (FRAME_HZ, GRID_HZ, KEYFRAME_S,
-                                          FrameBuilder, GridSampler,
+                                          FrameBuilder, grid_samplers,
                                           encode_grid_png)
 
 QUEUE_MAX = 256        # ~13 s of frames at 20 Hz; beyond that, drop
@@ -101,7 +101,8 @@ class WsPublisher:
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
                robot_name: str | None = None,
-               build: dict | None = None) -> None:
+               build: dict | None = None,
+               others: list | None = None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -112,7 +113,7 @@ class WsPublisher:
     # joiners, so the last message sent is what a new browser is handed --
     # and a live stream that fell silent because the map stopped changing
     # would look exactly like one whose grid path had broken.
-    self._grid = GridSampler(grid, hz=grid_hz, dedupe=False)
+    self._grids = grid_samplers(grid, others, grid_hz, dedupe=False)
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
@@ -122,7 +123,7 @@ class WsPublisher:
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
-                                 build=build)
+                                 build=build, others=others)
     self.data = data
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)
     # Set by the sender (on connect) or the hook (on drop); cleared by the
@@ -163,8 +164,7 @@ class WsPublisher:
   def step_hook(self) -> None:
     if self._need_goals.is_set() and not self._queue.full():
       self._need_goals.clear()
-      goals = self._builder.goals_message(float(self.data.time))
-      if goals is not None:
+      for goals in self._builder.goals_messages(float(self.data.time)):
         self.message(goals)
     if self._need_thoughts.is_set() and not self._queue.full():
       self._need_thoughts.clear()
@@ -187,17 +187,19 @@ class WsPublisher:
       except queue.Full:
         self.frames_dropped += 1
         self._need_keyframe.set()
-      sample = self._grid.due(frame["t"])
-      if sample is not None:
-        try:                                  # PNG encoding is the SENDER's job
-          self._queue.put_nowait(("grid", sample))
-        except queue.Full:
-          pass                                # next second's grid supersedes it
+      for sampler in self._grids:
+        sample = sampler.due(frame["t"])
+        if sample is not None:
+          try:                                # PNG encoding is the SENDER's job
+            self._queue.put_nowait(("grid", sample))
+          except queue.Full:
+            pass                              # next second's grid supersedes it
 
-  def event(self, t: float, line: str) -> None:
-    """Queue a narration line (wire into HubLifecycle.say_hooks)."""
-    self.message({"type": "event", "t": round(t, 3),
-                  "robot": ROBOT_ROOT, "line": line})
+  def event(self, t: float, line: str, robot: str = ROBOT_ROOT) -> None:
+    """Queue a narration line (wire into HubLifecycle.say_hooks). `robot` is
+    the root of the robot that said it (0.20.0): a second robot's hook binds
+    its own, so the observatory files the line under the right history."""
+    self.message({"type": "event", "t": round(t, 3), "robot": robot, "line": line})
 
   def message(self, msg: dict) -> None:
     """Queue any typed low-frequency message (wire into BoardBook.on_event

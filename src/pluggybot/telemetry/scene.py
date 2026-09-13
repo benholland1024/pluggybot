@@ -38,7 +38,7 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.telemetry.protocol import (
-  PROTOCOL_VERSION, ROBOT_ROOT, VISUAL_HINTS, dynamic_flags, robot_body_ids,
+  PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags, robot_body_ids, robot_roots,
 )
 
 GEOM_TYPE_NAMES = {
@@ -198,7 +198,12 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   dyn = dynamic_flags(model)
-  rob = robot_body_ids(model)
+  # Every robot's bodies carry their robot's ROOT (issue #167): the first
+  # robot's is the species name, so a single-robot scene is what it was.
+  owner: dict[int, str] = {}
+  for root in robot_roots(model):
+    for b in robot_body_ids(model, root):
+      owner[b] = root
 
   bodies = []
   used_textures: set[str] = set()
@@ -227,7 +232,7 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
       "name": name,
       "parent": None if b == 0 else model.body(int(model.body_parentid[b])).name,
       "dynamic": dyn[b],
-      "robot": ROBOT_ROOT if b in rob else None,
+      "robot": owner.get(b),
       "visual": hints.get(name),
       "pos": _round(data.xpos[b]),
       "quat": _round(data.xquat[b]),
@@ -298,10 +303,25 @@ def main() -> None:
   parser.add_argument("--meta", default=None,
                       help="generator sidecar with visualHints/zones/spawns "
                            "(default: models/<name>.meta.json when it exists)")
+  parser.add_argument("--pair", action="store_true",
+                      help="the world with the SECOND robot attached where "
+                           "the pair demo parks it (issue #167): named "
+                           "<name>_pair, the scene a two-robot recording "
+                           "is replayed in")
   args = parser.parse_args()
 
   name = Path(args.model).stem
-  model = mujoco.MjModel.from_xml_path(args.model)
+  if args.pair:
+    from pluggybot.lifecycle import world_config
+    from pluggybot.robot import pair_model_name, world_with_robots
+    cfg = next((c for c in (world_config(w) for w in ("room_hub", "home"))
+                if Path(c["model"]).stem == name), None)
+    if cfg is None:
+      parser.error(f"--pair knows no world whose model is {args.model}")
+    model = world_with_robots(args.model, second_at=cfg["start2"][:2])
+    name = pair_model_name(name)
+  else:
+    model = mujoco.MjModel.from_xml_path(args.model)
   meta_path = (Path(args.meta) if args.meta
                else Path(args.model).with_suffix(".meta.json"))
   meta = json.loads(meta_path.read_text()) if meta_path.exists() else None

@@ -13,11 +13,14 @@ import math
 
 import mujoco
 
-from pluggybot.control import slew, wheel_targets
+from pluggybot import tick
+from pluggybot.control import slew
 from pluggybot.rack.coupling import (
   HUB_PEG_Z, HUB_STATION_YS, LIFT_STEP, PEG_R, RACK_HANG_X, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
+from pluggybot.robot import FIRST, RobotHandle
+from pluggybot.tick import Routine
 
 PLUG_LATERAL = 0.05       # the fork line rides 5 cm right of the robot
                           # centerline, same as the plug did
@@ -103,15 +106,22 @@ def press_opposes_drive(contact_x_body: float, v_wheels: float) -> bool:
 class HubSwap:
   """Scripted pick/return cycles for one robot in hub_world.xml."""
 
-  def __init__(self, model, data) -> None:
+  def __init__(self, model, data, handle: RobotHandle = FIRST) -> None:
     self.model, self.data = model, data
-    m = model
-    self.left_act = m.actuator("left_motor").id
-    self.right_act = m.actuator("right_motor").id
-    self.lift_act = m.actuator("lift").id
-    self.left_adr = m.joint("left_wheel_joint").qposadr[0]
-    self.right_adr = m.joint("right_wheel_joint").qposadr[0]
-    self.gyro_adr = m.sensor("imu_gyro").adr[0]
+    #: WHICH ROBOT (issue #167): every element below resolves through it,
+    #: and the first robot's handle is the bare names the world always had.
+    self.handle = handle
+    m, el = model, handle.el
+    self.left_act = m.actuator(el("left_motor")).id
+    self.right_act = m.actuator(el("right_motor")).id
+    self.lift_act = m.actuator(el("lift")).id
+    self.arm_act = m.actuator(el("arm")).id
+    self.lift_qadr = m.joint(el("lift_joint")).qposadr[0]
+    self.arm_qadr = m.joint(el("arm_joint")).qposadr[0]
+    self.root_qadr = handle.qpos_adr(m)
+    self.left_adr = m.joint(el("left_wheel_joint")).qposadr[0]
+    self.right_adr = m.joint(el("right_wheel_joint")).qposadr[0]
+    self.gyro_adr = m.sensor(el("imu_gyro")).adr[0]
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
     #: PRESSED AGAINST SOMETHING THAT WILL NOT MOVE. While this is set, dead
     #: reckoning stops integrating TRAVEL -- the heading still comes off the
@@ -145,10 +155,16 @@ class HubSwap:
     #: -- which is why the signal is the BUMPER (scripts/stall_spike.py).
     self.pressing = False
     self.press_steps = 0
-    self.chassis_gid = m.geom("chassis").id
+    self.chassis_gid = m.geom(el("chassis")).id
     self.chassis_bid = int(m.geom_bodyid[self.chassis_gid])
-    self.left_dof = m.joint("left_wheel_joint").dofadr[0]
-    self.right_dof = m.joint("right_wheel_joint").dofadr[0]
+    self.left_dof = m.joint(el("left_wheel_joint")).dofadr[0]
+    self.right_dof = m.joint(el("right_wheel_joint")).dofadr[0]
+    # The plug-era robot has no fork (tests/test_rack_belief.py drives the
+    # swap's reckoner on it); the site is what `module_state` reads.
+    try:
+      self.vertex_sid = m.site(el("fork_vertex")).id
+    except KeyError:
+      self.vertex_sid = -1
     self._press_side = 0.0      # sign of the last pressing contact's x_body
     self._press_until = -1.0    # sim time the release dwell runs to
     # Optional per-step callback. Every phase of both the swap and the
@@ -165,16 +181,16 @@ class HubSwap:
     yaw = math.pi + math.radians(dyaw_deg)
     axle_x = RACK_HANG_X + STANDOFF
     axle_y = station_y - PLUG_LATERAL + dy
-    d = self.data
-    d.qpos[0] = axle_x + 0.08 * math.cos(yaw)
-    d.qpos[1] = axle_y + 0.08 * math.sin(yaw)
-    d.qpos[2] = 0.045
-    d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+    d, q = self.data, self.root_qadr
+    d.qpos[q] = axle_x + 0.08 * math.cos(yaw)
+    d.qpos[q + 1] = axle_y + 0.08 * math.sin(yaw)
+    d.qpos[q + 2] = 0.045
+    d.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
     lift0 = align_lift()
-    d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
+    d.qpos[self.lift_qadr] = lift0
     d.ctrl[self.lift_act] = lift0
-    d.ctrl[self.model.actuator("arm").id] = ARM_EXT
-    d.qpos[self.model.joint("arm_joint").qposadr[0]] = ARM_EXT
+    d.ctrl[self.arm_act] = ARM_EXT
+    d.qpos[self.arm_qadr] = ARM_EXT
     mujoco.mj_forward(self.model, d)
     self._run(1.0, 0.0)                  # settle
     self.reckoner.x, self.reckoner.y, self.reckoner.theta = axle_x, axle_y, yaw
@@ -223,11 +239,22 @@ class HubSwap:
             and press_opposes_drive(self._press_side, v_wheels))
 
   def _step_once(self, tl: float, tr: float) -> None:
-    d, m = self.data, self.model
-    ts = m.opt.timestep
+    """One physics step for ONE robot: its wheel setpoints, the step, its
+    bookkeeping. Two robots share the step (issue #167, `tick.run_many`):
+    each robot's `_before_step`, one `mj_step`, each robot's `_after_step`
+    -- the same three things in the same order, which is what keeps a
+    single robot's day byte-identical."""
+    self._before_step(tl, tr)
+    mujoco.mj_step(self.model, self.data)
+    self._after_step()
+
+  def _before_step(self, tl: float, tr: float) -> None:
+    d, ts = self.data, self.model.opt.timestep
     d.ctrl[self.left_act] = slew(d.ctrl[self.left_act], tl, ts)
     d.ctrl[self.right_act] = slew(d.ctrl[self.right_act], tr, ts)
-    mujoco.mj_step(m, d)
+
+  def _after_step(self) -> None:
+    d, ts = self.data, self.model.opt.timestep
     self.pressing = self._pressing()
     if self.pressing:
       self.press_steps += 1
@@ -246,17 +273,38 @@ class HubSwap:
     if self.on_step is not None:
       self.on_step()
 
+  # ---- the seam (issue #58) ------------------------------------------------
+  # Every manoeuvre below is a ROUTINE -- a generator that yields the (v, w)
+  # command for each physics step and returns its result -- and each keeps a
+  # one-line blocking twin under its old name, driven by `tick.run`. The
+  # routine is the implementation; the twin is for scripts, tests and every
+  # caller that wants the old shape. See pluggybot/tick.py.
+
+  def run(self, routine, name: str = ""):
+    """Drive a routine to completion on this robot's physics."""
+    return tick.run(self, routine, name)
+
   def _run(self, seconds: float, v: float,
            lift_target: float | None = None) -> None:
+    return self.run(self._run_routine(seconds, v, lift_target))
+
+  def _run_routine(self, seconds: float, v: float,
+                   lift_target: float | None = None) -> Routine:
     if lift_target is not None:
       self.data.ctrl[self.lift_act] = lift_target
-    tl, tr = wheel_targets(v, 0.0)
     for _ in range(round(seconds / self.model.opt.timestep)):
-      self._step_once(tl, tr)
+      yield v, 0.0
 
   def _drive_until(self, distance: float, v: float, timeout: float = 20.0,
                    stall_stop: bool = True, steer_fn=None, stop_fn=None,
                    stall_time: float = STALL_TIME) -> str:
+    return self.run(self._drive_until_routine(
+      distance, v, timeout, stall_stop, steer_fn, stop_fn, stall_time))
+
+  def _drive_until_routine(self, distance: float, v: float,
+                           timeout: float = 20.0, stall_stop: bool = True,
+                           steer_fn=None, stop_fn=None,
+                           stall_time: float = STALL_TIME) -> Routine:
     """Travel `distance` of ODOMETRY path along the current heading; with
     stall_stop, ending early on no-progress (bottomed against the hub).
     steer_fn() -> w lets a terminal visual servo trim the heading while
@@ -276,13 +324,13 @@ class HubSwap:
     pins, measured) sets longer than STALL_TIME.
     """
     x0, y0 = self.reckoner.x, self.reckoner.y
-    tl, tr = wheel_targets(v, 0.0)
+    w = 0.0
     t0 = self.data.time
     last_dist, last_progress = 0.0, t0
     while self.data.time - t0 < timeout:
       if steer_fn is not None:
-        tl, tr = wheel_targets(v, float(steer_fn()))
-      self._step_once(tl, tr)
+        w = float(steer_fn())
+      yield v, w
       if stop_fn is not None and stop_fn():
         return "stopped"
       dist = math.hypot(self.reckoner.x - x0, self.reckoner.y - y0)
@@ -295,9 +343,32 @@ class HubSwap:
         return "stalled"
     return "timeout"
 
+  def ramp_routine(self, act: int, target: float, speed: float,
+                   settle: float = 0.0) -> Routine:
+    """Walk ONE actuator's setpoint to `target` at `speed` (units/s), then
+    settle -- CLAUDE.md's ramping rule as the one primitive every position
+    axis goes through, and the `move` verb's whole body (procedure/axes.py).
+    A stiff servo handed a step delivers the whole difference as an impulse
+    and has thrown a module off the fork (tools/gripper.py, `set_lift`)."""
+    cur = float(self.data.ctrl[act])
+    steps = max(int(abs(target - cur) / speed / self.model.opt.timestep), 1)
+    for k in range(steps):
+      self.data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
+      yield 0.0, 0.0
+    if settle:
+      yield from self._run_routine(settle, 0.0)
+
+  def set_lift_routine(self, target: float, speed: float,
+                       settle: float = 1.2) -> Routine:
+    """The mast, ramped: the step vocabulary's `set_lift`."""
+    yield from self.ramp_routine(self.lift_act, target, speed, settle)
+
   # ---- the verbs -----------------------------------------------------------
 
   def pick(self, steer_fn=None, dist: float | None = None) -> str:
+    return self.run(self.pick_routine(steer_fn, dist))
+
+  def pick_routine(self, steer_fn=None, dist: float | None = None) -> Routine:
     """Slide under the module's peg, lift it off the trays, back away.
 
     dist overrides the approach travel: callers that know their believed
@@ -305,16 +376,20 @@ class HubSwap:
     travel assumes a perfect standoff, and the coupling's capture window is
     +/-11 mm while navigation's arrival radius is 80.
     """
-    why = self._drive_until(APPROACH_DIST if dist is None else dist,
-                            APPROACH_V, steer_fn=steer_fn)
-    self._run(0.5, 0.0)                                     # settle
+    why = yield from self._drive_until_routine(
+      APPROACH_DIST if dist is None else dist, APPROACH_V, steer_fn=steer_fn)
+    yield from self._run_routine(0.5, 0.0)                  # settle
     lift_now = float(self.data.ctrl[self.lift_act])
-    self._run(2.0, 0.0, lift_target=lift_now + LIFT_STEP)
-    self._drive_until(RETREAT_DIST, -0.08, stall_stop=False)
-    self._run(1.0, 0.0)
+    yield from self._run_routine(2.0, 0.0, lift_target=lift_now + LIFT_STEP)
+    yield from self._drive_until_routine(RETREAT_DIST, -0.08, stall_stop=False)
+    yield from self._run_routine(1.0, 0.0)
     return why
 
   def put_back(self, steer_fn=None, dist: float | None = None) -> str:
+    return self.run(self.put_back_routine(steer_fn, dist))
+
+  def put_back_routine(self, steer_fn=None,
+                       dist: float | None = None) -> Routine:
     """Carry the module back in, lower it onto the trays, leave empty.
 
     dist as in pick(). The default mirrors the bare-world choreography
@@ -330,13 +405,15 @@ class HubSwap:
     away again. Exactly what a person does setting a tool on a rack.
     """
     lift_now = float(self.data.ctrl[self.lift_act])
-    self._run(0.8, 0.0, lift_target=lift_now + RETURN_CLEARANCE)
-    why = self._drive_until(RETURN_DIST if dist is None else dist,
-                            APPROACH_V, steer_fn=steer_fn)
-    self._run(0.5, 0.0)
-    self._run(2.0, 0.0, lift_target=lift_now - LIFT_STEP - RELEASE_DROP)
-    self._drive_until(RETREAT_DIST, -0.08, stall_stop=False)
-    self._run(1.0, 0.0)
+    yield from self._run_routine(0.8, 0.0,
+                                 lift_target=lift_now + RETURN_CLEARANCE)
+    why = yield from self._drive_until_routine(
+      RETURN_DIST if dist is None else dist, APPROACH_V, steer_fn=steer_fn)
+    yield from self._run_routine(0.5, 0.0)
+    yield from self._run_routine(
+      2.0, 0.0, lift_target=lift_now - LIFT_STEP - RELEASE_DROP)
+    yield from self._drive_until_routine(RETREAT_DIST, -0.08, stall_stop=False)
+    yield from self._run_routine(1.0, 0.0)
     return why
 
   # ---- truth checks (script-level verification only) -----------------------
@@ -359,7 +436,7 @@ class HubSwap:
     the fork, or hanging in a bay. Bay membership is checked too -- without
     it, a module dropped one bay over reads as correctly stowed."""
     p = self.data.xpos[self.model.body(name).id]
-    vx = self.data.site_xpos[self.model.site("fork_vertex").id]
+    vx = self.data.site_xpos[self.vertex_sid]
     lx, ly, lz = self.rack_frame(p)
     peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
     on_fork = (abs(float(p[0]) - float(vx[0])) < 0.03

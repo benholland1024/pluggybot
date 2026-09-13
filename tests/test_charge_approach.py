@@ -27,6 +27,7 @@ import math
 import pytest
 import mujoco
 
+from pluggybot import tick
 from pluggybot.home import world as home
 from pluggybot.rack.coupling import rack_charge_contact
 from pluggybot.lifecycle import (
@@ -224,7 +225,7 @@ def test_a_failed_dock_is_not_narrated_as_mission_complete():
   life = HubLifecycle(model, data, viewer=None, realtime=False,
                       battery_wh=0.7, errand=False,
                       low_battery_wh=10.0)     # needs_charge from step one
-  life.go_charge = lambda: False               # ...and the dock unreachable
+  life.go_charge_routine = lambda: tick.result(False)               # ...and the dock unreachable
   result = life.run((0.5, 3.0, math.pi / 2), max_sim_time=60.0)
   assert result["stranded"] is True
   assert "mission complete" not in life.log[-1]

@@ -36,6 +36,7 @@ import re
 
 import pytest
 
+from pluggybot import tick
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import evaluate
 from pluggybot.mind import overseer as ov
@@ -196,8 +197,8 @@ def test_a_use_phase_that_raises_is_narrated_as_a_sentence():
 
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=explodes, needs_use_pose=False)
-  life.mission.drive_to = lambda *a, **kw: True
-  life.mission.swap_at_bay = lambda *a, **kw: None
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
   life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
                                                      "hung": True}
   said = narration(life)
@@ -226,8 +227,8 @@ def test_the_neighbouring_lines_stopped_shouting():
   life = _lifecycle("room_hub", errand=False)
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=None, needs_use_pose=False)
-  life.mission.drive_to = lambda *a, **kw: False        # never got there
-  life.mission.swap_at_bay = lambda *a, **kw: None
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)        # never got there
+  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
   life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False,
                                                      "hung": False}
   said = narration(life)

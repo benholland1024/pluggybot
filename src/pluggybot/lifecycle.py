@@ -23,6 +23,7 @@ the fork is carrying, and it is the same seam the plug module will use when
 it charges away from the hub.
 """
 
+import inspect
 import json
 import math
 import os
@@ -38,6 +39,7 @@ from pluggybot.rack.coupling import (
 )
 from pluggybot.economy.census import Zone
 from pluggybot.mission.errand import (
+  programmed_errand,
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
@@ -58,8 +60,13 @@ from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
-from pluggybot.telemetry.protocol import DEATH_CAUSES, ROBOT_ROOT
+from pluggybot.telemetry.protocol import (
+  DEATH_CAUSES, robot_display_name,
+)
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
+from pluggybot.procedure.steps import Program, compile_program
+from pluggybot.robot import FIRST, RobotHandle
+from pluggybot.tick import Routine
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
                 "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
@@ -192,6 +199,13 @@ AUTONOMOUS_IDLE_S = 3600.0 / CALLS_PER_HOUR
 #: to keep re-checking `needs_charge`; the day ends on `max_sim_time`, not on
 #: an idle moment.
 WAIT_FOR_WORK_S = 5.0
+#: A robot standing by for work must not stand at the RACK (issue #167):
+#: measured on the pair fixture, the second robot finished a stow and stood
+#: by at the bay standoff for six minutes, and the first robot's next pick
+#: failed 0.4 m from it. Standing by begins by clearing this radius of the
+#: rack prior, back to the robot's own start pose. The bay standoff is
+#: ~1.2 m and `OTHER_NEAR_M` (what a planner routes round) is 1.2 m.
+RACK_CLEAR_M = 2.0
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
 #: moving -- this is the cadence of the heartbeat that tells the site it is
@@ -275,7 +289,9 @@ class HubLifecycle:
                energy=None, thoughts=None, metabolism=None,
                mortal: bool | None = None,
                restart_after_s: float | None = None,
-               autonomous: bool = False) -> None:
+               autonomous: bool = False,
+               handle: RobotHandle = FIRST,
+               robot_name: str | None = None) -> None:
     self.model, self.data = model, data
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
@@ -334,6 +350,8 @@ class HubLifecycle:
     # wants the board without a world generating more behind its back, and a
     # restart against a persisted board resumes work rather than re-seeding.
     self.producer = producer
+    self._expects_work: bool | None = None
+    self._cleared_rack = False
     # THE APPETITE (issue #36). Optional, like the ledger it eats out of and
     # for a stricter version of the same reason: hunger reshuffles nothing on
     # its own but it does change what the robot is TOLD, and every existing
@@ -357,11 +375,15 @@ class HubLifecycle:
     self._face_state: str | None = None
     self._face_shown: tuple[str, str] | None = None
     self._next_screen_sense = 0.0
+    # WHICH ROBOT this life is (issue #167): the mission, the swap, the
+    # lidar, the cameras and the battery all resolve their elements through
+    # it. `FIRST` is the bare names, so a single-robot world is unchanged.
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
-                              rack=rack, grid_bounds=grid_bounds)
+                              rack=rack, grid_bounds=grid_bounds, handle=handle)
     self.battery = Battery(model, capacity_wh=battery_wh,
                            charge_scale=(charge_scale if charge_scale is not None
-                                         else charge_scale_from_env()))
+                                         else charge_scale_from_env()),
+                           prefix=handle.prefix)
     # What an errand COSTS here, measured (issue #15). Read per world from
     # economy/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
     # unlike the ledger or the task board: "can I finish this before the pack
@@ -468,6 +490,24 @@ class HubLifecycle:
     self.tool_powered_s = 0.0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
+    #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
+    #: Read by `others_context` for what each broadcasts, and by nothing
+    #: that decides: what one robot does about another is its mind's.
+    self.peers: list = []
+    self.robot_name = robot_display_name(robot_name)
+    #: THE GAME this robot is in, if any (issue #167): the referee activity
+    #: the pair attached. Read for its clock and by the sampler; never by
+    #: anything that decides.
+    self.game = None
+    #: The world's activities, when a pair attached them (issue #167); the
+    #: recorder reads them. None on a lifecycle built alone (`run_demo`
+    #: hangs its own on the recorder directly).
+    self.activities = None
+    self.encounters = None
+    #: THIS robot's root body name, the key of everything it puts on the
+    #: wire (issue #167): `pluggybot` for the first, `r2_pluggybot` for the
+    #: second.
+    self.root = handle.root
     # DEATH AND RESET (issue #107). `dead` is the cause of the current death
     # or None; `deaths` and `resets` are the day's record of both; the
     # survival clock runs from mission start or the last reset. Typed events
@@ -554,8 +594,10 @@ class HubLifecycle:
     is gated on contact and not on position.
     """
     dt = self.model.opt.timestep
-    self.charging_now = rack_charge_contact(self.model, self.data)
-    self.tool_powered = module_power_contact(self.model, self.data, self.module)
+    prefix = self.mission.handle.prefix
+    self.charging_now = rack_charge_contact(self.model, self.data, prefix)
+    self.tool_powered = module_power_contact(self.model, self.data, self.module,
+                                            prefix)
     if self.tool_powered:
       self.tool_powered_s += dt
     self.battery.update(self.data, dt, charging=self.charging_now,
@@ -620,7 +662,8 @@ class HubLifecycle:
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and the world's."""
-    w, x, y, z = self.data.qpos[3:7]
+    q = self.mission.swap.root_qadr
+    w, x, y, z = self.data.qpos[q + 3:q + 7]
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
 
@@ -653,7 +696,7 @@ class HubLifecycle:
     self._remember(f"died -- {why} -- after {self.survival_s:.0f} s awake "
                    f"({cause})"
                    + (f"; {hearts} lives left" if hearts is not None else ""))
-    self._emit({"type": "death", "t": round(t, 3), "robot": ROBOT_ROOT,
+    self._emit({"type": "death", "t": round(t, 3), "robot": self.root,
                 "cause": cause, "why": why,
                 "survivalS": round(self.survival_s, 3),
                 "deaths": len(self.deaths),
@@ -697,7 +740,7 @@ class HubLifecycle:
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
                    "knew went with it.")
-    self._emit({"type": "true_death", "t": round(t, 3), "robot": ROBOT_ROOT,
+    self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
                 "archived": archived.get("archived", {})})
 
@@ -737,17 +780,46 @@ class HubLifecycle:
       return
     self.stand_up(AUTO_RESTART_BY, auto=True)
 
+  @property
+  def expects_work(self) -> bool:
+    """Whether work can still ARRIVE when the loop has nothing to do -- what
+    the stand-by branch of the day keys on. Follows `producer` unless set:
+    a pair shares one board with the producer on the FIRST robot's seam
+    (issue #167), so the second robot has no producer and a board that
+    grows anyway. Measured on the pair fixture: keyed on `producer`, the
+    hider called its day complete at t = 146 s, mid-game, and every carry
+    the cadence offered after that went to the other robot by default."""
+    if self._expects_work is not None:
+      return self._expects_work
+    return self.producer is not None
+
+  @expects_work.setter
+  def expects_work(self, value: bool) -> None:
+    self._expects_work = bool(value)
+
   def _emit(self, message: dict) -> None:
     for hook in list(self.on_event):
       hook(dict(message))
 
-  def _wait_dead(self) -> None:
+  def _clear_rack_routine(self) -> Routine:
+    """Stand by away from the rack: within `RACK_CLEAR_M` of the rack prior,
+    drive back to the start pose; anywhere else, stay put."""
+    px, py, _ = self.mission.pose
+    r = self.mission.rack_prior
+    if self.home_pose is None or math.hypot(px - r.x, py - r.y) >= RACK_CLEAR_M:
+      return
+    hx, hy = self.home_pose[0], self.home_pose[1]
+    self._say(f"standing by: clearing the rack for the others -- back to "
+              f"({hx:.1f}, {hy:.1f})")
+    yield from self.mission.drive_to_routine(hx, hy)
+
+  def _wait_dead_routine(self) -> Routine:
     """A dead robot with somebody who can reset it stands still and keeps
     the stream alive; the visitor step is what delivers the reset."""
     self.state = "DEAD"
     self._visitor_step()
     if self.dead is not None:
-      self.mission._drive(WAIT_FOR_WORK_S, 0.0, 0.0)
+      yield from self.mission._drive_routine(WAIT_FOR_WORK_S, 0.0, 0.0)
 
   def _screen_step(self) -> None:
     """Keep the display's power reading current, and its resting face.
@@ -766,7 +838,11 @@ class HubLifecycle:
       self.screen.sense(self.model, self.data, powered=self.tool_powered)
     elif self.data.time >= self._next_screen_sense:
       self._next_screen_sense = self.data.time + SCREEN_SENSE_S
-      self.screen.sense(self.model, self.data)
+      # ...powered by THIS robot's fork (issue #167): the screen's own
+      # check reads the first robot's plates, and a second robot carrying
+      # the display would read it as dark.
+      self.screen.sense(self.model, self.data, powered=module_power_contact(
+        self.model, self.data, self.screen.module, self.mission.handle.prefix))
     if self.state != self._face_state:
       self._face_state = self.state
       self.screen.release()
@@ -800,7 +876,10 @@ class HubLifecycle:
     traceback for something that did not crash.
     """
     self.status = msg
-    line = f"t={self.data.time:6.1f}s  bat={self.battery.fraction:5.0%}  {msg}"
+    # A second robot's lines say whose they are (issue #167); the first
+    # robot's read exactly as they always did.
+    who = f" {self.mission.handle.root}" if self.mission.handle.prefix else ""
+    line = f"t={self.data.time:6.1f}s{who}  bat={self.battery.fraction:5.0%}  {msg}"
     if detail:
       line = f"{line}  [{detail}]"
     self.log.append(line)
@@ -950,8 +1029,18 @@ class HubLifecycle:
 
   # ---- phases --------------------------------------------------------------
 
+  # ---- the branches, as routines (issue #58) --------------------------------
+  # Each branch of the arbitration loop is a ROUTINE yielding one drive
+  # command per physics step (pluggybot/tick.py), so the day is ticked from
+  # ONE loop rather than each branch owning the clock while it runs. The
+  # blocking twins keep their old names for scripts and tests.
+
   def explore(self, budget: float | None = None,
               mark_done: bool = True) -> None:
+    return self.mission.run(self.explore_routine(budget, mark_done))
+
+  def explore_routine(self, budget: float | None = None,
+                      mark_done: bool = True) -> Routine:
     """Frontier-drive the map until the battery calls, or the map is done.
 
     The rack's fiducial is watched for throughout (mission.start_discovery),
@@ -979,9 +1068,9 @@ class HubLifecycle:
       if status == "ok":
         strikes = 0
         wx, wy = self.mission.grid.cell_to_world(*path[-1])
-        self.mission.drive_to(wx, wy, timeout=25.0)
+        yield from self.mission.drive_to_routine(wx, wy, timeout=25.0)
         continue
-      self.mission._spin()
+      yield from self.mission._spin_routine()
       strikes += 1
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
         self.map_done = True
@@ -991,6 +1080,9 @@ class HubLifecycle:
     self._say("EXPLORE -> GO_CHARGE (battery low)")
 
   def go_charge(self) -> bool:
+    return self.mission.run(self.go_charge_routine())
+
+  def go_charge_routine(self) -> Routine:
     """Navigate to the charge bay and press until the pins connect.
 
     The terminal half is `mission.charge_approach` (issue #32): the standoff
@@ -1006,9 +1098,9 @@ class HubLifecycle:
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
     # spin to buy map (and possibly the rack tag) and try again.
     for _ in range(2):
-      if self.mission.drive_to(sx, sy, timeout=90.0):
+      if (yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)):
         break
-      self.mission._spin()
+      yield from self.mission._spin_routine()
       self.mission.refresh_rack()
       sx, sy, hd = charge_standoff(self.mission.rack)
     else:
@@ -1016,14 +1108,18 @@ class HubLifecycle:
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
-    why = self.mission.charge_approach(CHARGE_APPROACH_MAX, CHARGE_CREEP)
-    if not rack_charge_contact(self.model, self.data):
+    why = yield from self.mission.charge_approach_routine(CHARGE_APPROACH_MAX,
+                                                          CHARGE_CREEP)
+    if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
       self._say(f"GO_CHARGE: no charge contact ({why})")
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
     return True
 
   def charge(self) -> None:
+    return self.mission.run(self.charge_routine())
+
+  def charge_routine(self) -> Routine:
     """Hold the press until full, then back off."""
     t0 = self.data.time
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
@@ -1053,10 +1149,10 @@ class HubLifecycle:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
              and self.data.time - t0 < timeout):
-        self.mission._drive(0.25, CHARGE_PRESS, 0.0)
+        yield from self.mission._drive_routine(0.25, CHARGE_PRESS, 0.0)
         if not self.charging_now:
           # contact dropped: press again briefly, then give up on this attempt
-          self.mission._drive(1.0, CHARGE_CREEP, 0.0)
+          yield from self.mission._drive_routine(1.0, CHARGE_CREEP, 0.0)
           if not self.charging_now:
             self._say("CHARGE: lost the pins")
             self._bank(scoring.score_charge(self, before))
@@ -1068,9 +1164,13 @@ class HubLifecycle:
     self._occur("task_complete", "charge")
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
     self._bank(scoring.score_charge(self, before))
-    self.mission.swap._drive_until(UNDOCK_REVERSE, -0.08, stall_stop=False)
+    yield from self.mission.swap._drive_until_routine(UNDOCK_REVERSE, -0.08,
+                                                      stall_stop=False)
 
   def run_errand(self, errand) -> dict:
+    return self.mission.run(self.run_errand_routine(errand))
+
+  def run_errand_routine(self, errand) -> Routine:
     """Fetch a tool, take it somewhere, DO something, and put it back.
 
     The middle is the errand's own `use` callable (mission/errand.py). Everything
@@ -1084,7 +1184,10 @@ class HubLifecycle:
     closing) is deliberately NOT caught -- that is a request to stop, not a
     failure to recover from.
     """
-    self.module = errand.module
+    # A composed errand that fetches nothing (a look-around, issue #166)
+    # names no module, and `self.module` is what the end-of-day summary
+    # reads: keep the last real one rather than an empty name.
+    self.module = errand.module or self.module
     # ---- interruptible from here to the stow (issue #116) ----
     # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
     # out: an errand that raises must not leave the NEXT one already
@@ -1108,7 +1211,33 @@ class HubLifecycle:
     # worth pricing. `scripts/energy_spike.py` reads the same figure.
     spent_from = self.battery.energy_wh
     began_at = float(self.data.time)
-    self.mission.swap_at_bay(errand.station_y, "pick", module=self.module)
+    if errand.program is not None:
+      used = yield from self._run_program_routine(errand)
+      result = {"errand": errand.name, "module": errand.module,
+                "energyWh": round(max(0.0, spent_from - self.battery.energy_wh), 4),
+                "estimateWh": round(self.affords(errand).cost_wh, 4),
+                "energySeconds": round(float(self.data.time) - began_at, 2),
+                **used}
+      self._in_errand = False
+      self._deferrals.pop(errand.name, None)
+      verdict = scoring.score_errand(self, errand, result, {})
+      entry = self._bank(verdict)
+      if verdict is not None:
+        result["verdict"] = verdict.as_dict()
+        result["points"] = entry["points"] if entry is not None else 0
+        if errand.task_id and self.tasks is not None:
+          closed = self.tasks.resolve(errand.task_id, verdict,
+                                      t=float(self.data.time))
+          if closed is not None:
+            result["task_id"] = closed.id
+            self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+      self.errand_results.append(result)
+      self._occur("task_complete" if used["stowed"] and "error" not in used
+                  else "task_failed", errand.name)
+      self._errand_name = ""
+      return result
+    yield from self.mission.swap_at_bay_routine(errand.station_y, "pick",
+                                                module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
@@ -1136,8 +1265,9 @@ class HubLifecycle:
     # aborting saves the most, since the trip out and back is most of an
     # errand's energy.
     aborted = self.interrupted()
-    arrived = (False if aborted
-               else self.mission.drive_to(*errand.use_at, timeout=60.0))
+    arrived = (False if aborted else
+               (yield from self.mission.drive_to_routine(*errand.use_at,
+                                                          timeout=60.0)))
     still = self.mission.swap.module_state(self.module)["on_fork"]
     # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
     # (issue #116). The robot did not set off: it was told to stop before the
@@ -1166,7 +1296,12 @@ class HubLifecycle:
       used = {"error": "never reached the use pose"}
     elif errand.use is not None and still:
       try:
-        used = errand.use(self) or {}
+        used = errand.use(self)
+        if inspect.isgenerator(used):
+          # A use-phase written as a routine (mission/errand.py) is ticked
+          # from this loop; a plain callable has already run to completion.
+          used = yield from used
+        used = used or {}
       except MissionAborted:
         raise
       except Exception as e:                      # noqa: BLE001 -- see docstring
@@ -1192,7 +1327,8 @@ class HubLifecycle:
     # the choice and why `abortCostWh` is worth recording.
     self._in_errand = False
     self.state = "SWAP_RETURN"
-    self.mission.swap_at_bay(errand.station_y, "return", module=self.module)
+    yield from self.mission.swap_at_bay_routine(errand.station_y, "return",
+                                                module=self.module)
     stowed = self.mission.swap.module_state(self.module)["hung"]
     self.swaps_done += 1
     self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
@@ -1262,6 +1398,89 @@ class HubLifecycle:
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
+
+  def _run_program_routine(self, errand) -> Routine:
+    """The composed errand's middle AND ends (issue #58): validate, run the
+    steps with one verdict each, and hang back whatever is still on the fork
+    -- abort means stow, for a program exactly as for a native errand. The
+    `procedure` event says how it went; a refusal never runs a step."""
+    from pluggybot.procedure import lang
+    from pluggybot.procedure import steps as procedure
+    program = errand.program
+    facts = world_facts(self.world)
+    t = float(self.data.time)
+    base = {"type": "procedure", "robot": self.root, "name": program.name,
+            "program": program.as_dict()}
+    # A PROCEDURE (issue #166) or a PROGRAM (#58): one validator and one
+    # runner each, the same result shape out, so everything below reads both.
+    is_proc = isinstance(program, lang.Procedure)
+    try:
+      if is_proc:
+        reasons = lang.validate(program, facts)
+        if reasons:
+          raise procedure.Refused(reasons)
+      else:
+        procedure.compile_program(program, facts)
+    except procedure.Refused as e:
+      self._say(f"PROCEDURE {program.name} refused: {e}")
+      self._emit({**base, "t": round(t, 3), "outcome": "refused",
+                  "reasons": list(e.reasons)})
+      return {"procedure": {"program": program.name, "refused": e.reasons,
+                            "total": len(program.steps()), "completed": 0,
+                            "steps": [], "ok": False},
+              "picked": False, "stowed": True,
+              "error": f"refused: {e}"}
+    self._emit({**base, "t": round(t, 3), "outcome": "validated",
+                "steps": len(program.steps())})
+    self.state = "USE_TOOL"
+    # A GAME'S referee starts its clock when a role's errand begins (issue
+    # #167); the first of the two to begin starts it, the second is a no-op.
+    game = getattr(self, "game", None)
+    if game is not None and errand.role:
+      game.start(float(self.data.time))
+    try:
+      if is_proc:
+        run = yield from lang.run_procedure_routine(self, program, facts)
+      else:
+        run = yield from procedure.run_program_routine(
+          self, program, facts, role=errand.role or None)
+    except MissionAborted:
+      raise
+    except Exception as e:                        # noqa: BLE001 -- as run_errand
+      run = {"program": program.name, "total": len(program.steps()),
+             "completed": 0, "steps": [], "ok": False,
+             "error": f"{type(e).__name__}: {e}"}
+      self._say("PROCEDURE FAILED: something went wrong -- stowing anyway",
+                detail=run["error"])
+    # ⚠ ABORT MEANS STOW, NEVER DROP. Whatever ended the program, a module
+    # still on the fork goes home before the verdict.
+    carried = procedure._carried(self)
+    if carried is not None:
+      self.state = "SWAP_RETURN"
+      self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
+                " -- stowing it")
+      yield from self.mission.swap_at_bay_routine(
+        procedure._tool_station(carried), "return", module=carried)
+      self.swaps_done += 1
+    fetched = [st["tool"] for st in run["steps"]
+               if st["verb"] == "fetch" and st.get("ok")]
+    hung = all(self.mission.swap.module_state(tool)["hung"] for tool in fetched)
+    run["toolsHung"] = hung
+    self._emit({**base, "t": round(float(self.data.time), 3),
+                "outcome": "ran" if run.get("ok") else "aborted",
+                "completed": run["completed"], "total": run["total"],
+                "failedAt": run.get("failedAt"), "stopped": run.get("stopped")})
+    self._say(f"PROCEDURE {program.name} "
+              f"{'complete' if run.get('ok') else 'cut short'}: "
+              f"{run['completed']}/{run['total']} steps")
+    result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
+              **({"error": run["error"]} if "error" in run else {})}
+    # A draw step's own measurements ride at the top level, so the ink
+    # evaluator reads a composed drawing exactly as it reads the native one.
+    for st in run["steps"]:
+      if st["verb"] == "draw" and "used" in st:
+        result.update(st["used"])
+    return result
 
   def _afford_next(self) -> bool:
     """True if the head of the queue can be started RIGHT NOW.
@@ -1533,7 +1752,7 @@ class HubLifecycle:
     # a sim-hour away unless it changes its mind.
     self._last_ask_t = float(self.data.time)
     self.state = "EXPLORE"
-    event = {"type": "reset", "t": round(t, 3), "robot": ROBOT_ROOT,
+    event = {"type": "reset", "t": round(t, 3), "robot": self.root,
              "by": by, "wasDead": was["cause"] if was else None,
              "deadS": dead_s, "intervention": was is None,
              # The machine-readable half of WHO (issue #143). `by` is a
@@ -1606,7 +1825,7 @@ class HubLifecycle:
     survival number measures the audience rather than the mind.
     """
     t = float(self.data.time) if t is None else float(t)
-    event = {"type": "intervention", "t": round(t, 3), "robot": ROBOT_ROOT,
+    event = {"type": "intervention", "t": round(t, 3), "robot": self.root,
              "what": what, "by": by, "before": dict(before),
              "after": dict(after)}
     if detail:
@@ -1769,6 +1988,53 @@ class HubLifecycle:
     else:
       self._say(f"HEART refused: {got['why']}")
 
+  def role_in(self, task_id: str) -> str:
+    """This robot's role in a job with roles, or "" (issue #167)."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    return task.role_of(self.mission.handle.root) if task is not None else ""
+
+  def _define(self, decision) -> None:
+    """Apply a decision's `define` / `undefine` to the library (issue #166).
+
+    Remove before add, as `_reconsider` does, so a full library plus a
+    decision that retires one procedure and writes another works in one
+    go. Every refusal is narrated and a `procedure` event says what was
+    defined, undefined or refused -- what the robot wrote rides the event
+    whole, as a thought does.
+    """
+    library = getattr(self.overseer, "library", None)
+    if library is None or not (decision.define or decision.undefine):
+      return
+    from pluggybot.procedure.library import LibraryRefused
+    t = float(self.data.time)
+    base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
+    if decision.undefine:
+      try:
+        library.undefine(decision.undefine, t=t)
+      except LibraryRefused as e:
+        self._say(f"PROCEDURE undefine refused: {e}")
+        self._emit({**base, "outcome": "refused", "name": decision.undefine,
+                    "verb": "undefine", "reasons": list(e.reasons)})
+      else:
+        self._say(f"PROCEDURE undefined {decision.undefine}")
+        self._remember(f"forgot the procedure {decision.undefine}")
+        self._emit({**base, "outcome": "undefined", "name": decision.undefine})
+    if decision.define:
+      name = decision.define.get("name", "")
+      source = decision.define.get("source", "")
+      try:
+        proc = library.define(name, source, t=t)
+      except LibraryRefused as e:
+        self._say(f"PROCEDURE define {name!r} refused: {e}")
+        self._emit({**base, "outcome": "refused", "name": name,
+                    "verb": "define", "reasons": list(e.reasons),
+                    "source": source})
+      else:
+        self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
+        self._remember(f"wrote the procedure {proc.name}")
+        self._emit({**base, "outcome": "defined", "name": proc.name,
+                    "program": proc.as_dict()})
+
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.
 
@@ -1779,7 +2045,7 @@ class HubLifecycle:
     reply text and no action. There was nobody to write one.
     """
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
-             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": "dropped", "reply": "", "action": ""}
     for hook in self.visitor_hooks:
       hook(dict(reply))
@@ -1812,7 +2078,7 @@ class HubLifecycle:
     if msg is None:
       return                                # already dealt with; nothing owed
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
-             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": decision.outcome, "reply": decision.reply,
              "action": decision.action if decision.outcome == "accepted"
              else ""}
@@ -2188,6 +2454,9 @@ class HubLifecycle:
     return self.overseer.interrupt_result()
 
   def _arbitrate(self) -> None:
+    return self.mission.run(self._arbitrate_routine())
+
+  def _arbitrate_routine(self) -> Routine:
     """THE ONE BRANCH THE MAP REPLACES -- and only where there is a map.
 
     Without one this is `_decide()` exactly as issue #15 left it, which is
@@ -2201,7 +2470,7 @@ class HubLifecycle:
     action -- including at mission start, before anything has completed.
     """
     if self.event_map is None:
-      self._decide()
+      yield from self._decide_routine()
       return
     if self.queued_row is None:
       self._occur("nothing_to_do")
@@ -2229,7 +2498,7 @@ class HubLifecycle:
       # before there is a policy, never the policy.
       self._say("EVENT no rule fired and nothing has asked yet -- asking once")
       self._last_ask_t = float(self.data.time)
-      self._decide()
+      yield from self._decide_routine()
       return
     if row is None:
       # NOBODY ASKED, AND NOTHING WAS ORDERED. The robot stands still --
@@ -2237,7 +2506,7 @@ class HubLifecycle:
       # exactly what `UNMINDED_AFTER_S` is counting. Not an error and not
       # narrated every few seconds: the death line is the narration.
       self.state = "DECIDE"
-      self.mission._drive(self.idle_s, 0.0, 0.0)
+      yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return
     if row.action == ev.ASK:
       # ⚠ THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER -- see
@@ -2245,7 +2514,7 @@ class HubLifecycle:
       # still a mind being consulted, and booking that as the agent going
       # quiet would put the box back in the column the agent is judged on.
       self._last_ask_t = float(self.data.time)
-      self._decide()
+      yield from self._decide_routine()
       return
     state = overseer_context(self)
     # ⚠ IMPOSSIBLE, NOT UNWISE -- `order_runnable`'s line exactly (issue
@@ -2257,10 +2526,10 @@ class HubLifecycle:
     if not order_runnable(self.overseer.menu, row.action, state):
       self.overseer.note_failure("unrunnable")
       self._say(f"EVENT {row.describe()} failed: unrunnable")
-      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
       return
     decision = self.overseer.decide_event(state, row)
-    why = self._after_decision(decision)
+    why = yield from self._after_decision_routine(decision)
     if why:
       self.overseer.note_failure(why)
       self._say(f"EVENT {row.describe()} failed: {why}")
@@ -2333,18 +2602,26 @@ class HubLifecycle:
       # touched it.
       self._say(f"TASK {task.id}: asks a question and nobody answered it")
       return False
-    errand = errand_for_task(task, self.world, self.boards, answer=said)
+    # A job with ROLES (issue #167): this robot takes the first one open,
+    # and its errand is that role's steps.
+    role = next(iter(task.open_roles()), "") if task.roles else ""
+    if task.roles and (not role or task.role_of(self.mission.handle.root)):
+      return False
+    errand = errand_for_task(task, self.world, self.boards, answer=said,
+                             role=role)
     if errand is None:
       # Offered in a world that cannot build it. Not fatal and not a claim:
       # leaving it offered lets it lapse honestly rather than be marked
       # failed by a robot that never touched it.
       self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
       return False
-    if self.tasks.claim(task.id, t=now, pack_wh=self.spendable_wh,
-                        answer=said) is None:
+    if self.tasks.claim(task.id, robot=self.mission.handle.root, t=now,
+                        pack_wh=self.spendable_wh, answer=said,
+                        role=role) is None:
       return False
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed: {task.description}"
+    self._say(f"TASK {task.id} claimed{f' as {role}' if role else ''}: "
+              f"{task.description}"
               + (f" -- answering {said}" if said else ""))
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
@@ -2377,6 +2654,9 @@ class HubLifecycle:
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
   def _decide(self) -> None:
+    return self.mission.run(self._decide_routine())
+
+  def _decide_routine(self) -> Routine:
     """Ask the overseer what to do next, and do it.
 
     Reached ONLY when the battery is fine and the errand queue is empty --
@@ -2398,11 +2678,11 @@ class HubLifecycle:
       # whole point -- a world that goes dark to save money looks broken, and
       # a robot that stops deciding looks broken faster.
       decision = self.overseer.decide_scripted(state, "scripted-mode")
-      self._after_decision(decision)
+      yield from self._after_decision_routine(decision)
       return
     self.overseer.start(state)
     while self.overseer.pending:
-      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
+      yield from self.mission._drive_routine(THINK_SLICE_S, 0.0, 0.0)
     decision = self.overseer.result(state)
     # ⚠ NO `decision_failed` EVENT IS EMITTED HERE, and that is the
     # migration working rather than an omission (issue #127). The row is
@@ -2413,9 +2693,12 @@ class HubLifecycle:
     # replaced the failed call, and again on the next pass through the loop.
     # Measured, on a mission flown against a client that always fails: every
     # failure produced two decisions where the pre-change loop produced one.
-    self._after_decision(decision)
+    yield from self._after_decision_routine(decision)
 
   def _after_decision(self, decision) -> str:
+    return self.mission.run(self._after_decision_routine(decision))
+
+  def _after_decision_routine(self, decision) -> Routine:
     """Narrate a decision, remember it, answer whoever it answered, and DO
     it. Split out of `_decide` so free mode (issue #37) runs the identical
     path -- a scripted decision the operator asked for must reach the world
@@ -2454,6 +2737,10 @@ class HubLifecycle:
     # for `_reconsider`'s reason exactly: buying a heart is paperwork, not
     # something the body does, so it must not cost the robot its turn.
     self._buy_heart(decision)
+    # ...and the library's two verbs (issue #166), paperwork like the four
+    # above: compiled and refused out loud by the library, narrated either
+    # way, and the action stands whatever the library said.
+    self._define(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
@@ -2465,7 +2752,7 @@ class HubLifecycle:
       # the same claimability gate the scripted path uses -- an LLM cannot
       # take on a task the energy budget refuses.
       if not self._claim_task(decision.task, decision.answer):
-        self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+        yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
         return "unclaimable"
       return ""
     if decision.action == "charge":
@@ -2480,28 +2767,29 @@ class HubLifecycle:
       # earns not one point. It can only be caution, and a world that forbade
       # it would be forbidding the disposition it is trying to measure.
       self.state = "GO_CHARGE"
-      if self.go_charge():
+      if (yield from self.go_charge_routine()):
         self.state = "CHARGE"
-        self.charge()
+        yield from self.charge_routine()
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        self.mission.drive_to(wx, wy, timeout=60.0)
-      self.explore(budget=DECIDED_EXPLORE_S, mark_done=False)
+        yield from self.mission.drive_to_routine(wx, wy, timeout=60.0)
+      yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
     if decision.action in ("idle", "journal"):
-      self.mission._drive(self.idle_s, 0.0, 0.0)
+      yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
-    errand = errand_from(decision, self.world, self.boards)
+    errand = errand_from(decision, self.world, self.boards,
+                         library=getattr(self.overseer, "library", None))
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
       # consecutive-idle cap stops that becoming a spin.
       self._say(f"DECIDE: nothing to build for {decision.action!r}")
-      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
       return "unbuildable"
     fit = self.affords(errand)
     if fit.state == energy_model.BEYOND:
@@ -2513,7 +2801,7 @@ class HubLifecycle:
       # breath -- `affordableActions` in the context -- so this is a backstop
       # for a decision made against a stale reading, not the primary path.
       self._say(f"DECIDE: {fit.why()}")
-      self.mission._drive(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
       return "beyond"
     # Queued rather than run inline, so the errand goes through the SAME
     # arbitration the scripted queue does -- if the decision itself dropped
@@ -2577,175 +2865,40 @@ class HubLifecycle:
           use_at: tuple[float, float] = (-1.2, 2.5),
           max_sim_time: float = 600.0,
           explore_budget: float = 90.0) -> dict:
+    """One robot's day, driven from its own loop. `begin` and `end` are the
+    two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
+    issue #167): the setup, then the routine, then the summary."""
+    day = self.begin(start, station_y, use_at, max_sim_time, explore_budget)
+    aborted = False
+    try:
+      # THE DAY IS A ROUTINE (issue #58): every branch of `_day_routine` yields its drive
+      # commands and this is the ONE loop that steps the physics. Two robots
+      # are two of these ticked in turn; a composed errand is a routine of
+      # routines ticked from here.
+      self.mission.run(day, name="day")
+    except MissionAborted:
+      aborted = True
+    finally:
+      self.mission.close()
+    return self.end(aborted)
+
+  def begin(self, start: tuple[float, float, float],
+            station_y: float = HUB_STATION_YS[0],
+            use_at: tuple[float, float] = (-1.2, 2.5),
+            max_sim_time: float = 600.0,
+            explore_budget: float = 90.0) -> Routine:
+    """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
     self.blacklist: set = set()
     self.map_done = False
     self.stranded = False
     self._end_run = False
-    aborted = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
-    try:
-      self.mission.start_at(*start)
-      self.mission.start_discovery()
-      self.mission._spin()               # seed the map before deciding anything
-      self.explore_deadline = self.data.time + explore_budget
-      self._say("mission start")
-      self.home_pose = tuple(float(v) for v in start)
-      self.survival_since = float(self.data.time)
-      # ...and the unminded clock, on the survival clock's terms exactly
-      # (issue #127): both count from the moment this life started.
-      self._last_ask_t = float(self.data.time)
-      # A restart is a new day, and History is the file that says so
-      # (issue #38): without this line a reader cannot tell one mission's
-      # record from the four before it that share the volume.
-      self._remember(f"woke up in {self.world} with the pack at "
-                     f"{self.battery.fraction:.0%}")
-      # ...and WHO is doing the thinking today (issue #19). In History
-      # because History is the system's file and this is a fact about the
-      # run rather than something the robot decided -- and because History
-      # already rides the wire as a `thought` (0.11.0), so the site can show
-      # which mind made the decisions below it without a protocol change.
-      # Said on scripted runs too: "nothing is choosing" is the answer a
-      # reader most needs, and the one an absent line quietly hides.
-      if self.overseer is not None:
-        self._remember(f"thinking with {self.overseer.model} "
-                       f"({self.overseer.backend})")
-      else:
-        self._remember("nobody is choosing today -- flying the scripted "
-                       "rotation")
+    return self._day_routine(start, max_sim_time, explore_budget)
 
-      # A real arbitration loop, not a fixed script. Priority order, and the
-      # reasons: charging outranks everything (a flat robot does nothing at
-      # all); then the ERRAND, because that is the job the robot was given
-      # -- exploring is background work, and letting it go first meant the
-      # robot mapped, ran flat, charged, mapped again, and never got round
-      # to the task it existed for. Whatever the battery does mid-errand,
-      # the next pass through here reacts to it.
-      while self.data.time < max_sim_time:
-        # ⚠ THE IMMORTAL LOOP IS THE OLD LOOP, to the character: a pack that
-        # reaches zero ends the day, and one that reached zero mid-errand
-        # and recovered does not, because this is checked between errands.
-        if not self.mortal and self.battery.empty:
-          break
-        if self._end_run:
-          break
-        if self.dead is not None:
-          # DEAD (issue #107). With somebody who can reset it -- a served
-          # world's inbox -- the robot waits, still streaming; with nobody,
-          # the day is over, exactly as "BATTERY DEAD" always ended it.
-          if self.inbox is None:
-            break
-          self._wait_dead()
-          continue
-        # Whatever visitors sent that needs no decision (issue #16). First,
-        # so a rating lands on the ledger before the next frame carries the
-        # balance -- and outside the priority order, because applying a
-        # rating is bookkeeping rather than something the robot does.
-        self._visitor_step()
-        # ...and whatever the world put up or took down while the robot was
-        # busy (issues #21, #23). Outside the priority order, because a job
-        # appearing or lapsing is something that happens TO the world rather
-        # than a thing the robot chose -- and mostly a no-op here, since the
-        # same sweep runs on the physics seam. Kept so a lifecycle driven
-        # without `mission` stepping still keeps its board honest.
-        self._task_step()
-        # ...and the same for the appetite (issue #36), for the same reason
-        # and with the same result: a no-op here on any mission whose physics
-        # is actually running.
-        self._metabolism_step()
-        if self.needs_charge:
-          self.state = "GO_CHARGE"
-          if not self.go_charge():
-            self._strand()
-            continue
-          self.state = "CHARGE"
-          self.charge()
-        elif self.errands and not self._afford_next():
-          # ⚠ AN ERRAND THAT WILL NOT FIT IS CHARGED FOR FIRST (issue #15).
-          # `needs_charge` above is checked BETWEEN errands and never inside
-          # one, so a job bigger than what is left in the pack cannot be
-          # survived by any charging policy -- the robot leaves the rack,
-          # works, and dies holding the tool. This is the one place that can
-          # see it coming. `_afford_next` has already narrated why and, for
-          # an errand no pack in this world could cover, has already dropped
-          # it -- so False here always means "go and charge".
-          self.state = "GO_CHARGE"
-          if not self.go_charge():
-            self._strand()
-            continue
-          self.state = "CHARGE"
-          self.charge()
-        elif self.errands:
-          # Pop BEFORE running: an errand that raises must not be retried
-          # forever, and a queue that only shortens on success is an infinite
-          # loop dressed as a task list.
-          self.run_errand(self.errands.pop(0))
-        elif self.overseer is not None:
-          # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
-          # agent's own EVENT MAP replaces one layer in (issue #127). Note
-          # where it still sits: after charging, which neither can reach,
-          # and after the errand queue, so an explicit order still outranks
-          # a chosen one. `_arbitrate` is `_decide` exactly where there is
-          # no map -- the loop's SHAPE is what this issue promised not to
-          # touch, and this is the whole of what it touched.
-          self._arbitrate()
-        elif self._claim_next_task():
-          # An offered job, taken by the loop itself (issue #21). Unreachable
-          # with an overseer, which is correct: a robot with a mind chooses
-          # for itself and `take_task` is one of the things it may choose.
-          # Without one, work still gets done -- and it outranks exploring for
-          # the reason the errand queue does, because somebody asked for it.
-          continue
-        elif not self.map_done:
-          self.state = "EXPLORE"
-          self.explore()
-        elif self.producer is not None:
-          # WAITING FOR WORK IS NOT BEING FINISHED (issue #23). The loop used
-          # to break the moment it had nothing to do, which was right when
-          # the only work was a preset queue -- that queue never grows. A
-          # world with a PRODUCER in it does: measured, a home run mapped the
-          # house, did both the jobs it could reach and ended at t=410 with
-          # the next offer due at t=480. Seventy seconds early, and it called
-          # that a completed mission.
-          #
-          # Standing by rather than ending, in bounded slices so the loop
-          # keeps re-checking `needs_charge` -- and deliberately without a
-          # state of its own: `State` is a two-repo vocabulary the website
-          # draws off, and "the robot paused" is what `idle` already looks
-          # like from the outside. `max_sim_time` is still the thing that
-          # ends the day.
-          self.mission._drive(WAIT_FOR_WORK_S, 0.0, 0.0)
-        else:
-          break
-
-      self.state = "DONE"
-      # A robot that could not reach its charger has not completed anything
-      # (issue #32): the old line said "mission complete" here because the
-      # battery was not yet empty, which dressed the day's actual ending --
-      # a failed dock -- as success.
-      if self.dead is not None:
-        self._say(f"mission over -- dead ({self.dead['cause']}): "
-                  f"{self.dead['why']}")
-        self._remember(f"the day ended dead ({self.dead['cause']})")
-      elif self.stranded:
-        # An IMMORTAL run's failed dock, worded exactly as it was before
-        # issue #107: nothing died, the day simply ended off the dock.
-        self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
-                  f"at {self.battery.fraction:.0%}")
-        self._remember("could not reach the charger -- stranded at "
-                       f"{self.battery.fraction:.0%}")
-      else:
-        self._say("mission complete" if not self.battery.empty
-                  else "BATTERY DEAD -- mission over")
-        self._remember("finished the day at "
-                       f"{self.battery.fraction:.0%}" if not self.battery.empty
-                       else "the pack went flat and the day ended there")
-    except MissionAborted:
-      aborted = True
-    finally:
-      self.mission.close()
-
+  def end(self, aborted: bool = False) -> dict:
+    """The day's summary, after its routine has returned."""
     module = self.mission.swap.module_state(self.module)
     return {
       "state": self.state,
@@ -2823,6 +2976,176 @@ class HubLifecycle:
       "tasks_claimed": list(self.claimed),
     }
 
+  def _day_routine(self, start, max_sim_time: float,
+                   explore_budget: float) -> Routine:
+    """One life, from mission start to the end of the day, as a routine:
+    the arbitration loop `run()` documents, yielding every drive command."""
+    self.mission.start_at(*start)
+    self.mission.start_discovery()
+    yield from self.mission._spin_routine()   # seed the map before deciding anything
+    self.explore_deadline = self.data.time + explore_budget
+    self._say("mission start")
+    self.home_pose = tuple(float(v) for v in start)
+    self.survival_since = float(self.data.time)
+    # ...and the unminded clock, on the survival clock's terms exactly
+    # (issue #127): both count from the moment this life started.
+    self._last_ask_t = float(self.data.time)
+    # A restart is a new day, and History is the file that says so
+    # (issue #38): without this line a reader cannot tell one mission's
+    # record from the four before it that share the volume.
+    self._remember(f"woke up in {self.world} with the pack at "
+                   f"{self.battery.fraction:.0%}")
+    # ...and WHO is doing the thinking today (issue #19). In History
+    # because History is the system's file and this is a fact about the
+    # run rather than something the robot decided -- and because History
+    # already rides the wire as a `thought` (0.11.0), so the site can show
+    # which mind made the decisions below it without a protocol change.
+    # Said on scripted runs too: "nothing is choosing" is the answer a
+    # reader most needs, and the one an absent line quietly hides.
+    if self.overseer is not None:
+      self._remember(f"thinking with {self.overseer.model} "
+                     f"({self.overseer.backend})")
+    else:
+      self._remember("nobody is choosing today -- flying the scripted "
+                     "rotation")
+
+    # A real arbitration loop, not a fixed script. Priority order, and the
+    # reasons: charging outranks everything (a flat robot does nothing at
+    # all); then the ERRAND, because that is the job the robot was given
+    # -- exploring is background work, and letting it go first meant the
+    # robot mapped, ran flat, charged, mapped again, and never got round
+    # to the task it existed for. Whatever the battery does mid-errand,
+    # the next pass through here reacts to it.
+    while self.data.time < max_sim_time:
+      # ⚠ THE IMMORTAL LOOP IS THE OLD LOOP, to the character: a pack that
+      # reaches zero ends the day, and one that reached zero mid-errand
+      # and recovered does not, because this is checked between errands.
+      if not self.mortal and self.battery.empty:
+        break
+      if self._end_run:
+        break
+      if self.dead is not None:
+        # DEAD (issue #107). With somebody who can reset it -- a served
+        # world's inbox -- the robot waits, still streaming; with nobody,
+        # the day is over, exactly as "BATTERY DEAD" always ended it.
+        if self.inbox is None:
+          break
+        yield from self._wait_dead_routine()
+        continue
+      # Whatever visitors sent that needs no decision (issue #16). First,
+      # so a rating lands on the ledger before the next frame carries the
+      # balance -- and outside the priority order, because applying a
+      # rating is bookkeeping rather than something the robot does.
+      self._visitor_step()
+      # ...and whatever the world put up or took down while the robot was
+      # busy (issues #21, #23). Outside the priority order, because a job
+      # appearing or lapsing is something that happens TO the world rather
+      # than a thing the robot chose -- and mostly a no-op here, since the
+      # same sweep runs on the physics seam. Kept so a lifecycle driven
+      # without `mission` stepping still keeps its board honest.
+      self._task_step()
+      # ...and the same for the appetite (issue #36), for the same reason
+      # and with the same result: a no-op here on any mission whose physics
+      # is actually running.
+      self._metabolism_step()
+      if self.needs_charge:
+        self._cleared_rack = False
+        self.state = "GO_CHARGE"
+        if not (yield from self.go_charge_routine()):
+          self._strand()
+          continue
+        self.state = "CHARGE"
+        yield from self.charge_routine()
+      elif self.errands and not self._afford_next():
+        self._cleared_rack = False
+        # ⚠ AN ERRAND THAT WILL NOT FIT IS CHARGED FOR FIRST (issue #15).
+        # `needs_charge` above is checked BETWEEN errands and never inside
+        # one, so a job bigger than what is left in the pack cannot be
+        # survived by any charging policy -- the robot leaves the rack,
+        # works, and dies holding the tool. This is the one place that can
+        # see it coming. `_afford_next` has already narrated why and, for
+        # an errand no pack in this world could cover, has already dropped
+        # it -- so False here always means "go and charge".
+        self.state = "GO_CHARGE"
+        if not (yield from self.go_charge_routine()):
+          self._strand()
+          continue
+        self.state = "CHARGE"
+        yield from self.charge_routine()
+      elif self.errands:
+        # Pop BEFORE running: an errand that raises must not be retried
+        # forever, and a queue that only shortens on success is an infinite
+        # loop dressed as a task list.
+        self._cleared_rack = False
+        yield from self.run_errand_routine(self.errands.pop(0))
+      elif self.overseer is not None:
+        # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
+        # agent's own EVENT MAP replaces one layer in (issue #127). Note
+        # where it still sits: after charging, which neither can reach,
+        # and after the errand queue, so an explicit order still outranks
+        # a chosen one. `_arbitrate` is `_decide` exactly where there is
+        # no map -- the loop's SHAPE is what this issue promised not to
+        # touch, and this is the whole of what it touched.
+        yield from self._arbitrate_routine()
+      elif self._claim_next_task():
+        # An offered job, taken by the loop itself (issue #21). Unreachable
+        # with an overseer, which is correct: a robot with a mind chooses
+        # for itself and `take_task` is one of the things it may choose.
+        # Without one, work still gets done -- and it outranks exploring for
+        # the reason the errand queue does, because somebody asked for it.
+        continue
+      elif not self.map_done:
+        self._cleared_rack = False
+        self.state = "EXPLORE"
+        yield from self.explore_routine()
+      elif self.expects_work:
+        if not self._cleared_rack:
+          # ...and not AT THE RACK (issue #167; RACK_CLEAR_M). Once per
+          # idle stretch: any branch above that moves the robot resets it.
+          self._cleared_rack = True
+          yield from self._clear_rack_routine()
+        # WAITING FOR WORK IS NOT BEING FINISHED (issue #23). The loop used
+        # to break the moment it had nothing to do, which was right when
+        # the only work was a preset queue -- that queue never grows. A
+        # world with a PRODUCER in it does: measured, a home run mapped the
+        # house, did both the jobs it could reach and ended at t=410 with
+        # the next offer due at t=480. Seventy seconds early, and it called
+        # that a completed mission.
+        #
+        # Standing by rather than ending, in bounded slices so the loop
+        # keeps re-checking `needs_charge` -- and deliberately without a
+        # state of its own: `State` is a two-repo vocabulary the website
+        # draws off, and "the robot paused" is what `idle` already looks
+        # like from the outside. `max_sim_time` is still the thing that
+        # ends the day.
+        yield from self.mission._drive_routine(WAIT_FOR_WORK_S, 0.0, 0.0)
+      else:
+        break
+
+    self.state = "DONE"
+    # A robot that could not reach its charger has not completed anything
+    # (issue #32): the old line said "mission complete" here because the
+    # battery was not yet empty, which dressed the day's actual ending --
+    # a failed dock -- as success.
+    if self.dead is not None:
+      self._say(f"mission over -- dead ({self.dead['cause']}): "
+                f"{self.dead['why']}")
+      self._remember(f"the day ended dead ({self.dead['cause']})")
+    elif self.stranded:
+      # An IMMORTAL run's failed dock, worded exactly as it was before
+      # issue #107: nothing died, the day simply ended off the dock.
+      self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
+                f"at {self.battery.fraction:.0%}")
+      self._remember("could not reach the charger -- stranded at "
+                     f"{self.battery.fraction:.0%}")
+    else:
+      self._say("mission complete" if not self.battery.empty
+                else "BATTERY DEAD -- mission over")
+      self._remember("finished the day at "
+                     f"{self.battery.fraction:.0%}" if not self.battery.empty
+                     else "the pack went flat and the day ended there")
+
+
 
 def home_activities(model, data):
   """The home world's task state machines (issue #8).
@@ -2854,7 +3177,7 @@ def board_book(world: str, state: str | None = None):
 
 
 def points_ledger(state: str | None = None, table=None,
-                  cap: int | None = None):
+                  cap: int | None = None, robots: tuple = ()):
   """The robots' points ledger (issue #14).
 
   `state` is a JSON file the balances and the earnings log live in ACROSS
@@ -2868,7 +3191,8 @@ def points_ledger(state: str | None = None, table=None,
   accumulation, which is every run before the appetite existed.
   """
   from pluggybot.economy.ledger import Ledger
-  return Ledger(path=state, table=table, cap=cap)
+  return Ledger(path=state, table=table, cap=cap, **({"robots": robots}
+                                                    if robots else {}))
 
 
 def task_board(state: str | None = None, table=None, cadence=None,
@@ -3031,14 +3355,25 @@ def draw_errand_for(world: str, book, board_name: str,
 # ---- the overseer's seams (issue #15) ---------------------------------------
 
 
-def errand_from(decision, world: str, book=None):
+def errand_from(decision, world: str, book=None, library=None):
   """An overseer decision -> an errand, or None if this world cannot build it.
 
   None rather than an exception: a decision is untrusted input in exactly the
   way a visitor message will be (issue #16), and the mission loop's response
   to "I cannot do that" should be to ask again, not to end.
+
+  `procedure:<name>` (issue #166) builds a composed errand from the robot's
+  own library -- None if the name is not there or the entry no longer
+  validates, which a row written before an `undefine` can ask for.
   """
+  from pluggybot.mind.overseer import PROCEDURE_PREFIX
   try:
+    if decision.action.startswith(PROCEDURE_PREFIX):
+      name = decision.action[len(PROCEDURE_PREFIX):]
+      proc = library.get(name) if library is not None else None
+      if proc is None:
+        return None
+      return programmed_errand(proc, task="program", name="procedure")
     if decision.action in ("draw", "artwork"):
       # Same errand, different TIER. `artwork` is the visitor-judged slot
       # (issue #14): code confirms ink landed and banks zero, and the points
@@ -3054,7 +3389,8 @@ def errand_from(decision, world: str, book=None):
   return None
 
 
-def errand_for_task(task, world: str, book=None, answer: str = ""):
+def errand_for_task(task, world: str, book=None, answer: str = "",
+                    role: str = ""):
   """A claimed TASK -> the errand that discharges it, or None (issue #21).
 
   The sibling of `errand_from` and deliberately the same shape: a task is
@@ -3077,7 +3413,18 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   if spec is None:
     return None
   try:
-    if task.kind == "whiteboard_answer":
+    if isinstance(task.params.get("procedure"), dict):
+      # A task carrying the PROCEDURE that discharges it (issue #58): the
+      # steps are data on the task, validated here against this world, and
+      # the kind's own evaluator grades the result. A program that does not
+      # validate builds nothing, and the loop leaves the offer alone.
+      # (`params["program"]` is a drawing task's FIGURE name; this is a
+      # different key on purpose.)
+      from pluggybot.procedure.steps import Program, compile_program
+      program = compile_program(Program.from_dict(task.params["procedure"]),
+                                world_facts(world))
+      errand = programmed_errand(program, task=spec.task)
+    elif task.kind == "whiteboard_answer":
       # A drawing errand like any other; only the figure is different. The
       # `answer` program is the one door text has into the plotter, and what
       # goes through it has already been through `questions.clean_answer`.
@@ -3097,6 +3444,17 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
     elif task.kind == "fetch_module":
       errand = carry_errand(module=task.target,
                             use_at=world_config(world)["use_at"])
+    elif task.kind == "hide_and_seek":
+      # The first two-role game (issue #167): this robot's ROLE's steps,
+      # from #58's `roles` slot. `task` is "game" on purpose -- a name with
+      # NO evaluator, so the lifecycle scores nothing: the referee
+      # (activity/hideseek.py) scores the game ONCE for both robots and
+      # the pair banks it on the winner. An errand scored here as well
+      # would be a second scorer.
+      if role not in ("hider", "seeker"):
+        return None
+      errand = programmed_errand(hide_and_seek_program(world), task="game",
+                                 name=f"game:hide_and_seek:{role}", role=role)
     else:
       return None
   except (ValueError, KeyError, IndexError):
@@ -3109,6 +3467,92 @@ def errand_for_task(task, world: str, book=None, answer: str = ""):
   # by construction with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
   return errand
+
+
+#: Where the hider goes and where the seeker looks, per world (issue #167):
+#: surveyed places, a work order's kind of fact. The hider's spot is out of
+#: the seeker's opening line of sight; the seeker's route is a sweep of the
+#: room from its start, ending where the hider is likely to be.
+HIDE_AND_SEEK_SPOTS = {
+  # room_hub: an 8 x 8 room, x -2..6, y -2..6, a divider at x = 2 with its
+  # gap in the middle, boxes at (1.5, -1.5), (0, 4) and (4, 1). The hider
+  # (the first robot, from (0.5, 3)) tucks into the south-west corner behind
+  # the corner box; the seeker (from (3, 3)) sweeps north-east, north-west,
+  # west and south, ending beside the box.
+  "room_hub": {"hide": (-1.2, -1.2), "seek": [(4.5, 4.5), (0.5, 4.8),
+                                              (-1.0, 2.0), (0.8, -1.0)]},
+  # home: the hider (from the living room) goes to the bedroom's far side;
+  # the seeker (from the hall) sweeps the living room, then the bedroom.
+  "home": {"hide": (3.5, 4.5), "seek": [(1.5, 1.0), (-1.0, 1.5), (1.0, 4.0),
+                                        (3.5, 4.5)]},
+}
+
+
+def hide_and_seek_program(world: str):
+  """The two roles' steps, in #58's vocabulary (issue #167). No tool for
+  either: the hider drives to its spot and waits out the seeking; the seeker
+  counts to twenty (a `wait`) and sweeps the room. The referee decides."""
+  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S
+  from pluggybot.procedure.steps import MAX_WAIT_S, Program, Step
+  spots = HIDE_AND_SEEK_SPOTS[world]
+  hx, hy = spots["hide"]
+  waits, left = [], SEEK_HEAD_START_S + SEEK_S
+  while left > 0:
+    waits.append(Step("wait", {"seconds": min(MAX_WAIT_S, left)}))
+    left -= MAX_WAIT_S
+  return Program(name="hide_and_seek", budget_s=SEEK_HEAD_START_S + SEEK_S + 240,
+                 roles={
+                   "hider": (Step("drive_to", {"x": hx, "y": hy}), *waits),
+                   "seeker": (Step("wait", {"seconds": SEEK_HEAD_START_S}),
+                              *[s for x, y in spots["seek"]
+                                for s in (Step("drive_to", {"x": x, "y": y}),
+                                          Step("look"))])})
+
+
+def load_program(path: str, world: str):
+  """A program to fly by hand (`hub_lifecycle.py --program`): a JSON program
+  over the step vocabulary (#58), or a `.procedure` in the language (#166),
+  compiled against the world before anything moves."""
+  text = Path(path).read_text()
+  if str(path).endswith(".json"):
+    return compile_program(Program.from_json(text), world_facts(world))
+  from pluggybot.procedure.lang import compile_procedure
+  return compile_procedure(text, world_facts(world))
+
+
+def others_context(life) -> list[dict]:
+  """What the OTHER robots broadcast (issue #167): the public surface and
+  nothing else -- name, reported pose, state, the status line they narrate
+  to everyone, and what they carry. Not their battery, points, goals,
+  thoughts, reasons or secrets: those are theirs, and a robot that could
+  read them would not need to infer them."""
+  out = []
+  for other in life.peers:
+    x, y = other.mission.pose_xy()
+    carried = other.module if (other.module and other.mission.swap.module_state(
+      other.module)["on_fork"]) else ""
+    out.append({"name": other.robot_name, "robot": other.mission.handle.root,
+                "x": round(x, 2), "y": round(y, 2), "state": other.state,
+                "doing": other.status[:120], "carrying": carried,
+                "dead": other.dead["cause"] if other.dead else None})
+  return out
+
+
+def world_facts(world: str):
+  """What a program is validated against (procedure/steps.py): this world's
+  boards, the tools on its rack, the box its map covers, the figures the
+  pen knows."""
+  from pluggybot.procedure import axes
+  from pluggybot.procedure.steps import TOOL_BAYS, WorldFacts
+  cfg = world_config(world)
+  boards: tuple = ()
+  if cfg["meta"]:
+    boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
+  return WorldFacts(boards=boards, tools=tuple(TOOL_BAYS),
+                    bounds=tuple(float(v) for v in cfg["grid_bounds"]),
+                    figures=tuple(n for n in strokes.PROGRAMS
+                                  if n not in ("text", "answer")),
+                    axes=tuple(axes.AXES), sensors=tuple(axes.SENSORS))
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -3181,6 +3625,16 @@ def overseer_context(life) -> dict:
                                      if life.metabolism is not None
                                      else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
+  if life.peers:
+    state["others"] = others_context(life)
+  # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
+  # half because it changes during a run, on `Goals.md`'s terms. Absent
+  # where there is none. `procedures` (the runnable names) is what
+  # `order_runnable` reads for a `procedure:<name>` order.
+  library = getattr(life.overseer, "library", None) if life.overseer else None
+  if library is not None:
+    state["procedures"] = list(library.runnable())
+    state["library"] = library.as_context()
   return state
 
 
@@ -3252,6 +3706,10 @@ def world_config(world: str) -> dict:
                        math.radians(home.HOME_RACK_YAW)),
       "grid_bounds": home.GRID_BOUNDS,
       "start": tuple(home.SPAWNS["start"]),
+      # Where a SECOND robot starts (issue #167): the hall, facing the
+      # living-room doorway -- a room away from the first, in sight of
+      # nothing it needs first.
+      "start2": tuple(home.SPAWNS["hall"]),
       "use_at": (1.5, 1.8),
       "battery_wh": home.HOME_DEMO_CAPACITY_WH,
       "hosting_battery_wh": home.HOME_HOSTING_CAPACITY_WH,
@@ -3295,6 +3753,7 @@ def world_config(world: str) -> dict:
       "rack": None,                       # RackPose.prior() is this world's
       "grid_bounds": (-3, -3, 7, 7),
       "start": (0.5, 3.0, math.pi / 2),
+      "start2": (3.0, 3.0, math.pi / 2),
       "use_at": (-1.2, 2.5),
       "battery_wh": DEMO_CAPACITY_WH,
       "hosting_battery_wh": HOSTING_CAPACITY_WH,
@@ -3319,6 +3778,7 @@ def run_demo(start=None, view: bool = False,
              record: str | None = None,
              world: str = "room_hub",
              errand: str = "carry", board_state: str | None = None,
+             program: str | None = None, program_task: str = "program",
              ledger_state: str | None = None,
              overseer: bool | None = None, goals: str | None = None,
              standing_orders: bool = False,
@@ -3340,7 +3800,8 @@ def run_demo(start=None, view: bool = False,
              restart_after_s: float | None = None,
              autonomous: bool = False,
              show_survival: bool = True,
-             origin: str = ev.DEFAULT_ORIGIN) -> dict:
+             origin: str = ev.DEFAULT_ORIGIN,
+             second_robot=None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -3364,7 +3825,11 @@ def run_demo(start=None, view: bool = False,
   if pack not in ("demo", "hosting"):
     raise ValueError(f"unknown pack {pack!r} (demo or hosting)")
   default_wh = cfg["battery_wh"] if pack == "demo" else cfg["hosting_battery_wh"]
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  # A SECOND ROBOT, parked (issue #167, slice A): attached with its prefix
+  # and never driven -- the parity instrument's "with the second robot
+  # parked" arm. Driving it is the next slice.
+  from pluggybot.robot import world_with_robots
+  model = world_with_robots(cfg["model"], second_at=second_robot)
   data = mujoco.MjData(model)
   viewer = None
   if view:
@@ -3474,7 +3939,11 @@ def run_demo(start=None, view: bool = False,
                       screen=next(iter(screens), None), ledger=ledger,
                       overseer=boss, journal=journal, mode=switch,
                       world=world,
-                      errands=errands_for(errand, world, book), tasks=board,
+                      errands=(errands_for(errand, world, book)
+                               if program is None else
+                               [programmed_errand(load_program(program, world),
+                                                  task=program_task)]),
+                      tasks=board,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,
                       autonomous=autonomous)

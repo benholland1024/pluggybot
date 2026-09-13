@@ -54,6 +54,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from pluggybot.challenge import stack
+
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
 
@@ -63,6 +65,11 @@ TIERS = ("auto", "hidden", "visitor", "narrative")
 TABLE_PATH = Path(__file__).with_name("rewards.json")
 TABLE_ENV = "PLUGGY_REWARDS"
 TABLE_VERSION = 1
+#: The CHALLENGE set's rows (docs/Challenges.md), same format, kept OUT of the
+#: shipped table until the robot can attempt one: a row in `rewards.json` is
+#: shown to the overseer and hashed into every committed result, so moving a
+#: challenge across is the PR that offers it, and a re-fly of `guarded`.
+CHALLENGES_PATH = Path(__file__).with_name("challenges.json")
 
 # ---- pass/fail thresholds ---------------------------------------------------
 # These are the EVALUATORS' and live in code on purpose. The table decides what
@@ -145,9 +152,14 @@ class TaskReward:
   #: and rewards.json's note. The census's ground truth is the whole example.
   secret: tuple[str, ...] = ()
   detail: str = ""
+  #: False for a CHALLENGE row (challenges.json, issue #120): scoreable by
+  #: the ledger, shown to nobody, hashed into no result -- a job the robot
+  #: has no way to take yet. Moving it into rewards.json is the offer.
+  offered: bool = True
 
   @classmethod
-  def from_json(cls, task: str, spec: dict) -> "TaskReward":
+  def from_json(cls, task: str, spec: dict,
+                offered: bool = True) -> "TaskReward":
     tier = str(spec.get("tier", "auto"))
     if tier not in TIERS:
       raise ValueError(f"{task}: unknown tier {tier!r} (expected one of "
@@ -159,7 +171,7 @@ class TaskReward:
     return cls(task=task, tier=tier, base=int(spec["base"]),
                bonus=int(spec.get("bonus", 0)), curves=curves,
                secret=tuple(spec.get("secret", ())),
-               detail=str(spec.get("detail", "")))
+               detail=str(spec.get("detail", "")), offered=offered)
 
   def quality(self, metrics: dict) -> float | None:
     """The weighted mean of whatever curves this task's metrics resolve, or
@@ -205,8 +217,16 @@ class RewardTable:
     self.path = path
 
   @classmethod
-  def load(cls, path: str | os.PathLike | None = None) -> "RewardTable":
-    """Read the table. `path`, else $PLUGGY_REWARDS, else the shipped file."""
+  def load(cls, path: str | os.PathLike | None = None,
+           challenges: str | os.PathLike | None = None) -> "RewardTable":
+    """Read the table. `path`, else $PLUGGY_REWARDS, else the shipped file.
+
+    `challenges` is the CHALLENGE set (`CHALLENGES_PATH` by default): its
+    rows are merged in UNOFFERED, so a challenge the lifecycle runs can be
+    scored and banked without a row in the file the overseer is shown and
+    the results hash. A name in both files is the shipped row -- the
+    challenge row is deleted in the PR that offers it.
+    """
     target = Path(path or os.environ.get(TABLE_ENV) or TABLE_PATH)
     doc = json.loads(target.read_text())
     version = int(doc.get("version", 0))
@@ -219,6 +239,14 @@ class RewardTable:
                        f"expected {TABLE_VERSION}")
     tasks = {name: TaskReward.from_json(name, spec)
              for name, spec in doc["tasks"].items()}
+    extra = Path(challenges) if challenges is not None else CHALLENGES_PATH
+    if extra.exists():
+      doc = json.loads(extra.read_text())
+      if int(doc.get("version", 0)) != TABLE_VERSION:
+        raise ValueError(f"{extra}: reward table version {doc.get('version')}, "
+                         f"expected {TABLE_VERSION}")
+      for name, spec in doc["tasks"].items():
+        tasks.setdefault(name, TaskReward.from_json(name, spec, offered=False))
     return cls(tasks, version=version, path=target)
 
   def __getitem__(self, task: str) -> TaskReward:
@@ -235,12 +263,18 @@ class RewardTable:
   def names(self) -> list[str]:
     return list(self.tasks)
 
+  @property
+  def offered(self) -> list[str]:
+    """The rows the robot can actually be offered: the shipped file's."""
+    return [name for name, r in self.tasks.items() if r.offered]
+
   def as_context(self) -> list[dict]:
-    """The whole table, as the overseer's context (issue #15). Scoreable
+    """The offered table, as the overseer's context (issue #15). Scoreable
     tasks only -- a row with no evaluator cannot be earned and offering it
-    would be a lie about what the robot can do."""
+    would be a lie about what the robot can do -- and never a challenge row,
+    for the same reason."""
     return [r.as_context() for name, r in self.tasks.items()
-            if name in EVALUATORS]
+            if name in EVALUATORS and r.offered]
 
 
 _default: RewardTable | None = None
@@ -497,6 +531,69 @@ def eval_carry(m: dict) -> tuple[bool, dict, str]:
           f"{'stowed' if stowed else 'NOT stowed'} {m.get('module')}")
 
 
+def eval_program(m: dict) -> tuple[bool, dict, str]:
+  """A composed errand's one verdict off its per-step verdicts (issue #58):
+  every step ok AND every tool it fetched hung back. A program cut short --
+  a failed step, its budget, an interrupt -- fails whole, on the table's
+  no-partial-credit rule; how far it got is in the metrics and the reason."""
+  total = m.get("total")
+  completed = int(m.get("completed") or 0)
+  hung = m.get("toolsHung")
+  metrics = {"program": m.get("program"), "total": total,
+             "completed": completed, "failedAt": m.get("failedAt"),
+             "stopped": m.get("stopped"), "toolsHung": hung,
+             "seconds": m.get("seconds")}
+  if total is None or hung is None:
+    return False, metrics, "the procedure was never measured"
+  total = int(total)
+  if m.get("refused"):
+    return False, metrics, f"{metrics['program']} was refused before it ran"
+  if completed < total:
+    where = (f"step {metrics['failedAt'] + 1} failed"
+             if metrics["failedAt"] is not None
+             else f"stopped ({metrics['stopped'] or 'error'})")
+    return False, metrics, (f"{metrics['program']}: {completed}/{total} steps, "
+                            f"{where}")
+  if not hung:
+    return False, metrics, (f"{metrics['program']}: every step ran, but a "
+                            "tool it fetched is not back on its bay")
+  return True, metrics, f"{metrics['program']}: {total}/{total} steps, tools hung"
+
+
+def eval_hide_and_seek(m: dict) -> tuple[bool, dict, str]:
+  """The first two-role game (issue #167): ONE verdict for both robots off
+  the referee's flags (activity/hideseek.py), never either robot's account.
+  `ok` means the game was PLAYED to a decision -- the hider hid, the seeker
+  sought, the referee called it -- and `winner` says who; the pair banks
+  the payout on the winner's wallet. A game nobody finished pays nobody."""
+  played = m.get("played")
+  winner = m.get("winner") or ""
+  metrics = {"played": bool(played), "winner": winner,
+             "foundAtS": m.get("foundAtS"), "overAtS": m.get("overAtS"),
+             "distanceM": m.get("distanceM"), "los": bool(m.get("los")),
+             "seekS": m.get("seekS"), "findWithinM": m.get("findWithinM")}
+  if played is None:
+    return False, metrics, "the game was never refereed"
+  if not played:
+    return False, metrics, "the game was not played to a decision"
+  if winner == "seeker":
+    return True, metrics, (f"found after {float(m.get('foundAtS') or 0):.0f} s, "
+                           f"{float(m.get('distanceM') or 0):.2f} m apart with "
+                           "line of sight -- the seeker wins")
+  return True, metrics, (f"not found in {float(m.get('seekS') or 0):.0f} s of "
+                         "seeking -- the hider wins")
+
+
+def challenge_table() -> RewardTable:
+  """The challenge set's rows ALONE, loaded fresh -- what a test of a
+  challenge grades against. The lifecycle sees them merged, unoffered, in
+  `default_table()`."""
+  doc = json.loads(CHALLENGES_PATH.read_text())
+  return RewardTable({name: TaskReward.from_json(name, spec, offered=False)
+                      for name, spec in doc["tasks"].items()},
+                     version=int(doc.get("version", 0)), path=CHALLENGES_PATH)
+
+
 def eval_artwork(m: dict) -> tuple[bool, dict, str]:
   """The deferred slot (design doc, "visitor-judged").
 
@@ -521,6 +618,17 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "carry": eval_carry,
   "artwork": eval_artwork,
   "answer": eval_answer,
+  # The first CHALLENGE (issue #120): a pre-declared predicate over the
+  # blocks' poses and contacts. Criteria and evaluator live with the
+  # challenge; the registry is here because this is the one door.
+  "stack": stack.eval_stack,
+  # A composed errand's generic verdict (issue #58): per-step outcomes and
+  # the tools back on the rack. Its row sits in challenges.json until a
+  # programmed job is offered.
+  "program": eval_program,
+  # The first two-role game (issue #167): the referee's flags in, one
+  # verdict out; the pair pays the winner.
+  "hide_and_seek": eval_hide_and_seek,
 }
 
 
@@ -679,6 +787,27 @@ def sample_carry(life, errand, result: dict, before: dict) -> dict:
           "module": errand.module}
 
 
+def sample_program(life, errand, result: dict, before: dict) -> dict:
+  """Measure a composed errand: the runner's per-step verdicts (code's, off
+  the world, one per step) and whether every fetched tool is hung -- read
+  off the swap again here, not off the runner's word."""
+  run = result.get("procedure") or {}
+  fetched = [st.get("tool") for st in run.get("steps", ())
+             if st.get("verb") == "fetch" and st.get("ok")]
+  hung = all(life.mission.swap.module_state(t)["hung"] for t in fetched)
+  return {**{k: run.get(k) for k in ("program", "total", "completed",
+                                     "failedAt", "stopped", "seconds",
+                                     "refused")},
+          "toolsHung": hung if run else None}
+
+
+def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
+  """The referee's measurements, off the ACTIVITY on the world -- never the
+  errand's report."""
+  game = getattr(errand, "game", None)
+  return game.measurements() if game is not None else {}
+
+
 SAMPLERS: dict[str, Callable[..., dict]] = {
   "draw": sample_draw,
   "artwork": sample_draw,
@@ -686,6 +815,9 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "census": sample_census,
   "dance": sample_dance,
   "carry": sample_carry,
+  "stack": stack.sample_stack,
+  "program": sample_program,
+  "hide_and_seek": sample_hide_and_seek,
 }
 
 

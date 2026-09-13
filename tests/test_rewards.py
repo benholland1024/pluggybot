@@ -59,7 +59,10 @@ def test_the_shipped_table_is_loadable_and_every_row_is_scoreable():
     assert name in scoring.EVALUATORS, f"{name} pays points but has no evaluator"
     assert row.tier in scoring.TIERS
     assert row.base >= 0 and row.bonus >= 0
-  assert {r["task"] for r in TABLE.as_context()} == set(TABLE.names)
+  # The overseer is shown the OFFERED rows and no challenge row (issue
+  # #120): a challenge is scoreable by the ledger and hashed into no result.
+  assert {r["task"] for r in TABLE.as_context()} == set(TABLE.offered)
+  assert set(TABLE.names) - set(TABLE.offered) == set(scoring.challenge_table().names)
 
 
 def test_a_table_is_read_from_a_file_not_from_code(tmp_path):

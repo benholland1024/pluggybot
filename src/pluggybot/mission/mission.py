@@ -33,7 +33,7 @@ import numpy as np
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
-from pluggybot.control import square_up, wheel_targets, wrap_angle
+from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
@@ -52,6 +52,8 @@ from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
+from pluggybot.robot import FIRST, RobotHandle
+from pluggybot.tick import Routine
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
 CHARGE_STANDOFF = 0.42    # m out from the pin faces the creep starts at
@@ -164,8 +166,9 @@ class TagSpotter:
                 depth buffer, which is also what hardware will have.
   """
 
-  def __init__(self, model) -> None:
-    self.detector = TagDetector(model, "dock_eye", tag_size=SMALL_TAG_SIZE)
+  def __init__(self, model, handle: RobotHandle = FIRST) -> None:
+    self.detector = TagDetector(model, handle.el("dock_eye"),
+                                tag_size=SMALL_TAG_SIZE)
 
   def detect(self, data) -> dict:
     return self.detector.detect(data)
@@ -207,6 +210,17 @@ class TagSpotter:
     self.detector.close()
 
 
+#: How far round another robot's believed centre A* keeps this robot's
+#: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
+#: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
+#: (0.15 m bare, 0.27 m armed) -- two armed robots passing at 0.62 m.
+OTHER_ROBOT_CELLS = 12
+#: A stagnated drive with another robot this close to us or to the goal is
+#: a robot in the way, and the drive WAITS this long before looking again.
+OTHER_NEAR_M = 1.2
+OTHER_WAIT_S = 2.0
+
+
 class MissionAborted(RuntimeError):
   """The viewer window was closed mid-mission."""
 
@@ -227,9 +241,12 @@ class HubMission:
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                rack: RackPose | None = None,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
-               ) -> None:
+               handle: RobotHandle = FIRST) -> None:
     self.model, self.data = model, data
-    self.swap = HubSwap(model, data)
+    #: WHICH ROBOT (issue #167). The swap, the lidar, the cameras and every
+    #: element below resolve through it; `FIRST` is the bare names.
+    self.handle = handle
+    self.swap = HubSwap(model, data, handle=handle)
     # What the robot believes about the rack. The prior is what a robot
     # that booted on its dock knows; discover_rack() replaces it with what
     # the robot has actually seen.
@@ -262,7 +279,8 @@ class HubMission:
     # not per phase, or a long terminal creep is free.
     self.step_hooks: list = []
     self.swap.on_step = self._on_step
-    self.lidar = Lidar(model)
+    self.lidar = Lidar(model, site_name=handle.el("lidar"),
+                       robot_body=handle.root)
     self._next_scan = 0.0
     # Bounds are per-WORLD (issue #6): room_hub keeps its historical box,
     # home_world passes its own from the generator's meta -- a grid sized
@@ -270,13 +288,19 @@ class HubMission:
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
                               resolution=0.05)
-    self.tags = TagSpotter(model)
+    self.tags = TagSpotter(model, handle=handle)
     self.cruise_timestep = model.opt.timestep
     self.backoff_until = 0.0
     self.step_count = 0
     self.collision_steps = 0
-    self.chassis_gid = model.geom("chassis").id
-    self._cam_id = model.camera("dock_eye").id
+    self.chassis_gid = model.geom(handle.el("chassis")).id
+    self._cam_id = model.camera(handle.el("dock_eye")).id
+    #: THE OTHER ROBOTS (issue #167): callables returning each one's believed
+    #: (x, y), read at plan time so A* routes round a footprint the lidar
+    #: may not have marked yet. What a robot may know of another over the
+    #: network is its reported pose -- odometry is a work order's kind of
+    #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
+    self.others: list = []
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
 
@@ -299,6 +323,10 @@ class HubMission:
       if ahead > 0:
         time.sleep(min(ahead, 0.05))
 
+  def pose_xy(self) -> tuple[float, float]:
+    """Where this robot SAYS it is -- what another robot may be told."""
+    return (self.swap.reckoner.x, self.swap.reckoner.y)
+
   @property
   def pose(self) -> tuple[float, float, float]:
     r = self.swap.reckoner
@@ -306,19 +334,19 @@ class HubMission:
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Place the robot and initialize odometry from the known start pose."""
-    d = self.data
-    d.qpos[0] = x + 0.08 * math.cos(yaw)
-    d.qpos[1] = y + 0.08 * math.sin(yaw)
-    d.qpos[2] = 0.045
-    d.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+    d, q = self.data, self.swap.root_qadr
+    d.qpos[q] = x + 0.08 * math.cos(yaw)
+    d.qpos[q + 1] = y + 0.08 * math.sin(yaw)
+    d.qpos[q + 2] = 0.045
+    d.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
     # swap's lift preset. Imported, NOT re-typed: these were duplicated as
     # bare 0.016/0.008 here, so raising the fork mount for the lean-pad would
     # have silently left this copy pointing at the old geometry.
     lift0 = align_lift()
-    d.qpos[self.model.joint("lift_joint").qposadr[0]] = lift0
-    d.ctrl[self.model.actuator("lift").id] = lift0
-    d.ctrl[self.model.actuator("arm").id] = 0.0     # stowed for driving
-    d.qpos[self.model.joint("arm_joint").qposadr[0]] = 0.0
+    d.qpos[self.swap.lift_qadr] = lift0
+    d.ctrl[self.swap.lift_act] = lift0
+    d.ctrl[self.swap.arm_act] = 0.0     # stowed for driving
+    d.qpos[self.swap.arm_qadr] = 0.0
     mujoco.mj_forward(self.model, d)
     r = self.swap.reckoner
     r.x, r.y, r.theta = x, y, yaw
@@ -327,14 +355,34 @@ class HubMission:
 
   # ---- navigation plumbing -------------------------------------------------
 
+  # ---- the seam (issue #58) ------------------------------------------------
+  # Every manoeuvre from here down is a ROUTINE yielding one (v, w) command
+  # per physics step (pluggybot/tick.py), with a one-line blocking twin under
+  # its old name. Composition is `yield from`; the order of everything around
+  # each step is exactly what the blocking loop did.
+
+  def run(self, routine, name: str = ""):
+    return self.swap.run(routine, name)
+
   def _drive(self, seconds: float, v: float, w: float) -> None:
-    tl, tr = wheel_targets(v, w)
+    return self.run(self._drive_routine(seconds, v, w))
+
+  def _drive_routine(self, seconds: float, v: float, w: float) -> Routine:
     for _ in range(round(seconds / self.model.opt.timestep)):
-      self._nav_step(tl, tr)
+      yield from self._nav_routine(v, w)
 
   def _nav_step(self, tl: float, tr: float) -> None:
     """One physics step with scanning, tag-looking + collision bookkeeping."""
     self.swap._step_once(tl, tr)
+    self._after_step()
+
+  def _nav_routine(self, v: float, w: float) -> Routine:
+    """`_nav_step` as a routine: the step is the yield, the bookkeeping runs
+    when the driver resumes -- after the step, as before."""
+    yield v, w
+    self._after_step()
+
+  def _after_step(self) -> None:
     self.step_count += 1
     # Look for the rack tag on a cadence through EVERY maneuver, not just
     # during the opening spin. Measured why: from the demo's start pose the
@@ -375,17 +423,20 @@ class HubMission:
         break
 
   def _spin(self) -> None:
+    return self.run(self._spin_routine())
+
+  def _spin_routine(self) -> Routine:
     """A 360 look-around: seeds the map (and tag sightings, via _nav_step)."""
     remaining = 2 * math.pi
-    tl, tr = wheel_targets(0.0, W_SPIN)
     while remaining > 0:
-      self._nav_step(tl, tr)
+      yield from self._nav_routine(0.0, W_SPIN)
       remaining -= W_SPIN * self.model.opt.timestep
 
   def start_discovery(self) -> None:
     """Begin watching for the rack tag (every maneuver from here on)."""
     if self.finder is None:
-      self.finder = RackFinder(self.model)
+      self.finder = RackFinder(self.model,
+                               camera_name=self.handle.el("left_eye"))
 
   def refresh_rack(self) -> RackPose | None:
     """Adopt the discovered rack pose if the tag has been confirmed.
@@ -405,6 +456,7 @@ class HubMission:
 
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     trav = traversable_mask(self.grid.grid)
+    self._mask_others(trav)
     rows, cols = trav.shape
     # The halo escape, shared with `navigation.plan` since issue #92 -- this
     # inline version is where the idea was born, and exploration's planner
@@ -431,6 +483,10 @@ class HubMission:
     return None if path is None else path_to_waypoints(self.grid, path)
 
   def drive_to(self, wx: float, wy: float, timeout: float = 90.0) -> bool:
+    return self.run(self.drive_to_routine(wx, wy, timeout))
+
+  def drive_to_routine(self, wx: float, wy: float,
+                       timeout: float = 90.0) -> Routine:
     """A*-navigate to a world point, arriving within 8 cm. Plans through
     known space only, targeting the reachable cell nearest the goal until
     the goal itself becomes reachable. Gives up on stagnation (no progress
@@ -447,9 +503,20 @@ class HubMission:
       if dist < best_dist - 0.02:
         best_dist, last_improve = dist, self.data.time
       elif self.data.time - last_improve > 10.0:
+        if self._other_in_the_way(wx, wy):
+          # ANOTHER ROBOT IS WHERE THIS ONE NEEDS TO BE (issue #167). A
+          # blocked route is a wait, not a failure: stand still, let it
+          # move, look again -- bounded by `timeout`, which is the whole
+          # of this robot's patience. Giving up here was measured: two
+          # robots sent for the same bay, and the first to arrive reported
+          # "no route" after 16 s with the other crossing its path.
+          yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
+          last_improve = self.data.time
+          waypoints = []
+          continue
         return dist < 0.15               # stagnated: close enough or fail
       if self.data.time < self.backoff_until:
-        self._drive(self.model.opt.timestep, -0.15, 0.0)
+        yield from self._nav_routine(-0.15, 0.0)
         waypoints = []
         continue
       if self.data.time >= next_replan or not waypoints:
@@ -465,7 +532,7 @@ class HubMission:
         v, w = drive_toward(self.pose, waypoints[0])
       else:
         v, w = drive_toward(self.pose, (wx, wy))
-      self._drive(self.model.opt.timestep, v, w)
+      yield from self._nav_routine(v, w)
       if self.swap.pressing:
         # The BUMPER reflex (issue #94), the lidar reflex's twin for what
         # the scan plane (0.223 m) looks straight over: back off and replan
@@ -477,18 +544,50 @@ class HubMission:
     return False
 
   def face(self, heading: float) -> bool:
+    return self.run(self.face_routine(heading))
+
+  def face_routine(self, heading: float) -> Routine:
     """Turn in place to `heading`. False if the budget ran out first
     (issue #108) -- a robot that cannot turn must not be a robot that never
     gets back to the arbitration loop."""
-    _, squared = square_up(
+    _, squared = yield from square_up_routine(
       lambda: wrap_angle(heading - self.pose[2]),
-      lambda w: self._drive(self.model.opt.timestep, 0.0, w),
-      lambda: self._drive(0.5, 0.0, 0.0),
+      lambda w: self._nav_routine(0.0, w),
+      lambda: self._drive_routine(0.5, 0.0, 0.0),
       lambda: float(self.data.time), tol=FACING_TOLERANCE, tries=1,
       done_within=float("inf"), gain=2.5, limit=1.0)
     return squared
 
   # ---- the mission ---------------------------------------------------------
+
+  def _other_in_the_way(self, wx: float, wy: float) -> bool:
+    """Is another robot within reach of this one, or of its goal?"""
+    px, py, _ = self.pose
+    for where in self.others:
+      ox, oy = where()
+      if (math.hypot(ox - px, oy - py) < OTHER_NEAR_M
+          or math.hypot(ox - wx, oy - wy) < OTHER_NEAR_M):
+        return True
+    return False
+
+  def _mask_others(self, trav) -> None:
+    """Take every other robot's footprint out of the traversable mask,
+    inflated as the map's obstacles are (issue #167). The lidar sees the
+    other robot too, but a scan marks where it WAS; this is where it says
+    it is now."""
+    if not self.others:
+      return
+    rows, cols = trav.shape
+    r = OTHER_ROBOT_CELLS
+    for where in self.others:
+      ox, oy = where()
+      cx, cy = self.grid.world_to_cell(ox, oy)
+      x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
+      y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
+      if x0 >= x1 or y0 >= y1:
+        continue
+      ys, xs = np.ogrid[y0:y1, x0:x1]
+      trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
 
   def steer_fn(self, tag_id: int, target: float = 0.0):
     """Terminal-servo callback for HubSwap: steer on ONE named bay marker,
@@ -516,6 +615,10 @@ class HubMission:
     return fn
 
   def refine_standoff(self, sx: float, sy: float, hd: float) -> float:
+    return self.run(self.refine_standoff_routine(sx, sy, hd))
+
+  def refine_standoff_routine(self, sx: float, sy: float,
+                              hd: float) -> Routine:
     """Kill the lateral arrival error before the terminal creep.
 
     drive_to's 8 cm arrival radius happily 'arrives' 7 cm off the bay line
@@ -530,27 +633,30 @@ class HubMission:
       lat = -dx * math.sin(hd) + dy * math.cos(hd)
       if abs(lat) < 0.015:
         break
-      self._drive(2.5, -0.15, 0.0)              # back off ~0.35 m
+      yield from self._drive_routine(2.5, -0.15, 0.0)   # back off ~0.35 m
       while math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
         v, w = drive_toward(self.pose, (sx, sy))
-        self._drive(self.model.opt.timestep, v, w)
-      self.face(hd)
+        yield from self._nav_routine(v, w)
+      yield from self.face_routine(hd)
     dx, dy = sx - self.pose[0], sy - self.pose[1]
     return -dx * math.sin(hd) + dy * math.cos(hd)
 
   def set_arm(self, extension: float, settle: float = 1.5) -> None:
+    return self.run(self.set_arm_routine(extension, settle))
+
+  def set_arm_routine(self, extension: float, settle: float = 1.5) -> Routine:
     """Deploy or stow the fork. Stowed is the DRIVING configuration: an
     extended fork rides at module height and sweeps a whole rack clean --
     measured, after a successful stow, by the robot driving along the rack
     to the charge bay and knocking the module it had just put away off its
     trays. Tuck the arm before you drive."""
-    self.data.ctrl[self.model.actuator("arm").id] = extension
-    self._drive(settle, 0.0, 0.0)
+    self.data.ctrl[self.swap.arm_act] = extension
+    yield from self._drive_routine(settle, 0.0, 0.0)
 
   def _vertex_ahead_of_camera(self) -> float:
     """Fork vertex forward of the dock camera, along the current heading."""
     cam = self.data.cam_xpos[self._cam_id]
-    vtx = self.data.site_xpos[self.model.site("fork_vertex").id]
+    vtx = self.data.site_xpos[self.swap.vertex_sid]
     h = self.pose[2]
     return ((float(vtx[0]) - float(cam[0])) * math.cos(h)
             + (float(vtx[1]) - float(cam[1])) * math.sin(h))
@@ -640,7 +746,7 @@ class HubMission:
     det = dets.get(tag_id)
     if det is None:
       return None
-    bid = int(self.model.geom("chassis").bodyid[0])
+    bid = self.swap.chassis_bid
     body_r = self.data.xmat[bid].reshape(3, 3)
     cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
     cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
@@ -757,6 +863,10 @@ class HubMission:
 
   def charge_approach(self, max_travel: float, creep_v: float,
                       tries: int = 3) -> str:
+    return self.run(self.charge_approach_routine(max_travel, creep_v, tries))
+
+  def charge_approach_routine(self, max_travel: float, creep_v: float,
+                              tries: int = 3) -> Routine:
     """Line up on the charge bay by its own tag and creep until the pins
     conduct. Returns _drive_until's `why`; the caller judges success by the
     electrical criterion, exactly as swap_at_bay's caller judges by seating.
@@ -774,43 +884,50 @@ class HubMission:
     # Bring the camera down to where the tag is before the first look: the
     # lift arrives at whatever height the last stow left it, and from the
     # align preset the charge tag is below the camera's view entirely.
-    self.swap._run(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
+    yield from self.swap._run_routine(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
     why = "no-attempt"
     for attempt in range(max(tries, 1)):
       if attempt:
         # back out past the standoff radius, so the retry's look is a fresh
         # measurement from a usable range rather than a re-read of the miss
-        self.swap._drive_until(CHARGE_RETRY_BACKOFF, -0.15, stall_stop=False)
+        yield from self.swap._drive_until_routine(CHARGE_RETRY_BACKOFF, -0.15,
+                                                  stall_stop=False)
       fix = self.charge_bay_fix()
       if fix is None:
         # the tag is not in view from here: spin to buy sight lines (and
         # map), re-adopt whatever the finder now believes, and look again
         # from that standoff
-        self._spin()
+        yield from self._spin_routine()
         self.refresh_rack()
         sx, sy, hd = charge_standoff(self.rack)
-        self.drive_to(sx, sy, timeout=45.0)
-        self.face(hd)
+        yield from self.drive_to_routine(sx, sy, timeout=45.0)
+        yield from self.face_routine(hd)
         fix = self.charge_bay_fix()
         if fix is None:
           why = "no-tag"
           continue
       sx, sy, hd = fix
-      self.drive_to(sx, sy, timeout=30.0)
-      self.face(hd)
-      self.refine_standoff(sx, sy, hd)
-      why = self.swap._drive_until(
+      yield from self.drive_to_routine(sx, sy, timeout=30.0)
+      yield from self.face_routine(hd)
+      yield from self.refine_standoff_routine(sx, sy, hd)
+      why = yield from self.swap._drive_until_routine(
         max_travel, creep_v, stall_stop=True, stall_time=CHARGE_PRESS_STALL_S,
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
         # and it is the CHASSIS that must meet the pins (see steer_fn)
         steer_fn=self.steer_fn(CHARGE_TAG_ID, target=-PLUG_LATERAL),
-        stop_fn=lambda: rack_charge_contact(self.model, self.data))
-      if rack_charge_contact(self.model, self.data):
+        stop_fn=lambda: rack_charge_contact(self.model, self.data,
+                                            self.handle.prefix))
+      if rack_charge_contact(self.model, self.data, self.handle.prefix):
         return why
     return why
 
   def swap_at_bay(self, station_y: float, verb: str,
                   module: str | None = None, tries: int = 2) -> str:
+    return self.run(self.swap_at_bay_routine(station_y, verb, module, tries))
+
+  def swap_at_bay_routine(self, station_y: float, verb: str,
+                          module: str | None = None,
+                          tries: int = 2) -> Routine:
     """Navigate to a bay's hand-off pose and pick or return there.
 
     module + tries: VERIFY the outcome and take another run at it. The
@@ -838,16 +955,16 @@ class HubMission:
     # milestone-4 doctrine applies verbatim: when nothing is reachable, spin
     # to buy map (and possibly the rack tag) and try again.
     for _ in range(2):
-      if self.drive_to(sx, sy):
+      if (yield from self.drive_to_routine(sx, sy)):
         break
-      self._spin()
+      yield from self._spin_routine()
       self.refresh_rack()
       sx, sy, hd = bay_standoff(station_y, self.rack)
     else:
       return "no-route"
     if self.refresh_rack() is not None:
       sx, sy, hd = bay_standoff(station_y, self.rack)
-      self.drive_to(sx, sy, timeout=25.0)
+      yield from self.drive_to_routine(sx, sy, timeout=25.0)
     why = "no-attempt"
     # The lift a swap ENTERS at, which is never "whatever the last manoeuvre
     # happened to leave" -- put_back computes every height RELATIVE to the
@@ -865,11 +982,11 @@ class HubMission:
     if verb == "pick":
       lift_entry = align_lift()
     else:
-      lift_entry = float(self.data.ctrl[self.model.actuator("lift").id])
+      lift_entry = float(self.data.ctrl[self.swap.lift_act])
     for attempt in range(max(tries, 1)):
       if verb == "pick" or attempt:
-        self.swap._run(1.5, 0.0, lift_target=lift_entry)
-      self.face(hd)
+        yield from self.swap._run_routine(1.5, 0.0, lift_target=lift_entry)
+      yield from self.face_routine(hd)
       # MEASURE the standoff off the bay's own tag before lining up on it
       # (issue #30): the believed one inherits the shift's accumulated drift,
       # and ~4 cm of that is a module dragged on to the floor. Face first, so
@@ -888,19 +1005,19 @@ class HubMission:
         # recovery, docked 6/6 at drift levels where the tool bays -- which
         # lacked it -- lost the pen for the rest of the mission (first
         # fouled return t=7372, every pen errand failing thereafter).
-        self._spin()
+        yield from self._spin_routine()
         self.refresh_rack()
         sx, sy, hd = bay_standoff(station_y, self.rack)
-        self.drive_to(sx, sy, timeout=45.0)
-        self.face(hd)
+        yield from self.drive_to_routine(sx, sy, timeout=45.0)
+        yield from self.face_routine(hd)
         fix = self.bay_fix(station_y)
       if fix is not None:
         sx, sy, hd = fix
-        self.face(hd)
+        yield from self.face_routine(hd)
       # ...and None even after the recovery keeps the believed standoff,
       # which is what every approach trusted before there were fixes.
-      self.refine_standoff(sx, sy, hd)
-      self.set_arm(ARM_EXT)               # deploy only once lined up
+      yield from self.refine_standoff_routine(sx, sy, hd)
+      yield from self.set_arm_routine(ARM_EXT)      # deploy only once lined up
       # Travel computed from the BELIEVED distance to the hang plane --
       # fixed travels assume a perfect standoff, and arrival is only good
       # to cm. Signs: picking OVERSHOOTS the peg line (the peg rides up the
@@ -912,20 +1029,20 @@ class HubMission:
       self.model.opt.timestep = SWAP_TIMESTEP
       try:
         if verb == "pick":
-          why = self.swap.pick(steer_fn=self.steer_fn(tag_id),
-                               dist=travel + PICK_OVERSHOOT)
+          why = yield from self.swap.pick_routine(
+            steer_fn=self.steer_fn(tag_id), dist=travel + PICK_OVERSHOOT)
         else:
-          why = self.swap.put_back(steer_fn=self.steer_fn(tag_id),
-                                   dist=travel - CARRY_OFFSET)
+          why = yield from self.swap.put_back_routine(
+            steer_fn=self.steer_fn(tag_id), dist=travel - CARRY_OFFSET)
       finally:
         self.model.opt.timestep = self.cruise_timestep
-      self.set_arm(0.0)                   # tuck it back before driving off
+      yield from self.set_arm_routine(0.0)  # tuck it back before driving off
       if module is None:
         break
       st = self.swap.module_state(module)
       if verb == "pick":
         ok = st["on_fork"] and module_power_contact(self.model, self.data,
-                                                    module)
+                                                    module, self.handle.prefix)
       else:
         ok = st["hung"]
       if ok:

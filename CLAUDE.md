@@ -23,6 +23,11 @@ wording, settled direction. Before doing anything, read:
   grading, and how tasks, errands and activities compose. Read BEFORE adding
   a task kind or touching `economy/tasks.py`, `economy/scoring.py` or
   `economy/cadence.py` — and fold any gap it left back in
+- `docs/Challenges.md` — how a job nobody wrote a scorer for is graded: a
+  success predicate written BEFORE the robot sees it, through `scoring.py`'s
+  chain, with a hold; the three candidates rejected and why; what it cannot
+  grade. Read BEFORE adding a challenge, touching `challenge/`, or reaching
+  for an LLM judge
 - `docs/Overseer.md` — the mind: where it sits in the arbitration loop and
   which rails each arm keeps, the action vocabulary, the standing order and
   the event map, what it structurally cannot do on any arm, the fallbacks,
@@ -434,6 +439,37 @@ save a filmstrip PNG named after the script.
   the telemetry header — one string by construction (`$PLUGGY_ROBOT_NAME`).
   #154 makes `Main.md` the constitution and `Goals.md` the robot's; the
   fixture recordings pin `DEFAULT_MAIN` and are re-recorded when it moves.
+- **The `autonomous` arm can write procedures, and only it can** (issue
+  #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
+  Python-SHAPED, parsed with `ast` into the language's own tree and
+  interpreted as a routine — NEVER executed (a test asserts no `exec`/
+  `eval`/`compile` in the module). The grammar is closed: the twelve verbs
+  as statements, `read("sensor")` as the one expression call, locals,
+  arithmetic, comparisons, `if/elif/else`, `for name in range(N)` with a
+  literal N ≤ `MAX_ITER` (100), `while` capped at `MAX_ITER` (`loop-cap`),
+  `return`; anything else is refused with its line, every reason at once,
+  before a step runs (one test per construct). ⚠ THE MOTOR LEVEL IS
+  `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
+  `axes.SENSORS`): an axis is one actuator's setpoint with the range and
+  speed its tool already ramps with, run through `HubSwap.ramp_routine`;
+  a tool built from a spec (#168) registers its own and the language does
+  not change. Budgets (`budget(steps=, seconds=)`) are capped by code
+  (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a
+  computed argument is checked when computed, by the same `check_arg`. ⚠
+  THE LIBRARY is `$PLUGGY_THOUGHTS/procedures/`, `MAX_PROCEDURES` 8, two
+  decision FIELDS `define {name, source}` / `undefine`, NO REPLACE (refused;
+  undefine first), full refuses out loud, sources survive a restart and are
+  recompiled against today's world (an invalid one is kept, marked, shown).
+  ⚠ Invoked as `procedure:<name>` — the action, a standing order, or an
+  event-map row (`standing_order()` accepts the token; `order_runnable`
+  reads `state["procedures"]`); the name is an enum per call
+  (`Menu.schema(procedures=)`). ⚠ `Menu.procedures` is set by `build()` on
+  `autonomous` ONLY and everything keys off it; `guarded`'s menu, schema
+  and prefix are byte-identical (`GUARDED_RULES_SHA`). ⚠ `PROCEDURE_RULE`'s
+  worked example may not show charge, a battery threshold or the rack
+  (EVENT_MAP_RULE's rule; a test reads the example block). The flown proof
+  (a procedure the agent wrote, invoked by its own `every` row, 84 s) is
+  behind `--endurance`; every rule in it is pinned in milliseconds.
 - **The allowance** (`mind/spend.py`, `mind/mode.py`, issue #37): the model is
   SHOWN what its thinking cost and has one boolean (`escalate`) to ask for a
   bigger mind; every gate is code — `$PLUGGY_WEEKLY_USD` (default $10,
@@ -617,7 +653,13 @@ save a filmstrip PNG named after the script.
   ANY geometry in that world (the fixture test fails when stale).
   Recordings: `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py [--world
   home --errand showcase] --tasks --metabolism --record protocol/telemetry.
-  {hub,home}_lifecycle.jsonl.gz`. ⚠ `--tasks` and `--metabolism` are BOTH
+  {hub,home}_lifecycle.jsonl.gz`. The PAIR world (`room_hub_pair`, 0.20.0)
+  is a third: `python -m pluggybot.telemetry.scene models/room_hub.xml
+  --pair` and `scripts/two_robots.py --fast --pack hosting --tasks
+  --metabolism --game --max-sim-time 600 --record protocol/telemetry.
+  room_hub_pair.jsonl.gz` (⚠ `--pack hosting`: on the demo cell the hider
+  dies mid-game at 286 s).
+  ⚠ `--tasks` and `--metabolism` are BOTH
   load-bearing: both are off by default and a recording made without them
   carries no `tasks`/`metabolism` block for the website to build against.
   ⚠ The HOME recording takes TWO PASSES against the same `--boards
@@ -673,7 +715,9 @@ save a filmstrip PNG named after the script.
   strokes, hershey, boards) · `mind/` (overseer, llm, events, thoughts,
   journal, inbox, mode, spend) · `economy/` (tasks, scoring, ledger, cadence,
   questions, energy, metabolism, census, and the five `.json` data files) ·
-  `mission/` (mission, errand) · `evaluation/` (arms, record, rollup, notes) ·
+  `mission/` (mission, errand) · `challenge/` (stack: criteria, props,
+  measurement — one module per challenge) · `evaluation/` (arms, record,
+  rollup, notes) ·
   `lifecycle.py` at top level, because arbitration ties them together. A
   module goes where its CONCERN lives; a module that fits none is a new
   domain, not a reason to widen an old one. `tests/` is flat.
@@ -681,6 +725,142 @@ save a filmstrip PNG named after the script.
   `room_1.xml` add scenery. Never put scenery in the test world.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy, ix]`.
 - Odometry tracks the axle midpoint; `qpos` tracks the body origin 8 cm ahead.
+- **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue
+  #58; `pluggybot/tick.py`). A routine is a generator yielding one `(v, w)`
+  drive command per physics step and returning its result; `HubLifecycle.
+  run()` drives `_day_routine`, and every branch, errand, swap, drive and
+  tool motion beneath it is composed with `yield from`. Each keeps a
+  ONE-LINE blocking twin under its old name (`drive_to` = `run(drive_to_
+  routine(...))`) for scripts and tests — keep the twins thin, they are the
+  thing M12 deletes. ⚠ A ROUTINE CALL IS NOTHING UNTIL IT IS DRIVEN:
+  `self.drive_to_routine(x, y)` without `yield from` is a truthy object that
+  moved nothing; `tests/test_tick.py` walks the syntax tree for it. ⚠ An
+  exception from the step (`stop_when`'s `MissionAborted`) is THROWN INTO
+  the routine so `finally` blocks run where they always ran. ⚠ A test that
+  stubs a drive stubs the ROUTINE (`life.mission.drive_to_routine = lambda
+  *a, **kw: tick.result(False)`), never the twin. Parity is the trajectory
+  hash: `scripts/determinism_spike.py --compare` before and after, and the
+  refactor landed IDENTICAL over a 1500 s scripted `home` day. `_ask_
+  interrupt` and the dispenser are still blocking, on purpose and by
+  omission respectively.
+- **A robot's elements are reached through its `RobotHandle`, never by
+  bare name** (issue #167, M12; `pluggybot/robot.py`). A second robot is
+  `models/pluggybot_fork.xml` ATTACHED with a prefix (`MjSpec.attach`,
+  `r2_`), so its names are `r2_chassis`, `r2_lift`, `r2_dock_eye`; the
+  first robot's handle is `FIRST` (prefix `""`) and a single-robot world is
+  byte-identical. `HubSwap`, `HubMission`, `Battery`, the tools and the
+  lifecycle take `handle=`; the swap owns the resolved ids (`lift_act`,
+  `arm_act`, `root_qadr`, `vertex_sid`, `chassis_bid`) and everything reads
+  them from there; the electrical criteria take `prefix=` (a module on the
+  OTHER robot's fork is not powered by this one). ⚠ `qpos[0..7]` is the
+  first robot only — use `swap.root_qadr`. The rack, bays and modules are
+  the WORLD's and never prefixed (tool contention is the minds' to
+  negotiate). ⚠ Measured: a parked second robot leaves the first robot
+  byte-identical over a spin, a drive and a whole drawing, but a full
+  `home` day diverges at t = 98 s by 10⁻¹⁵ — the solver's rounding with an
+  extra island, not a code path (SimNotes). So a CODE change on this stack
+  is proven by flying it ALONE against the baseline (IDENTICAL); a WORLD
+  change is judged on `ctrl` and the perception trace
+  (`determinism_spike.py --second-robot X,Y`). `tests/test_two_robots.py::
+  test_mission_code_resolves_every_robot_element_through_the_handle` is
+  the fence: a bare robot name in mission code fails it.
+- **Two robots run from ONE physics loop** (issue #167 slice B;
+  `pluggybot/pair.py`, `tick.run_many`). `HubSwap._step_once` is
+  `_before_step` (the wheel setpoints) + `mj_step` + `_after_step` (press,
+  reckoner, hooks), and `run_many` does every robot's before, ONE step,
+  every robot's after — the same three things in the same order, so a
+  robot alone is unchanged (parity flown). `HubLifecycle.run()` is
+  `begin()` (setup → the day routine) + `end()` (the summary), which is
+  what `run_pair` shares one loop between. ⚠ A hook's `MissionAborted` is
+  thrown into EVERY live routine, then re-raised: one robot's stop is the
+  day's stop. ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
+  mission's `others` (callables → the other's dead-reckoned x, y — a
+  network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
+  the traversable mask at plan time, a stagnated drive with another
+  robot within `OTHER_NEAR_M` WAITS (`OTHER_WAIT_S`) instead of failing,
+  and each lidar DROPS the other robot's body from its scans
+  (`Lidar.exclude_robot`) — measured: painted into the grid and inflated,
+  a robot driving past walled in the robot it passed, which planned None
+  from its own cell for 12 s and gave up the bay. ⚠ One rack, one charge
+  bay, contended and unarbitrated: a scripted pair sent for the same tool
+  ends with the second's pick failing honestly at an empty bay; two robots
+  needing to charge at once is a death the second bay (later slice)
+  removes. The world's activities are on the FIRST robot's hooks only.
+  `scripts/two_robots.py [--view] --errands carry,carry` is the demo.
+- **Two minds, two memories, one board** (issue #167 slice C; `pair.
+  build_pair(overseer=True)`, Overseer.md §2c). Per robot: overseer, event
+  map, standing order, thought root (the first at `thoughts_root`, the
+  second under `<root>/r2_pluggybot/`), library, journal, WALLET, appetite.
+  The world: one task board, one producer on the FIRST robot's seam. ⚠
+  SEPARATE WALLETS, decided (a shared one is a later ablation). ⚠
+  `OTHER_ROBOT_RULE` is the empathy measurement's whole input: written
+  once, pinned by `OTHER_ROBOT_RULE_SHA`, names the other as a mind, says
+  what is shared, prescribes NOTHING (no yield/share/wait — that is the
+  signal). Appended to the prefix only where another robot exists.
+  `others` in the context is the PUBLIC surface (`lifecycle.others_context`:
+  name, reported pose, state, status line, carrying, dead) — never battery,
+  points, goals, thoughts, reasons or secrets; a test walks the context for
+  the other's thought lines. `HubLifecycle.peers` is read by that and by
+  NOTHING that decides.
+- **The first two-role errand is hide and seek** (issue #167 slice D;
+  `activity/hideseek.py`, `pair.arrange_game`, `lifecycle.
+  hide_and_seek_program`). A `TaskKind` may carry `roles`; the offer stays
+  OFFERED until every role is held, one role per robot, first claimant
+  first role (`TaskBoard.claim(role=)`, `Task.claims`, `open_roles`,
+  `role_of`); the claim event carries `claims`. Each robot runs its role's
+  steps from #58's `roles` slot (`run_program_routine(role=)`,
+  `Errand.role`), as an errand whose task is `game` — a name with NO
+  evaluator, so the lifecycle scores nothing. ⚠ THE REFEREE IS AN
+  ACTIVITY: `HideAndSeek` senses both chassis and a lidar-to-hider raycast
+  every step on the first robot's seam, latches `found` (within
+  `FIND_WITHIN_M` WITH line of sight) or `over` (`SEEK_S` after the
+  `SEEK_HEAD_START_S` head start), and the pair evaluates ONE verdict
+  (`eval_hide_and_seek`, `challenges.json`) and banks it on the WINNER's
+  wallet only; the task resolves for both. No new sensing: the seeker need
+  not know it found anything. ⚠ The referee is built when the second
+  claim lands (it has to know who is who); `HubLifecycle.game` is read for
+  its clock and by the sampler, never by anything that decides.
+- **The wire keys everything by the robot's ROOT** (issue #167 slice E;
+  protocol/README.md "a second robot on the stream"). `HubLifecycle.root`
+  is what every event this lifecycle emits carries; `ThoughtFiles(robot=)`,
+  `Journal(robot=)`, `Metabolism(robot=)` likewise; `ledger.Account` is
+  ONE robot's view of a shared `Ledger` (fills `robot=` where the caller
+  did not) — a pair shares one ledger FILE with one account each.
+  `protocol.robot_roots(model)` lists the robots; `body_census(model,
+  root)` and the scene's per-body `robot` are per root; `FrameBuilder`
+  walks a `StreamRobot` per robot (the kwargs are the first, `others=` the
+  rest) and EVERYTHING a robot has rides `robots[<root>]` — bodies, status,
+  `spend`, `metabolism` — with one `goals`, one set of `thought` and one
+  `grid` message per robot (protocol 0.20.0, the bump; `grid_samplers`
+  builds a sampler per map). `pair.record_pair` wires a whole pair into
+  one recording under the PAIR world's name (`robot.pair_model_name`,
+  `room_hub_pair` — a replayer picks its scene off `model`, and the second
+  robot's bodies are in no single-robot scene); `activity/encounter.py`
+  emits `encounter` (`met`/`parted`, hysteresis). ⚠ `serve.py` still
+  flies one robot.
+- **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
+  `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
+  DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
+  verbs (`fetch stow drive_to face set_lift grip release draw look wait`),
+  each an existing routine with the ramping inside it; the runner gives one
+  verdict per step, measured off the world, stops at the first failure, and
+  the errand around it hangs back whatever is on the fork (abort means
+  stow). ⚠ VALIDATION IS TOTAL AND FIRST: `validate` returns every reason,
+  `run_program_routine` raises `Refused` before step one; caps are code's
+  (`MAX_STEPS` 24, `MAX_BUDGET_S` 1800, `MAX_WAIT_S` 60), choices are the
+  world's (`lifecycle.world_facts`). ⚠ `roles` is M12's slot: any number
+  validates, more than one is REFUSED to run, single-role is the default
+  shape. ⚠ THE FENCE: `data.ctrl` is written only by the modules listed in
+  `tests/test_procedure.py::CTRL_WRITERS` — never `procedure/`, never the
+  runner — and adding a writer is editing that list on purpose. ⚠ A task
+  carries the procedure that discharges it in `params["procedure"]`
+  (`params["program"]` is a drawing's FIGURE name); the kind's own evaluator
+  grades it, and `program` (the generic per-step verdict) is a
+  `challenges.json` row: challenge rows are merged into `default_table()`
+  UNOFFERED — bankable by the ledger, shown to no overseer, hashed into no
+  result (`RewardTable.offered`). The `procedure` event is additive on the
+  wire (`PROCEDURE_OUTCOMES`; no bump). Rung two — conditionals, loops, a
+  library — is #166 and adds no verb that bypasses the fence.
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws. `control.slew` for wheels;
@@ -811,8 +991,14 @@ save a filmstrip PNG named after the script.
   sim-hours to 14 — the empty world dressed as a safety feature); a claim
   still sees `spendable_wh`. A passed-over kind KEEPS the head of the queue;
   one offer per tick and no catch-up; targets least-recently-offered, never
-  first; nothing random. With a producer attached the loop stands by in
-  `WAIT_FOR_WORK_S` slices instead of ending the day when momentarily idle,
+  first; nothing random. When work may still ARRIVE (`HubLifecycle.expects_work`
+  — follows `producer`, and a pair sets it on the second robot, whose
+  board grows on the FIRST robot's producer; keyed on `producer` the hider
+  called its day complete mid-game) the loop stands by in
+  `WAIT_FOR_WORK_S` slices instead of ending the day when momentarily idle
+  — after CLEARING THE RACK (`RACK_CLEAR_M` 2.0 m of the rack prior, back
+  to its start; measured: an idle second robot at the bay standoff failed
+  the first robot's next pick 0.4 m away),
   and `run_errand` honours `drive_to`'s answer (a use-phase after a failed
   drive is skipped and the tool still goes home).
 - **Points are a currency, and staying alive costs some** (issues #135 +
@@ -866,6 +1052,19 @@ save a filmstrip PNG named after the script.
   lift it starts at). ⚠ A result has to outlive a frame: Python between two
   physics steps costs zero sim time, so hold a screen result
   (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING, not the return value.
+- **A challenge is a task whose criteria were written before the robot saw
+  it** (issue #120; `challenge/stack.py`, Challenges.md). Same MEASURE / JUDGE
+  / PAY door as every task: its evaluator and sampler are on `scoring.py`'s
+  registries, the sampler reads the WORLD and never the errand's `result`
+  (a test hands it a report that says "built"), and it is graded twice — at
+  the call and after a hold (`stack.HOLD_S` = 10 s; an overhung tower is on
+  the floor inside 0.31 s). ⚠ Its reward row is `economy/challenges.json`,
+  NOT `rewards.json`: a row there is shown to the overseer and hashed into
+  every committed result, so moving one across is the PR that offers the
+  challenge and a re-fly of `guarded`. ⚠ Props come through `MjSpec`
+  (`stack.add_blocks`), never a committed world, until offered. ⚠ The blocks
+  carry `GRIP_SOLIMP`: on default contact a 2 + 4 mm lean crept over at
+  16.9 s, which grades the solver rather than the robot.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):
   `economy/scoring.py` measures the world and judges (`EVALUATORS`, pure),
   `rewards.json` says what it pays, `economy/ledger.py` banks it; a `Verdict`

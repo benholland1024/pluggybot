@@ -5,6 +5,7 @@ import math
 import mujoco
 import pytest
 
+from pluggybot import tick
 from pluggybot.tools import strokes
 from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
 from pluggybot.control import FACE_BUDGET_S
@@ -80,9 +81,12 @@ class _StuckSwap:
     if self.data.time > 2 * FACE_BUDGET_S:
       raise RuntimeError("PenPlotter._face is unbounded again (issue #108)")
 
-  def _run(self, seconds, v, lift_target=None):
+  def _run_routine(self, seconds, v, lift_target=None):
     for _ in range(round(seconds / 0.002)):
-      self._step_once(0.0, 0.0)
+      yield 0.0, 0.0
+
+  def run(self, routine, name=""):
+    return tick.run(self, routine, name)
 
 
 def test_a_pen_that_cannot_square_up_gives_up_and_says_so():

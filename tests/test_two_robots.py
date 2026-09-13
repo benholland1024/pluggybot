@@ -1,0 +1,506 @@
+"""Two robots in one world (issue #167, M12), slice A: the namespacing.
+
+A second robot is the same model file attached with a prefix; a
+`RobotHandle` is that prefix, and every class that resolves a robot element
+does so through it. The first robot keeps the bare names, so a single-robot
+world is byte-for-byte what it was -- the parity flight is the proof at
+mission scale, and the first test here is it at the scale of a spin and a
+drive.
+"""
+
+import math
+import pathlib
+import re
+
+import mujoco
+import numpy as np
+import pytest
+
+from pluggybot.control import wheel_targets
+from pluggybot.mission.mission import HubMission
+from pluggybot.rack.coupling import (
+  HUB_STATION_YS, module_power_contact, rack_charge_contact,
+)
+from pluggybot.rack.swap import HubSwap
+from pluggybot.robot import FIRST, SECOND, RobotHandle, world_with_robots
+from pluggybot.tools.gripper import CLAW_MODULE
+
+SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
+PARK = (5.5, 5.5)          # room_hub: a far corner, off every route
+
+
+@pytest.mark.parametrize("world", ["models/room_hub.xml", "models/home_world.xml"])
+def test_two_namespaced_robots_compile(world):
+  model = world_with_robots(world, second_at=(9.0, -5.0) if "home" in world else PARK)
+  names = {model.body(i).name for i in range(model.nbody)}
+  assert FIRST.root in names and SECOND.root in names
+  for el in ("lift", "arm", "left_motor", "right_motor"):
+    model.actuator(SECOND.el(el))
+  for el in ("dock_eye", "left_eye"):
+    model.camera(SECOND.el(el))
+  model.sensor(SECOND.el("imu_gyro"))
+  for el in ("lidar", "fork_vertex"):
+    model.site(SECOND.el(el))
+  assert FIRST.qpos_adr(model) == 0 and SECOND.qpos_adr(model) > 7
+  # ...and the rack, the bays and the modules are the WORLD's, not prefixed
+  assert "rack" in names and "module_pen" in names
+  assert not any(n.startswith("r2_module") or n.startswith("r2_rack") for n in names)
+
+
+def _subtree_hash(model, data, handle: RobotHandle):
+  root = model.body(handle.root).id
+  ids = [i for i in range(model.nbody) if model.body_rootid[i] == root]
+  return np.concatenate([data.xpos[ids].ravel(), data.xquat[ids].ravel()]).tobytes()
+
+
+def test_a_parked_second_robot_leaves_the_first_robots_trajectory_byte_identical():
+  """The parity claim at test scale. MuJoCo 3.10's solver is island-
+  separable, so an extra robot resting on the floor changes nothing in the
+  first robot's numbers -- measured near and far before this was built."""
+  def fly(model):
+    data = mujoco.MjData(model)
+    m = HubMission(model, data, viewer=None, realtime=False)
+    m.start_at(0.5, 3.0, 1.5708)
+    m._spin()
+    m.drive_to(1.5, 2.0, timeout=12.0)
+    return _subtree_hash(model, data, FIRST), m.pose, float(data.time)
+  alone = fly(mujoco.MjModel.from_xml_path("models/room_hub.xml"))
+  with_r2 = fly(world_with_robots("models/room_hub.xml", second_at=PARK))
+  assert alone == with_r2
+
+
+def test_the_second_robot_drives_through_its_handle_and_the_first_stays_put():
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  data = mujoco.MjData(model)
+  first = HubMission(model, data, viewer=None, realtime=False, handle=FIRST)
+  second = HubMission(model, data, viewer=None, realtime=False, handle=SECOND)
+  first.start_at(0.5, 3.0, 1.5708)
+  second.start_at(3.0, 3.0, 0.0)
+  before = _subtree_hash(model, data, FIRST)
+  q = SECOND.qpos_adr(model)
+  x0 = float(data.qpos[q])
+  second._drive(2.0, 0.15, 0.0)
+  assert second.face(1.2)
+  assert float(data.qpos[q]) - x0 > 0.2, "the second robot did not move"
+  assert abs(second.pose[2] - 1.2) < 0.05
+  assert abs(first.pose[0] - 0.5) < 1e-6 and abs(first.pose[1] - 3.0) < 1e-6
+  # the first robot's bodies did not move while the second drove (it was
+  # held by its own brake; the hash is over its whole subtree)
+  after = _subtree_hash(model, data, FIRST)
+  assert np.frombuffer(before, float).round(3).tolist() == \
+    np.frombuffer(after, float).round(3).tolist()
+
+
+def test_the_second_robot_picks_a_module_and_only_its_own_fork_powers_it():
+  """The coupling through the handle: the second robot's fork plates are
+  `r2_fork_v*`, so `module_power_contact` with its prefix says powered while
+  the first robot's says not -- a module on the other robot's fork is not
+  this robot's."""
+  model = world_with_robots("models/hub_world.xml", second_at=(1.5, 1.5))
+  data = mujoco.MjData(model)
+  first = HubSwap(model, data, handle=FIRST)
+  first.place_at_standoff(HUB_STATION_YS[0])          # out of the way, bay A
+  second = HubSwap(model, data, handle=SECOND)
+  second.place_at_standoff(HUB_STATION_YS[3])         # the claw's bay
+  second.pick()
+  assert second.module_state(CLAW_MODULE)["on_fork"]
+  assert module_power_contact(model, data, CLAW_MODULE, SECOND.prefix)
+  assert not module_power_contact(model, data, CLAW_MODULE, FIRST.prefix)
+  assert not first.module_state(CLAW_MODULE)["on_fork"]
+  assert not rack_charge_contact(model, data, SECOND.prefix)
+
+
+# ---- the fence: no bare robot name in mission code -----------------------------
+
+#: Element names that belong to a robot, which mission code may only reach
+#: through a handle. Module, rack, bay and board names are the WORLD's.
+ROBOT_ELEMENTS = ("chassis", "lift", "arm", "left_motor", "right_motor",
+                  "left_wheel_joint", "right_wheel_joint", "lift_joint",
+                  "arm_joint", "imu_gyro", "dock_eye", "left_eye", "lidar",
+                  "fork_vertex", "pluggybot")
+#: The mission stack: what a second robot runs a copy of.
+MISSION_CODE = ("lifecycle.py", "power.py", "rack/swap.py", "mission/mission.py",
+                "mission/errand.py", "tools/drawing.py", "tools/gripper.py",
+                "tools/dispenser.py", "tools/screen.py", "procedure/steps.py",
+                "procedure/axes.py", "procedure/lang.py", "perception/lidar.py",
+                "rack/localize.py", "rack/tags.py", "economy/census.py")
+
+
+def test_mission_code_resolves_every_robot_element_through_the_handle():
+  bare = re.compile(r'\.(body|geom|joint|actuator|site|camera|sensor)\("('
+                    + "|".join(ROBOT_ELEMENTS) + r')"\)')
+  root_index = re.compile(r"qpos\[(0|1|2|3:7|:7|:3)\]")
+  bad = []
+  for rel in MISSION_CODE:
+    text = (SRC / rel).read_text()
+    for n, line in enumerate(text.splitlines(), 1):
+      if bare.search(line) or root_index.search(line):
+        bad.append(f"{rel}:{n}: {line.strip()}")
+  assert not bad, "bare robot names in mission code:\n  " + "\n  ".join(bad)
+
+
+# ---- slice B: one loop, two controllers, mutual awareness ----------------------
+
+
+class _Swap:
+  """Records the order the loop calls it in; raises from a hook on cue."""
+
+  def __init__(self, log, name, raise_at=None):
+    self.log, self.name, self.raise_at, self.after = log, name, raise_at, 0
+
+  def _before_step(self, tl, tr):
+    self.log.append((self.name, "before", round(tl, 3)))
+
+  def _after_step(self):
+    self.after += 1
+    self.log.append((self.name, "after"))
+    if self.raise_at is not None and self.after == self.raise_at:
+      raise RuntimeError("hook")
+
+
+def test_run_many_applies_every_command_steps_once_then_books_every_robot():
+  from pluggybot import tick
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+
+  def ra():
+    yield 0.1, 0.0
+    yield 0.1, 0.0
+    return "a-done"
+
+  def rb():
+    yield 0.2, 0.0
+    return "b-done"
+  results = tick.run_many([(a, ra()), (b, rb())],
+                          step=lambda: log.append(("world", "step")))
+  assert results == ["a-done", "b-done"]
+  # step 1: both commands, one world step, both bookkeepings -- in order
+  assert log[:5] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
+                     ("b", "before", round(wheel_targets(0.2, 0.0)[0], 3)),
+                     ("world", "step"), ("a", "after"), ("b", "after")]
+  # step 2: b has returned and holds zero while a finishes
+  assert log[5:10] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
+                       ("b", "before", 0.0),
+                       ("world", "step"), ("a", "after"), ("b", "after")]
+  assert len(log) == 10
+
+
+def test_run_many_throws_a_hook_exception_into_every_live_routine():
+  from pluggybot import tick
+  log: list = []
+  a, b = _Swap(log, "a", raise_at=1), _Swap(log, "b")
+  seen: list = []
+
+  def ra():
+    try:
+      yield 0.1, 0.0
+      yield 0.1, 0.0
+    finally:
+      seen.append("a-finally")
+
+  def rb():
+    try:
+      yield 0.1, 0.0
+      yield 0.1, 0.0
+    finally:
+      seen.append("b-finally")
+  with pytest.raises(RuntimeError, match="hook"):
+    tick.run_many([(a, ra()), (b, rb())], step=lambda: None)
+  assert sorted(seen) == ["a-finally", "b-finally"]
+
+
+def test_the_planner_routes_round_the_other_robots_reported_pose():
+  """Unit test on the grid, no mission: a free room, the other robot
+  reported on the straight line, and every waypoint keeps clear of it."""
+  from pluggybot.mission.mission import OTHER_ROBOT_CELLS
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  m.grid.grid[:] = -5.0                      # everything known free
+  goal = (4.0, 1.0)
+  straight = m._plan_to(*goal)
+  assert straight is not None
+  m.others = [lambda: (2.5, 1.0)]
+  bent = m._plan_to(*goal)
+  assert bent is not None
+  clearance = OTHER_ROBOT_CELLS * m.grid.resolution
+  assert all(math.hypot(x - 2.5, y - 1.0) > clearance - m.grid.resolution
+             for x, y in bent), "a waypoint passes through the other robot"
+  assert any(math.hypot(x - 2.5, y - 1.0) < clearance for x, y in straight)
+  assert m._other_in_the_way(*goal) is False
+  assert m._other_in_the_way(2.6, 1.2) is True
+
+
+def test_a_blocked_drive_waits_for_the_other_robot_instead_of_giving_up():
+  """The other robot reported ON the goal: the drive stagnates, sees the
+  other in the way, and waits out its timeout rather than returning False
+  after ten seconds of no progress."""
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  m.grid.grid[:] = -5.0
+  m.others = [lambda: (1.6, 1.0)]
+  t0 = data.time
+  arrived = m.drive_to(1.6, 1.0, timeout=14.0)
+  assert not arrived
+  assert data.time - t0 >= 13.5, "gave up before its timeout"
+
+
+def test_the_lidar_drops_the_other_robots_body_from_the_scan():
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(0.5, 3.0, 0.0)                  # facing +x, the other 1.5 m ahead
+  mujoco.mj_forward(model, data)
+  angles, ranges = m.lidar.scan(data)
+  ahead = np.abs(angles) < 0.15
+  assert ranges[ahead].min() < 1.6, "the other robot is not in the scan"
+  m.lidar.exclude_robot(SECOND.root)
+  angles, ranges = m.lidar.scan(data)
+  ahead = np.abs(angles) < 0.15
+  assert not ahead.any() or ranges[ahead].min() > 3.0, \
+    "the other robot's body is still in the scan"
+
+
+@pytest.mark.slow
+def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
+  """The pair, flown: one `mj_step` loop, two days; robot 1 fetches the LCD
+  while robot 2 explores, and both are alive when the pick lands. Stops on
+  its claim."""
+  from pluggybot.pair import build_pair, run_pair
+  lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"))
+  assert lives[0].mission.others and lives[1].mission.others
+  results = run_pair(lives, max_sim_time=200.0,
+                     stop_when=lambda ls: ls[0].swaps_done >= 1)
+  assert results[0]["swaps_done"] >= 1 and results[0]["aborted"]
+  assert all(r["dead"] is None for r in results)
+  assert results[0]["collision_steps"] == 0 and results[1]["collision_steps"] == 0
+  assert lives[0].data.time == lives[1].data.time
+
+
+# ---- slice E: the wire ------------------------------------------------------
+
+
+def test_the_census_and_the_scene_key_every_robot_by_its_root():
+  from pluggybot.telemetry.protocol import body_census, robot_roots
+  from pluggybot.telemetry.scene import scene_dict
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  assert robot_roots(model) == [FIRST.root, SECOND.root]
+  alone = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  assert robot_roots(alone) == [FIRST.root]
+  r1, world = body_census(model)
+  r2, world2 = body_census(model, SECOND.root)
+  assert r1 and r2 == [SECOND.el(n) for n in r1]
+  assert world == world2 and not any(n.startswith("r2_") for n in world)
+  assert body_census(alone) == (r1, world), "a single-robot census moved"
+  scene = scene_dict(model, "room_hub")
+  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
+  assert owners[SECOND.root] == SECOND.root and owners[FIRST.root] == FIRST.root
+  assert owners[SECOND.el("head")] == SECOND.root
+  assert owners["rack"] is None and owners["module_pen"] is None
+
+
+@pytest.mark.slow
+def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
+  """The stream with a second robot on it: the header names both, every
+  frame carries `robots[<root>]` for each, and the ledger's, thoughts',
+  encounters' and referee's events say whose they are. A single-robot
+  stream is what it was (the fixture test)."""
+  import json
+  from pluggybot.pair import arrange_game, build_pair, run_pair
+  lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
+                     tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
+  arrange_game(lives)
+  lives[0].thoughts.learn("the other one is quick", t=0.0)
+  lives[1].thoughts.learn("the first one is slow", t=0.0)
+  path = str(tmp_path / "pair.jsonl")
+  run_pair(lives, max_sim_time=12.0, record=path)
+  rows = [json.loads(line) for line in open(path)]
+  header = rows[0]
+  assert header["type"] == "header"
+  assert set(header["robots"]) == {FIRST.root, SECOND.root}
+  assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
+  assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
+  assert header["ledger"] == [FIRST.root, SECOND.root]
+  assert header["model"] == "room_hub_pair"
+  goals = [r for r in rows if r.get("type") == "goals"]
+  assert [g["robot"] for g in goals] == [FIRST.root, SECOND.root]
+  frames = [r for r in rows if "type" not in r]
+  assert frames and all(set(f["robots"]) == {FIRST.root, SECOND.root} for f in frames)
+  assert frames[0]["robots"][SECOND.root]["bodies"]
+  thoughts = [r for r in rows if r.get("type") == "thought"]
+  assert {t["robot"] for t in thoughts} == {FIRST.root, SECOND.root}
+  claims = [r for r in rows if r.get("type") == "task_claimed"]
+  assert claims and claims[-1]["claims"] == {"hider": FIRST.root, "seeker": SECOND.root}
+  assert header["activities"] == ["encounters", "hide_and_seek"], "the referee must be advertised"
+
+
+class _Block:
+  """A `snapshot()` duck (a spend book, an appetite) that returns what it is
+  told to, so the builder's per-robot change detection is the only thing
+  under test."""
+  def __init__(self, value: dict):
+    self.value = value
+
+  def snapshot(self) -> dict:
+    return dict(self.value)
+
+
+class _Docs:
+  """A `ThoughtFiles` duck: one document, keyed by its robot."""
+  def __init__(self, robot: str):
+    self.robot = robot
+
+  def messages(self, t: float = 0.0) -> list[dict]:
+    return [{"type": "thought", "t": t, "robot": self.robot, "name": "Main.md",
+             "text": f"I am {self.robot}"}]
+
+
+def _two_robot_builder(**second):
+  from pluggybot.telemetry.recorder import FrameBuilder, StreamRobot
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  data = mujoco.MjData(model)
+  other = StreamRobot(SECOND.root, "Rowan", lambda: {"state": "IDLE"}, **second)
+  return model, data, other, FrameBuilder
+
+
+def test_spend_and_metabolism_ride_each_robots_own_record():
+  """0.20.0: the two blocks are keyed by robot like everything else on the
+  wire, and each robot's change detection is its own -- the second robot
+  eating does not re-ship the first robot's unchanged block."""
+  model, data, other, FrameBuilder = _two_robot_builder(
+    metabolism=_Block({"state": "starving", "points": 0}))
+  hunger1 = _Block({"state": "satisfied", "points": 15})
+  purse = _Block({"spentUsd": 0.0})
+  b = FrameBuilder(model, data, metabolism=hunger1, spend=purse, others=[other])
+  first = b.build()
+  assert "metabolism" not in first and "spend" not in first, \
+    "a top-level block is the first robot's alone -- the pre-0.20.0 shape"
+  assert first["robots"][FIRST.root]["metabolism"]["state"] == "satisfied"
+  assert first["robots"][FIRST.root]["spend"] == {"spentUsd": 0.0}
+  assert first["robots"][SECOND.root]["metabolism"]["state"] == "starving"
+  assert "spend" not in first["robots"][SECOND.root], "no purse, no block"
+  other.metabolism.value = {"state": "hungry", "points": 3}
+  data.time = 0.1
+  second = b.build()
+  assert second["robots"][SECOND.root]["metabolism"]["state"] == "hungry"
+  assert "metabolism" not in second["robots"][FIRST.root], \
+    "the first robot's unchanged appetite was re-sent"
+  b.reset()
+  data.time = 0.2
+  key = b.build()
+  assert key["robots"][FIRST.root]["metabolism"] and key["robots"][SECOND.root]["metabolism"], \
+    "a keyframe must re-ship every robot's block"
+  assert b.header()["hungerStates"], "any robot with an appetite advertises the vocabulary"
+
+
+def test_goals_thoughts_and_the_map_are_one_message_per_robot():
+  """0.20.0: `goals`, `thought` and `grid` each carry the ROOT of the robot
+  they belong to, and there is one per robot that has the thing."""
+  from pluggybot.telemetry.recorder import GridSampler, grid_samplers
+  grid2 = object()
+  model, data, other, FrameBuilder = _two_robot_builder(
+    thoughts=_Docs(SECOND.root), goals="find the other one", steering=True,
+    grid=grid2)
+  b = FrameBuilder(model, data, thoughts=_Docs(FIRST.root), goals="",
+                   steering=False, others=[other])
+  goals = b.goals_messages(1.0)
+  assert [(g["robot"], g["text"], g["steering"]) for g in goals] == \
+    [(FIRST.root, "", False), (SECOND.root, "find the other one", True)]
+  assert [(m["robot"], m["text"]) for m in b.thought_messages(1.0)] == \
+    [(FIRST.root, f"I am {FIRST.root}"), (SECOND.root, f"I am {SECOND.root}")]
+  samplers = grid_samplers(None, [other], hz=1.0, dedupe=False)
+  assert [(s.root, s.grid) for s in samplers] == [(FIRST.root, None), (SECOND.root, grid2)]
+  assert GridSampler(None).root == FIRST.root, "a single-robot caller's map is the first robot's"
+  assert b.header()["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
+
+
+def test_a_pair_recording_is_named_for_the_pair_world():
+  """A replayer picks its scene off the header's `model`, and the second
+  robot's bodies are in no single-robot scene: the pair world has a name of
+  its own, and the scene generator knows it."""
+  from pluggybot.robot import pair_model_name
+  assert pair_model_name("room_hub") == "room_hub_pair"
+  import inspect
+  from pluggybot import pair
+  assert "pair_model_name(cfg[\"model_name\"])" in inspect.getsource(pair.record_pair)
+
+
+def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
+  """Measured on the pair fixture: the second robot stood by at the bay
+  standoff after a stow and the first robot's next pick failed 0.4 m from
+  it. Standing by within `RACK_CLEAR_M` of the rack prior drives home first;
+  standing by anywhere else stays put -- the branch is checked with the
+  drive stubbed, on the loop that actually runs it."""
+  from pluggybot import lifecycle as lc, tick
+  from pluggybot.rack.coupling import RACK_ROOM_POS
+  cfg = lc.world_config("room_hub")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)   # the slice length is not the claim
+
+  def life_at(x, y):
+    life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                           world="room_hub", errand=False,
+                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                           grid_bounds=cfg["grid_bounds"],
+                           low_battery_wh=cfg["low_battery_wh"])
+    life.expects_work = True
+    drives = []
+
+    def explored(*a, **kw):
+      # Where the robot BELIEVES it ended up exploring, without driving.
+      life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
+      life.map_done = True
+      return tick.result(None)
+
+    life.explore_routine = explored
+    life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+    # The opening spin is 7 s of real physics and says nothing about this
+    # branch; stubbed, two stand-by slices are the whole day.
+    life.mission._spin_routine = lambda *a, **kw: tick.result(None)
+    life.run(cfg["start"], max_sim_time=1.5)
+    return drives
+
+  rx, ry = RACK_ROOM_POS
+  near = life_at(rx + 0.3, ry - 0.6)               # the bay standoff
+  assert near and near[0][:2] == cfg["start"][:2], \
+    f"a robot idling at the rack did not clear it: drives={near}"
+  far = life_at(cfg["start"][0], cfg["start"][1])
+  assert not far, f"a robot already clear of the rack drove anyway: {far}"
+
+
+def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hysteresis():
+  """`activity/encounter.py`: `met` at <= 1.5 m, `parted` at >= 2.0 m, and
+  NOTHING in between -- a pair hovering at 1.7 m does not chatter. Poses
+  are written straight into the data (the referee test's `_place`): what is
+  under test is the rule, not the drive."""
+  from pluggybot.activity.encounter import ENCOUNTER_M, PARTED_M, Encounters
+  model = world_with_robots("models/room_hub.xml", second_at=PARK)
+  data = mujoco.MjData(model)
+  meetings = Encounters(model, FIRST, SECOND)
+  events = []
+  meetings.on_event.append(events.append)
+
+  def apart(d):
+    q1, q2 = FIRST.qpos_adr(model), SECOND.qpos_adr(model)
+    data.qpos[q1:q1 + 2] = [0.0, 0.0]
+    data.qpos[q2:q2 + 2] = [d, 0.0]
+    mujoco.mj_forward(model, data)
+    data.time += 0.1
+    meetings.sense(model, data)
+
+  for d in (3.0, 1.7, 1.51):
+    apart(d)
+  assert events == [], "met before the threshold"
+  apart(1.5)
+  assert [e["phase"] for e in events] == ["met"]
+  assert events[0]["robots"] == [FIRST.root, SECOND.root] and events[0]["distanceM"] == 1.5
+  for d in (1.7, 1.9, 1.99):
+    apart(d)
+  assert len(events) == 1, "a pair hovering between the thresholds chattered"
+  apart(2.0)
+  assert [e["phase"] for e in events] == ["met", "parted"]
+  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
+  assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)

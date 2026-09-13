@@ -90,3 +90,23 @@ def square_up(error, step, settle, clock, tol: float, tries: int = 6,
     if abs(error()) <= tol * done_within:
       return error(), True
   return error(), abs(error()) <= tol * done_within
+
+
+def square_up_routine(error, step, settle, clock, tol: float, tries: int = 6,
+                      done_within: float = 4.0, budget_s: float = FACE_BUDGET_S,
+                      gain: float = 1.2, limit: float = 0.5):
+  """`square_up` as a ROUTINE (pluggybot/tick.py): the same loop and the
+  same callbacks, except that `step(w)` and `settle()` RETURN the routine
+  to run for one turn step and for the brake, instead of running them.
+  Same return value; the blocking twin above is kept for callers that own
+  their own stepping."""
+  deadline = clock() + budget_s
+  for _ in range(tries):
+    while abs(error()) > tol:
+      if clock() >= deadline:
+        return error(), False
+      yield from step(turn_command(error(), gain=gain, limit=limit))
+    yield from settle()
+    if abs(error()) <= tol * done_within:
+      return error(), True
+  return error(), abs(error()) <= tol * done_within

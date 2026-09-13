@@ -213,7 +213,11 @@ class ThoughtFiles:
   def __init__(self, root: str | os.PathLike | None = None,
                goals_path: str | os.PathLike | None = None,
                texts: dict | None = None,
-               clock: Callable[[], str] = _now) -> None:
+               clock: Callable[[], str] = _now,
+               robot: str = ROBOT_ROOT) -> None:
+    #: WHOSE files these are on the wire (issue #167): the `thought` event's
+    #: `robot`. The first robot's is the species name, as it always was.
+    self.robot = robot
     self.root = Path(root) if root is not None else None
     self.goals_path = Path(goals_path) if goals_path is not None else None
     self.clock = clock
@@ -244,11 +248,12 @@ class ThoughtFiles:
 
   @classmethod
   def open(cls, root: str | os.PathLike | None = None,
-           goals_path: str | os.PathLike | None = None) -> "ThoughtFiles":
+           goals_path: str | os.PathLike | None = None,
+           robot: str = ROBOT_ROOT) -> "ThoughtFiles":
     """The deploy shape: explicit paths, else the environment, else memory."""
     root = root or os.environ.get(ROOT_ENV, "").strip() or None
     goals_path = goals_path or os.environ.get(GOALS_ENV, "").strip() or None
-    return cls(root, goals_path=goals_path)
+    return cls(root, goals_path=goals_path, robot=robot)
 
   # ---- reading --------------------------------------------------------------
 
@@ -463,7 +468,7 @@ class ThoughtFiles:
     delta, because a file is small and "present means complete" is the rule
     that keeps a late joiner and a scrubbed recording honest."""
     spec = SPECS[name]
-    return {"type": "thought", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+    return {"type": "thought", "t": round(float(t), 3), "robot": self.robot,
             "name": name, "text": self.texts[name], "writer": spec.writer,
             "cap": spec.cap}
 

@@ -84,10 +84,11 @@ def test_adding_a_hint_is_not_a_version_bump(fixture):
   moved for a reason named in protocol/README.md and NOT for a hint --
   0.15.0 is deaths and `reset_robot` (issue #107), 0.16.0 is the admin's
   reach-ins and the `intervention` event (issue #119), 0.19.0 is the robot
-  taking ownership of its own goals (issue #154) -- and the hint vocabulary
+  taking ownership of its own goals (issue #154), 0.20.0 is every robot on
+  the stream reading the same shape (issue #167) -- and the hint vocabulary
   is untouched by any of them.
   """
-  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.19.0"
+  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.20.0"
 
 
 def test_the_conformance_bodies_are_the_real_body_shape(fixture):

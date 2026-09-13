@@ -14,6 +14,7 @@ import math
 import mujoco
 import pytest
 
+from pluggybot import tick
 from pluggybot import lifecycle as lc
 from pluggybot.lifecycle import HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
@@ -74,7 +75,7 @@ def test_the_reset_is_an_admin_kind_code_handles_and_the_wire_bumped():
   # physics failure, an economic one, and a robot that configured itself out
   # of ever being asked anything.
   assert DEATH_CAUSES == ("flat", "stuck", "unpaid", "unminded")
-  assert PROTOCOL_VERSION == "0.19.0"
+  assert PROTOCOL_VERSION == "0.20.0"
   box = Inbox()
   msg = box.offer({"type": "reset_robot", "id": "rr_01", "from": "ben"})
   assert msg is not None and msg.kind == "reset_robot" and msg.who == "ben"
@@ -131,7 +132,7 @@ def test_a_failed_dock_is_a_stuck_death_and_ends_a_day_nobody_can_reset(
   still ends, as it always did."""
   life = _life()
   life.battery.energy_wh = life.low_battery_wh * 0.5
-  monkeypatch.setattr(life, "go_charge", lambda: False)
+  monkeypatch.setattr(life, "go_charge_routine", lambda: tick.result(False))
   r = life.run(world_config("room_hub")["start"], max_sim_time=30.0,
                explore_budget=5.0)
   assert r["stranded"] and r["dead"] == "stuck"
