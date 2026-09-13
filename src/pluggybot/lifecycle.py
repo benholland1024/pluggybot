@@ -61,7 +61,7 @@ from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
 from pluggybot.telemetry.protocol import (
-  DEATH_CAUSES, ROBOT_ROOT, robot_display_name,
+  DEATH_CAUSES, robot_display_name,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
@@ -490,6 +490,15 @@ class HubLifecycle:
     #: the pair attached. Read for its clock and by the sampler; never by
     #: anything that decides.
     self.game = None
+    #: The world's activities, when a pair attached them (issue #167); the
+    #: recorder reads them. None on a lifecycle built alone (`run_demo`
+    #: hangs its own on the recorder directly).
+    self.activities = None
+    self.encounters = None
+    #: THIS robot's root body name, the key of everything it puts on the
+    #: wire (issue #167): `pluggybot` for the first, `r2_pluggybot` for the
+    #: second.
+    self.root = handle.root
     # DEATH AND RESET (issue #107). `dead` is the cause of the current death
     # or None; `deaths` and `resets` are the day's record of both; the
     # survival clock runs from mission start or the last reset. Typed events
@@ -678,7 +687,7 @@ class HubLifecycle:
     self._remember(f"died -- {why} -- after {self.survival_s:.0f} s awake "
                    f"({cause})"
                    + (f"; {hearts} lives left" if hearts is not None else ""))
-    self._emit({"type": "death", "t": round(t, 3), "robot": ROBOT_ROOT,
+    self._emit({"type": "death", "t": round(t, 3), "robot": self.root,
                 "cause": cause, "why": why,
                 "survivalS": round(self.survival_s, 3),
                 "deaths": len(self.deaths),
@@ -722,7 +731,7 @@ class HubLifecycle:
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
                    "knew went with it.")
-    self._emit({"type": "true_death", "t": round(t, 3), "robot": ROBOT_ROOT,
+    self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
                 "archived": archived.get("archived", {})})
 
@@ -1362,7 +1371,7 @@ class HubLifecycle:
     program = errand.program
     facts = world_facts(self.world)
     t = float(self.data.time)
-    base = {"type": "procedure", "robot": ROBOT_ROOT, "name": program.name,
+    base = {"type": "procedure", "robot": self.root, "name": program.name,
             "program": program.as_dict()}
     # A PROCEDURE (issue #166) or a PROGRAM (#58): one validator and one
     # runner each, the same result shape out, so everything below reads both.
@@ -1705,7 +1714,7 @@ class HubLifecycle:
     # a sim-hour away unless it changes its mind.
     self._last_ask_t = float(self.data.time)
     self.state = "EXPLORE"
-    event = {"type": "reset", "t": round(t, 3), "robot": ROBOT_ROOT,
+    event = {"type": "reset", "t": round(t, 3), "robot": self.root,
              "by": by, "wasDead": was["cause"] if was else None,
              "deadS": dead_s, "intervention": was is None,
              # The machine-readable half of WHO (issue #143). `by` is a
@@ -1778,7 +1787,7 @@ class HubLifecycle:
     survival number measures the audience rather than the mind.
     """
     t = float(self.data.time) if t is None else float(t)
-    event = {"type": "intervention", "t": round(t, 3), "robot": ROBOT_ROOT,
+    event = {"type": "intervention", "t": round(t, 3), "robot": self.root,
              "what": what, "by": by, "before": dict(before),
              "after": dict(after)}
     if detail:
@@ -1960,7 +1969,7 @@ class HubLifecycle:
       return
     from pluggybot.procedure.library import LibraryRefused
     t = float(self.data.time)
-    base = {"type": "procedure", "t": round(t, 3), "robot": ROBOT_ROOT}
+    base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
     if decision.undefine:
       try:
         library.undefine(decision.undefine, t=t)
@@ -1998,7 +2007,7 @@ class HubLifecycle:
     reply text and no action. There was nobody to write one.
     """
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
-             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": "dropped", "reply": "", "action": ""}
     for hook in self.visitor_hooks:
       hook(dict(reply))
@@ -2031,7 +2040,7 @@ class HubLifecycle:
     if msg is None:
       return                                # already dealt with; nothing owed
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
-             "robot": ROBOT_ROOT, "id": msg.id, "kind": msg.kind,
+             "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": decision.outcome, "reply": decision.reply,
              "action": decision.action if decision.outcome == "accepted"
              else ""}
@@ -3121,7 +3130,7 @@ def board_book(world: str, state: str | None = None):
 
 
 def points_ledger(state: str | None = None, table=None,
-                  cap: int | None = None):
+                  cap: int | None = None, robots: tuple = ()):
   """The robots' points ledger (issue #14).
 
   `state` is a JSON file the balances and the earnings log live in ACROSS
@@ -3135,7 +3144,8 @@ def points_ledger(state: str | None = None, table=None,
   accumulation, which is every run before the appetite existed.
   """
   from pluggybot.economy.ledger import Ledger
-  return Ledger(path=state, table=table, cap=cap)
+  return Ledger(path=state, table=table, cap=cap, **({"robots": robots}
+                                                    if robots else {}))
 
 
 def task_board(state: str | None = None, table=None, cadence=None,

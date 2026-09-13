@@ -354,9 +354,19 @@ def dynamic_flags(model) -> list[bool]:
   return dyn
 
 
-def robot_body_ids(model) -> set[int]:
-  """Ids of every body in the robot's subtree (ROBOT_ROOT and below)."""
-  root = model.body(ROBOT_ROOT).id
+def robot_roots(model) -> list[str]:
+  """Every robot in the model, by root body name, in model order (issue
+  #167): `pluggybot`, and `r2_pluggybot` when a second is attached. The
+  first is always the species name; the key of everything on the wire is
+  the root, so a stream with two robots has two keys."""
+  return [model.body(b).name for b in range(model.nbody)
+          if model.body(b).name.endswith(ROBOT_ROOT)
+          and int(model.body_parentid[b]) == 0]
+
+
+def robot_body_ids(model, root_name: str = ROBOT_ROOT) -> set[int]:
+  """Ids of every body in ONE robot's subtree (`root_name` and below)."""
+  root = model.body(root_name).id
   ids: set[int] = set()
   for b in range(model.nbody):
     x = b
@@ -367,7 +377,7 @@ def robot_body_ids(model) -> set[int]:
   return ids
 
 
-def body_census(model) -> tuple[list[str], list[str]]:
+def body_census(model, root_name: str = ROBOT_ROOT) -> tuple[list[str], list[str]]:
   """(robot, world) name lists of the DYNAMIC bodies, in model order.
 
   The split mirrors the frame shape: the robot's own bodies stream under
@@ -376,9 +386,14 @@ def body_census(model) -> tuple[list[str], list[str]]:
   them once the shared world lands.
   """
   dyn = dynamic_flags(model)
-  rob = robot_body_ids(model)
+  rob = robot_body_ids(model, root_name)
+  every = set()
+  for r in robot_roots(model):
+    every |= robot_body_ids(model, r)
   robot = [model.body(b).name for b in range(model.nbody)
            if dyn[b] and b in rob]
+  # The world's bodies are nobody's limbs: not this robot's, and not any
+  # OTHER robot's either (issue #167) -- those stream under their own key.
   world = [model.body(b).name for b in range(model.nbody)
-           if dyn[b] and b not in rob]
+           if dyn[b] and b not in every]
   return robot, world

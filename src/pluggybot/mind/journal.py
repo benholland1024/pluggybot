@@ -101,7 +101,9 @@ class Journal:
   """
 
   def __init__(self, path: str | os.PathLike | None = None,
-               clock: Callable[[], str] = _now) -> None:
+               clock: Callable[[], str] = _now,
+               robot: str = ROBOT_ROOT) -> None:
+    self.robot = robot                  # whose journal, on the wire (#167)
     self.path = Path(path) if path is not None else None
     self.clock = clock
     self.on_event: list[Callable[[dict], None]] = []
@@ -127,7 +129,7 @@ class Journal:
     # thing stored on disk and the thing on the wire are the same object
     # (protocol 0.7.0). The same shape the boards and the ledger emit.
     entry = {"type": "journal", "t": round(float(t), 3), "at": self.clock(),
-             "robot": ROBOT_ROOT, "text": text}
+             "robot": self.robot, "text": text}
     if why:
       entry["why"] = " ".join(str(why).split())[:MAX_NOTE_CHARS]
     self.notes.append(entry)
