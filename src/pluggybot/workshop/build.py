@@ -189,6 +189,21 @@ def register(tool: Tool) -> list[str]:
   return names
 
 
+def unregister(body: str) -> list[str]:
+  """Take a retired BUILT tool's verbs out of the registries. A hand-built
+  module's axes (the pen's carriage, the claw's jaws) stay: they are the
+  language's, not the workshop's, and a retired pen leaves them gated on a
+  module that is no longer on the rack."""
+  from pluggybot.rack.tags import MODULE_TAG_IDS
+  if body in MODULE_TAG_IDS:
+    return []
+  gone = [n for n, a in axes.AXES.items() if a.requires == body]
+  for n in gone:
+    del axes.AXES[n]
+    axes.SENSORS.pop(n, None)
+  return gone
+
+
 # ---- the rig ----------------------------------------------------------------
 
 def rig(tool: Tool, dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,

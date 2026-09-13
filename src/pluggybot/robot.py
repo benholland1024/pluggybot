@@ -122,6 +122,18 @@ def pair_model_name(model_name: str) -> str:
   return f"{model_name}{PAIR_SUFFIX}"
 
 
+def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
+               chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjSpec:
+  """A world's SPEC with, optionally, a second robot parked at `second_at`.
+  Kept by the lifecycle (issue #168 slice C) so a tool can be hung mid-run
+  by editing it and recompiling. MEASURED: `spec.compile()` is trajectory-
+  identical to `MjModel.from_xml_path` (tests/test_recompile.py)."""
+  spec = mujoco.MjSpec.from_file(path)
+  if second_at is not None:
+    attach_robot(spec, second_at, prefix, chassis_rgba)
+  return spec
+
+
 def world_with_robots(path: str, second_at=None,
                       prefix: str = SECOND_PREFIX,
                       chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjModel:
@@ -130,6 +142,4 @@ def world_with_robots(path: str, second_at=None,
   would."""
   if second_at is None:
     return mujoco.MjModel.from_xml_path(path)
-  spec = mujoco.MjSpec.from_file(path)
-  attach_robot(spec, second_at, prefix, chassis_rgba)
-  return spec.compile()
+  return world_spec(path, second_at, prefix, chassis_rgba).compile()

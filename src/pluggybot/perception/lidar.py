@@ -58,6 +58,7 @@ class Lidar:
                sigma_frac: float = 0.01, dropout: float = 0.02,
                robot_body: str = "pluggybot", seed: int = 0) -> None:
     self.model = model
+    self.site_name, self.robot_body = site_name, robot_body
     self.site_id = model.site(site_name).id
     self.n_rays = n_rays
     self.max_range = max_range
@@ -80,9 +81,21 @@ class Lidar:
     #: robot 1 planned None from its own cell for 12 s and gave up the bay).
     #: Avoidance is `HubMission.others`, the reported pose, in real time.
     self._other_geoms: set = set()
+    self._other_roots: list[str] = []
     self._geomid = np.zeros(1, dtype=np.int32)
 
+  def rebind(self, model) -> None:
+    """A recompiled world: the site and the geom sets by name again
+    (issue #168 slice C). The excluded OTHER robots are re-resolved too."""
+    self.model = model
+    self.site_id = model.site(self.site_name).id
+    self._self_geoms = self._robot_geoms(model, self.robot_body)
+    self._other_geoms = set()
+    for root in list(self._other_roots):
+      self._other_geoms |= self._robot_geoms(model, root)
+
   def exclude_robot(self, root_name: str) -> None:
+    self._other_roots.append(root_name)
     """Drop another robot's body from every scan (see `_other_geoms`)."""
     self._other_geoms |= self._robot_geoms(self.model, root_name)
 

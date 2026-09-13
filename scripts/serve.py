@@ -72,6 +72,7 @@ from pluggybot.evaluation.arms import (
 from pluggybot.evaluation.record import build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.robot import world_spec
 from pluggybot.lifecycle import (
   RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
   points_ledger, task_board, task_producer, world_config, world_screens,
@@ -313,7 +314,11 @@ def main() -> None:
     return
 
   cfg = world_config(args.world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  # Compiled FROM ITS SPEC and the spec kept (issue #168 slice C), so a
+  # tool the agent builds can be hung mid-run; measured identical to
+  # `from_xml_path` (tests/test_recompile.py).
+  spec = world_spec(cfg["model"])
+  model = spec.compile()
   data = mujoco.MjData(model)
   # Board state is the world's, not the run's: loaded before the mission and
   # written back on every stroke, so a restart walks into the house it left.
@@ -429,7 +434,7 @@ def main() -> None:
   # what economy/energy.py enforces and what stops a mid-errand death.
   pack_wh = (cfg["battery_wh"] if args.pack == "demo"
              else cfg["hosting_battery_wh"])
-  life = HubLifecycle(model, data, inbox=inbox,
+  life = HubLifecycle(model, data, inbox=inbox, spec=spec,
                       battery_wh=args.battery_wh or pack_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=(args.reserve_wh
@@ -535,6 +540,9 @@ def main() -> None:
                           robot_name=args.robot_name,
                           build=identity)
   life.mission.step_hooks.append(publisher.step_hook)
+  # A recompiled world (issue #168): the publisher's census and the pacer's
+  # clock follow it, or they would describe a world that no longer exists.
+  life.on_rebind.append(publisher.rebind)
   life.say_hooks.append(publisher.event)
   # ...and dying / being reset are typed events too (issue #107).
   life.on_event.append(publisher.message)
@@ -570,6 +578,7 @@ def main() -> None:
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
     life.mission.step_hooks.append(pacer.step_hook)
+    life.on_rebind.append(pacer.rebind)
   recorder = None
   if args.record is not None:
     recorder = TelemetryRecorder(model, data, args.record,
@@ -587,6 +596,7 @@ def main() -> None:
                                  build=identity,
                                  grid=life.mission.grid)
     life.mission.step_hooks.append(recorder.step_hook)
+    life.on_rebind.append(recorder.rebind)
     if book is not None:
       book.on_event.append(recorder.emit)
     ledger.on_event.append(recorder.emit)

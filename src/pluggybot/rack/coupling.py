@@ -1341,6 +1341,8 @@ def run_cycle(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
 
 
 if __name__ == "__main__":
+  from pluggybot.workshop.seam import write_built_tag_pngs
   write_hub_world()
   write_hub_rack()
-  print("wrote models/hub_world.xml and models/hub_rack.xml")
+  write_built_tag_pngs()
+  print("wrote models/hub_world.xml, models/hub_rack.xml and the built-module tags")

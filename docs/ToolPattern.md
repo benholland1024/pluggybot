@@ -639,7 +639,10 @@ falls outside the side post at 0.93**, so a sixth tool needs one of:
    the house's south wall) a 2.36 m rail spans −0.68 … 1.68 and fits;
 2. a second rack (or moving the room_hub rack);
 3. replacing a module in an existing bay — the cheap route for an
-   agent-built tool.
+   agent-built tool, **and the one the workshop takes** (issue #168):
+   `HubLifecycle.hang_tool(tool, bay)` retires the module in that bay and
+   recompiles the running world with the built module hung there
+   (`workshop/seam.py`; the module's tag id is `15 + bay`).
 
 Whichever it is, append a bay tag id, regenerate both worlds, and re-check
 the rack against **both** rooms it stands in.

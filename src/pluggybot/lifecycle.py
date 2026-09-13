@@ -291,8 +291,29 @@ class HubLifecycle:
                restart_after_s: float | None = None,
                autonomous: bool = False,
                handle: RobotHandle = FIRST,
-               robot_name: str | None = None) -> None:
+               robot_name: str | None = None,
+               spec=None) -> None:
     self.model, self.data = model, data
+    #: THE SPEC THE WORLD WAS COMPILED FROM (issue #168 slice C), kept so a
+    #: tool can be hung mid-run: `hang_tool` edits it and recompiles. None
+    #: on a world compiled without one, and then no tool can be hung.
+    self.spec = spec
+    #: Who to tell when the world is recompiled: every long-lived holder of
+    #: (model, data) that is not this lifecycle's own -- the telemetry
+    #: sinks, a pacer, a viewer -- registers `obj.rebind` here. What the
+    #: lifecycle owns (mission, swap, lidar, screen, activities) it rebinds
+    #: itself. ⚠ MEASURED: `MjSpec.recompile` returns NEW objects and the
+    #: old ones keep stepping a stale world, so a holder missed here is two
+    #: simulations quietly diverging; tests/test_recompile.py's fence lists
+    #: every class that assigns `self.model` and requires a `rebind`.
+    self.on_rebind: list = []
+    #: WHICH MODULE HANGS IN WHICH BAY, as data the seam edits (module ->
+    #: bay index into `HUB_STATION_YS`). Starts as the five hand-built
+    #: modules; a built tool takes a bay by retiring the module in it.
+    from pluggybot.procedure.steps import TOOL_BAYS
+    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS)
+    #: The tools the workshop built and hung, by module name.
+    self.built: dict = {}
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
     # gate) and `claim_budget_wh` (the offer filter) each read this and
@@ -1167,6 +1188,88 @@ class HubLifecycle:
     yield from self.mission.swap._drive_until_routine(UNDOCK_REVERSE, -0.08,
                                                       stall_stop=False)
 
+  # ---- the recompile seam (issue #168 slice C) -----------------------------
+
+  def rebind(self, model, data) -> None:
+    """Point this lifecycle and everything it owns at a recompiled world.
+
+    Every id is re-resolved by NAME (deleting a module shifts the ids of
+    everything after it in the tree); the map, the belief, the reckoner,
+    the battery and the ledger are state and do not move. The registered
+    `on_rebind` callbacks are the sinks outside the lifecycle's ownership.
+    """
+    self.model, self.data = model, data
+    self.mission.rebind(model, data)
+    if self.screen is not None:
+      self.screen.model, self.screen.data = model, data
+    if self.activities is not None:
+      self.activities.rebind(model, data)
+    if self.game is not None and hasattr(self.game, "rebind"):
+      self.game.rebind(model, data)
+    for callback in list(self.on_rebind):
+      callback(model, data)
+
+  def hang_tool(self, tool, bay: int) -> dict:
+    """A built tool takes a bay: the module there is RETIRED, the tool's
+    module is attached at the same station, the world is recompiled with
+    its state carried across, every holder is rebound, the tool's verbs
+    are registered, and `scene_changed` goes out on the wire.
+
+    Between errands only, with nothing on the fork: a recompile mid-errand
+    would pull the world out from under a routine holding a transient tool
+    controller (the pen, claw and dispenser classes are built per errand
+    and are NOT rebound -- they must not outlive a recompile). Refused,
+    out loud, otherwise. A pair shares one world and two lifecycles; the
+    seam is single-robot until both rebind together.
+    """
+    from pluggybot.workshop import build as wbuild
+    from pluggybot.workshop import seam
+    from pluggybot.telemetry.scene import scene_dict
+    if self.spec is None:
+      raise seam.SeamRefused("this world was compiled without its spec; "
+                             "build it through `build()` to hang tools")
+    if self.peers:
+      raise seam.SeamRefused("a pair shares one world; the seam is "
+                             "single-robot until both lifecycles rebind")
+    from pluggybot.procedure.steps import _carried
+    if self.state in ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN") or _carried(self):
+      raise seam.SeamRefused("a tool is hung between errands with the fork "
+                             "empty, never mid-errand")
+    if not 0 <= bay < len(HUB_STATION_YS):
+      raise seam.SeamRefused(f"no bay {bay}; the rack has {len(HUB_STATION_YS)}")
+    if tool.body in self.rack_inventory:
+      raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
+    retired = next((m for m, b in self.rack_inventory.items() if b == bay), None)
+    record = {"tool": tool.name, "module": tool.body, "bay": bay,
+              "retired": retired, "t": round(float(self.data.time), 3)}
+    if retired is not None:
+      record["retiredWhat"] = seam.retire(self.spec, retired)
+      del self.rack_inventory[retired]
+      self.built.pop(retired, None)
+      wbuild.unregister(retired)
+    prior = self.mission.rack_prior
+    cfg = world_config(self.world)
+    record["attached"] = seam.attach(self.spec, tool, bay, (prior.x, prior.y),
+                                     math.degrees(prior.yaw),
+                                     model_dir=Path(cfg["model"]).parent)
+    t0 = time.perf_counter()
+    model, data = seam.recompile(self.spec, self.model, self.data)
+    record["recompileMs"] = round((time.perf_counter() - t0) * 1000, 2)
+    self.rebind(model, data)
+    self.rack_inventory[tool.body] = bay
+    self.built[tool.body] = tool
+    record["verbs"] = wbuild.register(tool)
+    # The wire (protocol/README.md "scene_changed"): the whole new scene,
+    # so a consumer rebuilds its scene graph; the next frame is a keyframe.
+    self._emit({"type": "scene_changed", "t": record["t"],
+                "robot": self.root, "reason": "tool", "tool": tool.name,
+                "module": tool.body, "bay": bay, "retired": retired,
+                "scene": scene_dict(model, cfg["model_name"])})
+    self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)}"
+              + (f", retiring the {retired.removeprefix('module_')}" if retired else ""),
+              detail=f"recompile {record['recompileMs']} ms")
+    return record
+
   def run_errand(self, errand) -> dict:
     return self.mission.run(self.run_errand_routine(errand))
 
@@ -1407,7 +1510,7 @@ class HubLifecycle:
     from pluggybot.procedure import lang
     from pluggybot.procedure import steps as procedure
     program = errand.program
-    facts = world_facts(self.world)
+    facts = world_facts(self.world, rack=self.rack_inventory)
     t = float(self.data.time)
     base = {"type": "procedure", "robot": self.root, "name": program.name,
             "program": program.as_dict()}
@@ -1460,7 +1563,7 @@ class HubLifecycle:
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
       yield from self.mission.swap_at_bay_routine(
-        procedure._tool_station(carried), "return", module=carried)
+        procedure._tool_station(self, carried), "return", module=carried)
       self.swaps_done += 1
     fetched = [st["tool"] for st in run["steps"]
                if st["verb"] == "fetch" and st.get("ok")]
@@ -3538,17 +3641,18 @@ def others_context(life) -> list[dict]:
   return out
 
 
-def world_facts(world: str):
+def world_facts(world: str, rack: dict[str, int] | None = None):
   """What a program is validated against (procedure/steps.py): this world's
   boards, the tools on its rack, the box its map covers, the figures the
-  pen knows."""
+  pen knows. `rack` is a lifecycle's inventory once the workshop has hung
+  a tool (issue #168); without it, the shipped five."""
   from pluggybot.procedure import axes
   from pluggybot.procedure.steps import TOOL_BAYS, WorldFacts
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  return WorldFacts(boards=boards, tools=tuple(TOOL_BAYS),
+  return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
                                   if n not in ("text", "answer")),
@@ -3828,8 +3932,9 @@ def run_demo(start=None, view: bool = False,
   # A SECOND ROBOT, parked (issue #167, slice A): attached with its prefix
   # and never driven -- the parity instrument's "with the second robot
   # parked" arm. Driving it is the next slice.
-  from pluggybot.robot import world_with_robots
-  model = world_with_robots(cfg["model"], second_at=second_robot)
+  from pluggybot.robot import world_spec
+  spec = world_spec(cfg["model"], second_at=second_robot)
+  model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
@@ -3943,7 +4048,7 @@ def run_demo(start=None, view: bool = False,
                                if program is None else
                                [programmed_errand(load_program(program, world),
                                                   task=program_task)]),
-                      tasks=board,
+                      tasks=board, spec=spec,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,
                       autonomous=autonomous)
@@ -4008,6 +4113,8 @@ def run_demo(start=None, view: bool = False,
     memory.on_event.append(recorder.emit)
     # ...and so is dying, and being reset (issue #107).
     life.on_event.append(recorder.emit)
+    # ...and a recompiled world reaches the recorder's census (issue #168).
+    life.on_rebind.append(recorder.rebind)
     if journal is not None:
       journal.on_event.append(recorder.emit)
   # ...and so is the operator reaching for the switch (issue #37). Attached

@@ -192,13 +192,19 @@ class Verb:
   doc: str
 
 
-def _tool_station(tool: str) -> float:
-  return HUB_STATION_YS[TOOL_BAYS[tool]]
+def _rack(life) -> dict[str, int]:
+  """Which module hangs where: the lifecycle's inventory, which the
+  workshop edits (issue #168), or the shipped five where there is none."""
+  return getattr(life, "rack_inventory", None) or TOOL_BAYS
+
+
+def _tool_station(life, tool: str) -> float:
+  return HUB_STATION_YS[_rack(life)[tool]]
 
 
 def _fetch(life, args: dict) -> Routine:
   tool = args["tool"]
-  station = _tool_station(tool)
+  station = _tool_station(life, tool)
   life.module = tool
   why = yield from life.mission.swap_at_bay_routine(station, "pick", module=tool)
   st = life.mission.swap.module_state(tool)
@@ -210,7 +216,7 @@ def _fetch(life, args: dict) -> Routine:
 
 def _carried(life) -> str | None:
   """Which module is on the fork right now, off the coupling itself."""
-  for tool in TOOL_BAYS:
+  for tool in _rack(life):
     try:
       if life.mission.swap.module_state(tool)["on_fork"]:
         return tool
@@ -223,7 +229,7 @@ def _stow(life, args: dict) -> Routine:
   tool = _carried(life)
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
-  why = yield from life.mission.swap_at_bay_routine(_tool_station(tool),
+  why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
                                                     "return", module=tool)
   hung = bool(life.mission.swap.module_state(tool)["hung"])
   life.swaps_done += 1
