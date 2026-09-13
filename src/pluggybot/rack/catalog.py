@@ -958,8 +958,17 @@ def mismatches(fixture: dict) -> list[str]:
 def build(world: str = WORLD) -> dict:
   """Read every feed off the compiled world and emit the fixture."""
   import mujoco
+  from pluggybot.workshop.spec import unbuildable   # lazy: it imports this module
   spec = mujoco.MjSpec.from_file(world)
-  parts = [p.as_dict(spec) for p in PARTS]
+  parts = []
+  for p in PARTS:
+    entry = p.as_dict(spec)
+    # WHETHER THE WORKSHOP MAY BUILD FROM IT (issue #168): the validator's
+    # own predicate, so the page marks exactly the parts a spec may name
+    # -- and says why the rest cannot be, in the validator's words.
+    why = unbuildable(p)
+    entry["workshop"] = {"usable": why is None, **({"why": why} if why else {})}
+    parts.append(entry)
   ids = [p["id"] for p in parts]
   assert len(ids) == len(set(ids)), "duplicate part id"
   return {
