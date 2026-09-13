@@ -653,7 +653,13 @@ save a filmstrip PNG named after the script.
   ANY geometry in that world (the fixture test fails when stale).
   Recordings: `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py [--world
   home --errand showcase] --tasks --metabolism --record protocol/telemetry.
-  {hub,home}_lifecycle.jsonl.gz`. ⚠ `--tasks` and `--metabolism` are BOTH
+  {hub,home}_lifecycle.jsonl.gz`. The PAIR world (`room_hub_pair`, 0.20.0)
+  is a third: `python -m pluggybot.telemetry.scene models/room_hub.xml
+  --pair` and `scripts/two_robots.py --fast --pack hosting --tasks
+  --metabolism --game --max-sim-time 600 --record protocol/telemetry.
+  room_hub_pair.jsonl.gz` (⚠ `--pack hosting`: on the demo cell the hider
+  dies mid-game at 286 s).
+  ⚠ `--tasks` and `--metabolism` are BOTH
   load-bearing: both are off by default and a recording made without them
   carries no `tasks`/`metabolism` block for the website to build against.
   ⚠ The HOME recording takes TWO PASSES against the same `--boards
@@ -757,9 +763,7 @@ save a filmstrip PNG named after the script.
   change is judged on `ctrl` and the perception trace
   (`determinism_spike.py --second-robot X,Y`). `tests/test_two_robots.py::
   test_mission_code_resolves_every_robot_element_through_the_handle` is
-  the fence: a bare robot name in mission code fails it. The wire
-  (`ROBOT_ROOT` on events, the body census) is still first-robot-only —
-  slice E of #167.
+  the fence: a bare robot name in mission code fails it.
 - **Two robots run from ONE physics loop** (issue #167 slice B;
   `pluggybot/pair.py`, `tick.run_many`). `HubSwap._step_once` is
   `_before_step` (the wheel setpoints) + `mj_step` + `_after_step` (press,
@@ -823,14 +827,17 @@ save a filmstrip PNG named after the script.
   ONE robot's view of a shared `Ledger` (fills `robot=` where the caller
   did not) — a pair shares one ledger FILE with one account each.
   `protocol.robot_roots(model)` lists the robots; `body_census(model,
-  root)` and the scene's per-body `robot` are per root; `FrameBuilder(
-  others=[(root, name, status_fn)])` puts every other robot's bodies and
-  status under `robots[<root>]` and names it in the header; `pair.
-  record_pair` wires a whole pair into one recording; `activity/encounter.
-  py` emits `encounter` (`met`/`parted`, hysteresis). ⚠ A single-robot
-  stream is BYTE-IDENTICAL (fixture test). ⚠ NOT YET per robot: the
-  top-level `metabolism`, `spend`, `goals` and `grid` — the 0.20.0 bump,
-  a two-repo event; `serve.py` still flies one robot.
+  root)` and the scene's per-body `robot` are per root; `FrameBuilder`
+  walks a `StreamRobot` per robot (the kwargs are the first, `others=` the
+  rest) and EVERYTHING a robot has rides `robots[<root>]` — bodies, status,
+  `spend`, `metabolism` — with one `goals`, one set of `thought` and one
+  `grid` message per robot (protocol 0.20.0, the bump; `grid_samplers`
+  builds a sampler per map). `pair.record_pair` wires a whole pair into
+  one recording under the PAIR world's name (`robot.pair_model_name`,
+  `room_hub_pair` — a replayer picks its scene off `model`, and the second
+  robot's bodies are in no single-robot scene); `activity/encounter.py`
+  emits `encounter` (`met`/`parted`, hysteresis). ⚠ `serve.py` still
+  flies one robot.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
@@ -984,8 +991,14 @@ save a filmstrip PNG named after the script.
   sim-hours to 14 — the empty world dressed as a safety feature); a claim
   still sees `spendable_wh`. A passed-over kind KEEPS the head of the queue;
   one offer per tick and no catch-up; targets least-recently-offered, never
-  first; nothing random. With a producer attached the loop stands by in
-  `WAIT_FOR_WORK_S` slices instead of ending the day when momentarily idle,
+  first; nothing random. When work may still ARRIVE (`HubLifecycle.expects_work`
+  — follows `producer`, and a pair sets it on the second robot, whose
+  board grows on the FIRST robot's producer; keyed on `producer` the hider
+  called its day complete mid-game) the loop stands by in
+  `WAIT_FOR_WORK_S` slices instead of ending the day when momentarily idle
+  — after CLEARING THE RACK (`RACK_CLEAR_M` 2.0 m of the rack prior, back
+  to its start; measured: an idle second robot at the bay standoff failed
+  the first robot's next pick 0.4 m away),
   and `run_errand` honours `drive_to`'s answer (a use-phase after a failed
   drive is skipped and the tool still goes home).
 - **Points are a currency, and staying alive costs some** (issues #135 +

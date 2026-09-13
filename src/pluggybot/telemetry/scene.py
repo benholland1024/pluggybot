@@ -303,10 +303,25 @@ def main() -> None:
   parser.add_argument("--meta", default=None,
                       help="generator sidecar with visualHints/zones/spawns "
                            "(default: models/<name>.meta.json when it exists)")
+  parser.add_argument("--pair", action="store_true",
+                      help="the world with the SECOND robot attached where "
+                           "the pair demo parks it (issue #167): named "
+                           "<name>_pair, the scene a two-robot recording "
+                           "is replayed in")
   args = parser.parse_args()
 
   name = Path(args.model).stem
-  model = mujoco.MjModel.from_xml_path(args.model)
+  if args.pair:
+    from pluggybot.lifecycle import world_config
+    from pluggybot.robot import pair_model_name, world_with_robots
+    cfg = next((c for c in (world_config(w) for w in ("room_hub", "home"))
+                if Path(c["model"]).stem == name), None)
+    if cfg is None:
+      parser.error(f"--pair knows no world whose model is {args.model}")
+    model = world_with_robots(args.model, second_at=cfg["start2"][:2])
+    name = pair_model_name(name)
+  else:
+    model = mujoco.MjModel.from_xml_path(args.model)
   meta_path = (Path(args.meta) if args.meta
                else Path(args.model).with_suffix(".meta.json"))
   meta = json.loads(meta_path.read_text()) if meta_path.exists() else None

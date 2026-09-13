@@ -23,7 +23,7 @@ from scipy.spatial.transform import Rotation
 from pluggybot import tick
 from pluggybot.telemetry.protocol import (HUNGER_STATES, PROTOCOL_VERSION,
                                           body_census, dynamic_flags)
-from pluggybot.telemetry.recorder import (FrameBuilder, GridSampler,
+from pluggybot.telemetry.recorder import (FrameBuilder,
                                           TelemetryRecorder)
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
 
@@ -740,7 +740,7 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   pub._need_boards = threading.Event()
   pub._need_keyframe = threading.Event()
   pub.boards = None
-  pub._grid = GridSampler(None)
+  pub._grids = []
   pub.frames_dropped = 0
   pub.events_dropped = 0
 
@@ -777,7 +777,7 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub._need_boards = threading.Event()
   pub._need_keyframe = threading.Event()
   pub.boards = None
-  pub._grid = GridSampler(None)
+  pub._grids = []
   pub.frames_dropped = 0
   pub.events_dropped = 0
 
@@ -854,6 +854,89 @@ def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
   assert scene == scene_dict(model, model_name, meta=meta), \
     f"stale fixture: uv run python -m pluggybot.telemetry.scene " \
     f"models/{world_xml}"
+
+
+def test_the_pair_scene_fixture_is_current():
+  """The third world (0.20.0, issue #167): `room_hub` with the second robot
+  attached where the pair demo parks it. Stale on the same terms as the
+  other two, and additionally on `world_config["start2"]` moving."""
+  from pluggybot.lifecycle import world_config
+  from pluggybot.robot import SECOND, pair_model_name, world_with_robots
+  path = PROTOCOL / "scene.room_hub_pair.json"
+  scene = json.loads(path.read_text())
+  assert scene["protocolVersion"] == PROTOCOL_VERSION
+  assert scene["model"] == pair_model_name("room_hub") == "room_hub_pair"
+  cfg = world_config("room_hub")
+  model = world_with_robots(str(REPO / "models" / "room_hub.xml"),
+                            second_at=cfg["start2"][:2])
+  assert scene == scene_dict(model, "room_hub_pair"), \
+    "stale fixture: uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair"
+  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
+  assert owners[SECOND.root] == SECOND.root and owners["rack"] is None
+  assert [n for n, o in owners.items() if o == SECOND.root] == \
+    [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
+
+
+def test_the_pair_recording_gives_every_robot_the_same_shape():
+  """The pair fixture (0.20.0): two robots from one loop, and everything the
+  wire keys by robot present for BOTH -- bodies, status, appetite, goals,
+  documents, map -- plus the things only a pair produces: a two-role claim,
+  the referee, an encounter."""
+  from pluggybot.mind.thoughts import NAMES
+  from pluggybot.robot import FIRST, SECOND
+  with gzip.open(PROTOCOL / "telemetry.room_hub_pair.jsonl.gz", "rt") as f:
+    lines = [json.loads(line) for line in f]
+  header, frames = lines[0], frames_of(lines)
+  events = [x for x in lines[1:] if "type" in x]
+  roots = [FIRST.root, SECOND.root]
+  assert header["protocolVersion"] == PROTOCOL_VERSION
+  assert header["model"] == "room_hub_pair"
+  assert list(header["robots"]) == roots
+  assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
+  assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
+  assert header["ledger"] == roots and header["hungerStates"]
+  assert {"encounters", "hide_and_seek"} <= set(header["activities"])
+  # Every frame carries both; the keyframes carry both bodies whole.
+  assert all(set(f["robots"]) == set(roots) for f in frames)
+  last_hunger = {}
+  for root in roots:
+    assert set(frames[0]["robots"][root]["bodies"]) == set(header["robots"][root])
+    hunger = [f["robots"][root]["metabolism"] for f in frames
+              if "metabolism" in f["robots"][root]]
+    assert 1 < len(hunger) < len(frames), f"{root}: no appetite of its own"
+    last_hunger[root] = hunger[-1]
+    states = {f["robots"][root]["state"] for f in frames}
+    assert "DEAD" not in states, f"{root} died -- re-fly on --pack hosting"
+    assert len(states) > 3, f"{root} barely moved: {states}"
+  # Two APPETITES, not one block copied twice: the seeker won and carried,
+  # so it ate; the hider lost, earned nothing, and had nothing to eat.
+  assert last_hunger[FIRST.root]["consumed"] > 0
+  assert last_hunger[FIRST.root] != last_hunger[SECOND.root]
+  # One goals message per robot, and every document for each.
+  goals = [e for e in events if e["type"] == "goals"]
+  assert [g["robot"] for g in goals] == roots
+  for root in roots:
+    docs = [e["name"] for e in events if e["type"] == "thought" and e["robot"] == root]
+    assert docs[:len(NAMES)] == list(NAMES), f"{root}: opening documents {docs[:4]}"
+    assert any(e["type"] == "grid" and e["robot"] == root for e in events), \
+      f"{root}: no map of its own"
+  # What only a pair produces.
+  claims = [e for e in events if e["type"] == "task_claimed" and e.get("claims")]
+  # Roles are claimed one at a time: the first claim holds one, the last both.
+  assert claims and len(claims[0]["claims"]) == 1
+  assert set(claims[-1]["claims"]) == {"hider", "seeker"}
+  assert set(claims[-1]["claims"].values()) == set(roots), "one robot per role"
+  referee = [f["activities"]["hide_and_seek"] for f in frames
+             if "hide_and_seek" in f.get("activities", {})]
+  # Sparse like every activity block: the last flags shipped are the verdict.
+  assert referee and referee[-1]["phase"] in ("found", "over") and referee[-1]["winner"]
+  # ⚠ NO ENCOUNTER IN THIS FLIGHT, and that is the honest fixture: the hider
+  # won and the two never came within 1.5 m (closest 1.62 m, at 12.9 s). The
+  # activity is advertised and its shape is pinned in tests/test_two_robots.py;
+  # a fixture cannot be made to meet on request without steering a robot at
+  # the other for the camera.
+  for e in (e for e in events if e["type"] == "encounter"):
+    assert e["phase"] in ("met", "parted") and set(e["robots"]) == set(roots)
 
 
 def test_the_home_fixture_shows_the_census_answer():
@@ -1074,11 +1157,13 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # mechanic is off by default, so without it the site has no block to build
   # its hunger gauge against.
   assert header["hungerStates"] == list(HUNGER_STATES)
-  with_hunger = [f for f in frames if "metabolism" in f]
+  # ...and since 0.20.0 the block rides the ROBOT's record, not the frame.
+  with_hunger = [f["robots"]["pluggybot"] for f in frames
+                 if "metabolism" in f["robots"]["pluggybot"]]
   assert with_hunger, "the fixture carries no metabolism block at all -- was "\
                       "it recorded without --metabolism?"
   assert len(with_hunger) < len(frames), "an unchanged appetite was re-sent"
-  states = [f["metabolism"]["state"] for f in with_hunger]
+  states = [r["metabolism"]["state"] for r in with_hunger]
   # A fresh ledger starts the robot with nothing, and the gauge has to MOVE
   # -- a fixture pinned at one state is a fixture a hunger panel cannot be
   # developed against.
@@ -1294,7 +1379,7 @@ def test_an_unchanged_map_is_not_written_twice(mini_model, tmp_path):
   grids = [x for x in lines if x.get("type") == "grid"]
   assert len(grids) == 2, \
     f"an unchanged map was written {len(grids)} times, not twice"
-  assert rec._grid.skipped >= 5, "nothing was skipped: the dedupe is inert"
+  assert rec._grids[0].skipped >= 5, "nothing was skipped: the dedupe is inert"
   # The second one is the change, not a re-run of the first.
   assert grids[0]["png"] != grids[1]["png"]
 
@@ -1458,7 +1543,7 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
   data = mujoco.MjData(mini_model)
   bare = FrameBuilder(mini_model, data, model_name="mini").header()
 
-  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.19.0"
+  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.20.0"
   assert "build" not in bare, \
     "a run that was handed no identity must not invent one"
 

@@ -41,6 +41,7 @@ import io
 import json
 import queue
 import threading
+from dataclasses import dataclass
 from typing import Callable
 
 from PIL import Image
@@ -84,6 +85,30 @@ RECORD_GRID_HZ = 0.2  # ...and in a RECORDING: one every five sim-seconds.
                     # watch, at a fifth of the size.
 
 
+@dataclass
+class StreamRobot:
+  """One robot's share of a stream (0.20.0, issue #167).
+
+  Everything the wire keys BY ROBOT is a field here, and the builder walks a
+  list of these -- so the second robot is a second entry, not a second code
+  path: its bodies, status, `spend` and `metabolism` ride `robots[root]` in
+  every frame, and its `goals`, `thought` and `grid` messages carry `root`
+  in `robot`. `root` is the robot's root body name (`pluggybot`,
+  `r2_pluggybot`), which is the key of every wire structure; `name` is the
+  display name the header shows beside it. `None` for any piece the robot
+  does not have (a world with no appetite ships no `metabolism` for it).
+  """
+  root: str
+  name: str | None = None
+  status_fn: Callable[[], dict] | None = None
+  spend: object = None
+  metabolism: object = None
+  thoughts: object = None
+  goals: str = ""
+  steering: bool = False
+  grid: object = None
+
+
 class FrameBuilder:
   """Decimation + sparse-frame state for one robot's telemetry stream.
 
@@ -117,13 +142,20 @@ class FrameBuilder:
       raise ValueError(f"keyframe_s must be >= 0, got {keyframe_s}")
     self.model, self.data = model, data
     self.status_fn = status_fn
-    #: THE OTHER ROBOTS on this stream (issue #167): `(root, name,
-    #: status_fn)` each. Their bodies and status ride `robots[<root>]`
-    #: beside the first robot's, and the header lists them; a stream with
-    #: none is byte-identical to what it was. What is still the FIRST
-    #: robot's alone: the top-level `metabolism`, `spend` and `goals`
-    #: blocks -- moving those under `robots[<root>]` for every robot is
-    #: the 0.20.0 bump, a two-repo event (protocol/README.md).
+    #: EVERY ROBOT on this stream (issue #167; 0.20.0), first robot first.
+    #: The keyword arguments above describe the first one -- the single-
+    #: robot callers' shape -- and `others` is a `StreamRobot` per further
+    #: robot. The builder walks this list and nothing else knows which
+    #: robot is which: a stream with one entry is what every producer
+    #: before M12 emitted.
+    for other in others or ():
+      if not isinstance(other, StreamRobot):
+        raise TypeError(f"others must be StreamRobot entries, got {other!r}")
+    self.robots: list[StreamRobot] = [
+      StreamRobot(ROBOT_ROOT, robot_display_name(robot_name), status_fn,
+                  spend=spend, metabolism=metabolism, thoughts=thoughts,
+                  goals=goals, steering=bool(steering)),
+      *(others or ())]
     self.others = list(others or [])
     self.activities = activities
     # Boards present the same duck type an ActivitySet does (`names` +
@@ -178,8 +210,10 @@ class FrameBuilder:
     # appetite, which is every mission before this one -- an all-zero hunger
     # gauge would be a panel that means nothing.
     self.metabolism = metabolism
-    self._last_spend: dict | None = None
-    self._last_hunger: dict | None = None
+    # ...per ROBOT, keyed by root (0.20.0): `spend` and `metabolism` ride
+    # each robot's own record, so each robot's last-emitted block is its own.
+    self._last_spend: dict[str, dict | None] = {}
+    self._last_hunger: dict[str, dict | None] = {}
     self._last_mode: str | None = None
     # Who this robot IS, as distinct from what it is (0.10.0, issue #39):
     # ROBOT_ROOT is the species and stays the key of every wire structure;
@@ -215,9 +249,9 @@ class FrameBuilder:
     self.robot_names, self.world_names = robot, world
     self._robot = [(n, model.body(n).id) for n in robot]
     self._world = [(n, model.body(n).id) for n in world]
-    self._other_robots = {root: [(n, model.body(n).id)
-                                 for n in body_census(model, root)[0]]
-                          for root, _, _ in self.others}
+    self._other_robots = {r.root: [(n, model.body(n).id)
+                                   for n in body_census(model, r.root)[0]]
+                          for r in self.others}
     self._last: dict[int, tuple[list[float], list[float]]] = {}
     # Sparse-emission memory for activity flags -- this builder's own, so
     # two sinks over one world (serve.py --record) never eat each other's
@@ -267,8 +301,7 @@ class FrameBuilder:
       # only: it never changes during a run, so repeating it at 20 Hz would
       # buy nothing, and a consumer holding an older recording (field
       # absent) falls back to a default rather than rendering blank.
-      "robotNames": {ROBOT_ROOT: self.robot_name,
-                     **{root: name for root, name, _ in self.others}},
+      "robotNames": {r.root: r.name for r in self.robots},
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
@@ -298,7 +331,8 @@ class FrameBuilder:
       # gauge before the robot has been in any of them. Empty on a world
       # with no appetite -- the same honest answer `taskKinds` gives a world
       # with no board.
-      "hungerStates": list(HUNGER_STATES) if self.metabolism else [],
+      "hungerStates": (list(HUNGER_STATES)
+                       if any(r.metabolism for r in self.robots) else []),
       # WHICH BUILD, WHICH MIND, WHICH WORLD PARAMETERS (issue #132).
       # ADDITIVE, so no `protocolVersion` bump by protocol/README.md's own
       # rule -- a consumer that has never heard of it reads the header it
@@ -312,8 +346,8 @@ class FrameBuilder:
       **({"build": self.identity} if self.identity else {}),
     }
 
-  def goals_message(self, t: float) -> dict | None:
-    """The stream's opening statement of purpose, or None when there is none.
+  def goals_messages(self, t: float) -> list[dict]:
+    """The stream's opening statement of purpose, ONE PER ROBOT (0.20.0).
 
     Emitted once per stream rather than per frame, and NOT folded into the
     header, because the header describes the stream's shape while this is
@@ -339,9 +373,14 @@ class FrameBuilder:
     `steering` keeps its meaning exactly. It says whether a MIND is attached,
     which no document knows about itself; it is now also the answer to "could
     anything have written these", since nothing else can.
+
+    Since 0.20.0 each robot on the stream gets its own, keyed by `robot`:
+    two minds, two goal files, two answers to "is anything steering this
+    one".
     """
-    return {"type": "goals", "t": round(float(t), 3), "robot": ROBOT_ROOT,
-            "text": self.goals, "steering": self.steering}
+    return [{"type": "goals", "t": round(float(t), 3), "robot": r.root,
+             "text": r.goals, "steering": bool(r.steering)}
+            for r in self.robots]
 
   def thought_messages(self, t: float) -> list[dict]:
     """The robot's memory documents, whole (0.11.0, issue #38).
@@ -357,9 +396,8 @@ class FrameBuilder:
     that one says whether anything is READING them (`steering`), which no
     document knows about itself.
     """
-    if self.thoughts is None:
-      return []
-    return self.thoughts.messages(float(t))
+    return [m for r in self.robots if r.thoughts is not None
+            for m in r.thoughts.messages(float(t))]
 
   def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
     """The operator's mode, as its own message (0.12.0, issue #37).
@@ -384,7 +422,8 @@ class FrameBuilder:
     self._last_screens.clear()
     self._last_ledger.clear()
     self._last_tasks = None
-    self._last_spend = None
+    self._last_spend.clear()
+    self._last_hunger.clear()
     self._key_due = True
 
   def build(self) -> dict | None:
@@ -411,36 +450,42 @@ class FrameBuilder:
       self._last_screens.clear()
       self._last_ledger.clear()
       self._last_tasks = None
-      self._last_spend = None
-      self._last_hunger = None
+      self._last_spend.clear()
+      self._last_hunger.clear()
       self._key_due = False
       if self.keyframe_s:      # 0 would schedule the NEXT frame, keying all
         self._next_key = t + self.keyframe_s
       self.keyframes += 1
       frame["key"] = True
-    robot_rec: dict = {}
-    bodies = {}
-    for name, bid in self._robot:
-      pose = self._pose_if_moved(bid)
-      if pose is not None:
-        bodies[name] = pose
-    if bodies:
-      robot_rec["bodies"] = bodies
-    if self.status_fn is not None:
-      robot_rec.update(self.status_fn())
-    frame["robots"] = {ROBOT_ROOT: robot_rec}
-    for root, _, status_fn in self.others:
+    frame["robots"] = {}
+    for robot in self.robots:
       rec: dict = {}
-      moved = {}
-      for name, bid in self._other_robots[root]:
+      bodies = {}
+      for name, bid in self._bodies_of(robot.root):
         pose = self._pose_if_moved(bid)
         if pose is not None:
-          moved[name] = pose
-      if moved:
-        rec["bodies"] = moved
-      if status_fn is not None:
-        rec.update(status_fn())
-      frame["robots"][root] = rec
+          bodies[name] = pose
+      if bodies:
+        rec["bodies"] = bodies
+      if robot.status_fn is not None:
+        rec.update(robot.status_fn())
+      if robot.spend is not None:
+        # What the week's thinking has cost (0.12.0, issue #37). Whole-block
+        # on change, like `tasks`: six numbers that move together, and they
+        # move only when the robot buys a thought.
+        money = robot.spend.snapshot()
+        if money != self._last_spend.get(robot.root):
+          self._last_spend[robot.root] = money
+          rec["spend"] = money
+      if robot.metabolism is not None:
+        # How hungry it is (0.13.0, issue #36). Whole-block on change, like
+        # `spend` -- and it changes at the appetite's rate (a point every
+        # eighty sim-seconds at the shipped 45/hour), not per frame.
+        hunger = robot.metabolism.snapshot()
+        if hunger != self._last_hunger.get(robot.root):
+          self._last_hunger[robot.root] = hunger
+          rec["metabolism"] = hunger
+      frame["robots"][robot.root] = rec
     world = {}
     for name, bid in self._world:
       pose = self._pose_if_moved(bid)
@@ -472,23 +517,10 @@ class FrameBuilder:
       if board != self._last_tasks:
         self._last_tasks = board
         frame["tasks"] = board
-    if self.spend is not None:
-      # What the week's thinking has cost (0.12.0, issue #37). Whole-block on
-      # change, like `tasks`: six numbers that move together, and they move
-      # only when the robot buys a thought.
-      money = self.spend.snapshot()
-      if money != self._last_spend:
-        self._last_spend = money
-        frame["spend"] = money
-    if self.metabolism is not None:
-      # How hungry it is (0.13.0, issue #36). Whole-block on change, like
-      # `spend` -- and it changes at the appetite's rate (a point every
-      # eighty sim-seconds at the shipped 45/hour), not per frame.
-      hunger = self.metabolism.snapshot()
-      if hunger != self._last_hunger:
-        self._last_hunger = hunger
-        frame["metabolism"] = hunger
     return frame
+
+  def _bodies_of(self, root: str) -> list:
+    return self._robot if root == ROBOT_ROOT else self._other_robots[root]
 
   @staticmethod
   def _sparse(snapshot: dict, last: dict) -> dict:
@@ -554,9 +586,11 @@ class GridSampler:
   be indistinguishable from one whose grid path is broken.
   """
 
-  def __init__(self, grid, hz: float = GRID_HZ, dedupe: bool = False) -> None:
+  def __init__(self, grid, hz: float = GRID_HZ, dedupe: bool = False,
+               root: str = ROBOT_ROOT) -> None:
     self.grid = grid
     self.dedupe = dedupe
+    self.root = root        # whose map this is (0.20.0): the message's `robot`
     self.emitted = 0
     self.skipped = 0
     self._interval = 1.0 / hz
@@ -578,10 +612,20 @@ class GridSampler:
         return None
       self._last = raw
     self.emitted += 1
-    return ({"type": "grid", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+    return ({"type": "grid", "t": round(float(t), 3), "robot": self.root,
              "extent": [self.grid.x_min, self.grid.y_min,
                         self.grid.x_max, self.grid.y_max],
              "resolution": self.grid.resolution}, img)
+
+
+def grid_samplers(grid, others, hz: float, dedupe: bool) -> list:
+  """One `GridSampler` per robot that has a map (0.20.0): the first robot's
+  `grid` as every single-robot caller passes it, then each `StreamRobot`'s.
+  Shared by both sinks so the two agree on whose map is whose."""
+  samplers = [GridSampler(grid, hz=hz, dedupe=dedupe)]
+  samplers += [GridSampler(r.grid, hz=hz, dedupe=dedupe, root=r.root)
+               for r in others or () if r.grid is not None]
+  return samplers
 
 
 class TelemetryRecorder:
@@ -618,15 +662,15 @@ class TelemetryRecorder:
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
                                  build=build, others=others)
-    self._grid = GridSampler(grid, hz=grid_hz, dedupe=True)
+    self._grids = grid_samplers(grid, others, grid_hz, dedupe=True)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
-    # What the robot is for, before the first frame (0.8.0). Same slot the
-    # board snapshots below use, and the same argument: no keyframe re-ships
-    # it, so a reader that missed this line never learns it at all.
-    goals_msg = self._builder.goals_message(float(data.time))
-    if goals_msg is not None:
+    # What each robot is for, before the first frame (0.8.0; one per robot
+    # since 0.20.0). Same slot the board snapshots below use, and the same
+    # argument: no keyframe re-ships it, so a reader that missed this line
+    # never learns it at all.
+    for goals_msg in self._builder.goals_messages(float(data.time)):
       self._queue.put(goals_msg)
     # ...and the memory documents behind it (0.11.0, issue #38), in the same
     # slot for the same reason: no keyframe carries one, so a reader that
@@ -651,9 +695,9 @@ class TelemetryRecorder:
 
   @property
   def grids(self) -> int:
-    """Occupancy-grid images actually written (see GridSampler.skipped for
-    the ones the dedupe swallowed)."""
-    return self._grid.emitted
+    """Occupancy-grid images actually written, every robot's (see
+    GridSampler.skipped for the ones the dedupe swallowed)."""
+    return sum(g.emitted for g in self._grids)
 
   # ---- the hook (runs inside every physics step) ---------------------------
 
@@ -665,9 +709,10 @@ class TelemetryRecorder:
       # sits between two frames whose timestamps bracket it -- a replayer
       # samples the map by the same clock it samples poses by. The pair goes
       # on the queue unencoded; the writer thread turns it into a PNG.
-      sample = self._grid.due(frame["t"])
-      if sample is not None:
-        self._queue.put(sample)
+      for sampler in self._grids:
+        sample = sampler.due(frame["t"])
+        if sample is not None:
+          self._queue.put(sample)
 
   # ---- out-of-band messages ------------------------------------------------
 

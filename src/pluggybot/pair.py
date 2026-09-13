@@ -40,7 +40,7 @@ from pluggybot.lifecycle import (
 )
 from pluggybot.mind import events as ev
 from pluggybot.mission.mission import MissionAborted
-from pluggybot.robot import FIRST, SECOND, world_with_robots
+from pluggybot.robot import FIRST, SECOND, pair_model_name, world_with_robots
 
 
 #: The second robot's default display name; the first keeps `Pluggy`.
@@ -138,6 +138,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                         metabolism=hunger, tasks=board,
                         producer=maker if i == 0 else None,
                         mortal=mortal, autonomous=autonomous, **life_kw)
+    # The board grows for BOTH robots, though only the first ticks the
+    # producer: the second stands by for work like the first does.
+    life.expects_work = maker is not None
     lives.append(life)
   # Each mission is told where the OTHERS say they are, its lidar drops
   # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
@@ -184,6 +187,15 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
   if task is None:
     raise ValueError(f"the board would not offer {kind}")
   by_root = {life.mission.handle.root: life for life in lives}
+  # The referee is in the world's activities from the OFFER (idle, with no
+  # roles yet), so the recording's header lists it and its flags ride every
+  # frame; the roles are bound at the claim. It senses on the activity set's
+  # hook like every other activity.
+  game = HideAndSeek(model)
+  if lives[0].activities is not None:
+    lives[0].activities.add(game)
+  for life in lives:
+    life.game = game
   state: dict = {"game": None}
 
   def settle(game) -> None:
@@ -205,12 +217,11 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
     claims = event.get("claims") or {}
     if set(claims) != {"hider", "seeker"}:
       return
-    game = HideAndSeek(model, hider=by_root[claims["hider"]].mission.handle,
-                       seeker=by_root[claims["seeker"]].mission.handle)
+    game.assign(hider=by_root[claims["hider"]].mission.handle,
+                seeker=by_root[claims["seeker"]].mission.handle)
     state["game"] = game
-    for life in lives:
-      life.game = game
-    lives[0].mission.step_hooks.append(lambda: game.sense(model, data))
+    if lives[0].activities is None:
+      lives[0].mission.step_hooks.append(lambda: game.sense(model, data))
     game.on_over.append(settle)
     for life in lives:
       life._say(f"GAME {kind}: {by_root[claims['hider']].robot_name} hides, "
@@ -220,19 +231,20 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
 
 
 def record_pair(lives: list, path: str):
-  """One recording of both robots (issue #167 slice E): the first robot's
-  stream as it always was, the second under `robots[<r2 root>]` beside it,
-  the header naming both, and every event keyed by the robot that emitted
-  it -- two ledgers' accounts, two robots' thoughts, the pair's encounters
-  and the game's referee. What is still the first robot's alone is the
-  top-level `metabolism`, `spend` and `goals` (the 0.20.0 bump moves them;
-  protocol/README.md)."""
+  """One recording of both robots (issue #167; protocol 0.20.0): the first
+  robot's stream as it always was, the second under `robots[<r2 root>]`
+  beside it with its own `metabolism`, the header naming both, one `goals`
+  and one set of `thought` documents and one `grid` per robot, and every
+  event keyed by the robot that emitted it -- two ledgers' accounts, the
+  pair's encounters and the game's referee. The header's `model` is the
+  PAIR world's name (`pair_model_name`), because a replayer picks its scene
+  off it and the second robot's bodies are in no single-robot scene."""
   from pluggybot.mind import overseer as ov
-  from pluggybot.telemetry.recorder import TelemetryRecorder
+  from pluggybot.telemetry.recorder import StreamRobot, TelemetryRecorder
   first, others = lives[0], lives[1:]
   cfg = world_config(first.world)
   recorder = TelemetryRecorder(
-    first.model, first.data, path, model_name=cfg["model_name"],
+    first.model, first.data, path, model_name=pair_model_name(cfg["model_name"]),
     status_fn=first.telemetry_status, activities=first.activities,
     boards=first.boards, ledger=(first.ledger._ledger
                                  if hasattr(first.ledger, "_ledger") else first.ledger),
@@ -240,7 +252,10 @@ def record_pair(lives: list, path: str):
     grid=first.mission.grid, robot_name=first.robot_name,
     goals=ov.goals_text(thoughts=first.thoughts),
     steering=first.overseer is not None,
-    others=[(o.mission.handle.root, o.robot_name, o.telemetry_status)
+    others=[StreamRobot(o.mission.handle.root, o.robot_name, o.telemetry_status,
+                        metabolism=o.metabolism, thoughts=o.thoughts,
+                        goals=ov.goals_text(thoughts=o.thoughts),
+                        steering=o.overseer is not None, grid=o.mission.grid)
             for o in others])
   first.mission.step_hooks.append(recorder.step_hook)
   if first.boards is not None:
