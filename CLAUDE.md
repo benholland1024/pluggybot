@@ -757,7 +757,10 @@ save a filmstrip PNG named after the script.
 - **A robot's elements are reached through its `RobotHandle`, never by
   bare name** (issue #167, M12; `pluggybot/robot.py`). A second robot is
   `models/pluggybot_fork.xml` ATTACHED with a prefix (`MjSpec.attach`,
-  `r2_`), so its names are `r2_chassis`, `r2_lift`, `r2_dock_eye`; the
+  `r2_`) in its own LIVERY (`robot.paint`: every geom carrying
+  `CHASSIS_RGBA` — the chassis and the head mount — becomes
+  `SECOND_CHASSIS_RGBA`, purple; paint, never a hint), so its names are
+  `r2_chassis`, `r2_lift`, `r2_dock_eye`; the
   first robot's handle is `FIRST` (prefix `""`) and a single-robot world is
   byte-identical. `HubSwap`, `HubMission`, `Battery`, the tools and the
   lifecycle take `handle=`; the swap owns the resolved ids (`lift_act`,

@@ -73,13 +73,41 @@ def robot_spec() -> mujoco.MjSpec:
   return mujoco.MjSpec.from_string(text)
 
 
-def attach_robot(spec: mujoco.MjSpec, pos, prefix: str = SECOND_PREFIX) -> None:
-  """Attach a second robot to a world spec at `pos`, every element prefixed.
+#: The first robot's paint, as `models/pluggybot_fork.xml` has it on the
+#: chassis and the head mount: every geom carrying exactly this colour is
+#: the robot's LIVERY, and an attached robot is repainted there and nowhere
+#: else (the battery's red, the tags, the hardware greys stay).
+CHASSIS_RGBA = (0.2, 0.4, 0.8, 1.0)
+#: ...and the second robot's: purple, so two robots in one room are told
+#: apart at a glance -- on the site, which keeps the producer's colour per
+#: geom, and in the other robot's cameras, which render rgba. Paint, not a
+#: hint (CLAUDE.md: hints never ride as colours): a real second robot would
+#: be painted too.
+SECOND_CHASSIS_RGBA = (0.55, 0.3, 0.8, 1.0)
+
+
+def paint(spec: mujoco.MjSpec, rgba, was=CHASSIS_RGBA) -> int:
+  """Repaint every geom of `spec` carrying `was` to `rgba`; the count."""
+  n = 0
+  for geom in spec.geoms:
+    if all(abs(float(a) - b) < 1e-6 for a, b in zip(geom.rgba, was)):
+      geom.rgba = list(rgba)
+      n += 1
+  return n
+
+
+def attach_robot(spec: mujoco.MjSpec, pos, prefix: str = SECOND_PREFIX,
+                 chassis_rgba=SECOND_CHASSIS_RGBA) -> None:
+  """Attach a second robot to a world spec at `pos`, every element prefixed
+  and its livery repainted `chassis_rgba` (None keeps the first robot's).
   The attach is one call; the WORK is that everything reads through a
   handle afterwards."""
+  robot = robot_spec()
+  if chassis_rgba is not None:
+    paint(robot, chassis_rgba)
   frame = spec.worldbody.add_frame()
   frame.pos = [float(pos[0]), float(pos[1]), 0.0]
-  spec.attach(robot_spec(), prefix=prefix, frame=frame)
+  spec.attach(robot, prefix=prefix, frame=frame)
 
 
 PAIR_SUFFIX = "_pair"
@@ -95,11 +123,13 @@ def pair_model_name(model_name: str) -> str:
 
 
 def world_with_robots(path: str, second_at=None,
-                      prefix: str = SECOND_PREFIX) -> mujoco.MjModel:
-  """A world's model with, optionally, a second robot parked at `second_at`.
-  `None` compiles the world exactly as `from_xml_path` would."""
+                      prefix: str = SECOND_PREFIX,
+                      chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjModel:
+  """A world's model with, optionally, a second robot parked at `second_at`
+  in its own livery. `None` compiles the world exactly as `from_xml_path`
+  would."""
   if second_at is None:
     return mujoco.MjModel.from_xml_path(path)
   spec = mujoco.MjSpec.from_file(path)
-  attach_robot(spec, second_at, prefix)
+  attach_robot(spec, second_at, prefix, chassis_rgba)
   return spec.compile()
