@@ -429,9 +429,10 @@ PARTS: tuple[Part, ...] = (
     "pi_camera_3", "Raspberry Pi Camera Module 3", "sensor", "chosen",
     ("body", "catalog"), ("pluggybot",), partNumber="Camera Module 3",
     source="https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3",
-    massG=4, priceEur=25.50, quantity=2,
+    massG=4, dimensionsMm={"length": 25, "width": 24, "height": 11.5},
+    priceEur=25.50, quantity=2,
     capabilities={"sensor": "IMX708", "fovHDeg": 66, "fovVDeg": 41,
-                  "autofocus": "PDAF, ~10 cm to infinity"},
+                  "autofocus": "PDAF, ~10 cm to infinity", "powerW": None},
     feeds=(
       Feed("left_eye.fovy", camera("left_eye"), "°",
            "the navigation camera on the head: AprilTags", expect=41),
@@ -439,8 +440,9 @@ PARTS: tuple[Part, ...] = (
            "the docking camera on the lift carriage, so it rises with the "
            "fork", expect=41),
     ),
-    why={"dimensionsMm": "not recorded in Parts.md"},
-    note="Two cameras on the Pi 5's two CSI ports -- no multiplexer.",
+    note="Two cameras on the Pi 5's two CSI ports -- no multiplexer. Size "
+         "and mass from raspberrypi.com's camera documentation; its draw "
+         "is not published there, so a tool cannot budget for it yet.",
   ),
   Part(
     "stereo_pair_diy", "DIY stereo: 2× Camera Module 3 on a custom 60 mm "
@@ -471,7 +473,7 @@ PARTS: tuple[Part, ...] = (
     "NEMA11", "actuator", "chosen", ("body",), ("pluggybot",),
     partNumber="DLE-LA-0001",
     source="https://www.igus.com/product/DLE-LA-0001", quantity=2,
-    capabilities={"forceN": 50, "holdingTorqueNm": 0.12,
+    capabilities={"motion": "slide", "forceN": 50, "holdingTorqueNm": 0.12,
                   "leadMmPerRev": 5.08, "stepMm": 0.0254,
                   "flange": "NEMA11 / 28 mm",
                   "strokeMm": {"lift": "~250 wanted", "reach": "~200 wanted"}},
@@ -789,7 +791,8 @@ PARTS: tuple[Part, ...] = (
   Part(
     "module_lead_screw", "Small lead-screw slide for a module axis "
     "(unspecified)", "actuator", "candidate", ("catalog",), ("module_pen",),
-    capabilities={"forceN": None, "strokeMm": 110},
+    capabilities={"motion": "slide", "forceN": None, "strokeMm": 110,
+                  "powerW": None},
     feeds=(
       Feed("pen_carriage.forcerange", actuator("pen_carriage", "forcerange"),
            "N", "a GUESS: no part chosen"),
@@ -810,7 +813,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "module_servo", "Small servo for a module axis (unspecified)", "actuator",
     "candidate", ("catalog",), ("module_claw", "module_seed"),
-    capabilities={"forceN": None},
+    capabilities={"motion": "hinge", "forceN": None, "powerW": None},
     feeds=(
       Feed("claw_l.forcerange",
            same(actuator("claw_l", "forcerange"),
@@ -832,9 +835,25 @@ PARTS: tuple[Part, ...] = (
          "(Parts.md, 'Tool hub & modules').",
   ),
   Part(
+    "servo_fs90", "FEETECH FS90-FB micro servo (analog, position feedback)",
+    "actuator", "chosen", ("catalog",), (), partNumber="FS90-FB",
+    source="https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-"
+    "servo-with-position-feedback-5904422327088.html",
+    massG=13, dimensionsMm={"length": 23, "width": 13, "height": 22},
+    priceEur=2.90,
+    capabilities={"motion": "hinge", "angleDeg": 120, "torqueNm": 0.147,
+                  "speedDegS": 600, "voltageV": [4.8, 6.0], "stallA": 0.8,
+                  "powerW": 4.8},
+    note="The first catalog actuator with every number a tool needs: "
+         "Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° "
+         "and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) "
+         "is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the "
+         "same servo with a position wire added. 9 g there, 13 g here.",
+  ),
+  Part(
     "module_camera", "Module camera: wide-angle, wireless through the "
     "module's ESP32 (unspecified)", "sensor", "candidate", ("catalog",),
-    ("module_claw",), capabilities={"fovDeg": None},
+    ("module_claw",), capabilities={"fovDeg": None, "powerW": None},
     feeds=(
       Feed("claw_eye.fovy", camera("claw_eye"), "°",
            "wider than the Camera Module 3's 41°: it works at ~140 mm and "
