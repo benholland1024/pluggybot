@@ -38,13 +38,15 @@ The hub's ingest path is authenticated, so the publisher presents a
 shared secret as `Authorization: Bearer <token>` on connect. A dev sink
 (scripts/ws_sink.py) ignores it unless started with --token.
 
-Beyond frames, two lower-frequency message types ride the same socket
+Beyond frames, three lower-frequency message types ride the same socket
 (consumers must ignore types they do not know; frames are the messages
 with no "type" field):
 
   {"type": "grid", ...}    the robot's occupancy-grid BELIEF as a base64
                            PNG, ~1 Hz. The hook snapshots the uint8 image
                            (cheap numpy); the sender encodes it.
+  {"type": "heightmap", ...} the near-field height map (issue #34), the
+                           grid's twin: same cadence, its own moving extent.
   {"type": "event", ...}   lifecycle narration lines (_say), as they occur.
 
 INBOUND (issue #16). The socket is bidirectional as of protocol 0.7.0: the
@@ -102,7 +104,7 @@ class WsPublisher:
                steering: bool = False,
                robot_name: str | None = None,
                build: dict | None = None,
-               others: list | None = None) -> None:
+               others: list | None = None, heightmap=None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -113,7 +115,8 @@ class WsPublisher:
     # joiners, so the last message sent is what a new browser is handed --
     # and a live stream that fell silent because the map stopped changing
     # would look exactly like one whose grid path had broken.
-    self._grids = grid_samplers(grid, others, grid_hz, dedupe=False)
+    self._grids = grid_samplers(grid, others, grid_hz, dedupe=False,
+                                heightmap=heightmap)
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,

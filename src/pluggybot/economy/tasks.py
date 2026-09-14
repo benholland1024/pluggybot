@@ -177,10 +177,10 @@ KINDS: dict[str, TaskKind] = {
     # home and it was the cheapest number on this table -- caught in the wild
     # by the new `ENERGY ... economy/energy.json is low` line, on a real run:
     # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
-    # touch above economy/energy.json's census row (1.180 since issue #70's
-    # re-pricing of the expanded house), because this is the FALLBACK for a
+    # touch above economy/energy.json's census row (1.215 since #34's
+    # re-pricing with the depth camera), because this is the FALLBACK for a
     # world nobody has measured and being dear there is the cheap direction.
-    estimate_wh=1.20),
+    estimate_wh=1.22),
   "whiteboard_answer": TaskKind(
     "whiteboard_answer", task="answer", target_kind="board",
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.

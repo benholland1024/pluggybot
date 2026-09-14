@@ -115,7 +115,7 @@ them. They sit in different places, were built for different reasons, and an
 
 | | where | what it does | fired, 6 days |
 |---|---|---|---|
-| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | absolute return-trip reserve, 0.90 Wh ≈ 11 % on home's hosting pack. Top of the loop, never inside an errand | **1** |
+| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | absolute return-trip reserve, 0.95 Wh ≈ 12 % on home's hosting pack. Top of the loop, never inside an errand | **1** |
 | **the gate** | `_afford_next` | does the head of the errand queue fit in the pack *right now*? If not: charge, then ask again | **11** |
 | **the offer filter** | `Task.claimable` | an offer the pack cannot fund is never *shown* — the model cannot overreach because it cannot see the option | every decision |
 

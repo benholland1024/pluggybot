@@ -36,8 +36,9 @@ from pluggybot.mind.thoughts import GOALS, ThoughtFiles
 from pluggybot.mind import overseer as ov
 from pluggybot.mission.errand import Errand, carry_errand
 
-HOME_RESERVE = 0.90            # home_world's return-trip reserve (issue #84:
-                               # measured 0.579 floor + one dock retry)
+HOME_RESERVE = 0.95            # home_world's return-trip reserve (issue #84:
+                               # measured 0.611 floor + one dock retry, with
+                               # the depth camera drawing -- issue #34)
 HOME_DEMO_WH = 3.0             # ...and its demo cell, sized to hold the
                                # reserve AND the dearest errand off one charge
 HOSTING_WH = 8.0               # what the deployment actually runs
@@ -490,14 +491,15 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, on real physics ------------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime on `home` (the dearest
-#: errand, ~1.17 Wh, plus the 0.90 Wh reserve must fit a charged pack:
-#: capacity >= 2.07 / 0.9 = 2.30), so these cost one charge cycle instead of
+#: errand, ~1.22 Wh, plus the 0.95 Wh reserve must fit a charged pack:
+#: capacity >= 2.17 / 0.9 = 2.41), so these cost one charge cycle instead of
 #: the six a real 8 Wh pack would take. The regime is what is under test, not
 #: the capacity -- `--pack hosting` is the same arithmetic with more room in
-#: it. Was 2.0 against the old 0.55 reserve; issue #84's measured 0.90 moved
-#: the regime's floor, and a pack below it silently drops to zero margin (the
+#: it. Was 2.0 against the old 0.55 reserve and 2.4 against #84's 0.90; the
+#: depth camera's draw (#34) moved both the reserve and the census, and a
+#: pack below the floor silently drops to zero margin (the
 #: all-or-nothing rule), which is exactly what the first assertion catches.
-MARGIN_PACK_WH = 2.4
+MARGIN_PACK_WH = 2.5
 
 
 class OneNote:
@@ -639,7 +641,7 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
   home's most expensive errand, ~1.17 Wh against a 2.16 Wh charged pack. The
   robot must notice, in advance, that the second one will not fit, go and
   charge, and then do it. Without the gate `needs_charge` is false at
-  ~0.99 Wh (the reserve is 0.90), the errand starts anyway, and the robot
+  ~0.99 Wh (the reserve is 0.95), the errand starts anyway, and the robot
   ends the survey with less energy than it takes to get back to the rack.
 
   Adversarial rather than cooperative on purpose: the guarantee issue #15

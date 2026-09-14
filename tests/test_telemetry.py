@@ -11,6 +11,7 @@ keyframe-then-sparse frames, and everything queued reaching the file.
 
 import gzip
 import json
+import math
 import queue
 import threading
 from pathlib import Path
@@ -925,8 +926,19 @@ def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
     # The first robot works a whole day; the second's day on the served
     # shape may honestly be "explore, then stand by" -- home's cadence is
     # sparse and `run_many` steps the first robot first, so an offer that
-    # lands while both are idle is the first robot's (noted on #181).
-    assert len(states) > (3 if root == FIRST.root else 1), f"{root} barely moved: {states}"
+    # lands while both are idle is the first robot's (noted on #181). And
+    # standing by has NO state of its own (the day loop says why), so the
+    # second robot's frames may carry `EXPLORE` alone: "moved" is measured
+    # off its POSE, not counted off its states -- the old count passed only
+    # when the last frame happened to catch its `DONE`.
+    if root == FIRST.root:
+      assert len(states) > 3, f"{root} barely moved: {states}"
+    else:
+      assert "EXPLORE" in states, f"{root} never explored: {states}"
+      first_xy = [f["robots"][root]["bodies"][root][:2] for f in frames
+                  if root in f["robots"][root].get("bodies", {})]
+      travelled = math.dist(first_xy[0], first_xy[-1])
+      assert travelled > 1.0, f"{root} barely moved: {travelled:.2f} m"
   # Two APPETITES, not one block copied twice: the first robot earned and
   # ate; the second's block is its own account's story, not a copy.
   assert last_hunger[FIRST.root]["consumed"] > 0

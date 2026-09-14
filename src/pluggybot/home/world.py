@@ -239,17 +239,20 @@ GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
 # charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
 # 0.35 is too thin here; the demo cell grows with it so one explore + one
 # errand still runs the pack down and the loop still has to charge.
-#: MEASURED on the expanded plan, 2 Sep 2026 (issues #70 step 1 / #84;
-#: `scripts/energy_spike.py --reserve`, runnable again whenever a wall moves).
-#: The worst-case return -- street's far corner, through the open doorway and
-#: the garden door, to a REAL dock with the pins conducting:
+#: MEASURED on the expanded plan (issues #70 step 1 / #84; re-measured
+#: 13 Sep 2026 with the depth camera drawing, issue #34 -- `scripts/
+#: energy_spike.py --reserve`, runnable again whenever a wall moves). The
+#: worst-case return -- street's far corner, through the open doorway and the
+#: garden door, to a REAL dock with the pins conducting:
 #:
-#:     travel   0.297 Wh over 10.49 m of route  (28.3 mWh/m)
-#:     dock     0.282 Wh  (drive to standoff + tag creep + press)
-#:     floor    0.579 Wh
+#:     travel   0.314 Wh over 10.49 m of route  (29.9 mWh/m)
+#:     dock     0.297 Wh  (drive to standoff + tag creep + press)
+#:     floor    0.611 Wh
 #:
 #: ...plus one failed press-and-retry, which is the constant's own definition
-#: and is priced as one more dock leg: 0.579 + 0.282 = 0.861, carried as 0.90.
+#: and is priced as one more dock leg: 0.611 + 0.297 = 0.908, carried as 0.95.
+#: (Before the camera: 0.297 + 0.282 = 0.579, 0.861 with the retry, carried as
+#: 0.90 -- which the 2 W of the sensor ate the rounding of.)
 #:
 #: ⚠ THE ROUTE QUADRUPLED AND THE RESERVE BARELY MOVED, and that is the
 #: measurement's real finding: the old "~0.3 Wh living-room crossing" was
@@ -258,7 +261,7 @@ GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
 #: 74.7 mWh/m -- that was the robot grinding at the then-closed street gate,
 #: issue #94's odometry pump, not a travel cost.) Do not scale this with the
 #: pack, and re-measure it when the PLAN changes, not when the battery does.
-HOME_LOW_BATTERY_WH = 0.90
+HOME_LOW_BATTERY_WH = 0.95
 
 #: The point the reserve should be measured from: one robot-length inside the
 #: street's far corner, which is the farthest the robot can legally stand from
@@ -283,10 +286,10 @@ HOME_WORST_RETURN_M = 15.59
 #: SIZED FROM THE MEASURED RESERVE (issue #84), not guessed, and the
 #: arithmetic is short enough to carry here. Off one charge (`CHARGED` = 0.9)
 #: the cell must hold the reserve above plus the dearest errand (census,
-#: 1.180 Wh at issue #70's re-pricing): the floor is (0.90 + 1.18) / 0.9 =
-#: 2.31 Wh. Carried at 3.0 -- ~23 % of headroom, and #70's fresh numbers
-#: confirmed the sizing rather than moving it: the dearest row rose 1.141 ->
-#: 1.180 and the floor absorbed it.
+#: 1.215 Wh with the depth camera drawing, issue #34): the floor is
+#: (0.95 + 1.215) / 0.9 = 2.41 Wh. Carried at 3.0 -- ~20 % of headroom; #70's
+#: and #34's fresh numbers confirmed the sizing rather than moving it: the
+#: dearest row rose 1.141 -> 1.180 -> 1.215 and the floor absorbed it.
 #:
 #: ⚠ 3.0 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
 #: suite flies: the milestone-8 home arm starts at 45 % and its carry errand

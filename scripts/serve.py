@@ -211,6 +211,19 @@ def main() -> None:
                            "robot is told. Rate and cap are data "
                            "(economy/metabolism.json; $PLUGGY_METABOLISM "
                            "re-points it and implies this flag)")
+  parser.add_argument("--near-field", dest="near_field", action="store_true",
+                      default=os.environ.get("PLUGGY_NEAR_FIELD", "1")
+                      not in ("", "0", "false", "no", "off"),
+                      help="THE FLOOR IS SEEN (issue #34): the depth camera on "
+                           "the mast top builds a robot-centric height map "
+                           "at 10 Hz and it streams beside the occupancy "
+                           "grid (`heightmap` messages), drawing "
+                           "power.DEPTH_CAMERA_W while it runs. ON here by "
+                           "default and off everywhere else -- this world is "
+                           "the observatory, and nothing that decides reads "
+                           "the map yet. $PLUGGY_NEAR_FIELD=0 turns it off")
+  parser.add_argument("--no-near-field", dest="near_field",
+                      action="store_false", help=argparse.SUPPRESS)
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
@@ -460,7 +473,8 @@ def main() -> None:
                       # watch. ⚠ NOT an intervention -- see
                       # `HubLifecycle.restart_after_s`.
                       restart_after_s=(args.restart_after
-                                       if args.restart_after > 0 else None))
+                                       if args.restart_after > 0 else None),
+                      near_field=args.near_field)
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
   # This world is an OBSERVATORY, not an experiment: one uncontrolled
@@ -514,6 +528,7 @@ def main() -> None:
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
                           grid=life.mission.grid, token=args.token,
+                          heightmap=life.near_field,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
                           screens=screens, ledger=ledger, tasks=tasks,
@@ -594,7 +609,8 @@ def main() -> None:
                                  steering=boss is not None,
                                  robot_name=args.robot_name,
                                  build=identity,
-                                 grid=life.mission.grid)
+                                 grid=life.mission.grid,
+                                 heightmap=life.near_field)
     life.mission.step_hooks.append(recorder.step_hook)
     life.on_rebind.append(recorder.rebind)
     if book is not None:
@@ -688,6 +704,7 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      metabolism=appetite_on, mortal=True, inboxes=inboxes,
                      mode=switch, overseer_kw=overseer_kw,
                      battery_wh=args.battery_wh, reserve_wh=args.reserve_wh,
+                     near_field=args.near_field,
                      # The FIRST robot's documents, as a single robot's were
                      # (the image sets both): the volume that served one
                      # robot keeps that robot's goals and journal. The
@@ -723,7 +740,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                         metabolism=second.metabolism, thoughts=second.thoughts,
                         goals=overseer.goals_text(thoughts=second.thoughts),
                         steering=second.overseer is not None,
-                        grid=second.mission.grid)]
+                        grid=second.mission.grid,
+                        heightmap=second.near_field)]
   sink_kw = dict(model_name=pair_model_name(cfg["model_name"]),
                  status_fn=first.telemetry_status, keyframe_s=args.keyframe_s,
                  activities=first.activities, boards=book, screens=screens,
@@ -732,7 +750,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                  thoughts=first.thoughts, spend=purse if can_spend else None,
                  mode=switch, metabolism=first.metabolism,
                  steering=boss is not None, robot_name=names[0],
-                 build=identity, grid=first.mission.grid, others=others)
+                 build=identity, grid=first.mission.grid, others=others,
+                 heightmap=first.near_field)
   publisher = WsPublisher(model, data, args.endpoint, token=args.token,
                           accepts=(INBOUND_TYPES if boss is not None
                                    else CODE_HANDLED_TYPES), **sink_kw)

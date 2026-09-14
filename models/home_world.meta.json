@@ -225,7 +225,7 @@
   7.0
  ],
  "battery": {
-  "lowWh": 0.9,
+  "lowWh": 0.95,
   "demoCapacityWh": 3.0,
   "hostingCapacityWh": 8.0
  }

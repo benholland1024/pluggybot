@@ -38,6 +38,10 @@ def main() -> None:
   ap.add_argument("--metabolism", action="store_true",
                   help="points are food, for both robots (each its own "
                        "appetite over its own account)")
+  ap.add_argument("--near-field", action="store_true",
+                  help="each robot's mast-top depth camera builds its own "
+                       "height map, streamed beside its grid (issue #34); "
+                       "the other robot is dropped from each frame")
   ap.add_argument("--thoughts", default=None, metavar="DIR",
                   help="thought-file root; the second robot's live under "
                        "<DIR>/r2_pluggybot/")
@@ -62,6 +66,7 @@ def main() -> None:
                           autonomous=args.autonomous,
                           standing_orders=args.autonomous, tasks=args.tasks,
                           metabolism=args.metabolism,
+                          near_field=args.near_field,
                           thoughts_root=args.thoughts, names=names,
                           record=args.record, game=args.game)
   for i, r in enumerate(results, 1):

@@ -33,6 +33,15 @@ Z_MAX = 0.50     # m above the floor: a point higher is not a floor thing (a
 Z_MIN = -0.05    # m: below this is noise, never a hole
 RAISED_M = 0.03  # m: a cell this far above the floor is "something", above
                  # the 2.5 mm floor noise at 3 m and the wheel's 5 mm creep
+#: The wire image (protocol/README.md, "the `heightmap` message"): a uint8
+#: per cell, 0 = never measured, else 1 + height/Z_MAX x IMAGE_STEPS -- one
+#: step is 0.5 m / 50 = 1 cm, and a height below the floor or above `Z_MAX`
+#: clips to the nearest end. MEASURED: at 2 mm steps the sensor's own floor
+#: noise (σ 2.5 mm) made every cell different and a recording's PNGs cost
+#: ~12 KB each, doubling the vendored fixtures; at 1 cm the floor collapses
+#: to one value and the PNG is ~43 % smaller. The MAP keeps full precision;
+#: only the picture is quantised, and `steps` rides every message.
+IMAGE_STEPS = 50
 
 
 class HeightMap:
@@ -132,3 +141,33 @@ class HeightMap:
 
   def seen_fraction(self) -> float:
     return float(np.isfinite(self.height).mean())
+
+  # ---- the wire -----------------------------------------------------------
+
+  @property
+  def resolution(self) -> float:
+    return self.cell_m
+
+  @property
+  def extent(self) -> list[float]:
+    """[x_min, y_min, x_max, y_max] of the window in world metres, the
+    occupancy grid's `extent` shape; the window MOVES, so every message
+    carries its own. Before the first update the window is nowhere."""
+    if self.origin is None:
+      return [0.0, 0.0, 0.0, 0.0]
+    ox, oy = self.origin
+    return [round(v * self.cell_m, 4) for v in (ox, oy, ox + self.n, oy + self.n)]
+
+  def to_image(self) -> np.ndarray:
+    """uint8 (n, n), row 0 = the y_min edge like the occupancy grid's
+    image, encoded as `IMAGE_STEPS` says. A copy, safe to hand a sink."""
+    seen = np.isfinite(self.height)
+    scaled = np.clip(np.nan_to_num(self.height, nan=0.0) / Z_MAX, 0.0, 1.0)
+    img = np.where(seen, 1 + np.rint(scaled * IMAGE_STEPS), 0)
+    return img.astype(np.uint8)
+
+  @staticmethod
+  def from_image(img: np.ndarray) -> np.ndarray:
+    """The decoder a consumer needs: heights in metres, NaN where 0."""
+    v = img.astype(np.float64)
+    return np.where(v == 0, np.nan, (v - 1) / IMAGE_STEPS * Z_MAX)
