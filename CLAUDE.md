@@ -245,8 +245,10 @@ wording, settled direction. Before doing anything, read:
   asks whether the LLM can achieve it, and a rotation quietly keeping it
   alive answers a question nobody asked. In code: `Overseer.fallback` reaches
   `scripted()` only when `standing_orders` is False. Evaluation.md §2.
-- **The deployed world can fly an arm, and still flies `guarded`** (issue
-  #142): `scripts/serve.py --arm/--rung` (`$PLUGGY_ARM` / `$PLUGGY_RUNG`) and
+- **The deployed world flies `autonomous`, both robots, origin `unseeded`**
+  (issue #206; the control is `experiment.py --arm guarded` and nothing
+  served is a control). Which arm is `serve.py --arm/--origin/--rung`
+  (`$PLUGGY_ARM` / `$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`, issue #142), and it and
   `experiment.py` share ONE definition, `evaluation/arms.py` — two
   definitions of an arm is how a stream claims an arm nobody flew. Unset
   changes nothing (`--overseer` decides as it always did and the arm is read
@@ -254,9 +256,12 @@ wording, settled direction. Before doing anything, read:
   contradiction (`--overseer --arm scripted`) or a rung on an arm with no
   ladder is REFUSED. The header says what RAN, not what was asked for: an arm
   whose overseer could not be built is a `scripted` day; `build.rung` is
-  additive and absent where there is no ladder. ⚠ **Flipping the deployed
-  world is a decision, not a config change**: Evaluation.md §2 argues it
-  stays `guarded`, and that argument updates in the PR that flips it. ⚠ The
+  additive and absent where there is no ladder. ⚠ **Changing the deployed
+  arm is a decision, not a config change**: Evaluation.md §2 carries the
+  argument (why `autonomous`, why `unseeded`, what its death rate is not
+  yet known to be) and it updates in the PR that moves it; `tests/test_
+  webserver.py::test_the_deployed_pair_flies_autonomous_from_nothing_and_
+  the_header_says_so` pins the served configuration. ⚠ The
   A1–A3 rungs and the capacity sweep are POSTPONED and may be scrapped
   (PluggyPlan: measurement waits for the design; #155 designs the
   five-quality instruments and flies nothing).

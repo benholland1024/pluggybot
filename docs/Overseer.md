@@ -1090,8 +1090,9 @@ deliberately **not** flags — they stay out of `ps`, like `PLUGGYWORLD_TOKEN`.
 names the arm off the one definition the experiment flies and overrides
 `PLUGGY_OVERSEER` in **both** directions; a contradiction (`--overseer --arm
 scripted`) and a rung on an arm with no ladder are refused rather than
-resolved. **Unset changes nothing**, and the deployed world flies `guarded` —
-flipping it is a decision argued in Evaluation.md §2, not a config change. The
+resolved. **Unset changes nothing**; the deployed world names `autonomous`,
+both robots, origin `unseeded` (issue #206) — changing it is a decision argued
+in Evaluation.md §2, not a config change. The
 header says what RAN: `--arm guarded` with no key is still `guarded` (the mind
 answers `fallback:no-client`), but an arm whose overseer could not be built at
 all is a `scripted` day.
