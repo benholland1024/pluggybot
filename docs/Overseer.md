@@ -205,8 +205,16 @@ What code keeps, in order, before anything moves:
 2. **The parts** must be ones the catalog fully knows. `spec.unbuildable`
    is ONE predicate for the validator's refusal and the prompt's list, so
    the robot is never told a part is usable that the code would refuse.
-   Today that is a micro servo and printed PLA — the camera's draw is
-   unpublished and the rest are candidates — and the prompt says why.
+   Since #199 that is two micro servos (FS90-FB, FS90MG), a 100 mm
+   linear servo (Actuonix L12), a roller-lever microswitch (a `contact`
+   sense: `<tool>.<id>.contact`, the bumper's criterion on a tool), an
+   ESP32-CAM eye and printed PLA; the Pi camera's draw is still
+   unpublished and the rest are candidates, and the prompt says why.
+   ⚠ Measured against the peg's 6 W: a servo at stall plus the eye with
+   its flash is 6.95 W with the module's 0.6 W, so a tool that looks AND
+   moves is refused until `PEG_POWER_W` is re-examined (a design
+   decision, `coupling.py`; `test_an_eye_and_a_servo_together_are_over_
+   the_peg_today` pins the cost).
 3. **The price** (`workshop/cost.py`): the catalog's euros as points, one
    per euro, filament by the gram; then print and assembly **time** stood
    still. Paid before anything prints (`Ledger.spend`, no debt); an

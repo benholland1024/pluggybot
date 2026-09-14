@@ -166,9 +166,27 @@ def module_for(tool: Tool, x: float, y: float, peg_z: float,
                     yaw_deg=yaw_deg)
 
 
+def sensor_name(tool: Tool, placed: Placed) -> str:
+  return f"{tool.name}.{placed.id}.contact"
+
+
+def contact_sensors(tool: Tool) -> list[Placed]:
+  """The parts a program may ask "am I touching something" of: a catalog
+  sensor whose `sense` is `contact` (the bumper's microswitch, issue #199).
+  A camera is a sensor too and has no such reading."""
+  return [p for p in tool.parts
+          if p.part.kind == "sensor" and p.part.capabilities.get("sense") == "contact"]
+
+
 def register(tool: Tool) -> list[str]:
   """The tool's verbs and joints into the registries a program reads.
-  Returns the names, so a retire (slice D) can take them out again."""
+  Returns the names, so a retire (slice D) can take them out again.
+
+  A contact sensor part becomes `<tool>.<id>.contact`: 1 while that part's
+  geom touches anything outside the module -- the bumper's own criterion,
+  through `axes.geom_contact` -- so a tool that carries a microswitch can
+  feel for a wall the way the chassis does. No new sensing: the contact
+  list already says it."""
   names = []
   for p in tool.axes:
     a = p.axis
@@ -186,6 +204,14 @@ def register(tool: Tool) -> list[str]:
         life.data.qpos[life.model.joint(jn).qposadr[0]]),
       f"{tool.name}'s {a.verb}, measured ({unit})", requires=tool.body))
     names.append(name)
+  for p in contact_sensors(tool):
+    name = sensor_name(tool, p)
+    geom = f"{tool.body}_{p.id}"
+    axes.register_sensor(axes.Sensor(
+      name, lambda life, geom=geom: axes.geom_contact(life, geom),
+      f"{tool.name}'s {p.id}: 1 while the {p.part.name} touches something "
+      "outside the module", requires=tool.body))
+    names.append(name)
   return names
 
 
@@ -201,7 +227,11 @@ def unregister(body: str) -> list[str]:
   for n in gone:
     del axes.AXES[n]
     axes.SENSORS.pop(n, None)
-  return gone
+  # ...and the sensors that are not an axis's twin: a contact sense.
+  felt = [n for n, s in axes.SENSORS.items() if s.requires == body and n not in gone]
+  for n in felt:
+    del axes.SENSORS[n]
+  return gone + felt
 
 
 # ---- the rig ----------------------------------------------------------------

@@ -31,7 +31,7 @@ MODULE = ROOT / "src" / "pluggybot" / "rack" / "catalog.py"
 
 #: Parts.md's ✅ CHOSEN list, by the number you would order with. The doc
 #: gains a pointer to the fixture and stops being the only copy of these.
-PARTS_MD_CHOSEN = ("4753", "1435-1439 (by colour)", "1999", "955",
+PARTS_MD_CHOSEN = ("4753", "1435-1439 (by colour)", "1999", "955", "D2F-01L2",
                    "RPLIDAR C1", "Camera Module 3", "DLE-LA-0001")
 
 
@@ -199,7 +199,10 @@ def test_the_fixture_says_what_the_workshop_may_build_from(fixture):
   by_id = catalog.by_id()
   usable = sorted(p["id"] for p in fixture["parts"] if p["workshop"]["usable"])
   assert usable == sorted(p.id for p in catalog.PARTS if unbuildable(p) is None)
-  assert usable == ["scaffold_pla_box", "servo_fs90"]
+  # Widened on purpose by issue #199: a slide, a switch, an eye, a second
+  # servo -- each sourced with a datasheet, none by guessing a number.
+  assert usable == ["bumper_switch", "esp32_cam", "scaffold_pla_box",
+                    "servo_fs90", "servo_fs90mg", "slide_l12_100"]
   for p in fixture["parts"]:
     if not p["workshop"]["usable"]:
       assert p["workshop"]["why"] == unbuildable(by_id[p["id"]])

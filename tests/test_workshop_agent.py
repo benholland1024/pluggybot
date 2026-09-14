@@ -260,8 +260,13 @@ def test_the_prompt_lists_only_what_can_be_built_from_and_says_why_not():
   rule = ov.workshop_rule()
   usable = [line for line in rule.splitlines()
             if line.startswith("  ") and " -- " in line and "CANNOT" not in line]
-  assert [line.split(":")[0].strip() for line in usable] == ["servo_fs90", "scaffold_pla_box"]
+  assert [line.split(":")[0].strip() for line in usable] == [
+    "bumper_switch", "servo_fs90", "servo_fs90mg", "slide_l12_100", "esp32_cam",
+    "scaffold_pla_box"]
   assert "pi_camera_3" in rule and "draw unknown" in rule
+  # a switch is told as a sense, and the prompt says what a sense is for
+  assert "bumper_switch" in rule and "sense contact" in rule
+  assert "<name>.<id>.contact" in rule
   # the envelope the robot is told is the one the code refuses against
   from pluggybot.rack import coupling
   assert f"under {coupling.MODULE_MASS_CEILING * 1000:.0f} g" in rule
