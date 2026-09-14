@@ -268,7 +268,7 @@ save a filmstrip PNG named after the script.
 
 | script | what it is for |
 |---|---|
-| `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand {carry,draw,draw2,census,dance,showcase,none}` (`showcase` = draw + census, the queue both streamed surfaces are recorded from), `--boards PATH`, `--tasks`, `--metabolism`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
+| `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand {carry,draw,draw2,census,dance,showcase,none}` (`showcase` = draw + census, the queue both streamed surfaces are recorded from), `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
 | `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | M14 harness, above |
@@ -538,8 +538,8 @@ save a filmstrip PNG named after the script.
     home's 3.0 Wh cell no longer overspends);
   - **the margin is all-or-nothing**: an errand must leave the return-trip
     reserve behind, but only in a world whose charged pack funds its dearest
-    job PLUS the reserve. Home's reserve is 0.90 Wh, dock-DOMINATED
-    (`energy_spike.py --reserve`); room_hub's 0.7 Wh cell is zero-margin.
+    job PLUS the reserve. Home's reserve is 0.95 Wh, dock-DOMINATED
+    (`energy_spike.py --reserve`); room_hub's 1.0 Wh cell (0.7 before #34) is zero-margin.
     One number per world, so `Task.claimable`, `fundable_wh` and the errand
     gate are the same arithmetic; the reserve is a property of the floor
     plan and does not scale with the pack (`--reserve-wh` is for a different
@@ -646,7 +646,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
-  `"Pluggy"`), `PLUGGY_PAIR` / `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
+  `"Pluggy"`), `PLUGGY_NEAR_FIELD` (the depth camera and its height map;
+  unset → on, `0` → off), `PLUGGY_PAIR` / `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
   (the second robot, issue #181), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
   `PLUGGY_CADENCE`, `PLUGGY_ENERGY`, `PLUGGY_METABOLISM` — naming the last
   turns hunger on), `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`,
@@ -664,16 +665,17 @@ save a filmstrip PNG named after the script.
   pluggybot.telemetry.scene [models/home_world.xml]` — rerun after changing
   ANY geometry in that world (the fixture test fails when stale).
   Recordings: `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py [--world
-  home --errand showcase] --tasks --metabolism --record protocol/telemetry.
-  {hub,home}_lifecycle.jsonl.gz`. The PAIR world (`room_hub_pair`, 0.20.0)
+  home --errand showcase] --tasks --metabolism --near-field --record
+  protocol/telemetry.{hub,home}_lifecycle.jsonl.gz`. The PAIR world (`room_hub_pair`, 0.20.0)
   is a third: `python -m pluggybot.telemetry.scene models/room_hub.xml
   --pair` and `scripts/two_robots.py --fast --pack hosting --tasks
-  --metabolism --game --max-sim-time 600 --record protocol/telemetry.
-  room_hub_pair.jsonl.gz` (⚠ `--pack hosting`: on the demo cell the hider
-  dies mid-game at 286 s).
-  ⚠ `--tasks` and `--metabolism` are BOTH
-  load-bearing: both are off by default and a recording made without them
-  carries no `tasks`/`metabolism` block for the website to build against.
+  --metabolism --near-field --game --max-sim-time 600 --record protocol/
+  telemetry.room_hub_pair.jsonl.gz` (⚠ `--pack hosting`: on the demo cell
+  the hider dies mid-game at 286 s).
+  ⚠ `--tasks`, `--metabolism` and `--near-field` are ALL
+  load-bearing: each is off by default and a recording made without it
+  carries no `tasks`/`metabolism` block or `heightmap` lines for the
+  website to build against.
   ⚠ The HOME recording takes TWO PASSES against the same `--boards
   state.json`: a `board_snapshot` is only emitted for a board already
   carrying ink, so lay the ink first (`--errand draw --boards
@@ -998,10 +1000,29 @@ save a filmstrip PNG named after the script.
   housing. ⚠ The height map is `SIZE_M` 4 m at `CELL_M` 2 cm = 40 000 cells
   (fewer than the 2D grid), the LAST frame's highest point per cell, `Z_MAX`
   0.5 m (a 2.5D map cannot say what is under an overhang; voxels are 25× the
-  cells and 40–200× the update, MEASURED in the spike). ⚠ NOTHING IN THE
-  MISSION LOOP READS IT YET, and its ~1.5–3.5 W is not in `ELECTRONICS_W`:
-  both land together, with `energy_spike.py --write`, in the first change
-  that builds on it.
+  cells and 40–200× the update, MEASURED in the spike). ⚠ IN THE LOOP IT IS
+  OPT-IN (`HubLifecycle(near_field=)`, `run_demo`/`build_pair` likewise;
+  `serve.py` ON by default, `$PLUGGY_NEAR_FIELD=0` off; the demo scripts
+  `--near-field`, off): `_near_field_step` ticks the seam at `depth.PERIOD`
+  and folds each frame in at the BELIEVED pose, a frame is ~7 ms so a
+  mission test that did not ask pays nothing, and `power.DEPTH_CAMERA_W`
+  (2.0) is drawn ONLY while it runs — `economy/energy.json` is measured
+  WITH it on (`energy_spike.py` builds its lifecycles so), the dearer case;
+  that re-pricing raised home's reserve 0.90 → 0.95 and grew room_hub's
+  demo cell 0.7 → 1.0 Wh (its carry read 0.817 as a first errand after the
+  explore and a 0.7 cell could no longer OFFER the job). ⚠ EVERY ROW IS
+  FROM THE RACK: a drawing flown FIRST from the explore's end read 1.354
+  against 0.992 from the rack and is NOT carried — that is the price of
+  where the explore ended, a first errand starts on a full pack, and
+  carrying it charged the loop before every second drawing (a two-answer
+  day went 181 → 519 s). `energy_spike.py --actions draw:<board>` flies
+  ONE board, first; the far board's drive from the explore's end fails
+  every time (a failure is not a cost).
+  ⚠ NOTHING THAT DECIDES READS THE MAP: it is built and streamed
+  (`heightmap` beside `grid`, one per robot, `HeightMapSampler`,
+  protocol/README.md "the `heightmap` message"; the recordings carry it) so
+  a day of it can be looked at on the observatory before anything depends
+  on it. `tests/test_near_field.py` pins each rule.
 - **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
   does not.** The default pure-pursuit law cannot converge on a destination
   closer than its own overshoot and ORBITS it (~900° of turning per 200 mm

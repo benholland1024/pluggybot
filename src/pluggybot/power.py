@@ -32,6 +32,13 @@ NOLOAD_SPEED = 21.0     # rad/s: no-load current scales up to full speed
 ELECTRONICS_W = 8.5     # Pi 5 + cameras + IMU + LIDAR, always on. Was 6.0 for
                         # the stereo era; the RPLIDAR C1-class unit adds ~2.5 W,
                         # a 40 % increase that comes straight off run time.
+DEPTH_CAMERA_W = 2.0    # the RealSense D435 streaming depth with its projector
+                        # (issue #34), drawn only while the near-field map is
+                        # built (`HubLifecycle.near_field`; on when served,
+                        # off in a test). ~1.9 W is the community-measured
+                        # figure and 3.5 W the USB budget; the datasheet number
+                        # is Parts.md's open decision 10. economy/energy.json
+                        # is measured WITH it on, the dearer of the two cases.
 ACTUATOR_W = 5.0        # each lead-screw stepper, only while moving
 ACTUATOR_MOVING = 2e-3  # m/s: slower than this counts as holding (unpowered)
 CHARGE_W = 55.0         # ~1C into the 5 Ah pack

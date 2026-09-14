@@ -197,12 +197,14 @@ def attach(client):
 
 
 #: The threshold the mission tests below fire on, and it is chosen rather
-#: than guessed: room_hub's demo cell starts a mission at ~95 % and the first
-#: carry errand takes it to ~13 %, so 0.5 is certainly crossed DURING an
-#: errand and certainly not before one has started. A row that fires during
-#: the opening spin would be QUEUED rather than an interrupt -- which is the
-#: correct behaviour and not what these tests are about.
-MID_ERRAND = 0.5
+#: than guessed: room_hub's demo cell (1.0 Wh since #34; 0.7 before) starts a
+#: mission at ~95 % and the first carry errand takes it to ~50 %, so 0.7 is
+#: certainly crossed DURING an errand and certainly not before one has
+#: started (the spin and the drive to the rack cost a few percent). A row
+#: that fires during the opening spin would be QUEUED rather than an
+#: interrupt -- which is the correct behaviour and not what these tests are
+#: about.
+MID_ERRAND = 0.7
 
 
 def fly(tmp_path, tag, row, client=None, errand="carry", extra=0,

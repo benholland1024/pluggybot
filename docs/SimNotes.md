@@ -1320,6 +1320,17 @@ way, each with what is true now:
   cannot forget, which is the cost hiding in every "voxels are cheap" claim.
   **What is true now:** the height map is the representation; voxels are
   the answer if what is under an overhang ever matters, and nothing asks.
+- **The loop builds the map before anything reads it** (stage 2). The
+  sensor ticks the physics seam at 10 Hz where it is on (`near_field=`;
+  served yes, tests no — a frame is ~7 ms, a minute per mission test),
+  placed by dead reckoning like the grid; the draw is
+  `power.DEPTH_CAMERA_W` while it runs and `energy.json` was re-measured
+  with it on; the map streams as `heightmap` beside `grid`. ⚠ The
+  lifecycle's own settling ticks the seam before a test gets to it: a
+  direct `_near_field_step()` call inside the same period takes no frame,
+  which read as "the throttle is broken" until the count was taken as a
+  delta. **What is true now:** the observatory shows the floor; nothing
+  that decides has read it.
 
 ## Debugging workflow that worked
 

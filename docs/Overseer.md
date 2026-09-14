@@ -665,7 +665,7 @@ the errand gate are the same arithmetic. `home`'s demo cell is 3.0 Wh
 (`HOME_DEMO_CAPACITY_WH`), sized from the reserve plus the dearest errand off
 one charge — (0.90 + 1.18) / 0.9 = 2.31 Wh, carried with headroom — so it
 charges the full margin on both its packs and the mid-errand death is
-unreachable there. `room_hub`'s 0.7 Wh cell is zero-margin by construction.
+unreachable there. `room_hub`'s 1.0 Wh cell (0.7 before the depth camera, #34) is zero-margin by construction.
 
 ### The reserve, and the hosting pack
 

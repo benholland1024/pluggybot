@@ -712,6 +712,7 @@ class _FakeLife:
   def __init__(self, model, data, **kw):
     self.init_kwargs = kw
     self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
+    self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way
     # the real lifecycle holds them -- off the kwargs it was built with --

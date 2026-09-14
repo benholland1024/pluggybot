@@ -80,6 +80,12 @@ def main() -> None:
                            "the cadence in economy/cadence.json as the run goes "
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
+  parser.add_argument("--near-field", action="store_true",
+                      help="THE FLOOR IS SEEN (issue #34): the mast-top depth "
+                           "camera builds a robot-centric height map at "
+                           "10 Hz, streamed beside the occupancy grid; it "
+                           "draws power.DEPTH_CAMERA_W while on. Off by "
+                           "default -- ~7 ms a frame; serve.py turns it on")
   parser.add_argument("--metabolism", action="store_true",
                       help="POINTS ARE FOOD (issue #36): the robot consumes "
                            "points at a steady rate on sim time, stops "
@@ -146,7 +152,7 @@ def main() -> None:
                overseer=args.overseer or None, goals=args.goals,
                journal_state=args.journal, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
-               metabolism=args.metabolism,
+               metabolism=args.metabolism, near_field=args.near_field,
                pack=args.pack, reserve_wh=args.reserve_wh,
                robot_name=args.robot_name,
                overseer_backend=args.overseer_backend,

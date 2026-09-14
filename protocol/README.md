@@ -24,14 +24,15 @@ ink first, then record against the same state file:
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
   --errand draw --boards /tmp/pw_boards.json                      # pass 1
 MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
-  --errand showcase --tasks --metabolism --boards /tmp/pw_boards.json \
+  --errand showcase --tasks --metabolism --near-field --boards /tmp/pw_boards.json \
   --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
 ```
 
-⚠ **`--tasks` and `--metabolism` are both load-bearing**, for the same reason
-and in the same way `--tasks` became so at 0.9.0: each is off by default, so a
-recording made without it carries no `tasks` / `metabolism` block at all and
-the website has nothing to build its markers or its hunger gauge against.
+⚠ **`--tasks`, `--metabolism` and `--near-field` are all load-bearing**, for
+the same reason and in the same way `--tasks` became so at 0.9.0: each is off
+by default, so a recording made without it carries no `tasks` / `metabolism`
+block or `heightmap` lines at all and the website has nothing to build its
+markers, its hunger gauge or its floor map against.
 
 **A pair world is a world of its own** (0.20.0, issue #167): `<model>_pair`
 is the world with the second robot attached where the pair demo parks it,
@@ -44,10 +45,11 @@ by for the board's work):
 ```sh
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair
 MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks \
-  --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz
+  --metabolism --near-field --game --max-sim-time 600 \
+  --record protocol/telemetry.room_hub_pair.jsonl.gz
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair
 MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting \
-  --tasks --metabolism --errands draw,none --max-sim-time 600 \
+  --tasks --metabolism --near-field --errands draw,none --max-sim-time 600 \
   --record protocol/telemetry.home_world_pair.jsonl.gz
 ```
 
@@ -297,6 +299,48 @@ put them there and there is no write API for either.
 knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
+
+### 0.20.0, additive: the `heightmap` message (the floor, near the robot)
+
+pluggybot #34. The robot's third ranging sensor is a depth camera on the
+mast top, pitched at the floor ahead (Parts.md "near-field depth
+camera"); what it sees is folded into a **robot-centric 2.5D height map**
+-- a 4 m window of 2 cm cells that travels with the robot, each cell the
+height of the highest thing the last frame to see it found there. It
+rides the stream as the `grid` message's twin, **one `heightmap` per robot
+that has one**, 1 Hz live like the grid and **0.1 Hz in a recording** (half
+the grid's rate: the window moves, so a dedupe never skips one, and a base64
+PNG does not gzip), same PNG path, keyed by `robot`. Additive:
+no shape changes, a consumer ignores an unknown type, and a recording
+made with the sensor off simply has no `heightmap` lines -- which a panel
+must render as "no near-field map was published", never as "nothing on
+the floor".
+
+```jsonc
+// near-field height map, ~1 Hz per robot: base64 PNG, uint8 cells,
+// row 0 = y_min edge (as `grid`). 0 = NEVER MEASURED (unknown, not
+// floor); otherwise height_m = (v - 1) / steps * zMax, so one step is
+// 1 cm, a measured floor cell is 1, and anything at or above zMax is 51
+{"type": "heightmap", "t": 123.4, "robot": "pluggybot",
+ "extent": [-2.86, 3.34, 1.14, 7.34],  // the WINDOW, world m -- it moves
+ "resolution": 0.02, "zMax": 0.5, "steps": 50, "png": "iVBORw0..."}
+```
+
+Three things a renderer should know:
+
+- **The extent moves.** The window is recentred on the robot's believed
+  pose by whole cells, so successive messages have different extents and
+  a consumer places each image by ITS OWN `extent`, never by the first
+  one's. The occupancy grid's extent is fixed; this one is not.
+- **It is placed by the same belief as `grid`** -- dead reckoning -- so it
+  drifts with the grid, and a thing the robot passed can smear across
+  cells as its belief slides. That is the honest picture, not a bug.
+- **A relay hub should cache the most recent `heightmap` per robot** for
+  late joiners, exactly as it caches `grid`.
+
+`serve.py` turns the sensor on by default (`--near-field`,
+`$PLUGGY_NEAR_FIELD=0` turns it off); the demo scripts take `--near-field`
+and are off without it, and the committed recordings are made with it on.
 
 ### 0.20.0, additive: the `tool` event (the robot builds a tool)
 
@@ -1335,8 +1379,8 @@ against the body census.
 | `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
 | `parts.json` | The **parts catalog** (issue #185): what Pluggy and its rack are made of and what the agent may build from, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
-| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --metabolism --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
+| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --metabolism --near-field --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
+| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --near-field --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
 | `scene.room_hub_pair.json` | `room_hub` with the SECOND robot attached where the pair demo parks it (0.20.0, issue #167): every `r2_*` body marked `"robot": "r2_pluggybot"` | `uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair` |
 | `telemetry.room_hub_pair.jsonl.gz` | Two scripted robots on `room_hub` from one loop, a shared board with **hide-and-seek** on it (one robot per role), both **appetites**, both **maps**, the pair's **encounters** | `MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz` |
 | `scene.home_world_pair.json` | The home world with the second robot attached (issue #181): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair` |
@@ -1690,8 +1734,9 @@ disagree. Live-stream rules:
   behalf, which is what recurring keyframes are for. On a browser join,
   replay the cached header, then the cached keyframe, then the frames
   after it, then go live — the cache is bounded by `keyframeS` × `hz`
-  (≈100 frames). Also worth caching: the most recent `grid` message per
-  robot, so a joiner's map is not blank for a second, and the ink: the
+  (≈100 frames). Also worth caching: the most recent `grid` and
+  `heightmap` messages per robot, so a joiner's maps are not blank for a
+  second, and the ink: the
   latest `board_snapshot` per board plus the `draw` events since it, both
   dropped when a `board_cleared` for that board goes past (0.5.0). Nothing
   else in the stream can rebuild a board — a keyframe carries its counters,

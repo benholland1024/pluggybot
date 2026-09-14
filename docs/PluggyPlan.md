@@ -116,10 +116,12 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    D435 on the mast top, `perception/depth.py`, honest in its limits, noise,
    shadow and self-view), the robot-centric 2.5D height map
    (`perception/heightmap.py`) with the voxel alternative MEASURED and the
-   cost budgeted (Parts.md "near-field depth camera"). Not yet in the
-   mission loop — reading it in a mission, with its draw in the electrical
-   budget and the energy table re-measured, comes with the first thing built
-   on it: floor-object challenges and the ramp.
+   cost budgeted (Parts.md "near-field depth camera"). Stage 2: the map is
+   built on the physics seam (opt-in; on where served), its draw is on the
+   pack and in the energy table, and it streams beside the occupancy grid
+   (`heightmap`; the site draws it as a heat map) — so a day of it can be
+   watched on the observatory before anything decides on it. Next: the
+   first thing that reads it, floor-object challenges and the ramp.
 7. A new baseline, with instruments derived from the five qualities (#155
    designs them now and flies nothing).
 
@@ -147,7 +149,7 @@ which quality 2 needs, so it is deferred, not dropped).
 | Capability | Approach |
 |---|---|
 | Ranging | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
-| Near field | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`). Sensor and map only — nothing in the loop reads them yet (#34) |
+| Near field | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
 | Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`); a YOLO outlet detector on the plug-era path |
 | Odometry | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
 | Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`) |

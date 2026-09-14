@@ -453,7 +453,7 @@ PARTS: tuple[Part, ...] = (
                   "minZM": 0.28, "specRangeM": 10, "baselineMm": 50,
                   "projector": "IR dot pattern: depth on textureless "
                                "surfaces, which passive stereo could not do "
-                               "here", "interface": "USB 3", "powerW": None},
+                               "here", "interface": "USB 3", "powerW": 2.0},
     feeds=(
       Feed("depth_eye.fovy", camera("depth_eye"), "°",
            "the near-field camera on the mast top, pitched 40° at the "
@@ -477,6 +477,10 @@ PARTS: tuple[Part, ...] = (
            "447 px focal length and 50 mm baseline"),
       code("perception.depth.PERIOD", "s",
            "10 Hz in sim, the LIDAR's rate; the part streams 30"),
+      code("power.DEPTH_CAMERA_W", "W",
+           "drawn only while the near-field map is built; ~1.9 W measured "
+           "by users streaming depth with the projector, 3.5 W the USB "
+           "budget, the datasheet figure is Parts.md's open decision 10"),
     ),
     why={"source": "RealSense left Intel in 2025; order from a distributor "
          "(Mouser, Reichelt) -- link not verified",
@@ -488,10 +492,9 @@ PARTS: tuple[Part, ...] = (
          "printed modules exactly as the DIY pair did), a CSI time-of-flight "
          "module (the Pi 5's two CSI ports are the two cameras) and a second "
          "LIDAR tilted at the floor (a line, only while moving; cannot look "
-         "at a thing from a standstill). Its draw is NOT in "
-         "`power.ELECTRONICS_W` yet: nothing in the mission loop reads it, "
-         "and the electrical budget lands with the loop integration and the "
-         "energy table's re-measure (docs/Parts.md \"near-field depth camera\").",
+         "at a thing from a standstill). Its draw is `power.DEPTH_CAMERA_W`, "
+         "on the pack only while the map is built -- on where served, off in "
+         "a test (docs/Parts.md \"near-field depth camera\").",
   ),
   Part(
     "stereo_pair_diy", "DIY stereo: 2× Camera Module 3 on a custom 60 mm "

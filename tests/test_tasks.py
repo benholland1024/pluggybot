@@ -157,12 +157,11 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   afford has to be refused before it is started, not during.
 
   The numbers are the ones that matter here. A `draw_figure` on
-  `whiteboard_a` is priced at 0.929 Wh -- MEASURED, economy/energy.json, and
-  cross-checked against the committed home recording -- against a 1.100 Wh
-  cell that charges to 90 %, so a freshly-charged robot can just take it and
-  a half-empty one cannot, which is the whole behaviour. The first version of
-  this table guessed 0.35 Wh and the fixture recorded a robot dying mid-
-  stroke with the pen still on the fork.
+  `whiteboard_a` is priced at 0.992 Wh -- MEASURED, economy/energy.json
+  (0.929 before the depth camera, #34) -- against home's 3.0 Wh cell that
+  charges to 90 %, so a freshly-charged robot can take it and one most of
+  the way down cannot, which is the whole behaviour. The first version of this table guessed 0.35 Wh and the fixture
+  recorded a robot dying mid-stroke with the pen still on the fork.
 
   ⚠ The board is given home's energy table, because that is what production
   does (issue #15) and the price is now per WORLD and per TARGET: a bare
@@ -171,12 +170,12 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   """
   from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy("home"))
-  task = offered(b)                       # draw_figure on whiteboard_a: 0.929
-  assert task.claimable(0.0, pack_wh=0.99)      # home, just after a charge
-  assert not task.claimable(0.0, pack_wh=0.55)  # home, at half
-  assert b.claim(task.id, t=0.0, pack_wh=0.55) is None
+  task = offered(b)                       # draw_figure on whiteboard_a: 0.992
+  assert task.claimable(0.0, pack_wh=2.0)       # home, just after a charge
+  assert not task.claimable(0.0, pack_wh=0.9)   # home, most of the way down
+  assert b.claim(task.id, t=0.0, pack_wh=0.9) is None
   assert b[task.id].state == "offered"    # still on offer for a fuller robot
-  assert b.claim(task.id, t=0.0, pack_wh=0.99) is not None
+  assert b.claim(task.id, t=0.0, pack_wh=2.0) is not None
 
 
 def test_the_energy_gate_is_measured_against_the_whole_pack():
@@ -190,7 +189,9 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
   would refuse every job in every world forever, which reads from outside
   exactly like a task system nobody wired up.
   """
-  headroom = {"room_hub": 0.700 * 0.9 - 0.350, "home": 1.100 * 0.9 - 0.550}
+  # room_hub only since issue #84 grew home's cell to 3.0 Wh (home is in the
+  # margin regime now, and its headroom above the reserve funds a job).
+  headroom = {"room_hub": lc.DEMO_CAPACITY_WH * 0.9 - 0.350}
   cheapest = min(k.estimate_wh for k in KINDS.values())
   for world, above_reserve in headroom.items():
     assert above_reserve < cheapest, (
@@ -209,13 +210,13 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
   # 1.1 Wh demo cell, which the committed recording shows the robot doing
   # anyway.
   from pluggybot.economy.energy import load as load_energy
-  for world, cap in (("room_hub", 0.700), ("home", 1.100)):
+  from pluggybot.home import world as home
+  for world, cap in (("room_hub", lc.DEMO_CAPACITY_WH),
+                     ("home", home.HOME_DEMO_CAPACITY_WH)):
     board = TaskBoard(energy=load_energy(world))
     for name, kind in KINDS.items():
       if world == "room_hub" and kind.target_kind in ("board", "zone"):
         continue                          # room_hub has neither
-      if world == "home" and name == "count_plants":
-        continue                          # see above: measured `overspend`
       priced = board.estimate_for(name)
       if priced is None:
         priced = kind.estimate_wh
