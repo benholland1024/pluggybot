@@ -1288,6 +1288,62 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   assert [m.id for m in a.inbox.drain()] == ["r2", "r3"]
 
 
+def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
+    monkeypatch, tmp_path):
+  """The configuration the deployed world runs from issue #206 -- `--pair
+  --arm autonomous --origin unseeded`, in the image's environment -- pinned
+  before it is deployed rather than checked off `/observe` afterwards.
+
+  Three claims, one per thing that could quietly be wrong: BOTH minds are
+  `autonomous` (the rails off on each lifecycle, not the first alone); both
+  start from an EMPTY event map, which is what `unseeded` means (`none`
+  would be no map at all, and a map with rows in it would be `seeded`); and
+  the one header the pair publishes carries the arm and the origin, because
+  a stream that claims an arm nobody flew is the failure `evaluation/arms.py`
+  exists to prevent."""
+  from pluggybot import pair as pair_mod
+  from pluggybot.mind import overseer as overseer_mod
+  serve = _load_serve()
+  root = tmp_path / "thoughts"
+  monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
+  monkeypatch.setenv("PLUGGY_THOUGHTS", str(root))
+  monkeypatch.setenv("PLUGGY_GOALS", str(tmp_path / "goals.md"))
+  monkeypatch.setenv("PLUGGY_JOURNAL", str(tmp_path / "journal.json"))
+  built: dict = {}
+  monkeypatch.setattr(serve, "WsPublisher",
+                      lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
+  flown: dict = {}
+
+  def fake_run_pair(lives, **kw):
+    flown["lives"] = lives
+    for life in lives:
+      life.mission.close()
+    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
+             "module_stowed": True, "sim_time": 1.0, "errands": [],
+             "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+            for _ in lives]
+
+  monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "home", "--pack", "hosting", "--free-run",
+    "--arm", "autonomous", "--origin", "unseeded",
+    "--thoughts", str(root), "--goals", str(tmp_path / "goals.md"),
+    "--journal", str(tmp_path / "journal.json"),
+    "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
+  serve.main()
+  lives = flown["lives"]
+  assert len(lives) == 2
+  for life in lives:
+    assert life.autonomous is True, f"{life.root}: the rails are on"
+    boss = life.overseer
+    assert boss.origin == "unseeded"
+    assert boss.event_map is not None, f"{life.root}: `none`, not `unseeded`"
+    assert len(boss.event_map) == 0, f"{life.root}: a seeded map"
+  identity = built["pub"].init_kwargs["build"]
+  assert identity["arm"] == "autonomous"
+  assert identity["origin"] == "unseeded"
+
+
 def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_documents(
     monkeypatch, tmp_path):
   """⚠ THE PRODUCTION IMAGE SETS $PLUGGY_GOALS AND $PLUGGY_JOURNAL (one
