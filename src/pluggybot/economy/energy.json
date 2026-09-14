@@ -75,28 +75,28 @@
   "worlds": {
     "home": {
       "errandWh": {
-        "answer": 0.85,
+        "answer": 0.992,
         "answer:whiteboard_b": 1.086,
-        "artwork": 0.85,
+        "artwork": 0.992,
         "artwork:whiteboard_b": 1.086,
         "carry": 0.914,
-        "census": 1.18,
-        "dance": 0.658,
-        "draw": 0.85,
+        "census": 1.215,
+        "dance": 0.661,
+        "draw": 0.992,
         "draw:whiteboard_b": 1.086
       },
       "exploreWhPerS": 0.00897,
-      "chargeW": 19.0,
-      "measuredOn": "re-priced for the expanded house, 3 Sep 2026 (issue #70): two 40 Wh spike runs, one after a full 243 s explore and one after a sparse 79 s one, dearer per row -- the sparse-map run is dearer almost everywhere, which is the documented first-errand-through-unexplored-space effect. carry rose 0.689 -> 0.914 (the new plot moved its route) and the near draw fell 0.929 -> 0.850 (both runs agree; the old figure was a spawn-pose reading of the old house). draw:whiteboard_b is the sparse run alone: the full-map run's attempt failed its drive (49.6 s, 0.205 Wh -- a failure is not a cost, this file's own rule). chargeW stays 19.0: fresh presses read 37.7/38.0 W and the slowest press measured still governs the timeout."
+      "chargeW": 17.0,
+      "measuredOn": "re-measured 13 Sep 2026 with the depth camera drawing (issue #34, power.DEPTH_CAMERA_W 2.0 W on the pack all day where served): carry/draw/census/dance flown after a 102 s explore on a 40 Wh pack, dearer per row against the previous rows -- carry keeps 0.914 (0.892 measured: the trajectory reshuffles more than 2 W moves), draw 0.850 -> 0.992, census 1.180 -> 1.215, dance 0.658 -> 0.661. EVERY ROW IS FROM THE RACK: the errand starts where the previous one ended, the swap's home. A drawing flown as the FIRST errand from wherever the explore ended read 1.354 (a 65 s drive to the rack before the pick) and is NOT carried -- that is the price of the explore's end, not of the board; every other row would need the same surcharge, and a first errand starts on a full pack, where the gate cannot strand anyone. Carrying it made the mission loop charge before every second drawing the pack could fund (measured: a two-answer day went 181 -> 519 s). draw:whiteboard_b keeps the sparse run's 1.086: with the camera the far board was flown three times and never reached (the drive through the doorway from the explore's end fails every time; a failure is not a cost). chargeW is the slowest press ever measured (19.0) less the camera's 2 W: fresh presses read 35.9 net."
     },
     "room_hub": {
       "errandWh": {
-        "carry": 0.57,
-        "dance": 0.528
+        "carry": 0.817,
+        "dance": 0.582
       },
-      "exploreWhPerS": 0.00624,
-      "chargeW": 19.0,
-      "measuredOn": "40 Wh pack, 29 s explore; carry cross-checked against protocol/telemetry.hub_lifecycle.jsonl.gz"
+      "exploreWhPerS": 0.008456,
+      "chargeW": 17.0,
+      "measuredOn": "re-measured 13 Sep 2026 with the depth camera drawing (issue #34): two 40 Wh spike runs, dearer per row. carry 0.570 -> 0.817 after the world's default 113 s explore (the first-errand-through-unexplored-space effect: the pick starts wherever the explore ended); like for like with the old row (29 s explore) it read 0.505, and the committed recording's first carry 0.573 -- the trajectory reshuffles more than 2 W moves. dance 0.528 -> 0.582. The 0.7 Wh demo cell could no longer fund the job (0.63 charged), so it grew to 1.0 (lifecycle.DEMO_CAPACITY_WH), still zero-margin. chargeW is the slowest press measured (19.0) less the camera's 2 W; fresh presses read 35 net."
     }
   }
 }

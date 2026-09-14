@@ -76,6 +76,12 @@ QUAT_EPS = 0.0005   # per-component, sign-normalized (q and -q are the
 NDIGITS = 4         # 0.1 mm -- below anything a viewer can see
 GRID_HZ = 1.0       # LIVE occupancy-grid messages per sim-second
 RECORD_GRID_HZ = 0.2  # ...and in a RECORDING: one every five sim-seconds.
+#: ...and the near-field height map in a recording (issue #34): one every ten.
+#: Half the grid's rate because the window MOVES with the robot, so a dedupe
+#: never skips one, and a base64 PNG does not gzip: at 0.2 Hz and 1 cm steps
+#: the floor map was ~0.7 MB of a 1.9 MB vendored recording. Live is the
+#: grid's 1 Hz -- a hub caches only the newest, so nothing accumulates.
+RECORD_HEIGHTMAP_HZ = 0.1
                     # A recording is watched from the top, so what matters is
                     # that the map is seen FILLING IN, not that it is at most
                     # a second stale -- and unlike the live stream these bytes
@@ -107,6 +113,7 @@ class StreamRobot:
   goals: str = ""
   steering: bool = False
   grid: object = None
+  heightmap: object = None
 
 
 class FrameBuilder:
@@ -626,19 +633,45 @@ class GridSampler:
         return None
       self._last = raw
     self.emitted += 1
-    return ({"type": "grid", "t": round(float(t), 3), "robot": self.root,
-             "extent": [self.grid.x_min, self.grid.y_min,
-                        self.grid.x_max, self.grid.y_max],
-             "resolution": self.grid.resolution}, img)
+    return (self.message(t), img)
+
+  def message(self, t: float) -> dict:
+    return {"type": "grid", "t": round(float(t), 3), "robot": self.root,
+            "extent": [self.grid.x_min, self.grid.y_min,
+                       self.grid.x_max, self.grid.y_max],
+            "resolution": self.grid.resolution}
 
 
-def grid_samplers(grid, others, hz: float, dedupe: bool) -> list:
+class HeightMapSampler(GridSampler):
+  """The near-field HEIGHT MAP (issue #34; protocol 0.20.0, additive), the
+  grid's twin on the wire: same cadence, same dedupe rule per sink, same
+  PNG path. The window travels with the robot, so `extent` moves from one
+  message to the next, and the image is `HeightMap.to_image`'s encoding
+  (0 = never measured, else 1 cm steps to `zMax`); both are in the message
+  so a consumer decodes it without knowing the sim's constants."""
+
+  def message(self, t: float) -> dict:
+    from pluggybot.perception.heightmap import IMAGE_STEPS, Z_MAX
+    return {"type": "heightmap", "t": round(float(t), 3), "robot": self.root,
+            "extent": self.grid.extent, "resolution": self.grid.resolution,
+            "zMax": Z_MAX, "steps": IMAGE_STEPS}
+
+
+def grid_samplers(grid, others, hz: float, dedupe: bool,
+                  heightmap=None, heightmap_hz: float | None = None) -> list:
   """One `GridSampler` per robot that has a map (0.20.0): the first robot's
-  `grid` as every single-robot caller passes it, then each `StreamRobot`'s.
-  Shared by both sinks so the two agree on whose map is whose."""
+  `grid` as every single-robot caller passes it, then each `StreamRobot`'s
+  -- and one `HeightMapSampler` per robot that has a near-field map (#34),
+  on the same cadence. Shared by both sinks so the two agree on whose map
+  is whose."""
   samplers = [GridSampler(grid, hz=hz, dedupe=dedupe)]
   samplers += [GridSampler(r.grid, hz=hz, dedupe=dedupe, root=r.root)
                for r in others or () if r.grid is not None]
+  hhz = hz if heightmap_hz is None else heightmap_hz
+  if heightmap is not None:
+    samplers.append(HeightMapSampler(heightmap, hz=hhz, dedupe=dedupe))
+  samplers += [HeightMapSampler(r.heightmap, hz=hhz, dedupe=dedupe, root=r.root)
+               for r in others or () if r.heightmap is not None]
   return samplers
 
 
@@ -666,7 +699,7 @@ class TelemetryRecorder:
                steering: bool = False,
                robot_name: str | None = None, build: dict | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ,
-               others: list | None = None) -> None:
+               others: list | None = None, heightmap=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
@@ -676,7 +709,9 @@ class TelemetryRecorder:
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
                                  build=build, others=others)
-    self._grids = grid_samplers(grid, others, grid_hz, dedupe=True)
+    self._grids = grid_samplers(grid, others, grid_hz, dedupe=True,
+                                heightmap=heightmap,
+                                heightmap_hz=RECORD_HEIGHTMAP_HZ)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
@@ -711,7 +746,14 @@ class TelemetryRecorder:
   def grids(self) -> int:
     """Occupancy-grid images actually written, every robot's (see
     GridSampler.skipped for the ones the dedupe swallowed)."""
-    return sum(g.emitted for g in self._grids)
+    return sum(g.emitted for g in self._grids
+               if not isinstance(g, HeightMapSampler))
+
+  @property
+  def heightmaps(self) -> int:
+    """Near-field height-map images actually written, every robot's."""
+    return sum(g.emitted for g in self._grids
+               if isinstance(g, HeightMapSampler))
 
   # ---- the hook (runs inside every physics step) ---------------------------
 

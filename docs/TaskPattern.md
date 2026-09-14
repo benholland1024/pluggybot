@@ -302,8 +302,8 @@ every one below was hit, measured, and given a gate.
   table guessed 0.35 Wh for a drawing that measured 0.929, and the home
   fixture recorded a robot claiming the job at 88 % and dying mid-stroke.
   home left that regime at issue #84: its errands re-price 0.658–1.180 Wh
-  against a 3.0 Wh demo cell, which funds the dearest job AND the 0.90 Wh
-  return-trip reserve off one charge. Costs come from
+  against a 3.0 Wh demo cell, which funds the dearest job AND the 0.95 Wh
+  return-trip reserve off one charge (0.90 before the depth camera, #34). Costs come from
   `scripts/energy_spike.py` into `economy/energy.json`; a cost key may name a
   TARGET (`draw:whiteboard_b`) and wins over the bare action, because the far
   whiteboard measurably costs more than the near one and one number for both

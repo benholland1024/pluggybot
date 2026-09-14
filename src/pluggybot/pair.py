@@ -187,6 +187,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     life.mission.others = [other.mission.pose_xy for other in others]
     for other in others:
       life.mission.lidar.exclude_robot(other.mission.handle.root)
+      if life.depth_camera is not None:
+        life.depth_camera.exclude_robot(other.mission.handle.root)
   # The world's activities sense once per step, on the first robot's hooks:
   # they are the world's, and two copies would sense everything twice. The
   # pair's own -- the ENCOUNTERS between the two (activity/encounter.py) --
@@ -286,12 +288,14 @@ def record_pair(lives: list, path: str):
                                  if hasattr(first.ledger, "_ledger") else first.ledger),
     tasks=first.tasks, thoughts=first.thoughts, metabolism=first.metabolism,
     grid=first.mission.grid, robot_name=first.robot_name,
+    heightmap=first.near_field,
     goals=ov.goals_text(thoughts=first.thoughts),
     steering=first.overseer is not None,
     others=[StreamRobot(o.mission.handle.root, o.robot_name, o.telemetry_status,
                         metabolism=o.metabolism, thoughts=o.thoughts,
                         goals=ov.goals_text(thoughts=o.thoughts),
-                        steering=o.overseer is not None, grid=o.mission.grid)
+                        steering=o.overseer is not None, grid=o.mission.grid,
+                        heightmap=o.near_field)
             for o in others])
   first.mission.step_hooks.append(recorder.step_hook)
   if first.boards is not None:

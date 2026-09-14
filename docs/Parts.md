@@ -205,10 +205,11 @@ pixels wide; the robot's own deck dropped (and still occluding); and **no
 return is NOT a reading** — the LIDAR's rule inverted: an out-of-range pixel
 is unknown, never free space. Sim resolution is 120 × 70 (the part's aspect
 at 1/7), 8400 batched ray casts at **~5–7 ms a frame** on both worlds
-(60 × 35 is ~1.7 ms), deterministic and off the GPU. ⚠ Its draw (~1.5–3.5 W
-streaming, unverified) is **not in `power.ELECTRONICS_W`**: nothing in the
-mission loop reads it yet, and the electrical budget lands with the loop
-integration and the energy table's re-measure.
+(60 × 35 is ~1.7 ms), deterministic and off the GPU. Its draw is
+`power.DEPTH_CAMERA_W` (2.0 W: the community-measured ~1.9 W streaming with
+the projector; the datasheet figure is open decision 10), on the pack only
+while the map is being built — `HubLifecycle(near_field=)`, on when served
+and off in a test — and `economy/energy.json` is measured with it on.
 
 **The representation, measured** (`--cost`; the issue's own question). A
 robot-centric **2.5D height map**, 4 m square at 2 cm = **40 000 cells**
@@ -396,4 +397,4 @@ threshold derived from the model — the mass re-budget in PluggyPlan.md
    (~0.25 m and ~0.20 m stroke) and their masses.
 10. **Depth camera sourcing and draw** — RealSense left Intel in 2025: confirm
     an EU distributor and price for the D435 (roughly €300–400, unverified),
-    and its streaming draw, before it enters `power.ELECTRONICS_W`.
+    and its streaming draw against `power.DEPTH_CAMERA_W`'s 2.0 W.

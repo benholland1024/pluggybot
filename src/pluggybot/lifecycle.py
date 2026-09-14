@@ -59,7 +59,11 @@ from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
-from pluggybot.power import MODULE_IDLE_W, Battery, charge_scale_from_env
+from pluggybot.perception import depth as nf
+from pluggybot.perception.depth import DepthCamera
+from pluggybot.perception.heightmap import HeightMap
+from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
+                             charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
   DEATH_CAUSES, robot_display_name,
 )
@@ -140,13 +144,18 @@ AUTO_RESTART_BY = "auto-restart"
 # lesson: the cost of getting home is set by the ROOM, not by the battery.
 LOW_BATTERY_WH = 0.35
 CHARGED = 0.90
-DEMO_CAPACITY_WH = 0.7      # scaled demo cell: honest power draw, capacity
+DEMO_CAPACITY_WH = 1.0      # scaled demo cell: honest power draw, capacity
                             # sized so one explore + one errand actually
-                            # runs the pack down and the loop has to charge
+                            # runs the pack down and the loop has to charge.
+                            # Was 0.7 until the depth camera (#34) re-priced
+                            # the carry to 0.817 Wh (economy/energy.json):
+                            # a 0.7 cell charged holds 0.63 and could no
+                            # longer OFFER its one job. Still zero-margin
+                            # (#84's arithmetic: 0.817 + 0.35 > 0.9).
 #: ...and the pack a WATCHED world runs on (issue #15, `--pack hosting`).
 #: Sized from the measured errand costs rather than picked: room_hub's dearest
-#: job is 0.57 Wh, so ~10 errands to a charge and a rhythm measured in hours
-#: rather than minutes. See `home.HOME_HOSTING_CAPACITY_WH` for why the
+#: job is 0.82 Wh (0.57 before #34), so ~7 errands to a charge and a rhythm
+#: measured in hours rather than minutes. See `home.HOME_HOSTING_CAPACITY_WH` for why the
 #: reserve does NOT scale alongside it.
 HOSTING_CAPACITY_WH = 6.0
 
@@ -292,7 +301,7 @@ class HubLifecycle:
                autonomous: bool = False,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
-               spec=None) -> None:
+               spec=None, near_field: bool = False) -> None:
     self.model, self.data = model, data
     #: THE SPEC THE WORLD WAS COMPILED FROM (issue #168 slice C), kept so a
     #: tool can be hung mid-run: `hang_tool` edits it and recompiles. None
@@ -451,6 +460,21 @@ class HubLifecycle:
     # seam only QUEUES an action, and the loop runs it on its next pass
     # through the one branch the overseer already owned.
     self.mission.step_hooks.append(self._events_step)
+    #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
+    #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
+    #: on this same seam, because the map is a running belief like the
+    #: occupancy grid and a frame taken only between errands would see one
+    #: patch of floor a day. OPT-IN, and off here by default: a frame is
+    #: ~7 ms of Python, which is a minute added to every mission test at
+    #: 10 Hz; `serve.py` turns it on (the observatory is where it is read)
+    #: and nothing that DECIDES reads it yet -- it is built and streamed
+    #: so a day of it can be looked at before anything depends on it.
+    self.depth_camera = DepthCamera(model, handle=handle) if near_field else None
+    self.near_field = HeightMap() if near_field else None
+    self.near_field_frames = 0
+    self._next_near_field = 0.0
+    if near_field:
+      self.mission.step_hooks.append(self._near_field_step)
     #: THE SLOT. One action, because a map that fires faster than the loop
     #: can run things is exactly what "an action is allowed to fail" is
     #: about: a row that finds this full fails `busy`, which is the only
@@ -623,11 +647,27 @@ class HubLifecycle:
                                             prefix)
     if self.tool_powered:
       self.tool_powered_s += dt
+    # The depth camera streams whenever the map is built (issue #34): a
+    # load like the module's, drawn only where the sensor is on.
     self.battery.update(self.data, dt, charging=self.charging_now,
-                        tool_w=MODULE_IDLE_W if self.tool_powered else 0.0)
+                        tool_w=(MODULE_IDLE_W if self.tool_powered else 0.0)
+                        + (DEPTH_CAMERA_W if self.depth_camera is not None
+                           else 0.0))
     self._screen_step()
     self._death_step()
     self._restart_step()
+
+  def _near_field_step(self) -> None:
+    """One depth frame into the height map, at the sensor's rate, placed
+    by the BELIEVED pose (dead reckoning, the axle midpoint) exactly as the
+    occupancy grid places a LIDAR scan: the sensor never learns where the
+    robot is, and drift smears the map honestly."""
+    if self.data.time < self._next_near_field:
+      return
+    self._next_near_field = float(self.data.time) + nf.PERIOD
+    frame = self.depth_camera.frame(self.data)
+    self.near_field.update(self.mission.pose, frame.points)
+    self.near_field_frames += 1
 
   # ---- death (issue #107) --------------------------------------------------
 
@@ -1209,6 +1249,8 @@ class HubLifecycle:
     """
     self.model, self.data = model, data
     self.mission.rebind(model, data)
+    if self.depth_camera is not None:
+      self.depth_camera.rebind(model)
     if self.screen is not None:
       self.screen.model, self.screen.data = model, data
     if self.activities is not None:
@@ -2396,7 +2438,7 @@ class HubLifecycle:
     world forever -- a task system that silently does nothing. home LEFT that
     regime at issue #84: a 3.0 Wh demo cell against errands re-priced to
     0.658-1.180 Wh (#70) funds the dearest job AND the margin, so home now
-    charges the full 0.90 Wh reserve.
+    charges the full 0.95 Wh reserve (0.90 before the depth camera, #34).
 
     On a hosting-sized pack there IS margin to keep, the errand is required to
     finish with the return trip still in hand, and the mid-errand death this
@@ -3186,6 +3228,12 @@ class HubLifecycle:
       # cause the day ended in, or None; `survival_s` is the clock at the end.
       "dead": self.dead["cause"] if self.dead else None,
       "deaths": list(self.deaths),
+      # The near-field map (issue #34): frames folded in, and what it holds
+      # to stand on the floor at the end -- absent where the sensor is off.
+      **({"nearField": {"frames": self.near_field_frames,
+                        "things": len(self.near_field.things()),
+                        "seen": round(self.near_field.seen_fraction(), 3)}}
+         if self.near_field is not None else {}),
       # LIVES LEFT, and the deaths that ENDED a robot rather than a life
       # (issue #136). `true_deaths` is never summed with `deaths`: an
       # ordinary death keeps the volume and the next life reads about it,
@@ -4085,7 +4133,7 @@ def run_demo(start=None, view: bool = False,
              autonomous: bool = False,
              show_survival: bool = True,
              origin: str = ev.DEFAULT_ORIGIN,
-             second_robot=None) -> dict:
+             second_robot=None, near_field: bool = False) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
 
   `on_ready` is handed the built lifecycle once every hook is attached and
@@ -4231,7 +4279,7 @@ def run_demo(start=None, view: bool = False,
                       tasks=board, spec=spec,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,
-                      autonomous=autonomous)
+                      autonomous=autonomous, near_field=near_field)
   # Where the pack starts (issue #84). A mission does not have to begin on a
   # full cell -- the milestone-8 test starts half-charged so its one-errand
   # day still needs the hub, now that the grown demo cell can fund a whole
@@ -4274,7 +4322,10 @@ def run_demo(start=None, view: bool = False,
                                  # that never had one -- which is what the
                                  # website's map panel was reading until
                                  # rooftop-media-2026 #78.
-                                 grid=life.mission.grid)
+                                 grid=life.mission.grid,
+                                 # ...and the near-field map beside it
+                                 # (issue #34), where the sensor is on.
+                                 heightmap=life.near_field)
     life.mission.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.

@@ -43,8 +43,8 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, errands_for, points_ledger, world_config,
-  world_screens,
+  HubLifecycle, board_book, draw_errand_for, errands_for, points_ledger,
+  world_config, world_screens,
 )
 
 #: Actions worth pricing: every errand a world can build, plus the two the
@@ -70,7 +70,11 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       screen=next(iter(screens), None),
-                      ledger=points_ledger(None), world=world, errands=[])
+                      ledger=points_ledger(None), world=world, errands=[],
+                      # The served configuration (issue #34): the depth
+                      # camera streams all day there, so the table prices
+                      # the dearer case and a test day without it is safe.
+                      near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.mission.step_hooks.append(activities.step_hook(model, data))
@@ -100,7 +104,14 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     # ---- one errand at a time ---------------------------------------------
     for action in actions:
       try:
-        queue = errands_for(action, world, book)
+        # `draw:<board>` flies ONE named board, first if listed first -- the
+        # per-target row's own measurement (the `draw2` queue always flies
+        # the near board first, so the far one never pays the
+        # first-errand-through-unexplored-space price there).
+        if action.startswith("draw:"):
+          queue = [draw_errand_for(world, book, action.split(":", 1)[1])]
+        else:
+          queue = errands_for(action, world, book)
       except ValueError as e:
         print(f"  {action:9s} skipped: {e}")
         continue
@@ -204,7 +215,8 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
   life = HubLifecycle(model, data, realtime=False, battery_wh=battery_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
-                      ledger=points_ledger(None), world=world, errands=[])
+                      ledger=points_ledger(None), world=world, errands=[],
+                      near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.mission.step_hooks.append(activities.step_hook(model, data))
