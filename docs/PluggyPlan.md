@@ -122,8 +122,11 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    (`heightmap`; the site draws it as a heat map) — so a day of it can be
    watched on the observatory before anything decides on it. Next: the
    first thing that reads it, floor-object challenges and the ramp.
-7. A new baseline, with instruments derived from the five qualities (#155
-   designs them now and flies nothing).
+7. ✅ **The five qualities have metrics** (#155; Evaluation.md §3, "The
+   five qualities"): one shape per metric over the observatory's rows
+   (`evaluation/qualities.py`), read by `scripts/qualities.py --observe`,
+   flown by nobody. A new baseline reads them once the deployed pair has
+   run on `autonomous` long enough for the rows to exist.
 
 Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
 which quality 2 needs, so it is deferred, not dropped).

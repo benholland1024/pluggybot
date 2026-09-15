@@ -176,6 +176,26 @@ wording, settled direction. Before doing anything, read:
 
 ### Measurement (M14; `docs/Evaluation.md` is the record and the rules)
 
+- **The five qualities are SHAPES over ROWS** (issue #155; Evaluation.md
+  §3 "The five qualities"; `evaluation/qualities.py`, `scripts/qualities.py
+  --observe | --record`). One pure function per metric over the
+  observatory's own columns, one adapter per source (`from_observe`,
+  `from_record`); a later source (the zone, the library, the science
+  record) ADDS rows to a shape, never a second version of it. Four rules,
+  each pinned in `tests/test_qualities.py`: nothing that must stay apart is
+  summed (`unknown` beside right/wrong, a gift beside help at a cost, a
+  yield's three phases); no mean; **absent is `None`, never 0** (a source
+  not on the wire yet, a field a record predates); never pooled across a
+  build identity — the script groups by regime, the module cannot see one.
+  ⚠ A reading of the observatory is NOT a result and never enters
+  `results/`; it reports into the issue it informs. ⚠ `serves` IS NOT ON
+  THE WIRE (the `DECIDE` line does not carry it), so quality five's ratio
+  is a run-record number and the observatory answers `None`. ⚠ A test
+  reads the doc's shape table against `SHAPES`: a metric that exists only
+  as prose fails. ⚠ Nothing in `economy/` imports `evaluation` (a test
+  walks the tree). The run record carries `acts` and `verdicts` whole
+  since #155 (absent on a killed run; not in `_REQUIRED`).
+
 - `scripts/experiment.py --arm {scripted,guarded,autonomous} [--rung A0|A1]
   [--origin {none,seeded,unseeded}] --world home --pack hosting -n 5
   --parallel 5 --label "<what the box was>"` flies N days as child processes
@@ -263,8 +283,8 @@ wording, settled direction. Before doing anything, read:
   webserver.py::test_the_deployed_pair_flies_autonomous_from_nothing_and_
   the_header_says_so` pins the served configuration. ⚠ The
   A1–A3 rungs and the capacity sweep are POSTPONED and may be scrapped
-  (PluggyPlan: measurement waits for the design; #155 designs the
-  five-quality instruments and flies nothing).
+  (PluggyPlan: measurement waits for the design; #155's metrics are read
+  off the observatory, never off a rung).
 
 ### Demos and probes
 

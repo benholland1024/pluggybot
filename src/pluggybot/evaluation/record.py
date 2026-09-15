@@ -811,6 +811,16 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "tasks": {**task_stats, "offeredToday": offered_today},
     },
     "interventions": interventions,
+    # THE ACTS AND THE VERDICTS, WHOLE (issues #208 and #155): what the
+    # observatory files as `prediction` / `message` / `transfer` / `judged`
+    # / `yield` rows and as `task` outcomes, kept here so a run record
+    # feeds `evaluation/qualities.py` the same rows the deployed world
+    # does. Empty lists on a world with no peer and no task board; absent
+    # on a killed run, which left no result. ⚠ NOT in `_REQUIRED`: every
+    # record committed before this predates the fields.
+    **({"acts": list(result.get("acts") or ()),
+        "verdicts": list(result.get("verdicts") or ())}
+       if result is not None else {}),
   }
   return record
 
