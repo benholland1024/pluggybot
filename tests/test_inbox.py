@@ -556,7 +556,7 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
   said: list = []
   life.say_hooks.append(lambda t, line: said.append(line))
   inbox.offer({"type": "rating", "id": "r1", "seq": entry["seq"],
-               "quality": 1.0})
+               "quality": 1.0, "from": "ben"})
 
   life._visitor_step()
 
@@ -565,6 +565,28 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
   assert ledger.balance() == 20
   assert ledger.pending() == []
   assert any("rated task" in line for line in said)
+  # The ledger's own record names the rater the wire carried (the site's
+  # rating panel, rooftop-media-2026 #259): `settle` was called without
+  # `by=` and every entry ever settled read "visitor".
+  assert settled["settledBy"] == "ben"
+
+
+def test_a_rating_with_no_name_is_settled_by_a_visitor():
+  """An anonymous rating still settles, and says so."""
+  from pluggybot.economy import scoring
+  from pluggybot.economy.ledger import Ledger
+
+  ledger = Ledger()
+  entry = ledger.award(scoring.evaluate("artwork", {
+    "strokes": 6, "strokesInked": 6, "formMm": 0.8, "inkedFraction": 0.97,
+    "travelInkFraction": 0.0, "fill": 0.2, "board": "whiteboard_a"}), t=100.0)
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox, ledger=ledger)
+  inbox.offer({"type": "rating", "id": "r1", "seq": entry["seq"], "quality": 0.5})
+
+  life._visitor_step()
+
+  assert ledger.entries()[-1]["settledBy"] == "visitor"
 
 
 @pytest.mark.parametrize("seq, quality, why", [
