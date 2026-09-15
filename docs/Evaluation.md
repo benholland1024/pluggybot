@@ -90,8 +90,7 @@ and by `scripts/serve.py` — two definitions of what an arm means is how a
 stream comes to claim an arm nobody flew. An arm also carries an **origin**
 (below) and, on `autonomous`, a **rung**.
 
-⚠ **`guarded` IS THE CONTROL AND IS NEVER DELETED.** Three reasons, and the
-third is the one that will be forgotten:
+⚠ **`guarded` IS THE CONTROL AND IS NEVER DELETED.** Two reasons:
 
 1. A survival number from `autonomous` means nothing without the same world
    run with the rails on.
@@ -100,8 +99,11 @@ third is the one that will be forgotten:
    the only two ways to prove an LLM cannot skip charging. They are assertions
    about the `guarded` arm and stop meaning anything if the rail becomes
    optional everywhere.
-3. **The served world stays `guarded`** — see "Which arm the served world
-   flies".
+
+There used to be a third — *the served world stays `guarded`* — and issue
+#206 retired it: **the control lives in the harness** (`scripts/experiment.py
+--arm guarded`), and the served world is the arm under study. See "Which arm
+the served world flies".
 
 ⚠ **`scripted` is the arm that will be skipped, and it is the cheapest to
 run.** If the LLM arms do not beat a rotation with no mind in it, that is a
@@ -637,23 +639,49 @@ move, which is what keeps it a control.
 
 ### Which arm the served world flies, and how it is asked for
 
-`scripts/serve.py` takes `--arm {scripted,guarded,autonomous}` and
-`--rung {A0,A1}` (`$PLUGGY_ARM` / `$PLUGGY_RUNG`, since the image is configured
-by environment). With no arm named, `--overseer` decides exactly as it always
-did and the arm is read off what was *built*. **The deployed world is
-`guarded`.**
+`scripts/serve.py` takes `--arm {scripted,guarded,autonomous}`,
+`--origin {none,seeded,unseeded}` and `--rung {A0,A1}` (`$PLUGGY_ARM` /
+`$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`, since the image is configured by
+environment). With no arm named, `--overseer` decides exactly as it always did
+and the arm is read off what was *built*. **The deployed world is
+`autonomous`, both robots, at origin `unseeded`** (issue #206, Ben,
+2026-09-14; `rooftop-media-2026/compose.yaml`).
 
-⚠ **FLIPPING IT IS A DECISION, NOT A CONFIG CHANGE**, and it updates the third
-reason under "`guarded` is the control" in the same pull request rather than
-silently contradicting it. Two things to have in hand before making it:
+**Why it flipped.** Everything the mission is about runs on `autonomous`
+only — the event map, procedures (#166), the workshop (#168), standing
+orders. On `guarded` the observatory was watching a robot that could do none
+of it: the `tool` and `procedure` kinds the site records (rooftop #258) stayed
+empty by construction, and #155's capability metric had nothing to read. The
+observatory observes the arm the research is about; the control is flown
+where a control belongs, `scripts/experiment.py --arm guarded`, N ≥ 5 on a
+quiet box, and it is never deleted (above).
 
-- **A0 died on four days in five**, with survival spans of 1394–2999 s against
-  a 3600 s day. On a world that runs continuously that is a robot on the floor
-  most of the time — so the auto-restart (§5) comes first, or `autonomous` live
-  means a broken-looking website by a different route.
-- The argument for staying `guarded` *is* weaker than it was: there is no
-  traffic yet, `reset_robot` and the admin panel exist, and a death is legible
-  rather than a blank page. Weaker is not gone.
+**Why `unseeded`.** `none` is A0's world — no event map, a loop that always
+asks. `seeded` hands the agent today's loop as rows. `unseeded` is an empty
+map plus the corrected prompt: the agent must configure when it is consulted,
+from nothing. It is the stronger form of the question, and the deployed world
+is the one place a null result on it is free — a robot that never writes
+itself an `ask` row dies `unminded` inside 1800 sim s, the auto-restart stands
+it up, and the observatory has the row. `tests/test_webserver.py::test_the_
+deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so` pins the
+configuration: both minds autonomous, both maps empty, the header carrying
+the arm and the origin.
+
+**What this arm has never done is run continuously, and the death rate is
+UNKNOWN.** A0 died on four days in five (survival spans 1394–2999 s against a
+3600 s day) with no event map, no procedures and no workshop; nobody has
+flown all three on together for longer than a proof. The auto-restart (§5,
+#143) stands a dead robot up after `RESTART_AFTER_S` = 300 sim s, so a death
+is a legible event rather than a blank page. Five hearts at anything like
+A0's rate run out inside a week, and a TRUE death archives the volume — the
+ledger, goals, opinions, history, procedures, tools; only `Main.md` survives
+(§6) — which is the cost the mission says dying should have. The first
+archive is expected within the first week and is checked on the volume, not
+assumed. Two minds call: 60 calls an hour each, a 90 s deadline chosen with
+that margin (#117), and on this arm a grammar recompile per call (16.4 s
+median). The three things that would move the death rate — a stronger model,
+when each mind is consulted, a memory better than `.md` files — are separate
+issues; the flip is what makes their effect observable.
 
 ⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** `--arm guarded` on a
 box with no key builds a mind that answers `fallback:no-client` — still
@@ -1202,8 +1230,10 @@ curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
 
 Flown 2026-09-12 against a local copy of the site (`PORT=3100`, the read token
 set) with this repo's `serve.py --world home --pack hosting --overseer --arm
-guarded --tasks --metabolism --free-run` (Qwen3-4B via the HF router), read
-at t≈13 sim-minutes — a day's worth of this is the same shape with more rows:
+guarded --tasks --metabolism --free-run` (Qwen3-4B via the HF router; the
+deployed arm was still `guarded` then — it is `autonomous` since #206, and
+`build.arm` in the same response says which), read at t≈13 sim-minutes — a
+day's worth of this is the same shape with more rows:
 
 ```json
 {

@@ -372,26 +372,36 @@ PARTS: tuple[Part, ...] = (
          "priceEur": "Parts.md: TBD"},
   ),
   Part(
-    "bumper_switch", "Front bumper: a sprung bar over 1-2 roller-lever "
-    "microswitches (Omron D2F class)", "sensor", "chosen",
-    ("body", "catalog"), ("pluggybot",), quantity=2,
-    capabilities={"mountHeightMm": [60, 120]},
+    "bumper_switch", "Front bumper: a sprung bar over 2 Omron D2F-01L2 "
+    "hinge-roller-lever microswitches", "sensor", "chosen",
+    ("body", "catalog"), ("pluggybot",), partNumber="D2F-01L2",
+    source="https://www.digikey.de/de/products/detail/omron-electronics-inc-"
+    "emc-div/D2F-01L2/368444",
+    massG=0.5, dimensionsMm={"length": 12.8, "width": 5.8, "height": 16.5},
+    priceEur=2.59, quantity=2,
+    capabilities={"mountHeightMm": [60, 120], "sense": "contact",
+                  "operatingForceN": 0.78, "releasingForceN": 0.05,
+                  "overtravelMm": 0.55, "contactRating": "0.1 A 30 V DC",
+                  "powerW": 0},
     feeds=(
       code("rack.swap.PRESS_RELEASE_S", "s",
            "a press is held this long past the last contact: a rigid chassis "
            "bounces off a rigid fence, a sprung bar stays pressed through it"),
     ),
-    why={"partNumber": "any roller-lever micro; Parts.md names Omron's D2F "
-         "series as the example, and a series is not a part number",
-         "source": "no supplier chosen", "massG": "not recorded",
-         "dimensionsMm": "not recorded",
-         "priceEur": "€2-5 depending on the switch (Parts.md)"},
     note="Feeds `HubSwap.pressing`: dead reckoning holds its travel while "
          "the bumper is pressed on the side the wheels roll toward. In the "
          "sim the switch is the chassis box's front face read off the "
          "contact list -- nothing a €1 switch does not report. Blind spot: "
          "anything between the bumper's top (~12 cm) and the lidar plane "
-         "(22 cm) meets the fork, not the bar.",
+         "(22 cm) meets the fork, not the bar. Sourced for issue #199: "
+         "Omron's D2F datasheet (omronfs.omron.com/en_US/ecb/products/pdf/"
+         "en-d2f.pdf) gives the 12.8 x 5.8 body, the 16.5 mm free position "
+         "of the roller lever (the height here) and OF 0.78 N; its "
+         "'approx. 0.5 g' is stated for the pin-plunger body, and the "
+         "0.3 mm stainless lever adds an unpublished fraction of a gram. "
+         "A switch draws nothing of its own (`powerW` 0). On a TOOL it is "
+         "a `contact` sense: `<tool>.<id>.contact` reads 1 while the part "
+         "touches anything outside the module (workshop/build.py).",
   ),
   # ---- vision & ranging ----------------------------------------------------
   Part(
@@ -442,7 +452,12 @@ PARTS: tuple[Part, ...] = (
     ),
     note="Two cameras on the Pi 5's two CSI ports -- no multiplexer. Size "
          "and mass from raspberrypi.com's camera documentation; its draw "
-         "is not published there, so a tool cannot budget for it yet.",
+         "is not published there, so a tool cannot budget for it. Looked "
+         "for again for issue #199 (2026-09-14): neither product brief "
+         "(RP-008151, RP-009789) states it, the forum thread on it (t="
+         "347469) has one whole-Pi-Zero figure and no camera-alone one, "
+         "and Arducam's and InnoMaker's IMX708 CSI sheets omit it too. "
+         "The tool eye is `esp32_cam`, whose maker does publish its draw.",
   ),
   Part(
     "realsense_d435", "RealSense D435 depth camera (active IR stereo)",
@@ -842,7 +857,7 @@ PARTS: tuple[Part, ...] = (
   # ---- catalog-only: what a module is built from and nobody has chosen ----
   Part(
     "module_lead_screw", "Small lead-screw slide for a module axis "
-    "(unspecified)", "actuator", "candidate", ("catalog",), ("module_pen",),
+    "(unspecified)", "actuator", "candidate", ("body",), ("module_pen",),
     capabilities={"motion": "slide", "forceN": None, "strokeMm": 110,
                   "powerW": None},
     feeds=(
@@ -860,7 +875,11 @@ PARTS: tuple[Part, ...] = (
          "massG": "no part chosen", "dimensionsMm": "no part chosen",
          "priceEur": "no part chosen"},
     note="The pen module's own axis: it brings an axis the base does not "
-         "have. Its ±15 N is a sim guess with no datasheet behind it.",
+         "have. Its ±15 N is a sim guess with no datasheet behind it. Off "
+         "the catalog shelf since issue #199: the workshop builds slides "
+         "from `slide_l12_100`, a real part; this stays the pen's record. "
+         "The pen's 110 mm travel is 10 mm more than that part's stroke, "
+         "so the pen itself is not yet claimed to be built from it.",
   ),
   Part(
     "module_servo", "Small servo for a module axis (unspecified)", "actuator",
@@ -903,6 +922,73 @@ PARTS: tuple[Part, ...] = (
          "same servo with a position wire added. 9 g there, 13 g here.",
   ),
   Part(
+    "servo_fs90mg", "FEETECH FS90MG micro servo (digital, metal gears)",
+    "actuator", "chosen", ("catalog",), (), partNumber="FS90MG",
+    source="https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo",
+    massG=12.7, dimensionsMm={"length": 22.5, "width": 12.1, "height": 26.7},
+    priceEur=5.95,
+    capabilities={"motion": "hinge", "angleDeg": 180, "torqueNm": 0.216,
+                  "speedDegS": 857, "voltageV": [4.8, 6.0], "stallA": 0.8,
+                  "powerW": 4.8, "gears": "copper"},
+    note="The second servo size (issue #199): 2.2 kg·cm at 6 V is 0.216 "
+         "N·m, half again the FS90-FB's 0.147, at the SAME 800 mA stall -- "
+         "so it fits the peg's budget exactly as the FS90 does. Every "
+         "number is Feetech's own FS90MG product specification (the PDF "
+         "Feetech distributes through resellers, e.g. aifitlab.com's "
+         "FS90MG-PRODUCT_SPECIFICATION.pdf): 0.07 s/60° no-load at 6 V is "
+         "857°/s, 12.7 ± 1 g, 22.5 × 12.1 × 26.7 mm, 180° limit angle. "
+         "Passed over: Tower Pro's MG90S (2.2 kg·cm, 13.4 g), whose maker "
+         "publishes no current, and Power HD's HD-1810MG (3.9 kg·cm), "
+         "whose 1.4 A stall at 6 V is 8.4 W -- over the peg on its own.",
+  ),
+  Part(
+    "slide_l12_100", "Actuonix L12-100-50-6-R micro linear servo (100 mm "
+    "stroke, 50:1, 6 V, RC input)", "actuator", "chosen", ("catalog",), (),
+    partNumber="L12-100-50-6-R",
+    source="https://www.digikey.de/de/products/detail/actuonix-motion-devices-"
+    "inc/L12-100-50-6-R/11689540",
+    massG=56, dimensionsMm={"length": 152, "width": 15, "height": 14.9},
+    priceEur=77.05,
+    capabilities={"motion": "slide", "strokeMm": 100, "forceN": 22,
+                  "speedMmS": 25, "peakPowerPoint": "17 N at 14 mm/s",
+                  "backDriveN": 12, "voltageV": 6, "stallA": 0.46,
+                  "powerW": 2.76, "dutyCycle": 0.2},
+    note="The first slide the workshop can build from (issue #199). Every "
+         "number is the L12 datasheet's (actuonix.com/assets/images/"
+         "datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and "
+         "25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 "
+         "W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, "
+         "a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not "
+         "model. `forceN` is the lifted maximum; at speed it is the 17 N "
+         "peak-power point. ⚠ Passed over: the L16-140-35-6-R, the one "
+         "stroke that covers the pen's 110 mm travel, because its datasheet "
+         "gives stall current at 12 V only (650 mA) and the 6 V winding's "
+         "is not published -- so its draw would be a guess.",
+  ),
+  Part(
+    "esp32_cam", "Ai-Thinker ESP32-CAM (ESP32-S, OV2640 2 MP camera, Wi-Fi)",
+    "sensor", "chosen", ("catalog",), (), partNumber="ESP32-CAM",
+    source="https://www.berrybase.de/en/esp32-cam-development-board-incl.-"
+    "ov2640-camera-module",
+    massG=10, dimensionsMm={"length": 40.5, "width": 27, "height": 4.5},
+    priceEur=8.60,
+    capabilities={"sensor": "OV2640", "resolution": "1600 × 1200",
+                  "fovDeg": None, "voltageV": 5, "powerW": 1.55,
+                  "powerFlashOffW": 0.9, "radio": "Wi-Fi 802.11 b/g/n"},
+    note="An eye a tool can carry (issue #199): the camera whose maker "
+         "publishes its draw, and the one that fits the module design -- "
+         "power-only coupling, wireless data -- because it IS the radio. "
+         "Ai-Thinker's ESP32-CAM specification V1.0 gives 180 mA at 5 V "
+         "with the flash off (0.9 W) and 310 mA with it at full brightness "
+         "(1.55 W, the ceiling `powerW` carries, on a servo's stall terms), "
+         "27 × 40.5 × 4.5 mm and 10 g. On a real module it would replace "
+         "the module's own ESP32 rather than sit beside it; the sim sums "
+         "both, the dearer case. The lens's field of view is not on the "
+         "sheet (`fovDeg` null) -- the Pi's cameras keep their measured "
+         "fovy and a built eye renders nothing yet. EU stock is marketplace "
+         "clones of the same design; the price is BerryBase's.",
+  ),
+  Part(
     "module_camera", "Module camera: wide-angle, wireless through the "
     "module's ESP32 (unspecified)", "sensor", "candidate", ("catalog",),
     ("module_claw",), capabilities={"fovDeg": None, "powerW": None},
@@ -915,7 +1001,10 @@ PARTS: tuple[Part, ...] = (
          "massG": "no part chosen", "dimensionsMm": "no part chosen",
          "priceEur": "no part chosen"},
     note="Mounted on the MODULE, a first: module data crosses the coupling "
-         "wirelessly, so a tool camera costs no CSI port on the Pi.",
+         "wirelessly, so a tool camera costs no CSI port on the Pi. The "
+         "workshop's eye is `esp32_cam` (issue #199); this stays the claw "
+         "module's record until a lens with a published field of view is "
+         "chosen for it.",
   ),
   Part(
     "scaffold_pla_box", "Printed PLA box or plate -- the one scaffold "

@@ -203,7 +203,8 @@ pose do not. It serves `--pack hosting` (8 Wh on home) rather than the demo
 cell, which flattens in minutes; the low-battery reserve is deliberately
 *not* scaled with the pack — it is the absolute energy needed to reach the
 dock, a property of the floor plan. Which arm the served world flies is
-`$PLUGGY_ARM`, and it stays `guarded` (Evaluation.md §2).
+`$PLUGGY_ARM` / `$PLUGGY_ORIGIN`: `autonomous`, both robots, `unseeded`
+(issue #206; the argument is Evaluation.md §2).
 
 ## Measured
 

@@ -114,21 +114,29 @@ def _joint(life, name: str, body: bool = True) -> float:
   return float(life.data.qpos[life.model.joint(name).qposadr[0]])
 
 
-def _pen_contact(life) -> float:
-  """Is the pen shaft touching anything that is not the pen module."""
+def geom_contact(life, geom: str) -> float:
+  """Is this geom touching anything outside its own root body -- the
+  bumper's criterion (`HubSwap.pressing`), read off the contact list. The
+  pen's shaft reads it; so does a microswitch a built tool carries
+  (workshop/build.py, issue #199). A geom the world does not have reads 0:
+  the tool is not on the rack yet, or was retired."""
   model, data = life.model, life.data
   try:
-    shaft = model.geom("module_pen_shaft").id
+    gid = model.geom(geom).id
   except KeyError:
     return 0.0
-  own = int(model.body_rootid[model.geom_bodyid[shaft]])
+  own = int(model.body_rootid[model.geom_bodyid[gid]])
   for i in range(data.ncon):
     c = data.contact[i]
-    if shaft in (c.geom1, c.geom2):
-      other = c.geom2 if c.geom1 == shaft else c.geom1
+    if gid in (c.geom1, c.geom2):
+      other = c.geom2 if c.geom1 == gid else c.geom1
       if int(model.body_rootid[model.geom_bodyid[other]]) != own:
         return 1.0
   return 0.0
+
+
+def _pen_contact(life) -> float:
+  return geom_contact(life, "module_pen_shaft")
 
 
 def _claw_holding(life) -> float:
