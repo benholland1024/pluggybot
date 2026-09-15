@@ -491,7 +491,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   thought = (result or {}).get("thought_stats") or {}
   ledger_ok = None
   if result is not None and metab:
-    ledger_ok = ((result["earned"] - metab["consumed"] - metab["spilled"])
+    # `given` and `received` (issue #208) are terms since a robot could
+    # hand points to the other; a record from before carries neither and
+    # the identity reads as it always did.
+    ledger_ok = ((result["earned"] - metab["consumed"] - metab["spilled"]
+                  - result.get("given", 0) + result.get("received", 0))
                  == result["points"])
   errands = [{"name": e["errand"], "module": e.get("module"),
               "picked": bool(e["picked"]), "stowed": bool(e["stowed"]),

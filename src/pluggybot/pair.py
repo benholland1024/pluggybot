@@ -197,7 +197,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.encounter import Encounters
   activities = cfg["activities"](model, data) if cfg["activities"] else ActivitySet()
-  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle)
+  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle,
+                        lives=lives)
   activities.add(meetings)
   lives[0].mission.step_hooks.append(activities.step_hook(model, data))
   for life in lives:
