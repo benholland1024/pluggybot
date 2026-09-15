@@ -151,6 +151,16 @@ class TaskKind:
   #: one per robot, and the offer stays open until every role is taken.
   #: Empty is today's shape, one robot doing the whole job.
   roles: tuple = ()
+  #: HOW the job is done once claimed (issue #207). `errand`: claiming queues
+  #: the errand that discharges it, the shape every kind had until the
+  #: tower. `procedure`: claiming queues NOTHING -- there is no errand for
+  #: the job, the robot has to write the procedure that does it (#166), run
+  #: it, and say `done`, and the challenge's grader measures the world then
+  #: (`HubLifecycle._grade_routine`). Only a mind that can write a procedure
+  #: can attempt one, so the scripted claim skips these as it skips a
+  #: question, and the offer exists only where the arm has a library
+  #: (`lifecycle.world_targets`).
+  discharge: str = "errand"
 
   def describe(self, target: str, params: dict) -> str:
     try:
@@ -202,6 +212,19 @@ KINDS: dict[str, TaskKind] = {
     # 0.54 Wh, the hider's drive-and-wait 0.30 -- the dearer role, rounded
     # up; neither fetches a tool.
     estimate_wh=0.6, roles=("hider", "seeker")),
+  "stack_tower": TaskKind(
+    "stack_tower", task="stack", target_kind="challenge",
+    template="Stack the three blocks in the {target} into one free-standing "
+             "tower and leave it standing. No errand does this: write the "
+             "procedure that does, run it, and say you are done.",
+    # The first CHALLENGE (issue #120, offered by #207): graded by
+    # challenge/stack.py's pre-declared predicate, at the call and 10 s
+    # later, off the blocks' poses and contacts. Discharged by a procedure
+    # the robot writes, so there is no errand to measure an energy cost
+    # off (scripts/energy_spike.py needs one): this is the DEAREST errand
+    # on the table, the census, and it says so -- being dear is the cheap
+    # direction to be wrong in until a written procedure is measured.
+    estimate_wh=1.22, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",

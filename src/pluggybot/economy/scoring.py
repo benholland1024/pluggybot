@@ -268,13 +268,15 @@ class RewardTable:
     """The rows the robot can actually be offered: the shipped file's."""
     return [name for name, r in self.tasks.items() if r.offered]
 
-  def as_context(self) -> list[dict]:
+  def as_context(self, challenges: bool = False) -> list[dict]:
     """The offered table, as the overseer's context (issue #15). Scoreable
     tasks only -- a row with no evaluator cannot be earned and offering it
-    would be a lie about what the robot can do -- and never a challenge row,
-    for the same reason."""
+    would be a lie about what the robot can do -- and a challenge row only
+    where one can be attempted (`challenges`: the `autonomous` arm, whose
+    library is what discharges one; issue #207). `guarded` sees the table
+    it always saw, byte for byte."""
     return [r.as_context() for name, r in self.tasks.items()
-            if name in EVALUATORS and r.offered]
+            if name in EVALUATORS and (r.offered or challenges)]
 
 
 _default: RewardTable | None = None

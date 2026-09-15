@@ -34,6 +34,12 @@
     <material name="tagmat13" texture="tagtex13" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex14" type="cube" file="tags/tag14.png"/>
     <material name="tagmat14" texture="tagtex14" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex20" type="cube" file="tags/tag20.png"/>
+    <material name="tagmat20" texture="tagtex20" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex21" type="cube" file="tags/tag21.png"/>
+    <material name="tagmat21" texture="tagtex21" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex22" type="cube" file="tags/tag22.png"/>
+    <material name="tagmat22" texture="tagtex22" specular="0.05" shininess="0.05" reflectance="0"/>
   </asset>
   <worldbody>
     <geom name="floor" type="plane" pos="1.2500 0.0000 0" size="14.2500 7.0000 0.1" rgba="0.5 0.5 0.5 1"/>
@@ -194,6 +200,18 @@
     </body>
     <body name="stairs" pos="-3.5000 -4.5000 0.4500">
       <geom name="stairs_geom" type="box" size="1.5000 1.5000 0.4500" rgba="0.58 0.54 0.50 1"/>
+    </body>
+    <body name="block_0" pos="-11.0000 -5.0000 0.0130">
+      <freejoint/>
+      <geom name="block_0_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat20"/>
+    </body>
+    <body name="block_1" pos="-11.0000 -4.7500 0.0130">
+      <freejoint/>
+      <geom name="block_1_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat21"/>
+    </body>
+    <body name="block_2" pos="-11.0000 -4.5000 0.0130">
+      <freejoint/>
+      <geom name="block_2_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat22"/>
     </body>
 
     <body name="rack" pos="0.5000 -1.9800 0.0000" euler="0 0 90.0">

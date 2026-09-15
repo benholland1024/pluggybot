@@ -517,6 +517,16 @@ class Decision:
   #: out. Paperwork, so writing one costs no turn; and no verb replaces.
   define: dict | None = None
   undefine: str = ""
+  #: A CHALLENGE THE ROBOT SAYS IT HAS FINISHED (issue #207): the id of a
+  #: claimed job whose discharge is a procedure it wrote (`TaskKind.
+  #: discharge`), which nothing else can call done. Paperwork on `define`'s
+  #: terms -- it costs no turn -- and honoured at the loop's next idle
+  #: moment, AFTER whatever this same answer queued has run, so "run my
+  #: stacking procedure, then grade me" is one answer. The grade is the
+  #: challenge's own (challenge/stack.py): a snapshot, a hold the robot is
+  #: told to stand clear of, a second snapshot, one verdict. Checked
+  #: against the board where the board is, in the lifecycle, like `task`.
+  done: str = ""
   #: THE WORKSHOP'S TWO VERBS (issue #168), on `define`'s terms: `build_tool`
   #: is `{"name", "bay", "spec"}` -- a tool to specify, price, print and
   #: hang, validated and refused out loud by the workshop -- and
@@ -577,6 +587,7 @@ class Decision:
                if self.event_map else {}),
             **({"define": dict(self.define)} if self.define else {}),
             **({"undefine": self.undefine} if self.undefine else {}),
+            **({"done": self.done} if self.done else {}),
             **({"buildTool": dict(self.build_tool)} if self.build_tool else {}),
             **({"retireTool": self.retire_tool} if self.retire_tool else {}),
             "source": self.source}
@@ -753,7 +764,7 @@ class Menu:
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
       + (["event_map"] if event_map else [])
-      + (["define", "undefine"] if procedures is not None else [])
+      + (["define", "undefine", "done"] if procedures is not None else [])
       + (["build_tool", "retire_tool"] if tools is not None else []),
       "properties": {
         "action": {"type": "string", "enum": actions},
@@ -826,7 +837,11 @@ class Menu:
                        "required": ["name", "source"],
                        "properties": {"name": {"type": "string"},
                                       "source": {"type": "string"}}},
-            "undefine": enum(procedures)} if procedures is not None else {}),
+            "undefine": enum(procedures),
+            # ...and `done` (issue #207): the claimed challenge the robot
+            # says stands. A free string, like `task`: the board changes
+            # every call and is checked in the lifecycle.
+            "done": {"type": "string"}} if procedures is not None else {}),
         # THE WORKSHOP'S TWO VERBS (issue #168), on the library's terms: a
         # tool to build (its name, the bay it takes, and its spec -- an
         # object the workshop validates and refuses out loud, so free-form
@@ -996,6 +1011,10 @@ class Menu:
         define = {"name": clean(spec.get("name"), MAX_ID),
                   "source": str(spec.get("source"))[:lang.MAX_SOURCE_CHARS + 1]}
       undefine = clean(raw.get("undefine"), MAX_ID)
+    # `done` rides the library's slot (issue #207): a challenge is
+    # discharged by a procedure, so only a mind that can write one can
+    # finish one. Dropped, not raised on, where there is no library.
+    done = clean(raw.get("done"), MAX_ID) if procedures is not None else ""
     build_tool, retire_tool = None, ""
     if tools is not None:
       shop = raw.get("build_tool")
@@ -1039,7 +1058,7 @@ class Menu:
                     serves=clean(raw.get("serves"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
-                    define=define, undefine=undefine,
+                    define=define, undefine=undefine, done=done,
                     build_tool=build_tool, retire_tool=retire_tool,
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
@@ -1931,6 +1950,22 @@ the refusal says why.
 """
 
 
+CHALLENGE_RULE = """\
+CHALLENGES
+
+Some jobs on the board are CHALLENGES: nobody wrote the robot a way to do \
+them. Taking one queues nothing. You write the procedure that does the job \
+(`define`), run it (`procedure:<name>`), and when the work stands you set \
+`done` to the job's id -- on the same answer as the run if you like; the \
+grade happens once everything you queued has finished. The grader then \
+measures the world twice, at your word and again after a hold of some \
+seconds, and NOTHING may touch the work in between: stand clear, or a hand \
+that steadied it counts as holding it up. A job's own description says what \
+is measured; how you do it is yours. A claimed challenge stands until you \
+say done, and a failed grade closes it as failed -- it may be offered again.
+"""
+
+
 def workshop_rule() -> str:
   from pluggybot.power import MODULE_IDLE_W
   from pluggybot.rack import catalog, coupling
@@ -2115,8 +2150,8 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     # above yet.
     + json.dumps(world, indent=1, sort_keys=True),
     "WHAT TASKS PAY (points; you cannot change this table, and neither can "
-    "anyone watching)\n" + json.dumps(table.as_context(), indent=1,
-                                      sort_keys=True),
+    "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures),
+                                      indent=1, sort_keys=True),
     # ⚠ THE ROBOT'S GOALS ARE NOT HERE ANY MORE (issue #154). They are its
     # own now, so they change during a run and ride the USER TURN with the
     # other two writable files -- `context_for` puts them there. What the
@@ -2133,7 +2168,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     # only half-honours is a false statement the model acts on.
     + ([EVENT_MAP_RULE] if event_map else [])
     + ([UNSEEDED_RULE] if event_map and not seeded else [])
-    + ([procedure_rule()] if procedures else [])
+    + ([procedure_rule(), CHALLENGE_RULE] if procedures else [])
     + ([workshop_rule()] if workshop else [])
     + ([other_robot_rule(others)] if others else [])
     + ([ESCALATION_RULE] if escalation else []))

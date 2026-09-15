@@ -215,8 +215,9 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
                      ("home", home.HOME_DEMO_CAPACITY_WH)):
     board = TaskBoard(energy=load_energy(world))
     for name, kind in KINDS.items():
-      if world == "room_hub" and kind.target_kind in ("board", "zone"):
-        continue                          # room_hub has neither
+      if world == "room_hub" and kind.target_kind in ("board", "zone",
+                                                     "challenge"):
+        continue                          # room_hub has none of them
       priced = board.estimate_for(name)
       if priced is None:
         priced = kind.estimate_wh
@@ -344,7 +345,8 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.name == name
     assert spec.task in scoring.EVALUATORS, name
     assert spec.task in TABLE, name
-    assert spec.target_kind in ("board", "zone", "module", "world"), name
+    assert spec.target_kind in ("board", "zone", "module", "world",
+                                "challenge"), name
     assert spec.estimate_wh > 0.0, name
 
 

@@ -47,7 +47,8 @@
     "             whiteboards simply offers fewer jobs. `programs` rotates",
     "             the figure across successive offers of the same kind",
     "",
-    "A world block overrides the default block key by key."
+    "A world block overrides the default block key by key.",
+    "`stack_tower` (issue #207) is the first CHALLENGE on the rotation: its target is the `challenge` kind, which the lifecycle names only where a procedure can be written (the `autonomous` arm), so `guarded` never sees the offer and its offered set is unchanged. Home only: room_hub has no blocks."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -99,7 +100,8 @@
             "sun"
           ]
         },
-        "count_plants": {}
+        "count_plants": {},
+        "stack_tower": {}
       }
     },
     "room_hub": {
