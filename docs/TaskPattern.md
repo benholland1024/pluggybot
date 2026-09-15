@@ -43,7 +43,13 @@ without knowing that "whiteboard" means "fetch the pen from bay C".
 ⓘ *Found by building the tower:* a task may have NO errand behind it. A
 challenge's discharge is whatever the robot writes (issues #58, #166), so
 the HOW is not machinery this repo ships; what the pattern requires of it is
-only that the verdict is reachable from the world afterwards (§4).
+only that the verdict is reachable from the world afterwards (§4). **Since
+#207 that is a field**: `TaskKind.discharge` is `errand` (claiming queues
+the errand) or `procedure` (claiming queues nothing; the robot writes and
+runs the procedure and says `done`, and the challenge's own grader runs on
+the seam — Challenges.md §7). A procedure-discharged kind's target kind is
+`challenge`, which `lifecycle.world_targets` names only where a procedure
+can be written, so the offer exists on the `autonomous` arm alone.
 **Since #58 that HOW has a shape**: a task may carry a *program* —
 validated steps over the verb vocabulary (`procedure/steps.py`) — in
 `params["procedure"]`, and `errand_for_task` builds a `programmed_errand`
@@ -516,9 +522,10 @@ to build against.
 3. **No task KIND offers a two-tool job yet.** Running one is solved: a
    program (`procedure/steps.py`, issue #58) spans tools and places and
    resolves to one verdict — `eval_program`, or the kind's own evaluator when
-   the program discharges a kind's task. What is missing is an offered kind
-   whose discharge is a program and whose energy cost has been measured;
-   that is batch item 4 (PluggyPlan.md). ⓘ *Found by building hide and
+   the program discharges a kind's task. The first offered kind whose
+   discharge is a procedure is the tower (#207, `discharge="procedure"`);
+   its energy cost is still the dearest errand on the table until a
+   written procedure exists to measure. ⓘ *Found by building hide and
    seek (issue #167):* a job for TWO robots is a kind with `roles`, claimed
    one role per robot with the offer staying open until every role is held,
    each robot running its role's steps, and ONE verdict — from a referee

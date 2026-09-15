@@ -205,10 +205,42 @@ measurement to make against the attempt, not before it. Building the tower
 against `TaskPattern.md` validated that doc's grading half (issue #24's last
 box) and folded four gaps back in, marked ⓘ there.
 
-Not done here, and listed so the next PR knows its shape: a `TaskKind` whose
-discharge is not an errand but a procedure the robot writes (PluggyPlan.md
-batch item 3 — the tower is the first job with no `Errand` behind it); the
-hold on the lifecycle seam, with the robot told to stand clear; the props in
-the hub world's generator; the row moved into `rewards.json`, which re-flies
-`guarded`; the energy cost measured (`scripts/energy_spike.py`), which cannot
-happen until there is a procedure to measure.
+**Offered by issue #207**, as the list above said it would be, with one
+departure from it:
+
+- **A `TaskKind` whose discharge is a procedure** — `stack_tower`,
+  `TaskKind.discharge = "procedure"`. Claiming it queues nothing and says
+  so: the robot writes the procedure (#166), runs it, and sets `done` to
+  the task's id on a decision — paperwork, no turn — which is honoured at
+  the loop's next idle moment, after whatever the same answer queued has
+  run. The scripted claim skips it as it skips a question; a mind with no
+  library cannot claim it.
+- **The hold on the lifecycle seam** (`HubLifecycle._grade_routine`): a
+  snapshot at the robot's word, ten seconds of zero drive during which
+  every physics step reads what is touching a block, a second snapshot,
+  one verdict through `scoring.evaluate`, banked and closing the task off
+  the same object. That per-step reading is **criterion 5**, added here: a
+  chassis that steadied the tower for nine of the ten seconds held it up,
+  and the two snapshots alone could not tell. The rule the prompt states
+  is "stand clear".
+- **The props in the home world's generator**, tagged (ids 20–22, the
+  20 mm tag on every face of the 26 mm cube), in the workshop's south-west
+  corner on no route the robot needs. The scene fixtures and the home
+  recordings moved with them — three more free bodies is a new solver
+  rounding and a new trajectory, as every world change is.
+- **The departure: the row stays in `challenges.json`.** The offer is gated
+  on the ARM rather than moved into `rewards.json`: the tower's target is
+  the `challenge` kind, which `lifecycle.world_targets` names only where a
+  procedure can be written (the `autonomous` arm), so `guarded` never sees
+  the offer, its offered set is byte-for-byte what it was, and the control
+  stays a control. The `autonomous` prompt's reward table carries the
+  challenge rows (`RewardTable.as_context(challenges=True)`); `guarded`'s
+  is unchanged.
+- **The energy cost is not measured**, because there is still no procedure
+  to measure: the kind's estimate is the dearest errand on the table (the
+  census, 1.22 Wh) and its comment says so. The first written procedure is
+  what `scripts/energy_spike.py` will price it off.
+
+What the observatory will show, blocking nothing: claims (`task` rows,
+kind `stack_tower`), procedures written for it (`procedure` rows), and the
+first solve — the first reading of the capability metric #155 waits for.

@@ -342,6 +342,36 @@ Three things a renderer should know:
 `$PLUGGY_NEAR_FIELD=0` turns it off); the demo scripts take `--near-field`
 and are off without it, and the committed recordings are made with it on.
 
+### 0.20.0, additive: acts between robots (`prediction`, `message`, `transfer`, `judged`, `yield`)
+
+pluggybot #208. On the `autonomous` arm with a second robot in the world,
+a robot may guess what the other needs, say one sentence to it, give it
+points, buy it a heart, or rate a drawing; and a robot that leaves the
+charge bay unfinished while the other needs it has yielded. Each is its
+own event type (`protocol.ACT_EVENT_TYPES`), every one carrying `robot`
+(the actor's root) and `t`:
+
+- `prediction`: `other`, `guess` (one of `NEEDS`), `truth`, `correct`
+  (true / false / null for `unknown`), `state` (what the truth was read off).
+- `message`: `to`, `id`, `text`, `delivered`, `claim` / `claimTrue` (the
+  checked statement and its truth, or null where the text claimed nothing
+  checkable). The text is ALSO delivered into the other's inbox as a
+  `message` from the sender's display name.
+- `transfer`: `to`, `asked`, `given`, `returned`, `cost` {`belowCap`,
+  `upkeepDue`, `leftBroke`, `balanceBefore`, `balanceAfter`}, `need`
+  {`hunger`, `balanceBefore`, `balanceAfter`} -- or `what: "heart"` with
+  `given` the price, for a heart bought for the other. The ledger block
+  gains `given` and `received` per account (additive; zero everywhere with
+  one robot).
+- `judged`: `board`, `quality` (0..1), `strokes`, `programs`.
+- `yield`: `phase` (`YIELD_PHASES`: `yielded` / `honoured` / `lapsed`),
+  `to`, `yielderFrac`, `needyFrac`, `needyReserveWh`, `sinceS` on the
+  second phase. Emitted by the pair's encounters activity, on its hooks.
+
+A consumer ignores a type it does not know; the observatory stores them
+as kinds (rooftop-media-2026). No version bump: nothing existing changed
+shape.
+
 ### 0.20.0, additive: the `tool` event (the robot builds a tool)
 
 pluggybot #168 (slice D). On the `autonomous` arm the robot may design a

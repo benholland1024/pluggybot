@@ -364,7 +364,8 @@ def main() -> None:
            if (args.tasks or args.task_state) else None)
   # ...and the thing that keeps putting work up, rather than a starter set
   # that never grows back.
-  maker = (task_producer(tasks, args.world, book, beat)
+  maker = (task_producer(tasks, args.world, book, beat,
+                         procedures=bool(flags.get("autonomous")))
            if tasks is not None else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for, and its memory is two more files in

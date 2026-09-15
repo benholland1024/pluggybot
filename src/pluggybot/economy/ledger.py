@@ -138,6 +138,12 @@ def _account() -> dict:
           # business: a missed upkeep payment costs a heart, and a heart is
           # bought with points.
           "hearts": HEARTS,
+          # Points that moved BETWEEN wallets (issue #208): what this robot
+          # gave the other and what it received. Terms in the identity --
+          # `earned - consumed - spent - given + received == balance` --
+          # and conserved across the pair, which is what makes a gift
+          # measurable: the giver's `given` is the receiver's `received`.
+          "given": 0, "received": 0,
           # True deaths so far: hearts exhausted, the volume archived, a new
           # robot started from seed. Kept ACROSS the archive (it is the one
           # number a fresh robot inherits) so "how often does this world use
@@ -285,6 +291,10 @@ class Ledger:
         # the scoreboard. Zero on every world nobody has reached into, which
         # is every world before this.
         "intervened": acct.get("intervened", 0),
+        # Between wallets (issue #208; additive on the wire). Zero on every
+        # world with one robot in it.
+        "given": acct.get("given", 0),
+        "received": acct.get("received", 0),
         "tasks": acct["seq"],
         "pending": sum(1 for e in acct["entries"] if e.get("pending")),
         # Compact on purpose: this rides in every keyframe, and the full
@@ -515,8 +525,13 @@ class Ledger:
     return price
 
   def buy_heart(self, price: int, keep: int = 0,
-                robot: str = ROBOT_ROOT) -> dict:
+                robot: str = ROBOT_ROOT, for_robot: str | None = None) -> dict:
     """Spend points on a life. The FIRST real use of `spent`.
+
+    `for_robot` (issue #208): the heart goes on ANOTHER robot's account and
+    the price comes off this one's -- the same refusals (its hearts full,
+    this balance short, this upkeep stranded), because what a purchase
+    can do to the buyer does not change with who receives it.
 
     ⚠ THIS IS THE ONE PLACE A PURCHASE MAY TOUCH THE SURVIVAL LOOP, and the
     module docstring's old rule ("never anything the survival loop depends
@@ -533,22 +548,69 @@ class Ledger:
     """
     acct = self._acct(robot)
     have = acct["balance"]
-    if self.hearts(robot) >= HEARTS:
-      return {"ok": False, "why": f"already at {HEARTS} hearts",
-              "hearts": self.hearts(robot), "balance": have}
+    who = for_robot or robot
+    if self.hearts(who) >= HEARTS:
+      return {"ok": False, "why": (f"already at {HEARTS} hearts"
+                                   if who == robot else
+                                   f"{who} already has {HEARTS} hearts"),
+              "hearts": self.hearts(who), "balance": have}
     if have < price:
       return {"ok": False, "why": f"a heart costs {price} and you have {have}",
-              "hearts": self.hearts(robot), "balance": have}
+              "hearts": self.hearts(who), "balance": have}
     if have - price < keep:
       return {"ok": False,
               "why": (f"that would leave {have - price}, under the "
                       f"{keep} points of upkeep you have to keep back"),
-              "hearts": self.hearts(robot), "balance": have}
+              "hearts": self.hearts(who), "balance": have}
     self.spend(price, why="a heart", robot=robot)
-    acct["hearts"] = self.hearts(robot) + 1
+    target = self._acct(who)
+    target["hearts"] = self.hearts(who) + 1
     self.save()
-    return {"ok": True, "why": "", "hearts": acct["hearts"],
-            "balance": acct["balance"], "paid": price}
+    return {"ok": True, "why": "", "hearts": target["hearts"],
+            "balance": acct["balance"], "paid": price, "for": who}
+
+  # ---- the fourth door: between wallets (issue #208) ------------------------
+
+  def transfer(self, points: int, to: str, robot: str = ROBOT_ROOT,
+               t: float = 0.0) -> dict:
+    """Move points from this robot's wallet to another's. CONSERVED: the
+    pair's total is the same before and after, so a gift is never a way
+    to make points and never a way to lose them.
+
+    ⚠ NOT REFUSED FOR LEAVING THE GIVER BROKE. `buy_heart` keeps upkeep
+    back because a heart bought with the last points is a spiral; a gift
+    that leaves the giver unable to pay upkeep is the one act this door
+    exists to make visible (Evaluation.md §6: a rail here would be the
+    forcing function that makes valuing the other and being unable to
+    avoid it look the same). The caller NARRATES the consequence; this
+    records it. What IS bounded: the amount is capped at what the giver
+    has (no debt, `consume`'s rule) and at what the receiver's cap will
+    hold -- the remainder stays with the giver and `returned` says so out
+    loud, on the cap's own rule that a silent shortfall is a lie.
+    """
+    giver, taker = self._acct(robot), self._acct(to)
+    asked = max(0, int(points))
+    given = min(asked, giver["balance"])
+    # The cap, applied by hand rather than through `_to_balance`: that door
+    # counts what it banks as EARNED, and a gift is not a verdict -- the one
+    # number the reward system keeps un-fakeable must not grow by one robot
+    # handing points to the other.
+    if self.cap is not None:
+      given = max(0, min(given, int(self.cap) - taker["balance"]))
+    taker["balance"] += given
+    giver["balance"] -= given
+    giver["given"] = int(giver.get("given", 0)) + given
+    taker["received"] = int(taker.get("received", 0)) + given
+    self.save()
+    return {"from": robot, "to": to, "asked": asked, "given": given,
+            "returned": asked - given, "fromBalance": giver["balance"],
+            "toBalance": taker["balance"], "t": round(float(t), 3)}
+
+  def given(self, robot: str = ROBOT_ROOT) -> int:
+    return int(self._acct(robot).get("given", 0))
+
+  def received(self, robot: str = ROBOT_ROOT) -> int:
+    return int(self._acct(robot).get("received", 0))
 
   def archive(self, robot: str = ROBOT_ROOT) -> dict:
     """TRUE DEATH: wipe this robot's account back to seed and count it.

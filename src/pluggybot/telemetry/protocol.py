@@ -316,6 +316,21 @@ PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted",
 #: that follows a hang or a retire is the world's, not the workshop's.
 TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 
+#: ACTS BETWEEN ROBOTS (issue #208), each its own event type, additive on
+#: the wire: `prediction` (a guess at what the other needs, the truth, and
+#: the other's state it was scored off), `message` (one sentence into the
+#: other's inbox, with a claim in it scored `claimTrue` where the world
+#: could check it), `transfer` (points between wallets, with the giver's
+#: cost and the receiver's need -- or `what: "heart"` for a heart bought
+#: for the other), `judged` (an aesthetic rating of a board), and `yield`
+#: (read off the world by `activity/encounter.py`: `yielded`, then
+#: `honoured` or `lapsed`). Every one carries `robot` (the actor's root),
+#: `t`, and `to`/`other` where there is a recipient. The observatory
+#: stores them as kinds (rooftop-media-2026); a consumer ignores a type it
+#: does not know. Adding a field is additive; renaming a type is breaking.
+ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield")
+YIELD_PHASES = ("yielded", "honoured", "lapsed")
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.

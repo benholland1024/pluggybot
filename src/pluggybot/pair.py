@@ -125,7 +125,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
   board = task_board(task_state, cadence=beat, world=world) if tasks else None
-  maker = task_producer(board, world, book, beat) if board is not None else None
+  maker = (task_producer(board, world, book, beat, procedures=autonomous)
+           if board is not None else None)
   appetite = Appetite.load(world) if metabolism else None
   # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate
   # wallets, one state, and every entry on the wire names its robot. Each
@@ -196,7 +197,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.encounter import Encounters
   activities = cfg["activities"](model, data) if cfg["activities"] else ActivitySet()
-  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle)
+  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle,
+                        lives=lives)
   activities.add(meetings)
   lives[0].mission.step_hooks.append(activities.step_hook(model, data))
   for life in lives:

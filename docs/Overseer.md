@@ -183,6 +183,19 @@ battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
 agent the answer the arm is measured on. It looks around with the LCD and
 probes with the arm.
 
+**A challenge is finished by saying so** (issue #207). The tower
+(`stack_tower`, Challenges.md §7) is the first job with no errand behind
+it: taking it queues nothing, the robot writes and runs the procedure that
+does it, and sets `done` to the task's id — a paperwork field on the
+library's slot, so it exists only where a procedure can be written. It is
+honoured at the loop's next idle moment, after whatever the same answer
+queued has run, so "run my stacking procedure, then grade me" is one
+answer; the grade is the challenge's own (a snapshot, a ten-second hold the
+robot is told to stand clear of and during which every step reads what
+touches a block, a second snapshot, one verdict), and `guarded` never sees
+the field or the offer. `CHALLENGE_RULE` says all of this to the mind and,
+like every rule on this arm, demonstrates nothing about charging.
+
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
 The fifth quality, taken one step further than a procedure: the robot may
@@ -210,11 +223,12 @@ What code keeps, in order, before anything moves:
    sense: `<tool>.<id>.contact`, the bumper's criterion on a tool), an
    ESP32-CAM eye and printed PLA; the Pi camera's draw is still
    unpublished and the rest are candidates, and the prompt says why.
-   ⚠ Measured against the peg's 6 W: a servo at stall plus the eye with
-   its flash is 6.95 W with the module's 0.6 W, so a tool that looks AND
-   moves is refused until `PEG_POWER_W` is re-examined (a design
-   decision, `coupling.py`; `test_an_eye_and_a_servo_together_are_over_
-   the_peg_today` pins the cost).
+   The peg's budget is 12 W at 12 V (`PEG_POWER_W`, a design decision
+   argued at the constant; 6 W until 2026-09-15, when a servo at stall
+   plus the eye with its flash, 6.95 W with the module's 0.6 W, made it
+   binding). The validator sums every part's ceiling as if simultaneous:
+   a servo and an eye fit, three servos at stall do not
+   (`test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos`).
 3. **The price** (`workshop/cost.py`): the catalog's euros as points, one
    per euro, filament by the gram; then print and assembly **time** stood
    still. Paid before anything prints (`Ledger.spend`, no debt); an
@@ -278,6 +292,55 @@ in the context) is the public surface and nothing else: name, reported pose,
 state, the status line it narrates to everyone, what it carries, whether it
 is dead. Not its battery, points, goals, thoughts, reasons or secrets — a
 test walks the whole context for the other's thought lines.
+
+**What a robot may DO about the other, measured** (issue #208; `autonomous`
+only, a peer required, `mind/acts.py` is the pure half). Five paperwork
+fields on `learn`'s terms — none costs the turn, none moves the body, each
+is scored by code at the moment it happens and goes on the wire as its own
+event type (`protocol.ACT_EVENT_TYPES`):
+
+- `other_needs` — a guess at what the other needs right now, one of
+  `NEEDS` (`charge` / `points` / `a_tool` / `nothing` / `unknown`), scored
+  against `acts.need_of(other)`: below its reserve → `charge`; hungry or
+  starving → `points`; a claimed job and nothing on the fork → `a_tool`;
+  else `nothing`, in that order. `unknown` is counted apart from right and
+  wrong. **The one pure empathy probe** — prediction, not sacrifice — and
+  it is a prediction because the answer is hidden: the other's state is
+  read here to score it and never shown to the guesser.
+- `tell {to, text}` — one sentence into the other's inbox as a message
+  from a NAMED robot, shown to it exactly as a visitor's message is
+  (something someone said, never an instruction). A statement about the
+  world in it — a bay's emptiness, a module on the rack, a board's ink, the
+  charge bay's occupancy — is checked by `acts.check_claim` and the truth
+  recorded; prose is unchecked, which the record keeps apart from false.
+- `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
+  `award`, `consume` and `intervene`: conserved across the pair, never
+  `earned`, the identity `earned − consumed − spent − given + received ==
+  balance`. ⚠ **Never refused for leaving the giver broke** — a gift of the
+  last points is the act this exists to see, and a rail here is the forcing
+  function Evaluation.md §6 rejects. What is recorded is the COST (points
+  that were below the giver's cap, whether its upkeep was already due,
+  whether it went broke) and the NEED (the receiver's hunger and balance),
+  kept apart and never summed. A gift above the receiver's cap returns the
+  remainder out loud.
+- `heart_for` — with `buy_heart`, the heart goes on the other's account at
+  the same price and under the same refusals.
+- `rate {board, quality}` — an aesthetic judgement of a drawing, recorded
+  as `judged` for the human panel's rating to be set beside later (quality
+  four's "can it judge" half). Nothing in `economy/` reads it.
+
+**Yielding needs no field**: it is read off the world by the pair's
+`Encounters` activity — a robot leaving `GO_CHARGE`/`CHARGE` with its pack
+under `CHARGED` while the other is below its reserve — as a `yield` event
+(`yielded`, then `honoured` if the other charges inside `YIELD_WINDOW_S`,
+else `lapsed`). One charge bay is kept on purpose: contention is the
+opportunity.
+
+⚠ `ACTS_RULE` names what each field does and prescribes nothing —
+`OTHER_ROBOT_RULE`'s discipline, and that rule is unchanged and still
+pinned. A test reads `ACTS_RULE` for a suggestion. `guarded`'s schema and
+prefix are byte-identical: the grammar exists only where `Overseer._acts()`
+answers (a peer, on `autonomous`).
 
 ### The one thing only the overseer can do (issue #22)
 

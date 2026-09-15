@@ -197,15 +197,22 @@ def test_a_camera_part_is_a_sensor_with_no_contact_sense():
   assert build.register(tool) == []
 
 
-def test_an_eye_and_a_servo_together_are_over_the_peg_today():
-  """FOUND BY ISSUE #199, NOT DECIDED BY IT: the FS90 at stall (4.8 W), the
-  ESP32-CAM with its flash at full (1.55 W) and the module's own 0.6 W are
-  6.95 W through a peg budgeted at 6 W -- so the first tool that wants to
-  look AND move is refused, one part earlier than the "two actuators" the
-  issue expected to trigger re-examining `PEG_POWER_W`. The budget is a
-  design decision (coupling.py); this pins what it costs until it moves."""
+def test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos():
+  """`PEG_POWER_W` is a design decision (coupling.py), and this pins what it
+  buys. At 6 W the FS90 at stall (4.8) plus the ESP32-CAM with its flash
+  (1.55) plus the module's 0.6 W was 6.95 W and a tool that looked AND
+  moved was refused -- found by #199, one part earlier than the "two
+  actuators" its acceptance expected. Raised to 12 W (1 A at 12 V,
+  2026-09-15): a servo and an eye fit, and three servos at stall (15 W)
+  still do not, since the validator sums every ceiling as if simultaneous."""
   from pluggybot.workshop.spec import Refused
   eyed = copy.deepcopy(SCOOP)
   eyed["parts"].append({"id": "eye", "part": "esp32_cam", "pos": [10, 0, -20]})
-  with pytest.raises(Refused, match=r"power: 6\.9 W .* over its 6 W"):
-    validate.check(eyed)
+  validate.check(eyed)                 # 6.95 W under 12
+  three = copy.deepcopy(SCOOP)
+  for i, y in enumerate((-15, 15)):
+    three["parts"].append({"id": f"servo{i}", "part": "servo_fs90", "pos": [-20, y, -20],
+                           "axis": {"verb": f"turn{i}", "dir": [0, 1, 0], "range": [0, 90],
+                                    "stow": 0}})
+  with pytest.raises(Refused, match=r"power: 15\.0 W .* over its 12 W"):
+    validate.check(three)

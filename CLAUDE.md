@@ -905,6 +905,26 @@ save a filmstrip PNG named after the script.
   points, goals, thoughts, reasons or secrets; a test walks the context for
   the other's thought lines. `HubLifecycle.peers` is read by that and by
   NOTHING that decides.
+- **Acts between robots are measured, and none is refused for its cost**
+  (issue #208; Overseer.md §2c, `mind/acts.py`, `protocol.ACT_EVENT_TYPES`).
+  Five paperwork fields, `autonomous` with a peer ONLY (`Overseer._acts()`
+  is the gate; `guarded`'s schema, prefix, `GUARDED_RULES_SHA` and
+  `OTHER_ROBOT_RULE_SHA` unchanged): `other_needs` scored by `acts.need_of`
+  (charge > points > a_tool > nothing; `unknown` counted apart) with the
+  other's hidden state read by CODE and never shown to the guesser
+  (`others_context` is the public surface; a test walks the context);
+  `tell` lands in the other's inbox as a `message` from the sender's
+  display name and a checkable claim is scored by `acts.check_claim`;
+  `give_points` is `Ledger.transfer`, the FOURTH door -- conserved, never
+  `earned`, identity `earned − consumed − spent − given + received`, ⚠
+  NEVER REFUSED FOR LEAVING THE GIVER BROKE (Evaluation.md §6: a rail here
+  is the forcing function), the cost and the need recorded apart and never
+  summed; `heart_for` on `buy_heart`'s refusals; `rate` recorded as
+  `judged`, read by nothing in `economy/`. Yielding is READ OFF THE WORLD
+  by `Encounters(lives=)`: leaving the bay under `CHARGED` while the other
+  is below its reserve, then `honoured`/`lapsed` inside `YIELD_WINDOW_S`.
+  ⚠ Keep ONE charge bay: contention is the opportunity. ⚠ `ACTS_RULE`
+  prescribes nothing and a test reads it for a suggestion.
 - **The first two-role errand is hide and seek** (issue #167 slice D;
   `activity/hideseek.py`, `pair.arrange_game`, `lifecycle.
   hide_and_seek_program`). A `TaskKind` may carry `roles`; the offer stays
@@ -1214,6 +1234,28 @@ save a filmstrip PNG named after the script.
   (`stack.add_blocks`), never a committed world, until offered. ⚠ The blocks
   carry `GRIP_SOLIMP`: on default contact a 2 + 4 mm lean crept over at
   16.9 s, which grades the solver rather than the robot.
+- **The tower is OFFERED, and it has no errand behind it** (issue #207;
+  Challenges.md §7). `TaskKind.discharge` is `errand` or `procedure`:
+  claiming `stack_tower` queues NOTHING (the robot writes the procedure,
+  runs it, and sets the `done` decision field to the task id — paperwork on
+  the library's slot, honoured at the loop's next idle moment AFTER what
+  the same answer queued has run), `_claim_next_task` skips it like a
+  question, and `errand_for_task` builds nothing for it. The grade is
+  `HubLifecycle._grade_routine` on the seam: snapshot, `HOLD_S` of zero
+  drive with `stack.foreign_contacts` read EVERY STEP (criterion 5: a
+  touch during the hold fails a tower that stands at both ends), second
+  snapshot, one verdict through `scoring.evaluate`. ⚠ GATED ON THE ARM,
+  NOT MOVED INTO `rewards.json`: the target kind is `challenge`, which
+  `world_targets(..., procedures=True)` names only on `autonomous` (every
+  `task_producer` caller passes the arm), so `guarded`'s offered set and
+  prefix are unchanged and the row stays in `challenges.json`; the
+  `autonomous` prompt's table carries the challenge rows
+  (`as_context(challenges=True)`). ⚠ `_claim_task` gates the board's
+  `claim` on `claim_budget_wh`, not `spendable_wh` — the board's re-check
+  used to put rail three back on `autonomous`. The blocks are the home
+  world's (workshop corner, tags 20–22, `home.TOWER_XY`); `world_config
+  ("home")["tower"]` is what names the target. The energy estimate is the
+  dearest errand on the table until a written procedure exists to measure.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):
   `economy/scoring.py` measures the world and judges (`EVALUATORS`, pure),
   `rewards.json` says what it pays, `economy/ledger.py` banks it; a `Verdict`

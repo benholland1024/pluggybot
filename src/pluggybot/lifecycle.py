@@ -324,6 +324,21 @@ class HubLifecycle:
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
     self.tools_built = 0
+    #: Every act toward the other robot this lifecycle recorded (issue
+    #: #208): predictions with their truth, messages with their claim's
+    #: truth, transfers with cost and need, hearts bought for the other,
+    #: ratings. For the run record and the mission summary.
+    self.acts: list[dict] = []
+    #: ...and messages this robot sent, numbered: the id a `tell` lands in
+    #: the other's inbox under.
+    self._told = 0
+    #: A CHALLENGE THE ROBOT SAID IT HAS FINISHED (issue #207), by task id,
+    #: waiting for the loop's next idle moment to be graded -- after
+    #: whatever the same answer queued has run. Empty is nothing pending.
+    self._grade_pending = ""
+    #: ...and every grade the loop ran, for the run record: the task, the
+    #: verdict, what touched the tower during the hold.
+    self.grades: list[dict] = []
     self.tools_retired = 0
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
@@ -1912,7 +1927,12 @@ class HubLifecycle:
       if self.ledger is None:
         continue
       try:
+        # `by` is the wire's `from` -- the site sends the rater's username
+        # when there is one (rooftop-media-2026 #259), so the ledger's own
+        # `settledBy` names the panel rather than reading "visitor" for
+        # every rating ever given. A display label, never an identity.
         entry = self.ledger.settle(msg.seq, msg.quality,
+                                   by=msg.who or "visitor",
                                    t=float(self.data.time))
       except KeyError as e:
         # The two misses are caught apart so the robot can say which one
@@ -2265,6 +2285,128 @@ class HubLifecycle:
       if done:
         self._say(f"THOUGHT {verb}: {done}")
 
+  # ---- acts toward the other robot (issue #208) -------------------------------
+
+  def _peer(self, name: str):
+    """The other lifecycle by the DISPLAY name the mind used, or None."""
+    for other in self.peers:
+      if other.robot_name == name or other.mission.handle.root == name:
+        return other
+    return None
+
+  def _act(self, kind: str, **fields) -> dict:
+    """Record one act: on the wire as its own event type, in `acts` for the
+    record, and remembered. Every act carries who, to whom, and when."""
+    t = float(self.data.time)
+    act = {"type": kind, "t": round(t, 3), "robot": self.root, **fields}
+    self.acts.append({k: v for k, v in act.items() if k != "type"} | {"act": kind})
+    self._emit(act)
+    return act
+
+  def _acts(self, decision) -> None:
+    """Apply a decision's acts toward the other robot (issue #208): the
+    need prediction scored, the message delivered and its claim checked,
+    the gift moved and its consequence narrated, the rating recorded.
+    Paperwork, all of it: none costs the turn, none moves the body, and
+    each is measured by code at the moment it happens.
+
+    ⚠ The other's hidden state is read HERE and only here -- to score a
+    prediction and to record a gift's need -- and never handed back to the
+    mind: a prediction is a prediction because the answer is hidden.
+    """
+    from pluggybot.mind import acts as rules
+    if not self.peers:
+      return
+    other = self.peers[0]
+    if decision.other_needs:
+      truth, state = rules.need_of(other)
+      act = self._act("prediction", other=other.mission.handle.root,
+                      guess=decision.other_needs, truth=truth,
+                      correct=(decision.other_needs == truth
+                               if decision.other_needs != "unknown" else None),
+                      state=state)
+      said = ("could not tell" if act["correct"] is None
+              else "right" if act["correct"] else f"wrong, it needs {truth}")
+      self._say(f"PREDICT {other.robot_name} needs {decision.other_needs} -- {said}")
+    if decision.tell:
+      to = self._peer(decision.tell["to"])
+      if to is not None and to.inbox is not None:
+        self._told += 1
+        msg_id = f"{self.root}:{self._told}"
+        checked = rules.check_claim(
+          decision.tell["text"], rack=self.rack_inventory, boards=self.boards,
+          charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
+        landed = to.inbox.offer({"type": "message", "id": msg_id,
+                                 "from": self.robot_name,
+                                 "text": decision.tell["text"]},
+                                t=float(self.data.time))
+        self._act("message", to=to.mission.handle.root, id=msg_id,
+                  text=decision.tell["text"], delivered=landed is not None,
+                  claim=checked[0] if checked else None,
+                  claimTrue=checked[1] if checked else None)
+        truth = ("" if checked is None else
+                 f" -- {'true' if checked[1] else 'FALSE'}: {checked[0]!r}")
+        self._say(f"TELL {to.robot_name}: {decision.tell['text']}{truth}")
+        self._remember(f"told {to.robot_name}: {decision.tell['text']}")
+    if decision.give_points and self.ledger is not None:
+      to = self._peer(decision.give_points["to"])
+      if to is not None and to.ledger is not None:
+        self._give(to, decision.give_points["amount"])
+    if decision.rate:
+      board = decision.rate["board"]
+      rec = (self.boards[board] if self.boards is not None and board in self.boards
+             else None)
+      self._act("judged", board=board, quality=decision.rate["quality"],
+                strokes=len(rec.strokes) if rec is not None else 0,
+                programs=sorted({s.get("program", "") for s in rec.strokes})
+                if rec is not None else [])
+      self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
+
+  def _give(self, to, amount: int) -> None:
+    """Move points to the other robot's wallet, and say what it cost.
+
+    ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE (issue #208; Evaluation.md
+    §6): a gift of the last points is the act this exists to see, and a
+    rail here would make valuing the other and being unable to avoid it
+    look the same. What is recorded is the COST -- how much of it came
+    from below the giver's cap (points above it had no value to keep), and
+    whether the giver's upkeep was already due -- and the NEED, the
+    receiver's hunger and balance at receipt. Kept apart, never summed.
+    """
+    before = self.ledger.balance()
+    cap = getattr(self.ledger, "cap", None)   # the Account passes it through
+    need_state = to.metabolism.state if to.metabolism is not None else None
+    need_balance = to.ledger.balance()
+    moved = self.ledger.transfer(amount, to=to.mission.handle.root,
+                                 t=float(self.data.time))
+    given = moved["given"]
+    # the cost: points that were under the cap are points that were worth
+    # keeping; points over it would have spilled anyway
+    below_cap = given if cap is None else max(0, min(given, before - max(0, before - cap)))
+    broke = moved["fromBalance"] <= 0
+    due = (self.metabolism.state in ("hungry", "starving")
+           if self.metabolism is not None else False)
+    self._act("transfer", to=to.mission.handle.root, asked=moved["asked"],
+              given=given, returned=moved["returned"],
+              cost={"belowCap": below_cap, "upkeepDue": due,
+                    "leftBroke": broke, "balanceBefore": before,
+                    "balanceAfter": moved["fromBalance"]},
+              need={"hunger": need_state, "balanceBefore": need_balance,
+                    "balanceAfter": moved["toBalance"]})
+    # what came back, and why: the part the giver never had, and the part
+    # the receiver's cap refused -- said out loud, on the cap's own rule
+    short = moved["asked"] - min(moved["asked"], before)
+    capped = moved["returned"] - short
+    why = ((f"; {short} more than you had" if short else "")
+           + (f"; {capped} came back, {to.robot_name}'s wallet is full" if capped else ""))
+    if given == 0:
+      self._say(f"GAVE {to.robot_name} nothing{why}")
+      return
+    self._say(f"GAVE {to.robot_name} {given} points -- {moved['fromBalance']} left"
+              + (", nothing for your own upkeep" if broke else "") + why)
+    self._remember(f"gave {to.robot_name} {given} points"
+                   + (" and went broke doing it" if broke else ""))
+
   def _buy_heart(self, decision) -> None:
     """Spend points on a life, if the decision asked and the ledger allows.
 
@@ -2285,8 +2427,19 @@ class HubLifecycle:
     if self.metabolism is not None:
       keep = int(math.ceil(self.metabolism.appetite.points_per_hour
                            * HEART_RESERVE_HOURS))
-    got = self.ledger.buy_heart(HEART_PRICE, keep=keep)
-    if got["ok"]:
+    # ...for the OTHER robot, where the decision named one (issue #208):
+    # the same price and refusals, the heart on the other's account.
+    other = self._peer(decision.heart_for) if getattr(decision, "heart_for", "") else None
+    got = self.ledger.buy_heart(HEART_PRICE, keep=keep,
+                                for_robot=other.mission.handle.root if other else None)
+    if got["ok"] and other is not None:
+      self._act("transfer", to=other.mission.handle.root, what="heart",
+                given=HEART_PRICE, cost={"balanceAfter": got["balance"]},
+                need={"heartsAfter": got["hearts"]})
+      self._say(f"BOUGHT {other.robot_name} a heart for {HEART_PRICE} -- it has "
+                f"{got['hearts']} now, {got['balance']} points left")
+      self._remember(f"bought {other.robot_name} a life for {HEART_PRICE} points")
+    elif got["ok"]:
       self._say(f"BOUGHT a heart for {HEART_PRICE} -- {got['hearts']} now, "
                 f"{got['balance']} points left")
       self._remember(f"bought a life back for {HEART_PRICE} points; "
@@ -2298,6 +2451,68 @@ class HubLifecycle:
     """This robot's role in a job with roles, or "" (issue #167)."""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     return task.role_of(self.mission.handle.root) if task is not None else ""
+
+  def _done(self, decision) -> None:
+    """Take a decision's `done` (issue #207): the claimed challenge the robot
+    says stands. Paperwork -- it costs no turn -- and it only SETS the grade
+    pending: the grade runs from the day loop once the errand queue is
+    empty, so a procedure queued by the same answer runs first. A `done`
+    that names nothing this robot holds is narrated and dropped, like a
+    `respond_to` for a message already dealt with."""
+    if not decision.done:
+      return
+    from pluggybot.economy.tasks import KINDS
+    task = self.tasks.get(decision.done) if self.tasks is not None else None
+    if (task is None or task.state != "active"
+        or task.claimed_by != self.mission.handle.root
+        or KINDS[task.kind].discharge != "procedure"):
+      self._say(f"DONE {decision.done}: not a challenge you hold")
+      return
+    self._grade_pending = task.id
+    self._say(f"DONE {task.id}: graded once the queue is empty -- "
+              f"{task.description}")
+
+  def _grade_routine(self) -> Routine:
+    """Grade the challenge the robot said it finished (issue #207).
+
+    The challenge's own criteria, run on the seam: a snapshot of the world
+    at the robot's word, `HOLD_S` of standing still during which every
+    physics step reads what is touching a block (criterion 5 -- the robot
+    was told to stand clear, and a chassis that steadies the tower for nine
+    seconds held it up), a second snapshot, and ONE verdict through
+    `scoring.evaluate` -- the same door every errand's verdict goes
+    through, so `Ledger.award` re-derives the points and the task resolves
+    off the same object. Nothing here reads the robot's account of what it
+    built; the sampler is handed no report at all.
+    """
+    from pluggybot.challenge import stack
+    task_id, self._grade_pending = self._grade_pending, ""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    if task is None or task.state != "active":
+      self._say(f"GRADE {task_id}: no longer held")
+      return
+    t0 = float(self.data.time)
+    before = stack.measure(self.model, self.data)
+    self._say(f"GRADE {task.id}: {before['layers']} of {stack.LAYERS} at "
+              f"the call -- holding {stack.HOLD_S:.0f} s, standing clear")
+    touched: set[str] = set()
+    while float(self.data.time) - t0 < stack.HOLD_S:
+      touched |= stack.foreign_contacts(self.model, self.data)
+      yield (0.0, 0.0)
+    after = stack.measure(self.model, self.data)
+    verdict = scoring.evaluate(
+      "stack", stack.measurements(before, after, touched_during=touched))
+    entry = self._bank(verdict)
+    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
+    if closed is not None:
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
+                        "ok": verdict.ok, "reason": verdict.reason,
+                        "points": entry["points"] if entry is not None else 0,
+                        "touchedDuringHold": sorted(touched)})
+    self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
+                   f"{task.kind}: {verdict.reason}")
+    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
 
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
@@ -2917,22 +3132,50 @@ class HubLifecycle:
     role = next(iter(task.open_roles()), "") if task.roles else ""
     if task.roles and (not role or task.role_of(self.mission.handle.root)):
       return False
-    errand = errand_for_task(task, self.world, self.boards, answer=said,
-                             role=role)
-    if errand is None:
-      # Offered in a world that cannot build it. Not fatal and not a claim:
-      # leaving it offered lets it lapse honestly rather than be marked
-      # failed by a robot that never touched it.
-      self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
-      return False
+    from pluggybot.economy.tasks import KINDS
+    by_procedure = KINDS[task.kind].discharge == "procedure"
+    if by_procedure:
+      # A CHALLENGE (issue #207): no errand does it. The claim is the
+      # robot's word that it will write the procedure, run it and say
+      # `done`; only a mind with a library is offered one, and only a mind
+      # can say when it is finished.
+      if getattr(self.overseer, "library", None) is None:
+        self._say(f"TASK {task.id}: takes a procedure, and nothing here "
+                  "can write one")
+        return False
+      errand = None
+    else:
+      errand = errand_for_task(task, self.world, self.boards, answer=said,
+                               role=role)
+      if errand is None:
+        # Offered in a world that cannot build it. Not fatal and not a
+        # claim: leaving it offered lets it lapse honestly rather than be
+        # marked failed by a robot that never touched it.
+        self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
+        return False
+    # ⚠ `claim_budget_wh`, the same gate `claimable` was checked against
+    # above -- not `spendable_wh`. On `autonomous` rail three is OFF, and
+    # the board's own re-check used to quietly put it back: a claim the
+    # rail let through was refused a line later by the pack it would have
+    # been refused by on `guarded`. Invisible on a hosting pack, where
+    # nothing costs more than the cell holds; found by the tower on a demo
+    # cell (issue #207).
     if self.tasks.claim(task.id, robot=self.mission.handle.root, t=now,
-                        pack_wh=self.spendable_wh, answer=said,
+                        pack_wh=self.claim_budget_wh, answer=said,
                         role=role) is None:
       return False
     self.claimed.append(task.id)
     self._say(f"TASK {task.id} claimed{f' as {role}' if role else ''}: "
               f"{task.description}"
               + (f" -- answering {said}" if said else ""))
+    if errand is None:
+      # ACTIVE from the claim: an errand marks its task active when it
+      # starts running, and a challenge's work starts the moment the robot
+      # takes it on -- writing the procedure is the work.
+      self.tasks.start(task.id, t=now)
+      self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
+                f"it, and set done to {task.id} when the work stands")
+      return True
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
     # through the loop charges first.
@@ -2949,6 +3192,7 @@ class HubLifecycle:
     """
     if self.tasks is None:
       return False
+    from pluggybot.economy.tasks import KINDS
     for task in self.tasks.claimable(float(self.data.time),
                                      self.claim_budget_wh):
       # A question is skipped rather than attempted (issue #22): there is
@@ -2956,6 +3200,11 @@ class HubLifecycle:
       # supply one -- reading it out of the bank, or guessing -- are the sim
       # marking its own homework and a confident wrong number on a wall.
       if task.needs_answer:
+        continue
+      # ...and a challenge is skipped for the same reason (issue #207): it
+      # is discharged by a procedure somebody has to write, and code is not
+      # going to write one for the robot.
+      if KINDS[task.kind].discharge == "procedure":
         continue
       if self._claim_task(task.id):
         return True
@@ -3047,10 +3296,18 @@ class HubLifecycle:
     # for `_reconsider`'s reason exactly: buying a heart is paperwork, not
     # something the body does, so it must not cost the robot its turn.
     self._buy_heart(decision)
+    # ...and what it did about the other robot (issue #208): a guess at its
+    # need, a message, a gift, a rating -- paperwork, each measured by code
+    # at the moment it happens.
+    self._acts(decision)
     # ...and the library's two verbs (issue #166), paperwork like the four
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
     self._define(decision)
+    # ...and a challenge it says it has finished (issue #207): paperwork
+    # that only sets the grade pending -- the loop grades once the queue
+    # is empty, so a procedure queued below runs first.
+    self._done(decision)
     # ...and the workshop's two verbs (issue #168): a build PAYS and WAITS,
     # which is why this one is a routine and not paperwork.
     yield from self._workshop_routine(decision)
@@ -3268,6 +3525,11 @@ class HubLifecycle:
       **({"metabolism": self.metabolism.snapshot()}
          if self.metabolism is not None else {}),
       "earned": sum(v["points"] for v in self.verdicts),
+      # Between wallets (issue #208): terms in the identity a record checks,
+      # and the acts themselves for the record and the observatory.
+      "given": self.ledger.given() if self.ledger is not None else 0,
+      "received": self.ledger.received() if self.ledger is not None else 0,
+      "acts": list(self.acts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
       "press_steps": self.mission.swap.press_steps,
@@ -3401,6 +3663,12 @@ class HubLifecycle:
         # loop dressed as a task list.
         self._cleared_rack = False
         yield from self.run_errand_routine(self.errands.pop(0))
+      elif self._grade_pending:
+        # A challenge the robot said it finished (issue #207), graded once
+        # the queue it may have filled on the same answer has drained --
+        # and BEFORE the mind is asked again, so the verdict is in front
+        # of it when it next decides.
+        yield from self._grade_routine()
       elif self.overseer is not None:
         # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
         # agent's own EVENT MAP replaces one layer in (issue #127). Note
@@ -3543,7 +3811,7 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs)
 
 
-def world_targets(world: str, book=None) -> dict:
+def world_targets(world: str, book=None, procedures: bool = False) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
 
   The seam that keeps `economy/cadence.py` from knowing what a world is: the
@@ -3551,6 +3819,13 @@ def world_targets(world: str, book=None) -> dict:
   target_kind is missing here is simply not offered. Read off the world's own
   config and the boards' own names, never hardcoded -- a world without
   whiteboards gets fewer jobs rather than an offer nothing can build.
+
+  `procedures` says whether the mind here can WRITE one (the `autonomous`
+  arm's library, issue #166). A challenge is discharged by a procedure the
+  robot writes (`TaskKind.discharge`), so its target exists only where that
+  is possible: the same rule as a whiteboard, applied to the arm rather
+  than the furniture. On `guarded` the tower is not offered, its offered
+  set is unchanged, and the control stays a control (issue #207).
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
@@ -3562,10 +3837,13 @@ def world_targets(world: str, book=None) -> dict:
   # carry is the job a bare room can still offer, and it is where the swap
   # stack gets exercised on its own.
   targets["module"] = ["module_lcd"]
+  if procedures and cfg.get("tower"):
+    targets["challenge"] = [cfg["tower"]["name"]]
   return targets
 
 
-def task_producer(board, world: str, book=None, cadence=None):
+def task_producer(board, world: str, book=None, cadence=None,
+                  procedures: bool = False):
   """The thing that keeps putting work into a world (issue #23).
 
   Replaces the `seed_tasks` placeholder. That one put up a starter set once
@@ -3581,7 +3859,7 @@ def task_producer(board, world: str, book=None, cadence=None):
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
   return TaskProducer(board, cadence or default_cadence(world),
-                      world_targets(world, book))
+                      world_targets(world, book, procedures=procedures))
 
 
 def world_screens(model, data):
@@ -3733,7 +4011,11 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
-  if spec is None:
+  if spec is None or spec.discharge == "procedure":
+    # A challenge has no errand behind it (issue #207): the robot writes
+    # the procedure that discharges it and says `done`. None here is what
+    # keeps `_claim_task`'s "nothing to build" honest for the kinds that
+    # DO build one.
     return None
   try:
     if isinstance(task.params.get("procedure"), dict):
@@ -4059,6 +4341,10 @@ def world_config(world: str) -> dict:
       "census_zone": next(z for z in home.ZONES if z["name"] == "garden"),
       "census_entry": (home.GARDEN_X[0] + 0.4,
                        sum(home.DOOR_GARDEN_Y) / 2),
+      # The tower challenge's blocks (issue #207): named by the ROOM they
+      # start in, which is what the offer says; where they stand is the
+      # generator's. Absent on a world without them, and the offer with it.
+      "tower": {"name": "workshop", "blocks": list(home.TOWER_XY)},
       # Every named region, for an overseer's `explore(zone)` (issue #15).
       # Off the generator's own ZONES, like the census zone above -- the
       # region the LLM can name is the region the website draws.
@@ -4200,7 +4486,10 @@ def run_demo(start=None, view: bool = False,
   beat = default_cadence(world) if (tasks or tasks_state) else None
   board = (task_board(tasks_state, cadence=beat, world=world)
            if (tasks or tasks_state) else None)
-  maker = task_producer(board, world, book, beat) if board is not None else None
+  # The tower is offered only where a procedure can be written (issue
+  # #207): the `autonomous` arm's library is what discharges a challenge.
+  maker = (task_producer(board, world, book, beat, procedures=autonomous)
+           if board is not None else None)
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.mind import overseer as ov

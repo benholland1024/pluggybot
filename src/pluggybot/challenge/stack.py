@@ -18,7 +18,11 @@ it is done AND again `HOLD_S` sim-seconds later:
      block and not beside it;
   4. the tower is FREE-STANDING: every block touches the floor or another
      block and nothing else. A block in the jaws is a block being held, and
-     a tower the robot is holding up is not a tower.
+     a tower the robot is holding up is not a tower --
+  5. and nothing but the floor and the blocks touches a block AT ANY MOMENT
+     of the hold (issue #207): the robot is told to stand clear, and a
+     chassis that steadies the tower for nine of the ten seconds has held
+     it up as surely as a claw that never let go.
 
 Everything else is the robot's business: which block goes where, whether it
 uses the claw at all, how long it takes. The grader knows only the blocks'
@@ -86,6 +90,24 @@ def add_blocks(spec: mujoco.MjSpec) -> mujoco.MjSpec:
   return spec
 
 
+def block_xml(name: str, x: float, y: float, tag_id: int | None = None,
+              indent: str = "    ") -> str:
+  """One block as MJCF text, for a GENERATOR that writes a world (the home
+  world, issue #207) -- the same cube `add_blocks` puts in a spec, with its
+  AprilTag on every face where it has one (tags.BLOCK_TAG_IDS; the material
+  is the world's `tagmat<id>`)."""
+  solimp = " ".join(GRIP_SOLIMP.split() + ["0.9", "2.0"])
+  skin = (f'material="tagmat{tag_id}"' if tag_id is not None
+          else 'rgba="0.90 0.60 0.20 1"')
+  return (f'{indent}<body name="{name}" pos="{x:.4f} {y:.4f} {BLOCK_HALF:.4f}">\n'
+          f'{indent}  <freejoint/>\n'
+          f'{indent}  <geom name="{name}_box" type="box" '
+          f'size="{BLOCK_HALF} {BLOCK_HALF} {BLOCK_HALF}" mass="{BLOCK_MASS}" '
+          f'friction="{BLOCK_FRICTION} 0.005 0.0001" solimp="{solimp}" '
+          f'{skin}/>\n'
+          f'{indent}</body>')
+
+
 def world_with_blocks(path: str = "models/hub_world.xml") -> mujoco.MjModel:
   return add_blocks(mujoco.MjSpec.from_file(path)).compile()
 
@@ -97,6 +119,21 @@ def place(model, data, name: str, xyz, yaw: float = 0.0) -> None:
   data.qpos[adr:adr + 3] = xyz
   data.qpos[adr + 3:adr + 7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   data.qvel[dof:dof + 6] = 0.0
+
+
+def foreign_contacts(model, data) -> set[str]:
+  """The names of every geom touching a block that is neither the floor nor
+  another block -- criterion 5, read per step during the hold. Cheap: one
+  pass over the contact list, no pose analysis."""
+  gids = {model.geom(f"{b}_box").id for b in BLOCKS}
+  support = {model.geom(g).id for g in SUPPORT_GEOMS}
+  out = set()
+  for i in range(data.ncon):
+    c = data.contact[i]
+    for g, other in ((c.geom1, c.geom2), (c.geom2, c.geom1)):
+      if g in gids and other not in gids and other not in support:
+        out.add(model.geom(other).name)
+  return out
 
 
 def _rests_on(upper: np.ndarray, lower: np.ndarray) -> bool:
@@ -161,14 +198,17 @@ def _foreign(contact, gids: dict, support: set) -> list:
   return out
 
 
-def measurements(at_done: dict | None, settled: dict | None) -> dict:
+def measurements(at_done: dict | None, settled: dict | None,
+                 touched_during=()) -> dict:
   """The evaluator's input: the snapshot when the robot called it done, the
-  snapshot after the hold, and how long the hold was. Absences stay absent --
-  `eval_stack` turns them into a failure, not a pass."""
+  snapshot after the hold, how long the hold was, and what touched a block
+  DURING it (criterion 5, the seam's per-step reading). Absences stay
+  absent -- `eval_stack` turns them into a failure, not a pass."""
   done = at_done or {}
   end = settled or {}
   hold = (end["t"] - done["t"]) if "t" in done and "t" in end else None
   return {
+    "touchedDuringHold": sorted(set(touched_during)),
     "layersAtDone": done.get("layers"),
     "freeStandingAtDone": done.get("freeStanding"),
     "layers": end.get("layers"),
@@ -189,6 +229,7 @@ def eval_stack(m: dict) -> tuple[bool, dict, str]:
     "freeStanding": m.get("freeStanding"),
     "offsetMm": m.get("offsetMm"), "heightMm": m.get("heightMm"),
     "holdS": m.get("holdS"), "touchedBy": list(m.get("touchedBy") or ()),
+    "touchedDuringHold": list(m.get("touchedDuringHold") or ()),
   }
   # A missing measurement is not a passing one (scoring.py's rule): a run
   # that never sampled the world, or sampled it once, fails here.
@@ -204,6 +245,10 @@ def eval_stack(m: dict) -> tuple[bool, dict, str]:
     touched = ", ".join(metrics["touchedBy"]) or "something"
     return False, metrics, (f"{LAYERS} blocks stacked, but {touched} was "
                             "holding the tower up")
+  if metrics["touchedDuringHold"]:
+    touched = ", ".join(metrics["touchedDuringHold"])
+    return False, metrics, (f"{touched} touched the tower during the hold "
+                            "-- stand clear once you have said you are done")
   # A short hold is the HARNESS's fault, and it still fails: a verdict on a
   # tower nobody waited for is a verdict on a tower-shaped moment.
   if hold + 1e-6 < HOLD_S:
