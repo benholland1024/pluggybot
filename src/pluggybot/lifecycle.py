@@ -1927,7 +1927,12 @@ class HubLifecycle:
       if self.ledger is None:
         continue
       try:
+        # `by` is the wire's `from` -- the site sends the rater's username
+        # when there is one (rooftop-media-2026 #259), so the ledger's own
+        # `settledBy` names the panel rather than reading "visitor" for
+        # every rating ever given. A display label, never an identity.
         entry = self.ledger.settle(msg.seq, msg.quality,
+                                   by=msg.who or "visitor",
                                    t=float(self.data.time))
       except KeyError as e:
         # The two misses are caught apart so the robot can say which one
