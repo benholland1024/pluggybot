@@ -93,8 +93,9 @@ friction needs `priority="1"` or MuJoCo takes the pair MAX — SimNotes "THE
 caster lesson"; ⚠ the sim's sphere is 40 mm across, the caster's stance
 rather than its 19 mm ball), `bracket_37d` (sets axle height; open decision
 4 is blocked on it), `chassis_plate` (track width 0.21 m is set by the
-bracket spacing) and `bumper_switch` (issue #94: a sprung bar over 1–2
-roller-lever microswitches, 6–12 cm off the floor, feeding
+bracket spacing) and `bumper_switch` (issue #94: a sprung bar over two
+Omron D2F-01L2 hinge-roller-lever microswitches — sourced in #199, 0.78 N
+operating force, €2.59 — 6–12 cm off the floor, feeding
 `HubSwap.pressing` — dead reckoning holds its travel while the bumper is
 pressed on the side the wheels roll toward. Why: a drive stalled against a
 fence pumped 4.28 m of imaginary travel in 30 s, and motor torque cannot
@@ -345,6 +346,29 @@ and models TBD.**
 Open for the physical design: pogo-pin placement that engages by the same
 drive-in motion (no extra alignment), and whether the trays need steel wear
 inserts.
+
+### What the workshop may build from (issue #199)
+
+The agent's tools (`workshop/`, Overseer.md §2d) are built from the
+catalog shelf of `protocol/parts.json`, and a part is buildable-from only
+when the catalog knows every number the validator reads — mass, size, the
+motion's numbers, the draw. Sourced one at a time, each off the maker's
+datasheet, never a seller's summary:
+
+| Part | Chosen | The numbers that made it usable |
+|---|---|---|
+| micro servo | FEETECH FS90-FB (#168) | 0.147 N·m, 800 mA stall at 6 V = 4.8 W |
+| second servo, metal gear | FEETECH FS90MG | 0.216 N·m at 6 V at the SAME 800 mA stall, 12.7 g. Passed over: Tower Pro MG90S (no published current), Power HD HD-1810MG (1.4 A stall = 8.4 W, over the peg alone) |
+| slide | Actuonix L12-100-50-6-R | 100 mm stroke, 22 N lifted, 25 mm/s, 460 mA on the 6 V winding = 2.76 W, 56 g, €77. ⚠ The L16-140 that would cover the pen's 110 mm travel publishes its stall current at 12 V only, so its 6 V draw would be a guess; the pen's carriage stays the unspecified `module_lead_screw`, off the catalog shelf |
+| microswitch | Omron D2F-01L2 | 0.78 N OF, 12.8 × 5.8 body, 16.5 mm free position, ≈0.5 g (the datasheet's pin-plunger figure; the lever's fraction of a gram is unpublished). On a tool it is a `contact` sense |
+| eye | Ai-Thinker ESP32-CAM | the camera whose maker publishes a draw — 0.9 W flash off, 1.55 W flash on — and the one that fits "power-only coupling, wireless data", because it is the radio. Raspberry Pi still publishes none for Camera Module 3 (both product briefs, the forum, Arducam's and InnoMaker's IMX708 sheets checked, 2026-09-14), so `pi_camera_3` stays unbuildable-from |
+
+⚠ **The peg's 6 W is now the binding constraint** (`coupling.PEG_POWER_W`,
+a design decision): one servo at stall (4.8) plus the eye with its flash
+(1.55) plus the module's 0.6 W is 6.95 W, so the first tool that looks and
+moves is refused. Re-examining that number is the decision #199's
+acceptance deferred to "the first tool that wants two actuators"; it
+arrived one part earlier.
 
 ## Power
 

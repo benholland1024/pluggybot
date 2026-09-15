@@ -125,3 +125,87 @@ def test_register_puts_the_verb_in_the_registries(scoop):
       del axes.AXES[k]
     for k in set(axes.SENSORS) - before_s:
       del axes.SENSORS[k]
+
+
+#: The scoop with a microswitch on the blade's underside (issue #199): the
+#: first tool that can FEEL. Mounted on the hinge's load so it rides the
+#: tilt, 40 mm out along the blade, 6 mm below it.
+FEELER = {
+  "name": "feeler",
+  "parts": [
+    *copy.deepcopy(SCOOP["parts"]),
+    {"id": "switch", "part": "bumper_switch", "pos": [-50, 0, -14], "on": "hinge"},
+  ],
+}
+
+
+def test_a_switch_on_a_tool_is_a_contact_sense_and_reads_the_world():
+  """A catalog sensor whose `sense` is `contact` becomes `<tool>.<id>.contact`
+  when the tool is registered, after the axes; it reads 0 while the switch
+  touches nothing but the module it is part of, and 1 once it is pressed
+  into something else -- the bumper's own criterion, off the contact list.
+  Pinned on the spike scene with a fake life: the module is a free body,
+  so pushing it down until the switch meets the floor is one qpos write.
+  A retire takes the sense out with the verbs."""
+  tool = validate.check(FEELER)
+  before_a, before_s = set(axes.AXES), set(axes.SENSORS)
+  try:
+    names = build.register(tool)
+    assert names == ["feeler.tilt", "feeler.switch.contact"]
+    sense = axes.SENSORS["feeler.switch.contact"]
+    assert sense.requires == "module_feeler"
+
+    xml = coupling.scene_xml(face=build.face_xml(tool, "module_feeler"),
+                             actuators=build.actuator_xml(tool, "module_feeler"))
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+
+    class Life:
+      pass
+    life = Life()
+    life.model, life.data = model, data
+    mujoco.mj_forward(model, data)
+    # hanging on the trays: the switch touches nothing outside the module
+    # (the blade it is mounted beside is the module's own root)
+    assert sense.read(life) == 0.0
+    # ...pressed into the floor: the free body dropped until the switch,
+    # the lowest thing on the module, is inside the plane
+    q = model.joint("tool").qposadr[0] if "tool" in [model.joint(i).name for i in range(model.njnt)] else 0
+    gid = model.geom("module_feeler_switch").id
+    lowest = float(data.geom_xpos[gid][2]) - float(model.geom_size[gid][2])
+    data.qpos[q + 2] -= lowest + 0.002
+    mujoco.mj_forward(model, data)
+    assert sense.read(life) == 1.0
+    assert build.unregister("module_feeler") == ["feeler.tilt", "feeler.switch.contact"]
+    assert "feeler.switch.contact" not in axes.SENSORS
+  finally:
+    for k in set(axes.AXES) - before_a:
+      del axes.AXES[k]
+    for k in set(axes.SENSORS) - before_s:
+      del axes.SENSORS[k]
+
+
+def test_a_camera_part_is_a_sensor_with_no_contact_sense():
+  """`esp32_cam` is a sensor the catalog fully knows (issue #199) and it
+  validates onto a tool, but it is not something to `read()` a touch off:
+  no `sense`, no `.contact` name."""
+  eyed = {"name": "eye", "parts": [
+    {"id": "mast", "part": "scaffold_pla_box", "size": [10, 10, 30], "pos": [-10, 0, -20]},
+    {"id": "cam", "part": "esp32_cam", "pos": [-20, 0, -30], "on": "mast"}]}
+  tool = validate.check(eyed)
+  assert build.contact_sensors(tool) == []
+  assert build.register(tool) == []
+
+
+def test_an_eye_and_a_servo_together_are_over_the_peg_today():
+  """FOUND BY ISSUE #199, NOT DECIDED BY IT: the FS90 at stall (4.8 W), the
+  ESP32-CAM with its flash at full (1.55 W) and the module's own 0.6 W are
+  6.95 W through a peg budgeted at 6 W -- so the first tool that wants to
+  look AND move is refused, one part earlier than the "two actuators" the
+  issue expected to trigger re-examining `PEG_POWER_W`. The budget is a
+  design decision (coupling.py); this pins what it costs until it moves."""
+  from pluggybot.workshop.spec import Refused
+  eyed = copy.deepcopy(SCOOP)
+  eyed["parts"].append({"id": "eye", "part": "esp32_cam", "pos": [10, 0, -20]})
+  with pytest.raises(Refused, match=r"power: 6\.9 W .* over its 6 W"):
+    validate.check(eyed)

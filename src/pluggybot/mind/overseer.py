@@ -1894,7 +1894,10 @@ context says what hangs where; `tools` lists what you built, with its spec.
 
 A built tool's axes appear in the procedure language as `<name>.<verb>`,
 so `move("scoop.tilt", 1.2)` moves a servo you specified, and
-`read("scoop.tilt")` reads it. Fetch it like any module: `fetch("module_<name>")`.
+`read("scoop.tilt")` reads it. A part whose catalog line says `sense contact`
+(a microswitch) appears as `<name>.<id>.contact`: `read()` gives 1 while that
+part touches something outside the tool, as the chassis's bumper does.
+Fetch a tool like any module: `fetch("module_<name>")`.
 
 THE SPEC. Parts by catalog id, positioned in the module's frame in
 millimetres: +x is toward the robot, -x toward the wall when racked, z up,
@@ -1947,7 +1950,8 @@ def workshop_rule() -> str:
       bits.append("size " + " × ".join(f"{v:g}" if isinstance(v, (int, float)) else str(v)
                                         for v in part.dimensionsMm.values()) + " mm")
     for key in ("motion", "angleDeg", "strokeMm", "torqueNm", "forceN",
-                "speedDegS", "speedMmS", "powerW", "fovVDeg", "densityKgM3"):
+                "speedDegS", "speedMmS", "powerW", "sense", "fovVDeg",
+                "densityKgM3"):
       if key in cap and cap[key] is not None:
         bits.append(f"{key} {cap[key]}")
     if part.kind == "scaffold":
