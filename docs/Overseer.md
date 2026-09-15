@@ -210,11 +210,12 @@ What code keeps, in order, before anything moves:
    sense: `<tool>.<id>.contact`, the bumper's criterion on a tool), an
    ESP32-CAM eye and printed PLA; the Pi camera's draw is still
    unpublished and the rest are candidates, and the prompt says why.
-   ⚠ Measured against the peg's 6 W: a servo at stall plus the eye with
-   its flash is 6.95 W with the module's 0.6 W, so a tool that looks AND
-   moves is refused until `PEG_POWER_W` is re-examined (a design
-   decision, `coupling.py`; `test_an_eye_and_a_servo_together_are_over_
-   the_peg_today` pins the cost).
+   The peg's budget is 12 W at 12 V (`PEG_POWER_W`, a design decision
+   argued at the constant; 6 W until 2026-09-15, when a servo at stall
+   plus the eye with its flash, 6.95 W with the module's 0.6 W, made it
+   binding). The validator sums every part's ceiling as if simultaneous:
+   a servo and an eye fit, three servos at stall do not
+   (`test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos`).
 3. **The price** (`workshop/cost.py`): the catalog's euros as points, one
    per euro, filament by the gram; then print and assembly **time** stood
    still. Paid before anything prints (`Ledger.spend`, no debt); an

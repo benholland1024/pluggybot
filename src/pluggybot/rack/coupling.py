@@ -60,12 +60,22 @@ BRACKET_BAND_Z = (-0.030, -0.009)  # the rack's, outboard of the plate: a
                             # set-down raises the module 31 mm through it, and
                             # a part in the band arrives under the tray
                             # brackets and jams (the pen's carriage at +37 mm)
-#: DESIGN DECISION, NOT MEASURED: what the two-pole peg coupling delivers.
-#: 6 W is 0.5 A at 12 V -- a current a sub-newton steel-on-steel V contact
-#: carries without heating, sized so one hobby servo at stall (4.8 W) plus
-#: the module's ESP32 fits and two stalled together do not. Re-measure on
-#: the built coupling; the holding capacitor (~200 ms) is the other half.
-PEG_POWER_W = 6.0
+#: DESIGN DECISION, NOT MEASURED: what the two-pole peg coupling delivers,
+#: at the 12 V pack. 12 W is 1 A. Was 6 W (0.5 A), sized so one hobby servo
+#: at stall (4.8 W) plus the module's ESP32 fits and nothing else does --
+#: which #199's parts made binding: a servo and an eye together were refused.
+#: Raised 2026-09-15 (Ben) on this argument: a light steel-on-steel point
+#: contact is tens of milliohms to ~0.1 ohm, so 1 A dissipates ~0.1 W at
+#: the contact and heating is not the limit; what limits plain steel is
+#: voltage drop and fretting/oxidation, and 1 A is inside what such a
+#: contact is rated for. The validator sums each part's CEILING (stall,
+#: flash at full) as if simultaneous, so the budget is already pessimistic.
+#: Still a paper number until the built coupling is measured; if the
+#: physical build ever wants more, the upgrade that keeps "the peg IS the
+#: connector" is brass sleeves on the conductor segments and plated
+#: V-plates, or a sprung contact in the V (Parts.md, "Module power
+#: contacts"). The holding capacitor (~200 ms) is the other half.
+PEG_POWER_W = 12.0
 PEG_R = 0.003           # peg axle radius (6 mm rod)
 PEG_HALF = 0.075        # peg half-length: 150 mm rod
 TOOL_HALF_Y = 0.020     # tool body half-width: 40 mm plate

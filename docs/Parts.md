@@ -338,7 +338,7 @@ and models TBD.**
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits | prong stance ±58 mm (`FORK_Y`) |
 | Module frames (LCD, plug, pen, claw, seed dispenser) | 3D-printed plates, common peg interface | 130–211 g measured, ~250 g practical ceiling (ToolPattern.md "Mass and geometry class") |
 | Module electronics | 1× ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. Modelled as a 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |
-| **Module power contacts** | **none to buy — the peg IS the connector** | Split peg + the fork's two V-notch pairs = a two-pole coupling with 0.43–0.47 N of gravity preload per plate, already there, self-wiping on the seating slide. Needs a conductive rod, an insulating centre bush, isolated V-plates, and a **holding capacitor sized for ~200 ms** — measured worst outage 178 ms under hard driving with honest peg friction (SimNotes "The module electrical interface"; ToolPattern.md §3) |
+| **Module power contacts** | **none to buy — the peg IS the connector** | Split peg + the fork's two V-notch pairs = a two-pole coupling with 0.43–0.47 N of gravity preload per plate, already there, self-wiping on the seating slide. Needs a conductive rod, an insulating centre bush, isolated V-plates, and a **holding capacitor sized for ~200 ms** — measured worst outage 178 ms under hard driving with honest peg friction (SimNotes "The module electrical interface"; ToolPattern.md §3) **Rated 12 W at 12 V, 1 A** (`coupling.PEG_POWER_W`, a design decision raised from 6 W on 2026-09-15): a light steel point contact is tens of milliohms to ~0.1 Ω, so 1 A dissipates ~0.1 W there and the limit on plain steel is drop and fretting, not heat — a paper number until the built coupling is measured. Open to the hardware upgrade if a build ever wants more, in the order that keeps the peg as the connector: brass sleeves on the conductor segments and plated V-plates, then a sprung contact in the V (the charge contacts' pogo trick); a separate pogo pair on the plate, or 24 V, would give up the tolerance this design was chosen for |
 | Charge contacts | pogo-pin pairs (spring-loaded, ~€5) on the hub face at bumper height (`CHARGE_PIN_Z` 0.09), pads on the robot | preload from the drive-in press; the electrical-contact criterion carries over verbatim |
 | Hub power | 12.6 V CC/CV charger board (3S, ~€10–15) fed by a mains adapter; balance leads handled robot-side by a 3S BMS | replaces wall-outlet charging as the primary path |
 | LCD module | small SPI/I2C display driven by the module's ESP32 | display-only; the face is drawn in the browser off a streamed enum |
@@ -363,12 +363,15 @@ datasheet, never a seller's summary:
 | microswitch | Omron D2F-01L2 | 0.78 N OF, 12.8 × 5.8 body, 16.5 mm free position, ≈0.5 g (the datasheet's pin-plunger figure; the lever's fraction of a gram is unpublished). On a tool it is a `contact` sense |
 | eye | Ai-Thinker ESP32-CAM | the camera whose maker publishes a draw — 0.9 W flash off, 1.55 W flash on — and the one that fits "power-only coupling, wireless data", because it is the radio. Raspberry Pi still publishes none for Camera Module 3 (both product briefs, the forum, Arducam's and InnoMaker's IMX708 sheets checked, 2026-09-14), so `pi_camera_3` stays unbuildable-from |
 
-⚠ **The peg's 6 W is now the binding constraint** (`coupling.PEG_POWER_W`,
-a design decision): one servo at stall (4.8) plus the eye with its flash
-(1.55) plus the module's 0.6 W is 6.95 W, so the first tool that looks and
-moves is refused. Re-examining that number is the decision #199's
-acceptance deferred to "the first tool that wants two actuators"; it
-arrived one part earlier.
+⚠ **The peg's budget was the binding constraint at 6 W** (`coupling.
+PEG_POWER_W`): one servo at stall (4.8) plus the eye with its flash (1.55)
+plus the module's 0.6 W is 6.95 W, so the first tool that looked and moved
+was refused — the re-examination #199's acceptance deferred to "the first
+tool that wants two actuators", one part early. Raised to 12 W (1 A at
+12 V) on 2026-09-15 with the argument in the constant's comment and the
+"Module power contacts" row above: a servo and an eye fit, two servos and
+an eye fit (11.75 W), three servos at stall (15 W) do not. The validator
+still sums every part's ceiling as if simultaneous.
 
 ## Power
 

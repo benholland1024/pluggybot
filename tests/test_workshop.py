@@ -34,9 +34,9 @@ def scoop(**over) -> dict:
   return raw
 
 
-def with_part(part: dict) -> dict:
+def with_part(*parts: dict) -> dict:
   raw = scoop()
-  raw["parts"].append(part)
+  raw["parts"].extend(parts)
   return raw
 
 
@@ -258,14 +258,19 @@ def test_the_wall_is_90_mm_out_the_front():
 
 
 def test_the_power_budget_through_the_peg():
-  """Two FS90s at stall plus the ESP32 is 10.2 W against 6. And a sensor
-  whose draw is unknown (the camera: the maker does not publish it)
-  cannot be budgeted, so a tool cannot carry one yet -- refused with the
-  gap named, not waved through at 0 W."""
+  """Three FS90s at stall plus the ESP32 is 15 W against the peg's 12 (two
+  were over the 6 W it had until 2026-09-15; the budget is a design
+  decision argued at the constant). And a sensor whose draw is unknown
+  (the Pi camera: the maker does not publish it) cannot be budgeted, so a
+  tool cannot carry one -- refused with the gap named, not waved through
+  at 0 W."""
   raw = with_part({"id": "hinge2", "part": "servo_fs90", "pos": [-20, 0, -70],
-                   "axis": {"verb": "tilt2", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}})
+                   "axis": {"verb": "tilt2", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
+                  {"id": "hinge3", "part": "servo_fs90", "pos": [-20, 20, -70],
+                   "axis": {"verb": "tilt3", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}})
   reasons = refused(raw)
-  draw = MODULE_IDLE_W + 2 * 4.8
+  draw = MODULE_IDLE_W + 3 * 4.8
+  assert draw > PEG_POWER_W > MODULE_IDLE_W + 2 * 4.8, "the pin straddles the budget"
   assert any(r.startswith("power:") and f"{draw:.1f} W" in r
              and f"over its {PEG_POWER_W:g} W" in r for r in reasons)
   raw = with_part({"id": "eye", "part": "pi_camera_3", "pos": [-25, 0, -70]})
