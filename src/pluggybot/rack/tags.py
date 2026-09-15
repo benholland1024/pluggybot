@@ -45,6 +45,13 @@ BAY_TAG_IDS = (1, 2, 4, 5, 6)  # bays A-E -- same ORDER as HUB_STATION_YS,
 CHARGE_TAG_ID = 3
 MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
                   "module_claw": 13, "module_seed": 14}
+#: The tower's three blocks (issue #207; challenge/stack.py), after the
+#: five built-tool ids 15-19 that workshop/seam.py hands out by bay. A
+#: block is a 26 mm cube with the tag on every face (cube mapping), so its
+#: black edge is 8/10 of the cube: the "20 mm tag" whose decode range is a
+#: measurement to make against the first attempt, not before it.
+BLOCK_TAG_IDS = (20, 21, 22)
+BLOCK_TAG_SIZE = 0.026 * 8 / 10
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -57,7 +64,8 @@ SMALL_TAG_SIZE = 0.030
 # size, so a single decode can be rescaled per id exactly.
 TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
              **{i: SMALL_TAG_SIZE for i in BAY_TAG_IDS},
-             **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()}}
+             **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
+             **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS}}
 
 TAG_DIR = Path("models/tags")
 
@@ -85,7 +93,8 @@ def write_tag_pngs(directory: Path = TAG_DIR) -> list[int]:
   """Write every tag PNG the hub worlds reference. Returns the ids written."""
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
-  ids = [RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values()]
+  ids = [RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values(),
+         *BLOCK_TAG_IDS]
   for tag_id in ids:
     Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
   return ids

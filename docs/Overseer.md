@@ -183,6 +183,19 @@ battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
 agent the answer the arm is measured on. It looks around with the LCD and
 probes with the arm.
 
+**A challenge is finished by saying so** (issue #207). The tower
+(`stack_tower`, Challenges.md §7) is the first job with no errand behind
+it: taking it queues nothing, the robot writes and runs the procedure that
+does it, and sets `done` to the task's id — a paperwork field on the
+library's slot, so it exists only where a procedure can be written. It is
+honoured at the loop's next idle moment, after whatever the same answer
+queued has run, so "run my stacking procedure, then grade me" is one
+answer; the grade is the challenge's own (a snapshot, a ten-second hold the
+robot is told to stand clear of and during which every step reads what
+touches a block, a second snapshot, one verdict), and `guarded` never sees
+the field or the offer. `CHALLENGE_RULE` says all of this to the mind and,
+like every rule on this arm, demonstrates nothing about charging.
+
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
 The fifth quality, taken one step further than a procedure: the robot may

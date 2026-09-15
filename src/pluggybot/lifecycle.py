@@ -324,6 +324,13 @@ class HubLifecycle:
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
     self.tools_built = 0
+    #: A CHALLENGE THE ROBOT SAID IT HAS FINISHED (issue #207), by task id,
+    #: waiting for the loop's next idle moment to be graded -- after
+    #: whatever the same answer queued has run. Empty is nothing pending.
+    self._grade_pending = ""
+    #: ...and every grade the loop ran, for the run record: the task, the
+    #: verdict, what touched the tower during the hold.
+    self.grades: list[dict] = []
     self.tools_retired = 0
     # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
     # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
@@ -2299,6 +2306,68 @@ class HubLifecycle:
     task = self.tasks.get(task_id) if self.tasks is not None else None
     return task.role_of(self.mission.handle.root) if task is not None else ""
 
+  def _done(self, decision) -> None:
+    """Take a decision's `done` (issue #207): the claimed challenge the robot
+    says stands. Paperwork -- it costs no turn -- and it only SETS the grade
+    pending: the grade runs from the day loop once the errand queue is
+    empty, so a procedure queued by the same answer runs first. A `done`
+    that names nothing this robot holds is narrated and dropped, like a
+    `respond_to` for a message already dealt with."""
+    if not decision.done:
+      return
+    from pluggybot.economy.tasks import KINDS
+    task = self.tasks.get(decision.done) if self.tasks is not None else None
+    if (task is None or task.state != "active"
+        or task.claimed_by != self.mission.handle.root
+        or KINDS[task.kind].discharge != "procedure"):
+      self._say(f"DONE {decision.done}: not a challenge you hold")
+      return
+    self._grade_pending = task.id
+    self._say(f"DONE {task.id}: graded once the queue is empty -- "
+              f"{task.description}")
+
+  def _grade_routine(self) -> Routine:
+    """Grade the challenge the robot said it finished (issue #207).
+
+    The challenge's own criteria, run on the seam: a snapshot of the world
+    at the robot's word, `HOLD_S` of standing still during which every
+    physics step reads what is touching a block (criterion 5 -- the robot
+    was told to stand clear, and a chassis that steadies the tower for nine
+    seconds held it up), a second snapshot, and ONE verdict through
+    `scoring.evaluate` -- the same door every errand's verdict goes
+    through, so `Ledger.award` re-derives the points and the task resolves
+    off the same object. Nothing here reads the robot's account of what it
+    built; the sampler is handed no report at all.
+    """
+    from pluggybot.challenge import stack
+    task_id, self._grade_pending = self._grade_pending, ""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    if task is None or task.state != "active":
+      self._say(f"GRADE {task_id}: no longer held")
+      return
+    t0 = float(self.data.time)
+    before = stack.measure(self.model, self.data)
+    self._say(f"GRADE {task.id}: {before['layers']} of {stack.LAYERS} at "
+              f"the call -- holding {stack.HOLD_S:.0f} s, standing clear")
+    touched: set[str] = set()
+    while float(self.data.time) - t0 < stack.HOLD_S:
+      touched |= stack.foreign_contacts(self.model, self.data)
+      yield (0.0, 0.0)
+    after = stack.measure(self.model, self.data)
+    verdict = scoring.evaluate(
+      "stack", stack.measurements(before, after, touched_during=touched))
+    entry = self._bank(verdict)
+    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
+    if closed is not None:
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
+                        "ok": verdict.ok, "reason": verdict.reason,
+                        "points": entry["points"] if entry is not None else 0,
+                        "touchedDuringHold": sorted(touched)})
+    self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
+                   f"{task.kind}: {verdict.reason}")
+    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
 
@@ -2917,22 +2986,50 @@ class HubLifecycle:
     role = next(iter(task.open_roles()), "") if task.roles else ""
     if task.roles and (not role or task.role_of(self.mission.handle.root)):
       return False
-    errand = errand_for_task(task, self.world, self.boards, answer=said,
-                             role=role)
-    if errand is None:
-      # Offered in a world that cannot build it. Not fatal and not a claim:
-      # leaving it offered lets it lapse honestly rather than be marked
-      # failed by a robot that never touched it.
-      self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
-      return False
+    from pluggybot.economy.tasks import KINDS
+    by_procedure = KINDS[task.kind].discharge == "procedure"
+    if by_procedure:
+      # A CHALLENGE (issue #207): no errand does it. The claim is the
+      # robot's word that it will write the procedure, run it and say
+      # `done`; only a mind with a library is offered one, and only a mind
+      # can say when it is finished.
+      if getattr(self.overseer, "library", None) is None:
+        self._say(f"TASK {task.id}: takes a procedure, and nothing here "
+                  "can write one")
+        return False
+      errand = None
+    else:
+      errand = errand_for_task(task, self.world, self.boards, answer=said,
+                               role=role)
+      if errand is None:
+        # Offered in a world that cannot build it. Not fatal and not a
+        # claim: leaving it offered lets it lapse honestly rather than be
+        # marked failed by a robot that never touched it.
+        self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
+        return False
+    # ⚠ `claim_budget_wh`, the same gate `claimable` was checked against
+    # above -- not `spendable_wh`. On `autonomous` rail three is OFF, and
+    # the board's own re-check used to quietly put it back: a claim the
+    # rail let through was refused a line later by the pack it would have
+    # been refused by on `guarded`. Invisible on a hosting pack, where
+    # nothing costs more than the cell holds; found by the tower on a demo
+    # cell (issue #207).
     if self.tasks.claim(task.id, robot=self.mission.handle.root, t=now,
-                        pack_wh=self.spendable_wh, answer=said,
+                        pack_wh=self.claim_budget_wh, answer=said,
                         role=role) is None:
       return False
     self.claimed.append(task.id)
     self._say(f"TASK {task.id} claimed{f' as {role}' if role else ''}: "
               f"{task.description}"
               + (f" -- answering {said}" if said else ""))
+    if errand is None:
+      # ACTIVE from the claim: an errand marks its task active when it
+      # starts running, and a challenge's work starts the moment the robot
+      # takes it on -- writing the procedure is the work.
+      self.tasks.start(task.id, t=now)
+      self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
+                f"it, and set done to {task.id} when the work stands")
+      return True
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
     # through the loop charges first.
@@ -2949,6 +3046,7 @@ class HubLifecycle:
     """
     if self.tasks is None:
       return False
+    from pluggybot.economy.tasks import KINDS
     for task in self.tasks.claimable(float(self.data.time),
                                      self.claim_budget_wh):
       # A question is skipped rather than attempted (issue #22): there is
@@ -2956,6 +3054,11 @@ class HubLifecycle:
       # supply one -- reading it out of the bank, or guessing -- are the sim
       # marking its own homework and a confident wrong number on a wall.
       if task.needs_answer:
+        continue
+      # ...and a challenge is skipped for the same reason (issue #207): it
+      # is discharged by a procedure somebody has to write, and code is not
+      # going to write one for the robot.
+      if KINDS[task.kind].discharge == "procedure":
         continue
       if self._claim_task(task.id):
         return True
@@ -3051,6 +3154,10 @@ class HubLifecycle:
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
     self._define(decision)
+    # ...and a challenge it says it has finished (issue #207): paperwork
+    # that only sets the grade pending -- the loop grades once the queue
+    # is empty, so a procedure queued below runs first.
+    self._done(decision)
     # ...and the workshop's two verbs (issue #168): a build PAYS and WAITS,
     # which is why this one is a routine and not paperwork.
     yield from self._workshop_routine(decision)
@@ -3401,6 +3508,12 @@ class HubLifecycle:
         # loop dressed as a task list.
         self._cleared_rack = False
         yield from self.run_errand_routine(self.errands.pop(0))
+      elif self._grade_pending:
+        # A challenge the robot said it finished (issue #207), graded once
+        # the queue it may have filled on the same answer has drained --
+        # and BEFORE the mind is asked again, so the verdict is in front
+        # of it when it next decides.
+        yield from self._grade_routine()
       elif self.overseer is not None:
         # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
         # agent's own EVENT MAP replaces one layer in (issue #127). Note
@@ -3543,7 +3656,7 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs)
 
 
-def world_targets(world: str, book=None) -> dict:
+def world_targets(world: str, book=None, procedures: bool = False) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
 
   The seam that keeps `economy/cadence.py` from knowing what a world is: the
@@ -3551,6 +3664,13 @@ def world_targets(world: str, book=None) -> dict:
   target_kind is missing here is simply not offered. Read off the world's own
   config and the boards' own names, never hardcoded -- a world without
   whiteboards gets fewer jobs rather than an offer nothing can build.
+
+  `procedures` says whether the mind here can WRITE one (the `autonomous`
+  arm's library, issue #166). A challenge is discharged by a procedure the
+  robot writes (`TaskKind.discharge`), so its target exists only where that
+  is possible: the same rule as a whiteboard, applied to the arm rather
+  than the furniture. On `guarded` the tower is not offered, its offered
+  set is unchanged, and the control stays a control (issue #207).
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
@@ -3562,10 +3682,13 @@ def world_targets(world: str, book=None) -> dict:
   # carry is the job a bare room can still offer, and it is where the swap
   # stack gets exercised on its own.
   targets["module"] = ["module_lcd"]
+  if procedures and cfg.get("tower"):
+    targets["challenge"] = [cfg["tower"]["name"]]
   return targets
 
 
-def task_producer(board, world: str, book=None, cadence=None):
+def task_producer(board, world: str, book=None, cadence=None,
+                  procedures: bool = False):
   """The thing that keeps putting work into a world (issue #23).
 
   Replaces the `seed_tasks` placeholder. That one put up a starter set once
@@ -3581,7 +3704,7 @@ def task_producer(board, world: str, book=None, cadence=None):
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
   return TaskProducer(board, cadence or default_cadence(world),
-                      world_targets(world, book))
+                      world_targets(world, book, procedures=procedures))
 
 
 def world_screens(model, data):
@@ -3733,7 +3856,11 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
-  if spec is None:
+  if spec is None or spec.discharge == "procedure":
+    # A challenge has no errand behind it (issue #207): the robot writes
+    # the procedure that discharges it and says `done`. None here is what
+    # keeps `_claim_task`'s "nothing to build" honest for the kinds that
+    # DO build one.
     return None
   try:
     if isinstance(task.params.get("procedure"), dict):
@@ -4059,6 +4186,10 @@ def world_config(world: str) -> dict:
       "census_zone": next(z for z in home.ZONES if z["name"] == "garden"),
       "census_entry": (home.GARDEN_X[0] + 0.4,
                        sum(home.DOOR_GARDEN_Y) / 2),
+      # The tower challenge's blocks (issue #207): named by the ROOM they
+      # start in, which is what the offer says; where they stand is the
+      # generator's. Absent on a world without them, and the offer with it.
+      "tower": {"name": "workshop", "blocks": list(home.TOWER_XY)},
       # Every named region, for an overseer's `explore(zone)` (issue #15).
       # Off the generator's own ZONES, like the census zone above -- the
       # region the LLM can name is the region the website draws.
@@ -4200,7 +4331,10 @@ def run_demo(start=None, view: bool = False,
   beat = default_cadence(world) if (tasks or tasks_state) else None
   board = (task_board(tasks_state, cadence=beat, world=world)
            if (tasks or tasks_state) else None)
-  maker = task_producer(board, world, book, beat) if board is not None else None
+  # The tower is offered only where a procedure can be written (issue
+  # #207): the `autonomous` arm's library is what discharges a challenge.
+  maker = (task_producer(board, world, book, beat, procedures=autonomous)
+           if board is not None else None)
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.mind import overseer as ov

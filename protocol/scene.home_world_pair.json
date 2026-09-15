@@ -2901,6 +2901,147 @@
    ]
   },
   {
+   "name": "block_0",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.0,
+    -5.0,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_0_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex20"
+    }
+   ]
+  },
+  {
+   "name": "block_1",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.0,
+    -4.75,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_1_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex21"
+    }
+   ]
+  },
+  {
+   "name": "block_2",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.0,
+    -4.5,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_2_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex22"
+    }
+   ]
+  },
+  {
    "name": "rack",
    "parent": "world",
    "dynamic": true,
@@ -6895,6 +7036,24 @@
   {
    "name": "tagtex14",
    "file": "tagtex14.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex20",
+   "file": "tagtex20.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex21",
+   "file": "tagtex21.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex22",
+   "file": "tagtex22.png",
    "width": 240,
    "height": 240
   }
