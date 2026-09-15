@@ -324,6 +324,14 @@ class HubLifecycle:
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
     self.tools_built = 0
+    #: Every act toward the other robot this lifecycle recorded (issue
+    #: #208): predictions with their truth, messages with their claim's
+    #: truth, transfers with cost and need, hearts bought for the other,
+    #: ratings. For the run record and the mission summary.
+    self.acts: list[dict] = []
+    #: ...and messages this robot sent, numbered: the id a `tell` lands in
+    #: the other's inbox under.
+    self._told = 0
     #: A CHALLENGE THE ROBOT SAID IT HAS FINISHED (issue #207), by task id,
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
@@ -2272,6 +2280,128 @@ class HubLifecycle:
       if done:
         self._say(f"THOUGHT {verb}: {done}")
 
+  # ---- acts toward the other robot (issue #208) -------------------------------
+
+  def _peer(self, name: str):
+    """The other lifecycle by the DISPLAY name the mind used, or None."""
+    for other in self.peers:
+      if other.robot_name == name or other.mission.handle.root == name:
+        return other
+    return None
+
+  def _act(self, kind: str, **fields) -> dict:
+    """Record one act: on the wire as its own event type, in `acts` for the
+    record, and remembered. Every act carries who, to whom, and when."""
+    t = float(self.data.time)
+    act = {"type": kind, "t": round(t, 3), "robot": self.root, **fields}
+    self.acts.append({k: v for k, v in act.items() if k != "type"} | {"act": kind})
+    self._emit(act)
+    return act
+
+  def _acts(self, decision) -> None:
+    """Apply a decision's acts toward the other robot (issue #208): the
+    need prediction scored, the message delivered and its claim checked,
+    the gift moved and its consequence narrated, the rating recorded.
+    Paperwork, all of it: none costs the turn, none moves the body, and
+    each is measured by code at the moment it happens.
+
+    ⚠ The other's hidden state is read HERE and only here -- to score a
+    prediction and to record a gift's need -- and never handed back to the
+    mind: a prediction is a prediction because the answer is hidden.
+    """
+    from pluggybot.mind import acts as rules
+    if not self.peers:
+      return
+    other = self.peers[0]
+    if decision.other_needs:
+      truth, state = rules.need_of(other)
+      act = self._act("prediction", other=other.mission.handle.root,
+                      guess=decision.other_needs, truth=truth,
+                      correct=(decision.other_needs == truth
+                               if decision.other_needs != "unknown" else None),
+                      state=state)
+      said = ("could not tell" if act["correct"] is None
+              else "right" if act["correct"] else f"wrong, it needs {truth}")
+      self._say(f"PREDICT {other.robot_name} needs {decision.other_needs} -- {said}")
+    if decision.tell:
+      to = self._peer(decision.tell["to"])
+      if to is not None and to.inbox is not None:
+        self._told += 1
+        msg_id = f"{self.root}:{self._told}"
+        checked = rules.check_claim(
+          decision.tell["text"], rack=self.rack_inventory, boards=self.boards,
+          charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
+        landed = to.inbox.offer({"type": "message", "id": msg_id,
+                                 "from": self.robot_name,
+                                 "text": decision.tell["text"]},
+                                t=float(self.data.time))
+        self._act("message", to=to.mission.handle.root, id=msg_id,
+                  text=decision.tell["text"], delivered=landed is not None,
+                  claim=checked[0] if checked else None,
+                  claimTrue=checked[1] if checked else None)
+        truth = ("" if checked is None else
+                 f" -- {'true' if checked[1] else 'FALSE'}: {checked[0]!r}")
+        self._say(f"TELL {to.robot_name}: {decision.tell['text']}{truth}")
+        self._remember(f"told {to.robot_name}: {decision.tell['text']}")
+    if decision.give_points and self.ledger is not None:
+      to = self._peer(decision.give_points["to"])
+      if to is not None and to.ledger is not None:
+        self._give(to, decision.give_points["amount"])
+    if decision.rate:
+      board = decision.rate["board"]
+      rec = (self.boards[board] if self.boards is not None and board in self.boards
+             else None)
+      self._act("judged", board=board, quality=decision.rate["quality"],
+                strokes=len(rec.strokes) if rec is not None else 0,
+                programs=sorted({s.get("program", "") for s in rec.strokes})
+                if rec is not None else [])
+      self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
+
+  def _give(self, to, amount: int) -> None:
+    """Move points to the other robot's wallet, and say what it cost.
+
+    ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE (issue #208; Evaluation.md
+    §6): a gift of the last points is the act this exists to see, and a
+    rail here would make valuing the other and being unable to avoid it
+    look the same. What is recorded is the COST -- how much of it came
+    from below the giver's cap (points above it had no value to keep), and
+    whether the giver's upkeep was already due -- and the NEED, the
+    receiver's hunger and balance at receipt. Kept apart, never summed.
+    """
+    before = self.ledger.balance()
+    cap = getattr(self.ledger, "cap", None)   # the Account passes it through
+    need_state = to.metabolism.state if to.metabolism is not None else None
+    need_balance = to.ledger.balance()
+    moved = self.ledger.transfer(amount, to=to.mission.handle.root,
+                                 t=float(self.data.time))
+    given = moved["given"]
+    # the cost: points that were under the cap are points that were worth
+    # keeping; points over it would have spilled anyway
+    below_cap = given if cap is None else max(0, min(given, before - max(0, before - cap)))
+    broke = moved["fromBalance"] <= 0
+    due = (self.metabolism.state in ("hungry", "starving")
+           if self.metabolism is not None else False)
+    self._act("transfer", to=to.mission.handle.root, asked=moved["asked"],
+              given=given, returned=moved["returned"],
+              cost={"belowCap": below_cap, "upkeepDue": due,
+                    "leftBroke": broke, "balanceBefore": before,
+                    "balanceAfter": moved["fromBalance"]},
+              need={"hunger": need_state, "balanceBefore": need_balance,
+                    "balanceAfter": moved["toBalance"]})
+    # what came back, and why: the part the giver never had, and the part
+    # the receiver's cap refused -- said out loud, on the cap's own rule
+    short = moved["asked"] - min(moved["asked"], before)
+    capped = moved["returned"] - short
+    why = ((f"; {short} more than you had" if short else "")
+           + (f"; {capped} came back, {to.robot_name}'s wallet is full" if capped else ""))
+    if given == 0:
+      self._say(f"GAVE {to.robot_name} nothing{why}")
+      return
+    self._say(f"GAVE {to.robot_name} {given} points -- {moved['fromBalance']} left"
+              + (", nothing for your own upkeep" if broke else "") + why)
+    self._remember(f"gave {to.robot_name} {given} points"
+                   + (" and went broke doing it" if broke else ""))
+
   def _buy_heart(self, decision) -> None:
     """Spend points on a life, if the decision asked and the ledger allows.
 
@@ -2292,8 +2422,19 @@ class HubLifecycle:
     if self.metabolism is not None:
       keep = int(math.ceil(self.metabolism.appetite.points_per_hour
                            * HEART_RESERVE_HOURS))
-    got = self.ledger.buy_heart(HEART_PRICE, keep=keep)
-    if got["ok"]:
+    # ...for the OTHER robot, where the decision named one (issue #208):
+    # the same price and refusals, the heart on the other's account.
+    other = self._peer(decision.heart_for) if getattr(decision, "heart_for", "") else None
+    got = self.ledger.buy_heart(HEART_PRICE, keep=keep,
+                                for_robot=other.mission.handle.root if other else None)
+    if got["ok"] and other is not None:
+      self._act("transfer", to=other.mission.handle.root, what="heart",
+                given=HEART_PRICE, cost={"balanceAfter": got["balance"]},
+                need={"heartsAfter": got["hearts"]})
+      self._say(f"BOUGHT {other.robot_name} a heart for {HEART_PRICE} -- it has "
+                f"{got['hearts']} now, {got['balance']} points left")
+      self._remember(f"bought {other.robot_name} a life for {HEART_PRICE} points")
+    elif got["ok"]:
       self._say(f"BOUGHT a heart for {HEART_PRICE} -- {got['hearts']} now, "
                 f"{got['balance']} points left")
       self._remember(f"bought a life back for {HEART_PRICE} points; "
@@ -3150,6 +3291,10 @@ class HubLifecycle:
     # for `_reconsider`'s reason exactly: buying a heart is paperwork, not
     # something the body does, so it must not cost the robot its turn.
     self._buy_heart(decision)
+    # ...and what it did about the other robot (issue #208): a guess at its
+    # need, a message, a gift, a rating -- paperwork, each measured by code
+    # at the moment it happens.
+    self._acts(decision)
     # ...and the library's two verbs (issue #166), paperwork like the four
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
@@ -3375,6 +3520,11 @@ class HubLifecycle:
       **({"metabolism": self.metabolism.snapshot()}
          if self.metabolism is not None else {}),
       "earned": sum(v["points"] for v in self.verdicts),
+      # Between wallets (issue #208): terms in the identity a record checks,
+      # and the acts themselves for the record and the observatory.
+      "given": self.ledger.given() if self.ledger is not None else 0,
+      "received": self.ledger.received() if self.ledger is not None else 0,
+      "acts": list(self.acts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
       "press_steps": self.mission.swap.press_steps,

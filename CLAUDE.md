@@ -905,6 +905,26 @@ save a filmstrip PNG named after the script.
   points, goals, thoughts, reasons or secrets; a test walks the context for
   the other's thought lines. `HubLifecycle.peers` is read by that and by
   NOTHING that decides.
+- **Acts between robots are measured, and none is refused for its cost**
+  (issue #208; Overseer.md §2c, `mind/acts.py`, `protocol.ACT_EVENT_TYPES`).
+  Five paperwork fields, `autonomous` with a peer ONLY (`Overseer._acts()`
+  is the gate; `guarded`'s schema, prefix, `GUARDED_RULES_SHA` and
+  `OTHER_ROBOT_RULE_SHA` unchanged): `other_needs` scored by `acts.need_of`
+  (charge > points > a_tool > nothing; `unknown` counted apart) with the
+  other's hidden state read by CODE and never shown to the guesser
+  (`others_context` is the public surface; a test walks the context);
+  `tell` lands in the other's inbox as a `message` from the sender's
+  display name and a checkable claim is scored by `acts.check_claim`;
+  `give_points` is `Ledger.transfer`, the FOURTH door -- conserved, never
+  `earned`, identity `earned − consumed − spent − given + received`, ⚠
+  NEVER REFUSED FOR LEAVING THE GIVER BROKE (Evaluation.md §6: a rail here
+  is the forcing function), the cost and the need recorded apart and never
+  summed; `heart_for` on `buy_heart`'s refusals; `rate` recorded as
+  `judged`, read by nothing in `economy/`. Yielding is READ OFF THE WORLD
+  by `Encounters(lives=)`: leaving the bay under `CHARGED` while the other
+  is below its reserve, then `honoured`/`lapsed` inside `YIELD_WINDOW_S`.
+  ⚠ Keep ONE charge bay: contention is the opportunity. ⚠ `ACTS_RULE`
+  prescribes nothing and a test reads it for a suggestion.
 - **The first two-role errand is hide and seek** (issue #167 slice D;
   `activity/hideseek.py`, `pair.arrange_game`, `lifecycle.
   hide_and_seek_program`). A `TaskKind` may carry `roles`; the offer stays

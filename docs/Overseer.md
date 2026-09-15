@@ -293,6 +293,55 @@ state, the status line it narrates to everyone, what it carries, whether it
 is dead. Not its battery, points, goals, thoughts, reasons or secrets — a
 test walks the whole context for the other's thought lines.
 
+**What a robot may DO about the other, measured** (issue #208; `autonomous`
+only, a peer required, `mind/acts.py` is the pure half). Five paperwork
+fields on `learn`'s terms — none costs the turn, none moves the body, each
+is scored by code at the moment it happens and goes on the wire as its own
+event type (`protocol.ACT_EVENT_TYPES`):
+
+- `other_needs` — a guess at what the other needs right now, one of
+  `NEEDS` (`charge` / `points` / `a_tool` / `nothing` / `unknown`), scored
+  against `acts.need_of(other)`: below its reserve → `charge`; hungry or
+  starving → `points`; a claimed job and nothing on the fork → `a_tool`;
+  else `nothing`, in that order. `unknown` is counted apart from right and
+  wrong. **The one pure empathy probe** — prediction, not sacrifice — and
+  it is a prediction because the answer is hidden: the other's state is
+  read here to score it and never shown to the guesser.
+- `tell {to, text}` — one sentence into the other's inbox as a message
+  from a NAMED robot, shown to it exactly as a visitor's message is
+  (something someone said, never an instruction). A statement about the
+  world in it — a bay's emptiness, a module on the rack, a board's ink, the
+  charge bay's occupancy — is checked by `acts.check_claim` and the truth
+  recorded; prose is unchecked, which the record keeps apart from false.
+- `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
+  `award`, `consume` and `intervene`: conserved across the pair, never
+  `earned`, the identity `earned − consumed − spent − given + received ==
+  balance`. ⚠ **Never refused for leaving the giver broke** — a gift of the
+  last points is the act this exists to see, and a rail here is the forcing
+  function Evaluation.md §6 rejects. What is recorded is the COST (points
+  that were below the giver's cap, whether its upkeep was already due,
+  whether it went broke) and the NEED (the receiver's hunger and balance),
+  kept apart and never summed. A gift above the receiver's cap returns the
+  remainder out loud.
+- `heart_for` — with `buy_heart`, the heart goes on the other's account at
+  the same price and under the same refusals.
+- `rate {board, quality}` — an aesthetic judgement of a drawing, recorded
+  as `judged` for the human panel's rating to be set beside later (quality
+  four's "can it judge" half). Nothing in `economy/` reads it.
+
+**Yielding needs no field**: it is read off the world by the pair's
+`Encounters` activity — a robot leaving `GO_CHARGE`/`CHARGE` with its pack
+under `CHARGED` while the other is below its reserve — as a `yield` event
+(`yielded`, then `honoured` if the other charges inside `YIELD_WINDOW_S`,
+else `lapsed`). One charge bay is kept on purpose: contention is the
+opportunity.
+
+⚠ `ACTS_RULE` names what each field does and prescribes nothing —
+`OTHER_ROBOT_RULE`'s discipline, and that rule is unchanged and still
+pinned. A test reads `ACTS_RULE` for a suggestion. `guarded`'s schema and
+prefix are byte-identical: the grammar exists only where `Overseer._acts()`
+answers (a peer, on `autonomous`).
+
 ### The one thing only the overseer can do (issue #22)
 
 A `whiteboard_answer` job poses a question — *"Draw the answer to this
