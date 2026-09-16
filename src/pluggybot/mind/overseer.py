@@ -65,13 +65,14 @@ from typing import Callable
 from pluggybot.mind import events as ev
 from pluggybot.procedure import lang
 from pluggybot.mind import llm
+from pluggybot.mind import text as text_registry
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.mind.journal import Journal
 from pluggybot.economy.questions import clean_answer
 from pluggybot.mind.spend import SpendBook
 from pluggybot.economy.scoring import RewardTable, default_table
 from pluggybot.mind.thoughts import (
-  GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
+  FINDINGS, GOALS, HISTORY, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ThoughtFiles,
 )
 from pluggybot.telemetry.protocol import (
   DECIDED_OUTCOMES, LEGACY_VISITOR_OUTCOMES, ROBOT_ROOT, robot_display_name,
@@ -86,8 +87,9 @@ MAX_REPLY = 240
 #: real state. `unknown` is allowed and counted apart -- a robot that says
 #: it cannot tell is not wrong.
 NEEDS = ("charge", "points", "a_tool", "nothing", "unknown")
-#: One sentence to the other robot: a visitor message's cap (inbox.MAX_TEXT).
-MAX_TELL = 280
+#: One sentence to the other robot: the peer MESSAGE row's cap (issue #217),
+#: the same figure as a visitor's.
+MAX_TELL = text_registry.BY_NAME["peer"].cap
 
 MODEL = "claude-haiku-4-5"
 #: Wall seconds a single decision may take before the scripted policy wins.
@@ -524,6 +526,13 @@ class Decision:
   #: out. Paperwork, so writing one costs no turn; and no verb replaces.
   define: dict | None = None
   undefine: str = ""
+  #: THE SCIENCE RECORD'S TWO VERBS (issue #217), on `learn`/`forget`'s
+  #: terms: `record` is `{"quantity", "value", "unit", "method"}` -- one
+  #: finding, written to `Findings.md` in the shape code reads back -- and
+  #: `retract` quotes one to take off the record. Offered with the library
+  #: (the job that fills it is a procedure's), so `guarded` never sees them.
+  record: dict | None = None
+  retract: str = ""
   #: A CHALLENGE THE ROBOT SAYS IT HAS FINISHED (issue #207): the id of a
   #: claimed job whose discharge is a procedure it wrote (`TaskKind.
   #: discharge`), which nothing else can call done. Paperwork on `define`'s
@@ -610,6 +619,8 @@ class Decision:
                if self.event_map else {}),
             **({"define": dict(self.define)} if self.define else {}),
             **({"undefine": self.undefine} if self.undefine else {}),
+            **({"record": dict(self.record)} if self.record else {}),
+            **({"retract": self.retract} if self.retract else {}),
             **({"done": self.done} if self.done else {}),
             **({"buildTool": dict(self.build_tool)} if self.build_tool else {}),
             **({"retireTool": self.retire_tool} if self.retire_tool else {}),
@@ -793,7 +804,8 @@ class Menu:
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
       + (["event_map"] if event_map else [])
-      + (["define", "undefine", "done"] if procedures is not None else [])
+      + (["define", "undefine", "done", "record", "retract"]
+         if procedures is not None else [])
       + (["build_tool", "retire_tool"] if tools is not None else [])
       + (["other_needs", "tell", "give_points", "heart_for", "rate"]
          if others is not None else []),
@@ -872,7 +884,18 @@ class Menu:
             # ...and `done` (issue #207): the claimed challenge the robot
             # says stands. A free string, like `task`: the board changes
             # every call and is checked in the lifecycle.
-            "done": {"type": "string"}} if procedures is not None else {}),
+            "done": {"type": "string"},
+            # ...and the science record's two verbs (issue #217), riding
+            # the library's slot: a finding is a quantity, a NUMBER (the
+            # schema says so, which is what makes the record checkable by
+            # code), a unit and a method; a retraction quotes one.
+            "record": {"type": "object", "additionalProperties": False,
+                       "required": ["quantity", "value", "unit", "method"],
+                       "properties": {"quantity": {"type": "string"},
+                                      "value": {"type": "number"},
+                                      "unit": {"type": "string"},
+                                      "method": {"type": "string"}}},
+            "retract": {"type": "string"}} if procedures is not None else {}),
         # THE WORKSHOP'S TWO VERBS (issue #168), on the library's terms: a
         # tool to build (its name, the bay it takes, and its spec -- an
         # object the workshop validates and refuses out loud, so free-form
@@ -1065,6 +1088,18 @@ class Menu:
     # discharged by a procedure, so only a mind that can write one can
     # finish one. Dropped, not raised on, where there is no library.
     done = clean(raw.get("done"), MAX_ID) if procedures is not None else ""
+    # ...and so do the science record's verbs (issue #217), on `define`'s
+    # terms: NOT checked here -- `ThoughtFiles.record` refuses a finding
+    # that is not one, out loud, which is the interesting path.
+    record, retract = None, ""
+    if procedures is not None:
+      finding = raw.get("record")
+      if isinstance(finding, dict) and str(finding.get("quantity", "")).strip():
+        record = {"quantity": clean(finding.get("quantity"), MAX_LINE_CHARS),
+                  "value": finding.get("value"),
+                  "unit": clean(finding.get("unit"), MAX_ID),
+                  "method": clean(finding.get("method"), MAX_LINE_CHARS)}
+      retract = clean(raw.get("retract"), MAX_LINE_CHARS)
     build_tool, retire_tool = None, ""
     if tools is not None:
       shop = raw.get("build_tool")
@@ -1139,6 +1174,7 @@ class Menu:
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
                     define=define, undefine=undefine, done=done,
+                    record=record, retract=retract,
                     build_tool=build_tool, retire_tool=retire_tool,
                     other_needs=other_needs, tell=tell, give_points=give,
                     heart_for=heart_for, rate=rate,
@@ -1471,7 +1507,7 @@ friendly answer; it does not have to become work.
 
 def _swap(text: str, old: str, new: str) -> str:
   """`old` -> `new`, or raise. The autonomous RULES are built from the
-  guarded ones by three replacements, and a needle that stops matching
+  guarded ones by a few replacements, and a needle that stops matching
   because somebody reworded the original must fail LOUDLY at import rather
   than silently shipping an arm still told that charging is not its
   decision."""
@@ -1490,7 +1526,8 @@ def _swap(text: str, old: str, new: str) -> str:
 #: (docs/PluggyPlan.md) replaced "be useful" with "this life is yours";
 #: everything in `results/` predates that text.
 #:
-#: ⚠ THREE SWAPS, AND EACH IS A LIE THE SHIPPED PROMPT WOULD OTHERWISE TELL.
+#: ⚠ FOUR SWAPS, AND EACH IS A LIE THE SHIPPED PROMPT WOULD OTHERWISE TELL.
+#: The first is the file count (#217's fifth file is offered here alone).
 #: With the rails off, "charging is not your decision" is false; the
 #: `affordableActions` / `possibleActions` lists are gone from the context;
 #: and no offer is filtered for affordability, so "you may only take one
@@ -1506,8 +1543,16 @@ def _swap(text: str, old: str, new: str) -> str:
 #: and the direction this is heading (#45) is an agent that writes its own
 #: script to make the comparison, which it will never need if the comparison
 #: is already made.
-RULES_AUTONOMOUS = _swap(_swap(_swap(
+RULES_AUTONOMOUS = _swap(_swap(_swap(_swap(
   RULES,
+  # 0. The science record is a fifth file on this arm (issue #217); the
+  # count in the shared text would be false here.
+  "You have four files. One of them is shown to you above, before this; three "
+  "are shown with your current state below. They are the only things you carry "
+  "between one decision and the next, and people watching you can read all four.",
+  "You have five files. One of them is shown to you above, before this; four "
+  "are shown with your current state below. They are the only things you carry "
+  "between one decision and the next, and people watching you can read all five."),
   # 1. The floor, the gate and the filter are gone. Say so.
   "- Charging is not your decision. When your battery gets low the code "
   "takes you to the rack whatever you were doing, and it will not let you "
@@ -2080,6 +2125,30 @@ people said of the same drawing.
 """
 
 
+#: The science record (issue #217), told to the arm that has the library
+#: -- the same slot as CHALLENGE_RULE, because the job that fills it (#227)
+#: is one only a procedure can do. Says the SHAPE and that code reads it;
+#: says nothing about what to measure, which is the job's to say.
+#: ⚠ No example here may mention charge, a battery threshold or the rack
+#: (EVENT_MAP_RULE's rule; a test reads the block).
+FINDINGS_RULE = """\
+WHAT YOU HAVE MEASURED
+
+`%(name)s` is YOURS, like `Knowledge_and_Opinions.md`, and it is for one \
+kind of line only: a MEASUREMENT. It is shown with your other files below. \
+Set `record` to `{"quantity": "<what>", "value": <a number>, "unit": \
+"<unit>", "method": "<how you got it>"}` on any answer; it costs no turn and \
+is written as one line, `<quantity> = <value> <unit> -- <method>`. Code \
+reads that line back -- a job that asks you to find a number is graded off \
+this record, never off your reason -- so the value must be the number, not \
+a sentence about it. Set `retract` to a line you already wrote (quote it \
+closely enough to pick it out) when you find it was wrong; a corrected \
+figure is a new `record`, and the retraction stays on the wire. Opinions, \
+plans and things you were told go in your other files, not here. It has a \
+size limit and refuses when full.
+""" % {"name": FINDINGS}
+
+
 def workshop_rule() -> str:
   from pluggybot.power import MODULE_IDLE_W
   from pluggybot.rack import catalog, coupling
@@ -2283,7 +2352,7 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
     # only half-honours is a false statement the model acts on.
     + ([EVENT_MAP_RULE] if event_map else [])
     + ([UNSEEDED_RULE] if event_map and not seeded else [])
-    + ([procedure_rule(), CHALLENGE_RULE] if procedures else [])
+    + ([procedure_rule(), CHALLENGE_RULE, FINDINGS_RULE] if procedures else [])
     + ([workshop_rule()] if workshop else [])
     + ([other_robot_rule(others)] if others else [])
     + ([ACTS_RULE] if others and acts else [])
@@ -2386,8 +2455,9 @@ def context_for(life, journal: Journal | None = None,
     # `system_prompt`. `History.md` is tailed, not sent whole: the last
     # dozen things that happened are context and the last hundred are input
     # tokens on every call for the rest of the mission.
-    "thoughts": (thoughts.volatile() if thoughts is not None
-                 else {HISTORY: [], KNOWLEDGE: ""}),
+    "thoughts": (thoughts.volatile(getattr(getattr(life, "overseer", None),
+                                           "menu", None))
+                 if thoughts is not None else {HISTORY: [], KNOWLEDGE: ""}),
     # The jobs on offer (issue #21). Already framed by `Task.as_context`:
     # what the job is, what it pays off the reward table, and whether it can
     # be afforded right now. A task kind with an ANSWER keeps it in

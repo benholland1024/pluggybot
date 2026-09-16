@@ -1368,7 +1368,7 @@ What the site keeps, and where — all of it attributable to a commit through
 | the `pluggy_state` volume | the four thought documents, `ledger.json`, `boards.json`, `tasks.json`, `journal.json`, `mode.json`, `spend.json` — the CURRENT state, no history |
 
 **`thought` is the one kind this issue added**, and it closes the measurement
-half of #65. The four documents ride the wire whole (`thought` messages) and
+half of #65. The documents ride the wire whole (`thought` messages) and
 the hub caches them for late joiners, but that cache is wiped on every
 producer reconnect — hourly — and nothing wrote them to Postgres; the
 narration line `THOUGHT learn: …` was on the wire too and was dropped with the

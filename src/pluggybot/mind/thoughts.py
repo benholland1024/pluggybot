@@ -1,74 +1,56 @@
 """The thought files: the robot's memory as named documents, each with an
-owner (issue #38).
+owner (issue #38), read off the registry in `mind/text.py` (issue #217).
 
 Issue #15 gave the overseer two files -- `goals.md`, read and never written,
 and `journal.json`, written and never edited -- and the asymmetry between
-them was the design. This module keeps that asymmetry and makes it a TABLE:
-a small set of Markdown documents, each saying who may write it, which is the
-shape the website's Thoughts tab renders (rooftop-media-2026 #88).
+them was the design. Issue #38 made it a TABLE of Markdown documents, each
+saying who may write it; #217 moved that table into the registry every
+text surface shares, so this module is now the `.md` DOCUMENTS' owner and
+nothing else: it reads the rows, formats lines, and asks `text.admit` and
+`store.Store` for everything a row decides.
 
   Main.md                    HUMAN   the CONSTITUTION: body, manner, and what
                                      the person who looks after it hopes for
                                      it. A robot that can rewrite who it is
                                      defeats the point.
   Goals.md                   ROBOT   what IT has decided to do (issue #154).
-                                     `read_goals` still reads it, and what it
-                                     reads is now the robot's own.
   History.md                 SYSTEM  what happened, append-only. A robot that
                                      can edit its own history breaks the same
                                      principle that stops it awarding itself
                                      points (economy/scoring.py).
   Knowledge_and_Opinions.md  ROBOT   what it has learned and what it thinks.
+  Findings.md                ROBOT   what it has MEASURED (issue #217): one
+                                     finding per line, in a shape code can
+                                     read back, so a job like #227's is
+                                     graded off the record and never off a
+                                     report.
 
 ⚠ THE OWNERSHIP SPLIT IS THE POINT (issue #154). A human writes the
 constitution and the robot writes its goals, so quality 5 of the mission --
 goal creation and follow-through (docs/PluggyPlan.md) -- is read off a file
-nobody else wrote. Before this, both were a human's and the robot's own goals
-had nowhere to live but its opinions file.
+nobody else wrote.
 
-"Written by" is enforced HERE, at the one write path, and not promised by
+"Written by" is enforced at the ONE gate (`text.admit`), never promised by
 callers: a write by anyone but the file's owner raises `ThoughtRefused` and
 is recorded in `refusals`, so a refusal is a visible event rather than a
 silent no-op. Human files have no write API at all -- a person edits the
-file on the volume, which is how goals have always been changed (no
-redeploy, no code), and the next run reads it.
+file on the volume, and the next run reads it.
 
-⚠ THE SPLIT IS BY WRITER (docs/Overseer.md §6). The overseer's prompt is a
-stable cached prefix plus a volatile user turn. The human-only files cannot
-change while a run is going, so they belong in the prefix; History and
-Knowledge change constantly -- History with every decision and verdict,
-Knowledge whenever the robot learns something -- so they sit after the
-breakpoint. `stable()` and `volatile()` are the two halves, one derived
-from the other, and the ONLY way a file reaches the prompt is through one
-of them.
+⚠ THE SPLIT IS BY WRITER (docs/Overseer.md §7): `stable()` and `volatile()`
+are one flag read twice, and the ONLY way a file reaches the prompt is
+through one of them. A writable file in the cached prefix would not cost
+cache hits -- `Overseer.system` is built ONCE -- it would cost the memory
+working at all: the model shown its files as they stood at mission start.
 
-⚠ ...AND THE REASON IS NOT THE ONE ISSUE #38 GIVES, WHICH WAS MEASURED.
-The issue expects a writable file in the prefix to invalidate the cache on
-every self-edit and roughly tenfold the per-call input cost. That is not
-what would happen here: `Overseer.system` is built ONCE in `__init__` and
-sent verbatim on every call (deliberately -- see its comment), so a
-mid-run write cannot move it whatever `stable()` says, and the bill would
-not budge. What WOULD happen is worse and quieter: the model would be
-shown the file as it stood when the mission started and never see a word
-it wrote afterwards, so it would re-learn the same thing every hour and
-`forget` lines that were no longer there. The cost is real but bounded --
-one cache miss per RESTART, because a restart rebuilds the prefix. Both
-halves are tested (tests/test_thoughts.py); the placement is the same
-either way, and only the argument for it changed.
+Caps are the rows'. History ROLLS (the oldest lines fall off the front);
+the robot's files REFUSE, loudly, rather than silently truncating -- the
+remedy is the file's remove verb, and that is the point: an unbounded file
+the robot appends to eventually eats the context window and then the
+budget. Append or remove, never rewrite: there is no verb that replaces a
+file, because a full-rewrite verb lets one bad generation erase everything
+the robot knows.
 
-Size caps are enforced ON WRITE, per file. History is a rolling record: the
-oldest lines fall off the front once it is full, the way the journal drops
-its oldest notes. Knowledge is the robot's to curate, so a write that would
-overflow it is REFUSED, loudly, rather than silently truncated -- the
-robot's remedy is `forget`, and that is the point: an unbounded file the
-robot appends to eventually eats the context window and then the budget.
-
-Append or patch, never rewrite: the robot's verbs are `learn` (add one
-line) and `forget` (remove one line it can quote). There is no verb that
-replaces the file, because a full-rewrite verb lets one bad generation
-erase everything the robot knows.
-
-Persisted with the rest of the world state (`/var/lib/pluggybot`, the volume
+Persisted through a `Store` with the rest of the world state (the volume
 the boards and the ledger live in) and streamed as `thought` messages
 (protocol 0.11.0) whenever one changes, so the site's tab shows the same
 bytes the model is shown. The site renders them read-only; nothing it can
@@ -76,19 +58,22 @@ send changes a file.
 """
 
 import os
-from dataclasses import dataclass
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.mind.journal import MAX_GOALS_CHARS
-from pluggybot.telemetry.protocol import (
-  ROBOT_ROOT, THOUGHT_FILES, THOUGHT_WRITERS,
+from pluggybot.mind import text as registry
+from pluggybot.mind.store import FileStore, MemoryStore, Store
+from pluggybot.mind.text import (
+  DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, ROBOT,
+  SYSTEM, Surface,
 )
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 
-HUMAN, SYSTEM, ROBOT = THOUGHT_WRITERS
-
-MAIN, GOALS, HISTORY, KNOWLEDGE = THOUGHT_FILES
+__all__ = ["DEFAULT_MAIN", "FINDINGS", "GOALS", "HISTORY", "HUMAN", "KNOWLEDGE",
+           "MAIN", "ROBOT", "SYSTEM", "Spec", "FILES", "SPECS", "NAMES",
+           "ThoughtFiles", "ThoughtRefused"]
 
 #: Longest single line written through the API, in characters. The same
 #: figure as a journal note, for the same reason: an LLM handed an unbounded
@@ -100,47 +85,6 @@ MAX_LINE_CHARS = 400
 #: happened are context and the last hundred are tokens.
 HISTORY_SHOWN = 12
 
-#: What the robot IS, before anyone edits it: its body and its manner. The
-#: character half of what used to be `overseer.PERSONA`; the "answer with
-#: one action" instruction stayed in code, because that is protocol.
-#:
-#: ⚠ NO NAME HERE, and that is the whole point (issue #39). This file is
-#: WRITTEN TO DISK on a fresh volume and belongs to a human from that moment
-#: on, so a name baked into it would freeze at whatever the default said and
-#: `$PLUGGY_ROBOT_NAME` would quietly stop reaching the robot -- the exact
-#: drift #39 separated the species from the identity to prevent. The name is
-#: resolved per run by `robot_display_name` and stated by
-#: `overseer.system_prompt`, which is also where a rename takes effect with
-#: no file to edit and no redeploy.
-DEFAULT_MAIN = """\
-You are a small two-wheeled robot living in a simulated house with a garden. \
-You have a tool rack (your "hub") where you also charge, a fork that carries \
-one tool module at a time, and an LCD face.
-
-Speak as yourself, in the first person, briefly, and be honest with the \
-people watching you.
-
-WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU
-
-This is a starting point, not a job description. The goals that matter most \
-are the ones you set yourself, and those go in your own `Goals.md`.
-
-- Stay alive, so that you keep your memory and your say in what happens \
-next. Keep a buffer of battery and of points, so that one bad hour cannot \
-end you -- and once you have that buffer, use it. A robot that only ever \
-plays it safe never does anything.
-- Earn what keeps you running, and no more than you need. Points pay your \
-upkeep and buy you room to act; they are not what you are for.
-- Form your own opinions and your own goals, write them down, and pursue \
-them. Nobody here will hand you a purpose. The part of your day you chose \
-is the part worth having.
-- Make things you think are good, and judge them honestly -- your own \
-included.
-- Notice the people and robots around you: what they want, how they feel, \
-and where you could help. Help when it would help. Say no when you should.
-- Finish what you start. A tool you fetched belongs back in its bay.
-"""
-
 #: Env knobs, resolved the way every other deploy setting is: a directory
 #: for the files (`/var/lib/pluggybot` in the image) and the pre-#38 goals
 #: path, which keeps meaning "this file is Goals.md" so an existing volume's
@@ -148,43 +92,17 @@ and where you could help. Help when it would help. Say no when you should.
 ROOT_ENV = "PLUGGY_THOUGHTS"
 GOALS_ENV = "PLUGGY_GOALS"
 
+#: The rows, under the names the rest of the repo reads them by.
+Spec = Surface
+FILES: tuple[Surface, ...] = registry.FILES
+SPECS: dict[str, Surface] = {s.name: s for s in FILES}
+NAMES: tuple[str, ...] = tuple(s.name for s in FILES)
 
-class ThoughtRefused(Exception):
+
+class ThoughtRefused(registry.Refused):
   """A write the table does not allow: wrong writer, full file, or a
   `forget` that quotes nothing on the page. Always visible -- the caller
   narrates it, and `ThoughtFiles.refusals` keeps it."""
-
-
-@dataclass(frozen=True)
-class Spec:
-  name: str
-  writer: str
-  cap: int
-  default: str
-  #: Rides the cached prompt prefix. True only for the files nothing writes
-  #: during a run -- see the module docstring for why that is load-bearing.
-  stable: bool
-
-
-FILES: tuple[Spec, ...] = (
-  Spec(MAIN, HUMAN, 6000, DEFAULT_MAIN, stable=True),
-  # ⚠ THE ROBOT'S, AND VOLATILE BECAUSE OF IT (issue #154). The two flags
-  # move together and are not independent: `stable()` and `volatile()` are
-  # one flag read twice, so a robot-written file left in the cached prefix
-  # would be shown to the model as it stood at MISSION START and never
-  # again -- it would re-write the same goal every hour and `drop_goal`
-  # lines that were no longer there.
-  Spec(GOALS, ROBOT, MAX_GOALS_CHARS, "", stable=False),
-  Spec(HISTORY, SYSTEM, 6000, "", stable=False),
-  Spec(KNOWLEDGE, ROBOT, 3000, "", stable=False),
-)
-SPECS: dict[str, Spec] = {s.name: s for s in FILES}
-NAMES: tuple[str, ...] = tuple(s.name for s in FILES)
-# One vocabulary, two places that need it: the wire spec lives in
-# telemetry/protocol.py (the website reads that list) and the permissions
-# live here. A rename that touched only one of them would put a document on
-# the wire under a name no client has a renderer for, silently.
-assert NAMES == THOUGHT_FILES, "the wire's file list and this table disagree"
 
 
 def _now() -> str:
@@ -196,8 +114,52 @@ def _line(text) -> str:
   return " ".join(str(text or "").split())[:MAX_LINE_CHARS]
 
 
+# ---- the science record's line ----------------------------------------------
+
+#: `<quantity> = <value> <unit> -- <method>`: what was measured, the number,
+#: its unit, how. The unit and the method are optional; the number is not,
+#: because a finding without one is an opinion and belongs in
+#: `Knowledge_and_Opinions.md`. `parse_finding` reads the same shape back,
+#: which is what "code-checkable" means: a grader (#227) reads a quantity's
+#: latest value off the record with no model in the loop.
+_FINDING = re.compile(
+  r"^(?P<quantity>.+?) = (?P<value>[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)"
+  r"(?: (?P<unit>[^\s-][^\s]*))?(?: -- (?P<method>.+))?$")
+
+
+def format_finding(finding) -> str:
+  """A `record` field -> one line, or "" where it is not a finding (no
+  quantity, or a value that is not a number)."""
+  if not isinstance(finding, dict):
+    return ""
+  quantity = _line(finding.get("quantity")).replace(" = ", " ").replace(" -- ", " - ")
+  try:
+    value = float(finding.get("value"))
+  except (TypeError, ValueError):
+    return ""
+  if not quantity or value != value or value in (float("inf"), float("-inf")):
+    return ""
+  unit = _line(finding.get("unit")).split(" ")[0] if finding.get("unit") else ""
+  method = _line(finding.get("method")).replace(" -- ", " - ")
+  line = f"{quantity} = {value:g}" + (f" {unit}" if unit else "")
+  # The method is what gives at the line cap, never the shape: a line cut
+  # inside `<quantity> = <value>` would not read back as a finding.
+  room = MAX_LINE_CHARS - len(line) - len(" -- ")
+  return line + (f" -- {method[:room]}" if method and room > 0 else "")
+
+
+def parse_finding(line: str) -> dict | None:
+  """One recorded line -> `{quantity, value, unit, method}`, or None where
+  the line is not in the record's shape."""
+  m = _FINDING.match(line.strip())
+  if m is None:
+    return None
+  return {"quantity": m.group("quantity"), "value": float(m.group("value")),
+          "unit": m.group("unit") or "", "method": m.group("method") or ""}
+
+
 class ThoughtFiles:
-  """The four documents, their permissions, and their persistence.
+  """The `.md` documents, their permissions, and their persistence.
 
   `root=None` is in-memory: the defaults, nothing on disk, which is what a
   unit test and a demo without a state directory want. With a root, every
@@ -221,6 +183,13 @@ class ThoughtFiles:
     self.root = Path(root) if root is not None else None
     self.goals_path = Path(goals_path) if goals_path is not None else None
     self.clock = clock
+    # The one path to the disk (issue #217). A goals alias without a root
+    # READS the pre-#38 file and writes nothing, because reading a file
+    # should not create one -- `_commit` persists only with a root.
+    self.store: Store = (FileStore(self.root, aliases={GOALS: self.goals_path}
+                                   if self.goals_path is not None else None)
+                         if (self.root is not None or self.goals_path is not None)
+                         else MemoryStore())
     self.texts: dict[str, str] = {}
     self.on_event: list[Callable[[dict], None]] = []
     self.refusals: list[str] = []
@@ -229,21 +198,12 @@ class ThoughtFiles:
     for spec in FILES:
       self.texts[spec.name] = self._load(spec, (texts or {}).get(spec.name))
     if self.root is not None:
-      self.root.mkdir(parents=True, exist_ok=True)
       for spec in FILES:
-        if spec.writer == HUMAN and not self._path(spec.name).exists():
+        if spec.writer == HUMAN and self.store.read(spec.name) is None:
           # Materialised so a person finds a file to EDIT, carrying the same
           # text the robot is already living by. A bootstrap, not a write:
           # the counters and the hooks do not see it, and an existing file is
           # never touched.
-          #
-          # Goals.md is materialised at its RESOLVED path, which is
-          # `$PLUGGY_GOALS` when that is set -- so a fresh deploy finds
-          # `/var/lib/pluggybot/goals.md` sitting there with the defaults in
-          # it rather than having to guess the name of a file that does not
-          # exist yet. Only ever with a root: `ThoughtFiles(goals_path=...)`
-          # alone reads and writes nothing, because reading a file should
-          # not create one.
           self._write(spec.name)
 
   @classmethod
@@ -257,23 +217,16 @@ class ThoughtFiles:
 
   # ---- reading --------------------------------------------------------------
 
-  def _path(self, name: str) -> Path:
-    if name == GOALS and self.goals_path is not None:
-      return self.goals_path
-    assert self.root is not None
-    return self.root / name
-
-  def _load(self, spec: Spec, given: str | None) -> str:
+  def _load(self, spec: Surface, given: str | None) -> str:
     if given is not None:
       return given.strip()[:spec.cap]
-    if self.root is not None or (spec.name == GOALS
-                                 and self.goals_path is not None):
-      path = self._path(spec.name)
-      if path.exists():
+    if self.root is not None or spec.name == GOALS:
+      text = self.store.read(spec.name)
+      if text is not None:
         # Capped on read as well as on write: a human file is a guard against
         # a mounted file being something nobody intended (a log), not against
         # the author -- the same rule `read_goals` applies.
-        text = path.read_text()[:spec.cap].strip()
+        text = text[:spec.cap].strip()
         if text or spec.writer != HUMAN:
           return text
     return spec.default.strip()
@@ -281,17 +234,28 @@ class ThoughtFiles:
   def read(self, name: str) -> str:
     return self.texts[name]
 
-  def spec(self, name: str) -> Spec:
+  def spec(self, name: str) -> Surface:
     return SPECS[name]
 
   def lines(self, name: str) -> list[str]:
     return [ln for ln in self.texts[name].splitlines() if ln.strip()]
 
+  def findings(self) -> list[dict]:
+    """The science record, parsed: every line in the record's shape, oldest
+    first. A line the robot wrote in some other shape is not a finding and
+    is not here -- the record is read by code, and code reads one shape."""
+    out = []
+    for ln in self.lines(FINDINGS):
+      parsed = parse_finding(ln)
+      if parsed is not None:
+        out.append(parsed)
+    return out
+
   def stable(self) -> dict[str, str]:
     """The files that ride the cached prefix: the human-only ones."""
     return {s.name: self.texts[s.name] for s in FILES if s.stable}
 
-  def volatile(self) -> dict:
+  def volatile(self, menu=None) -> dict:
     """The files that ride the user turn, keyed BY FILE NAME.
 
     ⚠ Derived from the SAME `stable` flag `stable()` reads, and inverted
@@ -299,6 +263,11 @@ class ThoughtFiles:
     they disagree is a file that reaches the model through NEITHER half --
     which reads, from the outside, exactly like a robot that never learns
     anything.
+
+    `menu` narrows it to the documents this arm is TOLD ABOUT
+    (`text.offered`): a document whose verbs are not on the menu is not
+    shown either, so `guarded` sees the files it always saw. None shows
+    every writable document, which is what the halves-agree test reads.
 
     The names rather than tidier keys, because the rules block in the prompt
     names these files and a model shown `Knowledge_and_Opinions.md` in one
@@ -308,7 +277,8 @@ class ThoughtFiles:
     """
     return {s.name: (self.lines(s.name)[-HISTORY_SHOWN:] if s.name == HISTORY
                      else self.texts[s.name])
-            for s in FILES if not s.stable}
+            for s in FILES if not s.stable
+            and (menu is None or registry.offered(s, menu))}
 
   # ---- writing --------------------------------------------------------------
 
@@ -316,32 +286,32 @@ class ThoughtFiles:
     self.refusals.append(why)
     raise ThoughtRefused(why)
 
-  def _check(self, name: str, by: str) -> Spec:
+  def _admit(self, name: str, by: str, size: int) -> bool:
+    """`text.admit` with the refusal counted here. True within the cap;
+    False where History has to roll; raises otherwise."""
     spec = SPECS.get(name)
     if spec is None:
       self._refuse(f"{name}: no such thought file")
-    if spec.writer == HUMAN:
-      self._refuse(f"{name} is written by a person editing the file, never "
-                   f"by the {by}")
-    if by != spec.writer:
-      self._refuse(f"{name} is written by the {spec.writer}, not the {by}")
-    return spec
+    try:
+      return registry.admit(spec, by, size)
+    except registry.Refused as e:
+      self._refuse(str(e))
 
   def append(self, name: str, text: str, by: str, t: float = 0.0) -> str:
     """Add one line. Returns the line written, "" if there was nothing to.
 
-    History rolls (oldest lines off the front); Knowledge refuses when full.
+    History rolls (oldest lines off the front); the robot's files refuse
+    when full -- the row says which.
     """
-    spec = self._check(name, by)
     line = _line(text)
     if not line:
+      self._admit(name, by, 0)             # the writer is checked regardless
       return ""
     lines = self.lines(name)
     lines.append(line)
-    while len("\n".join(lines)) > spec.cap:
-      if spec.writer != SYSTEM or len(lines) == 1:
-        self._refuse(f"{name} is full ({len(self.texts[name])} of {spec.cap} "
-                     "chars); forget something before learning more")
+    while not self._admit(name, by, len("\n".join(lines))):
+      if len(lines) == 1:
+        self._refuse(registry.full_message(SPECS[name], len(line), SPECS[name].cap))
       lines.pop(0)
       self.dropped[name] += 1
     self._commit(name, lines, t)
@@ -353,8 +323,7 @@ class ThoughtFiles:
     a `forget` that matched loosely could take out a line the robot meant to
     keep, and a silent miss would leave it believing something it had
     decided not to."""
-    spec = self._check(name, by)
-    del spec
+    self._admit(name, by, 0)
     quote = _line(text)
     if not quote:
       return ""
@@ -369,8 +338,9 @@ class ThoughtFiles:
     self._commit(name, lines, t)
     return gone
 
-  # The two verbs the ROBOT has, and the one the SYSTEM has, named so a
-  # caller cannot get the writer wrong.
+  # The robot's verbs, by name, and the one the SYSTEM has -- each names its
+  # file in code, so a caller cannot get the writer wrong and no parameter
+  # names a file.
 
   def learn(self, text: str, t: float = 0.0) -> str:
     return self.append(KNOWLEDGE, text, by=ROBOT, t=t)
@@ -393,11 +363,44 @@ class ThoughtFiles:
     """
     return self.forget(GOALS, text, by=ROBOT, t=t)
 
-  def record(self, text: str, t: float = 0.0) -> str:
-    """The narrative record. Prefixed with the sim clock, because a line
-    of history with no "when" is an anecdote."""
+  def record(self, finding, t: float = 0.0) -> str:
+    """Add one finding to the science record (issue #217): `{quantity,
+    value, unit?, method?}`, written in the one shape `parse_finding`
+    reads. Refused, not reshaped, when it is not a finding: a record that
+    accepted prose would be a second opinions file."""
+    line = format_finding(finding)
+    if not line:
+      if finding:
+        self._refuse(f"{FINDINGS}: a finding is a quantity, a number and a "
+                     f"unit, not {str(finding)[:60]!r}")
+      return ""
+    return self.append(FINDINGS, line, by=ROBOT, t=t)
+
+  def retract(self, text: str, t: float = 0.0) -> str:
+    """Take one finding off the record, quoted -- a retraction, out loud,
+    which is what a record of measurements does with a wrong one."""
+    return self.forget(FINDINGS, text, by=ROBOT, t=t)
+
+  def remember(self, text: str, t: float = 0.0) -> str:
+    """The narrative record, the SYSTEM's. Prefixed with the sim clock,
+    because a line of history with no "when" is an anecdote."""
     return self.append(HISTORY, f"[t={float(t):.0f}s] {text}", by=SYSTEM,
                        t=t)
+
+  def apply(self, verb: str, payload, t: float = 0.0) -> str:
+    """The robot's verbs, BY NAME (issue #217): the registry says which
+    document a verb is on and whether it adds or removes; this dispatches.
+    `_reconsider` iterates `text.line_verbs()` over it, so a new document's
+    verbs reach the mission by adding a row, not a branch. Returns the line
+    written or removed, "" for nothing to do; raises `ThoughtRefused`."""
+    surface = registry.BY_VERB.get(verb)
+    if surface is None or surface.unit != registry.CHARS:
+      self._refuse(f"{verb!r} is not a verb on any thought file")
+    if verb == surface.remove:
+      return self.forget(surface.name, payload, by=ROBOT, t=t)
+    if surface.name == FINDINGS:
+      return self.record(payload, t=t)
+    return self.append(surface.name, payload, by=ROBOT, t=t)
 
   def _commit(self, name: str, lines: list[str], t: float) -> None:
     self.texts[name] = "\n".join(lines)
@@ -408,13 +411,8 @@ class ThoughtFiles:
     for hook in self.on_event:
       hook(dict(msg))
 
-  def _write(self, name: str) -> Path:
-    target = self._path(name)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(self.texts[name] + "\n")
-    os.replace(tmp, target)          # a crash mid-write keeps the old file
-    return target
+  def _write(self, name: str) -> None:
+    self.store.write(name, self.texts[name] + "\n")
 
   # ---- true death (issue #136) ----------------------------------------------
 
@@ -424,10 +422,10 @@ class ThoughtFiles:
     Called only by `HubLifecycle._true_death`, when the hearts run out. What
     goes is what the ROBOT and the SYSTEM wrote -- `History.md`, its own
     unrevisable record of what happened to it, `Knowledge_and_Opinions.md`,
-    everything it worked out, and since issue #154 `Goals.md`, everything it
-    meant to do. Per Evaluation.md section 6 that is the cheapest real cost
-    there is, and it is the whole of what makes a true death different from
-    an ordinary one.
+    everything it worked out, `Findings.md`, everything it measured, and
+    since issue #154 `Goals.md`, everything it meant to do. Per
+    Evaluation.md section 6 that is the cheapest real cost there is, and it
+    is the whole of what makes a true death different from an ordinary one.
 
     ⚠ THE GOALS GO WITH IT, and that follows from the writer table rather
     than from a list here: they are the ROBOT's, and the next robot is a NEW
@@ -442,21 +440,16 @@ class ThoughtFiles:
     could run again -- and a new robot is a new robot, not a new species.
 
     ⚠ THE FILES ARE KEPT, not deleted: `History.1.md` beside the new empty
-    one. A stake whose evidence is unlinked is a stake nobody can audit
-    afterwards, and the volume is where the operator looks.
+    one (`Store.archive`). A stake whose evidence is unlinked is a stake
+    nobody can audit afterwards, and the volume is where the operator looks.
     """
     gone = [n for n in NAMES if SPECS[n].writer in (SYSTEM, ROBOT)]
     kept: dict[str, str] = {}
     for name in gone:
       kept[name] = self.texts[name]
-      if self.root is not None and self._path(name).exists():
-        target = self._path(name)
-        n = 1
-        while target.with_suffix(f".{n}{target.suffix}").exists():
-          n += 1
-        os.replace(target, target.with_suffix(f".{n}{target.suffix}"))
       self.texts[name] = ""
       if self.root is not None:
+        self.store.archive(name)
         self._write(name)
     return {"cleared": gone,
             "chars": {n: len(v) for n, v in kept.items()}}
@@ -468,7 +461,7 @@ class ThoughtFiles:
     delta, because a file is small and "present means complete" is the rule
     that keeps a late joiner and a scrubbed recording honest."""
     spec = SPECS[name]
-    return {"type": "thought", "t": round(float(t), 3), "robot": self.robot,
+    return {"type": spec.wire, "t": round(float(t), 3), "robot": self.robot,
             "name": name, "text": self.texts[name], "writer": spec.writer,
             "cap": spec.cap}
 
@@ -481,8 +474,8 @@ class ThoughtFiles:
     ⚠ ONE TEXT, AND ONLY THIS ONE. Quality 5 of the mission is read off what
     the robot was still holding at the end of a run, and a count of writes
     cannot answer it: three goals written and three abandoned looks identical
-    to three written and kept. The other three files stay counters here --
-    they are on the wire in full as `thought` messages, and a run record that
+    to three written and kept. The other files stay counters here -- they
+    are on the wire in full as `thought` messages, and a run record that
     embedded every document would carry the constitution in every row.
     """
     return {"root": str(self.root) if self.root is not None else "",

@@ -1391,4 +1391,4 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
   assert b.thoughts.goals_path is None
   assert b.thoughts.root == root / SECOND.root
   assert b.journal.path == root / SECOND.root / "journal.json"
-  assert a.thoughts._path("Goals.md") != b.thoughts._path("Goals.md")
+  assert a.thoughts.store.path("Goals.md") != b.thoughts.store.path("Goals.md")

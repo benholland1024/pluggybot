@@ -332,7 +332,7 @@ def test_the_stable_prefix_is_byte_identical_across_calls(menu):
   # the comment above draws. tests/test_thoughts.py holds the rest.
   boss = Overseer(menu, client=FakeClient())
   boss.thoughts.learn("this is a thing I worked out", t=1.0)
-  boss.thoughts.record("this is a thing that happened", t=2.0)
+  boss.thoughts.remember("this is a thing that happened", t=2.0)
   assert boss.system[0]["text"] == text, "a self-edit moved the cached prefix"
   assert "this is a thing I worked out" not in text
   assert "this is a thing that happened" not in text
