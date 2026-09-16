@@ -1,6 +1,7 @@
 """The robot's library of procedures (issue #166): a directory beside the
-four thought files, one Python-shaped source per procedure, owned by the
-robot on `Goals.md`'s terms.
+thought files, one Python-shaped source per procedure, owned by the robot
+on `Goals.md`'s terms -- a DOCUMENT in `mind/text.py`'s registry (issue
+#217), whose row says the writer, the cap and the two verbs.
 
 Two verbs, `define` and `undefine`, both decision FIELDS so writing one
 costs no turn (as `learn` / `intend` do), and deliberately no verb that
@@ -8,11 +9,11 @@ REPLACES a procedure or the library: one bad generation must not be able to
 rewrite everything the robot knows how to do. Redefining a name is refused;
 the robot undefines it first, on purpose, in a decision of its own.
 
-Every rule fails OUT LOUD -- a full library refuses, a source that does not
-compile refuses with the parser's reasons, a name that does not match its
-`def` refuses -- because a library that silently dropped a procedure would
-leave the robot believing it had one (mind/thoughts.py's argument for
-`Knowledge_and_Opinions.md`, which refuses when full for the same reason).
+Every rule fails OUT LOUD -- a full library refuses (`text.admit`, the one
+gate every document write passes), a source that does not compile refuses
+with the parser's reasons, a name that does not match its `def` refuses --
+because a library that silently dropped a procedure would leave the robot
+believing it had one (the argument every ROBOT-written document shares).
 
 What survives a restart: the sources. Each is recompiled against TODAY's
 world when the library loads, and one that no longer validates is kept,
@@ -23,16 +24,17 @@ world that moved under it is a fact it should be shown.
 import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
 
+from pluggybot.mind import text as registry
+from pluggybot.mind.store import FileStore, MemoryStore, Store
+from pluggybot.mind.text import MAX_PROCEDURES
 from pluggybot.procedure import lang
 from pluggybot.procedure.steps import Refused, WorldFacts
 
-#: How many procedures the robot may keep. Small on purpose: every source
-#: rides the user turn of the prompt so the robot can read what it wrote,
-#: and 8 x MAX_SOURCE_CHARS is ~3 000 tokens at the cap.
-MAX_PROCEDURES = 8
-SUFFIX = ".procedure"   # Python-SHAPED, not Python: not a name a linter or a person should run
+__all__ = ["MAX_PROCEDURES", "SUFFIX", "Entry", "Library", "LibraryRefused"]
+
+ROW = registry.BY_NAME["procedures"]
+SUFFIX = ROW.suffix   # Python-SHAPED, not Python: not a name a linter or a person should run
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
@@ -58,18 +60,23 @@ class Library:
   def __init__(self, facts: WorldFacts, root: str | os.PathLike | None = None,
                cap: int = MAX_PROCEDURES) -> None:
     self.facts = facts
-    self.root = Path(root) if root is not None else None
-    self.cap = cap
+    #: The one path to the disk (issue #217): a `Store`, the volume's or
+    #: memory's. `cap` narrows the row's for one instance (a test's
+    #: two-entry library) and never widens it -- `text.admit` reads both.
+    self.store: Store = FileStore(root) if root is not None else MemoryStore()
+    self.cap = min(cap, ROW.cap)
     self.entries: dict[str, Entry] = {}
     self.refusals: list[dict] = []
     self.defined = 0
     self.undefined = 0
-    if self.root is not None:
-      self.root.mkdir(parents=True, exist_ok=True)
-      for path in sorted(self.root.glob(f"*{SUFFIX}")):
-        name = path.stem
-        if _NAME.match(name):
-          self.entries[name] = self._entry(name, path.read_text())
+    for key in self.store.keys(suffix=SUFFIX):
+      name = key[:-len(SUFFIX)]
+      if _NAME.match(name):
+        self.entries[name] = self._entry(name, self.store.read(key) or "")
+
+  @property
+  def root(self):
+    return self.store.root if isinstance(self.store, FileStore) else None
 
   def _entry(self, name: str, source: str) -> Entry:
     try:
@@ -116,8 +123,10 @@ class Library:
     if name in self.entries:
       reasons.append(f"{name!r} is already defined -- undefine it first, "
                      "there is no replace")
-    if len(self.entries) >= self.cap:
-      reasons.append(f"the library is full ({self.cap}); undefine one first")
+    try:
+      registry.admit(ROW, registry.ROBOT, len(self.entries) + 1, cap=self.cap)
+    except registry.Refused as e:
+      reasons.append(f"the library {str(e).removeprefix(ROW.name + ' ')}")
     proc = None
     if not reasons:
       try:
@@ -133,8 +142,7 @@ class Library:
       raise LibraryRefused(reasons)
     self.entries[name] = Entry(name, source, proc, [])
     self.defined += 1
-    if self.root is not None:
-      (self.root / f"{name}{SUFFIX}").write_text(source)
+    self.store.write(f"{name}{SUFFIX}", source)
     return proc
 
   def undefine(self, name: str, t: float = 0.0) -> None:
@@ -145,7 +153,4 @@ class Library:
       raise LibraryRefused([f"no procedure named {name!r}"])
     del self.entries[name]
     self.undefined += 1
-    if self.root is not None:
-      path = self.root / f"{name}{SUFFIX}"
-      if path.exists():
-        path.unlink()
+    self.store.remove(f"{name}{SUFFIX}")

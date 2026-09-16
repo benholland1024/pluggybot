@@ -78,7 +78,7 @@ def read_goals(path: str | os.PathLike | None = None) -> str:
   because nobody has written its purpose down yet is worse than one that has
   a sensible default purpose and says so.
 
-  ⚠ Since issue #38 this file is `Goals.md`, one of the four thought files,
+  ⚠ Since issue #38 this file is `Goals.md`, one of the thought files,
   and `mind/thoughts.py` owns the reading of it. This DELEGATES rather than
   keeping a second copy of the rule: two implementations of "read it, cap
   it, fall back to the defaults" is exactly the drift that ends with

@@ -28,8 +28,8 @@ from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import (
-  GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ROBOT, SYSTEM,
-  NAMES, SPECS, ThoughtFiles, ThoughtRefused,
+  FINDINGS, GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ROBOT,
+  SYSTEM, NAMES, SPECS, ThoughtFiles, ThoughtRefused,
 )
 from pluggybot.telemetry.protocol import (
   THOUGHT_VERBS,
@@ -107,7 +107,7 @@ def test_the_constitution_is_read_from_disk_and_never_written_back(tmp_path):
   # A whole run's worth of the robot's own writing must not touch it.
   reopened.learn("the garden is bigger than it looks", t=3.0)
   reopened.intend("plant the empty row", t=3.5)
-  reopened.record("charged to 92%", t=4.0)
+  reopened.remember("charged to 92%", t=4.0)
   assert (root / MAIN).read_text() == \
     "You are a careful robot who likes the garden.\n"
 
@@ -170,7 +170,7 @@ def test_history_rolls_and_knowledge_refuses(files):
   robot's remedy.
   """
   for i in range(400):
-    files.record(f"something happened, number {i}", t=float(i))
+    files.remember(f"something happened, number {i}", t=float(i))
   assert len(files.read(HISTORY)) <= SPECS[HISTORY].cap
   assert files.dropped[HISTORY] > 0
   assert "number 399" in files.read(HISTORY)
@@ -228,8 +228,14 @@ def test_there_is_no_verb_that_rewrites_a_file(files):
   two verbs and neither can empty the page in one call."""
   assert not hasattr(files, "write")
   assert not hasattr(files, "replace")
-  verbs = {"append", "forget", "learn", "unlearn", "record"}
+  verbs = {"append", "forget", "learn", "unlearn", "remember", "record",
+           "retract"}
   assert verbs <= set(dir(files))
+  # ...and the by-verb dispatcher (issue #217) reaches only those: every
+  # verb the registry knows is an add or a remove on one document.
+  from pluggybot.mind import text
+  for verb, surface in text.BY_VERB.items():
+    assert verb in (surface.add, surface.remove)
 
 
 # ---- persistence -------------------------------------------------------------
@@ -241,14 +247,14 @@ def test_the_files_survive_a_restart(tmp_path):
   root = tmp_path / "thoughts"
   first = ThoughtFiles(root)
   first.learn("the far whiteboard is not worth the trip", t=10.0)
-  first.record("drew a house on whiteboard_a", t=20.0)
+  first.remember("drew a house on whiteboard_a", t=20.0)
 
   second = ThoughtFiles(root)
   assert second.read(KNOWLEDGE) == "the far whiteboard is not worth the trip"
   assert "drew a house on whiteboard_a" in second.read(HISTORY)
   # ...and a second day appends to the first day's record rather than
   # starting a fresh one.
-  second.record("woke up in home", t=0.0)
+  second.remember("woke up in home", t=0.0)
   assert len(ThoughtFiles(root).lines(HISTORY)) == 2
 
 
@@ -283,7 +289,7 @@ def test_every_change_is_published_as_it_happens(files):
   seen = []
   files.on_event.append(seen.append)
   files.learn("bay C sticks", t=1.0)
-  files.record("charged to 92%", t=2.0)
+  files.remember("charged to 92%", t=2.0)
   assert [m["name"] for m in seen] == [KNOWLEDGE, HISTORY]
   assert seen[0]["text"] == "bay C sticks"
   # A REFUSED write publishes nothing: the file did not change.
@@ -311,7 +317,7 @@ def test_only_the_human_files_ride_the_cached_prefix():
   # robot-written file left in the prefix is shown as it stood at mission
   # start for the rest of the run.
   assert set(files.stable()) == {MAIN}
-  assert set(files.volatile()) == {GOALS, HISTORY, KNOWLEDGE}
+  assert set(files.volatile()) == {GOALS, HISTORY, KNOWLEDGE, FINDINGS}
   assert set(files.stable()) | set(files.volatile()) == set(NAMES)
   assert not set(files.stable()) & set(files.volatile())
 
@@ -328,7 +334,7 @@ def test_what_the_robot_writes_it_can_read_back_the_same_run():
   """
   files = ThoughtFiles()
   files.learn("bay C sticks a little", t=1.0)
-  files.record("charged to 92%", t=2.0)
+  files.remember("charged to 92%", t=2.0)
   files.intend("draw on the far board this week", t=3.0)
   turn = ov._user_turn({"thoughts": files.volatile()})
   assert "bay C sticks a little" in turn
@@ -349,7 +355,7 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
   before = boss.system[0]["text"]
 
   files.learn("whiteboard_b is the one people look at", t=1.0)
-  files.record("drew a house on whiteboard_a", t=2.0)
+  files.remember("drew a house on whiteboard_a", t=2.0)
   files.intend("keep both boards inked", t=3.0)
 
   assert boss.system[0]["text"] == before, \
@@ -378,7 +384,7 @@ def test_the_history_the_model_sees_is_the_tail(files):
   before them are input tokens on every call for the rest of the mission."""
   from pluggybot.mind.thoughts import HISTORY_SHOWN
   for i in range(HISTORY_SHOWN * 3):
-    files.record(f"thing number {i}", t=float(i))
+    files.remember(f"thing number {i}", t=float(i))
   shown = files.volatile()[HISTORY]
   assert len(shown) == HISTORY_SHOWN
   assert "thing number 0" not in " ".join(shown)
@@ -604,9 +610,11 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   life.say_hooks.append(lambda t, line: said.append(line))
 
   life._reconsider(ov.Decision(action="idle", learn="bay C sticks",
-                               intend="tidy bay C"))
+                               intend="tidy bay C",
+                               record={"quantity": "block mass", "value": 0.42,
+                                       "unit": "kg", "method": "the lift"}))
   life._reconsider(ov.Decision(action="idle", forget="bay C sticks",
-                               drop_goal="tidy bay C"))
+                               drop_goal="tidy bay C", retract="block mass"))
   life._reconsider(ov.Decision(action="idle", forget="nothing says this"))
 
   lines = [line for line in said if line.startswith("THOUGHT")]
@@ -619,6 +627,7 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   assert set(seen) == set(THOUGHT_VERBS)
   assert seen["learn"] == "bay C sticks"
   assert seen["forget"] == "bay C sticks"
+  assert seen["record"] == "block mass = 0.42 kg -- the lift" == seen["retract"]
   assert "nothing" in seen["refused"]
 
 

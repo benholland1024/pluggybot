@@ -300,6 +300,21 @@ knowing anyway: a `charge` still banks a ledger ENTRY, at zero points, so a
 consumer summing `earned` sees charging contribute nothing. The reward for
 charging is not dying.
 
+### 0.20.0, additive: a fifth `thought` document, `Findings.md`, and two verbs
+
+pluggybot #217. Every text surface is now a row in one registry
+(`mind/text.py`; docs/Overseer.md §7), and the science record joins the
+`.md` documents: `THOUGHT_FILES` gains `Findings.md` (writer `robot`, cap
+3000), `THOUGHT_VERBS` gains `record` and `retract`. It rides the wire
+exactly as the other four do -- a `thought` message when the stream opens
+and on every change, whole -- and a write is narrated `THOUGHT record:
+<quantity> = <value> <unit> -- <method>` / `THOUGHT retract: <line>`, so the
+observatory's existing parser files it as a `thought` row with those verbs
+and the documents' `?kind=thought` includes it. A consumer that has never
+heard of the name renders it as it renders any document (0.11.0's rule); a
+label for it is the site's to add. The recordings open with five documents
+per robot and were re-recorded.
+
 ### 0.20.0, additive: the `heightmap` message (the floor, near the robot)
 
 pluggybot #34. The robot's third ranging sensor is a depth camera on the

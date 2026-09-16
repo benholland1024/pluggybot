@@ -270,31 +270,35 @@ HUNGER_STATES = ("starving", "hungry", "fed", "satisfied")
 
 # The thought files (issue #38). Two-repo vocabulary on the same terms as
 # TASK_STATES above: the names and the writers are what the wire may carry,
-# while the CAPS and the write rules are sim-side and live in mind/thoughts.py,
-# which owns the one write path that enforces them.
+# while the CAPS and the write rules are sim-side and live in mind/text.py's
+# registry (issue #217), whose one gate enforces them.
 #
-# ⚠ WHO MAY WRITE IS PER FILE, and rendering the four identically would claim
+# ⚠ WHO MAY WRITE IS PER FILE, and rendering them identically would claim
 # a mind that wrote its own persona. `human` is a person editing the volume;
-# `system` is append-only narrative; `robot` is the one writable surface.
+# `system` is append-only narrative; `robot` is the writable surface.
 #: Why each file has the writer it has: docs/Overseer.md section 7.
 THOUGHT_WRITERS = ("human", "system", "robot")
 
 #: The documents, in the order a reader should show them: who it is, what it
-#: is for, what happened, what it makes of that. Appending one is additive
-#: (a client renders a document it has never heard of); renaming one is a
-#: breaking change in both repos, like a FACE_STATE.
+#: is for, what happened, what it makes of that, what it has measured.
+#: Appending one is additive (a client renders a document it has never heard
+#: of); renaming one is a breaking change in both repos, like a FACE_STATE.
+#: `Findings.md` (issue #217) is the science record: one measured finding
+#: per line, in a shape code reads back.
 THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
-                 "Knowledge_and_Opinions.md")
+                 "Knowledge_and_Opinions.md", "Findings.md")
 
 #: What a write to the robot's memory is narrated as: `THOUGHT <verb>: <line>`
-#: (issue #159). The four verbs are the robot's whole write vocabulary --
-#: `learn`/`forget` on Knowledge_and_Opinions.md, `intend`/`drop_goal` on
-#: Goals.md -- and `refused` is the one write path saying no. The website's
-#: observatory parses this line into a `thought` row (the documents ride the
-#: wire whole, but WHEN a line was written is carried by this line alone), so
-#: it is a two-repo vocabulary like THOUGHT_FILES: adding a verb is additive,
+#: (issue #159). The verbs are the robot's whole write vocabulary on these
+#: files -- `learn`/`forget` on Knowledge_and_Opinions.md, `intend`/
+#: `drop_goal` on Goals.md, `record`/`retract` on Findings.md -- and
+#: `refused` is the one write path saying no. The website's observatory
+#: parses this line into a `thought` row (the documents ride the wire whole,
+#: but WHEN a line was written is carried by this line alone), so it is a
+#: two-repo vocabulary like THOUGHT_FILES: adding a verb is additive,
 #: renaming one is breaking. `tests/test_thoughts.py` pins the shape.
-THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "refused")
+THOUGHT_VERBS = ("learn", "forget", "intend", "drop_goal", "record", "retract",
+                 "refused")
 
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of

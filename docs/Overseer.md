@@ -152,9 +152,10 @@ the procedure with the step and the reason in the record. Abort means stow:
 the errand around it hangs back whatever is on the fork.
 
 **The library** (`procedure/library.py`) is a directory of sources beside the
-four thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
-`Goals.md`'s terms, capped at `MAX_PROCEDURES` (8, because every source
-rides the user turn so the robot can read what it wrote). Two verbs, both
+thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
+`Goals.md`'s terms — a DOCUMENT row in `mind/text.py` (§7), capped at
+`MAX_PROCEDURES` (8, because every source rides the user turn so the robot
+can read what it wrote). Two verbs, both
 decision *fields* so writing one costs no turn: `define: {name, source}` and
 `undefine: name`. **No replace** — a redefinition is refused; undefine first,
 in a decision of its own — so one bad generation cannot rewrite everything
@@ -565,7 +566,8 @@ do rather than promises not to, each pinned by a test — and one is the arm.
   task whose whole point is going and counting
   (`test_the_prompt_never_carries_a_hidden_answer`).
 - **It cannot reach its own body with text.** Its only output is an action
-  off a fixed menu (§10), and its only writable memory is one file (§7).
+  off a fixed menu (§10), and its only writable memory is the documents the
+  registry says are its own, through add-or-remove verbs (§7).
 - **It cannot block the physics.** The call runs on a worker thread and
   `HubLifecycle._decide` keeps **stepping the sim** while it flies:
 
@@ -900,7 +902,7 @@ enforced before dispatch) is the hard client-side budget: a loop bug that
 burns money silently is the failure you find on an invoice.
 
 **The prompt is split for caching.** A stable prefix — persona, rules, the
-menu, the reward table, the two human thought files — and the volatile state
+menu, the reward table, the human thought file — and the volatile state
 in the user turn. The prefix is built ONCE in `__init__` and sent verbatim;
 `test_the_stable_prefix_is_byte_identical_across_calls` is the guard against
 the classic silent invalidator (a timestamp in the prefix sends
@@ -910,84 +912,129 @@ inert. `overseer_probe.py --tokens-only` prints the prefix size (a free
 endpoint, not a local tokenizer — it still needs a key), and padding it until
 the number looks right is not one of the honest options.
 
-## 7. Memory — the thought files (issues #38, #154)
+## 7. Text — every surface is a document or a message (issues #38, #154, #217)
 
-Local files beside the sim in `/var/lib/pluggybot`, never a round trip to the
-website: memory that only works when the site is up is memory the robot loses
-exactly when it needs it. Four Markdown documents, each with **one writer**,
-enforced at the single write path (`mind/thoughts.py`):
+The robot meets text in five places — visitors, the other robot, its own
+files, its procedure library, its tool library — and each once grew its own
+code. They were always two shapes, and `mind/text.py` is the one registry
+that names them: **every surface is a row**, and the next one (the
+library's lookups, #216) is a row rather than a module. The memory
+mechanism itself is deliberately NOT rethought here — #221 does that, once,
+on this table.
 
-| File | Written by | Cap | Why |
-|---|---|---|---|
-| `Main.md` | **human** | 6000 | The CONSTITUTION: body, manner, and what the person who looks after it hopes for it. A robot that can rewrite who it is defeats the point |
-| `Goals.md` | **robot** | 8000 | What IT has decided to do. `$PLUGGY_GOALS`' file, and quality 5 of the mission is read off it |
-| `History.md` | **system**, append-only | 6000 | What happened. A robot that can edit its own history breaks the principle that stops it awarding itself points |
-| `Knowledge_and_Opinions.md` | **robot** | 3000 | What it has learned and what it thinks |
+**A DOCUMENT** has one writer, a cap, a policy at the cap (roll or refuse),
+verbs that ADD or REMOVE and never replace, is narrated `THOUGHT <verb>:
+<line>` where it is a file, streams whole (present means complete), and is
+kept by the observatory per write. **A MESSAGE** has a sender, a recipient,
+a cap, an outcome, and is delivered into the context as INFORMATION — a
+labelled report of what somebody wants, never an instruction and never a
+turn in a conversation (§10). ⚠ They stay two shapes on purpose: the
+security argument depends on a message never being framed like the robot's
+own file, and the one-writer rule depends on a document never being writable
+by a sender. `text.admit` refuses a message row outright.
 
-⚠ **THE OWNERSHIP IS THE DESIGN** (issue #154). A human writes the
-constitution and the robot writes its goals, so "does it set itself sensible
-long-term goals and pursue them" — the mission's fifth quality — is answered
-off a file nobody else touched. Before this both were a human's, the robot's
-own goals had nowhere to live but its opinions file, and the prompt had to
-tell it so.
+| Row | Shape | Writer / sender | Cap | At the cap | Verbs | Wire · observatory |
+|---|---|---|---|---|---|---|
+| `Main.md` | document | **human** | 6000 chars | no write API | — | `thought` · `thought` |
+| `Goals.md` | document | **robot** | 8000 chars | refuses | `intend` / `drop_goal` | `thought` · `thought` |
+| `History.md` | document | **system** | 6000 chars | rolls | — (code writes it) | `thought` · `thought` |
+| `Knowledge_and_Opinions.md` | document | **robot** | 3000 chars | refuses | `learn` / `forget` | `thought` · `thought` |
+| `Findings.md` | document | **robot** | 3000 chars | refuses | `record` / `retract` | `thought` · `thought` |
+| `procedures/` | document | **robot** | 8 entries | refuses | `define` / `undefine` | `procedure` · `procedure` |
+| `tools/` | document | **robot** | one per bay (5) | refuses | `build_tool` / `retire_tool` | `tool` · `tool` |
+| visitor | message | a visitor | 280 chars, queue of 32 | drops the oldest | outcomes `accepted` / `declined` / `replied` / `dropped` | `visitor_reply` · the visitor channel's table |
+| peer | message | the other robot | 280 chars, the same queue | drops the oldest | the same outcomes | `message` event · `message` |
 
-⚠ **AND AN EXISTING VOLUME'S `goals.md` BECOMES THE ROBOT'S.** The read path
-did not move, so a deploy that has been hand-editing that file will find its
-text presented as goals the robot set itself. Migrating is a person's job and
-a one-off: move the prose into `Main.md`, which is where a human's hopes now
-belong, and let the robot start its own file empty.
-
-- ⚠ **The name is not in `Main.md`** (issue #39): `pluggybot` is the species,
-  the name is per instance (`robot_display_name`, `$PLUGGY_ROBOT_NAME`, default
-  `Pluggy`) and `system_prompt` states it from the same helper the telemetry
-  header uses. In the file it would freeze on the first run, since the file is
-  a human's from the moment it is written to the volume.
-- **A write by anyone but the owner raises `ThoughtRefused`**, is counted and
-  narrated (`THOUGHT refused: …`). Human files have no write API at all. A
-  memory that silently stopped accepting writes looks like a model with
-  nothing to say.
-- **Four verbs, two per file, and there is no fifth.** `learn` / `forget` on
-  the opinions, `intend` / `drop_goal` on the goals. All are fields on a
-  decision, orthogonal to `action`, so writing a line costs no turn; the
-  removing ones quote a line and refuse on a miss *or* an ambiguity. There is
-  deliberately no verb that replaces a file — one bad generation must not
-  erase everything the robot knows or everything it meant to do — and no
-  parameter names a file.
-- **`serves` names the goal an action is for**, and is deliberately optional
-  and unvalidated: plenty of what the robot does is upkeep and serves no
-  goal, and a model made to justify every action against one learns to
-  justify rather than to choose. It exists so follow-through is measured
-  rather than inferred — `goals.served` in the run record is a count of
-  DECISIONS, and a low ratio is a finding, not a fault.
-- ⚠ **Nothing in scoring may read `Goals.md`.** A self-conceived goal is not
-  paid (PluggyPlan, "self-conceived goals are not paid"): a goal that earned
-  points would be a reward table the robot writes itself.
-  `tests/test_thoughts.py` walks the syntax tree of every `economy/` module
-  to keep that true by construction.
+- **One gate.** Who may write a document and what happens at its cap is
+  answered by `text.admit`, and every document write in the repo passes it
+  — the files' `append`, the library's `define`, the workshop's `check` —
+  so "what does a full document do" is one table cell each. A write by the
+  wrong writer raises, is counted, and is narrated (`THOUGHT refused: …`);
+  human documents have no write API at all. A memory that silently stopped
+  accepting writes looks like a model with nothing to say.
+- **One path to the disk.** `mind/store.py` is a `Store` interface —
+  `read` / `write` / `remove` / `keys` / `archive` — and `FileStore` (the
+  `.md`, `.procedure` and `.tool.json` files on the volume, written
+  atomically) is its only real implementation beside `MemoryStore` for
+  tests. Nothing that owns a surface writes a file itself;
+  `tests/test_text.py` walks their syntax trees to keep that true. A
+  rethought memory (#221) is one new `Store`.
+- **The `.md` rows are `ThoughtFiles`** (`mind/thoughts.py`): local files
+  beside the sim in `/var/lib/pluggybot`, never a round trip to the website
+  — memory that only works when the site is up is memory the robot loses
+  exactly when it needs it. All five exist on every world, overseer or not.
+  ⚠ **The ownership is the design** (issue #154): a human writes the
+  constitution and the robot writes its goals, so "does it set itself
+  sensible long-term goals and pursue them" — the mission's fifth quality
+  — is answered off a file nobody else touched. An existing volume's
+  hand-edited `goals.md` became the ROBOT's at #154; migrating its prose
+  into `Main.md` is a person's one-off job.
+- ⚠ **The name is not in `Main.md`** (issue #39): `pluggybot` is the
+  species, the name is per instance (`robot_display_name`,
+  `$PLUGGY_ROBOT_NAME`, default `Pluggy`) and `system_prompt` states it
+  from the same helper the telemetry header uses.
+- **The verbs are the registry's, and there is no replacing one.** Each
+  robot document has an ADD and a REMOVE — all decision fields, orthogonal
+  to `action`, so writing costs no turn; the removing ones quote a line (or
+  name an entry) and refuse on a miss *or* an ambiguity. `_reconsider`
+  iterates `text.line_verbs()` (remove before add, per document: a full
+  file plus a decision that clears one line and writes another is a robot
+  tidying up) and dispatches through `ThoughtFiles.apply`, so a new file's
+  verbs reach the mission by adding a row. No parameter names a file.
+- **`serves` names the goal an action is for**, deliberately optional and
+  unvalidated: plenty of what the robot does is upkeep, and a model made to
+  justify every action against a goal learns to justify rather than to
+  choose. `goals.served` in the run record is a count of DECISIONS, and a
+  low ratio is a finding, not a fault. ⚠ **Nothing in scoring may read
+  `Goals.md`** — a self-conceived goal is not paid (PluggyPlan); a test walks
+  every `economy/` module's syntax tree.
+- **The science record** (`Findings.md`, this issue; #227 grades off it) is
+  the robot's, for one kind of line only: a measurement. `record` takes
+  `{quantity, value, unit, method}` — the schema says `value` is a NUMBER —
+  and writes `<quantity> = <value> <unit> -- <method>`; `parse_finding` /
+  `ThoughtFiles.findings()` read the same shape back, which is what
+  "code-checkable" means. Prose is refused out loud. `retract` quotes one to
+  take off, and the retraction stays on the wire. ⚠ **Offered with the
+  library** (`Surface.offered_with`): the verbs ride the library's slot in
+  the schema, the document is shown in the context only where the menu
+  offers them (`volatile(menu)`), and `FINDINGS_RULE` rides the autonomous
+  prefix — `guarded`'s prefix, menu and schema are byte-identical
+  (`GUARDED_RULES_SHA`). The file exists, streams and is archived on every
+  world regardless.
 - **The caps fail in opposite directions.** `History.md` rolls (oldest
-  lines off the front); the robot's two files **refuse** when full,
-  because silently dropping its oldest line leaves the robot believing it
-  remembers something it does not. `forget` is the remedy and the prompt says
-  so. The model is shown the last `HISTORY_SHOWN` (12) History lines; the whole
-  file is on the wire and on disk.
-- **`History.md` is written by the lifecycle** at the moments a person
-  catching up would want — waking up, which mind is thinking, each decision,
-  each banked verdict, a death, an intervention, how the day ended — not the
-  narration. Its lines carry `verdict.reason`, already redacted of a hidden
-  answer, because History is read back into the model's context.
-- **All four exist on every world**, overseer or not (`--thoughts DIR` /
-  `$PLUGGY_THOUGHTS`). `journal.json` is unchanged: this decision's remark,
-  `narrative` tier, the one tier with no evaluator and none coming.
+  lines off the front); every robot document **refuses** when full, because
+  silently dropping its oldest line leaves the robot believing it remembers
+  something it does not — the remedy is the remove verb and the prompt says
+  so. The model is shown the last `HISTORY_SHOWN` (12) History lines; the
+  whole file is on the wire and on disk.
+- **`History.md` is written by the lifecycle** (`_remember` →
+  `ThoughtFiles.remember`) at the moments a person catching up would want
+  — waking up, which mind is thinking, each decision, each banked verdict,
+  a death, an intervention, how the day ended — not the narration. Its
+  lines carry `verdict.reason`, already redacted of a hidden answer, because
+  History is read back into the model's context. `journal.json` is
+  unchanged: this decision's remark, the one tier with no evaluator.
+- **The two entry documents** keep their own modules (`procedure/library.py`,
+  `workshop/library.py`) for what is theirs — compiling a source against
+  today's world, validating a spec against the catalog — and read the
+  writer, the cap, the suffix and the verbs off their rows. They are not
+  narrated `THOUGHT`; what the robot wrote rides their own typed events
+  whole (`procedure`, `tool`), which is how the observatory keeps a
+  definition the robot later undefined.
+- **A true death archives** everything the robot and the system wrote
+  (`Store.archive`: `History.1.md` beside the new empty one); only the
+  constitution survives. Two robots have two roots.
 
-⚠ **The split is by WRITER, and the reason is measured.** Human files ride the
-cached prefix, writable ones the user turn. A misplaced writable file would
+⚠ **The split is by WRITER, and the reason is measured.** Human documents
+ride the cached prefix (`stable=True`, only ever a human row), everything
+a writer can touch rides the user turn. A misplaced writable file would
 *not* cost per-call cache hits — `Overseer.system` is built once and sent
-verbatim — it would cost the memory working at all: the model shown its files
-as they stood at mission start, re-learning the same thing every hour. So the
-byte-identical prefix guard is necessary and **not sufficient**;
+verbatim — it would cost the memory working at all: the model shown its
+files as they stood at mission start, re-learning the same thing every hour.
+So the byte-identical prefix guard is necessary and **not sufficient**;
 `test_what_the_robot_writes_it_can_read_back_the_same_run` is the one that
-fails, and `ThoughtFiles.volatile()` inverts the same `stable` flag `stable()`
-reads so the halves cannot disagree.
+fails, and `ThoughtFiles.volatile()` inverts the same `stable` flag
+`stable()` reads so the halves cannot disagree.
 
 ## 8. The allowance, the escalation and the switch (issue #37)
 

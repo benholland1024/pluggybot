@@ -1,7 +1,8 @@
 """The robot's tools (issue #168, slice D): what it built, hanging where,
-on `procedure/library.py`'s terms.
+on `procedure/library.py`'s terms -- a DOCUMENT in `mind/text.py`'s
+registry (issue #217), whose row says the writer, the cap and the verbs.
 
-A directory beside the four thought files (`$PLUGGY_THOUGHTS/tools/`), one
+A directory beside the thought files (`$PLUGGY_THOUGHTS/tools/`), one
 JSON record per built tool: the spec as the robot wrote it, the bay it
 hangs in, what it cost, when. Two verbs, both decision FIELDS so writing
 one costs no turn -- `build_tool` and `retire_tool` -- and no verb that
@@ -10,10 +11,12 @@ first, on purpose, in the same decision (`bay` names the bay, and the
 module there goes, hand-built or not).
 
 Every rule fails OUT LOUD: a spec that does not validate, a price the
-balance cannot cover, a bay that does not exist, a name already hung --
+balance cannot cover, a bay that does not exist, a name already hung, a
+full record (`text.admit`, the one gate every document write passes) --
 narrated, counted, on the wire as a `tool` event with its reasons. A
 workshop that silently dropped a build would leave the robot believing
-it had a tool it does not (mind/thoughts.py's argument).
+it had a tool it does not (the argument every ROBOT-written document
+shares).
 
 What survives a restart: the records. Each is re-validated against
 today's catalog and world when the workshop loads and, if it still
@@ -24,7 +27,8 @@ catalog that moved under it is a fact it should be shown. The points were
 paid once and are not paid again.
 
   ⚠ ONE TOOL PER BAY, FIVE BAYS. The cap is the rack's, not a number
-  chosen here (ToolPattern.md §6): a sixth needs the rail to grow.
+  chosen here (ToolPattern.md §6; the registry row reads it off
+  `HUB_STATION_YS`): a sixth needs the rail to grow.
 """
 
 from __future__ import annotations
@@ -33,15 +37,16 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.mind import text as registry
+from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.workshop import validate
 from pluggybot.workshop.spec import Refused, Tool
 
-SUFFIX = ".tool.json"
+ROW = registry.BY_NAME["tools"]
+SUFFIX = ROW.suffix
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,15}$")
-BAYS = tuple(chr(ord("A") + i) for i in range(len(HUB_STATION_YS)))
+BAYS = tuple(chr(ord("A") + i) for i in range(ROW.cap))
 
 
 class WorkshopRefused(ValueError):
@@ -79,22 +84,25 @@ class Entry:
 
 class Workshop:
   def __init__(self, root: str | os.PathLike | None = None) -> None:
-    self.root = Path(root) if root is not None else None
+    #: The one path to the disk (issue #217): a `Store`, the volume's or
+    #: memory's.
+    self.store: Store = FileStore(root) if root is not None else MemoryStore()
     self.entries: dict[str, Entry] = {}
     self.built = 0
     self.retired = 0
     self.refusals: list[dict] = []
     self.spent = 0
-    if self.root is not None:
-      self.root.mkdir(parents=True, exist_ok=True)
-      self._load()
+    self._load()
+
+  @property
+  def root(self):
+    return self.store.root if isinstance(self.store, FileStore) else None
 
   def _load(self) -> None:
-    assert self.root is not None
-    for path in sorted(self.root.glob(f"*{SUFFIX}")):
+    for key in self.store.keys(suffix=SUFFIX):
       try:
-        rec = json.loads(path.read_text())
-      except (OSError, ValueError):
+        rec = json.loads(self.store.read(key) or "")
+      except ValueError:
         continue
       name = str(rec.get("name", ""))
       tool, reasons = None, []
@@ -140,6 +148,10 @@ class Workshop:
       reasons.append(f"{name!r} is not a name the workshop allows")
     if name in self.entries:
       reasons.append(f"{name!r} is already built -- retire it first, there is no replace")
+    try:
+      registry.admit(ROW, registry.ROBOT, len(self.entries) + 1)
+    except registry.Refused as e:
+      reasons.append(f"the workshop {str(e).removeprefix(ROW.name + ' ')}")
     idx = -1
     try:
       idx = bay_index(bay)
@@ -163,9 +175,8 @@ class Workshop:
     self.entries[tool.name] = entry
     self.built += 1
     self.spent += int(cost.get("points", 0))
-    if self.root is not None:
-      (self.root / f"{tool.name}{SUFFIX}").write_text(
-        json.dumps(entry.as_record(), indent=1) + "\n")
+    self.store.write(f"{tool.name}{SUFFIX}",
+                     json.dumps(entry.as_record(), indent=1) + "\n")
     return entry
 
   def refuse(self, name: str, reasons: list[str], t: float) -> None:
@@ -178,8 +189,5 @@ class Workshop:
       raise WorkshopRefused([f"no built tool {name!r} to retire"])
     del self.entries[name]
     self.retired += 1
-    if self.root is not None:
-      path = self.root / f"{name}{SUFFIX}"
-      if path.exists():
-        path.unlink()
+    self.store.remove(f"{name}{SUFFIX}")
     return entry

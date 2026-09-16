@@ -45,13 +45,18 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Callable
 
+from pluggybot.mind import text as registry
 from pluggybot.telemetry.protocol import INBOUND_TYPES, LEGACY_INBOUND_TYPES
 
-#: Longest visitor text kept, in characters. A message is a sentence. This
-#: is also the cap the website enforces (rooftop-media-2026 #29) -- both ends
-#: cap, because either one alone is a single point of failure and the sim's
-#: cap is the one that protects the sim.
-MAX_TEXT = 280
+#: Longest message text kept, in characters: the MESSAGE rows' cap in
+#: `mind/text.py` (issue #217), one figure for a visitor's sentence and the
+#: other robot's. This is also the cap the website enforces
+#: (rooftop-media-2026 #29) -- both ends cap, because either one alone is a
+#: single point of failure and the sim's cap is the one that protects the
+#: sim.
+MAX_TEXT = registry.MAX_MESSAGE_CHARS
+assert all(m.cap == MAX_TEXT for m in registry.MESSAGES), \
+  "a message row's cap disagrees with the queue's"
 #: ...and the display name attached to it.
 MAX_WHO = 40
 #: ...and the correlation id, which the website generates and the sim only

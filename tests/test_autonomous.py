@@ -72,10 +72,12 @@ def test_the_autonomous_prompt_stops_telling_the_robot_three_lies():
   assert "battery.wh" in text and "reserveWh" in text
   assert "energyCostWh" in text
   # The shared tail is shared, not copied -- one of the paragraphs neither
-  # arm changes must be identical in both.
+  # arm changes must be identical in both. (The file COUNT just above it
+  # differs since #217: the science record is a fifth file on this arm.)
   assert "Knowledge_and_Opinions.md` is YOURS" in text
-  assert text.split("WHAT YOU REMEMBER")[1] == \
-      ov.RULES.split("WHAT YOU REMEMBER")[1]
+  assert text.split("- `Main.md` is who you are")[1] == \
+      ov.RULES.split("- `Main.md` is who you are")[1]
+  assert "four files" in ov.RULES and "five files" in text
 
 
 def test_a_reworded_rule_fails_loudly_instead_of_shipping_a_lie():
