@@ -744,6 +744,7 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   pub._grids = []
   pub.frames_dropped = 0
   pub.events_dropped = 0
+  pub.events_queued = pub.events_sent = 0
 
   pub.step_hook()
   assert not _typed(pub._queue, "thought"), "sent with nobody connected"
@@ -781,6 +782,7 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub._grids = []
   pub.frames_dropped = 0
   pub.events_dropped = 0
+  pub.events_queued = pub.events_sent = 0
 
   pub.step_hook()
   assert not _typed(pub._queue, "goals"), "goals went out with nobody connected"

@@ -400,6 +400,26 @@ and `reasons`: the envelope, the price, the bay), `built` (the itemised
 `scene_changed` (below). Additive; a consumer ignores an unknown type. The
 observatory's "what has it built" is `?kind=tool`.
 
+### 0.20.0, additive: the `crash` message (the process is exiting)
+
+pluggybot, 2026-09-17. `{"type": "crash", "t", "error", "where",
+"traceback"}`: the sim process is exiting on an exception it will not
+survive, and this is its last message -- `error` the exception's own line
+(`TypeError: object of type 'int' has no len()`), `where` the raising
+frame (`lifecycle.py:2360 in _acts`), `traceback` the formatted text, capped
+at 4000 chars from its end. **Not a death**: a `death` is the robot's, a
+designed outcome, and the robot stands up again inside the same process; a
+crash ends the process, and what follows is compose starting a new one on
+the same volume -- a new header, a new run, sim time from zero. The
+publisher is asked to flush this one message before the process exits
+(everything else on the live stream is best-effort); a recording carries
+it as its last line. Until it existed the only trace of a crash was the
+container's stdout, and a process restarted every minute read on the
+observatory as one robot deciding 800 times a day (Evaluation.md §5). No
+bump; a consumer ignores an unknown type. The website's half -- store it,
+and show a run that ended this way as a crash rather than a stream that
+went quiet -- is a rooftop issue.
+
 ### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
 
 pluggybot #168 (slice C). The scene was "fetched once" because the model
