@@ -176,6 +176,26 @@ wording, settled direction. Before doing anything, read:
 
 ### Measurement (M14; `docs/Evaluation.md` is the record and the rules)
 
+- **The five qualities are SHAPES over ROWS** (issue #155; Evaluation.md
+  §3 "The five qualities"; `evaluation/qualities.py`, `scripts/qualities.py
+  --observe | --record`). One pure function per metric over the
+  observatory's own columns, one adapter per source (`from_observe`,
+  `from_record`); a later source (the zone, the library, the science
+  record) ADDS rows to a shape, never a second version of it. Four rules,
+  each pinned in `tests/test_qualities.py`: nothing that must stay apart is
+  summed (`unknown` beside right/wrong, a gift beside help at a cost, a
+  yield's three phases); no mean; **absent is `None`, never 0** (a source
+  not on the wire yet, a field a record predates); never pooled across a
+  build identity — the script groups by regime, the module cannot see one.
+  ⚠ A reading of the observatory is NOT a result and never enters
+  `results/`; it reports into the issue it informs. ⚠ `serves` IS NOT ON
+  THE WIRE (the `DECIDE` line does not carry it), so quality five's ratio
+  is a run-record number and the observatory answers `None`. ⚠ A test
+  reads the doc's shape table against `SHAPES`: a metric that exists only
+  as prose fails. ⚠ Nothing in `economy/` imports `evaluation` (a test
+  walks the tree). The run record carries `acts` and `verdicts` whole
+  since #155 (absent on a killed run; not in `_REQUIRED`).
+
 - `scripts/experiment.py --arm {scripted,guarded,autonomous} [--rung A0|A1]
   [--origin {none,seeded,unseeded}] --world home --pack hosting -n 5
   --parallel 5 --label "<what the box was>"` flies N days as child processes
@@ -263,8 +283,8 @@ wording, settled direction. Before doing anything, read:
   webserver.py::test_the_deployed_pair_flies_autonomous_from_nothing_and_
   the_header_says_so` pins the served configuration. ⚠ The
   A1–A3 rungs and the capacity sweep are POSTPONED and may be scrapped
-  (PluggyPlan: measurement waits for the design; #155 designs the
-  five-quality instruments and flies nothing).
+  (PluggyPlan: measurement waits for the design; #155's metrics are read
+  off the observatory, never off a rung).
 
 ### Demos and probes
 
@@ -421,29 +441,43 @@ save a filmstrip PNG named after the script.
     needs a hazard row, a hazard row needs an event map, and only `autonomous`
     with a seeded/unseeded origin has one. No typed wire event and no version
     bump — the narration line already rides the stream.
-- **The robot's memory is four documents, each with one writer**
-  (`mind/thoughts.py`, issues #38 and #154; `$PLUGGY_THOUGHTS`). `Main.md` is
-  the CONSTITUTION and the one HUMAN file — body, manner, and what the person
-  who looks after it hopes for it; no write API, edited on the volume.
-  `History.md` is SYSTEM, append-only. **`Goals.md` and
-  `Knowledge_and_Opinions.md` are the ROBOT's**, with two verbs each —
-  `intend`/`drop_goal` and `learn`/`forget`, all decision fields so writing
-  costs no turn — and deliberately no verb that REPLACES a file. Permissions
-  are enforced at the one write path and a refusal is narrated (`THOUGHT
-  refused: …`), never swallowed. Attached on EVERY world, overseer or not.
+- **Every text surface is a DOCUMENT or a MESSAGE, and every one is a row
+  in `mind/text.py`** (issue #217; Overseer.md §7 is the table). A document
+  has ONE WRITER, a cap, a policy at the cap, ADD/REMOVE verbs and never a
+  replacing one; a message has a SENDER and lands in the context as
+  information. Nine rows: `Main.md` (HUMAN, no write API), `History.md`
+  (SYSTEM, rolls), `Goals.md` / `Knowledge_and_Opinions.md` / `Findings.md`
+  (ROBOT, refuse when full: `intend`/`drop_goal`, `learn`/`forget`,
+  `record`/`retract`), `procedures/` and `tools/` (ROBOT, entries), the
+  visitor and the peer message. ⚠ `text.admit` is the ONE gate every
+  document write passes (the files' `append`, the library's `define`, the
+  workshop's `check`) and `mind/store.py` is the ONE path to the disk
+  (`Store`: `FileStore` on the volume, `MemoryStore` for tests);
+  `tests/test_text.py` walks the owners' syntax trees for a bespoke write.
+  Storage is deliberately unchanged here — #221 rethinks memory ONCE, on
+  this table, as a new `Store`. ⚠ `_reconsider` iterates
+  `text.line_verbs()` (remove before add) through `ThoughtFiles.apply`; a
+  new file's verbs reach the mission by adding a row, not a branch. A
+  refusal is narrated (`THOUGHT refused: …`), never swallowed. Attached on
+  EVERY world, overseer or not.
   ⚠ **The ownership split is the instrument** for the mission's fifth quality
   (goal creation and follow-through): the goals are read off a file nobody
   else wrote. `serves` names the goal an action is for, optional and
   unvalidated, so `goals.served` in the run record is a count of DECISIONS
   and a low ratio is a finding. Nothing in `economy/` may read the file — a
   self-conceived goal is not paid, and a test walks the syntax tree to keep
-  that true. ⚠ A true death archives the goals with the rest of what the
-  robot wrote; only the constitution survives. ⚠ An existing volume's
-  hand-edited `goals.md` becomes the ROBOT's on upgrade: move that prose into
-  `Main.md`.
-  ⚠ The two caps fail in opposite directions on purpose: `History.md` rolls,
-  `Knowledge_and_Opinions.md` REFUSES when full (silently dropping a line
-  leaves the robot believing it remembers something it does not).
+  that true. ⚠ A true death archives everything the robot and the system
+  wrote (`Store.archive`); only the constitution survives. ⚠ An existing
+  volume's hand-edited `goals.md` becomes the ROBOT's on upgrade: move that
+  prose into `Main.md`.
+  ⚠ **`Findings.md` is the science record** (#227 grades off it): `record`
+  is `{quantity, value: NUMBER, unit, method}`, written as `<quantity> =
+  <value> <unit> -- <method>` and read back by `ThoughtFiles.findings()`;
+  prose is refused. `Surface.offered_with = "procedures"`: the verbs ride
+  the library's slot, the document is shown only where the menu offers them
+  (`volatile(menu)`), `FINDINGS_RULE` rides the autonomous prefix, and
+  `guarded` is byte-identical (`GUARDED_RULES_SHA`). The file exists,
+  streams and archives on every world.
   ⚠ The prompt-cache split is by WRITER: human files ride the cached prefix,
   writable ones the user turn — and the byte-identical prefix guard is
   necessary but NOT sufficient (`Overseer.system` is built once, so a
@@ -453,8 +487,9 @@ save a filmstrip PNG named after the script.
   ⚠ The robot's NAME is not in `Main.md` (issue #39): `pluggybot` is the
   species; the name comes from `robot_display_name` in `system_prompt` and
   the telemetry header — one string by construction (`$PLUGGY_ROBOT_NAME`).
-  #154 makes `Main.md` the constitution and `Goals.md` the robot's; the
-  fixture recordings pin `DEFAULT_MAIN` and are re-recorded when it moves.
+  `THOUGHT_FILES` / `THOUGHT_VERBS` are two-repo contracts (adding is
+  additive, renaming breaks the site); the fixture recordings open with
+  every file and are re-recorded when the list or `DEFAULT_MAIN` moves.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and
@@ -600,7 +635,7 @@ save a filmstrip PNG named after the script.
   first** (issue #159; Evaluation.md §5 "How the observatory is read"):
   `GET /api/pluggyworld/observe` on the website with `Authorization: Bearer
   $PLUGGYWORLD_READ_TOKEN` — a SECOND secret, never the ingest token — returns
-  the build, the four documents, the digest, events (`?kind=thought` is "what
+  the build, the documents, the digest, events (`?kind=thought` is "what
   has it written"), decisions and balances. Not SSH: a route is in the repo,
   scoped to reading, and an agent can use it. ⚠ `THOUGHT <verb>: <line>`
   (`protocol.THOUGHT_VERBS`, `tests/test_thoughts.py`) is a two-repo

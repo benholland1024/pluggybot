@@ -296,6 +296,24 @@ def test_a_rating_is_recorded_and_nothing_in_the_economy_reads_it(pair):
         assert node.attr not in ("acts", "tell", "other_needs", "rate"), path
 
 
+def test_a_rating_of_a_board_that_carries_ink_reads_the_records_counters(pair):
+  """The deployed pair crash-looped on this (2026-09-17): the `pair` fixture
+  is room_hub, which has no boards, so `rec` was always None and the branch
+  that reads the RECORD never ran. `BoardRecord.strokes` is a counter and
+  `programs` a list; the act reads them as they are, never `len()` of them."""
+  from pluggybot.tools.boards import BoardBook, BoardRecord
+  a, _ = pair
+  book = BoardBook([BoardRecord("whiteboard_a", (0.11, 0.2))])
+  book.stroke("whiteboard_a", "square", [(0.0, 0.0), (0.05, 0.0)], t=1.0)
+  book.stroke("whiteboard_a", "text", [(0.0, 0.05), (0.05, 0.05)], t=2.0)
+  a.boards = book
+  events = []
+  a.on_event.append(events.append)
+  a._acts(_decision(rate={"board": "whiteboard_a", "quality": 0.4}))
+  [judged] = [e for e in events if e["type"] == "judged"]
+  assert judged["strokes"] == 2 and judged["programs"] == ["square", "text"]
+
+
 # ---- 5. yielding -------------------------------------------------------------
 
 

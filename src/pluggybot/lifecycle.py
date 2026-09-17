@@ -48,6 +48,7 @@ from pluggybot.mission.mission import (
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
+from pluggybot.mind import text as text_registry
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
@@ -977,7 +978,7 @@ class HubLifecycle:
     stops it awarding itself points.
     """
     try:
-      self.thoughts.record(line, t=float(self.data.time))
+      self.thoughts.remember(line, t=float(self.data.time))
     except ThoughtRefused as e:
       # History rolls rather than refusing, so this is close to unreachable
       # -- but a memory write must never be able to end a mission, and a
@@ -2250,12 +2251,15 @@ class HubLifecycle:
                            f"{change['after']}")
 
   def _reconsider(self, decision) -> None:
-    """Apply a decision's writes to the two files the ROBOT owns.
+    """Apply a decision's writes to the `.md` documents the ROBOT owns.
 
-    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38), and
-    `drop_goal`/`intend` on `Goals.md` (issue #154) -- four verbs, one code
-    path, because the refusal rule and the drop-before-add rule are the same
-    argument in both files and two copies of them would drift.
+    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38),
+    `drop_goal`/`intend` on `Goals.md` (issue #154), `retract`/`record` on
+    `Findings.md` (issue #217) -- the verbs are read off the registry
+    (`text.line_verbs`) and dispatched by `ThoughtFiles.apply`, one code
+    path, because the refusal rule and the remove-before-add rule are the
+    same argument on every document and copies of them would drift. A new
+    document's verbs reach the mission by adding a row, not a branch here.
 
     THE REFUSAL IS THE INTERESTING PATH (issue #38). A write the permission
     table or the size cap forbids is narrated, counted, and left in
@@ -2265,20 +2269,19 @@ class HubLifecycle:
     learned anything, which is indistinguishable from a model that has
     nothing to say.
 
-    REMOVE BEFORE ADD, in both files: a full file plus a decision that clears
+    REMOVE BEFORE ADD, per document: a full file plus a decision that clears
     one line and writes another is a robot tidying up, and the other order
     would refuse the write for a fullness the same decision was about to fix.
+    `THOUGHT <verb>: <line>` is the ONE narration every write gets, and the
+    observatory's whole record of WHEN (protocol.THOUGHT_VERBS).
     """
     t = float(self.data.time)
-    verbs = (("forget", decision.forget, self.thoughts.unlearn),
-             ("learn", decision.learn, self.thoughts.learn),
-             ("drop_goal", decision.drop_goal, self.thoughts.drop_goal),
-             ("intend", decision.intend, self.thoughts.intend))
-    for verb, text, write in verbs:
-      if not text:
+    for verb in text_registry.line_verbs():
+      payload = getattr(decision, verb, None)
+      if not payload:
         continue
       try:
-        done = write(text, t=t)
+        done = self.thoughts.apply(verb, payload, t=t)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
         continue
@@ -2356,10 +2359,12 @@ class HubLifecycle:
       board = decision.rate["board"]
       rec = (self.boards[board] if self.boards is not None and board in self.boards
              else None)
+      # `strokes` is the record's COUNTER and `programs` its own list --
+      # not `len()` of anything: `rec.lines` is the polylines and it is
+      # capped, so counting it would under-read a busy board.
       self._act("judged", board=board, quality=decision.rate["quality"],
-                strokes=len(rec.strokes) if rec is not None else 0,
-                programs=sorted({s.get("program", "") for s in rec.strokes})
-                if rec is not None else [])
+                strokes=rec.strokes if rec is not None else 0,
+                programs=sorted(rec.programs) if rec is not None else [])
       self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
 
   def _give(self, to, amount: int) -> None:
