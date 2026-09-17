@@ -2359,10 +2359,12 @@ class HubLifecycle:
       board = decision.rate["board"]
       rec = (self.boards[board] if self.boards is not None and board in self.boards
              else None)
+      # `strokes` is the record's COUNTER and `programs` its own list --
+      # not `len()` of anything: `rec.lines` is the polylines and it is
+      # capped, so counting it would under-read a busy board.
       self._act("judged", board=board, quality=decision.rate["quality"],
-                strokes=len(rec.strokes) if rec is not None else 0,
-                programs=sorted({s.get("program", "") for s in rec.strokes})
-                if rec is not None else [])
+                strokes=rec.strokes if rec is not None else 0,
+                programs=sorted(rec.programs) if rec is not None else [])
       self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
 
   def _give(self, to, amount: int) -> None:
