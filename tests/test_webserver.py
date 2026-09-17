@@ -781,6 +781,11 @@ class _FakePublisher:
     # `draw` / `board_cleared` reach the browser through here (issue #12)
     self.messages.append(msg)
 
+  def flush(self, timeout=None) -> bool:
+    # what a crash waits on before the process exits
+    self.flushed = len(self.messages)
+    return True
+
   def close(self) -> None:
     pass
 
@@ -925,6 +930,109 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
                        "--record", str(tmp_path / "out.jsonl.gz")])
   serve.main()
   assert seen["model_name"] == "home_world"
+
+
+def test_a_crash_is_the_last_thing_on_the_wire_and_is_waited_for(monkeypatch, tmp_path):
+  """An exception out of the day loop used to leave nothing but a
+  traceback on the container's stdout; restarted every minute, the
+  observatory read it as a robot deciding 800 times a day at full battery
+  (Evaluation.md §5). Now a `crash` message is queued on every sink, the
+  publisher is asked to FLUSH it (everything else is best-effort), and the
+  exception still propagates -- serve.py does not swallow it."""
+  serve = _load_serve()
+  built: dict = {}
+
+  class _Dying(_FakeLife):
+    def run(self, *a, **kw):
+      raise RuntimeError("the day loop broke")
+
+  def pub_factory(model, data, endpoint, **kw):
+    built["pub"] = _FakePublisher(model, data, endpoint, **kw)
+    return built["pub"]
+
+  real_recorder = serve.TelemetryRecorder
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _Dying(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(serve, "TelemetryRecorder",
+                      lambda model, data, path, **kw:
+                      built.setdefault("rec", real_recorder(model, data, path, **kw)))
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run",
+                                    "--record", str(tmp_path / "out.jsonl.gz")])
+  with pytest.raises(RuntimeError, match="the day loop broke"):
+    serve.main()
+  pub = built["pub"]
+  last = pub.messages[-1]
+  assert last["type"] == "crash"
+  assert last["error"] == "RuntimeError: the day loop broke"
+  assert last["where"].startswith("test_webserver.py:") and last["where"].endswith(" in run")
+  assert "the day loop broke" in last["traceback"]
+  assert pub.flushed == len(pub.messages), "the crash was queued but not waited for"
+  # ...and the recording carries it too: it is the lossless artifact
+  import gzip
+  lines = [json.loads(line) for line in gzip.open(tmp_path / "out.jsonl.gz", "rt")]
+  assert lines[-1]["type"] == "crash" and lines[-1]["error"] == last["error"]
+
+
+def test_a_pair_that_crashes_says_so_too(monkeypatch, tmp_path):
+  """`serve_pair` is a second call site around `run_pair`, so the crash
+  message is pinned there as well: the deployed world is a pair."""
+  from pluggybot import pair as pair_mod
+  serve = _load_serve()
+  built: dict = {}
+  monkeypatch.setattr(serve, "WsPublisher",
+                      lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
+
+  def dying_run_pair(lives, **kw):
+    for life in lives:
+      life.mission.close()
+    raise KeyError("r2_pluggybot")
+
+  monkeypatch.setattr(pair_mod, "run_pair", dying_run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "room_hub", "--free-run",
+    "--thoughts", str(tmp_path / "t"), "--goals", str(tmp_path / "goals.md"),
+    "--journal", str(tmp_path / "journal.json"),
+    "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
+  with pytest.raises(KeyError):
+    serve.main()
+  pub = built["pub"]
+  assert pub.messages[-1]["type"] == "crash"
+  assert pub.messages[-1]["error"] == "KeyError: 'r2_pluggybot'"
+  assert pub.messages[-1]["where"].endswith(" in dying_run_pair")
+  assert pub.flushed == len(pub.messages)
+
+
+def test_flush_waits_for_the_queue_to_leave_and_gives_up_on_the_bound(mini_model):
+  """`flush()` is what a crash message rides out on: True once the sink
+  has it, False -- inside the bound, not never -- when nobody is listening."""
+  from pluggybot.telemetry.protocol import crash_message
+  sink = Sink()
+  pub, _, data = _publishing(mini_model, sink)
+  try:
+    assert sink.wait_live()
+    try:
+      raise ValueError("boom")
+    except ValueError as e:
+      msg = crash_message(e, t=float(data.time))
+    pub.message(msg)
+    assert pub.flush(timeout=5.0), "queued and connected, so it must go"
+    assert pub.events_sent >= pub.events_queued
+    got = [m for s in sink.sessions for m in s if m.get("type") == "crash"]
+    assert got and got[0]["error"] == "ValueError: boom"
+    assert got[0]["where"].endswith(" in test_flush_waits_for_the_queue_to_leave_and_gives_up_on_the_bound")
+  finally:
+    pub.close()
+    sink.stop()
+  # nobody listening: the bound, not a hang
+  dead = WsPublisher(mini_model, data, "ws://localhost:1", hz=20.0)
+  try:
+    dead.message({"type": "crash", "t": 0.0})
+    t0 = time.monotonic()
+    assert dead.flush(timeout=0.5) is False
+    assert time.monotonic() - t0 < 2.0
+  finally:
+    dead.close()
 
 
 def test_serve_advertises_accepts_per_kind(monkeypatch):

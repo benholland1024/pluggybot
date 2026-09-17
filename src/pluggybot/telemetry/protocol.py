@@ -335,6 +335,36 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
 
+#: The `crash` message: the PROCESS is exiting on an exception, and it says
+#: so before it goes. Not a death -- a death is a designed outcome of the
+#: robot's that rides `death` and stands up again in the same process; a
+#: crash is a Python error out of the day loop, after which compose starts a
+#: new process on the same volume. Until this line existed the only trace
+#: of one was the container's stdout, and a crash loop read on the
+#: observatory as one robot deciding 800 times a day at full battery
+#: (2026-09-17, Evaluation.md §5). Additive; a consumer ignores an unknown
+#: type. The traceback is capped at `CRASH_TRACEBACK_CHARS` from its END,
+#: which is where the raising frame is.
+CRASH_TRACEBACK_CHARS = 4000
+
+
+def crash_message(exc: BaseException, t: float) -> dict:
+  """What the wire is told about an exception the process will not survive.
+
+  `error` is the exception's own line; `where` is the raising frame
+  (`file.py:line in function`, the last frame of the traceback, which is
+  the one an operator reads first); `traceback` is the formatted text.
+  """
+  import traceback
+  frames = traceback.extract_tb(exc.__traceback__)
+  last = frames[-1] if frames else None
+  where = (f"{os.path.basename(last.filename)}:{last.lineno} in {last.name}"
+           if last is not None else "")
+  text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+  return {"type": "crash", "t": round(float(t), 3),
+          "error": f"{type(exc).__name__}: {exc}", "where": where,
+          "traceback": text[-CRASH_TRACEBACK_CHARS:]}
+
 # The robot's root body. The planned multi-robot refactor (mjSpec attach with
 # a namespace prefix per robot) will generalize this to a prefix; until then
 # there is exactly one robot and it is called this everywhere.

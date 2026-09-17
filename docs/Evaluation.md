@@ -1392,9 +1392,12 @@ times, gifting 394 times and writing 2,794 refused lines at 99 % battery
 those a first decision on a fresh pack, and the persisted board re-offering
 the same task to every life. `runs` in the reply is what says so: a day's
 worth of `startedAt` a minute apart, `simTime` never past the first
-decision. Read that before any per-day count, and read the container's log
-(`docker logs rooftop-prod-sim-1`) for the traceback — the observatory
-records the decision and nothing about how the process ended.
+decision. Read that before any per-day count. The traceback is on the
+wire since that day — a `crash` message is a dying process's last line
+(protocol/README.md) — and in the container's log
+(`docker logs rooftop-prod-sim-1`) until the website stores it. A
+crash is a Python error out of the day loop, and never a death: no
+robot died in that loop, the process did.
 
 ⚠ **`PLUGGYWORLD_READ_TOKEN` is a SECOND secret.** Reusing the ingest token
 would make a leaked publisher credential a reader as well; the site refuses a
