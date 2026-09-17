@@ -1384,6 +1384,18 @@ the website's push-to-branch workflow does not rebuild it — so production can
 sit several merges behind with nothing saying so. `live` beside it says whether
 that build is streaming now or is the last one that did.
 
+⚠ **THE SECOND IS THE RUN COUNT.** A crash-looping process is a run every
+minute, each one life long: a full pack, one explore, one decision, and the
+paperwork that kills it. Pooled, that day read as one robot deciding 804
+times, gifting 394 times and writing 2,794 refused lines at 99 % battery
+(2026-09-17, `_acts` on a `rate` of a board carrying ink) — every one of
+those a first decision on a fresh pack, and the persisted board re-offering
+the same task to every life. `runs` in the reply is what says so: a day's
+worth of `startedAt` a minute apart, `simTime` never past the first
+decision. Read that before any per-day count, and read the container's log
+(`docker logs rooftop-prod-sim-1`) for the traceback — the observatory
+records the decision and nothing about how the process ended.
+
 ⚠ **`PLUGGYWORLD_READ_TOKEN` is a SECOND secret.** Reusing the ingest token
 would make a leaked publisher credential a reader as well; the site refuses a
 configuration where the two are equal, and has no default for it (unset, the
