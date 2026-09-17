@@ -817,6 +817,15 @@ class TaskBoard:
     is working on but which reads as in-progress is a marker that never
     resolves. `expired` would be a lie in the other direction -- the offer
     was taken.
+
+    ⚠ ...and one that was CLAIMED but not yet started comes back `offered`,
+    with the claim cleared. Same robot, same reason -- nothing re-queues an
+    errand across a restart, so the claim would stand forever with nobody
+    behind it (the served pair held one all day, 2026-09-17) -- but nothing
+    had been done either, so nothing failed: the offer is simply up again,
+    and the next life takes it or lets it lapse on its own deadline. A
+    committed answer goes with the claim; the next claimant commits its own.
+    A job with roles drops every role held for the same reason.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -843,6 +852,9 @@ class TaskBoard:
         task = replace(task, state="failed",
                        verdict={"task": task.task, "ok": False, "points": 0,
                                 "reason": "interrupted by a restart"})
+      elif task.state == "claimed" or (task.state == "offered" and task.claims):
+        task = replace(task, state="offered", claimed_by="", claimed_t=None,
+                       answer="", claims={})
       self.tasks[task.id] = task
     self.seq = max(self.seq, len(self.tasks))
     return self
