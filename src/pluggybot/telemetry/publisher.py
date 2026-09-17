@@ -69,6 +69,7 @@ deliberate choices about how:
 import json
 import queue
 import threading
+import time
 from typing import Callable
 
 from pluggybot.telemetry.protocol import ROBOT_ROOT
@@ -78,6 +79,9 @@ from pluggybot.telemetry.recorder import (FRAME_HZ, GRID_HZ, KEYFRAME_S,
 
 QUEUE_MAX = 256        # ~13 s of frames at 20 Hz; beyond that, drop
 RECONNECT_DELAY = 1.0  # wall-seconds between connection attempts
+FLUSH_S = 2.0          # `flush()`'s bound: one poll tick (0.25 s) and a send,
+                       # with room for a slow socket; a process that is dying
+                       # waits this long at most for its last word to leave
 CONNECT_TIMEOUT = 2.0  # wall-seconds before a connection attempt fails
 INBOUND_PER_PASS = 8   # inbound messages taken per send-loop pass (issue #16)
 
@@ -152,6 +156,8 @@ class WsPublisher:
     self.frames_sent = 0
     self.frames_dropped = 0
     self.events_dropped = 0
+    self.events_queued = 0
+    self.events_sent = 0
     self.connections = 0
     self.last_error: str | None = None
     # Called with each raw inbound message, on the SENDER thread (issue #16).
@@ -224,8 +230,23 @@ class WsPublisher:
     """
     try:
       self._queue.put_nowait(("event", dict(msg)))
+      self.events_queued += 1
     except queue.Full:
       self.events_dropped += 1
+
+  def flush(self, timeout: float = FLUSH_S) -> bool:
+    """Wait, bounded, until every message queued so far has left the socket.
+
+    For the one message that must not be best-effort: a `crash` queued by
+    a process about to exit, which `close()` would otherwise drop with the
+    rest. True when it all went; False on the bound -- nobody was listening,
+    or a reconnect drained the queue -- and the caller exits either way.
+    """
+    target = self.events_queued
+    deadline = time.monotonic() + timeout
+    while self.events_sent < target and time.monotonic() < deadline:
+      time.sleep(0.05)
+    return self.events_sent >= target
 
   # ---- the sender (its own thread; owns socket, json, png) -----------------
 
@@ -268,6 +289,8 @@ class WsPublisher:
             ws.send(json.dumps(payload, separators=(",", ":")))
             if kind == "frame":
               self.frames_sent += 1
+            elif kind == "event":
+              self.events_sent += 1
       except Exception as e:
         # Connection refused, reset, timeout, handshake failure -- all the
         # same story: nobody is listening right now. The sim does not care.

@@ -315,6 +315,36 @@ def test_a_task_interrupted_by_a_restart_comes_back_failed(tmp_path):
   assert board(path=path)[task.id].state == "failed"
 
 
+def test_a_task_claimed_but_not_started_at_a_restart_is_offered_again(tmp_path):
+  """A claim with no work behind it is an offer nobody is working on: the
+  claimant no longer exists and nothing re-queues its errand, so `claimed`
+  on disk would stand forever (the served pair held one all day,
+  2026-09-17). Back to `offered`, claim and answer cleared, deadline kept;
+  a roles job drops the roles held; a resolved job keeps its claims."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  task = offered(b, ttl=100.0)
+  asked = b.offer("whiteboard_answer", "whiteboard_b", params={"question": "3 x 4"},
+                  secret={"answer": "12"}, t=0.0)
+  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  done = offered(b, target="whiteboard_b", t=1.0)
+  b.claim(task.id, robot="r2_pluggybot", t=1.0)
+  b.claim(asked.id, robot="r2_pluggybot", t=1.0, answer="12")
+  b.claim(game.id, robot="pluggybot", t=1.0)               # one role of two
+  b.claim(done.id, t=1.0)
+  b.resolve(done.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE), t=2.0)
+
+  back = board(path=path)
+  for tid in (task.id, asked.id, game.id):
+    t = back[tid]
+    assert t.state == "offered" and t.claimed_by == "" and t.claimed_t is None
+    assert t.claimable(50.0), tid
+  assert back[task.id].deadline == task.deadline
+  assert back[asked.id].answer == "" and back[asked.id].secret == {"answer": "12"}
+  assert back[game.id].claims == {} and back[game.id].open_roles() == game.roles
+  assert back[done.id].state == "done"
+
+
 def test_a_hand_edited_state_file_cannot_re_point_a_task_at_a_richer_row(tmp_path):
   """`task` is re-derived from the KIND on load. The state file is world
   state in a mounted volume, so it is not a trusted document."""

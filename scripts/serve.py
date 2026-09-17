@@ -55,6 +55,7 @@ visible in `ps` to every user on the box.
 
 import argparse
 import os
+import sys
 import time
 
 import mujoco
@@ -78,7 +79,8 @@ from pluggybot.lifecycle import (
   points_ledger, task_board, task_producer, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
-from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
+from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
+                                          crash_message)
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 
@@ -645,6 +647,9 @@ def main() -> None:
     r = life.run(cfg["start"], use_at=cfg["use_at"],
                  max_sim_time=args.max_sim_time,
                  explore_budget=cfg["explore_budget"])
+  except Exception as e:
+    say_crash(e, data, publisher, recorder)
+    raise
   finally:
     publisher.close()
     if recorder is not None:
@@ -811,6 +816,9 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   try:
     results = run_pair(lives, max_sim_time=args.max_sim_time,
                        explore_budget=cfg["explore_budget"])
+  except Exception as e:
+    say_crash(e, data, publisher, recorder)
+    raise
   finally:
     publisher.close()
     if recorder is not None:
@@ -818,6 +826,27 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
     report(r, wall, life, publisher, pacer, label=name)
+
+
+def say_crash(exc: Exception, data, publisher, recorder) -> dict:
+  """The process is about to die of `exc`: put that on the wire (and in the
+  recording) before the traceback goes to stdout, and WAIT for it to leave.
+
+  Everything else the publisher carries is best-effort, because a frame is
+  superseded by the next one; this is the one message with no next one.
+  The only trace of a crash used to be the container's log, and a process
+  that crashed and was restarted every minute read on the observatory as a
+  robot deciding 800 times a day (Evaluation.md §5). `Exception` only: an
+  operator's SIGINT is not a crash.
+  """
+  msg = crash_message(exc, t=float(data.time))
+  publisher.message(msg)
+  if recorder is not None:
+    recorder.emit(msg)
+  if not publisher.flush():
+    print(f"crash: could not deliver the crash message ({publisher.last_error})",
+          file=sys.stderr)
+  return msg
 
 
 def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> None:

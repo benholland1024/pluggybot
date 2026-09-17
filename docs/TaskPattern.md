@@ -87,10 +87,17 @@ Rules the states carry, each decided explicitly:
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
   only one of them has an honest name on the wire.
-- **A restart fails what it interrupts.** A task that was `active` when the
-  process died comes back `failed` ("interrupted by a restart"), not `active`
-  — the robot that was doing it no longer exists — and not `expired`, which
-  would lie in the other direction: the offer *was* taken.
+- **A restart fails what it interrupts, and re-offers what it had only
+  promised.** A task that was `active` when the process died comes back
+  `failed` ("interrupted by a restart"), not `active` — the robot that was
+  doing it no longer exists — and not `expired`, which would lie in the
+  other direction: the offer *was* taken. One that was `claimed` but never
+  started comes back `offered`, claim and answer cleared, deadline kept:
+  nothing re-queues an errand across a restart, so the claim would stand
+  forever with nobody behind it (the served pair held one all day,
+  2026-09-17), and nothing was done, so nothing failed. A job with roles
+  drops the roles held. Follow-through across the hourly restart is the
+  agent's to show by claiming again, not the loop's to credit silently.
 
 ---
 
