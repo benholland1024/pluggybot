@@ -8,7 +8,7 @@ doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
-(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.20.0`).
+(`pluggybot.telemetry.protocol.PROTOCOL_VERSION`, currently `0.21.0`).
 Bumping it is a deliberate two-repo event: change the shape, bump the
 version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
@@ -57,6 +57,47 @@ MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hos
 game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
+
+### 0.20.0 → 0.21.0 (the memory is tiers over a record store, and a recall is on the wire)
+
+pluggybot #221; docs/Overseer.md §7 is the architecture. The robot's
+memory stops being four files replayed whole and becomes VIEWS over one
+record store, in tiers -- the constitution (`Main.md`), the core
+(`Goals.md`, `Top_of_mind.md`), the notes (`Notes.md`, `Findings.md`) and
+the history. The bump, because two names moved:
+
+- **`THOUGHT_FILES`** is `Main.md`, `Goals.md`, `History.md`,
+  **`Top_of_mind.md`** (was `Knowledge_and_Opinions.md`: the robot's RAM,
+  always in front of it, kept short), `Findings.md` (now a family of typed
+  topics, `findings/<task>`, rendered under `## findings/<task>` headers)
+  and **`Notes.md`** (new: titled lines in topics the robot names, rendered
+  `## topic` / `- title: text`). Every one still rides the wire whole as a
+  `thought` message on open and on change; `cap` is now `entries` for the
+  two notes-tier documents (64 each) and `chars` for the rest.
+- **`THOUGHT_VERBS`** is `pin` / `unpin` (were `learn` / `forget`, the
+  same verbs under the file's old name -- a consumer keeps rendering the
+  old names from old recordings, as it kept `answered`), `intend` /
+  `drop_goal`, `record` / `retract`, **`note` / `unnote`** (new), and
+  `refused`. `THOUGHT note: <topic>/<title>: <text>`.
+- **Nothing is deleted any more.** A removed line is RETIRED in the store
+  and can be looked up; History's roll is a view over the newest 6000
+  chars, every line kept. A true death moves the robot to a new
+  generation; the old rows stay on the volume.
+- **`recall` is an event** (`MEMORY_EVENT_TYPES`, additive): one per
+  lookup -- `read` (the key: a note's `topic/title`, a topic, `history`, a
+  line's `#123`), `find` (the words), `hits`, `shown`, `run` (its place in
+  a chain of at most 3) -- so the observatory can read how memory was USED
+  and not only what it held. The decision it came from carries `read` /
+  `find` in `decisions[]` and the narration says `RECALL ...: n lines`.
+- **The `journal` message carries the `think`** (the scratch the model
+  writes before it chooses, the FIRST field of every answer): `text` is
+  the think and `why` the decision it preceded. The `journal` ACTION and
+  the `note` decision field are retired -- they were the same thing on
+  request. A consumer that rendered journal messages renders thinks.
+- **`cites`** on a decision (`decisions[]`): the History line numbers a
+  `pin` or a `note` was drawn from, as the robot wrote them (`#12 #40`).
+- Gone: `$PLUGGY_GOALS` (the pre-#38 goals alias) and `$PLUGGY_JOURNAL`.
+  The recordings were re-recorded and open with six documents per robot.
 
 ### 0.19.0 → 0.20.0 (every robot on the stream reads the same shape)
 
@@ -466,7 +507,8 @@ bump for this half**: a single-robot stream is byte-identical to what it was
 - **Every frame carries `robots[<root>]` for each robot**: its `bodies`
   (sparse, as ever) and its status record (`state`, `battery`, ...).
 - **Every event says whose it is** in `robot`: `death`, `reset`, `thought`,
-  `journal`, `goals`, `procedure`, `earned`, `intervention`, narration lines.
+  `journal` (a `think` since 0.21.0), `goals`, `procedure`, `earned`,
+  `intervention`, `recall`, narration lines.
   `task_claimed` on a job with roles carries `claims` (`{"hider":
   "pluggybot", "seeker": "r2_pluggybot"}`); a task's `claims` also rides the
   `tasks` block.
@@ -527,7 +569,7 @@ human owned both of the ones that said what the robot was for. Now **`Main.md`
 is the CONSTITUTION** — body, manner, and what the person who looks after it
 hopes for it, human-written with no write API, exactly as before — and
 **`Goals.md` belongs to the ROBOT**, which writes it with two new decision
-fields on `learn`/`forget`'s terms: `intend` adds a goal, `drop_goal` removes
+fields on `pin`/`unpin`'s terms: `intend` adds a goal, `drop_goal` removes
 one it can quote. A third, `serves`, names the goal an action is for.
 
 **Nothing on the wire changed shape.** The `goals` message has the same four
@@ -1057,9 +1099,9 @@ before.
   so a browser that opens the page an hour into a mission would never learn
   them. A recording carries it right after the header; the live publisher
   re-sends it on **every connect**.
-- **`text` is `mind/journal.py`'s `read_goals` verbatim** — `Goals.md` on the
-  state volume (`$PLUGGY_GOALS`, `/var/lib/pluggybot/goals.md` in the
-  deploy). ⚠ **Since 0.19.0 the ROBOT writes it** (pluggybot #154): these are
+- **`text` is `Goals.md`** — since 0.21.0 a view over the robot's goal
+  records on the state volume (`$PLUGGY_THOUGHTS`). ⚠ **Since 0.19.0 the
+  ROBOT writes it** (pluggybot #154): these are
   the goals it set itself, not a person's instructions. What a human writes
   is `Main.md`, the constitution, which reaches a consumer as a `thought`
   document like the other three. It is still read-only ON THE WIRE — no

@@ -492,6 +492,7 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   overseer = (result or {}).get("overseer") or {}
   metab = (result or {}).get("metabolism") or {}
   thought = (result or {}).get("thought_stats") or {}
+  recalls = (result or {}).get("recalls") if result else None
   ledger_ok = None
   if result is not None and metab:
     # `given` and `received` (issue #208) are terms since a robot could
@@ -775,6 +776,14 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "refusals": refusals,
       "topOfMindChars": (thought.get("chars") or {}).get("Top_of_mind.md"),
       "records": thought.get("records"),
+      # RECALL (issue #221): how often it looked, how often it found
+      # nothing, and how much it read -- read off the lifecycle's rows, so a
+      # killed run (which has none) reports None rather than zero.
+      "recalls": (len(recalls) if recalls is not None else None),
+      "recallsEmpty": (sum(1 for r in recalls if not r.get("hits"))
+                       if recalls is not None else None),
+      "recalledLines": (sum(int(r.get("shown") or 0) for r in recalls)
+                        if recalls is not None else None),
     },
     # QUALITY 5 OF THE MISSION, read off the file nobody else writes (issue
     # #154; docs/PluggyPlan.md, and the instrument #155 designs). Four

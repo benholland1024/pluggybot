@@ -69,8 +69,9 @@ def test_an_order_is_the_action_enum_rather_than_free_text(menu):
   this world offers, plus "" for none. That is what keeps "the model's only
   output is an action off a fixed menu" true with the field on it."""
   schema = menu.schema(standing_orders=True)
+  # ...less `recall` (issue #221): an order cannot say what to look up.
   assert (set(schema["properties"]["standing_order"]["enum"])
-          == {*menu.available(), ""})
+          == {*menu.available(), ""} - {"recall"})
   assert "standing_order" in schema["required"]
 
 

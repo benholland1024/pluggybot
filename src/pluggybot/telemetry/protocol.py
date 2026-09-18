@@ -302,6 +302,14 @@ THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
 THOUGHT_VERBS = ("pin", "unpin", "intend", "drop_goal", "record", "retract",
                  "note", "unnote", "refused")
 
+#: THE MEMORY'S USE (issue #221), additive on the wire, no bump beyond
+#: 0.21.0's: a `recall` event per lookup -- `read` (the key), `find` (the
+#: words), `hits` (how many lines there were), `shown` (how many the next
+#: turn carried), `run` (its place in the chain) -- so the observatory can
+#: read how memory was USED and not only what it held. A `think` rides the
+#: `journal` message (`text`, `why`) the retired `journal` action used.
+MEMORY_EVENT_TYPES = ("recall",)
+
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/

@@ -93,6 +93,15 @@ FINDINGS_PREFIX = "findings/"
 DEFAULT_FINDINGS_TOPIC = FINDINGS_PREFIX + "general"
 #: The store's file, beside the views. `:memory:` without a root.
 STORE_FILE = "memory.sqlite"
+#: What a `recall` may put in front of the model (issue #221): one block's
+#: lines, in characters, and the whole chain's -- paid for as input tokens
+#: on every turn until an external action clears it. The oldest block goes
+#: first when the chain is over; a block is cut at its cap and says so.
+RECALLED_CHARS = 4000
+RECALLED_CHAIN_CHARS = 8000
+#: How many History lines `read history` returns: the tail beyond the
+#: dozen the prompt always carries.
+HISTORY_RECALLED = 40
 
 #: Env knob, resolved the way every other deploy setting is: a directory for
 #: the documents and the store (`/var/lib/pluggybot` in the image).
@@ -570,6 +579,75 @@ class ThoughtFiles:
   def last_thoughts(self, n: int) -> list[str]:
     return [r.text for r in self.records.tail(self.robot, "think", n)]
 
+  # ---- recall (issue #221) --------------------------------------------------
+
+  def recall(self, read: str = "", find: str = "") -> dict:
+    """Look something up. `read` is a KEY: `#123` a record by its number
+    (as the History tail and a recalled line show it); `topic/title` one
+    note; `topic` every note in it (`findings` reads every finding, a
+    family by its first level); `history` the tail beyond what the prompt
+    carries. `find` is WORDS: full-text over everything this robot has
+    written or been told this life, retired lines included. Both may be
+    set. Returns the block the next turn shows: `{read, find, hits,
+    lines}`, each line `#id [where] text`, capped at `RECALLED_CHARS`."""
+    rows: list = []
+    seen: set[int] = set()
+    key = " ".join(str(read or "").split())
+    if key:
+      for r in self._read(key):
+        if r.id not in seen and not _about_recall(r):
+          rows.append(r)
+          seen.add(r.id)
+    words = " ".join(str(find or "").split())
+    if words:
+      for r in self.records.find(self.robot, words):
+        if r.id not in seen and not _about_recall(r):
+          rows.append(r)
+          seen.add(r.id)
+    lines: list[str] = []
+    size = 0
+    cut = 0
+    for r in rows:
+      line = self._recalled_line(r)
+      if size + len(line) > RECALLED_CHARS:
+        cut += 1
+        continue
+      lines.append(line)
+      size += len(line) + 1
+    block = {"read": key, "find": words, "hits": len(rows), "lines": lines}
+    if cut:
+      block["cut"] = cut
+    return block
+
+  def _read(self, key: str) -> list:
+    """The rows a key names, or none."""
+    if re.fullmatch(r"#?\d+", key):
+      r = self.records.get(int(key.lstrip("#")))
+      return [r] if r is not None and r.robot == self.robot \
+        and r.generation == self.records.generation(self.robot) else []
+    if key.lower() in ("history", HISTORY.lower()):
+      return self.records.tail(self.robot, "history", HISTORY_RECALLED)
+    notes = self.records.active(self.robot, "note")
+    exact = [r for r in notes if f"{r.topic}/{r.title}" == key]
+    if exact:
+      return exact
+    topic = topic_name(key)
+    hit = [r for r in notes if r.topic == topic]
+    if hit:
+      return hit
+    return [r for r in notes if r.topic.startswith(topic + "/")]
+
+  def _recalled_line(self, r) -> str:
+    if r.kind == "note":
+      where = f"{r.topic}/{r.title}" if not r.topic.startswith(FINDINGS_PREFIX) else r.topic
+    elif r.kind == "history":
+      where = "history"                 # its text carries `[t=..s]` already
+    else:
+      where = f"{r.topic or r.kind} t={r.t:.0f}s"
+    if not r.active:
+      where += " retired"
+    return f"#{r.id} [{where}] {r.text}"
+
   def apply(self, verb: str, payload, t: float = 0.0, cites=()) -> str:
     """The robot's verbs, BY NAME (issue #217): the registry says which
     document a verb is on and whether it adds or removes; this dispatches.
@@ -694,6 +772,15 @@ class ThoughtFiles:
                         "generation": self.records.generation(self.robot)},
             "goals": self.texts[GOALS],
             "refusals": list(self.refusals[-5:])}
+
+
+def _about_recall(r) -> bool:
+  """A recall never finds the record of a recall: the decision's own
+  `chose recall (find ...)` line matches its own words every time, and a
+  `read history` full of `recalled 3 lines` would be a robot reading
+  about reading."""
+  return r.kind == "history" and ("] chose recall" in r.text
+                                  or "] recalled " in r.text)
 
 
 def _cites(cites) -> tuple[int, ...]:

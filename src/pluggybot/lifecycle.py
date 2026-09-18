@@ -52,12 +52,12 @@ from pluggybot.mind import text as text_registry
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
-  CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, THINK_SLICE_S,
-  order_runnable,
+  CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_RECALL_RUN, RECALL_S,
+  THINK_SLICE_S, order_runnable,
 )
 from pluggybot.economy.questions import clean_answer
 from pluggybot.tools.screen import face_for
-from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
+from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
@@ -73,8 +73,8 @@ from pluggybot.procedure.steps import Program, compile_program
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
-State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "SWAP_PICK",
-                "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
+State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL",
+                "SWAP_PICK", "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
 
 #: Chassis tilt from upright that counts as knocked over (issue #107), and
 #: how long it has to hold: a wheel riding a threshold tips the body for a
@@ -522,6 +522,21 @@ class HubLifecycle:
     self._aborting = False
     #: One row per interrupt, for the run record.
     self.interrupts: list[dict] = []
+    # ---- recall (issue #221) ----
+    #: The CHAIN: every block the robot has recalled since its last external
+    #: action, shown back in full on each turn of the chain and CLEARED by
+    #: any action that is not another recall -- what it wants to keep it
+    #: pins or notes. `_recall_run` is the chain's length, against
+    #: `MAX_RECALL_RUN`; at the cap `recall` leaves the menu for a turn.
+    self._recalled: list[dict] = []
+    self._recall_run = 0
+    #: One row per recall, for the run record (what, hits, shown).
+    self.recalls: list[dict] = []
+    #: WHY THE MIND IS BEING CONSULTED (issue #221): the map row that asked
+    #: (`event`, `kind`, `value`), the once-per-life `bootstrap`, or the
+    #: `loop` reaching its decision branch where there is no map. Shown as
+    #: `askedBy` -- until #221 every ask looked the same from inside.
+    self._asked_by: dict = {"event": "loop"}
     #: The pack at the moment an abort was decided, so what STOPPING COST can
     #: be reported rather than assumed. An agent that aborts everything is
     #: not being careful, it is being useless, and this is the number that
@@ -2249,6 +2264,38 @@ class HubLifecycle:
                     detail=f"set my points {change['before']} -> "
                            f"{change['after']}")
 
+  def _recall_routine(self, decision) -> Routine:
+    """Look something up and stand still for `RECALL_S` (issue #221).
+
+    The block joins the chain and rides the next turn's context as
+    `recalled`; the chain is capped in characters (`RECALLED_CHAIN_CHARS`,
+    oldest block first) and in length (`MAX_RECALL_RUN`, after which the
+    action leaves the menu for a turn). Every recall is a `recall` event
+    on the wire and a line in History, so the observatory can read how
+    memory was USED and not only what it held.
+    """
+    self.state = "RECALL"
+    t = float(self.data.time)
+    block = self.thoughts.recall(read=decision.read, find=decision.find)
+    self._recalled.append(block)
+    while (len(self._recalled) > 1
+           and sum(len("\n".join(b["lines"])) for b in self._recalled)
+           > RECALLED_CHAIN_CHARS):
+      self._recalled.pop(0)
+    self._recall_run += 1
+    what = " ".join(p for p in (block["read"] and f"read {block['read']}",
+                                block["find"] and f"find {block['find']!r}") if p)
+    row = {"t": round(t, 3), "read": block["read"], "find": block["find"],
+           "hits": block["hits"], "shown": len(block["lines"]),
+           "run": self._recall_run}
+    self.recalls.append(row)
+    self._emit({"type": "recall", "robot": self.root, **row})
+    self._say(f"RECALL {what}: {block['hits']} line"
+              f"{'' if block['hits'] == 1 else 's'}")
+    self._remember(f"recalled {block['hits']} line"
+                   f"{'' if block['hits'] == 1 else 's'} -- {what}")
+    yield from self.mission._drive_routine(RECALL_S, 0.0, 0.0)
+
   def _think(self, decision) -> None:
     """Keep what the model wrote to itself before it chose (issue #221):
     a `think` record, narrated, and on the wire as the `journal` message
@@ -3041,7 +3088,7 @@ class HubLifecycle:
       # before there is a policy, never the policy.
       self._say("EVENT no rule fired and nothing has asked yet -- asking once")
       self._last_ask_t = float(self.data.time)
-      yield from self._decide_routine()
+      yield from self._decide_routine({"event": "bootstrap"})
       return
     if row is None:
       # NOBODY ASKED, AND NOTHING WAS ORDERED. The robot stands still --
@@ -3057,7 +3104,8 @@ class HubLifecycle:
       # still a mind being consulted, and booking that as the agent going
       # quiet would put the box back in the column the agent is judged on.
       self._last_ask_t = float(self.data.time)
-      yield from self._decide_routine()
+      yield from self._decide_routine({"event": row.event, "kind": row.kind,
+                                       "value": row.value})
       return
     state = overseer_context(self)
     # ⚠ IMPOSSIBLE, NOT UNWISE -- `order_runnable`'s line exactly (issue
@@ -3230,11 +3278,14 @@ class HubLifecycle:
 
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
-  def _decide(self) -> None:
-    return self.mission.run(self._decide_routine())
+  def _decide(self, asked_by: dict | None = None) -> None:
+    return self.mission.run(self._decide_routine(asked_by))
 
-  def _decide_routine(self) -> Routine:
+  def _decide_routine(self, asked_by: dict | None = None) -> Routine:
     """Ask the overseer what to do next, and do it.
+
+    `asked_by` says what brought the loop here (issue #221) and rides the
+    context as `askedBy`; None is the loop's own decision branch.
 
     Reached ONLY when the battery is fine and the errand queue is empty --
     `run()` checks `needs_charge` first and always will. The overseer cannot
@@ -3248,6 +3299,7 @@ class HubLifecycle:
     pause it was avoiding.
     """
     self.state = "DECIDE"
+    self._asked_by = dict(asked_by or {"event": "loop"})
     state = overseer_context(self)
     if self.mode is not None and not self.mode.thinking:
       # FREE MODE (issue #37): the scripted rotation decides and no API call
@@ -3294,6 +3346,11 @@ class HubLifecycle:
     """
     self.decisions.append(decision.as_dict())
     self._say(f"DECIDE {decision.summary()}")
+    # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
+    # what was recalled -- a fallback's included, since the world moved on.
+    if decision.action != "recall" and self._recalled:
+      self._recalled = []
+      self._recall_run = 0
     # What it wrote to itself BEFORE choosing (issue #221): kept as a
     # `think` record, shown back next turn, and on the wire as the
     # `journal` message the site already renders.
@@ -3365,6 +3422,9 @@ class HubLifecycle:
       return ""
     if decision.action == "idle":
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
+      return ""
+    if decision.action == "recall":
+      yield from self._recall_routine(decision)
       return ""
     errand = errand_from(decision, self.world, self.boards,
                          library=getattr(self.overseer, "library", None),
@@ -3552,6 +3612,10 @@ class HubLifecycle:
       # and what it decided. Empty on every world without an event map, which
       # is every world but the `autonomous` arm's.
       "interrupts": list(self.interrupts),
+      # Every recall, for the record (issue #221): what was looked up, how
+      # many lines there were and how many were shown -- how memory was
+      # USED, beside `thought_stats`, which is what it held.
+      "recalls": list(self.recalls),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.
@@ -4242,7 +4306,12 @@ def overseer_context(life) -> dict:
                          # and absent on a world with no appetite.
                          metabolism=(life.metabolism.snapshot()
                                      if life.metabolism is not None
-                                     else None))
+                                     else None),
+                         # RECALL (issue #221): the chain so far, how many
+                         # more it may run, and what brought the loop here.
+                         recalled=life._recalled,
+                         recalls_left=MAX_RECALL_RUN - life._recall_run,
+                         asked_by=life._asked_by)
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)

@@ -49,7 +49,7 @@ def _life(world: str = "home", **kw):
 #:     `note`; `journal` retired) on EVERY arm, `guarded` included --
 #:     4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0
 #:     was the text before it, and `guarded` is harness-only since #206.
-GUARDED_RULES_SHA = "13d765683bb8c4f8f9429e81b47957fb16bf01384efed6a9594c3cd2055a6a40"
+GUARDED_RULES_SHA = "1c8fa80b9371939ae457eec4ff09c849520643eff62065c9c8a017dd8c5c679b"
 
 
 def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():

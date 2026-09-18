@@ -93,7 +93,8 @@ def test_a_rows_action_is_the_menu_plus_ask_and_nothing_else(menu):
   -- and everything else in it is the same fixed menu `action` is."""
   props = menu.schema(event_map=True)["properties"]["event_map"]
   item = props["items"]["properties"]
-  assert set(item["action"]["enum"]) == {ev.ASK, *menu.available()}
+  # ...less `recall` (issue #221): a row cannot say what to look up.
+  assert set(item["action"]["enum"]) == {ev.ASK, *menu.available()} - {"recall"}
   assert set(item["event"]["enum"]) == set(ev.EVENT_TYPES)
   assert props["maxItems"] == ev.MAX_ROWS
   # ⚠ `ask` is NOT a member of the decision's own action enum: it is what a
@@ -769,7 +770,7 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   from pluggybot.lifecycle import HubLifecycle
   src = inspect.getsource(HubLifecycle._arbitrate_routine)
   stamp = src.index("_last_ask_t")
-  assert stamp < src.index("yield from self._decide_routine()", stamp), \
+  assert stamp < src.index("yield from self._decide_routine(", stamp), \
       "the ask stamps the clock before the call, so a failure cannot unstamp it"
   # ...and nothing else in the file writes it except the two places a LIFE
   # starts: mission start and a stand-up.

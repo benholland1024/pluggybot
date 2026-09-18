@@ -220,8 +220,9 @@ it, because an LLM that can decline to charge is one that bricks the world
 overnight. Every failure (no key, timeout, rate limit, a malformed answer, a
 spent call budget) falls back to a scripted rotation and says so on the wire,
 so the robot keeps working with the API unplugged — that is a tested property,
-not a hope. Its memory is two files in `/var/lib/pluggybot`: `goals.md`, which
-you write and it reads, and `journal.json`, which it writes and you read.
+not a hope. Its memory is a record store and the documents rendered from it,
+under `/var/lib/pluggybot/thoughts` (the diagram above; `docs/Overseer.md`
+§7): `Main.md` is yours to edit, the rest is the robot's and the sim's.
 
 Full design, the action vocabulary, the cost numbers and the measured battery
 limit: `docs/Overseer.md`. To see what a decision actually costs before
