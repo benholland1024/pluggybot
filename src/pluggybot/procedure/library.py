@@ -4,7 +4,7 @@ on `Goals.md`'s terms -- a DOCUMENT in `mind/text.py`'s registry (issue
 #217), whose row says the writer, the cap and the two verbs.
 
 Two verbs, `define` and `undefine`, both decision FIELDS so writing one
-costs no turn (as `learn` / `intend` do), and deliberately no verb that
+costs no turn (as `pin` / `intend` do), and deliberately no verb that
 REPLACES a procedure or the library: one bad generation must not be able to
 rewrite everything the robot knows how to do. Redefining a name is refused;
 the robot undefines it first, on purpose, in a decision of its own.

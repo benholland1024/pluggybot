@@ -128,7 +128,7 @@ def child(cfg: dict, trace_path: Path) -> None:
                tasks=True, metabolism=True, overseer=False,
                thoughts_root=str(st / "thoughts"), ledger_state=str(st / "ledger.json"),
                board_state=str(st / "boards.json"), tasks_state=str(st / "tasks.json"),
-               journal_state=str(st / "journal.json"), spend_state=str(st / "spend.json"),
+               spend_state=str(st / "spend.json"),
                second_robot=cfg.get("secondRobot"), on_ready=on_ready)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])

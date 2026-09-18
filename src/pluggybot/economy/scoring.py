@@ -37,7 +37,7 @@ Four tiers, from the design doc, carried on each task in the table:
   visitor    an aesthetic call, rated later over the inbound channel: the
              evaluator confirms the work happened and leaves the verdict
              PENDING for `Ledger.settle` (issue #16)
-  narrative  never scored (the journal); no evaluator, and none is coming
+  narrative  never scored (a `think`); no evaluator, and none is coming
 
 The seal on `Verdict` is worth a word. It is not cryptography -- anything
 running in this process can import this module -- it is a structural guarantee

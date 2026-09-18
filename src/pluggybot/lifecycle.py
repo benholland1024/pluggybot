@@ -293,7 +293,7 @@ class HubLifecycle:
                low_battery_wh: float = LOW_BATTERY_WH,
                charge_scale: float | None = None,
                errands=None, boards=None, screen=None, ledger=None,
-               overseer=None, journal=None, mode: ModeSwitch | None = None,
+               overseer=None, mode: ModeSwitch | None = None,
                world: str = "room_hub",
                inbox=None, tasks=None, producer=None,
                energy=None, thoughts=None, metabolism=None,
@@ -356,7 +356,7 @@ class HubLifecycle:
     self.inbox = inbox
     self.replies: list[dict] = []
     #: fired with each `visitor_reply` message; wire the publisher and the
-    #: recorder in, exactly as for boards, the ledger and the journal.
+    #: recorder in, exactly as for boards, the ledger and the thoughts.
     self.visitor_hooks: list = []
     # Which world this is, which the overseer needs to build an errand out of
     # a decision (issue #15) -- the same name `world_config` is keyed by, so
@@ -366,7 +366,6 @@ class HubLifecycle:
     # loop below is unchanged without it: every existing demo, mission test and
     # recording has to behave exactly as it did.
     self.overseer = overseer
-    self.journal = journal
     # The thought files (issue #38). Present on EVERY world, unlike the
     # overseer: `History.md` is what happened to this robot, and that is as
     # true of a scripted rotation as of a chosen errand -- the same argument
@@ -2250,12 +2249,25 @@ class HubLifecycle:
                     detail=f"set my points {change['before']} -> "
                            f"{change['after']}")
 
+  def _think(self, decision) -> None:
+    """Keep what the model wrote to itself before it chose (issue #221):
+    a `think` record, narrated, and on the wire as the `journal` message
+    (`text`, and `why` is the decision it preceded). Nothing the scripted
+    rotation produces has one."""
+    if not decision.think:
+      return
+    kept = self.thoughts.think(decision.think, t=float(self.data.time),
+                               why=decision.summary())
+    if kept:
+      self._say(f"THINK {kept}")
+
   def _reconsider(self, decision) -> None:
     """Apply a decision's writes to the `.md` documents the ROBOT owns.
 
-    `forget`/`learn` on `Knowledge_and_Opinions.md` (issue #38),
-    `drop_goal`/`intend` on `Goals.md` (issue #154), `retract`/`record` on
-    `Findings.md` (issue #217) -- the verbs are read off the registry
+    `unpin`/`pin` on `Top_of_mind.md` (issues #38, #221), `drop_goal`/
+    `intend` on `Goals.md` (issue #154), `retract`/`record` on
+    `Findings.md` (issue #217), `unnote`/`note` on `Notes.md` (issue #221)
+    -- the verbs are read off the registry
     (`text.line_verbs`) and dispatched by `ThoughtFiles.apply`, one code
     path, because the refusal rule and the remove-before-add rule are the
     same argument on every document and copies of them would drift. A new
@@ -2276,12 +2288,13 @@ class HubLifecycle:
     observatory's whole record of WHEN (protocol.THOUGHT_VERBS).
     """
     t = float(self.data.time)
+    cites = decision.cites.replace(",", " ").split() if decision.cites else ()
     for verb in text_registry.line_verbs():
       payload = getattr(decision, verb, None)
       if not payload:
         continue
       try:
-        done = self.thoughts.apply(verb, payload, t=t)
+        done = self.thoughts.apply(verb, payload, t=t, cites=cites)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
         continue
@@ -3281,19 +3294,15 @@ class HubLifecycle:
     """
     self.decisions.append(decision.as_dict())
     self._say(f"DECIDE {decision.summary()}")
-    # A note is written whatever the action was: "I chose X because Y" is
-    # worth remembering regardless of what X turned out to be, and the model
-    # may attach one to any decision.
-    if decision.note and self.journal is not None:
-      entry = self.journal.note(decision.note, t=float(self.data.time),
-                                why=decision.reason)
-      if entry is not None:
-        self._say(f"JOURNAL {entry['text']}")
+    # What it wrote to itself BEFORE choosing (issue #221): kept as a
+    # `think` record, shown back next turn, and on the wire as the
+    # `journal` message the site already renders.
+    self._think(decision)
     # ...and what it decided, into the record it cannot edit (issue #38).
     self._remember(f"chose {decision.summary()}")
-    # ...and whatever it made of the day, into the one file it can
-    # (issue #38). Orthogonal to the action, like the note above: a robot
-    # should not have to spend its turn to write a line down. `forget`
+    # ...and whatever it made of the day, into the documents it can
+    # (issue #38). Orthogonal to the action, like the think above: a robot
+    # should not have to spend its turn to write a line down. Remove
     # first, so a decision that makes room and then uses it works in one
     # go rather than being refused for a fullness it was about to fix.
     self._reconsider(decision)
@@ -3354,7 +3363,7 @@ class HubLifecycle:
         yield from self.mission.drive_to_routine(wx, wy, timeout=60.0)
       yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
-    if decision.action in ("idle", "journal"):
+    if decision.action == "idle":
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
     errand = errand_from(decision, self.world, self.boards,
@@ -3548,7 +3557,6 @@ class HubLifecycle:
       # already read.
       "decisions": list(self.decisions),
       "overseer": self.overseer.stats() if self.overseer is not None else {},
-      "journal": (self.journal.recent() if self.journal is not None else []),
       # The thought files as they stand at the end (issue #38), and what the
       # write path refused along the way. Present on every run, because the
       # files are -- a scripted mission still has a history.
@@ -4210,7 +4218,7 @@ def overseer_context(life) -> dict:
   menu = life.overseer.menu.available()
   affordable = [a for a in menu if priced(a, life.battery.energy_wh)]
   possible = [a for a in menu if priced(a, life.charged_wh)]
-  state = ov.context_for(life, life.journal, visitors=visitors, tasks=offers,
+  state = ov.context_for(life, visitors=visitors, tasks=offers,
                          affordable=affordable, possible=possible,
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the
@@ -4403,9 +4411,9 @@ def run_demo(start=None, view: bool = False,
              errand: str = "carry", board_state: str | None = None,
              program: str | None = None, program_task: str = "program",
              ledger_state: str | None = None,
-             overseer: bool | None = None, goals: str | None = None,
+             overseer: bool | None = None,
              standing_orders: bool = False,
-             journal_state: str | None = None, thoughts_root: str | None = None,
+             thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
              metabolism: bool = False,
              pack: str = "demo", reserve_wh: float | None = None,
@@ -4503,7 +4511,7 @@ def run_demo(start=None, view: bool = False,
   # lifecycle's History writes, and both telemetry sinks. A second set built
   # somewhere downstream would be a second copy of a file on disk, drifting
   # from this one the moment either wrote a line.
-  memory = ThoughtFiles.open(thoughts_root, goals_path=goals)
+  memory = ThoughtFiles.open(thoughts_root)
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,
@@ -4512,8 +4520,7 @@ def run_demo(start=None, view: bool = False,
   # ...and the operator's switch, which is the one input here that the robot
   # has no verb for at all.
   switch = open_switch(mode_file)
-  boss, journal = ov.build(world, book, enabled=overseer, goals_path=goals,
-                           journal_path=journal_state, thoughts=memory,
+  boss = ov.build(world, book, enabled=overseer, thoughts=memory,
                            # Who this robot is (issue #39). The recorder has
                            # had this since #39; the robot itself had not,
                            # so a renamed robot introduced itself by species.
@@ -4564,7 +4571,7 @@ def run_demo(start=None, view: bool = False,
                                       else cfg["low_battery_wh"]),
                       boards=book,
                       screen=next(iter(screens), None), ledger=ledger,
-                      overseer=boss, journal=journal, mode=switch,
+                      overseer=boss, mode=switch,
                       world=world,
                       errands=(errands_for(errand, world, book)
                                if program is None else
@@ -4640,8 +4647,6 @@ def run_demo(start=None, view: bool = False,
     life.on_event.append(recorder.emit)
     # ...and a recompiled world reaches the recorder's census (issue #168).
     life.on_rebind.append(recorder.rebind)
-    if journal is not None:
-      journal.on_event.append(recorder.emit)
   # ...and so is the operator reaching for the switch (issue #37). Attached
   # whether or not anything is recording: the resync half is what stops a
   # pause becoming a sprint, and that is true of a viewer run too.

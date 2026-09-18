@@ -180,8 +180,8 @@ def test_a_slash_model_reaches_the_llm_through_the_same_seam(monkeypatch):
 
 def test_build_reads_the_model_from_the_environment(monkeypatch):
   monkeypatch.setenv(overseer.MODEL_ENV, "Qwen/Qwen3-8B")
-  boss, _ = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("room_hub", enabled=True, client=object())
   assert boss.model == "Qwen/Qwen3-8B"
   monkeypatch.delenv(overseer.MODEL_ENV)
-  boss, _ = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("room_hub", enabled=True, client=object())
   assert boss.model == overseer.MODEL

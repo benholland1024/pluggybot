@@ -1,8 +1,9 @@
-"""The thought files: named memory with per-file write permissions (#38).
+"""The thought files: named memory with per-file write permissions (#38),
+views over one record store since #221.
 
-Four documents, four different answers to "who may write this", and the whole
-module is the enforcement of that table plus the two places the enforcement
-could be quietly wrong.
+Six documents, three answers to "who may write this", and the whole module
+is the enforcement of that table plus the two places the enforcement could
+be quietly wrong.
 
   THE PROMPT SPLIT. A writable file placed in the cached prefix does not cost
   cache hits -- `Overseer.system` is built once and reused verbatim, so a
@@ -28,8 +29,8 @@ from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import (
-  FINDINGS, GOALS, HISTORY, HUMAN, KNOWLEDGE, MAIN, MAX_LINE_CHARS, ROBOT,
-  SYSTEM, NAMES, SPECS, ThoughtFiles, ThoughtRefused,
+  FINDINGS, GOALS, HISTORY, HUMAN, MAIN, MAX_LINE_CHARS, NOTES, ROBOT,
+  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused,
 )
 from pluggybot.telemetry.protocol import (
   THOUGHT_VERBS,
@@ -47,7 +48,7 @@ def files(tmp_path):
 # ---- the permission table ----------------------------------------------------
 
 
-def test_the_four_files_and_their_writers_are_the_wire_vocabulary():
+def test_the_files_and_their_writers_are_the_wire_vocabulary():
   """One list, two repos. A rename here that missed protocol.py would put a
   document on the wire under a name no client has a renderer for."""
   assert NAMES == THOUGHT_FILES
@@ -59,14 +60,16 @@ def test_the_four_files_and_their_writers_are_the_wire_vocabulary():
   assert SPECS[MAIN].writer == HUMAN
   assert SPECS[GOALS].writer == ROBOT
   assert SPECS[HISTORY].writer == SYSTEM
-  assert SPECS[KNOWLEDGE].writer == ROBOT
+  assert SPECS[TOP_OF_MIND].writer == ROBOT
+  assert SPECS[NOTES].writer == ROBOT and SPECS[FINDINGS].writer == ROBOT
 
 
 @pytest.mark.parametrize("name,by", [
   (MAIN, ROBOT), (MAIN, SYSTEM),          # nothing writes the constitution
   (GOALS, HUMAN), (GOALS, SYSTEM),        # the goals are the ROBOT's (#154)
   (HISTORY, ROBOT),                       # the robot cannot edit its past
-  (KNOWLEDGE, SYSTEM),                    # ...and code does not think for it
+  (TOP_OF_MIND, SYSTEM),                  # ...and code does not think for it
+  (NOTES, SYSTEM), (FINDINGS, HUMAN),
 ])
 def test_a_write_by_the_wrong_writer_is_refused_and_visible(files, name, by):
   """The issue's first acceptance criterion. REFUSED AND VISIBLE are two
@@ -82,16 +85,18 @@ def test_a_write_by_the_wrong_writer_is_refused_and_visible(files, name, by):
   assert files.writes[name] == 0
 
 
-def test_the_robot_writes_exactly_two_files(files):
-  """...and both of them are its own (issue #154)."""
-  assert files.learn("whiteboard_b is the one people look at", t=2.0)
-  assert files.read(KNOWLEDGE) == "whiteboard_b is the one people look at"
+def test_the_robot_writes_only_its_own_documents(files):
+  """...and every one of them is its own (issue #154)."""
+  assert files.pin("whiteboard_b is the one people look at", t=2.0)
+  assert files.read(TOP_OF_MIND) == "whiteboard_b is the one people look at"
   assert files.intend("ink both boards this week", t=3.0)
   assert files.read(GOALS) == "ink both boards this week"
-  # The other two are unreachable from the robot's four verbs: each names its
-  # file in code, and the general `append` checks the table. There is no verb
-  # that takes a file name from a model at all.
-  assert files.writes[KNOWLEDGE] == 1 and files.writes[GOALS] == 1
+  assert files.note({"topic": "boards", "title": "b", "text": "the far one"}, t=4.0)
+  # The other two are unreachable from the robot's verbs: each names its
+  # document in code, and the general `append` checks the table. There is
+  # no verb that takes a document name from a model at all.
+  assert files.writes[TOP_OF_MIND] == 1 and files.writes[GOALS] == 1
+  assert files.writes[NOTES] == 1
   assert all(files.writes[n] == 0 for n in (MAIN, HISTORY))
 
 
@@ -105,24 +110,37 @@ def test_the_constitution_is_read_from_disk_and_never_written_back(tmp_path):
   reopened = ThoughtFiles(root)
   assert reopened.read(MAIN) == "You are a careful robot who likes the garden."
   # A whole run's worth of the robot's own writing must not touch it.
-  reopened.learn("the garden is bigger than it looks", t=3.0)
+  reopened.pin("the garden is bigger than it looks", t=3.0)
   reopened.intend("plant the empty row", t=3.5)
   reopened.remember("charged to 92%", t=4.0)
   assert (root / MAIN).read_text() == \
     "You are a careful robot who likes the garden.\n"
 
 
-def test_the_pre_38_goals_file_still_wins(tmp_path):
-  """A deploy has been editing `/var/lib/pluggybot/goals.md` since #15.
-  Pointing it at a directory must not silently revert that to the defaults
-  -- $PLUGGY_GOALS keeps meaning "this file is Goals.md"."""
-  legacy = tmp_path / "goals.md"
-  legacy.write_text("Water the garden, then rest.\n")
-  files = ThoughtFiles(tmp_path / "thoughts", goals_path=legacy)
-  assert files.read(GOALS) == "Water the garden, then rest."
-  assert not (tmp_path / "thoughts" / GOALS).exists(), \
-    "a second Goals.md was written beside the one being read"
-  assert legacy.read_text() == "Water the garden, then rest.\n"
+def test_an_old_volume_starts_blank_and_keeps_its_files_aside(tmp_path):
+  """A pre-#221 volume carries the four files and no store. The robot's and
+  the system's are put aside (the true-death path: `.1.md` beside a fresh
+  one), nothing is imported -- so the observation period holds only what
+  was written through the new verbs -- and the constitution is untouched."""
+  root = tmp_path / "thoughts"
+  root.mkdir()
+  (root / MAIN).write_text("You are a careful robot.\n")
+  (root / GOALS).write_text("water the garden\n")
+  (root / HISTORY).write_text("[t=1s] woke up\n")
+  (root / "Knowledge_and_Opinions.md").write_text("bay C sticks\n")
+  files = ThoughtFiles(root)
+  assert files.read(MAIN) == "You are a careful robot."
+  assert files.read(GOALS) == "" and files.read(HISTORY) == ""
+  assert files.read(TOP_OF_MIND) == "" and files.records.count("pluggybot") == 0
+  assert sorted(files.archived_at_start) == sorted(
+    [GOALS, HISTORY, "Knowledge_and_Opinions.md"])
+  for kept in ("Goals.1.md", "History.1.md", "Knowledge_and_Opinions.1.md"):
+    assert (root / kept).exists(), f"{kept} was not kept on the volume"
+  assert (root / MAIN).read_text() == "You are a careful robot.\n"
+  # A second start finds the store and puts nothing else aside.
+  files.intend("plant the empty row", t=1.0)
+  again = ThoughtFiles(root)
+  assert again.archived_at_start == [] and again.lines(GOALS) == ["plant the empty row"]
 
 
 def test_a_fresh_deploy_finds_the_constitution_to_edit(tmp_path):
@@ -135,39 +153,32 @@ def test_a_fresh_deploy_finds_the_constitution_to_edit(tmp_path):
   exists to stop. It appears when the robot writes its first goal, like the
   other two files nobody hand-edits.
   """
-  root, legacy = tmp_path / "thoughts", tmp_path / "goals.md"
-  files = ThoughtFiles(root, goals_path=legacy)
+  root = tmp_path / "thoughts"
+  files = ThoughtFiles(root)
   assert (root / MAIN).read_text().strip() == files.read(MAIN)
-  assert not legacy.exists(), "an empty goals file was laid out for a human"
-  # The files code and the robot write are NOT created up front: they do not
-  # exist until there is something in them, and a bootstrap is not a write.
-  assert not (root / HISTORY).exists() and not (root / KNOWLEDGE).exists()
+  # The documents code and the robot write are NOT created up front: they
+  # do not exist until there is something in them, and a bootstrap is not a
+  # write. The store is.
+  for name in NAMES:
+    if name != MAIN:
+      assert not (root / name).exists(), f"{name} was laid out for a human"
+  assert (root / "memory.sqlite").exists()
   assert all(n == 0 for n in files.writes.values())
-  # ...and the robot's first goal lands at the RESOLVED path, so a deploy
-  # pointing `$PLUGGY_GOALS` at a file still gets that file rather than the
-  # thoughts directory quietly growing a second one.
   files.intend("ink both boards this week", t=1.0)
-  assert legacy.read_text().strip() == "ink both boards this week"
-  assert not (root / GOALS).exists()
-
-  # ...and reading without a root creates nothing at all: `goals_text(path)`
-  # must not have a file as a side effect.
-  bare = tmp_path / "elsewhere.md"
-  ThoughtFiles(goals_path=bare)
-  assert not bare.exists()
+  assert (root / GOALS).read_text().strip() == "ink both boards this week"
 
 
 # ---- the caps ----------------------------------------------------------------
 
 
-def test_history_rolls_and_knowledge_refuses(files):
+def test_history_rolls_and_top_of_mind_refuses(files):
   """Both are size caps and they fail in OPPOSITE directions, deliberately.
 
   History is a rolling record nothing curates, so the oldest line falls off
-  -- the journal's rule. Knowledge is the robot's own, and dropping the
-  oldest line silently would mean a robot that believes it remembers
-  something it does not; it is refused instead, loudly, and `forget` is the
-  robot's remedy.
+  the VIEW -- and since #221 only the view: every line stays in the store.
+  Top of mind is the robot's own, and dropping the oldest line silently
+  would mean a robot that believes it remembers something it does not; it
+  is refused instead, loudly, and `unpin` is the robot's remedy.
   """
   for i in range(400):
     files.remember(f"something happened, number {i}", t=float(i))
@@ -175,13 +186,15 @@ def test_history_rolls_and_knowledge_refuses(files):
   assert files.dropped[HISTORY] > 0
   assert "number 399" in files.read(HISTORY)
   assert "number 0" not in files.read(HISTORY), "an unbounded history"
+  assert files.records.count("pluggybot", "history") == 400, "a line was lost"
+  assert files.records.find("pluggybot", "number 0")[0].text.endswith("number 0")
 
   with pytest.raises(ThoughtRefused) as e:
     for i in range(400):
-      files.learn(f"an opinion about board number {i}", t=float(i))
+      files.pin(f"an opinion about board number {i}", t=float(i))
   assert "full" in str(e.value)
-  assert len(files.read(KNOWLEDGE)) <= SPECS[KNOWLEDGE].cap
-  assert files.dropped[KNOWLEDGE] == 0, \
+  assert len(files.read(TOP_OF_MIND)) <= SPECS[TOP_OF_MIND].cap
+  assert files.dropped[TOP_OF_MIND] == 0, \
     "the robot's own file dropped a line it was never told about"
 
 
@@ -189,37 +202,40 @@ def test_a_long_line_is_trimmed_rather_than_refused(files):
   """A cap on ONE line is not the same failure as a full file: prose cut
   short is still prose, so it is trimmed at the write path -- the journal
   note's rule -- while a file with no room left is refused."""
-  written = files.learn("x" * (MAX_LINE_CHARS * 3), t=1.0)
+  written = files.pin("x" * (MAX_LINE_CHARS * 3), t=1.0)
   assert len(written) == MAX_LINE_CHARS
-  assert files.learn("", t=1.0) == "", "an empty line is cost with no content"
-  assert files.writes[KNOWLEDGE] == 1
+  assert files.pin("", t=1.0) == "", "an empty line is cost with no content"
+  assert files.writes[TOP_OF_MIND] == 1
 
 
-def test_forget_is_how_the_robot_changes_its_mind(files):
-  files.learn("whiteboard_a is the one people look at", t=1.0)
-  files.learn("bay C sticks a little", t=2.0)
-  assert files.unlearn("whiteboard_a is the one people look at", t=3.0)
-  assert files.lines(KNOWLEDGE) == ["bay C sticks a little"]
+def test_unpin_is_how_the_robot_changes_its_mind(files):
+  files.pin("whiteboard_a is the one people look at", t=1.0)
+  files.pin("bay C sticks a little", t=2.0)
+  assert files.unpin("whiteboard_a is the one people look at", t=3.0)
+  assert files.lines(TOP_OF_MIND) == ["bay C sticks a little"]
   # A quote that picks out exactly one line works; the point is that the
   # robot does not have to reproduce its own sentence to the character.
-  assert files.unlearn("bay C sticks", t=4.0)
-  assert files.lines(KNOWLEDGE) == []
+  assert files.unpin("bay C sticks", t=4.0)
+  assert files.lines(TOP_OF_MIND) == []
+  # ...and what it unpinned is RETIRED, not gone: `recall` can find it.
+  gone = files.records.find("pluggybot", "bay C sticks")
+  assert len(gone) == 1 and not gone[0].active
 
 
 @pytest.mark.parametrize("quote,why", [
   ("a thing it never wrote", "nothing"),
   ("board", "2 lines"),
 ])
-def test_a_forget_that_does_not_pick_out_one_line_is_refused(files, quote, why):
+def test_an_unpin_that_does_not_pick_out_one_line_is_refused(files, quote, why):
   """Ambiguity and a miss are both refusals, because the alternative is a
   robot that asked to drop one belief and dropped another -- or believes it
   dropped one and did not."""
-  files.learn("board a is nearly full", t=1.0)
-  files.learn("board b is empty", t=2.0)
+  files.pin("board a is nearly full", t=1.0)
+  files.pin("board b is empty", t=2.0)
   with pytest.raises(ThoughtRefused) as e:
-    files.unlearn(quote, t=3.0)
+    files.unpin(quote, t=3.0)
   assert why in str(e.value)
-  assert len(files.lines(KNOWLEDGE)) == 2
+  assert len(files.lines(TOP_OF_MIND)) == 2
 
 
 def test_there_is_no_verb_that_rewrites_a_file(files):
@@ -228,8 +244,8 @@ def test_there_is_no_verb_that_rewrites_a_file(files):
   two verbs and neither can empty the page in one call."""
   assert not hasattr(files, "write")
   assert not hasattr(files, "replace")
-  verbs = {"append", "forget", "learn", "unlearn", "remember", "record",
-           "retract"}
+  verbs = {"append", "forget", "pin", "unpin", "remember", "record",
+           "retract", "note", "unnote", "intend", "drop_goal"}
   assert verbs <= set(dir(files))
   # ...and the by-verb dispatcher (issue #217) reaches only those: every
   # verb the registry knows is an add or a remove on one document.
@@ -246,11 +262,11 @@ def test_the_files_survive_a_restart(tmp_path):
   end is a restart, so a memory that did not survive one is not memory."""
   root = tmp_path / "thoughts"
   first = ThoughtFiles(root)
-  first.learn("the far whiteboard is not worth the trip", t=10.0)
+  first.pin("the far whiteboard is not worth the trip", t=10.0)
   first.remember("drew a house on whiteboard_a", t=20.0)
 
   second = ThoughtFiles(root)
-  assert second.read(KNOWLEDGE) == "the far whiteboard is not worth the trip"
+  assert second.read(TOP_OF_MIND) == "the far whiteboard is not worth the trip"
   assert "drew a house on whiteboard_a" in second.read(HISTORY)
   # ...and a second day appends to the first day's record rather than
   # starting a fresh one.
@@ -262,8 +278,9 @@ def test_an_in_memory_set_writes_nothing(tmp_path):
   """Every unit test, spike and demo without a state directory. It must be
   usable and must not litter the working directory."""
   files = ThoughtFiles()
-  files.learn("nothing to see", t=1.0)
-  assert files.read(KNOWLEDGE) == "nothing to see"
+  files.pin("nothing to see", t=1.0)
+  assert files.read(TOP_OF_MIND) == "nothing to see"
+  assert files.records.path == ":memory:"
   assert not list(tmp_path.iterdir())
 
 
@@ -271,15 +288,15 @@ def test_an_in_memory_set_writes_nothing(tmp_path):
 
 
 def test_a_document_goes_out_whole_and_says_who_writes_it(files):
-  files.learn("the garden is bigger than it looks", t=5.0)
-  msg = files.message(KNOWLEDGE, t=5.0)
-  assert msg["type"] == "thought" and msg["name"] == KNOWLEDGE
-  assert msg["writer"] == ROBOT and msg["cap"] == SPECS[KNOWLEDGE].cap
-  assert msg["text"] == files.read(KNOWLEDGE)
+  files.pin("the garden is bigger than it looks", t=5.0)
+  msg = files.message(TOP_OF_MIND, t=5.0)
+  assert msg["type"] == "thought" and msg["name"] == TOP_OF_MIND
+  assert msg["writer"] == ROBOT and msg["cap"] == SPECS[TOP_OF_MIND].cap
+  assert msg["text"] == files.read(TOP_OF_MIND)
   assert msg["robot"] == "pluggybot"
   # JSON-serialisable, like every other typed message.
   assert json.loads(json.dumps(msg)) == msg
-  # All four open a stream, in reading order.
+  # All of them open a stream, in reading order.
   assert [m["name"] for m in files.messages(t=5.0)] == list(NAMES)
 
 
@@ -288,9 +305,9 @@ def test_every_change_is_published_as_it_happens(files):
   change that is not streamed is a change the Thoughts tab never shows."""
   seen = []
   files.on_event.append(seen.append)
-  files.learn("bay C sticks", t=1.0)
+  files.pin("bay C sticks", t=1.0)
   files.remember("charged to 92%", t=2.0)
-  assert [m["name"] for m in seen] == [KNOWLEDGE, HISTORY]
+  assert [m["name"] for m in seen] == [TOP_OF_MIND, HISTORY]
   assert seen[0]["text"] == "bay C sticks"
   # A REFUSED write publishes nothing: the file did not change.
   with pytest.raises(ThoughtRefused):
@@ -298,7 +315,7 @@ def test_every_change_is_published_as_it_happens(files):
   assert len(seen) == 2
   # ...and the robot's own goals stream exactly as its opinions do (#154).
   files.intend("ink both boards", t=4.0)
-  assert [m["name"] for m in seen] == [KNOWLEDGE, HISTORY, GOALS]
+  assert [m["name"] for m in seen] == [TOP_OF_MIND, HISTORY, GOALS]
 
 
 # ---- the prompt cache, which is the issue's trap ------------------------------
@@ -317,7 +334,7 @@ def test_only_the_human_files_ride_the_cached_prefix():
   # robot-written file left in the prefix is shown as it stood at mission
   # start for the rest of the run.
   assert set(files.stable()) == {MAIN}
-  assert set(files.volatile()) == {GOALS, HISTORY, KNOWLEDGE, FINDINGS}
+  assert set(files.volatile()) == {GOALS, HISTORY, TOP_OF_MIND, FINDINGS, NOTES}
   assert set(files.stable()) | set(files.volatile()) == set(NAMES)
   assert not set(files.stable()) & set(files.volatile())
 
@@ -333,12 +350,15 @@ def test_what_the_robot_writes_it_can_read_back_the_same_run():
   than only by the byte-identical prefix test.
   """
   files = ThoughtFiles()
-  files.learn("bay C sticks a little", t=1.0)
+  files.pin("bay C sticks a little", t=1.0)
   files.remember("charged to 92%", t=2.0)
   files.intend("draw on the far board this week", t=3.0)
+  files.note({"topic": "bays", "title": "bay C", "text": "it sticks"}, t=4.0)
   turn = ov._user_turn({"thoughts": files.volatile()})
   assert "bay C sticks a little" in turn
   assert "charged to 92%" in turn
+  # ...and a note's INDEX, but not its body: that is a `recall` away.
+  assert '"bays"' in turn and '"bay C"' in turn and "it sticks" not in turn
   # ...and the robot's GOALS, which is the same failure with higher stakes
   # (issue #154): a goal the model cannot read back is a goal it sets again
   # every hour, and quality 5 of the mission is measured off this file.
@@ -354,7 +374,7 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
   boss = Overseer(menu, thoughts=files, client=FakeClient())
   before = boss.system[0]["text"]
 
-  files.learn("whiteboard_b is the one people look at", t=1.0)
+  files.pin("whiteboard_b is the one people look at", t=1.0)
   files.remember("drew a house on whiteboard_a", t=2.0)
   files.intend("keep both boards inked", t=3.0)
 
@@ -366,7 +386,7 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
   # above for the worst possible reason.
   #
   # ⚠ Their CONTENT, not their names: the rules block in the prefix talks
-  # ABOUT `Knowledge_and_Opinions.md`, which is stable text and exactly
+  # ABOUT `Top_of_mind.md`, which is stable text and exactly
   # right. The same distinction `test_the_stable_prefix_is_byte_identical`
   # draws between quoted JSON keys and prose.
   assert "whiteboard_b is the one people look at" not in before
@@ -389,6 +409,8 @@ def test_the_history_the_model_sees_is_the_tail(files):
   assert len(shown) == HISTORY_SHOWN
   assert "thing number 0" not in " ".join(shown)
   assert f"thing number {HISTORY_SHOWN * 3 - 1}" in " ".join(shown)
+  # ...each line carrying its record id, which is what a `cites` names.
+  assert all(re.match(r"^#\d+ \[t=", line) for line in shown)
   # ...and nothing was lost from the file itself to achieve that.
   assert len(files.lines(HISTORY)) > HISTORY_SHOWN
 
@@ -486,9 +508,9 @@ def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
   survive that hop -- it reached the RECORDER back in #39 and stopped
   there, which is why nothing caught this."""
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
-  boss, _ = ov.build("room_hub", None, enabled=True, client=FakeClient(),
-                     thoughts=ThoughtFiles(tmp_path / "thoughts"),
-                     robot_name="Luca")
+  boss = ov.build("room_hub", None, enabled=True, client=FakeClient(),
+                  thoughts=ThoughtFiles(tmp_path / "thoughts"),
+                  robot_name="Luca")
   assert boss.robot_name == "Luca"
   assert "Your name is Luca." in boss.system[0]["text"]
 
@@ -496,17 +518,21 @@ def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
 # ---- the robot's own writes, through a real decision --------------------------
 
 
-def test_a_decision_can_learn_and_forget_without_spending_a_turn():
-  """`learn`/`forget` are orthogonal to the action, like `note` and
+def test_a_decision_can_pin_and_note_without_spending_a_turn():
+  """`pin`/`unpin`/`note`/`unnote` are orthogonal to the action, like
   `respond_to`: a robot that had to spend its turn to write a line down
   writes fewer of them than it should."""
   menu = Menu(boards=("whiteboard_a",), programs=("house",))
   boss = Overseer(menu, client=FakeClient(
     full(action="draw", board="whiteboard_a", program="house",
-         learn="people look at whiteboard_a more than b")))
+         pin="people look at whiteboard_a more than b",
+         note={"topic": "boards", "title": "a", "text": "the popular one"},
+         cites="#3 #4")))
   decision = boss.decide({})
   assert decision.action == "draw"          # the action still happened
-  assert decision.learn == "people look at whiteboard_a more than b"
+  assert decision.pin == "people look at whiteboard_a more than b"
+  assert decision.note == {"topic": "boards", "title": "a", "text": "the popular one"}
+  assert decision.cites == "#3 #4"
   assert decision.source == "llm"
 
 
@@ -515,9 +541,13 @@ def test_the_schema_offers_both_verbs_and_no_third(menu_home):
   parameter that names a FILE, so `Main.md` is not reachable from a decision
   at all -- the permission check is a backstop, not the only lock."""
   props = menu_home.schema()["properties"]
-  assert "learn" in props and "forget" in props
+  assert "pin" in props and "unpin" in props
+  assert "note" in props and "unnote" in props
   assert not [k for k in props if "file" in k.lower()]
-  assert "learn" in menu_home.schema()["required"]
+  assert "pin" in menu_home.schema()["required"]
+  # ...and `think` is the FIRST property (issue #221): constrained decoding
+  # follows this order, so the reasoning precedes the action.
+  assert list(props)[0] == "think"
 
 
 @pytest.fixture(scope="module")
@@ -534,7 +564,7 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
   files = ThoughtFiles(tmp_path / "thoughts")
   boss = Overseer(Menu.for_world("room_hub", None), thoughts=files,
                   client=FakeClient(full(action="carry", reason="tidying up",
-                                         learn="bay C sticks a little")))
+                                         pin="bay C sticks a little")))
   life = _lifecycle("room_hub", overseer=boss, thoughts=files, errand=False)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -545,11 +575,12 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
     life.mission.close()
 
   assert "chose carry: tidying up" in files.read(HISTORY)
-  assert files.read(KNOWLEDGE) == "bay C sticks a little"
-  assert any(line.startswith("THOUGHT learn: bay C sticks") for line in said)
+  assert files.read(TOP_OF_MIND) == "bay C sticks a little"
+  assert any(line.startswith("THOUGHT pin: bay C sticks") for line in said)
   # ...and it is on disk, because the next mission is a different process.
   assert "bay C sticks a little" in (tmp_path / "thoughts"
-                                     / KNOWLEDGE).read_text()
+                                     / TOP_OF_MIND).read_text()
+  assert ThoughtFiles(tmp_path / "thoughts").read(TOP_OF_MIND) == "bay C sticks a little"
 
 
 def test_the_mission_cannot_write_the_files_it_does_not_own(tmp_path):
@@ -585,11 +616,11 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   # Fill the robot's file, then ask it to learn one more thing.
   with pytest.raises(ThoughtRefused):
     for i in range(400):
-      files.learn(f"an opinion about board number {i}", t=float(i))
+      files.pin(f"an opinion about board number {i}", t=float(i))
 
-  life._reconsider(ov.Decision(action="idle", learn="one thing too many"))
+  life._reconsider(ov.Decision(action="idle", pin="one thing too many"))
   assert any("THOUGHT refused" in line and "full" in line for line in said)
-  assert "one thing too many" not in files.read(KNOWLEDGE)
+  assert "one thing too many" not in files.read(TOP_OF_MIND)
   # ...and a mission is never ended by a memory write.
   assert life.thoughts.refusals
 
@@ -609,13 +640,16 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
 
-  life._reconsider(ov.Decision(action="idle", learn="bay C sticks",
+  life._reconsider(ov.Decision(action="idle", pin="bay C sticks",
                                intend="tidy bay C",
+                               note={"topic": "bays", "title": "bay C",
+                                     "text": "it sticks on the way in"},
                                record={"quantity": "block mass", "value": 0.42,
                                        "unit": "kg", "method": "the lift"}))
-  life._reconsider(ov.Decision(action="idle", forget="bay C sticks",
-                               drop_goal="tidy bay C", retract="block mass"))
-  life._reconsider(ov.Decision(action="idle", forget="nothing says this"))
+  life._reconsider(ov.Decision(action="idle", unpin="bay C sticks",
+                               drop_goal="tidy bay C", retract="block mass",
+                               unnote="bays/bay C"))
+  life._reconsider(ov.Decision(action="idle", unpin="nothing says this"))
 
   lines = [line for line in said if line.startswith("THOUGHT")]
   shape = re.compile(r"^THOUGHT ([a-z_]+): (.+)$")
@@ -625,8 +659,9 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
     assert m, f"not the shape the site parses: {line!r}"
     seen[m.group(1)] = m.group(2)
   assert set(seen) == set(THOUGHT_VERBS)
-  assert seen["learn"] == "bay C sticks"
-  assert seen["forget"] == "bay C sticks"
+  assert seen["pin"] == "bay C sticks"
+  assert seen["unpin"] == "bay C sticks"
+  assert seen["note"] == "bays/bay C: it sticks on the way in" == seen["unnote"]
   assert seen["record"] == "block mass = 0.42 kg -- the lift" == seen["retract"]
   assert "nothing" in seen["refused"]
 
@@ -635,7 +670,7 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
 
 
 def test_a_full_goals_file_refuses_out_loud_rather_than_dropping_one(files):
-  """The issue's constraint, and the same one `Knowledge_and_Opinions.md`
+  """The issue's constraint, and the same one `Top_of_mind.md`
   has: silently dropping the oldest goal leaves the robot believing it still
   holds a goal it no longer has, which is worse than being told no.
 
@@ -663,7 +698,7 @@ def test_a_full_goals_file_refuses_out_loud_rather_than_dropping_one(files):
 
 def test_no_verb_replaces_the_goals_file(files):
   """One bad generation must not be able to wipe out what the robot has
-  decided to do -- the argument that shaped `learn`/`forget`, applied to the
+  decided to do -- the argument that shaped `pin`/`unpin`, applied to the
   file that now carries the mission's fifth quality.
 
   Enforced by ABSENCE, so this is a grep over the surface a decision can
@@ -681,8 +716,8 @@ def test_no_verb_replaces_the_goals_file(files):
 
 
 def test_a_decision_can_set_and_drop_a_goal_without_spending_a_turn(files):
-  """`intend` / `drop_goal` / `serves` are FIELDS, like `learn` and
-  `forget`: the robot sets a goal on the decision it was already making, so
+  """`intend` / `drop_goal` / `serves` are FIELDS, like `pin` and
+  `unpin`: the robot sets a goal on the decision it was already making, so
   writing one down costs it nothing."""
   d = ov.Decision(action="draw", board="whiteboard_a",
                   intend="ink both boards this week",
@@ -733,7 +768,7 @@ def test_a_goal_written_in_one_mission_is_read_back_in_the_next(tmp_path):
   first = ThoughtFiles(root)
   first.intend("get the far whiteboard inked before the week is out", t=10.0)
   first.intend("find out why bay C sticks", t=20.0)
-  first.learn("whiteboard_b is worth the trip after all", t=30.0)
+  first.pin("whiteboard_b is worth the trip after all", t=30.0)
 
   # The mission ends. Nothing is handed over in memory -- the next one opens
   # the same directory from scratch, which is what a restart actually does.
@@ -742,7 +777,7 @@ def test_a_goal_written_in_one_mission_is_read_back_in_the_next(tmp_path):
     "get the far whiteboard inked before the week is out",
     "find out why bay C sticks",
   ], "the robot woke up with no idea what it had decided to do"
-  assert second.read(KNOWLEDGE) == "whiteboard_b is worth the trip after all"
+  assert second.read(TOP_OF_MIND) == "whiteboard_b is worth the trip after all"
 
   # ...and it can still act on them: drop one it finished, add another, and
   # a third mission sees exactly that.
@@ -755,3 +790,130 @@ def test_a_goal_written_in_one_mission_is_read_back_in_the_next(tmp_path):
   ]
   # The goals reach the next decision's prompt, not just the next process.
   assert "keep the garden surveyed" in ov._user_turn({"thoughts": third.volatile()})
+
+
+# ---- the notes tier (issue #221) ---------------------------------------------
+
+
+def test_a_note_is_a_titled_line_in_a_topic_the_robot_names(files):
+  """The index (topics and titles) is what the model sees every turn; the
+  body is a `recall` away. The topic is the robot's to name, made safe to
+  key by; a title already in the topic is refused (there is no replace)."""
+  assert files.note({"topic": "Visitors / Ben", "title": "likes houses",
+                     "text": "asked for a house on the far board twice"}, t=1.0) \
+    == "visitors/ben/likes houses: asked for a house on the far board twice"
+  files.note({"topic": "tasks/draw", "title": "far board", "text": "fails from the explore's end"}, t=2.0)
+  assert files.index(NOTES) == {"visitors/ben": ["likes houses"],
+                                "tasks/draw": ["far board"]}
+  assert files.volatile()[NOTES] == files.index(NOTES)
+  assert "asked for a house" not in json.dumps(files.volatile())
+  # The document on the wire carries the bodies, grouped by topic.
+  assert files.read(NOTES) == ("## visitors/ben\n- likes houses: asked for a house "
+                               "on the far board twice\n\n## tasks/draw\n"
+                               "- far board: fails from the explore's end")
+  with pytest.raises(ThoughtRefused) as e:
+    files.note({"topic": "tasks/draw", "title": "far board", "text": "again"}, t=3.0)
+  assert "unnote it first" in str(e.value)
+  for bad in ({"topic": "", "title": "x", "text": "y"}, {"topic": "a", "title": "", "text": "y"},
+              {"topic": "a", "title": "x", "text": ""}, "just a string"):
+    with pytest.raises(ThoughtRefused):
+      files.note(bad, t=4.0)
+  # `findings/...` is the science record's, written by `record` only.
+  with pytest.raises(ThoughtRefused) as e:
+    files.note({"topic": "findings/mass", "title": "block", "text": "0.4 kg"}, t=5.0)
+  assert "record" in str(e.value)
+  assert files.writes[NOTES] == 2
+
+
+def test_unnote_takes_a_key_a_title_or_a_quote_and_refuses_ambiguity(files):
+  files.note({"topic": "bays", "title": "bay C", "text": "it sticks"}, t=1.0)
+  files.note({"topic": "bays", "title": "bay D", "text": "it is fine"}, t=2.0)
+  assert files.unnote("bays/bay C", t=3.0) == "bays/bay C: it sticks"
+  assert files.index(NOTES) == {"bays": ["bay D"]}
+  with pytest.raises(ThoughtRefused):
+    files.unnote("nothing like this", t=4.0)
+  files.note({"topic": "bays", "title": "bay E", "text": "it is fine too"}, t=5.0)
+  with pytest.raises(ThoughtRefused) as e:
+    files.unnote("is fine", t=6.0)                   # two notes contain it
+  assert "2 notes" in str(e.value)
+  assert files.unnote("bay E", t=7.0).startswith("bays/bay E")
+  # What was taken out is retired, findable, and never in the index again.
+  assert files.records.count("pluggybot", "note", status="retired") == 2
+  assert len(files.records.find("pluggybot", "sticks")) == 1
+
+
+def test_the_notes_are_capped_by_count_and_refuse_out_loud(files):
+  from pluggybot.mind.text import MAX_NOTES
+  for i in range(MAX_NOTES):
+    files.note({"topic": "fruit", "title": f"fruit {i}", "text": "tasty"}, t=1.0)
+  with pytest.raises(ThoughtRefused) as e:
+    files.note({"topic": "fruit", "title": "one more", "text": "tasty"}, t=2.0)
+  assert "full" in str(e.value) and "unnote" in str(e.value)
+  assert len(files.index(NOTES)["fruit"]) == MAX_NOTES
+  assert files.unnote("fruit/fruit 0", t=3.0)
+  assert files.note({"topic": "fruit", "title": "one more", "text": "tasty"}, t=4.0)
+
+
+def test_findings_are_typed_topics_per_task(files):
+  """`Findings.md` is the first TYPED topic family (issue #221):
+  `findings/<task>`, fields declared by code, read by code (#227), shown
+  by index -- `quantity = value unit`, the method on recall -- and grouped
+  per task on the wire."""
+  assert files.record({"quantity": "block mass", "value": 0.42, "unit": "kg",
+                       "method": "the lift", "topic": "mass bench"}, t=1.0) \
+    == "block mass = 0.42 kg -- the lift"
+  files.record({"quantity": "plants", "value": 7, "unit": "", "method": "counted"}, t=2.0)
+  assert files.findings() == [
+    {"quantity": "block mass", "value": 0.42, "unit": "kg", "method": "the lift",
+     "topic": "findings/mass_bench"},
+    {"quantity": "plants", "value": 7.0, "unit": "", "method": "counted",
+     "topic": "findings/general"},
+  ]
+  assert files.index(FINDINGS) == {"findings/mass_bench": ["block mass = 0.42 kg"],
+                                   "findings/general": ["plants = 7"]}
+  assert files.read(FINDINGS) == ("## findings/mass_bench\nblock mass = 0.42 kg -- "
+                                  "the lift\n\n## findings/general\nplants = 7 -- counted")
+  # A finding is never a note, whatever the index says.
+  assert files.index(NOTES) == {}
+  assert files.retract("block mass", t=3.0) == "block mass = 0.42 kg -- the lift"
+  assert list(files.index(FINDINGS)) == ["findings/general"]
+  with pytest.raises(ThoughtRefused):
+    files.record({"quantity": "opinion", "value": "no number"}, t=4.0)
+
+
+def test_a_true_death_archives_the_records_and_starts_a_generation(tmp_path):
+  """What a true death costs (issue #136), on the store's terms: the rows
+  stay on the volume, the next robot sees none of them, the constitution
+  survives, and the views are kept beside the fresh ones."""
+  root = tmp_path / "thoughts"
+  files = ThoughtFiles(root)
+  files.pin("bay C sticks", t=1.0)
+  files.intend("tidy bay C", t=2.0)
+  files.note({"topic": "bays", "title": "bay C", "text": "sticks"}, t=3.0)
+  files.remember("woke up", t=4.0)
+  gone = files.archive(t=5.0)
+  assert gone["records"] == 4 and set(gone["cleared"]) == set(NAMES) - {MAIN}
+  for name in set(NAMES) - {MAIN}:
+    assert files.read(name) == "" and files.index(NOTES) == {}
+  assert files.records.find("pluggybot", "bay C") == []
+  assert files.records.generation("pluggybot") == 2
+  assert (root / "Top_of_mind.1.md").read_text() == "bay C sticks\n"
+  assert files.stats()["records"] == {"active": 0, "retired": 0, "generation": 2}
+  # ...and the next process wakes up as the second robot, with nothing.
+  assert ThoughtFiles(root).read(GOALS) == ""
+  assert ThoughtFiles(root).records.generation("pluggybot") == 2
+
+
+def test_a_pin_or_a_note_can_cite_the_history_it_came_from(files):
+  """Reflection grounding (the paper's §4.3, issue #221): a lesson names
+  the episodes it was drawn from, by the ids the History tail shows."""
+  a = files.remember("draw on whiteboard_b failed: no route", t=1.0)
+  b = files.remember("draw on whiteboard_b failed again", t=2.0)
+  ids = [int(line.split()[0][1:]) for line in files.history_tail()]
+  assert len(ids) == 2 and a and b
+  files.pin("the far board is not worth the trip", t=3.0, cites=[f"#{ids[0]}", ids[1]])
+  files.note({"topic": "boards", "title": "b", "text": "unreachable"}, t=4.0,
+             cites=["#nonsense", ids[1]])
+  pinned = files.records.active("pluggybot", "core", topic=TOP_OF_MIND)[0]
+  noted = files.records.active("pluggybot", "note")[0]
+  assert pinned.cites == tuple(ids) and noted.cites == (ids[1],)

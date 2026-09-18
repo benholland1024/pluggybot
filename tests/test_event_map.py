@@ -213,7 +213,7 @@ def test_an_every_row_measures_from_when_it_was_written(menu):
   means "in ten minutes", not "now, and then in ten minutes" -- firing on
   sight would make every period row an extra immediate action at the one
   moment the agent was already deciding."""
-  row = ev.Row(event="every", action="journal", value=600.0)
+  row = ev.Row(event="every", action="explore", value=600.0)
   emap, clock = ev.EventMap((row,)), ev.EventClock()
   assert clock.fire(emap, ev.Live(), 100.0) is None
   assert clock.fire(emap, ev.Live(), 500.0) is None
@@ -319,13 +319,13 @@ def test_a_failure_row_may_name_a_reason_a_class_or_nothing(menu):
   boss = make(menu, full(action="idle", event_map=rows(
     ("decision_failed", "charge", 0, "timeout"),
     ("decision_failed", "idle", 0, "failure"),
-    ("decision_failed", "journal", 0, ""))))
+    ("decision_failed", "explore", 0, ""))))
   boss.decide(_state(0.9))
   assert boss.failure_order("timeout") == "charge", "the specific rule"
   assert boss.failure_order("garbled") == "idle", "...then the class"
   assert boss.failure_order("offline") == "idle"
-  assert boss.failure_order("budget") == "journal", "...then the catch-all"
-  assert boss.failure_order("idle-run") == "journal"
+  assert boss.failure_order("budget") == "explore", "...then the catch-all"
+  assert boss.failure_order("idle-run") == "explore"
 
 
 def test_a_broad_rule_above_a_narrow_one_starves_it(menu):
@@ -334,7 +334,7 @@ def test_a_broad_rule_above_a_narrow_one_starves_it(menu):
   is NOT prevented -- a map the agent will regret is the agent's to write --
   and it IS visible in the static report, which is the whole point of having
   one."""
-  broad = ev.Row(event="decision_failed", action="journal")
+  broad = ev.Row(event="decision_failed", action="explore")
   narrow = ev.Row(event="decision_failed", action="charge", kind="timeout")
   assert ev.EventMap((narrow, broad)).first("decision_failed",
                                             "timeout") is narrow
@@ -819,7 +819,7 @@ def test_the_seeded_map_reproduces_the_pre_change_loop_decision_for_decision():
   """⚠ THE ISSUE SAYS TODAY'S BEHAVIOUR IS `task_complete -> ask`. IT IS
   NOT, and this is where that is measured rather than asserted. The
   arbitration loop reaches its decision branch at MISSION START -- before
-  anything has completed -- and again after every `idle`, `journal` and
+  anything has completed -- and again after every `idle` and
   `explore`, so a map carrying only `task_complete -> ask` would go quiet on
   its first tick.
 

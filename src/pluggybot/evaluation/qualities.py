@@ -128,8 +128,8 @@ def from_record(record: dict) -> list[Row]:
   rows: list[Row] = []
   for r in record.get("decisionRows") or ():
     rows.append(Row(kind="decision", subject=str(r.get("action") or ""), t=_float(r.get("t")),
-                    data={k: r.get(k) for k in ("serves", "intend", "dropGoal", "learn",
-                                                 "forget", "source", "real")
+                    data={k: r.get(k) for k in ("serves", "intend", "dropGoal", "pin",
+                                                 "unpin", "note", "cites", "source", "real")
                           if r.get(k) is not None},
                     run=run))
     for verb in ("intend", "dropGoal"):
@@ -320,7 +320,7 @@ def ideas_traced(rows: Iterable[Row]) -> dict:
   """A goal, a drawing or a message that names something read.
 
   Sources: none today; the library (#216) files a `read` row (topic, page,
-  revision) and a later `thought` (`intend` / `learn`), `judged`/draw or
+  revision) and a later `thought` (`intend` / `pin`), `judged`/draw or
   `message` row whose text names the page is a trace.
 
   unit: reads, and reads that were traced into anything at all; the trace

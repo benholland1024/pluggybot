@@ -118,6 +118,15 @@ def _interrupt_summary(rows: list) -> dict | None:
   }
 
 
+def _memory(record: dict, key: str, legacy: str = "") -> int:
+  """One memory counter off a record, new key first; a pre-#221 record's
+  `legacy` key where the verb only changed its name, else 0."""
+  m = record.get("memory") or {}
+  if "pins" in m:
+    return int(m.get(key, 0) or 0)
+  return int(m.get(legacy, 0) or 0) if legacy else 0
+
+
 def _map_summary(maps: list) -> dict | None:
   """What the series' event maps SAY, pooled -- the static report (#127).
 
@@ -340,9 +349,16 @@ def _series(records: list[dict], current) -> dict:
       "eventMap": _map_summary([m.get("eventMap") for m in mind]),
     },
     "whFailed": dist([r["whFailed"] for r in runs]),
+    # `pins`/`unpins` fold a pre-#221 record's `learn`/`forget` (the same
+    # verbs under the file's old name); the notes tier and the scratch are
+    # zero on a record that predates them -- a pre-#221 `notes` counted the
+    # retired journal and is not read.
     "memory": {
-      "learn": dist([r["memory"]["learn"] for r in runs]),
-      "forget": dist([r["memory"]["forget"] for r in runs]),
+      "pins": dist([_memory(r, "pins", "learn") for r in runs]),
+      "unpins": dist([_memory(r, "unpins", "forget") for r in runs]),
+      "notes": dist([_memory(r, "notes") for r in runs]),
+      "thinks": dist([_memory(r, "thinks") for r in runs]),
+      "cites": dist([_memory(r, "cites") for r in runs]),
       "refusals": dist([len(r["memory"]["refusals"]) for r in runs]),
     },
     "economy": {

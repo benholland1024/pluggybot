@@ -44,8 +44,12 @@ def _life(world: str = "home", **kw):
 #:     was the text before it;
 #:   2026-09-12, issue #154 gave the robot its own `Goals.md` and the rules
 #:     had to stop telling it a person writes them --
-#:     03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0.
-GUARDED_RULES_SHA = "4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0"
+#:     03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0;
+#:   2026-09-18, issue #221 rebuilt the memory (the tiers, `think`, `pin`,
+#:     `note`; `journal` retired) on EVERY arm, `guarded` included --
+#:     4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0
+#:     was the text before it, and `guarded` is harness-only since #206.
+GUARDED_RULES_SHA = "13d765683bb8c4f8f9429e81b47957fb16bf01384efed6a9594c3cd2055a6a40"
 
 
 def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():
@@ -72,12 +76,11 @@ def test_the_autonomous_prompt_stops_telling_the_robot_three_lies():
   assert "battery.wh" in text and "reserveWh" in text
   assert "energyCostWh" in text
   # The shared tail is shared, not copied -- one of the paragraphs neither
-  # arm changes must be identical in both. (The file COUNT just above it
-  # differs since #217: the science record is a fifth file on this arm.)
-  assert "Knowledge_and_Opinions.md` is YOURS" in text
+  # arm changes must be identical in both (the memory section is shared
+  # whole since #221; the science record's rule is appended on this arm).
+  assert "Top_of_mind.md` is YOURS" in text
   assert text.split("- `Main.md` is who you are")[1] == \
       ov.RULES.split("- `Main.md` is who you are")[1]
-  assert "four files" in ov.RULES and "five files" in text
 
 
 def test_a_reworded_rule_fails_loudly_instead_of_shipping_a_lie():

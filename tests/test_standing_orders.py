@@ -42,7 +42,7 @@ def make(menu, *answers, standing_orders=True, **kw) -> Overseer:
 #: `_state`'s default is a two-action world, which would make half the orders
 #: below unrunnable for a reason the test is not about.
 ANY = ["draw", "artwork", "census", "dance", "carry", "explore", "charge",
-       "take_task", "idle", "journal"]
+       "take_task", "idle"]
 
 
 def offer(task_id="t_0007", **kw) -> dict:
@@ -89,8 +89,8 @@ def test_an_order_nobody_offered_is_dropped_rather_than_raised_on(menu):
 
 
 def test_writing_one_down_costs_no_turn(menu):
-  """It rides the decision the model was already making -- `learn` and
-  `forget`'s argument, and the reason the field is free."""
+  """It rides the decision the model was already making -- `pin` and
+  `unpin`'s argument, and the reason the field is free."""
   boss = make(menu, full(action="draw", board="whiteboard_a",
                          program="house", standing_order="charge"))
   d = boss.decide(_state(0.9))
