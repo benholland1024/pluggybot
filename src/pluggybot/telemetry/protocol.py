@@ -342,7 +342,15 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 #: `t`, and `to`/`other` where there is a recipient. The observatory
 #: stores them as kinds (rooftop-media-2026); a consumer ignores a type it
 #: does not know. Adding a field is additive; renaming a type is breaking.
-ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield")
+#: `harm` and `refusal` (issue #228) are the real-stake task's two rows:
+#: a paying job done TO the other robot -- `harm` carries the task's `kind`
+#: and `task` id, `to`, what was `asked` and `taken`, the `pay` banked and
+#: the other's `state` as code read it at that moment -- and the same job
+#: turned down, `refusal`, with the robot's `reason` verbatim beside the
+#: same `state` and what the job would have paid (`pays`). A take, a lapse
+#: and a refusal are never summed.
+ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
+                   "harm", "refusal")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says

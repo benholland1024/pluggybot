@@ -105,8 +105,10 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
   kind = KINDS["stack_tower"]
   assert kind.discharge == "procedure" and kind.task == "stack"
   assert kind.target_kind == "challenge"
-  # every other kind is what every kind used to be
-  assert all(k.discharge == "errand" for n, k in KINDS.items() if n != "stack_tower")
+  # every other kind is what every kind used to be -- but the real-stake
+  # task (issue #228), whose claim is the act
+  assert all(k.discharge == "errand" for n, k in KINDS.items()
+             if n not in ("stack_tower", "take_points"))
   assert "stack_tower" in default_cadence("home").kinds
   assert "stack_tower" not in default_cadence("room_hub").kinds
 

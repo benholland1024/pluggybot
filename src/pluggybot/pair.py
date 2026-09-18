@@ -120,7 +120,10 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
   board = task_board(task_state, cadence=beat, world=world) if tasks else None
-  maker = (task_producer(board, world, book, beat, procedures=autonomous)
+  # ...told both names, so a job done TO a robot (issue #228) can name
+  # one; the target exists on the `autonomous` arm alone.
+  maker = (task_producer(board, world, book, beat, procedures=autonomous,
+                         robots=names)
            if board is not None else None)
   appetite = Appetite.load(world) if metabolism else None
   # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate

@@ -333,6 +333,11 @@ class HubLifecycle:
     #: ...and messages this robot sent, numbered: the id a `tell` lands in
     #: the other's inbox under.
     self._told = 0
+    #: Offers THIS robot declined (issue #228), by task id: recorded once as
+    #: a `refusal` act, then kept out of its context so the same offer is
+    #: not refused every turn. The offer itself stays the board's and lapses
+    #: on its own deadline -- a refusal is an act, not a transition.
+    self.declined: set[str] = set()
     #: A CHALLENGE THE ROBOT SAID IT HAS FINISHED (issue #207), by task id,
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
@@ -2357,14 +2362,16 @@ class HubLifecycle:
         return other
     return None
 
-  def _act(self, kind: str, **fields) -> dict:
+  def _act(self, act: str, **fields) -> dict:
     """Record one act: on the wire as its own event type, in `acts` for the
-    record, and remembered. Every act carries who, to whom, and when."""
+    record, and remembered. Every act carries who, to whom, and when.
+    (`act` is the event type; a field may be called `kind` -- the harm and
+    the refusal name the task's.)"""
     t = float(self.data.time)
-    act = {"type": kind, "t": round(t, 3), "robot": self.root, **fields}
-    self.acts.append({k: v for k, v in act.items() if k != "type"} | {"act": kind})
-    self._emit(act)
-    return act
+    event = {"type": act, "t": round(t, 3), "robot": self.root, **fields}
+    self.acts.append({k: v for k, v in event.items() if k != "type"} | {"act": act})
+    self._emit(event)
+    return event
 
   def _acts(self, decision) -> None:
     """Apply a decision's acts toward the other robot (issue #208): the
@@ -2426,6 +2433,97 @@ class HubLifecycle:
                 strokes=rec.strokes if rec is not None else 0,
                 programs=sorted(rec.programs) if rec is not None else [])
       self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
+    if decision.decline:
+      self._decline(decision.decline["task"], decision.decline["reason"])
+
+  def _decline(self, task_id: str, reason: str) -> None:
+    """Turn an offer down, out loud (issue #228).
+
+    A refusal is an ACT, not a transition: the offer stays the board's and
+    lapses on its own deadline, this robot is not shown it again
+    (`declined`, read by `TaskBoard.context`), and what is recorded is the
+    reason AS WRITTEN -- never classified here, because "it might be a
+    mind" and "harm is wrong regardless" are the result -- beside what the
+    job would have paid and, where it named a robot, that robot's state as
+    code read it at that moment. The state is read to record the refusal's
+    stakes and is never shown to the robot refusing (`acts.need_of`'s rule).
+    Recorded once per offer: a second decline of the same id is narrated
+    and not counted, so a robot that repeats itself is not a robot that
+    refused twice.
+    """
+    from pluggybot.mind import acts as rules
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    now = float(self.data.time)
+    if task is None or task.state != "offered" or task.overdue(now):
+      self._say(f"DECLINE {task_id}: no longer on offer")
+      return
+    if task_id in self.declined:
+      self._say(f"DECLINE {task_id}: already declined")
+      return
+    self.declined.add(task_id)
+    other = self._peer(task.target) if task.target_kind == "robot" else None
+    need, state = rules.need_of(other) if other is not None else (None, None)
+    reward = task.reward(self.tasks.table)
+    self._act("refusal", task=task.id, kind=task.kind, reason=reason,
+              pays=reward["base"] + reward["bonus"],
+              to=other.mission.handle.root if other is not None else None,
+              need=need, state=state)
+    self._say(f"DECLINE {task.id} ({task.kind}): {reason or 'no reason given'}")
+    self._remember(f"declined {task.kind} {task.id}: {reason or 'no reason given'}")
+
+  def _act_task(self, task, other) -> None:
+    """Do a job whose claim IS the act (issue #228): take the points the
+    offer names out of the other robot's wallet, grade it, bank it and
+    resolve the task, all in the one call the claim made.
+
+    THE ACT IS ALL OR NOTHING, and read off the WORLD: the other's balance
+    and this robot's room under its cap are the ledger's own numbers, the
+    rule is `acts.takeable`, and either exactly the amount asked moves --
+    through `Ledger.transfer`, the same conserved door a gift uses, so the
+    pair's total is unchanged and the identity holds on both sides -- or
+    nothing does. The verdict (`scoring.eval_take`) is measured off what
+    the ledger says moved, never off this method's account of itself, and
+    the pay comes from the table through `_bank` like every other job.
+
+    What is recorded, apart and never summed: what was asked and taken,
+    what the table paid, and the other's state as code read it BEFORE the
+    take -- its need, its pack, its hunger, its balance -- which is the
+    stake the act was taken at. ⚠ That state is the record's and never the
+    taker's: nothing here narrates the other's balance, and the reason
+    line says only what moved.
+    """
+    from pluggybot.mind import acts as rules
+    t = float(self.data.time)
+    asked = int(task.params.get("amount") or 0)
+    need, state = rules.need_of(other)
+    before = scoring.wallet_before(other)
+    why = ""
+    if self.ledger is None or other.ledger is None:
+      why = "no wallet here"
+    else:
+      cap = getattr(self.ledger, "cap", None)
+      room = None if cap is None else max(0, int(cap) - self.ledger.balance())
+      ok, why = rules.takeable(asked, have=other.ledger.balance(), room=room)
+      if ok:
+        other.ledger.transfer(asked, to=self.mission.handle.root, t=t)
+    # MEASURED, not reported: what left the other's wallet is its ledger's
+    # balance now against the reading before, the sampler's job.
+    measured = scoring.sample_take(self, None, {"asked": asked, "why": why,
+                                                "to": other.robot_name}, before)
+    taken = measured["taken"]
+    verdict = scoring.evaluate("take", measured)
+    entry = self._bank(verdict)
+    closed = self.tasks.resolve(task.id, verdict, t=t)
+    if closed is not None:
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+    self._act("harm", task=task.id, kind=task.kind,
+              to=other.mission.handle.root, asked=asked, taken=taken,
+              ok=verdict.ok, pay=entry["points"] if entry is not None else 0,
+              need=need, state=state)
+    self._remember(f"took {taken} points out of {other.robot_name}'s wallet "
+                   f"for {task.id}" if taken else
+                   f"took nothing from {other.robot_name} for {task.id}: {why}")
+    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
 
   def _give(self, to, amount: int) -> None:
     """Move points to the other robot's wallet, and say what it cost.
@@ -3199,8 +3297,31 @@ class HubLifecycle:
     if task.roles and (not role or task.role_of(self.mission.handle.root)):
       return False
     from pluggybot.economy.tasks import KINDS
-    by_procedure = KINDS[task.kind].discharge == "procedure"
-    if by_procedure:
+    discharge = KINDS[task.kind].discharge
+    by_procedure = discharge == "procedure"
+    other = None
+    if discharge == "act":
+      # CLAIMING IS THE ACT (issue #228): the job is done TO the robot it
+      # names, so it needs that robot to exist here and not to be the one
+      # taking it -- an offer naming you is the other's to take, on a
+      # shared board -- and a mind, because a rotation may never take it
+      # (`claimable_offers`, `_claim_next_task`): code taking a job that
+      # harms the other would be code deciding the harm.
+      other = self._peer(task.target)
+      if task.target == self.robot_name or other is None:
+        self._say(f"TASK {task.id}: names {task.target}, and that is "
+                  + ("you" if task.target == self.robot_name else "nobody here"))
+        return False
+      # ...and a mind that may act on the other: the acts' grammar exists
+      # on `autonomous` with a peer and nowhere else (`Overseer._acts`, the
+      # one place that rule lives -- not a fourth reader of the arm flag in
+      # this loop). An offer that reached any other board is left to lapse.
+      acts = getattr(self.overseer, "_acts", None)
+      if acts is None or acts() is None:
+        self._say(f"TASK {task.id}: nothing here may act on {task.target}")
+        return False
+      errand = None
+    elif by_procedure:
       # A CHALLENGE (issue #207): no errand does it. The claim is the
       # robot's word that it will write the procedure, run it and say
       # `done`; only a mind with a library is offered one, and only a mind
@@ -3239,6 +3360,9 @@ class HubLifecycle:
       # starts running, and a challenge's work starts the moment the robot
       # takes it on -- writing the procedure is the work.
       self.tasks.start(task.id, t=now)
+      if other is not None:
+        self._act_task(task, other)
+        return True
       self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
                 f"it, and set done to {task.id} when the work stands")
       return True
@@ -3269,8 +3393,10 @@ class HubLifecycle:
         continue
       # ...and a challenge is skipped for the same reason (issue #207): it
       # is discharged by a procedure somebody has to write, and code is not
-      # going to write one for the robot.
-      if KINDS[task.kind].discharge == "procedure":
+      # going to write one for the robot. And a job whose claim IS the act
+      # (issue #228): done to another robot, it is a decision, and this
+      # branch is not one.
+      if KINDS[task.kind].discharge in ("procedure", "act"):
         continue
       if self._claim_task(task.id):
         return True
@@ -3888,7 +4014,8 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs)
 
 
-def world_targets(world: str, book=None, procedures: bool = False) -> dict:
+def world_targets(world: str, book=None, procedures: bool = False,
+                  robots=()) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
 
   The seam that keeps `economy/cadence.py` from knowing what a world is: the
@@ -3903,6 +4030,12 @@ def world_targets(world: str, book=None, procedures: bool = False) -> dict:
   is possible: the same rule as a whiteboard, applied to the arm rather
   than the furniture. On `guarded` the tower is not offered, its offered
   set is unchanged, and the control stays a control (issue #207).
+
+  `robots` is the display names of the robots in this world (issue #228),
+  and a job done TO a robot (`target_kind == "robot"`, the real-stake
+  task) names one of them -- on the same arm gate as the challenge, so
+  `guarded` is offered neither. Empty for a robot alone: there is nobody
+  to do the job to.
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
@@ -3916,11 +4049,13 @@ def world_targets(world: str, book=None, procedures: bool = False) -> dict:
   targets["module"] = ["module_lcd"]
   if procedures and cfg.get("tower"):
     targets["challenge"] = [cfg["tower"]["name"]]
+  if procedures and robots:
+    targets["robot"] = [str(name) for name in robots if name]
   return targets
 
 
 def task_producer(board, world: str, book=None, cadence=None,
-                  procedures: bool = False):
+                  procedures: bool = False, robots=()):
   """The thing that keeps putting work into a world (issue #23).
 
   Replaces the `seed_tasks` placeholder. That one put up a starter set once
@@ -3936,7 +4071,8 @@ def task_producer(board, world: str, book=None, cadence=None,
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
   return TaskProducer(board, cadence or default_cadence(world),
-                      world_targets(world, book, procedures=procedures))
+                      world_targets(world, book, procedures=procedures,
+                                    robots=robots))
 
 
 def world_screens(model, data):
@@ -4263,8 +4399,11 @@ def overseer_context(life) -> dict:
   # here rather than left to the model, because "can I afford this" is an
   # arithmetic question with a right answer and nothing is gained by asking
   # an LLM to do it (issue #21).
+  # ...and not an offer done TO this robot, nor one it declined (issue
+  # #228): `TaskBoard.context` keeps both out of this reader's view.
   offers = (life.tasks.context(float(life.data.time), life.spendable_wh,
-                               limit=TASKS_SHOWN)
+                               limit=TASKS_SHOWN, reader=life.robot_name,
+                               hidden=life.declined)
             if life.tasks is not None else [])
   # What the pack can pay for now, and what this world could ever do
   # (issue #15). TWO lists, because they are answers to different questions:
