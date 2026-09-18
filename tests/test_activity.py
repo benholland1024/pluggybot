@@ -281,7 +281,7 @@ def test_header_advertises_activities(builder_pair):
   # 0.20.0: every robot on the stream reads the same shape (issue #167) --
   # `spend` and `metabolism` under `robots[<root>]`, one `goals` and one
   # `grid` message per robot.
-  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.20.0"
+  assert h["protocolVersion"] == PROTOCOL_VERSION == "0.21.0"
   # ...and this builder has no task board, so it must say so rather than
   # advertise a vocabulary it will never use -- the `accepts` rule.
   assert h["taskKinds"] == []

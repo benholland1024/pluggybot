@@ -88,7 +88,7 @@ def test_adding_a_hint_is_not_a_version_bump(fixture):
   the stream reading the same shape (issue #167) -- and the hint vocabulary
   is untouched by any of them.
   """
-  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.20.0"
+  assert fixture["protocolVersion"] == PROTOCOL_VERSION == "0.21.0"
 
 
 def test_the_conformance_bodies_are_the_real_body_shape(fixture):

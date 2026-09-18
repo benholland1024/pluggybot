@@ -124,15 +124,16 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     "tasksThisMission": ["draw"][:min(i, 1)],
     "boards": {b: {"fill": 0.11 * i, "strokes": 6 * i, "programs": []}
                for b in menu.boards},
-    "journal": ["whiteboard_a was already full when I got there"][:i],
-    # The two thought files that ride the VOLATILE half (issue #38). Here
+    # The documents that ride the VOLATILE half (issues #38, #221). Here
     # rather than in the prefix on purpose, and carried by the probe because
     # they are real input tokens on every call -- a measurement that left
     # them out would under-report what a decision costs.
-    "thoughts": {"History.md": [f"[t={120 * i}s] carry: fetched and stowed "
-                                "module_lcd (+2 points)"][:i],
-                 "Knowledge_and_Opinions.md":
-                   "whiteboard_b is the one people look at" if i else ""},
+    "thoughts": {"History.md": [f"#{i} [t={120 * i}s] carry: fetched and "
+                                "stowed module_lcd (+2 points)"][:i],
+                 "Top_of_mind.md":
+                   "whiteboard_b is the one people look at" if i else "",
+                 "Notes.md": {"tasks/carry": ["what it pays"]} if i else {}},
+    "lastThoughts": ["the pack is fine; a job is on offer"] if i else [],
     "visitorSuggestions": [],
     # A claimable offer, so the probe exercises `take_task` -- the action the
     # acceptance run measured small models getting WRONG (the kind "draw" in
@@ -231,7 +232,6 @@ def main() -> None:
   parser.add_argument("--url", default=None, metavar="URL",
                       help="base URL for the local / openai-compatible "
                            f"backend (default {llm.LOCAL_URL})")
-  parser.add_argument("--goals", default=None, metavar="PATH")
   parser.add_argument("--thoughts", default=None, metavar="DIR",
                       help="the robot's thought files (issue #38). Point it "
                            "at a real directory to measure the prefix a "
@@ -272,9 +272,9 @@ def main() -> None:
   book = board_book(args.world)
   menu = Menu.for_world(args.world, book)
   # The REAL memory, so the prefix measured here is the prefix a deployment
-  # sends: `Main.md` and `Goals.md` are in it (issue #38), and the two
-  # writable files are deliberately not -- they ride the user turn below.
-  memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
+  # sends: `Main.md` is in it (issue #38), and the writable documents are
+  # deliberately not -- they ride the user turn below.
+  memory = ThoughtFiles.open(args.thoughts)
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   autonomous = args.arm == "autonomous"

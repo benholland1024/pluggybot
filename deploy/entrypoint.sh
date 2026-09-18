@@ -43,21 +43,15 @@ if [ -n "${PLUGGY_RESERVE_WH:-}" ]; then
   set -- --reserve-wh "${PLUGGY_RESERVE_WH}" "$@"
 fi
 
-# The robot's MEMORY (issue #38), and deliberately NOT behind the overseer
-# flag: History.md is written on every world, the documents stream on every
-# world, and the site's Thoughts tab is what a visitor opens first. ONE of
-# the four files is a human's to edit on the volume -- Main.md, the
-# constitution (issue #154) -- and the sim refuses a write to any file by
-# anyone but its owner.
-# ⚠ $PLUGGY_GOALS still names Goals.md, but since #154 that file is the
-# ROBOT's: an existing volume's hand-edited goals.md will be read as goals
-# the robot set itself. Moving that prose into Main.md is a one-off a person
-# does on the volume.
+# The robot's MEMORY (issues #38, #221), and deliberately NOT behind the
+# overseer flag: History is written on every world, the documents stream on
+# every world, and the site's Thoughts tab is what a visitor opens first.
+# ONE document is a human's to edit on the volume -- Main.md, the
+# constitution (issue #154) -- and the sim refuses a write to any document
+# by anyone but its owner. A pre-#221 volume's other files are put aside
+# on the first start and never read.
 if [ -n "${PLUGGY_THOUGHTS:-}" ]; then
   set -- --thoughts "${PLUGGY_THOUGHTS}" "$@"
-fi
-if [ -n "${PLUGGY_GOALS:-}" ]; then
-  set -- --goals "${PLUGGY_GOALS}" "$@"
 fi
 
 # POINTS AS FOOD (issue #36) is environment too, and read straight from it by
@@ -109,14 +103,9 @@ fi
 if [ -n "${PLUGGY_RUNG:-}" ]; then
   set -- --rung "${PLUGGY_RUNG}" "$@"
 fi
-# ⚠ THE JOURNAL AND THE CALL BUDGET ARE NOT UNDER $PLUGGY_OVERSEER (#142).
-# They used to be, and an $PLUGGY_ARM that turned a mind on without it would
-# have silently lost the journal. Both are inert without an overseer --
-# `overseer.build` returns (None, None) and neither path is read -- so the
-# safe shape is to pass them whenever they are set.
-if [ -n "${PLUGGY_JOURNAL:-}" ]; then
-  set -- --journal "${PLUGGY_JOURNAL}" "$@"
-fi
+# ⚠ THE CALL BUDGET IS NOT UNDER $PLUGGY_OVERSEER (#142): an $PLUGGY_ARM
+# that turns a mind on without it must not silently lose it. Inert without
+# an overseer, so the safe shape is to pass it whenever it is set.
 if [ -n "${PLUGGY_OVERSEER_BUDGET:-}" ]; then
   set -- --overseer-budget "${PLUGGY_OVERSEER_BUDGET}" "$@"
 fi

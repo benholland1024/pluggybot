@@ -136,12 +136,12 @@ book = board_book("home", state=None)
 # in the stroke library and the drawing stack behind it. Enabled explicitly
 # rather than off $PLUGGY_OVERSEER, so this exercises the path the deploy
 # runs and not the one it happens to be configured for today.
-boss, journal = ov.build("home", book, enabled=True)
+boss = ov.build("home", book, enabled=True)
 assert boss.client is not None, boss.usage.errors
 life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                     low_battery_wh=cfg["low_battery_wh"], world="home",
-                    overseer=boss, journal=journal,
+                    overseer=boss,
                     errands=errands_for("draw", "home", book), boards=book)
 activities = cfg["activities"](model, data)
 life.mission.step_hooks.append(activities.step_hook(model, data))
@@ -225,21 +225,17 @@ def test_the_image_can_be_told_which_arm_to_fly(tmp_path):
   assert "--arm" not in bare and "--rung" not in bare
 
 
-def test_the_journal_is_not_trapped_behind_the_overseer_flag(tmp_path):
-  """⚠ The trap issue #142 walked into. `--journal` and `--overseer-budget`
-  used to be set only inside the `$PLUGGY_OVERSEER` branch -- so a
-  `$PLUGGY_ARM` that turned a mind on WITHOUT that variable would have
-  silently lost the robot's journal, on a volume where it is world state.
-
-  Both are inert without an overseer (`overseer.build` returns `(None,
-  None)` and neither path is read), so the safe shape is to pass them
-  whenever they are set."""
+def test_the_call_budget_is_not_trapped_behind_the_overseer_flag(tmp_path):
+  """⚠ The trap issue #142 walked into. `--overseer-budget` (and, until
+  #221, `--journal`) used to be set only inside the `$PLUGGY_OVERSEER`
+  branch -- so a `$PLUGGY_ARM` that turned a mind on WITHOUT that variable
+  would have silently lost it. Inert without an overseer, so the safe
+  shape is to pass it whenever it is set."""
   argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="guarded",
-                          PLUGGY_JOURNAL="/var/lib/pluggybot/journal.json",
                           PLUGGY_OVERSEER_BUDGET="30")
   assert "--overseer" not in argv, "the arm is what asked for a mind here"
-  assert argv[argv.index("--journal") + 1] == "/var/lib/pluggybot/journal.json"
   assert argv[argv.index("--overseer-budget") + 1] == "30"
+  assert "--journal" not in argv and "--goals" not in argv
 
 
 # ---- the build's identity (issue #132) ----------------------------------------

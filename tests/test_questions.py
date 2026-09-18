@@ -604,7 +604,6 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   """
   import mujoco
   from pluggybot.economy import energy
-  from pluggybot.mind.journal import Journal
   from pluggybot.mission.mission import MissionAborted
   from pluggybot.mind.overseer import Overseer
 
@@ -620,7 +619,7 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
     model, data, realtime=False, world="home", battery_wh=cfg["battery_wh"],
     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
     low_battery_wh=cfg["low_battery_wh"], boards=book, ledger=ledger,
-    tasks=tasks, overseer=boss, journal=Journal(), errand=False)
+    tasks=tasks, overseer=boss, errand=False)
   # Two DIFFERENT questions, on the same board, both standing until taken.
   board_name = next(iter(book.names))
   asked = [tasks.offer("whiteboard_answer", board_name,

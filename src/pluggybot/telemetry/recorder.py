@@ -194,11 +194,11 @@ class FrameBuilder:
     self.goals = goals
     self.steering = bool(steering)
     # The robot's memory documents (0.11.0, issue #38). The goals message's
-    # shape and its reason -- prose that never rides a frame -- but FOUR
-    # documents, each saying who may write it, and unlike goals two of them
+    # shape and its reason -- prose that never rides a frame -- but SIX
+    # documents, each saying who may write it, and all but the constitution
     # CHANGE during a run. Those reach a sink through `ThoughtFiles.on_event`
-    # (wired into `message` / `emit`, exactly like a journal note); this
-    # reference is only what opens a stream with all four.
+    # (wired into `message` / `emit`, as a `think` is); this reference is
+    # only what opens a stream with all of them.
     self.thoughts = thoughts
     # What the thinking has COST this week (0.12.0, issue #37). A fifth duck
     # of the `snapshot()` shape -- but shipped WHOLE on change like `tasks`

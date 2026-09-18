@@ -425,7 +425,7 @@ def test_only_measured_costs_are_shown_to_the_model():
   the rest of this design keeps out of the prompt."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
   assert set(menu.costs_wh) <= set(en.load("home").errand_wh)
-  for free in ("idle", "journal", "explore", "charge", "take_task"):
+  for free in ("idle", "explore", "charge", "take_task"):
     assert free not in menu.costs_wh
 
 
@@ -470,7 +470,7 @@ def test_the_context_carries_what_the_pack_can_actually_spend():
   allowed to spend."""
   life = life_with(battery_wh=HOSTING_WH)
   life.battery.energy_wh = 3.0
-  state = ov.context_for(life, None, affordable=["carry"],
+  state = ov.context_for(life, affordable=["carry"],
                          possible=["carry", "census"])
   assert state["battery"]["wh"] == pytest.approx(3.0)
   assert state["battery"]["spendableWh"] == pytest.approx(3.0 - HOME_RESERVE)

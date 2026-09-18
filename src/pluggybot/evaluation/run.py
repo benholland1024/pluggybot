@@ -81,7 +81,6 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
       ledger_state=str(state / "ledger.json"),
       board_state=str(state / "boards.json"),
       tasks_state=str(state / "tasks.json"),
-      journal_state=str(state / "journal.json"),
       spend_state=str(state / "spend.json"),
       record=config.get("telemetry") or None,
       # ⚠ MORTAL, and the harness is the one caller that must be: deaths

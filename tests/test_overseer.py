@@ -22,7 +22,6 @@ import mujoco
 import pytest
 
 from pluggybot.mind import overseer as ov
-from pluggybot.mind.journal import MAX_NOTE_CHARS, Journal, read_goals
 from pluggybot.lifecycle import (
   HubLifecycle, board_book, errand_from, world_config, zone_centre,
 )
@@ -89,8 +88,8 @@ DECISIONS = 40
 
 def full(**kw) -> dict:
   """A schema-complete answer; the server guarantees these fields."""
-  return {"action": "idle", "reason": "because", "board": "", "program": "",
-          "zone": "", "note": "", **kw}
+  return {"think": "", "action": "idle", "reason": "because", "board": "",
+          "program": "", "zone": "", **kw}
 
 
 @pytest.fixture(scope="module")
@@ -293,10 +292,10 @@ def test_a_recovered_endpoint_is_used_again(menu):
 
 
 def test_it_cannot_idle_its_life_away(menu):
-  """`idle` and `journal` cost nothing and do nothing. Two in a row is a
-  pause; a third would be a robot narrating a life it is not living, so the
+  """`idle` costs nothing and does nothing. Two in a row is a pause; a
+  third would be a robot narrating a life it is not living, so the
   scripted policy takes the turn."""
-  boss = make(menu, full(action="journal", note="thinking about it"))
+  boss = make(menu, full(action="idle", think="thinking about it"))
   sources = [boss.decide({"decisions": i, "tasksThisMission": []}).source
              for i in range(ov.MAX_IDLE_RUN + 1)]
   assert sources[:ov.MAX_IDLE_RUN] == ["llm"] * ov.MAX_IDLE_RUN
@@ -318,7 +317,7 @@ def test_the_stable_prefix_is_byte_identical_across_calls(menu):
   assert a.system[0]["cache_control"] == {"type": "ephemeral"}
   text = a.system[0]["text"]
   # Quoted JSON keys, not bare words: the RULES prose talks ABOUT the battery
-  # and the journal, which is stable text and entirely fine. What must never
+  # and the memory, which is stable text and entirely fine. What must never
   # appear is a key from the volatile turn, or today's date.
   for key in ('"simTimeS"', '"reserveWh"', '"recentTasks"',
               '"tasksThisMission"', '"visitorSuggestions"', '"thoughts"'):
@@ -331,7 +330,7 @@ def test_the_stable_prefix_is_byte_identical_across_calls(menu):
   # all four, which is stable text and exactly right, the same distinction
   # the comment above draws. tests/test_thoughts.py holds the rest.
   boss = Overseer(menu, client=FakeClient())
-  boss.thoughts.learn("this is a thing I worked out", t=1.0)
+  boss.thoughts.pin("this is a thing I worked out", t=1.0)
   boss.thoughts.remember("this is a thing that happened", t=2.0)
   assert boss.system[0]["text"] == text, "a self-edit moved the cached prefix"
   assert "this is a thing I worked out" not in text
@@ -358,7 +357,7 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   life.verdicts.append({"task": "census", "ok": False, "points": 0,
                         "reason": "reported 3 in garden (wrong)",
                         "metrics": {"counted": 3, "coverage": 0.4}})
-  state = ov.context_for(life, Journal())
+  state = ov.context_for(life)
   assert state["points"] == 0
   assert state["battery"]["fraction"] == pytest.approx(1.0, abs=0.01)
   assert state["tasksThisMission"] == ["census"]
@@ -404,7 +403,7 @@ def test_every_task_action_builds_a_real_errand(book, action, module):
   assert e.task == action
 
 
-@pytest.mark.parametrize("action", ["idle", "journal", "explore", "charge"])
+@pytest.mark.parametrize("action", ["idle", "explore", "charge"])
 def test_the_non_errand_actions_build_no_errand(book, action):
   assert errand_from(Decision(action=action), "home", book) is None
 
@@ -430,36 +429,25 @@ def test_a_zone_resolves_to_somewhere_inside_it():
 # ---- memory ------------------------------------------------------------------
 
 
-def test_the_journal_persists_and_is_bounded(tmp_path):
-  path = tmp_path / "journal.json"
-  j = Journal(path)
-  for i in range(5):
-    j.note(f"note {i}", t=float(i))
-  assert j.note("") is None, "an empty note is cost with no content"
-  assert len(Journal(path)) == 5
-  assert [n["text"] for n in Journal(path).recent(2)] == ["note 3", "note 4"]
-  long = Journal(path).note("x" * (MAX_NOTE_CHARS * 3))
-  assert len(long["text"]) == MAX_NOTE_CHARS
-
-
-def test_the_journal_streams_every_note_as_it_happens(tmp_path):
-  """The acceptance criterion "journal entries stream and appear on the
-  site". The site runs on a different box and cannot read this file."""
+def test_a_think_persists_and_is_bounded_and_streams(tmp_path):
+  """What the model wrote to itself (issue #221): kept in the store across
+  a reopen, the last two shown back, the empty one cost with no content,
+  and every one on the wire as the `journal` message the site renders."""
+  from pluggybot.mind.thoughts import ThoughtFiles
+  files = ThoughtFiles(tmp_path)
   seen = []
-  j = Journal(tmp_path / "j.json")
-  j.on_event.append(seen.append)
-  j.note("the pen was low on the bracket again", t=12.5)
-  assert len(seen) == 1 and seen[0]["t"] == 12.5
-
-
-def test_goals_are_read_and_never_written(tmp_path):
-  path = tmp_path / "goals.md"
-  assert read_goals(None) == read_goals(path)      # missing -> the defaults
-  path.write_text("Draw a robot on every wall.\n")
-  assert read_goals(path).strip() == "Draw a robot on every wall."
-  Overseer(Menu(boards=("a",), programs=("house",)), goals=read_goals(path),
-           client=FakeClient()).decide({})
-  assert path.read_text() == "Draw a robot on every wall.\n"
+  files.on_event.append(seen.append)
+  for i in range(5):
+    files.think(f"thought {i}", t=float(i), why=f"idle: {i}")
+  assert files.think("") == "", "an empty think is cost with no content"
+  assert len(seen) == 5 and seen[0]["type"] == "journal"
+  assert seen[-1]["text"] == "thought 4" and seen[-1]["why"] == "idle: 4"
+  again = ThoughtFiles(tmp_path)
+  assert again.last_thoughts(ov.THOUGHTS_SHOWN) == ["thought 3", "thought 4"]
+  assert ov.THOUGHTS_SHOWN == 2
+  # The cap is `validate`'s (the schema cannot say "a paragraph").
+  raw = full(action="idle", think="x" * (ov.THINK_CHARS * 3))
+  assert len(Menu(boards=(), programs=()).validate(raw).think) == ov.THINK_CHARS
 
 
 # ---- cost accounting ---------------------------------------------------------
@@ -496,9 +484,9 @@ def test_effort_is_never_sent(menu):
 
 def test_the_overseer_is_off_unless_asked_for(monkeypatch, book):
   monkeypatch.delenv(ov.ENABLE_ENV, raising=False)
-  assert ov.build("home", book) == (None, None)
-  boss, journal = ov.build("home", book, enabled=True, client=FakeClient())
-  assert boss is not None and journal is not None
+  assert ov.build("home", book) is None
+  boss = ov.build("home", book, enabled=True, client=FakeClient())
+  assert boss is not None
 
 
 # ---- the mission ------------------------------------------------------------
@@ -518,7 +506,7 @@ def test_the_arbitration_loop_is_untouched_without_an_overseer():
   """Every existing demo, mission test and recording must behave exactly as
   it did. The overseer being opt-in is what makes that true."""
   life = _lifecycle("room_hub")
-  assert life.overseer is None and life.journal is None
+  assert life.overseer is None
   assert life.decisions == []
   assert "overseer" in life.__dict__
 
@@ -539,7 +527,7 @@ def test_charge_priority_survives_an_overseer_that_never_charges():
   boss = Overseer(Menu.for_world("room_hub", None),
                   client=FakeClient(full(action="idle",
                                          reason="I would rather not")))
-  life = _lifecycle("room_hub", overseer=boss, journal=Journal(), errand=False)
+  life = _lifecycle("room_hub", overseer=boss, errand=False)
   # Below the reserve at t=0. The cheapest state that puts the two branches in
   # direct conflict: the robot needs to charge AND is being told not to bother.
   life.battery.energy_wh = life.low_battery_wh * 0.6
@@ -598,16 +586,16 @@ def test_a_chosen_drawing_becomes_an_errand_for_that_exact_board(book):
   assert b_errand.use_at != a.use_at, "both figures drove to the same board"
 
 
-def test_a_note_reaches_the_journal_and_the_narration():
-  """A decision's note is written once, streamed once, and readable next
-  time -- the loop that makes the journal memory rather than a log."""
+def test_a_think_reaches_the_store_the_wire_and_the_narration():
+  """A decision's think is written once, streamed once (as the `journal`
+  message), and readable next time -- the loop that makes it memory rather
+  than a log (issue #221)."""
   boss = Overseer(Menu.for_world("room_hub", None),
                   client=FakeClient(full(action="carry", reason="tidying up",
-                                         note="bay A sticks a little")))
-  journal = Journal()
+                                         think="bay A sticks a little")))
+  life = _lifecycle("room_hub", overseer=boss, errand=False)
   streamed: list[dict] = []
-  journal.on_event.append(streamed.append)
-  life = _lifecycle("room_hub", overseer=boss, journal=journal, errand=False)
+  life.thoughts.on_event.append(streamed.append)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life.mission.start_at(*world_config("room_hub")["start"])
@@ -616,9 +604,10 @@ def test_a_note_reaches_the_journal_and_the_narration():
   finally:
     life.mission.close()
 
-  assert [n["text"] for n in journal.recent()] == ["bay A sticks a little"]
-  assert len(streamed) == 1
-  assert any(line.startswith("JOURNAL bay A sticks") for line in said)
+  assert life.thoughts.last_thoughts(2) == ["bay A sticks a little"]
+  journal = [m for m in streamed if m["type"] == "journal"]
+  assert len(journal) == 1 and journal[0]["why"].startswith("carry")
+  assert any(line.startswith("THINK bay A sticks") for line in said)
   assert any("DECIDE carry: tidying up" in line for line in said)
   # The decision produced a real errand, queued for the loop rather than run
   # inline -- so if it dropped the battery, the next pass charges first.

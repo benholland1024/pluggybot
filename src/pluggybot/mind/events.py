@@ -71,8 +71,8 @@ if TYPE_CHECKING:                                  # pragma: no cover
 #: place this build contradicts it. The issue says today's hard-coded "ask
 #: what to do next" IS `task_complete -> ask`. It is not, measurably: the
 #: arbitration loop reaches its decision branch at MISSION START (before
-#: anything has completed) and again after every `idle`, `journal` and
-#: `explore` -- so a seeded map carrying only `task_complete -> ask` goes
+#: anything has completed) and again after every `idle` and `explore` --
+#: so a seeded map carrying only `task_complete -> ask` goes
 #: unminded on its first tick and again after every idle turn, which is not
 #: what the pre-change mission does. `nothing_to_do` is that moment named:
 #: "the loop has nothing queued and nothing to run". `task_complete` stays
@@ -378,7 +378,7 @@ def matches_kind(row: "Row", kind: str) -> bool:
 
       decision_failed (timeout) -> charge     the specific case it fears
       decision_failed (failure) -> idle       anything else going wrong
-      decision_failed           -> journal    and the policy ones
+      decision_failed           -> explore    and the policy ones
 
   and first-match-wins makes the ordering mean exactly what it reads like.
   """
@@ -487,7 +487,7 @@ def parse(raw, menu: "Menu") -> EventMap | None:
   than a rule. A whole-map replacement is the only shape a small model can
   reliably emit for an ORDERED list -- addressing rows by index invites an
   edit that fires everything below an insertion -- and `""`/`[]` is how every
-  other optional field on a decision (`learn`, `forget`, `standing_order`)
+  other optional field on a decision (`pin`, `unpin`, `standing_order`)
   says "not this time". The cost is that a map cannot be emptied once
   written, only replaced; an agent that wants nothing to happen writes one
   row that does nothing, and `unseeded` is how an EMPTY map is reached at

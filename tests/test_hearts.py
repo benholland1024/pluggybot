@@ -28,7 +28,7 @@ from pluggybot.economy.metabolism import Appetite, Metabolism
 from pluggybot.economy.scoring import evaluate
 from pluggybot.lifecycle import HubLifecycle, world_config
 from pluggybot.mind import overseer as ov
-from pluggybot.mind.thoughts import HISTORY, KNOWLEDGE, MAIN, GOALS, ThoughtFiles
+from pluggybot.mind.thoughts import HISTORY, TOP_OF_MIND, MAIN, GOALS, ThoughtFiles
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 
@@ -188,7 +188,7 @@ def test_running_out_archives_the_volume_and_starts_a_new_robot(tmp_path):
   with having died. This is the one that does not."""
   life = _life(points_per_hour=0.0, balance=120, tmp_path=tmp_path)
   seen = _events(life)
-  life.thoughts.learn("whiteboard_b is not worth the trip")
+  life.thoughts.pin("whiteboard_b is not worth the trip")
   life.thoughts.intend("get both boards inked before the week is out")
   life.ledger.robots["pluggybot"]["hearts"] = 1
   life.battery.energy_wh = 0.0
@@ -200,11 +200,11 @@ def test_running_out_archives_the_volume_and_starts_a_new_robot(tmp_path):
   assert len(life.true_deaths) == 1
   assert [e["type"] for e in seen].count("true_death") == 1
   # What the ROBOT and the SYSTEM wrote is gone...
-  assert life.thoughts.read(KNOWLEDGE).strip() == ""
-  assert "whiteboard_b" not in life.thoughts.read(KNOWLEDGE)
+  assert life.thoughts.read(TOP_OF_MIND).strip() == ""
+  assert "whiteboard_b" not in life.thoughts.read(TOP_OF_MIND)
   # ...but kept on the volume, because a stake nobody can audit afterwards
   # is not a stake.
-  assert (tmp_path / "thoughts" / "Knowledge_and_Opinions.1.md").exists()
+  assert (tmp_path / "thoughts" / "Top_of_mind.1.md").exists()
   # ⚠ THE CONSTITUTION SURVIVES AND THE GOALS DO NOT (issue #154). `Main.md`
   # is a person's and there is no write API for it, so a world that wiped it
   # would need somebody to type it back in. `Goals.md` is the ROBOT's, and
@@ -311,7 +311,7 @@ def test_every_refusal_is_out_loud(tmp_path, hearts, balance, complaint):
 
 
 def test_buying_costs_no_turn(tmp_path):
-  """A FIELD, not an action, on `learn`'s terms: buying a heart is
+  """A FIELD, not an action, on `pin`'s terms: buying a heart is
   paperwork, not something the body does, and the cost is meant to be the
   points rather than the hour."""
   assert "buy_heart" not in ov.ACTIONS

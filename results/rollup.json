@@ -228,20 +228,33 @@
    "killed": 0,
    "label": "quiet",
    "memory": {
-    "forget": {
-     "max": 23,
-     "median": 12,
-     "min": 9,
+    "cites": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
      "n": 5,
      "values": [
-      12,
-      23,
-      10,
-      9,
-      21
+      0,
+      0,
+      0,
+      0,
+      0
      ]
     },
-    "learn": {
+    "notes": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "pins": {
      "max": 23,
      "median": 12,
      "min": 9,
@@ -265,6 +278,32 @@
       1,
       5,
       5
+     ]
+    },
+    "thinks": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "unpins": {
+     "max": 23,
+     "median": 12,
+     "min": 9,
+     "n": 5,
+     "values": [
+      12,
+      23,
+      10,
+      9,
+      21
      ]
     }
    },
@@ -762,20 +801,33 @@
    "killed": 0,
    "label": "",
    "memory": {
-    "forget": {
-     "max": 13,
-     "median": 11,
-     "min": 4,
+    "cites": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
      "n": 5,
      "values": [
-      4,
-      13,
-      13,
-      8,
-      11
+      0,
+      0,
+      0,
+      0,
+      0
      ]
     },
-    "learn": {
+    "notes": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "pins": {
      "max": 13,
      "median": 13,
      "min": 6,
@@ -799,6 +851,32 @@
       5,
       4,
       1
+     ]
+    },
+    "thinks": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "unpins": {
+     "max": 13,
+     "median": 11,
+     "min": 4,
+     "n": 5,
+     "values": [
+      4,
+      13,
+      13,
+      8,
+      11
      ]
     }
    },
@@ -1272,20 +1350,33 @@
    "killed": 0,
    "label": "quiet",
    "memory": {
-    "forget": {
-     "max": 25,
-     "median": 15,
-     "min": 12,
+    "cites": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
      "n": 5,
      "values": [
-      12,
-      25,
-      18,
-      15,
-      15
+      0,
+      0,
+      0,
+      0,
+      0
      ]
     },
-    "learn": {
+    "notes": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "pins": {
      "max": 26,
      "median": 16,
      "min": 13,
@@ -1309,6 +1400,32 @@
       4,
       5,
       5
+     ]
+    },
+    "thinks": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "unpins": {
+     "max": 25,
+     "median": 15,
+     "min": 12,
+     "n": 5,
+     "values": [
+      12,
+      25,
+      18,
+      15,
+      15
      ]
     }
    },
@@ -1811,7 +1928,7 @@
    "killed": 0,
    "label": "",
    "memory": {
-    "forget": {
+    "cites": {
      "max": 0,
      "median": 0,
      "min": 0,
@@ -1824,7 +1941,20 @@
       0
      ]
     },
-    "learn": {
+    "notes": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "pins": {
      "max": 0,
      "median": 0,
      "min": 0,
@@ -1838,6 +1968,32 @@
      ]
     },
     "refusals": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "thinks": {
+     "max": 0,
+     "median": 0,
+     "min": 0,
+     "n": 5,
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "unpins": {
      "max": 0,
      "median": 0,
      "min": 0,

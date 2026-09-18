@@ -130,17 +130,12 @@ def main() -> None:
                       help="the OPERATOR's control file ($PLUGGY_MODE_FILE): "
                            "llm, scripted (free mode) or paused. Polled, "
                            "never written")
-  parser.add_argument("--goals", default=None, metavar="PATH",
-                      help="the overseer's long-term goals, as prose "
-                           "(human-editable; $PLUGGY_GOALS)")
-  parser.add_argument("--journal", default=None, metavar="PATH",
-                      help="JSON file the overseer's notes-to-self live in "
-                           "between runs ($PLUGGY_JOURNAL)")
   parser.add_argument("--thoughts", default=None, metavar="DIR",
-                      help="directory the robot's THOUGHT FILES live in "
-                           "(issue #38; $PLUGGY_THOUGHTS). Without one they "
-                           "start from their defaults every run and nothing "
-                           "is written to disk")
+                      help="directory the robot's MEMORY lives in (issues "
+                           "#38, #221; $PLUGGY_THOUGHTS): the record store "
+                           "and the documents rendered from it. Without one "
+                           "it starts empty every run and nothing is written "
+                           "to disk")
   args = parser.parse_args()
 
   r = run_demo(view=args.view,
@@ -149,8 +144,7 @@ def main() -> None:
                world=args.world, errand=args.errand,
                board_state=args.boards, program=args.program,
                program_task=args.program_task, ledger_state=args.ledger,
-               overseer=args.overseer or None, goals=args.goals,
-               journal_state=args.journal, thoughts_root=args.thoughts,
+               overseer=args.overseer or None, thoughts_root=args.thoughts,
                tasks=args.tasks, tasks_state=args.task_state,
                metabolism=args.metabolism, near_field=args.near_field,
                pack=args.pack, reserve_wh=args.reserve_wh,
@@ -200,9 +194,9 @@ def main() -> None:
   # is on every line because "the robot chose to explore" and "the API was
   # down so the robot explored" look identical from outside.
   for d in r.get("decisions", ()):
+    if d.get("think"):
+      print(f"think  {d['think']}")
     print(f"decide {d['action']:<16s}: {d['reason']} [{d['source']}]")
-  for n in r.get("journal", ()):
-    print(f"journal t={n['t']:<12.1f}: {n['text']}")
   if r.get("overseer"):
     o = r["overseer"]
     per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
