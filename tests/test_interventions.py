@@ -70,7 +70,7 @@ def test_the_two_kinds_are_admin_kinds_code_handles_and_the_wire_bumped():
   #  because it is the one that is SOMETIMES not an intervention -- see the
   #  vocabulary's own note. Counting interventions must be one query.
   assert INTERVENTION_KINDS == ("reset_robot", "set_battery", "set_points")
-  assert PROTOCOL_VERSION == "0.20.0", \
+  assert PROTOCOL_VERSION == "0.21.0", \
     "new inbound kinds and a new event type are a two-repo event"
 
 
@@ -257,8 +257,8 @@ def test_neither_kind_reaches_the_overseer():
   box.offer({"type": "message", "id": "m_1", "from": "ada", "text": "hello"})
   from pluggybot.mind import overseer as ov
 
-  boss, journal = ov.build("room_hub", enabled=True)
-  life = _life(inbox=box, overseer=boss, journal=journal)
+  boss = ov.build("room_hub", enabled=True)
+  life = _life(inbox=box, overseer=boss)
   life._visitor_step()
   assert [m.kind for m in box.peek()] == ["message"]
   assert set(box.peek()[0].as_context()) == {"id", "from", "text"}

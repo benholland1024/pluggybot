@@ -60,10 +60,9 @@ instrument is fixed, the model is the variable).
   capped, so the free time exists; what the robot does with it is its own,
   and the encouragement comes from what it is told about itself (its
   constitution and its rules), never from the reward table.
-- **Who owns what.** A human writes the constitution (`Main.md`, and for now
-  the starting goals in `Goals.md`); the robot's goals are its own — today
-  they live in `Knowledge_and_Opinions.md`, and a robot-owned goals file is
-  the next step (#154).
+- **Who owns what.** A human writes the constitution (`Main.md`); the
+  robot's goals are its own, in `Goals.md`, a document nobody else writes
+  (#154), beside the rest of the memory #221 gave it (Overseer.md §7).
 
 **What is not the point any more.** A sellable hobby robot, task throughput,
 maximising points, or being entertaining to watch. Those framings shaped

@@ -35,7 +35,7 @@ import pytest
 
 from pluggybot.mind import inbox, overseer as ov, store, text, thoughts
 from pluggybot.mind.overseer import Menu, Overseer
-from pluggybot.mind.thoughts import FINDINGS, GOALS, HISTORY, KNOWLEDGE, MAIN, ThoughtFiles
+from pluggybot.mind.thoughts import FINDINGS, GOALS, HISTORY, MAIN, NOTES, TOP_OF_MIND, ThoughtFiles
 from pluggybot.procedure import library as procedures
 from pluggybot.telemetry.protocol import THOUGHT_FILES, THOUGHT_VERBS, THOUGHT_WRITERS
 from pluggybot.workshop import library as workshop
@@ -104,8 +104,8 @@ def test_every_text_surface_is_a_registry_row():
   assert ov.MAX_TELL == text.BY_NAME["peer"].cap
   # ...and the verbs on the `.md` files are the wire's, plus the refusal.
   assert set(THOUGHT_VERBS) == {v for s in text.FILES for v in s.verbs} | {"refused"}
-  assert text.line_verbs() == ("drop_goal", "intend", "forget", "learn",
-                               "retract", "record")
+  assert text.line_verbs() == ("drop_goal", "intend", "unpin", "pin",
+                               "retract", "record", "unnote", "note")
 
 
 def test_the_two_shapes_stay_two():
@@ -217,10 +217,10 @@ def test_the_thought_files_and_both_libraries_live_on_the_store(tmp_path):
   knows (`<Name>.md`, `<name>.procedure`, `<name>.tool.json`)."""
   root = tmp_path / "thoughts"
   files = ThoughtFiles(root)
-  files.learn("bay C sticks", t=1.0)
+  files.pin("bay C sticks", t=1.0)
   assert isinstance(files.store, store.FileStore)
-  assert (root / KNOWLEDGE).read_text() == "bay C sticks\n"
-  assert ThoughtFiles(root).read(KNOWLEDGE) == "bay C sticks"
+  assert (root / TOP_OF_MIND).read_text() == "bay C sticks\n"
+  assert ThoughtFiles(root).read(TOP_OF_MIND) == "bay C sticks"
   lib = procedures.Library(None, root=root / "procedures")
   lib.define("look_around", "def look_around():\n  look()\n")
   assert (root / "procedures" / "look_around.procedure").exists()
@@ -241,10 +241,11 @@ def test_the_science_record_is_code_checkable():
   assert line == "mass of the unknown block = 0.42 kg -- lift current under load"
   assert files.findings() == [{"quantity": "mass of the unknown block",
                                "value": 0.42, "unit": "kg",
-                               "method": "lift current under load"}]
+                               "method": "lift current under load",
+                               "topic": "findings/general"}]
   assert files.record({"quantity": "count", "value": "7"}) == "count = 7"
   assert files.findings()[-1] == {"quantity": "count", "value": 7.0, "unit": "",
-                                  "method": ""}
+                                  "method": "", "topic": "findings/general"}
   for bad in ({"quantity": "mass", "value": "about a kilo"},
               {"quantity": "", "value": 1}, "the block is heavy",
               {"quantity": "x", "value": float("nan")}):
@@ -284,7 +285,7 @@ def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
   files = ThoughtFiles()
   assert FINDINGS not in files.volatile(menu)
   assert FINDINGS in files.volatile(ov.replace(menu, procedures=True))
-  assert set(files.volatile(menu)) == {GOALS, HISTORY, KNOWLEDGE}
+  assert set(files.volatile(menu)) == {GOALS, HISTORY, TOP_OF_MIND, NOTES}
   # A guarded parse DROPS the fields; the decision stands.
   boss = Overseer(menu, client=FakeClient(
     full(action="idle", record={"quantity": "q", "value": 1, "unit": "", "method": ""},
@@ -295,12 +296,12 @@ def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
   # ...and the rule's example shows no answer (EVENT_MAP_RULE's rule).
   for word in ("charge", "battery", "rack", "%"):
     assert word not in ov.FINDINGS_RULE.lower(), word
-  # The prefix: the rule and the corrected file count ride the autonomous
-  # text only, through the same asserted swap the arm's other lies use.
+  # The prefix: the rule rides the autonomous text only (since #221 the
+  # memory section itself is shared -- the tiers are on every arm).
   from pluggybot.economy.scoring import default_table
   def prefix(**kw):
     return ov.system_prompt(files, menu, default_table(), **kw)[0]["text"]
-  assert "five files" in ov.RULES_AUTONOMOUS and "four files" in ov.RULES
+  assert "Top_of_mind.md" in ov.RULES and "Notes.md" in ov.RULES
   assert ov.FINDINGS_RULE in prefix(autonomous=True, procedures=True)
   assert ov.FINDINGS_RULE not in prefix() and "Findings.md" not in prefix()
 
@@ -308,7 +309,7 @@ def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
 def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   """`_reconsider` iterates the registry's verbs: a `record` and a
   `retract` land in `Findings.md` and are narrated `THOUGHT <verb>: <line>`,
-  through the same loop as `learn` -- no branch was added for them."""
+  through the same loop as `pin` -- no branch was added for them."""
   from test_overseer import _lifecycle
   files = ThoughtFiles(tmp_path / "thoughts")
   life = _lifecycle("room_hub", thoughts=files, errand=False)
@@ -316,7 +317,8 @@ def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   life.say_hooks.append(lambda t, line: said.append(line))
   life._reconsider(ov.Decision(action="idle",
                                record={"quantity": "q", "value": 2.5, "unit": "m"}))
-  assert files.findings() == [{"quantity": "q", "value": 2.5, "unit": "m", "method": ""}]
+  assert files.findings() == [{"quantity": "q", "value": 2.5, "unit": "m", "method": "",
+                               "topic": "findings/general"}]
   life._reconsider(ov.Decision(action="idle", retract="q = 2.5"))
   life._reconsider(ov.Decision(action="idle", record={"quantity": "q", "value": "no"}))
   verbs = [re.match(r"THOUGHT ([a-z_]+):", ln).group(1) for ln in said if ln.startswith("THOUGHT")]
@@ -325,4 +327,4 @@ def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   # the loop reads the registry, not a list of its own
   src = (SRC / "lifecycle.py").read_text()
   body = src[src.index("def _reconsider"):src.index("def _peer")]
-  assert "line_verbs()" in body and '"learn"' not in body
+  assert "line_verbs()" in body and '"pin"' not in body

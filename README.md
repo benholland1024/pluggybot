@@ -1,5 +1,112 @@
 # pluggybot
 
+A simulated, hardware-honest robot and the autonomous agent that lives in it.
+What the project is for, and the five qualities the agent is meant to
+maximise, are in [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind
+sits in the loop is [`docs/Overseer.md`](docs/Overseer.md).
+
+## The robot's day, as states
+
+`HubLifecycle.run()` is one priority loop (Overseer.md §1): each pass asks the
+questions below in order, and the first that answers moves the robot. The
+state names are the code's (`lifecycle.State`); `tests/test_readme.py` reads
+this diagram and fails when they, the death causes, the event types or the
+memory verbs drift from it.
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> DECIDE : wake
+
+    DECIDE --> GO_CHARGE : battery below the reserve (the floor)<br/>next errand will not fit (the gate)<br/>chose charge · a map row said charge
+    GO_CHARGE --> CHARGE : both pins conduct
+    CHARGE --> DECIDE : charged
+    GO_CHARGE --> DEAD : stranded
+
+    DECIDE --> SWAP_PICK : an errand is queued<br/>(ordered · chosen · a task claimed ·<br/>a procedure it wrote)
+    SWAP_PICK --> USE_TOOL : module on the fork
+    USE_TOOL --> SWAP_RETURN : finished · or interrupted<br/>(battery_below · points_below)
+    SWAP_RETURN --> DECIDE : tool hung back in its bay
+
+    DECIDE --> RECALL : chose recall<br/>(read a key · find by text)
+    RECALL --> DECIDE : results ride the next turn<br/>at most 3 in a row
+
+    DECIDE --> EXPLORE : map unfinished · chose explore
+    EXPLORE --> DECIDE
+
+    DECIDE --> DECIDE : idle · journal ·<br/>building a tool (standing still) ·<br/>standing by for work ·<br/>no rule fired
+
+    DECIDE --> DEAD : flat · stuck · unpaid · unminded
+    SWAP_PICK --> DEAD : flat · stuck
+    USE_TOOL --> DEAD : flat · stuck
+    SWAP_RETURN --> DEAD : flat · stuck
+    EXPLORE --> DEAD : flat · stuck
+    DEAD --> DECIDE : reset by a person ·<br/>stood up by the timer (served)
+    DECIDE --> DONE : nothing to do, nothing coming
+    DONE --> [*]
+```
+
+`DECIDE` is where the mind is consulted — or, on `autonomous`, where the
+agent's own event map says whether to consult it (`EVENT_TYPES`:
+`nothing_to_do`, `task_complete`, `task_failed`, `decision_failed`,
+`battery_below`, `battery_above`, `points_below`, `message_received`,
+`every`). The floor and the gate are `guarded`'s rails and come off on
+`autonomous`; the interrupt out of `USE_TOOL` is a row of the agent's map,
+and abort means stow. A death (`DEATH_CAUSES`) can land in any moving state.
+On `autonomous` the agent also writes code and builds tools: a procedure it
+defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
+a tool it specified (issue #168) is built where it stands and hung in a bay.
+
+### What each state reads and writes (the memory, issue #221)
+
+Memory is four tiers over one record store (Overseer.md §7). The prefix is
+cached and byte-identical for a run; everything a writer can touch rides the
+user turn.
+
+```mermaid
+flowchart LR
+    subgraph prefix [cached prefix — human]
+        MAIN["Main.md<br/>the constitution"]
+    end
+    subgraph core [core — robot, always shown]
+        GOALS["Goals.md<br/>intend / drop_goal"]
+        TOP["Top_of_mind.md<br/>pin / unpin"]
+    end
+    subgraph notes [notes — robot, index shown, body by recall]
+        NOTES["topics/title<br/>note / unnote"]
+        FIND["findings/&lt;task&gt;<br/>record / retract"]
+    end
+    subgraph history [history — system and senders, tail shown, rest by recall]
+        HIST["decisions · thinks · verdicts ·<br/>deaths · interventions · messages"]
+    end
+    subgraph procedural [procedural — robot, sources shown, autonomous only]
+        PROCS["procedures/<br/>define / undefine"]
+        TOOLS["tools/<br/>build_tool / retire_tool"]
+    end
+
+    DECIDE((DECIDE)) -->|think first, then the action,<br/>then the paperwork verbs| core
+    DECIDE --> notes
+    DECIDE -->|writes code · specifies a tool| procedural
+    DECIDE -->|chose · think| HIST
+    RECALL((RECALL)) -->|read / find| notes
+    RECALL -->|read / find| HIST
+    RECALL -.->|recalled, next turn| DECIDE
+    USE["SWAP_PICK / USE_TOOL / SWAP_RETURN"] -->|verdict| HIST
+    procedural -->|a procedure runs as an errand ·<br/>a built tool hangs in a bay| USE
+    VISITOR([a visitor · the other robot]) -->|message| HIST
+    DEAD((DEAD)) -->|died · archived| HIST
+    prefix --> DECIDE
+    core --> DECIDE
+    notes -->|index| DECIDE
+    HIST -->|tail · lastThoughts| DECIDE
+```
+
+Retiring is the only forgetting: `unpin`, `unnote`, `retract` and `drop_goal`
+mark a record retired and `recall` can still find it. A true death archives
+everything the robot and the system wrote; the constitution survives.
+
+## Scripts
+
 Start one of the various scripts:
 ```bash
 uv run python scripts/teleop.py      # Teleop test the robot
@@ -113,8 +220,9 @@ it, because an LLM that can decline to charge is one that bricks the world
 overnight. Every failure (no key, timeout, rate limit, a malformed answer, a
 spent call budget) falls back to a scripted rotation and says so on the wire,
 so the robot keeps working with the API unplugged — that is a tested property,
-not a hope. Its memory is two files in `/var/lib/pluggybot`: `goals.md`, which
-you write and it reads, and `journal.json`, which it writes and you read.
+not a hope. Its memory is a record store and the documents rendered from it,
+under `/var/lib/pluggybot/thoughts` (the diagram above; `docs/Overseer.md`
+§7): `Main.md` is yours to edit, the rest is the robot's and the sim's.
 
 Full design, the action vocabulary, the cost numbers and the measured battery
 limit: `docs/Overseer.md`. To see what a decision actually costs before

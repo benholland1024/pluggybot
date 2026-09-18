@@ -35,7 +35,7 @@ def answer(**over) -> str:
   raw = {"action": "explore", "zone": "garden", "reason": "mapping",
          "board": "", "program": "", "note": "", "respond_to": "",
          "outcome": "", "reply": "", "task": "", "answer": "",
-         "learn": "", "forget": ""}
+         "pin": "", "unpin": ""}
   raw.update(over)
   return json.dumps(raw)
 
@@ -108,14 +108,14 @@ def test_an_endpoint_with_no_model_is_refused_rather_than_guessed():
 def test_build_reads_the_backend_and_its_default_model(monkeypatch):
   monkeypatch.delenv(overseer.MODEL_ENV, raising=False)
   monkeypatch.setenv(overseer.BACKEND_ENV, "local")
-  boss, _ = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("room_hub", enabled=True, client=object())
   assert boss.backend == "local"
   # ⚠ `claude-haiku-4-5` is not a thing ollama can serve: a backend chosen
   # without a model has to get THAT backend's default or the run 404s
   # against the robot's own machine.
   assert boss.model == llm.LOCAL_MODEL
   monkeypatch.setenv(overseer.MODEL_ENV, "qwen3:8b")
-  boss, _ = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("room_hub", enabled=True, client=object())
   assert (boss.backend, boss.model) == ("local", "qwen3:8b")
 
 
@@ -123,7 +123,7 @@ def test_the_anthropic_default_is_unchanged(monkeypatch):
   """The regression criterion: nothing about a default run moves."""
   monkeypatch.delenv(overseer.BACKEND_ENV, raising=False)
   monkeypatch.delenv(overseer.MODEL_ENV, raising=False)
-  boss, _ = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("room_hub", enabled=True, client=object())
   assert (boss.backend, boss.model) == ("anthropic", MODEL)
   assert boss.usage.usd_per_mtok_in == overseer.USD_PER_MTOK_IN
   assert boss.stats()["backend"] == "anthropic"

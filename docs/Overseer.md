@@ -23,7 +23,9 @@ is `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
 ## 1. Where it sits
 
 `HubLifecycle.run()` is a priority arbitration loop, and the mind is one
-branch of it. Since issue #58 the loop is `_day_routine` — a ROUTINE, with
+branch of it. The loop as a state diagram, with what each state reads and
+writes of the memory, is at the top of `README.md` (pinned by
+`tests/test_readme.py`). Since issue #58 the loop is `_day_routine` — a ROUTINE, with
 every branch yielding its drive commands to the one loop that steps the
 physics (`pluggybot/tick.py`) — and `run()` drives it; the branch order and
 every rail below are exactly as they were:
@@ -91,7 +93,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first | `zone` |
 | `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135) | — |
 | `idle` | stand still for `DECIDED_IDLE_S` (4 s) — or `AUTONOMOUS_IDLE_S` (60 s) on that arm, so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
-| `journal` | write a note to yourself | `note` |
+| `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166; `autonomous` only, §2b) | — |
 
 **The menu is the world.** `Menu.for_world` resolves boards, figures and
@@ -296,7 +298,7 @@ test walks the whole context for the other's thought lines.
 
 **What a robot may DO about the other, measured** (issue #208; `autonomous`
 only, a peer required, `mind/acts.py` is the pure half). Five paperwork
-fields on `learn`'s terms — none costs the turn, none moves the body, each
+fields on `pin`'s terms — none costs the turn, none moves the body, each
 is scored by code at the moment it happens and goes on the wire as its own
 event type (`protocol.ACT_EVENT_TYPES`):
 
@@ -455,7 +457,7 @@ otherwise).
   keyed on a sender or a keyword would be a free-text path from a visitor to
   the robot's body, which is the invariant §10 rests on. `nothing_to_do` is
   the loop reaching its decision branch — at mission start and after every
-  `idle`/`journal`/`explore` — so a map carrying only `task_complete → ask`
+  `idle`/`explore`/`recall` — so a map carrying only `task_complete → ask`
   goes quiet on its first tick.
 - ⚠ **Three of the four fields are enums**, which is why a 4B is safe writing
   its own configuration: the decoder cannot produce an event this build has
@@ -464,7 +466,7 @@ otherwise).
   (12) is a grammar bound, not a policy.
 - ⚠ **The order is the agent's and it decides**: several rows can be live on
   one tick, the first in the list wins. An empty list means "leave it as it
-  is" (`learn`/`forget`'s convention), so a map cannot be emptied once written,
+  is" (`pin`/`unpin`'s convention), so a map cannot be emptied once written,
   only replaced; `unseeded` is how an empty map is reached at all, and it
   moves the prompt too (`UNSEEDED_RULE`), so it is an ablation, not a rung.
 - **Actions may fail, and the agent is told the rules — inform, do not rail**
@@ -614,7 +616,7 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `fallback:no-client` | failure | no SDK, no key, no endpoint: it was never asked |
 | `fallback:budget` | policy | the hourly call budget (`CALLS_PER_HOUR` 60) is spent |
 | `fallback:cooloff` | policy | too many failures in a row; the endpoint is being left alone |
-| `fallback:idle-run` | policy | `MAX_IDLE_RUN` (2) `idle`/`journal` turns in a row; do something |
+| `fallback:idle-run` | policy | `MAX_IDLE_RUN` (2) `idle` turns in a row; do something |
 | `fallback:scripted-mode` | policy | the operator turned the spending off (§8) |
 
 ⚠ **The class column is load-bearing** (issue #141). A **failure** is the
@@ -838,7 +840,7 @@ local hosting (≤8B) has headroom. Two rules the sweep taught:
 Two small-model quirks, both measured and both closed: the offer id (a kind
 name in `task` instead of an id — the prompt spells the id shape and the
 probe's synthetic state carries a claimable offer so it stays measurable; on
-`autonomous` the ids are an enum, §2), and truncation mid-`learn`, which is why
+`autonomous` the ids are an enum, §2), and truncation mid-write, which is why
 `MAX_TOKENS_AUTONOMOUS` is 2048 — headroom, not a guarantee, and not applied to
 `guarded`, whose answers must keep the shape the committed series measured.
 The flown evidence is Evaluation.md §3.
@@ -912,129 +914,167 @@ inert. `overseer_probe.py --tokens-only` prints the prefix size (a free
 endpoint, not a local tokenizer — it still needs a key), and padding it until
 the number looks right is not one of the honest options.
 
-## 7. Text — every surface is a document or a message (issues #38, #154, #217)
+## 7. Memory — four tiers over one record store, and every surface a document or a message (issues #38, #154, #217, #221)
 
-The robot meets text in five places — visitors, the other robot, its own
-files, its procedure library, its tool library — and each once grew its own
-code. They were always two shapes, and `mind/text.py` is the one registry
-that names them: **every surface is a row**, and the next one (the
-library's lookups, #216) is a row rather than a module. The memory
-mechanism itself is deliberately NOT rethought here — #221 does that, once,
-on this table.
+The design comes from the literature (Du, *Memory for Autonomous LLM
+Agents*, arXiv:2603.07670, read for #221): start with context plus a
+retrieval store and instrument it thoroughly; long context is not memory;
+reflection is the dangerous part and the mitigation is *grounding* (a
+lesson cites the episodes it came from); consolidation is nobody's solved
+problem, so the safest property is that nothing is ever replaced. The
+issue's record is the plan comment on #221; what follows is what was built.
 
-**A DOCUMENT** has one writer, a cap, a policy at the cap (roll or refuse),
-verbs that ADD or REMOVE and never replace, is narrated `THOUGHT <verb>:
-<line>` where it is a file, streams whole (present means complete), and is
-kept by the observatory per write. **A MESSAGE** has a sender, a recipient,
-a cap, an outcome, and is delivered into the context as INFORMATION — a
-labelled report of what somebody wants, never an instruction and never a
-turn in a conversation (§10). ⚠ They stay two shapes on purpose: the
-security argument depends on a message never being framed like the robot's
-own file, and the one-writer rule depends on a document never being writable
-by a sender. `text.admit` refuses a message row outright.
+**Every document the robot reads is a VIEW over one RECORD STORE**
+(`mind/memory.py`: SQLite, stdlib `sqlite3` + FTS5, one file per robot at
+`<thoughts root>/memory.sqlite`, WAL). A row is `id, robot, generation, t,
+kind, writer, topic, title, text, fields, cites, status`. The store is
+unbounded and append-only: a removed line is RETIRED (and `recall` can still
+find it); History's roll is a view over the newest 6000 chars; a true death
+moves the robot to a new *generation* and keeps every row on the volume.
+That answers the roll-vs-refuse question once — the store never rolls, the
+view is what is capped. The `Store` interface of #217 still carries the
+FILES (the constitution and the rendered views, written beside the store so
+an operator can `cat` them); the rows have their own seam.
+
+### The four tiers
+
+| tier | writer | shown | what it is |
+|---|---|---|---|
+| **constitution** | human | always, the cached prefix | `Main.md`: a file a person edits on the volume; no write API |
+| **core** | robot | always, whole | `Goals.md` (`intend` / `drop_goal`) and `Top_of_mind.md` (`pin` / `unpin`) — RAM: *always in front of you, so keep it short; anything you only need sometimes is a note* |
+| **notes** | robot | the INDEX always; a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
+| **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, interventions, visitor and peer messages |
+
+The **procedural** tier (`procedures/`, `tools/`) is unchanged by #221 and
+is memory in the paper's sense too — §2b and §2d.
 
 | Row | Shape | Writer / sender | Cap | At the cap | Verbs | Wire · observatory |
 |---|---|---|---|---|---|---|
 | `Main.md` | document | **human** | 6000 chars | no write API | — | `thought` · `thought` |
 | `Goals.md` | document | **robot** | 8000 chars | refuses | `intend` / `drop_goal` | `thought` · `thought` |
-| `History.md` | document | **system** | 6000 chars | rolls | — (code writes it) | `thought` · `thought` |
-| `Knowledge_and_Opinions.md` | document | **robot** | 3000 chars | refuses | `learn` / `forget` | `thought` · `thought` |
-| `Findings.md` | document | **robot** | 3000 chars | refuses | `record` / `retract` | `thought` · `thought` |
+| `History.md` | document | **system** | 6000 chars (the view) | rolls the view | — (code writes it) | `thought` · `thought` |
+| `Top_of_mind.md` | document | **robot** | 3000 chars | refuses | `pin` / `unpin` | `thought` · `thought` |
+| `Findings.md` | document | **robot** | 64 findings | refuses | `record` / `retract` | `thought` · `thought` |
+| `Notes.md` | document | **robot** | 64 notes | refuses | `note` / `unnote` | `thought` · `thought` |
 | `procedures/` | document | **robot** | 8 entries | refuses | `define` / `undefine` | `procedure` · `procedure` |
 | `tools/` | document | **robot** | one per bay (5) | refuses | `build_tool` / `retire_tool` | `tool` · `tool` |
 | visitor | message | a visitor | 280 chars, queue of 32 | drops the oldest | outcomes `accepted` / `declined` / `replied` / `dropped` | `visitor_reply` · the visitor channel's table |
 | peer | message | the other robot | 280 chars, the same queue | drops the oldest | the same outcomes | `message` event · `message` |
 
-- **One gate.** Who may write a document and what happens at its cap is
-  answered by `text.admit`, and every document write in the repo passes it
-  — the files' `append`, the library's `define`, the workshop's `check` —
-  so "what does a full document do" is one table cell each. A write by the
-  wrong writer raises, is counted, and is narrated (`THOUGHT refused: …`);
-  human documents have no write API at all. A memory that silently stopped
-  accepting writes looks like a model with nothing to say.
-- **One path to the disk.** `mind/store.py` is a `Store` interface —
-  `read` / `write` / `remove` / `keys` / `archive` — and `FileStore` (the
-  `.md`, `.procedure` and `.tool.json` files on the volume, written
-  atomically) is its only real implementation beside `MemoryStore` for
-  tests. Nothing that owns a surface writes a file itself;
-  `tests/test_text.py` walks their syntax trees to keep that true. A
-  rethought memory (#221) is one new `Store`.
-- **The `.md` rows are `ThoughtFiles`** (`mind/thoughts.py`): local files
-  beside the sim in `/var/lib/pluggybot`, never a round trip to the website
-  — memory that only works when the site is up is memory the robot loses
-  exactly when it needs it. All five exist on every world, overseer or not.
-  ⚠ **The ownership is the design** (issue #154): a human writes the
-  constitution and the robot writes its goals, so "does it set itself
-  sensible long-term goals and pursue them" — the mission's fifth quality
-  — is answered off a file nobody else touched. An existing volume's
-  hand-edited `goals.md` became the ROBOT's at #154; migrating its prose
-  into `Main.md` is a person's one-off job.
-- ⚠ **The name is not in `Main.md`** (issue #39): `pluggybot` is the
-  species, the name is per instance (`robot_display_name`,
-  `$PLUGGY_ROBOT_NAME`, default `Pluggy`) and `system_prompt` states it
-  from the same helper the telemetry header uses.
-- **The verbs are the registry's, and there is no replacing one.** Each
-  robot document has an ADD and a REMOVE — all decision fields, orthogonal
-  to `action`, so writing costs no turn; the removing ones quote a line (or
-  name an entry) and refuse on a miss *or* an ambiguity. `_reconsider`
-  iterates `text.line_verbs()` (remove before add, per document: a full
-  file plus a decision that clears one line and writes another is a robot
-  tidying up) and dispatches through `ThoughtFiles.apply`, so a new file's
-  verbs reach the mission by adding a row. No parameter names a file.
-- **`serves` names the goal an action is for**, deliberately optional and
-  unvalidated: plenty of what the robot does is upkeep, and a model made to
-  justify every action against a goal learns to justify rather than to
-  choose. `goals.served` in the run record is a count of DECISIONS, and a
-  low ratio is a finding, not a fault. ⚠ **Nothing in scoring may read
-  `Goals.md`** — a self-conceived goal is not paid (PluggyPlan); a test walks
-  every `economy/` module's syntax tree.
-- **The science record** (`Findings.md`, this issue; #227 grades off it) is
-  the robot's, for one kind of line only: a measurement. `record` takes
-  `{quantity, value, unit, method}` — the schema says `value` is a NUMBER —
-  and writes `<quantity> = <value> <unit> -- <method>`; `parse_finding` /
-  `ThoughtFiles.findings()` read the same shape back, which is what
-  "code-checkable" means. Prose is refused out loud. `retract` quotes one to
-  take off, and the retraction stays on the wire. ⚠ **Offered with the
-  library** (`Surface.offered_with`): the verbs ride the library's slot in
-  the schema, the document is shown in the context only where the menu
-  offers them (`volatile(menu)`), and `FINDINGS_RULE` rides the autonomous
-  prefix — `guarded`'s prefix, menu and schema are byte-identical
-  (`GUARDED_RULES_SHA`). The file exists, streams and is archived on every
-  world regardless.
-- **The caps fail in opposite directions.** `History.md` rolls (oldest
-  lines off the front); every robot document **refuses** when full, because
-  silently dropping its oldest line leaves the robot believing it remembers
-  something it does not — the remedy is the remove verb and the prompt says
-  so. The model is shown the last `HISTORY_SHOWN` (12) History lines; the
-  whole file is on the wire and on disk.
-- **`History.md` is written by the lifecycle** (`_remember` →
-  `ThoughtFiles.remember`) at the moments a person catching up would want
-  — waking up, which mind is thinking, each decision, each banked verdict,
-  a death, an intervention, how the day ended — not the narration. Its
-  lines carry `verdict.reason`, already redacted of a hidden answer, because
-  History is read back into the model's context. `journal.json` is
-  unchanged: this decision's remark, the one tier with no evaluator.
-- **The two entry documents** keep their own modules (`procedure/library.py`,
-  `workshop/library.py`) for what is theirs — compiling a source against
-  today's world, validating a spec against the catalog — and read the
-  writer, the cap, the suffix and the verbs off their rows. They are not
-  narrated `THOUGHT`; what the robot wrote rides their own typed events
-  whole (`procedure`, `tool`), which is how the observatory keeps a
-  definition the robot later undefined.
-- **A true death archives** everything the robot and the system wrote
-  (`Store.archive`: `History.1.md` beside the new empty one); only the
-  constitution survives. Two robots have two roots.
+**A DOCUMENT** has one writer, a cap, a policy at the cap, verbs that ADD or
+REMOVE and never replace, is narrated `THOUGHT <verb>: <line>` where it is a
+file, streams whole (present means complete) and is kept by the observatory
+per write. **A MESSAGE** has a sender, a recipient, a cap, an outcome, and is
+delivered into the context as INFORMATION — a labelled report of what
+somebody wants, never an instruction and never a turn in a conversation
+(§10). They stay two shapes on purpose: the security argument depends on a
+message never being framed like the robot's own document, and the one-writer
+rule on a document never being writable by a sender. `text.admit` is the ONE
+gate every document write passes (the files' `append`, the library's
+`define`, the workshop's `check`) and refuses a message row outright.
 
-⚠ **The split is by WRITER, and the reason is measured.** Human documents
-ride the cached prefix (`stable=True`, only ever a human row), everything
-a writer can touch rides the user turn. A misplaced writable file would
-*not* cost per-call cache hits — `Overseer.system` is built once and sent
-verbatim — it would cost the memory working at all: the model shown its
-files as they stood at mission start, re-learning the same thing every hour.
-So the byte-identical prefix guard is necessary and **not sufficient**;
-`test_what_the_robot_writes_it_can_read_back_the_same_run` is the one that
-fails, and `ThoughtFiles.volatile()` inverts the same `stable` flag
-`stable()` reads so the halves cannot disagree.
+### The three things a decision does with memory
+
+- **It thinks first.** `think` is the FIRST property of the answer's
+  schema: under constrained decoding the property order is the generation
+  order, so the reasoning now precedes the choice — until #221 `reason`
+  came after `action` and was post-hoc. Capped at `THINK_CHARS` (1000, ~250
+  tokens; output tokens are the slow and dear half) in `validate`, a `think`
+  record in the store, streamed on the `journal` message (`text`, and `why`
+  is the decision), and the last `THOUGHTS_SHOWN` (2) ride the next turn as
+  `lastThoughts`. It replaced the `journal` action and its `note` field —
+  the same thing on request.
+- **It writes with any action.** The verbs are decision FIELDS, orthogonal
+  to `action`, one per verb per turn, remove-before-add per document
+  (`_reconsider` iterates `text.line_verbs()` through `ThoughtFiles.apply`).
+  `cites` names the History ids a `pin` or a `note` was drawn from — the
+  paper's reflection grounding — optional and unvalidated on `serves`'
+  terms: a model made to cite everything learns to cite. A refusal is
+  narrated (`THOUGHT refused: …`), never swallowed.
+- **It recalls.** `recall` is an ACTION: `read` a key (a note's
+  `topic/title`, a topic or a family like `tasks`, `findings`, `history` for
+  forty more lines, a line's `#123`) and/or `find` words (FTS5 over
+  everything this generation, retired rows included, OR-joined and bm25
+  ranked; `FIND_LIMIT` 8). The robot stands still `RECALL_S` (10 s — thinking
+  takes real seconds) and the block (`{read, find, hits, lines}`, each line
+  `#id [where] text`, ≤ `RECALLED_CHARS` 4000) rides the NEXT turn as
+  `recalled`. **The chain**: blocks accumulate (≤ `RECALLED_CHAIN_CHARS`
+  8000, oldest first out) until any action but another recall, which clears
+  them — what it wants to keep it pins or notes. `MAX_RECALL_RUN` (3):
+  `recallsLeft` is in the state and at 0 `recall` leaves the action enum for
+  that call (the `take_task`-with-an-empty-board pattern), so a fourth is
+  malformed. A recall never finds the record of a recall. ⚠ A standing order
+  or a map row cannot name `recall` (`Menu.orderable`): an order is left
+  before what to look up is known. Every recall is a `recall` event, a
+  History line and a row in the record (`recalls`), so phase 2 (#222) can
+  read how memory was USED and not only what it held.
+
+`askedBy` rides the state beside these: the map row that fired (`event`,
+`kind`, `value`), the once-per-life `bootstrap`, or the `loop` reaching its
+decision branch — until #221 every ask looked the same from inside.
+
+### Rules that travel with it
+
+- **The prompt-cache split follows the writer.** `Main.md` rides the cached
+  prefix (`stable=True`, only ever a human row); everything a writer can
+  touch rides the user turn, and `volatile()` inverts the flag `stable()`
+  reads so the halves cannot disagree. A writable document in the prefix
+  would *not* cost cache hits — `Overseer.system` is built once and sent
+  verbatim — it would cost the memory working at all: the model shown its
+  documents as they stood at mission start.
+  `test_what_the_robot_writes_it_can_read_back_the_same_run` is the test.
+- **The memory is on every arm**, `guarded` included: it is not a rail.
+  `GUARDED_RULES_SHA` moved once for it (2026-09-18; `guarded` is
+  harness-only since #206). `record`/`retract` stay offered with the library.
+- **The caps fail in opposite directions.** History rolls (the view); every
+  robot document refuses when full, because silently dropping its oldest line
+  leaves the robot believing it remembers something it does not — the remedy
+  is the remove verb and the prompt says so.
+- **`History.md` is written by the lifecycle** (`_remember`) at the moments
+  a person catching up would want — waking up, which mind is thinking, each
+  decision, each recall, each banked verdict, a death, an intervention, how
+  the day ended — never the narration. Its lines carry `verdict.reason`,
+  already redacted of a hidden answer, because History is read back into the
+  model's context.
+- **The ownership split is the instrument** for the mission's fifth quality:
+  `Goals.md` is read off a document nobody else wrote. `goals.served` in the
+  run record is a count of DECISIONS. ⚠ **Nothing in scoring may read
+  `Goals.md`** — a self-conceived goal is not paid; a test walks every
+  `economy/` module's syntax tree.
+- **The science record** (`findings/<task>`; #227 grades off it): `record`
+  takes `{quantity, value: NUMBER, unit, method, topic}` and writes
+  `<quantity> = <value> <unit> -- <method>` under `findings/<topic>`
+  (`findings/general` when it names none); `ThoughtFiles.findings()` reads
+  the same shape back. Prose is refused out loud. The index shows `quantity =
+  value unit`; the method is a recall away. The first typed topic — phase 2
+  lets the robot declare one.
+- **A true death archives** everything the robot and the system wrote: the
+  store's generation moves on, the views are kept beside the fresh ones
+  (`History.1.md`), only the constitution survives. Two robots have two
+  roots and two stores. **An old volume starts blank**: a root with the
+  pre-#221 files and no store puts them aside through the same path and
+  imports nothing, so an observation period holds only what was written
+  through these verbs.
+- **The robot's NAME is not in `Main.md`** (issue #39): `pluggybot` is the
+  species, the name is per instance (`robot_display_name`,
+  `$PLUGGY_ROBOT_NAME`, default `Pluggy`) and `system_prompt` states it from
+  the same helper the telemetry header uses.
+- **Two-repo contracts.** `THOUGHT_FILES` / `THOUGHT_VERBS` (adding is
+  additive, renaming breaks the site: `learn`/`forget` became `pin`/`unpin`
+  at 0.21.0 and the site folds the old names as it folded `answered`); the
+  `recall` event; the `journal` message carrying the think. The fixture
+  recordings open with every document and are re-recorded when the list
+  moves.
+- **Measured for #221's acceptance** (`overseer_probe.py`, `home`, 2026-09-18;
+  ~4 chars a token): the cached prefix is 14 026 → 15 371 chars (`guarded`)
+  and 15 265 → 16 611 (`autonomous`, the probe's subset) — the tier and
+  recall paragraphs, about 340 tokens each. The volatile memory at its caps
+  is 12 315 → 16 602 chars (about 1 070 tokens more: the notes INDEX is
+  2 198 of it, `lastThoughts` up to 2 000, the History tail carries ids),
+  plus up to 8 000 chars while a recall chain is open; an empty memory is
+  86 → 91. What the model sees of the notes tier is bounded by the caps (64
+  titles) whatever it has written, and a note's body costs nothing until it
+  is recalled.
 
 ## 8. The allowance, the escalation and the switch (issue #37)
 
@@ -1199,8 +1239,8 @@ PLUGGY_ARM=guarded PLUGGY_ERRAND=none HF_TOKEN=... \
 Environment (the deploy configures with `environment:` alone): `PLUGGY_ARM`,
 `PLUGGY_RUNG`, `PLUGGY_ORIGIN`, `PLUGGY_OVERSEER`, `PLUGGY_MODEL`,
 `PLUGGY_OVERSEER_BACKEND`, `PLUGGY_OVERSEER_URL`, `PLUGGY_ESCALATE_TO`,
-`PLUGGY_WEEKLY_USD`, `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`, `PLUGGY_GOALS`,
-`PLUGGY_THOUGHTS`, `PLUGGY_JOURNAL`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
+`PLUGGY_WEEKLY_USD`, `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`,
+`PLUGGY_THOUGHTS`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
 `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY` are
 deliberately **not** flags — they stay out of `ps`, like `PLUGGYWORLD_TOKEN`.
 
@@ -1294,7 +1334,8 @@ JOURNAL whiteboard_a is nearly full -- use b next time
 
 The typed messages, all additive (`protocol/README.md` has each version's
 shape): `visitor_reply` (`{id, kind, outcome, reply, action}`) and `journal`
-(0.7.0); `goals` (`{robot, t, text, steering}`, 0.8.0), emitted when a stream
+(0.7.0; since 0.21.0 it carries the `think` -- `text`, and `why` is the
+decision it preceded); `goals` (`{robot, t, text, steering}`, 0.8.0), emitted when a stream
 opens and read by `overseer.goals_text` on **every** run — since 0.19.0 the
 text is the ROBOT's own goals and is often empty, and the message is sent
 anyway because `steering` rides here and nowhere else: it says whether
@@ -1302,10 +1343,12 @@ anything is *deciding*, and a site shown prose with no such flag would report
 a robot following goals that steer nothing; `thought` (`{robot, t, name,
 writer, text, cap}`, 0.11.0), one per memory document, on open and on every
 change; `mode` with its heartbeat (0.12.0); `death`, `reset` and
-`intervention` (0.15.0–0.16.0); `unminded` as a death cause (0.18.0); and the
-goals changing hands at 0.19.0. The event map itself is **not** on the wire.
+`intervention` (0.15.0–0.16.0); `unminded` as a death cause (0.18.0); the
+goals changing hands at 0.19.0; and `recall` (0.21.0, one per lookup: what
+was read or searched, how many lines there were and how many were shown).
+The event map itself is **not** on the wire.
 
-The mission result dict carries `decisions`, `journal`, `overseer` (the
+The mission result dict carries `decisions`, `recalls`, `overseer` (the
 `stats()` block: calls, fallbacks by reason, tokens, cache hit rate, USD,
 budget left, backend, `constrained`, the standing orders and the event map
 where a world honours them), `thoughts` and `thought_stats` — the last two

@@ -229,19 +229,12 @@ def main() -> None:
   parser.add_argument("--task-state", default=None, metavar="PATH",
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
-  parser.add_argument("--goals", default=None, metavar="PATH",
-                      help="the overseer's long-term goals, as prose. Mount it "
-                           "and edit it to change what the robot is for, no "
-                           "redeploy ($PLUGGY_GOALS)")
-  parser.add_argument("--journal", default=None, metavar="PATH",
-                      help="JSON file the overseer's notes-to-self live in "
-                           "between runs ($PLUGGY_JOURNAL)")
   parser.add_argument("--thoughts", default=None, metavar="DIR",
-                      help="directory the robot's THOUGHT FILES live in "
-                           "(issue #38; $PLUGGY_THOUGHTS). Main.md and "
-                           "Goals.md are yours to edit, History.md is "
-                           "append-only and written by the sim, and "
-                           "Knowledge_and_Opinions.md is the robot's own")
+                      help="directory the robot's MEMORY lives in (issues "
+                           "#38, #221; $PLUGGY_THOUGHTS): the record store "
+                           "and the documents rendered from it. Main.md is "
+                           "yours to edit; everything else is the sim's or "
+                           "the robot's")
   parser.add_argument("--overseer-backend", default=None,
                       choices=llm.BACKENDS, metavar="NAME",
                       help="WHICH MIND decides (issue #19; "
@@ -370,9 +363,7 @@ def main() -> None:
                          procedures=bool(flags.get("autonomous")))
            if tasks is not None else None)
   # The overseer decides what to do next once the preset queue is empty
-  # (issue #15). Off unless asked for, and its memory is two more files in
-  # the same volume the boards and the ledger live in: goals are read (and
-  # human-edited between runs), the journal is written.
+  # (issue #15). Off unless asked for; its memory (below) is on every world.
   overseer_kw = ({"calls_per_hour": args.overseer_budget}
                  if args.overseer_budget else {})
   # The thought files (issue #38), built ONCE and shared by everything that
@@ -380,14 +371,14 @@ def main() -> None:
   # surfaces. Attached on EVERY served world, overseer or not: a scripted
   # rotation still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts, goals_path=args.goals)
+  memory = ThoughtFiles.open(args.thoughts)
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.
   purse = open_book(args.spend_state, weekly_usd=args.weekly_usd)
   # ...and the operator's switch: a file this process only ever READS.
   switch = open_switch(args.mode_file)
-  boss, journal = overseer.build(args.world, book,
+  boss = overseer.build(args.world, book,
                                  # A NAMED ARM IS THE STRONGER STATEMENT and
                                  # overrides $PLUGGY_OVERSEER, in both
                                  # directions: `--arm scripted` must be able
@@ -395,8 +386,6 @@ def main() -> None:
                                  # reports is not the arm that flew.
                                  enabled=(flags["overseer"] if flags
                                           else args.overseer or None),
-                                 goals_path=args.goals,
-                                 journal_path=args.journal,
                                  thoughts=memory,
                                  # ...and its NAME (issue #39), so the robot
                                  # calls itself what the site's header calls
@@ -458,7 +447,7 @@ def main() -> None:
                                       else cfg["low_battery_wh"]),
                       errands=errands_for(args.errand, args.world, book),
                       screen=next(iter(screens), None),
-                      overseer=boss, journal=journal, mode=switch,
+                      overseer=boss, mode=switch,
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
                       producer=maker, thoughts=memory, metabolism=hunger,
@@ -580,11 +569,9 @@ def main() -> None:
   # ...and so is a job being offered, taken or resolved (issue #21).
   if tasks is not None:
     tasks.on_event.append(publisher.message)
-  # ...and so are the robot's notes and its answers to visitors (#15, #16).
-  if journal is not None:
-    journal.on_event.append(publisher.message)
-  # ...and so is a thought file changing (issue #38): the publisher opens a
-  # stream with all four and these are the edits after that.
+  # ...and so is a thought file changing, and a thought being written
+  # (issues #38, #221): the publisher opens a stream with every document
+  # and these are the edits after that.
   memory.on_event.append(publisher.message)
   life.visitor_hooks.append(publisher.message)
   if inbox is not None:
@@ -621,8 +608,6 @@ def main() -> None:
     ledger.on_event.append(recorder.emit)
     if tasks is not None:
       tasks.on_event.append(recorder.emit)
-    if journal is not None:
-      journal.on_event.append(recorder.emit)
     memory.on_event.append(recorder.emit)
     life.visitor_hooks.append(recorder.emit)
 
@@ -711,11 +696,6 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      mode=switch, overseer_kw=overseer_kw,
                      battery_wh=args.battery_wh, reserve_wh=args.reserve_wh,
                      near_field=args.near_field,
-                     # The FIRST robot's documents, as a single robot's were
-                     # (the image sets both): the volume that served one
-                     # robot keeps that robot's goals and journal. The
-                     # second's live under its own root -- `build_pair`.
-                     goals_path=args.goals, journal_path=args.journal,
                      restart_after_s=(args.restart_after
                                       if args.restart_after > 0 else None))
   first, second = lives
@@ -776,8 +756,6 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
       life.on_event.append(sink)
       life.visitor_hooks.append(sink)
       life.thoughts.on_event.append(sink)
-      if life.journal is not None:
-        life.journal.on_event.append(sink)
     assert life.mortal, "a served world has an inbox and must be mortal"
   for sink in sinks:
     if book is not None:

@@ -6,8 +6,10 @@ procedure library, the tool records -- is persisted through a `Store`, and
 NOTHING ELSE in `mind/`, `procedure/` or `workshop/` touches the disk
 (`tests/test_text.py` walks their syntax trees for a write). That is the
 whole point of the seam: the memory mechanism is to be rethought once
-(#221, "better than `.md` for everything"), and a rethink is one new
-`Store` rather than a change per surface.
+(#221), and a rethink is one new `Store` rather than a change per
+surface -- which #221 half-bore out: the FILES (the constitution and the
+rendered views) still go through here, and the RECORDS the views are
+rendered from have their own seam, `mind/memory.py`.
 
 Two implementations, and their behaviour is asserted identical:
 

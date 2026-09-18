@@ -991,8 +991,7 @@ def test_a_pair_that_crashes_says_so_too(monkeypatch, tmp_path):
   monkeypatch.setattr(pair_mod, "run_pair", dying_run_pair)
   monkeypatch.setattr(sys, "argv", [
     "serve.py", "--pair", "--world", "room_hub", "--free-run",
-    "--thoughts", str(tmp_path / "t"), "--goals", str(tmp_path / "goals.md"),
-    "--journal", str(tmp_path / "journal.json"),
+    "--thoughts", str(tmp_path / "t"),
     "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
   with pytest.raises(KeyError):
     serve.main()
@@ -1415,8 +1414,6 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
   root = tmp_path / "thoughts"
   monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
   monkeypatch.setenv("PLUGGY_THOUGHTS", str(root))
-  monkeypatch.setenv("PLUGGY_GOALS", str(tmp_path / "goals.md"))
-  monkeypatch.setenv("PLUGGY_JOURNAL", str(tmp_path / "journal.json"))
   built: dict = {}
   monkeypatch.setattr(serve, "WsPublisher",
                       lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
@@ -1435,8 +1432,7 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
   monkeypatch.setattr(sys, "argv", [
     "serve.py", "--pair", "--world", "home", "--pack", "hosting", "--free-run",
     "--arm", "autonomous", "--origin", "unseeded",
-    "--thoughts", str(root), "--goals", str(tmp_path / "goals.md"),
-    "--journal", str(tmp_path / "journal.json"),
+    "--thoughts", str(root),
     "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
   serve.main()
   lives = flown["lives"]
@@ -1454,25 +1450,21 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
 
 def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_documents(
     monkeypatch, tmp_path):
-  """⚠ THE PRODUCTION IMAGE SETS $PLUGGY_GOALS AND $PLUGGY_JOURNAL (one
-  robot's files) and its entrypoint passes both as flags. `--pair` refused
-  them, which in production is a container in a restart loop; and merely
-  skipping the flags would not have done, because `ThoughtFiles.open` and
-  `overseer.build` fall back to the same environment -- both minds would
-  have shared one goals file and one journal.
+  """⚠ THE PRODUCTION IMAGE SETS $PLUGGY_THOUGHTS (one root) and its
+  entrypoint passes it as a flag. `--pair` once refused the single-robot
+  flags, which in production is a container in a restart loop; and merely
+  skipping them would not have done, because `ThoughtFiles.open` falls back
+  to the same environment -- both minds would have shared one memory.
 
-  So: the environment and the flags exactly as the image has them, and the
+  So: the environment and the flag exactly as the image has them, and the
   claim is that the pair STARTS, the first robot keeps the single-robot
-  files (a volume that served one robot keeps that robot's goals), and the
-  second robot's documents live under its own root and touch neither."""
+  root (a volume that served one robot keeps that robot's memory), and the
+  second robot's documents and store live under its own root."""
   from pluggybot import pair as pair_mod
   from pluggybot.robot import SECOND
   serve = _load_serve()
   root = tmp_path / "thoughts"
-  goals, journal = tmp_path / "goals.md", tmp_path / "journal.json"
   monkeypatch.setenv("PLUGGY_THOUGHTS", str(root))
-  monkeypatch.setenv("PLUGGY_GOALS", str(goals))
-  monkeypatch.setenv("PLUGGY_JOURNAL", str(journal))
   built: dict = {}
   monkeypatch.setattr(serve, "WsPublisher",
                       lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
@@ -1490,13 +1482,11 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
   monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
   monkeypatch.setattr(sys, "argv", [
     "serve.py", "--pair", "--world", "room_hub", "--free-run", "--overseer",
-    "--thoughts", str(root), "--goals", str(goals), "--journal", str(journal),
+    "--thoughts", str(root),
     "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
   serve.main()                                   # no SystemExit: it starts
   a, b = flown["lives"]
-  assert a.thoughts.goals_path == goals, "the first robot keeps its goals"
-  assert a.journal.path == journal, "...and its journal"
-  assert b.thoughts.goals_path is None
+  assert a.thoughts.root == root, "the first robot keeps the single-robot root"
   assert b.thoughts.root == root / SECOND.root
-  assert b.journal.path == root / SECOND.root / "journal.json"
+  assert a.thoughts.records.path != b.thoughts.records.path, "two stores"
   assert a.thoughts.store.path("Goals.md") != b.thoughts.store.path("Goals.md")

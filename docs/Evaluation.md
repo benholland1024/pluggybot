@@ -18,8 +18,9 @@ preconditions landed and flown by nobody. The arms and survival metrics below
 are the first-generation instrument, built before the mission was written
 down.
 
-The specific gap they were built for: `Knowledge_and_Opinions.md` is read on
-every decision (`ThoughtFiles.volatile`), so an opinion the robot wrote at
+The specific gap they were built for: `Top_of_mind.md` (`Knowledge_and_
+Opinions.md` until #221) is read on every decision (`ThoughtFiles.volatile`),
+so an opinion the robot wrote at
 hour two is in front of it at hour three — the causal path is wired and
 correct. Nothing measures whether that path carries anything. A robot whose
 opinions shape its choices and a robot shown plausible prose it then ignores
@@ -1365,7 +1366,7 @@ What the site keeps, and where — all of it attributable to a commit through
 | `pw_decisions` | every `DECIDE` line: action, detail, reason, `source`, battery fraction |
 | `pw_events` | `death` / `charge` / `task` / `intervention` / `hunger` / **`thought`**, each one run, one sim-second, one battery reading, one word |
 | `pw_journal`, `pw_earnings`, `pw_messages` | journal notes, the ledger mirror, visitor messages |
-| the `pluggy_state` volume | the four thought documents, `ledger.json`, `boards.json`, `tasks.json`, `journal.json`, `mode.json`, `spend.json` — the CURRENT state, no history |
+| the `pluggy_state` volume | the record store (`memory.sqlite`, every line ever written) and the documents rendered from it, `ledger.json`, `boards.json`, `tasks.json`, `mode.json`, `spend.json` |
 
 **`thought` is the one kind this issue added**, and it closes the measurement
 half of #65. The documents ride the wire whole (`thought` messages) and

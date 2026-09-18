@@ -680,7 +680,7 @@ def test_the_goals_file_is_read_whether_or_not_an_overseer_runs(tmp_path):
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.thoughts import ThoughtFiles
 
-  assert ov.build("home", enabled=False) == (None, None)
+  assert ov.build("home", enabled=False) is None
   assert ov.goals_text(None) == "", "a fresh robot reported goals it never set"
   # ...and when the robot HAS set one, that is what the stream carries.
   files = ThoughtFiles(tmp_path / "thoughts")
@@ -699,10 +699,10 @@ def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
   permanently empty, and that is the case almost every visitor meets,
   because the default view is a recording.
   """
-  from pluggybot.mind.thoughts import KNOWLEDGE, NAMES, ThoughtFiles
+  from pluggybot.mind.thoughts import TOP_OF_MIND, NAMES, ThoughtFiles
 
   memory = ThoughtFiles()
-  memory.learn("whiteboard_b is the one people look at")
+  memory.pin("whiteboard_b is the one people look at")
   _, lines = record(mini_model, seconds=0.4, tmp=tmp_path,
                     goals="Keep the house in good order.", thoughts=memory)
   thoughts = [x for x in lines if x.get("type") == "thought"]
@@ -711,7 +711,7 @@ def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
   assert all(lines.index(t) < first_frame for t in thoughts), \
     "the documents arrived after the frames that depend on them"
   by_name = {t["name"]: t for t in thoughts}
-  assert by_name[KNOWLEDGE]["text"] == "whiteboard_b is the one people look at"
+  assert by_name[TOP_OF_MIND]["text"] == "whiteboard_b is the one people look at"
   # Each one says who may write it -- four panels that look alike on a page
   # and are not alike at all (the `steering` lesson, one loop over).
   assert {t["writer"] for t in thoughts} == {"human", "system", "robot"}
@@ -1116,7 +1116,7 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # same terms and for the same reason: the site's Thoughts tab is built
   # against these lines, no keyframe re-ships one, and the default view is a
   # recording. A fixture without them leaves that tab showing a single row.
-  from pluggybot.mind.thoughts import HISTORY, KNOWLEDGE, MAIN, NAMES
+  from pluggybot.mind.thoughts import HISTORY, TOP_OF_MIND, MAIN, NAMES
 
   first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
   docs = [e for e in events if e["type"] == "thought"]
@@ -1140,7 +1140,7 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # ...and the robot's OWN file is empty here, honestly: these missions run
   # the scripted rotation, and nothing without a mind writes an opinion. The
   # same fact `steering: False` states from the other end.
-  assert next(d for d in opening if d["name"] == KNOWLEDGE)["text"] == ""
+  assert next(d for d in opening if d["name"] == TOP_OF_MIND)["text"] == ""
   # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
   # These recordings are made with no thoughts directory, so Main.md is
   # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a
@@ -1582,7 +1582,7 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
   data = mujoco.MjData(mini_model)
   bare = FrameBuilder(mini_model, data, model_name="mini").header()
 
-  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.20.0"
+  assert bare["protocolVersion"] == PROTOCOL_VERSION == "0.21.0"
   assert "build" not in bare, \
     "a run that was handed no identity must not invent one"
 

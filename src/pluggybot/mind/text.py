@@ -9,10 +9,13 @@ module, and so the memory mechanism can be rethought once (#221) instead
 of per surface.
 
   A DOCUMENT has ONE WRITER, a cap, a policy for the cap (roll the oldest
-  off, or refuse when full), verbs that ADD or REMOVE and never replace,
-  is streamed whole (present means complete) and is kept by the
-  observatory per write. The four thought files, the procedure library,
-  the tool records, and the science record (`Findings.md`, new here).
+  off the VIEW, or refuse when full), verbs that ADD or REMOVE and never
+  replace, is streamed whole (present means complete) and is kept by the
+  observatory per write. The thought files, the procedure library and the
+  tool records. Since issue #221 a `.md` document the robot or the system
+  writes is a VIEW over records in `mind/memory.py`: the store is
+  unbounded, the view is what is capped, and a removed line is retired
+  rather than deleted.
 
   A MESSAGE has a SENDER, a recipient, caps, an outcome, and is delivered
   into the robot's context as INFORMATION -- a labelled report of what
@@ -45,7 +48,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pluggybot.mind.journal import MAX_GOALS_CHARS
 from pluggybot.telemetry.protocol import (
   THOUGHT_FILES, THOUGHT_VERBS, THOUGHT_WRITERS, VISITOR_OUTCOMES,
 )
@@ -67,9 +69,21 @@ HUMAN, SYSTEM, ROBOT = THOUGHT_WRITERS
 ROLL, REFUSE, NONE = "roll", "refuse", "none"
 POLICIES = (ROLL, REFUSE, NONE)
 
-#: What a cap counts: characters of one text (the `.md` files) or entries
-#: in a directory (the libraries).
+#: What a cap counts: characters of one rendered text (the core documents)
+#: or entries (a topic's notes, the libraries).
 CHARS, ENTRIES = "chars", "entries"
+
+#: Longest goals document, in characters. The ROBOT writes it (issue
+#: #154), so the cap is a real bound on an author: a full document REFUSES
+#: and `drop_goal` is the remedy. Roomier than `Top_of_mind.md` (3000)
+#: because a goal is a commitment and a robot that has to abandon one to
+#: think of another is being rushed by an implementation detail.
+MAX_GOALS_CHARS = 8000
+#: How many notes the robot may keep (issue #221), and how many findings.
+#: The INDEX of every note -- topic and title -- rides every prompt, so
+#: this is what bounds it: ~40 chars a title, ~2.5k chars at the cap.
+MAX_NOTES = 64
+MAX_FINDINGS = 64
 
 #: A message's senders. `visitor` is a stranger at the website (issue
 #: #16); `robot` is the other robot (issue #208). Both land in the same
@@ -133,7 +147,7 @@ class Surface:
 
 # ---- the documents -----------------------------------------------------------
 
-MAIN, GOALS, HISTORY, KNOWLEDGE, FINDINGS = THOUGHT_FILES
+MAIN, GOALS, HISTORY, TOP_OF_MIND, FINDINGS, NOTES = THOUGHT_FILES
 
 #: What the robot IS, before anyone edits it: its body and its manner. The
 #: character half of what used to be `overseer.PERSONA`; the "answer with
@@ -197,19 +211,34 @@ DOCUMENTS: tuple[Surface, ...] = (
   # stood at MISSION START and never again.
   Surface(GOALS, DOCUMENT, ROBOT, MAX_GOALS_CHARS, CHARS, REFUSE,
           ("intend", "drop_goal"), "thought", "thought"),
+  # ROLL is a VIEW policy since #221: every line is kept in the store and
+  # the newest 6000 chars are the document on the wire.
   Surface(HISTORY, DOCUMENT, SYSTEM, 6000, CHARS, ROLL, (), "thought", "thought"),
-  Surface(KNOWLEDGE, DOCUMENT, ROBOT, 3000, CHARS, REFUSE,
-          ("learn", "forget"), "thought", "thought"),
+  # TOP OF MIND (issue #221; `Knowledge_and_Opinions.md` until then): the
+  # robot's RAM -- always in front of it, so kept short. Anything it only
+  # needs sometimes is a note. `pin` / `unpin`, because "learn" implied
+  # long-term learning and this is not that.
+  Surface(TOP_OF_MIND, DOCUMENT, ROBOT, 3000, CHARS, REFUSE,
+          ("pin", "unpin"), "thought", "thought"),
   # THE SCIENCE RECORD (issue #217; #227 grades off it). What the robot
   # has MEASURED, one finding per line in a shape code can read back
   # (`thoughts.parse_finding`): a quantity, a number, a unit, the method.
-  # Refuses when full like the robot's other documents; `retract` is the
-  # remedy, and a retraction is what a record of measurements does with a
+  # Since #221 it is a family of TYPED TOPICS in the notes tier,
+  # `findings/<task>`, whose fields are declared by code (the first typed
+  # topic; phase 2 lets the robot declare one): read on demand through
+  # the index, one document on the wire. `retract` is the remedy for a
   # wrong one -- out loud, never by editing. Offered with the library,
   # because the job that fills it is the job only a procedure can do.
-  Surface(FINDINGS, DOCUMENT, ROBOT, 3000, CHARS, REFUSE,
+  Surface(FINDINGS, DOCUMENT, ROBOT, MAX_FINDINGS, ENTRIES, REFUSE,
           ("record", "retract"), "thought", "thought",
           offered_with="procedures"),
+  # THE NOTES (issue #221): titled lines in topics the robot names --
+  # `visitors/ben`, `tasks/draw`, `fruit/durian`. The index (topics and
+  # titles) rides every prompt; a body is read by `recall`. One line each,
+  # the same cap as every line the robot writes; more detail on a subject
+  # is another note in the topic, never a longer one.
+  Surface(NOTES, DOCUMENT, ROBOT, MAX_NOTES, ENTRIES, REFUSE,
+          ("note", "unnote"), "thought", "thought"),
   Surface("procedures", DOCUMENT, ROBOT, MAX_PROCEDURES, ENTRIES, REFUSE,
           ("define", "undefine"), "procedure", "procedure",
           store="procedures", suffix=".procedure", offered_with="procedures"),
@@ -247,7 +276,7 @@ BY_VERB: dict[str, Surface] = {v: s for s in DOCUMENTS for v in s.verbs}
 # their verbs are THOUGHT_VERBS plus the one word the write path says no
 # with. One vocabulary, two repos: a rename here that missed protocol.py
 # would put a document on the wire under a name no client renders.
-FILES: tuple[Surface, ...] = tuple(s for s in DOCUMENTS if s.unit == CHARS)
+FILES: tuple[Surface, ...] = tuple(s for s in DOCUMENTS if s.wire == "thought")
 assert tuple(s.name for s in FILES) == THOUGHT_FILES, \
   "the wire's file list and this table disagree"
 assert set(THOUGHT_VERBS) == {v for s in FILES for v in s.verbs} | {"refused"}, \

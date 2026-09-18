@@ -59,8 +59,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                mortal: bool | None = None, task_state: str | None = None,
                inboxes: tuple | None = None, mode=None,
                overseer_kw: dict | None = None, battery_wh: float | None = None,
-               reserve_wh: float | None = None, goals_path: str | None = None,
-               journal_path: str | None = None, **life_kw) -> list:
+               reserve_wh: float | None = None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -69,7 +68,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                 thought-file root (the first robot's is `thoughts_root`
                 itself, so an existing volume stays the first robot's; the
                 second's is `<root>/<r2 root body>/`), a procedure library
-                under it, a journal, a WALLET and an appetite, an overseer
+                under it, a record store, a WALLET and an appetite, an overseer
                 with its own event map and standing order
     the world   the model, the rack and its bays, the modules, the
                 whiteboards' book, the activities, and ONE task board with
@@ -94,14 +93,10 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   every mind's `overseer.build` (backend, model, spend book...);
   `battery_wh` / `reserve_wh` override the pack's figures.
 
-  ⚠ THE DOCUMENTS ARE PER ROBOT, AND ONLY THE FIRST ROBOT'S COME FROM THE
-  SINGLE-ROBOT KNOBS. The first robot keeps `goals_path` / `journal_path`
-  and their environment fallbacks (`$PLUGGY_GOALS`, `$PLUGGY_JOURNAL`,
-  which the image sets), so a volume that served one robot keeps that
-  robot's goals and journal where they were. The second robot's live under
-  ITS root (`<thoughts root>/<r2 root>/Goals.md`, `.../journal.json`) and
-  ignore both flag and environment -- measured: the environment alone
-  handed both minds one goals file and one journal.
+  ⚠ THE DOCUMENTS AND THE STORE ARE PER ROBOT. The first robot's live at
+  the thoughts root, as a single robot's did; the second's under ITS root
+  (`<thoughts root>/<r2 root>/`, its own `memory.sqlite`) -- measured: one
+  root for both handed two minds one memory.
   """
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.thoughts import ThoughtFiles
@@ -140,21 +135,16 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
-      memory = ThoughtFiles.open(thoughts_root, goals_path=goals_path,
-                                 robot=handle.root)
-      own_journal = journal_path
+      memory = ThoughtFiles.open(thoughts_root, robot=handle.root)
     else:
       root = None if thoughts_root is None else Path(thoughts_root) / handle.root
-      # The constructor, not `open`: `open` falls back to $PLUGGY_GOALS.
       memory = ThoughtFiles(str(root) if root is not None else None,
-                            goals_path=None, robot=handle.root)
-      own_journal = str(root / "journal.json") if root is not None else None
+                            robot=handle.root)
     ledger = Account(book_of_points, handle.root)
     hunger = (Metabolism(book_of_points, appetite, robot=handle.root)
               if appetite else None)
-    boss, journal = ov.build(world, book, enabled=overseer, thoughts=memory,
-                             journal_path=own_journal,
-                             robot_name=name, ledger=ledger,
+    boss = ov.build(world, book, enabled=overseer, thoughts=memory,
+                    robot_name=name, ledger=ledger,
                              appetite=hunger is not None, mortal=bool(mortal),
                              hearts=bool(mortal) and ledger is not None,
                              standing_orders=standing_orders, origin=origin,
@@ -171,7 +161,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                         mode=mode if i == 0 else None,
                         world=world, errands=errands_for(errand, world, book),
                         handle=handle, robot_name=name, ledger=ledger,
-                        overseer=boss, journal=journal, thoughts=memory,
+                        overseer=boss, thoughts=memory,
                         metabolism=hunger, tasks=board,
                         producer=maker if i == 0 else None,
                         mortal=mortal, autonomous=autonomous, **life_kw)
@@ -309,8 +299,6 @@ def record_pair(lives: list, path: str):
   for life in lives:
     life.on_event.append(recorder.emit)
     life.thoughts.on_event.append(recorder.emit)
-    if life.journal is not None:
-      life.journal.on_event.append(recorder.emit)
   first.encounters.on_event.append(recorder.emit)
   return recorder
 
