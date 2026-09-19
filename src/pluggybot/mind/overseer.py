@@ -2947,11 +2947,13 @@ class Overseer:
     # interval check on the second escalation of a freshly started process.
     # Found by the test, not by reading it.
     self._last_escalation: float | None = None
-    #: WHETHER THIS ASK WAS PAID FOR IN POINTS (issue #135). Set by the
-    #: lifecycle when the robot bought its way past the throttle, cleared
-    #: the moment the decision resolves -- one purchase buys one ask, never
-    #: a standing exemption.
-    self._paid_escalation = False
+    #: HOW MANY ASKS WERE PAID FOR IN POINTS (issue #135). A count and not
+    #: a flag: the flag this was (`_paid_escalation`) latched True on the
+    #: first purchase and nothing cleared it, so one payment switched the
+    #: throttle off for the rest of the process -- the standing exemption
+    #: `_buy_escalation`'s docstring forbids. Found while writing the
+    #: library's ration (#216), which pays per read.
+    self.escalations_paid = 0
     self.decisions: list[Decision] = []
     #: THE MEASUREMENT SEAM (issue #106). Each hook gets one dict per
     #: decision -- `state` (the context the model was shown, verbatim),
@@ -3294,12 +3296,10 @@ class Overseer:
     number of points buys a call the week cannot afford, which is
     `$PLUGGY_WEEKLY_USD` staying outside the agent (CLAUDE.md, issue #37).
     """
-    if self.ledger is None or self._paid_escalation:
-      return self._paid_escalation
-    if self.ledger.balance() < ESCALATION_POINTS:
+    if self.ledger is None or self.ledger.balance() < ESCALATION_POINTS:
       return False
     self.ledger.spend(ESCALATION_POINTS, why="thinking harder")
-    self._paid_escalation = True
+    self.escalations_paid += 1
     return True
 
   def _maybe_escalate(self, decision: Decision, state: dict) -> Decision:
@@ -4041,6 +4041,9 @@ class Overseer:
       # the number of escalations that happened.
       "escalations": self.escalations,
       "escalationsRefused": dict(self.escalations_refused),
+      # ...and how many of them the robot paid the throttle off for, in
+      # points: the purchases are the choice the price exists to measure.
+      "escalationsPaid": self.escalations_paid,
       "escalationModel": self.escalate_model,
       "escalationUsd": round(self.escalation_usage.usd, 6),
       "escalationTokens": (self.escalation_usage.input_tokens

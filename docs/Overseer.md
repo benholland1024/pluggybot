@@ -1327,7 +1327,7 @@ has no goals to spend free time on.
 | what | how | refused when |
 |---|---|---|
 | a heart | `buy_heart: true`, `HEART_PRICE` 200 points (≈2.5 h at `MEASURED_INCOME_PER_HOUR` 80; `tests/test_hearts.py` pins the conversion the prompt states) | already at five · cannot afford it · would leave less than `HEART_RESERVE_HOURS` (1 h) of upkeep behind — a missed payment through the shop |
-| being asked sooner | `escalate: true`, `ESCALATION_POINTS` (15) paid automatically | — (the ask is refused, not the payment) |
+| being asked sooner | `escalate: true`, `ESCALATION_POINTS` (15) paid automatically — **once per ask**, never banked (until 2026-09-19 a flag latched the first purchase and the throttle stayed off for the process; `escalationsPaid` counts them now) | — (the ask is refused, not the payment) |
 
 - ⚠ **Points buy access, never money.** The money check sits *above* both
   cadence checks in `why_not_escalate`, so no balance reaches
