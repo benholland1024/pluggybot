@@ -29,11 +29,26 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 #: linearly, at ~19 ns/cell: `binary_dilation` touches every cell whatever the
 #: robot can see. That is what this ceiling is denominated in.
 #:
-#: 250k is ~1.6x the #68 plan, which is headroom for the house to grow again
-#: without a second conversation, and it puts the 30x30 park outside -- which
-#: is right, because a park is a re-examination rather than a bigger house.
-#: Move it with a measurement, not by feel.
-MAX_CELLS = 250_000
+#: RE-MEASURED 2026-09-19 for the second house and the loop street (issue
+#: #215), same method, on a known-free grid with one long wall in it:
+#:
+#:   cells     mask+frontier   A* corner to corner   the world
+#:   159,600      4.6 ms          0.34 s             the #68 house
+#:   469,200     12.6 ms          1.26 s             both houses and the loop
+#:   720,000     21.3 ms            --               a 60x30 m plot
+#:
+#: The mask stays linear. ⚠ THE NEW COST IS THE PLANNER: `astar` is pure
+#: Python over a heap, and a plan across the whole loop touches ~1.4 k
+#: cells of path and a search area that grew with the world -- a far plan
+#: is now over a second of wall clock, where nothing before was. It is paid
+#: per replan, not per step, and a mission's plans are mostly short (a
+#: frontier, a board, the rack), so a day is not four times slower; but it
+#: is the number to read before growing the world again, and vectorising
+#: the planner is the lever if it ever has to.
+#:
+#: 750k is ~1.6x the #215 plot, the same headroom the 250k ceiling gave the
+#: #68 house. Move it with a measurement, not by feel.
+MAX_CELLS = 750_000
 
 
 class OccupancyGrid:

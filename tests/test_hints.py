@@ -148,14 +148,21 @@ def test_furniture_is_exactly_one_box(fixture):
 
 def test_the_robot_hint_rides_the_real_root_body(fixture):
   """`robot` is the only hint whose conformance body is a REAL body name, and
-  the only dynamic one. Both matter to a builder: it anchors on `pluggybot`
-  and its pose is overwritten by every telemetry frame, unlike every piece of
-  scenery, whose scene pose is final."""
+  one of exactly two dynamic ones. Both matter to a builder: it anchors on
+  `pluggybot` and its pose is overwritten by every telemetry frame, unlike
+  every piece of scenery, whose scene pose is final.
+
+  The other is `mouse` (issue #215): a MOCAP body, no joint, moved by the
+  cage's activity between pre-allocated poses -- so `dynamic_flags` counts
+  a mocap body as dynamic and a frame carries it. Every other hint is
+  scenery, and a third dynamic hint here is a decision, not a drift."""
   body = fixture["hints"]["robot"]["body"]
   assert body["name"] == "pluggybot" and body["robot"] == "pluggybot"
   assert body["dynamic"] is True
-  assert all(spec["body"]["dynamic"] is False
-             for h, spec in fixture["hints"].items() if h != "robot")
+  mouse = fixture["hints"]["mouse"]["body"]
+  assert mouse["dynamic"] is True and mouse["robot"] is None
+  assert {h for h, spec in fixture["hints"].items()
+          if spec["body"]["dynamic"]} == {"robot", "mouse"}
 
 
 def test_the_sim_still_refuses_a_word_it_does_not_have():

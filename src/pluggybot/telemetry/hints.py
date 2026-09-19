@@ -64,16 +64,19 @@ class Marker:
 
   def __init__(self, hint: str, geoms: list[tuple], collides: bool,
                axes: dict[str, str], build: str, note: str,
-               body: str | None = None, free: bool = False) -> None:
+               body: str | None = None, free: bool = False,
+               mocap: bool = False) -> None:
     self.hint, self.geoms, self.collides = hint, geoms, collides
     self.axes, self.build, self.note = axes, build, note
     # `robot` overrides both: its conformance body IS `ROBOT_ROOT`, with a
     # free joint, so the fixture carries a real robot body record --
     # `"robot": "pluggybot"` and `"dynamic": true` -- rather than a
     # scenery-shaped stand-in that would quietly under-describe the one
-    # hinted body whose pose a frame overwrites.
+    # hinted body whose pose a frame overwrites. `mocap` is the other way
+    # a hinted body moves (the lab's mouse, issue #215): no joint, a pose
+    # that is an input, and `"dynamic": true` on the wire for it.
     self.body = body or f"hint_{hint}"
-    self.free = free
+    self.free, self.mocap = free, mocap
     assert build in BUILD_MODES, build
     assert set(axes.values()) <= set(AXIS_SLOTS), axes
 
@@ -81,8 +84,9 @@ class Marker:
     """One body, spread along +y so the fixture is also a viewable scene."""
     con = 'contype="1" conaffinity="1"' if self.collides \
         else 'contype="0" conaffinity="0"'
+    attrs = ' mocap="true"' if self.mocap else ""
     out = [f'    <body name="{self.body}" pos="0 {y:.1f} 0.2">'
-           if self.free else f'    <body name="{self.body}" pos="0 {y:.1f} 0">']
+           if self.free else f'    <body name="{self.body}" pos="0 {y:.1f} 0"{attrs}>']
     if self.free:
       out.append('      <freejoint/>')
     for i, (gtype, size, pos) in enumerate(self.geoms):
@@ -222,6 +226,35 @@ MARKERS = [
               "and the height is the TOP. Frozen ahead of any decision about "
               "whether the kitchen gets fixtures at all -- an unused name "
               "costs nothing and a late one costs a two-repo rename."),
+  # ---- v4 (issue #215): the second house's experiment zone -----------------
+  # Copied from activity/cage.py's real geometry, like the v1 five.
+  Marker("cage", [("box", "0.30 0.20 0.01", "0 0 0.01"),
+                  ("box", "0.005 0.20 0.15", "-0.295 0 0.15"),
+                  ("box", "0.005 0.20 0.15", "0.295 0 0.15"),
+                  ("box", "0.30 0.005 0.15", "0 -0.195 0.15"),
+                  ("box", "0.30 0.005 0.15", "0 0.195 0.15")], collides=True,
+         axes={}, build="reskin",
+         note="MANY primitives, kept: a solid TRAY (the one thin horizontal "
+              "box, standing on the floor) and four upright WALL slabs the "
+              "browser draws as bars within their own extent, the way a "
+              "`fence` is drawn as rails -- see-through art in a solid "
+              "marker, because the robot maps the slab (its LIDAR rides at "
+              "0.223 m, inside the walls' 0.30 m) and must plan around "
+              "exactly it. What lives inside (the `mouse`, a bowl, a wheel, "
+              "a hide box) is its own body; nothing here reaches outside "
+              "the slabs."),
+  Marker("mouse", [("capsule", "0.015 0.02", "0 0 0.035")], collides=True,
+         axes={"radius": "size0", "length": "size1"},
+         build="replace", mocap=True,
+         note="A capsule lying on its side (the quat is the +90 deg fix, "
+              "like every cylinder's), and the only hinted body besides the "
+              "robot that MOVES: a mocap body, `dynamic: true`, whose pose "
+              "the cage's activity (#226) sets between pre-allocated spots "
+              "-- resting, eating, playing, hiding, on its side -- so a "
+              "frame may overwrite it exactly as it overwrites the robot's. "
+              "Draw a small rodent inside the capsule's length and radius; "
+              "the state it is in is NOT in the geometry, it rides the "
+              "activity's flags."),
 ]
 
 #: These markers are EXACTLY ONE BOX, pinned rather than merely intended.

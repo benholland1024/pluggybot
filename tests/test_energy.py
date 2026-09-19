@@ -36,10 +36,10 @@ from pluggybot.mind.thoughts import GOALS, ThoughtFiles
 from pluggybot.mind import overseer as ov
 from pluggybot.mission.errand import Errand, carry_errand
 
-HOME_RESERVE = 0.95            # home_world's return-trip reserve (issue #84:
-                               # measured 0.611 floor + one dock retry, with
-                               # the depth camera drawing -- issue #34)
-HOME_DEMO_WH = 3.0             # ...and its demo cell, sized to hold the
+HOME_RESERVE = 2.05            # home_world's return-trip reserve (issue #215:
+                               # measured 1.669 floor from the loop's far
+                               # corner + one dock retry; 0.95 before the loop)
+HOME_DEMO_WH = 4.5             # ...and its demo cell, sized to hold the
                                # reserve AND the dearest errand off one charge
 HOSTING_WH = 8.0               # what the deployment actually runs
 
@@ -365,9 +365,12 @@ def test_the_demo_cell_keeps_the_return_trip_out_of_a_job_s_budget():
   spendable == pack, which was what the old recordings were produced
   against. room_hub still behaves that way; see the margin tests above.)"""
   life = life_with(battery_wh=HOME_DEMO_WH)
-  life.battery.energy_wh = 2.0
+  # A pack ABOVE the reserve, said relative to it: a literal 2.0 sat under
+  # the 2.05 reserve the loop street brought (#215), and spendable energy
+  # is clamped at zero there, which is a different claim.
+  life.battery.energy_wh = HOME_RESERVE + 1.0
   assert life.reserve_margin_wh == HOME_RESERVE
-  assert life.spendable_wh == pytest.approx(2.0 - HOME_RESERVE)
+  assert life.spendable_wh == pytest.approx(1.0)
   # ...and what the WORLD can offer shrinks by the same reserve: `fundable_wh`
   # is a charged pack less the margin, so the producer now prices jobs against
   # 1.80 Wh, not 2.70 -- the dearest errand (~1.17) still fits with a third
@@ -491,15 +494,16 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, on real physics ------------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime on `home` (the dearest
-#: errand, ~1.22 Wh, plus the 0.95 Wh reserve must fit a charged pack:
-#: capacity >= 2.17 / 0.9 = 2.41), so these cost one charge cycle instead of
-#: the six a real 8 Wh pack would take. The regime is what is under test, not
-#: the capacity -- `--pack hosting` is the same arithmetic with more room in
-#: it. Was 2.0 against the old 0.55 reserve and 2.4 against #84's 0.90; the
-#: depth camera's draw (#34) moved both the reserve and the census, and a
-#: pack below the floor silently drops to zero margin (the
-#: all-or-nothing rule), which is exactly what the first assertion catches.
-MARGIN_PACK_WH = 2.5
+#: errand, 1.304 Wh, plus the 2.05 Wh reserve must fit a charged pack:
+#: capacity >= 3.354 / 0.9 = 3.73), so these cost one charge cycle instead of
+#: the several a real 8 Wh pack would take. The regime is what is under
+#: test, not the capacity -- `--pack hosting` is the same arithmetic with
+#: more room in it. Was 2.0 against the old 0.55 reserve, 2.4 against #84's
+#: 0.90, 2.5 against #34's 0.95; the loop (#215) put the far corner 45 m
+#: from the rack and the reserve with it, and a pack below the floor
+#: silently drops to zero margin (the all-or-nothing rule), which is
+#: exactly what the first assertion catches.
+MARGIN_PACK_WH = 3.8
 
 
 class OneNote:

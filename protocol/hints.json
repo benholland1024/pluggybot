@@ -19,7 +19,9 @@
   "stairs",
   "street",
   "sidewalk",
-  "counter"
+  "counter",
+  "cage",
+  "mouse"
  ],
  "oneBoxHints": [
   "couch",
@@ -1139,6 +1141,226 @@
       "quat": [
        1.0,
        0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "cage": {
+   "marker": "many",
+   "markers": 5,
+   "collides": true,
+   "build": "reskin",
+   "axes": {},
+   "note": "MANY primitives, kept: a solid TRAY (the one thin horizontal box, standing on the floor) and four upright WALL slabs the browser draws as bars within their own extent, the way a `fence` is drawn as rails -- see-through art in a solid marker, because the robot maps the slab (its LIDAR rides at 0.223 m, inside the walls' 0.30 m) and must plan around exactly it. What lives inside (the `mouse`, a bowl, a wheel, a hide box) is its own body; nothing here reaches outside the slabs.",
+   "body": {
+    "name": "hint_cage",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "cage",
+    "pos": [
+     0.0,
+     51.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_cage_0",
+      "type": "box",
+      "size": [
+       0.6,
+       0.4,
+       0.02
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.01
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_cage_1",
+      "type": "box",
+      "size": [
+       0.01,
+       0.4,
+       0.3
+      ],
+      "pos": [
+       -0.295,
+       0.0,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_cage_2",
+      "type": "box",
+      "size": [
+       0.01,
+       0.4,
+       0.3
+      ],
+      "pos": [
+       0.295,
+       0.0,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_cage_3",
+      "type": "box",
+      "size": [
+       0.6,
+       0.01,
+       0.3
+      ],
+      "pos": [
+       0.0,
+       -0.195,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_cage_4",
+      "type": "box",
+      "size": [
+       0.6,
+       0.01,
+       0.3
+      ],
+      "pos": [
+       0.0,
+       0.195,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "mouse": {
+   "marker": "capsule",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "radius": "size0",
+    "length": "size1"
+   },
+   "note": "A capsule lying on its side (the quat is the +90 deg fix, like every cylinder's), and the only hinted body besides the robot that MOVES: a mocap body, `dynamic: true`, whose pose the cage's activity (#226) sets between pre-allocated spots -- resting, eating, playing, hiding, on its side -- so a frame may overwrite it exactly as it overwrites the robot's. Draw a small rodent inside the capsule's length and radius; the state it is in is NOT in the geometry, it rides the activity's flags.",
+   "body": {
+    "name": "hint_mouse",
+    "parent": "world",
+    "dynamic": true,
+    "robot": null,
+    "visual": "mouse",
+    "pos": [
+     0.0,
+     54.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_mouse_0",
+      "type": "capsule",
+      "size": [
+       0.015,
+       0.04
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.035
+      ],
+      "quat": [
+       0.707107,
+       0.707107,
        0.0,
        0.0
       ],

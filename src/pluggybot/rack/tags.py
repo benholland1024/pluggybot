@@ -52,6 +52,11 @@ MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
 #: measurement to make against the first attempt, not before it.
 BLOCK_TAG_IDS = (20, 21, 22)
 BLOCK_TAG_SIZE = 0.026 * 8 / 10
+#: The bench's two masses (issue #215; challenge/bench.py): the same 26 mm
+#: cube as a block, so the claw's one proven grasp finds them, with the
+#: next two ids. Which one is which is a fact the offer states (#227): the
+#: known mass is told, the unknown is what the job is.
+MASS_TAG_IDS = (23, 24)
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -65,7 +70,8 @@ SMALL_TAG_SIZE = 0.030
 TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
              **{i: SMALL_TAG_SIZE for i in BAY_TAG_IDS},
              **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
-             **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS}}
+             **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
+             **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS}}
 
 TAG_DIR = Path("models/tags")
 
@@ -94,7 +100,7 @@ def write_tag_pngs(directory: Path = TAG_DIR) -> list[int]:
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
   ids = [RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values(),
-         *BLOCK_TAG_IDS]
+         *BLOCK_TAG_IDS, *MASS_TAG_IDS]
   for tag_id in ids:
     Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
   return ids

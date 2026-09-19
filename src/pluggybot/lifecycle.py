@@ -2823,7 +2823,7 @@ class HubLifecycle:
     world forever -- a task system that silently does nothing. home LEFT that
     regime at issue #84: a 3.0 Wh demo cell against errands re-priced to
     0.658-1.180 Wh (#70) funds the dearest job AND the margin, so home now
-    charges the full 0.95 Wh reserve (0.90 before the depth camera, #34).
+    charges the full 2.05 Wh reserve (0.95 before the loop, #215).
 
     On a hosting-sized pack there IS margin to keep, the errand is required to
     finish with the return trip still in hand, and the mid-errand death this
@@ -4573,6 +4573,11 @@ def world_config(world: str) -> dict:
       # start in, which is what the offer says; where they stand is the
       # generator's. Absent on a world without them, and the offer with it.
       "tower": {"name": "workshop", "blocks": list(home.TOWER_XY)},
+      # The experiment zone (issue #215): the room, and where its props
+      # stand, for #226's cage activity and #227's bench. Absent on a world
+      # without a lab.
+      "lab": {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
+              "bench": tuple(home.LAB_BENCH_XY)},
       # Every named region, for an overseer's `explore(zone)` (issue #15).
       # Off the generator's own ZONES, like the census zone above -- the
       # region the LLM can name is the region the website draws.
