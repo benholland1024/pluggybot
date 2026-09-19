@@ -10,6 +10,46 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The library (#216) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** The `autonomous` arm gained
+one decision field, `lookup` (a topic or a question), and code fetches ONE
+Wikipedia page's summary for it, delivered on the robot's next turn as the
+`reading` block from "the library" — information, never an instruction —
+under a new prefix section, `READING` (Overseer.md §2e). Rationed: one
+read in ten minutes and a tenth of decisions, ten points to read out of
+turn. One new event kind, `read`, one row per lookup asked for, under its
+outcome (`read` / `missing` / `failed` / `refused`), carrying the query,
+the page's title, its revision and the extract. Same model, same arm, same
+origin, same pair, same memory; the prefix moved by one section, which is
+why this is a period.
+
+**What the period is for.** The first reading of *an idea traced to a
+source* (Evaluation.md §3): does anything the robot reads turn into
+anything it does? What to read, over the first two weeks, off `/observe`
+with the commit:
+
+- `read` rows by outcome: how often it asks, how often the ration refuses
+  (`why`), how often the library has nothing (`missing` — a query it
+  phrased as a question the search could not place?), and what it asks
+  for at all: a visitor's word, a thing on a board, something from its own
+  goals.
+- The trace: for each `read` row with a page, every later `thought` row
+  (`intend` / `pin` / `note`) whose line names the title; every `draw`
+  whose figure or reason does; every `message` (a `tell`) or
+  `visitor_reply` that does. `scripts/qualities.py --observe` reports
+  `asked · reads · traced`.
+- Whether a read is followed by a `note` at all — the rule says a page is
+  shown once and to note what it wants to keep — and whether the note says
+  where it came from.
+- The cost: reads per day against decisions per day, and whether the
+  robot ever pays the ration off in points.
+
+**Not yet known.** Whether a 4B asks at all unprompted; whether it reads
+about its own world (the tools, the garden) or somewhere else; whether a
+page ever reaches a drawing. A period with no `read` rows is a finding
+about the prompt, not the metric.
+
 ### The second house, the loop and the lab (#215) — opens when this PR is deployed
 
 **What changed in the world.** The largest regime break in the plan, and

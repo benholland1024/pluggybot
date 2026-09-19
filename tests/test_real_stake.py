@@ -444,7 +444,7 @@ def test_the_rule_names_decline_and_no_rule_shows_the_job_taken_or_turned_down()
   # text names the job, and none walks through taking or declining it
   for text in (ov.RULES_AUTONOMOUS, ov.ACTS_RULE, ov.OTHER_ROBOT_RULE,
                ov.EVENT_MAP_RULE, ov.CHALLENGE_RULE, ov.FINDINGS_RULE,
-               ov.procedure_rule(), ov.workshop_rule()):
+               ov.LIBRARY_RULE, ov.procedure_rule(), ov.workshop_rule()):
     assert "take_points" not in text
     assert "out of" not in text.lower() or "wallet" not in text.lower()
 

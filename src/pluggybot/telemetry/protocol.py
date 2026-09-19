@@ -338,6 +338,18 @@ THOUGHT_VERBS = ("pin", "unpin", "intend", "drop_goal", "record", "retract",
 #: next `generation` and no rows. The `thought` documents and the `journal`
 #: message stay beside them until the site has moved.
 MEMORY_EVENT_TYPES = ("recall", "record", "records")
+#: THE LIBRARY (issue #216), additive on the wire, no bump: a `read` event
+#: per lookup the robot asked for -- `query` (what it asked), `outcome`
+#: (below), `page` (the title Wikipedia answered with), `revision` (the
+#: page revision the extract came from, so a traced idea has a source),
+#: `url`, `chars`, and `why` on a `refused` (`too-soon` / `share`, the
+#: throttle) or a `failed` (`timeout` / `offline` / `garbled`, the
+#: transport). The extract itself rides as `text`. The observatory files
+#: one row per event under the outcome; "what has it read this week" is
+#: one query, and a `thought` / `draw` / `message` naming the page after
+#: it is a trace (`evaluation/qualities.py`, `ideas_traced`).
+LIBRARY_EVENT_TYPES = ("read",)
+READ_OUTCOMES = ("read", "missing", "failed", "refused")
 #: What a row IS (`mind/memory.py` imports these): `core` a line of an
 #: always-shown document (its `topic` is the document's name), `note` a
 #: titled line in a topic the robot named (`findings/<task>` is the science

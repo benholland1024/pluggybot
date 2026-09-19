@@ -89,11 +89,11 @@ def _calls(path: Path) -> set[str]:
 
 
 def test_every_text_surface_is_a_registry_row():
-  """Five files, two libraries, two message channels: nine rows, and each
-  owner's numbers are the row's. A cap or a writer typed in an owner would
-  be a second table."""
+  """Six files, two libraries, three message channels: eleven rows, and
+  each owner's numbers are the row's. A cap or a writer typed in an owner
+  would be a second table."""
   names = {s.name for s in text.SURFACES}
-  assert names == {*THOUGHT_FILES, "procedures", "tools", "visitor", "peer"}
+  assert names == {*THOUGHT_FILES, "procedures", "tools", "visitor", "peer", "library"}
   assert thoughts.SPECS == {s.name: s for s in text.FILES}
   assert thoughts.NAMES == THOUGHT_FILES
   assert procedures.Library(None).cap == text.BY_NAME["procedures"].cap == text.MAX_PROCEDURES
@@ -102,6 +102,10 @@ def test_every_text_surface_is_a_registry_row():
   assert workshop.SUFFIX == text.BY_NAME["tools"].suffix
   assert inbox.MAX_TEXT == text.BY_NAME["visitor"].cap == text.BY_NAME["peer"].cap
   assert ov.MAX_TELL == text.BY_NAME["peer"].cap
+  # ...and the library's page is a paragraph, not a sentence (#216): its
+  # own cap, read by the module that delivers it.
+  from pluggybot.mind import wiki
+  assert wiki.MAX_PAGE_CHARS == text.BY_NAME["library"].cap > inbox.MAX_TEXT
   # ...and the verbs on the `.md` files are the wire's, plus the refusal.
   assert set(THOUGHT_VERBS) == {v for s in text.FILES for v in s.verbs} | {"refused"}
   assert text.line_verbs() == ("drop_goal", "intend", "unpin", "pin",
@@ -120,7 +124,7 @@ def test_the_two_shapes_stay_two():
     assert len(s.verbs) <= 2, f"{s.name}: an add, a remove, and no third"
     assert (s.verbs == ()) == (s.writer != text.ROBOT), s.name
   for m in text.MESSAGES:
-    assert m.shape == text.MESSAGE and m.writer in (text.VISITOR, text.PEER)
+    assert m.shape == text.MESSAGE and m.writer in (text.VISITOR, text.PEER, text.LIBRARY)
     assert m.writer not in THOUGHT_WRITERS or m.writer == "robot"
     assert not m.stable and not m.default and not m.offered_with
     with pytest.raises(text.Refused, match="is a message"):

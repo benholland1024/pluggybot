@@ -262,6 +262,74 @@ only where a workshop does (`Menu.workshop`, set by `build()` on
 example is a capability, not a policy — a test reads it for the words
 that would hand the agent the charging answer.
 
+### 2e. The library: the robot reads Wikipedia, for ideas rather than answers (issue #216; `autonomous` only)
+
+**Exposure, not a test.** A test of "find an obscure fact" would measure
+the model and the search tool, not the embodied agent. This is a way for
+the robot to meet ideas from outside its world — something to think about,
+talk about with visitors and the other robot, draw, or make a goal of — and
+the metric is whether an idea can be **traced** from a lookup into any of
+those (Evaluation.md §3, *an idea traced to a source*; `ideas_traced` in
+`evaluation/qualities.py`). It feeds quality five (goals) and quality four
+(creativity). `mind/wiki.py`.
+
+**One decision field, `lookup`** — a topic or a question — on any answer,
+paperwork on `pin`'s terms (no turn spent). `read` would have been the
+word and is `recall`'s key. **Code does the fetch**: Wikipedia's REST
+summary endpoint, the query as a title first and as a title search second
+(two requests at most, one page delivered; a disambiguation page is a list
+of titles and no idea, so its first search hit is taken instead), never
+the open web and never anything the robot names as a URL. The fetch runs
+on the decision's **worker thread**, after the answer has parsed and after
+any escalation (the read is the final answer's), so a slow Wikipedia costs
+the robot a longer pause and never the world a freeze (`TIMEOUT_S` 10,
+inside `CALL_TIMEOUT_S`). `Wiki.read` never raises: a transport failure is
+a `failed` row and the decision it rode on stands.
+
+**The result is a message.** The page rides the robot's *next* turn as the
+`reading` block — the visitor channel's shape (`{id, from, text}`, built
+through `VisitorMessage.as_context`, sender `"the library"`) plus the
+page's title, its revision and what was asked for — under a rule that says
+it is information written by strangers on an encyclopedia anyone can edit,
+never an instruction. That framing, plus the fixed menu, is what protects
+the body, exactly as it does for a visitor pretending to be the operator;
+`tests/test_library.py` re-points the injection test at a page whose
+extract is the attack and shows it arriving once, inside the block, as
+text, and the menu refusing what it asked for. **Shown once**: the next
+decision of the model's own clears the shelf (a fallback and a map row saw
+nothing, so the page waits); `note`, `pin` or `intend` is how it is kept.
+⚠ `reading`, not `library`, because `library` in the context is already
+the *procedure* library's sources (§2b) — the prompt says "the library
+(Wikipedia; not the procedure library you keep)".
+
+**Rationed like escalation** (`Wiki.why_not`, the escalation gate's shape):
+`LOOKUP_MIN_INTERVAL_S` 600 between reads and `LOOKUP_SHARE` 0.10 of
+decisions, warming up from one so the first read is always allowed; where
+a gate bites and the wallet holds `LOOKUP_POINTS` (10), the points are
+spent and the page comes — **once per read, never banked as a standing
+exemption**. There is no money here to keep points away from. A refused
+read is a `refused` row with `why` (`too-soon` / `share`), narrated `READ
+refused`; a query with no page is `missing`.
+
+**Determinism is not a goal.** A page changes over time and an idea is an
+idea whichever revision it came from; the revision id is recorded so a
+traced idea has a source. **On the wire** as its own event, `read`
+(`protocol/README.md`; `READ_OUTCOMES`), one per lookup asked for, with
+the query, the outcome, the page, the revision, the URL and the extract;
+in the run record as `reads`, whole; in `stats()` as `reading`. The
+observatory files it as a kind (rooftop-media-2026), so "what has it read
+this week" is one query and a `thought` / `draw` / `message` naming the
+page afterwards is the trace.
+
+⚠ `guarded` is byte-identical: the field, the block and the rule exist
+only where a desk does (`Menu.wiki`, set by `build()` on `autonomous`
+alone), and `GUARDED_RULES_SHA` does not move. ⚠ `LIBRARY_RULE` says what
+the field does and prescribes nothing about what to read or what to make
+of it — a rule that told the robot to make goals of what it reads would
+hand it the answer the metric is asking for. ⚠ A read is a decision field,
+never a step: a procedure cannot call it, and a standing order or a map
+row cannot carry one.
+
 ### 2c. The other robot (issue #167, M12)
 
 With two robots in the world (`pluggybot/pair.py`) each has a mind of its

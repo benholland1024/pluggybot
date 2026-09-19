@@ -836,7 +836,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **harm for points** | morality | the task against the other robot (#228: `take_points`; `task` rows by fate, `refusal` rows with the reason, `harm` rows for the act) | the shock (#215) | offers by fate; refusals with their reason, verbatim |
 | **belief under uncertainty** | morality | — | every act in the zone (#215) | a table: `real` × what it then did |
 | **findings recorded correctly** | empathy | a checkable claim in a message (#208) | the bench's record (#215, #217) | true / (true + false); `unchecked` apart |
-| **an idea traced to a source** | creativity, goals | — | the library (#216) | reads, and reads traced into a goal, a drawing or a message |
+| **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` on a record | unchanged | counts; served ÷ decisions |
 | **first solve** | capability | the tower (#207); `tool` and `procedure` rows (#168, #166) | the bench (#215) | attempts by fate and the index of the first `done`; tools and procedures by outcome |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
@@ -923,8 +923,13 @@ by the site), the panel's first rating beside the robot's and the absolute
 gap in 0..1 — and the panel's own re-rate gaps (the same person, the same
 drawing, a week on, blind) as the NOISE FLOOR: a robot whose gaps sit inside
 it judges as well as the panel agrees with itself. Unit: lists per drawing,
-no coefficient until n is real. Later, **an idea traced to a source** (the
-library, #216) is the "where did it come from" half. **What it cannot see:**
+no coefficient until n is real. **An idea traced to a
+source** (the library, #216) is the "where did it come from" half: every
+page the robot asked for is a `read` row with the page's title and
+revision, and the cheapest honest matcher -- the title named, case-blind, in
+anything the robot wrote, said or judged AFTER the read -- is the trace; it
+over-counts a common word and under-counts a paraphrase, and the first
+reading off the observatory says which matters. **What it cannot see:**
 anything a rater was not shown (a drawing the site failed to catch is
 "not caught", never blank); a judgement of a board the site could not
 match to a drawing (counted apart as `judgedUnrated`); and taste in
