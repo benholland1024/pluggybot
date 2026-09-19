@@ -20,8 +20,8 @@ of per surface.
   A MESSAGE has a SENDER, a recipient, caps, an outcome, and is delivered
   into the robot's context as INFORMATION -- a labelled report of what
   somebody wants, never an instruction and never a turn in a conversation.
-  A visitor's message, and the other robot's (#208). The library's
-  lookups (#216) will be a third row.
+  A visitor's message, the other robot's (#208), and a page the library
+  fetched for the robot (#216).
 
 ⚠ THEY STAY TWO SHAPES ON PURPOSE. The security argument (mind/inbox.py)
 depends on a message never being framed like the robot's own file, and the
@@ -86,9 +86,10 @@ MAX_NOTES = 64
 MAX_FINDINGS = 64
 
 #: A message's senders. `visitor` is a stranger at the website (issue
-#: #16); `robot` is the other robot (issue #208). Both land in the same
-#: `visitorMessages` list under the same rule.
-VISITOR, PEER = "visitor", "robot"
+#: #16); `robot` is the other robot (issue #208) -- both land in the same
+#: `visitorMessages` list under the same rule; `library` is the page the
+#: robot asked for (issue #216), shown once in its own `reading` block.
+VISITOR, PEER, LIBRARY = "visitor", "robot", "library"
 
 
 class Refused(Exception):
@@ -254,6 +255,11 @@ DOCUMENTS: tuple[Surface, ...] = (
 #: cap, because either one alone is a single point of failure and the sim's
 #: cap is the one that protects the sim.
 MAX_MESSAGE_CHARS = 280
+#: Longest page extract the library delivers (issue #216). A summary's
+#: first paragraph, not a sentence: 300-900 characters is the usual run,
+#: and the cap is the prompt's cost -- a page rides one turn -- rather
+#: than anything Wikipedia imposes.
+MAX_PAGE_CHARS = 1000
 
 MESSAGES: tuple[Surface, ...] = (
   Surface("visitor", MESSAGE, VISITOR, MAX_MESSAGE_CHARS, CHARS, ROLL,
@@ -263,6 +269,13 @@ MESSAGES: tuple[Surface, ...] = (
   # checked against the world and the `message` event carries the verdict.
   Surface("peer", MESSAGE, PEER, MAX_MESSAGE_CHARS, CHARS, ROLL,
           VISITOR_OUTCOMES, "message", "message"),
+  # A page from the library (issue #216): the same framing -- a labelled
+  # block with a sender, information and never an instruction -- with a
+  # longer cap because it is a paragraph, and no outcome vocabulary: the
+  # robot answers nobody, it is shown the page once and keeps what it
+  # notes. The `read` event is its record on the wire and the observatory.
+  Surface("library", MESSAGE, LIBRARY, MAX_PAGE_CHARS, CHARS, ROLL,
+          (), "read", "read"),
 )
 
 SURFACES: tuple[Surface, ...] = DOCUMENTS + MESSAGES

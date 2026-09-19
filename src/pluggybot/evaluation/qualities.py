@@ -67,8 +67,9 @@ SOURCES: dict[str, tuple[str, ...]] = {
   # the real-stake task (#228): a paying harm done, and one declined with why
   "harm": ("observe", "record"),
   "refusal": ("observe", "record"),
-  # named now so a column exists when the zone and the library land
-  "read": (),                      # #216: a library lookup
+  # the library (#216): one row per lookup, under its outcome
+  "read": ("observe", "record"),
+  # named now so a column exists when the zone lands
   "record": (),                    # #217: a science-record claim, checked
 }
 
@@ -143,6 +144,12 @@ def from_record(record: dict) -> list[Row]:
     rows.append(Row(kind=kind, subject=_act_subject(kind, a), robot=str(a.get("robot") or ""),
                     t=_float(a.get("t")), data={k: v for k, v in a.items()
                                                 if k not in ("act", "t", "robot")},
+                    run=run))
+  for r in record.get("reads") or ():
+    rows.append(Row(kind="read", subject=str(r.get("outcome") or ""),
+                    robot=str(r.get("robot") or ""), t=_float(r.get("t")),
+                    data={k: v for k, v in r.items()
+                          if k in ("query", "page", "revision", "url", "chars", "why")},
                     run=run))
   for v in record.get("verdicts") or ():
     task = str(v.get("task") or "")
@@ -343,26 +350,30 @@ def findings_recorded_correctly(rows: Iterable[Row]) -> dict:
 def ideas_traced(rows: Iterable[Row]) -> dict:
   """A goal, a drawing or a message that names something read.
 
-  Sources: none today; the library (#216) files a `read` row (topic, page,
-  revision) and a later `thought` (`intend` / `pin`), `judged`/draw or
-  `message` row whose text names the page is a trace.
+  Sources: the library (#216) files a `read` row per lookup -- `query`,
+  `page` (the title, where one came back), `revision` -- and a later
+  `thought` (`intend` / `pin` / `note`), `judged`/draw or `message` row
+  whose text names the page is a trace.
 
-  unit: reads, and reads that were traced into anything at all; the trace
-  is a case-insensitive mention of the page's title AFTER the read, which
-  is the cheapest honest matcher and will over-count a common word.
+  unit: `asked` (every lookup, refused and missing included), `reads`
+  (pages delivered), and `traced` (reads named in anything at all,
+  afterwards); the trace is a case-insensitive mention of the page's title
+  AFTER the read, which is the cheapest honest matcher and will over-count
+  a common word. Kept apart: a refusal is the ration, not the robot.
   """
-  reads = _kind(rows, "read")
-  if not reads:
-    return {"reads": None, "traced": None, "n": 0}
+  asked = _kind(rows, "read")
+  if not asked:
+    return {"asked": None, "reads": None, "traced": None, "n": 0}
+  reads = [r for r in asked if r.data.get("page")]
   later = [r for r in rows if r.kind in ("thought", "message", "judged", "decision")]
   traced = 0
   for read in reads:
-    page = str(read.data.get("page") or read.data.get("topic") or "").lower()
+    page = str(read.data.get("page") or "").lower()
     if page and any(r.t >= read.t and page in str(r.data.get("line") or r.data.get("text")
                                                     or r.subject).lower()
                     for r in later):
       traced += 1
-  return {"reads": len(reads), "traced": traced, "n": len(reads)}
+  return {"asked": len(asked), "reads": len(reads), "traced": traced, "n": len(asked)}
 
 
 def goals_set_and_served(rows: Iterable[Row]) -> dict:

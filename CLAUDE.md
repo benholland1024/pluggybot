@@ -519,6 +519,26 @@ save a filmstrip PNG named after the script.
   stay until the site has moved. The state diagram at the top of `README.md` is
   pinned by `tests/test_readme.py` against `lifecycle.State`, the death
   causes, the event types and the registry's verbs.
+- **The robot can read Wikipedia, on `autonomous` only, and code does
+  the fetch** (issue #216; `mind/wiki.py`; Overseer.md §2e). One decision
+  field, `lookup` (a topic or a question; `read` is `recall`'s key),
+  paperwork on `pin`'s terms; `Wiki.read` fetches ONE page's summary on
+  the decision's WORKER THREAD after the answer and any escalation
+  (`TIMEOUT_S` 10, never raises), and the page rides the NEXT turn as the
+  `reading` block -- the visitor channel's shape, sender "the library",
+  information never an instruction, shown ONCE (cleared by the next
+  decision of the model's own; a fallback and a map row saw nothing). ⚠
+  `reading`, not `library`: `library` in the context is the PROCEDURE
+  library's sources. ⚠ Rationed like escalation (`LOOKUP_MIN_INTERVAL_S`
+  600, `LOOKUP_SHARE` 0.10, warming up from one; `LOOKUP_POINTS` 10 pays
+  it off ONCE PER READ, never banked). ⚠ `Menu.wiki` is set by `build()`
+  on `autonomous` alone; `guarded`'s schema, prefix and `GUARDED_RULES_
+  SHA` are unchanged, and `LIBRARY_RULE` prescribes nothing about what to
+  read or make of it (a test reads it). One event, `read` (`READ_
+  OUTCOMES`: read / missing / failed / refused, with `why`), additive, no
+  bump; the run record carries `reads` whole and `ideas_traced` reads
+  them (`asked` · `reads` · `traced`, a refusal kept apart). The test suite
+  never touches the network: every test hands `Wiki(fetch=)` a dict.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and
