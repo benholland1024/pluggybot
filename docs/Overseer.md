@@ -543,7 +543,10 @@ otherwise).
   edit, what fired, what failed and why, and `events.score` (did it write a
   charging rule, at what fractions, does it keep an `ask`, does it map its own
   failure, are its thresholds ordered) — a map is evaluable without flying.
-  The map is a research artifact in the run record and **not on the wire**.
+  The run record is the research artifact; since issue #238 the CURRENT
+  map also rides the stream as an `event_map` message (on open and on every
+  edit, `Overseer.on_map`; protocol/README.md), so the site's panel and
+  #224 can read the rows without the run record.
 - **`decision_failed` narrows to *why*** (issue #127, second pass), on the same
   `kind` field `task_complete` uses: one of `FALLBACK_REASONS`, one of the two
   classes (`failure` / `policy`), or `""` for any. `Overseer.failure_order`
@@ -1119,9 +1122,14 @@ decision branch — until #221 every ask looked the same from inside.
 - **Two-repo contracts.** `THOUGHT_FILES` / `THOUGHT_VERBS` (adding is
   additive, renaming breaks the site: `learn`/`forget` became `pin`/`unpin`
   at 0.21.0 and the site folds the old names as it folded `answered`); the
-  `recall` event; the `journal` message carrying the think. The fixture
-  recordings open with every document and are re-recorded when the list
-  moves.
+  `recall` event; the `journal` message carrying the think; and since issue
+  #238 the ROWS themselves — `RECORD_KINDS` / `RECORD_STATUSES`, a `record`
+  event per write and per retire (the same `id`, `status: retired`) and a
+  `records` snapshot on open (every active row; History cut to
+  `SNAPSHOT_HISTORY`; a true death sends a fresh one under the next
+  generation) — so the site shows the storage as it is, with the ids the
+  robot cites. The fixture recordings open with every document and the
+  snapshot, and are re-recorded when either moves.
 - **Measured for #221's acceptance** (`overseer_probe.py`, `home`, 2026-09-18;
   ~4 chars a token): the cached prefix is 14 026 → 15 371 chars (`guarded`)
   and 15 265 → 16 611 (`autonomous`, the probe's subset) — the tier and
@@ -1401,9 +1409,11 @@ a robot following goals that steer nothing; `thought` (`{robot, t, name,
 writer, text, cap}`, 0.11.0), one per memory document, on open and on every
 change; `mode` with its heartbeat (0.12.0); `death`, `reset` and
 `intervention` (0.15.0–0.16.0); `unminded` as a death cause (0.18.0); the
-goals changing hands at 0.19.0; and `recall` (0.21.0, one per lookup: what
-was read or searched, how many lines there were and how many were shown).
-The event map itself is **not** on the wire.
+goals changing hands at 0.19.0; `recall` (0.21.0, one per lookup: what
+was read or searched, how many lines there were and how many were shown);
+and since issue #238 `record` / `records` (the memory's rows, per write and
+on open) and `event_map` (the map, on open and on every edit — a world with
+no map sends none). protocol/README.md has each shape.
 
 The mission result dict carries `decisions`, `recalls`, `overseer` (the
 `stats()` block: calls, fallbacks by reason, tokens, cache hit rate, USD,

@@ -108,7 +108,8 @@ class WsPublisher:
                steering: bool = False,
                robot_name: str | None = None,
                build: dict | None = None,
-               others: list | None = None, heightmap=None) -> None:
+               others: list | None = None, heightmap=None,
+               overseer=None) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -130,7 +131,7 @@ class WsPublisher:
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
-                                 build=build, others=others)
+                                 build=build, others=others, overseer=overseer)
     self.data = data
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)
     # Set by the sender (on connect) or the hook (on drop); cleared by the
@@ -179,6 +180,8 @@ class WsPublisher:
       self._need_thoughts.clear()
       for thought in self._builder.thought_messages(float(self.data.time)):
         self.message(thought)
+      for emap in self._builder.event_map_messages(float(self.data.time)):
+        self.message(emap)
     if self._need_boards.is_set() and not self._queue.full():
       self._need_boards.clear()
       if self.boards is not None:

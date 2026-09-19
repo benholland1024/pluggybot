@@ -371,6 +371,13 @@ class HubLifecycle:
     # loop below is unchanged without it: every existing demo, mission test and
     # recording has to behave exactly as it did.
     self.overseer = overseer
+    # Its event map reaches the wire through THIS lifecycle's events (issue
+    # #238): the overseer fires an `event_map` message on every edit and
+    # does not know its root, so the robot is filled in here. `getattr`,
+    # because a test's stand-in overseer need not have the hook.
+    hooks = getattr(overseer, "on_map", None)
+    if hooks is not None:
+      hooks.append(lambda msg: self._emit(dict(msg, robot=self.root)))
     # The thought files (issue #38). Present on EVERY world, unlike the
     # overseer: `History.md` is what happened to this robot, and that is as
     # true of a scripted rotation as of a chosen errand -- the same argument
@@ -4822,6 +4829,8 @@ def run_demo(start=None, view: bool = False,
                                  # ...and how hungry it is (issue #36).
                                  metabolism=hunger,
                                  steering=boss is not None,
+                                 # ...and its event map on open (issue #238).
+                                 overseer=boss,
                                  # Who this robot is, apart from what it is
                                  # (issue #39): flag > $PLUGGY_ROBOT_NAME >
                                  # "Pluggy", resolved by the builder.
