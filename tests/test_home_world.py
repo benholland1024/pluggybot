@@ -471,11 +471,15 @@ def test_the_camera_extent_is_written_down_not_derived(home_model):
 # ---- the flown proof (issue #215) --------------------------------------------
 
 def loop_legs() -> list[tuple[float, float]]:
-  """A lap of the loop as `drive_to` targets: out through the gate, onto the
-  north street, clockwise round all four legs and back to where the lap
-  began -- 24 steps, `steps.MAX_STEPS` exactly.
+  """A lap of the loop as `drive_to` targets: out by the garden doorway and
+  the gate, onto the north street, clockwise round all four legs and back
+  to where the lap joined the loop -- 24 steps, `steps.MAX_STEPS` exactly.
 
-  ⚠ NO LEG IS LONGER THAN 6.6 m, so every goal is inside the 8 m the LIDAR
+  ⚠ IT OPENS AT THE GARDEN DOORWAY, as the day's errands do: from wherever
+  the explore ended, the gate itself may not be mapped yet, and a lap that
+  opened on the gate failed its first step in under a second (measured).
+
+  ⚠ NO LEG IS LONGER THAN 6.7 m, so every goal is inside the 8 m the LIDAR
   had already mapped from the leg before, and that is a measured
   constraint rather than caution (docs/SimNotes.md, "A goal out of sight is
   aimed at through the nearest wall"). With 12 m legs the lap drove 13 of
@@ -485,16 +489,17 @@ def loop_legs() -> list[tuple[float, float]]:
   off on the 463-waypoint detour to get there, away from its goal, until
   the stagnation check ended the drive. Belief error was under 10 cm the
   whole way; the other robot was 20 m off."""
+  doorway = (home.GARDEN_X[0], sum(home.DOOR_GARDEN_Y) / 2.0)
   gate = (home.SIDEWALK_X[0], home.STREET_DOOR_Y)
   north = (home.PAVEMENT_Y[1] + home.LOOP_Y[1]) / 2.0
   south = (home.LOOP_Y[0] + home.PAVEMENT_Y[0]) / 2.0
   west = (home.LOOP_X[0] + home.PAVEMENT_X[0]) / 2.0
   east = (home.PAVEMENT_X[1] + home.LOOP_X[1]) / 2.0
   mid = sum(home.STREET_X) / 2.0
-  return [gate, (mid, north), (19.0, north), (25.0, north), (east, north),
-          (east, 3.0), (east, -3.0), (east, south),
-          (25.0, south), (19.0, south), (13.0, south), (7.0, south), (1.0, south),
-          (-5.0, south), (-11.0, south), (west, south),
+  # The south street, east to west, in seven equal legs of ~6.6 m.
+  south_legs = [(east + (west - east) * i / 7.0, south) for i in range(1, 8)]
+  return [doorway, gate, (mid, north), (19.0, north), (25.0, north), (east, north),
+          (east, 3.0), (east, -3.0), (east, south), *south_legs,
           (west, -3.0), (west, 3.0), (west, north),
           (-9.0, north), (-3.0, north), (3.0, north), (9.0, north), (mid, north)]
 
@@ -508,7 +513,7 @@ def test_the_lap_keeps_every_goal_inside_what_the_leg_before_saw():
   from pluggybot.procedure.steps import MAX_STEPS
   legs = loop_legs()
   assert len(legs) == MAX_STEPS
-  assert legs[1] == legs[-1], "the lap does not close"
+  assert legs[2] == legs[-1], "the lap does not close"
   longest = max(math.dist(a, b) for a, b in zip(legs, legs[1:]))
   assert longest <= 6.7 < MAX_RANGE - 1.0, f"a {longest:.1f} m leg outruns the map"
 
