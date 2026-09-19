@@ -58,6 +58,24 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a room names its building, and the middle street reaches the loop
+
+A follow-up to pluggybot #215, asked for once it was live. Two things a
+consumer sees, neither a shape change:
+
+- **A room zone carries `building`** (`protocol.BUILDINGS`: `house`, the
+  building with the rack, and `facility`, the one with the lab). A
+  two-repo vocabulary on `VISUAL_HINTS`' terms: the site paints each
+  building's walls by it, `scene_dict` refuses a name outside it, and an
+  outdoor zone carries none. The sim's own wall colour is unchanged,
+  because that is what the robot's cameras render.
+- **The middle street runs through the sidewalk band** to meet the loop at
+  both ends, so `street` is 15 m long where it was 12, and the band is two
+  rings of sidewalk, one per property: `sidewalk_north` and
+  `sidewalk_south` now stop at the street, and `sidewalk_2_north` and
+  `sidewalk_2_south` are new. 24 zones. Both home scenes regenerated; the
+  recordings are unchanged, since no body a frame carries moved.
+
 ### 0.21.0, additive: the second house, the loop street and the lab (the world change)
 
 pluggybot #215. The home world grew: a second house across the street (a

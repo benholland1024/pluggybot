@@ -80,6 +80,14 @@ VISUAL_HINTS = (
   "cage", "mouse",
 )
 
+#: Which BUILDING a room zone is in (issue #215's follow-up): the house with
+#: the rack, and the facility with the lab. A two-repo vocabulary on
+#: VISUAL_HINTS' terms -- the site paints each building's walls by these
+#: names and the sim only says which is which, because a wall colour in the
+#: sim is what the robot's cameras render and the art is the site's. Adding
+#: one is additive; renaming one breaks the site's paint.
+BUILDINGS = ("house", "facility")
+
 # The LCD module's display (issue #13). Three vocabularies on the same terms
 # as VISUAL_HINTS: the sim may only emit these strings, the website draws a
 # parametric component per face, and ADDING one is additive (an unknown face

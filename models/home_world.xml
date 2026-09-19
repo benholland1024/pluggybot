@@ -215,7 +215,7 @@
       <geom name="sidewalk_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
     <body name="street_ground" pos="13.0000 0.0000 0.0010">
-      <geom name="street_ground_geom" type="box" size="1.5000 6.0000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
+      <geom name="street_ground_geom" type="box" size="1.5000 7.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_2_ground" pos="15.2500 0.0000 0.0010">
       <geom name="sidewalk_2_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
@@ -223,11 +223,17 @@
     <body name="garden_2_ground" pos="17.5000 0.0000 0.0010">
       <geom name="garden_2_ground_geom" type="box" size="1.5000 6.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="sidewalk_north_ground" pos="8.0000 6.7500 0.0010">
-      <geom name="sidewalk_north_ground_geom" type="box" size="21.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    <body name="sidewalk_north_ground" pos="-1.0000 6.7500 0.0010">
+      <geom name="sidewalk_north_ground_geom" type="box" size="12.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="sidewalk_south_ground" pos="8.0000 -6.7500 0.0010">
-      <geom name="sidewalk_south_ground_geom" type="box" size="21.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    <body name="sidewalk_2_north_ground" pos="22.0000 6.7500 0.0010">
+      <geom name="sidewalk_2_north_ground_geom" type="box" size="7.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_south_ground" pos="-1.0000 -6.7500 0.0010">
+      <geom name="sidewalk_south_ground_geom" type="box" size="12.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_2_south_ground" pos="22.0000 -6.7500 0.0010">
+      <geom name="sidewalk_2_south_ground_geom" type="box" size="7.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_west_ground" pos="-12.7500 0.0000 0.0010">
       <geom name="sidewalk_west_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>

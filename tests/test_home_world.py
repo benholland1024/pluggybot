@@ -205,12 +205,17 @@ def test_the_new_rooms_are_reachable_from_the_living_room():
            # The second house (issue #215): across the street, gate to gate.
            ("street", "sidewalk_2"), ("sidewalk_2", "garden_2"),
            ("garden_2", "lobby"), ("lobby", "lab"), ("lobby", "store"),
-           # The sidewalk band and the loop: the middle street's two ends
-           # open onto the band, and the band onto the ring.
-           ("street", "sidewalk_north"), ("street", "sidewalk_south"),
-           ("sidewalk_north", "sidewalk_west"), ("sidewalk_north", "sidewalk_east"),
-           ("sidewalk_south", "sidewalk_west"), ("sidewalk_south", "sidewalk_east"),
-           ("sidewalk_north", "street_north"), ("sidewalk_south", "street_south"),
+           # The middle street runs on to the loop at both ends, and each
+           # property's ring of sidewalk meets the loop and the street.
+           ("street", "street_north"), ("street", "street_south"),
+           ("street", "sidewalk_north"), ("street", "sidewalk_2_north"),
+           ("street", "sidewalk_south"), ("street", "sidewalk_2_south"),
+           ("sidewalk", "sidewalk_north"), ("sidewalk", "sidewalk_south"),
+           ("sidewalk_north", "sidewalk_west"), ("sidewalk_south", "sidewalk_west"),
+           ("sidewalk_2", "sidewalk_2_north"), ("sidewalk_2", "sidewalk_2_south"),
+           ("sidewalk_2_north", "sidewalk_east"), ("sidewalk_2_south", "sidewalk_east"),
+           ("sidewalk_north", "street_north"), ("sidewalk_2_north", "street_north"),
+           ("sidewalk_south", "street_south"), ("sidewalk_2_south", "street_south"),
            ("sidewalk_west", "street_west"), ("sidewalk_east", "street_east"),
            ("street_north", "street_west"), ("street_north", "street_east"),
            ("street_south", "street_west"), ("street_south", "street_east")}
@@ -308,6 +313,68 @@ def test_the_street_is_a_loop_round_both_houses():
     assert home.LOOP_X[0] < z["min"][0] and z["max"][0] < home.LOOP_X[1]
     assert home.LOOP_Y[0] < z["min"][1] and z["max"][1] < home.LOOP_Y[1]
 
+
+
+def _touch(a: dict, b: dict) -> tuple[float, float]:
+  """How far two zone rectangles overlap along x and along y: a shared
+  border is one of them zero and the other positive."""
+  return (min(a["max"][0], b["max"][0]) - max(a["min"][0], b["min"][0]),
+          min(a["max"][1], b["max"][1]) - max(a["min"][1], b["min"][1]))
+
+
+def test_the_middle_street_runs_through_the_sidewalk_to_the_loop():
+  """Ben, after #215 deployed: the road between the two houses was cut off
+  at both ends by the sidewalk band. The street now meets the loop's north
+  and south legs directly -- a border along its whole width -- and no
+  sidewalk lies across it, so the band is two rings, one per property, that
+  never touch. Shown to fail by putting `street` back to PROPERTY_Y."""
+  z = {zone["name"]: zone for zone in home.ZONES}
+  street = z["street"]
+  width = home.STREET_X[1] - home.STREET_X[0]
+  for leg in ("street_north", "street_south"):
+    across, along = _touch(street, z[leg])
+    assert along == 0 and across == pytest.approx(width), \
+        f"the middle street does not meet {leg} along its whole width"
+  for side in ("north", "south"):
+    west, east = z[f"sidewalk_{side}"], z[f"sidewalk_2_{side}"]
+    assert min(_touch(west, east)) < 0, \
+        f"sidewalk_{side} and sidewalk_2_{side} meet: the band still crosses the street"
+  for zone in home.ZONES:
+    if zone["name"].startswith("sidewalk"):
+      across, along = _touch(street, zone)
+      assert across <= 0 or along <= 0, f"{zone['name']} overlaps the street"
+
+
+def test_every_room_names_its_building_and_nothing_outdoors_does(home_model):
+  """The fact the site paints walls by (`protocol.BUILDINGS`): each room says
+  which house it is in -- the house with the rack, the facility with the
+  lab -- and nothing outdoors claims a building. The sim's own wall colour
+  does not move: that is what the robot's cameras render."""
+  from pluggybot.telemetry.protocol import BUILDINGS
+  data = mujoco.MjData(home_model)
+  mujoco.mj_forward(home_model, data)
+  rooms = [zone for zone in home.ZONES if zone["kind"] == "room"]
+  assert rooms and all(zone.get("building") in BUILDINGS for zone in rooms)
+  assert not [zone["name"] for zone in home.ZONES
+              if zone["kind"] != "room" and "building" in zone]
+
+  def building_at(x, y):
+    return next(zone["building"] for zone in rooms
+                if zone["min"][0] <= x <= zone["max"][0]
+                and zone["min"][1] <= y <= zone["max"][1])
+  rack = data.xpos[home_model.body("rack").id]
+  assert building_at(rack[0], rack[1] + 0.5) == "house"      # the rack stands on the living room's wall
+  cage = data.xpos[home_model.body("lab_cage").id]
+  assert building_at(cage[0], cage[1]) == "facility"
+
+
+def test_the_scene_transpiler_rejects_an_unknown_building(home_model):
+  """A typo'd building is a wall the site cannot paint: refused at the
+  transpile, on the hints' terms."""
+  meta = {"zones": [{"name": "kitchen", "kind": "room", "building": "castle",
+                     "min": [0, 0], "max": [1, 1]}]}
+  with pytest.raises(ValueError, match="unknown buildings"):
+    scene_dict(home_model, "home_world", meta=meta)
 
 def test_the_fence_round_the_loop_is_unbroken(home_model):
   """No invisible ends: one fence body per side of the loop, each spanning
