@@ -58,6 +58,36 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the second house, the loop street and the lab (the world change)
+
+pluggybot #215. The home world grew: a second house across the street (a
+lobby, the LAB -- the experiment zone whose props #226 and #227 will
+animate and grade -- and a store), a sidewalk band and a 3 m street LOOP
+round both houses, and an unbroken fence round the loop, 49 × 21 m in all
+where the property was 26.5 × 12. No shape moved and nothing was renamed;
+what a consumer sees:
+
+- **Both home scenes and both home recordings are new** (109 bodies, 22
+  zones -- the first nine in their old order, then `sidewalk_2`,
+  `garden_2`, `lobby`, `lab`, `store`, four `sidewalk_*` legs and four
+  `street_*` legs). A world change is a new build identity
+  (`dataHashes.world`) and every day's trajectory is different, so
+  observations before and after cannot be pooled (docs/Observatory.md).
+- **Two hints, additive** (`VISUAL_HINTS`, `hints.json`): `cage` -- MANY
+  boxes in one body, `reskin`: a solid tray and four wall slabs the browser
+  draws as bars -- and `mouse` -- one capsule, and **the second dynamic
+  hinted body**: a MOCAP body the cage's activity (#226) moves between
+  pre-allocated poses. `dynamic_flags` now counts a mocap body as dynamic,
+  so `lab_mouse` is in the header's `world` census and in every keyframe.
+  The bench is a `table`; the three plates in front of the cage and the
+  bowl, wheel and hide box in it are unhinted, like the garden's plate.
+- **Two tag textures**, `tagtex23.png` / `tagtex24.png`: the bench's known
+  and unknown masses, 26 mm cubes like the tower's blocks
+  (`tags.MASS_TAG_IDS`).
+- The street no longer leaves the world: there is no open edge for a road
+  continuation to run out through, which the site reads off the fence
+  bodies rather than being told.
+
 ### 0.20.0 → 0.21.0 (the memory is tiers over a record store, and a recall is on the wire)
 
 pluggybot #221; docs/Overseer.md §7 is the architecture. The robot's

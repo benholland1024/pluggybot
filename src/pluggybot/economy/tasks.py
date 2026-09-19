@@ -199,10 +199,11 @@ KINDS: dict[str, TaskKind] = {
     # home and it was the cheapest number on this table -- caught in the wild
     # by the new `ENERGY ... economy/energy.json is low` line, on a real run:
     # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
-    # touch above economy/energy.json's census row (1.215 since #34's
-    # re-pricing with the depth camera), because this is the FALLBACK for a
-    # world nobody has measured and being dear there is the cheap direction.
-    estimate_wh=1.22),
+    # touch above economy/energy.json's census row (1.304 since #215's
+    # re-pricing on the plan with the loop), because this is the FALLBACK
+    # for a world nobody has measured and being dear there is the cheap
+    # direction.
+    estimate_wh=1.31),
   "whiteboard_answer": TaskKind(
     "whiteboard_answer", task="answer", target_kind="board",
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
@@ -236,7 +237,7 @@ KINDS: dict[str, TaskKind] = {
     # off (scripts/energy_spike.py needs one): this is the DEAREST errand
     # on the table, the census, and it says so -- being dear is the cheap
     # direction to be wrong in until a written procedure is measured.
-    estimate_wh=1.22, discharge="procedure"),
+    estimate_wh=1.31, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",

@@ -159,7 +159,11 @@ def test_doorways_are_wide_enough_to_drive_through(home_model):
   through would quietly cut a third of the house off the map."""
   doors = {"divider": home.DOOR_DIV_X, "garden": home.DOOR_GARDEN_Y,
            "hall": home.DOOR_HALL_Y, "kitchen": home.DOOR_KITCHEN_Y,
-           "workshop": home.DOOR_WORKSHOP_Y}
+           "workshop": home.DOOR_WORKSHOP_Y,
+           # The second house (issue #215): its gate, its front door, and
+           # the lab and the store off the lobby.
+           "garden_2": home.DOOR_GARDEN_2_Y, "lobby": home.DOOR_LOBBY_Y,
+           "lab": home.DOOR_LAB_Y, "store": home.DOOR_STORE_Y}
   for name, (lo, hi) in doors.items():
     assert hi - lo >= 0.6, f"{name} doorway too narrow for planning + control"
 
@@ -182,8 +186,9 @@ def test_the_zones_tile_the_whole_plot_with_no_gaps():
   `zone_centre` returns something nobody meant."""
   area = sum((z["max"][0] - z["min"][0]) * (z["max"][1] - z["min"][1])
              for z in home.ZONES)
-  plot = ((home.STREET_X[1] - home.WING_X[0])
-          * (home.PROPERTY_Y[1] - home.PROPERTY_Y[0]))
+  # The plot is everything inside the fence around the loop (issue #215).
+  plot = ((home.LOOP_X[1] - home.LOOP_X[0])
+          * (home.LOOP_Y[1] - home.LOOP_Y[0]))
   assert area == pytest.approx(plot), \
       f"zones cover {area:.1f} m2 of a {plot:.1f} m2 plot"
 
@@ -196,7 +201,28 @@ def test_the_new_rooms_are_reachable_from_the_living_room():
   edges = {("living", "hall"), ("hall", "kitchen"), ("hall", "workshop"),
            ("living", "bedroom"), ("living", "garden"),
            ("garden", "garden_south"), ("garden", "sidewalk"),
-           ("sidewalk", "street")}
+           ("sidewalk", "street"),
+           # The second house (issue #215): across the street, gate to gate.
+           ("street", "sidewalk_2"), ("sidewalk_2", "garden_2"),
+           ("garden_2", "lobby"), ("lobby", "lab"), ("lobby", "store"),
+           # The sidewalk band and the loop: the middle street's two ends
+           # open onto the band, and the band onto the ring.
+           ("street", "sidewalk_north"), ("street", "sidewalk_south"),
+           ("sidewalk_north", "sidewalk_west"), ("sidewalk_north", "sidewalk_east"),
+           ("sidewalk_south", "sidewalk_west"), ("sidewalk_south", "sidewalk_east"),
+           ("sidewalk_north", "street_north"), ("sidewalk_south", "street_south"),
+           ("sidewalk_west", "street_west"), ("sidewalk_east", "street_east"),
+           ("street_north", "street_west"), ("street_north", "street_east"),
+           ("street_south", "street_west"), ("street_south", "street_east")}
+  # ...and every edge is a real border: the two zones touch along a line,
+  # or the graph is a story about a plan rather than the plan.
+  by_name = {z["name"]: z for z in home.ZONES}
+  for a, b in edges:
+    za, zb = by_name[a], by_name[b]
+    touch_x = min(za["max"][0], zb["max"][0]) - max(za["min"][0], zb["min"][0])
+    touch_y = min(za["max"][1], zb["max"][1]) - max(za["min"][1], zb["min"][1])
+    assert (touch_x == 0 and touch_y > 0) or (touch_y == 0 and touch_x > 0), \
+        f"{a} and {b} do not share a border"
   reached, frontier = {"living"}, ["living"]
   while frontier:
     here = frontier.pop()
@@ -258,3 +284,279 @@ def test_hub_board_spec_is_unchanged_by_the_port():
   drawing demo and test still runs against it."""
   board = Board.hub()
   assert board.geom == "board" and board.heading == 0.0
+
+
+# ---- the loop, the fence and the lab (issue #215) ----------------------------
+
+def test_the_street_is_a_loop_round_both_houses():
+  """The middle street used to end in mid-air at y = +-6 (issue #68). Now its
+  two ends open onto a ring: the four `street_*` legs form a CYCLE, each
+  bordering the two beside it, and the ring encloses both properties --
+  every house zone lies strictly inside the ring's outer rectangle."""
+  by_name = {z["name"]: z for z in home.ZONES}
+  legs = list(home.LOOP_ZONES)
+  for i, name in enumerate(legs):
+    nxt = by_name[legs[(i + 1) % len(legs)]]
+    here = by_name[name]
+    touch_x = min(here["max"][0], nxt["max"][0]) - max(here["min"][0], nxt["min"][0])
+    touch_y = min(here["max"][1], nxt["max"][1]) - max(here["min"][1], nxt["min"][1])
+    assert touch_x > 0 and touch_y == 0 or touch_y > 0 and touch_x == 0, \
+        f"{name} does not meet {legs[(i + 1) % len(legs)]}: the loop is open"
+  for z in home.ZONES:
+    if z["name"] in legs:
+      continue
+    assert home.LOOP_X[0] < z["min"][0] and z["max"][0] < home.LOOP_X[1]
+    assert home.LOOP_Y[0] < z["min"][1] and z["max"][1] < home.LOOP_Y[1]
+
+
+def test_the_fence_round_the_loop_is_unbroken(home_model):
+  """No invisible ends: one fence body per side of the loop, each spanning
+  its whole side. `_wall_run` splits a run around gaps, so a gap would show
+  up as a second segment -- and a world with a way out is the world #215
+  replaces. Shown to fail by handing `fence_loop_east` a `gaps=`."""
+  sides = {"fence_loop_west": (home.LOOP_Y[1] - home.LOOP_Y[0], 1),
+           "fence_loop_east": (home.LOOP_Y[1] - home.LOOP_Y[0], 1),
+           "fence_loop_north": (home.LOOP_X[1] - home.LOOP_X[0], 0),
+           "fence_loop_south": (home.LOOP_X[1] - home.LOOP_X[0], 0)}
+  names = {home_model.body(i).name for i in range(home_model.nbody)}
+  for name, (length, axis) in sides.items():
+    assert name in names, f"{name} missing"
+    assert not any(n.startswith(name + "_") for n in names), \
+        f"{name} is split into segments: the fence has a gap"
+    geom = home_model.geom(f"{name}_geom")
+    assert 2 * geom.size[axis] == pytest.approx(length), f"{name} does not span its side"
+
+
+def test_the_lab_holds_its_props_inside_the_room(home_model, meta):
+  """The experiment zone's props (issue #215) stand in the lab and nowhere
+  else: the cage with the mouse, the bowl, the wheel and the hide box in
+  it; the three plates in front of it; the bench with its two masses. All
+  inside the `lab` zone, so #226 and #227 find them where the world says."""
+  from pluggybot.activity.cage import PLATE_NAMES
+  from pluggybot.challenge.bench import MASSES
+  lab = next(z for z in home.ZONES if z["name"] == "lab")
+  data = mujoco.MjData(home_model)
+  mujoco.mj_forward(home_model, data)
+  props = ["lab_cage", "lab_mouse", "lab_bowl", "lab_wheel", "lab_hide",
+           "lab_bench", *MASSES, *(f"lab_{p}_plate" for p in PLATE_NAMES)]
+  for name in props:
+    x, y = data.xpos[home_model.body(name).id][:2]
+    assert lab["min"][0] < x < lab["max"][0] and lab["min"][1] < y < lab["max"][1], \
+        f"{name} at ({x:.2f}, {y:.2f}) is outside the lab"
+  assert meta["lab"]["name"] == "lab"
+  assert meta["visualHints"]["lab_cage"] == "cage"
+  assert meta["visualHints"]["lab_mouse"] == "mouse"
+  assert meta["visualHints"]["lab_bench"] == "table"
+  # The masses wear the next two tags after the tower's blocks.
+  from pluggybot.rack.tags import MASS_TAG_IDS
+  for name, tag in zip(MASSES, MASS_TAG_IDS):
+    geom = home_model.geom(f"{name}_box")
+    assert home_model.mat(int(geom.matid[0])).name == f"tagmat{tag}"
+
+
+def test_the_mouse_is_a_mocap_body_and_dynamic_on_the_wire(home_model, meta):
+  """The one way scenery MOVES (ActivityPattern.md 3.4): #226 sets the
+  mouse's pose through `MocapToggle`, which refuses a non-mocap body -- and
+  a frame carries it only if the census calls it dynamic. Shown to fail by
+  dropping `mocap="true"` from the cage's emitter, or the `body_mocapid`
+  clause from `dynamic_flags`."""
+  from pluggybot.activity.base import MocapToggle
+  from pluggybot.activity.cage import mouse_poses
+  from pluggybot.telemetry.protocol import body_census, dynamic_flags
+  data = mujoco.MjData(home_model)
+  mouse = home_model.body("lab_mouse")
+  assert int(home_model.body_mocapid[mouse.id]) >= 0
+  assert dynamic_flags(home_model)[mouse.id]
+  _, world = body_census(home_model)
+  assert "lab_mouse" in world
+  scene = scene_dict(home_model, "home_world", meta=meta)
+  assert next(b for b in scene["bodies"] if b["name"] == "lab_mouse")["dynamic"]
+  # ...and every pre-allocated pose is selectable, and lands inside the cage.
+  poses = mouse_poses(tuple(meta["lab"]["cage"]))
+  toggle = MocapToggle(home_model, data, "lab_mouse", poses)
+  cage = home_model.body("lab_cage").id
+  cx, cy = home_model.body_pos[cage][:2]
+  for state in poses:
+    toggle.select(state)
+    mujoco.mj_forward(home_model, data)
+    x, y, z = data.xpos[mouse.id]
+    assert abs(x - cx) < 0.30 and abs(y - cy) < 0.20 and 0.0 < z < 0.10, state
+
+
+def test_the_lab_plates_rest_below_their_own_trigger(home_model):
+  """Three garden plates with nothing lit: each settles under its own weight
+  short of `PLATE_ON`, so a plate nobody drove onto never reads pressed."""
+  from pluggybot.activity.cage import PLATE_NAMES
+  from pluggybot.activity.plate import PLATE_ON
+  data = mujoco.MjData(home_model)
+  for _ in range(500):
+    mujoco.mj_step(home_model, data)
+  for name in PLATE_NAMES:
+    adr = int(home_model.sensor(f"lab_{name}_plate_pos").adr[0])
+    depth = -float(data.sensordata[adr])
+    assert 0.0 <= depth < PLATE_ON, f"the {name} plate rests at {depth * 1000:.1f} mm"
+
+
+# ---- the cameras' near plane (issue #215) --------------------------------------
+
+def _bay_fix_in(world_xml: str):
+  """`HubMission.bay_fix` for the pen's bay, with the robot standing at the
+  bay's standoff and its belief seeded from truth -- the real pipeline: the
+  dock camera renders, the detector decodes, PnP measures."""
+  from pluggybot.lifecycle import HubLifecycle, world_config
+  from pluggybot.mission.mission import bay_standoff
+  from pluggybot.procedure.steps import TOOL_BAYS
+  from pluggybot.rack.coupling import HUB_STATION_YS
+  cfg = world_config("home")
+  model = mujoco.MjModel.from_xml_path(world_xml)
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, battery_wh=4.0, rack=cfg["rack"],
+                      grid_bounds=cfg["grid_bounds"], errands=[])
+  try:
+    station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
+    sx, sy, hd = bay_standoff(station_y, cfg["rack"])
+    life.mission.start_at(sx, sy, hd)
+    return life.mission.bay_fix(station_y)
+  finally:
+    life.mission.close()
+
+
+def test_the_dock_camera_decodes_a_bay_tag_from_the_standoff():
+  """The tag pipeline's whole premise, held against the world's SIZE.
+
+  MuJoCo scales every camera's near clipping plane by the model's
+  `statistic.extent`, and derives the extent from the geometry's bounding
+  box unless it is written down. The loop doubled the box; the near plane
+  went from 0.37 m to 0.70 m; and the dock camera at a bay standoff --
+  0.34 m from the rack -- clipped the whole rack out of its own image.
+  Nothing raised: `bay_fix` returned None, every pick and stow ran blind,
+  and the pen went on the floor at the first stow after the change. The
+  generator pins `CAMERA_EXTENT_M`; this decodes a tag through it.
+
+  Shown to fail by deleting the `<statistic>` line from the generated
+  world -- which is exactly what the second half does, so the premise
+  cannot rot: the unpinned world must still lose the tag.
+  """
+  fix = _bay_fix_in(str(WORLD))
+  assert fix is not None, "the dock camera cannot see the pen bay's tag from its standoff"
+  sx, sy, hd = fix
+  assert math.isfinite(sx) and math.isfinite(sy) and math.isfinite(hd)
+
+  # The premise: the same world, its extent left to the bounding box.
+  xml = WORLD.read_text()
+  assert "<statistic " in xml
+  unpinned = "\n".join(line for line in xml.splitlines()
+                       if "<statistic " not in line and 'extent="' not in line)
+  scratch = WORLD.with_name("home_world_unpinned_extent.xml")   # beside the include it needs
+  try:
+    scratch.write_text(unpinned)
+    model = mujoco.MjModel.from_xml_path(str(scratch))
+    assert model.stat.extent > 2 * home.CAMERA_EXTENT_M * 0.9, \
+        "the bounding box no longer doubles the extent; re-read this test's premise"
+    assert _bay_fix_in(str(scratch)) is None, \
+        "the unpinned world decodes the tag now: the premise has moved, re-measure"
+  finally:
+    scratch.unlink(missing_ok=True)
+
+
+def test_the_camera_extent_is_written_down_not_derived(home_model):
+  """The statistic is pinned in the generated XML at the value the tag
+  pipeline was proven at, so growing the world cannot move the near plane
+  again -- and the number is the generator's own constant."""
+  assert home_model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
+  assert home_model.vis.map.znear * home_model.stat.extent < 0.40, \
+      "the near plane is past the bay standoff's 0.34 m"
+
+
+# ---- the flown proof (issue #215) --------------------------------------------
+
+def loop_legs() -> list[tuple[float, float]]:
+  """A lap of the loop as `drive_to` targets: out through the gate, onto the
+  north street, clockwise round all four legs and back to where the lap
+  began -- 24 steps, `steps.MAX_STEPS` exactly.
+
+  ⚠ NO LEG IS LONGER THAN 6.6 m, so every goal is inside the 8 m the LIDAR
+  had already mapped from the leg before, and that is a measured
+  constraint rather than caution (docs/SimNotes.md, "A goal out of sight is
+  aimed at through the nearest wall"). With 12 m legs the lap drove 13 of
+  16 and failed heading east along the north street: the goal was still
+  unmapped, `_plan_to` aimed at the known-free cell nearest it by straight
+  line -- indoors, behind the first house's north wall -- and the robot set
+  off on the 463-waypoint detour to get there, away from its goal, until
+  the stagnation check ended the drive. Belief error was under 10 cm the
+  whole way; the other robot was 20 m off."""
+  gate = (home.SIDEWALK_X[0], home.STREET_DOOR_Y)
+  north = (home.PAVEMENT_Y[1] + home.LOOP_Y[1]) / 2.0
+  south = (home.LOOP_Y[0] + home.PAVEMENT_Y[0]) / 2.0
+  west = (home.LOOP_X[0] + home.PAVEMENT_X[0]) / 2.0
+  east = (home.PAVEMENT_X[1] + home.LOOP_X[1]) / 2.0
+  mid = sum(home.STREET_X) / 2.0
+  return [gate, (mid, north), (19.0, north), (25.0, north), (east, north),
+          (east, 3.0), (east, -3.0), (east, south),
+          (25.0, south), (19.0, south), (13.0, south), (7.0, south), (1.0, south),
+          (-5.0, south), (-11.0, south), (west, south),
+          (west, -3.0), (west, 3.0), (west, north),
+          (-9.0, north), (-3.0, north), (3.0, north), (9.0, north), (mid, north)]
+
+
+def test_the_lap_keeps_every_goal_inside_what_the_leg_before_saw():
+  """The flown proof's own premise, pinned fast: 24 steps (the program cap),
+  closed (it ends where it first joins the loop), and no leg past 6.6 m --
+  the constraint the 12 m legs broke (see `loop_legs`)."""
+  import math
+  from pluggybot.perception.lidar import MAX_RANGE
+  from pluggybot.procedure.steps import MAX_STEPS
+  legs = loop_legs()
+  assert len(legs) == MAX_STEPS
+  assert legs[1] == legs[-1], "the lap does not close"
+  longest = max(math.dist(a, b) for a, b in zip(legs, legs[1:]))
+  assert longest <= 6.7 < MAX_RANGE - 1.0, f"a {longest:.1f} m leg outruns the map"
+
+
+# ⚠ BEHIND `--endurance` (issue #215): a pair's whole morning in the bigger
+# world, ~30 min of wall clock. Its RULES -- the loop is a cycle, the fence
+# is unbroken, every zone routes to the rack, the props stand in the lab,
+# the grid fits its budget -- are pinned above and in test_world_budget.py
+# in milliseconds; what only this proves is that the loop can be DRIVEN by
+# the navigation stack through space it maps as it goes, with another robot
+# living its own day in the same physics.
+@pytest.mark.slow
+@pytest.mark.endurance
+def test_a_pair_day_in_the_new_world_drives_the_loop_and_both_live():
+  """The second robot laps the loop as a program of `drive_to` steps while
+  the first does its carry; both are alive at the end and neither hit
+  anything. Stops on its claim: the lap done and the carry stowed."""
+  from pluggybot.mission.errand import programmed_errand
+  from pluggybot.pair import build_pair, run_pair
+  from pluggybot.procedure.steps import Program, Step
+  legs = loop_legs()
+  lap = Program.single("lap", [Step("drive_to", {"x": x, "y": y}) for x, y in legs],
+                       budget_s=1500.0)
+  lives = build_pair("home", pack="hosting", errands=("carry", "none"))
+  # ⚠ QUEUED IN THE EXPLORE'S LAST SECONDS, not at build: the loop runs a
+  # queued errand before it explores, and a `drive_to` with no map at all
+  # fails on the spot (measured: 0/16 steps at t = 8 s). Nor after the
+  # explore: a budget-spent explore returns and the loop calls the day
+  # complete in the same Python frame, before the physics seam this hook
+  # rides gets another step (measured: the lap was never queued and both
+  # days ended at 269 s). So the lap is handed over just before the
+  # deadline, and the loop finds it queued when it next looks -- the
+  # robot then drives the loop through space it maps as it goes, from a
+  # map that already holds the house.
+  queued: list = []
+
+  def settled(ls):
+    # `explore_deadline` exists once the second robot's opening spin is done.
+    deadline = getattr(ls[1], "explore_deadline", None)
+    if not queued and deadline is not None and ls[1].data.time >= deadline - 2.0:
+      ls[1].errands.append(programmed_errand(lap))
+      queued.append(True)
+    return (ls[0].swaps_done >= 2
+            and any("procedure" in r for r in ls[1].errand_results))
+
+  results = run_pair(lives, max_sim_time=2400.0, stop_when=settled)
+  run = next(r["procedure"] for r in lives[1].errand_results if "procedure" in r)
+  assert run["ok"] and run["completed"] == len(legs), run
+  assert all(r["dead"] is None for r in results), results
+  assert results[0]["swaps_done"] >= 2 and results[0]["module_stowed"]
+  assert all(r["collision_steps"] == 0 for r in results), results

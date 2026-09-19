@@ -80,14 +80,14 @@
         "artwork": 0.992,
         "artwork:whiteboard_b": 1.086,
         "carry": 0.914,
-        "census": 1.215,
+        "census": 1.304,
         "dance": 0.661,
         "draw": 0.992,
         "draw:whiteboard_b": 1.086
       },
       "exploreWhPerS": 0.00897,
       "chargeW": 17.0,
-      "measuredOn": "re-measured 13 Sep 2026 with the depth camera drawing (issue #34, power.DEPTH_CAMERA_W 2.0 W on the pack all day where served): carry/draw/census/dance flown after a 102 s explore on a 40 Wh pack, dearer per row against the previous rows -- carry keeps 0.914 (0.892 measured: the trajectory reshuffles more than 2 W moves), draw 0.850 -> 0.992, census 1.180 -> 1.215, dance 0.658 -> 0.661. EVERY ROW IS FROM THE RACK: the errand starts where the previous one ended, the swap's home. A drawing flown as the FIRST errand from wherever the explore ended read 1.354 (a 65 s drive to the rack before the pick) and is NOT carried -- that is the price of the explore's end, not of the board; every other row would need the same surcharge, and a first errand starts on a full pack, where the gate cannot strand anyone. Carrying it made the mission loop charge before every second drawing the pack could fund (measured: a two-answer day went 181 -> 519 s). draw:whiteboard_b keeps the sparse run's 1.086: with the camera the far board was flown three times and never reached (the drive through the doorway from the explore's end fails every time; a failure is not a cost). chargeW is the slowest press ever measured (19.0) less the camera's 2 W: fresh presses read 35.9 net."
+      "measuredOn": "re-measured 19 Sep 2026 on the plan with the second house and the loop street (issue #215), 40 Wh pack, the world's 240 s explore, depth camera drawing, cameras' extent pinned: dearer per row against the previous rows -- census 1.215 -> 1.304; carry keeps 0.914 (0.856 measured), draw 0.992 (0.898), dance 0.661 (0.649), exploreWhPerS 0.00897 (0.00792): the errands live in the first house and its garden, whose routes the loop did not move, and the trajectory reshuffles more than the differences. A first flight on this plan before the extent was pinned ran blind at the rack (docs/SimNotes.md) and is not carried -- a failed fix is not a cost. EVERY ROW IS FROM THE RACK: the errand starts where the previous one ended, the swap's home; a first errand from the explore's end is the price of where the explore ended, not of the job, and is not carried. draw:whiteboard_b keeps the sparse run's 1.086 (not re-flown). chargeW stays the SLOWEST press ever measured (19.0) less the camera's 2 W: this plan's presses read 35.8 net, and a cap sized off a good press fires on a slow one that is working."
     },
     "room_hub": {
       "errandWh": {

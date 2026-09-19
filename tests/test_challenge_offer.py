@@ -63,7 +63,7 @@ def _life(tmp_path, mind=None):
                       spec=spec, errand=False, ledger=ledger, tasks=board,
                       # the arm the tower is offered on: the claim rail is
                       # off, as it is there (a 1.0 Wh demo cell could never
-                      # fund a 1.22 Wh estimate through `Task.claimable`)
+                      # fund a 1.31 Wh estimate through `Task.claimable`)
                       autonomous=True,
                       overseer=mind if mind is not None else _Mind())
   for _ in range(200):

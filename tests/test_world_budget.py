@@ -257,16 +257,120 @@ def test_the_grid_stays_inside_its_cell_budget(world):
 
 # ---- 4. the reserve's worst case ---------------------------------------------
 
+#: The LIDAR's height: a static box whose z-extent crosses it is a wall the
+#: robot maps and plans around; anything wholly below or above it is not.
+BEAM_Z = 0.223
+#: The routing raster's cell, and the one-cell halo that stands in for the
+#: robot's half-width at this resolution. Coarse on purpose: this is a
+#: question about which POINT is farthest, not about a route's millimetres.
+ROUTE_CELL_M = 0.25
+#: How far a zone's corner is pulled inward before it is asked about, the
+#: way `HOME_WORST_RETURN` sits 0.4 m inside its corner: a robot cannot
+#: stand in a fence.
+CORNER_INSET_M = 0.4
+
+
+def _route_lengths(model, goal: tuple[float, float]) -> tuple:
+  """Driving distance from `goal` to every cell of a coarse raster of the
+  COMPILED world (Dijkstra, 8-connected), plus a `(x, y) -> metres` reader.
+
+  Walls are every static geom whose z-extent crosses the beam -- read off
+  the model the way `test_dressing.py` reads decor, never off the zone
+  list, because a doorway is a fact about the walls and not about the
+  rectangles either side of it. Dynamic bodies (the modules on the rack,
+  the blocks, the masses) are skipped: they are small, and they move.
+  """
+  import heapq
+  from scipy.ndimage import binary_dilation
+  from pluggybot.telemetry.protocol import dynamic_flags
+
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  x0, y0, x1, y1 = home.GRID_BOUNDS
+  cols, rows = int(round((x1 - x0) / ROUTE_CELL_M)), int(round((y1 - y0) / ROUTE_CELL_M))
+  blocked = np.zeros((rows, cols), dtype=bool)
+  robots = robot_body_ids(model)
+  dyn = dynamic_flags(model)
+  for g in range(model.ngeom):
+    b = int(model.geom_bodyid[g])
+    if b in robots or dyn[b] or int(model.geom_type[g]) == _GEOM.mjGEOM_PLANE:
+      continue
+    half = _local_half(model, g)
+    if half is None:
+      continue
+    ext = np.abs(data.geom_xmat[g].reshape(3, 3)) @ half
+    lo, hi = data.geom_xpos[g] - ext, data.geom_xpos[g] + ext
+    if hi[2] < BEAM_Z or lo[2] > BEAM_Z:
+      continue
+    ix0, ix1 = int((lo[0] - x0) / ROUTE_CELL_M), int((hi[0] - x0) / ROUTE_CELL_M)
+    iy0, iy1 = int((lo[1] - y0) / ROUTE_CELL_M), int((hi[1] - y0) / ROUTE_CELL_M)
+    blocked[max(iy0, 0):min(iy1, rows - 1) + 1, max(ix0, 0):min(ix1, cols - 1) + 1] = True
+  blocked = binary_dilation(blocked, iterations=1)
+
+  def cell(x, y):
+    return int((x - x0) / ROUTE_CELL_M), int((y - y0) / ROUTE_CELL_M)
+
+  dist = np.full((rows, cols), np.inf)
+  gx, gy = cell(*goal)
+  assert not blocked[gy, gx], "the goal is inside a wall"
+  dist[gy, gx] = 0.0
+  heap = [(0.0, gx, gy)]
+  steps = [(1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0),
+           (1, 1, 2 ** 0.5), (1, -1, 2 ** 0.5), (-1, 1, 2 ** 0.5), (-1, -1, 2 ** 0.5)]
+  while heap:
+    d, ix, iy = heapq.heappop(heap)
+    if d > dist[iy, ix]:
+      continue
+    for dx, dy, w in steps:
+      nx, ny = ix + dx, iy + dy
+      if 0 <= nx < cols and 0 <= ny < rows and not blocked[ny, nx]:
+        nd = d + w * ROUTE_CELL_M
+        if nd < dist[ny, nx]:
+          dist[ny, nx] = nd
+          heapq.heappush(heap, (nd, nx, ny))
+
+  def metres(x, y):
+    # The nearest free cell within a metre of the point: a point 0.4 m inside
+    # a corner sits in the halo (the robot's width, not a wall), and a zone's
+    # centre can fall inside a table -- the robot stands beside it.
+    ix, iy = cell(x, y)
+    best = np.inf
+    for dy in range(-4, 5):
+      for dx in range(-4, 5):
+        if 0 <= ix + dx < cols and 0 <= iy + dy < rows:
+          best = min(best, float(dist[iy + dy, ix + dx]))
+    return best
+
+  return dist, metres
+
+
+def _places_the_robot_can_be_sent():
+  """Every zone's centre (an overseer's `explore(zone)`) and its four
+  corners pulled `CORNER_INSET_M` inward (where an explore can end up)."""
+  for zone in home.ZONES:
+    (zx0, zy0), (zx1, zy1) = zone["min"], zone["max"]
+    yield zone["name"] + " centre", ((zx0 + zx1) / 2.0, (zy0 + zy1) / 2.0)
+    for cx, cy in ((zx0, zy0), (zx0, zy1), (zx1, zy0), (zx1, zy1)):
+      sx = 1 if cx == zx0 else -1
+      sy = 1 if cy == zy0 else -1
+      yield zone["name"] + " corner", (cx + sx * CORNER_INSET_M, cy + sy * CORNER_INSET_M)
+
 
 def test_the_documented_worst_return_point_is_still_the_worst():
   """`HOME_WORST_RETURN` names the point `HOME_LOW_BATTERY_WH` should be
   measured from. A comment saying "the worst case is X" rots the moment
-  somebody moves a wall, and #68 moves several -- so the claim is checked.
+  somebody moves a wall, and #68 and #215 between them moved most of them
+  -- so the claim is checked against the compiled world's own routes.
 
-  ⚠ This asserts WHERE the worst case is, not that the reserve covers it. It
-  does not: 0.55 Wh was sized on a 2.89 m living-room crossing and this point
-  routes 11.96 m. That gap is real, pre-existing and issue #70's to re-price;
-  what this stops is the gap growing while nobody is looking.
+  BY ROUTE, not by straight line (issue #215). The loop's east legs are the
+  farthest from the rack as the crow flies and among the nearest as the
+  robot drives, because the rack is reached only through the middle
+  street's gate: the first version of this compared straight lines and
+  would have sized the reserve off the wrong corner by twenty metres.
+
+  ⚠ This asserts WHERE the worst case is and that the documented path is
+  that route's length, not that the reserve covers it -- that is
+  `scripts/energy_spike.py --reserve`'s measurement, at the constant.
   """
   rack = home.HOME_RACK_POS
   path = home.HOME_WORST_RETURN_PATH
@@ -277,28 +381,33 @@ def test_the_documented_worst_return_point_is_still_the_worst():
       f"the routed distance from HOME_WORST_RETURN is now {routed:.2f} m, " \
       f"not the documented {home.HOME_WORST_RETURN_M} m"
 
-  # ...and it really is the farthest place the robot can be sent. Compared
-  # LIKE WITH LIKE: every zone corner inset by the same margin, ranked by
-  # straight-line distance from the rack. (The first cut of this compared a
-  # bare corner's straight line against an inset point's ROUTED distance and
-  # failed on the very zone the constant was taken from, which is a good
-  # reminder that "farther" needs one metric, not two.)
-  inset = math.dist(home.HOME_WORST_RETURN, (home.GARDEN_X[1], home.HOUSE_Y[1]))
-  farthest, where = 0.0, None
-  for zone in home.ZONES:
-    (zx0, zy0), (zx1, zy1) = zone["min"], zone["max"]
-    cx, cy = (zx0 + zx1) / 2.0, (zy0 + zy1) / 2.0
-    for corner in ((zx0, zy0), (zx0, zy1), (zx1, zy0), (zx1, zy1)):
-      # ...pulled `inset` metres toward the zone's middle, the way
-      # HOME_WORST_RETURN is: a robot cannot stand in a fence.
-      vx, vy = cx - corner[0], cy - corner[1]
-      norm = math.hypot(vx, vy) or 1.0
-      point = (corner[0] + vx / norm * inset, corner[1] + vy / norm * inset)
-      d = math.dist(point, rack)
-      if d > farthest:
-        farthest, where = d, (zone["name"], point)
-  documented = math.dist(home.HOME_WORST_RETURN, rack)
-  assert farthest <= documented + 0.05, (
-    f"{where[0]} reaches {where[1][0]:.2f},{where[1][1]:.2f} -- {farthest:.2f} m "
-    f"from the rack against HOME_WORST_RETURN's {documented:.2f} m. The "
+  # The charge approach stands in front of the rack, inside the living room;
+  # the rack itself is a wall on the raster.
+  goal = (rack[0], rack[1] + 0.7)
+  _, metres = _route_lengths(_model("home"), goal)
+  ranked = sorted(((metres(x, y), where, (x, y))
+                   for where, (x, y) in _places_the_robot_can_be_sent()
+                   if math.isfinite(metres(x, y))), reverse=True)
+  farthest_m, where, point = ranked[0]
+  documented_m = metres(*home.HOME_WORST_RETURN)
+  assert math.isfinite(documented_m), "HOME_WORST_RETURN is not reachable"
+  assert documented_m >= farthest_m - 0.05 * farthest_m, (
+    f"{where} at {point[0]:.2f},{point[1]:.2f} routes {farthest_m:.1f} m from "
+    f"the rack against HOME_WORST_RETURN's {documented_m:.1f} m. The "
     f"documented worst case is no longer the worst; re-measure the reserve.")
+  # ...and the documented waypoints are that route, not a scenic one: the
+  # raster's 8-connected path is within a tenth of the waypoint path.
+  assert abs(routed - documented_m) <= 0.10 * documented_m, (
+    f"HOME_WORST_RETURN_PATH is {routed:.1f} m where the world routes it in "
+    f"{documented_m:.1f} m")
+
+
+def test_every_zone_can_be_reached_from_the_rack():
+  """A zone the router cannot reach is a room the robot can be sent to and
+  cannot get home from -- and the reserve's worst case would be silently
+  measured over the rest. Every named region routes."""
+  rack = home.HOME_RACK_POS
+  _, metres = _route_lengths(_model("home"), (rack[0], rack[1] + 0.7))
+  unreachable = [where for where, (x, y) in _places_the_robot_can_be_sent()
+                 if where.endswith("centre") and not math.isfinite(metres(x, y))]
+  assert not unreachable, f"no route from the rack to: {unreachable}"

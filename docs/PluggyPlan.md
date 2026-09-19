@@ -126,6 +126,12 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    (`evaluation/qualities.py`), read by `scripts/qualities.py --observe`,
    flown by nobody. A new baseline reads them once the deployed pair has
    run on `autonomous` long enough for the rows to exist.
+8. ✅ **The world for the next experiments** (#215): a second house across
+   the street with the experiment zone (the `lab`: the cage with its mouse
+   and plates, the bench with its masses -- scenery until #226 and #227),
+   the street a loop round both houses, a fence round the loop; one regime
+   break for everything the zone needs (`home/world.py`, Observatory.md).
+   Next: #226 the mouse, #227 the bench.
 
 Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
 which quality 2 needs, so it is deferred, not dropped).

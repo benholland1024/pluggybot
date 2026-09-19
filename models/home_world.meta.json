@@ -23,20 +23,53 @@
   "fence_north": "fence",
   "fence_east_0": "fence",
   "fence_east_1": "fence",
+  "fence_2_west_0": "fence",
+  "fence_2_west_1": "fence",
+  "fence_2_north": "fence",
+  "fence_2_south": "fence",
+  "wall_2_west_0": "wall",
+  "wall_2_west_1": "wall",
+  "wall_2_north": "wall",
+  "wall_2_south": "wall",
+  "wall_2_east": "wall",
+  "wall_lobby_east_0": "wall",
+  "wall_lobby_east_1": "wall",
+  "wall_lobby_east_2": "wall",
+  "wall_lab_div": "wall",
+  "fence_loop_west": "fence",
+  "fence_loop_east": "fence",
+  "fence_loop_north": "fence",
+  "fence_loop_south": "fence",
   "home_floor": "floor",
   "garden_ground": "ground",
   "kitchen_floor": "floor",
   "workshop_floor": "floor",
   "hall_floor": "floor",
+  "lobby_floor": "floor",
+  "lab_floor": "floor",
+  "store_floor": "floor",
   "garden_south_ground": "ground",
   "sidewalk_ground": "sidewalk",
   "street_ground": "street",
+  "sidewalk_2_ground": "sidewalk",
+  "garden_2_ground": "ground",
+  "sidewalk_north_ground": "sidewalk",
+  "sidewalk_south_ground": "sidewalk",
+  "sidewalk_west_ground": "sidewalk",
+  "sidewalk_east_ground": "sidewalk",
+  "street_north_ground": "street",
+  "street_south_ground": "street",
+  "street_west_ground": "street",
+  "street_east_ground": "street",
   "whiteboard_a": "whiteboard",
   "whiteboard_b": "whiteboard",
   "plant_0": "plant",
   "plant_1": "plant",
   "plant_2": "plant",
   "plant_3": "plant",
+  "lab_cage": "cage",
+  "lab_mouse": "mouse",
+  "lab_bench": "table",
   "furniture_couch": "couch",
   "furniture_bed": "bed",
   "furniture_counter": "counter",
@@ -152,6 +185,162 @@
     14.5,
     6.0
    ]
+  },
+  {
+   "name": "sidewalk_2",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -6.0
+   ],
+   "max": [
+    16.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden_2",
+   "kind": "garden",
+   "min": [
+    16.0,
+    -6.0
+   ],
+   "max": [
+    19.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lobby",
+   "kind": "room",
+   "min": [
+    19.0,
+    -6.0
+   ],
+   "max": [
+    22.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lab",
+   "kind": "room",
+   "min": [
+    22.0,
+    0.0
+   ],
+   "max": [
+    28.0,
+    6.0
+   ]
+  },
+  {
+   "name": "store",
+   "kind": "room",
+   "min": [
+    22.0,
+    -6.0
+   ],
+   "max": [
+    28.0,
+    0.0
+   ]
+  },
+  {
+   "name": "sidewalk_north",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    6.0
+   ],
+   "max": [
+    29.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_south",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -7.5
+   ],
+   "max": [
+    29.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_west",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -6.0
+   ],
+   "max": [
+    -12.0,
+    6.0
+   ]
+  },
+  {
+   "name": "sidewalk_east",
+   "kind": "outdoor",
+   "min": [
+    28.0,
+    -6.0
+   ],
+   "max": [
+    29.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street_north",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    7.5
+   ],
+   "max": [
+    32.5,
+    10.5
+   ]
+  },
+  {
+   "name": "street_south",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -10.5
+   ],
+   "max": [
+    32.5,
+    -7.5
+   ]
+  },
+  {
+   "name": "street_west",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -7.5
+   ],
+   "max": [
+    -13.5,
+    7.5
+   ]
+  },
+  {
+   "name": "street_east",
+   "kind": "outdoor",
+   "min": [
+    29.5,
+    -7.5
+   ],
+   "max": [
+    32.5,
+    7.5
+   ]
   }
  ],
  "spawns": {
@@ -179,6 +368,16 @@
    -8.5,
    -2.0,
    0.0
+  ],
+  "lobby": [
+   20.5,
+   0.0,
+   1.5707963267948966
+  ],
+  "lab": [
+   25.0,
+   2.0,
+   1.5707963267948966
   ]
  },
  "boards": {
@@ -235,15 +434,26 @@
    ]
   ]
  },
+ "lab": {
+  "name": "lab",
+  "cage": [
+   25.0,
+   5.58
+  ],
+  "bench": [
+   27.68,
+   1.5
+  ]
+ },
  "gridBounds": [
-  -13.0,
-  -7.0,
-  15.5,
-  7.0
+  -17.5,
+  -11.5,
+  33.5,
+  11.5
  ],
  "battery": {
-  "lowWh": 0.95,
-  "demoCapacityWh": 3.0,
+  "lowWh": 2.05,
+  "demoCapacityWh": 4.5,
   "hostingCapacityWh": 8.0
  }
 }

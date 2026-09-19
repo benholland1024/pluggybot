@@ -121,28 +121,30 @@ def test_full_hub_lifecycle(world):
             and life.mission.swap.module_state(life.module)["hung"])
 
   # ⚠ THE HOME ARM STARTS HALF-CHARGED (issue #84). On the old 1.1 Wh cell
-  # one carry errand demanded a charge; the grown 3.0 Wh cell funds the same
-  # day with 41 % to spare, and the loop -- correctly -- ends a done mission
-  # without visiting the hub, which fails this test's whole point. Starting
-  # at 45 % makes the SAME day need the hub again, and in a better order:
-  # the errand is refused up front (CHARGE_FIRST: 0.914 + 0.90 reserve
-  # against 1.35 held, at issue #70's re-priced carry), the robot charges,
-  # then runs it -- the
+  # one carry errand demanded a charge; the grown cell (3.0 Wh then, 4.5
+  # since the loop, #215) funds the same day with room to spare, and the
+  # loop -- correctly -- ends a done mission without visiting the hub,
+  # which fails this test's whole point. Starting at 55 % makes the SAME
+  # day need the hub again, and in a better order: the errand is refused
+  # up front (CHARGE_FIRST: the 0.914 carry plus the 2.05 reserve against
+  # 2.48 held -- above the floor, so it is the GATE that refuses, not the
+  # floor; 45 % would sit under the reserve since the loop), the robot
+  # charges, then runs it -- the
   # defer-then-charge-then-resume path on real physics, a strictly harder
   # claim than the old "ran out mid-day", in LESS wall clock than the old
   # test. (A two-errand day was tried first and measured 430-500 s of wall
   # against the old 184; it also rolled #88's tag-yaw dice four times per
   # run instead of two, and flaked. Draining the start is the cheap lever.)
   #
-  # charge_scale=3 ~ the cells' ratio (3.0/1.1), so the PRESS lasts about
+  # charge_scale=4 ~ the cells' ratio (4.5/1.1), so the PRESS lasts about
   # what it always did on the old cell -- the pinned-odometry mechanics are
   # exercised for similar sim-seconds -- while the deployed rate stays
   # honest (test_battery pins the served default at 1.0).
   if world == "home":
     import os
-    os.environ["PLUGGY_CHARGE_SCALE"] = "3"
+    os.environ["PLUGGY_CHARGE_SCALE"] = "4"
     try:
-      r = run_demo(world=world, stop_when=settled, battery_fraction=0.45)
+      r = run_demo(world=world, stop_when=settled, battery_fraction=0.55)
     finally:
       os.environ.pop("PLUGGY_CHARGE_SCALE", None)
   else:

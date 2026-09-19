@@ -75,7 +75,13 @@ MEASURE / JUDGE / PAY chain.** Concretely, a challenge is:
    `MjSpec` (`stack.add_blocks`) rather than editing a committed world, so no
    fixture is re-emitted and no mission trajectory reshuffles for a job nobody
    is offered yet. When it *is* offered, the props go into the generator like
-   any other scenery.
+   any other scenery. ⚠ The one exception is deliberate (issue #215): the
+   lab's props -- the bench and its two masses (`challenge/bench.py`, #227)
+   and the cage (`activity/cage.py`, #226) -- landed in the generator with
+   the second house, before their grader and activity exist, because a
+   world change is the largest regime break there is and it was to happen
+   ONCE; #226 and #227 add behaviour to a world that already holds what
+   they need and touch the generator not at all.
 5. **A reward row in `economy/challenges.json`, not `rewards.json`.** Same
    format, same loader (`scoring.challenge_table()`), deliberately a separate
    file: a row in `rewards.json` is shown to the overseer as a job it can take

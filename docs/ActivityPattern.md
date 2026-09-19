@@ -263,6 +263,16 @@ deltas and each shipped a random half of the state changes. Guarded by
    is geometry the map never re-observes, and a state that blocked a passage
    would be a wall the planner does not know about. Fine today because of
    gap 1.
+5. **The geometry half may land before the state machine.** The lab's cage
+   (`activity/cage.py`, issue #215) is an emitter with no `Activity` yet:
+   its mouse is a mocap body with five pre-allocated poses
+   (`MOUSE_POSES`), its three plates are `plate.plate_xml` with nothing
+   lit, and #226 adds the `sense()` beside them without touching the
+   generator -- because a world change is one regime break and the props
+   had to arrive with the house. Until then the flags do not exist and the
+   mouse rests. The one thing this decided ahead of #226: a plate is how
+   the robot ACTS on the cage, because driving onto a plate is the only
+   mechanism verb it has (gap 3).
 
 ---
 

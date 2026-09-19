@@ -90,16 +90,19 @@ LAMP_UNLIT = (0.35, 0.34, 0.30, 1.0)
 LAMP_LIT = (1.0, 0.85, 0.35, 1.0)
 
 
-def plate_light_xml(plate_xy: tuple[float, float],
-                    prefix: str = "garden") -> tuple[str, str]:
-  """MJCF for one plate-and-light activity: (worldbody, sensor).
+def plate_xml(plate_xy: tuple[float, float],
+              prefix: str = "garden") -> tuple[str, str]:
+  """MJCF for one pressure plate: (worldbody, sensor).
 
-  Returns the two fragments separately because MuJoCo wants sensors in
-  their own top-level section.
+  The plate on its own, because it is the one mechanism the robot can
+  operate by driving (ActivityPattern.md gap 3), and the lab wants three
+  of them with nothing lit (activity/cage.py, issue #215). Returns the
+  two fragments separately because MuJoCo wants sensors in their own
+  top-level section. Names: `<prefix>_plate`, its joint and its sensor
+  `<prefix>_plate_pos`, which is what `PlateLight` and any later reader
+  bind to.
   """
   px, py = plate_xy
-  lx, ly = px + LAMP_OFFSET[0], py + LAMP_OFFSET[1]
-  bulb_z = LAMP_POLE_HALF_H * 2 + LAMP_R
   body = f"""
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
@@ -110,7 +113,17 @@ def plate_light_xml(plate_xy: tuple[float, float],
       <geom name="{prefix}_plate_pad" type="box"
             size="{PLATE_HALF:.4f} {PLATE_HALF:.4f} {PLATE_THICK:.4f}"
             mass="{PLATE_MASS}" rgba="0.42 0.44 0.48 1"/>
-    </body>
+    </body>"""
+  sensor = (f'<jointpos name="{prefix}_plate_pos" '
+            f'joint="{prefix}_plate_joint"/>')
+  return body, sensor
+
+
+def light_xml(light_xy: tuple[float, float], prefix: str = "garden") -> str:
+  """The lamp: a pole with a bulb whose two states are rgba toggles."""
+  lx, ly = light_xy
+  bulb_z = LAMP_POLE_HALF_H * 2 + LAMP_R
+  return f"""
     <!-- The light: a pole beside the plate, bulb on top. The POLE collides
          (a sturdy fixture the robot should map and plan around); the BULB
          does not, like the plants -- it is above the LIDAR's beam anyway,
@@ -126,9 +139,16 @@ def plate_light_xml(plate_xy: tuple[float, float],
             pos="0 0 {bulb_z:.4f}" contype="0" conaffinity="0"
             rgba="{' '.join(str(v) for v in LAMP_UNLIT)}"/>
     </body>"""
-  sensor = (f'<jointpos name="{prefix}_plate_pos" '
-            f'joint="{prefix}_plate_joint"/>')
-  return body, sensor
+
+
+def plate_light_xml(plate_xy: tuple[float, float],
+                    prefix: str = "garden") -> tuple[str, str]:
+  """MJCF for one plate-and-light activity: (worldbody, sensor) -- the
+  plate, and the lamp `LAMP_OFFSET` beside it."""
+  px, py = plate_xy
+  plate, sensor = plate_xml(plate_xy, prefix)
+  lamp = light_xml((px + LAMP_OFFSET[0], py + LAMP_OFFSET[1]), prefix)
+  return plate + lamp, sensor
 
 
 class PlateLight(Activity):
