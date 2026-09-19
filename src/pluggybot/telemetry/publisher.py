@@ -182,6 +182,8 @@ class WsPublisher:
         self.message(thought)
       for emap in self._builder.event_map_messages(float(self.data.time)):
         self.message(emap)
+      for prompt in self._builder.prompt_messages(float(self.data.time)):
+        self.message(prompt)
     if self._need_boards.is_set() and not self._queue.full():
       self._need_boards.clear()
       if self.boards is not None:

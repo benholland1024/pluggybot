@@ -1411,9 +1411,12 @@ change; `mode` with its heartbeat (0.12.0); `death`, `reset` and
 `intervention` (0.15.0–0.16.0); `unminded` as a death cause (0.18.0); the
 goals changing hands at 0.19.0; `recall` (0.21.0, one per lookup: what
 was read or searched, how many lines there were and how many were shown);
-and since issue #238 `record` / `records` (the memory's rows, per write and
+since issue #238 `record` / `records` (the memory's rows, per write and
 on open) and `event_map` (the map, on open and on every edit — a world with
-no map sends none). protocol/README.md has each shape.
+no map sends none); and since issue #241 `prompt` (the cached prefix as
+named sections, once per open, with its sha — what the mind is TOLD, so the
+site can show the rules apart from the constitution; a robot with no mind
+sends none). protocol/README.md has each shape.
 
 The mission result dict carries `decisions`, `recalls`, `overseer` (the
 `stats()` block: calls, fallbacks by reason, tokens, cache hit rate, USD,

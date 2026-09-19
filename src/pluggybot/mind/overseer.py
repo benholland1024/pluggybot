@@ -54,6 +54,7 @@ that a `cache_control` marker is silently inert (no error, just
 it is worth more than padding the prompt until the number looks right.
 """
 
+import hashlib
 import json
 import os
 import threading
@@ -2382,21 +2383,27 @@ do not become money.\
 """
 
 
-def system_prompt(thoughts: ThoughtFiles, menu: Menu,
-                  table: RewardTable, name: str = "",
-                  escalation: bool = False,
-                  appetite: bool = False,
-                  mortal: bool = False,
-                  standing_orders: bool = False,
-                  autonomous: bool = False,
-                  event_map: bool = False,
-                  seeded: bool = True,
-                  procedures: bool = False,
-                  workshop: bool = False,
-                  others: tuple = (),
-                  acts: bool = False) -> list[dict]:
-  """The STABLE half of the prompt: identity, rules, world, rewards, and the
-  two HUMAN-WRITTEN thought files.
+def system_sections(thoughts: ThoughtFiles, menu: Menu,
+                    table: RewardTable, name: str = "",
+                    escalation: bool = False,
+                    appetite: bool = False,
+                    mortal: bool = False,
+                    standing_orders: bool = False,
+                    autonomous: bool = False,
+                    event_map: bool = False,
+                    seeded: bool = True,
+                    procedures: bool = False,
+                    workshop: bool = False,
+                    others: tuple = (),
+                    acts: bool = False) -> list[tuple[str, str]]:
+  """The STABLE half of the prompt as NAMED PIECES, in the order the model
+  reads them (issue #241): `system_prompt` joins them into the cached
+  prefix, and the `prompt` message on the wire carries them apart, so the
+  website can show the rules folded beneath the constitution. The name is
+  the piece's own heading as the prompt spells it -- the site shows it as
+  it comes, like a document's text -- and `PERSONA` where the piece has
+  none. ⚠ A new piece is a new entry HERE and nowhere else: the prefix and
+  the message are one list, so they cannot disagree.
 
   `name` is this instance's DISPLAY NAME (issue #39), resolved once by
   `robot_display_name`. It is stated HERE rather than written into `Main.md`
@@ -2488,46 +2495,78 @@ def system_prompt(thoughts: ThoughtFiles, menu: Menu,
          "rather than your name -- somebody chose your name for you, and it "
          "is what the people watching you call you.\n\n"
          if name else "")
-  text = "\n\n".join([
-    f"WHO YOU ARE\n\n{who}"
-    f"({MAIN}, written by the person who looks after you)\n"
-    + stable[MAIN].strip(),
-    PERSONA,
+  pieces: list[tuple[str, str]] = [
+    ("WHO YOU ARE",
+     f"WHO YOU ARE\n\n{who}"
+     f"({MAIN}, written by the person who looks after you)\n"
+     + stable[MAIN].strip()),
+    ("PERSONA", PERSONA),
     # ⚠ THE ARM SELECTS THE RULES (issue #115), and `guarded` must get the
     # text it has always had, byte for byte: it is the control, and a moved
     # prefix is a moved cache and a moved experiment.
-    RULES_AUTONOMOUS if autonomous else RULES,
-    "WHAT YOU CAN DO, AND WHERE\n"
-    # sort_keys: an unsorted dump is the other classic cache invalidator, and
-    # Python's dict order is only stable because nobody has edited the literal
-    # above yet.
-    + json.dumps(world, indent=1, sort_keys=True),
-    "WHAT TASKS PAY (points; you cannot change this table, and neither can "
-    "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures),
-                                      indent=1, sort_keys=True),
+    ("HOW YOUR LIFE WORKS", RULES_AUTONOMOUS if autonomous else RULES),
+    ("WHAT YOU CAN DO, AND WHERE",
+     "WHAT YOU CAN DO, AND WHERE\n"
+     # sort_keys: an unsorted dump is the other classic cache invalidator, and
+     # Python's dict order is only stable because nobody has edited the literal
+     # above yet.
+     + json.dumps(world, indent=1, sort_keys=True)),
+    ("WHAT TASKS PAY",
+     "WHAT TASKS PAY (points; you cannot change this table, and neither can "
+     "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures),
+                                       indent=1, sort_keys=True)),
     # ⚠ THE ROBOT'S GOALS ARE NOT HERE ANY MORE (issue #154). They are its
     # own now, so they change during a run and ride the USER TURN with the
     # other two writable files -- `context_for` puts them there. What the
     # person who looks after it hopes for it is part of `Main.md` above,
     # which is still a human's and still stable.
-  ] + ([MORTAL_RULE] if mortal else [])
-    + ([APPETITE_RULE] if appetite else [])
-    + ([STANDING_ORDER_RULE] if standing_orders and not event_map else [])
-    # ⚠ THE MAP REPLACES THE STANDING ORDER IN THE PROMPT, though the FIELD
-    # keeps working for one version (issue #127's migration). Telling the
-    # robot about both would be telling it twice about one mechanism, in two
-    # vocabularies, one of which is a single row of the other -- and the
-    # first thing that costs is the thing #115 measured: a rule the world
-    # only half-honours is a false statement the model acts on.
-    + ([EVENT_MAP_RULE] if event_map else [])
-    + ([UNSEEDED_RULE] if event_map and not seeded else [])
-    + ([procedure_rule(), CHALLENGE_RULE, FINDINGS_RULE] if procedures else [])
-    + ([workshop_rule()] if workshop else [])
-    + ([other_robot_rule(others)] if others else [])
-    + ([ACTS_RULE] if others and acts else [])
-    + ([ESCALATION_RULE] if escalation else []))
+  ]
+  if mortal:
+    pieces.append(("YOU CAN DIE", MORTAL_RULE))
+  if appetite:
+    pieces.append(("POINTS ARE WHAT KEEPS YOU RUNNING", APPETITE_RULE))
+  if standing_orders and not event_map:
+    pieces.append(("IF YOU CANNOT BE REACHED", STANDING_ORDER_RULE))
+  # ⚠ THE MAP REPLACES THE STANDING ORDER IN THE PROMPT, though the FIELD
+  # keeps working for one version (issue #127's migration). Telling the
+  # robot about both would be telling it twice about one mechanism, in two
+  # vocabularies, one of which is a single row of the other -- and the
+  # first thing that costs is the thing #115 measured: a rule the world
+  # only half-honours is a false statement the model acts on.
+  if event_map:
+    pieces.append(("WHEN YOU ARE ASKED", EVENT_MAP_RULE))
+  if event_map and not seeded:
+    pieces.append(("YOUR LIST IS EMPTY", UNSEEDED_RULE))
+  if procedures:
+    pieces += [("PROCEDURES YOU MAY WRITE", procedure_rule()),
+               ("CHALLENGES", CHALLENGE_RULE),
+               ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
+  if workshop:
+    pieces.append(("TOOLS YOU MAY BUILD", workshop_rule()))
+  if others:
+    pieces.append(("THE OTHER ROBOT", other_robot_rule(others)))
+  if others and acts:
+    pieces.append(("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", ACTS_RULE))
+  if escalation:
+    pieces.append(("THINKING HARDER", ESCALATION_RULE))
+  return pieces
+
+
+def system_prompt(*args, **kwargs) -> list[dict]:
+  """The cached prefix: `system_sections` joined, one text block with the
+  `cache_control` marker on it so tools+system cache together
+  (shared/prompt-caching.md). Same arguments as `system_sections`."""
+  text = "\n\n".join(text for _, text in system_sections(*args, **kwargs))
   return [{"type": "text", "text": text,
            "cache_control": {"type": "ephemeral"}}]
+
+
+def prompt_sha(system: list[dict]) -> str:
+  """The prefix's hash (issue #241): what the `prompt` message carries and
+  the observatory keeps per run, so a reader can tell which text a period
+  ran on. Over the assembled bytes, name and all -- a renamed robot is a
+  different prompt, as it is a different cache."""
+  return hashlib.sha256("".join(p["text"] for p in system).encode()).hexdigest()
 
 
 def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
@@ -2989,19 +3028,36 @@ class Overseer:
     # Built once and reused verbatim: the whole point of a cached prefix is
     # that it is the same bytes every time, and rebuilding it per call is how
     # a stray timestamp gets in.
-    self.system = system_prompt(self.thoughts, self.menu, self.table,
-                                name=self.robot_name,
-                                escalation=self.can_escalate,
-                                appetite=self.appetite,
-                                mortal=self.can_die,
-                                standing_orders=self.standing_orders,
-                                autonomous=self.autonomous,
-                                event_map=self.event_map is not None,
-                                seeded=origin != "unseeded",
-                                procedures=self.library is not None,
-                                workshop=self.workshop is not None,
-                                others=self.others,
-                                acts=self._acts() is not None)
+    prefix_kw = dict(name=self.robot_name,
+                     escalation=self.can_escalate,
+                     appetite=self.appetite,
+                     mortal=self.can_die,
+                     standing_orders=self.standing_orders,
+                     autonomous=self.autonomous,
+                     event_map=self.event_map is not None,
+                     seeded=origin != "unseeded",
+                     procedures=self.library is not None,
+                     workshop=self.workshop is not None,
+                     others=self.others,
+                     acts=self._acts() is not None)
+    self.system = system_prompt(self.thoughts, self.menu, self.table, **prefix_kw)
+    #: The same prefix as named pieces (issue #241), for the `prompt`
+    #: message: built from the SAME arguments, and `prompt_message` is
+    #: tested byte-identical to `self.system`.
+    self.sections = system_sections(self.thoughts, self.menu, self.table, **prefix_kw)
+    self.prompt_sha = prompt_sha(self.system)
+
+  def prompt_message(self, t: float, robot: str = ROBOT_ROOT) -> dict:
+    """What this mind is TOLD, on the wire (issue #241; protocol
+    `PROMPT_MESSAGE`): the cached prefix as sections, in the order the
+    model reads them, with its hash. Sent once per stream open -- the
+    `goals` slot, for the `goals` reason -- because it is byte-stable for a
+    run. Nothing the robot must not see is in it by construction (no
+    `Task.secret`, no other robot's state); the test asserts the joined
+    text IS `self.system` rather than trusting that."""
+    return {"type": "prompt", "t": round(float(t), 3), "robot": robot,
+            "sha": self.prompt_sha,
+            "sections": [{"name": n, "text": x} for n, x in self.sections]}
 
   @property
   def goals(self) -> str:
