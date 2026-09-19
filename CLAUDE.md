@@ -849,7 +849,9 @@ save a filmstrip PNG named after the script.
   (0.9.0): a task can cease to exist and a delta cannot say "gone", so
   present means COMPLETE. The header advertises `taskKinds`, not ids.
 - **Two-repo vocabularies**: `telemetry.protocol.VISUAL_HINTS` (the sidecar's
-  `visualHints`; `scene_dict` raises on anything else), `FACE_STATES` /
+  `visualHints`; `scene_dict` raises on anything else), `BUILDINGS` (a room
+  zone's `building`, which the site paints walls by; `scene_dict` raises
+  likewise), `FACE_STATES` /
   `SCREEN_HINTS` / `SCREEN_MODES` (the `screens` block; the site draws a
   parametric face per name and falls back to `idle`; `hint` names a LOOP the
   browser runs — the sim never ticks an animation). Adding a name is
@@ -863,7 +865,10 @@ save a filmstrip PNG named after the script.
   generator). Since issue #215 it is TWO houses inside one fence: the
   first as #68 drew it, across the middle street a second (a `lobby`, the
   `lab` -- the experiment zone -- and a `store`), a 1.5 m sidewalk band and
-  a 3 m street LOOP round both, 49 x 21 m and 22 zones. ⚠ The lab's props
+  a 3 m street LOOP round both, the middle street running through the
+  sidewalk to meet it (one ring of sidewalk per property), 49 x 21 m and
+  24 zones. A room names its `building` (`house` / `facility`) and the
+  site paints walls by it; the sim's wall rgba is unchanged. ⚠ The lab's props
   are GEOMETRY AHEAD OF BEHAVIOUR, by decision (one regime break):
   `activity/cage.py` (the cage, a MOCAP mouse with five pre-allocated
   poses, a bowl, a wheel, a hide box, three garden plates `shock`/`feed`/

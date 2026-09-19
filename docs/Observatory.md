@@ -28,6 +28,13 @@ cubes; #226 and #227 add the behaviour and each opens its own period.
 Same model, same arm (`autonomous`, origin `unseeded`), same pair, same
 memory; the acts and the real-stake task run on.
 
+**Amended the same day** (the follow-up PR to #215): the middle street runs
+through the sidewalk to meet the loop, so `sidewalk_north` / `_south` are
+shorter and `sidewalk_2_north` / `_south` are new in the `explore` menu
+(24 zones); rooms name their building and the site paints each building's
+walls. Nothing the robot's physics or cameras meet moved, so the period
+stands.
+
 **What the period is for.** A baseline for the zone's experiments in the
 world they will run in, and the first look at how a 4B treats a world it
 can get lost in. What to read, in the observatory's own kinds:
