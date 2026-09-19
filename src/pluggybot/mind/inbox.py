@@ -55,7 +55,11 @@ from pluggybot.telemetry.protocol import INBOUND_TYPES, LEGACY_INBOUND_TYPES
 #: single point of failure and the sim's cap is the one that protects the
 #: sim.
 MAX_TEXT = registry.MAX_MESSAGE_CHARS
-assert all(m.cap == MAX_TEXT for m in registry.MESSAGES), \
+# The two senders that reach this QUEUE; the library's page (issue #216)
+# is a message on the same terms with a paragraph's cap, and it never
+# comes through the socket.
+assert all(m.cap == MAX_TEXT for m in registry.MESSAGES
+           if m.writer in (registry.VISITOR, registry.PEER)), \
   "a message row's cap disagrees with the queue's"
 #: ...and the display name attached to it.
 MAX_WHO = 40

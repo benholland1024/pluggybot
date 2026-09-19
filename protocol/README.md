@@ -58,6 +58,28 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the library -- a `read` event per page the robot asked for
+
+pluggybot #216; docs/Overseer.md §2e. On the `autonomous` arm the robot may
+set `lookup` (a topic or a question) on any decision, and code fetches ONE
+Wikipedia page's summary for it; the page rides the robot's NEXT turn as a
+message from "the library", never as an instruction. One event type,
+additive (`LIBRARY_EVENT_TYPES`); no header change, no bump:
+
+- **`read`** — `{robot, t, query, outcome, page, revision, url, chars,
+  text, why}`. `outcome` is one of `READ_OUTCOMES`: `read` (a page came
+  back: `page` is its title, `revision` the page revision the extract was
+  read from, `text` the extract itself, capped at 1000 chars), `missing`
+  (no page for that query), `failed` (`why`: `timeout` / `offline` /
+  `garbled`, the transport) or `refused` (`why`: `too-soon` / `share`, the
+  ration -- one read in ten minutes and a tenth of decisions, paid off in
+  points). A consumer that files events by kind stores the outcome as the
+  row's word; "what has it read this week" is the `read` rows; a `thought`,
+  a `draw` or a `message` naming `page` afterwards is a traced idea
+  (`evaluation/qualities.py`, `ideas_traced`). The decision it rode on
+  carries `lookup` in `decisions[]`, and the narration says `READ ...`.
+- The fixtures are not re-recorded: nothing in a header moved.
+
 ### 0.21.0, additive: a room names its building, and the middle street reaches the loop
 
 A follow-up to pluggybot #215, asked for once it was live. Two things a
@@ -707,7 +729,7 @@ bump for this half**: a single-robot stream is byte-identical to what it was
   (sparse, as ever) and its status record (`state`, `battery`, ...).
 - **Every event says whose it is** in `robot`: `death`, `reset`, `thought`,
   `journal` (a `think` since 0.21.0), `goals`, `procedure`, `earned`,
-  `intervention`, `recall`, narration lines.
+  `intervention`, `recall`, `read`, narration lines.
   `task_claimed` on a job with roles carries `claims` (`{"hider":
   "pluggybot", "seeker": "r2_pluggybot"}`); a task's `claims` also rides the
   `tasks` block.

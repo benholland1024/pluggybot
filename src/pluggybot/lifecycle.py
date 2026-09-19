@@ -48,6 +48,7 @@ from pluggybot.mission.mission import (
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
+from pluggybot.mind import wiki
 from pluggybot.mind import text as text_registry
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
@@ -544,6 +545,17 @@ class HubLifecycle:
     self._recall_run = 0
     #: One row per recall, for the run record (what, hits, shown).
     self.recalls: list[dict] = []
+    # ---- the library (issue #216) ----
+    #: THE SHELF: pages the library fetched that the mind has not yet been
+    #: shown. Filled by `_read` from the decision that asked, shown by
+    #: `overseer_context` as `reading`, and cleared by the next decision
+    #: of the model's own -- a fallback and a map row saw nothing, so the
+    #: page waits. At most one page in practice: only a model answer can
+    #: ask, and every model answer clears.
+    self._shelf: list[dict] = []
+    #: One row per read asked for, for the run record and the observatory
+    #: (`read` event): what was asked, the outcome, the page, its revision.
+    self.reads: list[dict] = []
     #: WHY THE MIND IS BEING CONSULTED (issue #221): the map row that asked
     #: (`event`, `kind`, `value`), the once-per-life `bootstrap`, or the
     #: `loop` reaching its decision branch where there is no map. Shown as
@@ -2360,6 +2372,41 @@ class HubLifecycle:
       if done:
         self._say(f"THOUGHT {verb}: {done}")
 
+  # ---- the library (issue #216) -------------------------------------------------
+
+  def _read(self, decision) -> None:
+    """File what the library answered to a decision's `lookup`.
+
+    The row is the wiki's (`mind/wiki.py`, `Wiki.read`), made on the worker
+    thread; here it is emitted as a `read` event, remembered, narrated, and
+    -- when a page came back -- shelved for the next turn's `reading`
+    block, on the visitor channel's terms (`wiki.as_context`). A page the
+    robot never sees is not a read, so a lookup on a decision that carried
+    no row (an arm without a library) is nothing.
+    """
+    row = decision.page if decision.lookup else None
+    if row is None:
+      return
+    row = {"t": round(float(self.data.time), 3), "robot": self.root, **row}
+    self.reads.append(row)
+    self._emit({"type": "read", **row})
+    q = row["query"]
+    if row["outcome"] == "read":
+      self._shelf.append(wiki.as_context(row))
+      self._say(f"READ {q!r}: {row['page']} (revision {row['revision']}, "
+                f"{row['chars']} chars)")
+      self._remember(f"read {row['page']!r} from the library (for {q!r}, "
+                     f"revision {row['revision']})")
+    elif row["outcome"] == "missing":
+      self._say(f"READ {q!r}: the library has no such page")
+      self._remember(f"asked the library for {q!r}: no such page")
+    elif row["outcome"] == "refused":
+      self._say(f"READ refused ({row['why']}): {q!r}")
+      self._remember(f"asked the library for {q!r}: refused, {row['why']}")
+    else:
+      self._say(f"READ failed ({row['why']}): {q!r}")
+      self._remember(f"asked the library for {q!r}: failed, {row['why']}")
+
   # ---- acts toward the other robot (issue #208) -------------------------------
 
   def _peer(self, name: str):
@@ -3484,6 +3531,12 @@ class HubLifecycle:
     if decision.action != "recall" and self._recalled:
       self._recalled = []
       self._recall_run = 0
+    # THE SHELF IS READ HERE (issue #216): a decision the model made was
+    # shown whatever was waiting, so it goes -- shown once, like a recall.
+    # A fallback or a map row made no call and saw nothing; the page waits
+    # for the next answer of the model's own.
+    if self._shelf and not decision.scripted and not decision.by_event:
+      self._shelf = []
     # What it wrote to itself BEFORE choosing (issue #221): kept as a
     # `think` record, shown back next turn, and on the wire as the
     # `journal` message the site already renders.
@@ -3504,6 +3557,11 @@ class HubLifecycle:
     # need, a message, a gift, a rating -- paperwork, each measured by code
     # at the moment it happens.
     self._acts(decision)
+    # ...and what the library answered, if it asked to read (issue #216):
+    # the fetch already happened on the decision's worker thread; this
+    # puts the page on the shelf for the next turn, and every read -- a
+    # page, a miss, a failure, a refusal -- on the wire and in the record.
+    self._read(decision)
     # ...and the library's two verbs (issue #166), paperwork like the four
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
@@ -3749,6 +3807,10 @@ class HubLifecycle:
       # many lines there were and how many were shown -- how memory was
       # USED, beside `thought_stats`, which is what it held.
       "recalls": list(self.recalls),
+      # Every read the library was asked for (issue #216): the query, the
+      # outcome, the page and its revision -- the rows `ideas_traced` is
+      # measured off, beside the observatory's `read` events.
+      "reads": list(self.reads),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.
@@ -4469,6 +4531,12 @@ def overseer_context(life) -> dict:
   if library is not None:
     state["procedures"] = list(library.runnable())
     state["library"] = library.as_context()
+  # THE SHELF (issue #216): the page the robot asked the library for last
+  # turn, once, as a message from "the library" -- absent where there is
+  # no library, empty where nothing is waiting, so the slot is learnable.
+  # `reading`, because `library` above is the PROCEDURE library's block.
+  if getattr(life.overseer, "wiki", None) is not None:
+    state["reading"] = [dict(page) for page in life._shelf]
   # THE WORKSHOP (issue #168): what hangs in which bay, the tools the
   # robot built, and their names for `retire_tool`'s grammar.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
