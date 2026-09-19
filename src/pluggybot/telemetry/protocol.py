@@ -340,6 +340,18 @@ RECORD_STATUSES = ("active", "retired")
 #: research artifact (the log, what fired, the score).
 EVENT_MAP_MESSAGE = "event_map"
 
+#: WHAT THE MIND IS TOLD (issue #241), additive: a `prompt` message per
+#: robot when a stream opens -- `{robot, t, sha, sections: [{name, text}]}`
+#: -- the cached prefix as `Overseer.system` holds it, in the order the
+#: model reads it, one entry per piece (`WHO YOU ARE` carries `Main.md`;
+#: `PERSONA`; `HOW YOUR LIFE WORKS`; the world; the reward table; then the
+#: arm's rules). `sha` is the prefix's hash, the regime marker a reader
+#: tells two periods' prompts apart by. Byte-stable for a run, so once per
+#: connect is the whole cost; a robot with no mind sends none, which is
+#: not an empty prompt. The section NAMES are the prompt's own headings,
+#: shown as they come, never translated.
+PROMPT_MESSAGE = "prompt"
+
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/

@@ -398,6 +398,55 @@ Three things a renderer should know:
 `$PLUGGY_NEAR_FIELD=0` turns it off); the demo scripts take `--near-field`
 and are off without it, and the committed recordings are made with it on.
 
+### 0.21.0, additive: what the mind is told (`prompt`)
+
+pluggybot #241, for the panel's Rules section (rooftop-media-2026 #286):
+everything the mind is told that a person did NOT write -- code in
+`overseer.py` until now, reaching nobody but the model. One **`prompt`**
+message per robot when a stream opens (the `goals` slot, for the `goals`
+reason; the live publisher re-sends it on every connect), carrying the
+cached prefix exactly as `Overseer.system` holds it, as SECTIONS in the
+order the model reads them:
+
+```json
+{"type": "prompt", "t": 0.0, "robot": "pluggybot",
+ "sha": "7c236247189c8199280e04d9dd344fff1e6cf0b37a33fdfbb7eb9f2bcb187d77",
+ "sections": [{"name": "WHO YOU ARE", "text": "WHO YOU ARE\n\nYour name is Pluggy. ..."},
+              {"name": "PERSONA", "text": "You are deciding what to do next, ..."},
+              {"name": "HOW YOUR LIFE WORKS", "text": "HOW YOUR LIFE WORKS\n..."},
+              {"name": "WHAT YOU CAN DO, AND WHERE", "text": "..."},
+              {"name": "WHAT TASKS PAY", "text": "..."},
+              {"name": "WHEN YOU ARE ASKED", "text": "..."}]}
+```
+
+- `sections[].name` is the piece's own heading as the prompt spells it
+  (`PERSONA` where the piece has none) -- data, shown as it comes, never
+  translated. The first five are on every arm: `WHO YOU ARE` (the name and
+  `Main.md` -- the constitution, which a consumer already has as a
+  `thought` document and must not present as the robot being told it
+  twice), `PERSONA`, `HOW YOUR LIFE WORKS` (`RULES` / `RULES_AUTONOMOUS`),
+  `WHAT YOU CAN DO, AND WHERE`, `WHAT TASKS PAY`; then the arm's rules as
+  they apply: `YOU CAN DIE`, `POINTS ARE WHAT KEEPS YOU RUNNING`, `IF YOU
+  CANNOT BE REACHED` or `WHEN YOU ARE ASKED` (+ `YOUR LIST IS EMPTY`),
+  `PROCEDURES YOU MAY WRITE`, `CHALLENGES`, `WHAT YOU HAVE MEASURED`, `TOOLS
+  YOU MAY BUILD`, `THE OTHER ROBOT`, `WHAT YOU CAN DO ABOUT THE OTHER
+  ROBOT`, `THINKING HARDER`. A consumer folds each and does not depend on
+  the set: a new piece is additive.
+- The sections joined with a blank line ARE the prefix, byte for byte
+  (`tests/test_overseer.py` asserts it against `Overseer.system`), so
+  nothing the robot must not see can be here without being shown to the
+  model -- no `Task.secret`, no other robot's hidden state. ~16.6k chars on
+  `autonomous`, ~15.4k on `guarded`; byte-stable for a run.
+- `sha` is the prefix's SHA-256 over the assembled bytes, name and all:
+  the regime marker a reader tells two periods' prompts apart by, and what
+  the observatory keeps per run beside `build`.
+- ⚠ A robot with no mind sends NONE -- every scripted world, so none of the
+  committed recordings carries one -- and that is not an empty prompt:
+  nothing is being told anything. A consumer's Rules section says so
+  rather than showing an empty fold. `scripts/overseer_probe.py --prompt`
+  prints the message a deployment would send, section by section, which
+  is how a person reads a deployment's prompt without ssh.
+
 ### 0.21.0, additive: the memory's rows (`record`, `records`) and the event map (`event_map`)
 
 pluggybot #238, for the panel redesign (rooftop-media-2026 #281): the site

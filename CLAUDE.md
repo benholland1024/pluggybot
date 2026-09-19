@@ -329,6 +329,13 @@ save a filmstrip PNG named after the script.
   was down" must not look the same on the wire.
   ⚠ `output_config.effort` is NOT supported on Haiku 4.5 (400); structured
   outputs are, and are what the decision uses.
+  ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
+  `system_prompt` joins it and the `prompt` message on the wire carries it
+  apart (once per open, `Overseer.prompt_message`, with `prompt_sha`), and
+  a test asserts the two are byte-identical. A new piece of the prompt is
+  a new `(name, text)` entry there — never a second string join — and its
+  name is the piece's own heading. `overseer_probe.py --prompt` prints what
+  a deployment sends.
 - **There is always a fallback; the only question is who chose it** (issue
   #125). The physics keeps stepping, so a failed call on `guarded` is the
   scripted rotation, which code chose; on `autonomous` the agent leaves a

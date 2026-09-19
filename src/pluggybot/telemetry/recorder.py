@@ -438,6 +438,19 @@ class FrameBuilder:
         out.append(msg)
     return out
 
+  def prompt_messages(self, t: float) -> list[dict]:
+    """What each mind is told, on open (issue #241) -- the `thought` slot,
+    for the same reason, and byte-stable for a run so once per connect is
+    the whole cost. A robot with no mind contributes nothing: absent means
+    "nothing is being told anything", which a consumer must not draw as an
+    empty prompt."""
+    out = []
+    for r in self.robots:
+      fn = getattr(r.overseer, "prompt_message", None)
+      if fn is not None:
+        out.append(fn(float(t), robot=r.root))
+    return out
+
   def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
     """The operator's mode, as its own message (0.12.0, issue #37).
 
@@ -748,6 +761,9 @@ class TelemetryRecorder:
     # ...and each mind's event map (issue #238), same slot, same reason.
     for emap in self._builder.event_map_messages(float(data.time)):
       self._queue.put(emap)
+    # ...and what each mind is TOLD (issue #241): the prefix, sectioned.
+    for prompt in self._builder.prompt_messages(float(data.time)):
+      self._queue.put(prompt)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without
