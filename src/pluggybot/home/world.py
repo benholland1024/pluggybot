@@ -20,7 +20,7 @@ the plan, not a picture of it. The whole plot:
         x=-16.5 -13.5 -12       -5  -2        5      10 11.5 14.5 16  19  22       28 29.5 32.5
   y=10.5 ╔══════════════════════════════ fence ═══════════════════════════════════════════╗
          ║               street_north (the loop)                                          ║
-  y=7.5  ║   ┌────────────────────── sidewalk_north ─────────────────────────────────┐   ║
+  y=7.5  ║   ┌────────── sidewalk_north ───────────┐   ┌───── sidewalk_2_north ──────┐   ║
   y=6    ║   │ ┌─────────┬───┬─────────┬─fence─┐ s │ s │ s ┌─fence─┬───┬───────────┐ │   ║
          ║ s │ │ kitchen │   │ bedroom │       │ i │ t │ i │       │ l │    lab    │ │ s ║
   y=3.1  ║ t │ │         │ H │         │garden ╪ d │ r │ d ╪garden ╪ o ╪  [cage]   │ │ t ║
@@ -30,15 +30,15 @@ the plan, not a picture of it. The whole plot:
   y=-2   ║ t │ │         │ L ├─────────┴───────┤ l │   │ l │       │   │           │ │ t ║
   y=-3   ║   │ │         │ L │ garden_south    │ k │   │ k │       │   ╪   store   │ │   ║
   y=-6   ║   │ │         │▓▓▓│                 │   │   │   │       │   │           │ │   ║
-         ║   │ └─────────┴───┴─────────────────┘   └───┘   └───────┴───┴───────────┘ │   ║
-  y=-7.5 ║   └────────────────────── sidewalk_south ─────────────────────────────────┘   ║
+         ║   │ └─────────┴───┴─────────────────┘   │   │   └───────┴───┴───────────┘ │   ║
+  y=-7.5 ║   └────────── sidewalk_south ───────────┘   └───── sidewalk_2_south ──────┘   ║
          ║               street_south (the loop)                                          ║
   y=-10.5╚═════════════════════════════════════════════════════════════════════════════════╝
 
   The middle street (x 11.5..14.5) is the one #68 drew, with its invisible
-  ends now joined to a RING: the loop runs round both houses, a sidewalk
-  band lies between the loop and the two properties, and an unbroken fence
-  closes the world. The two front gates face each other across the street
+  ends now joined to a RING: the loop runs round both houses and the middle
+  street runs on through the sidewalk to meet it, so each property has its
+  own ring of sidewalk, and an unbroken fence closes the world. The two front gates face each other across the street
   at y=3.1. The second house is a lobby running north-south and two rooms:
   the LAB, the experiment zone (#226 the mouse, #227 the bench: its props
   are generated here, scenery until their activities land), and a STORE.
@@ -246,19 +246,26 @@ LOOP_Y = (PAVEMENT_Y[0] - LOOP_W, PAVEMENT_Y[1] + LOOP_W)
 #: what keeps the committed recording and `test_the_home_fixture_shows_the_
 #: census_answer` describing the same world they always did.
 #:
-#: The loop (issue #215) is four `street_*` legs and four `sidewalk_*` legs,
-#: the long ones spanning the corners, so the ring tiles with no ninth
-#: piece; the first nine zones are #68's, unchanged, in their order.
+#: The loop (issue #215) is four `street_*` legs, the long ones spanning the
+#: corners. The MIDDLE street runs on through the sidewalk band to meet it
+#: at both ends, so the band is broken there and each property has its own
+#: ring of sidewalk: its front (`sidewalk`, `sidewalk_2`), a north and a
+#: south strip, and its far side (`sidewalk_west`, `sidewalk_east`). The
+#: first nine zones keep #68's names and order; `street` is longer.
+#:
+#: ⚠ A ROOM names its BUILDING (`protocol.BUILDINGS`): which house it is in,
+#: a fact the site paints each building's walls by. Everything outdoors
+#: names none.
 ZONES = (
-  {"name": "kitchen", "kind": "room",
+  {"name": "kitchen", "kind": "room", "building": "house",
    "min": [WING_X[0], KITCHEN_Y[0]], "max": [WING_X[1], KITCHEN_Y[1]]},
-  {"name": "workshop", "kind": "room",
+  {"name": "workshop", "kind": "room", "building": "house",
    "min": [WING_X[0], WORKSHOP_Y[0]], "max": [WING_X[1], WORKSHOP_Y[1]]},
-  {"name": "hall", "kind": "room",
+  {"name": "hall", "kind": "room", "building": "house",
    "min": [HALL_X[0], PROPERTY_Y[0]], "max": [HALL_X[1], PROPERTY_Y[1]]},
-  {"name": "living", "kind": "room",
+  {"name": "living", "kind": "room", "building": "house",
    "min": [HOUSE_X[0], HOUSE_Y[0]], "max": [HOUSE_X[1], DIV_Y]},
-  {"name": "bedroom", "kind": "room",
+  {"name": "bedroom", "kind": "room", "building": "house",
    "min": [HOUSE_X[0], DIV_Y], "max": [HOUSE_X[1], HOUSE_Y[1]]},
   {"name": "garden", "kind": "garden",
    "min": [GARDEN_X[0], HOUSE_Y[0]], "max": [GARDEN_X[1], HOUSE_Y[1]]},
@@ -267,23 +274,27 @@ ZONES = (
   {"name": "sidewalk", "kind": "outdoor",
    "min": [SIDEWALK_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_X[1], PROPERTY_Y[1]]},
   {"name": "street", "kind": "outdoor",
-   "min": [STREET_X[0], PROPERTY_Y[0]], "max": [STREET_X[1], PROPERTY_Y[1]]},
+   "min": [STREET_X[0], PAVEMENT_Y[0]], "max": [STREET_X[1], PAVEMENT_Y[1]]},
   # ---- the second house (issue #215) ----------------------------------------
   {"name": "sidewalk_2", "kind": "outdoor",
    "min": [SIDEWALK_2_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_2_X[1], PROPERTY_Y[1]]},
   {"name": "garden_2", "kind": "garden",
    "min": [GARDEN_2_X[0], PROPERTY_Y[0]], "max": [GARDEN_2_X[1], PROPERTY_Y[1]]},
-  {"name": "lobby", "kind": "room",
+  {"name": "lobby", "kind": "room", "building": "facility",
    "min": [LOBBY_X[0], PROPERTY_Y[0]], "max": [LOBBY_X[1], PROPERTY_Y[1]]},
-  {"name": "lab", "kind": "room",
+  {"name": "lab", "kind": "room", "building": "facility",
    "min": [LAB_X[0], LAB_Y[0]], "max": [LAB_X[1], LAB_Y[1]]},
-  {"name": "store", "kind": "room",
+  {"name": "store", "kind": "room", "building": "facility",
    "min": [LAB_X[0], STORE_Y[0]], "max": [LAB_X[1], STORE_Y[1]]},
-  # ---- the sidewalk band and the loop ----------------------------------------
+  # ---- each property's ring of sidewalk, and the loop -----------------------
   {"name": "sidewalk_north", "kind": "outdoor",
-   "min": [PAVEMENT_X[0], BLOCK_Y[1]], "max": [PAVEMENT_X[1], PAVEMENT_Y[1]]},
+   "min": [PAVEMENT_X[0], BLOCK_Y[1]], "max": [STREET_X[0], PAVEMENT_Y[1]]},
+  {"name": "sidewalk_2_north", "kind": "outdoor",
+   "min": [STREET_X[1], BLOCK_Y[1]], "max": [PAVEMENT_X[1], PAVEMENT_Y[1]]},
   {"name": "sidewalk_south", "kind": "outdoor",
-   "min": [PAVEMENT_X[0], PAVEMENT_Y[0]], "max": [PAVEMENT_X[1], BLOCK_Y[0]]},
+   "min": [PAVEMENT_X[0], PAVEMENT_Y[0]], "max": [STREET_X[0], BLOCK_Y[0]]},
+  {"name": "sidewalk_2_south", "kind": "outdoor",
+   "min": [STREET_X[1], PAVEMENT_Y[0]], "max": [PAVEMENT_X[1], BLOCK_Y[0]]},
   {"name": "sidewalk_west", "kind": "outdoor",
    "min": [PAVEMENT_X[0], BLOCK_Y[0]], "max": [BLOCK_X[0], BLOCK_Y[1]]},
   {"name": "sidewalk_east", "kind": "outdoor",
@@ -298,8 +309,8 @@ ZONES = (
    "min": [PAVEMENT_X[1], PAVEMENT_Y[0]], "max": [LOOP_X[1], PAVEMENT_Y[1]]},
 )
 
-#: The rooms of the second house that are reached through its lobby, and the
-#: doorway each is reached by -- what `tests/test_home_world.py` walks.
+#: The loop's four legs, in order round it -- what `tests/test_home_world.py`
+#: walks to check the ring is closed.
 LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
 
 #: THE TOWER'S BLOCKS (issue #207; challenge/stack.py): three 26 mm cubes
@@ -679,15 +690,20 @@ def build_home_world() -> tuple[str, dict]:
   for name, (ox0, ox1), (oy0, oy1), rgba, hint in (
     ("garden_south_ground", (hx0, gx1), GARDEN_SOUTH_Y, GROUND_RGBA, "ground"),
     ("sidewalk_ground", SIDEWALK_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
-    ("street_ground", STREET_X, PROPERTY_Y, STREET_RGBA, "street"),
+    # The middle street runs on through the sidewalk band to the loop.
+    ("street_ground", STREET_X, PAVEMENT_Y, STREET_RGBA, "street"),
     # The second house's front, and the loop (issue #215): one slab per
     # zone, so the surfaces are the zones a visitor sees.
     ("sidewalk_2_ground", SIDEWALK_2_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
     ("garden_2_ground", GARDEN_2_X, PROPERTY_Y, GROUND_RGBA, "ground"),
-    ("sidewalk_north_ground", PAVEMENT_X, (BLOCK_Y[1], PAVEMENT_Y[1]),
-     SIDEWALK_RGBA, "sidewalk"),
-    ("sidewalk_south_ground", PAVEMENT_X, (PAVEMENT_Y[0], BLOCK_Y[0]),
-     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_north_ground", (PAVEMENT_X[0], STREET_X[0]),
+     (BLOCK_Y[1], PAVEMENT_Y[1]), SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_2_north_ground", (STREET_X[1], PAVEMENT_X[1]),
+     (BLOCK_Y[1], PAVEMENT_Y[1]), SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_south_ground", (PAVEMENT_X[0], STREET_X[0]),
+     (PAVEMENT_Y[0], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_2_south_ground", (STREET_X[1], PAVEMENT_X[1]),
+     (PAVEMENT_Y[0], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_west_ground", (PAVEMENT_X[0], BLOCK_X[0]), BLOCK_Y,
      SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_east_ground", (BLOCK_X[1], PAVEMENT_X[1]), BLOCK_Y,

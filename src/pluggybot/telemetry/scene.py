@@ -38,7 +38,7 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.telemetry.protocol import (
-  PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags, robot_body_ids, robot_roots,
+  BUILDINGS, PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags, robot_body_ids, robot_roots,
 )
 
 GEOM_TYPE_NAMES = {
@@ -195,6 +195,10 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
     raise ValueError(f"unknown visual hints {sorted(unknown)} -- the "
                      f"vocabulary is {VISUAL_HINTS} (bump it deliberately, "
                      "in both repos, or fix the sidecar)")
+  buildings = {z["building"] for z in (meta or {}).get("zones", []) if "building" in z}
+  if buildings - set(BUILDINGS):
+    raise ValueError(f"unknown buildings {sorted(buildings - set(BUILDINGS))} -- "
+                     f"the vocabulary is {BUILDINGS}")
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   dyn = dynamic_flags(model)

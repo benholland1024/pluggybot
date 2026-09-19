@@ -3185,7 +3185,7 @@
      "type": "box",
      "size": [
       3.0,
-      12.0,
+      15.0,
       0.002
      ],
      "pos": [
@@ -3310,7 +3310,7 @@
    "robot": null,
    "visual": "sidewalk",
    "pos": [
-    8.0,
+    -1.0,
     6.75,
     0.001
    ],
@@ -3325,7 +3325,54 @@
      "name": "sidewalk_north_ground_geom",
      "type": "box",
      "size": [
-      43.0,
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_north_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
       1.5,
       0.002
      ],
@@ -3357,7 +3404,7 @@
    "robot": null,
    "visual": "sidewalk",
    "pos": [
-    8.0,
+    -1.0,
     -6.75,
     0.001
    ],
@@ -3372,7 +3419,54 @@
      "name": "sidewalk_south_ground_geom",
      "type": "box",
      "size": [
-      43.0,
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    -6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_south_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
       1.5,
       0.002
      ],
@@ -9106,6 +9200,7 @@
   {
    "name": "kitchen",
    "kind": "room",
+   "building": "house",
    "min": [
     -12.0,
     2.0
@@ -9118,6 +9213,7 @@
   {
    "name": "workshop",
    "kind": "room",
+   "building": "house",
    "min": [
     -12.0,
     -6.0
@@ -9130,6 +9226,7 @@
   {
    "name": "hall",
    "kind": "room",
+   "building": "house",
    "min": [
     -5.0,
     -6.0
@@ -9142,6 +9239,7 @@
   {
    "name": "living",
    "kind": "room",
+   "building": "house",
    "min": [
     -2.0,
     -2.0
@@ -9154,6 +9252,7 @@
   {
    "name": "bedroom",
    "kind": "room",
+   "building": "house",
    "min": [
     -2.0,
     2.5
@@ -9204,11 +9303,11 @@
    "kind": "outdoor",
    "min": [
     11.5,
-    -6.0
+    -7.5
    ],
    "max": [
     14.5,
-    6.0
+    7.5
    ]
   },
   {
@@ -9238,6 +9337,7 @@
   {
    "name": "lobby",
    "kind": "room",
+   "building": "facility",
    "min": [
     19.0,
     -6.0
@@ -9250,6 +9350,7 @@
   {
    "name": "lab",
    "kind": "room",
+   "building": "facility",
    "min": [
     22.0,
     0.0
@@ -9262,6 +9363,7 @@
   {
    "name": "store",
    "kind": "room",
+   "building": "facility",
    "min": [
     22.0,
     -6.0
@@ -9279,6 +9381,18 @@
     6.0
    ],
    "max": [
+    11.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_2_north",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    6.0
+   ],
+   "max": [
     29.5,
     7.5
    ]
@@ -9288,6 +9402,18 @@
    "kind": "outdoor",
    "min": [
     -13.5,
+    -7.5
+   ],
+   "max": [
+    11.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_2_south",
+   "kind": "outdoor",
+   "min": [
+    14.5,
     -7.5
    ],
    "max": [
