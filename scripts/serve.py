@@ -544,6 +544,8 @@ def main() -> None:
                           # ...and how hungry it is (0.13.0, issue #36).
                           metabolism=hunger,
                           steering=boss is not None,
+                          # ...and its event map on connect (issue #238).
+                          overseer=boss,
                           robot_name=args.robot_name,
                           build=identity)
   life.mission.step_hooks.append(publisher.step_hook)
@@ -596,7 +598,7 @@ def main() -> None:
                                  spend=(purse if (boss is not None and boss.can_escalate)
                                         else None),
                                  mode=switch, metabolism=hunger,
-                                 steering=boss is not None,
+                                 steering=boss is not None, overseer=boss,
                                  robot_name=args.robot_name,
                                  build=identity,
                                  grid=life.mission.grid,
@@ -727,7 +729,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                         goals=overseer.goals_text(thoughts=second.thoughts),
                         steering=second.overseer is not None,
                         grid=second.mission.grid,
-                        heightmap=second.near_field)]
+                        heightmap=second.near_field,
+                        overseer=second.overseer)]
   sink_kw = dict(model_name=pair_model_name(cfg["model_name"]),
                  status_fn=first.telemetry_status, keyframe_s=args.keyframe_s,
                  activities=first.activities, boards=book, screens=screens,
@@ -735,7 +738,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                  goals=overseer.goals_text(thoughts=first.thoughts),
                  thoughts=first.thoughts, spend=purse if can_spend else None,
                  mode=switch, metabolism=first.metabolism,
-                 steering=boss is not None, robot_name=names[0],
+                 steering=boss is not None, overseer=boss,
+                 robot_name=names[0],
                  build=identity, grid=first.mission.grid, others=others,
                  heightmap=first.near_field)
   publisher = WsPublisher(model, data, args.endpoint, token=args.token,

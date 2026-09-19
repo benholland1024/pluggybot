@@ -723,6 +723,45 @@ def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
   assert not [x for x in silent if x.get("type") == "thought"]
 
 
+class _MappedMind:
+  """A stand-in overseer with a map: the one method the builder reads."""
+  def __init__(self, rows):
+    self.rows = rows
+
+  def event_map_message(self, t, robot):
+    return {"type": "event_map", "t": t, "robot": robot, "origin": "unseeded",
+            "why": "origin", "source": None, "edits": 0, "rows": self.rows}
+
+
+def test_a_recording_opens_with_the_rows_and_the_map(mini_model, tmp_path):
+  """Issue #238: beside the documents, the ROWS they are rendered from (one
+  `records` snapshot per robot) and the mind's event map, all before the
+  first frame for the reason every message in this slot is there -- no
+  keyframe re-ships one. A world with no map opens with no `event_map`
+  line, which is what every committed fixture is."""
+  from pluggybot.mind.thoughts import ThoughtFiles
+
+  memory = ThoughtFiles()
+  memory.pin("whiteboard_b is the one people look at", t=0.0)
+  memory.remember("woke up", t=0.0)
+  mind = _MappedMind([{"event": "nothing_to_do", "action": "ask"}])
+  _, lines = record(mini_model, seconds=0.4, tmp=tmp_path, thoughts=memory,
+                    overseer=mind)
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  opening = [x.get("type") for x in lines[1:first_frame]]
+  assert opening.index("records") > opening.index("thought")
+  assert "event_map" in opening
+  snap = next(x for x in lines if x.get("type") == "records")
+  assert snap["robot"] == "pluggybot" and snap["generation"] == 1
+  assert [r["kind"] for r in snap["records"]] == ["core", "history"]
+  emap = next(x for x in lines if x.get("type") == "event_map")
+  assert emap["robot"] == "pluggybot" and emap["rows"] == mind.rows
+  # ...and a scripted world -- no mind -- has no map line at all.
+  _, plain = record(mini_model, seconds=0.4, tmp=tmp_path, thoughts=ThoughtFiles())
+  assert not [x for x in plain if x.get("type") == "event_map"]
+  assert len([x for x in plain if x.get("type") == "records"]) == 1
+
+
 def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   """A thought message per CONNECT, like the goals beside it -- a browser
   that opened the page an hour in has missed the only lines that carried
@@ -733,7 +772,8 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   data = mujoco.MjData(mini_model)
   pub = WsPublisher.__new__(WsPublisher)          # no socket, no sender thread
   pub._builder = FrameBuilder(mini_model, data, model_name="mini",
-                              thoughts=ThoughtFiles())
+                              thoughts=ThoughtFiles(),
+                              overseer=_MappedMind([]))
   pub.data = data
   pub._queue = queue.Queue(maxsize=64)
   pub._need_goals = threading.Event()
@@ -747,14 +787,18 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   pub.events_queued = pub.events_sent = 0
 
   pub.step_hook()
-  assert not _typed(pub._queue, "thought"), "sent with nobody connected"
+  assert not _drain(pub._queue), "sent with nobody connected"
 
   pub._need_thoughts.set()                         # ...as the sender does
   pub.step_hook()
-  assert [m["name"] for m in _typed(pub._queue, "thought")] == list(NAMES)
+  sent = _drain(pub._queue)
+  assert [m["name"] for m in sent if m["type"] == "thought"] == list(NAMES)
+  # ...with the rows and the map behind them (issue #238), same connect.
+  assert [m["type"] for m in sent if m["type"] in ("records", "event_map")] \
+      == ["records", "event_map"]
 
   pub.step_hook()
-  assert not _typed(pub._queue, "thought"), "repeated on every physics step"
+  assert not _drain(pub._queue), "repeated on every physics step"
 
 
 def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
@@ -798,6 +842,18 @@ def test_a_live_consumer_is_told_the_goals_on_every_connect(mini_model):
   pub._need_goals.set()                            # ...and a reconnect
   pub.step_hook()
   assert len(_typed(pub._queue, "goals")) == 1
+
+
+def _drain(q):
+  """Drain a publisher queue, returning every typed message."""
+  out = []
+  while True:
+    try:
+      k, payload = q.get_nowait()
+    except queue.Empty:
+      return out
+    if k == "event":
+      out.append(payload)
 
 
 def _typed(q, kind):
@@ -1141,6 +1197,23 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   # the scripted rotation, and nothing without a mind writes an opinion. The
   # same fact `steering: False` states from the other end.
   assert next(d for d in opening if d["name"] == TOP_OF_MIND)["text"] == ""
+  # The ROWS behind the documents (issue #238): one `records` snapshot per
+  # robot before the first frame, and a `record` line for every History
+  # line written after it -- the site's tables are built against these, and
+  # a fixture without them shows a robot whose memory has no rows.
+  snaps = [e for e in events if e["type"] == "records"]
+  assert [lines.index(s) < first_frame for s in snaps] == [True], \
+    "the fixture does not open with the robot's rows"
+  assert snaps[0]["robot"] == "pluggybot" and snaps[0]["generation"] >= 1
+  rows = [e for e in events if e["type"] == "record"]
+  assert rows and {r["record"]["kind"] for r in rows} == {"history"}, \
+    "a scripted day writes History rows and nothing else"
+  assert all(r["record"]["writer"] == "system" and r["record"]["status"] == "active"
+             and r["t"] == r["record"]["t"] for r in rows)
+  assert [r["record"]["id"] for r in rows] == sorted(r["record"]["id"] for r in rows)
+  # ...and no map: a scripted world has no mind and says nothing, rather
+  # than an empty map (`event_map` is the autonomous arm's, live).
+  assert not [e for e in events if e["type"] == "event_map"]
   # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
   # These recordings are made with no thoughts directory, so Main.md is
   # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a

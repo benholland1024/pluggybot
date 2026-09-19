@@ -2863,6 +2863,13 @@ class Overseer:
     #: Pass 1a of M14 had to monkeypatch three methods to see this; the
     #: harness gets it from one list, on the same terms as `say_hooks`.
     self.on_decision: list[Callable[[dict], None]] = []
+    #: Fired with an `event_map` message on every EDIT of the map (issue
+    #: #238) -- `_install_map`, main thread -- keyed to the first robot,
+    #: which the lifecycle that owns this mind overwrites with its root (the
+    #: overseer knows its display name, not its root). The open-of-stream
+    #: copy is `event_map_message`, read by the frame builder on connect.
+    #: Nothing here can change the map: the hooks see the artifact.
+    self.on_map: list[Callable[[dict], None]] = []
     self._asked_at: float = 0.0
     self._client = client
     self._client_ready = client is not None
@@ -3618,11 +3625,29 @@ class Overseer:
         ev.Row(event="decision_failed", action=decision.standing_order))
     if self.event_map == before:
       return
-    self.map_log.append({
-      "t": (round(float(state.get("simTimeS")), 1)
-            if state and state.get("simTimeS") is not None else None),
-      "why": "edit", "map": self.event_map.as_list(),
-      **ev.diff(before, self.event_map)})
+    t = (round(float(state.get("simTimeS")), 1)
+         if state and state.get("simTimeS") is not None else None)
+    self.map_log.append({"t": t, "why": "edit", "map": self.event_map.as_list(),
+                         **ev.diff(before, self.event_map)})
+    msg = self.event_map_message(t or 0.0, why="edit", source=decision.source)
+    for hook in self.on_map:
+      hook(dict(msg))
+
+  def event_map_message(self, t: float, robot: str = ROBOT_ROOT,
+                        why: str = "origin", source: str | None = None) -> dict | None:
+    """The map as the wire carries it (issue #238, `protocol.
+    EVENT_MAP_MESSAGE`): the rows in order as `Row.as_dict` writes them,
+    the `origin`, `why` this copy was sent (`origin` when a stream opens,
+    `edit` after an answer changed it), `source` (the decision that set it;
+    None at open) and `edits` so far. None where there is no map -- a
+    scripted world, or origin `none` -- because "no map" and "an empty
+    map" are different facts and only the second is the agent's."""
+    if self.event_map is None:
+      return None
+    return {"type": "event_map", "t": round(float(t), 3), "robot": robot,
+            "origin": self.origin, "why": why, "source": source,
+            "edits": sum(1 for e in self.map_log if e.get("why") == "edit"),
+            "rows": self.event_map.as_list()}
 
   def _record(self, decision: Decision, state: dict | None = None,
               error: str = "") -> None:

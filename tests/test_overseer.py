@@ -440,8 +440,9 @@ def test_a_think_persists_and_is_bounded_and_streams(tmp_path):
   for i in range(5):
     files.think(f"thought {i}", t=float(i), why=f"idle: {i}")
   assert files.think("") == "", "an empty think is cost with no content"
-  assert len(seen) == 5 and seen[0]["type"] == "journal"
-  assert seen[-1]["text"] == "thought 4" and seen[-1]["why"] == "idle: 4"
+  journal = [m for m in seen if m["type"] == "journal"]
+  assert len(journal) == 5 and len(seen) == 10, "each think: its row, then journal"
+  assert journal[-1]["text"] == "thought 4" and journal[-1]["why"] == "idle: 4"
   again = ThoughtFiles(tmp_path)
   assert again.last_thoughts(ov.THOUGHTS_SHOWN) == ["thought 3", "thought 4"]
   assert ov.THOUGHTS_SHOWN == 2

@@ -285,12 +285,12 @@ def record_pair(lives: list, path: str):
     grid=first.mission.grid, robot_name=first.robot_name,
     heightmap=first.near_field,
     goals=ov.goals_text(thoughts=first.thoughts),
-    steering=first.overseer is not None,
+    steering=first.overseer is not None, overseer=first.overseer,
     others=[StreamRobot(o.mission.handle.root, o.robot_name, o.telemetry_status,
                         metabolism=o.metabolism, thoughts=o.thoughts,
                         goals=ov.goals_text(thoughts=o.thoughts),
                         steering=o.overseer is not None, grid=o.mission.grid,
-                        heightmap=o.near_field)
+                        heightmap=o.near_field, overseer=o.overseer)
             for o in others])
   first.mission.step_hooks.append(recorder.step_hook)
   if first.boards is not None:

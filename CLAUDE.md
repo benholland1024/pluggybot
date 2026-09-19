@@ -399,8 +399,10 @@ save a filmstrip PNG named after the script.
     both ran the action twice;
   - three producers: `llm` / `event:<type>` / `fallback:<why>`; `Decision.
     scripted` means "a fallback produced this", so `fallbackRate` keeps
-    meaning one thing. The map is NOT on the wire (a research artifact in the
-    run record).
+    meaning one thing. The run record is the research artifact; the CURRENT
+    map rides the stream as `event_map` (issue #238: on open and on every
+    edit via `Overseer.on_map`, never per frame; a world with no map sends
+    none, which is not an empty map).
 - **An errand can be interrupted, and abort means stow** (issue #116;
   Overseer.md §2, Evaluation.md §2). `run_errand` checked nothing, so a
   decision taken at 15 % was IRREVOCABLE and self-preservation could only be
@@ -496,11 +498,18 @@ save a filmstrip PNG named after the script.
   and `volatile()` inverts the flag `stable()` reads.
   ⚠ The robot's NAME is not in `Main.md` (issue #39): `robot_display_name`
   in `system_prompt` and the telemetry header, one string (`$PLUGGY_ROBOT_
-  NAME`). `THOUGHT_FILES` / `THOUGHT_VERBS` / the `recall` event are
-  two-repo contracts (adding is additive, renaming breaks the site — the
-  site folds `learn`/`forget` from old recordings); the fixture recordings
-  open with every document and are re-recorded when the list or
-  `DEFAULT_MAIN` moves. The state diagram at the top of `README.md` is
+  NAME`). `THOUGHT_FILES` / `THOUGHT_VERBS` / the `recall` event /
+  `RECORD_KINDS` are two-repo contracts (adding is additive, renaming
+  breaks the site — the site folds `learn`/`forget` from old recordings);
+  the fixture recordings open with every document and the `records`
+  snapshot and are re-recorded when the list or `DEFAULT_MAIN` moves.
+  ⚠ **The rows ride the wire as rows** (issue #238): a `record` event per
+  write and per RETIRE (same `id`, `status: retired` — nothing is deleted,
+  so nothing removes a row), the `records` snapshot on open (the `goals`
+  slot; History cut to `SNAPSHOT_HISTORY`, the thinks inside that window; a
+  true death sends a fresh one under the next `generation`), row first,
+  then the re-rendered `thought` document. The documents and `journal`
+  stay until the site has moved. The state diagram at the top of `README.md` is
   pinned by `tests/test_readme.py` against `lifecycle.State`, the death
   causes, the event types and the registry's verbs.
 - **The `autonomous` arm can write procedures, and only it can** (issue

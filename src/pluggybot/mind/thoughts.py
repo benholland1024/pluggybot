@@ -50,6 +50,10 @@ The views are written to the volume beside the store so an operator can
 read them, and are streamed as `thought` messages (protocol 0.11.0)
 whenever one changes, so the site's tab shows the same bytes the model is
 shown. The site renders them read-only; nothing it can send changes one.
+Since issue #238 the ROWS ride beside the views: a `record` event per write
+and per retire, and a `records` snapshot when a stream opens, so the site
+can show a row's id, its time, its `cites` and whether it was retired --
+the storage as it is, which a rendered document cannot say.
 """
 
 import os
@@ -102,6 +106,12 @@ RECALLED_CHAIN_CHARS = 8000
 #: How many History lines `read history` returns: the tail beyond the
 #: dozen the prompt always carries.
 HISTORY_RECALLED = 40
+#: How many History rows the `records` snapshot opens a stream with (issue
+#: #238): the newest `SNAPSHOT_HISTORY` -- what `History.md`'s roll holds is
+#: about that many at typical line lengths -- and the thinks written inside
+#: that window, so the interleaved diary a consumer builds is complete over
+#: the span it shows. Core and note rows are few and ride whole.
+SNAPSHOT_HISTORY = 100
 
 #: Env knob, resolved the way every other deploy setting is: a directory for
 #: the documents and the store (`/var/lib/pluggybot` in the image).
@@ -417,14 +427,14 @@ class ThoughtFiles:
     if not line:
       return ""
     if name == HISTORY:
-      self.records.add(self.robot, "history", by, line, t=t)
+      rec = self.records.add(self.robot, "history", by, line, t=t)
     elif name in CORE:
-      self.records.add(self.robot, "core", by, line, t=t, topic=name,
-                       cites=_cites(cites))
+      rec = self.records.add(self.robot, "core", by, line, t=t, topic=name,
+                             cites=_cites(cites))
     else:
       self._refuse(f"{name}: not a line document -- its verbs are "
                    f"{' / '.join(SPECS[name].verbs)}")
-    self._commit(name, t)
+    self._commit(name, t, rec)
     return line
 
   def forget(self, name: str, text: str, by: str, t: float = 0.0) -> str:
@@ -440,8 +450,7 @@ class ThoughtFiles:
     if name not in CORE:
       self._refuse(f"{name}: not a line document")
     hit = _match(self._core(name), quote, name, self._refuse)
-    self.records.retire(hit.id, t=t)
-    self._commit(name, t)
+    self._commit(name, t, self.records.retire(hit.id, t=t))
     return hit.text
 
   # The robot's verbs, by name, and the one the SYSTEM has -- each names its
@@ -485,10 +494,10 @@ class ThoughtFiles:
       return ""
     self._admit(FINDINGS, ROBOT, len(self._findings()) + 1)
     parsed = parse_finding(line)
-    self.records.add(self.robot, "note", ROBOT, line, t=t,
-                     topic=findings_topic(finding.get("topic")),
-                     title=title_name(parsed["quantity"]), fields=parsed)
-    self._commit(FINDINGS, t)
+    rec = self.records.add(self.robot, "note", ROBOT, line, t=t,
+                           topic=findings_topic(finding.get("topic")),
+                           title=title_name(parsed["quantity"]), fields=parsed)
+    self._commit(FINDINGS, t, rec)
     return line
 
   def retract(self, text: str, t: float = 0.0) -> str:
@@ -499,8 +508,7 @@ class ThoughtFiles:
     if not quote:
       return ""
     hit = _match(self._findings(), quote, FINDINGS, self._refuse)
-    self.records.retire(hit.id, t=t)
-    self._commit(FINDINGS, t)
+    self._commit(FINDINGS, t, self.records.retire(hit.id, t=t))
     return hit.text
 
   def note(self, payload, t: float = 0.0, cites=()) -> str:
@@ -523,9 +531,9 @@ class ThoughtFiles:
     if any(r.topic == topic and r.title == title for r in notes):
       self._refuse(f"{NOTES}: {topic}/{title} is already written; unnote it first")
     self._admit(NOTES, ROBOT, len(notes) + 1)
-    self.records.add(self.robot, "note", ROBOT, text, t=t, topic=topic,
-                     title=title, cites=_cites(cites))
-    self._commit(NOTES, t)
+    rec = self.records.add(self.robot, "note", ROBOT, text, t=t, topic=topic,
+                           title=title, cites=_cites(cites))
+    self._commit(NOTES, t, rec)
     return f"{topic}/{title}: {text}"
 
   def unnote(self, text, t: float = 0.0) -> str:
@@ -547,8 +555,7 @@ class ThoughtFiles:
       self._refuse(f"{NOTES}: {'nothing' if not hits else f'{len(hits)} notes'}"
                    f" match {quote[:60]!r}")
     hit = hits[0]
-    self.records.retire(hit.id, t=t)
-    self._commit(NOTES, t)
+    self._commit(NOTES, t, self.records.retire(hit.id, t=t))
     return f"{hit.topic}/{hit.title}: {hit.text}"
 
   def remember(self, text: str, t: float = 0.0) -> str:
@@ -567,13 +574,13 @@ class ThoughtFiles:
     line = " ".join(str(text or "").split())
     if not line:
       return ""
-    self.records.add(self.robot, "think", ROBOT, line, t=t)
+    rec = self.records.add(self.robot, "think", ROBOT, line, t=t)
+    self._publish(self.record_message(rec, t))
     msg = {"type": "journal", "t": round(float(t), 3), "at": self.clock(),
            "robot": self.robot, "text": line}
     if why:
       msg["why"] = " ".join(str(why).split())[:MAX_LINE_CHARS]
-    for hook in self.on_event:
-      hook(dict(msg))
+    self._publish(msg)
     return line
 
   def last_thoughts(self, n: int) -> list[str]:
@@ -687,12 +694,18 @@ class ThoughtFiles:
     elif name == NOTES:
       self.texts[name] = _grouped(self._notes(), lambda r: f"- {r.title}: {r.text}")
 
-  def _commit(self, name: str, t: float) -> None:
+  def _commit(self, name: str, t: float, rec=None) -> None:
+    """A document changed: re-render, count, write the view out, and
+    publish -- the ROW first (issue #238: the source), then the VIEW."""
     self._render(name)
     self.writes[name] += 1
     if self.root is not None:
       self._write(name)
-    msg = self.message(name, t)
+    if rec is not None:
+      self._publish(self.record_message(rec, t))
+    self._publish(self.message(name, t))
+
+  def _publish(self, msg: dict) -> None:
     for hook in self.on_event:
       hook(dict(msg))
 
@@ -737,6 +750,9 @@ class ThoughtFiles:
       self._render(name)
       if self.root is not None:
         self._write(name)
+    # The next robot's tables, empty, under the next generation (issue
+    # #238): a consumer holding the dead robot's rows is told to let go.
+    self._publish(self.records_message(t))
     return {"cleared": gone, "records": rows,
             "chars": {n: len(v) for n, v in kept.items()}}
 
@@ -752,7 +768,38 @@ class ThoughtFiles:
             "cap": spec.cap}
 
   def messages(self, t: float = 0.0) -> list[dict]:
-    return [self.message(n, t) for n in NAMES]
+    """What a stream opens with: every document, then the rows they are
+    rendered from (issue #238)."""
+    return [self.message(n, t) for n in NAMES] + [self.records_message(t)]
+
+  def record_message(self, rec, t: float = 0.0) -> dict:
+    """One row as a `record` event (issue #238). `t` is the event's sim
+    time, as on every message -- the write on a write, the retire on a
+    retire -- and the row keeps its own `t` (when it was written) inside
+    `record`, so a consumer that never saw the write can still place it."""
+    return {"type": "record", "t": round(float(t), 3), "robot": self.robot,
+            "record": rec.as_dict()}
+
+  def snapshot_rows(self) -> list:
+    """The rows a stream opens with: every active core and note row of the
+    living generation, the newest `SNAPSHOT_HISTORY` History rows, and the
+    thinks written since the oldest of those. Oldest first, by id."""
+    history = self.records.tail(self.robot, "history", SNAPSHOT_HISTORY)
+    since = history[0].id if history else None
+    thinks = [r for r in self.records.active(self.robot, "think")
+              if since is None or r.id >= since]
+    rows = (self.records.active(self.robot, "core")
+            + self.records.active(self.robot, "note") + history + thinks)
+    return sorted(rows, key=lambda r: r.id)
+
+  def records_message(self, t: float = 0.0) -> dict:
+    """The rows, whole, as the `records` snapshot (issue #238): the `goals`
+    slot, for the `goals` reason -- no keyframe re-ships one, so a late
+    joiner learns the tables here or not at all. `generation` says which
+    robot's they are: a true death sends a fresh one with none."""
+    return {"type": "records", "t": round(float(t), 3), "robot": self.robot,
+            "generation": self.records.generation(self.robot),
+            "records": [r.as_dict() for r in self.snapshot_rows()]}
 
   def stats(self) -> dict:
     """Counters, plus the ROBOT'S OWN GOALS in full (issue #154).

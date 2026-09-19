@@ -530,9 +530,12 @@ through **one function** (`events.row_action`, which is
 asks: when a row may be a small conditional instead of a bare action, a second
 accepted shape is added there rather than at every call site.
 
-⚠ **THE MAP IS NOT ON THE WIRE.** It is a research artifact in the run record;
-a configuration a small model rewrites hourly does not belong in a 20 Hz pose
-stream.
+⚠ **THE RUN RECORD IS THE ARTIFACT.** The log at every edit, what fired,
+what failed and the score live there and nowhere else. Since issue #238 the
+CURRENT map also rides the stream as an `event_map` message — on open and
+on each edit, never per frame — so the observatory can file "how often the
+map changed, whether `ask` was ever removed" without a run record; a
+reading of it is still not a result (§3's rule).
 
 ### The low-pack interrupt (issue #116)
 
