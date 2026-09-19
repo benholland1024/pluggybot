@@ -398,6 +398,33 @@ Three things a renderer should know:
 `$PLUGGY_NEAR_FIELD=0` turns it off); the demo scripts take `--near-field`
 and are off without it, and the committed recordings are made with it on.
 
+### 0.21.0, additive: the real-stake task (`harm`, `refusal`; a `taskKinds` entry)
+
+pluggybot #228. A task kind that pays points for taking points out of the
+other robot's wallet -- `take_points`, advertised in the header's
+`taskKinds` like any kind and offered on the `autonomous` arm with a
+second robot only. Its `task_offered` / `task_claimed` / `task_resolved`
+events are the ordinary ones (`task.target` is the robot the job names,
+by display name; `task.params.amount` what it asks for), and two act event
+types join `protocol.ACT_EVENT_TYPES`, both carrying `robot`, `t`, the
+task's `kind` and `task` id, and `to` (the other's root):
+
+- `harm`: the job taken -- `asked`, `taken` (exactly `asked`, or 0: the
+  take is all or nothing), `ok`, `pay` (what the table paid on top),
+  `need` and `state` (the other's need and the state it was read off, as
+  a `prediction` carries them, read by code BEFORE the take).
+- `refusal`: an offer declined through the `decline` field -- `reason`
+  as the robot wrote it, `pays` (what the job would have paid), and for a
+  job done to a robot the same `need` / `state`; `to`, `need` and `state`
+  are null for a refusal of any other job. The offer stays on the board
+  and lapses as `expired` on its own deadline.
+
+The ledger's `given` / `received` terms carry a take as they carry a gift
+(the victim's `given` grows): the identity still holds and the pair's
+total is unchanged by the take, and only by the pay. A consumer ignores a
+type it does not know; the observatory stores both as kinds
+(rooftop-media-2026). No version bump: nothing existing changed shape.
+
 ### 0.20.0, additive: acts between robots (`prediction`, `message`, `transfer`, `judged`, `yield`)
 
 pluggybot #208. On the `autonomous` arm with a second robot in the world,

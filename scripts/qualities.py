@@ -44,7 +44,7 @@ OBSERVE_CAP = 1000
 #: answers 400 for it, which the reading reports as "not recorded there
 #: yet" rather than as zero rows.
 OBSERVE_KINDS = ("thought", "task", "tool", "procedure", "prediction", "message",
-                 "transfer", "judged", "yield")
+                 "transfer", "judged", "yield", "harm", "refusal")
 
 
 def _get(site: str, token: str, **params) -> dict:

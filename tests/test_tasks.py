@@ -192,7 +192,9 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
   # room_hub only since issue #84 grew home's cell to 3.0 Wh (home is in the
   # margin regime now, and its headroom above the reserve funds a job).
   headroom = {"room_hub": lc.DEMO_CAPACITY_WH * 0.9 - 0.350}
-  cheapest = min(k.estimate_wh for k in KINDS.values())
+  # ...of the jobs an ERRAND does: a job whose claim is the act (issue
+  # #228) moves points and nothing else, and costs no energy at all.
+  cheapest = min(k.estimate_wh for k in KINDS.values() if k.discharge != "act")
   for world, above_reserve in headroom.items():
     assert above_reserve < cheapest, (
       f"{world}: {above_reserve:.2f} Wh above the reserve would now afford "
@@ -376,8 +378,10 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.task in scoring.EVALUATORS, name
     assert spec.task in TABLE, name
     assert spec.target_kind in ("board", "zone", "module", "world",
-                                "challenge"), name
-    assert spec.estimate_wh > 0.0, name
+                                "challenge", "robot"), name
+    # a job whose claim is the act (issue #228) moves no body and is the
+    # one kind honestly priced at nothing
+    assert spec.estimate_wh > 0.0 or spec.discharge == "act", name
 
 
 def test_the_state_and_source_vocabularies_cover_what_the_board_produces():
