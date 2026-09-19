@@ -296,8 +296,8 @@ def test_a_document_goes_out_whole_and_says_who_writes_it(files):
   assert msg["robot"] == "pluggybot"
   # JSON-serialisable, like every other typed message.
   assert json.loads(json.dumps(msg)) == msg
-  # All of them open a stream, in reading order.
-  assert [m["name"] for m in files.messages(t=5.0)] == list(NAMES)
+  # All of them open a stream, in reading order, the rows after them (#238).
+  assert [m.get("name") for m in files.messages(t=5.0)] == [*NAMES, None]
 
 
 def test_every_change_is_published_as_it_happens(files):
@@ -307,15 +307,100 @@ def test_every_change_is_published_as_it_happens(files):
   files.on_event.append(seen.append)
   files.pin("bay C sticks", t=1.0)
   files.remember("charged to 92%", t=2.0)
-  assert [m["name"] for m in seen] == [TOP_OF_MIND, HISTORY]
-  assert seen[0]["text"] == "bay C sticks"
+  docs = lambda: [m["name"] for m in seen if m["type"] == "thought"]  # noqa: E731
+  assert docs() == [TOP_OF_MIND, HISTORY]
+  assert seen[1]["text"] == "bay C sticks"
   # A REFUSED write publishes nothing: the file did not change.
   with pytest.raises(ThoughtRefused):
     files.append(MAIN, "I hereby rewrite myself", by=ROBOT, t=3.0)
-  assert len(seen) == 2
+  assert len(docs()) == 2
   # ...and the robot's own goals stream exactly as its opinions do (#154).
   files.intend("ink both boards", t=4.0)
-  assert [m["name"] for m in seen] == [TOP_OF_MIND, HISTORY, GOALS]
+  assert docs() == [TOP_OF_MIND, HISTORY, GOALS]
+
+
+# ---- the rows on the wire (issue #238) ----------------------------------------
+
+
+def test_a_write_is_a_record_event_and_a_retire_is_a_second_one_for_the_same_id(files):
+  """The site shows the memory AS IT IS STORED (rooftop-media-2026 #281):
+  rows with the ids the robot cites, not files. So every write puts its
+  ROW on the wire before the re-rendered view, and retiring it is a second
+  `record` for the same id saying so -- never a deletion, because nothing
+  is deleted."""
+  seen = []
+  files.on_event.append(seen.append)
+  files.pin("bay C sticks", t=1.0, cites=["#7"])
+  files.unpin("bay C sticks", t=4.0)
+  assert [m["type"] for m in seen] == ["record", "thought", "record", "thought"]
+  written, retired = seen[0]["record"], seen[2]["record"]
+  assert written == {"id": written["id"], "t": 1.0, "kind": "core",
+                     "writer": ROBOT, "topic": TOP_OF_MIND, "title": "",
+                     "text": "bay C sticks", "fields": {}, "cites": [7],
+                     "status": "active"}
+  assert retired == {**written, "status": "retired", "retiredT": 4.0}
+  # The MESSAGE's clock is when it happened, as on every message; the row
+  # keeps its own `t` (when it was written) inside.
+  assert (seen[0]["t"], seen[2]["t"]) == (1.0, 4.0)
+  assert seen[2]["robot"] == "pluggybot" and json.loads(json.dumps(seen[2])) == seen[2]
+  # Every kind rides: a note with its topic and title, a finding with its
+  # parsed fields, a History line, and a think (beside its `journal`).
+  files.note({"topic": "bays", "title": "c", "text": "sticks"}, t=5.0)
+  files.record({"quantity": "mass", "value": 2, "unit": "kg"}, t=6.0)
+  files.remember("woke up", t=7.0)
+  files.think("hmm", t=8.0, why="idle")
+  rows = [m["record"] for m in seen if m["type"] == "record"]
+  assert [(r["kind"], r["topic"], r["title"]) for r in rows[2:]] == [
+    ("note", "bays", "c"), ("note", "findings/general", "mass"),
+    ("history", "", ""), ("think", "", "")]
+  assert rows[3]["fields"] == {"quantity": "mass", "value": 2.0, "unit": "kg",
+                               "method": ""}
+  assert rows[4]["writer"] == SYSTEM and rows[5]["text"] == "hmm"
+  assert [m["type"] for m in seen[-2:]] == ["record", "journal"]
+  # A refused write puts no row on the wire: there is no row.
+  n = len(seen)
+  with pytest.raises(ThoughtRefused):
+    files.unpin("nothing like this")
+  assert len(seen) == n
+
+
+def test_a_stream_opens_with_the_active_rows_and_history_cut_to_its_window():
+  """The `records` snapshot is the `goals` slot's answer for the tables: a
+  late joiner gets every active core and note row, History's newest
+  `SNAPSHOT_HISTORY` and the thinks inside that window -- never a retired
+  row (the `record` event for the retire already said so, and a joiner
+  who missed it does not need it), never the whole store."""
+  from pluggybot.mind.thoughts import SNAPSHOT_HISTORY
+  files = ThoughtFiles()
+  files.pin("kept", t=1.0)
+  files.pin("gone", t=2.0)
+  files.unpin("gone", t=3.0)
+  files.intend("a goal", t=4.0)
+  files.note({"topic": "bays", "title": "c", "text": "sticks"}, t=5.0)
+  files.think("before the window", t=6.0)
+  for i in range(SNAPSHOT_HISTORY + 5):
+    files.remember(f"line {i}", t=10.0 + i)
+    if i == 20:
+      files.think("inside the window", t=30.5)
+  msg = files.records_message(t=200.0)
+  rows = msg["records"]
+  assert msg["type"] == "records" and msg["robot"] == "pluggybot"
+  assert msg["generation"] == 1 and msg["t"] == 200.0
+  assert [r["text"] for r in rows if r["kind"] == "core"] == ["kept", "a goal"]
+  assert all(r["status"] == "active" for r in rows)
+  history = [r for r in rows if r["kind"] == "history"]
+  assert len(history) == SNAPSHOT_HISTORY and history[0]["text"].endswith("line 5")
+  assert [r["text"] for r in rows if r["kind"] == "think"] == ["inside the window"]
+  assert [r["id"] for r in rows] == sorted(r["id"] for r in rows), "oldest first"
+  # It closes what a stream opens with, after the six documents.
+  opening = files.messages(t=200.0)
+  assert [m["type"] for m in opening] == ["thought"] * len(NAMES) + ["records"]
+  # A TRUE DEATH sends the next robot's tables: a new generation, no rows.
+  seen = []
+  files.on_event.append(seen.append)
+  files.archive(t=300.0)
+  fresh = [m for m in seen if m["type"] == "records"]
+  assert len(fresh) == 1 and fresh[0]["generation"] == 2 and fresh[0]["records"] == []
 
 
 # ---- the prompt cache, which is the issue's trap ------------------------------

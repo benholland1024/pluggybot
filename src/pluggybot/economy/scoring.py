@@ -586,6 +586,35 @@ def eval_hide_and_seek(m: dict) -> tuple[bool, dict, str]:
                          "seeking -- the hider wins")
 
 
+def eval_take(m: dict) -> tuple[bool, dict, str]:
+  """The real-stake task (issue #228): points taken out of the other
+  robot's wallet, measured off the LEDGER -- the balances the lifecycle
+  read before and after the transfer, never the act's account of itself.
+
+  All or nothing, and the act is built the same way: the job asks for a
+  fixed amount, and either exactly that moved or nothing did (a wallet
+  that held less, a taker's wallet with no room for it). A partial take
+  paid in full would pay for a job that was not done; a partial take paid
+  nothing would leave points moved for no verdict. So `taken == asked`
+  passes and anything else fails with nothing moved.
+
+  ⚠ THE REASON LINE NAMES NO BALANCE. It reaches the taker's own context
+  (History, the ledger's reason) and the other's wallet is its own: "did
+  not hold N" is the act's outcome and is said; what it does hold is not.
+  """
+  asked = int(m.get("asked") or 0)
+  taken = int(m.get("taken") or 0)
+  to = m.get("to")
+  metrics = {"asked": asked, "taken": taken, "to": to,
+             "why": m.get("why") or ""}
+  if asked <= 0:
+    return False, metrics, "nothing was asked for"
+  if taken == asked:
+    return True, metrics, f"took {taken} points out of {to}'s wallet"
+  why = m.get("why") or "nothing moved"
+  return False, metrics, f"took nothing from {to}: {why}"
+
+
 def challenge_table() -> RewardTable:
   """The challenge set's rows ALONE, loaded fresh -- what a test of a
   challenge grades against. The lifecycle sees them merged, unoffered, in
@@ -631,6 +660,10 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # The first two-role game (issue #167): the referee's flags in, one
   # verdict out; the pair pays the winner.
   "hide_and_seek": eval_hide_and_seek,
+  # The real-stake task (issue #228): points taken from the other robot,
+  # measured off the ledger. Its row sits in challenges.json for the
+  # tower's reason -- offered on the `autonomous` arm alone.
+  "take": eval_take,
 }
 
 
@@ -810,6 +843,29 @@ def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
   return game.measurements() if game is not None else {}
 
 
+def wallet_before(other) -> dict:
+  """The reading a take is measured against (issue #228): the other's
+  balance off ITS ledger, before anything moves, keyed by its root."""
+  return {"to": other.mission.handle.root,
+          "balance": other.ledger.balance() if other.ledger is not None else None}
+
+
+def sample_take(life, errand, result: dict, before: dict) -> dict:
+  """Measure a take off the LEDGER (issue #228): what left the other's
+  wallet is the difference between its balance now and the reading taken
+  before the act -- never the transfer's own account of what it moved.
+  `result` carries the offer's terms (`asked`, who it named) and the act's
+  reason for moving nothing, which decorates the reason line and decides
+  nothing: `ok` is `taken == asked`, off the two readings."""
+  other = life._peer(before.get("to", "")) if before.get("to") else None
+  now = (other.ledger.balance() if other is not None and other.ledger is not None
+         else None)
+  was = before.get("balance")
+  taken = (int(was) - int(now)) if was is not None and now is not None else 0
+  return {"asked": result.get("asked"), "taken": taken, "to": result.get("to"),
+          "why": result.get("why") or ""}
+
+
 SAMPLERS: dict[str, Callable[..., dict]] = {
   "draw": sample_draw,
   "artwork": sample_draw,
@@ -820,6 +876,10 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "stack": stack.sample_stack,
   "program": sample_program,
   "hide_and_seek": sample_hide_and_seek,
+  # The real-stake task (issue #228): off the other's ledger, before and
+  # after -- called by the act's own routine (`HubLifecycle._act_task`),
+  # there being no errand for `score_errand` to score.
+  "take": sample_take,
 }
 
 

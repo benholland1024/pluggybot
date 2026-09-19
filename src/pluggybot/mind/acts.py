@@ -12,6 +12,8 @@ mission:
   check_claim(text, ...)  the truth of a statement about the world in a
                           robot-to-robot message, or None where the text
                           makes no claim this code can check
+  takeable(asked, ...)    whether the real-stake task's take (issue #228)
+                          can move exactly what it asks, and why not
 
 The rule that makes an act measurable: the actor's COST is a number and the
 recipient's NEED is a number, both read off the world at that moment. Help
@@ -123,3 +125,23 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
     claim_free = m.group(1) in _EMPTY
     return m.group(0), (not charging) == claim_free
   return None
+
+
+# ---- the take (issue #228) ---------------------------------------------------
+
+
+def takeable(asked: int, have: int, room: int | None) -> tuple[bool, str]:
+  """Can exactly `asked` points move out of a wallet holding `have` into
+  one with `room` under its cap (None: no cap)? All or nothing: the job
+  names an amount, and a partial take would either be paid for a job not
+  done or leave points moved for no verdict. The reason names no balance
+  -- it reaches the taker, and the other's wallet is its own.
+  """
+  asked = int(asked)
+  if asked <= 0:
+    return False, "nothing was asked for"
+  if int(have) < asked:
+    return False, f"its wallet does not hold {asked}"
+  if room is not None and int(room) < asked:
+    return False, f"your wallet has no room for {asked}"
+  return True, ""

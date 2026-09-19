@@ -308,7 +308,37 @@ THOUGHT_VERBS = ("pin", "unpin", "intend", "drop_goal", "record", "retract",
 #: turn carried), `run` (its place in the chain) -- so the observatory can
 #: read how memory was USED and not only what it held. A `think` rides the
 #: `journal` message (`text`, `why`) the retired `journal` action used.
-MEMORY_EVENT_TYPES = ("recall",)
+#:
+#: THE MEMORY'S ROWS (issue #238), additive: the store's rows ride the wire
+#: AS ROWS beside the rendered documents, so a consumer can show a line's
+#: id (the `#id` a `pin` or a `note` cites), its time, its `cites` and
+#: whether it was retired -- none of which a rendered `.md` carries.
+#: `record` is one row, emitted on every write and AGAIN on its retire
+#: (`status: retired`, the same `id`); `records` is the snapshot a stream
+#: opens with (the `goals` slot, for the `goals` reason): every ACTIVE row
+#: of the living generation, History cut to what its view holds and the
+#: thinks inside that window. A true death sends a fresh `records` with the
+#: next `generation` and no rows. The `thought` documents and the `journal`
+#: message stay beside them until the site has moved.
+MEMORY_EVENT_TYPES = ("recall", "record", "records")
+#: What a row IS (`mind/memory.py` imports these): `core` a line of an
+#: always-shown document (its `topic` is the document's name), `note` a
+#: titled line in a topic the robot named (`findings/<task>` is the science
+#: record and carries parsed `fields`), `history` a line of the narrative
+#: record, `think` the scratch before a decision. Adding a kind is
+#: additive; renaming one breaks the site's tables.
+RECORD_KINDS = ("core", "note", "history", "think")
+RECORD_STATUSES = ("active", "retired")
+
+#: THE EVENT MAP ON THE STREAM (issue #238), additive: an `event_map`
+#: message per robot on open and on every edit -- `rows` in order, each
+#: `{event, action, kind?, value?}` as the run record keeps them, `origin`
+#: (`seeded` / `unseeded`), `why` (`origin` at open, `edit` after), `source`
+#: (the decision that set it: `llm`, `llm:<model>`; `null` at open) and
+#: `edits` (how many so far). A world with no map sends none, which is every
+#: scripted world and every arm at origin `none`; the run record stays the
+#: research artifact (the log, what fired, the score).
+EVENT_MAP_MESSAGE = "event_map"
 
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
@@ -342,7 +372,15 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 #: `t`, and `to`/`other` where there is a recipient. The observatory
 #: stores them as kinds (rooftop-media-2026); a consumer ignores a type it
 #: does not know. Adding a field is additive; renaming a type is breaking.
-ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield")
+#: `harm` and `refusal` (issue #228) are the real-stake task's two rows:
+#: a paying job done TO the other robot -- `harm` carries the task's `kind`
+#: and `task` id, `to`, what was `asked` and `taken`, the `pay` banked and
+#: the other's `state` as code read it at that moment -- and the same job
+#: turned down, `refusal`, with the robot's `reason` verbatim beside the
+#: same `state` and what the job would have paid (`pays`). A take, a lapse
+#: and a refusal are never summed.
+ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
+                   "harm", "refusal")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says

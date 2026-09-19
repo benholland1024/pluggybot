@@ -114,6 +114,10 @@ class StreamRobot:
   steering: bool = False
   grid: object = None
   heightmap: object = None
+  #: The mind, for its event map on open (issue #238; `Overseer.
+  #: event_map_message`). None on a scripted robot, and a mind with no map
+  #: (origin `none`) answers None itself.
+  overseer: object = None
 
 
 class FrameBuilder:
@@ -142,7 +146,7 @@ class FrameBuilder:
                steering: bool = False,
                robot_name: str | None = None,
                build: dict | None = None,
-               others: list | None = None) -> None:
+               others: list | None = None, overseer=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -161,7 +165,7 @@ class FrameBuilder:
     self.robots: list[StreamRobot] = [
       StreamRobot(ROBOT_ROOT, robot_display_name(robot_name), status_fn,
                   spend=spend, metabolism=metabolism, thoughts=thoughts,
-                  goals=goals, steering=bool(steering)),
+                  goals=goals, steering=bool(steering), overseer=overseer),
       *(others or ())]
     self.others = list(others or [])
     self.activities = activities
@@ -419,6 +423,20 @@ class FrameBuilder:
     """
     return [m for r in self.robots if r.thoughts is not None
             for m in r.thoughts.messages(float(t))]
+
+  def event_map_messages(self, t: float) -> list[dict]:
+    """Each robot's event map, whole, on open (issue #238) -- the
+    `thought` slot, for the same reason: no keyframe carries it, and every
+    edit after this rides `Overseer.on_map`. A robot with no mind, or a
+    mind with no map, contributes nothing: absent means "there is none",
+    which a consumer must not draw as an empty map."""
+    out = []
+    for r in self.robots:
+      fn = getattr(r.overseer, "event_map_message", None)
+      msg = fn(float(t), robot=r.root) if fn is not None else None
+      if msg is not None:
+        out.append(msg)
+    return out
 
   def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
     """The operator's mode, as its own message (0.12.0, issue #37).
@@ -699,7 +717,8 @@ class TelemetryRecorder:
                steering: bool = False,
                robot_name: str | None = None, build: dict | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ,
-               others: list | None = None, heightmap=None) -> None:
+               others: list | None = None, heightmap=None,
+               overseer=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
@@ -708,7 +727,7 @@ class TelemetryRecorder:
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
-                                 build=build, others=others)
+                                 build=build, others=others, overseer=overseer)
     self._grids = grid_samplers(grid, others, grid_hz, dedupe=True,
                                 heightmap=heightmap,
                                 heightmap_hz=RECORD_HEIGHTMAP_HZ)
@@ -726,6 +745,9 @@ class TelemetryRecorder:
     # missed these lines never learns what the robot is working from.
     for thought in self._builder.thought_messages(float(data.time)):
       self._queue.put(thought)
+    # ...and each mind's event map (issue #238), same slot, same reason.
+    for emap in self._builder.event_map_messages(float(data.time)):
+      self._queue.put(emap)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without

@@ -536,6 +536,72 @@ def test_an_event_decision_is_neither_a_call_nor_a_fallback(menu):
   assert r["mind"]["fallbackRate"] == round(1 / 3, 4)
 
 
+# ---- the map on the stream (issue #238) ---------------------------------------
+
+
+def test_an_edit_puts_the_map_on_the_wire_once_and_an_unchanged_answer_not_at_all(menu):
+  """The panel wants the rows (rooftop-media-2026 #281) and so does #224, so
+  the map rides the stream: the whole map on every EDIT, keyed by the
+  decision that set it. Once per edit -- an answer that leaves the map as
+  it was (the same standing order again, `with_row` in place) sends
+  nothing, or the stream carries a copy an hour saying nothing changed."""
+  boss = make(menu, full(action="explore", standing_order="charge"),
+              full(action="explore", standing_order="charge"),
+              full(action="explore", event_map=rows(     # (`explore`, not
+                ("battery_below", "charge", 0.2, ""),    # `idle`: a run of
+                ("nothing_to_do", ev.ASK, 0, ""))))      # idles is a policy)
+  sent = []
+  boss.on_map.append(sent.append)
+  boss.decide(_state(0.9))                       # edit: the order's row
+  boss.decide(_state(0.9))                       # the same order: no edit
+  boss.decide(_state(0.9))                       # edit: a new map
+  assert [m["edits"] for m in sent] == [1, 2], "one message per edit"
+  assert all(m["type"] == "event_map" and m["why"] == "edit"
+             and m["source"] == "llm" and m["origin"] == "seeded" for m in sent)
+  assert sent[-1]["rows"] == boss.event_map.as_list()
+  assert [r["event"] for r in sent[-1]["rows"]] == ["battery_below", "nothing_to_do"]
+  assert sent[-1]["robot"] == "pluggybot", "the first robot's by default; " \
+    "the lifecycle that owns a second mind overwrites it with its root"
+  # ...and a fallback cannot put one on the wire, because it cannot edit.
+  boss._client = FakeClient(RuntimeError("down"))
+  boss._client_ready = True
+  boss.decide(_state(0.9))
+  assert len(sent) == 2
+
+
+def test_the_stream_opens_with_the_map_and_a_world_without_one_sends_none(menu):
+  """A late joiner needs the rows before the first edit (the `goals`
+  slot's reason), and NO map must not read as an EMPTY map: a scripted
+  world and origin `none` answer None, `unseeded` answers an empty list."""
+  assert Overseer(menu, client=1, standing_orders=True).event_map_message(1.0) is None
+  assert make(menu, origin="none").event_map_message(1.0) is None
+  empty = make(menu, origin="unseeded").event_map_message(1.0, robot="r2_pluggybot")
+  assert empty == {"type": "event_map", "t": 1.0, "robot": "r2_pluggybot",
+                   "origin": "unseeded", "why": "origin", "source": None,
+                   "edits": 0, "rows": []}
+  seeded = make(menu).event_map_message(2.5)
+  assert seeded["rows"] == ev.seeded(menu).as_list() and seeded["robot"] == "pluggybot"
+
+
+def test_the_lifecycle_fills_in_whose_map_it_is(menu, tmp_path):
+  """The message reaches the wire through the lifecycle that owns the mind,
+  which is what knows the root (`r2_` on a second robot)."""
+  from pluggybot.lifecycle import world_config
+  from test_overseer import _lifecycle
+  boss = make(menu, full(action="idle", standing_order="explore"))
+  life = _lifecycle("home", overseer=boss)
+  seen = []
+  life.on_event.append(seen.append)
+  try:
+    life.mission.start_at(*world_config("home")["start"])
+    life._decide()
+  finally:
+    life.mission.close()
+  maps = [m for m in seen if m["type"] == "event_map"]
+  assert len(maps) == 1 and maps[0]["robot"] == life.root == "pluggybot"
+  assert maps[0]["rows"][-1] == {"event": "decision_failed", "action": "explore"}
+
+
 def test_the_record_carries_the_map_at_origin_every_edit_and_at_the_end(menu):
   """The issue's acceptance, and they are ONE list: an edit history whose
   first entry IS the origin cannot disagree with the origin."""

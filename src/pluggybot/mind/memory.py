@@ -31,13 +31,16 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from pluggybot.telemetry.protocol import RECORD_KINDS, RECORD_STATUSES
+
 #: What a row IS. `core` is a line of an always-shown document, `note` a
 #: titled line in a topic, `history` a line of the narrative record,
 #: `think` the scratch the model wrote before a decision (issue #221;
 #: a history line by any other name, kept apart so a tail of History is
-#: not twelve thinks).
-KINDS = ("core", "note", "history", "think")
-ACTIVE, RETIRED = "active", "retired"
+#: not twelve thinks). The protocol's, because a row rides the wire as a
+#: row (issue #238) and the site keys its tables on the kind.
+KINDS = RECORD_KINDS
+ACTIVE, RETIRED = RECORD_STATUSES
 #: Most rows a search returns. Small: a recalled block is paid for on the
 #: next turn (`thoughts.RECALLED_CHARS` is the byte cap), and eight good
 #: hits beat forty.
@@ -97,10 +100,16 @@ class Record:
     return self.status == ACTIVE
 
   def as_dict(self) -> dict:
-    return {"id": self.id, "t": self.t, "kind": self.kind, "writer": self.writer,
-            "topic": self.topic, "title": self.title, "text": self.text,
-            "fields": dict(self.fields), "cites": list(self.cites),
-            "status": self.status}
+    """The row as the wire carries it (issue #238) -- the `record` event and
+    the `records` snapshot share this one shape. `retiredT` only where the
+    row was retired: "never retired" and "retired at t=0" differ."""
+    out = {"id": self.id, "t": round(self.t, 3), "kind": self.kind,
+           "writer": self.writer, "topic": self.topic, "title": self.title,
+           "text": self.text, "fields": dict(self.fields),
+           "cites": list(self.cites), "status": self.status}
+    if self.retired_t is not None:
+      out["retiredT"] = round(self.retired_t, 3)
+    return out
 
 
 def _now() -> str:

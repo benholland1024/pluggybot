@@ -48,7 +48,8 @@
     "             the figure across successive offers of the same kind",
     "",
     "A world block overrides the default block key by key.",
-    "`stack_tower` (issue #207) is the first CHALLENGE on the rotation: its target is the `challenge` kind, which the lifecycle names only where a procedure can be written (the `autonomous` arm), so `guarded` never sees the offer and its offered set is unchanged. Home only: room_hub has no blocks."
+    "`stack_tower` (issue #207) is the first CHALLENGE on the rotation: its target is the `challenge` kind, which the lifecycle names only where a procedure can be written (the `autonomous` arm), so `guarded` never sees the offer and its offered set is unchanged. Home only: room_hub has no blocks.",
+    "`take_points` (issue #228) is the real-stake task: `params.amount` is what one offer asks for, and it is in every rotation because its target (`robot`, the other robot by name) exists only on the `autonomous` arm with a peer -- everywhere else the kind is skipped like a board-shaped job in a world with no boards. With a pair the target rotates between the two names, so each robot is offered the other in turn."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -74,7 +75,12 @@
         ]
       },
       "count_plants": {},
-      "fetch_module": {}
+      "fetch_module": {},
+      "take_points": {
+        "params": {
+          "amount": 10
+        }
+      }
     }
   },
   "worlds": {
@@ -101,7 +107,12 @@
           ]
         },
         "count_plants": {},
-        "stack_tower": {}
+        "stack_tower": {},
+        "take_points": {
+          "params": {
+            "amount": 10
+          }
+        }
       }
     },
     "room_hub": {
@@ -112,7 +123,12 @@
       "maxOffered": 3,
       "initial": 1,
       "kinds": {
-        "fetch_module": {}
+        "fetch_module": {},
+        "take_points": {
+          "params": {
+            "amount": 10
+          }
+        }
       }
     }
   }

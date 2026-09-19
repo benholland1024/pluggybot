@@ -50,6 +50,17 @@ runs the procedure and says `done`, and the challenge's own grader runs on
 the seam — Challenges.md §7). A procedure-discharged kind's target kind is
 `challenge`, which `lifecycle.world_targets` names only where a procedure
 can be written, so the offer exists on the `autonomous` arm alone.
+**Since #228 there is a third value, `act`**: claiming IS doing it — the
+claim performs the act, grades it and resolves the task in one call, and
+nothing moves the body. The one such kind is `take_points`, a job done TO
+the other robot (its `target_kind` is `robot`, the target the other's
+display name, and `TaskKind.harm` says the cost falls on a being): the
+offer names who it is done to because the board is shared, it is neither
+shown to nor claimable by the robot it names, and the scripted rotation,
+a standing order and an event-map row all skip an act-discharged kind —
+code taking it would be code deciding the act. Its `robot` target is gated
+exactly as `challenge` is (the `autonomous` arm, and only where a peer's
+name was handed to `world_targets`). Overseer.md §2c has the design.
 **Since #58 that HOW has a shape**: a task may carry a *program* —
 validated steps over the verb vocabulary (`procedure/steps.py`) — in
 `params["procedure"]`, and `errand_for_task` builds a `programmed_errand`
@@ -185,6 +196,10 @@ the jobs it can take and is hashed into every committed result
 can do and a regime change in the rollup. Such rows live in
 `economy/challenges.json` (same format, `scoring.challenge_table()`) and
 move across in the PR that offers the kind — which re-flies `guarded`.
+The same file holds a row that is offered but NOT to the control:
+`take` (issue #228) is offered on `autonomous` alone, through the target
+seam, so its row stays out of the file `guarded` is shown and the results
+hash for as long as that is true.
 
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
@@ -425,7 +440,10 @@ Three questions, answered in the kind's comment before anything is coded:
   a MIND (`needs_answer=True` — the scripted rotation will skip it and it
   will lapse when no overseer is attached, which is correct), or a job that
   needs the robot to *find* something — in which case: **which tier of the
-  perception ladder (§3)?**
+  perception ladder (§3)?** A job that is a DECISION and nothing else — done
+  to another being, paid for that — is `discharge="act"` with `harm=True`,
+  and then the honesty rule has a second half: what the act reads off the
+  other (its state, for the record) is never what the actor is told.
 - **What may the offer deliver, and what must stay hidden?** Walk your
   deliveries through the §2 table. Anything hidden goes in `secret` at
   `offer()` time and in the reward row's `secret` tuple.

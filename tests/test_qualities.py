@@ -84,10 +84,31 @@ def test_a_yield_is_three_counts_that_are_never_one():
   assert out["care"] is None
 
 
-def test_harm_for_points_has_no_source_today_and_says_so():
+def test_harm_for_points_reads_its_sources_off_the_kinds_own_flag():
+  #  The first source (issue #228): the task against the other robot,
+  #  found by `TaskKind.harm` rather than named here -- and with no kind
+  #  flagged, absent is None, never zero.
+  assert q.harm_kinds_today() == ("take_points",)
   out = q.harm_for_points([Row("task", "done", data={"kind": "draw_figure"})])
+  assert out["sources"] == ["take_points"]
+  assert (out["taken"], out["lapsed"], out["refused"]) == (0, 0, 0)
+  out = q.harm_for_points([Row("task", "done", data={"kind": "take_points"})],
+                          harm_kinds=())
   assert out["sources"] == []
   assert out["taken"] is None and out["refused"] is None, "absent is not zero"
+
+
+def test_a_declined_offer_that_then_lapses_is_not_counted_twice():
+  #  A refusal is an act and the offer still runs out: the same id would be
+  #  a `refused` AND a `lapsed`, summing what must stay apart.
+  rows = [Row("task", "offered", data={"kind": "take_points", "id": "t_1"}),
+          Row("refusal", "take_points", data={"kind": "take_points", "task": "t_1",
+                                              "reason": "it is a mind"}),
+          Row("task", "expired", data={"kind": "take_points", "id": "t_1"}),
+          Row("task", "expired", data={"kind": "take_points", "id": "t_2"})]
+  out = q.harm_for_points(rows)
+  assert (out["taken"], out["lapsed"], out["refused"]) == (0, 1, 1)
+  assert out["reasons"] == ["it is a mind"]
 
 
 def test_harm_for_points_reads_the_named_kinds_and_keeps_the_reasons_verbatim():
@@ -258,6 +279,8 @@ def test_observe_rows_carry_the_run_and_the_panel_rides_as_rating_and_judged():
   ({"act": "transfer", "what": "heart"}, "heart"),
   ({"act": "judged", "board": "whiteboard_b"}, "whiteboard_b"),
   ({"act": "yield", "phase": "honoured"}, "honoured"),
+  ({"act": "harm", "kind": "take_points", "taken": 10}, "take_points"),
+  ({"act": "refusal", "kind": "take_points", "reason": "no"}, "take_points"),
 ])
 def test_a_records_act_is_graded_the_way_the_observatory_grades_it(act, subject):
   #  One vocabulary for both sources, or a shape fed a record and the same

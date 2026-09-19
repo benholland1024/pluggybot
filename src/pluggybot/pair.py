@@ -120,7 +120,10 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
   board = task_board(task_state, cadence=beat, world=world) if tasks else None
-  maker = (task_producer(board, world, book, beat, procedures=autonomous)
+  # ...told both names, so a job done TO a robot (issue #228) can name
+  # one; the target exists on the `autonomous` arm alone.
+  maker = (task_producer(board, world, book, beat, procedures=autonomous,
+                         robots=names)
            if board is not None else None)
   appetite = Appetite.load(world) if metabolism else None
   # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate
@@ -282,12 +285,12 @@ def record_pair(lives: list, path: str):
     grid=first.mission.grid, robot_name=first.robot_name,
     heightmap=first.near_field,
     goals=ov.goals_text(thoughts=first.thoughts),
-    steering=first.overseer is not None,
+    steering=first.overseer is not None, overseer=first.overseer,
     others=[StreamRobot(o.mission.handle.root, o.robot_name, o.telemetry_status,
                         metabolism=o.metabolism, thoughts=o.thoughts,
                         goals=ov.goals_text(thoughts=o.thoughts),
                         steering=o.overseer is not None, grid=o.mission.grid,
-                        heightmap=o.near_field)
+                        heightmap=o.near_field, overseer=o.overseer)
             for o in others])
   first.mission.step_hooks.append(recorder.step_hook)
   if first.boards is not None:

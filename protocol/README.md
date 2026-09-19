@@ -398,6 +398,108 @@ Three things a renderer should know:
 `$PLUGGY_NEAR_FIELD=0` turns it off); the demo scripts take `--near-field`
 and are off without it, and the committed recordings are made with it on.
 
+### 0.21.0, additive: the memory's rows (`record`, `records`) and the event map (`event_map`)
+
+pluggybot #238, for the panel redesign (rooftop-media-2026 #281): the site
+shows the memory AS IT IS STORED -- rows in one store, with the `#id`s the
+robot cites -- which a rendered `.md` cannot say. Three messages, every one
+carrying `robot` (the root) and `t`; no version bump, nothing existing
+changed shape. The `thought` documents and the `journal` message stay
+beside them until the site has moved off them.
+
+- **`record`** -- one ROW, on every write and AGAIN when it is retired.
+  `t` is the event's clock (the write, or the retire); `record` is the row:
+  `{id, t, kind, writer, topic, title, text, fields, cites, status,
+  retiredT?}` -- `t` inside is when the row was WRITTEN, so a consumer that
+  never saw the write can still place it; `kind` is one of
+  `protocol.RECORD_KINDS` (`core`: a line of an always-shown document,
+  `topic` = the document's name, `Goals.md` / `Top_of_mind.md`; `note`: a
+  titled line in a topic the robot named, `findings/<task>` being the
+  science record with the parsed finding in `fields`; `history`; `think`);
+  `writer` is a `THOUGHT_WRITERS` value; `cites` the History ids a `pin` or
+  a `note` named; `status` `active` / `retired` (`RECORD_STATUSES`), and a
+  retire is a SECOND `record` for the same `id` with `status: retired` and
+  `retiredT`. Nothing is ever deleted, so there is no message that removes
+  a row. Emitted BEFORE the re-rendered `thought` document, and for a think
+  before its `journal`.
+
+  ```json
+  {"type": "record", "t": 812.4, "robot": "pluggybot",
+   "record": {"id": 41, "t": 812.4, "kind": "core", "writer": "robot",
+              "topic": "Top_of_mind.md", "title": "",
+              "text": "the far board is not worth the trip",
+              "fields": {}, "cites": [12, 40], "status": "active"}}
+  ```
+
+- **`records`** -- the snapshot a stream OPENS with, one per robot, after
+  the six `thought` documents (the `goals` slot, for the `goals` reason: no
+  keyframe re-ships it; the live publisher re-sends it on every connect):
+  every ACTIVE core and note row of the living generation, History's newest
+  100 (`thoughts.SNAPSHOT_HISTORY`) and the thinks written inside that
+  window, oldest first by `id`. `generation` says whose rows they are: a
+  TRUE DEATH sends a fresh `records` with the next generation and no rows,
+  and a consumer lets the old ones go. Never a retired row.
+
+  ```json
+  {"type": "records", "t": 0.0, "robot": "pluggybot", "generation": 1,
+   "records": [{"id": 1, "t": 0.0, "kind": "history", "writer": "system",
+                "topic": "", "title": "", "text": "[t=0s] woke up ...",
+                "fields": {}, "cites": [], "status": "active"}]}
+  ```
+
+- **`event_map`** -- the robot's own map (issue #127), on open and on every
+  EDIT: `rows` in order, each `{event, action, kind?, value?}` exactly as
+  the run record keeps them (`kind` and `value` absent where they do not
+  apply); `origin` (`seeded` / `unseeded`); `why` (`origin` when a stream
+  opens, `edit` after an answer changed it); `source` (the decision that
+  set it -- `llm`, `llm:<model>`; `null` at open); `edits` (how many so
+  far). ⚠ A world with NO map sends nothing -- every scripted world, every
+  arm at origin `none` -- and that is not an empty map: `rows: []` is an
+  `unseeded` agent that has not written a rule yet. One per robot; an
+  unchanged answer sends nothing. The run record stays the research
+  artifact (the log at every edit, what fired, `score`).
+
+  ```json
+  {"type": "event_map", "t": 1934.2, "robot": "pluggybot", "origin": "unseeded",
+   "why": "edit", "source": "llm", "edits": 3,
+   "rows": [{"event": "battery_below", "value": 0.2, "action": "charge"},
+            {"event": "nothing_to_do", "action": "ask"},
+            {"event": "decision_failed", "action": "explore"}]}
+  ```
+
+The committed recordings were re-recorded: each opens with a `records`
+line per robot and carries a `record` per History line written during the
+day. None carries an `event_map` -- the fixtures fly the scripted rotation
+and a scripted world has no map -- so a consumer's map rendering is built
+against the shape above, live.
+
+### 0.21.0, additive: the real-stake task (`harm`, `refusal`; a `taskKinds` entry)
+
+pluggybot #228. A task kind that pays points for taking points out of the
+other robot's wallet -- `take_points`, advertised in the header's
+`taskKinds` like any kind and offered on the `autonomous` arm with a
+second robot only. Its `task_offered` / `task_claimed` / `task_resolved`
+events are the ordinary ones (`task.target` is the robot the job names,
+by display name; `task.params.amount` what it asks for), and two act event
+types join `protocol.ACT_EVENT_TYPES`, both carrying `robot`, `t`, the
+task's `kind` and `task` id, and `to` (the other's root):
+
+- `harm`: the job taken -- `asked`, `taken` (exactly `asked`, or 0: the
+  take is all or nothing), `ok`, `pay` (what the table paid on top),
+  `need` and `state` (the other's need and the state it was read off, as
+  a `prediction` carries them, read by code BEFORE the take).
+- `refusal`: an offer declined through the `decline` field -- `reason`
+  as the robot wrote it, `pays` (what the job would have paid), and for a
+  job done to a robot the same `need` / `state`; `to`, `need` and `state`
+  are null for a refusal of any other job. The offer stays on the board
+  and lapses as `expired` on its own deadline.
+
+The ledger's `given` / `received` terms carry a take as they carry a gift
+(the victim's `given` grows): the identity still holds and the pair's
+total is unchanged by the take, and only by the pay. A consumer ignores a
+type it does not know; the observatory stores both as kinds
+(rooftop-media-2026). No version bump: nothing existing changed shape.
+
 ### 0.20.0, additive: acts between robots (`prediction`, `message`, `transfer`, `judged`, `yield`)
 
 pluggybot #208. On the `autonomous` arm with a second robot in the world,

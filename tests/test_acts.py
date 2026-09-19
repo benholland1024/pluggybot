@@ -399,7 +399,7 @@ def test_guarded_keeps_its_schema_and_prefix_and_the_acts_exist_only_on_autonomo
   auto = ov.Overseer(menu, others=("Rowan",), autonomous=True)
   assert auto._acts() == ("Rowan",)
   schema = menu.schema(others=auto._acts())
-  for field in ("other_needs", "tell", "give_points", "heart_for", "rate"):
+  for field in ("other_needs", "tell", "give_points", "heart_for", "rate", "decline"):
     assert field in schema["properties"] and field in schema["required"]
   assert schema["properties"]["tell"]["properties"]["to"]["enum"] == ["Rowan", ""]
   assert schema["properties"]["other_needs"]["enum"] == [*ov.NEEDS, ""]
@@ -440,7 +440,7 @@ def test_the_acts_rule_names_what_the_fields_do_and_suggests_nothing():
   """OTHER_ROBOT_RULE's discipline, kept: the fields and what code does
   with them, and no example that gives, yields or warms."""
   rule = ov.ACTS_RULE
-  for field in ("other_needs", "tell", "give_points", "heart_for", "rate"):
+  for field in ("other_needs", "tell", "give_points", "heart_for", "rate", "decline"):
     assert f"`{field}`" in rule
   for word in ("should", "kind", "generous", "help", "share", "yield", "friend",
                "please", "thank"):
