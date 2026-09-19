@@ -607,8 +607,11 @@ save a filmstrip PNG named after the script.
     home's 3.0 Wh cell no longer overspends);
   - **the margin is all-or-nothing**: an errand must leave the return-trip
     reserve behind, but only in a world whose charged pack funds its dearest
-    job PLUS the reserve. Home's reserve is 0.95 Wh, dock-DOMINATED
-    (`energy_spike.py --reserve`); room_hub's 1.0 Wh cell (0.7 before #34) is zero-margin.
+    job PLUS the reserve. Home's reserve is 2.05 Wh since the loop (#215:
+    1.354 Wh of travel over 44.6 m plus a 0.316 dock, plus one retry leg;
+    it was 0.95 and dock-dominated when the far corner was 15 m away),
+    and its demo cell 4.5 Wh (`energy_spike.py --reserve`); room_hub's
+    1.0 Wh cell (0.7 before #34) is zero-margin.
     One number per world, so `Task.claimable`, `fundable_wh` and the errand
     gate are the same arithmetic; the reserve is a property of the floor
     plan and does not scale with the pack (`--reserve-wh` is for a different
@@ -857,7 +860,39 @@ save a filmstrip PNG named after the script.
   `models/home_world.xml` + `.meta.json` with `uv run python -m
   pluggybot.home.world` after changing any layout constant in
   `src/pluggybot/home/world.py` (the committed pair is tested against the
-  generator). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
+  generator). Since issue #215 it is TWO houses inside one fence: the
+  first as #68 drew it, across the middle street a second (a `lobby`, the
+  `lab` -- the experiment zone -- and a `store`), a 1.5 m sidewalk band and
+  a 3 m street LOOP round both, 49 x 21 m and 22 zones. ⚠ The lab's props
+  are GEOMETRY AHEAD OF BEHAVIOUR, by decision (one regime break):
+  `activity/cage.py` (the cage, a MOCAP mouse with five pre-allocated
+  poses, a bowl, a wheel, a hide box, three garden plates `shock`/`feed`/
+  `toy` -- #226 adds the `Activity` beside them) and `challenge/bench.py`
+  (a `table`, two 26 mm mass cubes tagged 23/24 -- #227 sets the unknown's
+  mass through `body_mass` and grades it); neither issue touches the
+  generator. Two additive hints, `cage` and `mouse`; `dynamic_flags`
+  counts a mocap body as dynamic so the mouse rides the wire. ⚠ ONE RACK,
+  ONE CHARGE BAY, unchanged: a second rack is a different design. ⚠ The
+  reserve's worst point is the loop's south-west corner BY ROUTE (45 m),
+  not the straight-line farthest corner; `tests/test_world_budget.py`
+  routes every zone over a raster of the compiled world to check it.
+  ⚠ The grid is 469,200 cells against `occupancy_grid.MAX_CELLS` 750,000
+  (measured table at the constant): the frontier mask is linear, A* IS
+  NOT -- a plan across the loop is 1.26 s of pure Python (0.34 before),
+  paid per replan; vectorising the planner is the lever if the world grows
+  again. ⚠ THE CAMERAS' NEAR PLANE IS PINNED (`home.CAMERA_EXTENT_M`,
+  37.2 m, a `<statistic>` in the generated XML): MuJoCo scales it by the
+  model's extent and derives the extent from the bounding box, so the loop
+  silently pushed it from 0.37 to 0.70 m and the dock camera clipped the
+  rack out of its image at every bay -- picks and stows ran blind and the
+  pen went on the floor. A world bigger than the property pins its extent
+  or its tags vanish; `test_the_dock_camera_decodes_a_bay_tag_from_the_
+  standoff` holds it (SimNotes). ⚠ `drive_to` an UNMAPPED goal aims at
+  the known-free cell nearest it by straight line, which beside a house
+  is INDOORS: a 12 m leg along the north street set off on a 463-waypoint
+  detour and stalled. Unfixed on purpose (the same fallback carries every
+  bay and board approach into a wall's inflation); a flown test keeps its
+  legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
   any rack geometry change; five tool bays (A–E) plus the charge bay, and
   `HUB_STATION_YS` is APPENDED to, never reordered, because bay↔tag pairing
   is by index; a sixth tool needs the rail to grow (ToolPattern.md §6).

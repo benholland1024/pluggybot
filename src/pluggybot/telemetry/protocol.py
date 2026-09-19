@@ -69,6 +69,15 @@ VISUAL_HINTS = (
   # may leave the kitchen empty, in which case this is an unused name and no
   # harm done.
   "stairs", "street", "sidewalk", "counter",
+  # v4 (issue #215): the second house's experiment zone. `cage` is the
+  # mouse's enclosure -- a tray and four wall slabs the browser draws as
+  # bars, the way `fence` is drawn as rails -- and `mouse` is the one
+  # hinted body besides the robot whose pose a frame may overwrite: a MOCAP
+  # body the cage's activity (#226) moves between pre-allocated poses. The
+  # bench is a `table`, its masses are tagged cubes like the tower's blocks
+  # and the plates are unhinted like the garden's: no new word where an old
+  # one is true.
+  "cage", "mouse",
 )
 
 # The LCD module's display (issue #13). Three vocabularies on the same terms
@@ -467,8 +476,12 @@ def dynamic_flags(model) -> list[bool]:
   dyn = [False] * model.nbody
   for b in range(1, model.nbody):
     # bool(): body_jntnum is a numpy array, and `or` hands back numpy.bool_,
-    # which json.dumps refuses -- caught the first time the scene was written
-    dyn[b] = bool(dyn[model.body_parentid[b]] or model.body_jntnum[b] > 0)
+    # which json.dumps refuses -- caught the first time the scene was written.
+    # A MOCAP body has no joint and moves anyway (its pose is an input,
+    # ActivityPattern.md 3.4), so it is dynamic on the wire too (issue
+    # #215): the lab's mouse ships in every keyframe and whenever it moves.
+    dyn[b] = bool(dyn[model.body_parentid[b]] or model.body_jntnum[b] > 0
+                  or model.body_mocapid[b] >= 0)
   return dyn
 
 

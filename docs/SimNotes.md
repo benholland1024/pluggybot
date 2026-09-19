@@ -1332,6 +1332,88 @@ way, each with what is true now:
   delta. **What is true now:** the observatory shows the floor; nothing
   that decides has read it.
 
+## The second house and the loop (issue #215): the planner is the new cost
+
+The home world grew from 26.5 × 12 m to 49 × 21 m -- a second house across
+the street, a sidewalk band and a 3 m street loop round both, a fence round
+the loop -- and the occupancy grid from 159,600 to 469,200 cells (5 cm).
+Measured before the cap moved (`occupancy_grid.MAX_CELLS`, 250k → 750k):
+the frontier mask stays linear (4.6 → 12.6 ms a pass), and the thing that
+did not was **A\***: a plan across the whole loop went from 0.34 s to
+1.26 s of pure-Python heap work, because the search area grew with the
+world and nothing else in the mapping stack is written in Python per cell.
+It is paid per replan, and a mission's plans are mostly short, so a day is
+not four times slower; but it is the first cost in this repo that scales
+with the WORLD rather than with what the robot does. **What is true now:**
+`MAX_CELLS` carries the table; vectorising the planner is the lever if the
+world grows again.
+
+The reserve's worst point moved BY ROUTE, not by straight line: the
+loop's east legs are the farthest from the rack as the crow flies and
+among the nearest as the robot drives, because the rack is reached only
+through the middle street's gate at y = 3.1. `tests/test_world_budget.py`
+now routes every zone's centre and corners over a 0.25 m raster of the
+compiled world (Dijkstra, walls read off the geometry that crosses the
+LIDAR's beam) and asks which is farthest; a straight-line comparison would
+have sized the reserve off the wrong corner by twenty metres. The
+measured reserve is at `home.HOME_LOW_BATTERY_WH`.
+
+The lab's props arrived as geometry with no behaviour behind them (the
+cage's mouse a mocap body at rest, three plates lighting nothing, two
+tagged mass cubes), by decision: a world change is one regime break, and
+#226 and #227 add behaviour to a world that already holds what they need.
+`dynamic_flags` counts a mocap body as dynamic so the mouse rides the wire
+from day one.
+
+**A bigger world moved the cameras' near plane, and the robot went blind
+at the rack.** The first pricing flight on the new plan lost the pen at
+its first stow, and `home_draw.py --cycles 2` -- the swap-stack check --
+failed its second fetch where the old world passed both. Not the swap:
+MuJoCo derives `statistic.extent` from the geometry's bounding box and
+scales every camera's near clipping plane by it (`visual.map.znear`
+x extent, 0.01 by default). The property's box gave 37.2 m, a 0.37 m near
+plane; the loop's gave 70 m and 0.70 m -- and the dock camera at a bay
+standoff, 0.34 m from the rack, clipped the whole rack out of its own
+image (mean pixel brightness 94.6 -> 27.6; the lights were suspected first
+and measured innocent -- 1 light or 16, the same 27.6). `bay_fix` answered
+None every time, nothing raised, every pick and stow ran on the believed
+standoff alone, and a blind stow put the pen on the floor. **What is true
+now:** the generator writes `<statistic extent>` down (`home.CAMERA_
+EXTENT_M`, the value the tag pipeline was proven at) instead of letting
+the world's size choose it, and `test_the_dock_camera_decodes_a_bay_tag_
+from_the_standoff` decodes a real tag through the real pipeline, with the
+unpinned world kept beside it as the premise. The lesson generalises: any
+world whose bounding box grows past the property's must pin its extent, or
+its cameras lose whatever they look at from closer than a hundredth of it.
+
+## A goal out of sight is aimed at through the nearest wall (issue #215)
+
+The first flown lap of the loop, as sixteen `drive_to` legs of up to 12 m,
+drove thirteen and failed heading east along the north street. Not drift:
+re-flown with belief logged against truth, the error stayed under 10 cm
+and 0.3 degrees for 100 m, and the other robot was 20 m away. The goal,
+12 m ahead, was still UNMAPPED, and `HubMission._plan_to` answers an
+unmapped goal by aiming at the known-free cell nearest it by STRAIGHT
+LINE. From the loop's north-west corner that cell is indoors, behind the
+first house's north wall -- the hall the robot explored that morning --
+and the only way there is back round the loop and in through the gate: a
+463-waypoint plan that starts by driving AWAY from the goal, which the
+drive's stagnation check (10 s without 2 cm of progress) rightly ends.
+The old world could not show it: its street stopped at the property, so
+no unmapped goal ever sat just outside a building the robot knew.
+
+**What is true now:** the rule is unchanged, deliberately. The same
+fallback is what lets a bay or board approach reach a goal INSIDE a wall's
+inflation (the approach plans to the nearest traversable cell and finishes
+on `drive_toward`), so the fix -- for an UNKNOWN goal, aim at the nearest
+cell that borders unknown space, since driving there is what grows the map
+toward the goal; for an INFLATED one, today's rule -- changes every drive
+whose goal is unmapped and wants its own flights. The flown lap keeps
+every leg inside what the leg before mapped (6.6 m against the LIDAR's
+8 m; `test_home_world.loop_legs`). Expect the same stall from an
+`explore(zone)` decision aimed at a loop zone the robot has not seen: it
+drives toward a wall, stops, and explores from there.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

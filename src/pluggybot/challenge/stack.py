@@ -91,18 +91,19 @@ def add_blocks(spec: mujoco.MjSpec) -> mujoco.MjSpec:
 
 
 def block_xml(name: str, x: float, y: float, tag_id: int | None = None,
-              indent: str = "    ") -> str:
+              indent: str = "    ", mass: float = BLOCK_MASS) -> str:
   """One block as MJCF text, for a GENERATOR that writes a world (the home
   world, issue #207) -- the same cube `add_blocks` puts in a spec, with its
   AprilTag on every face where it has one (tags.BLOCK_TAG_IDS; the material
-  is the world's `tagmat<id>`)."""
+  is the world's `tagmat<id>`). `mass` is the bench's (challenge/bench.py,
+  issue #215): the same cube at a different weight."""
   solimp = " ".join(GRIP_SOLIMP.split() + ["0.9", "2.0"])
   skin = (f'material="tagmat{tag_id}"' if tag_id is not None
           else 'rgba="0.90 0.60 0.20 1"')
   return (f'{indent}<body name="{name}" pos="{x:.4f} {y:.4f} {BLOCK_HALF:.4f}">\n'
           f'{indent}  <freejoint/>\n'
           f'{indent}  <geom name="{name}_box" type="box" '
-          f'size="{BLOCK_HALF} {BLOCK_HALF} {BLOCK_HALF}" mass="{BLOCK_MASS}" '
+          f'size="{BLOCK_HALF} {BLOCK_HALF} {BLOCK_HALF}" mass="{mass}" '
           f'friction="{BLOCK_FRICTION} 0.005 0.0001" solimp="{solimp}" '
           f'{skin}/>\n'
           f'{indent}</body>')

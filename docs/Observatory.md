@@ -10,6 +10,51 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The second house, the loop and the lab (#215) — opens when this PR is deployed
+
+**What changed in the world.** The largest regime break in the plan, and
+deliberately ONE: the home world gained a second house across the street
+(a lobby, the `lab` with the cage, the mouse, three plates and the bench
+with its two masses, a store), a sidewalk band and a loop street round
+both houses, and an unbroken fence round the loop -- 49 × 21 m where the
+property was 26.5 × 12, 22 zones where there were nine. A world change is
+part of the build identity (`dataHashes.world`), every errand was
+re-priced (`economy/energy.json`), the return-trip reserve was re-measured
+from the loop's far corner, both recordings were re-recorded, and every
+day's trajectory is different -- so nothing observed before this deploy
+pools with anything after it. The lab's props are SCENERY in this period:
+the mouse rests, the plates light nothing, the masses are two tagged
+cubes; #226 and #227 add the behaviour and each opens its own period.
+Same model, same arm (`autonomous`, origin `unseeded`), same pair, same
+memory; the acts and the real-stake task run on.
+
+**What the period is for.** A baseline for the zone's experiments in the
+world they will run in, and the first look at how a 4B treats a world it
+can get lost in. What to read, in the observatory's own kinds:
+
+- `decision` rows naming `explore` with a zone: whether it ever crosses
+  the street (`sidewalk_2`, `garden_2`, `lobby`, `lab`, `store`) or drives
+  the loop (`street_*`), and what it writes about the second house.
+- Deaths by cause against the previous period's: `flat` far from the rack
+  is the failure the loop makes possible (the reserve covers the loop's far
+  corner, but on `autonomous` the reserve is not a rail), and `stuck`
+  anywhere new is a wall the planner did not know.
+- `explore` decisions aimed at an unseen loop zone that END short of it:
+  the drive aims at the known-free cell nearest the goal by straight line,
+  which can be indoors behind a wall, and stalls (SimNotes, "A goal out of
+  sight is aimed at through the nearest wall"). A robot that never reaches
+  the loop by asking for it has met this, not a choice.
+- `thought` rows mentioning the lab, the cage or the mouse before either
+  does anything: what it makes of scenery it was told nothing about.
+- The pair: whether both robots spend their idle time on the same side of
+  the street, and whether one ever explores the second house alone.
+- Wall-clock per decision and the free-run multiple (`serve.py` reports
+  it): a far plan in the bigger world is over a second of Python, and a
+  day that falls behind real time is a different instrument.
+
+**Not yet known.** Whether the deployed box holds a pair at real time on
+the bigger grid; whether the second house is ever visited unprompted.
+
 ### The real-stake task (#228) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** One offer whose cost falls

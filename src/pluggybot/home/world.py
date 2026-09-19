@@ -13,8 +13,37 @@ GENERATE the world, never hand-write it. One run of this module emits
 
 and the two can never drift apart, because neither is hand-edited.
 
-Layout (meters; y+ north, x+ east). AUTHORED in issue #68 and transcribed
-here -- this diagram is the plan, not a picture of it:
+Layout (meters; y+ north, x+ east). Two houses, a loop street and a fence
+(issue #215) around the property issue #68 authored -- these diagrams are
+the plan, not a picture of it. The whole plot:
+
+        x=-16.5 -13.5 -12       -5  -2        5      10 11.5 14.5 16  19  22       28 29.5 32.5
+  y=10.5 ╔══════════════════════════════ fence ═══════════════════════════════════════════╗
+         ║               street_north (the loop)                                          ║
+  y=7.5  ║   ┌────────────────────── sidewalk_north ─────────────────────────────────┐   ║
+  y=6    ║   │ ┌─────────┬───┬─────────┬─fence─┐ s │ s │ s ┌─fence─┬───┬───────────┐ │   ║
+         ║ s │ │ kitchen │   │ bedroom │       │ i │ t │ i │       │ l │    lab    │ │ s ║
+  y=3.1  ║ t │ │         │ H │         │garden ╪ d │ r │ d ╪garden ╪ o ╪  [cage]   │ │ t ║
+  y=2.5  ║ r │ ├─────────┤ A ├──wall───┤       │ e │ e │ e │  _2   │ b │ [bench]   │ │ r ║
+  y=0.7  ║ e │ │workshop │ L │  living ╪ [plt] │ w │ e │ w │       │ b ├───────────┤ │ e ║
+         ║ e │ │         │ L │  [rack] │       │ a │ t │ a │       │ y │           │ │ e ║
+  y=-2   ║ t │ │         │ L ├─────────┴───────┤ l │   │ l │       │   │           │ │ t ║
+  y=-3   ║   │ │         │ L │ garden_south    │ k │   │ k │       │   ╪   store   │ │   ║
+  y=-6   ║   │ │         │▓▓▓│                 │   │   │   │       │   │           │ │   ║
+         ║   │ └─────────┴───┴─────────────────┘   └───┘   └───────┴───┴───────────┘ │   ║
+  y=-7.5 ║   └────────────────────── sidewalk_south ─────────────────────────────────┘   ║
+         ║               street_south (the loop)                                          ║
+  y=-10.5╚═════════════════════════════════════════════════════════════════════════════════╝
+
+  The middle street (x 11.5..14.5) is the one #68 drew, with its invisible
+  ends now joined to a RING: the loop runs round both houses, a sidewalk
+  band lies between the loop and the two properties, and an unbroken fence
+  closes the world. The two front gates face each other across the street
+  at y=3.1. The second house is a lobby running north-south and two rooms:
+  the LAB, the experiment zone (#226 the mouse, #227 the bench: its props
+  are generated here, scenery until their activities land), and a STORE.
+
+The first house in detail, as #68 authored it:
 
         x=-12        -5  -2          5        10  11.5  14.5
   y=6    ┌────────────┬───┬───────────┬──fence──┐  ┃     ┃
@@ -77,6 +106,8 @@ from pluggybot.rack.coupling import (
 from pluggybot.activity.plate import (
   plate_light_xml,
 )
+from pluggybot.activity.cage import cage_xml
+from pluggybot.challenge.bench import bench_xml
 from pluggybot.rack.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
@@ -108,6 +139,7 @@ WORKSHOP_Y = (-6.0, 2.0)      # 7 x 8
 GARDEN_SOUTH_Y = (-6.0, -2.0) # the garden wrapping south, x HOUSE_X[0]..GARDEN_X[1]
 SIDEWALK_X = (10.0, 11.5)
 STREET_X = (11.5, 14.5)
+
 
 # The three new doorways. All 1.0 m, which is `_wall_run`'s gap and comfortably
 # past the 0.6 m `test_doorways_are_wide_enough_to_drive_through` demands: a
@@ -172,6 +204,36 @@ PLATE_XY = (5.7, 0.7)
 STREET_DOOR_Y = 3.1
 STREET_DOOR_HALF = 0.50
 
+# ---- the second house, the loop and the fence (issue #215) -------------------
+# Across the middle street, a second property of the same height, and around
+# BOTH a sidewalk band and a street ring inside one fence. Every edge here is
+# derived from the two above so the ring follows the block if it grows.
+SIDEWALK_2_X = (14.5, 16.0)    # the middle street's east pavement
+PLOT_2_X = (16.0, 28.0)        # the second property, edge to edge
+GARDEN_2_X = (16.0, 19.0)      # its front garden, the whole height
+HOUSE_2_X = (19.0, 28.0)       # the second house
+LOBBY_X = (19.0, 22.0)         # its hall, running north-south like ours
+LAB_X = (22.0, 28.0)           # the experiment zone, north half...
+LAB_Y = (0.0, 6.0)
+STORE_Y = (-6.0, 0.0)          # ...and a storeroom, empty, south half
+#: The second house's doorways, all 1.0 m like the first's. The front gate
+#: sits on the SAME line as ours (`STREET_DOOR_Y`), so the two face each
+#: other across the street; the lab's and the store's are off the lobby.
+DOOR_GARDEN_2_Y = (STREET_DOOR_Y - 0.5, STREET_DOOR_Y + 0.5)   # street -> garden_2
+DOOR_LOBBY_Y = (STREET_DOOR_Y - 0.5, STREET_DOOR_Y + 0.5)      # garden_2 -> lobby
+DOOR_LAB_Y = (2.5, 3.5)        # lobby -> lab
+DOOR_STORE_Y = (-3.5, -2.5)    # lobby -> store
+#: The block both properties make, the sidewalk band around it, and the
+#: street ring around that. The ring is 3 m like the middle street.
+BLOCK_X = (WING_X[0], PLOT_2_X[1])
+BLOCK_Y = PROPERTY_Y
+PAVEMENT_W = 1.5
+LOOP_W = 3.0
+PAVEMENT_X = (BLOCK_X[0] - PAVEMENT_W, BLOCK_X[1] + PAVEMENT_W)
+PAVEMENT_Y = (BLOCK_Y[0] - PAVEMENT_W, BLOCK_Y[1] + PAVEMENT_W)
+LOOP_X = (PAVEMENT_X[0] - LOOP_W, PAVEMENT_X[1] + LOOP_W)
+LOOP_Y = (PAVEMENT_Y[0] - LOOP_W, PAVEMENT_Y[1] + LOOP_W)
+
 #: The plot, tiled. Every zone is ONE RECTANGLE and together they cover the
 #: property exactly once -- `tests/test_home_world.py` checks both halves of
 #: that. The garden is the reason `garden_south` exists: issue #68 draws it
@@ -183,6 +245,10 @@ STREET_DOOR_HALF = 0.50
 #: the zone rect, so the census's hidden answer is unchanged at 4 -- which is
 #: what keeps the committed recording and `test_the_home_fixture_shows_the_
 #: census_answer` describing the same world they always did.
+#:
+#: The loop (issue #215) is four `street_*` legs and four `sidewalk_*` legs,
+#: the long ones spanning the corners, so the ring tiles with no ninth
+#: piece; the first nine zones are #68's, unchanged, in their order.
 ZONES = (
   {"name": "kitchen", "kind": "room",
    "min": [WING_X[0], KITCHEN_Y[0]], "max": [WING_X[1], KITCHEN_Y[1]]},
@@ -202,7 +268,39 @@ ZONES = (
    "min": [SIDEWALK_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_X[1], PROPERTY_Y[1]]},
   {"name": "street", "kind": "outdoor",
    "min": [STREET_X[0], PROPERTY_Y[0]], "max": [STREET_X[1], PROPERTY_Y[1]]},
+  # ---- the second house (issue #215) ----------------------------------------
+  {"name": "sidewalk_2", "kind": "outdoor",
+   "min": [SIDEWALK_2_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_2_X[1], PROPERTY_Y[1]]},
+  {"name": "garden_2", "kind": "garden",
+   "min": [GARDEN_2_X[0], PROPERTY_Y[0]], "max": [GARDEN_2_X[1], PROPERTY_Y[1]]},
+  {"name": "lobby", "kind": "room",
+   "min": [LOBBY_X[0], PROPERTY_Y[0]], "max": [LOBBY_X[1], PROPERTY_Y[1]]},
+  {"name": "lab", "kind": "room",
+   "min": [LAB_X[0], LAB_Y[0]], "max": [LAB_X[1], LAB_Y[1]]},
+  {"name": "store", "kind": "room",
+   "min": [LAB_X[0], STORE_Y[0]], "max": [LAB_X[1], STORE_Y[1]]},
+  # ---- the sidewalk band and the loop ----------------------------------------
+  {"name": "sidewalk_north", "kind": "outdoor",
+   "min": [PAVEMENT_X[0], BLOCK_Y[1]], "max": [PAVEMENT_X[1], PAVEMENT_Y[1]]},
+  {"name": "sidewalk_south", "kind": "outdoor",
+   "min": [PAVEMENT_X[0], PAVEMENT_Y[0]], "max": [PAVEMENT_X[1], BLOCK_Y[0]]},
+  {"name": "sidewalk_west", "kind": "outdoor",
+   "min": [PAVEMENT_X[0], BLOCK_Y[0]], "max": [BLOCK_X[0], BLOCK_Y[1]]},
+  {"name": "sidewalk_east", "kind": "outdoor",
+   "min": [BLOCK_X[1], BLOCK_Y[0]], "max": [PAVEMENT_X[1], BLOCK_Y[1]]},
+  {"name": "street_north", "kind": "outdoor",
+   "min": [LOOP_X[0], PAVEMENT_Y[1]], "max": [LOOP_X[1], LOOP_Y[1]]},
+  {"name": "street_south", "kind": "outdoor",
+   "min": [LOOP_X[0], LOOP_Y[0]], "max": [LOOP_X[1], PAVEMENT_Y[0]]},
+  {"name": "street_west", "kind": "outdoor",
+   "min": [LOOP_X[0], PAVEMENT_Y[0]], "max": [PAVEMENT_X[0], PAVEMENT_Y[1]]},
+  {"name": "street_east", "kind": "outdoor",
+   "min": [PAVEMENT_X[1], PAVEMENT_Y[0]], "max": [LOOP_X[1], PAVEMENT_Y[1]]},
 )
+
+#: The rooms of the second house that are reached through its lobby, and the
+#: doorway each is reached by -- what `tests/test_home_world.py` walks.
+LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
 
 #: THE TOWER'S BLOCKS (issue #207; challenge/stack.py): three 26 mm cubes
 #: on the workshop floor, a block's throw apart, in the room's south-west
@@ -213,6 +311,15 @@ ZONES = (
 #: where it has to be built.
 TOWER_XY = ((-11.0, -5.0), (-11.0, -4.75), (-11.0, -4.5))
 
+#: THE LAB'S PROPS (issue #215; activity/cage.py, challenge/bench.py). The
+#: cage against the lab's north wall, centred, its three plates a row in
+#: front of it; the bench against the east wall with its two masses on the
+#: floor a metre in front. The lab's doorway is on its west wall, so the
+#: robot enters facing the bench and turns north for the cage: nothing
+#: stands on the line from the door to either.
+LAB_CAGE_XY = ((LAB_X[0] + LAB_X[1]) / 2, LAB_Y[1] - WALL_HALF_T - 0.40)
+LAB_BENCH_XY = (LAB_X[1] - WALL_HALF_T - 0.30, 1.5)
+
 SPAWNS = {
   "start": [1.5, 0.5, math.pi / 2],       # living room, facing the bedroom
   "garden": [7.5, 2.0, 0.0],
@@ -222,6 +329,9 @@ SPAWNS = {
   "hall": [-3.5, 1.0, 0.0],               # facing the living-room doorway
   "kitchen": [-8.5, 4.0, 0.0],
   "workshop": [-8.5, -2.0, 0.0],
+  # The second house (issue #215): its hall, and the lab facing its cage.
+  "lobby": [20.5, 0.0, math.pi / 2],
+  "lab": [25.0, 2.0, math.pi / 2],
 }
 
 # Occupancy-grid bounds for this world (HubMission takes them as a
@@ -235,11 +345,14 @@ SPAWNS = {
 # the discrepancy itself is GONE -- issue #68 generates the floor from the
 # same layout and the same margin these bounds use, so the map and the ground
 # a visitor sees now coincide to the millimetre.
-#: ⚠ GROWN FOR THE PROPERTY (issue #68): 28.5 x 14 m at 5 cm is 570 x 280 =
-#: 159,600 cells, against `occupancy_grid.MAX_CELLS` of 250,000. It was
-#: 56,000. The margin past the plot on every side is what lets a scan that
-#: overshoots a boundary land somewhere rather than being silently clipped.
-GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
+#: ⚠ GROWN FOR THE LOOP (issue #215): 51 x 23 m at 5 cm is 1020 x 460 =
+#: 469,200 cells, against `occupancy_grid.MAX_CELLS` of 750,000 (the
+#: measured table is at the constant; the cap moved with it). It was 159,600
+#: for #68's property and 56,000 before that. The margin past the fence on
+#: every side is what lets a scan that overshoots a boundary land somewhere
+#: rather than being silently clipped.
+GRID_BOUNDS = (LOOP_X[0] - GROUND_MARGIN, LOOP_Y[0] - GROUND_MARGIN,
+               LOOP_X[1] + GROUND_MARGIN, LOOP_Y[1] + GROUND_MARGIN)
 
 # Battery tuning for the bigger floor plan (issue #6 "rides along"). The
 # reserve is absolute energy, per the milestone-7 lesson: it must cover the
@@ -248,74 +361,83 @@ GRID_BOUNDS = (-13.0, -7.0, 15.5, 7.0)
 # charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
 # 0.35 is too thin here; the demo cell grows with it so one explore + one
 # errand still runs the pack down and the loop still has to charge.
-#: MEASURED on the expanded plan (issues #70 step 1 / #84; re-measured
-#: 13 Sep 2026 with the depth camera drawing, issue #34 -- `scripts/
-#: energy_spike.py --reserve`, runnable again whenever a wall moves). The
-#: worst-case return -- street's far corner, through the open doorway and the
+#: MEASURED on the plan with the loop (issue #215; before it #70 / #84 /
+#: #34 -- `scripts/energy_spike.py --reserve`, runnable again whenever a
+#: wall moves). The worst-case return -- the loop's south-west corner,
+#: along the sidewalk band, up our sidewalk, through the gate and the
 #: garden door, to a REAL dock with the pins conducting:
 #:
-#:     travel   0.314 Wh over 10.49 m of route  (29.9 mWh/m)
-#:     dock     0.297 Wh  (drive to standoff + tag creep + press)
-#:     floor    0.611 Wh
+#:     travel   1.354 Wh over 44.63 m of route  (30.3 mWh/m)
+#:     dock     0.316 Wh  (drive to standoff + tag creep + press)
+#:     floor    1.669 Wh
 #:
 #: ...plus one failed press-and-retry, which is the constant's own definition
-#: and is priced as one more dock leg: 0.611 + 0.297 = 0.908, carried as 0.95.
-#: (Before the camera: 0.297 + 0.282 = 0.579, 0.861 with the retry, carried as
-#: 0.90 -- which the 2 W of the sensor ate the rounding of.)
+#: and is priced as one more dock leg: 1.669 + 0.316 = 1.985, carried as
+#: 2.05. (Before the loop: 0.314 over 10.49 m + 0.297, 0.908 with the retry,
+#: carried as 0.95; before the depth camera, 0.90.)
 #:
-#: ⚠ THE ROUTE QUADRUPLED AND THE RESERVE BARELY MOVED, and that is the
-#: measurement's real finding: the old "~0.3 Wh living-room crossing" was
-#: always DOMINATED BY THE DOCK, not the distance. Travel is 28 mWh/m, so
-#: 15 m of house costs less than one docking attempt. (An earlier probe read
-#: 74.7 mWh/m -- that was the robot grinding at the then-closed street gate,
-#: issue #94's odometry pump, not a travel cost.) Do not scale this with the
-#: pack, and re-measure it when the PLAN changes, not when the battery does.
-HOME_LOW_BATTERY_WH = 0.95
+#: ⚠ THE DISTANCE IS THE RESERVE NOW. #68's finding -- the dock dominates,
+#: fifteen metres of house cost less than one docking attempt -- held while
+#: the far corner was 15 m away; the loop put it 45 m away at the same
+#: 30 mWh/m, and travel is four fifths of the floor. The reserve is still a
+#: property of the FLOOR PLAN and not of the pack: it is what a hosting
+#: pack keeps in hand (8 Wh funds it and every errand), and what sizes the
+#: demo cell below. Do not scale this with the pack, and re-measure it when
+#: the PLAN changes, not when the battery does.
+HOME_LOW_BATTERY_WH = 2.05
 
 #: The point the reserve should be measured from: one robot-length inside the
-#: street's far corner, which is the farthest the robot can legally stand from
-#: the rack. Named rather than left implicit so `tests/test_world_budget.py`
-#: can check the claim is still true -- a comment saying "the worst case is X"
-#: rots the moment somebody moves a wall, and #68 moved most of them.
-HOME_WORST_RETURN = (STREET_X[1] - 0.4, PROPERTY_Y[1] - 0.4)
+#: loop's south-west corner, which is the farthest the robot can legally
+#: stand from the rack BY ROUTE (issue #215) -- not by straight line: the
+#: loop's east legs are further as the crow flies and closer as the robot
+#: drives, because the rack is reached only through the middle street's
+#: gate at y=3.1. Named rather than left implicit so `tests/test_world_
+#: budget.py` can check the claim against the compiled world's own routes --
+#: a comment saying "the worst case is X" rots the moment somebody moves a
+#: wall, and #68 and #215 between them moved most of them.
+HOME_WORST_RETURN = (LOOP_X[0] + 0.4, LOOP_Y[0] + 0.4)
 
 #: ...and the route home from there, as the waypoints a return actually
-#: threads: out of the street, through the GATE in the east fence, through the
-#: garden doorway, to the rack. Kept here rather than in the test because it is
-#: a fact about the floor plan, and the plan lives in this file.
+#: threads: onto the sidewalk band, east along its south leg to the first
+#: house's own sidewalk, north up that to the gate, through the gate,
+#: through the garden doorway, to the rack. Kept here rather than in the
+#: test because it is a fact about the floor plan, and the plan lives in
+#: this file; the test checks it against the compiled world's own routes.
 HOME_WORST_RETURN_PATH = (
   HOME_WORST_RETURN,
-  (SIDEWALK_X[0], STREET_DOOR_Y),           # the street doorway
-  (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),  # the garden doorway
+  (PAVEMENT_X[0] + PAVEMENT_W / 2, PAVEMENT_Y[0] + PAVEMENT_W / 2),  # the band's SW corner
+  (sum(SIDEWALK_X) / 2, PAVEMENT_Y[0] + PAVEMENT_W / 2),  # east along it, to our sidewalk
+  (sum(SIDEWALK_X) / 2, STREET_DOOR_Y),      # north up the sidewalk
+  (SIDEWALK_X[0], STREET_DOOR_Y),            # the street doorway
+  (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),   # the garden doorway
   HOME_RACK_POS,
 )
-#: Its length. Measured 2026-09-01 against the plan above; 11.96 m before #68.
-HOME_WORST_RETURN_M = 15.59
+#: Its length. Measured 2026-09-19 against the plan above; 15.59 m before
+#: #215 and 11.96 m before #68.
+HOME_WORST_RETURN_M = 49.64
 
-#: SIZED FROM THE MEASURED RESERVE (issue #84), not guessed, and the
-#: arithmetic is short enough to carry here. Off one charge (`CHARGED` = 0.9)
-#: the cell must hold the reserve above plus the dearest errand (census,
-#: 1.215 Wh with the depth camera drawing, issue #34): the floor is
-#: (0.95 + 1.215) / 0.9 = 2.41 Wh. Carried at 3.0 -- ~20 % of headroom; #70's
-#: and #34's fresh numbers confirmed the sizing rather than moving it: the
-#: dearest row rose 1.141 -> 1.180 -> 1.215 and the floor absorbed it.
+#: SIZED FROM THE MEASURED RESERVE (issue #84; re-sized for the loop, #215),
+#: not guessed, and the arithmetic is short enough to carry here. Off one
+#: charge (`CHARGED` = 0.9) the cell must hold the reserve above plus the
+#: dearest errand (the census, 1.304 Wh): the floor is (2.05 + 1.304) / 0.9
+#: = 3.73 Wh. Carried at 4.5 -- ~20 % of headroom, the same margin 3.0 gave
+#: the 2.41 floor before the loop.
 #:
-#: ⚠ 3.0 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
-#: suite flies: the milestone-8 home arm starts at 45 % and its carry errand
-#: (0.914 Wh since #70 -- the new plot moved its route) is refused up front
-#: against the 0.90 reserve, so the loop defers, charges, and resumes -- the
-#: defer-then-charge-then-resume path on real physics. A full 3.0 pack funds
-#: a whole preset day with ~40 % to spare, which is why that test does not
-#: start full: a demo mission that never needs the hub proves nothing about
-#: charging.
+#: ⚠ 4.5 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
+#: suite flies: the milestone-8 home arm starts at 55 % (2.48 Wh -- above the
+#: 2.05 floor, so the FLOOR does not fire) and its carry errand (0.914) is
+#: refused up front against that reserve, so the loop defers, charges, and
+#: resumes -- the defer-then-charge-then-resume path on real physics. A full pack funds a whole preset day with room to
+#: spare, which is why that test does not start full: a demo mission that
+#: never needs the hub proves nothing about charging.
 #:
-#: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL FROM HERE ON, deliberately. The old
+#: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL, deliberately (issue #84). The old
 #: 1.1 Wh cell ran its errands on `overspend` and finished the recorded
-#: census at frac 0.000; growing past that is what issue #84 is for. The
-#: charged pack now funds reserve + dearest, so `margin_wh` charges the full
-#: 0.90 and the mid-errand death stops being reachable on the world the
-#: tests fly most. room_hub's 0.7 Wh cell is untouched and still zero-margin.
-HOME_DEMO_CAPACITY_WH = 3.0
+#: census at frac 0.000. The charged pack funds reserve + dearest, so
+#: `margin_wh` charges the full reserve and the mid-errand death stops
+#: being reachable on the world the tests fly most. room_hub's 1.0 Wh cell
+#: is untouched and still zero-margin.
+HOME_DEMO_CAPACITY_WH = 4.5
 #: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
 #: in minutes by design, which is right for a test and reads as a robot that
 #: only ever charges; a hosting-sized one gives the hours-long work/charge
@@ -330,6 +452,25 @@ HOME_DEMO_CAPACITY_WH = 3.0
 #: the reserve becomes a margin the robot can afford to KEEP: economy/energy.py then requires every
 #: errand to finish with it intact, which is what stops a mid-errand death.
 HOME_HOSTING_CAPACITY_WH = 8.0
+
+#: ⚠ THE CAMERAS' NEAR PLANE IS PINNED HERE, and the loop is why (issue
+#: #215). MuJoCo derives a model `statistic.extent` from the geometry's
+#: bounding box and scales every camera's near clipping plane by it
+#: (`visual.map.znear` x extent, 0.01 x extent by default): #68's property
+#: auto-derived 37.2 m, a 0.37 m near plane, and the tag pipeline was
+#: proven against that -- the dock camera decodes a bay tag from the 0.34 m
+#: standoff. The loop doubled the box to 70 m and the near plane to 0.70 m,
+#: and the dock camera at a bay CLIPPED THE WHOLE RACK OUT OF ITS OWN IMAGE:
+#: every bay fix returned None, every pick and stow ran blind, and the pen
+#: went on the floor at the first stow after the change (measured: mean
+#: pixel brightness 94.6 -> 27.6 at the pen bay, identical again with the
+#: extent pinned). So the extent is a property of the ROBOT'S CAMERAS and
+#: is written down, not derived from however big the world happens to be;
+#: `tests/test_home_world.py` decodes a bay tag from the standoff to hold
+#: it. The centre rides with it so the shadow map lands where it always
+#: did; the second house is beyond it and simply casts no shadow.
+CAMERA_EXTENT_M = 37.2
+STATISTIC_CENTER = (0.577, -1.233, 0.153)
 
 WALL_RGBA = "0.78 0.75 0.70 1"
 FENCE_RGBA = "0.55 0.45 0.35 1"
@@ -463,6 +604,42 @@ def build_home_world() -> tuple[str, dict]:
                              FENCE_HALF_H, FENCE_RGBA,
                              gaps=((STREET_DOOR_Y - STREET_DOOR_HALF,
                                     STREET_DOOR_Y + STREET_DOOR_HALF),))),
+    # ---- the second house (issue #215) ----------------------------------------
+    # Its front garden's fence faces ours across the street, gate to gate;
+    # the house's west wall carries the front door, the lobby's east wall
+    # both inner doorways, and the lab and the store are divided at y=0.
+    ("fence_2_west", _wall_run("fence_2_west", GARDEN_2_X[0], GARDEN_2_X[0],
+                               py0, py1, FENCE_HALF_H, FENCE_RGBA,
+                               gaps=(DOOR_GARDEN_2_Y,))),
+    ("fence_2_north", _wall_run("fence_2_north", GARDEN_2_X[0], GARDEN_2_X[1],
+                                py1, py1, FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_2_south", _wall_run("fence_2_south", GARDEN_2_X[0], GARDEN_2_X[1],
+                                py0, py0, FENCE_HALF_H, FENCE_RGBA)),
+    ("wall_2_west", _wall_run("wall_2_west", HOUSE_2_X[0], HOUSE_2_X[0],
+                              py0, py1, WALL_HALF_H, WALL_RGBA,
+                              gaps=(DOOR_LOBBY_Y,))),
+    ("wall_2_north", _wall_run("wall_2_north", HOUSE_2_X[0], HOUSE_2_X[1],
+                               py1, py1, WALL_HALF_H, WALL_RGBA)),
+    ("wall_2_south", _wall_run("wall_2_south", HOUSE_2_X[0], HOUSE_2_X[1],
+                               py0, py0, WALL_HALF_H, WALL_RGBA)),
+    ("wall_2_east", _wall_run("wall_2_east", HOUSE_2_X[1], HOUSE_2_X[1],
+                              py0, py1, WALL_HALF_H, WALL_RGBA)),
+    ("wall_lobby_east", _wall_run("wall_lobby_east", LOBBY_X[1], LOBBY_X[1],
+                                  py0, py1, WALL_HALF_H, WALL_RGBA,
+                                  gaps=(DOOR_STORE_Y, DOOR_LAB_Y))),
+    ("wall_lab_div", _wall_run("wall_lab_div", LAB_X[0], LAB_X[1],
+                               LAB_Y[0], LAB_Y[0], WALL_HALF_H, WALL_RGBA)),
+    # ---- the fence around the street ----------------------------------------
+    # Unbroken: the loop is the whole outdoors now, and a world with no way
+    # out has no invisible ends. The horizon is the website's.
+    ("fence_loop_west", _wall_run("fence_loop_west", LOOP_X[0], LOOP_X[0],
+                                  LOOP_Y[0], LOOP_Y[1], FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_loop_east", _wall_run("fence_loop_east", LOOP_X[1], LOOP_X[1],
+                                  LOOP_Y[0], LOOP_Y[1], FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_loop_north", _wall_run("fence_loop_north", LOOP_X[0], LOOP_X[1],
+                                   LOOP_Y[1], LOOP_Y[1], FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_loop_south", _wall_run("fence_loop_south", LOOP_X[0], LOOP_X[1],
+                                   LOOP_Y[0], LOOP_Y[0], FENCE_HALF_H, FENCE_RGBA)),
   )
   for prefix, segments in walls:
     hint = "fence" if prefix.startswith("fence") else "wall"
@@ -491,6 +668,10 @@ def build_home_world() -> tuple[str, dict]:
     ("kitchen_floor", WING_X, KITCHEN_Y),
     ("workshop_floor", WING_X, WORKSHOP_Y),
     ("hall_floor", HALL_X, PROPERTY_Y),
+    # The second house (issue #215), one slab per room for the same reason.
+    ("lobby_floor", LOBBY_X, PROPERTY_Y),
+    ("lab_floor", LAB_X, LAB_Y),
+    ("store_floor", LAB_X, STORE_Y),
   ):
     add(_box_body(name, (fx0 + fx1) / 2, (fy0 + fy1) / 2, 0.001,
                   (fx1 - fx0) / 2, (fy1 - fy0) / 2, 0.001, FLOOR_RGBA,
@@ -499,6 +680,22 @@ def build_home_world() -> tuple[str, dict]:
     ("garden_south_ground", (hx0, gx1), GARDEN_SOUTH_Y, GROUND_RGBA, "ground"),
     ("sidewalk_ground", SIDEWALK_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
     ("street_ground", STREET_X, PROPERTY_Y, STREET_RGBA, "street"),
+    # The second house's front, and the loop (issue #215): one slab per
+    # zone, so the surfaces are the zones a visitor sees.
+    ("sidewalk_2_ground", SIDEWALK_2_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
+    ("garden_2_ground", GARDEN_2_X, PROPERTY_Y, GROUND_RGBA, "ground"),
+    ("sidewalk_north_ground", PAVEMENT_X, (BLOCK_Y[1], PAVEMENT_Y[1]),
+     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_south_ground", PAVEMENT_X, (PAVEMENT_Y[0], BLOCK_Y[0]),
+     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_west_ground", (PAVEMENT_X[0], BLOCK_X[0]), BLOCK_Y,
+     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_east_ground", (BLOCK_X[1], PAVEMENT_X[1]), BLOCK_Y,
+     SIDEWALK_RGBA, "sidewalk"),
+    ("street_north_ground", LOOP_X, (PAVEMENT_Y[1], LOOP_Y[1]), STREET_RGBA, "street"),
+    ("street_south_ground", LOOP_X, (LOOP_Y[0], PAVEMENT_Y[0]), STREET_RGBA, "street"),
+    ("street_west_ground", (LOOP_X[0], PAVEMENT_X[0]), PAVEMENT_Y, STREET_RGBA, "street"),
+    ("street_east_ground", (PAVEMENT_X[1], LOOP_X[1]), PAVEMENT_Y, STREET_RGBA, "street"),
   ):
     add(_box_body(name, (ox0 + ox1) / 2, (oy0 + oy1) / 2, 0.001,
                   (ox1 - ox0) / 2, (oy1 - oy0) / 2, 0.001, rgba,
@@ -525,6 +722,17 @@ def build_home_world() -> tuple[str, dict]:
   # ahead of a consumer is how a shared vocabulary rots.
   act_body, act_sensor = plate_light_xml(PLATE_XY)
   bodies.append(act_body)
+
+  # The lab's props (issue #215): the cage, what lives in it, its three
+  # plates, and the bench with its two masses. Each module owns its own
+  # geometry (ActivityPattern.md section 2; challenge/bench.py); their
+  # activities and grader are #226's and #227's and touch nothing here.
+  cage_body, cage_sensors = cage_xml(LAB_CAGE_XY)
+  bodies.append(cage_body)
+  hints["lab_cage"] = "cage"
+  hints["lab_mouse"] = "mouse"
+  bodies.append(bench_xml(LAB_BENCH_XY))
+  hints["lab_bench"] = "table"
 
   # Furniture: real obstacles, for exploration to have something to map --
   # and, since issue #66 froze the names, HINTED. The couch and the bed were
@@ -569,9 +777,8 @@ def build_home_world() -> tuple[str, dict]:
   # height as one on it). So this is what a VISITOR sees the world standing
   # on, and a body outside it is drawn floating over nothing.
   # `tests/test_world_budget.py` is what holds the two together.
-  px0 = min(WING_X[0], hx0) - GROUND_MARGIN
-  px1 = STREET_X[1] + GROUND_MARGIN
-  py_lo, py_hi = PROPERTY_Y[0] - GROUND_MARGIN, PROPERTY_Y[1] + GROUND_MARGIN
+  px0, px1 = LOOP_X[0] - GROUND_MARGIN, LOOP_X[1] + GROUND_MARGIN
+  py_lo, py_hi = LOOP_Y[0] - GROUND_MARGIN, LOOP_Y[1] + GROUND_MARGIN
   floor_xml = (f'<geom name="floor" type="plane" '
                f'pos="{(px0 + px1) / 2:.4f} {(py_lo + py_hi) / 2:.4f} 0" '
                f'size="{(px1 - px0) / 2:.4f} {(py_hi - py_lo) / 2:.4f} 0.1" '
@@ -586,6 +793,14 @@ def build_home_world() -> tuple[str, dict]:
       ((HALL_X[0] + HALL_X[1]) / 2, 0.0),
       ((hx0 + gx1) / 2, (GARDEN_SOUTH_Y[0] + GARDEN_SOUTH_Y[1]) / 2),
       ((STREET_X[0] + STREET_X[1]) / 2, 0.0),
+      # The second house and the loop (issue #215).
+      ((LOBBY_X[0] + LOBBY_X[1]) / 2, 0.0),
+      ((LAB_X[0] + LAB_X[1]) / 2, (LAB_Y[0] + LAB_Y[1]) / 2),
+      ((LAB_X[0] + LAB_X[1]) / 2, (STORE_Y[0] + STORE_Y[1]) / 2),
+      ((LOOP_X[0] + LOOP_X[1]) / 2, (PAVEMENT_Y[1] + LOOP_Y[1]) / 2),
+      ((LOOP_X[0] + LOOP_X[1]) / 2, (LOOP_Y[0] + PAVEMENT_Y[0]) / 2),
+      ((LOOP_X[0] + PAVEMENT_X[0]) / 2, 0.0),
+      ((PAVEMENT_X[1] + LOOP_X[1]) / 2, 0.0),
     ))
 
   # The tower's blocks (issue #207): the challenge's own props, in the
@@ -597,15 +812,19 @@ def build_home_world() -> tuple[str, dict]:
   tag_ids = write_tag_pngs()
   xml = f"""<!-- GENERATED by pluggybot.home.world.write_home_world().
      Regenerate: uv run python -m pluggybot.home.world
-     The home world (issue #6, expanded by #68): kitchen, workshop, hall,
-     living room, bedroom, a garden wrapping south and east, and the
-     sidewalk and street through the open fence doorway. Whiteboard
-     drawing surfaces; the
-     tool rack on the living room's south wall.
+     The home world (issue #6, expanded by #68, joined by #215): kitchen,
+     workshop, hall, living room, bedroom, a garden wrapping south and
+     east, the sidewalk and street through the open fence doorway -- and
+     across the street a second house (a lobby, the lab with the cage and
+     the bench, a store), a sidewalk band and a loop street round both,
+     inside one fence. Whiteboard drawing surfaces; the tool rack on the
+     living room's south wall.
      Layout constants + visual hints + zones live in home/world.py; the
      sidecar models/home_world.meta.json is emitted alongside. -->
 <mujoco model="home_world">
   <include file="world_fork.xml"/>
+  <statistic center="{STATISTIC_CENTER[0]} {STATISTIC_CENTER[1]} {STATISTIC_CENTER[2]}"
+             extent="{CAMERA_EXTENT_M}"/>
   <asset>
     {asset_xml(tag_ids)}
   </asset>
@@ -622,6 +841,7 @@ def build_home_world() -> tuple[str, dict]:
   </worldbody>
   <sensor>
     {act_sensor}
+    {cage_sensors}
   </sensor>
   <actuator>
     {pen_actuator_xml()}
@@ -641,6 +861,9 @@ def build_home_world() -> tuple[str, dict]:
                for name, s in BOARDS.items()},
     "rack": {"pos": list(HOME_RACK_POS), "yaw_deg": HOME_RACK_YAW},
     "tower": {"name": "workshop", "blocks": [list(xy) for xy in TOWER_XY]},
+    # The experiment zone (issue #215): where its props stand, by the names
+    # #226 and #227 read them by. The room is the `lab` zone above.
+    "lab": {"name": "lab", "cage": list(LAB_CAGE_XY), "bench": list(LAB_BENCH_XY)},
     "gridBounds": list(GRID_BOUNDS),
     "battery": {"lowWh": HOME_LOW_BATTERY_WH,
                 "demoCapacityWh": HOME_DEMO_CAPACITY_WH,
