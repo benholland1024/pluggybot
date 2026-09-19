@@ -306,6 +306,57 @@ def test_it_cannot_idle_its_life_away(menu):
 # ---- the prompt --------------------------------------------------------------
 
 
+def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
+  """What the mind is told, on the stream (issue #241): the `prompt`
+  message's sections, joined, ARE `Overseer.system` -- byte for byte, on
+  every arm -- so a reader of the site reads what the model reads, and
+  nothing the robot must not see can be in one without being in the other.
+  The section names are the prompt's own headings; every optional piece
+  appears once, in the order the model reads it; the sha moves with the
+  bytes (a renamed robot is a different prompt, as it is a different cache)
+  and with nothing else."""
+  import hashlib
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.mind.thoughts import ThoughtFiles
+  from pluggybot.procedure.library import Library
+  from pluggybot.workshop.library import Workshop
+  guarded = Overseer(menu, client=FakeClient(), thoughts=ThoughtFiles())
+  everything = Overseer(
+    menu, client=FakeClient(), thoughts=ThoughtFiles(), autonomous=True,
+    standing_orders=True, origin="unseeded", appetite=True, mortal=True,
+    escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507",
+    library=Library(world_facts("home"), root=tmp_path / "procedures"),
+    workshop=Workshop(tmp_path / "tools"),
+    others=("Rowan",))
+  for boss in (guarded, everything):
+    msg = boss.prompt_message(4.5, robot="r2_pluggybot")
+    assert msg["type"] == "prompt" and msg["t"] == 4.5 and msg["robot"] == "r2_pluggybot"
+    joined = "\n\n".join(s["text"] for s in msg["sections"])
+    assert joined == boss.system[0]["text"], "the wire and the model disagree"
+    assert msg["sha"] == hashlib.sha256(joined.encode()).hexdigest()
+    names = [s["name"] for s in msg["sections"]]
+    assert len(set(names)) == len(names), "a section name twice"
+    # Each piece is named by its own heading, as the prompt spells it.
+    for section in msg["sections"][2:]:
+      assert section["text"].lstrip("⚠ ").startswith(section["name"].split(" (")[0]), section["name"]
+    assert names[:5] == ["WHO YOU ARE", "PERSONA", "HOW YOUR LIFE WORKS",
+                         "WHAT YOU CAN DO, AND WHERE", "WHAT TASKS PAY"]
+    assert "Main.md" in msg["sections"][0]["text"]
+  assert [s["name"] for s in guarded.prompt_message(0.0)["sections"]][5:] == []
+  assert [s["name"] for s in everything.prompt_message(0.0)["sections"]][5:] == [
+    "YOU CAN DIE", "POINTS ARE WHAT KEEPS YOU RUNNING", "WHEN YOU ARE ASKED",
+    "YOUR LIST IS EMPTY", "PROCEDURES YOU MAY WRITE", "CHALLENGES",
+    "WHAT YOU HAVE MEASURED", "TOOLS YOU MAY BUILD", "THE OTHER ROBOT",
+    "WHAT YOU CAN DO ABOUT THE OTHER ROBOT", "THINKING HARDER"]
+  # The sha is the regime marker: the same build twice is the same sha, a
+  # renamed robot is another.
+  assert Overseer(menu, client=FakeClient()).prompt_sha == guarded.prompt_sha
+  assert Overseer(menu, client=FakeClient(), robot_name="Luca").prompt_sha != guarded.prompt_sha
+  # ...and nothing of the volatile turn is in it -- the byte identity above
+  # is what makes the prefix's own guard (the next test) the message's too.
+  assert '"simTimeS"' not in joined and "secret" not in joined
+
+
 def test_the_stable_prefix_is_byte_identical_across_calls(menu):
   """The prompt-cache prerequisite, and the cheapest possible guard against
   the classic silent invalidator. If someone puts a timestamp, a battery

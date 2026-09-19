@@ -724,13 +724,18 @@ def test_a_recording_opens_with_the_robots_memory(mini_model, tmp_path):
 
 
 class _MappedMind:
-  """A stand-in overseer with a map: the one method the builder reads."""
+  """A stand-in overseer with a map and a prompt: the two methods the
+  builder reads on open."""
   def __init__(self, rows):
     self.rows = rows
 
   def event_map_message(self, t, robot):
     return {"type": "event_map", "t": t, "robot": robot, "origin": "unseeded",
             "why": "origin", "source": None, "edits": 0, "rows": self.rows}
+
+  def prompt_message(self, t, robot):
+    return {"type": "prompt", "t": t, "robot": robot, "sha": "abc",
+            "sections": [{"name": "WHO YOU ARE", "text": "WHO YOU ARE\n\nx"}]}
 
 
 def test_a_recording_opens_with_the_rows_and_the_map(mini_model, tmp_path):
@@ -756,9 +761,16 @@ def test_a_recording_opens_with_the_rows_and_the_map(mini_model, tmp_path):
   assert [r["kind"] for r in snap["records"]] == ["core", "history"]
   emap = next(x for x in lines if x.get("type") == "event_map")
   assert emap["robot"] == "pluggybot" and emap["rows"] == mind.rows
-  # ...and a scripted world -- no mind -- has no map line at all.
+  # ...and what the mind is TOLD (issue #241), in the same slot: once, on
+  # open, before the frames.
+  assert opening.count("prompt") == 1
+  prompt = next(x for x in lines if x.get("type") == "prompt")
+  assert prompt["robot"] == "pluggybot" and prompt["sha"] == "abc"
+  assert [s["name"] for s in prompt["sections"]] == ["WHO YOU ARE"]
+  # ...and a scripted world -- no mind -- has no map line and no prompt at
+  # all: nothing is being told anything, which is not an empty prompt.
   _, plain = record(mini_model, seconds=0.4, tmp=tmp_path, thoughts=ThoughtFiles())
-  assert not [x for x in plain if x.get("type") == "event_map"]
+  assert not [x for x in plain if x.get("type") in ("event_map", "prompt")]
   assert len([x for x in plain if x.get("type") == "records"]) == 1
 
 
@@ -793,9 +805,10 @@ def test_a_live_consumer_is_told_the_memory_on_every_connect(mini_model):
   pub.step_hook()
   sent = _drain(pub._queue)
   assert [m["name"] for m in sent if m["type"] == "thought"] == list(NAMES)
-  # ...with the rows and the map behind them (issue #238), same connect.
-  assert [m["type"] for m in sent if m["type"] in ("records", "event_map")] \
-      == ["records", "event_map"]
+  # ...with the rows, the map and the prompt behind them (issues #238,
+  # #241), same connect.
+  assert [m["type"] for m in sent if m["type"] in ("records", "event_map", "prompt")] \
+      == ["records", "event_map", "prompt"]
 
   pub.step_hook()
   assert not _drain(pub._queue), "repeated on every physics step"
@@ -1211,9 +1224,10 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
   assert all(r["record"]["writer"] == "system" and r["record"]["status"] == "active"
              and r["t"] == r["record"]["t"] for r in rows)
   assert [r["record"]["id"] for r in rows] == sorted(r["record"]["id"] for r in rows)
-  # ...and no map: a scripted world has no mind and says nothing, rather
-  # than an empty map (`event_map` is the autonomous arm's, live).
-  assert not [e for e in events if e["type"] == "event_map"]
+  # ...and no map and no prompt: a scripted world has no mind and says
+  # nothing, rather than an empty map or an empty prompt (`event_map` and
+  # `prompt` are a mind's, live).
+  assert not [e for e in events if e["type"] in ("event_map", "prompt")]
   # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
   # These recordings are made with no thoughts directory, so Main.md is
   # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a

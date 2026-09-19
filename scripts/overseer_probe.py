@@ -267,6 +267,12 @@ def main() -> None:
                            "the deadline has to be chosen from")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
+  parser.add_argument("--prompt", action="store_true",
+                      help="print the prefix as the `prompt` message carries "
+                           "it (issue #241) -- section by section, with its "
+                           "sha -- and stop. How a person reads a "
+                           "deployment's prompt without ssh: same arm, same "
+                           "thoughts directory, same text.")
   args = parser.parse_args()
 
   book = board_book(args.world)
@@ -293,6 +299,12 @@ def main() -> None:
                   # a very fast decision.
                   timeout_s=args.timeout)
   prefix = boss.system[0]["text"]
+  if args.prompt:
+    msg = boss.prompt_message(0.0)
+    print(f"sha {msg['sha']}  ({len(prefix)} chars, {len(msg['sections'])} sections)")
+    for section in msg["sections"]:
+      print(f"\n{'=' * 72}\n[{section['name']}]\n{'=' * 72}\n{section['text']}")
+    return
 
   # The prefix now states the robot's NAME (issue #39), resolved from
   # $PLUGGY_ROBOT_NAME like a deployment's would be -- so the probe reports
