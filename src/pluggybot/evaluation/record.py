@@ -139,7 +139,8 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    rung: str | None = None,
                    origin: str | None = None,
                    hashes: dict | None = None,
-                   commit: str | None = None) -> dict:
+                   commit: str | None = None,
+                   constitutions: dict | None = None) -> dict:
   """WHICH BUILD produced a stream, in the experiment's own vocabulary
   (issue #132; docs/Evaluation.md §5).
 
@@ -191,6 +192,15 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # `guarded` header stays byte-identical to #132's and an `autonomous`
     # one flown at `none` stays byte-identical to #142's.
     **({"origin": origin} if origin and origin != "none" else {}),
+    # ...and WHICH CONSTITUTION each robot was told it is (issue #263),
+    # per robot ROOT -- `{root: {name, sha}}` -- because a pair may be
+    # given two, and that pair is the experiment the library exists for.
+    # The name is the library file, the sha its content, so an edit to a
+    # file under the same name is a new period too. ABSENT where the
+    # caller passed none, on the rung's terms: the fixtures and every
+    # header before this carry no such block.
+    **({"constitutions": {root: dict(c) for root, c in constitutions.items()}}
+       if constitutions else {}),
   }
 
 
@@ -722,6 +732,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       # -- the default -- is the arm as issue #115 flew it.
       **({"origin": config.get("origin") or "none"}
          if config["arm"] == "autonomous" else {}),
+      # ...and WHICH CONSTITUTION the robot lived by (issue #263), name
+      # and content hash, as the harness resolved it before the run flew
+      # -- so a killed run carries it too. Absent on every record from
+      # before the library existed, which all flew the default.
+      **({"constitution": dict(config["constitution"])}
+         if config.get("constitution") else {}),
     },
     "simSeconds": round(sim_s, 3), "wallSeconds": round(float(wall_s), 1),
     "end": end,

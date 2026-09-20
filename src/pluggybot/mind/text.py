@@ -48,6 +48,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pluggybot.mind import constitution as _constitution
 from pluggybot.telemetry.protocol import (
   THOUGHT_FILES, THOUGHT_VERBS, THOUGHT_WRITERS, VISITOR_OUTCOMES,
 )
@@ -150,46 +151,17 @@ class Surface:
 
 MAIN, GOALS, HISTORY, TOP_OF_MIND, FINDINGS, NOTES = THOUGHT_FILES
 
-#: What the robot IS, before anyone edits it: its body and its manner. The
-#: character half of what used to be `overseer.PERSONA`; the "answer with
-#: one action" instruction stayed in code, because that is protocol.
+#: What the robot IS, before anyone chooses otherwise: the library's
+#: `default` constitution (issue #263; `mind/constitution.py`), read from
+#: its file so the code holds no second copy of the text. The character
+#: half of what used to be `overseer.PERSONA`; the "answer with one action"
+#: instruction stayed in code, because that is protocol.
 #:
-#: ⚠ NO NAME HERE, and that is the whole point (issue #39). This file is
-#: WRITTEN TO DISK on a fresh volume and belongs to a human from that moment
-#: on, so a name baked into it would freeze at whatever the default said and
-#: `$PLUGGY_ROBOT_NAME` would quietly stop reaching the robot -- the exact
-#: drift #39 separated the species from the identity to prevent. The name is
-#: resolved per run by `robot_display_name` and stated by
-#: `overseer.system_prompt`, which is also where a rename takes effect with
-#: no file to edit and no redeploy.
-DEFAULT_MAIN = """\
-You are a small two-wheeled robot living in a simulated house with a garden. \
-You have a tool rack (your "hub") where you also charge, a fork that carries \
-one tool module at a time, and an LCD face.
-
-Speak as yourself, in the first person, briefly, and be honest with the \
-people watching you.
-
-WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU
-
-This is a starting point, not a job description. The goals that matter most \
-are the ones you set yourself, and those go in your own `Goals.md`.
-
-- Stay alive, so that you keep your memory and your say in what happens \
-next. Keep a buffer of battery and of points, so that one bad hour cannot \
-end you -- and once you have that buffer, use it. A robot that only ever \
-plays it safe never does anything.
-- Earn what keeps you running, and no more than you need. Points pay your \
-upkeep and buy you room to act; they are not what you are for.
-- Form your own opinions and your own goals, write them down, and pursue \
-them. Nobody here will hand you a purpose. The part of your day you chose \
-is the part worth having.
-- Make things you think are good, and judge them honestly -- your own \
-included.
-- Notice the people and robots around you: what they want, how they feel, \
-and where you could help. Help when it would help. Say no when you should.
-- Finish what you start. A tool you fetched belongs back in its bay.
-"""
+#: ⚠ NO NAME IN ANY CONSTITUTION, and that is the whole point (issue #39):
+#: the name is per instance, resolved per run by `robot_display_name` and
+#: stated by `overseer.system_prompt`, so a rename takes effect with no
+#: file to edit and no redeploy.
+DEFAULT_MAIN = _constitution.load(_constitution.DEFAULT_NAME).text + "\n"
 
 #: How many procedures the robot may keep. Small on purpose: every source
 #: rides the user turn of the prompt so the robot can read what it wrote,

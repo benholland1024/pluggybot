@@ -38,6 +38,7 @@ from pluggybot.lifecycle import (
   HubLifecycle, board_book, errands_for, points_ledger, task_board,
   task_producer, world_config,
 )
+from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
 from pluggybot.mission.mission import MissionAborted
 from pluggybot.robot import FIRST, SECOND, pair_model_name, world_with_robots
@@ -46,6 +47,10 @@ from pluggybot.robot import FIRST, SECOND, pair_model_name, world_with_robots
 #: The second robot's default display name; the first keeps `Pluggy`.
 SECOND_NAME_ENV = "PLUGGY_ROBOT_NAME_2"
 DEFAULT_SECOND_NAME = "Rowan"
+#: ...and which constitution each reads (issue #263), on the name's terms:
+#: the first robot's is `$PLUGGY_CONSTITUTION`, the second's its own
+#: variable, so a pair can be given two dispositions in one world.
+CONSTITUTION_ENVS = (constitutions.NAME_ENV, constitutions.SECOND_NAME_ENV)
 
 
 def build_pair(world: str = "room_hub", pack: str = "demo",
@@ -59,7 +64,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                mortal: bool | None = None, task_state: str | None = None,
                inboxes: tuple | None = None, mode=None,
                overseer_kw: dict | None = None, battery_wh: float | None = None,
-               reserve_wh: float | None = None, **life_kw) -> list:
+               reserve_wh: float | None = None,
+               constitutions_named: tuple | None = None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -136,13 +142,19 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   lives = []
   from pluggybot.mind.thoughts import ROOT_ENV
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
+  # Which constitution each robot reads (issue #263): named here, else
+  # each robot's own environment variable, else the library's default.
+  charters = tuple(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
+    for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
-      memory = ThoughtFiles.open(thoughts_root, robot=handle.root)
+      memory = ThoughtFiles.open(thoughts_root, robot=handle.root,
+                                 constitution=charters[i])
     else:
       root = None if thoughts_root is None else Path(thoughts_root) / handle.root
       memory = ThoughtFiles(str(root) if root is not None else None,
-                            robot=handle.root)
+                            robot=handle.root, constitution=charters[i])
     ledger = Account(book_of_points, handle.root)
     hunger = (Metabolism(book_of_points, appetite, robot=handle.root)
               if appetite else None)

@@ -353,6 +353,19 @@ THOUGHT_VERBS = ("pin", "unpin", "intend", "drop_goal", "record", "retract",
 #: next `generation` and no rows. The `thought` documents and the `journal`
 #: message stay beside them until the site has moved.
 MEMORY_EVENT_TYPES = ("recall", "record", "records")
+#: THE CONSTITUTION (issue #263), additive, no bump: `Main.md` is rendered
+#: from a named library file and the header's `build.constitutions` says
+#: which per robot root (`{root: {name, sha}}`). A `constitution_changed`
+#: event, at mission start and only when the volume disagreed with the
+#: constitution in force: `why` (below), `from` and `to` (`{name, sha}`;
+#: `from.name` is null for a text the library does not hold), `archived`
+#: (the file the old text was kept as). The observatory files a row per
+#: event under `why`; a period opens on it (docs/Observatory.md).
+CONSTITUTION_EVENT_TYPES = ("constitution_changed",)
+#: `swapped` the environment named another; `replaced` a volume from
+#: before the library carried a text the library has since moved past;
+#: `edited` a hand edit of the rendered file was set aside.
+CONSTITUTION_CHANGE_WHYS = ("swapped", "replaced", "edited")
 #: THE LIBRARY (issue #216), additive on the wire, no bump: a `read` event
 #: per lookup the robot asked for -- `query` (what it asked), `outcome`
 #: (below), `page` (the title Wikipedia answered with), `revision` (the

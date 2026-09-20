@@ -1024,6 +1024,26 @@ class HubLifecycle:
     for hook in self.say_hooks:
       hook(float(self.data.time), msg)
 
+  def _announce_constitution(self) -> None:
+    change = self.thoughts.take_constitution_change()
+    if change is None:
+      return
+    to = self.thoughts.constitution
+    src = change["from"]
+    was = (f"`{src['name']}` ({src['sha'][:8]})" if src.get("name")
+           else f"a text the library does not hold ({src['sha'][:8]})")
+    why = {"swapped": "my constitution was swapped",
+           "replaced": "my constitution was replaced by the library's",
+           "edited": "a hand edit of my constitution was set aside"}[change["why"]]
+    self._remember(f"{why}: {was} -> `{to.name}` ({to.sha[:8]})")
+    self._say(f"CONSTITUTION {change['why']}: {was} -> {to.short}"
+              + (f" (the old text kept as {change['archived']})"
+                 if change.get("archived") else ""))
+    self._emit({"type": "constitution_changed", "t": round(float(self.data.time), 3),
+                "robot": self.root, "why": change["why"],
+                "from": dict(src), "to": to.as_dict(),
+                **({"archived": change["archived"]} if change.get("archived") else {})})
+
   def _remember(self, line: str) -> None:
     """Append one line to `History.md` (issue #38).
 
@@ -4066,6 +4086,14 @@ class HubLifecycle:
     else:
       self._remember("nobody is choosing today -- flying the scripted "
                      "rotation")
+    # ...and whether WHO IT IS was changed since the volume last saw it
+    # (issue #263): a constitution swapped by the environment, a
+    # pre-library text replaced by the library's, or a hand edit of the
+    # rendered file set aside. Said here, once, on the memory's own terms
+    # -- a History line the robot reads back and a `constitution_changed`
+    # event for the wire -- so a period on the observatory is honest about
+    # what the robot was told, and the robot can see it was edited.
+    self._announce_constitution()
 
     # A real arbitration loop, not a fixed script. Priority order, and the
     # reasons: charging outranks everything (a flat robot does nothing at
@@ -5056,6 +5084,7 @@ def run_demo(start=None, view: bool = False,
              metabolism: bool = False,
              pack: str = "demo", reserve_wh: float | None = None,
              robot_name: str | None = None,
+             constitution: str | None = None,
              overseer_backend: str | None = None,
              overseer_model: str | None = None,
              overseer_url: str | None = None,
@@ -5149,7 +5178,9 @@ def run_demo(start=None, view: bool = False,
   # lifecycle's History writes, and both telemetry sinks. A second set built
   # somewhere downstream would be a second copy of a file on disk, drifting
   # from this one the moment either wrote a line.
-  memory = ThoughtFiles.open(thoughts_root)
+  # ...living by the named constitution (issue #263): the flag, else
+  # `$PLUGGY_CONSTITUTION`, else the library's default.
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,

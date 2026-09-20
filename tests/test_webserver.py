@@ -741,6 +741,11 @@ class _FakeLife:
     self.autonomous = bool(kw.get("autonomous", False))
     self.battery = types.SimpleNamespace(capacity_wh=kw.get("battery_wh"))
     self.low_battery_wh = kw.get("low_battery_wh")
+    # ...and which robot (issue #167) and which memory (issue #263): the
+    # build identity keys the constitution by the robot's root, read off
+    # the thoughts the lifecycle was handed.
+    self.root = "pluggybot"
+    self.thoughts = kw.get("thoughts")
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 

@@ -78,6 +78,9 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
       overseer_model=config.get("model") if flags["overseer"] else None,
       overseer_backend=config.get("backend") if flags["overseer"] else None,
       thoughts_root=str(state / "thoughts"),
+      # The constitution the harness resolved (issue #263), by name; the
+      # record carries the name and hash off the config.
+      constitution=(config.get("constitution") or {}).get("name"),
       ledger_state=str(state / "ledger.json"),
       board_state=str(state / "boards.json"),
       tasks_state=str(state / "tasks.json"),

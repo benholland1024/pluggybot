@@ -187,11 +187,19 @@ def series_key(record: dict) -> tuple:
   # this issue was flown with no event map, which is exactly what `none`
   # means -- normalising them apart would split the existing A0 series in
   # two and quietly invalidate its aggregate.
+  # ⚠ ...AND THE CONSTITUTION'S NAME (issue #263), for the same reason a
+  # rung is: two dispositions are two experiments. MISSING AND `default`
+  # ARE THE SAME SERIES -- every record committed before the library was
+  # flown on the text the default file now holds -- and the sha is
+  # recorded, not keyed: the default's text has moved under one name
+  # before and never split a series.
   origin = (record.get("config") or {}).get("origin") or ""
+  charter = ((record.get("config") or {}).get("constitution") or {}).get("name") or ""
   return (record["world"], record["arm"], record["pack"],
           record.get("model") or "none", record.get("label") or "",
           (record.get("config") or {}).get("rung") or "",
-          "" if origin == "none" else origin)
+          "" if origin == "none" else origin,
+          "" if charter == "default" else charter)
 
 
 def _series(records: list[dict], current) -> dict:
@@ -255,7 +263,7 @@ def _series(records: list[dict], current) -> dict:
   mind = [r["mind"] for r in runs]
   classes = [fallback_classes(m) for m in mind]
   eco = [r["economy"] for r in runs]
-  world, arm, pack, model, label, rung, origin = series_key(runs[0])
+  world, arm, pack, model, label, rung, origin, charter = series_key(runs[0])
   return {
     "world": world, "arm": arm, "pack": pack, "model": model,
     # What the box was, as the run itself recorded it: the label it was
@@ -272,6 +280,13 @@ def _series(records: list[dict], current) -> dict:
     # before the map existed and for one flown at `none` -- and those are
     # the same experiment.
     "origin": origin or None,
+    # ...and WHICH CONSTITUTION (issue #263), by name; `None` reads the
+    # same for the default and for a run from before the library, which
+    # flew the same text. The shas are listed so an edit under one name
+    # is visible even though it does not split the series.
+    "constitution": charter or None,
+    "constitutionShas": sorted({(r["config"].get("constitution") or {}).get("sha")
+                                for r in runs} - {None}),
     "parallel": sorted({r["config"].get("parallel") for r in runs}),
     "n": len(runs), "runIds": [r["runId"] for r in runs],
     "commits": sorted({r["commit"] for r in runs}),
