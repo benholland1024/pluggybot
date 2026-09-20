@@ -38,7 +38,8 @@ from pathlib import Path
 import mujoco
 
 from pluggybot.telemetry.protocol import (
-  BUILDINGS, PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags, robot_body_ids, robot_roots,
+  BUILDINGS, PLATE_PURPOSES, PROTOCOL_VERSION, VISUAL_HINTS, dynamic_flags,
+  robot_body_ids, robot_roots,
 )
 
 GEOM_TYPE_NAMES = {
@@ -271,6 +272,18 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
     # `heading` is the outward normal the robot squares up to, so a canvas is
     # width x height and the polyline's +lat runs left across it.
     scene["boards"] = meta["boards"]
+  if meta and "plates" in meta:
+    # The pressure plates, by body name, and what each is FOR (`purpose`,
+    # PLATE_PURPOSES): the site draws a glyph on the pad so a visitor can
+    # tell the shock plate from the feed plate. Additive, like `boards`. A
+    # purpose outside the vocabulary is a glyph the site cannot draw, and
+    # is refused here on the hints' terms.
+    bad = {n: p.get("purpose") for n, p in meta["plates"].items()
+           if p.get("purpose") not in PLATE_PURPOSES}
+    if bad:
+      raise ValueError(f"unknown plate purposes {bad} -- the vocabulary is "
+                       f"{PLATE_PURPOSES}")
+    scene["plates"] = meta["plates"]
   screens = screen_map(model)
   if screens:
     # Read off the COMPILED model rather than a sidecar: the display modules

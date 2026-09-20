@@ -871,7 +871,9 @@ save a filmstrip PNG named after the script.
 - **Two-repo vocabularies**: `telemetry.protocol.VISUAL_HINTS` (the sidecar's
   `visualHints`; `scene_dict` raises on anything else), `BUILDINGS` (a room
   zone's `building`, which the site paints walls by; `scene_dict` raises
-  likewise), `FACE_STATES` /
+  likewise), `PLATE_PURPOSES` (`scene.plates[name].purpose`, the glyph the
+  site draws on a pressure plate for visitors -- never a colour in the
+  sim, which the robot's cameras render), `FACE_STATES` /
   `SCREEN_HINTS` / `SCREEN_MODES` (the `screens` block; the site draws a
   parametric face per name and falls back to `idle`; `hint` names a LOOP the
   browser runs — the sim never ticks an animation). Adding a name is

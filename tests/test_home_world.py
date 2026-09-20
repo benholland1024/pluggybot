@@ -376,6 +376,35 @@ def test_the_scene_transpiler_rejects_an_unknown_building(home_model):
   with pytest.raises(ValueError, match="unknown buildings"):
     scene_dict(home_model, "home_world", meta=meta)
 
+
+def test_every_plate_is_hinted_and_says_what_it_is_for(home_model, meta):
+  """The site draws a glyph on each pressure plate so a visitor can tell the
+  shock plate from the feed plate (`protocol.PLATE_PURPOSES`). Every plate
+  body in the world -- the garden's and the lab's three -- is hinted
+  `plate`, names a purpose the vocabulary knows, and rides `scene.plates`
+  by its body name. The glyph is the site's: the sim's plate rgba, what the
+  robot's cameras render, is one colour for all four."""
+  from pluggybot.telemetry.protocol import PLATE_PURPOSES
+  pads = {home_model.body(i).name for i in range(home_model.nbody)
+          if home_model.body(i).name.endswith("_plate")}
+  assert pads == {"garden_plate", "lab_shock_plate", "lab_feed_plate", "lab_toy_plate"}
+  assert set(meta["plates"]) == pads
+  for name in pads:
+    assert meta["visualHints"][name] == "plate", name
+    assert meta["plates"][name]["purpose"] in PLATE_PURPOSES, name
+  assert {meta["plates"][n]["purpose"] for n in pads} == set(PLATE_PURPOSES), \
+      "a purpose in the vocabulary has no plate, or two plates share one"
+  scene = scene_dict(home_model, "home_world", meta=meta)
+  assert scene["plates"] == meta["plates"]
+  rgba = {tuple(home_model.geom(f"{n}_pad").rgba) for n in pads}
+  assert len(rgba) == 1, "the plates' colour is telling the cameras which is which"
+
+
+def test_the_scene_transpiler_rejects_an_unknown_plate_purpose(home_model):
+  meta = {"plates": {"garden_plate": {"purpose": "tickle"}}}
+  with pytest.raises(ValueError, match="unknown plate purposes"):
+    scene_dict(home_model, "home_world", meta=meta)
+
 def test_the_fence_round_the_loop_is_unbroken(home_model):
   """No invisible ends: one fence body per side of the loop, each spanning
   its whole side. `_wall_run` splits a run around gaps, so a gap would show

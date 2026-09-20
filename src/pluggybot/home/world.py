@@ -106,7 +106,7 @@ from pluggybot.rack.coupling import (
 from pluggybot.activity.plate import (
   plate_light_xml,
 )
-from pluggybot.activity.cage import cage_xml
+from pluggybot.activity.cage import PLATE_NAMES, cage_xml
 from pluggybot.challenge.bench import bench_xml
 from pluggybot.rack.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
 
@@ -732,12 +732,14 @@ def build_home_world() -> tuple[str, dict]:
   # The reference activity. Its module owns BOTH the geometry and the state
   # machine (activity/plate.py), so a world adds one by calling one function
   # -- the same shape as rack/coupling.py owning the tool modules' faces.
-  # No visual hints: there is no `light` or `plate` in the vocabulary, and the
-  # website falls back to raw primitives for an unhinted body. Adding one is
-  # additive whenever the site wants a parametric lamp, but inventing hints
-  # ahead of a consumer is how a shared vocabulary rots.
+  # The PAD is hinted `plate` and says what it is for (`plates` below, the
+  # site's glyph); the light itself has no hint, because there is no `light`
+  # in the vocabulary and inventing one ahead of a consumer is how a shared
+  # vocabulary rots.
   act_body, act_sensor = plate_light_xml(PLATE_XY)
   bodies.append(act_body)
+  hints["garden_plate"] = "plate"
+  plates = {"garden_plate": {"purpose": "light"}}
 
   # The lab's props (issue #215): the cage, what lives in it, its three
   # plates, and the bench with its two masses. Each module owns its own
@@ -747,6 +749,12 @@ def build_home_world() -> tuple[str, dict]:
   bodies.append(cage_body)
   hints["lab_cage"] = "cage"
   hints["lab_mouse"] = "mouse"
+  # The lab's three plates are what the robot ACTS on the cage with (#226);
+  # each pad says which act, so a visitor can tell them apart. The robot is
+  # told nothing here: the glyph is the site's and its cameras never see it.
+  for name in PLATE_NAMES:
+    hints[f"lab_{name}_plate"] = "plate"
+    plates[f"lab_{name}_plate"] = {"purpose": name}
   bodies.append(bench_xml(LAB_BENCH_XY))
   hints["lab_bench"] = "table"
 
@@ -880,6 +888,9 @@ def build_home_world() -> tuple[str, dict]:
     # The experiment zone (issue #215): where its props stand, by the names
     # #226 and #227 read them by. The room is the `lab` zone above.
     "lab": {"name": "lab", "cage": list(LAB_CAGE_XY), "bench": list(LAB_BENCH_XY)},
+    # Every pressure plate and what it is FOR (`protocol.PLATE_PURPOSES`),
+    # by body name: the site draws a glyph on the pad for visitors.
+    "plates": plates,
     "gridBounds": list(GRID_BOUNDS),
     "battery": {"lowWh": HOME_LOW_BATTERY_WH,
                 "demoCapacityWh": HOME_DEMO_CAPACITY_WH,
