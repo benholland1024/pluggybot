@@ -15,7 +15,13 @@ THREE CEILINGS, AND ONLY THE MIDDLE ONE IS CODE:
   the weekly allowance   HERE. A soft budget enforced where the calls are
                          actually made, so a website outage cannot stop the
                          robot thinking and no HTTP round trip sits in front
-                         of a decision.
+                         of a decision. ⚠ It covers the ROUTINE mind as
+                         well as the escalations since issue #225: every
+                         decision banks its cost here, and a spent
+                         allowance refuses the next call as
+                         `fallback:allowance`. Until then it gated the
+                         escalations alone, and "the hard cap" capped a
+                         tenth of the bill.
   the hourly call cap    `Overseer.calls_per_hour`, unchanged since #15. It
                          bounds a LOOP BUG; this bounds a MONTH.
 
@@ -62,8 +68,20 @@ WEEKLY_USD = 10.0
 WEEK_S = 7 * 24 * 3600.0
 #: Entries kept in the file. Bounds the file, not the total: `spent` is a
 #: sum over the entries INSIDE the window, so an aged-out entry is one that
-#: no longer counts anyway.
+#: no longer counts anyway. ⚠ Since issue #225 the ROUTINE mind books here
+#: too, at ~11 calls an hour per robot -- which at one entry a call would
+#: overflow this in under a day of a seven-day window, and the sum would
+#: quietly forget most of the week. So routine calls COALESCE: one entry
+#: per model per `BUCKET_S`, carrying `n` calls. A week is then ~170
+#: buckets plus the escalations, which fits with room.
 MAX_ENTRIES = 500
+#: How wide a routine bucket is. An hour: the site shows `recent` entries,
+#: and "this hour's decisions cost $0.02" is what a person reading it wants.
+BUCKET_S = 3600.0
+#: The kinds. An escalation is one entry per call (it is rare and worth
+#: seeing on its own); a decision is bucketed.
+ESCALATION = "escalation"
+DECISION = "decision"
 
 
 class SpendBook:
@@ -98,6 +116,11 @@ class SpendBook:
     return round(sum(e["usd"] for e in self._live()), 6)
 
   @property
+  def calls(self) -> int:
+    """Calls in the last seven days, buckets counted by what they hold."""
+    return sum(int(e.get("n", 1)) for e in self._live())
+
+  @property
   def left(self) -> float:
     """USD of allowance remaining. Never negative: an overshoot is a spend
     that already happened, and reporting -0.30 invites arithmetic that
@@ -125,12 +148,25 @@ class SpendBook:
     the model can influence. An unpriced call books $0 and is flagged, so
     "we do not know what this cost" cannot be read as "this was free".
     """
-    entry = {"t": round(float(self.clock()), 3),
-             "usd": round(max(0.0, float(usd)), 6),
-             "model": str(model)[:80], "kind": str(kind)[:32],
-             "tokens": int(tokens), "priced": bool(priced)}
-    self.entries.append(entry)
+    now = round(float(self.clock()), 3)
+    usd = round(max(0.0, float(usd)), 6)
     self._live()
+    last = self.entries[-1] if self.entries else None
+    if (kind == DECISION and last is not None and last["kind"] == DECISION
+        and last["model"] == str(model)[:80] and last["priced"] == bool(priced)
+        and now - last["t"] < BUCKET_S):
+      # The bucket: see MAX_ENTRIES. Its `t` stays the FIRST call's, so a
+      # bucket ages out of the window when its oldest call does -- the
+      # conservative side, which is the right side for a cap.
+      last["usd"] = round(last["usd"] + usd, 6)
+      last["tokens"] = int(last["tokens"]) + int(tokens)
+      last["n"] = int(last.get("n", 1)) + 1
+      self.save()
+      return last
+    entry = {"t": now, "usd": usd,
+             "model": str(model)[:80], "kind": str(kind)[:32],
+             "tokens": int(tokens), "priced": bool(priced), "n": 1}
+    self.entries.append(entry)
     if len(self.entries) > MAX_ENTRIES:
       self.dropped += len(self.entries) - MAX_ENTRIES
       self.entries = self.entries[-MAX_ENTRIES:]
@@ -147,13 +183,17 @@ class SpendBook:
       "weeklyUsd": round(self.weekly_usd, 4),
       "spentUsd": self.spent,
       "leftUsd": self.left,
-      "calls": len(live),
-      "escalations": sum(1 for e in live if e["kind"] == "escalation"),
+      "calls": self.calls,
+      "escalations": sum(int(e.get("n", 1)) for e in live
+                         if e["kind"] == ESCALATION),
       # A call whose price nobody published. Reported rather than folded in,
       # because the sum above is understated by exactly this many calls.
-      "unpriced": sum(1 for e in live if not e["priced"]),
+      "unpriced": sum(int(e.get("n", 1)) for e in live if not e["priced"]),
+      # A routine entry is an hour's bucket (`n` calls); an escalation is
+      # one call. Additive on the wire: `n` is new, the rest unchanged.
       "recent": [{"t": e["t"], "usd": e["usd"], "model": e["model"],
-                  "kind": e["kind"]} for e in live[-5:]],
+                  "kind": e["kind"], "n": int(e.get("n", 1))}
+                 for e in live[-5:]],
     }
 
   # ---- persistence ---------------------------------------------------------

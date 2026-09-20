@@ -685,7 +685,11 @@ assumed. Two minds call: 60 calls an hour each, a 90 s deadline chosen with
 that margin (#117), and on this arm a grammar recompile per call (16.4 s
 median). The three things that would move the death rate — a stronger model,
 when each mind is consulted, a memory better than `.md` files — are separate
-issues; the flip is what makes their effect observable.
+issues; the flip is what makes their effect observable. The first of them
+moved on 2026-09-20 (#225): the mind is `zai-org/GLM-5.3-Flash:cheapest`,
+chosen by a probe through the deployed prompt on which every instruct
+model took an offer the pack could not fund and every reasoning model
+charged first (Overseer.md §6; the period is Observatory.md).
 
 ⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** `--arm guarded` on a
 box with no key builds a mind that answers `fallback:no-client` — still
@@ -1550,7 +1554,7 @@ things wearing one count:
 | class | reasons | means |
 |---|---|---|
 | **failure** | `timeout` · `offline` · `garbled` · `busy` · `no-client` | something went wrong — the box, an endpoint, or a model that could not hold the grammar |
-| **policy** | `budget` · `cooloff` · `idle-run` · `scripted-mode` | this system doing its job on purpose |
+| **policy** | `budget` · `cooloff` · `idle-run` · `scripted-mode` · `allowance` | this system doing its job on purpose |
 
 `overseer.py` has drawn that line since issue #37 (`POLICY_FALLBACKS`, so a
 healthy run's summary does not read like an incident report) and the rollup did

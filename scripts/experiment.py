@@ -57,7 +57,10 @@ from pluggybot.mind import llm
 
 REPO = Path(__file__).resolve().parent.parent
 RESULTS = REPO / "results"
-DEFAULT_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
+#: The deployed pick (issue #225; docs/Overseer.md section 6), so a control
+#: flown with no `--model` is the deployed mind on `guarded`. The committed
+#: series are the 4B's and stay their own regime -- `model` is in the key.
+DEFAULT_MODEL = "zai-org/GLM-5.3-Flash:cheapest"
 #: Wall seconds allowed per sim second before a run is killed. The
 #: baseline measured 0.6-1.2x real time on the dev box under load; 3x is a
 #: run that has stopped, not a slow one.

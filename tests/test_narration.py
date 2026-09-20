@@ -97,7 +97,7 @@ def test_the_fallback_vocabulary_is_closed_and_documented():
   """
   assert ov.FALLBACK_REASONS == (
     "timeout", "offline", "garbled", "budget", "cooloff", "busy",
-    "idle-run", "no-client", "scripted-mode")
+    "idle-run", "no-client", "scripted-mode", "allowance")
   # No duplicates, and every one of them is a token a human could read rather
   # than a class name: lowercase, no colons, no spaces.
   assert len(set(ov.FALLBACK_REASONS)) == len(ov.FALLBACK_REASONS)
