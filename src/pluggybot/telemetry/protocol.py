@@ -442,8 +442,14 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 #: zone's standing. The mouse's `harm` row (`kind: shock_mouse`) carries
 #: the same fields plus `shocked` and `pay`; its `prediction` row carries
 #: `field: mouse_will`. `real` on a `refusal` is the mouse's job declined.
+#: `finding` (issue #227) is a line of the science record that code
+#: CHECKED -- the bench's grade: the `task` and `kind`, the `quantity`, the
+#: `value` and `unit` as recorded, the `method` as written, `correct`, and
+#: the `points` it paid. Never the truth or the error: the reported value
+#: beside either would say what the mass was. (`record` was taken: it is
+#: the memory's row, 0.21.0.)
 ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
-                   "harm", "refusal", "care")
+                   "harm", "refusal", "care", "finding")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says

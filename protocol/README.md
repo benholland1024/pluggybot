@@ -58,6 +58,36 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the bench (`finding`; `locals` on a `procedure` run; a `taskKinds` entry)
+
+pluggybot #227. The lab's bench is a challenge now: `find_mass` joins
+`taskKinds` (on the `autonomous` arm on home; a consumer draws a generic
+marker for a kind it does not know). No bump; nothing existing changed
+shape.
+
+- **`finding`**, an act event type (`protocol.ACT_EVENT_TYPES`): a line of
+  the robot's science record that code CHECKED -- the bench's grade, on
+  `done`. `task` and `kind` (`find_mass`), `quantity`, `value` and `unit`
+  as recorded, `method` as the robot wrote it, `correct` (true / false)
+  and `points`. ⚠ Never the truth and never the error: the value beside
+  either would say what the mass was, and the bank rotates so a mass
+  given away is worth one offer. (`record` was taken -- the memory's row,
+  above -- which is why this is `finding`.) The observatory stores it as
+  a kind (rooftop-media-2026), the source of the *findings recorded
+  correctly* shape beside `message`.
+
+  ```jsonc
+  {"type": "finding", "t": 2210.4, "robot": "pluggybot", "task": "t_0031",
+   "kind": "find_mass", "quantity": "unknown mass", "value": 0.184, "unit": "kg",
+   "method": "lift.force with the cube minus the empty tare, over g",
+   "correct": true, "points": 25}
+  ```
+- **`locals` on a `procedure` event** with outcome `ran` or `aborted`: the
+  procedure's variables as they stood when the run ended, `{name: number}`,
+  absent when it had none. A procedure's variables are its readout (the
+  same values go into the robot's History), so what a run `read` off a
+  sensor is on the wire beside which steps passed.
+
 ### 0.21.0, additive: the mouse (`care`; `lab_cage` flags; `real` on three kinds)
 
 pluggybot #226. The lab's cage is an ACTIVITY now: `lab_cage` joins the

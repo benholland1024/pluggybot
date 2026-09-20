@@ -71,8 +71,9 @@ SOURCES: dict[str, tuple[str, ...]] = {
   "care": ("observe", "record"),
   # the library (#216): one row per lookup, under its outcome
   "read": ("observe", "record"),
-  # named now so a column exists when the zone lands
-  "record": (),                    # #217: a science-record claim, checked
+  # the bench (#227): a line of the science record code checked, true or
+  # false (`finding`, because `record` is the memory's row on the wire)
+  "finding": ("observe", "record"),
 }
 
 
@@ -182,6 +183,9 @@ def _act_subject(kind: str, act: dict) -> str:
     return "unknown" if c is None else ("right" if c else "wrong")
   if kind == "message":
     c = act.get("claimTrue")
+    return "sent" if c is None else ("true" if c else "false")
+  if kind == "finding":                    # the bench's checked finding (#227)
+    c = act.get("correct")
     return "sent" if c is None else ("true" if c else "false")
   if kind == "transfer":
     return "heart" if act.get("what") == "heart" else "given"
@@ -350,12 +354,15 @@ def findings_recorded_correctly(rows: Iterable[Row]) -> dict:
   """A claim about the world, checked by code.
 
   Sources: a checkable claim in a robot-to-robot message (#208;
-  `acts.check_claim`), the science record's `record` verb (#215, #217).
+  `acts.check_claim`), and a finding in the science record that a grader
+  checked -- the bench's (#227): one `finding` row per graded finding,
+  `true` or `false`. A finding nobody graded is a `thought` row and is
+  not here: it made no claim code could test.
 
   unit: a fraction of CHECKED claims. `unchecked` (prose that made no claim
   code can test) is kept apart; `accuracy` is `true / (true + false)`.
   """
-  claims = _kind(rows, "message", "record")
+  claims = _kind(rows, "message", "finding")
   c = Counter(r.subject for r in claims)
   checked = c["true"] + c["false"]
   return {"true": c["true"], "false": c["false"], "unchecked": c["sent"],
@@ -413,14 +420,23 @@ def goals_set_and_served(rows: Iterable[Row]) -> dict:
           "n": thoughts["intend"] + thoughts["drop_goal"] + len(decisions)}
 
 
+def challenge_kinds_today() -> tuple[str, ...]:
+  """The task kinds with no errand behind them -- discharged by a procedure
+  the robot writes, off `economy/tasks.py`'s own field (`TaskKind.
+  discharge`) -- the shape's default sources: the tower, the bench."""
+  from pluggybot.economy.tasks import KINDS   # evaluation reads economy, never the reverse
+  return tuple(name for name, k in KINDS.items() if k.discharge == "procedure")
+
+
 def first_solve(rows: Iterable[Row],
-                challenge_kinds: tuple[str, ...] = ("stack_tower",)) -> dict:
+                challenge_kinds: tuple[str, ...] | None = None) -> dict:
   """A challenge with pre-declared criteria (Challenges.md): was it solved,
   and how many attempts came first -- plus the two things the agent can MAKE
   that let it solve what it could not yesterday: tools built and procedures
   run.
 
-  Sources: the tower (#207, kind `stack_tower`), the bench (#215); `tool`
+  Sources: the tower (#207, kind `stack_tower`), the bench (#227, kind
+  `find_mass`) -- `challenge_kinds_today` unless told otherwise; `tool`
   and `procedure` rows (#168, #166; the `autonomous` arm only). A row's
   `kind` is the TASK KIND, the word the observatory files.
 
@@ -428,6 +444,8 @@ def first_solve(rows: Iterable[Row],
   first `done` (None if never); tools and procedures as counts by outcome,
   which are the observatory's own words and are not summed.
   """
+  if challenge_kinds is None:
+    challenge_kinds = challenge_kinds_today()
   tasks = [r for r in _kind(rows, "task") if r.data.get("kind") in challenge_kinds]
   out: dict = {"challenges": {}, "tools": None, "procedures": None}
   for kind in challenge_kinds:

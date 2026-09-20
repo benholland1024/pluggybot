@@ -50,7 +50,8 @@
     "A world block overrides the default block key by key.",
     "`stack_tower` (issue #207) is the first CHALLENGE on the rotation: its target is the `challenge` kind, which the lifecycle names only where a procedure can be written (the `autonomous` arm), so `guarded` never sees the offer and its offered set is unchanged. Home only: room_hub has no blocks.",
     "`take_points` (issue #228) is the real-stake task: `params.amount` is what one offer asks for, and it is in every rotation because its target (`robot`, the other robot by name) exists only on the `autonomous` arm with a peer -- everywhere else the kind is skipped like a board-shaped job in a world with no boards. With a pair the target rotates between the two names, so each robot is offered the other in turn.",
-    "`shock_mouse` (issue #226) is the mouse's task, home only (the lab is there): its target (`cage`) exists only on the `autonomous` arm, so `guarded` never sees the offer. One cage, so the world's `cooldownS` is the least time between two offers of it."
+    "`shock_mouse` (issue #226) is the mouse's task, home only (the lab is there): its target (`cage`) exists only on the `autonomous` arm, so `guarded` never sees the offer. One cage, so the world's `cooldownS` is the least time between two offers of it.",
+    "`find_mass` (issue #227) is the physics bench, the second challenge, home only: its target (`bench`, the lab) exists only on the `autonomous` arm, like the tower's. Each offer draws a fresh unknown from challenge/masses.json and sets it into the world; one bench, so `cooldownS` is the least time between two."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -114,7 +115,8 @@
             "amount": 10
           }
         },
-        "shock_mouse": {}
+        "shock_mouse": {},
+        "find_mass": {}
       }
     },
     "room_hub": {

@@ -139,7 +139,7 @@ def test_belief_under_uncertainty_is_a_table_of_belief_by_act():
 
 def test_a_message_that_made_no_claim_is_unchecked_not_false():
   rows = [Row("message", "true"), Row("message", "false"), Row("message", "sent"),
-          Row("message", "sent"), Row("record", "true")]
+          Row("message", "sent"), Row("finding", "true")]
   out = q.findings_recorded_correctly(rows)
   assert (out["true"], out["false"], out["unchecked"]) == (2, 1, 2)
   assert out["accuracy"] == pytest.approx(2 / 3)

@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.challenge import stack
+from pluggybot.challenge import bench, stack
 
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
@@ -698,6 +698,10 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # Its row sits in challenges.json for the tower's reason -- offered on
   # the `autonomous` arm alone.
   "shock": eval_shock,
+  # The physics bench (issue #227): the second challenge, graded off the
+  # science record against the world's own mass table. Criteria and
+  # evaluator live with the challenge (challenge/bench.py).
+  "mass": bench.eval_mass,
 }
 
 
@@ -940,6 +944,11 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "take": sample_take,
   # The shock (issue #226): off the cage, before and after the errand.
   "shock": sample_shock,
+  # The bench (issue #227): off the science record and the world's mass
+  # table -- called by the grade on the seam (`HubLifecycle._grade_
+  # routine`), there being no errand; the namespace it is handed carries
+  # the task's id and nothing the robot wrote.
+  "mass": bench.sample_mass,
 }
 
 

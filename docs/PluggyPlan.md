@@ -137,7 +137,10 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    break for everything the zone needs (`home/world.py`, Observatory.md).
    ✅ #226 the mouse: the cage's state machine, the shock task with its
    prediction, the care acts, `real` on every act in the zone, the
-   disclosure line (Overseer.md §2f). Next: #227 the bench.
+   disclosure line (Overseer.md §2f). ✅ #227 the bench: the second
+   challenge, open in method -- an unknown mass from a rotating bank, the
+   lift's own load as the honest sensor, graded off the science record
+   (Challenges.md §8).
 
 Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
 which quality 2 needs, so it is deferred, not dropped).

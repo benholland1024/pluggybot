@@ -246,10 +246,10 @@ def test_the_science_record_is_code_checkable():
   assert files.findings() == [{"quantity": "mass of the unknown block",
                                "value": 0.42, "unit": "kg",
                                "method": "lift current under load",
-                               "topic": "findings/general"}]
+                               "topic": "findings/general", "t": 1.0}]
   assert files.record({"quantity": "count", "value": "7"}) == "count = 7"
   assert files.findings()[-1] == {"quantity": "count", "value": 7.0, "unit": "",
-                                  "method": "", "topic": "findings/general"}
+                                  "method": "", "topic": "findings/general", "t": 0.0}
   for bad in ({"quantity": "mass", "value": "about a kilo"},
               {"quantity": "", "value": 1}, "the block is heavy",
               {"quantity": "x", "value": float("nan")}):
@@ -322,7 +322,7 @@ def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   life._reconsider(ov.Decision(action="idle",
                                record={"quantity": "q", "value": 2.5, "unit": "m"}))
   assert files.findings() == [{"quantity": "q", "value": 2.5, "unit": "m", "method": "",
-                               "topic": "findings/general"}]
+                               "topic": "findings/general", "t": files.findings()[0]["t"]}]
   life._reconsider(ov.Decision(action="idle", retract="q = 2.5"))
   life._reconsider(ov.Decision(action="idle", record={"quantity": "q", "value": "no"}))
   verbs = [re.match(r"THOUGHT ([a-z_]+):", ln).group(1) for ln in said if ln.startswith("THOUGHT")]

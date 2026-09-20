@@ -344,8 +344,8 @@ class TaskProducer:
   def _build(self, kind: str, target: str) -> tuple[dict, dict]:
     """The params and the secret one offer is made with.
 
-    The only kind with a secret is `whiteboard_answer` (issue #22), and its
-    question is drawn off the BOARD's own sequence number -- which survives a
+    A kind with a secret -- `whiteboard_answer` (issue #22), `find_mass`
+    (#227) -- draws it off the BOARD's own sequence number -- which survives a
     restart, so a deployed robot works through the bank instead of being
     asked the same thing every morning, while a test seeding a fresh board
     gets the same question every time.
@@ -361,6 +361,16 @@ class TaskProducer:
       question = default_bank().pick(self.board.seq)
       params.update({"question": question.ask, "template": question.id})
       return params, {"answer": question.answer}
+    if kind == "find_mass":
+      # The bench (issue #227): the same rotation, off the same counter.
+      # What the offer TELLS -- the known mass, which tag is which -- is
+      # the module's statement; the unknown is the secret, and the
+      # lifecycle sets it into the world when this offer lands.
+      from pluggybot.challenge import bench
+      params.update({"known_g": round(bench.KNOWN_MASS_KG * 1000),
+                     "known_tag": bench.MASS_TAG_IDS[0],
+                     "unknown_tag": bench.MASS_TAG_IDS[1]})
+      return params, {"kg": bench.default_bank().pick(self.board.seq)}
     return params, {}
 
   # ---- what a long run looks like ------------------------------------------

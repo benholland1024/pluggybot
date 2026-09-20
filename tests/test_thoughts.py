@@ -950,9 +950,9 @@ def test_findings_are_typed_topics_per_task(files):
   files.record({"quantity": "plants", "value": 7, "unit": "", "method": "counted"}, t=2.0)
   assert files.findings() == [
     {"quantity": "block mass", "value": 0.42, "unit": "kg", "method": "the lift",
-     "topic": "findings/mass_bench"},
+     "topic": "findings/mass_bench", "t": 1.0},
     {"quantity": "plants", "value": 7.0, "unit": "", "method": "counted",
-     "topic": "findings/general"},
+     "topic": "findings/general", "t": 2.0},
   ]
   assert files.index(FINDINGS) == {"findings/mass_bench": ["block mass = 0.42 kg"],
                                    "findings/general": ["plants = 7"]}

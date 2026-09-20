@@ -50,6 +50,12 @@ runs the procedure and says `done`, and the challenge's own grader runs on
 the seam — Challenges.md §7). A procedure-discharged kind's target kind is
 `challenge`, which `lifecycle.world_targets` names only where a procedure
 can be written, so the offer exists on the `autonomous` arm alone.
+**Since #227 there are two such kinds**: the bench (`find_mass`,
+Challenges.md §8) is discharged by a procedure too, and its verdict is
+read off a DOCUMENT the robot wrote -- the science record -- against a
+truth the offer set into the world; the tower's is read off poses. Both
+say `done`; `HubLifecycle._grade_routine` dispatches on the kind's
+evaluator, and a third procedure-discharged kind adds a branch there.
 **Since #228 there is a third value, `act`**: claiming IS doing it — the
 claim performs the act, grades it and resolves the task in one call, and
 nothing moves the body. The one such kind is `take_points`, a job done TO
@@ -136,6 +142,8 @@ Worked through the deliveries the current kinds actually make:
 | the description ("Draw the answer to this question on whiteboard_a: 2 + 3") | ✅ | a work order over a network |
 | which whiteboard, by id and pose | ✅ | surveyed infrastructure, same class as the charging rack — and the final approach is still sensed (`board_standoff()` / `drive_to_board()` square off against the board, they do not teleport to it) |
 | the answer to the question | ✅ | cognition, not perception — supplying it is what the mind is *for* (§2.1) |
+| which cube is which, by tag, and what the known one weighs (#227) | ✅ | the work order's own terms; the unknown's mass is the secret, drawn per offer and set into the world |
+| where the workbench stands (`lab.bench` in the context) | ✅ | surveyed furniture, the whiteboard's class; the cubes' poses are not delivered — finding them is the job |
 | whether the board is already clean | ❌ | the robot owns board state (`tools/boards.py` — written on every stroke, survives restarts); it should know from its own actions, and the drawing errand erases first precisely so it need not be told |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | the true count in a census | ❌ | hidden ground truth, already correctly redacted (`Task.secret`, `Verdict.secret`) |
@@ -564,6 +572,12 @@ to build against.
 2. **Only tier 1 of the ladder has a build path.** Tier 2 needs a detector
    nobody has trained; tier 3 is a research question. A kind must not climb
    the ladder by delivering poses over the wire.
+   ⓘ *Found by building the bench (#227):* a job that asks for a NUMBER
+   needs a way for a number to leave a procedure. `read` was an expression
+   and the run's verdicts said only which steps passed, so a robot could
+   weigh a cube and never learn what it weighed. A procedure's locals are
+   its readout now (`procedure` event `locals`; one History line), which is
+   general and not the bench's.
 3. **No task KIND offers a two-tool job yet.** Running one is solved: a
    program (`procedure/steps.py`, issue #58) spans tools and places and
    resolves to one verdict — `eval_program`, or the kind's own evaluator when

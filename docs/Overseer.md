@@ -200,6 +200,30 @@ touches a block, a second snapshot, one verdict), and `guarded` never sees
 the field or the offer. `CHALLENGE_RULE` says all of this to the mind and,
 like every rule on this arm, demonstrates nothing about charging.
 
+**The bench is the second** (issue #227; Challenges.md §8): `find_mass`,
+on the same gate (`bench` is a target only where a procedure can be
+written). Three things the arm gained for it, all general:
+
+- **`read("lift.force")`** -- the lead screw's own load, N, with a load
+  cell's noise (`axes.LOAD_NOISE_N`, deterministic per physics step). At
+  rest it is the weight the mast carries, so a cube in the claw reads as
+  `dm · g` on top of the tare -- measured, and the bench's honest sensor.
+  The registry's doc says what it is and nothing about what to do with it.
+- **A procedure's variables are its readout.** Nothing a procedure `read`
+  reached the mind before: the run's verdicts said which steps passed. Now
+  the locals as a run ended ride the `procedure` event (`locals`) and one
+  History line -- `ran the procedure weigh (5/5 steps) -- it ended with
+  f = 7.38, ...` (`LOCALS_SHOWN` of them) -- and `PROCEDURE_RULE` says so.
+- **`bench` in the `lab` context block**: the workbench's position, the
+  same class of fact as a whiteboard's pose (surveyed furniture); the
+  cubes' poses are not there, because finding them is the job.
+
+The grade has no hold -- a record does not fall over -- and
+`CHALLENGE_RULE` now says the hold is for work that has to STAND. The
+robot's part is the `record` verb (§7): `unknown mass = <value> kg` under
+`findings/mass_bench`, then `done`. What it wrote as the method rides the
+`finding` act as written and is scored by nobody.
+
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
 The fifth quality, taken one step further than a procedure: the robot may
@@ -1259,7 +1283,9 @@ decision branch — until #221 every ask looked the same from inside.
   run record is a count of DECISIONS. ⚠ **Nothing in scoring may read
   `Goals.md`** — a self-conceived goal is not paid; a test walks every
   `economy/` module's syntax tree.
-- **The science record** (`findings/<task>`; #227 grades off it): `record`
+- **The science record** (`findings/<task>`; the bench, #227, grades off
+  it -- the newest line naming the unknown, recorded after the claim):
+  `record`
   takes `{quantity, value: NUMBER, unit, method, topic}` and writes
   `<quantity> = <value> <unit> -- <method>` under `findings/<topic>`
   (`findings/general` when it names none); `ThoughtFiles.findings()` reads
