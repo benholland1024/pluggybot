@@ -312,6 +312,53 @@ def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
   return "\n      ".join(out)
 
 
+# ---- reading the contact list (rooftop-media-2026 #296) -----------------------
+#
+# ⚠ MEASURED: the electrical criteria below and the two chassis scans in
+# `rack/swap.py` / `mission/mission.py` ran EVERY physics step, per robot,
+# as Python loops over `data.contact[i]` -- a pybind struct per contact,
+# 83 contacts at rest in the home world, 500 steps a sim-second, two
+# robots: ~330 000 struct constructions a sim-second. A py-spy profile of
+# the served pair put 49 % of the physics thread there against 13 % in
+# `mj_step`. Every scan now reads `data.contact.geom`, the (ncon, 2) int
+# view, once; and a geom's id is resolved by name ONCE per model, because
+# `model.geom(name)` is a string lookup and was paid twice a step.
+
+
+_GEOM_IDS: dict[tuple[int, str], tuple[object, int | None]] = {}
+
+
+def geom_id(model, name: str) -> int | None:
+  """`model.geom(name).id`, or None where no such geom -- cached per
+  model OBJECT (the entry holds the model, so a recycled `id()` cannot
+  alias a recompiled world, whose ids differ)."""
+  key = (id(model), name)
+  hit = _GEOM_IDS.get(key)
+  if hit is not None and hit[0] is model:
+    return hit[1]
+  try:
+    gid = int(model.geom(name).id)
+  except KeyError:
+    gid = None
+  _GEOM_IDS[key] = (model, gid)
+  return gid
+
+
+def contact_pairs(data) -> np.ndarray:
+  """The active contacts' geom pairs, an (ncon, 2) int array."""
+  return data.contact.geom[:data.ncon]
+
+
+def touching(data, a: int, others) -> bool:
+  """Is geom `a` in contact with any geom in `others`?"""
+  g = contact_pairs(data)
+  if g.shape[0] == 0:
+    return False
+  others = np.fromiter(others, dtype=g.dtype)
+  return bool(np.any(((g[:, 0] == a) & np.isin(g[:, 1], others))
+                     | ((g[:, 1] == a) & np.isin(g[:, 0], others))))
+
+
 def module_power_state(model, data, name: str = "module_lcd",
                        prefix: str = "", poles: dict | None = None) -> dict:
   """Is this module's coupling conducting, and if not, which pole is open?
@@ -334,19 +381,12 @@ def module_power_state(model, data, name: str = "module_lcd",
   plates_by_side = poles or FORK_POLE_GEOMS
   poles = {}
   for side, plates in plates_by_side.items():
-    try:
-      peg = model.geom(f"{name}_peg_{side}").id
-      plate_ids = {model.geom(prefix + g).id for g in plates}
-    except KeyError:
+    peg = geom_id(model, f"{name}_peg_{side}")
+    plate_ids = [geom_id(model, prefix + g) for g in plates]
+    if peg is None or any(p is None for p in plate_ids):
       poles[side] = False
       continue
-    touching = False
-    for i in range(data.ncon):
-      pair = {data.contact[i].geom1, data.contact[i].geom2}
-      if peg in pair and plate_ids & pair:
-        touching = True
-        break
-    poles[side] = touching
+    poles[side] = touching(data, peg, plate_ids)
   return {"left": poles["l"], "right": poles["r"],
           "powered": poles["l"] and poles["r"]}
 
@@ -444,15 +484,16 @@ def rack_charge_contact(model, data, prefix: str = "") -> bool:
   """Both charge-bay pins touching the robot's bumper face: the rack-side
   sibling of the plug's electrical criterion, and milestone 8's charge hook.
   `prefix` names whose chassis (issue #167)."""
-  pins = {model.geom("rack_pin_l").id, model.geom("rack_pin_r").id}
-  chassis = model.geom(prefix + "chassis").id
-  touching = set()
-  for i in range(data.ncon):
-    c = data.contact[i]
-    pair = {c.geom1, c.geom2}
-    if chassis in pair:
-      touching |= pins & pair
-  return len(touching) == 2
+  chassis = geom_id(model, prefix + "chassis")
+  pin_l, pin_r = geom_id(model, "rack_pin_l"), geom_id(model, "rack_pin_r")
+  if chassis is None or pin_l is None or pin_r is None:
+    raise KeyError("no chassis or charge pins in this model")
+  g = contact_pairs(data)
+  if g.shape[0] == 0:
+    return False
+  mine = (g[:, 0] == chassis) | (g[:, 1] == chassis)
+  others = np.where(g[mine, 0] == chassis, g[mine, 1], g[mine, 0])
+  return bool(np.any(others == pin_l) and np.any(others == pin_r))
 
 
 def _bay_xml(prefix: str, y: float, tag_id: int) -> str:
