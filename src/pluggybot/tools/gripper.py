@@ -72,6 +72,14 @@ LIFT_SPEED = 0.05         # m/s ceiling on lift SETPOINT motion (lead-screw
                           # class). See set_lift: a step command unseats the
                           # gravity-latched module.
 SETTLE = 0.6
+PLACE_RETREAT_M = 0.30    # how far the chassis backs off a placed object; the
+                          # grip point is ~0.30 m ahead of the axle, so this
+                          # is "nothing of the robot within reach of it"
+PLACE_GAP = 0.004         # the drop a placed object gets: its underside this
+                          # far above the surface when the jaws open. Small,
+                          # because a fall rotates a cube; not zero, because
+                          # a release aimed below the surface presses the
+                          # object into it and shoves the base along
 
 
 class ClawTool:
@@ -117,15 +125,47 @@ class ClawTool:
                    -dx * math.sin(th) + dy * math.cos(th))
     return self.offset
 
+  def calibrate_from_body(self) -> tuple[float, float]:
+    """The same offset off the robot's own kinematics: the grip site in the
+    CHASSIS frame, plus the 0.08 m the chassis origin rides ahead of the
+    axle. What a jig measures, and what a verb that runs after a drive
+    must use (issue #264): `calibrate` reads the grip against the BELIEVED
+    pose, so called after 1.2 m of dead reckoning it bakes the drift into
+    the offset -- measured as a block set down 43 mm long of its target."""
+    bid = self.swap.chassis_bid
+    body_r = self.data.xmat[bid].reshape(3, 3)
+    g = body_r.T @ (self.grip_world() - self.data.xpos[bid])
+    self.offset = (float(g[0]) + 0.08, float(g[1]))
+    return self.offset
+
+  def held_hang(self, geom: str) -> tuple[float, float, float]:
+    """Where the held object's centre sits relative to the grip point, in
+    the CHASSIS frame (x ahead, y left, z up). A block is not centred in
+    the jaws: the pads close on it wherever the approach left it along
+    their faces, and it hangs by its upper part -- MEASURED (issue #264)
+    8 mm behind and 18 mm below the grip site with the pads' 2 mm floor
+    clearance at the pick. A placement that ignores this presses the block
+    into whatever it is set on (it shoved a base block 24 mm). What the
+    claw's own camera (`claw_eye`) looks at; read here off the held body's
+    pose."""
+    model, data = self.model, self.data
+    bid = int(model.body_rootid[model.geom_bodyid[model.geom(geom).id]])
+    body_r = data.xmat[self.swap.chassis_bid].reshape(3, 3)
+    d = body_r.T @ (np.asarray(data.xpos[bid], dtype=float) - self.grip_world())
+    return float(d[0]), float(d[1]), float(d[2])
+
   # ---- state ---------------------------------------------------------------
 
   def grip_world(self) -> np.ndarray:
     return np.array(self.data.site_xpos[self.grip_site], dtype=float)
 
-  def holding(self, target: str = "pickup_box") -> bool:
+  def holding(self, target: str | None = None) -> bool:
     """BOTH pads touching the object. The grip's own contact criterion --
     the same reasoning as the coupling's electrical one and the plug's
-    charging one: a commanded grip is a belief, contact is a fact."""
+    charging one: a commanded grip is a belief, contact is a fact. With no
+    target named, any object (`held`)."""
+    if target is None:
+      return self.held() is not None
     gid = self.model.geom(target).id
     touching = set()
     for i in range(self.data.ncon):
@@ -134,6 +174,26 @@ class ClawTool:
       if gid in pair:
         touching |= self._jaw_gids & pair
     return len(touching) == 2
+
+  def held(self) -> str | None:
+    """The geom both pads are touching that belongs neither to the robot
+    nor to the claw itself, or None: `holding` without a named target,
+    which is what a procedure's `grip`/`pick` verdict reads."""
+    model, data = self.model, self.data
+    pad = next(iter(self._jaw_gids))
+    own = {int(model.body_rootid[model.geom_bodyid[pad]]),
+           int(model.body_rootid[self.swap.chassis_bid])}
+    touched: dict[int, set] = {}
+    for i in range(data.ncon):
+      c = data.contact[i]
+      for jaw, other in ((c.geom1, c.geom2), (c.geom2, c.geom1)):
+        if jaw in self._jaw_gids and other not in self._jaw_gids \
+            and int(model.body_rootid[model.geom_bodyid[other]]) not in own:
+          touched.setdefault(int(other), set()).add(int(jaw))
+    for gid, pads in touched.items():
+      if len(pads) == 2:
+        return model.geom(gid).name
+    return None
 
   # ---- primitives ----------------------------------------------------------
 
@@ -248,16 +308,20 @@ class ClawTool:
     return self.swap.run(self.drive_over_routine(obj_xy, heading, timeout))
 
   def drive_over_routine(self, obj_xy, heading: float,
-                         timeout: float = 45.0) -> Routine:
+                         timeout: float = 45.0, stow: bool = True) -> Routine:
     """Approach until the grip point is above the object, arm stowed.
 
     Stowed for the drive -- the rack taught that one, when an extended fork
-    swept a module off its trays -- then deployed once lined up.
+    swept a module off its trays -- then deployed once lined up. `stow=False`
+    is the CARRYING approach (issue #264): a block in the jaws stays at
+    carry height with the arm out, because stowing would swing it into the
+    chassis, and it is set down by `place_on_routine`.
     """
     tx, ty = self.axle_pose_for(obj_xy, heading)
-    yield from self.set_lift_routine(APPROACH_LIFT, settle=0.5)
-    self.data.ctrl[self.arm_act] = 0.0
-    yield from self.swap._run_routine(1.0, 0.0)
+    if stow:
+      yield from self.set_lift_routine(APPROACH_LIFT, settle=0.5)
+      self.data.ctrl[self.arm_act] = 0.0
+      yield from self.swap._run_routine(1.0, 0.0)
     t0 = self.data.time
 
     # STAGE 1: go to a staging point back along the approach line, and only
@@ -311,8 +375,9 @@ class ClawTool:
         abs(along), 0.04 * (1 if along > 0 else -1), stall_stop=False)
     yield from self.swap._run_routine(SETTLE, 0.0)
 
-    self.data.ctrl[self.arm_act] = ARM_EXT
-    yield from self.swap._run_routine(1.5, 0.0)
+    if stow:
+      self.data.ctrl[self.arm_act] = ARM_EXT
+      yield from self.swap._run_routine(1.5, 0.0)
     return math.hypot(tx - self.swap.reckoner.x,
                       ty - self.swap.reckoner.y) < 0.03
 
@@ -343,4 +408,27 @@ class ClawTool:
     yield from self.lower_grip_to_routine(GRIP_Z)
     yield from self.jaws_routine(0.0, settle=1.0)
     yield from self.set_lift_routine(APPROACH_LIFT, settle=1.5)
+    return {"released": not self.holding()}
+
+  def place_on(self, top_z: float) -> dict:
+    return self.swap.run(self.place_on_routine(top_z))
+
+  def place_on_routine(self, top_z: float, bottom_below_grip: float = GRIP_Z,
+                       gap: float = PLACE_GAP) -> Routine:
+    """Set the held object down on a surface `top_z` high -- another block
+    (issue #264) -- then let go and clear out: the grip lowered until the
+    object's bottom is `gap` above the surface, the jaws opened, the lift
+    raised back to carry height and the chassis backed off
+    `PLACE_RETREAT_M` so nothing of the robot stays against what it built
+    (the tower's hold, challenge/stack.py, fails a touched block).
+    `bottom_below_grip` is how far the held object's underside hangs below
+    the grip point (`held_hang`'s z plus half its height); the default is
+    the pads' own reach, for an object that sits centred in them.
+    """
+    yield from self.lower_grip_to_routine(top_z + gap + bottom_below_grip)
+    yield from self.jaws_routine(0.0, settle=1.0)
+    yield from self.set_lift_routine(CARRY_LIFT, settle=1.0)
+    yield from self.swap._drive_until_routine(PLACE_RETREAT_M, -0.10,
+                                              stall_stop=False)
+    yield from self.swap._run_routine(0.5, 0.0)
     return {"released": not self.holding()}

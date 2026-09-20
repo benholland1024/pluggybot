@@ -745,6 +745,52 @@ class HubMission:
     self.travel_source = "nominal"
     return NOMINAL_TRAVEL
 
+  def _camera_mount(self) -> tuple[np.ndarray, np.ndarray]:
+    """The dock camera's pose in the CHASSIS frame -- the robot's own
+    kinematics at the current lift, read off the model rather than
+    re-typed, so a camera move cannot silently stale a constant."""
+    bid = self.swap.chassis_bid
+    body_r = self.data.xmat[bid].reshape(3, 3)
+    cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
+    cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id] - self.data.xpos[bid])
+    return cam_p, cam_r
+
+  def _in_chassis(self, t) -> np.ndarray:
+    """One PnP translation (apriltag camera frame: x right, y down, z
+    forward) as a chassis-frame point: MuJoCo's camera looks along -z with
+    y up, so y and z are negated, then the mount is applied."""
+    cam_p, cam_r = self._camera_mount()
+    tx, ty, tz = t
+    return cam_p + cam_r @ np.array([tx, -ty, -tz])
+
+  def spot(self, tag_id: int) -> dict | None:
+    """One tag's centre in the BELIEVED world frame, off one decode from
+    where the robot stands (issue #264; the claw's `pick`/`place` verbs
+    read it). None when the tag does not decode from here -- a sensor's
+    honest answer, never a lookup. `xyz` is the tag centre (z off the
+    chassis's own height, a constant of the body), `toward` the unit
+    vector from the camera to the tag in the world's horizontal plane --
+    the face the camera sees faces it, so the cube behind that face sits
+    half an edge further along `toward`."""
+    det = self.tags.detect(self.data).get(int(tag_id))
+    if det is None:
+      return None
+    tag_ch = self._in_chassis(det["t"])
+    cam_p, _ = self._camera_mount()
+    bx, by, bth = self.pose
+    c, s = math.cos(bth), math.sin(bth)
+    # chassis body origin rides 0.08 m ahead of the axle midpoint the
+    # believed pose tracks
+    ax, ay = float(tag_ch[0]) + 0.08, float(tag_ch[1])
+    wx, wy = bx + c * ax - s * ay, by + s * ax + c * ay
+    wz = float(self.data.xpos[self.swap.chassis_bid][2]) + float(tag_ch[2])
+    dx, dy = float(tag_ch[0] - cam_p[0]), float(tag_ch[1] - cam_p[1])
+    tx, ty = c * dx - s * dy, s * dx + c * dy
+    norm = math.hypot(tx, ty) or 1.0
+    return {"tag": int(tag_id), "xyz": (wx, wy, wz),
+            "toward": (tx / norm, ty / norm),
+            "range": float(det["t"][2]), "lateral": float(det["t"][0])}
+
   def _measured_standoff(self, tag_id: int, tag_face_x: float,
                          anchor_x: float, distance: float,
                          lateral: float = 0.0,
@@ -776,18 +822,8 @@ class HubMission:
     det = dets.get(tag_id)
     if det is None:
       return None
-    bid = self.swap.chassis_bid
-    body_r = self.data.xmat[bid].reshape(3, 3)
-    cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
-    cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
-                        - self.data.xpos[bid])
-
-    def in_chassis(t):
-      # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
-      # frame (x right, y up, looking along -z): negate y and z
-      tx, ty, tz = t
-      return cam_p + cam_r @ np.array([tx, -ty, -tz])
-
+    cam_p, cam_r = self._camera_mount()
+    in_chassis = self._in_chassis
     tag_ch = in_chassis(det["t"])
     # The tag plane's horizontal normal, pointing INTO the rack; the rack's
     # outward normal (its local +x) is the negation.
