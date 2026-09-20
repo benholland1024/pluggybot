@@ -1414,6 +1414,46 @@ every leg inside what the leg before mapped (6.6 m against the LIDAR's
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
 
+## The tag camera spent 97 % of its render on shadows (rooftop-media-2026 #296)
+
+The served pair stuttered: the page played 50 ms of motion and froze ~170
+ms, over and over. Not the network. The deployed log's wall stamps against
+its sim clock read **0.23× real time**, the sim container sat at 306 % of
+four cores, and inside it the eight `llvmpipe` threads (Mesa's software
+rasteriser behind `MUJOCO_GL=osmesa`) held ~80 % of all CPU ever spent
+while the physics thread used 47 % of one core -- waiting on renders. The
+site's clock advances at 1× and clamps to the newest frame, so a stream at
+0.23× is a frame's worth of motion and then a wait for the next.
+
+A wrong turn first, worth keeping: timing renders inside that container
+found "fast" contexts at 2-35 ms beside slow ones at 550-1900 ms, and the
+pattern looked like "a second GL context makes every render slow". It was
+not: the fast ones were contexts whose shadow framebuffer had failed to
+create after another context was closed, and MuJoCo then renders silently
+without shadows. A lone renderer, toggling the scene flags, gave the real
+number: **one 1280×720 frame of the home world costs 1113 ms with shadows
+and 32 ms without** (reflections 32 → 28; the skybox nothing). The home
+world has sixteen lights, every one `castshadow`, and MuJoCo's default
+`shadowsize` is 4096 -- sixteen 16-megapixel depth passes per look, at
+3-4 looks a sim-second per robot, on a software rasteriser. A shared
+renderer (the fix for the wrong diagnosis) changed the multiple not at
+all; the flag took the same pair from 0.20× to **0.54×** on the deploy
+box, with the container down to one core: the physics thread, which is
+where a pair's cost actually is (0.58× on the GPU dev box).
+
+**What is true now:** `TagDetector` clears `mjRND_SHADOW` and
+`mjRND_REFLECTION` on its scene once at construction, and `update_scene`
+keeps the flags (`tests/test_render_context.py`). A tag decode thresholds
+gray levels and a real camera sees no shadow pass, so nothing hardware
+has is lost; the viewer and every filmstrip keep their shadows, since this
+is the detector's scene alone. Two things ride with it: the rack finder is
+rebound on a recompile like everything else (it rendered the old model
+until now), and the site's clock follows the stream's measured pace, so a
+world that cannot hold real time -- a pair, on one physics thread --
+plays smoothly slow rather than stop-and-go, with the pace shown beside
+"live". A pair still wants `PLUGGY_RATE=0.5` served, so the pacer sleeps
+rather than the sim running flat out at whatever the box allows.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

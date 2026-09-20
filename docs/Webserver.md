@@ -233,3 +233,13 @@ pair **0.58×** (274.7 s / 473.9 s), 5 420 frames, 0 dropped. Against the
 deploy box's 1.07× for one robot on four pinned cores, a pair there lands
 near 0.5×: serve it at `PLUGGY_RATE=0.5`, or give the service ~8 cores and
 re-measure with `--pair --free-run` before trusting 1×.
+
+**The served pair ran at 0.23×, and it was the shadows** (rooftop-media-2026
+#296, 2026-09-19; SimNotes has the story). On the deploy box under osmesa a
+tag-camera frame cost 1113 ms with the home world's sixteen shadow-casting
+lights and 32 ms without; the detector renders without shadows now, and
+the same pair measured **0.54×** on the box (53.6 s sim / 100 s wall, four
+cores, the production sim contending) with the container on one core --
+the physics thread, the floor for a pair. More cores do not move that;
+`PLUGGY_RATE=0.5` and the site's pace-following clock are what make it
+watchable.

@@ -165,6 +165,18 @@ class TagDetector:
                height: int = 720, tag_size: float = SMALL_TAG_SIZE) -> None:
     import mujoco
     self.renderer = mujoco.Renderer(model, height, width)
+    # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296). MEASURED on
+    # the deploy box (MUJOCO_GL=osmesa, llvmpipe, home world, 2026-09-19):
+    # this frame costs 1113 ms with shadows and 32 ms without -- sixteen
+    # lights each casting into a 4096^2 shadow map is sixteen 16-Mpixel
+    # depth passes per look, on a software rasteriser, ~97 % of the render.
+    # At 3-4 looks a sim-second per robot the served pair spent ~80 % of
+    # all its CPU here and ran at 0.23x real time. A tag decode thresholds
+    # gray levels and a real camera sees no shadow PASS; nothing hardware
+    # has is lost. The viewer and the filmstrips keep their shadows: this
+    # is the detector's scene alone, and `update_scene` keeps the flags.
+    for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
+      self.renderer.scene.flags[flag] = 0
     self.camera_name = camera_name
     self.width, self.height = width, height
     self.tag_size = tag_size

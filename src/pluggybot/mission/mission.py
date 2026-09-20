@@ -176,7 +176,7 @@ class TagSpotter:
     now, not by the collector after the GL context has gone."""
     old = getattr(self, "detector", None)
     if old is not None:
-      old.renderer.close()
+      old.close()
     self.detector = TagDetector(model, self.handle.el("dock_eye"),
                                 tag_size=SMALL_TAG_SIZE)
 
@@ -327,6 +327,10 @@ class HubMission:
     self.swap.rebind(model, data)
     self.lidar.rebind(model)
     self.tags.rebind(model)
+    # ...and the rack finder's head camera, which held the OLD model's
+    # renderer until rooftop-media-2026 #296 (a stale world, rendered).
+    if self.finder is not None:
+      self.finder.rebind(model)
     self._resolve(model)
 
   def _on_step(self) -> None:
