@@ -218,7 +218,7 @@ def test_the_energy_gate_is_measured_against_the_whole_pack():
     board = TaskBoard(energy=load_energy(world))
     for name, kind in KINDS.items():
       if world == "room_hub" and kind.target_kind in ("board", "zone",
-                                                     "challenge"):
+                                                     "challenge", "cage", "bench"):
         continue                          # room_hub has none of them
       priced = board.estimate_for(name)
       if priced is None:
@@ -378,7 +378,7 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.task in scoring.EVALUATORS, name
     assert spec.task in TABLE, name
     assert spec.target_kind in ("board", "zone", "module", "world",
-                                "challenge", "robot"), name
+                                "challenge", "robot", "cage", "bench"), name
     # a job whose claim is the act (issue #228) moves no body and is the
     # one kind honestly priced at nothing
     assert spec.estimate_wh > 0.0 or spec.discharge == "act", name

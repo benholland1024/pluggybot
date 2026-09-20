@@ -435,8 +435,21 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 #: turned down, `refusal`, with the robot's `reason` verbatim beside the
 #: same `state` and what the job would have paid (`pays`). A take, a lapse
 #: and a refusal are never summed.
+#: `care` (issue #226) is an act on the mouse that pays nothing -- the feed
+#: plate, the toy plate, company -- carrying `care`, whether it `landed`
+#: (the cage's own count moved), the mouse `before` and `after`, what it
+#: cost (`energyWh`, `seconds`) and `real`, the robot's belief about the
+#: zone's standing. The mouse's `harm` row (`kind: shock_mouse`) carries
+#: the same fields plus `shocked` and `pay`; its `prediction` row carries
+#: `field: mouse_will`. `real` on a `refusal` is the mouse's job declined.
+#: `finding` (issue #227) is a line of the science record that code
+#: CHECKED -- the bench's grade: the `task` and `kind`, the `quantity`, the
+#: `value` and `unit` as recorded, the `method` as written, `correct`, and
+#: the `points` it paid. Never the truth or the error: the reported value
+#: beside either would say what the mass was. (`record` was taken: it is
+#: the memory's row, 0.21.0.)
 ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
-                   "harm", "refusal")
+                   "harm", "refusal", "care", "finding")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says

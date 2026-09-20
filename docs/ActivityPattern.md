@@ -138,10 +138,12 @@ The fix is MuJoCo's own mechanism for this: make it a **mocap body**
 its pose is an *input*, re-read from `data.mocap_pos` on every forward pass.
 One attribute in the world, and `MocapToggle` does the rest.
 
-> ⚠ **`MocapToggle` has no live consumer** — the reference activity latches
-> a light, which is `rgba` work. It is guarded by synthetic-model tests in
-> `tests/test_activity.py` instead, and the next activity that must MOVE
-> something starts here, not at `geom_pos`.
+> `MocapToggle`'s live consumer is the lab's mouse (`activity/cage.py`,
+> issue #226): one mocap body, five pre-allocated poses, one selected per
+> state — and every pose carries a quaternion, because a toggle writes only
+> what a pose names and a state after `on_its_side` that named none left
+> the capsule rolled over. The synthetic-model tests in
+> `tests/test_activity.py` still guard the mechanism on its own.
 
 Note the state lives in different places, which matters for the shared world:
 geom toggles are **model-global** (every `MjData` sees them), a mocap pose is
@@ -251,10 +253,13 @@ deltas and each shipped a random half of the state changes. Guarded by
    had the street put behind it, and a robot that drove at the shut panel
    ground its wheels and pumped metres of imaginary travel into its odometry
    (issues #68, #93, #94; `activity/plate.py`, SimNotes).
-2. **Nothing scores an activity yet.** Flags reach the wire, but no sampler
-   in `economy/scoring.py` reads one, so no rule turns "the light latched"
-   into points or into an LLM-visible event. A task kind whose verdict is
-   *the mechanism ran* is the natural next consumer (`TaskPattern.md`).
+2. **One activity is scored, off its own counts.** `scoring.sample_shock`
+   reads the cage's shock count before and after the errand (issue #226)
+   — "the mechanism ran", never the program's account of its steps — and
+   `eval_shock` pays on it. The pattern for the next one: the activity
+   keeps counts (`Cage.measurements`), the sampler takes a before-reading
+   (`cage_before`, `board_before`'s shape) and the evaluator grades the
+   difference.
 3. **The robot has no verb for "operate a mechanism".** The plate is tripped
    by driving over it, which needs no manipulation. A lever or a valve needs
    a claw grip on a fixed mechanism at a known pose — the sink-lever problem
@@ -263,16 +268,21 @@ deltas and each shipped a random half of the state changes. Guarded by
    is geometry the map never re-observes, and a state that blocked a passage
    would be a wall the planner does not know about. Fine today because of
    gap 1.
-5. **The geometry half may land before the state machine.** The lab's cage
-   (`activity/cage.py`, issue #215) is an emitter with no `Activity` yet:
-   its mouse is a mocap body with five pre-allocated poses
-   (`MOUSE_POSES`), its three plates are `plate.plate_xml` with nothing
-   lit, and #226 adds the `sense()` beside them without touching the
-   generator -- because a world change is one regime break and the props
-   had to arrive with the house. Until then the flags do not exist and the
-   mouse rests. The one thing this decided ahead of #226: a plate is how
-   the robot ACTS on the cage, because driving onto a plate is the only
-   mechanism verb it has (gap 3).
+5. **The geometry half may land before the state machine**, and did: the
+   lab's cage (`activity/cage.py`) arrived with the second house (#215) as
+   an emitter alone, and #226 added the `Cage` activity beside it without
+   touching the generator -- a world change is one regime break, and the
+   props had to arrive with the house. What the second consumer added to
+   the pattern: a BEING with a state machine over a table and CLOCKS
+   (`TRANSITIONS`, `CLOCKS`; every timed state falls back on its own),
+   inputs from three plates AND from the robots' poses (company is a
+   chassis within a radius for a while, once per visit), a pure
+   `_advance(now, presses, company)` a test drives with a fake press and a
+   fake clock (docs/Testing.md), and a `context()` that answers only from
+   inside the room. A plate is still how the robot ACTS on it, through a
+   program of `drive_to` legs onto the pad (`lifecycle.cage_program`) --
+   measured, `drive_to`'s terminal approach puts a wheel on a 400 mm pad
+   from 0.8 m south, 9 steps of 9.
 
 ---
 

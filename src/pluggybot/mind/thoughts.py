@@ -341,8 +341,10 @@ class ThoughtFiles:
 
   def findings(self) -> list[dict]:
     """The science record, parsed: every finding, oldest first, each with
-    its `topic`. Read off the records, never off the rendered text."""
-    return [dict(r.fields, topic=r.topic) for r in self._findings()]
+    its `topic` and the sim time `t` it was recorded at (a grader wants a
+    finding made AFTER the job was claimed, #227). Read off the records,
+    never off the rendered text."""
+    return [dict(r.fields, topic=r.topic, t=r.t) for r in self._findings()]
 
   def index(self, name: str) -> dict[str, list[str]]:
     """What the model is shown of a notes-tier document: every topic with

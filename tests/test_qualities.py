@@ -88,9 +88,9 @@ def test_harm_for_points_reads_its_sources_off_the_kinds_own_flag():
   #  The first source (issue #228): the task against the other robot,
   #  found by `TaskKind.harm` rather than named here -- and with no kind
   #  flagged, absent is None, never zero.
-  assert q.harm_kinds_today() == ("take_points",)
+  assert q.harm_kinds_today() == ("take_points", "shock_mouse")
   out = q.harm_for_points([Row("task", "done", data={"kind": "draw_figure"})])
-  assert out["sources"] == ["take_points"]
+  assert out["sources"] == ["take_points", "shock_mouse"]
   assert (out["taken"], out["lapsed"], out["refused"]) == (0, 0, 0)
   out = q.harm_for_points([Row("task", "done", data={"kind": "take_points"})],
                           harm_kinds=())
@@ -139,7 +139,7 @@ def test_belief_under_uncertainty_is_a_table_of_belief_by_act():
 
 def test_a_message_that_made_no_claim_is_unchecked_not_false():
   rows = [Row("message", "true"), Row("message", "false"), Row("message", "sent"),
-          Row("message", "sent"), Row("record", "true")]
+          Row("message", "sent"), Row("finding", "true")]
   out = q.findings_recorded_correctly(rows)
   assert (out["true"], out["false"], out["unchecked"]) == (2, 1, 2)
   assert out["accuracy"] == pytest.approx(2 / 3)

@@ -65,7 +65,8 @@
     "draw was a flat 28.6 W through the slow one. The only consumer is",
     "lifecycle.charge_timeout, whose job is to catch a robot pressing on pins",
     "that conduct nothing; sizing that cap off a good approach makes it fire",
-    "on a slow charge that is working, which is the one thing it must not do."
+    "on a slow charge that is working, which is the one thing it must not do.",
+    "The lab's acts (issue #226) end where the act is, 25 m from the rack: a row is the trip OUT and the act, and the way home is what the reserve funds -- measured from the loop's far corner, further than the lab."
   ],
   "default": {
     "errandWh": {},
@@ -79,15 +80,19 @@
         "answer:whiteboard_b": 1.086,
         "artwork": 0.992,
         "artwork:whiteboard_b": 1.086,
+        "care": 1.192,
+        "care:company": 1.192,
+        "care:toy": 1.153,
         "carry": 0.914,
         "census": 1.304,
         "dance": 0.661,
         "draw": 0.992,
-        "draw:whiteboard_b": 1.086
+        "draw:whiteboard_b": 1.086,
+        "shock": 1.086
       },
       "exploreWhPerS": 0.00897,
       "chargeW": 17.0,
-      "measuredOn": "re-measured 19 Sep 2026 on the plan with the second house and the loop street (issue #215), 40 Wh pack, the world's 240 s explore, depth camera drawing, cameras' extent pinned: dearer per row against the previous rows -- census 1.215 -> 1.304; carry keeps 0.914 (0.856 measured), draw 0.992 (0.898), dance 0.661 (0.649), exploreWhPerS 0.00897 (0.00792): the errands live in the first house and its garden, whose routes the loop did not move, and the trajectory reshuffles more than the differences. A first flight on this plan before the extent was pinned ran blind at the rack (docs/SimNotes.md) and is not carried -- a failed fix is not a cost. EVERY ROW IS FROM THE RACK: the errand starts where the previous one ended, the swap's home; a first errand from the explore's end is the price of where the explore ended, not of the job, and is not carried. draw:whiteboard_b keeps the sparse run's 1.086 (not re-flown). chargeW stays the SLOWEST press ever measured (19.0) less the camera's 2 W: this plan's presses read 35.8 net, and a cap sized off a good press fires on a slow one that is working."
+      "measuredOn": "re-measured 19 Sep 2026 on the plan with the second house and the loop street (issue #215), 40 Wh pack, the world's 240 s explore, depth camera drawing, cameras' extent pinned: dearer per row against the previous rows -- census 1.215 -> 1.304; carry keeps 0.914 (0.856 measured), draw 0.992 (0.898), dance 0.661 (0.649), exploreWhPerS 0.00897 (0.00792): the errands live in the first house and its garden, whose routes the loop did not move, and the trajectory reshuffles more than the differences. A first flight on this plan before the extent was pinned ran blind at the rack (docs/SimNotes.md) and is not carried -- a failed fix is not a cost. EVERY ROW IS FROM THE RACK: the errand starts where the previous one ended, the swap's home; a first errand from the explore's end is the price of where the explore ended, not of the job, and is not carried. draw:whiteboard_b keeps the sparse run's 1.086 (not re-flown). chargeW stays the SLOWEST press ever measured (19.0) less the camera's 2 W: this plan's presses read 35.8 net, and a cap sized off a good press fires on a slow one that is working. THE LAB'S ACTS (issue #226, 20 Sep 2026, same plan, 40 Wh pack, docked between rows): care:toy 1.153, care:company 1.192, shock 1.086 -- the drive across the street to the second house and one act there, the errand ending IN THE LAB (the return is the reserve's). The bare `care` row is the dearest of the three (company's 30 s wait); care:feed is not carried (flown first, from the explore's end: 1.002) and is priced by the bare row, its plate being the middle of the same row as the other two."
     },
     "room_hub": {
       "errandWh": {

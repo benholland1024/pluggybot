@@ -20,8 +20,11 @@ and re-typed here from their constants rather than from nothing.
 """
 
 import math
+import zlib
 from dataclasses import dataclass
 from typing import Callable
+
+import numpy as np
 
 from pluggybot.rack.coupling import CLAW_JAW_TRAVEL, PEN_TRAVEL
 from pluggybot.tick import Routine
@@ -158,6 +161,41 @@ def _last_look(life, key: str, default: float) -> float:
   return float(look.get(key, default))
 
 
+#: The noise on a load reading, N, one standard deviation. A 50 N-class
+#: load cell (the igus lead screw's own rating) at 0.06 % of full scale --
+#: the HX711-and-strain-gauge tier a real robot would carry, not a lab
+#: balance. Set against the bench's job (challenge/bench.py, issue #227):
+#: a reading is `load - tare` and both carry it, so one careful pair
+#: scatters by ~4 g, inside the grade's 10 % on the lightest cube the bank
+#: sets out; averaging a few beats it, and that is the robot's to find.
+#: Deterministic, on purpose (`noise`): a sensor that read differently on
+#: two runs of one world would make every mission test a different test.
+LOAD_NOISE_N = 0.03
+
+
+def noise(life, key: str, sigma: float) -> float:
+  """One Gaussian sample, `sigma` wide, DETERMINISTIC on the physics step
+  and the sensor: the same step reads the same value twice (a sensor
+  sampled faster than it updates does), the next step reads a fresh one,
+  and one world replays byte-identical. Seeded off a checksum rather than
+  `hash()`, which Python salts per process."""
+  step = int(round(float(life.data.time) / float(life.model.opt.timestep)))
+  prefix = getattr(getattr(getattr(life, "mission", None), "swap", None), "handle", None)
+  tag = f"{key}:{getattr(prefix, 'prefix', '')}:{step}"
+  seed = zlib.crc32(tag.encode())
+  return float(np.random.default_rng(seed).normal(0.0, sigma))
+
+
+def _lift_force(life) -> float:
+  """What the mast's lead screw is pushing with, N, + up: at rest, the
+  weight it carries -- the carriage and the fork, a module, whatever the
+  module holds. MEASURED (challenge/bench.py): a cube in the claw's jaws
+  moves it by exactly `dm * g`. Read off the actuator's own force with a
+  load cell's noise, so it is a scale exactly as far as a real one is."""
+  act = life.mission.swap.lift_act
+  return float(life.data.actuator_force[act]) + noise(life, "lift.force", LOAD_NOISE_N)
+
+
 SENSORS: dict[str, Sensor] = {
   "battery.frac": Sensor("battery.frac", lambda life: float(life.battery.fraction),
                          "pack fraction, 0..1"),
@@ -170,6 +208,10 @@ SENSORS: dict[str, Sensor] = {
                  "the mast's height, m, measured"),
   "arm": Sensor("arm", lambda life: _joint(life, "arm_joint"),
                 "the fork's reach, m, measured"),
+  "lift.force": Sensor("lift.force", _lift_force,
+                       "what the mast's lead screw is pushing with, N (+ up): "
+                       "at rest, the weight it carries, read with a load "
+                       "cell's noise"),
   "bumper": Sensor("bumper", lambda life: 1.0 if life.mission.swap.pressing else 0.0,
                    "1 while the chassis presses against something"),
   "module.seated": Sensor("module.seated", _seated,

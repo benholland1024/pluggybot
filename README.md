@@ -14,36 +14,43 @@ this diagram and fails when they, the death causes, the event types or the
 memory verbs drift from it.
 
 ```mermaid
+---
+config:
+  state:
+    nodeSpacing: 90
+    rankSpacing: 90
+---
 stateDiagram-v2
     direction TB
     [*] --> DECIDE : wake
 
-    DECIDE --> GO_CHARGE : battery below the reserve (the floor)<br/>next errand will not fit (the gate)<br/>chose charge · a map row said charge
+    DECIDE --> GO_CHARGE : battery below the<br/>reserve (the floor) ·<br/>the next errand will<br/>not fit (the gate) ·<br/>chose charge ·<br/>a map row said charge
     GO_CHARGE --> CHARGE : both pins conduct
     CHARGE --> DECIDE : charged
     GO_CHARGE --> DEAD : stranded
 
-    DECIDE --> SWAP_PICK : an errand is queued<br/>(ordered · chosen · a task claimed ·<br/>a procedure it wrote)
+    DECIDE --> RECALL : chose recall
+    RECALL --> DECIDE
+
+    DECIDE --> SWAP_PICK : an errand is queued
     SWAP_PICK --> USE_TOOL : module on the fork
-    USE_TOOL --> SWAP_RETURN : finished · or interrupted<br/>(battery_below · points_below)
+    USE_TOOL --> SWAP_RETURN : finished · or interrupted<br/>(battery_below ·<br/>points_below)
     SWAP_RETURN --> DECIDE : tool hung back in its bay
 
-    DECIDE --> RECALL : chose recall<br/>(read a key · find by text)
-    RECALL --> DECIDE : results ride the next turn<br/>at most 3 in a row
-
-    DECIDE --> EXPLORE : map unfinished · chose explore
+    DECIDE --> EXPLORE : map unfinished ·<br/>chose explore
     EXPLORE --> DECIDE
 
-    DECIDE --> DECIDE : idle · journal ·<br/>building a tool (standing still) ·<br/>standing by for work ·<br/>no rule fired
+    DECIDE --> DONE : nothing to do,<br/>nothing coming
+    DONE --> [*]
 
-    DECIDE --> DEAD : flat · stuck · unpaid · unminded
+    DECIDE --> DECIDE : idle · standing by ·<br/>building a tool ·<br/>no rule fired
+
+    DECIDE --> DEAD : flat · stuck ·<br/>unpaid · unminded
     SWAP_PICK --> DEAD : flat · stuck
     USE_TOOL --> DEAD : flat · stuck
     SWAP_RETURN --> DEAD : flat · stuck
     EXPLORE --> DEAD : flat · stuck
-    DEAD --> DECIDE : reset by a person ·<br/>stood up by the timer (served)
-    DECIDE --> DONE : nothing to do, nothing coming
-    DONE --> [*]
+    DEAD --> DECIDE : reset by a person ·<br/>stood up by the timer<br/>(served)
 ```
 
 `DECIDE` is where the mind is consulted — or, on `autonomous`, where the
@@ -52,7 +59,10 @@ agent's own event map says whether to consult it (`EVENT_TYPES`:
 `battery_below`, `battery_above`, `points_below`, `message_received`,
 `every`). The floor and the gate are `guarded`'s rails and come off on
 `autonomous`; the interrupt out of `USE_TOOL` is a row of the agent's map,
-and abort means stow. A death (`DEATH_CAUSES`) can land in any moving state.
+and abort means stow. An errand is queued by a standing order, a decision, a
+task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
+by text, standing still; what it found rides the next turn, at most three
+recalls in a row. A death (`DEATH_CAUSES`) can land in any moving state.
 On `autonomous` the agent also writes code and builds tools: a procedure it
 defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
 a tool it specified (issue #168) is built where it stands and hung in a bay.
