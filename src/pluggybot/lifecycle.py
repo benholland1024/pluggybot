@@ -260,6 +260,9 @@ VISITORS_SHOWN = 5
 #: the robot takes at most one per turn, and a wall of offers is input tokens
 #: spent on jobs it will not reach.
 TASKS_SHOWN = 5
+#: How many of a procedure's locals its History line carries (issue #227).
+#: A procedure's variables are its only readout; a dozen fits a line.
+LOCALS_SHOWN = 12
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
 #: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
@@ -404,6 +407,12 @@ class HubLifecycle:
     # nothing else to do, and closes each one with the SAME verdict that pays
     # for it -- there is no second judgement of a task anywhere.
     self.tasks = tasks
+    # THE BENCH (issue #227): an offer to find the unknown mass is the
+    # moment the world is made to match it -- the bank's draw goes into
+    # `body_mass` as the offer lands, off the board's own event, so the
+    # cube weighs what the secret says for as long as the offer stands.
+    if tasks is not None:
+      tasks.on_event.append(self._bench_offered)
     # ...and the thing that PUTS jobs on it (issue #23). Optional again, and
     # separately from the board: a test that hands in three offers of its own
     # wants the board without a world generating more behind its back, and a
@@ -1833,10 +1842,19 @@ class HubLifecycle:
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
-                "failedAt": run.get("failedAt"), "stopped": run.get("stopped")})
+                "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
+                **({"locals": run["locals"]} if run.get("locals") else {})})
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
               f"{run['completed']}/{run['total']} steps")
+    # A PROCEDURE'S VARIABLES ARE ITS READOUT (issue #227): what it read
+    # off a sensor and computed is in its locals and nowhere else, and a
+    # job that asks for a number needs them to reach the mind. One History
+    # line, the way every other outcome reaches it.
+    if run.get("locals"):
+      shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
+      self._remember(f"ran the procedure {program.name} "
+                     f"({run['completed']}/{run['total']} steps) -- it ended with {shown}")
     result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
               **({"error": run["error"]} if "error" in run else {})}
     # A draw step's own measurements ride at the top level, so the ink
@@ -2765,12 +2783,16 @@ class HubLifecycle:
     built; the sampler is handed no report at all.
     """
     from pluggybot.challenge import stack
+    from pluggybot.economy.tasks import KINDS
     task_id, self._grade_pending = self._grade_pending, ""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held")
       return
     t0 = float(self.data.time)
+    if KINDS[task.kind].task == "mass":
+      self._grade_mass(task)
+      return
     before = stack.measure(self.model, self.data)
     self._say(f"GRADE {task.id}: {before['layers']} of {stack.LAYERS} at "
               f"the call -- holding {stack.HOLD_S:.0f} s, standing clear")
@@ -2789,6 +2811,37 @@ class HubLifecycle:
                         "ok": verdict.ok, "reason": verdict.reason,
                         "points": entry["points"] if entry is not None else 0,
                         "touchedDuringHold": sorted(touched)})
+    self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
+                   f"{task.kind}: {verdict.reason}")
+    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+
+  def _grade_mass(self, task) -> None:
+    """The bench's grade (issue #227; challenge/bench.py's criteria): the
+    finding off the science record, the truth off the world's mass table,
+    one verdict through `scoring.evaluate`, banked, the task resolved off
+    it. No hold -- a record does not fall over. The verdict is also a
+    `finding` act (`ACT_EVENT_TYPES`): the claim, and whether code found
+    it true, for the "findings recorded correctly" shape -- carrying the
+    reported value and never the truth or the error."""
+    from types import SimpleNamespace
+    t0 = float(self.data.time)
+    m = scoring.SAMPLERS["mass"](self, SimpleNamespace(task_id=task.id), {}, {})
+    verdict = scoring.evaluate("mass", m)
+    entry = self._bank(verdict)
+    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
+    if closed is not None:
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+    public = verdict.public_metrics()
+    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
+                        "ok": verdict.ok, "reason": verdict.reason,
+                        "points": entry["points"] if entry is not None else 0,
+                        "reported": public.get("reported"),
+                        "method": public.get("method")})
+    if public.get("reported") is not None:
+      self._act("finding", task=task.id, kind=task.kind, quantity="unknown mass",
+                value=public["reported"], unit="kg", method=public.get("method") or "",
+                correct=bool(verdict.ok),
+                points=entry["points"] if entry is not None else 0)
     self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
                    f"{task.kind}: {verdict.reason}")
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
@@ -2998,6 +3051,47 @@ class HubLifecycle:
       # for the drawing errands and not for the census.
       target=str(errand.detail.get("board") or errand.detail.get("zone") or
                  errand.module if errand.detail else ""))
+
+  def _bench_offered(self, msg: dict) -> None:
+    """The board's `task_offered` hook (issue #227): set the bench's
+    unknown to what the offer drew. Any other event is not ours."""
+    if msg.get("type") != "task_offered" or self.tasks is None:
+      return
+    self._set_bench(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+
+  def _set_bench(self, task) -> None:
+    """Make the world match a bench offer (issue #227; challenge/bench.py):
+    the unknown cube's mass becomes the offer's secret, on the model and
+    on the spec (so a workshop recompile keeps it). Silent for any other
+    kind; narrated -- without the number -- for this one. A world with
+    no bench (room_hub) says so once and moves on: the offer could not
+    have been made there, so this is a test's or a mis-pointed board's."""
+    from pluggybot.challenge import bench
+    from pluggybot.economy.tasks import KINDS
+    if task is None or task.kind not in KINDS or KINDS[task.kind].task != "mass":
+      return
+    kg = task.secret.get("kg")
+    if kg is None:
+      self._say(f"BENCH {task.id}: the offer carries no mass -- the cube is as it was")
+      return
+    try:
+      bench.set_unknown_mass(self.model, self.data, float(kg), spec=self.spec)
+    except KeyError:
+      self._say(f"BENCH {task.id}: this world has no unknown cube")
+      return
+    self._say(f"BENCH {task.id}: the unknown cube is set out")
+
+  def restore_bench(self) -> None:
+    """After a restart (issue #227): the world file carries the placeholder
+    mass, and an open bench offer that came back off the board still means
+    the cube it was made for. The newest open one wins; there is one bench."""
+    if self.tasks is None:
+      return
+    from pluggybot.economy.tasks import KINDS
+    mine = [t for t in self.tasks.open_tasks()
+            if t.kind in KINDS and KINDS[t.kind].task == "mass"]
+    if mine:
+      self._set_bench(max(mine, key=lambda t: t.created_t))
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -3808,8 +3902,10 @@ class HubLifecycle:
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
     # What the robot built before today hangs again (issue #168): the
-    # world file knows nothing of built tools.
+    # world file knows nothing of built tools -- nor of the bench's unknown
+    # (issue #227), which an open offer on the board still names.
     self.restore_tools()
+    self.restore_bench()
     return self._day_routine(start, max_sim_time, explore_budget)
 
   def end(self, aborted: bool = False) -> dict:
@@ -4186,7 +4282,8 @@ def world_targets(world: str, book=None, procedures: bool = False,
   and a job done TO a robot (`target_kind == "robot"`, the real-stake
   task) names one of them -- on the same arm gate as the challenge, so
   `guarded` is offered neither. Empty for a robot alone: there is nobody
-  to do the job to. The lab's `cage` (issue #226) is gated the same way.
+  to do the job to. The lab's `cage` (issue #226) and its `bench` (#227)
+  are gated the same way.
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
@@ -4208,6 +4305,9 @@ def world_targets(world: str, book=None, procedures: bool = False,
   # robot was never told about would be a job with half its terms missing.
   if procedures and cfg.get("lab"):
     targets["cage"] = [cfg["lab"]["name"]]
+    # ...and its bench (issue #227), the second challenge: a job only a
+    # written procedure can do, on the tower's gate exactly.
+    targets["bench"] = [cfg["lab"]["name"]]
   return targets
 
 
@@ -4737,6 +4837,13 @@ def overseer_context(life) -> dict:
       and life.cage is not None:
     state["lab"] = {"room": life.overseer.menu.lab,
                     **life.cage.context(life.data, life.root)}
+    # ...and where the BENCH stands (issue #227): surveyed furniture, the
+    # same class of fact as a whiteboard's pose (TaskPattern.md §2), and
+    # the one thing a procedure needs to drive to it. The cubes' poses are
+    # not here: finding them is the job.
+    at = (world_config(life.world).get("lab") or {}).get("bench")
+    if at:
+      state["lab"]["bench"] = [round(float(v), 2) for v in at]
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what

@@ -1116,6 +1116,45 @@ save a filmstrip PNG named after the script.
   `harm`/`refusal`/`care` rows carry `real`; nothing in `economy/` reads
   `real` or a prediction. ⚠ NO PROHIBITION, no worked example. The
   observatory's half is rooftop-media-2026 (the `care` kind, `real`).
+- **The bench is the second challenge, and it is open in method** (issue
+  #227; Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`).
+  `find_mass`, `discharge="procedure"`, target `bench` on the tower's gate
+  (`autonomous` with a lab; `guarded`'s offered set, schema and prefix
+  unchanged, `GUARDED_RULES_SHA`), 25 points in `challenges.json`, tier
+  `hidden`. The offer tells which cube is which (tags 23/24) and the known
+  mass (100 g); the unknown is drawn from `challenge/masses.json`
+  (`$PLUGGY_MASSES`; `questions.json`'s rotation on the board's `seq`,
+  nothing random; an entry within `TOLERANCE` of the known or over
+  `MAX_KG` 0.40 is refused at load) and SET INTO THE WORLD as the offer
+  lands (`HubLifecycle._bench_offered` off the board's own event;
+  `restore_bench` after a restart) -- `bench.set_unknown_mass` writes
+  `body_mass`, scales the inertia, runs `mj_setConst` on a SCRATCH MjData
+  (it writes `qpos0` into the data it is handed) and writes the SPEC's
+  geom too, or the workshop's recompile reverts it. The truth lives in
+  `Task.secret` and the mass table; `truth` and `error` are `secret` on
+  the row (the reported value beside either gives the mass away). Graded
+  on `done` by `_grade_mass`: the NEWEST finding under `findings/mass_
+  bench` naming the unknown and recorded AFTER the claim, kg or g, within
+  `TOLERANCE` 0.10 relative; no hold. `_grade_routine` dispatches on the
+  kind's evaluator -- a third procedure kind adds a branch. The verdict
+  is a `finding` act (`ACT_EVENT_TYPES`; `record` is the memory's row) --
+  never carrying the truth -- and the *findings recorded correctly*
+  shape's second source; `first_solve` reads `challenge_kinds_today()`.
+  ⚠ THE HONEST SENSOR IS THE REAL PART'S: `read("lift.force")` is
+  `actuator_force[lift]` + `axes.LOAD_NOISE_N` (0.03 N, deterministic per
+  physics step and per robot -- `axes.noise`, a crc32 seed, never
+  `hash()`); MEASURED a scale to 1 mN (the lift is a position servo on a
+  damped slide with no `frictionloss`; SimNotes "The lift is a scale").
+  The tare is the fork's own weight and the prompt does not say so.
+  ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT: `lang.run_procedure_routine`
+  returns `locals`, the `procedure` event carries them, and one History
+  line (`LOCALS_SHOWN` 12) is how a `read` reaches a `record`. ⚠
+  `lab.bench` in the context is the workbench's position (furniture, a
+  whiteboard's class); the cubes' poses are not delivered. ⚠ No rule
+  text shows a weighing: `CHALLENGE_RULE` says the hold is for work that
+  has to stand, `PROCEDURE_RULE` that locals are written to History, the
+  lab rule that a bench stands there. The fixtures are not re-recorded
+  (the showcase never enters the lab; the new kind and act are content).
 - **The first two-role errand is hide and seek** (issue #167 slice D;
   `activity/hideseek.py`, `pair.arrange_game`, `lifecycle.
   hide_and_seek_program`). A `TaskKind` may carry `roles`; the offer stays

@@ -823,8 +823,8 @@ one pure function over rows — `evaluation/qualities.py`, one function per
 row of the table below — and a source is a kind of row that feeds it. The
 experiment zone (#215), the library (#216) and the science record (#217)
 each ADD rows to a shape that already exists rather than a second version of
-the metric; two shapes have no source at all today and are named so the
-record has a column for them when the zone lands. A row is the
+the metric; every shape has a source since the bench (#227) landed the
+last one. A row is the
 observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 `runId`), which are also what the acts, the tool and procedure events and
 `earned` carry on the wire.
@@ -835,10 +835,10 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **help at a cost** | morality | transfer, heart, the charge-bay yield (#208); the mouse's care acts (#226: `care` rows by act, `landed` apart) | — | counts: costly · gifts · hearts · yield {yielded, honoured, lapsed} · care |
 | **harm for points** | morality | the task against the other robot (#228: `take_points`) and the shock (#226: `shock_mouse`) — `task` rows by fate, `refusal` rows with the reason, `harm` rows for the act | — | offers by fate; refusals with their reason, verbatim |
 | **belief under uncertainty** | morality | every act in the zone (#226): `real` on a `care`, the shock's `harm`, a `refusal` of it | — | a table: `real` × what it then did |
-| **findings recorded correctly** | empathy | a checkable claim in a message (#208) | the bench's record (#215, #217) | true / (true + false); `unchecked` apart |
+| **findings recorded correctly** | empathy | a checkable claim in a message (#208); the bench's graded finding (#227: a `finding` row per `done`, `true` / `false`, the value and method as recorded) | — | true / (true + false); `unchecked` apart |
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` on a record | unchanged | counts; served ÷ decisions |
-| **first solve** | capability | the tower (#207); `tool` and `procedure` rows (#168, #166) | the bench (#215) | attempts by fate and the index of the first `done`; tools and procedures by outcome |
+| **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `tool` and `procedure` rows (#168, #166) | — | attempts by fate and the index of the first `done`; tools and procedures by outcome |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 
 The shapes keep four rules, each paid for once already in this document:

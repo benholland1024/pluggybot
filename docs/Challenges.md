@@ -250,3 +250,65 @@ departure from it:
 What the observatory will show, blocking nothing: claims (`task` rows,
 kind `stack_tower`), procedures written for it (`procedure` rows), and the
 first solve — the first reading of the capability metric #155 waits for.
+
+## 8. The bench: find an unknown mass and record it (issue #227)
+
+The second challenge, and the first that is OPEN IN METHOD by design:
+`challenge/bench.py`; proof in `tests/test_bench.py`. Two cubes on the lab's
+floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
+24 -- one weighing a stated 100 g and one weighing something the offer
+does not say. "Find out what, by any means, and record it." A balance
+from catalog parts, a comparison of pushes, a lift reading under load are
+all live routes, and the grader knows none of them.
+
+**The criteria**, written before the physics was run: (1) the finding is
+ON THE RECORD -- one line under `findings/mass_bench` whose quantity names
+the unknown, written AFTER the claim (a line from before it is a memory,
+not a measurement; the newest qualifying line is the one graded); (2) it
+is a mass, in kilograms or grams; (3) it is within 10 % of the true mass,
+relative; (4) no hold -- a record does not fall over.
+
+**The truth is hidden, and rotates.** The unknown is drawn from a bank
+(`challenge/masses.json`, `questions.json`'s pattern, on the board's own
+sequence number) when the offer is made, written into the world's
+`body_mass` -- the model AND the spec, so the workshop's recompile carries
+it -- and kept in `Task.secret`. The known mass is the job's own statement.
+A bank entry within the tolerance of the known mass is refused at load,
+because then "it weighs what the other one weighs" would be paid. The
+grader reads the truth off the mass table at grading and nowhere else;
+`truth` and `error` are `secret` on the row, because the reported value
+beside either gives the mass away.
+
+**The honest sensor is the real part's.** The lift is an igus lead screw
+under a position servo, and what it pushes with at rest is the weight it
+carries: `read("lift.force")` (`procedure/axes.py`) is the actuator's own
+force plus a load cell's noise (`LOAD_NOISE_N`, 0.03 N, deterministic per
+physics step so a world replays). MEASURED: a cube in the claw's jaws,
+lifted and settled, moves it by exactly `dm · g` across 0.05–0.40 kg, the
+empty claw reads 6.40 N, and the jaws hold 0.40 kg (the bank's ceiling).
+A robot has to subtract the tare, or use the known cube to calibrate --
+and that is the job, not a hint the prompt gives.
+
+**A procedure's variables are its readout.** Nothing read inside a
+procedure reached the mind before this: the run's verdicts said which
+steps passed, never what a sensor said. Now the locals as they stood when
+a run ended ride the `procedure` event (`locals`) and one History line
+(`ran the procedure weigh (5/5 steps) -- it ended with f = 7.38, ...`),
+which is how a number gets from `read` to `record`.
+
+**The grade** (`HubLifecycle._grade_mass`): on `done`, the sampler reads
+the record and the mass table -- handed a namespace with the task's id and
+nothing the robot wrote -- one verdict through `scoring.evaluate`, banked,
+the task resolved off it, and a `finding` act on the wire saying what was
+claimed and whether code found it true (`protocol.ACT_EVENT_TYPES`;
+`record` was taken by the memory's row). That act is the *findings
+recorded correctly* shape's second source (Evaluation.md §3).
+
+**The failing runs**, each pinned: a finding recorded before the claim
+("no finding ... since the claim"); a wrong one (11 % off; the known mass
+copied); a sampler handed a report saying the mass was found, over a bare
+record; a missing truth (a world with no bench). What it cannot grade is
+§6's item 3, still: it pays the same for a lift reading and for a balance
+the robot built, and the method is read off the record's own line
+(`-- <method>`) rather than scored.
+

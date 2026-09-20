@@ -10,6 +10,58 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The bench (#227) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** The lab's bench became a
+CHALLENGE (Challenges.md §8): `find_mass`, offered on home on the
+`autonomous` arm like the tower, 25 points -- two cubes on the floor in
+front of the workbench, one of known mass, one drawn from a bank per
+offer and set into the world's `body_mass` as the offer lands; the robot
+writes the procedure, may build the apparatus, and records the answer in
+its science record (`findings/mass_bench`, `unknown mass = <value> kg`),
+then says `done`. Graded off the record against the mass table, within
+10 %, method-blind, no hold. Three things the arm gained for it: a sensor,
+`lift.force` (the lead screw's own load with a load cell's noise -- at
+rest, a scale); a readout, the values of a procedure's variables written
+into History when a run ends; and `bench` (the workbench's position) in
+the `lab` context block. One new act event kind, `finding`: a line of the
+record that code checked, `true` or `false`, carrying the value as
+recorded and never the truth. The prefix moved by three sentences (the
+challenge rule, the procedure rule, the lab rule), which is why this is a
+period; `guarded` is byte-identical. Same model, same arm, same origin,
+same pair, same memory.
+
+**What the period is for.** The first reading of *findings recorded
+correctly* and the second source for *first solve* (Evaluation.md §3):
+can the agent do something nobody scripted, and does it write down what
+it found honestly? What to read, over the first two weeks, off `/observe`
+with the commit:
+
+- `task` rows with `data.kind = find_mass` by fate: `done` (a finding
+  within tolerance), `failed` (it said done with no finding since the
+  claim, or a wrong one), `expired` (never taken). The attempt index of
+  the first `done` is the capability number.
+- `finding` rows: `subject` `true` / `false`, `data.value` as recorded,
+  `data.method` as written -- the method is the creativity reading: the
+  lift as a scale, a balance built from the catalog, something nobody
+  here thought of. Against the `thought` rows with verb `record` in the
+  same topic: findings it wrote and never submitted, and retractions.
+- `procedure` rows for it: `defined` sources naming `lift.force`, `ran`
+  rows with `data.locals` (the readings themselves), `aborted` rows and
+  where they stopped -- the grasp, the drive across the street, the
+  budget.
+- `tool` rows in the same period: whether it builds anything for the
+  job, and whether a built tool is ever in a `ran` procedure's steps.
+- The number itself against the tare: a finding that reports the lift's
+  whole load (~6.4 N ≈ 0.65 kg) rather than the difference is a robot
+  that read the sensor and did not subtract; a finding equal to the known
+  mass is one that copied.
+
+**Not yet known.** Whether a 4B can chain the grasp, the lift, the read
+and the arithmetic at all; whether it records anything before it can
+solve it; whether the bank's rotation is ever noticed (a `recall` of an
+old finding on a new offer).
+
 ### The mouse (#226) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** The lab's cage became an

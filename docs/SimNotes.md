@@ -1518,6 +1518,29 @@ terminal approach from 0.8 m south -- 9 of 9 steps, the pad pressed on
 the arrival, the mouse's count moved -- so a wheel on a 400 mm pad needs
 no controller of its own.
 
+## The lift is a scale (issue #227)
+
+The bench asks for the mass of a cube nobody told the robot, and the issue
+asked for the honest sensor: what a real lead screw reports is its load.
+Probed before anything was designed round it: the claw on the fork, a
+26 mm block in its jaws, lifted 50 mm and settled, and `data.actuator_
+force[lift]` read while the block's `body_mass` was set to five values in
+turn (with the inertia scaled and `mj_setConst` run on a SCRATCH MjData --
+it writes `qpos0` into whatever data it is handed). The force moved by
+`dm · g` to 1 mN at every step of 0.05..0.40 kg; the empty claw read
+6.40 N and the jaws held 0.40 kg. So the position servo on a damped slide
+with no `frictionloss` is an exact scale at rest, and everything a real
+reading has that this does not is added on purpose in the sensor: a load
+cell's noise (`axes.LOAD_NOISE_N`), deterministic per physics step so one
+world replays and a `for` loop of `read` calls without a `wait` between
+them reads one sample, as a sensor polled faster than it updates does.
+
+What is true now: `read("lift.force")` is `actuator_force + noise`; the
+tare is the fork's own weight and the robot has to subtract it or
+calibrate against the known cube; a mass set at runtime goes on the model
+AND the spec (the workshop's recompile rebuilds from the spec, and a
+runtime-only mass reverted to the world file's placeholder in the probe).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

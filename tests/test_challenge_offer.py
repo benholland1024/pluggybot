@@ -106,9 +106,10 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
   assert kind.discharge == "procedure" and kind.task == "stack"
   assert kind.target_kind == "challenge"
   # every other kind is what every kind used to be -- but the real-stake
-  # task (issue #228), whose claim is the act
+  # task (issue #228), whose claim is the act, and the bench (#227), the
+  # second challenge
   assert all(k.discharge == "errand" for n, k in KINDS.items()
-             if n not in ("stack_tower", "take_points"))
+             if n not in ("stack_tower", "take_points", "find_mass"))
   assert "stack_tower" in default_cadence("home").kinds
   assert "stack_tower" not in default_cadence("room_hub").kinds
 
@@ -122,8 +123,9 @@ def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded():
   autonomous = world_targets("home", book, procedures=True)
   assert "challenge" not in guarded
   assert autonomous["challenge"] == ["workshop"]
-  # (`cage` rides the same gate, issue #226)
-  assert {k: v for k, v in autonomous.items() if k not in ("challenge", "cage")} == guarded
+  # (`cage` and `bench` ride the same gate, issues #226 and #227)
+  assert {k: v for k, v in autonomous.items()
+          if k not in ("challenge", "cage", "bench")} == guarded
   # ...and the producer follows the targets: on `guarded` the rotation
   # simply has no tower in it.
   beat = default_cadence("home")

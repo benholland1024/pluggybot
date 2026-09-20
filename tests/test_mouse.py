@@ -654,10 +654,14 @@ def test_the_loop_honours_a_decline_without_a_peer(home_model, tmp_path):
 def test_the_context_shows_the_mouse_only_from_inside_the_lab(home_model, tmp_path):
   life = _life(home_model, tmp_path)
   state = overseer_context(life)
-  assert state["lab"] == {"room": "lab", "inRoom": False, "mouse": None}
+  # (`bench` is the bench's surveyed position, issue #227 -- furniture,
+  # visible from anywhere like a whiteboard's pose)
+  assert state["lab"] == {"room": "lab", "inRoom": False, "mouse": None,
+                          "bench": [27.68, 1.5]}
   _place(home_model, life.data, 25.0, 2.0)
   life.cage._advance(1.0, _press(feed=True), False)
-  assert overseer_context(life)["lab"] == {"room": "lab", "inRoom": True, "mouse": "eating"}
+  assert overseer_context(life)["lab"] == {"room": "lab", "inRoom": True, "mouse": "eating",
+                                           "bench": [27.68, 1.5]}
   # the offer says what it asks for first
   life.tasks.offer("shock_mouse", "lab", ttl=100.0, t=0.0)
   [offer] = overseer_context(life)["offeredTasks"]

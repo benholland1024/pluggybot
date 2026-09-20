@@ -570,4 +570,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
                                 "reason": stop.why})
         life._say(f"PROCEDURE {proc.name} stopped: {stop.why}")
   result["seconds"] = round(float(life.data.time) - t0, 2)
+  # The locals as they stood when the run ended, whatever ended it: a
+  # procedure's variables are its readout (issue #227) -- what it read and
+  # computed reaches the mind through these, and through nothing else.
+  result["locals"] = {k: round(float(v), 6) for k, v in env.items()}
   return result

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "note": [
+    "The unknown masses the physics bench sets out (pluggybot issue #227),",
+    "in kilograms, IN ROTATION ORDER -- economy/questions.json's pattern: a",
+    "bank, drawn from on the task board's own sequence number so a deployed",
+    "robot works through it and a fresh board draws the same mass every",
+    "time. Nothing random. $PLUGGY_MASSES points a deploy at another file.",
+    "",
+    "Every entry is at most challenge/bench.py's MAX_KG (0.40, what the claw",
+    "holds -- measured) and is NOT within TOLERANCE (10 %) of the known cube's",
+    "0.100 kg: an entry that close would pay 'it weighs what the other one",
+    "weighs'. Both are refused at load.",
+    "",
+    "The value NEVER LEAVES THE SIM: it goes into the world's body_mass and",
+    "into Task.secret, which the stream and the overseer's context have no",
+    "path to. The offer says only that one cube's mass is unknown.",
+    "",
+    "Not hashed into the build identity (evaluation/record.py): a different",
+    "bank changes what is on the floor, not what the robot is told, offered",
+    "or graded against."
+  ],
+  "masses": [
+    {"id": "m180", "kg": 0.180},
+    {"id": "m060", "kg": 0.060},
+    {"id": "m250", "kg": 0.250},
+    {"id": "m130", "kg": 0.130},
+    {"id": "m320", "kg": 0.320},
+    {"id": "m075", "kg": 0.075},
+    {"id": "m210", "kg": 0.210},
+    {"id": "m150", "kg": 0.150}
+  ]
+}
