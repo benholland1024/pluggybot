@@ -1120,16 +1120,16 @@ save a filmstrip PNG named after the script.
   a reach-in's `robot` picks its inbox, absent means the primary; the
   operator switch is the primary's (one pause stops the one loop); a
   stroke's `draw` names `life.root` (it said `pluggybot` for both until
-  #181). ⚠ Measured here: one robot free-runs at 1.25×, a pair at 0.58×
-  (2.15× the cost); the deploy box holds one at 1.07× on four cores, so a
-  pair there wants `PLUGGY_RATE=0.5` -- more cores do not help a single
-  physics thread. ⚠ THE TAG CAMERA RENDERS WITHOUT SHADOWS (rooftop
-  #296): under osmesa a 1280×720 frame of the home world cost 1113 ms
-  with its sixteen shadow-casting lights and 32 ms without, and the served
-  pair ran at 0.23× until `TagDetector` cleared `mjRND_SHADOW` (0.54×
-  after). `tests/test_render_context.py` pins the flag; SimNotes has the
-  wrong turn (a "second GL context" that was really a failed shadow
-  framebuffer).
+  #181). ⚠ Measured (rooftop #296, 2026-09-20, the deploy box, four
+  cores, the production sim contending): the served pair went 0.20× →
+  0.54× → **0.96×** over a 60 s carry and 0.80× over a whole day -- the
+  first step was the tag camera's shadows, the second the contact
+  readers below; a pair is ONE physics thread and more cores do not move
+  it. ⚠ THE TAG CAMERA RENDERS WITHOUT SHADOWS: under osmesa a 1280×720
+  frame of the home world cost 1113 ms with its sixteen shadow-casting
+  lights and 32 ms without (`tests/test_render_context.py` pins the flag;
+  SimNotes has the wrong turn, a "second GL context" that was really a
+  failed shadow framebuffer).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
@@ -1153,6 +1153,18 @@ save a filmstrip PNG named after the script.
   result (`RewardTable.offered`). The `procedure` event is additive on the
   wire (`PROCEDURE_OUTCOMES`; no bump). Rung two — conditionals, loops, a
   library — is #166 and adds no verb that bypasses the fence.
+- **The contact list is read as an ARRAY, never walked struct by struct
+  on the physics seam** (rooftop #296; `coupling.contact_pairs` /
+  `touching` / `geom_id`, SimNotes "four-fifths bookkeeping"). MEASURED: a
+  profile of the served pair put 49 % of the physics thread in four
+  per-step Python loops over `data.contact[i]` (the electrical criteria,
+  the bumper, the collision count) against 13 % in `mj_step`; each now
+  answers off `data.contact.geom` in one expression, and a geom id is
+  resolved by name once per model. The map's inflation is a chamfer
+  distance transform, pinned identical to the iterated dilation it
+  replaced (`tests/test_frontier.py`). A new per-step check goes through
+  the same readers; `tests/test_contact_reads.py` is where its parity
+  with a plain loop is shown.
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws. `control.slew` for wheels;

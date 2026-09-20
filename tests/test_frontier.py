@@ -46,3 +46,25 @@ def test_traversable_excludes_unknown():
   trav = traversable_mask(logodds)
   assert trav[5, 5]
   assert trav.sum() == 1                 # unknown space is never traversable
+
+
+def test_inflation_is_the_iterated_cross_dilation_it_replaced():
+  """rooftop-media-2026 #296: the chamfer transform must give the SAME
+  mask as `binary_dilation(occupied, iterations=r)` with scipy's default
+  cross structure -- a taxicab ball -- on any grid, edges and all. Random
+  grids, three radii; a single differing cell is a changed planner."""
+  from scipy.ndimage import binary_dilation
+  from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH
+  rng = np.random.default_rng(296)
+  for trial in range(12):
+    h, w = rng.integers(3, 60, size=2)
+    logodds = rng.choice([FREE_THRESH - 1.0, 0.0, OCC_THRESH + 1.0],
+                         size=(h, w), p=[0.6, 0.3, 0.1])
+    for r in (1, 4, 7):
+      occupied = logodds > OCC_THRESH
+      old = (logodds < FREE_THRESH) & ~binary_dilation(occupied, iterations=r)
+      new = traversable_mask(logodds, robot_radius_cells=r)
+      assert np.array_equal(old, new), (trial, r)
+  # ...and a grid with nothing occupied inflates nothing.
+  clear = np.full((20, 30), FREE_THRESH - 1.0)
+  assert traversable_mask(clear).all()

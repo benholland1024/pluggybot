@@ -1451,8 +1451,45 @@ rebound on a recompile like everything else (it rendered the old model
 until now), and the site's clock follows the stream's measured pace, so a
 world that cannot hold real time -- a pair, on one physics thread --
 plays smoothly slow rather than stop-and-go, with the pace shown beside
-"live". A pair still wants `PLUGGY_RATE=0.5` served, so the pacer sleeps
-rather than the sim running flat out at whatever the box allows.
+"live". The entry below is where the remaining half went.
+
+## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
+
+With the tag camera's shadows off (the entry above) the served pair still
+ran at 0.5×, on one core, so the thread itself was profiled: `py-spy
+record` at 100 Hz over a 130-sim-second pair day inside the deployed
+image (414 s of samples). Self time, by frame:
+
+| share | frame | what it was |
+|---|---|---|
+| 26.3 % | `coupling.module_power_state` | the tool's electrical criterion |
+| 12.8 % | `tick.step` | `mj_step` — the physics |
+| 9.8 % | `scipy._binary_erosion` | the map's inflation, per replan |
+| 9.6 % | `coupling.rack_charge_contact` | the charge pins' criterion |
+| 8.9 % | `depth.frame` | the depth camera, 10 Hz per robot |
+| 7.2 % | `swap._pressing` | the bumper |
+| 5.7 % | `mission._after_step` | the collision count |
+| 3.1 % | `render` | the tag camera (was ~80 %) |
+
+Four of the top seven were Python loops over `data.contact[i]` — a pybind
+struct per contact, 83 contacts at rest in the home world, 2 ms steps,
+two robots — run EVERY step: ~330 000 struct constructions a sim-second,
+49 % of the thread against 13 % in the physics. Each reader now answers
+off `data.contact.geom`, the (ncon, 2) array view, in one expression, and
+resolves a geom's id by name once per model (`coupling.geom_id`; the
+string lookup was paid twice a step). The inflation was
+`binary_dilation(occupied, iterations=7)` over the 49 × 21 m grid on
+every 2-second replan, ~300 ms a call because scipy re-walks the array
+seven times; the same taxicab ball is one chamfer distance transform
+(`distance_transform_cdt`), two passes, and `tests/test_frontier.py` pins
+the masks identical on random grids.
+
+**What is true now:** the readers give the answers the loops gave
+(`tests/test_contact_reads.py` runs both on a live world), a scripted
+day hashes IDENTICAL before and after (`determinism_spike --compare`),
+and the pair's physics thread is mostly physics. What is left and
+deliberate: the depth camera's 8 400 rays at 10 Hz per robot (a sensor's
+honest rate, Parts.md), the lidar, and the decode.
 
 ## Debugging workflow that worked
 
