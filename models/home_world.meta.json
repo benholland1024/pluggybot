@@ -69,8 +69,12 @@
   "plant_1": "plant",
   "plant_2": "plant",
   "plant_3": "plant",
+  "garden_plate": "plate",
   "lab_cage": "cage",
   "lab_mouse": "mouse",
+  "lab_shock_plate": "plate",
+  "lab_feed_plate": "plate",
+  "lab_toy_plate": "plate",
   "lab_bench": "table",
   "furniture_couch": "couch",
   "furniture_bed": "bed",
@@ -478,6 +482,20 @@
    27.68,
    1.5
   ]
+ },
+ "plates": {
+  "garden_plate": {
+   "purpose": "light"
+  },
+  "lab_shock_plate": {
+   "purpose": "shock"
+  },
+  "lab_feed_plate": {
+   "purpose": "feed"
+  },
+  "lab_toy_plate": {
+   "purpose": "toy"
+  }
  },
  "gridBounds": [
   -17.5,
