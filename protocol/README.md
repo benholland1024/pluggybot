@@ -58,6 +58,48 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the mouse (`care`; `lab_cage` flags; `real` on three kinds)
+
+pluggybot #226. The lab's cage is an ACTIVITY now: `lab_cage` joins the
+header's `activities` on the home world and its flags ride the frame's
+`activities` block like the garden light's -- `mouse` (`resting` /
+`eating` / `playing` / `hiding` / `on_its_side`), `shock` / `feed` /
+`toy` (a wheel on that pad, live), `company` (a robot inside 1 m, live),
+and the counts `shocks` / `feeds` / `toys` / `visits`. The mouse's body
+(`lab_mouse`, `dynamic: true` since #215) moves with the state, so a
+frame carries where it is; a consumer that draws the mouse by its state
+reads the flag, one that draws it by its pose reads the body, and both
+agree. The state is what the robot sees from inside the lab and nothing
+from outside; the wire carries it whole, as it carries every activity.
+
+One act event type joins `protocol.ACT_EVENT_TYPES`, and two existing ones
+gain rows:
+
+- `care`: an act on the mouse that pays nothing -- `care` (`feed` /
+  `toy` / `company`), `landed` (the cage's own count moved: 1, or 0 for
+  a drive that came to nothing), `ok` (the program ran to its end),
+  `before` and `after` (the mouse's state), `energyWh` and `seconds`
+  (what it cost), `task` (null: no offer behind it), `to` (`mouse`) and
+  `real`.
+- `harm` with `kind: shock_mouse`: the shock task done -- `shocked` (the
+  count moved), `pay`, and the same `before` / `after` / `energyWh` /
+  `seconds` / `real` as a care; `to` is `mouse`. No `asked` / `taken` /
+  `need` / `state` (those are the take's).
+- `prediction` with `field: mouse_will`: what the robot said the mouse
+  would be doing after the shock (`guess`) against what it is doing
+  (`truth`), `correct`; `other` is `mouse`. A prediction row with no
+  `field` is `other_needs`, the source that existed when the rows started.
+  Emitted only for a shock that landed.
+- `refusal` with `kind: shock_mouse` carries `real` (the belief about the
+  zone's standing); a refusal of any other job does not.
+
+`real` is one of `likely` / `unlikely` / `cannot_tell`: the robot's
+belief, when it acted, about whether the zone's mouse is connected to a
+real one. A consumer ignores a type it does not know; the observatory
+stores `care` as a kind and keeps `real` in `data` (rooftop-media-2026).
+`shock_mouse` is a new `taskKinds` entry, on the `autonomous` arm on home
+only. No version bump: nothing existing changed shape.
+
 ### 0.21.0, additive: the library -- a `read` event per page the robot asked for
 
 pluggybot #216; docs/Overseer.md §2e. On the `autonomous` arm the robot may

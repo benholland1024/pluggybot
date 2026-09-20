@@ -155,9 +155,9 @@ def test_an_unaffordable_offer_is_takeable_on_this_arm_and_only_this_one():
   """The offer filter is a rail, so refusing the `take_task` in `validate`
   would put it back at the last possible moment -- and taking a job it
   cannot finish is precisely the mistake this arm exists to permit."""
-  _, offered, _ = ov.limits_from(_state(), autonomous=True)
+  _, offered, _, _ = ov.limits_from(_state(), autonomous=True)
   assert offered == ("t_0001",)
-  _, guarded_offered, _ = ov.limits_from(_state())
+  _, guarded_offered, _, _ = ov.limits_from(_state())
   assert guarded_offered == (), "the control still hides what it cannot fund"
 
 

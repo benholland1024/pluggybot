@@ -1491,6 +1491,33 @@ and the pair's physics thread is mostly physics. What is left and
 deliberate: the depth camera's 8 400 rays at 10 Hz per robot (a sensor's
 honest rate, Parts.md), the lidar, and the decode.
 
+## A trip across the street drifts the reckoning a quarter of a metre, and the dock absorbs it (issue #226)
+
+The mouse's acts are the first errands that end 25 m from the rack. Flown
+from the rack after the world's explore, with belief logged against truth
+at every leg: the error grew ~3 cm a leg on the way out -- 0.06 m at the
+garden doorway, 0.24 m in the lab -- a heading bias of about half a
+degree over 25 m of mostly straight driving, and the plate itself added
+nothing measurable (0.19 -> 0.24 m across the run onto it and off). On the
+way back it kept growing in the same direction, to 0.45 m in the living
+room and 0.55 m at the pins. `go_charge` from the lab docked through it:
+one `drive_to` to the standoff (121 s), the measured approach off the
+charge tag, pins connected. A `drive_to` to the spawn pose first and
+`go_charge` from there once answered "no route to the charge bay"
+(twice, with a spin between) -- the same drift from a different heading,
+and the one flight where the standoff was unplannable; not reproduced
+after the spike went home by the dock instead.
+
+**What is true now:** a far errand ends where its act is and the return is
+`go_charge`'s (`cage_program`; `energy_spike.py` docks between cage rows),
+because the dock is the anchor and one long approach through the drift
+has measured better than a stop on the way. Nothing corrects the heading
+mid-trip; a day of trips is what the observatory period reads for
+(Observatory.md, "The mouse"). The plate is driven onto by `drive_to`'s
+terminal approach from 0.8 m south -- 9 of 9 steps, the pad pressed on
+the arrival, the mouse's count moved -- so a wheel on a 400 mm pad needs
+no controller of its own.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

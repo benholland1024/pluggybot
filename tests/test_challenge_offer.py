@@ -122,7 +122,8 @@ def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded():
   autonomous = world_targets("home", book, procedures=True)
   assert "challenge" not in guarded
   assert autonomous["challenge"] == ["workshop"]
-  assert {k: v for k, v in autonomous.items() if k != "challenge"} == guarded
+  # (`cage` rides the same gate, issue #226)
+  assert {k: v for k, v in autonomous.items() if k not in ("challenge", "cage")} == guarded
   # ...and the producer follows the targets: on `guarded` the rotation
   # simply has no tower in it.
   beat = default_cadence("home")
