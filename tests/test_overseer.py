@@ -13,7 +13,6 @@ is an LLM that bricks the world overnight.
 """
 
 import json
-import math
 import threading
 import time
 from collections import Counter
@@ -734,9 +733,18 @@ def test_the_sim_keeps_running_while_the_overseer_thinks():
   steps = []
   life.mission.step_hooks.append(lambda: steps.append(life.data.time))
   t0 = life.data.time
+  wall0 = time.monotonic()
   life._decide()
+  wall = time.monotonic() - wall0
   life.mission.close()
   assert life.data.time > t0, "the sim did not advance while it was thinking"
   assert len(steps) > 100, f"only {len(steps)} physics steps during the call"
   assert life.decisions[0]["source"] == "llm"
-  assert math.isclose(life.data.time - t0, 0.6, abs_tol=0.5)
+  # The loop returns when the ANSWER lands, not when the deadline does: the
+  # fake takes 0.6 s and the deadline is 2 s, so the wall clock sits between
+  # them (a loop that waited out the deadline reads 2.5 s here, measured).
+  # ⚠ NOT a sim-time window -- the lifecycle is `realtime=False`, so
+  # sim-seconds per wall-second is the box's speed, not the rule's: this
+  # read ~1 sim-s per 0.6 s call when written and ~2 after #253 made the
+  # physics seam cheaper, and a window on it measured the machine.
+  assert 0.6 <= wall < 2.0, f"{wall:.2f} s wall for a 0.6 s call"
