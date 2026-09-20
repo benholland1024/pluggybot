@@ -327,3 +327,41 @@ def test_a_tool_the_agent_specified_is_built_fetched_used_and_stowed(tmp_path, m
   assert proc["ok"] and proc["completed"] == 5, proc
   assert (tmp_path / "t" / "tools" / "scoop.tool.json").exists()
   assert not [d for d in out["decisions"] if ov.fallback_class(d["source"]) == "failure"]
+
+
+def _bare_objects(node, path=""):
+  """Every `type: object` with neither `properties` nor `anyOf`."""
+  found = []
+  if isinstance(node, dict):
+    if (node.get("type") == "object" and "properties" not in node
+        and "anyOf" not in node):
+      found.append(path)
+    for key, value in node.items():
+      found += _bare_objects(value, f"{path}/{key}")
+  elif isinstance(node, list):
+    for i, value in enumerate(node):
+      found += _bare_objects(value, f"{path}[{i}]")
+  return found
+
+
+def test_the_spec_is_described_so_a_strict_provider_decodes_it():
+  """`build_tool.spec` was a bare `{"type": "object"}` and the stricter
+  providers behind the router refuse that before decoding a token ("Object
+  fields require at least one of: 'properties' or 'anyOf'", issue #225) --
+  every candidate on them fell to the prose retry and `constrained: false`.
+  The described spec names exactly the fields `workshop/spec.py` accepts, so
+  a field added there without a grammar entry fails here."""
+  from pluggybot.workshop import spec as spec_mod
+  schema = ov.Menu.for_world("room_hub").schema(tools=("scoop",))
+  assert _bare_objects(schema) == []
+  described = schema["properties"]["build_tool"]["properties"]["spec"]
+  part = described["properties"]["parts"]["items"]
+  assert set(part["properties"]) == spec_mod.PART_FIELDS
+  assert set(part["properties"]["axis"]["properties"]) == spec_mod.AXIS_FIELDS
+  assert set(described["properties"]) == spec_mod.SPEC_FIELDS
+  # ...and the example the prompt shows fits the grammar: every field of
+  # every part is one the grammar names (no jsonschema in the tree; the
+  # shape is small enough to walk by hand).
+  for part_ in SCOOP["parts"]:
+    assert set(part_) <= set(part["properties"]), part_
+    assert set(part_) >= set(part["required"]), part_

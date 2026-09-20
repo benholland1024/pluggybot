@@ -71,6 +71,7 @@ from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.activity.cage import MOUSE_STATES
 from pluggybot.economy.questions import clean_answer
+from pluggybot.mind import spend as spend_mod
 from pluggybot.mind.spend import SpendBook
 from pluggybot.economy.scoring import RewardTable, default_table
 from pluggybot.mind.thoughts import (
@@ -183,11 +184,17 @@ MAX_TOKENS = 1024
 #: writes a long thing to remember spends the budget it needed to finish the
 #: object. ⚠ 1024 was not enough either -- A0's first flight truncated again,
 #: because the write fields and `reason` are free strings with no length in
-#: the schema and a model that feels expansive can fill any budget. 2048 is
+#: the schema and a model that feels expansive can fill any budget. 2048 was
 #: headroom, not a guarantee; the honest fix is a `maxLength` on those
 #: fields, which the structured-output subset may or may not accept and
 #: which is not worth risking a silent downgrade to prose for.
-MAX_TOKENS_AUTONOMOUS = 2048
+#: ⚠ 8192 SINCE THE PICK REASONS (issue #225). A reasoning model spends the
+#: budget on its reasoning FIRST, and what it cannot finish is an EMPTY
+#: answer, billed in full: at 2048, GLM-5.3-Flash and DeepSeek-V4.1-Flash
+#: each lost 1 in 8 on the deployed prompt; at 8192, 0 and 1 in 50, with
+#: the answer itself still ~800 tokens. The budget is a ceiling, not a
+#: spend -- a model that answers in 800 pays for 800.
+MAX_TOKENS_AUTONOMOUS = 8192
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
 #: world was started with -- free, if that is the local model -- and the robot
@@ -201,10 +208,16 @@ MAX_TOKENS_AUTONOMOUS = 2048
 #: it is bought instead of -- the only reason to spend anything. Full sweep:
 #: docs/Overseer.md section 8.
 #:
-#: `ESCALATE_MAX_TOKENS` is doubled from the routine 512 because #15's sweep
-#: measured a big model TRUNCATING at that ceiling rather than refusing.
+#: `ESCALATE_MAX_TOKENS` was doubled from the routine 512 because #15's
+#: sweep measured a big model TRUNCATING at that ceiling rather than
+#: refusing; it is `MAX_TOKENS_AUTONOMOUS` since #225 for the same reason
+#: one level up -- a reasoning escalation (`zai-org/GLM-5.2`, measured)
+#: came back EMPTY on every call at 1024, $0.012 a call for nothing, and
+#: answered 4 of 5 at 8192 ($0.016, 25-86 s). The deployed world escalates
+#: to nothing this period (docs/Observatory.md); the constant is what a
+#: reasoning target needs when one is named.
 ESCALATE_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
-ESCALATE_MAX_TOKENS = 1024
+ESCALATE_MAX_TOKENS = MAX_TOKENS_AUTONOMOUS
 #: ⚠ SCARCITY HAS TO BITE, and these two are how. A budget that covers most
 #: decisions is just a slower frontier model with extra steps: if thinking
 #: hard earns points, an agent with an unconstrained escalation learns to
@@ -358,6 +371,7 @@ FALLBACK_REASONS = (
   "idle-run",       # two idle turns running; do something
   "no-client",      # no SDK, no key, no endpoint: never asked at all
   "scripted-mode",  # the operator turned the spending off (issue #37)
+  "allowance",      # the weekly USD allowance is spent (issue #225)
 )
 
 #: ...AND THEY FALL INTO TWO CLASSES, which is the line `_record` had been
@@ -379,7 +393,8 @@ FALLBACK_REASONS = (
 #: policy about its own failure modes, and the two genuinely warrant
 #: different answers. That inherits `FALLBACK_REASONS`' two-repo contract --
 #: adding a reason is additive, renaming one is breaking.
-POLICY_FALLBACKS = ("budget", "cooloff", "idle-run", "scripted-mode")
+POLICY_FALLBACKS = ("budget", "cooloff", "idle-run", "scripted-mode",
+                    "allowance")
 FAILURE_FALLBACKS = tuple(w for w in FALLBACK_REASONS
                           if w not in POLICY_FALLBACKS)
 
@@ -750,6 +765,31 @@ class Decision:
 # ---- the choices the world actually offers ----------------------------------
 
 
+#: The tool spec's shape, as `workshop/spec.py` documents it -- the fields
+#: are `spec.PART_FIELDS` / `AXIS_FIELDS`, and the optional ones stay
+#: optional (`required` names only what every part carries), so an idle
+#: `build_tool` is still `{"name": "", "bay": "", "spec": {"name": "",
+#: "parts": []}}` and the workshop's `parse` remains the judge of content.
+_NUMBERS = {"type": "array", "items": {"type": "number"}}
+SPEC_SCHEMA = {
+  "type": "object", "additionalProperties": False,
+  "required": ["name", "parts"],
+  "properties": {
+    "name": {"type": "string"},
+    "parts": {"type": "array", "items": {
+      "type": "object", "additionalProperties": False,
+      "required": ["id", "part", "pos"],
+      "properties": {
+        "id": {"type": "string"}, "part": {"type": "string"},
+        "pos": _NUMBERS, "euler": _NUMBERS, "on": {"type": "string"},
+        "size": _NUMBERS,
+        "axis": {"type": "object", "additionalProperties": False,
+                 "required": ["verb", "dir", "range", "stow"],
+                 "properties": {"verb": {"type": "string"}, "dir": _NUMBERS,
+                                "range": _NUMBERS, "stow": {"type": "number"}}},
+      }}}}}
+
+
 @dataclass
 class Menu:
   """What this world can be asked for, resolved once at construction.
@@ -1057,15 +1097,19 @@ class Menu:
                                       "topic": {"type": "string"}}},
             "retract": {"type": "string"}} if procedures is not None else {}),
         # THE WORKSHOP'S TWO VERBS (issue #168), on the library's terms: a
-        # tool to build (its name, the bay it takes, and its spec -- an
-        # object the workshop validates and refuses out loud, so free-form
-        # here) and a built tool to retire. Absent where there is no
-        # workshop.
+        # tool to build (its name, the bay it takes, and its spec) and a
+        # built tool to retire. Absent where there is no workshop. The spec
+        # is DESCRIBED (`SPEC_SCHEMA`): the workshop still validates and
+        # refuses out loud, but a bare `{"type": "object"}` is refused by
+        # the stricter providers behind the router before any token is
+        # decoded (issue #225: "Object fields require at least one of:
+        # 'properties' or 'anyOf'"), which took every candidate on them
+        # to the prose retry and `constrained: false`.
         **({"build_tool": {"type": "object", "additionalProperties": False,
                            "required": ["name", "bay", "spec"],
                            "properties": {"name": {"type": "string"},
                                           "bay": enum(BAY_LETTERS),
-                                          "spec": {"type": "object"}}},
+                                          "spec": SPEC_SCHEMA}},
             "retire_tool": enum(tools)} if tools is not None else {}),
         # BUY A LIFE BACK (issue #136). A plain boolean and ABSENT where
         # there are no hearts to buy, on ESCALATION_RULE's terms: a lever
@@ -2070,6 +2114,7 @@ right now, every time, before you answer.
   idle-run       you have stood still twice running and are being made to move
   no-client      there is nothing to ask on this world at all
   scripted-mode  the person who looks after you turned the thinking off
+  allowance      this week's money for thinking is spent
 
 ...or one of two words for a whole group of them: `failure` is something \
 going WRONG -- the first three, and `busy` -- and `policy` is this working \
@@ -3146,6 +3191,7 @@ class Overseer:
     # out or the ladder's first two rungs are one run.
     self.show_survival = bool(show_survival)
     self.max_tokens = MAX_TOKENS_AUTONOMOUS if autonomous else MAX_TOKENS
+    self.escalate_max_tokens = ESCALATE_MAX_TOKENS
     #: THE LIBRARY (issue #166), or None where the robot keeps none -- every
     #: arm but `autonomous`. Its presence is what puts `procedure:<name>` on
     #: the menu, the two fields in the schema and the rule in the prompt.
@@ -3362,7 +3408,7 @@ class Overseer:
     per_call = (self.usage.input_tokens // self.usage.llm_calls
                 if self.usage.llm_calls else 0) or ESCALATE_ASSUMED_IN
     return (per_call * self.escalation_usage.usd_per_mtok_in
-            + ESCALATE_MAX_TOKENS
+            + self.escalate_max_tokens
             * self.escalation_usage.usd_per_mtok_out) / 1e6
 
   def why_not_escalate(self, decision: Decision) -> str:
@@ -3453,7 +3499,7 @@ class Overseer:
       waiting, offered, answering, predicting = limits_from(state, self.autonomous)
       recall = _recall_allowed(state)
       response = self.escalation_client.messages.create(
-        model=self.escalate_model, max_tokens=ESCALATE_MAX_TOKENS,
+        model=self.escalate_model, max_tokens=self.escalate_max_tokens,
         system=self.system,
         output_config={"format": {"type": "json_schema",
                                   "schema": self.menu.schema(
@@ -3496,6 +3542,51 @@ class Overseer:
     return replace(better, escalate=False,
                    source=f"llm:{self.escalate_model}")
 
+  def _bank_decision(self) -> None:
+    """Book what the routine mind's last call cost (issue #225).
+
+    The delta of `usage.usd` since the last booking, so it is exactly what
+    `_meter` just added: the response's own usage at the backend's own
+    rates. Nothing where there is no book; an unpriced backend books $0
+    and is counted, on the book's terms.
+    """
+    if self.spend is None:
+      return
+    spent = self.usage.usd - getattr(self, "_usd_banked", 0.0)
+    self._usd_banked = self.usage.usd
+    self._banked_calls = getattr(self, "_banked_calls", 0) + 1
+    self.spend.record(spent, model=self.model, kind=spend_mod.DECISION,
+                      priced=self.usage.priced,
+                      tokens=self.usage.input_tokens + self.usage.output_tokens)
+
+  def decision_estimate(self) -> float:
+    """What the NEXT routine call would cost, in USD: this run's own mean.
+
+    Zero before the first call, so a fresh process with any allowance left
+    may ask once and price itself off the answer. Over BILLED calls, not
+    valid ones: a garbled answer cost what it cost.
+    """
+    calls = getattr(self, "_banked_calls", 0)
+    return self.usage.usd / calls if calls else 0.0
+
+  def _allowance_ok(self) -> bool:
+    """THE WEEKLY CAP, on the routine mind (issue #225).
+
+    `$PLUGGY_WEEKLY_USD` was the escalations' ceiling alone; the routine
+    calls were metered in-process and never banked, so the cap Ben set
+    against a monthly bill capped a tenth of it. Now every decision books
+    its cost and a spent allowance refuses the next one -- a POLICY
+    fallback, the allowance working: on `guarded` the rotation, on
+    `autonomous` the standing order or `idle`, and if the map cannot ask,
+    `unminded` inside 1800 s, which is what an empty purse costs on that
+    arm. `left > 0` as well as `can_spend`, because `left` is clamped at
+    zero and `can_spend(0.0)` would let a fresh process ask once a restart
+    on an allowance that is gone.
+    """
+    if self.spend is None:
+      return True
+    return self.spend.left > 0 and self.spend.can_spend(self.decision_estimate())
+
   def _bank_escalation(self) -> None:
     """Record what the last escalation actually cost, from the response's own
     usage block and the escalation model's own rates."""
@@ -3504,7 +3595,8 @@ class Overseer:
     usage = self.escalation_usage
     spent = usage.usd - getattr(self, "_esc_usd_banked", 0.0)
     self._esc_usd_banked = usage.usd
-    self.spend.record(spent, model=self.escalate_model, kind="escalation",
+    self.spend.record(spent, model=self.escalate_model,
+                      kind=spend_mod.ESCALATION,
                       priced=usage.priced,
                       tokens=usage.input_tokens + usage.output_tokens)
 
@@ -3622,6 +3714,8 @@ class Overseer:
   def _refuse(self, state: dict) -> str:
     if self.budget_left() <= 0:
       return "budget"
+    if not self._allowance_ok():
+      return "allowance"
     if self._idle_run >= MAX_IDLE_RUN:
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
@@ -3728,6 +3822,9 @@ class Overseer:
       if self.budget_left() <= 0:
         self._int_slot = {"answer": self._interrupt_fallback("budget")}
         return
+      if not self._allowance_ok():
+        self._int_slot = {"answer": self._interrupt_fallback("allowance")}
+        return
       if self.client is None:
         self._int_slot = {"answer": self._interrupt_fallback("no-client")}
         return
@@ -3779,8 +3876,9 @@ class Overseer:
           model_state(state, self.autonomous, self.show_survival),
           errand, why)}],
       )
-      raw = _extract_json(response)
       self._meter(response)
+      self._bank_decision()
+      raw = _extract_json(response)
       answer = {"continue": bool(raw.get("continue_errand")),
                 "why": clean(raw.get("reason"), MAX_REPLY), "source": "llm"}
       slot = {"answer": answer}
@@ -4027,6 +4125,12 @@ class Overseer:
         messages=[{"role": "user", "content": _user_turn(
           model_state(state, self.autonomous, self.show_survival))}],
       )
+      # BILLED IS BILLED (issue #225): metered and banked before the answer
+      # is parsed, because a reasoning model that spent its whole budget
+      # thinking and returned nothing was charged for every token of it,
+      # and metering after `validate` counted that call as free.
+      self._meter(response)
+      self._bank_decision()
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered, answering=answering,
                                     predicting=predicting,
@@ -4035,7 +4139,6 @@ class Overseer:
                                     procedures=self._procedures(),
                                   tools=self._tools(), others=self._acts(),
                                   recall=recall)
-      self._meter(response)                 # before publishing; see below
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
       # afford one, the answer this returns is the expensive one's (issue
@@ -4416,6 +4519,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           thoughts: ThoughtFiles | None = None,
           robot_name: str | None = None,
           others: tuple = (),
+          timeout_s: float | None = None,
           ) -> "Overseer | None":
   """The overseer for a world, or None when disabled.
 
@@ -4525,5 +4629,10 @@ def build(world: str, book=None, enabled: bool | None = None,
                       standing_orders=standing_orders,
                       autonomous=autonomous, show_survival=show_survival,
                       calls_per_hour=calls_per_hour, library=library, workshop=workshop,
-                      others=others, wiki=desk)
+                      others=others, wiki=desk,
+                      # None is the backend's own deadline, as every served
+                      # world runs; the probe hands in its own cap (issue
+                      # #225) so a candidate measured through the deployed
+                      # prompt is measured uncensored.
+                      timeout_s=timeout_s)
   return overseer

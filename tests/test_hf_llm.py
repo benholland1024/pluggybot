@@ -185,3 +185,62 @@ def test_build_reads_the_model_from_the_environment(monkeypatch):
   monkeypatch.delenv(overseer.MODEL_ENV)
   boss = overseer.build("room_hub", enabled=True, client=object())
   assert boss.model == overseer.MODEL
+
+
+def test_every_request_names_itself_and_not_urllib():
+  """A Cloudflare WAF in front of at least one provider answers urllib's
+  default `Python-urllib/3.x` with a 403 page (issue #225): the same body
+  under any other name goes through. So every request carries our own
+  User-Agent, and one that dropped it would be a served robot one re-route
+  away from `fallback:offline` on every decision."""
+  fetch = fake_fetch([ok_payload('{"action": "idle"}')])
+  create(fetch)
+  ua = fetch.calls[0]["headers"].get("User-Agent", "")
+  assert ua.startswith("pluggybot/"), ua
+  assert "urllib" not in ua.lower()
+
+
+CATALOGUE = (200, {"data": [
+  {"id": "org/model-8b", "providers": [
+    {"provider": "fast-co", "status": "live",
+     "pricing": {"input": 0.35, "output": 0.75}},
+    {"provider": "cheap-co", "status": "live",
+     "pricing": {"input": 0.04, "output": 0.2}},
+    {"provider": "gone-co", "status": "offline",
+     "pricing": {"input": 0.001, "output": 0.001}},
+  ]},
+]})
+
+
+def test_a_named_provider_is_priced_as_itself():
+  """The router routes a bare id by its own preference order (measured: a
+  bare gpt-oss-120b went to Cerebras at ten times the cheapest rate), so a
+  deployment pins `org/name:<provider>` and the bill is that provider's --
+  the cheapest live rate would be a lie about a call that never went there."""
+  client = HFClient(token="hf_test", fetch=fake_fetch([CATALOGUE]))
+  assert client.pricing("org/model-8b:fast-co") == (0.35, 0.75)
+  client = HFClient(token="hf_test", fetch=fake_fetch([CATALOGUE]))
+  assert client.pricing("org/model-8b:cheap-co") == (0.04, 0.2)
+
+
+def test_cheapest_and_bare_price_as_the_cheapest_live_provider():
+  client = HFClient(token="hf_test", fetch=fake_fetch([CATALOGUE]))
+  assert client.pricing("org/model-8b:cheapest") == (0.04, 0.2)
+  client = HFClient(token="hf_test", fetch=fake_fetch([CATALOGUE]))
+  assert client.pricing("org/model-8b") == (0.04, 0.2)
+
+
+def test_a_policy_nobody_can_price_is_unknown_not_a_guess():
+  """`:fastest` -- and an offline or unknown provider -- means nothing here
+  can say who answers, and "unknown" is the report, never a number."""
+  for suffix in ("fastest", "gone-co", "nobody"):
+    client = HFClient(token="hf_test", fetch=fake_fetch([CATALOGUE]))
+    assert client.pricing(f"org/model-8b:{suffix}") is None, suffix
+
+
+def test_the_suffix_rides_to_the_router_untouched():
+  """The suffix is the ROUTER's syntax: the request carries the id as
+  given, and it is only `pricing()` that takes it apart."""
+  fetch = fake_fetch([ok_payload('{"action": "idle"}')])
+  create(fetch, model="org/model-8b:cheapest")
+  assert fetch.calls[0]["body"]["model"] == "org/model-8b:cheapest"

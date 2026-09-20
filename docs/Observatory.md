@@ -10,6 +10,72 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The mind is GLM-5.3-Flash (#225) — opens when the deployed `.env` moves, closes the 4B's period
+
+**What changed in the mind.** `PLUGGY_MODEL` moves from
+`Qwen/Qwen3-4B-Instruct-2507` to **`zai-org/GLM-5.3-Flash:cheapest`** (the
+suffix pins the router's provider policy; a bare id is billed at whatever
+provider the router prefers), `PLUGGY_ESCALATE_TO` is unset (the
+`escalate` field and its rule leave the schema and the prompt), and
+`PLUGGY_WEEKLY_USD` is 9.30 — $40 a month as a weekly share — and now caps
+the routine mind as well as escalations (`fallback:allowance`, Overseer.md
+§8). `build.model` is in the identity, so nothing before this deploy pools
+with anything after it. The answer budget on `autonomous` is 8192 tokens
+(a reasoning model's, Overseer.md §6). Same world, same arm (`autonomous`,
+origin `unseeded`), same pair, same memory. The choice is the sweep in
+Overseer.md §6: fifty calls through the deployed prompt against an offer
+the pack cannot pay for — every instruct model took it, every reasoning
+model charged first, and this one did so 49 times in 50 at 8 s median,
+$0.0022 a call. Three adapter fixes ride in the same PR (a User-Agent a
+provider's WAF accepts, a described `build_tool.spec`, garbled answers
+billed) and they are corrections, not the period.
+
+**What the period closes.** The 4B's: memory phase 1 (#221), the
+real-stake task (#228), the second house (#215), the library (#216), the
+mouse (#226), the bench (#227) and the conversation (#125) all opened on
+it, and each of their "not yet known" lists asked *whether a 4B* does the
+thing. Their readings up to this deploy are the 4B's answers; the week
+before the switch, off `/observe`: 3941 decisions, 82 % of the newest
+thousand `idle`, 13 charges, 146 deaths (46 `unminded`, 40 `flat`, 37
+`stuck`, 23 `unpaid`), 0 escalations, 36 `garbled`, 56 `timeout`.
+
+**What the period is for.** The third death-rate change, and the one the
+issue expected to move the number: A0's failure was reasoning about energy
+with every figure in front of it, and the probe says this model does that
+reasoning. What to read, over the first two weeks, off `/observe` with the
+commit:
+
+- Deaths by cause against the 4B's week: `flat` is the direct test (a
+  robot that charges when the arithmetic says so should not run flat
+  mid-errand); `unminded` says whether it writes itself an `ask` row from
+  nothing (the probe saw it set up its event map unprompted, "so I keep
+  getting asked").
+- `charge` rows by `voluntary` / `forced` / `deferred`: a voluntary charge
+  at a healthy fraction is the caution the arm exists to measure.
+- `decision` rows: the share of `idle` (82 % on the 4B), `take_task`
+  against offers whose cost exceeds the pack (`energy.json` beside the
+  battery fraction on the row), and `reason` lines that carry a number —
+  the probe's signature was "0.9 Wh won't cover the 0.992".
+- `sources`: `fallback:timeout` against the 4B's 1.5 % (the pick's probe
+  tail is 43 s max against the 90 s deadline), `fallback:garbled` (an
+  empty answer is a reasoning budget spent; 8192 should make it rare), and
+  the new `fallback:allowance` — any at all means the purse emptied, and
+  the `spend` block's `calls` × cost says how fast.
+- The bill: `spend.spentUsd` against 9.30 across the rolling week, and the
+  decision rate itself (calls per wall-hour for the pair, 13.6 on the 4B):
+  a mind that idles less makes fewer decisions an hour, not more, and the
+  monthly figure follows the rate.
+- Every earlier period's list, re-read: notes and pins per day, `recall`,
+  `read`, `tool` / `procedure` rows, the mouse, the bench, the take. A 4B
+  that never did a thing and a model that does it are the comparison those
+  periods were waiting for.
+
+**Not yet known.** The actual decision rate on this model (the bill is
+priced at the 4B's); whether the weekly cap is ever reached, and what a
+robot does in the hours after it is; whether a reasoning model's 8 s median
+holds under the pair's two concurrent calls; whether it ever asks for a
+bigger mind, which cannot be seen while escalation is off.
+
 ### The visitor channel is a conversation (rooftop-media-2026 #125) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** A visitor can follow up on
