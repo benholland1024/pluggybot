@@ -17,6 +17,11 @@ from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 
+#: Mermaid caps a `stateDiagram-v2` edge label at 200 px and a longer line
+#: wraps (Chromium) or is cut off (Firefox) -- issue #259's clipped labels.
+#: At the renderer's 16 px sans that is ~7 px a character; 26 leaves margin.
+LABEL_LINE_CHARS = 26
+
 
 def _mermaid_blocks() -> list[str]:
   blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), re.S)
@@ -32,6 +37,16 @@ def _state_names(block: str) -> set[str]:
     if m:
       names.update(n for n in m.groups() if n != "[*]")
   return names
+
+
+def _label_lines(block: str) -> list[str]:
+  """Every `<br/>`-separated line of every transition label."""
+  lines = []
+  for line in block.splitlines():
+    m = re.match(r"\s*\S+\s*-->\s*\S+\s*:\s*(.*)", line)
+    if m:
+      lines.extend(part.strip() for part in m.group(1).split("<br/>"))
+  return lines
 
 
 def _diagram_verbs(block: str) -> set[str]:
@@ -53,6 +68,14 @@ def test_the_loop_diagram_names_every_death_cause_and_event_type():
     assert f"`{event}`" in section, f"event type {event!r} is not in the README's list"
   for event in events.INTERRUPTING_EVENTS:
     assert event in loop, f"interrupting event {event!r} does not leave USE_TOOL"
+
+
+def test_every_loop_label_line_fits_the_renderers_width_cap():
+  loop, _ = _mermaid_blocks()
+  lines = _label_lines(loop)
+  assert lines, "the loop diagram has labelled transitions"
+  long = [line for line in lines if len(line) > LABEL_LINE_CHARS]
+  assert not long, f"label lines over {LABEL_LINE_CHARS} chars would wrap or clip: {long}"
 
 
 def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
