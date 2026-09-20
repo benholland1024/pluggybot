@@ -318,6 +318,7 @@ class HubMission:
     self._cam_id = model.camera(self.handle.el("dock_eye")).id
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
+    self._pin_gids_array = np.array(sorted(self._charge_pin_gids))
 
   def rebind(self, model, data) -> None:
     """Point the mission and everything it owns at a recompiled world
@@ -439,17 +440,17 @@ class HubMission:
         # a clear path -- hold course rather than inventing one.
         if front.size and front.min() < FRONT_STOP_RANGE:
           self.backoff_until = self.data.time + BACKOFF_TIME
-    for i in range(self.data.ncon):
-      c = self.data.contact[i]
-      if self.chassis_gid in (c.geom1, c.geom2):
-        # The charge pins touch the bumper BY DESIGN -- counting that as a
-        # collision made a successful charge look like 24 750 steps of
-        # wall-grinding. Intended contact is not a collision.
-        other = c.geom1 if c.geom2 == self.chassis_gid else c.geom2
-        if other in self._charge_pin_gids:
-          continue
+    # The chassis's contacts off the array view (rooftop #296), not a
+    # Python loop over every contact in the world each step.
+    g = self.data.contact.geom[:self.data.ncon]
+    mine = (g[:, 0] == self.chassis_gid) | (g[:, 1] == self.chassis_gid)
+    if mine.any():
+      # The charge pins touch the bumper BY DESIGN -- counting that as a
+      # collision made a successful charge look like 24 750 steps of
+      # wall-grinding. Intended contact is not a collision.
+      others = np.where(g[mine, 0] == self.chassis_gid, g[mine, 1], g[mine, 0])
+      if not np.isin(others, self._pin_gids_array).all():
         self.collision_steps += 1
-        break
 
   def _spin(self) -> None:
     return self.run(self._spin_routine())

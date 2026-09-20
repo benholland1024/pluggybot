@@ -12,6 +12,7 @@ navigation already delivers, exactly as DOCK did in milestone 6.
 import math
 
 import mujoco
+import numpy as np
 
 from pluggybot import tick
 from pluggybot.control import slew
@@ -204,14 +205,19 @@ class HubSwap:
     v_wheels = float(d.qvel[self.left_dof] + d.qvel[self.right_dof])
     if abs(v_wheels) < 1e-3:
       return False
-    r = d.xmat[self.chassis_bid].reshape(3, 3)
-    origin = d.xpos[self.chassis_bid]
-    for i in range(d.ncon):
-      c = d.contact[i]
-      if self.chassis_gid in (c.geom1, c.geom2):
-        x_body = float((r.T @ (c.pos - origin))[0])
-        if press_opposes_drive(x_body, v_wheels):
-          self._press_side = math.copysign(1.0, x_body)
+    # The chassis's contacts, read off the array view in one go (rooftop
+    # #296): the Python loop is over those few rows, never all of `ncon`.
+    g = d.contact.geom[:d.ncon]
+    mine = np.flatnonzero((g[:, 0] == self.chassis_gid) | (g[:, 1] == self.chassis_gid))
+    if mine.size:
+      r = d.xmat[self.chassis_bid].reshape(3, 3)
+      origin = d.xpos[self.chassis_bid]
+      # x in the CHASSIS frame for every contact point at once: r.T @ v
+      # per row is (pos - origin) @ r on the stack.
+      xs = ((d.contact.pos[mine] - origin) @ r)[:, 0]
+      for x_body in xs:
+        if press_opposes_drive(float(x_body), v_wheels):
+          self._press_side = math.copysign(1.0, float(x_body))
           self._press_until = d.time + PRESS_RELEASE_S
           return True
     return (d.time < self._press_until

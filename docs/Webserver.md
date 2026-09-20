@@ -240,6 +240,11 @@ tag-camera frame cost 1113 ms with the home world's sixteen shadow-casting
 lights and 32 ms without; the detector renders without shadows now, and
 the same pair measured **0.54×** on the box (53.6 s sim / 100 s wall, four
 cores, the production sim contending) with the container on one core --
-the physics thread, the floor for a pair. More cores do not move that;
-`PLUGGY_RATE=0.5` and the site's pace-following clock are what make it
-watchable.
+the physics thread. **Then the thread was profiled** (SimNotes,
+"four-fifths bookkeeping"): half of it was Python walking the contact
+list struct by struct every step, and a tenth the map's inflation. With
+those read as arrays the same pair measured **0.96×** over the 60 s carry
+(53.6 s sim / 56 s wall) and **0.80×** over its whole day (259 s / 324 s,
+the swaps at 1 ms timesteps being the dear part), 2026-09-20. A pair is
+one physics thread: more cores do not move it, and the site's
+pace-following clock covers what is left.

@@ -6,7 +6,7 @@ is complete when no reachable frontiers remain.
 """
 
 import numpy as np
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import distance_transform_cdt
 
 FREE_THRESH = -0.5   # log-odds below this = confidently free
 OCC_THRESH = 0.5     # log-odds above this = confidently occupied
@@ -26,7 +26,17 @@ def traversable_mask(logodds: np.ndarray, robot_radius_cells: int = 7) -> np.nda
   we haven't seen.
   """
   occupied = logodds > OCC_THRESH
-  inflated = binary_dilation(occupied, iterations=robot_radius_cells)
+  # `binary_dilation(occupied, iterations=r)` with scipy's default cross
+  # structure, which this was: r iterated 4-neighbour dilations, i.e. every
+  # cell within TAXICAB distance r of an occupied one. The chamfer distance
+  # transform answers the same question in two passes over the grid instead
+  # of r full passes -- MEASURED (rooftop-media-2026 #296) at ~300 ms a call
+  # on the 49 x 21 m home grid, on every 2 s replan, 10 % of the served
+  # pair's physics thread. `tests/test_frontier.py` pins the two identical.
+  if occupied.any():
+    inflated = distance_transform_cdt(~occupied, metric="taxicab") <= robot_radius_cells
+  else:
+    inflated = occupied
   free = logodds < FREE_THRESH
   return free & ~inflated
 
