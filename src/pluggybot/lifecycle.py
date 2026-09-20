@@ -66,7 +66,7 @@ from pluggybot.perception.heightmap import HeightMap
 from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
                              charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
-  DEATH_CAUSES, robot_display_name,
+  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
@@ -2770,12 +2770,12 @@ class HubLifecycle:
                 f"{got['hearts']} now, {got['balance']} points left")
       self._remember(f"bought {other.robot_name} a life for {HEART_PRICE} points")
     elif got["ok"]:
-      self._say(f"BOUGHT a heart for {HEART_PRICE} -- {got['hearts']} now, "
+      self._say(f"{HEART_BOUGHT}{HEART_PRICE} -- {got['hearts']} now, "
                 f"{got['balance']} points left")
       self._remember(f"bought a life back for {HEART_PRICE} points; "
                      f"{got['hearts']} left")
     else:
-      self._say(f"HEART refused: {got['why']}")
+      self._say(f"{HEART_REFUSED}{got['why']}")
 
   def role_in(self, task_id: str) -> str:
     """This robot's role in a job with roles, or "" (issue #167)."""

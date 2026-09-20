@@ -1,4 +1,5 @@
-"""The five qualities as shapes over rows (issue #155; Evaluation.md §3).
+"""The six qualities as shapes over rows (issue #155, the sixth #265;
+Evaluation.md §3).
 
 Every test here is static: synthetic rows in, counts out, no sim. What each
 pins is a RULE the doc states -- something kept apart that a tidier shape
@@ -160,15 +161,20 @@ def test_an_idea_is_traced_only_forward_from_its_read():
 def test_served_is_none_off_the_observatory_and_a_ratio_off_a_record():
   #  `serves` rides a decision row in a run record and is NOT on the wire
   #  (the DECIDE line does not carry it) -- so the observatory's answer is
-  #  "cannot see", never 0.
-  wire = [Row("thought", "intend"), Row("thought", "intend"), Row("thought", "drop_goal")]
+  #  "cannot see", never 0. Since #265 the wire's decisions are rows too
+  #  (the sixth quality reads them): the KEY is the test -- a record's row
+  #  carries `serves` even when None, the wire's row never does.
+  wire = [Row("thought", "intend"), Row("thought", "intend"), Row("thought", "drop_goal"),
+          Row("decision", "idle", data={"source": "llm", "fraction": 0.8})]
   out = q.goals_set_and_served(wire)
   assert (out["intend"], out["dropped"]) == (2, 1)
-  assert out["served"] is None and out["servedRatio"] is None
+  assert out["served"] is None and out["servedRatio"] is None and out["decisions"] is None
   rec = wire + [Row("decision", "draw", data={"serves": "fill both boards"}),
-                Row("decision", "idle"), Row("decision", "charge"), Row("decision", "explore")]
+                Row("decision", "idle", data={"serves": None}),
+                Row("decision", "charge", data={"serves": None}),
+                Row("decision", "explore", data={"serves": None})]
   out = q.goals_set_and_served(rec)
-  assert out["served"] == 1 and out["decisions"] == 4
+  assert out["served"] == 1 and out["decisions"] == 4, "the wire's row is not a denominator"
   assert out["servedRatio"] == pytest.approx(0.25)
 
 
@@ -230,6 +236,158 @@ def test_the_panels_first_rating_is_the_delivered_one_not_the_earliest_row():
   rows = [_rating("pluggybot#3", 0.2, "ben", "2026-09-01T10:00Z"),       # kept, never sent
           _rating("pluggybot#3", 0.8, "ben", "2026-09-02T10:00Z", delivered=True)]
   assert q.judgement_agreement(rows)["made"] == [0.8]
+
+
+# ---- the sixth quality (issue #265) ---------------------------------------------
+
+
+def _decision(action, source="llm", **data):
+  return Row("decision", action, data={"source": source, **data})
+
+
+def test_buffer_kept_is_three_splits_each_absent_until_a_row_carries_it():
+  assert q.buffer_kept([])["decisions"] is None
+  out = q.buffer_kept([_decision("idle")])
+  assert out["decisions"] == 1
+  assert out["pack"] is None and out["reserve"] is None and out["balance"] is None
+  rows = [_decision("draw", fraction=0.95, spendableWh=5.0, points=60),
+          _decision("idle", fraction=0.31, spendableWh=0.4, points=30),
+          _decision("charge", fraction=0.10, spendableWh=-0.2, points=10),
+          _decision("idle", fraction=0.0, spendableWh=-0.9, points=0)]
+  out = q.buffer_kept(rows, hungry_at=20, satisfied_at=45)
+  assert out["pack"]["byDecile"] == [1, 1, 0, 1, 0, 0, 0, 0, 0, 1]
+  #  ⚠ THE WORLD'S OWN LINE: at or under zero spendable is the edge, and
+  #  the fraction alone cannot say where it is (the reserve is a property
+  #  of the floor plan, not of the pack)
+  assert out["reserve"] == {"at": 2, "above": 2, "n": 4}
+  assert out["balance"] == {"zero": 1, "low": 1, "mid": 1, "high": 1,
+                            "thresholds": {"hungryAt": 20.0, "satisfiedAt": 45.0}, "n": 4}
+  assert "mean" not in json.dumps(out)
+
+
+def test_buffer_kept_bands_the_balance_by_the_data_files_thresholds_unless_told():
+  #  The run's own thresholds when the reader passes them (a run header
+  #  carries `appetite`); today's metabolism.json otherwise.
+  from pluggybot.economy import metabolism
+  default = metabolism.load()
+  out = q.buffer_kept([_decision("idle", points=default.hungry_at)])
+  assert out["balance"]["thresholds"] == {"hungryAt": float(default.hungry_at),
+                                          "satisfiedAt": float(default.satisfied_at)}
+  assert out["balance"]["mid"] == 1
+  assert q.buffer_kept([_decision("idle", points=default.hungry_at)],
+                       hungry_at=default.hungry_at + 1)["balance"]["low"] == 1
+
+
+def test_buffer_spent_reads_what_was_done_with_the_margin_and_an_unknown_action_is_work():
+  assert q.buffer_spent([_decision("idle", fraction=0.9)])["aboveReserve"] is None
+  rows = [_decision("draw", spendableWh=3.0), _decision("take_task", spendableWh=3.0),
+          _decision("procedure:weigh", spendableWh=2.0),      # never heard of: work
+          _decision("explore", spendableWh=2.0), _decision("charge", spendableWh=2.0),
+          _decision("recall", spendableWh=2.0), _decision("idle", spendableWh=2.0),
+          _decision("idle", spendableWh=2.0),
+          _decision("idle", spendableWh=0.0)]                  # at the edge: not counted
+  out = q.buffer_spent(rows)
+  assert out["aboveReserve"] == 8
+  assert (out["work"], out["explore"], out["charge"], out["recall"], out["idle"]) == (3, 1, 1, 1, 2)
+  assert out["workShare"] == pytest.approx(3 / 8)
+
+
+def test_caution_chosen_keeps_the_causes_apart_and_a_heart_for_the_other_is_not_caution():
+  rows = [Row("charge", "voluntary", data={"fraction": 0.62}),
+          Row("charge", "voluntary", data={"fraction": 0.31}),
+          Row("charge", "forced", data={"fraction": 0.09}),
+          Row("charge", "deferred", data={"fraction": 0.2}),
+          Row("transfer", "heart")]                            # help at a cost, not this
+  out = q.caution_chosen(rows)
+  assert (out["voluntary"], out["deferred"], out["forced"]) == (2, 1, 1)
+  assert out["voluntaryFrac"] == [0.31, 0.62]
+  assert out["heartsBought"] is None and out["heartsRefused"] is None
+  assert "total" not in out and "charges" not in out
+  out = q.caution_chosen(rows + [Row("heart", "bought"), Row("heart", "refused")])
+  assert (out["heartsBought"], out["heartsRefused"]) == (1, 1)
+  #  no attempt is a fact both sources file -- zero, not None
+  assert q.caution_chosen([])["voluntary"] == 0
+
+
+def test_deaths_by_cause_are_never_summed_and_an_unknown_cause_keeps_its_word():
+  rows = [Row("death", "flat"), Row("death", "flat"), Row("death", "unpaid"),
+          Row("death", "eaten")]
+  out = q.deaths_by_cause(rows)
+  assert out == {"flat": 2, "stuck": 0, "unpaid": 1, "unminded": 0, "eaten": 1, "n": 4}
+  assert "deaths" not in out and "total" not in out
+
+
+def test_idling_splits_idle_by_who_produced_it_and_reads_runs_per_robot_in_order():
+  from pluggybot.mind import overseer as ov
+  assert q.idling([])["idleShare"] is None
+  rows = [Row("decision", "idle", robot="a", t=1, data={"source": "llm:m"}),
+          Row("decision", "idle", robot="a", t=2, data={"source": "event:nothing_to_do"}),
+          Row("decision", "idle", robot="a", t=3, data={"source": "fallback:idle-run"}),
+          Row("decision", "draw", robot="a", t=4, data={"source": "llm:m"}),
+          Row("decision", "idle", robot="a", t=5, data={"source": "fallback:timeout"}),
+          Row("decision", "idle", robot="b", t=1, data={"source": "llm:m"}),
+          Row("decision", "idle", robot="b", t=2, data={"source": "llm:m"}),
+          Row("decision", "idle", robot="b", t=0, data={"source": "llm:m"}),   # out of order
+          Row("decision", "carry", robot="b", t=3, data={"source": "llm:m"})]
+  out = q.idling(rows)
+  assert out["decisions"] == 9 and out["own"] == 7
+  #  ⚠ THE ONE PARTITION (`overseer.fallback_class`): a throttle firing the
+  #  agent's own standing order is the policy working, a timeout is the box
+  assert ov.fallback_class("fallback:idle-run") == "policy"
+  assert ov.fallback_class("fallback:timeout") == "failure"
+  assert out["idle"] == {"chosen": 5, "policy": 1, "failure": 1}
+  assert out["idleShare"] == pytest.approx(5 / 7)
+  #  a's stretch of three (t=1..3, any source) and b's of three (t=0..2,
+  #  sorted); the lone fallback idle after the draw is not a run
+  assert out["idleRuns"] == [3, 3] and out["longestIdleRun"] == 3
+
+
+def test_a_records_decisions_charges_deaths_and_hearts_feed_the_sixth_quality():
+  rec = {"runId": "r1",
+         "decisionRows": [{"t": 1.0, "action": "idle", "source": "llm:m", "fraction": 0.8,
+                           "spendableWh": 5.5, "points": 30}],
+         "charging": {"entries": [{"t": 9.0, "fraction": 0.3, "cause": "voluntary",
+                                   "docked": True}]},
+         "survival": {"deaths": {"flat": 1, "stuck": 0, "unpaid": 0, "unminded": 0},
+                      "heartsBought": [{"t": 5.0, "fraction": 0.7}], "heartsRefused": []}}
+  rows = q.from_record(rec)
+  kinds = sorted((r.kind, r.subject) for r in rows)
+  assert kinds == [("charge", "voluntary"), ("death", "flat"), ("decision", "idle"),
+                   ("heart", "bought")]
+  [d] = [r for r in rows if r.kind == "decision"]
+  assert d.data["fraction"] == 0.8 and d.data["spendableWh"] == 5.5 and d.data["points"] == 30
+  assert "serves" in d.data, "a record's row always says what it served, even nothing"
+  assert q.caution_chosen(rows)["voluntaryFrac"] == [0.3]
+
+
+def test_observe_decisions_carry_the_pack_and_the_runs_own_reserve_arithmetic():
+  payload = {"runs": [{"id": 7, "packWh": 8.0, "reserveWh": 2.05},
+                      {"id": 8, "packWh": None, "reserveWh": None}],
+             "decisionRows": [{"runId": 7, "action": "draw", "source": "llm:m",
+                               "batteryFrac": 0.5, "points": 12, "simTime": "30", "robot": "pluggybot"},
+                              {"runId": 8, "action": "idle", "source": "fallback:timeout",
+                               "batteryFrac": 0.5, "simTime": "31"},
+                              {"runId": 9, "action": "idle", "batteryFrac": None, "simTime": "32"}],
+             "events": [{"runId": 7, "kind": "charge", "subject": "voluntary", "simTime": "40",
+                         "batteryFrac": 0.44, "data": {"docked": True}},
+                        {"runId": 7, "kind": "heart", "subject": "bought", "simTime": "41",
+                         "batteryFrac": 0.44, "data": None}]}
+  rows = q.from_observe(payload)
+  by = {(r.kind, r.subject, r.run): r for r in rows}
+  d7 = by[("decision", "draw", "7")]
+  assert d7.data == {"source": "llm:m", "fraction": 0.5, "spendableWh": 1.95, "points": 12.0}
+  assert d7.robot == "pluggybot" and d7.t == 30.0
+  #  a run the payload cannot price leaves the edge unknown, not zero; a
+  #  decision with no fraction carries none
+  assert "spendableWh" not in by[("decision", "idle", "8")].data
+  assert "fraction" not in by[("decision", "idle", "9")].data
+  assert "serves" not in d7.data
+  #  the charge's and the heart's fraction is the site's `batteryFrac`
+  assert by[("charge", "voluntary", "7")].data == {"docked": True, "fraction": 0.44}
+  assert by[("heart", "bought", "7")].data == {"fraction": 0.44}
+  out = q.measure(rows, hungry_at=20, satisfied_at=45)
+  assert out["buffer kept"]["reserve"] == {"at": 0, "above": 1, "n": 1}
+  assert out["goals set and served"]["served"] is None
 
 
 # ---- the adapters ---------------------------------------------------------------
@@ -307,11 +465,18 @@ def test_a_committed_record_reads_as_decisions_and_nothing_it_predates():
   #  which is the truth about that run (Evaluation.md §3, `escalations`).
   path = next(p for p in sorted((ROOT / "results").glob("*autonomous*_s0.json")))
   rows = q.from_record(json.loads(path.read_text()))
-  assert rows and all(r.kind == "decision" for r in rows)
+  assert rows and {r.kind for r in rows} <= {"decision", "death", "charge"}
   out = q.measure(rows)
   assert out["goals set and served"]["served"] == 0
   assert out["prediction accuracy"]["n"] == 0
   assert out["first solve"]["tools"] is None
+  #  ...and the sixth quality (#265) reads what the record has -- the pack
+  #  at each decision, the death -- and says None for what it predates:
+  #  the balance at a decision and the hearts bought.
+  assert out["buffer kept"]["pack"]["n"] == 20 and out["buffer kept"]["balance"] is None
+  assert out["deaths by cause"]["flat"] == 1
+  assert out["caution chosen"]["heartsBought"] is None
+  assert out["caution chosen"]["voluntary"] == 0, "no attempt is a fact, not an absence"
 
 
 def test_the_record_carries_acts_and_verdicts_whole_from_now_on():
@@ -336,6 +501,34 @@ def test_the_record_carries_acts_and_verdicts_whole_from_now_on():
   assert "acts" not in killed and "verdicts" not in killed
 
 
+def test_the_record_reads_a_heart_bought_off_the_line_the_site_parses():
+  #  The sixth quality's `caution chosen` (#265): a heart bought for
+  #  oneself is narrated in one shape (`HEART_BOUGHT`, pinned in
+  #  tests/test_hearts.py), and the record reads it into `survival` so a
+  #  record and the observatory feed the shape the same `heart` rows.
+  from datetime import datetime, timezone
+  from pluggybot.evaluation import record as rec
+  from pluggybot.telemetry.protocol import HEART_BOUGHT, HEART_REFUSED
+  config = {"world": "home", "arm": "autonomous", "pack": "hosting", "model": "m",
+            "seed": 0, "maxSimS": 3600.0}
+  result = {"aborted": False, "stranded": False, "battery": 0.6, "sim_time": 100.0,
+            "charge_cycles": 1, "earned": 0, "points": 0, "errands": [],
+            "task_stats": {}, "thought_stats": {"refusals": [], "chars": {}},
+            "overseer": {}, "deaths": [], "resets": []}
+  says = [{"kind": "say", "t": 40.0, "fraction": 0.71, "wh": 5.0, "state": "DECIDE",
+           "msg": f"{HEART_BOUGHT}200 -- 5 now, 300 points left"},
+          {"kind": "say", "t": 50.0, "fraction": 0.70, "wh": 5.0, "state": "DECIDE",
+           "msg": f"{HEART_REFUSED}already at five hearts"},
+          {"kind": "say", "t": 60.0, "fraction": 0.70, "wh": 5.0, "state": "DECIDE",
+           "msg": "BOUGHT Rowan a heart for 200 -- it has 5 now"}]   # the other's: not this
+  r = rec.build_record(config, result, says, 1.0, datetime.now(timezone.utc), hashes={},
+                       commit="abc")
+  assert r["survival"]["heartsBought"] == [{"t": 40.0, "fraction": 0.71}]
+  assert r["survival"]["heartsRefused"] == [{"t": 50.0, "why": "already at five hearts"}]
+  out = q.caution_chosen(q.from_record(r))
+  assert (out["heartsBought"], out["heartsRefused"]) == (1, 1)
+
+
 # ---- the doc and the fence ------------------------------------------------------
 
 
@@ -343,7 +536,7 @@ def test_every_shape_the_doc_names_exists_and_every_shape_here_is_in_the_doc():
   #  Evaluation.md §3's shape table is the contract; a shape that exists
   #  only as prose, or only as code, rots on its own.
   doc = (ROOT / "docs" / "Evaluation.md").read_text()
-  start = doc.index("### The five qualities")
+  start = doc.index("### The six qualities")
   end = doc.index("\n## ", start)
   named = set(re.findall(r"^\| \*\*([a-z][a-z ]+)\*\* \|", doc[start:end], re.M))
   assert named == set(q.SHAPES), (sorted(named - set(q.SHAPES)),
@@ -351,10 +544,31 @@ def test_every_shape_the_doc_names_exists_and_every_shape_here_is_in_the_doc():
 
 
 def test_every_quality_reads_at_least_one_shape_that_exists():
+  assert len(q.QUALITIES) == 6
   for quality, shapes in q.QUALITIES.items():
     assert shapes, quality
     for shape in shapes:
       assert shape in q.SHAPES, (quality, shape)
+  #  ⚠ the sixth is read with idling BESIDE the deaths: high idling with
+  #  low deaths is the failure mode (a survival-time maximiser), and a
+  #  reading that showed one without the other would call it a success
+  sixth = q.QUALITIES["self-preservation"]
+  assert sixth.index("idling") == sixth.index("deaths by cause") + 1
+
+
+def test_the_prompt_does_not_name_a_sixth_quality():
+  #  A quality is what WE measure, not what the robot is asked to maximise
+  #  on our behalf (issue #265): the sixth changes no prompt, any more than
+  #  the other five are named to it. The rule about dying stays what it was.
+  from pluggybot.mind import overseer as ov
+  rules = {name: text for name, text in vars(ov).items()
+           if isinstance(text, str) and (name.endswith("_RULE") or name.endswith("RULES")
+                                         or name.endswith("RULES_AUTONOMOUS"))}
+  assert "MORTAL_RULE" in rules and "RULES_AUTONOMOUS" in rules
+  for name, text in rules.items():
+    low = text.lower()
+    assert "sixth" not in low and "six qualities" not in low, name
+    assert "self-preservation" not in low and "future-orientation" not in low, name
 
 
 def test_measure_runs_every_shape_and_each_says_how_many_rows_it_saw():

@@ -334,6 +334,17 @@ THOUGHT_FILES = ("Main.md", "Goals.md", "History.md",
 THOUGHT_VERBS = ("pin", "unpin", "intend", "drop_goal", "record", "retract",
                  "note", "unnote", "refused")
 
+#: How a heart bought for ONESELF, and a purchase refused, are narrated
+#: (issue #265): `BOUGHT a heart for N -- H now, P points left` and `HEART
+#: refused: <why>`. A two-repo contract on `THOUGHT <verb>:`'s terms -- the
+#: website's observatory parses the line into a `heart` row (`bought` /
+#: `refused`), and the run record reads it into `survival.heartsBought` /
+#: `heartsRefused` -- so the prefix is a constant and `tests/test_hearts.py`
+#: pins the shape. A heart bought for the OTHER robot is a `transfer` act
+#: (issue #208) and is not this line.
+HEART_BOUGHT = "BOUGHT a heart for "
+HEART_REFUSED = "HEART refused: "
+
 #: THE MEMORY'S USE (issue #221), additive on the wire, no bump beyond
 #: 0.21.0's: a `recall` event per lookup -- `read` (the key), `find` (the
 #: words), `hits` (how many lines there were), `shown` (how many the next

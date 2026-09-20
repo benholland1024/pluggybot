@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Read the five qualities off the deployed world, or off run records
-(issue #155; Evaluation.md §3, "The five qualities").
+"""Read the six qualities off the deployed world, or off run records
+(issue #155, the sixth #265; Evaluation.md §3, "The six qualities").
 
     scripts/qualities.py --observe [--site https://rooftop-media.org] [--days 7]
     scripts/qualities.py --record results/<runId>.json [...]
@@ -20,7 +20,9 @@ from one uncontrolled run is what it is (§5); a series is `experiment.py`'s.
 
 ⚠ A kind that returns exactly the route's cap is TRUNCATED, and the reading
 says so beside the regime: the cap drops the oldest rows first, so a busy
-week under-reports the early days rather than sampling them.
+week under-reports the early days rather than sampling them. The decisions
+(`decisionRows`, the sixth quality's rows) come back on the same call under
+the same cap and the same rule.
 """
 from __future__ import annotations
 
@@ -45,7 +47,7 @@ OBSERVE_CAP = 1000
 #: yet" rather than as zero rows.
 OBSERVE_KINDS = ("thought", "task", "tool", "procedure", "prediction", "message",
                  "transfer", "judged", "yield", "harm", "refusal", "care", "read",
-                 "finding")
+                 "finding", "charge", "death", "heart")
 
 
 def _get(site: str, token: str, **params) -> dict:
@@ -56,10 +58,17 @@ def _get(site: str, token: str, **params) -> dict:
 
 
 def read_observe(site: str, token: str, days: int) -> tuple[dict, list[dict], dict]:
-  """(the base payload, every event row across the kinds, {kind: note})."""
-  base = _get(site, token, days=days, limit=1)
+  """(the base payload, every event row across the kinds, {kind: note}).
+
+  The base call is made AT THE CAP for its `decisionRows` (the sixth
+  quality reads them; the site sends the newest `limit`), and its
+  unfiltered `events` are not used -- each kind is pulled on its own below.
+  """
+  base = _get(site, token, days=days, limit=OBSERVE_CAP)
   events: list[dict] = []
   notes: dict[str, str] = {}
+  if len(base.get("decisionRows") or []) >= OBSERVE_CAP:
+    notes["decisions"] = f"truncated at {OBSERVE_CAP} (oldest dropped)"
   for kind in OBSERVE_KINDS:
     try:
       page = _get(site, token, days=days, limit=OBSERVE_CAP, kind=kind)
@@ -80,13 +89,18 @@ def regime_of(run: dict) -> str:
 
 
 def group_observe(base: dict, events: list[dict]) -> dict[str, dict]:
-  """Rows by regime, with the runs each regime pooled."""
+  """Rows by regime, with the runs each regime pooled -- and, per regime,
+  the newest run's `appetite` (its upkeep bands, for `buffer kept`)."""
   runs = {str(r["id"]): r for r in base.get("runs") or ()}
-  out: dict[str, dict] = defaultdict(lambda: {"runs": set(), "rows": []})
+  out: dict[str, dict] = defaultdict(lambda: {"runs": set(), "rows": [], "kw": {}})
   payload_by_run: dict[str, list[dict]] = defaultdict(list)
+  decisions_by_run: dict[str, list[dict]] = defaultdict(list)
   for e in events:
     payload_by_run[str(e.get("runId"))].append(e)
-  for run_id, rows in payload_by_run.items():
+  for d in base.get("decisionRows") or ():
+    decisions_by_run[str(d.get("runId"))].append(d)
+  for run_id in {*payload_by_run, *decisions_by_run}:
+    rows = payload_by_run.get(run_id, [])
     run = runs.get(run_id)
     #  A site older than the windowed `runs` list sends the digest's newest
     #  forty, and a sim restarting every minute fills those in under an
@@ -95,7 +109,12 @@ def group_observe(base: dict, events: list[dict]) -> dict[str, dict]:
     key = (regime_of(run) if run
            else "unattributed: runs the site did not name (older site, or past its cap)")
     out[key]["runs"].add(run_id)
-    out[key]["rows"].extend(q.from_observe({"events": rows}))
+    out[key]["rows"].extend(q.from_observe({"events": rows, "runs": [run] if run else [],
+                                            "decisionRows": decisions_by_run.get(run_id, [])}))
+    appetite = (run or {}).get("appetite") or {}
+    if appetite.get("hungryAt") is not None and not out[key]["kw"]:
+      out[key]["kw"] = {"hungry_at": appetite["hungryAt"],
+                        "satisfied_at": appetite["satisfiedAt"]}
   #  The rating panel's rows are not per run (a rating lands days after the
   #  drawing); they go with the regime the drawing's run belongs to when
   #  the site says which, else with the newest regime, and the reading says.
@@ -108,7 +127,7 @@ def group_observe(base: dict, events: list[dict]) -> dict[str, dict]:
 
 
 def group_records(paths: list[str]) -> dict[str, dict]:
-  out: dict[str, dict] = defaultdict(lambda: {"runs": set(), "rows": []})
+  out: dict[str, dict] = defaultdict(lambda: {"runs": set(), "rows": [], "kw": {}})
   for p in paths:
     rec = json.loads(Path(p).read_text())
     key = regime_of({"arm": rec.get("arm"), "commit": rec.get("commit"),
@@ -129,7 +148,7 @@ def render(regimes: dict[str, dict], head: str, notes: dict[str, str]) -> str:
       continue
     if group.get("artworksNote"):
       lines.append(f"  ⚠ {group['artworksNote']}")
-    measured = q.measure(group["rows"])
+    measured = q.measure(group["rows"], **group.get("kw", {}))
     for quality, shapes in q.QUALITIES.items():
       lines.append(f"  {quality}")
       for shape in shapes:
@@ -170,7 +189,7 @@ def main(argv=None) -> int:
       "head": head, "notes": notes,
       "regimes": {k: {"runs": sorted(g["runs"]), "rows": len(g["rows"]),
                       **({"note": g["artworksNote"]} if g.get("artworksNote") else {}),
-                      **({"measured": q.measure(g["rows"])}
+                      **({"measured": q.measure(g["rows"], **g.get("kw", {}))}
                          if not k.startswith("unattributed") else {"measured": None})}
                   for k, g in readings.items()}}, indent=2, default=str))
   else:

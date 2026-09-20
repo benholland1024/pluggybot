@@ -1,7 +1,7 @@
 # pluggybot
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it.
-What the project is for, and the five qualities the agent is meant to
+What the project is for, and the six qualities the agent is meant to
 maximise, are in [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind
 sits in the loop is [`docs/Overseer.md`](docs/Overseer.md).
 
