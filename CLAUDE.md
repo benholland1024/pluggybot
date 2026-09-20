@@ -729,6 +729,17 @@ save a filmstrip PNG named after the script.
   hear you is treated as absent. ⚠ Sanitising (280 chars, control characters
   stripped) is NOT the security boundary; the framing (a labelled report of
   what somebody WANTS, never a message role) and the fixed menu are.
+  ⚠ **It is a CONVERSATION** (rooftop-media-2026 #125; Overseer.md §10): an
+  inbound `message` may carry `thread` / `turn` / `earlier` — the WEBSITE's
+  state, the newest `MAX_EARLIER` (4) turns kept and cleaned like the
+  message itself (the robot's own earlier words come back as DATA) — and
+  the model is shown `turn` and `earlier` on a follow-up alone, in the
+  user turn; the reply echoes `from`, `sender`, `thread`, `turn`. `sender`
+  (`visitor` / `robot`) is stated by the CALLER of `Inbox.offer`, never
+  read off the wire. Each exchange is two History lines written by the
+  system quoting the sender. NO NEW VERB (a test asserts no decision field
+  names a thread); the one VISITORS bullet moved `GUARDED_RULES_SHA`, on
+  every arm, because a message is not a rail.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`) runs `serve.py` and nothing else: the six packages in
   `deploy/requirements-serve.txt` (pinned to `uv.lock`), `MUJOCO_GL=osmesa`

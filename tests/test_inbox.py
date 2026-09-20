@@ -634,3 +634,200 @@ def test_a_lifecycle_without_an_inbox_is_untouched():
   life._answer_visitor(Decision(action="carry", respond_to="s1",
                                 outcome="accepted", reply="hi"))
   assert life.replies == []
+
+
+# ---- a conversation, not a suggestion box (rooftop-media-2026 #125) ----------
+
+
+def follow_up(**kw) -> dict:
+  """A second message in a thread, as the website sends one: the thread's
+  id, which turn this is, and the exchange so far."""
+  return message(**{"id": "m_2", "text": "and the far board?", "thread": "m_1",
+                    "turn": 2,
+                    "earlier": [{"from": "ada",
+                                 "text": "draw a house on whiteboard_a",
+                                 "outcome": "declined",
+                                 "reply": "whiteboard_a is full -- ask me about b"}],
+                    **kw})
+
+
+def test_a_follow_up_reaches_the_model_with_the_exchange_so_far():
+  """Acceptance criterion one: the robot sees the conversation, not just the
+  latest line. The website owns the thread (it outlives a mission, a restart
+  and a generation), so the earlier turns ride the message -- a transcript
+  is a thing a network carries -- and the model is shown them beside it."""
+  msg = Inbox().offer(follow_up())
+  assert msg is not None
+  assert (msg.thread, msg.turn) == ("m_1", 2)
+  ctx = msg.as_context()
+  assert ctx["turn"] == 2
+  assert ctx["earlier"] == [{"from": "ada", "text": "draw a house on whiteboard_a",
+                             "outcome": "declined",
+                             "reply": "whiteboard_a is full -- ask me about b"}]
+  # ...and still a labelled report, not a turn in a chat with the model.
+  assert "role" not in json.dumps(ctx).lower()
+
+
+def test_a_first_message_reads_exactly_as_it_always_did():
+  """The thread id rides every message from a website that has threads (a
+  first message is the root of its own), and the model must see NOTHING new
+  for it: `turn` and `earlier` appear on a follow-up alone."""
+  msg = Inbox().offer(message(thread="s1", turn=1, earlier=[]))
+  assert msg is not None and msg.thread == "s1" and msg.turn == 1
+  assert set(msg.as_context()) == {"id", "from", "text"}
+  # A website older than the field sends none of the three.
+  bare = Inbox().offer(message())
+  assert (bare.thread, bare.turn, bare.earlier) == ("", 1, ())
+  assert set(bare.as_context()) == {"id", "from", "text"}
+
+
+def test_the_earlier_turns_are_cleaned_capped_and_off_the_wires_vocabulary():
+  """Both ends cap, and the sim's cap is the one that protects the sim: the
+  newest MAX_EARLIER turns are kept, each text is a message's length, and an
+  outcome the sim never emits is dropped -- the sim vouches for its own
+  vocabulary and nothing else. A retired name is folded like a reply's."""
+  from pluggybot.mind.inbox import MAX_EARLIER
+  turns = [{"from": "ada", "text": f"turn {i}", "outcome": "replied",
+            "reply": f"reply {i}"} for i in range(MAX_EARLIER + 3)]
+  turns.append({"from": "ada", "text": "x" * 1000, "outcome": "answered",
+                "reply": "y\x00z\n" + "w" * 1000})
+  turns.append({"from": "ada", "text": "never mind", "outcome": "ignored",
+                "reply": ""})
+  turns.append({"text": "no outcome at all"})
+  turns.append("not even an object")
+  msg = Inbox().offer(follow_up(earlier=turns, turn=len(turns) + 1))
+  assert msg is not None
+  kept = msg.earlier
+  assert len(kept) == MAX_EARLIER
+  assert kept[-1].outcome == "replied"            # `answered` folded
+  assert len(kept[-1].text) == MAX_TEXT and "\x00" not in kept[-1].reply
+  assert kept[-1].reply.startswith("y z")
+  assert [t.text for t in kept[:-1]] == [f"turn {i}" for i in range(4, 7)]
+  assert all(t.outcome in VISITOR_OUTCOMES for t in kept)
+
+
+def test_bad_thread_fields_cost_the_context_and_never_the_message():
+  """What the person said always arrives. A `turn` that is not a number
+  and an `earlier` that is not a list leave a plain message behind."""
+  msg = Inbox().offer(message(thread="m_1", turn="soon", earlier="nonsense"))
+  assert msg is not None and msg.text == "draw a tree on whiteboard_b"
+  assert (msg.turn, msg.earlier) == (1, ())
+  # ...and `earlier` without a thread is no conversation at all.
+  loose = Inbox().offer(message(earlier=[{"from": "a", "text": "b",
+                                          "outcome": "replied"}]))
+  assert loose is not None and loose.earlier == ()
+
+
+def test_the_wire_cannot_say_who_the_sender_is():
+  """`sender` is a fact about the CALLER of `offer` -- the socket, or the
+  other robot's lifecycle (issue #208) -- and a stranger who could mark a
+  message as the other robot's would be borrowing its standing."""
+  from pluggybot.mind.text import PEER, VISITOR
+  forged = Inbox().offer(message(sender="robot"))
+  assert forged is not None and forged.sender == VISITOR
+  peer = Inbox().offer(message(), sender=PEER)
+  assert peer is not None and peer.sender == PEER
+  assert peer.as_dict()["sender"] == PEER
+
+
+def test_a_conversation_adds_context_and_no_verb():
+  """Acceptance criterion two: the model's output vocabulary is unchanged.
+  Threading adds to what the robot is SHOWN; the answer is still an action
+  off the menu plus the three reply fields it always had. No field on the
+  decision names a thread, and the action enum is the menu."""
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), zones=("garden",),
+              census_zone="garden")
+  schema = menu.schema()
+  fields = set(schema["properties"])
+  assert not fields & {"thread", "turn", "earlier", "follow_up", "reply_to"}
+  assert {"respond_to", "outcome", "reply"} <= fields
+  assert schema["properties"]["action"]["enum"] == list(menu.available())
+  assert set(schema["properties"]["outcome"]["enum"]) == {*DECIDED_OUTCOMES, ""}
+
+
+def test_the_conversation_rides_the_turn_and_never_the_cached_prefix():
+  """Acceptance criterion four: the prompt-cache prefix is unaffected by
+  conversation state. The exchange rides `visitorMessages` in the user turn,
+  like everything a stranger says; the system prompt is byte-identical
+  whether or not anybody is mid-conversation."""
+  from pluggybot.mind.overseer import Overseer, context_for
+  from test_overseer import FakeClient
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), zones=("garden",),
+              census_zone="garden")
+  boss = Overseer(menu, client=FakeClient())
+  before = boss.system[0]["text"]
+  msg = Inbox().offer(follow_up())
+  state = context_for(_lifecycle(), visitors=[msg])
+  assert state["visitorMessages"][0]["earlier"][0]["text"] \
+      == "draw a house on whiteboard_a"
+  assert boss.system[0]["text"] == before
+  assert "draw a house on whiteboard_a" not in before
+  # ...and the rule that explains the field IS in the prefix, where rules go.
+  assert "`earlier` is the conversation so far" in before
+
+
+def test_the_reply_echoes_which_conversation_it_belongs_to():
+  """The website closes a row by `id`; the observatory files an exchange
+  by thread and turn (rooftop-media-2026 #125). Echoed off the message,
+  never derived -- and absent, not invented, for a message that carried
+  none."""
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  life.visitor_hooks.append(sent.append)
+  inbox.offer(follow_up())
+  life._answer_visitor(Decision(action="explore", respond_to="m_2",
+                                outcome="replied", reply="b is free now"))
+  assert sent[-1]["thread"] == "m_1" and sent[-1]["turn"] == 2
+  assert sent[-1]["from"] == "ada" and sent[-1]["sender"] == "visitor"
+  inbox.offer(message(id="m_3"))
+  life._answer_visitor(Decision(action="explore", respond_to="m_3",
+                                outcome="replied", reply="hello"))
+  assert "thread" not in sent[-1] and "turn" not in sent[-1]
+  assert sent[-1]["from"] == "ada"
+  # A drop says whose message the queue threw away, on the same terms.
+  life._drop_visitor(inbox.offer(follow_up(id="m_4", turn=3)))
+  assert (sent[-1]["outcome"], sent[-1]["thread"], sent[-1]["turn"]) \
+      == ("dropped", "m_1", 3)
+
+
+def test_the_exchange_is_remembered_by_the_system_quoting_the_sender():
+  """Continuity is memory: what a person said and what the robot answered
+  are two History lines, so `recall find ada` finds everything ada has ever
+  said. Written by the SYSTEM -- a sender never writes a document
+  (mind/text.py) -- and until this issue nothing was written at all: the
+  exchange was narrated and gone."""
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  inbox.offer(message(id="m_1"))
+  inbox.offer(follow_up())
+  life._answer_visitor(Decision(action="draw", board="whiteboard_b",
+                                program="house", respond_to="m_1",
+                                outcome="accepted", reply="on it"))
+  life._answer_visitor(Decision(action="explore", respond_to="m_2",
+                                outcome="declined", reply="b is taken too"))
+  rows = life.thoughts.records.tail(life.thoughts.robot, "history", 4)
+  assert [r.writer for r in rows] == ["system"] * 4
+  lines = [r.text.split("] ", 1)[1] for r in rows]
+  assert lines == ["ada said: draw a tree on whiteboard_b",
+                   "took ada's idea (draw): on it",
+                   "ada said (following up): and the far board?",
+                   "declined ada: b is taken too"]
+  # ...and it is findable by the name, which is the whole point.
+  assert life.thoughts.recall(find="ada far board")["hits"] >= 1
+
+
+def test_the_other_robots_message_is_remembered_the_same_way():
+  """A peer's sentence (issue #208) takes the visitor's path and lands in
+  History under its sender's name -- the recipient used to keep no record
+  of being told anything."""
+  from pluggybot.mind.text import PEER
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  inbox.offer({"type": "message", "id": "r2_pluggybot:1", "from": "Rowan",
+               "text": "the pen is on bay C"}, sender=PEER)
+  life._answer_visitor(Decision(action="explore", respond_to="r2_pluggybot:1",
+                                outcome="replied", reply="thanks"))
+  rows = life.thoughts.records.tail(life.thoughts.robot, "history", 2)
+  assert [r.text.split("] ", 1)[1] for r in rows] \
+      == ["Rowan said: the pen is on bay C", "replied to Rowan: thanks"]

@@ -37,7 +37,7 @@ def _life(world: str = "home", **kw):
 #: control that no longer matches the runs it is the control for. Changing
 #: it is a deliberate act with a re-fly attached, which is exactly what a
 #: failing hash should prompt an argument about.
-#: It has moved TWICE, and every series in `results/` predates both:
+#: It has moved FOUR TIMES, and every series in `results/` predates all of them:
 #:   2026-09-11, the mission statement (docs/PluggyPlan.md) replaced "make
 #:     yourself useful" with "this life is yours" --
 #:     cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05
@@ -48,8 +48,13 @@ def _life(world: str = "home", **kw):
 #:   2026-09-18, issue #221 rebuilt the memory (the tiers, `think`, `pin`,
 #:     `note`; `journal` retired) on EVERY arm, `guarded` included --
 #:     4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0
-#:     was the text before it, and `guarded` is harness-only since #206.
-GUARDED_RULES_SHA = "1c8fa80b9371939ae457eec4ff09c849520643eff62065c9c8a017dd8c5c679b"
+#:     was the text before it, and `guarded` is harness-only since #206;
+#:   2026-09-20, rooftop-media-2026 #125 made the visitor channel a
+#:     conversation: one bullet in VISITORS says what a follow-up's `turn`
+#:     and `earlier` are, on every arm (a message is not a rail) --
+#:     1c8fa80b9371939ae457eec4ff09c849520643eff62065c9c8a017dd8c5c679b
+#:     was the text before it.
+GUARDED_RULES_SHA = "245c05edc69329fc3b51def89dafd9c9646dea38ab0b4ddc3cdd814583c5c5c9"
 
 
 def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():

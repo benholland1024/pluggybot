@@ -1274,8 +1274,9 @@ decision branch — until #221 every ask looked the same from inside.
   is the remove verb and the prompt says so.
 - **`History.md` is written by the lifecycle** (`_remember`) at the moments
   a person catching up would want — waking up, which mind is thinking, each
-  decision, each recall, each banked verdict, a death, an intervention, how
-  the day ended — never the narration. Its lines carry `verdict.reason`,
+  decision, each recall, each banked verdict, each exchange with a visitor
+  or the other robot (theirs, then the robot's; §10), a death, an
+  intervention, how the day ended — never the narration. Its lines carry `verdict.reason`,
   already redacted of a hidden answer, because History is read back into the
   model's context.
 - **The ownership split is the instrument** for the mission's fifth quality:
@@ -1543,6 +1544,33 @@ A model still saying `answered` (the pre-0.14.0 name, cached in an older
 prompt) is folded to `replied` (`LEGACY_VISITOR_OUTCOMES`); the old name lives
 forever in older recordings, so a consumer renders both. The outcome goes back
 as a typed `visitor_reply`, which closes the row the website holds open.
+
+**It is a conversation, not a suggestion box** (rooftop-media-2026 #125).
+A visitor can follow up on an answer, and the follow-up arrives with the
+exchange so far: `thread` (the first message's id), `turn` (which message
+of theirs this is) and `earlier` (the newest `MAX_EARLIER` 4 turns, each
+`from` / `text` / `outcome` / `reply`), because the conversation is the
+WEBSITE's state — it outlives a mission, a restart and a generation, and
+in a pair the robot that answered may not be the one reading — and a
+transcript is a thing a network can carry. The model is shown `turn` and
+`earlier` on a follow-up alone, in `visitorMessages` (the user turn: the
+cached prefix is unaffected by conversation state), under one rule in the
+VISITORS block: *answer as the one who said those things, not as a
+stranger*. ⚠ The earlier turns are cleaned like everything on the socket,
+the robot's own earlier words included: they come back as DATA. ⚠ No new
+verb: the answer is still an action off the menu plus `respond_to` /
+`outcome` / `reply`, and `tests/test_inbox.py` asserts no decision field
+names a thread. A signed-in visitor is named (`from` is the username, the
+label a rating already carries); a stranger stays `a visitor`. The reply
+echoes `from`, `sender` (`visitor` / `robot` — who OFFERED it, stated by
+the caller of `Inbox.offer` and never read off the wire), `thread` and
+`turn`, so the website's observatory files one `conversation` row per
+exchange. **And the exchange is remembered**: two History lines per
+answer, theirs then the robot's (`ada said: …` / `replied to ada: …`),
+written by the system quoting the sender — until this issue the tier
+table promised History "the senders" and nothing was written — so
+`recall find ada` finds everything ada has said across a life, and the
+notes tier (`visitors/ada`) is where the character work lands.
 
 **Ratings never touch the overseer.** A `rating` settles a deferred
 visitor-tier verdict, which moves a balance, so `_visitor_step` drains those
