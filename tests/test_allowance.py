@@ -23,7 +23,7 @@ from pluggybot.mind import mode as mode_mod
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.mode import MODES, ModeSwitch
 from pluggybot.mind.overseer import (
-  ESCALATE_MIN_INTERVAL_S, ESCALATE_SHARE, Decision, Menu, Overseer,
+  ESCALATE_MIN_INTERVAL_S, ESCALATE_SHARE, ESCALATION_POINTS, Decision, Menu, Overseer,
 )
 from pluggybot.mind.spend import WEEK_S, SpendBook
 from pluggybot.telemetry.pacer import RealTimePacer
@@ -203,6 +203,33 @@ def test_scarcity_bites_on_cadence_as_well_as_on_money():
   assert not boss.decide({"decisions": 0}).escalated
   assert boss.escalations_refused["share"] == 1
   assert ESCALATE_SHARE <= 0.25, "a share this large is not scarcity"
+
+
+def test_paying_the_throttle_off_buys_one_ask_and_the_next_ask_pays_again():
+  """ONE PURCHASE, ONE ASK -- `_buy_escalation`'s own rule (issue #135).
+
+  Shown to fail without the fix: `_paid_escalation` was set on the first
+  purchase and never cleared, so every later throttled ask returned True
+  without charging. One payment of 15 points switched the interval and the
+  share off for the rest of the process, and the balance below read 20
+  where it must read 5.
+  """
+  from pluggybot.economy.ledger import Ledger
+  clock = Clock(0.0)
+  ledger = Ledger()
+  ledger.intervene(2 * ESCALATION_POINTS + 5)
+  boss = escalating(answer(escalate=True), answer(action="charge"),
+                    clock=clock, ledger=ledger)
+  assert boss.decide({"decisions": 0}).escalated, "the first ask is free"
+  assert ledger.balance() == 2 * ESCALATION_POINTS + 5
+  assert boss.decide({"decisions": 0}).escalated, "too soon, and paid for"
+  assert ledger.balance() == ESCALATION_POINTS + 5
+  assert boss.decide({"decisions": 0}).escalated, "too soon, and paid AGAIN"
+  assert ledger.balance() == 5
+  assert not boss.decide({"decisions": 0}).escalated, "5 points buy nothing"
+  assert ledger.balance() == 5
+  assert boss.escalations_refused == {"too-soon": 1}
+  assert boss.escalations == 3 and boss.stats()["escalationsPaid"] == 2
 
 
 def test_a_failed_escalation_keeps_the_cheap_answer():

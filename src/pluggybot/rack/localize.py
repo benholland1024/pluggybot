@@ -178,8 +178,17 @@ class RackSpotter:
   """
 
   def __init__(self, model, camera_name: str = "left_eye") -> None:
-    self.detector = TagDetector(model, camera_name, tag_size=RACK_TAG_SIZE)
-    self.fovy_deg = float(model.camera(camera_name).fovy[0])
+    self.camera_name = camera_name
+    self.rebind(model)
+
+  def rebind(self, model) -> None:
+    """A recompiled world (issue #168): a new detector on the new model,
+    the old one's renderer released first."""
+    old = getattr(self, "detector", None)
+    if old is not None:
+      old.close()
+    self.detector = TagDetector(model, self.camera_name, tag_size=RACK_TAG_SIZE)
+    self.fovy_deg = float(model.camera(self.camera_name).fovy[0])
 
   def spot(self, data, pose: tuple[float, float, float],
            ) -> list[tuple[float, float, float, int]]:
@@ -212,6 +221,10 @@ class RackFinder:
     #: rack does not turn round, so a good answer stays good -- and keeping
     #: it is the whole fix for a later, worse look (see MIN_FACING_CONF).
     self.facing: float | None = None
+
+  def rebind(self, model) -> None:
+    """The sightings are STATE and stay; only the camera moves."""
+    self.spotter.rebind(model)
 
   def look(self, data, pose: tuple[float, float, float]) -> int:
     """One look; returns how many tag sightings it added.

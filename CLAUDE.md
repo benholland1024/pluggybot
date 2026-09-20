@@ -1122,7 +1122,14 @@ save a filmstrip PNG named after the script.
   stroke's `draw` names `life.root` (it said `pluggybot` for both until
   #181). ⚠ Measured here: one robot free-runs at 1.25×, a pair at 0.58×
   (2.15× the cost); the deploy box holds one at 1.07× on four cores, so a
-  pair there wants `PLUGGY_RATE=0.5` or twice the cores.
+  pair there wants `PLUGGY_RATE=0.5` -- more cores do not help a single
+  physics thread. ⚠ THE TAG CAMERA RENDERS WITHOUT SHADOWS (rooftop
+  #296): under osmesa a 1280×720 frame of the home world cost 1113 ms
+  with its sixteen shadow-casting lights and 32 ms without, and the served
+  pair ran at 0.23× until `TagDetector` cleared `mjRND_SHADOW` (0.54×
+  after). `tests/test_render_context.py` pins the flag; SimNotes has the
+  wrong turn (a "second GL context" that was really a failed shadow
+  framebuffer).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
   DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
