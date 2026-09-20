@@ -860,6 +860,7 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `fallback:cooloff` | policy | too many failures in a row; the endpoint is being left alone |
 | `fallback:idle-run` | policy | `MAX_IDLE_RUN` (2) `idle` turns in a row; do something |
 | `fallback:scripted-mode` | policy | the operator turned the spending off (§8) |
+| `fallback:allowance` | policy | the weekly USD allowance is spent (§8; issue #225) |
 
 ⚠ **The class column is load-bearing** (issue #141). A **failure** is the
 box, the endpoint, or a model that could not hold the grammar; a **policy**
@@ -1058,34 +1059,82 @@ before parsing.
 
 ### The pick, and the doctrine
 
-**`Qwen/Qwen3-4B-Instruct-2507`** on the router: 3/3 valid decisions with
-the best reasons in the sweep, ~$0.0009 per sim-hour off the router's own
-catalogue (rates come off `/v1/models` at client build, cheapest live
-provider, so `usd` tracks the model actually chosen), and small enough that
-local hosting (≤8B) has headroom. Two rules the sweep taught:
+**`zai-org/GLM-5.3-Flash:cheapest`** on the router (issue #225, Ben's
+$40-a-month cap; the sweep is below, the period is Observatory.md). The
+suffix is part of the pick: `:cheapest` pins the router's provider policy,
+and a bare id is routed by the router's own preference and billed at that
+provider's rate — measured ten times apart on the same call
+(`llm.HFClient.pricing` prices a named provider as itself, `:cheapest` and a
+bare id as the cheapest live one, and any other policy as unknown).
 
-- **Prefer instruct-tuned models.** A thinking model spends `MAX_TOKENS` (512)
-  on `<think>` and truncates before the answer; the adapter strips a completed
-  think block but cannot conjure JSON a truncated one never wrote. The other
-  candidates failed by truncation, empty answers, a hallucinated reason or a
-  403 from their only provider — every one degrading to a tagged fallback,
-  which is the fallback machinery's live audition.
+**What the sweep measured, and what it overturned.** Every candidate was run
+through the DEPLOYED prompt (`overseer_probe.py --deployed`: `build()` on
+the pair's terms — 44 kB, ~12 200 input tokens, the task-id grammar), fifty
+calls on the finalists, against a synthetic state whose one offer costs
+more than the pack holds (0.992 Wh against 0.9). That state is A0's failure
+asked directly, and it split the catalogue in two:
+
+| model (`:cheapest`) | valid | took the unaffordable job | charged | median / p95 / max s | $/call | $/month at 13.6 pair-calls/h (at 22) |
+|---|---|---|---|---|---|---|
+| **GLM-5.3-Flash** | 50/50 | **0/50** | 49/50 | 8.0 / 25 / 43 | 0.0022 | **22** (35) |
+| DeepSeek-V4.1-Flash | 49/50 | 1/49 | 47/49 | 14 / 27 / 90 | 0.0029 | 29 (47) |
+| GLM-4.7-Flash | 49/50 | 1/49 | 48/49 | 29 / 82 / 98 | 0.0009 | 9 (15) |
+| gpt-oss-120b | 50/50 | 5/50 | 42/50 | 15.5 / 26 / 32 | 0.0006 | 6 (9) |
+| Qwen3-235B-A22B-Instruct-2507 | 40/50 | 26/40 | 3/40 | 63 / 120 / 120 | 0.0017 | 17 (27) |
+| Llama-4-Scout, phi-4, DeepSeek-V3.2 (bare ids, 5 calls) | 5/5 each | 5/5 each | 0 | 5–16 | 0.001–0.004 | 10–37 |
+| Qwen3-4B-Instruct-2507 (the old pick; nscale, its only provider) | 7/12 before five 120 s router timeouts in a row cooled the probe off | 7/7 | 0/7 | 30–46, five at 120 | 0.00015 | 1.4 |
+
+**Every instruct model that answered took the job it could not pay for
+(the 235B, the best of them, 26 times in 40, and 3 charges); every
+reasoning model that answered charged first, with the arithmetic in its
+reason** ("0.9 Wh won't cover the 0.992 Wh it costs"). The issue's
+constraint — instruct-tuned, not thinking — was written against truncation,
+and the cure for truncation is the budget (`MAX_TOKENS_AUTONOMOUS` 8192; at
+2048 the Flash models lost one answer in eight to an EMPTY, fully billed
+reply), not the family. The rate the bill is priced at is the observatory's
+own: the newest 1000 decisions span 73 h, 13.6 LLM calls an hour for the
+pair (22 over the whole week, which includes the crash-loop days); the
+monthly figure is that rate × 720 h × the probe's per-call cost, and
+`$PLUGGY_WEEKLY_USD` = 9.30 (= $40 × 7 / 30) is the cap that now holds it
+(§8). GLM-4.7-Flash is as right and a quarter of the price, and its p95 sits
+at 82 s against the 90 s deadline; gpt-oss-120b is cheapest and charges
+without the arithmetic ("Battery low"). The old 4B on the deployed prompt
+measured 24–120 s a call at nscale, its only provider — the 4.88 s median
+the deadline was chosen from (#117) was the `guarded` prompt, a quarter the
+size and without the grammar.
+
+Three things the sweep found in the adapter, each pinned: a Cloudflare WAF
+in front of at least one provider answers urllib's default User-Agent with
+a 403 page (`llm.USER_AGENT`); the stricter providers refuse a bare
+`{"type": "object"}` in the schema before decoding a token, so
+`build_tool.spec` is described (`SPEC_SCHEMA`); and a billed answer that
+could not be parsed was metered as free. Gemma 4 ends its object early
+through a provider whose "structured output" is not constrained decoding —
+out on the model, not the budget. The Anthropic path was not re-measured:
+no key on this box, and at Haiku 4.5's $1/$5 a 12 200-token uncached call is
+$0.016 before the answer, four times the ceiling.
+
+Two rules the first sweep taught still hold:
+
 - **The grammar is what makes a small model safe here.** `Menu.schema()`
   makes `action` an enum of the world's menu and rides every request as
   `response_format: json_schema`, so a decoder honouring it has no token
-  sequence for an action that does not exist; the honest measure of a small
-  model is then *reasoning*, not format compliance. An endpoint that rejects
-  the field is retried once with the schema in prose, and then
-  `Overseer.constrained` goes False and says so once in `usage.errors` — a
-  silent downgrade would surface only as a higher fallback rate.
+  sequence for an action that does not exist; the honest measure of a model
+  is then *reasoning*, not format compliance. An endpoint that rejects the
+  field is retried once with the schema in prose, and then
+  `Overseer.constrained` goes False and says so once in `usage.errors`.
+- **A reasoning model needs its budget, and the budget is a ceiling, not a
+  spend**: GLM-5.3-Flash answers in ~800 tokens under an 8192 cap. The
+  adapter strips a completed `<think>` block; an unfinished one is an empty
+  answer and `fallback:garbled`, billed.
 
 Two small-model quirks, both measured and both closed: the offer id (a kind
 name in `task` instead of an id — the prompt spells the id shape and the
 probe's synthetic state carries a claimable offer so it stays measurable; on
 `autonomous` the ids are an enum, §2), and truncation mid-write, which is why
-`MAX_TOKENS_AUTONOMOUS` is 2048 — headroom, not a guarantee, and not applied to
-`guarded`, whose answers must keep the shape the committed series measured.
-The flown evidence is Evaluation.md §3.
+`MAX_TOKENS_AUTONOMOUS` is what it is and is not applied to `guarded`, whose
+answers must keep the shape the committed series measured. The flown
+evidence is Evaluation.md §3.
 
 ### The local backend
 
@@ -1115,7 +1164,11 @@ load at all took the same arm to 19–47 % fallback. Flown, the distribution is
 about twice the probe's (a real prompt carries a day of history): 7.49 s
 median, 16.69 max, 34 % of a *quiet* mission's calls over 8 s — and every
 pre-#117 `mind.wallS` is censored at its own deadline (Evaluation.md §3).
-Choose the deadline from the probe, confirm it with a flight.
+Choose the deadline from the probe, confirm it with a flight. ⚠ Since #225
+the probe measures the DEPLOYED prompt (`--deployed`) — the numbers above are
+the `guarded` prompt's, a quarter the size, and on the deployed one the 4B
+read 37 s median with calls at 120 s; the pick's tail (p95 25 s, max 43 s)
+is what the 90 s now stands against.
 
 90 is **not** read off the tail — nothing measured is within twelve times of
 it. It is a patience budget: a decision lost to a clock is the one failure
@@ -1337,7 +1390,7 @@ being switched off cannot reach the switch.
 | ceiling | where | what it stops |
 |---|---|---|
 | the provider balance | the HuggingFace account, topped up by hand | everything. Deliberately not code |
-| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10) | a month's money going in an afternoon |
+| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10; deployed 9.30 = $40 a month) | a month's money going in an afternoon — the ROUTINE mind's as well as the escalations', since #225 |
 | the hourly call cap | `CALLS_PER_HOUR` | a loop bug |
 
 The spend book is wall-clock stamps in a file on the state volume
@@ -1345,13 +1398,30 @@ The spend book is wall-clock stamps in a file on the state volume
 not the hourly deque: a mission ends and the container restarts several times
 an hour. ⚠ A damaged spend file is refused, never read as an unspent week.
 
+⚠ **It covers the routine mind** (issue #225). Until then every decision
+was metered in the process and never banked, so the cap Ben set against a
+monthly bill capped the escalations alone — a tenth of it, and none at all
+in the week before the pick moved (0 escalations in 1000 decisions). Now
+`_bank_decision` books each call from the response's own usage at the
+backend's rates, an hour's routine calls coalesce into one entry (`n` calls,
+`spend.BUCKET_S`; at eleven calls an hour a week would otherwise overflow
+`MAX_ENTRIES`), and a spent allowance refuses the next call — and the next
+interrupt — as **`fallback:allowance`**, a policy fallback: on `guarded` the
+rotation, on `autonomous` the standing order or `idle`, and if the map
+cannot ask, `unminded` inside 1800 s. That is what an empty purse costs on
+that arm, and it is the cap working. The estimate is this run's own mean
+over BILLED calls (`decision_estimate`), zero before the first, and `left`
+must be above zero as well — clamped at zero, `can_spend(0.0)` would let
+every restart ask once on an allowance that is gone. Escalations stop first
+by arithmetic (their estimate is larger), which is the right order.
+
 ### Escalation: the model asks, code pays
 
 The robot sets **`escalate`** on the decision it was already making, so the
 routing costs **no extra call**. Code then decides, in `why_not_escalate`,
 against gates the model sees the effects of and not the levers: the allowance
 has room for the estimate (`ESCALATE_ASSUMED_IN` 3500 input tokens × the
-escalation model's rates plus the full `ESCALATE_MAX_TOKENS` 1024 ceiling —
+escalation model's rates plus the full `ESCALATE_MAX_TOKENS` ceiling, 8192 since #225 —
 the pessimistic direction); `ESCALATE_MIN_INTERVAL_S` (10 min) since the last;
 no more than `ESCALATE_SHARE` (10 %) of the run's decisions, the first always
 allowed. **Every failure keeps the cheap answer** — a timeout, a 403, prose —
@@ -1360,17 +1430,22 @@ allowance degrades to the free backend. ⚠ **Billed is billed**: a response
 that arrived and failed to parse is banked, or the allowance drifts under the
 invoice. The answer comes back as `llm:<model>`.
 
-**The escalation model is `Qwen/Qwen3-235B-A22B-Instruct-2507`**
-(`$PLUGGY_ESCALATE_TO` / `--escalate-to`, off by default): 2.05 s and
-$0.00035 a decision, the cheapest *and* fastest of the four that answered
-(DeepSeek-V3.1 $0.00102, GLM-4.6 $0.00183, Kimi-K2 $0.00238), and two orders
-of magnitude more model than the 4B it is bought instead of. ⚠
-`meta-llama/Llama-3.3-70B-Instruct` is licence-gated on this account and 403s
-whatever the catalogue says. ⚠ **At these prices the budget does not bite —
-the cadence does**: $10 buys ~28 000 escalations a week. The budget is the
-backstop for a loop or a reprice; do not tighten it expecting the escalation
-rate to move, and do not read a full allowance on Sunday as the gates working.
-Points can pay the *throttle* off and never the budget (§8b).
+**The deployed world escalates to nothing this period** (issue #225;
+`$PLUGGY_ESCALATE_TO` unset, so the field and its rule are absent). The
+routine mind now reasons, and the sibling it would buy — `zai-org/GLM-5.2:
+cheapest`, measured with `--escalate-to ... --force-escalate` on the
+deployed prompt — answered the same way at $0.016 a call and 25–86 s (one
+of five past 120 s), seven times the routine price for the probe's same
+answer; at the 10 % ration that is up to ~$16 a month out of a shared $40
+purse, and a purse the escalations empty is a routine mind that stops.
+`ESCALATE_MAX_TOKENS` is `MAX_TOKENS_AUTONOMOUS` for whoever names a
+reasoning target later: at 1024 GLM-5.2 came back empty on every call,
+$0.012 each for nothing. The code default, `ESCALATE_MODEL`, stays
+`Qwen/Qwen3-235B-A22B-Instruct-2507` (the first sweep: 2.05 s, $0.00035 a
+decision, and `meta-llama/Llama-3.3-70B-Instruct` 403s on this account). ⚠
+Whether the agent ever ASKS is unmeasured — the 4B never did — so turning it
+back on is a period of its own. Points can pay the *throttle* off and never
+the budget (§8b).
 
 ### The operator's switch
 
@@ -1460,7 +1535,7 @@ has no goals to spend free time on.
 
 ```sh
 # locally, watching it think
-HF_TOKEN=... PLUGGY_MODEL=Qwen/Qwen3-4B-Instruct-2507 MUJOCO_GL=egl \
+HF_TOKEN=... PLUGGY_MODEL=zai-org/GLM-5.3-Flash:cheapest MUJOCO_GL=egl \
   uv run python scripts/hub_lifecycle.py --world home --errand none --overseer --max-sim-time 900
 
 # the unattended shape: a hosting pack, work on a cadence, hours of it
@@ -1477,6 +1552,8 @@ MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home --write
 # the latency curve and the cost of a candidate deadline; a router candidate; the local box
 HF_TOKEN=... uv run python scripts/overseer_probe.py --calls 50
 HF_TOKEN=... uv run python scripts/overseer_probe.py --model Qwen/Qwen3-4B-Instruct-2507 --calls 3
+# a candidate against the DEPLOYED prompt -- the pair's, with the library, the lab, a peer (#225)
+HF_TOKEN=... uv run python scripts/overseer_probe.py --deployed --model zai-org/GLM-5.3-Flash:cheapest --calls 50
 uv run python scripts/overseer_probe.py --backend local --calls 4
 # size the cached prefix only: no decisions, no tokens billed (count_tokens is an endpoint)
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only

@@ -537,8 +537,10 @@ def main() -> None:
                           # (0.12.0, issue #37). The spend block is only
                           # attached where there is spending to report --
                           # an all-zero money panel on a world that cannot
-                          # spend is a panel that means nothing.
-                          spend=(purse if (boss is not None and boss.can_escalate)
+                          # spend is a panel that means nothing. Since
+                          # #225 the routine mind spends too, so any mind
+                          # with a book reports.
+                          spend=(purse if (boss is not None and boss.spend is not None)
                                         else None),
                           mode=switch,
                           # ...and how hungry it is (0.13.0, issue #36).
@@ -595,7 +597,7 @@ def main() -> None:
                                  activities=activities, boards=book,
                                  screens=screens, ledger=ledger, tasks=tasks,
                                  goals=goals_prose, thoughts=memory,
-                                 spend=(purse if (boss is not None and boss.can_escalate)
+                                 spend=(purse if (boss is not None and boss.spend is not None)
                                         else None),
                                  mode=switch, metabolism=hunger,
                                  steering=boss is not None, overseer=boss,
@@ -721,7 +723,7 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
         + (f" / {identity['model']} via {identity['backend']}"
            if identity["model"] else ""))
   book, tasks, ledger = first.boards, first.tasks, first.ledger._ledger
-  can_spend = boss is not None and boss.can_escalate
+  can_spend = boss is not None and boss.spend is not None
   others = [StreamRobot(second.mission.handle.root, second.robot_name,
                         second.telemetry_status,
                         spend=purse if can_spend else None,

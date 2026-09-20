@@ -176,7 +176,11 @@ def test_asking_buys_the_bigger_minds_answer_and_says_whose_it_was():
 def test_a_spent_allowance_degrades_to_the_free_backend_not_to_no_decision():
   """The acceptance criterion, stated as its failure: an exhausted budget
   must cost the robot its expensive mind and nothing else."""
-  book = SpendBook(None, weekly_usd=0.0)                     # nothing to spend
+  # Room for the cheap call ($0.0025 at the fake's tokens and Haiku's
+  # rates) and not for the escalation on top -- since issue #225 the
+  # routine mind books here too, so "nothing to spend" would refuse the
+  # cheap call as well (the test below this one).
+  book = SpendBook(None, weekly_usd=0.003)
   boss = escalating(answer(escalate=True, action="explore"),
                     answer(action="charge"), spend=book)
   decision = boss.decide({"decisions": 0})
@@ -184,6 +188,73 @@ def test_a_spent_allowance_degrades_to_the_free_backend_not_to_no_decision():
   assert boss._esc_client.calls == []
   assert boss.escalations == 0
   assert boss.escalations_refused == {"no-allowance": 1}
+
+
+def test_the_routine_mind_books_its_cost_and_a_spent_allowance_stops_it():
+  """`$PLUGGY_WEEKLY_USD` is the cap on the BILL (issue #225), not on the
+  escalations alone: every decision banks what it cost, and once the week's
+  allowance cannot cover another call at this run's own price the next one
+  is refused as a POLICY fallback, `fallback:allowance`. Before the fix the
+  routine calls never reached the book and the third call here went out."""
+  book = SpendBook(None, weekly_usd=0.006)      # two fake calls at $0.0025
+  boss = Overseer(MENU, client=FakeClient(answer()), model="cheap-model",
+                  spend=book)
+  sources = [boss.decide({"decisions": i}).source for i in range(3)]
+  assert sources == ["llm", "llm", "fallback:allowance"]
+  assert boss.client.calls and len(boss.client.calls) == 2
+  snap = book.snapshot()
+  assert snap["calls"] == 2 and snap["escalations"] == 0
+  assert snap["recent"][-1]["kind"] == "decision"
+  assert 0 < snap["spentUsd"] <= 0.006
+  assert ov.fallback_class("fallback:allowance") == "policy"
+
+
+def test_a_fresh_process_on_a_spent_allowance_does_not_get_one_free_call():
+  """`left` is clamped at zero and the first call's estimate is zero, so
+  `can_spend(0.0)` alone would let every restart ask once."""
+  book = SpendBook(None, weekly_usd=0.0)
+  boss = Overseer(MENU, client=FakeClient(answer()), model="cheap-model",
+                  spend=book)
+  assert boss.decide({"decisions": 0}).source == "fallback:allowance"
+  assert boss.client.calls == []
+
+
+def test_routine_calls_bucket_by_the_hour_so_a_week_fits_the_file():
+  """At ~11 calls an hour per robot, one entry per call overflows
+  `MAX_ENTRIES` inside a day of a seven-day window and the sum forgets the
+  week. Routine calls coalesce into one entry per model per hour; an
+  escalation stays one entry per call."""
+  from pluggybot.mind import spend as spend_mod
+  clock = Clock()
+  book = SpendBook(None, weekly_usd=10.0, clock=clock)
+  for _ in range(100):
+    book.record(0.001, model="m", kind=spend_mod.DECISION, tokens=10)
+    clock.tick(30)
+  assert len(book.entries) == 1 and book.entries[0]["n"] == 100
+  assert book.calls == 100 and book.spent == 0.1
+  clock.tick(spend_mod.BUCKET_S)
+  book.record(0.001, model="m", kind=spend_mod.DECISION)
+  book.record(0.5, model="big", kind=spend_mod.ESCALATION)
+  book.record(0.5, model="big", kind=spend_mod.ESCALATION)
+  assert [e["kind"] for e in book.entries] == [
+    "decision", "decision", "escalation", "escalation"]
+  assert book.calls == 103 and book.snapshot()["escalations"] == 2
+  # A bucket ages out when its OLDEST call does: the conservative side.
+  clock.tick(WEEK_S - 30 * 100 - spend_mod.BUCKET_S + 1)
+  assert book.calls == 3
+
+
+def test_a_billed_answer_that_could_not_be_parsed_is_still_billed():
+  """A reasoning model that spent its whole budget thinking and returned
+  nothing was charged for every token of it. Metered before the parse, so
+  `fallback:garbled` costs what it cost."""
+  book = SpendBook(None, weekly_usd=10.0)
+  boss = Overseer(MENU, client=FakeClient("this is not a decision"),
+                  model="cheap-model", spend=book)
+  assert boss.decide({"decisions": 0}).source == "fallback:garbled"
+  assert boss.usage.input_tokens == 2000 and boss.usage.llm_calls == 0
+  assert book.calls == 1 and book.spent > 0
+  assert boss.decision_estimate() == pytest.approx(book.spent)
 
 
 def test_scarcity_bites_on_cadence_as_well_as_on_money():
@@ -250,7 +321,7 @@ def test_a_billed_escalation_is_banked_even_when_its_answer_is_rubbish():
   boss = escalating(answer(escalate=True), "not json at all", spend=book)
   decision = boss.decide({"decisions": 0})
   assert decision.source == "llm", "the cheap answer stands"
-  assert book.snapshot()["calls"] == 1 and book.spent > 0
+  assert book.snapshot()["escalations"] == 1 and book.spent > 0
 
 
 def test_the_escalation_field_exists_only_where_escalation_does():

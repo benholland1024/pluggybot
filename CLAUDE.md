@@ -231,6 +231,9 @@ wording, settled direction. Before doing anything, read:
   holds calls to 2× the deadline, never to the deadline itself, and it
   under-measures a mission by about half (a real prompt carries a day of
   history): choose the deadline from the probe, confirm it with a flight.
+  ⚠ Those numbers were the `guarded` prompt's; on the DEPLOYED prompt
+  (`--deployed`) the 4B read 37 s median with calls at 120 s, and the
+  2026-09 pick's tail is p95 25 s, max 43 s (issue #225).
 - **`FALLBACK_LIMIT` is a ROLLUP FILTER, not a policy** (issues #117, #141):
   `guarded` 0.25 of the FAILURE class, `scripted` and `autonomous` none. It
   drops a finished run from survival statistics (like `killed` and
@@ -301,7 +304,7 @@ save a filmstrip PNG named after the script.
 | `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | M14 harness, above |
-| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
+| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends (#225) and reports the ENERGY GATE — the synthetic offer costs more than the pack holds; `--max-tokens N` finds a reasoning model's budget; `--escalate-to X --force-escalate` prices an escalation target; `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack (SWAP_PICK to end of SWAP_RETURN); `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin; `--actions care:feed,care:toy,care:company,shock` prices the lab's acts (each ends in the lab; the spike docks between them). Re-run after anything that changes what an errand does |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR` |
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
@@ -577,11 +580,18 @@ save a filmstrip PNG named after the script.
   and the answer comes from `$PLUGGY_ESCALATE_TO` (off by default; then
   `source` is `llm:<model>`). ⚠ Every escalation failure keeps the cheap
   answer, and billed is billed (a response that failed to parse is still
-  banked). ⚠ At the pick's price (`Qwen/Qwen3-235B-A22B-Instruct-2507`,
-  ~$0.00035 a call) the BUDGET does not bite — $10 buys ~28 000 escalations —
-  the cadence does; do not tighten the budget expecting the rate to move.
-  ⚠ Points buy ACCESS, never money: points can pay off the escalation
-  throttle (interval + share) and cannot touch the weekly USD.
+  banked — routine or escalation, metered BEFORE the parse since #225).
+  ⚠ **The allowance covers the ROUTINE mind** (issue #225): every decision
+  banks its cost (`_bank_decision`, an hour's calls in one bucket entry,
+  `spend.BUCKET_S`) and a spent purse refuses the next call and the next
+  interrupt as `fallback:allowance` (policy class) — on `autonomous` that
+  is the standing order or `idle`, and `unminded` if the map cannot ask.
+  Until #225 it capped escalations alone. The deployed purse is 9.30 a
+  week (= $40 a month, Ben's cap) and escalation is OFF this period
+  (`$PLUGGY_ESCALATE_TO` unset; a reasoning target measured at $0.016 a
+  call for the same answer, Overseer.md §8). ⚠ Points buy ACCESS, never
+  money: points can pay off the escalation throttle (interval + share) and
+  cannot touch the weekly USD.
   - Three operator modes, polled from `$PLUGGY_MODE_FILE` and never written
     by the robot (a test asserts `mind/mode.py` has no writer): `llm`,
     `scripted` (free mode — the rotation decides, the world still looks
@@ -600,13 +610,31 @@ save a filmstrip PNG named after the script.
   backends are ONE adapter (`llm.ChatClient`) and `llm.build_client` is the
   only function that knows a vendor. Which mind decided is written into
   `History.md` at mission start. The deployed pick is
-  `Qwen/Qwen3-4B-Instruct-2507`. Rules that follow:
-  - the grammar is what makes a 4B safe: `Menu.schema()` makes `action` an
-    enum of the world's menu and rides every request as `response_format`;
-    an endpoint that refuses it is retried once in prose, then `constrained`
-    goes False and SAYS so;
-  - prefer INSTRUCT-tuned models: a thinking model burns `max_tokens` on
-    `<think>` and truncates before the answer;
+  **`zai-org/GLM-5.3-Flash:cheapest`** (issue #225; Overseer.md §6 is the
+  sweep, Observatory.md the period). Rules that follow:
+  - **the provider is the model id's to say**: the router takes
+    `org/name:<provider>` and `:cheapest`, and a BARE id is routed by the
+    router's own preference and billed at that provider — measured ten
+    times the cheapest rate on the same call. `HFClient.pricing` prices a
+    named provider as itself, `:cheapest` and a bare id as the cheapest live
+    one, anything else as unknown; `experiment.py` slugs the colon;
+  - **a candidate is measured through the DEPLOYED prompt**
+    (`overseer_probe.py --deployed`: `build()` on the pair's terms, 44 kB,
+    ~12 200 input tokens, the task-id grammar) against the probe's
+    UNAFFORDABLE offer (0.992 Wh on a 0.9 Wh pack — A0's failure, asked
+    directly; `report_energy` counts who took it). Every instruct model in
+    the 2026-09 sweep took it; every reasoning model charged first;
+  - the grammar is what makes a small model safe: `Menu.schema()` makes
+    `action` an enum of the world's menu and rides every request as
+    `response_format`; an endpoint that refuses it is retried once in
+    prose, then `constrained` goes False and SAYS so. ⚠ No bare
+    `{"type": "object"}` in the schema (the strict providers refuse it
+    before decoding; `SPEC_SCHEMA` describes the tool spec) and every
+    request carries `llm.USER_AGENT` (a provider's WAF 403s urllib's);
+  - **a reasoning model needs its budget**: `MAX_TOKENS_AUTONOMOUS` 8192
+    (at 2048 the Flash models lost 1 in 8 to an EMPTY, fully billed
+    answer), `ESCALATE_MAX_TOKENS` the same. A completed `<think>` is
+    stripped; an unfinished one is `fallback:garbled`, billed;
   - a local decision pays the model LOAD (27.3 s cold, ollama unloads after
     five idle minutes), which is why `LOCAL_TIMEOUT_S` is a floor;
   - money has THREE states and each report says which: `local` prints "no

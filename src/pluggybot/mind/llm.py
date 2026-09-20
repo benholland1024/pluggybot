@@ -113,6 +113,15 @@ LOCAL_MODEL = "qwen3:4b-instruct"
 #: down, the local path must not come down with it.
 LOCAL_TIMEOUT_S = 45.0
 
+#: What every request says it is. ⚠ NOT DECORATION (issue #225): a
+#: Cloudflare WAF in front of at least one of the router's providers answers
+#: urllib's default `Python-urllib/3.x` with a 403 HTML page and the same
+#: body under any other name with a 200 -- measured on gpt-oss-120b and
+#: Qwen3.5-9B, every call, and the 4B on nscale never met it. The router
+#: picks the provider per request, so without this a served robot is one
+#: re-route away from `fallback:offline` on every decision.
+USER_AGENT = "pluggybot/0.1 (+https://github.com/benholland1024/pluggybot)"
+
 #: Answer-format instructions for the one-retry path when an endpoint rejects
 #: `response_format`. Kept terse: the schema itself rides along, and the
 #: overseer's validate() is what actually enforces it.
@@ -223,7 +232,7 @@ class ChatClient:
     # No Authorization header at all when there is no token: a local runtime
     # does not want one, and sending `Bearer ` empty is a request some
     # servers reject outright.
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
     if self.token:
       headers["Authorization"] = f"Bearer {self.token}"
     return headers
@@ -303,12 +312,23 @@ class HFClient(ChatClient):
   def pricing(self, model: str) -> tuple[float, float] | None:
     """(USD per Mtok in, out) for a model, off the router's own catalogue.
 
-    The router picks the provider per request, so this is the CHEAPEST live
-    provider's rate -- an estimate, and an honest one: the catalogue is where
-    HF publishes what it bills, and a hardcoded table here would be stale by
-    the second model Ben tries. None when the catalogue does not answer, and
-    the caller reports cost as unknown rather than as zero.
+    The catalogue is where HF publishes what each provider bills, and a
+    hardcoded table here would be stale by the second model Ben tries. None
+    when the catalogue does not answer, and the caller reports cost as
+    unknown rather than as zero.
+
+    ⚠ WHICH PROVIDER IS THE MODEL ID'S TO SAY (issue #225). The router
+    accepts `org/name:<provider>` and the policies `:cheapest` / `:fastest`,
+    and WITHOUT a suffix it routes by its own preference order -- measured:
+    a bare `openai/gpt-oss-120b` went to Cerebras at $0.35/$0.75 while the
+    catalogue's cheapest was DeepInfra at $0.037/$0.17, ten times apart on
+    the same call. So a named provider is priced as itself, `:cheapest` and
+    a bare id as the cheapest live provider (the bare id's number is an
+    ESTIMATE the router need not honour, and a deployment that cares what
+    it pays pins the policy in `$PLUGGY_MODEL`), and `:fastest` or any
+    other policy as unknown, because nothing here can say who will answer.
     """
+    base, _, policy = model.partition(":")
     try:
       status, payload = self.fetch(f"{self.base_url}/models", None,
                                    self._headers(), self.timeout)
@@ -317,11 +337,16 @@ class HFClient(ChatClient):
     if status != 200:
       return None
     for entry in payload.get("data", ()):
-      if entry.get("id") != model:
+      if entry.get("id") != base:
         continue
-      rates = [(p["pricing"]["input"], p["pricing"]["output"])
-               for p in entry.get("providers", ())
-               if p.get("status") == "live" and p.get("pricing")]
+      live = [p for p in entry.get("providers", ())
+              if p.get("status") == "live" and p.get("pricing")]
+      if policy and policy != "cheapest":
+        named = [p for p in live if p.get("provider") == policy]
+        if not named:
+          return None
+        return (named[0]["pricing"]["input"], named[0]["pricing"]["output"])
+      rates = [(p["pricing"]["input"], p["pricing"]["output"]) for p in live]
       if rates:
         return min(rates)
     return None

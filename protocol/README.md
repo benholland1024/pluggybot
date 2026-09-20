@@ -1255,6 +1255,14 @@ confident total it does not have. Present only on a world that can actually
 spend — an all-zero money panel on a world with no escalation configured is
 a panel that means nothing.
 
+**Since pluggybot #225 (additive, no bump)** the ROUTINE mind spends here
+too: `calls` counts every decision, a `recent` entry of `kind: "decision"`
+is an HOUR's worth of them and carries `n` (how many; an escalation entry
+carries `n: 1`), and the block is present on any world with a mind and a
+purse, escalation or not. A `decision` row's `source` may now read
+`fallback:allowance` — the purse is empty and the mind was not asked. A
+consumer that summed `recent` entries as calls should sum `n`.
+
 **2. `mode` on the robot's per-frame record**, beside `state` and `status`,
 one of `MODES` = `llm` | `scripted` | `paused`. Inside the existing block
 rather than a new one, because it is a fact about the robot at that instant.
