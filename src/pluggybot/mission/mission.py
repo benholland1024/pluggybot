@@ -763,7 +763,7 @@ class HubMission:
     tx, ty, tz = t
     return cam_p + cam_r @ np.array([tx, -ty, -tz])
 
-  def spot(self, tag_id: int) -> dict | None:
+  def spot(self, tag_id: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the BELIEVED world frame, off one decode from
     where the robot stands (issue #264; the claw's `pick`/`place` verbs
     read it). None when the tag does not decode from here -- a sensor's
@@ -771,12 +771,35 @@ class HubMission:
     chassis's own height, a constant of the body), `toward` the unit
     vector from the camera to the tag in the world's horizontal plane --
     the face the camera sees faces it, so the cube behind that face sits
-    half an edge further along `toward`."""
+    half an edge further along `toward`.
+
+    ⚠ TWO RANGES. PnP's distance to a small tag is quantised by the tag's
+    size in pixels: a 20 mm block tag is ~24 px wide at 0.8 m and half a
+    pixel is 2 %, MEASURED as ±10-15 mm of range scatter between looks
+    (never a calibratable bias) while the lateral, off the tag's centre
+    pixel, held to a millimetre or two. So a caller that KNOWS the tag's
+    height -- a cube's tag sits half an edge up per layer -- passes it as
+    `at_height`, and the position is the ray through the tag's centre
+    pixel cut by that plane: the same centre pixel the lateral trusts,
+    good to ~2 mm at 0.8 m. Without it, PnP's, for a tag of unknown
+    height."""
     det = self.tags.detect(self.data).get(int(tag_id))
     if det is None:
       return None
+    cam_p, cam_r = self._camera_mount()
     tag_ch = self._in_chassis(det["t"])
-    cam_p, _ = self._camera_mount()
+    if at_height is not None:
+      # the ray through the tag's centre pixel, in the chassis frame
+      # (apriltag camera frame: x right, y down, z forward; MuJoCo's
+      # camera looks along -z with y up)
+      fx, fy, cx, cy = self.tags.detector.camera_params
+      u, v = det["center"]
+      ray = cam_r @ np.array([(u - cx) / fx, -(v - cy) / fy, -1.0])
+      cam_z = float(self.data.xpos[self.swap.chassis_bid][2]) + float(cam_p[2])
+      if abs(float(ray[2])) > 1e-6:
+        t = (float(at_height) - cam_z) / float(ray[2])
+        if t > 0:
+          tag_ch = cam_p + t * ray
     bx, by, bth = self.pose
     c, s = math.cos(bth), math.sin(bth)
     # chassis body origin rides 0.08 m ahead of the axle midpoint the

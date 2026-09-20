@@ -278,17 +278,22 @@ def _holding_anything(claw) -> str | None:
 #: verb hunts, as `swap_at_bay` re-looks for a bay, and the lifts stay
 #: above the pads' floor contact (0.03) with a block in the jaws.
 SPOT_LIFTS = (0.06, 0.045, 0.075, 0.09, 0.105, 0.12)
-#: From the grip pose the row is ~0.3 m ahead of the axle; half a metre
-#: back puts it in the band the eye decodes from.
-SPOT_BACK_OFF_M = 0.5
+#: From the grip pose the row is ~0.3 m ahead of the axle, so the eye is
+#: ~0.2 m from it: two steps of this back reach the band it decodes from,
+#: and one step from a stage pose keeps the look under `SPOT_FAR_M`.
+SPOT_BACK_OFF_M = 0.25
+SPOT_BACK_OFFS = 2
 #: A decode is trusted for the approach only when the tag sits this close
-#: to the camera's axis. MEASURED: a block tag seen 0.26 m off-axis at
-#: 0.8 m placed its centre 25 mm long and 13 mm across (PnP on a ~24 px
-#: tag); on-axis the same decode is good to a millimetre or two, which is
-#: what the pick got. Off-axis, the verb first stages itself to look
-#: head-on from `STAGE_M` short of the cube and spots again.
+#: to the camera's axis AND no further than `SPOT_FAR_M` away. MEASURED:
+#: a block tag seen 0.26 m off-axis at 0.8 m placed its centre 25 mm long
+#: and 13 mm across; on-axis at 0.72 m the same decode is good to a
+#: couple of millimetres (`HubMission.spot`'s pixel-ray range). Off-axis
+#: or far, the verb stages itself to look head-on from `STAGE_M` short of
+#: the cube (the eye then ~0.74 m from it, the middle of its band) and
+#: spots again.
 SPOT_ON_AXIS_M = 0.03
-STAGE_M = 0.45
+SPOT_FAR_M = 0.95
+STAGE_M = 0.55
 #: The objects `pick`/`place` know the shape of: the challenge blocks and
 #: the bench's masses (challenge/stack.py's cube, tagged on every face), so
 #: a decoded face is half an edge from the centre and the top of one is
@@ -318,7 +323,7 @@ def _spot_routine(life, tag: int) -> Routine:
   if half is None:
     return None
   swap = life.mission.swap
-  for attempt in range(2):
+  for attempt in range(SPOT_BACK_OFFS + 1):
     if attempt:
       yield from swap._drive_until_routine(SPOT_BACK_OFF_M, -0.10, stall_stop=False)
       yield from swap._run_routine(0.5, 0.0)
@@ -326,10 +331,19 @@ def _spot_routine(life, tag: int) -> Routine:
       yield from swap.ramp_routine(swap.lift_act, lift, LIFT_SPEED, settle=0.3)
       seen = life.mission.spot(tag)
       if seen is not None:
+        # which LAYER the cube stands in, off PnP's height (good to a few
+        # mm, and a layer is 26), then the position off the tag's centre
+        # pixel at that layer's known height (`HubMission.spot`'s two
+        # ranges) -- the same decode, read the precise way
+        layer = max(0, int(round((seen["xyz"][2] - half) / (2 * half))))
+        precise = life.mission.spot(tag, at_height=half + 2 * half * layer)
+        if precise is not None:
+          seen = precise
         x, y, z = seen["xyz"]
         tx, ty = seen["toward"]
         return {**seen, "centre": (x + half * tx, y + half * ty, z),
-                "half": half, "lift": lift, "backedOff": bool(attempt)}
+                "half": half, "layer": layer, "lift": lift,
+                "backedOff": bool(attempt)}
   return None
 
 
@@ -351,7 +365,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   if seen is None:
     return None, False
   heading = life.mission.pose[2]
-  if abs(seen["lateral"]) > SPOT_ON_AXIS_M:
+  if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
     # stage along the heading the procedure chose (it faced the row), so
     # the cube ends up straight ahead of the fork line -- the camera's line
     x, y, _ = seen["centre"]
@@ -423,13 +437,23 @@ def _place(life, args: dict) -> Routine:
             "reason": f"tag {tag} is not a cube this robot can see from here"}
   x, y, z = seen["centre"]
   half = seen["half"]
-  # The top of the cube: which LAYER its tag sits in, off the decode's
-  # height and the cube's known edge -- a reading quantised by geometry,
+  # ...and again on arrival: MEASURED, a cube slips ~7 mm down and ~10 mm
+  # along the pads over a carry's turns, so the hang the aim used is
+  # stale by that much. The along-track part is crept out here (the
+  # lateral has no axis to trim with and measured under a millimetre);
+  # the vertical sets the release height, or the stale one presses the
+  # cube into the target and shoves it (7 mm, measured).
+  after = claw.held_hang(held)
+  slip = hang[0] - after[0]
+  if abs(slip) > 0.002:
+    yield from life.mission.swap._drive_until_routine(abs(slip), 0.03 if slip > 0 else -0.03,
+                                                      stall_stop=False)
+    yield from life.mission.swap._run_routine(0.5, 0.0)
+  # The top of the cube off its LAYER and the cube's known edge -- geometry,
   # not the raw z (8 mm low off-axis), because a release aimed below the
   # surface presses the held block into it and rides the module up its fork.
-  layer = max(0, int(round((z - half) / (2 * half))))
-  yield from claw.place_on_routine((layer + 1) * 2 * half,
-                                   bottom_below_grip=half - hang[2])
+  yield from claw.place_on_routine((seen["layer"] + 1) * 2 * half,
+                                   bottom_below_grip=half - after[2])
   model, data = life.model, life.data
   bid = int(model.geom_bodyid[model.geom(held).id])
   hx, hy, hz = (float(v) for v in data.xpos[bid])

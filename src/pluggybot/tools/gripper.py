@@ -32,8 +32,8 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.control import square_up_routine, wrap_angle
-from pluggybot.rack.coupling import CLAW_JAW_TRAVEL
-from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE
+from pluggybot.rack.coupling import CLAW_JAW_TRAVEL, LIFT_STEP
+from pluggybot.rack.swap import ARM_EXT, PLUG_LATERAL, VERTEX_AHEAD_OF_AXLE, align_lift
 from pluggybot import tick
 from pluggybot.tick import Routine
 
@@ -75,6 +75,8 @@ SETTLE = 0.6
 PLACE_RETREAT_M = 0.30    # how far the chassis backs off a placed object; the
                           # grip point is ~0.30 m ahead of the axle, so this
                           # is "nothing of the robot within reach of it"
+MODULE_DRIVE_LIFT = align_lift() + LIFT_STEP   # where a swap's pick leaves the
+                          # lift, and the mission drives a module at (0.164)
 PLACE_GAP = 0.004         # the drop a placed object gets: its underside this
                           # far above the surface when the jaws open. Small,
                           # because a fall rotates a cube; not zero, because
@@ -135,7 +137,11 @@ class ClawTool:
     bid = self.swap.chassis_bid
     body_r = self.data.xmat[bid].reshape(3, 3)
     g = body_r.T @ (self.grip_world() - self.data.xpos[bid])
-    self.offset = (float(g[0]) + 0.08, float(g[1]))
+    # ...at the DEPLOYED reach: `drive_over` ends with the arm at ARM_EXT,
+    # and the mission tucks it to 0 for every drive in between, so an
+    # offset read tucked put the grip point 60 mm long of the block
+    reach = ARM_EXT - float(self.data.qpos[self.swap.arm_qadr])
+    self.offset = (float(g[0]) + 0.08 + reach, float(g[1]))
     return self.offset
 
   def held_hang(self, geom: str) -> tuple[float, float, float]:
@@ -430,5 +436,18 @@ class ClawTool:
     yield from self.set_lift_routine(CARRY_LIFT, settle=1.0)
     yield from self.swap._drive_until_routine(PLACE_RETREAT_M, -0.10,
                                               stall_stop=False)
-    yield from self.swap._run_routine(0.5, 0.0)
+    yield from self.tuck_routine()
     return {"released": not self.holding()}
+
+  def tuck_routine(self) -> Routine:
+    """The DRIVING configuration, empty-handed: the arm in and the lift
+    where a swap leaves a picked module, `MODULE_DRIVE_LIFT` -- the
+    height every mission drive carries a tool at. MEASURED (issue #264):
+    with the arm in, the claw's body sits 8 cm off the lidar, and at
+    `APPROACH_LIFT` it crosses the scan plane inside the front-stop
+    cone -- the reflex then backs the robot away from itself for as long
+    as it is asked to drive. 36 mm higher, the swap's own height, it
+    clears the cone (the mission's legs drive there)."""
+    yield from self.set_lift_routine(MODULE_DRIVE_LIFT, settle=0.5)
+    self.data.ctrl[self.arm_act] = 0.0
+    yield from self.swap._run_routine(1.0, 0.0)
