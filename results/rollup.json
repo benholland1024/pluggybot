@@ -124,6 +124,8 @@
    "commits": [
     "4ea6f2e"
    ],
+   "constitution": null,
+   "constitutionShas": [],
    "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
@@ -697,6 +699,8 @@
    "commits": [
     "ca7c165"
    ],
+   "constitution": null,
+   "constitutionShas": [],
    "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
@@ -1247,6 +1251,8 @@
    "commits": [
     "4f7c42f"
    ],
+   "constitution": null,
+   "constitutionShas": [],
    "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",
@@ -1825,6 +1831,8 @@
    "commits": [
     "ca7c165"
    ],
+   "constitution": null,
+   "constitutionShas": [],
    "current": false,
    "dataHashes": {
     "cadence": "ab3c854e5d62f5921f52a0c4ac63ff787ef33a4b542460a507ab29da7cb1680a",

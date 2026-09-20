@@ -1231,11 +1231,34 @@ view is what is capped. The `Store` interface of #217 still carries the
 FILES (the constitution and the rendered views, written beside the store so
 an operator can `cat` them); the rows have their own seam.
 
+**The constitution is a LIBRARY FILE, named per robot, rendered to the
+volume and never edited there** (issue #263). `mind/constitutions/<name>.md`
+is data like the reward table: every file carries the same essentials — the
+body, the manner, what the person who looks after it hopes for it — differing
+in emphasis (`default`, `purposeful`: form and pursue long-term goals,
+`curious`: understand the world and talk to others), and a test reads every
+file for what a constitution may not do, which is hand the robot an answer
+(no threshold, no tactic, no act, no robot's name). Each robot reads the file
+its environment names (`$PLUGGY_CONSTITUTION`, `$PLUGGY_CONSTITUTION_2`) on
+every run; the name and the text's sha256 are in the build identity per robot
+root, so a period's constitution is on every header and every run record, and
+two robots on one model in one world with two dispositions is the controlled
+comparison the library exists for. The volume's `Main.md` is a VIEW with a
+`Constitution.json` sidecar saying which: a hand edit is set aside as
+`Main.1.md` and never honoured (the header names the constitution in force,
+and an override nobody can name would make that a lie), a pre-library text is
+replaced by the library's, and a living robot's constitution swapped by its
+environment is a `constitution_changed` event and a History line, so the
+period is honest and the robot can see that who it is was edited. At a true
+death the next robot takes whatever the environment names, with no event: it
+is a new robot. The robot has no verb for any of this; its own goals live in
+`Goals.md`.
+
 ### The four tiers
 
 | tier | writer | shown | what it is |
 |---|---|---|---|
-| **constitution** | human | always, the cached prefix | `Main.md`: a file a person edits on the volume; no write API |
+| **constitution** | human | always, the cached prefix | `Main.md`: rendered from the library file the environment names (#263); no write API, and an edit on the volume is set aside |
 | **core** | robot | always, whole | `Goals.md` (`intend` / `drop_goal`) and `Top_of_mind.md` (`pin` / `unpin`) — RAM: *always in front of you, so keep it short; anything you only need sometimes is a note* |
 | **notes** | robot | the INDEX always; a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
 | **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, interventions, visitor and peer messages |
@@ -1245,7 +1268,7 @@ is memory in the paper's sense too — §2b and §2d.
 
 | Row | Shape | Writer / sender | Cap | At the cap | Verbs | Wire · observatory |
 |---|---|---|---|---|---|---|
-| `Main.md` | document | **human** | 6000 chars | no write API | — | `thought` · `thought` |
+| `Main.md` | document | **human** | 6000 chars | no write API (a library file, #263) | — | `thought` · `thought` |
 | `Goals.md` | document | **robot** | 8000 chars | refuses | `intend` / `drop_goal` | `thought` · `thought` |
 | `History.md` | document | **system** | 6000 chars (the view) | rolls the view | — (code writes it) | `thought` · `thought` |
 | `Top_of_mind.md` | document | **robot** | 3000 chars | refuses | `pin` / `unpin` | `thought` · `thought` |
@@ -1348,15 +1371,17 @@ decision branch — until #221 every ask looked the same from inside.
   lets the robot declare one.
 - **A true death archives** everything the robot and the system wrote: the
   store's generation moves on, the views are kept beside the fresh ones
-  (`History.1.md`), only the constitution survives. Two robots have two
+  (`History.1.md`), only the constitution survives — re-rendered from the
+  library file the environment names (#263). Two robots have two
   roots and two stores. **An old volume starts blank**: a root with the
   pre-#221 files and no store puts them aside through the same path and
   imports nothing, so an observation period holds only what was written
   through these verbs.
-- **The robot's NAME is not in `Main.md`** (issue #39): `pluggybot` is the
+- **The robot's NAME is not in any constitution** (issue #39): `pluggybot` is the
   species, the name is per instance (`robot_display_name`,
   `$PLUGGY_ROBOT_NAME`, default `Pluggy`) and `system_prompt` states it from
-  the same helper the telemetry header uses.
+  the same helper the telemetry header uses; a name in a library file would
+  freeze there (`tests/test_constitution.py` reads every file for one).
 - **Two-repo contracts.** `THOUGHT_FILES` / `THOUGHT_VERBS` (adding is
   additive, renaming breaks the site: `learn`/`forget` became `pin`/`unpin`
   at 0.21.0 and the site folds the old names as it folded `answered`); the

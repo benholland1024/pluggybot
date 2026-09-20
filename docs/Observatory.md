@@ -10,6 +10,45 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The library of constitutions (#263) — opens when this PR is deployed, and again whenever either robot's constitution changes
+
+**What changed on the wire and in the mind.** `Main.md` is no longer a
+file copied to the volume once and edited there; it is RENDERED, on every
+run, from a library file the environment names per robot
+(`$PLUGGY_CONSTITUTION` / `$PLUGGY_CONSTITUTION_2`;
+`src/pluggybot/mind/constitutions/`). The header's `build.constitutions`
+carries each robot's name and content hash, so this file's rule — a period
+opens when the deployed design changes — now has the constitution in it:
+**naming a different file for either robot, or editing a file under the
+same name, opens a period**, and the observatory groups by it. On deploy
+both robots read `default` — the same text they were flown on before,
+byte for byte — except that Luca's volume held a text from before the last
+edit to the default: on its first start it is replaced by the library's, the
+old text kept as `Main.1.md`, one `constitution_changed` row (`replaced`)
+and one History line. A swap of a living robot's constitution is the same
+row under `swapped` and is never silent; a hand edit of the volume is set
+aside under `edited`. Same model, same arm, same origin, same pair.
+
+**What the period is for.** Nothing yet: the same text, now versioned. The
+point is the NEXT one. Two robots on one model in one world with two
+dispositions — `purposeful` (form and pursue long-term goals) beside
+`curious` (understand the world and talk to others) — is a controlled
+comparison on the fifth and second qualities with the world as the fixed
+instrument and the model held; naming them is one `.env` change each, and
+the period it opens is attributable by `build.constitutions` alone. What to
+read when it is flown:
+
+- `constitution` rows: exactly one per robot at the swap, `swapped`, with
+  `from` and `to`; a second one means somebody edited the volume.
+- The five qualities with the robot filter, per constitution: goals
+  written and served (`thought` rows on `Goals.md`; `goals.served`)
+  against reads, notes on `visitors/` and `conversation` turns.
+- Whether a 4B told two different things behaves differently at all —
+  the null result is the cheap one and the one to expect first.
+
+**Not yet known.** Whether the emphasis reaches behaviour through a 4B's
+cached prefix, or only its `think`s.
+
 ### The mind is GLM-5.3-Flash (#225) — opens when the deployed `.env` moves, closes the 4B's period
 
 **What changed in the mind.** `PLUGGY_MODEL` moves from

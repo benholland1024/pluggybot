@@ -53,7 +53,7 @@ from pluggybot.evaluation.arms import origin_for
 from pluggybot.evaluation.rollup import write_rollup
 from pluggybot.mind.events import DEFAULT_ORIGIN as ORIGIN_DEFAULT
 from pluggybot.mind.events import ORIGINS
-from pluggybot.mind import llm
+from pluggybot.mind import constitution, llm
 
 REPO = Path(__file__).resolve().parent.parent
 RESULTS = REPO / "results"
@@ -222,6 +222,13 @@ def main() -> int:
                   help="which rung of the autonomous ladder (issue #115): "
                        "A0 is the null, A1 adds the survival clock to what "
                        "the model is shown. Ignored on the other arms")
+  ap.add_argument("--constitution", default=None,
+                  choices=constitution.names(), metavar="NAME",
+                  help="which constitution the robot is told it is (issue "
+                       "#263): a file in the library, `mind/constitutions/`. "
+                       "Default $PLUGGY_CONSTITUTION, then `default`. Its "
+                       "name joins the series key and its hash rides every "
+                       "record, so two dispositions are two series")
   ap.add_argument("--label", default="",
                   help="what the BOX was, in a word (issue #117): `quiet` "
                        "for a machine with nothing else on it. It joins the "
@@ -257,6 +264,9 @@ def main() -> int:
              "metabolism": not args.no_metabolism,
              "label": args.label, "rung": args.rung,
              "origin": origin_for(args.arm, args.origin),
+             # Resolved HERE, once, so a killed run's record (written by
+             # this process from the rows alone) carries it too.
+             "constitution": constitution.resolve(args.constitution).as_dict(),
              "maxSimS": args.max_sim_time, "freshState": True,
              "parallel": args.parallel, "wallLimitS": wall_limit,
              "startedAt": started.isoformat(), "dataHashes": hashes}

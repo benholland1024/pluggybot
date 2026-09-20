@@ -125,6 +125,16 @@ def main() -> None:
                            "the pluggybot'. Default $PLUGGY_ROBOT_NAME, then "
                            "'Pluggy'. Never the body name: renaming a robot "
                            "must not re-key its telemetry")
+  parser.add_argument("--constitution", default=None, metavar="NAME",
+                      help="which constitution this robot is told it is "
+                           "(issue #263): a file in the library, "
+                           "mind/constitutions/. Default $PLUGGY_CONSTITUTION, "
+                           "then 'default'. Rendered to the volume's Main.md "
+                           "on every run; its name and hash ride the header's "
+                           "build block")
+  parser.add_argument("--constitution-2", default=None, metavar="NAME",
+                      help="--pair: the second robot's constitution. Default "
+                           "$PLUGGY_CONSTITUTION_2, then 'default'")
   parser.add_argument("--pair", action="store_true",
                       default=bool(os.environ.get("PLUGGY_PAIR")),
                       help="serve TWO robots from one loop (issue #181; "
@@ -371,7 +381,7 @@ def main() -> None:
   # surfaces. Attached on EVERY served world, overseer or not: a scripted
   # rotation still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts)
+  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution)
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.
@@ -504,12 +514,16 @@ def main() -> None:
     rung=rung if arm == "autonomous" else None,
     # ...and which map it started from, off what was BUILT for the rung's
     # reason exactly: an origin cannot outlive the arm it belongs to.
-    origin=origin if arm == "autonomous" else None)
+    origin=origin if arm == "autonomous" else None,
+    # ...and which constitution the robot READ (issue #263), off the
+    # memory that read it, so the header cannot name one the robot never saw.
+    constitutions={life.root: memory.constitution.as_dict()})
   print(f"build: {identity['commit']} / {identity['arm']}"
         + (f" {identity['rung']}" if identity.get("rung") else "")
         + (f" {identity['origin']}" if identity.get("origin") else "")
         + (f" / {identity['model']} via {identity['backend']}"
-           if identity["model"] else ""))
+           if identity["model"] else "")
+        + f" / constitution {memory.constitution.short}")
 
   # The world's task state machines, polled on the same per-step seam
   # everything else hangs off (issue #8). Their flags ride in the frames.
@@ -701,7 +715,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      battery_wh=args.battery_wh, reserve_wh=args.reserve_wh,
                      near_field=args.near_field,
                      restart_after_s=(args.restart_after
-                                      if args.restart_after > 0 else None))
+                                      if args.restart_after > 0 else None),
+                     constitutions_named=(args.constitution, args.constitution_2))
   first, second = lives
   model, data = first.model, first.data
   screens = world_screens(model, data)
@@ -717,11 +732,17 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
     pack_wh=first.battery.capacity_wh, reserve_wh=first.low_battery_wh,
     deadline_s=boss.timeout_s if boss is not None else None,
     rung=rung if arm == "autonomous" else None,
-    origin=origin if arm == "autonomous" else None)
+    origin=origin if arm == "autonomous" else None,
+    # Per robot, off what each one READ (issue #263): the pair may be
+    # given two, and that is the experiment the library exists for.
+    constitutions={life.root: life.thoughts.constitution.as_dict()
+                   for life in lives})
   print(f"build: {identity['commit']} / {identity['arm']} / PAIR "
         f"{names[0]} + {names[1]}"
         + (f" / {identity['model']} via {identity['backend']}"
-           if identity["model"] else ""))
+           if identity["model"] else "")
+        + " / constitutions " + " + ".join(
+          life.thoughts.constitution.short for life in lives))
   book, tasks, ledger = first.boards, first.tasks, first.ledger._ledger
   can_spend = boss is not None and boss.spend is not None
   others = [StreamRobot(second.mission.handle.root, second.robot_name,

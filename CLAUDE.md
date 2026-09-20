@@ -467,7 +467,19 @@ save a filmstrip PNG named after the script.
   new GENERATION and keeps every row. Every `.md` the robot reads is a
   view rendered from rows (`mind/thoughts.py`); `mind/store.py` still
   carries the FILES (the constitution and the rendered views). The tiers:
-  constitution `Main.md` (HUMAN, cached prefix, no write API); core
+  constitution `Main.md` (HUMAN, cached prefix, no write API — and since
+  #263 a LIBRARY FILE, `mind/constitutions/<name>.md`, named per robot by
+  `$PLUGGY_CONSTITUTION` / `_2`, RENDERED to the volume every run with a
+  `Constitution.json` sidecar: a hand edit there is set aside as
+  `Main.1.md`, never honoured; name + sha256 ride `build.constitutions`
+  per robot root and the run record's `config.constitution`, the name is
+  in the rollup's series key (missing = `default`), and a living robot's
+  swap is a `constitution_changed` event + History line at mission start
+  (`why`: `swapped`/`replaced`/`edited`) — a new period (Observatory.md).
+  ⚠ `default.md` is byte-identical to the pre-#263 `DEFAULT_MAIN` or every
+  fixture recording's persona is stale. ⚠ `tests/test_constitution.py`
+  reads EVERY library file: no number, `%` or `->`, no hazard→act tactic,
+  no imperative menu act, no robot's name, and the shared skeleton); core
   `Goals.md` (`intend`/`drop_goal`) and `Top_of_mind.md` (`pin`/`unpin`,
   the robot's RAM, always shown, 3000 chars); notes `Notes.md`
   (`note {topic, title, text}`/`unnote`, 64, the INDEX shown and a body by
@@ -778,7 +790,10 @@ save a filmstrip PNG named after the script.
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
   `"Pluggy"`), `PLUGGY_NEAR_FIELD` (the depth camera and its height map;
-  unset → on, `0` → off), `PLUGGY_PAIR` / `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
+  unset → on, `0` → off), `PLUGGY_CONSTITUTION` / `PLUGGY_CONSTITUTION_2`
+  (which library file each robot is told it is, issue #263; unset →
+  `default`; an unknown name REFUSES to start), `PLUGGY_PAIR` /
+  `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`
   (the second robot, issue #181), the five data files (`PLUGGY_REWARDS`, `PLUGGY_QUESTIONS`,
   `PLUGGY_CADENCE`, `PLUGGY_ENERGY`, `PLUGGY_METABOLISM` — naming the last
   turns hunger on), `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`,

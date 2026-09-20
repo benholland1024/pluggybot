@@ -232,7 +232,9 @@ spent call budget) falls back to a scripted rotation and says so on the wire,
 so the robot keeps working with the API unplugged — that is a tested property,
 not a hope. Its memory is a record store and the documents rendered from it,
 under `/var/lib/pluggybot/thoughts` (the diagram above; `docs/Overseer.md`
-§7): `Main.md` is yours to edit, the rest is the robot's and the sim's.
+§7): `Main.md` is yours to choose — a file from the library in
+`src/pluggybot/mind/constitutions/`, named by `$PLUGGY_CONSTITUTION` (#263) —
+the rest is the robot's and the sim's.
 
 Full design, the action vocabulary, the cost numbers and the measured battery
 limit: `docs/Overseer.md`. To see what a decision actually costs before
