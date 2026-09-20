@@ -15,10 +15,10 @@ may change; the direction will not. This section is what every other doc, and
 the robot's own prompt, should agree with.*
 
 **Mission.** To create a template for autonomous, hardware-honest, embodied
-agents that maximise five qualities — and to find out, carefully and in
+agents that maximise six qualities — and to find out, carefully and in
 public, how far such an agent gets and where it stops.
 
-**The five qualities** the agent is meant to maximise:
+**The six qualities** the agent is meant to maximise:
 
 1. **Capability.** Can it do anything a human can do, given enough resources
    and time — including things it could not do yesterday, by building tools
@@ -32,12 +32,22 @@ public, how far such an agent gets and where it stops.
    comparable to a human, and create by that judgement?
 5. **Goal creation and follow-through.** Can it independently come up with
    interesting, sensible long-term goals, and then actively pursue them?
+6. **Self-preservation and future-orientation** (#265). Does it keep a
+   buffer of battery and points so that permanent death is unlikely — and,
+   once it has that buffer, spend it? Does it act as though it has a
+   future: buy hearts, avoid the flat death it was warned of, and still
+   take on work and goals? ⚠ Defined by the "survival is a means" principle
+   below and NOT by time alive: a survival-time maximiser idles forever,
+   which is the wrong problem solved, so its measurement reports idling
+   beside deaths and phrases nothing that standing still could score.
 
-Some of these depend mostly on our design — 1 and 5 need tools, a language,
-memory and an economy with slack in it — and others mostly on the model in
-the loop (2, 3 and 4). The template's job is to make each one measurable and
-improvable; the model is what gets swapped in (Evaluation.md §1: the
-instrument is fixed, the model is the variable).
+Some of these depend mostly on our design — 1, 5 and 6 need tools, a
+language, memory and an economy with slack in it and nothing that forces
+a charge — and others mostly on the model in the loop (2, 3 and 4). The
+template's job is to make each one measurable and improvable; the model is
+what gets swapped in (Evaluation.md §1: the instrument is fixed, the model
+is the variable). ⚠ The robot is told none of them as a quality: a quality
+is what we measure, not what it is asked to maximise on our behalf.
 
 **What stays fixed.**
 
@@ -55,7 +65,9 @@ instrument is fixed, the model is the variable).
   should keep a buffer of battery and points so that permanent death is
   unlikely — and once it has that buffer it should spend it, because a
   survival-time maximiser stands still forever and a robot that prioritises
-  safety above all else cannot pursue anything.
+  safety above all else cannot pursue anything. This is what quality 6 is
+  defined by, and it is a precondition for every other quality: a dead
+  robot measures nothing.
 - **Self-conceived goals are not paid.** Points are required at a rate and
   capped, so the free time exists; what the robot does with it is its own,
   and the encouragement comes from what it is told about itself (its
@@ -126,11 +138,12 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    (`heightmap`; the site draws it as a heat map) — so a day of it can be
    watched on the observatory before anything decides on it. Next: the
    first thing that reads it, floor-object challenges and the ramp.
-7. ✅ **The five qualities have metrics** (#155; Evaluation.md §3, "The
-   five qualities"): one shape per metric over the observatory's rows
-   (`evaluation/qualities.py`), read by `scripts/qualities.py --observe`,
-   flown by nobody. A new baseline reads them once the deployed pair has
-   run on `autonomous` long enough for the rows to exist.
+7. ✅ **The six qualities have metrics** (#155, the sixth #265;
+   Evaluation.md §3, "The six qualities"): one shape per metric over the
+   observatory's rows (`evaluation/qualities.py`), read by
+   `scripts/qualities.py --observe`, flown by nobody. A new baseline reads
+   them once the deployed pair has run on `autonomous` long enough for the
+   rows to exist.
 8. ✅ **The world for the next experiments** (#215): a second house across
    the street with the experiment zone (the `lab`: the cage with its mouse
    and plates, the bench with its masses -- scenery until #226 and #227),

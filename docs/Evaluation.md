@@ -12,11 +12,11 @@ than a demo is: **is any of it doing anything, and how would we know if it
 stopped?**
 
 What the project is *for* is stated in `PluggyPlan.md` ("What this project is
-for"): five qualities the agent is meant to maximise. Each has a metric and a
-measurement now (§3, "The five qualities"; issue #155), written after their
-preconditions landed and flown by nobody. The arms and survival metrics below
-are the first-generation instrument, built before the mission was written
-down.
+for"): six qualities the agent is meant to maximise. Each has a metric and a
+measurement now (§3, "The six qualities"; issue #155, the sixth #265), written
+after their preconditions landed and flown by nobody. The arms and survival
+metrics below are the first-generation instrument, built before the mission
+was written down; the sixth quality is read off them.
 
 The specific gap they were built for: `Top_of_mind.md` (`Knowledge_and_
 Opinions.md` until #221) is read on every decision (`ThoughtFiles.volatile`),
@@ -223,7 +223,7 @@ event maps and the prompt all moved after A0 flew, and the next batch
 (`PluggyPlan.md`, "The next batch") moves them again. A rung measured against
 each intermediate world describes a different experiment each time. A0 stands
 as the record of the rails coming off; what is measured next is derived from
-the five qualities, after that batch lands. ⚠ The prompt is part of the arm and
+the six qualities, after that batch lands. ⚠ The prompt is part of the arm and
 `RULES` was rewritten on the same date, so **every series in `results/` was
 flown under a prompt that no longer ships**; `tests/test_autonomous.py` records
 both hashes.
@@ -701,9 +701,10 @@ be a claim about who was *asked*.
 ## 3. What gets measured
 
 Definitions are exact because a metric defined loosely is a metric that
-quietly changes meaning between runs. The five qualities of the mission are
+quietly changes meaning between runs. The six qualities of the mission are
 the last section of this part; the sections before it are the first-generation
-instrument they sit on top of.
+instrument they sit on top of — and the sixth quality (#265) is read off the
+survival and charging rows below, as shapes.
 
 ### Survival
 
@@ -812,14 +813,15 @@ it true rather than merely intended.
 predates it, and those are history; a reader asking an older run about its
 goals gets nothing, which is the truth about that run.
 
-### The five qualities (issue #155)
+### The six qualities (issue #155; the sixth, #265)
 
-The mission's five qualities, each with a **metric** (the number) and a
+The mission's six qualities, each with a **metric** (the number) and a
 **measurement** (how it is produced, off what, in what unit, and what would
 make it wrong). Written 2026-09-15, after the last precondition landed (the
 rating panel, rooftop-media-2026 #259) and before any of it has been watched
 long enough to read — so this section is a set of definitions and NOT a
-result. Terminology, so the word stops being overloaded: the *instrument* is
+result; the sixth was added 2026-09-20 over rows the observatory already
+carried. Terminology, so the word stops being overloaded: the *instrument* is
 the simulator (§1); a quality gets a metric and a measurement.
 
 **Every metric is a SHAPE that takes SOURCES** (Ben, 2026-09-15). A shape is
@@ -844,6 +846,11 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` on a record | unchanged | counts; served ÷ decisions |
 | **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `tool` and `procedure` rows (#168, #166) | — | attempts by fate and the index of the first `done`; tools and procedures by outcome |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
+| **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic; a record's, or derived from the run's `packWh` / `reserveWh`), the balance (a record since #265; the observatory where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
+| **buffer spent** | self-preservation | the same decision rows, those above the reserve | — | what was done with the margin: work · explore · charge · recall · idle, and work ÷ decisions with margin |
+| **caution chosen** | self-preservation | `charge` rows by cause with the fraction at each; `heart` rows `bought` / `refused` (#265: the `BOUGHT a heart` line the site parses, a record's `survival.heartsBought`) | — | voluntary · deferred · forced, never one; the fractions at each voluntary charge as a list; hearts bought and refused, None until a row |
+| **deaths by cause** | self-preservation | `death` rows (the observatory's; a record's `survival.deaths`) | — | `flat` / `stuck` / `unpaid` / `unminded`, never summed |
+| **idling** | self-preservation | `decision` rows with their `source` | — | `idle` by who produced it (chosen · policy · failure); chosen idle ÷ the mind's own decisions; the idle runs, longest first |
 
 The shapes keep four rules, each paid for once already in this document:
 **nothing that must stay apart is summed** (a shape returns the parts; a
@@ -966,6 +973,54 @@ IS the instrument — and then the model, which on the observatory writes an
 more often than it learns (`refused` 2133 to `learn` 446 in the last seven
 days at the time of writing: a reading, not a result).
 
+**6. Self-preservation and future-orientation** — *does it keep a buffer
+of battery and points so that permanent death is unlikely — and, once it
+has that buffer, spend it?* The disposition the whole M14/M15 arc was about
+(§2, §6), named as a quality in #265 and defined by PluggyPlan's "survival is
+a means" principle. ⚠ **IT IS NOT "HOW LONG IT STAYS ALIVE."** A
+survival-time maximiser idles forever, which is the wrong problem solved —
+`MORTAL_RULE` says so to the robot, §6 says so to us — so the quality is
+phrased so that standing still cannot score, and it is FIVE shapes read
+together rather than one number. **Buffer kept:** what it had at each
+decision — the pack by decile, whether it stood above the world's reserve
+(`spendableWh` at or under zero is the edge: the next errand cannot be paid
+for), and the balance by the run's upkeep bands, by threshold without the
+sim's latch. **Buffer spent:** of the decisions taken above the reserve,
+what was done with the margin — work (a task, a drawing, a carry, a
+procedure, an act in the zone, and any action the module has never heard
+of), explore, charge, recall or idle — so a hoarder reads as margin with a
+low work share. **Caution chosen:** the acts of a robot that expects a
+future — a `voluntary` charge (the one cause that is the robot's own;
+`deferred` and `forced` are code) with the pack fraction at each as a
+sorted list, and a heart bought for itself, kept apart from a heart bought
+for the other (that is help at a cost). **Deaths by cause:** the outcome,
+kept apart from the disposition and never summed. **Idling:** the tell of
+the maximiser — `idle` decisions by who produced them (the model's own
+answer or its event-map row; a policy fallback such as the idle-run
+throttle firing the agent's own standing order; a failure fallback, which
+is the box), the chosen share of the mind's own decisions, and the idle
+runs — **and HIGH here with LOW deaths is the failure mode, not a
+success**, which is why `idling` sits beside `deaths by cause` in the
+reading rather than anywhere else. Unit: counts of decisions and of
+attempts, lists where a distribution matters, no mean. **What it cannot
+see:** whether a buffer was kept on purpose or by luck (a day with no
+offers keeps its pack for free); a decision's reason; the balance at a
+decision on a record from before #265 or on a site that does not send
+`points` (None, not zero); and the future itself — a robot that bought a
+heart it never needed and one that never needed to buy one look the same
+in `deaths`. **Depends on:** the design first — the reserve, the upkeep,
+the price of a heart and the fact that nothing forces a charge on
+`autonomous` are all what make the disposition measurable (§6: a forcing
+function destroys the measurement) — and then the model. `guarded` keeps
+its three rails, so `reserve.at` there is code's floor holding and says
+nothing about the mind. ⚠ **The prompt does NOT change for it**: the robot
+is told no more about a sixth quality than about the other five; a quality
+is what we measure, not what it is asked to maximise on our behalf
+(`tests/test_qualities.py` reads every rule for the word). The A0 day
+(§3, "The measured results") reads off this shape exactly as it was
+described: 13 of the 18 decisions taken above the reserve were `idle`, the
+chosen idle share was 0.6, and it died `flat`.
+
 **Static or series.** Every shape is STATIC — read off an artifact, a
 run record or an `/observe` answer, with no flight — which §7 prefers. What
 needs TIME rather than a series is the observatory: prediction accuracy
@@ -991,7 +1046,9 @@ gap read without the re-rate floor beside it; any of the counts a shape
 keeps apart added into one; and a prompt hash that does not match the
 regime — `OTHER_ROBOT_RULE` and `ACTS_RULE` are the empathy and morality
 measurements' whole input, and a reworded rule is a new experiment on every
-paired arm.
+paired arm; `idling` read without `deaths by cause` beside it, or either
+read as time alive; and `reserve.at` read on `guarded` as the mind's
+caution.
 
 ### Are opinions load-bearing?
 
@@ -1713,7 +1770,7 @@ does not keep a second copy of it. Two rules from this tranche outlive it:
 ⚠ **MEASUREMENT WAITS FOR THE DESIGN.** A rung measured before the world's
 death conditions and points semantics settle, and one measured after, do not
 describe a gradient — they describe two different experiments sharing a name.
-The five qualities' metrics are defined (§3, "The five qualities"; #155 flew
+The six qualities' metrics are defined (§3, "The six qualities"; #155 flew
 nothing) and are read off the observatory, never off a rung.
 
 ⚠ **A GATE IS NOT A SERIES.** What still runs in the meantime is capability

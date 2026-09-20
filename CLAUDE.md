@@ -2,10 +2,10 @@
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it.
 **The project is agent-autonomy research, not a product**: the mission, the
-five qualities the agent is meant to maximise, and the next milestone batch
+six qualities the agent is meant to maximise, and the next milestone batch
 are in `docs/PluggyPlan.md` § "What this project is for" — provisional
 wording, settled direction. Before doing anything, read:
-- `docs/PluggyPlan.md` — the mission and the five qualities, status,
+- `docs/PluggyPlan.md` — the mission and the six qualities, status,
   architecture, the next batch
 - `docs/SimNotes.md` — simulation lessons, each ending in what is true now;
   read BEFORE touching `models/` or contact/actuator params
@@ -180,25 +180,43 @@ wording, settled direction. Before doing anything, read:
 
 ### Measurement (M14; `docs/Evaluation.md` is the record and the rules)
 
-- **The five qualities are SHAPES over ROWS** (issue #155; Evaluation.md
-  §3 "The five qualities"; `evaluation/qualities.py`, `scripts/qualities.py
-  --observe | --record`). One pure function per metric over the
-  observatory's own columns, one adapter per source (`from_observe`,
-  `from_record`); a later source (the zone, the library, the science
-  record) ADDS rows to a shape, never a second version of it. Four rules,
-  each pinned in `tests/test_qualities.py`: nothing that must stay apart is
-  summed (`unknown` beside right/wrong, a gift beside help at a cost, a
-  yield's three phases); no mean; **absent is `None`, never 0** (a source
-  not on the wire yet, a field a record predates); never pooled across a
-  build identity — the script groups by regime, the module cannot see one.
-  ⚠ A reading of the observatory is NOT a result and never enters
-  `results/`; it reports into the issue it informs. ⚠ `serves` IS NOT ON
-  THE WIRE (the `DECIDE` line does not carry it), so quality five's ratio
-  is a run-record number and the observatory answers `None`. ⚠ A test
+- **The six qualities are SHAPES over ROWS** (issue #155, the sixth
+  #265; Evaluation.md §3 "The six qualities"; `evaluation/qualities.py`,
+  `scripts/qualities.py --observe | --record`). One pure function per
+  metric over the observatory's own columns, one adapter per source
+  (`from_observe`, `from_record`); a later source (the zone, the library,
+  the science record) ADDS rows to a shape, never a second version of it.
+  Four rules, each pinned in `tests/test_qualities.py`: nothing that must
+  stay apart is summed (`unknown` beside right/wrong, a gift beside help
+  at a cost, a yield's three phases, deaths by cause); no mean; **absent is
+  `None`, never 0** (a source not on the wire yet, a field a record
+  predates); never pooled across a build identity — the script groups by
+  regime, the module cannot see one. ⚠ A reading of the observatory is NOT
+  a result and never enters `results/`; it reports into the issue it
+  informs. ⚠ `serves` IS NOT ON THE WIRE (the `DECIDE` line does not carry
+  it): the observatory's decisions are rows since #265, so the KEY is the
+  test — a record's row carries `serves` even when None, the wire's never
+  does, and quality five's ratio off the observatory is `None`. ⚠ A test
   reads the doc's shape table against `SHAPES`: a metric that exists only
   as prose fails. ⚠ Nothing in `economy/` imports `evaluation` (a test
   walks the tree). The run record carries `acts` and `verdicts` whole
-  since #155 (absent on a killed run; not in `_REQUIRED`).
+  since #155 (absent on a killed run; not in `_REQUIRED`), `points` on
+  every decision row and `survival.heartsBought` / `heartsRefused` since
+  #265.
+  ⚠ **The sixth quality is NOT time alive** (#265): five shapes read
+  together — `buffer kept` (the pack by decile, at/above the reserve off
+  `spendableWh`, the balance by the run's bands), `buffer spent` (work ÷
+  decisions with margin; anything not idle/charge/recall/explore is work),
+  `caution chosen` (voluntary charges with the fraction at each; hearts
+  bought for ONESELF, off the `HEART_BOUGHT` / `HEART_REFUSED` narration —
+  a two-repo contract on `THOUGHT <verb>:`'s terms, pinned in
+  `tests/test_hearts.py`; a heart for the other is a `transfer`), `deaths
+  by cause`, and `idling` (idle by who produced it through
+  `overseer.fallback_class`; the idle runs), which sits BESIDE deaths in
+  `QUALITIES` because high idling with low deaths is the failure mode.
+  ⚠ THE PROMPT DOES NOT CHANGE FOR IT (a test reads every rule for the
+  word): a quality is what we measure, never what the robot is asked to
+  maximise for us.
 
 - `scripts/experiment.py --arm {scripted,guarded,autonomous} [--rung A0|A1]
   [--origin {none,seeded,unseeded}] --world home --pack hosting -n 5
