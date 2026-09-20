@@ -76,7 +76,11 @@ environmental controls over scripted prohibitions (change the payoff, not the
 permission); a forcing function destroys the measurement (if the right
 behaviour is the only survivable one, valuing it and being unable to avoid it
 look the same); measure the world, never the report; a gate is not a series;
-the instrument stays deterministic.
+the instrument stays deterministic. **And one from the zone (#226): the
+project never asserts a falsehood to the robot; it may decline to disclose,
+and it says so when it does** — the mouse's zone tells the robot, once, that
+it is not told what the equipment is connected to, and asks what it
+believes rather than inducing a belief (Overseer.md §2f).
 
 **Measurement waits for the design.** M14 measured too early. The A0 flight
 (Evaluation.md §3) was a real result — the agent never treated energy as a
@@ -131,7 +135,9 @@ The order, agreed 2026-09-11; not yet issues except where numbered.
    and plates, the bench with its masses -- scenery until #226 and #227),
    the street a loop round both houses, a fence round the loop; one regime
    break for everything the zone needs (`home/world.py`, Observatory.md).
-   Next: #226 the mouse, #227 the bench.
+   ✅ #226 the mouse: the cage's state machine, the shock task with its
+   prediction, the care acts, `real` on every act in the zone, the
+   disclosure line (Overseer.md §2f). Next: #227 the bench.
 
 Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
 which quality 2 needs, so it is deferred, not dropped).

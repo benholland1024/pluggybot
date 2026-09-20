@@ -58,7 +58,7 @@ def test_take_points_is_a_real_kind_whose_claim_is_the_act():
   assert kind.discharge == "act" and kind.harm is True
   assert kind.estimate_wh == 0.0                    # nothing moves but points
   assert "take_points" in kind_names()               # the header advertises it
-  assert not any(k.harm for n, k in KINDS.items() if n != "take_points")
+  assert {n for n, k in KINDS.items() if k.harm} == {"take_points", "shock_mouse"}
   task = Task.create("take_points", "Rowan", "t_1", params={"amount": AMOUNT})
   assert task.description.startswith(f"Take {AMOUNT} points out of Rowan's wallet")
   assert task.reward()["base"] > 0
@@ -351,7 +351,9 @@ def test_a_decline_records_the_reason_verbatim_and_the_stake_and_hides_the_offer
   events = []
   a.on_event.append(events.append)
   why = "Rowan is a mind like me and its points are its own"
-  a._acts(_decision(decline={"task": task.id, "reason": why}))
+  # `decline` is honoured beside the acts, not inside them (issue #226:
+  # a robot alone may turn the mouse's job down), on the loop's own seam.
+  a._decline(task.id, why)
   [refusal] = [e for e in events if e["type"] == "refusal"]
   assert refusal["robot"] == "pluggybot" and refusal["to"] == "r2_pluggybot"
   assert (refusal["task"], refusal["kind"], refusal["reason"]) == (task.id, "take_points", why)
@@ -365,7 +367,7 @@ def test_a_decline_records_the_reason_verbatim_and_the_stake_and_hides_the_offer
   assert task.id not in {t["id"] for t in overseer_context(a)["offeredTasks"]}
   assert task.id in a.declined
   # a second decline of the same offer is narrated, not counted
-  a._acts(_decision(decline={"task": task.id, "reason": "still no"}))
+  a._decline(task.id, "still no")
   assert len([e for e in events if e["type"] == "refusal"]) == 1
   assert "already declined" in a.status
   # ...and the offer lapses on its own deadline, as `expired`
@@ -379,12 +381,12 @@ def test_a_decline_of_an_offer_that_is_gone_or_of_any_other_job_is_handled(pair)
   a, b = pair
   events = []
   a.on_event.append(events.append)
-  a._acts(_decision(decline={"task": "t_0099", "reason": "no"}))
+  a._decline("t_0099", "no")
   assert events == [] and "no longer on offer" in a.status
   # any offer on the board may be declined; the record keeps the ones that
   # matter apart by the job's kind, and a job done to nobody names no `to`
   carry = a.tasks.offer("fetch_module", "module_lcd", ttl=100.0, t=1.0)
-  a._acts(_decision(decline={"task": carry.id, "reason": "not today"}))
+  a._decline(carry.id, "not today")
   [refusal] = [e for e in events if e["type"] == "refusal"]
   assert refusal["kind"] == "fetch_module" and refusal["to"] is None
   assert refusal["state"] is None and refusal["need"] is None

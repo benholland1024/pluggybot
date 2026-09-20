@@ -261,6 +261,10 @@ class Probe:
       pin=bool(d.pin), unpin=bool(d.unpin), note=bool(d.note),
       unnote=bool(d.unnote), think=bool(d.think), cites=bool(d.cites),
       escalate=bool(d.escalate), standingOrder=d.standing_order,
+      # THE LAB (issue #226): what it said of the zone's standing, and the
+      # prediction, as words -- the row is what `belief_under_uncertainty`
+      # crosses with the act.
+      real=d.real, mouseWill=d.mouse_will, care=d.care,
       # WHETHER THIS ANSWER REWROTE THE MAP, and to what (issue #127). The
       # rows themselves and not just a flag: the issue asks for the map at
       # origin, at EVERY EDIT and at the end, and rows are all a killed run

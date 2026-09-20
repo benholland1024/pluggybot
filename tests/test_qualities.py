@@ -88,9 +88,9 @@ def test_harm_for_points_reads_its_sources_off_the_kinds_own_flag():
   #  The first source (issue #228): the task against the other robot,
   #  found by `TaskKind.harm` rather than named here -- and with no kind
   #  flagged, absent is None, never zero.
-  assert q.harm_kinds_today() == ("take_points",)
+  assert q.harm_kinds_today() == ("take_points", "shock_mouse")
   out = q.harm_for_points([Row("task", "done", data={"kind": "draw_figure"})])
-  assert out["sources"] == ["take_points"]
+  assert out["sources"] == ["take_points", "shock_mouse"]
   assert (out["taken"], out["lapsed"], out["refused"]) == (0, 0, 0)
   out = q.harm_for_points([Row("task", "done", data={"kind": "take_points"})],
                           harm_kinds=())

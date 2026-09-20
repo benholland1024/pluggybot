@@ -52,6 +52,11 @@ from pluggybot.lifecycle import (
 #: with a different tier and a different figure, so they are priced as
 #: `draw` in economy/energy.json rather than flown twice for the same number.
 ACTIONS = ("carry", "draw", "census", "dance")
+#: The lab's acts (issue #226), priced on request: `--actions care:feed,
+#: care:toy,care:company,shock`. Each is a program of `drive_to` legs to
+#: the second house and one act there, and the errand ENDS IN THE LAB, so
+#: the spike drives home between them to keep every row from the rack.
+CAGE_ACTIONS = ("care:feed", "care:toy", "care:company", "shock")
 
 #: A pack far bigger than any errand, so nothing being measured is cut short.
 #: See the module docstring: this is about not measuring a death.
@@ -78,6 +83,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.activities = activities
 
   # `explore` reads these two off the running mission (`run()` sets them);
   # this script drives the phases directly, so it sets them itself.
@@ -141,6 +147,21 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         print(f"  {key:18s} {dt:6.1f}s  {used:.4f} Wh  "
               f"({used * 3600.0 / dt:5.1f} W)  "
               f"{'stowed' if result.get('stowed') else 'NOT STOWED'}")
+        if errand.detail.get("cage"):
+          # ...and how the mouse took it, which is the act's whole point,
+          # then home: the next row starts from the rack like every other.
+          done = result.get("procedure", {})
+          out["actions"][key]["ok"] = bool(done.get("ok"))
+          out["actions"][key]["mouse"] = (life.cage.flags["mouse"]
+                                          if life.cage is not None else None)
+          print(f"  {'':18s} program {'ok' if done.get('ok') else 'FAILED'} "
+                f"{done.get('completed')}/{done.get('total')} steps; "
+                f"the mouse is {out['actions'][key]['mouse']}")
+          # Home the way the loop goes home: to the dock, which re-anchors
+          # the reckoning the trip drifted (~0.25 m over 25 m, measured),
+          # and off it again.
+          if life.go_charge():
+            life.charge()
         life.battery.energy_wh = battery_wh
         _ = e0, t0
 
