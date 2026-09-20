@@ -78,7 +78,22 @@ VISUAL_HINTS = (
   # and the plates are unhinted like the garden's: no new word where an old
   # one is true.
   "cage", "mouse",
+  # v5: the pressure plate (the garden's and the lab's three), once the site
+  # wanted to draw what each one DOES. One hint for the class of thing; what
+  # a plate is for is `scene.plates` (PLATE_PURPOSES), never a hint per
+  # purpose -- a shock plate and a feed plate are the same pad with a
+  # different label, and the label is data.
+  "plate",
 )
+
+#: What a pressure plate is FOR, by the plate body's name in `scene.plates`
+#: (the sidecar's `plates`, on `boards`' terms). A two-repo vocabulary like
+#: VISUAL_HINTS: the site draws a glyph per purpose for VISITORS -- never the
+#: sim, whose plate rgba is what the robot's cameras render -- and
+#: `scene_dict` refuses a purpose outside it. `light` is the garden plate's;
+#: the lab's three are issue #226's, named before its state machine exists
+#: because the props landed with the house (#215). Adding one is additive.
+PLATE_PURPOSES = ("light", "shock", "feed", "toy")
 
 #: Which BUILDING a room zone is in (issue #215's follow-up): the house with
 #: the rack, and the facility with the lab. A two-repo vocabulary on

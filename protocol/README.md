@@ -80,6 +80,24 @@ additive (`LIBRARY_EVENT_TYPES`); no header change, no bump:
   carries `lookup` in `decisions[]`, and the narration says `READ ...`.
 - The fixtures are not re-recorded: nothing in a header moved.
 
+### 0.21.0, additive: the pressure plates say what they are for
+
+A visitor could not tell the lab's three plates apart (pluggybot #215's
+props for #226). Two additive things:
+
+- **A `plate` hint** (`VISUAL_HINTS`, `hints.json`): the garden's pad and
+  the lab's three. One box, thin, and DYNAMIC in a real world -- the pad
+  rides a slide joint, so a frame carries its pose as it sinks under a
+  wheel. Draw in the body's frame.
+- **`scene.plates`**, on `boards`' terms: `{<body name>: {"purpose": ...}}`
+  with the purpose from `PLATE_PURPOSES` (`light`, `shock`, `feed`,
+  `toy`). The site draws a glyph per purpose on the pad's top face, for
+  VISITORS: a lightning bolt, cheese, a smiley, a bulb. The sim's plate
+  rgba is one colour for all four, deliberately -- it is what the robot's
+  cameras render, and a glyph on the floor is what its tag detector looks
+  for. `scene_dict` refuses a purpose outside the vocabulary. Both home
+  scenes regenerated; the recordings are unchanged.
+
 ### 0.21.0, additive: a room names its building, and the middle street reaches the loop
 
 A follow-up to pluggybot #215, asked for once it was live. Two things a
@@ -1845,9 +1863,11 @@ looks authoritative.
   AprilTag detector, and high-contrast rectilinear detail is exactly what that
   detector looks for.
 
-A generated world may also carry three optional top-level fields, likewise
-additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`),
-`spawns` (`name → [x, y, yaw_rad]`), and `boards` — the drawing surfaces, by
+A generated world may also carry four optional top-level fields, likewise
+additive: `zones` (named rectangles, `{name, kind, min:[x,y], max:[x,y]}`,
+a room's with `building`), `spawns` (`name → [x, y, yaw_rad]`), `plates`
+(the pressure plates by body name, `{purpose}` from `PLATE_PURPOSES` — the
+glyph the site draws on the pad), and `boards` — the drawing surfaces, by
 the name telemetry uses:
 
 ```jsonc

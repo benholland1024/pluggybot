@@ -255,6 +255,20 @@ MARKERS = [
               "Draw a small rodent inside the capsule's length and radius; "
               "the state it is in is NOT in the geometry, it rides the "
               "activity's flags."),
+  # ---- v5: the pressure plate -----------------------------------------------
+  # The garden plate's real pad: 400 x 400 x 10 mm.
+  Marker("plate", [("box", "0.20 0.20 0.005", "0 0 0.005")], collides=True,
+         axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
+         build="replace",
+         note="A sprung pad on the floor that a wheel presses: ONE BOX, "
+              "thin, and DYNAMIC in a real world (its body rides a slide "
+              "joint, so a frame carries its pose as it sinks 10 mm under "
+              "the robot) -- draw in the body's frame and the pad sinks "
+              "with it. What the plate is FOR is `scene.plates[name].purpose`"
+              " (`light`, `shock`, `feed`, `toy`): draw a glyph for the "
+              "visitor INSIDE the box, on its top face, and none for a "
+              "purpose you have no glyph for. The glyph is the site's -- the "
+              "robot's cameras never see it."),
 ]
 
 #: These markers are EXACTLY ONE BOX, pinned rather than merely intended.

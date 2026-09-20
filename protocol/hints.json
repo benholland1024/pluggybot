@@ -21,7 +21,8 @@
   "sidewalk",
   "counter",
   "cage",
-  "mouse"
+  "mouse",
+  "plate"
  ],
  "oneBoxHints": [
   "couch",
@@ -1361,6 +1362,65 @@
       "quat": [
        0.707107,
        0.707107,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "plate": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "A sprung pad on the floor that a wheel presses: ONE BOX, thin, and DYNAMIC in a real world (its body rides a slide joint, so a frame carries its pose as it sinks 10 mm under the robot) -- draw in the body's frame and the pad sinks with it. What the plate is FOR is `scene.plates[name].purpose` (`light`, `shock`, `feed`, `toy`): draw a glyph for the visitor INSIDE the box, on its top face, and none for a purpose you have no glyph for. The glyph is the site's -- the robot's cameras never see it.",
+   "body": {
+    "name": "hint_plate",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "plate",
+    "pos": [
+     0.0,
+     57.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_plate_0",
+      "type": "box",
+      "size": [
+       0.4,
+       0.4,
+       0.01
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.005
+      ],
+      "quat": [
+       1.0,
+       0.0,
        0.0,
        0.0
       ],

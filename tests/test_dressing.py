@@ -88,7 +88,7 @@ def test_furniture_is_collidable_and_decor_is_not(trio):
     geoms = _body_geoms(model, model.body(name).id)
     any_solid = any(_collides(model, g) for g in geoms)
     if hint in ("couch", "bed", "table", "counter", "stairs", "wall",
-                "fence", "whiteboard", "rack", "cage", "mouse"):
+                "fence", "whiteboard", "rack", "cage", "mouse", "plate"):
       assert any_solid, f"{name} ({hint}) stopped colliding"
     elif hint in ("floor", "ground", "sidewalk", "street", "plant"):
       assert not any_solid, f"{name} ({hint}) grew a collision"

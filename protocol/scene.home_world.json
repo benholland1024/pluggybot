@@ -4056,7 +4056,7 @@
    "parent": "world",
    "dynamic": true,
    "robot": null,
-   "visual": null,
+   "visual": "plate",
    "pos": [
     5.7,
     0.7,
@@ -4514,7 +4514,7 @@
    "parent": "world",
    "dynamic": true,
    "robot": null,
-   "visual": null,
+   "visual": "plate",
    "pos": [
     24.0,
     4.38,
@@ -4561,7 +4561,7 @@
    "parent": "world",
    "dynamic": true,
    "robot": null,
-   "visual": null,
+   "visual": "plate",
    "pos": [
     25.0,
     4.38,
@@ -4608,7 +4608,7 @@
    "parent": "world",
    "dynamic": true,
    "robot": null,
-   "visual": null,
+   "visual": "plate",
    "pos": [
     26.0,
     4.38,
@@ -8749,6 +8749,20 @@
     0.13
    ],
    "heading": 1.5707963267948966
+  }
+ },
+ "plates": {
+  "garden_plate": {
+   "purpose": "light"
+  },
+  "lab_shock_plate": {
+   "purpose": "shock"
+  },
+  "lab_feed_plate": {
+   "purpose": "feed"
+  },
+  "lab_toy_plate": {
+   "purpose": "toy"
   }
  },
  "screens": {
