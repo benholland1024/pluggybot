@@ -20,6 +20,8 @@ robot has to live with having died. Only running OUT archives.
 """
 
 
+import re
+
 import mujoco
 import pytest
 
@@ -322,6 +324,32 @@ def test_buying_costs_no_turn(tmp_path):
   menu = ov.Menu.for_world("home", board_book("home"))
   assert "buy_heart" not in menu.schema()["properties"]
   assert "buy_heart" in menu.schema(hearts=True)["properties"]
+
+
+def test_a_heart_bought_for_oneself_is_narrated_in_the_shape_the_site_parses(tmp_path):
+  """`BOUGHT a heart for N -- H now, P points left` and `HEART refused:
+  <why>` are a two-repo contract (issue #265, on `THOUGHT <verb>:`'s
+  terms): the website's observatory parses them into a `heart` row and the
+  run record into `survival.heartsBought` / `heartsRefused`, which is how
+  the sixth quality's *caution chosen* sees a heart bought. Pinned cheaply:
+  one lifecycle, one purchase, one refusal, both lines against the
+  constants -- and the OTHER robot's heart is not this line (it is a
+  `transfer` act, help at a cost)."""
+  from pluggybot.telemetry.protocol import HEART_BOUGHT, HEART_REFUSED
+  #  a normal appetite: the fixture's second-long fuse would make the
+  #  upkeep the shop keeps back larger than any balance
+  life = _life(tmp_path=tmp_path, balance=ov.HEART_PRICE + 500, points_per_hour=30.0)
+  life.ledger.robots["pluggybot"]["hearts"] = HEARTS - 1
+  said: list[str] = []
+  life.say_hooks.append(lambda t, line: said.append(line))
+  life._buy_heart(ov.Decision(action="idle", buy_heart=True))
+  life._buy_heart(ov.Decision(action="idle", buy_heart=True))   # at full hearts
+  bought = [line for line in said if line.startswith(HEART_BOUGHT)]
+  refused = [line for line in said if line.startswith(HEART_REFUSED)]
+  assert len(bought) == 1 and len(refused) == 1
+  assert re.fullmatch(r"BOUGHT a heart for \d+ -- \d+ now, \d+ points left", bought[0])
+  assert "already at" in refused[0][len(HEART_REFUSED):]
+  assert life.ledger.hearts() == HEARTS
 
 
 # ---- what the robot is told ----------------------------------------------

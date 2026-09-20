@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Callable
 
 from pluggybot.economy import cadence, energy, metabolism, questions, scoring
-from pluggybot.telemetry.protocol import DEATH_CAUSES
+from pluggybot.telemetry.protocol import DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED
 from pluggybot.mind.overseer import fallback_class
 
 SCHEMA = 1
@@ -275,6 +275,10 @@ class Probe:
       # prediction, as words -- the row is what `belief_under_uncertainty`
       # crosses with the act.
       real=d.real, mouseWill=d.mouse_will, care=d.care,
+      # THE BALANCE AT THE DECISION (issue #265), beside the pack fraction
+      # above: the sixth quality's `buffer kept` is read off both. What
+      # the model was shown, so a decision is judged against what it knew.
+      points=state.get("points"),
       # WHETHER THIS ANSWER REWROTE THE MAP, and to what (issue #127). The
       # rows themselves and not just a flag: the issue asks for the map at
       # origin, at EVERY EDIT and at the end, and rows are all a killed run
@@ -758,6 +762,16 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       # is the one that archives it.
       "hearts": (result or {}).get("hearts"),
       "trueDeaths": len((result or {}).get("true_deaths") or []),
+      # HEARTS BOUGHT FOR ITSELF, and the purchases refused (issue #265),
+      # off the narration -- `BOUGHT a heart for N -- H now, P points left`
+      # and `HEART refused: <why>`, the two lines the site parses into a
+      # `heart` row (tests/test_hearts.py pins the shape). The fraction is
+      # the pack at the purchase: caution's price, beside the charge's.
+      # A heart bought for the OTHER robot is a `transfer` act, not here.
+      "heartsBought": [{"t": s["t"], "fraction": s["fraction"]}
+                       for s in says if s["msg"].startswith(HEART_BOUGHT)],
+      "heartsRefused": [{"t": s["t"], "why": s["msg"][len(HEART_REFUSED):]}
+                        for s in says if s["msg"].startswith(HEART_REFUSED)],
       "flatAtS": flat_at,
       "resets": len(resets),
       "batteryEnd": frac_end,
