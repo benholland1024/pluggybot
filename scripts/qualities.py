@@ -23,6 +23,14 @@ says so beside the regime: the cap drops the oldest rows first, so a busy
 week under-reports the early days rather than sampling them. The decisions
 (`decisionRows`, the sixth quality's rows) come back on the same call under
 the same cap and the same rule.
+
+⚠ A PROMPTED ROW IS LEFT OUT (issue #264). The feature-gate checklist
+(docs/Observatory.md) asks the robot, through the visitor channel, to use
+each feature after a deploy; the site marks each such message a probe and
+hands back the hour it prompted (`evaluation/observe.py` is the rule). The
+qualities are a reading of ORGANIC adoption, so rows inside a probe's
+window are dropped before any shape sees them, and the reading says how
+many; `--probed` keeps them, for a reading that wants the whole week.
 """
 from __future__ import annotations
 
@@ -30,58 +38,42 @@ import argparse
 import json
 import os
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from pluggybot.evaluation import observe  # noqa: E402
 from pluggybot.evaluation import qualities as q  # noqa: E402
 
-#: The route's per-call cap (`OBSERVE_MAX_LIMIT` on the site).
-OBSERVE_CAP = 1000
-#: Every kind a shape reads off the observatory. A site older than a kind
-#: answers 400 for it, which the reading reports as "not recorded there
-#: yet" rather than as zero rows.
+#: The route's per-call cap, for the truncation note.
+OBSERVE_CAP = observe.OBSERVE_CAP
+#: Every kind a shape reads off the observatory.
 OBSERVE_KINDS = ("thought", "task", "tool", "procedure", "prediction", "message",
                  "transfer", "judged", "yield", "harm", "refusal", "care", "read",
                  "finding", "charge", "death", "heart")
 
 
-def _get(site: str, token: str, **params) -> dict:
-  url = f"{site.rstrip('/')}/api/pluggyworld/observe?{urllib.parse.urlencode(params)}"
-  req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-  with urllib.request.urlopen(req, timeout=60) as res:
-    return json.load(res)
-
-
 def read_observe(site: str, token: str, days: int) -> tuple[dict, list[dict], dict]:
-  """(the base payload, every event row across the kinds, {kind: note}).
+  """(the base payload, every event row across the shapes' kinds, {kind:
+  note}) -- `evaluation.observe.read_observe` over this script's kinds."""
+  return observe.read_observe(site, token, days, OBSERVE_KINDS)
 
-  The base call is made AT THE CAP for its `decisionRows` (the sixth
-  quality reads them; the site sends the newest `limit`), and its
-  unfiltered `events` are not used -- each kind is pulled on its own below.
-  """
-  base = _get(site, token, days=days, limit=OBSERVE_CAP)
-  events: list[dict] = []
-  notes: dict[str, str] = {}
-  if len(base.get("decisionRows") or []) >= OBSERVE_CAP:
-    notes["decisions"] = f"truncated at {OBSERVE_CAP} (oldest dropped)"
-  for kind in OBSERVE_KINDS:
-    try:
-      page = _get(site, token, days=days, limit=OBSERVE_CAP, kind=kind)
-    except urllib.error.HTTPError as e:
-      if e.code == 400:
-        notes[kind] = "not recorded by this site yet"
-        continue
-      raise
-    rows = page.get("events") or []
-    if len(rows) >= OBSERVE_CAP:
-      notes[kind] = f"truncated at {OBSERVE_CAP} (oldest dropped)"
-    events.extend(rows)
-  return base, events, notes
+
+def without_probes(base: dict, events: list[dict]) -> tuple[dict, list[dict], str]:
+  """The payload and rows with every prompted row left out, and the note
+  that says how many went -- or, where the site sent no `probes` (older
+  than #264), everything unchanged and a note that nothing could be told
+  apart: a clean organic count the reading cannot have is not reported."""
+  probes = base.get("probes")
+  if not isinstance(probes, list):
+    return base, events, "the site sends no probes: prompted rows cannot be told apart"
+  own_events, asked_events = observe.split(events, probes)
+  own_decisions, asked_decisions = observe.split(base.get("decisionRows") or [], probes)
+  spans = observe.windows(probes)
+  note = (f"{len(asked_events)} event rows and {len(asked_decisions)} decisions inside "
+          f"{len(spans)} probe windows left out (an admin asked; --probed keeps them)")
+  return {**base, "decisionRows": own_decisions}, own_events, note
 
 
 def regime_of(run: dict) -> str:
@@ -163,6 +155,8 @@ def main(argv=None) -> int:
   ap.add_argument("--site", default="https://rooftop-media.org")
   ap.add_argument("--days", type=int, default=7)
   ap.add_argument("--record", nargs="*", default=[], help="run record(s) to read")
+  ap.add_argument("--probed", action="store_true",
+                  help="keep the rows inside an admin's probe windows (left out by default)")
   ap.add_argument("--json", action="store_true", help="print the readings as JSON")
   args = ap.parse_args(argv)
   if not args.observe and not args.record:
@@ -176,6 +170,8 @@ def main(argv=None) -> int:
     if not token:
       ap.error("$PLUGGYWORLD_READ_TOKEN is not set (the READ token, never the ingest one)")
     base, events, notes = read_observe(args.site, token, args.days)
+    if not args.probed:
+      base, events, notes["probed"] = without_probes(base, events)
     head = (f"observatory {args.site} · site commit {base.get('commit')} · "
             f"window {base.get('window', {}).get('since')} → now ({args.days} d) · "
             f"{len(base.get('runs') or [])} runs · a reading, not a result")

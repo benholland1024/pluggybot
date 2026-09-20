@@ -1537,6 +1537,20 @@ stand, off the hub's cache — empty while no sim is connected), the admin
 page's digest (`deaths`, `charges`, `tasks`, `hunger`, `thoughts`, `sources`,
 `runs`, `contaminatedRuns`), `decisionRows` and the ledger's `balances`.
 
+⚠ **A PROMPTED ROW IS NOT AN ORGANIC ONE** (issue #264; Observatory.md, "The
+feature gates"). After every deploy an admin asks each robot, through the
+visitor channel, to use each feature — the checklist — and a feature used
+because it was asked for says nothing about adoption. The site stamps every
+message from an admin account a PROBE and the answer above carries `probes`:
+each with the span it prompted (`from` the delivery, `until` an hour after
+the robot's answer or after the delivery where none came; null for one never
+delivered), the robot asked, the text and the reply. `scripts/qualities.py
+--observe` leaves the rows inside those spans out by default and says how
+many (`--probed` keeps them); `scripts/feature_gates.py --observe` reads what
+followed each; `evaluation/observe.py` is the one reader both share and the
+rule as this repo applies it. A probe is not an intervention — nothing in the
+world moved — and the robot is told a username, never a role.
+
 ### An admin intervention contaminates every survival number in its run
 
 The admin panel can set points and battery directly (protocol 0.16.0), which is
@@ -1780,6 +1794,13 @@ standing order at all?"). Do not run a gate through the full N ≥ 5 machinery �
 that machinery exists to make a series comparable, and a gate is not trying to
 be. The probe answers most of them without a sim at all, which is the lesson
 the deadline taught once already.
+
+The gate the deployed world answers is the feature-gate CHECKLIST (issue
+#264; Observatory.md): after each deploy, one probe per feature through the
+visitor channel, read for a pass (used, or a reasoned refusal) or a fail
+(garbled, unexplained refusal, an error, silence), one dated line per probe,
+a fail filed as an issue. A checklist run is not a series either: it reports
+into Observatory.md and never into `results/`.
 
 ## 8. Writing it down as it is collected
 

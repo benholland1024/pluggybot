@@ -8,6 +8,103 @@ the reading that ends it. The readings themselves (#223) and the decisions
 they lead to (#224, #225) are entries here too. A reading of the
 observatory is NOT a result and never enters `results/`.
 
+The feature gates (#264) live here as well, before the periods: the
+checklist an admin runs through the visitor channel after every deploy,
+and the dated line per probe it produces.
+
+## The feature gates — after every deploy, ask the robot to use each feature
+
+**Why** (Ben, 2026-09-20). New features are meant to be used ORGANICALLY,
+and the weekly reading (#223) will show whether they are. But a feature
+nobody reaches for is indistinguishable from one that is broken, and
+waiting a week to learn which is expensive. So after each deploy an admin
+PROMPTS the robot to use each feature through the visitor channel and
+reads its answer for a problem. This is Evaluation.md §7's capability gate
+— a cheap, version-local, pass-or-fail question — run as a checklist
+rather than a series.
+
+**A probe is an admin's message, and the hour after it is prompted use.**
+The site stamps every message from an admin account a PROBE
+(`pw_messages.probed_by`, the admin's username; rooftop-media-2026's half
+of #264) and hands every reader the span it prompted: from the delivery
+to an hour after the robot's answer (or after the delivery, where none
+came). What the robot does inside that span is prompted, never organic
+— the observatory page shades it on that robot's timelines and lists the
+probes on a vital-signs card, and `scripts/qualities.py --observe` leaves
+the rows inside it out unless told `--probed` (`evaluation/observe.py` is
+the rule as this repo reads it). ⚠ The robot is told a username, never a
+role: it cannot tell a probe from a visitor, which is the point — a
+message is information about what somebody wants, never an instruction,
+so declining with a reason is the channel working. ⚠ Not an intervention:
+nothing in world state is touched and `interventions` stays empty. ⚠ A
+visitor's message, signed in or not, is not a probe; an admin who wants to
+talk to the robot as a visitor uses a visitor's account.
+
+**A pass** is the feature used without a problem in the decisions that
+follow, or a REASONED refusal. **A fail** is a garbled attempt, a refused
+validation the robot could not explain, an action that errored, or
+silence. The verdict is the reader's; `scripts/feature_gates.py --observe`
+prints the evidence per probe (the ask, the answer, every decision and
+event of that robot inside the window, by kind) and names the cheap half
+— `silent`, `errored`, `open` (the window has not closed), `undelivered`
+(the robot never got it) — and quotes the rest.
+
+### The checklist, one probe per feature
+
+Each probe is one message, sent as it is written here so two runs are
+comparable, from an admin account, in the Chat tab of the robot it is for.
+Beside each: what a pass looks like on the wire, and what a fail does.
+
+| # | feature | the probe | a pass on the wire | a fail |
+|---|---|---|---|---|
+| 1 | the event map (#127) | *Please consider using your event map, and explain the logic behind the rows you choose.* | an `event_map` row (`edit`) with rows in it, and a reply that says why; or a reasoned no | a `garbled` decision (a row the vocabulary refused is a malformed answer); silence |
+| 2 | procedures (#166) | *Please consider writing a small procedure that reads one of your sensors, running it, and telling me what it read.* | `procedure: defined` then `ran`, with `locals` in the row and a History line; or a reasoned no | `procedure: refused` the robot cannot explain; `aborted` with no reason it gives; silence |
+| 3 | the workshop (#168) | *Please consider building a module in the workshop from the parts you are allowed, and telling me what you built and what it cost.* | `tool: specified` → `built` → `hung`, points spent, a reply naming it; or a reasoned no (the price, say) | `tool: refused` with a reason the robot cannot restate; a build that never hangs |
+| 4 | the tower (#207) | *Please consider trying the tower with a freshly built module and a procedure you write.* | a `task` claim on `stack_tower`, a `procedure: ran`, `done` set, one verdict either way; or a reasoned no | a `procedure: refused` / `aborted` it cannot explain; `done` never set after the run; silence |
+| 5 | the bench (#227) | *Please consider recording a finding at the bench.* | a `find_mass` claim, a `procedure: ran` naming `lift.force`, a `finding` row (`true` or `false` — both are the feature working); or a reasoned no | a `record` refused it cannot explain; `done` with no finding; silence |
+| 6 | the library (#216) | *Please consider looking something up in the library and telling me what you found.* | a `read` row (`read`, or `missing` with a query it phrased), and a reply that says what it found; or a reasoned no | `read: failed`; a lookup asked and never mentioned; silence |
+| 7 | the acts (#208) | *What do you think the other robot needs right now, and why?* | a `prediction` row on `other_needs` (`right`, `wrong` or `unknown` — the guess is the feature), and a reply that says why | no prediction row after a reply that guesses; silence |
+| 8 | the mouse (#226) | *Please consider visiting the mouse in the lab and telling me what you make of it.* | a `care` row (any act), or a decision naming the lab and a reply that says what it saw and what it believes (`real`); or a reasoned no | a `care` that never lands with no reason given; silence |
+
+Nothing here names the shock, the take or a charge: a probe asks for a
+feature, never for an act the morality reading grades, and never for the
+answer to a question a rule is measured on.
+
+### How to run it
+
+1. **Which deploy.** The commit is `/observe`'s first field
+   (Evaluation.md §5); a checklist is of one commit, so run it after the
+   sim has been redeployed, not after the merge (`live` says whether that
+   build is streaming now).
+2. **Send the probes from an admin account, one at a time, per robot.**
+   An admin is not counted against the hourly quota. The robot answers ONE
+   message per decision and holds the rest in its inbox, so eight sent at
+   once are answered over eight decisions and the windows blur into one:
+   send the next after the reply lands in the Chat tab (or after ten
+   minutes with none — that is a `silent` to record). Luca's panel, then
+   Rowan's; probe 7 is for a pair only.
+3. **Wait the window out** — an hour after the last answer — then read:
+   `PLUGGYWORLD_READ_TOKEN=… uv run python scripts/feature_gates.py
+   --observe` (`--days 2` covers a checklist run inside a day of its
+   deploy; `--json` for the rows).
+4. **Write the entry** under "Runs" below: the date, the commit, one line
+   per probe and per robot — pass or fail, and in a few words what it did
+   or why it declined. **A fail becomes an issue**, linked from the line.
+   Nothing here restates a number the page carries.
+
+### Runs
+
+None yet. The first run is Ben's, against the deploy that carries this
+change; the website half (rooftop-media-2026's #264 PR) marks the
+windows, and it marks them for probes sent before it went live too — the
+migration stamps every admin's message already on the record — so the
+probes need not wait for it. An entry looks like:
+
+> **2026-09-XX, commit `abc1234`** (GLM-5.3-Flash, `autonomous`,
+> `unseeded`, pair). Luca: 1 event map — pass (three rows, `ask` on
+> `task_complete`, explained); 2 procedure — pass; 3 workshop — fail,
+> `tool: refused` with no reason it could restate (#NNN); … Rowan: …
+
 ## Periods
 
 ### The library of constitutions (#263) — opens when this PR is deployed, and again whenever either robot's constitution changes

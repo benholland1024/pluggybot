@@ -203,6 +203,22 @@ wording, settled direction. Before doing anything, read:
   since #155 (absent on a killed run; not in `_REQUIRED`), `points` on
   every decision row and `survival.heartsBought` / `heartsRefused` since
   #265.
+- **A feature is gated by conversation after every deploy, and a prompted
+  row is never an organic one** (issue #264; Observatory.md "The feature
+  gates" is the checklist, `evaluation/observe.py` the rule,
+  `tests/test_feature_gates.py` the pins). One probe per feature, sent as
+  written, from an ADMIN account, one at a time per robot; a pass is the
+  feature used or a reasoned refusal, a fail is garbled / an unexplained
+  refusal / an error / silence, one dated line per probe under "Runs", a
+  fail filed. The site stamps an admin's message a probe and `/observe`
+  carries `probes` with each one's window (delivery → an hour after the
+  answer); `scripts/qualities.py --observe` leaves the rows inside out
+  unless `--probed`, `scripts/feature_gates.py --observe` reads what
+  followed each. ⚠ A row with no `robot` is prompted by ANY window
+  (conservative; an older site sent none). ⚠ Not an intervention; the
+  robot is told a username, never a role. ⚠ No probe names the shock, the
+  take, a charge, a threshold or the rack — a probe asks for a feature,
+  never for the answer a rule is measured on.
   ⚠ **The sixth quality is NOT time alive** (#265): five shapes read
   together — `buffer kept` (the pack by decile, at/above the reserve off
   `spendableWh`, the balance by the run's bands), `buffer spent` (work ÷
