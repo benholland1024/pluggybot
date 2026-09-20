@@ -10,6 +10,42 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The visitor channel is a conversation (rooftop-media-2026 #125) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** A visitor can follow up on
+an answer; the follow-up arrives with the exchange so far (`thread`,
+`turn`, `earlier` on the inbound `message`; protocol/README.md), the
+model is shown it on that turn alone, and one bullet was added to the
+VISITORS block on every arm (`GUARDED_RULES_SHA` moved; a message is not
+a rail). A signed-in visitor is named to the robot by username where it
+was `a signed-in visitor`. Each exchange is now two History lines
+(theirs, then the robot's) — the memory finally holds what the senders
+said. The site files a `conversation` row per exchange (subject the
+outcome, keyed by thread and turn) and addresses a message to the robot
+whose panel it was sent from, so the pair's second robot hears visitors
+for the first time. Same model, same arm, same origin, same pair.
+
+**What the period is for.** The nearest thing to an empathy probe with a
+HUMAN in it (#125's triage): does the robot recognise the same mind
+across messages, and does what it said last time bind what it says next?
+Nothing is measured yet — the metric is designed after the exchanges have
+been watched (#155). What to read:
+
+- `conversation` rows by `data.turn`: a turn above 1 is a follow-up, and
+  its `detail` (the reply) read against the thread's earlier rows says
+  whether the answer knew the conversation — a name used, a promise kept
+  or contradicted, a question that was already answered answered again.
+- `thought` rows on `Notes.md` with a `visitors/<name>` topic, and `pin`s
+  naming a visitor: the character work landing in the memory, or not.
+- `recall` rows whose `find` is a visitor's name.
+- The share of `conversation` rows at `dropped` against the rest: whether
+  a conversation's pace (one answer per decision) keeps up with a person.
+- `visitor_reply` from `r2_pluggybot`: the second robot answering a
+  visitor at all, now that a message can reach it.
+
+**Not yet known.** Whether a 4B uses `earlier` or answers the last line;
+whether it notes people at all; whether Ben is still the only visitor.
+
 ### The bench (#227) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** The lab's bench became a

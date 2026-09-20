@@ -256,6 +256,18 @@ MAX_ERRAND_DEFERRALS = 2
 #: robot answers at most one per turn, and a wall of them is input tokens
 #: spent on messages it is not going to get to -- the inbox keeps the rest.
 VISITORS_SHOWN = 5
+
+
+def _conversation(msg) -> dict:
+  """What a `visitor_reply` says about the conversation it belongs to
+  (rooftop-media-2026 #125), additive on the wire: who sent the message
+  and by what kind of sender, and -- where the website said -- which thread
+  and which turn. Echoed, never derived: the thread is the website's state
+  and the sim only ever hands its ids back."""
+  out = {"from": msg.who, "sender": msg.sender}
+  if msg.thread:
+    out.update({"thread": msg.thread, "turn": msg.turn})
+  return out
 #: ...and offered tasks shown at once (issue #21). Small for the same reason:
 #: the robot takes at most one per turn, and a wall of offers is input tokens
 #: spent on jobs it will not reach.
@@ -2495,7 +2507,8 @@ class HubLifecycle:
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
                                  "text": decision.tell["text"]},
-                                t=float(self.data.time))
+                                t=float(self.data.time),
+                                sender=text_registry.PEER)
         self._act("message", to=to.mission.handle.root, id=msg_id,
                   text=decision.tell["text"], delivered=landed is not None,
                   claim=checked[0] if checked else None,
@@ -2903,7 +2916,8 @@ class HubLifecycle:
     """
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
              "robot": self.root, "id": msg.id, "kind": msg.kind,
-             "outcome": "dropped", "reply": "", "action": ""}
+             "outcome": "dropped", "reply": "", "action": "",
+             **_conversation(msg)}
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
@@ -2938,7 +2952,7 @@ class HubLifecycle:
              "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": decision.outcome, "reply": decision.reply,
              "action": decision.action if decision.outcome == "accepted"
-             else ""}
+             else "", **_conversation(msg)}
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
@@ -2948,8 +2962,23 @@ class HubLifecycle:
     # Phrased with the message as the subject rather than the outcome as a
     # verb: "replied ada's message" was ungrammatical the moment `answered`
     # became `replied`, and all three outcomes have to read as English here.
-    self._say(f"VISITOR message from {msg.who or 'a visitor'} -- "
-              f"{decision.outcome}: {decision.reply or '(no reply)'}")
+    who = msg.who or "a visitor"
+    said = decision.reply or "(no reply)"
+    self._say(f"VISITOR message from {who} -- {decision.outcome}: {said}")
+    # ...and REMEMBERED (rooftop-media-2026 #125): the exchange is the one
+    # thing in a day that another mind said, and until this it was narrated
+    # and then gone -- the tier table promised History "the senders" and no
+    # line was ever written. Two lines, theirs then the robot's, each its
+    # own record so `recall find <name>` finds what that person has said
+    # across a whole life. Written by the SYSTEM quoting the sender: a
+    # sender never writes a document (mind/text.py), the system writes down
+    # that they spoke.
+    self._remember(f"{who} said{' (following up)' if msg.turn > 1 else ''}: "
+                   f"{msg.text}")
+    self._remember(f"took {who}'s idea ({decision.action}): {said}"
+                   if decision.outcome == "accepted" else
+                   f"declined {who}: {said}" if decision.outcome == "declined"
+                   else f"replied to {who}: {said}")
 
   # ---- tasks (issue #21) ----------------------------------------------------
 

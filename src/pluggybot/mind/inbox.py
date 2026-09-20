@@ -46,7 +46,10 @@ from dataclasses import dataclass
 from typing import Callable
 
 from pluggybot.mind import text as registry
-from pluggybot.telemetry.protocol import INBOUND_TYPES, LEGACY_INBOUND_TYPES
+from pluggybot.telemetry.protocol import (
+  INBOUND_TYPES, LEGACY_INBOUND_TYPES, LEGACY_VISITOR_OUTCOMES,
+  VISITOR_OUTCOMES,
+)
 
 #: Longest message text kept, in characters: the MESSAGE rows' cap in
 #: `mind/text.py` (issue #217), one figure for a visitor's sentence and the
@@ -73,6 +76,12 @@ MAX_QUEUE = 32
 #: bound above is a message count, which is no protection at all against one
 #: enormous message.
 MAX_RAW_BYTES = 8192
+#: Earlier turns of a conversation a FOLLOW-UP may carry (rooftop-media-2026
+#: #125): the newest this many are kept and the rest are dropped at the
+#: door. Four exchanges is ~2 000 characters of context on the one turn that
+#: carries them and nothing on any other; the website sends the same number,
+#: and both ends cap for the reason both cap a message's length.
+MAX_EARLIER = 4
 
 #: Everything outside this is stripped from visitor text: C0 and C1 control
 #: characters, and the Unicode line/paragraph separators. Newlines go too --
@@ -94,6 +103,27 @@ def clean(text: object, limit: int = MAX_TEXT) -> str:
 
 
 @dataclass(frozen=True)
+class Turn:
+  """One earlier exchange of a conversation, as the WEBSITE holds it
+  (rooftop-media-2026 #125): what somebody said, what the robot did about
+  it (`outcome`), and what it said back. Carried on a follow-up because the
+  conversation is the website's state -- it outlives a mission, a restart
+  and a generation, and the robot that answered may not be this one -- and
+  a network can carry a transcript. Cleaned like everything else that
+  arrives on this socket: the sim's own earlier words come back to it as
+  DATA, on the same terms as the stranger's."""
+
+  who: str
+  text: str
+  outcome: str
+  reply: str = ""
+
+  def as_context(self) -> dict:
+    return {"from": self.who or "a visitor", "text": self.text,
+            "outcome": self.outcome, "reply": self.reply}
+
+
+@dataclass(frozen=True)
 class VisitorMessage:
   """One thing a stranger said, after cleaning.
 
@@ -106,6 +136,20 @@ class VisitorMessage:
   kind: str
   text: str = ""
   who: str = ""
+  #: `message` only (rooftop-media-2026 #125): the conversation this belongs
+  #: to (the website's id of its first message; "" for a sim older than the
+  #: field or a message outside any thread), which message of theirs this
+  #: is, and the exchanges before it. A `turn` above 1 is a FOLLOW-UP: the
+  #: person has been answered before and is answering back.
+  thread: str = ""
+  turn: int = 1
+  earlier: tuple = ()
+  #: Who this came FROM, by kind of sender: `registry.VISITOR` (a stranger
+  #: at the website) or `registry.PEER` (the other robot, issue #208). ⚠
+  #: Stated by the CALLER of `offer`, never read off the wire: a stranger
+  #: who could mark a message as the other robot's would be borrowing its
+  #: standing.
+  sender: str = registry.VISITOR
   #: `rating` only: which ledger entry is being rated, and how well (0..1).
   seq: int = 0
   quality: float = 0.0
@@ -139,11 +183,21 @@ class VisitorMessage:
     whether somebody is suggesting, asking or just saying hello is the job
     this is handed to a mind to do (issue #61).
     """
-    return {"id": self.id, "from": self.who or "a visitor", "text": self.text}
+    out = {"id": self.id, "from": self.who or "a visitor", "text": self.text}
+    if self.turn > 1:
+      # A follow-up, with the exchange so far (rooftop-media-2026 #125).
+      # Shown only then: a first message carries exactly what it always
+      # did, and the prompt's rule for `earlier` is the other half.
+      out["turn"] = self.turn
+      out["earlier"] = [e.as_context() for e in self.earlier]
+    return out
 
   def as_dict(self) -> dict:
     out = {"id": self.id, "kind": self.kind, "text": self.text,
-           "from": self.who, "t": round(self.t, 3)}
+           "from": self.who, "sender": self.sender, "t": round(self.t, 3)}
+    if self.thread:
+      out.update({"thread": self.thread, "turn": self.turn,
+                  "earlier": [e.as_context() for e in self.earlier]})
     if self.kind == "rating":
       out.update({"seq": self.seq, "quality": self.quality})
     if self.kind == "reset_tool":
@@ -153,6 +207,28 @@ class VisitorMessage:
     if self.kind == "set_points":
       out["points"] = self.points
     return out
+
+
+def _earlier(raw: object) -> tuple:
+  """The exchanges before a follow-up, as `Turn`s: the newest `MAX_EARLIER`
+  of whatever was sent, each cleaned, each with an outcome off the wire's
+  own vocabulary (a retired name folded, anything else dropped -- an
+  outcome the sim never emits is not one it will vouch for). Anything that
+  is not a list of objects is no history at all."""
+  if not isinstance(raw, list):
+    return ()
+  turns = []
+  for item in raw:
+    if not isinstance(item, dict):
+      continue
+    outcome = clean(item.get("outcome"), MAX_ID)
+    outcome = LEGACY_VISITOR_OUTCOMES.get(outcome, outcome)
+    text = clean(item.get("text"), MAX_TEXT)
+    if outcome not in VISITOR_OUTCOMES or not text:
+      continue
+    turns.append(Turn(who=clean(item.get("from"), MAX_WHO), text=text,
+                      outcome=outcome, reply=clean(item.get("reply"), MAX_TEXT)))
+  return tuple(turns[-MAX_EARLIER:])
 
 
 class Inbox:
@@ -184,7 +260,8 @@ class Inbox:
 
   # ---- the socket side -----------------------------------------------------
 
-  def offer(self, raw: object, t: float = 0.0) -> VisitorMessage | None:
+  def offer(self, raw: object, t: float = 0.0,
+            sender: str = registry.VISITOR) -> VisitorMessage | None:
     """Validate and enqueue one inbound message. Never raises.
 
     Never raises is not politeness: this runs on the publisher's socket
@@ -192,9 +269,13 @@ class Inbox:
     stream down with it. A malformed inbound message must cost nothing but a
     counter -- which is exactly the acceptance criterion "malformed input is
     dropped without affecting physics or the outbound stream".
+
+    `sender` is who is offering: the socket (a visitor) or the other robot's
+    lifecycle (a peer, issue #208). A fact about the caller, so the wire
+    cannot state it.
     """
     try:
-      msg = self._parse(raw, t)
+      msg = self._parse(raw, t, sender)
     except Exception:                       # noqa: BLE001 -- see docstring
       msg = None
     if msg is None:
@@ -229,7 +310,8 @@ class Inbox:
       hook(msg)
     return msg
 
-  def _parse(self, raw: object, t: float) -> VisitorMessage | None:
+  def _parse(self, raw: object, t: float,
+             sender: str = registry.VISITOR) -> VisitorMessage | None:
     if isinstance(raw, (str, bytes)):
       if len(raw) > MAX_RAW_BYTES:
         return None                         # dropped unread; see MAX_RAW_BYTES
@@ -248,6 +330,20 @@ class Inbox:
     text = clean(raw.get("text"), MAX_TEXT)
     if kind == "message" and not text:
       return None                           # nothing was actually said
+    thread, turn, earlier = "", 1, ()
+    if kind == "message":
+      # A conversation (rooftop-media-2026 #125). All three are the
+      # website's to state and none is required: a sim older than the
+      # field, or a website older than it, reads exactly as before. A bad
+      # `turn` or a malformed `earlier` costs the follow-up its context,
+      # never the message -- what the person said still arrives.
+      thread = clean(raw.get("thread"), MAX_ID)
+      if thread:
+        try:
+          turn = max(1, int(raw.get("turn", 1)))
+        except (TypeError, ValueError):
+          turn = 1
+        earlier = _earlier(raw.get("earlier"))
     seq, quality = 0, 0.0
     if kind == "rating":
       try:
@@ -302,8 +398,10 @@ class Inbox:
         return None
     return VisitorMessage(id=clean(raw.get("id"), MAX_ID), kind=kind,
                           text=text, who=clean(raw.get("from"), MAX_WHO),
-                          seq=seq, quality=quality, module=module,
-                          frac=frac, wh=wh, points=points, t=float(t))
+                          thread=thread, turn=turn, earlier=earlier,
+                          sender=sender, seq=seq, quality=quality,
+                          module=module, frac=frac, wh=wh, points=points,
+                          t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 
