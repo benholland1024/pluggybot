@@ -1288,7 +1288,7 @@ the provisional schema had. `anticipation` in particular needs the offers at
 decision time to be computable at all. About twenty rows a day.
 
 `results/rollup.json` groups records into **series** — `(world, arm, pack,
-model, label, deadlineS, origin)` — and reports every number as
+model, label, deadlineS, origin, constitution)` — and reports every number as
 `{n, min, median, max, values}`. It raises `MixedRegime` rather than pool two
 data-file regimes under one name, and each series carries `current`: whether
 its hashes are today's data files. `tests/test_experiment.py` asserts every
@@ -1345,7 +1345,9 @@ Four things only the observatory can show:
 ⚠ **OBSERVATORY DATA WITHOUT A BUILD IDENTIFIER IS NOT WEAKER DATA, IT IS
 UNUSABLE DATA** — two regimes wear one name and nothing can separate them
 afterwards. The header carries a `build` block (`commit`, `dataHashes`, `arm`,
-`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`) built by
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, and since #263
+`constitutions` — which constitution each robot was told it is, by name and
+content hash, per robot root, because a pair may be given two) built by
 `evaluation.record.build_identity`, the SAME function the experiment record's
 `commit` and `dataHashes` come from: a header and a record that computed their
 own hashes would agree until the day one of them learned about a file the other
@@ -1665,10 +1667,12 @@ of upkeep behind.
 
 ### True death, and what it is not
 
-Running out archives the volume: the ledger and the two thought files the
-**robot** and the **system** wrote. `Main.md` and `Goals.md` survive — a person
-put them there by hand, there is no write API for either, and the new robot is
-a new *robot*, not a new species. ⚠ **IT IS NOT THE AUTO-RESTART** (§5): an
+Running out archives the volume: the ledger and every document the
+**robot** and the **system** wrote, the goals included (#154: the next robot
+is a NEW robot, and inheriting its predecessor's goals would hand back the one
+thing a true death costs). `Main.md` survives — it is the library's, rendered
+from whatever the environment names (#263), and the new robot is a new
+*robot*, not a new species. ⚠ **IT IS NOT THE AUTO-RESTART** (§5): an
 ordinary death **keeps** the volume, so the same robot has to live with having
 died, which is the whole of what dying costs.
 

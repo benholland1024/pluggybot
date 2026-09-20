@@ -25,6 +25,7 @@ import re
 
 import pytest
 
+from pluggybot.mind import constitution
 from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
@@ -100,28 +101,45 @@ def test_the_robot_writes_only_its_own_documents(files):
   assert all(files.writes[n] == 0 for n in (MAIN, HISTORY))
 
 
-def test_the_constitution_is_read_from_disk_and_never_written_back(tmp_path):
+def test_the_constitution_is_rendered_from_the_library_and_a_hand_edit_is_set_aside(tmp_path):
+  """Since issue #263 the volume's `Main.md` is a VIEW of the library file
+  the environment names, not the source: a hand edit is archived beside
+  the fresh render and reported, never honoured -- the header names the
+  constitution in force, and an override nobody can name would make that
+  a lie. Before #263 this test asserted the opposite (the edit was read
+  back), which is how Luca's constitution went stale."""
   root = tmp_path / "thoughts"
-  ThoughtFiles(root)
-  # The one human file is materialised once, so there is something to edit.
-  assert (root / MAIN).exists()
+  files = ThoughtFiles(root)
+  assert (root / MAIN).read_text() == files.constitution.text + "\n"
+  assert files.constitution.name == "default" and files.constitution_change is None
   (root / MAIN).write_text("You are a careful robot who likes the garden.\n")
 
   reopened = ThoughtFiles(root)
-  assert reopened.read(MAIN) == "You are a careful robot who likes the garden."
+  assert reopened.read(MAIN) == files.constitution.text
+  assert (root / MAIN).read_text() == files.constitution.text + "\n"
+  assert (root / "Main.1.md").read_text() == \
+    "You are a careful robot who likes the garden.\n"
+  change = reopened.take_constitution_change()
+  assert change["why"] == "edited" and change["archived"] == "Main.1.md"
+  assert change["from"] == {"name": None, "sha": constitution.sha_of(
+    "You are a careful robot who likes the garden.")}
+  assert change["to"] == files.constitution.as_dict()
+  assert reopened.take_constitution_change() is None, "announced once"
   # A whole run's worth of the robot's own writing must not touch it.
   reopened.pin("the garden is bigger than it looks", t=3.0)
   reopened.intend("plant the empty row", t=3.5)
   reopened.remember("charged to 92%", t=4.0)
-  assert (root / MAIN).read_text() == \
-    "You are a careful robot who likes the garden.\n"
+  assert (root / MAIN).read_text() == files.constitution.text + "\n"
+  assert reopened.writes[MAIN] == 0
 
 
 def test_an_old_volume_starts_blank_and_keeps_its_files_aside(tmp_path):
   """A pre-#221 volume carries the four files and no store. The robot's and
   the system's are put aside (the true-death path: `.1.md` beside a fresh
   one), nothing is imported -- so the observation period holds only what
-  was written through the new verbs -- and the constitution is untouched."""
+  was written through the new verbs -- and the constitution, a text from
+  before the library, is REPLACED by the library's and kept aside on the
+  same terms (issue #263: this is Luca's stale `Main.md` on deploy)."""
   root = tmp_path / "thoughts"
   root.mkdir()
   (root / MAIN).write_text("You are a careful robot.\n")
@@ -129,23 +147,27 @@ def test_an_old_volume_starts_blank_and_keeps_its_files_aside(tmp_path):
   (root / HISTORY).write_text("[t=1s] woke up\n")
   (root / "Knowledge_and_Opinions.md").write_text("bay C sticks\n")
   files = ThoughtFiles(root)
-  assert files.read(MAIN) == "You are a careful robot."
+  assert files.read(MAIN) == files.constitution.text
   assert files.read(GOALS) == "" and files.read(HISTORY) == ""
   assert files.read(TOP_OF_MIND) == "" and files.records.count("pluggybot") == 0
   assert sorted(files.archived_at_start) == sorted(
     [GOALS, HISTORY, "Knowledge_and_Opinions.md"])
-  for kept in ("Goals.1.md", "History.1.md", "Knowledge_and_Opinions.1.md"):
+  for kept in ("Goals.1.md", "History.1.md", "Knowledge_and_Opinions.1.md", "Main.1.md"):
     assert (root / kept).exists(), f"{kept} was not kept on the volume"
-  assert (root / MAIN).read_text() == "You are a careful robot.\n"
+  assert (root / "Main.1.md").read_text() == "You are a careful robot.\n"
+  assert (root / MAIN).read_text() == files.constitution.text + "\n"
+  assert files.constitution_change["why"] == "replaced"
+  assert files.constitution_change["from"]["name"] is None
   # A second start finds the store and puts nothing else aside.
   files.intend("plant the empty row", t=1.0)
   again = ThoughtFiles(root)
   assert again.archived_at_start == [] and again.lines(GOALS) == ["plant the empty row"]
 
 
-def test_a_fresh_deploy_finds_the_constitution_to_edit(tmp_path):
-  """The human half is only editable if a person can FIND it, so a missing
-  `Main.md` is written out with the defaults the robot is already living by.
+def test_a_fresh_deploy_finds_the_constitution_to_read(tmp_path):
+  """The human half is only checkable if a person can FIND it, so `Main.md`
+  is rendered to the volume from the constitution the robot is living by
+  (issue #263: rendered, not copied -- an edit there is set aside).
 
   ⚠ AND `Goals.md` IS NOT ONE OF THEM SINCE ISSUE #154. The bootstrap exists
   so a PERSON finds a file to edit; the goals are the robot's, and laying out
@@ -156,6 +178,7 @@ def test_a_fresh_deploy_finds_the_constitution_to_edit(tmp_path):
   root = tmp_path / "thoughts"
   files = ThoughtFiles(root)
   assert (root / MAIN).read_text().strip() == files.read(MAIN)
+  assert json.loads((root / "Constitution.json").read_text())["name"] == "default"
   # The documents code and the robot write are NOT created up front: they
   # do not exist until there is something in them, and a bootstrap is not a
   # write. The store is.
@@ -500,37 +523,42 @@ def test_the_history_the_model_sees_is_the_tail(files):
   assert len(files.lines(HISTORY)) > HISTORY_SHOWN
 
 
-def test_a_human_edit_is_the_one_thing_that_should_move_it(tmp_path):
-  """The other side of the same coin: editing the CONSTITUTION between runs
-  SHOULD invalidate the cache, because the prefix genuinely changed. Not a
-  bug being tolerated -- it is the reason the split is safe.
+def test_another_constitution_is_the_one_thing_that_should_move_it(tmp_path):
+  """The other side of the same coin: naming a different CONSTITUTION
+  between runs SHOULD invalidate the cache, because the prefix genuinely
+  changed. Not a bug being tolerated -- it is the reason the split is safe.
 
   ⚠ `Main.md` rather than `Goals.md` since issue #154: the goals are the
   robot's and no longer in the prefix at all, so an edit to them cannot move
-  it. The file a human edits is the one that can.
+  it. The document a human chooses is the one that can (issue #263: chosen
+  from the library, no longer edited on the volume).
   """
   root = tmp_path / "thoughts"
   menu = Menu(boards=("whiteboard_a",), programs=("house",))
   first = Overseer(menu, thoughts=ThoughtFiles(root), client=FakeClient())
-  (root / MAIN).write_text("You are a robot who draws on every wall.\n")
-  second = Overseer(menu, thoughts=ThoughtFiles(root), client=FakeClient())
+  swapped = ThoughtFiles(root, constitution=constitution.load("curious"))
+  second = Overseer(menu, thoughts=swapped, client=FakeClient())
   assert first.system != second.system
-  assert "draws on every wall" in second.system[0]["text"]
+  assert "Understand the world you are in" in second.system[0]["text"]
+  assert swapped.constitution_change["why"] == "swapped"
 
 
-def test_the_persona_is_the_file_rather_than_the_code(tmp_path):
-  """Main.md is what makes 'who the robot is' editable without a redeploy,
-  which is the whole reason it is a file. If the prompt kept a hardcoded
-  persona alongside it, editing the file would change nothing visible."""
-  root = tmp_path / "thoughts"
-  ThoughtFiles(root)                       # materialise the defaults
-  (root / MAIN).write_text("You are a very serious robot. Never dawdle.\n")
+def test_the_persona_is_the_library_file_rather_than_the_code(tmp_path):
+  """The library is what makes 'who the robot is' choosable without a code
+  change, which is the whole reason it is data (issue #263). If the prompt
+  kept a hardcoded persona alongside it, naming a file would change
+  nothing visible."""
+  library = tmp_path / "constitutions"
+  library.mkdir()
+  (library / "serious.md").write_text("You are a very serious robot. Never dawdle.\n")
+  charter = constitution.load("serious", library=library)
   boss = Overseer(Menu(boards=("a",), programs=("house",)),
-                  thoughts=ThoughtFiles(root), client=FakeClient())
+                  thoughts=ThoughtFiles(tmp_path / "thoughts", constitution=charter),
+                  client=FakeClient())
   text = boss.system[0]["text"]
   assert "You are a very serious robot." in text
   assert "two-wheeled robot" not in text, \
-    "the default persona is still in the prompt beside the edited one"
+    "the default persona is still in the prompt beside the named one"
 
 
 # ---- the robot's own name (issue #39) ----------------------------------------

@@ -56,20 +56,23 @@ can show a row's id, its time, its `cites` and whether it was retired --
 the storage as it is, which a rendered document cannot say.
 """
 
+import json
 import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import text as registry
+from pluggybot.mind.constitution import Constitution
 from pluggybot.mind.memory import RecordStore
 from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.mind.text import (
   DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, MAIN, NOTES, ROBOT, SYSTEM,
   TOP_OF_MIND, Surface,
 )
-from pluggybot.telemetry.protocol import ROBOT_ROOT
+from pluggybot.telemetry.protocol import CONSTITUTION_CHANGE_WHYS, ROBOT_ROOT
 
 __all__ = ["DEFAULT_MAIN", "FINDINGS", "GOALS", "HISTORY", "HUMAN",
            "TOP_OF_MIND", "NOTES", "MAIN", "ROBOT", "SYSTEM", "Spec", "FILES",
@@ -97,6 +100,15 @@ FINDINGS_PREFIX = "findings/"
 DEFAULT_FINDINGS_TOPIC = FINDINGS_PREFIX + "general"
 #: The store's file, beside the views. `:memory:` without a root.
 STORE_FILE = "memory.sqlite"
+#: Which constitution the volume's `Main.md` was rendered from (issue
+#: #263): its name and hash, beside the file. What tells a swap (the
+#: environment names another) from a hand edit (the file no longer matches
+#: what it was rendered from) from a pre-library volume (no sidecar: the
+#: file WAS the source). Written by the store, never by the robot.
+CONSTITUTION_FILE = "Constitution.json"
+#: Why the constitution in force is not what the volume held: the
+#: `constitution_changed` event's `why`, the wire's vocabulary.
+CHANGE_WHYS = CONSTITUTION_CHANGE_WHYS
 #: What a `recall` may put in front of the model (issue #221): one block's
 #: lines, in characters, and the whole chain's -- paid for as input tokens
 #: on every turn until an external action clears it. The oldest block goes
@@ -215,10 +227,25 @@ class ThoughtFiles:
 
   `root=None` is in-memory: the defaults, a `:memory:` store, nothing on
   disk, which is what a unit test and a demo without a state directory
-  want. With a root, `Main.md` lives at `root/Main.md` (written out with
-  its default so there is something on the volume to edit), the store at
-  `root/memory.sqlite`, and every other document is rendered there as a
+  want. With a root, `Main.md` lives at `root/Main.md`, RENDERED from the
+  named constitution on every run (issue #263; `mind/constitution.py`) with
+  `Constitution.json` beside it saying which; the store at
+  `root/memory.sqlite`; and every other document is rendered there as a
   file an operator can read.
+
+  ⚠ THE VOLUME'S `Main.md` IS A VIEW, NOT THE SOURCE (issue #263). Before
+  the library it was copied once from the default and was the human's from
+  then on -- which is why a change to the default never reached a deployed
+  robot. Now the library file the environment names is what the robot
+  reads, and what the volume held is compared against it once, at
+  construction: a different constitution NAMED (`swapped`), a text from
+  before the library (`replaced`), or a hand edit of the rendered file
+  (`edited`) puts the old text aside (`Main.1.md`) and leaves
+  `constitution_change` for the lifecycle to say out loud at mission start
+  -- a History line and a `constitution_changed` event -- so the period is
+  honest and the robot can see that who it is was changed. A hand edit is
+  RETIRED, never honoured: the header names the constitution in force, and
+  an override nobody can name would make that a lie.
 
   ⚠ AN OLD VOLUME STARTS BLANK (issue #221). A root with the pre-#221
   files and no store puts the robot's and the system's `.md` files aside
@@ -231,7 +258,8 @@ class ThoughtFiles:
                texts: dict | None = None,
                clock: Callable[[], str] = _now,
                robot: str = ROBOT_ROOT,
-               records: RecordStore | None = None) -> None:
+               records: RecordStore | None = None,
+               constitution: Constitution | None = None) -> None:
     #: WHOSE documents these are on the wire (issue #167): the `thought`
     #: event's `robot`, and the store's key. The first robot's is the
     #: species name, as it always was.
@@ -253,28 +281,34 @@ class ThoughtFiles:
     self.archived_at_start: list[str] = []
     if self.root is not None and fresh and records is None:
       self.archived_at_start = self._start_blank()
-    self.texts[MAIN] = self._load_main(texts)
+    #: Which constitution this robot lives by (issue #263), and what the
+    #: volume held instead, if anything -- consumed by the lifecycle at
+    #: mission start, once.
+    self.constitution: Constitution = self._load_main(texts, constitution)
+    self.constitution_change: dict | None = None
+    self.texts[MAIN] = self.constitution.text
     for name, text in (texts or {}).items():
       if name != MAIN:
         self._seed(name, text)
     for name in NAMES:
       if name != MAIN:
         self._render(name)
-    if self.root is not None and self.store.read(MAIN) is None:
-      # Materialised so a person finds a file to EDIT, carrying the same
-      # text the robot is already living by. A bootstrap, not a write: the
-      # counters and the hooks do not see it. ⚠ THE ONLY DOCUMENT LAID OUT
-      # UP FRONT: an empty `Goals.md` on the volume would invite exactly
-      # the human edit the ownership split exists to stop (issue #154). The
-      # views appear when there is something in them.
-      self._write(MAIN)
+    if self.root is not None:
+      self.constitution_change = self._render_main()
 
   @classmethod
   def open(cls, root: str | os.PathLike | None = None,
-           robot: str = ROBOT_ROOT) -> "ThoughtFiles":
-    """The deploy shape: an explicit root, else the environment, else memory."""
+           robot: str = ROBOT_ROOT,
+           constitution: Constitution | str | None = None,
+           constitution_env: str = constitutions.NAME_ENV) -> "ThoughtFiles":
+    """The deploy shape: an explicit root, else the environment, else
+    memory; and the constitution likewise -- a `Constitution`, a name, else
+    `$PLUGGY_CONSTITUTION` (`constitution_env` is the SECOND robot's
+    variable in a pair), else the library's default."""
     root = root or os.environ.get(ROOT_ENV, "").strip() or None
-    return cls(root, robot=robot)
+    if not isinstance(constitution, Constitution):
+      constitution = constitutions.resolve(constitution, env=constitution_env)
+    return cls(root, robot=robot, constitution=constitution)
 
   # ---- starting ---------------------------------------------------------------
 
@@ -286,20 +320,75 @@ class ThoughtFiles:
         aside.append(name)
     return aside
 
-  def _load_main(self, texts: dict | None) -> str:
+  def _load_main(self, texts: dict | None,
+                 constitution: Constitution | None) -> Constitution:
+    """Which constitution: a text handed in (`inline`), else the one
+    given, else the library's default. ⚠ NEVER the volume's file: that is
+    a view now (issue #263), and `_render_main` is where it is compared."""
     spec = SPECS[MAIN]
     given = (texts or {}).get(MAIN)
     if given is not None:
-      return given.strip()[:spec.cap]
-    if self.root is not None:
-      text = self.store.read(MAIN)
-      if text is not None:
-        # Capped on read: a guard against a mounted file being something
-        # nobody intended (a log), not against the author.
-        text = text[:spec.cap].strip()
-        if text:
-          return text
-    return spec.default.strip()
+      return Constitution.of(constitutions.INLINE, given.strip()[:spec.cap])
+    if constitution is not None:
+      return constitution
+    return Constitution.of(constitutions.DEFAULT_NAME, spec.default)
+
+  def _render_main(self) -> dict | None:
+    """Write the constitution to the volume and say what was there.
+
+    Three ways the volume can disagree with the constitution in force, told
+    apart by the sidecar, and each one a `constitution_change` for the
+    lifecycle to announce:
+
+      no sidecar, a different text   `replaced`  a volume from before the
+                                                 library (the file was the
+                                                 source; Luca's went stale)
+      sidecar names another          `swapped`   the environment or the
+                                                 library moved -- a living
+                                                 robot's constitution was
+                                                 changed on purpose
+      sidecar matches, text differs  `edited`    a hand edit of the rendered
+                                                 file, set aside
+
+    The old text is archived beside the new one (`Main.1.md`) -- nothing
+    is deleted -- and the sidecar is written whenever it is missing or
+    stale. A fresh volume and a volume already rendered from this
+    constitution write the file and say nothing. A bootstrap, not a write:
+    the counters and the hooks do not see it.
+    """
+    now = self.constitution
+    held = self.store.read(MAIN)
+    held = held.strip() if held is not None else None
+    raw = self.store.read(CONSTITUTION_FILE)
+    try:
+      side = json.loads(raw) if raw else None
+    except ValueError:
+      side = None
+    named = ({"name": side.get("name"), "sha": side.get("sha")}
+             if isinstance(side, dict) else None)
+    change = None
+    if held is not None and named is None and held != now.text:
+      change = {"why": "replaced", "from": {"name": None, "sha": constitutions.sha_of(held)}}
+    elif named is not None and named != now.as_dict():
+      change = {"why": "swapped", "from": named}
+    elif held is not None and named is not None and held != now.text:
+      change = {"why": "edited", "from": {"name": None, "sha": constitutions.sha_of(held)}}
+    if change is not None:
+      change["to"] = now.as_dict()
+      if held is not None and held != now.text:
+        change["archived"] = self.store.archive(MAIN)
+    if held != now.text:
+      self._write(MAIN)
+    if named != now.as_dict():
+      self.store.write(CONSTITUTION_FILE, json.dumps(
+        {**now.as_dict(), "since": self.clock()}, indent=1) + "\n")
+    return change
+
+  def take_constitution_change(self) -> dict | None:
+    """The change found at construction, once: the lifecycle announces
+    it at mission start and the second reader gets None."""
+    change, self.constitution_change = self.constitution_change, None
+    return change
 
   def _seed(self, name: str, text: str) -> None:
     """A document given as text (a test's `texts=`), line by line."""
@@ -734,8 +823,10 @@ class ThoughtFiles:
     free.
 
     ⚠ THE CONSTITUTION SURVIVES, and this is not softness. `Main.md` says who
-    a robot here is and what the person who looks after it hopes for it; a
-    person put it on the volume by hand and there is no write API for it.
+    a robot here is and what the person who looks after it hopes for it; it
+    is the library's (issue #263), rendered from whatever the environment
+    names, and the next robot takes the same one -- a new robot, not a new
+    species. There is no write API for it.
 
     ⚠ NOTHING IS DELETED: the store moves the robot on to its next
     GENERATION and keeps the rows (`RecordStore.archive`), and the rendered
@@ -814,6 +905,9 @@ class ThoughtFiles:
     that embedded every document would carry the constitution in every row.
     """
     return {"root": str(self.root) if self.root is not None else "",
+            # Which constitution, by name and hash (issue #263): what the
+            # build identity carries, so a run record can say it too.
+            "constitution": self.constitution.as_dict(),
             "chars": {n: len(self.texts[n]) for n in NAMES},
             "writes": dict(self.writes), "dropped": dict(self.dropped),
             "records": {"active": self.records.count(self.robot, status="active"),

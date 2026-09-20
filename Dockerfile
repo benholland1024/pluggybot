@@ -54,10 +54,11 @@ COPY deploy/entrypoint.sh deploy/
 # whiteboards, the balance the site puts on its scoreboard, and the robot's
 # memory all survive the restart that ends every mission. The robot's
 # MEMORY (issues #38, #221) lives in the same volume, under `thoughts/`: a
-# record store and the documents rendered from it. `Main.md` is the one a
-# HUMAN writes -- editing it changes who the robot is, with no redeploy and
-# no code change; the sim refuses a write to any document by anyone but its
-# owner.
+# record store and the documents rendered from it. `Main.md` is the
+# constitution, RENDERED there from the library file `$PLUGGY_CONSTITUTION`
+# names (issue #263; `src/pluggybot/mind/constitutions/`) -- who the robot
+# is changes by naming another, per robot, and an edit on the volume is set
+# aside; the sim refuses a write to any document by anyone but its owner.
 #
 # The user gets a real home directory: mesa writes its shader cache there,
 # and without one every osmesa context logs "Failed to create /home/pluggy

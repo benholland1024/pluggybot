@@ -58,6 +58,53 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the constitution is named, versioned and per robot (`build.constitutions`; `constitution_changed`)
+
+pluggybot #263. `Main.md` used to be copied to the volume from a default in
+code and was the human's from then on, so a change to the default never
+reached a deployed robot and two robots could not be told different things.
+Now it is RENDERED from a library file (`mind/constitutions/<name>.md`,
+named per robot by `$PLUGGY_CONSTITUTION` / `$PLUGGY_CONSTITUTION_2`), and
+the wire says which. No version bump: both halves are additive, a consumer
+ignores what it does not know, and the fixture recordings carry neither
+(a recording has no `build` block, and a fresh volume changes nothing).
+
+**1. `build.constitutions`** on the header, beside `model`: per robot ROOT,
+because a pair may be given two, and that pair is the experiment the library
+exists for.
+
+```json
+"build": {"commit": "5ff2f0c", "arm": "autonomous", "model": "…",
+          "constitutions": {"pluggybot":    {"name": "default", "sha": "a8c36b66…"},
+                            "r2_pluggybot": {"name": "curious", "sha": "1f0e9d…"}}}
+```
+
+`name` is the library file, `sha` is sha256 of its text -- the VERSION, so
+an edit under the same name is a new regime too. The text itself still
+rides the `thought` message as `Main.md`, as it always did. ⚠ Absent on a
+header built without one (every header before this).
+
+**2. A `constitution_changed` event**, between the frames like `death`, at
+mission start and ONLY when the volume disagreed with the constitution in
+force:
+
+```json
+{"type": "constitution_changed", "t": 12.4, "robot": "pluggybot", "why": "swapped",
+ "from": {"name": "default", "sha": "a8c36b66…"}, "to": {"name": "curious", "sha": "1f0e9d…"},
+ "archived": "Main.1.md"}
+```
+
+| `why` | what happened |
+|---|---|
+| `swapped` | the environment named another constitution than the volume's sidecar (`Constitution.json`) recorded -- a LIVING robot's constitution was changed on purpose. (At a true death the next robot takes whatever the environment names with no event: it is a new robot.) |
+| `replaced` | a volume from before the library carried a text the library does not hold (`from.name` is null; `from.sha` hashes what was there). The stale-default case: Luca's, on deploy |
+| `edited` | a person edited the rendered `Main.md`; the edit is set aside, never honoured, because this header names the constitution in force |
+
+`archived` names the file the old text was kept as (nothing is deleted;
+absent when the text was the same). The same moment writes one History line
+(`my constitution was swapped: …`), so the robot reads that who it is was
+edited. The observatory files one row per event under `why`.
+
 ### 0.21.0, additive: a conversation (a follow-up carries its thread; a `visitor_reply` says whose it was)
 
 rooftop-media-2026 #125. The visitor channel was one message in and one
@@ -1094,6 +1141,7 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 | `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `guarded` has, so a `guarded` header is byte-identical to the one 0.15.0 shipped |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
+| `constitutions` | which constitution each robot was told it is, per robot root -- `{root: {name, sha}}` (pluggybot #263, the entry above). ⚠ Absent on a header built without one |
 
 ⚠ **`build.model` is the MIND; the header's top-level `model` is the WORLD** —
 the field a replayer picks its scene off. That collision is why this is a
