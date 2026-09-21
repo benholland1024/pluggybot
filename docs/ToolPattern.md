@@ -586,15 +586,22 @@ colour, because the robot's own cameras render rgba.
 
 `HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)` — five tool bays
 (A–E) at 0.25 m pitch, plus a charge bay at `CHARGE_BAY_Y = -0.375`
-continuing the same pitch. **All five are occupied**: A LCD, B plug, C pen,
-D claw, E seed dispenser.
+continuing the same pitch. **All five are occupied, and permanently**
+(issue #277): A LCD, B plug, C pen, D claw, E seed dispenser. Beside the
+rack stands the **built-tool rail**, `BUILT_STATION_YS = (1.175, 1.425,
+1.675)`: a second free body (`rack_built`, the same frame emitter without
+the charge bay or the rack tag) whose three bays sit at the same pitch
+0.30 m past E in the FIRST rack's frame, for the tools the robot builds
+and nothing else. `STATION_YS = HUB_STATION_YS + BUILT_STATION_YS` is the
+one index space every bay lives in.
 
-**The tuple is APPENDED to, never inserted into.** Bay↔tag pairing is *by
-index* (`bay_tag_id` finds the nearest station and indexes `BAY_TAG_IDS`),
-and every demo and test names its bay as `HUB_STATION_YS[0]`, `[4]`, and so
-on. Reordering for tidiness would silently re-point all of them; C/D/E are
-out of y-order for exactly this reason. Geom names come from
-`bay_prefix(i)`: `baya_` … `baye_`.
+**The tuples are APPENDED to, never inserted into.** Bay↔tag pairing is *by
+index* into `STATION_YS` (`bay_tag_id` finds the nearest station and
+indexes `BAY_TAG_IDS`), and every demo and test names its bay as
+`HUB_STATION_YS[0]`, `[4]`, and so on. Reordering for tidiness would
+silently re-point all of them; C/D/E are out of y-order for exactly this
+reason. Geom names come from `bay_prefix(i)`: `baya_` … `baye_` on the
+rack, `bayf_` … `bayh_` on the rail.
 
 ### Tags
 
@@ -606,13 +613,20 @@ textures on flat plates:
 | rack | 0 | 120 mm (`RACK_TAG_SIZE`) — read from across the room |
 | charge bay | 3 | 30 mm (`SMALL_TAG_SIZE`) |
 | bays A–E | 1, 2, 4, 5, 6 | 30 mm — read from arm's length |
+| the rail's bays A–C | 7, 8, 9 | 30 mm |
 | modules | 10 lcd, 11 plug, 12 pen, 13 claw, 14 seed | 30 mm |
+| built modules | 15 + the rail bay (15–17) | 30 mm — per BAY, reused by the next tool there |
+| the tower's blocks, the bench's masses | 20–22, 23–24 | 20.8 mm (cube faces) |
 
-A new tool needs a new entry in `MODULE_TAG_IDS` (next free: **15**); a new
-*bay* needs one appended to `BAY_TAG_IDS` (next free: **7**). `RACK_TAG_FACES`
-— the rack-fixed layout `localize.fit_rack_facing` fits to what the dock
-camera decodes — is built from `HUB_STATION_YS` and `BAY_TAG_IDS`, so an
-appended station is fitted by itself. Tag size is a range decision, not a
+A new hand-built tool needs a new entry in `MODULE_TAG_IDS` (next free:
+**25**; 18–19 are the built ids a longer rail would take); a new *bay*
+needs one appended to `BAY_TAG_IDS` (next free: **25** likewise).
+`RACK_TAG_FACES` — the rack-fixed layout `localize.fit_rack_facing` fits
+to what the dock camera decodes — is built from `STATION_YS` and
+`BAY_TAG_IDS`, so an appended station is fitted by itself, and the rail's
+bays are fitted with the rack's because the rail is commissioned beside it
+(the survey a real second rack would ship with, like `RackPose.prior`).
+Tag size is a range decision, not a
 detail — a tag36h11 must span ~25–30 px to decode, so the physical size sets
 the distance at which it can be seen. Ids are **not renumbered**: the gap at
 3 exists because renumbering would invalidate every generated PNG and model
@@ -628,7 +642,10 @@ edges.
 
 The rail is `2 × RACK_HALF_W` = **1.86 m** and carries six stations spanning
 y_local −0.375 … 0.875. **A sixth tool station at the same pitch (y = 1.125)
-falls outside the side post at 0.93**, so a sixth tool needs one of:
+falls outside the side post at 0.93**, so a sixth HAND-BUILT tool — one
+that hangs with the five, permanent — needs one of the first three routes
+below. An AGENT-BUILT tool takes none of them: it hangs on the built-tool
+rail, route 4.
 
 1. growing `RACK_HALF_W` to ≥ ~1.18 (a 2.36 m rail) — and the rail grows
    along a wall, so the far post is what hits something. Checked against the
@@ -638,11 +655,33 @@ falls outside the side post at 0.93**, so a sixth tool needs one of:
    In `home_world` (rack at (0.5, −1.98) yaw 90°, rail x −0.43 … 1.43 along
    the house's south wall) a 2.36 m rail spans −0.68 … 1.68 and fits;
 2. a second rack (or moving the room_hub rack);
-3. replacing a module in an existing bay — the cheap route for an
-   agent-built tool, **and the one the workshop takes** (issue #168):
-   `HubLifecycle.hang_tool(tool, bay)` retires the module in that bay and
-   recompiles the running world with the built module hung there
-   (`workshop/seam.py`; the module's tag id is `15 + bay`).
+3. replacing a module in an existing bay — the route the workshop took
+   until #277, and now closed to it: a build could delete the tools every
+   offered job is written against, and each built tool cost a default one;
+4. **the built-tool rail** (issue #277) — a second free body beside the
+   rack on the +y side (past bay E; the −y end is room_hub's west wall),
+   its feet 0.06 m from the rack's, its stations at the same pitch in the
+   FIRST rack's frame so that every swap, standoff, terminal creep and tag
+   fit works there unchanged. Three bays: in `home_world` the rail spans
+   x −0.52 … −1.23 along the living room's south wall, 0.77 m short of the
+   west wall, and bay C's centreline is 0.5 m inside that wall's inflation
+   band; a fifth bay would put it in the band. In `room_hub` it spans
+   x 0.12 … 0.83 along the north wall, 1.2 m short of the divider. ⚠ **The
+   rail is not symmetric about its bays** (`BUILT_RACK_HALF_W`): the fork
+   line rides `PLUG_LATERAL` to one side of the chassis, so the caster —
+   18 cm ahead of the axle on the centreline — arrives at `station − 0.05`.
+   A near post mirroring E's 0.055 put its foot under the caster (measured:
+   21 s riding the foot, the fork's stop on the tray, two picks failed at
+   bay A); the near post is 0.155 from bay A, the far one E's 0.055 past
+   bay C. **This is the route an agent-built tool takes, and the only one**:
+   `HubLifecycle.hang_tool(tool, bay)` takes a rail bay (A = 0), retires a
+   built tool already there, and recompiles the running world with the
+   module hung at `BUILT_STATION_YS[bay]` (`workshop/seam.py`; the module's
+   tag id is `15 + bay`). A fourth rail bay is `BUILT_STATION_YS` appended
+   to, `BUILT_RACK_HALF_W` grown, and a tag id appended — the same three
+   steps as any bay. ⚠ The rail's far bays sit outside the head camera's
+   view from the rack's own vantage: `test_every_hub_marker_decodes_with_
+   the_right_id` reads them from a vantage centred on the rail.
 
 Whichever it is, append a bay tag id, regenerate both worlds, and re-check
 the rack against **both** rooms it stands in.

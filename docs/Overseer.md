@@ -274,11 +274,24 @@ describe a **tool** — real parts from the catalog (`rack/catalog.py`,
 `protocol/parts.json`, the same table the website's parts page shows) at
 positions on the standard module frame, a printed PLA box or two, an
 actuator with an axis and a verb — and the world builds it and hangs it on
-the rack. Two decision fields on `define`'s terms, paperwork that costs no
-turn: `build_tool: {name, bay, spec}` and `retire_tool: name`. No replace:
-a bay is **named**, and whatever hangs there — one of the five hand-built
-modules or a tool of the robot's own — is retired for good (the rack has
-five bays; a sixth needs the rail to grow, ToolPattern.md §6).
+the robot's **own rack**. Two decision fields on `define`'s terms, paperwork
+that costs no turn: `build_tool: {name, bay, spec}` and `retire_tool: name`.
+No replace: a bay is **named**, and a tool of the robot's own already
+hanging there is retired for good.
+
+**Two racks, since #277.** The five hand-built modules (LCD, plug, pen,
+claw, dispenser) hang on the first rack and are **permanent**: no bay of
+theirs can be named (`build_tool.bay` is the rail's `A`–`C`; `D` and `E`
+are refused with whose bay they are) and `retire_tool` refuses their
+names with the reason. Beside it stands the **built-tool rail**, a second
+free body continuing the first's 0.25 m pitch past bay E with three bays
+of its own (`coupling.BUILT_STATION_YS`; ToolPattern.md §6, route 4) — the
+only bays a build may take. Until #277 a build named any of the five and
+the module there went, originals included: a robot could delete the tools
+every offered job is written against, and every built tool cost a default
+one — a tax on the behaviour the workshop exists to measure. A world
+without the rail has no workshop at all (`world_config`'s `built_bays`,
+the tower's shape): both served worlds carry it.
 
 What code keeps, in order, before anything moves:
 
@@ -312,10 +325,14 @@ Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
 `hung` (the module, the bay, the verbs, what it retired), `retired` — and
 a hang or a retire is followed by the world's `scene_changed`. What the
-robot built is shown back to it: `rack` (what hangs where) and `tools`
-(each spec, its bay, its cost) ride the volatile half of the context. A
-built tool's axis is `<name>.<verb>` in the procedure language, and the
-tool is fetched like any module.
+robot built is shown back to it: `rack` — `original`, the five as a list
+no field can name, and `built`, the rail's bays by letter with an empty one
+`null` — and `tools` (each spec, its bay, its cost) ride the volatile half
+of the context. A built tool's axis is `<name>.<verb>` in the procedure
+language, and the tool is fetched like any module: its bay indexes
+`STATION_YS` past the five, and every swap, standoff and tag fix works on
+the rail as it does on the first rack, because the rail's stations are
+commissioned in the same frame.
 
 What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
 JSON per tool. Each is re-validated against today's catalog when the

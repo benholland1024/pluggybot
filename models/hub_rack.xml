@@ -18,6 +18,12 @@
     <material name="tagmat5" texture="tagtex5" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex6" type="cube" file="tags/tag6.png"/>
     <material name="tagmat6" texture="tagtex6" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex7" type="cube" file="tags/tag7.png"/>
+    <material name="tagmat7" texture="tagtex7" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex8" type="cube" file="tags/tag8.png"/>
+    <material name="tagmat8" texture="tagtex8" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex9" type="cube" file="tags/tag9.png"/>
+    <material name="tagmat9" texture="tagtex9" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex10" type="cube" file="tags/tag10.png"/>
     <material name="tagmat10" texture="tagtex10" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex11" type="cube" file="tags/tag11.png"/>
@@ -32,8 +38,6 @@
   <worldbody>
     <body name="rack" pos="-0.9000 5.9900 0.0000" euler="0 0 -90.0">
       <freejoint/>
-      <!-- frame: side posts, rail, anti-tip feet, ballast/PSU shelf (1.5 kg
-           low -- the ballast IS the stability budget) -->
       <geom name="rack_post_l" type="box" size="0.012 0.012 0.200"
             pos="0.0700 0.9300 0.200"
             mass="0.15" rgba="0.50 0.52 0.55 1"/>
@@ -127,6 +131,62 @@
       <geom name="rack_pin_r" type="cylinder" size="0.004 0.006" zaxis="1 0 0"
             pos="0.114 -0.4050 0.090" mass="0.005"
             rgba="0.85 0.75 0.30 1"/>
+    </body>
+    <body name="rack_built" pos="0.4750 5.9900 0.0000" euler="0 0 -90.0">
+      <freejoint/>
+      <geom name="rack_built_post_l" type="box" size="0.012 0.012 0.200"
+            pos="0.0700 0.3550 0.200"
+            mass="0.15" rgba="0.50 0.52 0.55 1"/>
+      <geom name="rack_built_post_r" type="box" size="0.012 0.012 0.200"
+            pos="0.0700 -0.3550 0.200"
+            mass="0.15" rgba="0.50 0.52 0.55 1"/>
+      <geom name="rack_built_rail" type="box" size="0.012 0.355 0.012"
+            pos="0.0700 0 0.400" mass="0.20"
+            rgba="0.50 0.52 0.55 1"/>
+      <geom name="rack_built_foot_l" type="box" size="0.070 0.015 0.010"
+            pos="0.10 0.3550 0.010" mass="0.10" friction="1.0"
+            rgba="0.35 0.37 0.40 1"/>
+      <geom name="rack_built_foot_r" type="box" size="0.070 0.015 0.010"
+            pos="0.10 -0.3550 0.010" mass="0.10" friction="1.0"
+            rgba="0.35 0.37 0.40 1"/>
+      <geom name="rack_built_shelf" type="box" size="0.030 0.335 0.012"
+            pos="0.08 0 0.032" mass="1.50" rgba="0.40 0.42 0.45 1"/>
+      <!-- wall braces: the rack LEANS on the wall, so every robot press
+           transfers straight into it -- without these it scooted 9.6 mm
+           under a sustained charge-bay press (measured; free-body rack) -->
+      <geom name="rack_built_brace_l" type="box" size="0.0350 0.010 0.010"
+            pos="0.0350 0.3550 0.35" mass="0.05"
+            rgba="0.50 0.52 0.55 1"/>
+      <geom name="rack_built_brace_r" type="box" size="0.0350 0.010 0.010"
+            pos="0.0350 -0.3550 0.35" mass="0.05"
+            rgba="0.50 0.52 0.55 1"/>
+      <geom name="bayf_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 -0.1600 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayf_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 -0.1600 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayf_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 -0.1600 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayf_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 -0.1600 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayf_col_r" type="box" size="0.006 0.008 0.0585" pos="0.0700 -0.2400 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayf_foot_r" type="box" size="0.014 0.008 0.004" pos="0.0800 -0.2400 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayf_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 -0.2400 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayf_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 -0.2400 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayf_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 -0.2000 0.3550" contype="0" conaffinity="0" material="tagmat7"/>
+      <geom name="bayg_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.0900 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayg_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 0.0900 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayg_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.0900 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayg_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.0900 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayg_col_r" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.0100 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayg_foot_r" type="box" size="0.014 0.008 0.004" pos="0.0800 0.0100 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayg_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.0100 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayg_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.0100 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayg_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 0.0500 0.3550" contype="0" conaffinity="0" material="tagmat8"/>
+      <geom name="bayh_col_l" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.3400 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayh_foot_l" type="box" size="0.014 0.008 0.004" pos="0.0800 0.3400 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayh_tray_l_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.3400 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayh_tray_l_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.3400 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayh_col_r" type="box" size="0.006 0.008 0.0585" pos="0.0700 0.2600 0.3415" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayh_foot_r" type="box" size="0.014 0.008 0.004" pos="0.0800 0.2600 0.284" rgba="0.45 0.47 0.50 1"/>
+      <geom name="bayh_tray_r_a" type="box" size="0.0110 0.0080 0.0030" pos="0.0822 0.2600 0.2998" euler="0 45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayh_tray_r_b" type="box" size="0.0110 0.0080 0.0030" pos="0.0978 0.2600 0.2998" euler="0 -45 0" rgba="0.55 0.57 0.60 1"/>
+      <geom name="bayh_bay_tag" type="box" size="0.002 0.0187 0.0187" pos="0.0920 0.3000 0.3550" contype="0" conaffinity="0" material="tagmat9"/>
     </body>
     
     <body name="module_lcd" pos="-0.7750 5.9000 0.2730" euler="0 0 -90.0">

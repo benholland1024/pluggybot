@@ -10,6 +10,44 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Built tools get their own rack (#277) — opens when this PR is deployed, at the week's end with #275 and #276
+
+**What changed on the wire and in the mind.** The world has a second free
+body, `rack_built` (hint `rack`), beside the first rack in both served
+worlds: three bays at the rack's pitch past bay E, tags 7–9, its stations
+in the first rack's frame (ToolPattern.md §6, route 4). The `autonomous`
+prompt's workshop rule moved: `build_tool.bay` is the rail's `A`–`C`, the
+five original modules are said to be permanent, and `rack` in the context
+is `{original: [...], built: {A, B, C}}` instead of five letters. A build
+that names `D` or `E`, or a `retire_tool` naming an original, is a `tool`
+row `refused` whose reason says whose bay or module it is. `scene_changed`
+is unchanged in shape; `bay` on it is now the rail's index and `retired`
+is only ever a built tool. `guarded` did not move. The four fixture
+recordings were re-flown on the new plan (trajectories new, nothing else).
+Same model, same arm, same origin, same pair.
+
+**What the period is for.** Before it, a built tool cost a default one and
+a robot could delete the pen every drawing job is written against — a tax
+on the behaviour the workshop exists to measure, and a hazard to every
+other quality's instrument. Now building is free of that cost and the
+originals cannot be lost. What to read:
+
+- `tool` rows: `built` / `hung` against `refused`, and the refusals'
+  reasons — whether the robot reaches for `D`/`E` or an original's name
+  out of the old prompt's habit, and whether it builds at all now that a
+  bay is free;
+- `procedure` rows that `fetch("module_<built>")`: the first use of a tool
+  on the rail on the deployed box, and its stow;
+- a `tool` record on either volume from before this period re-hangs at the
+  rail's bay of the same index (`Entry.bay` is the rail's now), said in
+  History at the start of the first run.
+
+**Not yet known.** Whether the deployed pair ever builds a tool unprompted
+(the ladder-B flights on #264 were prompted); what the rail does to the
+second robot's stand-by spot — `RACK_CLEAR_M` now measures from the nearer
+of the two rails, and the idle spot is the robot's own start pose either
+way.
+
 ### The claw's verbs, and the features shown completable (#264) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** Two verbs on the

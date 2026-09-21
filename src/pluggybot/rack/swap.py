@@ -17,7 +17,7 @@ import numpy as np
 from pluggybot import tick
 from pluggybot.control import slew
 from pluggybot.rack.coupling import (
-  HUB_PEG_Z, HUB_STATION_YS, LIFT_STEP, PEG_R, RACK_HANG_X, TRAY_VERTEX_DROP,
+  HUB_PEG_Z, LIFT_STEP, PEG_R, RACK_HANG_X, STATION_YS, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
 from pluggybot.robot import FIRST, RobotHandle
@@ -454,7 +454,7 @@ class HubSwap:
     peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
     on_fork = (abs(float(p[0]) - float(vx[0])) < 0.03
                and abs(float(p[1]) - float(vx[1])) < 0.04)
-    bay_err = min(abs(ly - by) for by in HUB_STATION_YS)
+    bay_err = min(abs(ly - by) for by in STATION_YS)
     hung = (abs(lx - RACK_HANG_X) < 0.012
             and abs(lz - (peg_rest_z - 0.022)) < 0.008
             and bay_err < 0.030)

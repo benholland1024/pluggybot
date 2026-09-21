@@ -16,14 +16,17 @@ pointed at the new one, the registries, the wire).
   world. That last fact is the whole reason the lifecycle carries a rebind
   protocol rather than a pointer.
 
-  ⚠ A BAY IS A REPLACED MODULE (ToolPattern.md §6, route 3). The rack has
-  five bays and a sixth needs the rail to grow through room_hub's west
-  wall, so a built tool takes a bay by RETIRING the module in it: that
-  module's body (and its subtree: carriage, jaws, shuttle), its actuators,
-  and any free bodies that were its payload (the dispenser's seeds) are
-  deleted from the spec before the new module is attached at the same
-  station. ⚠ Deleting a body SHIFTS the ids of everything after it in the
-  tree, so a rebind re-resolves every id by name and trusts none.
+  ⚠ A BUILT TOOL HANGS ON THE BUILT-TOOL RAIL, and the five hand-built
+  modules are permanent (issue #277; ToolPattern.md §6, route 4). A bay
+  here is one of `coupling.BUILT_STATION_YS` -- the second rack's, the
+  only bays a build may name -- and naming one that a built tool already
+  hangs in RETIRES that tool: its body (and subtree), its actuators, and
+  any free bodies that were its payload are deleted from the spec before
+  the new module is attached at the same station. `retire` refuses a
+  hand-built module by name; until #277 a bay was any of the five and the
+  module in it went, originals included. ⚠ Deleting a body SHIFTS the ids
+  of everything after it in the tree, so a rebind re-resolves every id by
+  name and trusts none.
 
   ⚠ THE TAG IS WRITTEN ONCE. A built module's identity tag gets the next
   id past the hand-built modules' (`BUILT_TAG_BASE`); its PNG goes to
@@ -41,7 +44,7 @@ import mujoco
 
 from pluggybot.rack import coupling
 from pluggybot.rack.coupling import (
-  HUB_PEG_Z, HUB_STATION_YS, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
+  BUILT_STATION_YS, HUB_PEG_Z, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
   rack_frame_to_world,
 )
 from pluggybot.rack.tags import TAG_DIR, tag_image
@@ -49,16 +52,17 @@ from pluggybot.workshop import build
 from pluggybot.workshop.spec import Tool
 
 #: Tag ids for built modules start here; the hand-built ones end at 14
-#: (`rack/tags.py`) and bay tags stop at 6. One per BAY, not per tool: a
-#: retired tool's tag id is reused by the next tool in that bay, so the
-#: dock camera reads at most five module tags however many tools a day
-#: builds and retires.
+#: (`rack/tags.py`) and bay tags stop at 9. One per BUILT-RAIL BAY, not
+#: per tool: a retired tool's tag id is reused by the next tool in that
+#: bay, so the dock camera reads at most three built-module tags however
+#: many tools a day builds and retires. (15-19 were written when the bays
+#: were the first rack's five; the PNGs for 18 and 19 are kept for a rail
+#: that grows, and nothing references them.)
 BUILT_TAG_BASE = 15
 
-#: Free bodies that are a hand-built module's PAYLOAD and leave with it.
-RETIRE_EXTRAS = {
-  "module_seed": tuple(f"seed_{i}" for i in range(coupling.SEED_COUNT)),
-}
+#: The hand-built modules, permanent since #277: `retire` refuses them.
+#: Read off the shipped inventory rather than listed twice.
+HAND_BUILT = tuple(coupling.MODULE_TAG_IDS)
 
 
 class SeamRefused(ValueError):
@@ -87,8 +91,13 @@ def _subtree_names(spec: mujoco.MjSpec, body) -> tuple[set[str], set[str]]:
 
 
 def retire(spec: mujoco.MjSpec, module: str) -> dict:
-  """Delete a module from the spec: its body and subtree, the actuators on
-  its joints, its payload bodies. Returns what went, for the record."""
+  """Delete a BUILT module from the spec: its body and subtree, the
+  actuators on its joints. Returns what went, for the record. A hand-built
+  module is refused by name (issue #277): the pen, the claw, the dispenser,
+  the LCD and the plug are what every offered job is written against."""
+  if module in HAND_BUILT:
+    raise SeamRefused(f"the {module.removeprefix('module_')} is one of the "
+                      "original modules and stays on the rack")
   body = spec.body(module)
   if body is None:
     raise SeamRefused(f"no body {module!r} in the spec")
@@ -97,15 +106,8 @@ def retire(spec: mujoco.MjSpec, module: str) -> dict:
   for a in list(spec.actuators):
     if a.name in actuators:
       spec.delete(a)
-  extras = []
-  for name in RETIRE_EXTRAS.get(module, ()):
-    extra = spec.body(name)
-    if extra is not None:
-      spec.delete(extra)
-      extras.append(name)
   spec.delete(body)
-  return {"module": module, "bodies": sorted(bodies), "actuators": actuators,
-          "payload": extras}
+  return {"module": module, "bodies": sorted(bodies), "actuators": actuators}
 
 
 def tag_id_for_bay(bay: int) -> int:
@@ -128,7 +130,7 @@ def write_tag_png(tag_id: int, directory: Path = TAG_DIR) -> Path:
 
 def write_built_tag_pngs(directory: Path = TAG_DIR,
                          textures: Path | None = Path("protocol/textures")) -> list[int]:
-  """The five built-module tags, committed beside the hand-built ones so
+  """The built-module tags, one per built-rail bay, committed beside the hand-built ones so
   the website can vendor them once (`python -m pluggybot.rack.coupling`
   writes them with the rest) -- as the model's texture files under
   `models/tags/`, and as `protocol/textures/tagtex<id>.png` in the exact
@@ -136,7 +138,7 @@ def write_built_tag_pngs(directory: Path = TAG_DIR,
   what a `scene_changed` message's scene names and the site vendors."""
   from PIL import Image
   ids = []
-  for b in range(len(HUB_STATION_YS)):
+  for b in range(len(BUILT_STATION_YS)):
     tag_id = tag_id_for_bay(b)
     path = write_tag_png(tag_id, directory)
     if textures is not None:
@@ -159,11 +161,12 @@ def tag_face_xml(body: str, tag_id: int) -> str:
 
 def attach(spec: mujoco.MjSpec, tool: Tool, bay: int, rack_pos, rack_yaw: float,
            model_dir: Path | None = None) -> dict:
-  """The tool's module at a bay's station, plus its actuators and tag
-  material, into the spec. Returns the names the lifecycle records."""
+  """The tool's module at a BUILT-RAIL bay's station (`bay` indexes
+  `BUILT_STATION_YS`), plus its actuators and tag material, into the spec.
+  Returns the names the lifecycle records."""
   if tool.body in {b.name for b in spec.bodies}:
     raise SeamRefused(f"the world already has a {tool.body}")
-  x, y = rack_frame_to_world(RACK_HANG_X, HUB_STATION_YS[bay], rack_pos, rack_yaw)
+  x, y = rack_frame_to_world(RACK_HANG_X, BUILT_STATION_YS[bay], rack_pos, rack_yaw)
   tag_id = tag_id_for_bay(bay)
   # the texture file is relative to the model's directory, as the hand-
   # built tags are (`asset_xml`: file="tags/tagN.png")
