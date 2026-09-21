@@ -23,6 +23,18 @@ Each source is a statement of what the world requires, read that way:
   tool brought home in legs: from the workshop corner `stow`'s own drive
   (90 s) runs out of patience, and a procedure that stops with the claw on
   the fork leaves the next errand no fork.
+- THE BENCH needs the lab route (`lifecycle.lab_route`'s legs, the first
+  short of the garden doorway for the reason given there), a tare --
+  the lift's force with the empty claw at the height the cube will be
+  read at -- a few readings averaged against `axes.LOAD_NOISE_N`, the cube
+  set back down, and the arm tucked (`move("arm", 0)`) before the drive
+  home: out, the claw's body sits in the lidar's front-stop cone and the
+  reflex backs the robot away from itself. The finding itself is the
+  mind's to write (`record`, off the locals History shows it); the script
+  and the test write it from `mass` the way a mind would.
+- THE MOUSE has its program in code already (`lifecycle.cage_program`, the
+  `care` action's errand); its solution is that errand flown, and what it
+  needed was the route's first leg moved off the garden doorway.
 """
 
 #: The tower (challenge/stack.py; offered as `stack_tower`, home world).
@@ -58,4 +70,50 @@ TOWER_AT_THE_ROW = '''def tower():
   place(21)
 '''
 
-PROCEDURES = {"stack_tower": TOWER}
+#: The bench (challenge/bench.py; offered as `find_mass`, home world).
+#: MEASURED (2026-09-21, from the rack, hosting pack, the bank's first
+#: draw): 32 steps, 348 sim s, 2.7 Wh, tare 6.39 N, loaded 7.84 N, `mass`
+#: 0.148 kg -- within the grade's 10 % -- +25 points, the claw back on bay
+#: D. The return goes through the open garden (7.0, 1.2): the planner's
+#: own way back hugs the house wall past the garden light's pole and the
+#: front-stop reflex stalled it there.
+WEIGH = '''def weigh():
+  budget(steps=60, seconds=1800)
+  fetch("module_claw")
+  drive_to(4.4, 0.7)
+  drive_to(10.0, 3.1)
+  drive_to(16.0, 3.1)
+  drive_to(19.0, 3.1)
+  drive_to(22.0, 3.0)
+  drive_to(25.9, 2.0)
+  face(0)
+  move("lift", 0.16)
+  wait(2)
+  tare = 0
+  for i in range(4):
+    wait(0.5)
+    tare = tare + read("lift.force") / 4
+  pick(24)
+  wait(2)
+  f = 0
+  for i in range(4):
+    wait(0.5)
+    f = f + read("lift.force") / 4
+  mass = (f - tare) / 9.81
+  move("lift", 0.033)
+  release()
+  move("lift", 0.164)
+  move("arm", 0)
+  drive(-0.1, 0, 3)
+  drive_to(22.0, 3.0)
+  drive_to(19.0, 3.1)
+  drive_to(16.0, 3.1)
+  drive_to(10.0, 3.1)
+  drive_to(7.0, 1.2)
+  drive_to(4.4, 0.7)
+  stow()
+'''
+
+#: The procedure that discharges each challenge kind, by kind. The mouse's
+#: acts are errands, not procedures (`lifecycle.cage_errand`).
+PROCEDURES = {"stack_tower": TOWER, "find_mass": WEIGH}

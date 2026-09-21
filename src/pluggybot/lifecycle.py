@@ -4677,7 +4677,13 @@ def lab_route(world: str) -> list[tuple[float, float]]:
     return []
   from pluggybot.home import world as home
   y = home.STREET_DOOR_Y
-  return [(home.GARDEN_X[0], sum(home.DOOR_GARDEN_Y) / 2.0),   # living -> garden
+  # ⚠ The first leg stops SHORT of the garden doorway, not on it (issue
+  # #264): arriving on the door line, the plan north hugs the wall from
+  # 15 cm away, the turn toward it puts a door post inside the front-stop
+  # reflex, and the leg to the gate stalled 5.4 m short from a cold start.
+  # 0.6 m back in the living room the same program ran 9/9 (the feed act,
+  # 105 s, 0.95 Wh).
+  return [(home.GARDEN_X[0] - 0.6, sum(home.DOOR_GARDEN_Y) / 2.0),   # living -> garden
           (home.SIDEWALK_X[0], y),                              # the gate
           (home.GARDEN_2_X[0], y),                              # the other gate
           (home.LOBBY_X[0], y),                                 # the lobby's door

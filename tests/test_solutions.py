@@ -264,13 +264,16 @@ def test_place_on_retreats_a_grip_length():
 
 def test_the_tower_solution_compiles_against_the_home_world():
   facts = world_facts("home")
-  for src in (solutions.TOWER, solutions.TOWER_AT_THE_ROW):
-    proc = lang.compile_procedure(src, facts)
-    assert proc.name == "tower"
+  for src in (solutions.TOWER, solutions.TOWER_AT_THE_ROW, solutions.WEIGH):
+    lang.compile_procedure(src, facts)
   verbs = [s[1] for s in lang.parse(solutions.TOWER).body if s[0] == "verb"]
   assert verbs[0] == "fetch" and verbs[-1] == "stow"
   assert verbs.count("pick") == 2 and verbs.count("place") == 2
-  assert solutions.PROCEDURES == {"stack_tower": solutions.TOWER}
+  weigh = lang.parse(solutions.WEIGH)
+  assert ("verb", "pick", {"tag": ("num", 24)}, 17) in weigh.body and "lift.force" in solutions.WEIGH
+  assert solutions.PROCEDURES == {"stack_tower": solutions.TOWER, "find_mass": solutions.WEIGH}
+  from pluggybot.economy.tasks import KINDS
+  assert all(KINDS[k].discharge == "procedure" for k in solutions.PROCEDURES)
 
 
 def test_the_mind_never_imports_the_solutions():
@@ -286,22 +289,32 @@ def test_the_mind_never_imports_the_solutions():
 # ---- the flown proof, on demand ------------------------------------------
 
 
+def _from_the_rack(tmp_path, feature: str):
+  import sys
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  from pluggybot import lifecycle as lc
+  from pluggybot.lifecycle import world_config
+  life, _ = demo.build_life(False, str(tmp_path))
+  if feature == "mouse":
+    acts = lc.home_activities(life.model, life.data)
+    life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
+    life.activities = acts
+  m = life.mission
+  m.start_at(*world_config("home")["start"])
+  m.start_discovery()
+  m._spin()
+  source = {"tower": solutions.TOWER, "bench": solutions.WEIGH, "mouse": None}[feature]
+  return life, demo.run(life, feature, source)
+
+
 @pytest.mark.endurance
 def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   """Ladder A, whole: `solutions.TOWER` run as a `procedure:` errand from
   the living-room rack, the claw fetched and stowed, `done`, the grade on
   the seam with its hold -- the verdict a robot would be paid for. ~170 s
   wall, behind --endurance: every rule it stands on is pinned above."""
-  import sys
-  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-  import stack as demo
-  from pluggybot.lifecycle import world_config
-  life, _ = demo.build_life(False, str(tmp_path))
-  m = life.mission
-  m.start_at(*world_config("home")["start"])
-  m.start_discovery()
-  m._spin()
-  out = demo.run(life, solutions.TOWER)
+  life, out = _from_the_rack(tmp_path, "tower")
   proc = out["errand"]["procedure"]
   assert proc["ok"] and proc["completed"] == proc["total"] == 15, proc
   assert out["errand"]["stowed"] and proc["toolsHung"]
@@ -311,3 +324,35 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   assert grade["ok"] and grade["points"] > 0, grade
   assert grade["touchedDuringHold"] == []
   assert life.mission.swap.module_state("module_claw")["hung"]
+
+
+@pytest.mark.endurance
+def test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded(tmp_path):
+  """Ladder A for the bench: `solutions.WEIGH` from the rack -- the claw
+  to the lab, a tare, the cube lifted, `lift.force` read, set down, home
+  -- the finding recorded off the procedure's `mass` and graded against
+  the hidden truth. ~150 s wall; the sensor (`lift.force`), the grade and
+  the verbs are pinned fast (tests/test_bench.py, above)."""
+  life, out = _from_the_rack(tmp_path, "bench")
+  proc = out["errand"]["procedure"]
+  assert proc["ok"] and proc["completed"] == proc["total"], proc
+  assert out["errand"]["stowed"]
+  assert 0.05 < proc["locals"]["mass"] < 0.40
+  grade = out["grade"]
+  assert grade["ok"] and grade["points"] > 0 and grade["reported"] == round(proc["locals"]["mass"], 3), grade
+  assert "truth" not in grade
+
+
+@pytest.mark.endurance
+def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
+  """Ladder A for the mouse: the `care` action's own program flown from
+  the rack; the act is judged off the cage's count (`landed`), and the
+  mouse's state off the activity. ~45 s wall; `cage_program`'s legs and
+  the activity's table are pinned fast (tests/test_mouse.py)."""
+  life, out = _from_the_rack(tmp_path, "mouse")
+  proc = out["errand"]["procedure"]
+  assert proc["ok"] and proc["completed"] == proc["total"] == 9, proc
+  care = out["care"]
+  assert care["landed"] >= 1 and care["ok"]
+  assert (care["before"], care["after"]) == ("resting", "eating")
+  assert life.cage.state == "eating"

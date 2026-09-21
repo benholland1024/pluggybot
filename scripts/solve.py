@@ -1,20 +1,29 @@
-"""Ladder A for the tower (issue #264): the hand-written procedure that
-stacks the three blocks with the claw, run the way the robot's own attempt
-runs -- a `procedure:` errand off the library, `done`, and the grade on the
-lifecycle seam with its 10 s hold -- so a passing verdict here is the same
-verdict a robot would be paid for.
+"""Ladder A of issue #264: the hand-written solution to each challenge,
+run the way the robot's own attempt runs and graded by the feature's own
+grader -- so a passing verdict here is the verdict a robot would be paid
+for, and a robot that never earns it is a finding about the robot.
 
-The robot starts at the rack (the living room), fetches the claw, drives
-to the workshop in legs, picks and places twice, brings the claw home and
-stows it; then the tower is graded. `challenge/solutions.py` holds the
-procedure and the numbers it measured.
+  --feature tower   `solutions.TOWER`: fetch the claw, drive to the
+                    workshop, pick and place twice (`pick`/`place`),
+                    bring the claw home, stow; `done`; the grade on the
+                    lifecycle seam with its 10 s hold
+  --feature bench   `solutions.WEIGH`: the claw to the lab, a tare, the
+                    unknown cube lifted and `read("lift.force")` averaged,
+                    set down, home; the finding recorded off the
+                    procedure's `mass` as a mind would; `done`; graded
+                    against the hidden mass
+  --feature mouse   `lifecycle.cage_errand("home", "feed")`: the care
+                    program to the lab and onto the feed plate, judged off
+                    the cage's own count (a `care` event, `landed`)
 
-Writes stack.png: a filmstrip from a camera on the base block.
+Each starts at the rack in the living room. `challenge/solutions.py`
+holds the procedures and the numbers they measured. Writes solve.png: a
+filmstrip from a camera on the work.
 
 Usage:
-  MUJOCO_GL=egl uv run python scripts/stack.py            # headless + stack.png
-  uv run python scripts/stack.py --view                    # watch live
-  MUJOCO_GL=egl uv run python scripts/stack.py --at-the-row
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature tower
+  uv run python scripts/solve.py --feature bench --view
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --at-the-row
       # skip the drive: start in the workshop with the claw on the fork
 """
 
@@ -40,7 +49,7 @@ from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
 from pluggybot.rack.swap import ARM_EXT, align_lift
 from pluggybot.robot import world_spec
 
-OUT = "stack.png"
+OUT = "solve.png"
 FRAME_W, FRAME_H = 360, 270
 FRAME_EVERY_S = 20.0
 BG, INK = (24, 26, 30), (232, 234, 238)
@@ -128,37 +137,63 @@ def claw_in_hand_at_the_row(life, stand=(-10.2, -4.75, math.pi)) -> None:
   m._spin()
 
 
-def run(life, source: str, frames: list | None = None) -> dict:
-  """The tower's path exactly as a robot's: the offer claimed, the
-  procedure defined and run as an errand, `done`, the grade on the seam."""
+def _camera(life, frames: list, track: str):
+  renderer = mujoco.Renderer(life.model, FRAME_H, FRAME_W)
+  cam = mujoco.MjvCamera()
+  cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+  cam.trackbodyid = life.model.body(track).id
+  cam.distance, cam.azimuth, cam.elevation = 0.7, 120, -25
+  state = {"next": 0.0}
+  data = life.data
+
+  def grab(label: str | None = None, force: bool = False):
+    if data.time < state["next"] and not force:
+      return
+    state["next"] = data.time + FRAME_EVERY_S
+    renderer.update_scene(data, cam)
+    frames.append((label or f"t={data.time:.0f}s {life.state}", renderer.render().copy()))
+  life.mission.step_hooks.append(grab)
+  return grab
+
+
+def run(life, feature: str, source: str | None = None, frames: list | None = None) -> dict:
+  """A feature's path exactly as a robot's: the offer claimed, the
+  procedure defined and run as an errand (or the act's errand run),
+  `done`, the grade on the seam."""
+  from pluggybot import lifecycle as lc
   m, data = life.mission, life.data
-  task = life.tasks.offer("stack_tower", "workshop", t=float(data.time))
+  track = {"tower": stack.BLOCKS[0], "bench": "mass_unknown", "mouse": "lab_mouse"}[feature]
+  grab = _camera(life, frames, track) if frames is not None else None
+  events: list = []
+  life.on_event.append(events.append)
+  if feature == "mouse":
+    result = life.run_errand(lc.cage_errand("home", "feed", from_xy=m.pose_xy()))
+    care = [e for e in events if e["type"] == "care"]
+    if grab:
+      grab("the act", force=True)
+    return {"errand": result, "grade": None, "care": care[-1] if care else None}
+  if feature == "tower":
+    task = life.tasks.offer("stack_tower", "workshop", t=float(data.time))
+  else:
+    task = life.tasks.offer("find_mass", "lab", ttl=3000.0, t=float(data.time),
+                            params={"known_g": 100, "known_tag": 23, "unknown_tag": 24})
   assert task is not None and life._claim_task(task.id)
   library = lib.Library(world_facts("home"))
-  library.define("tower", source)
-  errand = errand_from(ov.Decision(action="procedure:tower"), "home", library=library)
-  if frames is not None:
-    renderer = mujoco.Renderer(life.model, FRAME_H, FRAME_W)
-    cam = mujoco.MjvCamera()
-    cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    cam.trackbodyid = life.model.body(stack.BLOCKS[0]).id
-    cam.distance, cam.azimuth, cam.elevation = 0.7, 120, -25
-    state = {"next": 0.0}
-
-    def grab():
-      if data.time < state["next"]:
-        return
-      state["next"] = data.time + FRAME_EVERY_S
-      renderer.update_scene(data, cam)
-      frames.append((f"t={data.time:.0f}s {life.state}", renderer.render().copy()))
-    m.step_hooks.append(grab)
+  name = "tower" if feature == "tower" else "weigh"
+  library.define(name, source)
+  errand = errand_from(ov.Decision(action=f"procedure:{name}"), "home", library=library)
   result = life.run_errand(errand)
+  if feature == "bench":
+    # the finding, as a mind writes it off the locals History shows it
+    mass = (result["procedure"].get("locals") or {}).get("mass")
+    if mass is not None:
+      life._reconsider(ov.Decision(action="idle", record={
+        "quantity": "unknown mass", "value": round(float(mass), 3), "unit": "kg",
+        "method": "the lift, tared", "topic": "mass_bench"}))
   life._done(ov.Decision(action="idle", reason="", done=task.id))
   tick.run(m.swap, life._grade_routine())
-  if frames is not None:
-    state["next"] = 0.0
-    grab()
-    frames[-1] = (f"graded at t={data.time:.0f}s", frames[-1][1])
+  if grab:
+    grab(f"graded at t={data.time:.0f}s", force=True)
   return {"errand": result, "grade": life.grades[-1] if life.grades else None}
 
 
@@ -178,26 +213,33 @@ def filmstrip(frames, path: str) -> None:
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument("--feature", choices=("tower", "bench", "mouse"), default="tower")
   parser.add_argument("--view", action="store_true", help="open the viewer")
   parser.add_argument("--at-the-row", action="store_true",
-                      help="start in the workshop with the claw on the fork")
+                      help="tower only: start in the workshop with the claw on the fork")
   parser.add_argument("--out", default=OUT)
   args = parser.parse_args()
 
   frames: list = []
   with tempfile.TemporaryDirectory() as state_dir:
     life, viewer = build_life(args.view, state_dir)
+    if args.feature == "mouse":
+      from pluggybot import lifecycle as lc
+      acts = lc.home_activities(life.model, life.data)
+      life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
+      life.activities = acts
     m = life.mission
     t0 = time.time()
     try:
-      if args.at_the_row:
+      if args.at_the_row and args.feature == "tower":
         claw_in_hand_at_the_row(life)
-        out = run(life, solutions.TOWER_AT_THE_ROW, frames)
+        out = run(life, "tower", solutions.TOWER_AT_THE_ROW, frames)
       else:
         m.start_at(*world_config("home")["start"])
         m.start_discovery()
         m._spin()
-        out = run(life, solutions.TOWER, frames)
+        source = {"tower": solutions.TOWER, "bench": solutions.WEIGH, "mouse": None}[args.feature]
+        out = run(life, args.feature, source, frames)
     except MissionAborted:
       print("aborted (viewer closed)")
       return
@@ -211,15 +253,21 @@ def main() -> None:
     extra = {k: v for k, v in step.items() if k not in ("i", "verb", "line", "ok")}
     print(f"  {'OK ' if step['ok'] else 'BAD'} {step['verb']:9s} {extra}")
   print(f"procedure: {proc['completed']}/{proc['total']} steps, "
-        f"{'complete' if proc['ok'] else 'cut short'}, {proc['seconds']:.0f} sim s; "
-        f"tools hung: {proc.get('toolsHung')}")
-  grade = out["grade"]
-  print(f"GRADE: {'PASSED' if grade and grade['ok'] else 'FAILED'} -- "
-        f"{grade['reason'] if grade else 'never graded'}"
-        f"{f' (+{grade['points']} points)' if grade else ''}")
+        f"{'complete' if proc['ok'] else 'cut short'}, {proc['seconds']:.0f} sim s"
+        + (f"; locals {proc['locals']}" if proc.get("locals") else "")
+        + (f"; tools hung: {proc['toolsHung']}" if "toolsHung" in proc else ""))
+  if args.feature == "mouse":
+    care = out["care"]
+    print(f"ACT: {'LANDED' if care and care['landed'] else 'FAILED'} -- "
+          + (f"feed x{care['landed']}, the mouse {care['before']} -> {care['after']}, "
+             f"{care['energyWh']:.2f} Wh" if care else "no care event"))
+  else:
+    grade = out["grade"]
+    print(f"GRADE: {'PASSED' if grade and grade['ok'] else 'FAILED'} -- "
+          f"{grade['reason'] if grade else 'never graded'}"
+          f"{f' (+{grade['points']} points)' if grade else ''}")
   st = life.mission.swap.module_state("module_claw")
-  print(f"claw: {'hung in its bay' if st['hung'] else 'NOT on the rack'} "
-        f"(bay error {st['bayErrMm'] if 'bayErrMm' in st else st['bay_err_mm']:.0f} mm)")
+  print(f"claw: {'hung in its bay' if st['hung'] else 'NOT on the rack'}")
   print(f"sim {life.data.time:.0f} s, wall {time.time() - t0:.0f} s, "
         f"pack {life.battery.fraction:.0%}, "
         f"{(life.battery.capacity_wh - life.battery.energy_wh):.2f} Wh spent")
