@@ -591,7 +591,7 @@ save a filmstrip PNG named after the script.
   `ticket_close` / `ticket_delete` (`CODE_HANDLED_TYPES`), drained in
   `_visitor_step`: a reply lands on the thread and in History and fires
   `ticket_replied` (the tenth event type, UNCONFIGURABLE); a close PAYS
-  the `ticket` row of `challenges.json` (10, unoffered, `guarded`'s table
+  the `ticket` row of `challenges.json` (25, unoffered, `guarded`'s table
   and prefix unchanged) through `scoring.evaluate` + `_bank` ONCE -- a
   replayed close answers `paid: false`; a delete erases and pays nothing.
   ⚠ NOT the visitor tier's pending entry + `settle`: a true death restarts

@@ -313,7 +313,7 @@ deleted ticket's number is gone); a consumer keys a ticket by (`robot`,
 ```jsonc
 {"type": "ticket", "t": 412.5, "robot": "pluggybot", "outcome": "closed",
  "id": "tk_0003", "kind": "bug", "title": "the pen misses the far board",
- "from": "ben", "text": "fixed the standoff", "points": 10, "seq": 17,
+ "from": "ben", "text": "fixed the standoff", "points": 25, "seq": 17,
  "ref": "tc_9f3a", "paid": true}
 ```
 

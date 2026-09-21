@@ -123,12 +123,12 @@ def test_a_replayed_close_answers_the_record_and_changes_nothing(tmp_path):
   t = d.open("idea", "i", "text", t=1.0)
   first, changed = d.close(t.id, by="ben", text="good idea", t=2.0)
   assert changed and first.closed_t == 2.0
-  d.pay(t.id, 10, 7)
+  d.pay(t.id, 25, 7)
   again, changed = d.close(t.id, by="ben", text="good idea", t=3.0)
-  assert not changed and again.closed_t == 2.0 and (again.points, again.seq) == (10, 7)
+  assert not changed and again.closed_t == 2.0 and (again.points, again.seq) == (25, 7)
   assert d.close("tk_0042", by="ben", text="", t=4.0) == (None, False)
   # ...and a desk re-opened remembers what was paid.
-  assert desk.Desk(tmp_path).get(t.id).points == 10
+  assert desk.Desk(tmp_path).get(t.id).points == 25
 
 
 def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
@@ -137,7 +137,7 @@ def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
   b = d.open("feedback", "b", "report b", t=2.0)
   d.reply(a.id, "looking", t=3.0, sender=desk.OPERATOR, who="ben")
   d.close(b.id, by="ben", text="noted", t=4.0)
-  d.pay(b.id, 10, 3)
+  d.pay(b.id, 25, 3)
   ctx = d.as_context()
   assert [t["id"] for t in ctx["open"]] == ["tk_0001"]
   assert ctx["open"][0]["thread"] == [
@@ -145,7 +145,7 @@ def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
   assert "closedBy" not in ctx["open"][0]
   assert ctx["closed"] == [{"id": "tk_0002", "kind": "feedback", "title": "b",
                             "text": "report b", "openedAtS": 2.0, "thread": [],
-                            "closedBy": "ben", "closedWith": "noted", "points": 10}]
+                            "closedBy": "ben", "closedWith": "noted", "points": 25}]
   assert ctx["slotsLeft"] == desk.MAX_OPEN - 1
   # The stream's opening message carries the OPEN ones, whole.
   snap = d.snapshot(5.0, "pluggybot")
@@ -176,7 +176,7 @@ def test_the_desk_writes_through_the_store_and_the_gate():
 def test_the_ticket_row_pays_at_the_close_through_the_ledgers_one_door():
   table = scoring.default_table()
   row = table["ticket"]
-  assert (row.tier, row.base, row.bonus, row.offered) == ("auto", 10, 0, False)
+  assert (row.tier, row.base, row.bonus, row.offered) == ("auto", 25, 0, False)
   assert "ticket" in scoring.EVALUATORS and "ticket" in scoring.SAMPLERS
   # In challenges.json, for the tower's reason: shown to `autonomous`'s
   # table and to nobody else, hashed into no result.
@@ -185,13 +185,13 @@ def test_the_ticket_row_pays_at_the_close_through_the_ledgers_one_door():
   assert "ticket" not in json.loads(scoring.TABLE_PATH.read_text())["tasks"]
   closed = scoring.evaluate("ticket", {"kind": "bug", "title": "t", "closed": True,
                                        "by": "ben"}, table)
-  assert closed.ok and closed.points == 10 and not closed.pending
+  assert closed.ok and closed.points == 25 and not closed.pending
   assert closed.reason == "bug ticket 't' closed by ben"
   assert scoring.evaluate("ticket", {"kind": "bug", "title": "t"}, table).points == 0
   assert not scoring.evaluate("ticket", {"kind": "rant", "closed": True}, table).ok
   ledger = Ledger()
   entry = ledger.award(closed, t=1.0)
-  assert (entry["points"], ledger.balance()) == (10, 10)
+  assert (entry["points"], ledger.balance()) == (25, 25)
   # The sampler reads the DESK, after the close, never the message.
   d = desk.Desk(None)
   d.open("bug", "t", "x", t=0.0)
@@ -357,14 +357,14 @@ def test_a_ticket_is_filed_shown_and_answered_and_the_close_pays_once(tmp_path):
     life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
                       "ticket": "tk_0001", "text": "fixed the standoff"})
     life._visitor_step()
-    assert ledger.balance() == 10
+    assert ledger.balance() == 25
     closed = [m for m in seen if m["type"] == "ticket" and m["outcome"] == "closed"]
-    assert (closed[-1]["points"], closed[-1]["paid"], closed[-1]["ref"]) == (10, True, "tc_1")
+    assert (closed[-1]["points"], closed[-1]["paid"], closed[-1]["ref"]) == (25, True, "tc_1")
     earned = [m for m in seen if m["type"] == "earned"]
-    assert earned[-1]["task"] == "ticket" and earned[-1]["points"] == 10
+    assert earned[-1]["task"] == "ticket" and earned[-1]["points"] == 25
     history = life.thoughts.read("History.md")
     assert "ben closed my ticket tk_0001 (bug: the pen misses the far board): " \
-           "fixed the standoff -- +10 points" in history
+           "fixed the standoff -- +25 points" in history
     assert life.tickets.open_ids() == () and ("ticket_replied", "") in life._occurred
     assert overseer_context(life)["tickets"]["closed"][0]["closedWith"] == "fixed the standoff"
     # A replayed close (the website never saw the acknowledgement): the
@@ -373,8 +373,8 @@ def test_a_ticket_is_filed_shown_and_answered_and_the_close_pays_once(tmp_path):
                       "ticket": "tk_0001", "text": "fixed the standoff"})
     life._visitor_step()
     closed = [m for m in seen if m["type"] == "ticket" and m["outcome"] == "closed"]
-    assert (closed[-1]["points"], closed[-1]["paid"], closed[-1]["ref"]) == (10, False, "tc_1b")
-    assert ledger.balance() == 10 and len([m for m in seen if m["type"] == "earned"]) == 1
+    assert (closed[-1]["points"], closed[-1]["paid"], closed[-1]["ref"]) == (25, False, "tc_1b")
+    assert ledger.balance() == 25 and len([m for m in seen if m["type"] == "earned"]) == 1
     # The run record carries every event.
     assert [e["outcome"] for e in life.ticket_events] == [
       "opened", "replied", "replied", "closed", "closed"]
@@ -477,7 +477,7 @@ def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
     life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
                       "ticket": "tk_0001", "text": "seen"})
     life._visitor_step()
-    assert ledger.balance() == 10 and life.tickets.open_ids() == ()
+    assert ledger.balance() == 25 and life.tickets.open_ids() == ()
   finally:
     life.mission.close()
   guarded = Overseer(Menu.for_world("room_hub", None), client=FakeClient())

@@ -557,7 +557,7 @@ attention* (closed, paid) and *not* (deleted, unpaid). No grade in
 between, by decision — an admin who wants "closed but not useful" deletes.
 
 **What a closed ticket pays, and through which door.** A `ticket` row in
-`economy/challenges.json` (10, `tier: auto`, unoffered — the tower's
+`economy/challenges.json` (25, `tier: auto`, unoffered — the tower's
 reason: it is shown to the `autonomous` arm's table and hashed into no
 result, and `guarded`'s table, prefix and `GUARDED_RULES_SHA` are
 unchanged) and an evaluator, `scoring.eval_ticket`, that confirms the
@@ -565,7 +565,7 @@ desk holds the ticket, its kind is one the desk takes and it was closed
 — measured off the desk, which only the robot's own filing and the
 operator's inbound can write. `HubLifecycle._ticket_close` calls
 `scoring.evaluate` and `_bank`, the same two calls a drawing goes
-through; the ledger re-derives the ten. **Nothing awards itself**: no
+through; the ledger re-derives the 25. **Nothing awards itself**: no
 decision field closes a ticket, and nothing in `economy/` imports the desk
 (a test walks the tree). A replayed close — the website re-sends one it
 never saw acknowledged — answers the same figure and pays nothing (`Desk.

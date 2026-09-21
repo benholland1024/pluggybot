@@ -17,7 +17,7 @@ gained one section, SUPPORT TICKETS (Overseer.md §2g), and two paperwork
 fields, `ticket {kind, title, text}` and `ticket_reply {ticket, text}`;
 the user turn gained a `tickets` block (open tickets with their threads,
 the newest three closed with their closing words and points, `slotsLeft`);
-the `autonomous` reward table gained a `ticket` row (10, paid once, at the
+the `autonomous` reward table gained a `ticket` row (25, paid once, at the
 operator's close; `challenges.json`, unoffered). So the prefix moved, and
 `guarded` did not. The map's event list gained `ticket_replied`,
 unconfigurable. On the wire: one additive event, `ticket` (`opened` /
@@ -48,9 +48,10 @@ all, and what, when nobody asks. What to read:
   full threads is ~1 700 tokens a call at the caps, on top of the ~12 200
   the deployed prompt already carries.
 
-**Not yet known.** Whether ten points is enough to be noticed against a
-drawing's twenty and too little to be farmed (the cap of three open, and
-a person's close, bound the farm either way); whether a robot writes
+**Not yet known.** Whether 25 points — a drawing's best day — reads as
+an invitation to file, and whether that shows as tickets filed faster
+than they are closed (the cap of three open, and a person's close, bound
+the farm either way); whether a robot writes
 tickets about the OTHER robot, which the desk allows and the rule says
 nothing about.
 
