@@ -44,6 +44,19 @@ def _garbled(t=20.0):
 # ---- 1. the phrase lands in the inbox ----------------------------------------
 
 
+def test_a_reply_row_keeps_the_row_kind_and_is_matched_to_the_probe():
+  """A `visitor_reply` carries the MESSAGE's `kind`; MEASURED (round 1 of
+  the ladder-B flights) overwriting the row's, so a robot that answered
+  Ben read as never having replied."""
+  probe = rec.Probe(probe={"feature": "tower", "phrase": rec.PROBES["tower"]})
+  probe._event({"type": "visitor_reply", "t": 1.0, "id": "probe-1", "kind": "message",
+                "outcome": "accepted", "reply": "on it"})
+  [row] = probe.events
+  assert row["kind"] == "event" and row["msgKind"] == "message"
+  out = rec.probe_outcome("tower", [_probe_row(), row])
+  assert out["reply"] == {"outcome": "accepted", "text": "on it"}
+
+
 def test_the_phrase_is_in_the_inbox_from_the_named_sender_when_the_probe_attaches():
   cfg = world_config("room_hub")
   model = mujoco.MjModel.from_xml_path(cfg["model"])

@@ -315,9 +315,13 @@ class Probe:
 
   def _event(self, event: dict) -> None:
     if event.get("type") in PROBE_EVENT_TYPES:
-      self._emit({"kind": "event", **{k: v for k, v in event.items()
-                                     if k not in ("document", "text")
-                                     or event.get("type") == "visitor_reply"}})
+      # the row kind LAST: a `visitor_reply` carries the message's own
+      # `kind` ("message"), which must not become the row's
+      self._emit({**{k: v for k, v in event.items()
+                     if k not in ("document", "text", "kind")
+                     or event.get("type") == "visitor_reply"},
+                  **({"msgKind": event["kind"]} if "kind" in event else {}),
+                  "kind": "event"})
 
   def _emit(self, row: dict) -> None:
     self.events.append(row)
