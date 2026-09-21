@@ -355,6 +355,35 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
   assert looks == [21, 21] and seen["travelled"] and arrived
 
 
+def test_an_aborted_procedure_sets_a_held_cube_down_before_the_stow(monkeypatch):
+  """MEASURED (ladder B, round 4): a stacking procedure out of its own time
+  budget right after `pick(22)` was stowed holding the block; the hang
+  failed, the claw lay off its bay in front of the rack, and every
+  charge approach after it found no tag -- a dead day. Abort means stow,
+  and a cube in the jaws goes on the floor first."""
+  from test_language import _life
+  from test_procedure import _stub_swaps
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.lifecycle import errand_from
+  from pluggybot.procedure import library as lib
+  life = _life()
+  _stub_swaps(life, monkeypatch)
+  order: list = []
+  claw = _fake_claw(held="block_2_box")
+  claw.set_down_routine = lambda: (order.append("set_down"), claw.__setattr__("_h", None),
+                                   tick.result({"released": True}))[2]
+  claw.held = lambda: getattr(claw, "_h", "block_2_box")
+  monkeypatch.setattr(st, "_claw", lambda life: claw)
+  monkeypatch.setattr(st, "_carried", lambda life: "module_claw")
+  swap_at_bay = life.mission.swap_at_bay_routine
+  life.mission.swap_at_bay_routine = lambda *a, **kw: (order.append("stow"), swap_at_bay(*a, **kw))[1]
+  library = lib.Library(world_facts("room_hub"))
+  library.define("short", "def short():\n  budget(steps=1, seconds=1)\n  wait(0.1)\n  wait(0.1)\n")
+  result = life.run_errand(errand_from(Decision(action="procedure:short"), "room_hub", library=library))
+  assert result["procedure"]["stopped"] == "steps"
+  assert order == ["set_down", "stow"], order
+
+
 def test_the_prompt_states_the_eyes_reach_and_returns_emptiness():
   from pluggybot.mind.overseer import procedure_rule
   rule = procedure_rule()

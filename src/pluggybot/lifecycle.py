@@ -1861,6 +1861,17 @@ class HubLifecycle:
     # still on the fork goes home before the verdict.
     carried = procedure._carried(self)
     if carried is not None:
+      # ...and a cube still in the claw's jaws is SET DOWN first (issue
+      # #264): MEASURED, a stacking procedure whose own time budget ran
+      # out right after a pick was stowed holding the block -- the hang
+      # failed, the claw ended up off its bay in front of the rack, and
+      # every charge approach after it found no tag. A cube on the floor
+      # where the robot stands is where it was found.
+      claw = procedure._claw(self)
+      held = claw.held() if claw is not None else None
+      if held is not None:
+        self._say(f"PROCEDURE {program.name} ended holding {held} -- setting it down")
+        yield from claw.set_down_routine()
       self.state = "SWAP_RETURN"
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
