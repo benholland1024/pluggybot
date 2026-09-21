@@ -601,11 +601,13 @@ VERBS: dict[str, Verb] = {
   # 0.65-1.0 m and not closer, so a procedure drives within about a metre
   # and faces it first.
   "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
-               "find the cube carrying this tag from here, drive over it and "
-               "take it; ok when the jaws hold it"),
+               "find the cube carrying this tag, drive over it and take it; "
+               "ok when the jaws hold it. The eye decodes a cube's tag from "
+               "about 0.7-1 m away, facing it, and not from closer"),
   "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
                 "set the held cube down on top of the cube carrying this tag "
-                "and back off; ok when it rests there"),
+                "and back off; ok when it rests there. The eye's reach is "
+                "pick's"),
   "draw": Verb("draw", {"figure": Arg("str", choices="figures"),
                         "board": Arg("str", choices="boards")},
                _draw, "the pen's use-phase on a board; ok when ink landed"),

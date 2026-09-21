@@ -4384,9 +4384,11 @@ def task_producer(board, world: str, book=None, cadence=None,
   it is called.
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
+  cfg = world_config(world)
   return TaskProducer(board, cadence or default_cadence(world),
                       world_targets(world, book, procedures=procedures,
-                                    robots=robots))
+                                    robots=robots),
+                      facts={k: cfg[k] for k in ("tower", "lab") if cfg.get(k)})
 
 
 def world_screens(model, data):
@@ -4907,6 +4909,14 @@ def overseer_context(life) -> dict:
     at = (world_config(life.world).get("lab") or {}).get("bench")
     if at:
       state["lab"]["bench"] = [round(float(v), 2) for v in at]
+    # ...and THE WAY THERE (issue #264): the legs of the road from the
+    # house to the lab's door, in order -- the house's own map, the same
+    # fact `cage_program` drives by. A procedure that wants the bench has
+    # to cross the street, and `drive_to` plans through known space only:
+    # ladder B's bench day wrote the whole weighing and no legs.
+    legs = lab_route(life.world)
+    if legs:
+      state["lab"]["route"] = [[round(float(x), 1), round(float(y), 1)] for x, y in legs]
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what

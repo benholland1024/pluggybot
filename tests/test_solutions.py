@@ -286,6 +286,42 @@ def test_the_mind_never_imports_the_solutions():
     assert "solutions" not in path.read_text(), path
 
 
+# ---- 7. what ladder B's first days were missing (issue #264, round 3) ------
+
+
+def test_the_offers_say_where_the_house_set_the_props_out(tmp_path):
+  """Every ladder-B day that reached the tower wrote a blind scout first:
+  the offer said "in the workshop" and nothing more. The house placed
+  the blocks and the cubes, so where they START is a work-order fact
+  (TaskPattern §2), built by the producer off `world_config`; a bare
+  offer (a test's) carries no clause and no stray placeholder."""
+  from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.lifecycle import task_producer
+  board = TaskBoard(path=str(tmp_path / "t.json"))
+  producer = task_producer(board, "home", procedures=True)
+  params, _ = producer._build("stack_tower", "workshop")
+  tower = board.offer("stack_tower", "workshop", params=params, t=0.0).description
+  assert "(-11.00, -5.00), (-11.00, -4.75), (-11.00, -4.50)" in tower
+  assert "tags 20, 21, 22 in that order" in tower and tower.endswith("say you are done.")
+  params, secret = producer._build("find_mass", "lab")
+  bench = board.offer("find_mass", "lab", params=params, secret=secret, t=1.0).description
+  assert "(26.68, 2.00) (tag 24)" in bench and "(26.68, 1.00) (tag 23)" in bench
+  assert bench.endswith("write the procedure.")
+  bare = board.offer("stack_tower", "workshop", t=2.0).description
+  assert "{" not in bare and "  " not in bare and "None" not in bare
+  # ...and the cubes' LIVE poses stay out of the context (issue #227's
+  # rule): the offer says where they were set out, the room says nothing
+  assert "mass" not in str(producer.facts.get("lab", {}))
+
+
+def test_the_prompt_states_the_eyes_reach_and_returns_emptiness():
+  from pluggybot.mind.overseer import procedure_rule
+  rule = procedure_rule()
+  assert "0.7-1 m" in st.VERBS["pick"].doc and "not from closer" in st.VERBS["pick"].doc
+  assert "0.7-1 m" in rule and "`return` (alone" in rule
+  assert "route" in __import__("pluggybot.mind.overseer", fromlist=["lab_rule"]).lab_rule("lab")
+
+
 # ---- the flown proof, on demand ------------------------------------------
 
 
