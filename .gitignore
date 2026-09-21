@@ -11,6 +11,9 @@ datasets/
 
 # YOLO training output (weights, curves, val predictions) + downloaded checkpoints
 runs/
+# Feature-probe records (scripts/experiment.py --probe, issue #264): a gate
+# reports into the issue it informs, never into results/
+probes/
 yolo*.pt
 
 # Demo footage — derived, and far too big to keep every version of forever

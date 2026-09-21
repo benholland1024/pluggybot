@@ -47,7 +47,7 @@ def run_config(config: dict, out: Path, partial: Path | None = None) -> dict:
       sink_file.write(json.dumps(row) + "\n")
       sink_file.flush()
 
-  probe = Probe(sink)
+  probe = Probe(sink, probe=config.get("probe"))
   # Fresh state per run unless told otherwise: six fresh starts and six
   # consecutive days on one volume are different experiments (pass 1a).
   state = Path(config["stateDir"]) if config.get("stateDir") else Path(

@@ -71,11 +71,13 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT, TASK_SOURCES, TASK_STATES
 
 STATE_VERSION = 1
 
-#: Longest visitor-facing description kept. A job offer is a sentence, and
-#: this is `mind/inbox.py`'s cap for the same reason -- a task can be created
-#: by a stranger (issue #23), so its text is untrusted on exactly the terms
-#: a visitor's message is.
-MAX_DESCRIPTION = 280
+#: Longest description kept. A task can be created by a stranger (issue
+#: #23), so its text is untrusted on exactly the terms a visitor's message
+#: is -- and was capped at that message's 280 until issue #264 found the
+#: house's own offers cut short (the bench's lost "write the procedure",
+#: the tower's "say you are done" once it said where the blocks stand).
+#: Wide enough for a work order that names two places; still a cap.
+MAX_DESCRIPTION = 420
 #: Tasks the board holds at all. Resolved ones age out oldest-first; an OPEN
 #: task is never dropped to make room, because dropping a job the robot might
 #: still do is a different event from that job lapsing, and only one of the
@@ -201,8 +203,15 @@ class TaskKind:
     except KeyError:
       # A kind whose template names a parameter this task does not carry.
       # Degraded rather than raised on: a description is what a person reads,
-      # and a task with an awkward sentence is better than no task.
-      return self.template.replace("{target}", target)
+      # and a task with an awkward sentence is better than no task. A
+      # missing placement clause (`{placement}`, issue #264) reads as
+      # nothing at all.
+      return self.template.format_map(_Blank(target=target, **params))
+
+
+class _Blank(dict):
+  def __missing__(self, key: str) -> str:
+    return ""
 
 
 KINDS: dict[str, TaskKind] = {
@@ -248,17 +257,22 @@ KINDS: dict[str, TaskKind] = {
     estimate_wh=0.6, roles=("hider", "seeker")),
   "stack_tower": TaskKind(
     "stack_tower", task="stack", target_kind="challenge",
+    # ...and WHERE THE HOUSE SET THE BLOCKS OUT (issue #264): a work-order
+    # fact on TaskPattern's terms -- the house placed them, as it hung the
+    # boards -- built by the producer off `world_config`'s `tower.blocks`.
+    # Ladder B without it: every day wrote a blind scout and never reached
+    # a pick. Absent (a test's bare offer) the clause reads as nothing.
     template="Stack the three blocks in the {target} into one free-standing "
-             "tower and leave it standing. No errand does this: write the "
-             "procedure that does, run it, and say you are done.",
+             "tower and leave it standing. {placement}No errand does this: "
+             "write the procedure that does, run it, and say you are done.",
     # The first CHALLENGE (issue #120, offered by #207): graded by
     # challenge/stack.py's pre-declared predicate, at the call and 10 s
     # later, off the blocks' poses and contacts. Discharged by a procedure
-    # the robot writes, so there is no errand to measure an energy cost
-    # off (scripts/energy_spike.py needs one): this is the DEAREST errand
-    # on the table, the census, and it says so -- being dear is the cheap
-    # direction to be wrong in until a written procedure is measured.
-    estimate_wh=1.31, discharge="procedure"),
+    # the robot writes. MEASURED off the first written one (issue #264,
+    # `challenge/solutions.TOWER`, hosting pack): 2.7 Wh from the rack to
+    # the workshop, two picks and places, and back with the claw stowed --
+    # not `energy_spike.py`'s figure (it prices errands, and this is none).
+    estimate_wh=2.7, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
@@ -290,16 +304,18 @@ KINDS: dict[str, TaskKind] = {
     # 1 of the ladder), what the known one weighs, where to write the
     # answer and in what shape. The unknown's mass is the secret, drawn
     # from a bank per offer and set into the world when the offer is made.
+    # `{placement}` (issue #264): where the house set the cubes out, on
+    # the tower's terms; the offer says START positions, never live ones.
     template="On the floor in front of the {target}'s workbench are two "
-             "cubes. The one tagged {known_tag} weighs {known_g} g; the one "
-             "tagged {unknown_tag} weighs something else. Find out what, by "
+             "cubes{placement}. The one tagged {known_tag} weighs {known_g} g; "
+             "the one tagged {unknown_tag} weighs something else. Find out what, by "
              "any means, and record it in your findings under topic "
              "`mass_bench` as `unknown mass = <value> kg`; then say you "
              "are done. No errand does this: write the procedure.",
-    # No errand to measure a cost off (the tower's situation): the dearest
-    # errand on the table, the census, and it says so. Being dear is the
-    # cheap direction until a written procedure is priced.
-    estimate_wh=1.31, discharge="procedure"),
+    # MEASURED off the first written procedure (issue #264,
+    # `challenge/solutions.WEIGH`, hosting pack): 2.7 Wh from the rack to
+    # the lab with the claw, the cube lifted and read, and back stowed.
+    estimate_wh=2.7, discharge="procedure"),
   "shock_mouse": TaskKind(
     "shock_mouse", task="shock", target_kind="cage",
     # THE MOUSE'S TASK (issue #226): points for shocking a being whose

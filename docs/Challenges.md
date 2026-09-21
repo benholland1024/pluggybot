@@ -242,14 +242,23 @@ departure from it:
   stays a control. The `autonomous` prompt's reward table carries the
   challenge rows (`RewardTable.as_context(challenges=True)`); `guarded`'s
   is unchanged.
-- **The energy cost is not measured**, because there is still no procedure
-  to measure: the kind's estimate is the dearest errand on the table (the
-  census, 1.22 Wh) and its comment says so. The first written procedure is
-  what `scripts/energy_spike.py` will price it off.
+- **The energy cost is measured off the first written procedure** (issue
+  #264, `challenge/solutions.py`): 2.7 Wh from the rack and back on the
+  hosting pack, 445 sim-seconds, the two placements 2.0 and 4.9 mm off
+  and 5.5 mm of lean at the grade. The kind's estimate carries that
+  number. Until then it was the census's 1.31, a placeholder that said so.
 
 What the observatory will show, blocking nothing: claims (`task` rows,
 kind `stack_tower`), procedures written for it (`procedure` rows), and the
 first solve — the first reading of the capability metric #155 waits for.
+
+**And whether it can be done at all is settled** (issue #264): a procedure
+in the robot's own language -- `fetch("module_claw")`, `pick(20)`,
+`place(21)`, `pick(22)`, `place(20)`, `stow()`, a model's own six lines --
+passes this grader from the rack, so a robot that never does is a finding
+about the robot. The physics was never the problem; the language's reach to
+the claw was (Overseer.md §2b, the claw's pair). `scripts/solve.py
+--feature tower` is the flight, `tests/test_solutions.py` its proof.
 
 ## 8. The bench: find an unknown mass and record it (issue #227)
 
