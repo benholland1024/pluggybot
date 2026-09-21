@@ -10,6 +10,35 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The claw's verbs, and the features shown completable (#264) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** Two verbs on the
+procedure language's list in the `autonomous` prompt, `pick(tag)` and
+`place(tag)` (Overseer.md §2b), so the prefix moved; nothing else the
+model sees changed, and `guarded` did not move. The tower's energy
+estimate in the offer is the MEASURED 2.7 Wh of the first written
+procedure (it was the census's 1.31, a placeholder). The lab route's first
+leg stops 0.6 m short of the garden doorway (`lifecycle.lab_route`), which
+moves the shock and care errands' first waypoint. Same model, same arm,
+same origin, same pair.
+
+**What the period is for.** Before it, a robot that never built the tower,
+weighed the mass or fed the mouse was indistinguishable from a world where
+those could not be done. Now each has a hand-written solution that passes
+its own grader from the rack (`challenge/solutions.py`, `scripts/solve.py
+--feature`), so a `stack_tower` row that stays `failed` or absent is a
+finding about the robot. What to read:
+
+- `task` rows of kind `stack_tower` and `find_mass`: claimed, then `done`
+  or `failed`, and the `procedure` rows between (`defined`, `refused`,
+  `ran`, `aborted`) -- whether the robot reaches for `pick`/`place` at all;
+- `care` rows with `landed`, `finding` rows with `correct`;
+- the ladder-B readings (issue #264's comments) are LOCAL flights with the
+  probe phrase in the inbox and are the prior for what to expect here.
+
+**Not yet known.** Whether the deployed pair, unprompted, ever claims a
+challenge; the ladder-B flights were prompted by a visitor's message.
+
 ### The library of constitutions (#263) — opens when this PR is deployed, and again whenever either robot's constitution changes
 
 **What changed on the wire and in the mind.** `Main.md` is no longer a

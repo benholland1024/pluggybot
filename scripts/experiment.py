@@ -58,6 +58,9 @@ from pluggybot.mind import constitution, llm
 
 REPO = Path(__file__).resolve().parent.parent
 RESULTS = REPO / "results"
+#: Where a probed run's record goes (issue #264): beside `results/`, never
+#: in it, and gitignored -- a probe reports into an issue, not a series.
+PROBES_DIR = REPO / "probes"
 #: The deployed pick (issue #225; docs/Overseer.md section 6), so a control
 #: flown with no `--model` is the deployed mind on `guarded`. The committed
 #: series are the 4B's and stay their own regime -- `model` is in the key.
@@ -239,13 +242,13 @@ def main() -> int:
                   help="ladder B of issue #264: put this feature's phrase in "
                        "the robot's inbox at mission start and read the run "
                        "into `probe.outcome`. Never a result: the records go "
-                       "to --results, which then defaults to runs/probes/, and "
-                       "no rollup is written")
+                       "to --results, which then defaults to probes/ (gitignored), "
+                       "and no rollup is written")
   ap.add_argument("--probe-from", default=PROBE_SENDER,
                   help="who the phrase is from (a visitor's name)")
   ap.add_argument("--results", default=None,
                   help=f"where the records go (default {RESULTS}, or "
-                       "runs/probes/ with --probe)")
+                       f"{PROBES_DIR} with --probe)")
   ap.add_argument("--wall-limit", type=float, default=None,
                   help=f"seconds before a run is killed (default "
                        f"{WALL_PER_SIM_S} x --max-sim-time, at least "
@@ -256,7 +259,7 @@ def main() -> int:
                   help="only re-aggregate the results directory")
   args = ap.parse_args()
   if args.results is None:
-    args.results = str(REPO / "runs" / "probes" if args.probe else RESULTS)
+    args.results = str(PROBES_DIR if args.probe else RESULTS)
   elif args.probe and Path(args.results).resolve() == RESULTS.resolve():
     print("refusing: a probed run is not a result and may not land in "
           f"{RESULTS}", file=sys.stderr)

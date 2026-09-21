@@ -129,10 +129,11 @@ The `autonomous` arm may **write small procedures and run them by name** —
 the second rung of agent-written code, on top of #58's step vocabulary. A
 procedure is Python-*shaped* text that is parsed with `ast` into the
 language's own tree and interpreted as a routine (`procedure/lang.py`); it is
-never executed. What it may say is closed: the twelve verbs (`fetch stow
-drive_to face set_lift grip release draw look wait move drive`), `read` of a
-named sensor, locals and arithmetic, `if/elif/else`, `for name in range(N)`
-with a literal N, `while` with a hard iteration cap, `return`. Anything else
+never executed. What it may say is closed: the fourteen verbs (`fetch stow
+drive_to face set_lift grip release pick place draw look wait move drive`),
+`read` of a named sensor, locals and arithmetic, `if/elif/else`, `for name
+in range(N)` with a literal N, `while` with a hard iteration cap, `return`.
+Anything else
 — an import, an attribute, a string outside a verb's argument, another call
 — is refused with the line at fault, before a step runs, and every reason at
 once (`tests/test_language.py` has one case per construct).
@@ -223,6 +224,38 @@ The grade has no hold -- a record does not fall over -- and
 robot's part is the `record` verb (§7): `unknown mass = <value> kg` under
 `findings/mass_bench`, then `done`. What it wrote as the method rides the
 `finding` act as written and is scored by nobody.
+
+**The claw's pair: `pick(tag)` and `place(tag)`** (issue #264). Until
+then no procedure had ever stacked the tower, and the reason was not the
+physics -- the claw stacks three blocks with 5 mm of lean when driven from
+true poses -- but the level the language reached the claw at. A cube's
+20 mm tag is ~24 px wide from the dock eye at 0.8 m and does not decode
+inside 0.65 m (the floor leaves the frame); a procedure has no odometry
+sensor; and a sidestep built from `face` and `drive` moves the axle ~1 cm
+it cannot see. The best motor-level procedure reached two layers. So the
+claw got the pair of verbs `fetch`/`stow` already are for the rack: a
+closed-loop primitive with the sensing inside it. `pick(tag)` finds the
+cube carrying the tag from where the robot stands (a look at each of a few
+lifts, backing off a step at a time out of the blind zone), stages itself
+to see it head-on, drives the grip point over it (`ClawTool.
+drive_over_routine`, the pickup demo's runway-and-converge) and takes it;
+`place(tag)` sets the held cube down on top of the cube carrying the tag
+and backs off, and its ok is MEASURED after the retreat -- the cube rests
+one pitch up and within half an edge (`challenge/stack.py`'s own "rests
+on") -- so a block that fell beside says so with the distance. Four things
+the verbs had to learn, each at its constant in `procedure/steps.py` and
+`tools/gripper.py`: PnP's RANGE to a tag that small is quantised by the
+pixel (±10-15 mm, noise, never a bias), so `HubMission.spot(at_height=)`
+cuts the ray through the tag's centre pixel at the cube's known layer
+height instead (2 mm); the grip offset is read off the body at the
+deployed reach, never the belief; the held cube slips ~7 mm down and ~10
+mm along the pads over a carry, so its hang is re-measured on arrival;
+and a place ends in the DRIVING configuration, because at carry height
+with the arm out the module sits in the lidar's front-stop cone. The
+prompt's verb list grew by two lines (`describe_vocabulary`), which is a
+period on the observatory; `guarded` is untouched. The hand-written
+solutions that pass each grader live in `challenge/solutions.py`, never
+imported by anything under `mind/`.
 
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 

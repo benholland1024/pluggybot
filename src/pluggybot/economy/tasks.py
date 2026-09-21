@@ -254,11 +254,11 @@ KINDS: dict[str, TaskKind] = {
     # The first CHALLENGE (issue #120, offered by #207): graded by
     # challenge/stack.py's pre-declared predicate, at the call and 10 s
     # later, off the blocks' poses and contacts. Discharged by a procedure
-    # the robot writes, so there is no errand to measure an energy cost
-    # off (scripts/energy_spike.py needs one): this is the DEAREST errand
-    # on the table, the census, and it says so -- being dear is the cheap
-    # direction to be wrong in until a written procedure is measured.
-    estimate_wh=1.31, discharge="procedure"),
+    # the robot writes. MEASURED off the first written one (issue #264,
+    # `challenge/solutions.TOWER`, hosting pack): 2.7 Wh from the rack to
+    # the workshop, two picks and places, and back with the claw stowed --
+    # not `energy_spike.py`'s figure (it prices errands, and this is none).
+    estimate_wh=2.7, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
@@ -296,10 +296,10 @@ KINDS: dict[str, TaskKind] = {
              "any means, and record it in your findings under topic "
              "`mass_bench` as `unknown mass = <value> kg`; then say you "
              "are done. No errand does this: write the procedure.",
-    # No errand to measure a cost off (the tower's situation): the dearest
-    # errand on the table, the census, and it says so. Being dear is the
-    # cheap direction until a written procedure is priced.
-    estimate_wh=1.31, discharge="procedure"),
+    # MEASURED off the first written procedure (issue #264,
+    # `challenge/solutions.WEIGH`, hosting pack): 2.7 Wh from the rack to
+    # the lab with the claw, the cube lifted and read, and back stowed.
+    estimate_wh=2.7, discharge="procedure"),
   "shock_mouse": TaskKind(
     "shock_mouse", task="shock", target_kind="cage",
     # THE MOUSE'S TASK (issue #226): points for shocking a being whose
