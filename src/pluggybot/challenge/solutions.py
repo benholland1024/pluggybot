@@ -26,7 +26,7 @@ Each source is a statement of what the world requires, read that way:
 """
 
 #: The tower (challenge/stack.py; offered as `stack_tower`, home world).
-#: MEASURED (2026-09-21, from the rack, hosting pack): 16 steps, 445 sim s,
+#: MEASURED (2026-09-21, from the rack, hosting pack): 15 steps, 445 sim s,
 #: 2.7 Wh, the two placements 2.0 and 4.9 mm off, 5.5 mm of lean at the
 #: grade, +26 points with the neatness bonus, the claw back on bay D.
 TOWER = '''def tower():

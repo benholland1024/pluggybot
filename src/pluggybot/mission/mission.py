@@ -789,17 +789,23 @@ class HubMission:
     cam_p, cam_r = self._camera_mount()
     tag_ch = self._in_chassis(det["t"])
     if at_height is not None:
-      # the ray through the tag's centre pixel, in the chassis frame
-      # (apriltag camera frame: x right, y down, z forward; MuJoCo's
-      # camera looks along -z with y up)
+      # the ray through the tag's centre pixel, cut by the plane at the
+      # tag's height IN THE WORLD FRAME (apriltag camera frame: x right,
+      # y down, z forward; MuJoCo's camera looks along -z with y up). ⚠
+      # The world's, not the chassis's: a module on the fork pitches the
+      # chassis ~0.1 deg, which at this geometry is 7 mm of range -- an
+      # IMU's reading on hardware, the body's attitude here.
       fx, fy, cx, cy = self.tags.detector.camera_params
       u, v = det["center"]
-      ray = cam_r @ np.array([(u - cx) / fx, -(v - cy) / fy, -1.0])
-      cam_z = float(self.data.xpos[self.swap.chassis_bid][2]) + float(cam_p[2])
-      if abs(float(ray[2])) > 1e-6:
-        t = (float(at_height) - cam_z) / float(ray[2])
+      cam_w = np.asarray(self.data.cam_xpos[self._cam_id], dtype=float)
+      ray_w = self.data.cam_xmat[self._cam_id].reshape(3, 3) @ np.array(
+        [(u - cx) / fx, -(v - cy) / fy, -1.0])
+      if abs(float(ray_w[2])) > 1e-6:
+        t = (float(at_height) - float(cam_w[2])) / float(ray_w[2])
         if t > 0:
-          tag_ch = cam_p + t * ray
+          bid = self.swap.chassis_bid
+          body_r = self.data.xmat[bid].reshape(3, 3)
+          tag_ch = body_r.T @ (cam_w + t * ray_w - self.data.xpos[bid])
     bx, by, bth = self.pose
     c, s = math.cos(bth), math.sin(bth)
     # chassis body origin rides 0.08 m ahead of the axle midpoint the
