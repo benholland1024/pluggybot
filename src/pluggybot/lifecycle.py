@@ -49,6 +49,7 @@ from pluggybot.mission.mission import (
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
+from pluggybot.mind import look as eye_mod
 from pluggybot.mind import tickets as tickets_desk
 from pluggybot.mind import wiki
 from pluggybot.mind import text as text_registry
@@ -56,8 +57,8 @@ from pluggybot.mind.tickets import Desk, DeskRefused
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
-  CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_RECALL_RUN, RECALL_S,
-  THINK_SLICE_S, order_runnable,
+  CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
+  MAX_RECALL_RUN, RECALL_S, THINK_SLICE_S, order_runnable,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused
@@ -76,8 +77,13 @@ from pluggybot.procedure.steps import Program, compile_program
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
-State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL",
+State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL", "LOOK",
                 "SWAP_PICK", "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
+#: How often a robot standing still for its picture (issue #275) checks
+#: the inbox for it, in sim seconds: the slice its stand-still is cut
+#: into. Short enough that a picture is taken up within a fifth of a
+#: second of landing, long enough that the check is not the cost.
+LOOK_SLICE_S = 0.2
 
 #: Chassis tilt from upright that counts as knocked over (issue #107), and
 #: how long it has to hold: a wheel riding a threshold tips the body for a
@@ -590,6 +596,20 @@ class HubLifecycle:
     #: One row per read asked for, for the run record and the observatory
     #: (`read` event): what was asked, the outcome, the page, its revision.
     self.reads: list[dict] = []
+    # ---- the eye (issue #275) ----
+    #: THE EYE: the one open `look` request, the record of every look, and
+    #: what the inbox answered. One per robot, keyed by its root -- the
+    #: website's `image` answer names the request, and a pair's second
+    #: robot is addressed through its own inbox (serve.py's router).
+    self.eye = eye_mod.Eye(handle.root)
+    #: THE PICTURE WAITING FOR THE NEXT TURN, on the library shelf's terms:
+    #: filled when a look resolves (a picture, or `none` said so), shown
+    #: by `overseer_context` as `seen`, cleared by the next decision of the
+    #: model's own -- a fallback and a map row saw nothing, so it waits.
+    self._seen: list[dict] = []
+    #: How many looks have run in a row (`MAX_LOOK_RUN`; at the cap `look`
+    #: leaves the menu for a turn), reset by any other action.
+    self._look_run = 0
     # ---- support tickets (issue #284) ----
     #: THE DESK: what this robot has told the people who run its world,
     #: and what they said back. The LIFECYCLE's rather than the mind's --
@@ -2463,6 +2483,67 @@ class HubLifecycle:
                    f"{'' if block['hits'] == 1 else 's'} -- {what}")
     yield from self.mission._drive_routine(RECALL_S, 0.0, 0.0)
 
+  # ---- the eye (issue #275) -------------------------------------------------------
+
+  def _look_routine(self) -> Routine:
+    """Take a picture and stand still until it comes, or `LOOK_S` passes.
+
+    The request goes out as a `look` event (`asked`) carrying the head
+    camera's world pose -- what the website's renderer stands in -- and
+    the robot holds still in `LOOK_SLICE_S` slices, draining `image`
+    messages off its inbox between them. The one that names the open
+    request resolves it (`seen`); the deadline resolves it `none`, said
+    so. Either way the outcome is the SAME row sent again, a line in
+    History, and a block on the `seen` shelf for the next model turn --
+    the picture attached to it as an image, never as text. Standing still
+    IS the wait: the physics never blocks on the renderer, and a run with
+    no inbox (a demo, a test) times out honestly rather than pretending.
+    """
+    self.state = "LOOK"
+    x, y, heading = self.mission.pose
+    camera = eye_mod.camera_pose(self.model, self.data,
+                                 self.mission.handle.el(eye_mod.CAMERA))
+    row = self.eye.ask(camera, t=float(self.data.time), x=x, y=y, heading=heading)
+    self._look_run += 1
+    self._emit({"type": "look", **eye_mod.wire_row(row)})
+    self._say(f"LOOK {row['ref']}: asked for a picture from ({x:.2f}, {y:.2f}) "
+              f"facing {row['at']['headingDeg']:.0f} deg")
+    while self.eye.pending is not None:
+      yield from self.mission._drive_routine(LOOK_SLICE_S, 0.0, 0.0)
+      self._look_step()
+      if self.eye.overdue(float(self.data.time)):
+        self._resolve_look(self.eye.give_up(float(self.data.time)))
+
+  def _look_step(self) -> None:
+    """Drain every `image` off the inbox: the open request's answer
+    resolves it, anything else is dropped and counted (a picture of where
+    the robot used to be is not a picture of where it is)."""
+    if self.inbox is None:
+      return
+    for msg in self.inbox.drain(("image",)):
+      row = self.eye.offer(msg, t=float(self.data.time))
+      if row is not None:
+        self._resolve_look(row)
+
+  def _resolve_look(self, row: dict | None) -> None:
+    if row is None:
+      return
+    self._seen.append(eye_mod.as_context(row))
+    # The bytes have one reader -- the next turn's image part, which the
+    # shelf now holds as base64 -- so the record's row keeps none of them.
+    row.pop("_jpeg", None)
+    self._emit({"type": "look", **eye_mod.wire_row(row)})
+    if row["outcome"] == "seen":
+      self._say(f"LOOK {row['ref']}: a picture came, {row['bytes']} bytes, "
+                f"after {row['waitS']:.1f} s")
+      self._remember(f"looked from ({row['at']['x']}, {row['at']['y']}) facing "
+                     f"{row['at']['headingDeg']:.0f} deg: a picture came")
+    else:
+      self._say(f"LOOK {row['ref']}: no picture inside {row['waitS']:.0f} s "
+                f"({row['why']})")
+      self._remember(f"looked from ({row['at']['x']}, {row['at']['y']}) facing "
+                     f"{row['at']['headingDeg']:.0f} deg: no picture came back")
+
   def _think(self, decision) -> None:
     """Keep what the model wrote to itself before it chose (issue #221):
     a `think` record, narrated, and on the wire as the `journal` message
@@ -3967,6 +4048,13 @@ class HubLifecycle:
     # for the next answer of the model's own.
     if self._shelf and not decision.scripted and not decision.by_event:
       self._shelf = []
+    # ...and the PICTURE (issue #275), on the shelf's terms exactly: shown
+    # once to a decision of the model's own, kept across a fallback. The
+    # eye's run ends on any action but another look, as the recall chain's.
+    if self._seen and not decision.scripted and not decision.by_event:
+      self._seen = []
+    if decision.action != "look":
+      self._look_run = 0
     # What it wrote to itself BEFORE choosing (issue #221): kept as a
     # `think` record, shown back next turn, and on the wire as the
     # `journal` message the site already renders.
@@ -4059,6 +4147,9 @@ class HubLifecycle:
       return ""
     if decision.action == "recall":
       yield from self._recall_routine(decision)
+      return ""
+    if decision.action == "look":
+      yield from self._look_routine()
       return ""
     errand = errand_from(decision, self.world, self.boards,
                          library=getattr(self.overseer, "library", None),
@@ -4257,6 +4348,10 @@ class HubLifecycle:
       # outcome, the page and its revision -- the rows `ideas_traced` is
       # measured off, beside the observatory's `read` events.
       "reads": list(self.reads),
+      # Every look (issue #275): the request, where it was taken from, and
+      # whether a picture came -- the observatory's `look` rows, never the
+      # bytes.
+      "looks": [eye_mod.wire_row(r) for r in self.eye.looks],
       # Every `ticket` event (issue #284): opened, replied on, closed and
       # paid, deleted, refused -- the observatory's rows, for the record.
       "tickets": list(self.ticket_events),
@@ -5139,7 +5234,15 @@ def overseer_context(life) -> dict:
                          # more it may run, and what brought the loop here.
                          recalled=life._recalled,
                          recalls_left=MAX_RECALL_RUN - life._recall_run,
-                         asked_by=life._asked_by)
+                         asked_by=life._asked_by,
+                         # THE EYE (issue #275): the picture waiting, and
+                         # how many looks may still run in a row. Only
+                         # where the menu offers `look`, so `guarded`'s
+                         # context is unchanged.
+                         **({"seen": life._seen,
+                             "looks_left": MAX_LOOK_RUN - life._look_run}
+                            if getattr(life.overseer.menu, "look", False)
+                            else {}))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)

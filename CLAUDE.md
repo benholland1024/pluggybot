@@ -605,6 +605,35 @@ save a filmstrip PNG named after the script.
   ticket the desk does not hold. The website's half (rooftop-media-2026:
   `pw_tickets`, the Tickets card on `/controls`, the `ticket` observatory
   kind) holds an admin action until the `ref` comes back.
+- **The robot can LOOK at the world as the site draws it, on `autonomous`
+  only, and the picture is the sensor** (issue #275; `mind/look.py`;
+  Overseer.md §2h; the site's half is rooftop-media-2026 #321). MuJoCo is
+  GEOMETRY, TresJS is APPEARANCE, and ⚠ the dressing may never contradict
+  the geometry where the robot can reach (the site pins it). `look` is an
+  ACTION beside `recall`: stand still (`LOOK_S` 10 sim s, `LOOK_SLICE_S`
+  slices, the inbox drained between them), a `look` event (`asked`) goes
+  out with the head camera's world pose (`camera_pose`, off `cam_xpos`/
+  `cam_xmat` of `left_eye`), the website answers with the `image` inbound
+  kind (`{robot, ref, jpeg}`; its own byte cap at the inbox's door,
+  `MAX_IMAGE_BYTES`, and the bytes must start as a JPEG), and the picture
+  rides the NEXT turn as `seen` -- the visitor channel's block, sender
+  "your head camera", with the JPEG as an IMAGE PART of the same user
+  turn in the backend's own shape (`llm.image_part`; `_user_content` is
+  byte-identical to `_user_turn` where nothing is attached). Nobody
+  answering by the deadline is `seen: none`, said so; a picture for a
+  request that is not open is dropped (`Eye.dropped`). ⚠ NO CAPTION,
+  EVER: nothing the lifecycle emits or shelves says what is IN the picture
+  (a test reads the source); the MIND looks -- MEASURED 2026-09-21, the
+  deployed model takes the image on the router's `:cheapest` providers
+  with the deployed schema, ~400 input tokens a frame -- and `build.eyes`
+  names the model the pictures went to (absent where the arm cannot
+  look). Shown once (the shelf's terms), `MAX_LOOK_RUN` 2 with `looksLeft`
+  and `look` leaving the enum at 0, never a standing order or a map row
+  (`UNORDERABLE`). `Menu.look` is set by `build()` on `autonomous` alone;
+  `guarded`'s menu, schema, prefix and `GUARDED_RULES_SHA` are unchanged;
+  `LOOK_RULE` prescribes nothing about what to look at (a test reads it).
+  `tests/test_look.py` pins each rule in milliseconds; the round trip is
+  a fake website answering on the socket, never a renderer.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and

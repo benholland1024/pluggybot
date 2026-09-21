@@ -517,7 +517,10 @@ def main() -> None:
     origin=origin if arm == "autonomous" else None,
     # ...and which constitution the robot READ (issue #263), off the
     # memory that read it, so the header cannot name one the robot never saw.
-    constitutions={life.root: memory.constitution.as_dict()})
+    constitutions={life.root: memory.constitution.as_dict()},
+    # ...and which model LOOKS (issue #275): the mind's own, where the
+    # menu offers `look`; absent where it does not.
+    eyes=boss.model if (boss is not None and boss.menu.look) else None)
   print(f"build: {identity['commit']} / {identity['arm']}"
         + (f" {identity['rung']}" if identity.get("rung") else "")
         + (f" {identity['origin']}" if identity.get("origin") else "")
@@ -739,7 +742,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
     # Per robot, off what each one READ (issue #263): the pair may be
     # given two, and that is the experiment the library exists for.
     constitutions={life.root: life.thoughts.constitution.as_dict()
-                   for life in lives})
+                   for life in lives},
+    eyes=boss.model if (boss is not None and boss.menu.look) else None)
   print(f"build: {identity['commit']} / {identity['arm']} / PAIR "
         f"{names[0]} + {names[1]}"
         + (f" / {identity['model']} via {identity['backend']}"

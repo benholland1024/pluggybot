@@ -130,6 +130,28 @@ FORMAT_NOTE = ("\n\nANSWER FORMAT\n\nAnswer with a single JSON object and "
                "match this JSON schema exactly:\n")
 
 
+#: The picture's media type, wherever a request carries one (issue #275).
+IMAGE_MEDIA_TYPE = "image/jpeg"
+
+
+def image_part(backend: str, b64: str) -> dict:
+  """One picture as a content part of a user turn, in the backend's own
+  shape (issue #275): the Anthropic SDK's `image` block with a base64
+  source, and the OpenAI-style `image_url` data URL everywhere else --
+  the router, a local runtime and a stranger's endpoint all speak the
+  latter. MEASURED on the router (2026-09-21): the deployed model takes
+  the data URL beside the structured-output schema on the providers
+  `:cheapest` lands on. The one place a vendor's image shape is known,
+  on `build_client`'s terms.
+  """
+  if backend == "anthropic":
+    return {"type": "image", "source": {"type": "base64",
+                                        "media_type": IMAGE_MEDIA_TYPE,
+                                        "data": b64}}
+  return {"type": "image_url",
+          "image_url": {"url": f"data:{IMAGE_MEDIA_TYPE};base64,{b64}"}}
+
+
 def is_hf_model(model: str) -> bool:
   """Every HF id is `org/name`; no Anthropic id contains a slash."""
   return "/" in (model or "")
