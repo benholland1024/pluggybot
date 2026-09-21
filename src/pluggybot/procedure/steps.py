@@ -317,8 +317,8 @@ def _spot_routine(life, tag: int) -> Routine:
   an edge further along the line of sight), or None. A sensor's answer --
   the robot has to have driven somewhere it can see the thing -- with one
   allowance: a robot that has just picked or placed stands with the grip
-  point over the row, inside the eye's blind zone, so a first miss backs
-  the chassis off `SPOT_BACK_OFF_M` and looks once more."""
+  point over the row, inside the eye's blind zone, so a miss backs the
+  chassis off `SPOT_BACK_OFF_M` and looks again, `SPOT_BACK_OFFS` times."""
   half = _cube_half(tag)
   if half is None:
     return None
@@ -457,10 +457,10 @@ def _place(life, args: dict) -> Routine:
   model, data = life.model, life.data
   bid = int(model.geom_bodyid[model.geom(held).id])
   hx, hy, hz = (float(v) for v in data.xpos[bid])
-  target = int(model.geom_bodyid[model.geom(_cube_geom(model, tag)).id]) \
-    if _cube_geom(model, tag) else None
-  if target is not None:
-    tx, ty, tz = (float(v) for v in data.xpos[target])
+  target_geom = _cube_geom(model, tag)
+  if target_geom is not None:
+    tbid = int(model.geom_bodyid[model.geom(target_geom).id])
+    tx, ty, tz = (float(v) for v in data.xpos[tbid])
   else:
     tx, ty, tz = x, y, z
   off = math.hypot(hx - tx, hy - ty)
