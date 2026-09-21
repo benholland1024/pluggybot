@@ -122,6 +122,30 @@ def test_the_fields_exist_only_with_a_workshop():
   assert d.as_dict()["buildTool"]["bay"] == "A"
 
 
+def test_the_idle_build_tool_a_decoder_emits_is_not_a_build(monkeypatch):
+  """A constrained decoder fills every property, so an answer that is not
+  building still carries `build_tool: {"name": "", "bay": "", "spec":
+  {"name": "", "parts": []}}` (or an all-empty part). MEASURED (issue
+  #264, ladder B): sent to the workshop, that was refused on 13 of 24
+  answers in one day, each a `tool` row for a build the robot never
+  described. Idle means "not this time"; a name, a bay or a named part
+  means a build, and THAT is the workshop's to refuse."""
+  menu = ov.Menu.for_world("room_hub")
+  idle = {"name": "", "bay": "", "spec": {"name": "", "parts": []}}
+  idle_part = {"name": "", "bay": "", "spec": {"name": "", "parts": [
+    {"id": "", "part": "", "pos": [0, 0, 0], "euler": [0, 0, 0], "on": "",
+     "size": [0, 0, 0], "axis": {"verb": "", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}}]}}
+  for shop in (idle, idle_part):
+    assert ov.idle_build(shop)
+    d = menu.validate({"action": "idle", "reason": "r", "build_tool": shop}, tools=())
+    assert d.build_tool is None
+  for shop in ({**idle, "name": "scoop"}, {**idle, "bay": "C"},
+               {**idle, "spec": {"name": "", "parts": [{"id": "", "part": "servo_fs90"}]}}):
+    assert not ov.idle_build(shop)
+    assert menu.validate({"action": "idle", "reason": "r", "build_tool": shop},
+                         tools=()).build_tool is not None
+
+
 def test_guarded_prefix_does_not_move():
   from test_autonomous import GUARDED_RULES_SHA
   import hashlib

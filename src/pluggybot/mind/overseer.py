@@ -771,6 +771,24 @@ class Decision:
 #: `build_tool` is still `{"name": "", "bay": "", "spec": {"name": "",
 #: "parts": []}}` and the workshop's `parse` remains the judge of content.
 _NUMBERS = {"type": "array", "items": {"type": "number"}}
+
+
+def idle_build(shop: dict) -> bool:
+  """The `build_tool` a constrained decoder emits when the model is NOT
+  building: every string empty and no part naming a catalog part. It is
+  "not this time", on `pin: ""`'s terms, and is DROPPED rather than sent to
+  the workshop -- MEASURED (issue #264, ladder B): sent, it was refused on
+  13 of 24 answers in one day, each a `tool` row saying the robot had
+  tried to build a tool it never described."""
+  spec = shop.get("spec") if isinstance(shop.get("spec"), dict) else {}
+  parts = spec.get("parts") if isinstance(spec.get("parts"), list) else []
+  named = any(isinstance(p, dict) and (str(p.get("part") or "").strip()
+                                       or str(p.get("id") or "").strip())
+              for p in parts)
+  return not (str(shop.get("name") or "").strip() or str(shop.get("bay") or "").strip()
+              or str(spec.get("name") or "").strip() or named)
+
+
 SPEC_SCHEMA = {
   "type": "object", "additionalProperties": False,
   "required": ["name", "parts"],
@@ -1358,7 +1376,8 @@ class Menu:
     build_tool, retire_tool = None, ""
     if tools is not None:
       shop = raw.get("build_tool")
-      if isinstance(shop, dict) and isinstance(shop.get("spec"), dict):
+      if (isinstance(shop, dict) and isinstance(shop.get("spec"), dict)
+          and not idle_build(shop)):
         # NOT validated here: the workshop refuses out loud with every
         # reason, narrated and on the wire, which is the interesting path.
         build_tool = {"name": clean(shop.get("name"), MAX_ID),

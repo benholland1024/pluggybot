@@ -114,6 +114,19 @@ def test_any_other_error_raises_and_does_not_retry():
   assert len(fetch.calls) == 1
 
 
+def test_a_bare_string_error_body_is_still_the_providers_no():
+  """Some providers' 4xx bodies are `{"error": "<text>"}`, not a dict:
+  MEASURED (issue #264, ladder B) as `AttributeError: 'str' object has no
+  attribute 'get'` out of the error path itself, filed as `fallback:
+  offline` -- a crash in the handler, not the provider's answer."""
+  assert not llm._blames_format({"error": "rate limit exceeded"})
+  assert llm._blames_format({"error": "response_format is not supported"})
+  fetch = fake_fetch([(429, {"error": "rate limit exceeded"})])
+  with pytest.raises(RuntimeError, match="HF router 429"):
+    create(fetch)
+  assert len(fetch.calls) == 1
+
+
 def test_a_reasoning_models_thinking_is_not_a_malformed_answer():
   """`<think>` before the JSON is the model reasoning, not the model failing
   to answer -- only the second should ever become fallback:garbled."""

@@ -395,7 +395,11 @@ def build_client(backend: str, model: str, timeout: float = 8.0,
 
 
 def _blames_format(payload: dict) -> bool:
-  msg = str((payload.get("error") or {}).get("message", payload))[:500].lower()
+  # `error` is a dict on most providers and a bare STRING on some (the
+  # router's own 4xx bodies): MEASURED as `AttributeError: 'str' object
+  # has no attribute 'get'` filed as `fallback:offline` (issue #264).
+  err = payload.get("error")
+  msg = str(err.get("message", payload) if isinstance(err, dict) else (err or payload))[:500].lower()
   return ("response_format" in msg or "json_schema" in msg
           or "structured" in msg or "grammar" in msg)
 
