@@ -252,6 +252,8 @@ wording, settled direction. Before doing anything, read:
   ⚠ Those numbers were the `guarded` prompt's; on the DEPLOYED prompt
   (`--deployed`) the 4B read 37 s median with calls at 120 s, and the
   2026-09 pick's tail is p95 25 s, max 43 s (issue #225).
+  `--probe <feature>` (issue #264) is the capability gate's ladder B, in
+  the challenges bullet below: a probed run is never a result.
 - **`FALLBACK_LIMIT` is a ROLLUP FILTER, not a policy** (issues #117, #141):
   `guarded` 0.25 of the FAILURE class, `scripted` and `autonomous` none. It
   drops a finished run from survival statistics (like `killed` and
@@ -328,6 +330,7 @@ save a filmstrip PNG named after the script.
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
 | `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
+| `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown from the rack the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row` skips the drive; filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording — how a drawing gets hung on the website, by hand and on purpose. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/teleop.py`, `map_teleop.py`, `explore.py`, `lifecycle.py`, `spot_outlets.py` | plug-era: teleop, mapping, the milestone-4 exploration demo, the wall-socket lifecycle, the outlet detector. `--views` saves the camera panel |
 | `scripts/train_docking.py`, `eval_docking.py`, `generate_outlet_dataset.py`, `eval_detector.py` | RL docking (SAC over `envs.DockEnv`, parked with the plug era) and the outlet detector. The dataset generator WIPES `datasets/` first (regenerating into a dirty dir once contaminated 195 labels); `eval_detector.py --poses 1000` is the eval that matters — the val split shares the generator and scored 0.99 mAP while calling a light switch an outlet. `torch` is pinned to the cu128 index: the driver is CUDA 12.8 and PyPI's cu130 build silently falls back to CPU |
@@ -576,8 +579,8 @@ save a filmstrip PNG named after the script.
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and
   interpreted as a routine — NEVER executed (a test asserts no `exec`/
-  `eval`/`compile` in the module). The grammar is closed: the twelve verbs
-  as statements, `read("sensor")` as the one expression call, locals,
+  `eval`/`compile` in the module). The grammar is closed: the fourteen
+  verbs as statements (`pick`/`place` since #264, below), `read("sensor")` as the one expression call, locals,
   arithmetic, comparisons, `if/elif/else`, `for name in range(N)` with a
   literal N ≤ `MAX_ITER` (100), `while` capped at `MAX_ITER` (`loop-cap`),
   `return`; anything else is refused with its line, every reason at once,
@@ -1279,8 +1282,9 @@ save a filmstrip PNG named after the script.
   failed shadow framebuffer).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`, `Errand.program`, `programmed_errand`). A program is
-  DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over ten
-  verbs (`fetch stow drive_to face set_lift grip release draw look wait`),
+  DATA — a name, a sim-time budget, `roles: {role: [steps]}` — over the
+  verbs (#58's ten, `fetch stow drive_to face set_lift grip release draw
+  look wait`; #166's `move`/`drive`; #264's `pick`/`place`),
   each an existing routine with the ramping inside it; the runner gives one
   verdict per step, measured off the world, stops at the first failure, and
   the errand around it hangs back whatever is on the fork (abort means
@@ -1575,8 +1579,37 @@ save a filmstrip PNG named after the script.
   `claim` on `claim_budget_wh`, not `spendable_wh` — the board's re-check
   used to put rail three back on `autonomous`. The blocks are the home
   world's (workshop corner, tags 20–22, `home.TOWER_XY`); `world_config
-  ("home")["tower"]` is what names the target. The energy estimate is the
-  dearest errand on the table until a written procedure exists to measure.
+  ("home")["tower"]` is what names the target. The energy estimate is
+  MEASURED off the first written procedure (2.7 Wh, #264).
+- **Every challenge has a hand-written solution that passes its own grader,
+  and the mind never sees it** (issue #264; Evaluation.md §7 "the shape of
+  a capability gate"; `challenge/solutions.py`, `scripts/solve.py --feature
+  {tower,bench,mouse}`, `tests/test_solutions.py`). Ladder A: `solutions.
+  TOWER` stacks the tower from the rack (445 sim s, 2.7 Wh, 5.5 mm of lean,
+  +26), `solutions.WEIGH` weighs the bench's cube to 2 %, the feed act
+  lands — each a flight behind `--endurance` with its rules pinned fast; a
+  feature whose solution cannot be written is a DEFECT, fixed before pay
+  or prompt. ⚠ NOTHING UNDER `mind/` IMPORTS `challenge.solutions` (a test
+  walks the tree): a solution in the prompt hands over the answer. Ladder
+  B: `experiment.py --probe <feature>` puts `record.PROBES[feature]` in the
+  inbox at mission start as a visitor's message and reads the run into
+  `record.PROBE_OUTCOMES` (used / errored / refused / garbled / declined /
+  silence) with the counts behind it — NEVER a test, NEVER `results/`
+  (records go to `probes/`, gitignored; no rollup); it reports into the
+  issue. What it took: the claw's pair `pick(tag)` / `place(tag)` at
+  `fetch`/`stow`'s level (Overseer.md §2b; the motor-level procedure
+  topped out at two layers), `HubMission.spot(at_height=)` — the RANGE off
+  the tag's centre pixel at the cube's known layer height, because PnP's
+  range to a 24 px tag is quantised ±10–15 mm — `ClawTool.
+  calibrate_from_body` at the deployed reach, `held_hang` re-read on
+  arrival (a cube slips 7 mm down and 10 mm along the pads over a carry),
+  `tuck_routine` at `MODULE_DRIVE_LIFT` (at `APPROACH_LIFT` the claw sits
+  in the lidar's front-stop cone), and `lab_route`'s first leg 0.6 m short
+  of the garden doorway (the door post trips the reflex from a cold
+  start). ⚠ A procedure that goes to the workshop or the lab brings its
+  tool home in legs: the auto-stow's 90 s drive cannot. ⚠ `place`'s ok is
+  measured off the world after the retreat (rests one pitch up, within
+  half an edge), never off the release.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):
   `economy/scoring.py` measures the world and judges (`EVALUATORS`, pure),
   `rewards.json` says what it pays, `economy/ledger.py` banks it; a `Verdict`
