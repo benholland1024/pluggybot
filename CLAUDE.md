@@ -632,8 +632,14 @@ save a filmstrip PNG named after the script.
   (`UNORDERABLE`). `Menu.look` is set by `build()` on `autonomous` alone;
   `guarded`'s menu, schema, prefix and `GUARDED_RULES_SHA` are unchanged;
   `LOOK_RULE` prescribes nothing about what to look at (a test reads it).
-  `tests/test_look.py` pins each rule in milliseconds; the round trip is
-  a fake website answering on the socket, never a renderer.
+  ⚠ The bytes leave the state in `model_state`, on every arm -- the ONE
+  turn built off the state without `_user_content` is the mid-errand
+  interrupt, and with the strip elsewhere it dumped the base64 as text.
+  `$PLUGGY_LOOK=0` turns the eye off for a mind that takes no picture
+  (unset → on; a text-only backend would lose the turn after every look
+  to a fallback). `tests/test_look.py` pins each rule in milliseconds;
+  the round trip is a fake website answering on the socket, never a
+  renderer.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and
@@ -874,7 +880,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
   `"Pluggy"`), `PLUGGY_NEAR_FIELD` (the depth camera and its height map;
-  unset → on, `0` → off), `PLUGGY_CONSTITUTION` / `PLUGGY_CONSTITUTION_2`
+  unset → on, `0` → off), `PLUGGY_LOOK` (the eye on `autonomous`, issue
+  #275; unset → on, `0` → off), `PLUGGY_CONSTITUTION` / `PLUGGY_CONSTITUTION_2`
   (which library file each robot is told it is, issue #263; unset →
   `default`; an unknown name REFUSES to start), `PLUGGY_PAIR` /
   `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`

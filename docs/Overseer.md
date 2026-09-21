@@ -685,7 +685,13 @@ prescribes nothing about what to look at or make of it (a test reads it
 for a worked example, and for charge, battery and the rack). ⚠ `guarded`
 is byte-identical: the action, the block and the rule exist only where
 `Menu.look` is set, by `build()` on `autonomous` alone, and
-`GUARDED_RULES_SHA` does not move.
+`GUARDED_RULES_SHA` does not move. `$PLUGGY_LOOK=0` turns the eye off
+for a deployment whose mind takes no picture (a text-only local model
+would lose the turn after every look to a fallback); unset is on. ⚠ The
+bytes leave the state in `model_state`, on every arm — the one turn
+built off the state without `_user_content` is the mid-errand interrupt
+(§ "The mid-errand interrupt"), and a picture waiting on the shelf when
+one fires would otherwise ride the question as 16 kB of base64 text.
 
 ### 2c. The other robot (issue #167, M12)
 

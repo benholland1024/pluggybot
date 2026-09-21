@@ -263,6 +263,8 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
   assert life.eye.stats() == {"asked": 1, "seen": 1, "none": 0, "dropped": {}}
   # ...and the record's rows are the wire's: never the bytes.
   assert "looks" in inspect.getsource(HubLifecycle.end)
+  from pluggybot.evaluation import record as rec
+  assert '"looks": list(result.get("looks")' in inspect.getsource(rec.build_record)
   assert [r["outcome"] for r in map(look.wire_row, life.eye.looks)] == ["seen"]
   assert all("_jpeg" not in look.wire_row(r) for r in life.eye.looks)
 
@@ -366,17 +368,19 @@ def test_a_guarded_world_has_no_seen_block_and_its_turn_is_a_string():
 
 def test_the_user_content_is_the_user_turn_unless_a_picture_is_attached():
   state = {"battery": {"fraction": 0.5}, "looksLeft": 2, "seen": []}
-  assert ov._user_content(state, "huggingface") == ov._user_turn(state)
+  turn = lambda st, backend: ov._user_content(   # noqa: E731
+    ov.model_state(st, True), ov._pictures(st), backend)
+  assert turn(state, "huggingface") == ov._user_turn(state)
   with_none = {**state, "seen": [{"id": "look:pluggybot:1", "image": "none"}]}
-  assert ov._user_content(with_none, "huggingface") == ov._user_turn(with_none)
+  assert turn(with_none, "huggingface") == ov._user_turn(with_none)
   b64 = base64.b64encode(JPEG).decode()
   with_pic = {**state, "seen": [{"id": "look:pluggybot:1", "image": "attached", "jpeg": b64}]}
-  parts = ov._user_content(with_pic, "huggingface")
+  parts = turn(with_pic, "huggingface")
   assert parts[0] == {"type": "image_url",
                       "image_url": {"url": "data:image/jpeg;base64," + b64}}
   assert parts[1] == {"type": "text", "text": ov._user_turn(
     {**state, "seen": [{"id": "look:pluggybot:1", "image": "attached"}]})}
-  assert ov._user_content(with_pic, "anthropic")[0] == llm.image_part("anthropic", b64)
+  assert turn(with_pic, "anthropic")[0] == llm.image_part("anthropic", b64)
   assert llm.image_part("anthropic", b64)["source"]["media_type"] == "image/jpeg"
   assert llm.image_part("local", b64)["type"] == "image_url"
   assert with_pic["seen"][0]["jpeg"] == b64, "the state is not edited"
@@ -386,6 +390,98 @@ def test_an_escalation_carries_the_picture_in_its_own_backends_shape():
   src = inspect.getsource(Overseer._maybe_escalate)
   assert "_user_content(" in src and "self.escalate_backend" in src
   assert "_user_turn(" not in src
+
+
+def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
+  """`model_state` is where the bytes leave, on every arm, so the ONE turn
+  that is built off the state without `_user_content` -- the mid-errand
+  interrupt -- carries no base64 either. Shown to fail with the strip in
+  `_user_content` alone: an interrupt fired while a picture waited on
+  the shelf (a fallback's standing order started the errand, and the
+  shelf keeps a picture across a fallback) dumped 16 kB of base64 into
+  the question."""
+  b64 = base64.b64encode(JPEG).decode()
+  state = {"battery": {"fraction": 0.1, "wh": 0.1}, "looksLeft": 1,
+           "seen": [{"id": "look:pluggybot:1", "image": "attached", "jpeg": b64}]}
+  for autonomous in (False, True):
+    shown = ov.model_state(state, autonomous)
+    assert "jpeg" not in json.dumps(shown) and shown["seen"][0]["image"] == "attached"
+  assert ov._pictures(state) == [b64]
+  assert state["seen"][0]["jpeg"] == b64, "the raw state keeps it for the image part"
+  assert ov.model_state({"battery": {}}, False) is not None
+  # ...and the interrupt's own turn.
+  assert b64[:32] not in ov._interrupt_turn(ov.model_state(state, True), "draw", "low")
+  auto = ov.build("room_hub", enabled=True, autonomous=True,
+                  client=FakeClient({"continue_errand": True, "reason": "nearly done"}))
+  auto.start_interrupt(state, "draw", "your pack is at 10%")
+  while auto.interrupt_pending:
+    pass
+  assert auto.interrupt_result()["continue"] is True
+  content = auto.client.calls[-1]["messages"][0]["content"]
+  assert isinstance(content, str) and b64[:32] not in content
+
+
+def test_a_picture_arriving_with_no_look_open_is_dropped_at_the_next_pass():
+  """A renderer answering after the deadline: the picture is drained off
+  the inbox at the top of the next arbitration pass and counted stale --
+  never left to sit in the queue (an evicted picture would go out as a
+  `dropped` visitor reply for a message nobody sent)."""
+  inbox = Inbox()
+  boss, life = _looker(full(action="idle"), inbox=inbox)
+  replies = []
+  life.visitor_hooks.append(replies.append)
+  try:
+    inbox.offer(image_message("look:pluggybot:7"))
+    assert len(inbox) == 1
+    life._visitor_step()
+    assert len(inbox) == 0 and life.eye.dropped == {"stale": 1}
+    assert replies == [] and life._seen == []
+  finally:
+    life.mission.close()
+
+
+def test_a_stop_thrown_into_a_look_closes_the_request():
+  """`stop_when`'s `MissionAborted` lands mid-wait: the request resolves
+  `none` (`aborted`) so the eye is never left holding one -- `Eye.ask`
+  refuses a second request while one is open."""
+  from pluggybot.mission.mission import MissionAborted
+  boss, life = _looker(full(action="look"), full(action="idle"))
+  seen = []
+  life.on_event.append(seen.append)
+  try:
+    routine = life._look_routine()
+    next(routine)                            # the request is out
+    assert life.eye.pending is not None
+    with pytest.raises(MissionAborted):
+      routine.throw(MissionAborted("stopped"))
+    assert life.eye.pending is None
+    assert [(m["outcome"], m["why"]) for m in seen if m["type"] == "look"] == [
+      ("asked", ""), ("none", "aborted")]
+    # A second look can be asked for.
+    life.eye.ask({}, t=1.0, x=0.0, y=0.0, heading=0.0)
+  finally:
+    life.mission.close()
+
+
+def test_the_eye_can_be_switched_off_for_a_mind_that_takes_no_picture(monkeypatch):
+  monkeypatch.setenv(ov.LOOK_ENV, "0")
+  off = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  assert not off.menu.look and "look" not in off.menu.available()
+  assert "LOOKING" not in dict(off.sections)
+  monkeypatch.delenv(ov.LOOK_ENV)
+  on = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  assert on.menu.look
+  assert not ov.build("room_hub", enabled=True, client=FakeClient(),
+                      autonomous=True, look=False).menu.look
+  guarded = ov.build("room_hub", enabled=True, client=FakeClient(), look=True)
+  assert not guarded.menu.look, "the knob turns the eye off, never on"
+
+
+def test_a_heading_is_reported_wrapped():
+  assert [look.wrap_degrees(d) for d in (0, 90, 180, -180, 450, -190, 360)] == [
+    0.0, 90.0, 180.0, 180.0, 90.0, 170.0, 0.0]
+  eye = look.Eye("pluggybot")
+  assert eye.ask({}, t=0.0, x=0.0, y=0.0, heading=math.radians(450))["at"]["headingDeg"] == 90.0
 
 
 def test_which_model_looked_is_in_the_build_identity_and_absent_without_an_eye():

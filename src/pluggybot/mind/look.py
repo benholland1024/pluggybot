@@ -83,6 +83,12 @@ HEIGHT = 480
 MEDIA_TYPE = "image/jpeg"
 
 
+def wrap_degrees(deg: float) -> float:
+  """A heading in (-180, 180], and never -0."""
+  wrapped = -((-deg + 180.0) % 360.0 - 180.0)
+  return 0.0 if wrapped == 0 else wrapped
+
+
 def camera_pose(model, data, name: str) -> dict:
   """Where the camera IS, in the world, for a renderer to stand in.
 
@@ -140,7 +146,9 @@ class Eye:
            "t": round(float(t), 3), "outcome": "asked",
            "camera": dict(camera),
            "at": {"x": round(float(x), 2), "y": round(float(y), 2),
-                  "headingDeg": round(math.degrees(float(heading)), 1)},
+                  # Wrapped to (-180, 180]: the reckoner's heading
+                  # accumulates turns, and "facing 450 deg" is nobody's.
+                  "headingDeg": round(wrap_degrees(math.degrees(float(heading))), 1)},
            "bytes": 0, "waitS": 0.0, "why": ""}
     self.pending = row
     self.looks.append(row)

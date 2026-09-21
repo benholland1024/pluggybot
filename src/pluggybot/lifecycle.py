@@ -2103,6 +2103,13 @@ class HubLifecycle:
       self._set_battery(msg)
     for msg in self.inbox.drain(("set_points",)):
       self._set_points(msg)
+    # A picture arriving with no look open (issue #275) -- the renderer
+    # answered after the deadline -- is dropped and counted HERE rather than
+    # left in the queue, where it would sit until the next look evicted it
+    # or a burst of messages did (and an evicted picture would go out as a
+    # `dropped` visitor reply for a message nobody sent).
+    for msg in self.inbox.drain(("image",)):
+      self.eye.offer(msg, t=float(self.data.time))
     # The operator's side of a ticket (issue #284): a reply, a close, a
     # delete -- applied here by code, like every admin kind. What the
     # robot is shown is the thread, on its next turn.
@@ -2508,11 +2515,18 @@ class HubLifecycle:
     self._emit({"type": "look", **eye_mod.wire_row(row)})
     self._say(f"LOOK {row['ref']}: asked for a picture from ({x:.2f}, {y:.2f}) "
               f"facing {row['at']['headingDeg']:.0f} deg")
-    while self.eye.pending is not None:
-      yield from self.mission._drive_routine(LOOK_SLICE_S, 0.0, 0.0)
-      self._look_step()
-      if self.eye.overdue(float(self.data.time)):
-        self._resolve_look(self.eye.give_up(float(self.data.time)))
+    try:
+      while self.eye.pending is not None:
+        yield from self.mission._drive_routine(LOOK_SLICE_S, 0.0, 0.0)
+        self._look_step()
+        if self.eye.overdue(float(self.data.time)):
+          self._resolve_look(self.eye.give_up(float(self.data.time)))
+    finally:
+      # A stop thrown into the routine (`stop_when`, a pair's hook) ends
+      # the wait: the request closes so the eye is never left holding one
+      # -- `Eye.ask` refuses a second request while one is open.
+      if self.eye.pending is not None:
+        self._resolve_look(self.eye.give_up(float(self.data.time), why="aborted"))
 
   def _look_step(self) -> None:
     """Drain every `image` off the inbox: the open request's answer

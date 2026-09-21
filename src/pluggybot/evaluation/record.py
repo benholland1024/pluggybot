@@ -975,6 +975,9 @@ def build_record(config: dict, result: dict | None, events: list[dict],
         # ...and the library's reads (issue #216), whole, for the same
         # shape's sake: the `read` rows the observatory files.
         "reads": list(result.get("reads") or ()),
+        # ...and the eye's looks (issue #275), likewise: the `look` rows
+        # as the wire carries them, never the bytes.
+        "looks": list(result.get("looks") or ()),
         # ...and the support tickets' events (issue #284), likewise.
         "tickets": list(result.get("tickets") or ())}
        if result is not None else {}),

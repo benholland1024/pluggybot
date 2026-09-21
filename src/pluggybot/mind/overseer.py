@@ -3726,7 +3726,7 @@ class Overseer:
                                     look=look)}},
         messages=[{"role": "user", "content": _user_content(
           model_state(state, self.autonomous, self.show_survival),
-          self.escalate_backend)}],
+          _pictures(state), self.escalate_backend)}],
       )
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered, answering=answering,
@@ -4356,7 +4356,7 @@ class Overseer:
                                     look=look)}},
         messages=[{"role": "user", "content": _user_content(
           model_state(state, self.autonomous, self.show_survival),
-          self.backend)}],
+          _pictures(state), self.backend)}],
       )
       # BILLED IS BILLED (issue #225): metered and banked before the answer
       # is parsed, because a reasoning model that spent its whole budget
@@ -4577,30 +4577,38 @@ def _look_allowed(state: dict) -> bool:
   return left is None or int(left) > 0
 
 
-def _user_content(state: dict, backend: str) -> str | list:
+def _pictures(state: dict) -> list[str]:
+  """The JPEGs (base64) riding the RAW state's `seen` blocks, in order
+  (issue #275) -- what `_user_content` attaches as image parts."""
+  seen = state.get("seen")
+  if not isinstance(seen, list):
+    return []
+  return [str(b["jpeg"]) for b in seen if isinstance(b, dict) and b.get("jpeg")]
+
+
+def _without_pictures(state: dict) -> dict:
+  """The state with every `jpeg` taken out of `seen`; the same dict back
+  where there was none to take (a world without an eye is untouched)."""
+  if not _pictures(state):
+    return state
+  shown = dict(state)
+  shown["seen"] = [{k: v for k, v in b.items() if k != "jpeg"}
+                   if isinstance(b, dict) else b for b in state["seen"]]
+  return shown
+
+
+def _user_content(shown: dict, pictures: list[str], backend: str) -> str | list:
   """The user turn as the request carries it: the text alone, or the
   picture(s) the robot took last turn as image parts beside it (issue
-  #275).
+  #275). `shown` is `model_state`'s view (no `jpeg` in it); `pictures`
+  is `_pictures` of the raw state.
 
   ⚠ BYTE-IDENTICAL TO `_user_turn` WHERE NOTHING IS ATTACHED -- a string,
   not a one-element list -- so every world without an eye sends exactly
-  the request it always sent. With a picture: the `jpeg` field is taken
-  OUT of the `seen` block before the JSON is written (the model reads
-  "attached", never 20 kB of base64 as text) and attached in the backend's
-  own image shape, image first, then the text.
+  the request it always sent. With a picture: the model reads "attached"
+  in the JSON and the bytes arrive in the backend's own image shape,
+  image first, then the text.
   """
-  pictures = []
-  shown = state
-  seen = state.get("seen")
-  if isinstance(seen, list) and any(isinstance(b, dict) and b.get("jpeg") for b in seen):
-    shown = dict(state)
-    stripped = []
-    for block in seen:
-      if isinstance(block, dict) and block.get("jpeg"):
-        pictures.append(str(block["jpeg"]))
-        block = {k: v for k, v in block.items() if k != "jpeg"}
-      stripped.append(block)
-    shown["seen"] = stripped
   text = _user_turn(shown)
   if not pictures:
     return text
@@ -4672,6 +4680,13 @@ def model_state(state: dict, autonomous: bool = False,
   rungs are the same run and "does seeing the stake change anything" can
   never be asked.
   """
+  # THE PICTURE IS NOT TEXT (issue #275): a look's JPEG rides the state
+  # beside its `seen` block as `jpeg` (base64) so the physics thread can
+  # hand it to the worker, and it leaves HERE, on every arm and for every
+  # turn built off the state -- the decision's, the escalation's and the
+  # interrupt's -- because 20 kB of base64 in the JSON is a picture the
+  # model reads as a string. `_pictures` takes it off the raw state.
+  state = _without_pictures(state)
   if not autonomous:
     return state
   shown = {k: v for k, v in state.items() if k not in AUTONOMOUS_HIDDEN}
@@ -4753,6 +4768,11 @@ BACKEND_ENV = "PLUGGY_OVERSEER_BACKEND"
 #: the default and means the robot has no expensive option at all -- the
 #: field is then absent from its schema and its prompt.
 ESCALATE_ENV = "PLUGGY_ESCALATE_TO"
+#: Whether the `autonomous` robot may LOOK (issue #275). Unset is on; `0`
+#: turns the eye off for a deployment whose mind cannot take an image (a
+#: text-only local model would lose the turn after every look to a
+#: fallback). `$PLUGGY_NEAR_FIELD`'s shape.
+LOOK_ENV = "PLUGGY_LOOK"
 
 
 def goals_text(thoughts: ThoughtFiles | None = None) -> str:
@@ -4793,6 +4813,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           robot_name: str | None = None,
           others: tuple = (),
           timeout_s: float | None = None,
+          look: bool | None = None,
           ) -> "Overseer | None":
   """The overseer for a world, or None when disabled.
 
@@ -4868,11 +4889,14 @@ def build(world: str, book=None, enabled: bool | None = None,
     # LIFECYCLE's (a close pays on any arm; `HubLifecycle.tickets`); this
     # is what offers the two fields, the block and the rule.
     menu = replace(menu, tickets=True)
-    # THE EYE (issue #275): the same arm. The eye itself is the
-    # LIFECYCLE's (`HubLifecycle.eye`, which owns the request and the
-    # inbox it is answered through); this is what offers the action, the
-    # `seen` block and the rule.
-    menu = replace(menu, look=True)
+    # THE EYE (issue #275): the same arm, unless `$PLUGGY_LOOK=0` says the
+    # mind cannot take a picture. The eye itself is the LIFECYCLE's
+    # (`HubLifecycle.eye`, which owns the request and the inbox it is
+    # answered through); this is what offers the action, the `seen` block
+    # and the rule.
+    if look is None:
+      look = os.environ.get(LOOK_ENV, "").strip().lower() not in ("0", "false", "no", "off")
+    menu = replace(menu, look=bool(look))
   overseer = Overseer(menu, thoughts=thoughts,
                       table=table, client=client,
                       robot_name=robot_name,
