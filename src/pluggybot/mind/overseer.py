@@ -775,17 +775,20 @@ _NUMBERS = {"type": "array", "items": {"type": "number"}}
 
 def idle_build(shop: dict) -> bool:
   """The `build_tool` a constrained decoder emits when the model is NOT
-  building: every string empty and no part naming a catalog part. It is
+  building: no name anywhere and no part naming a catalog part. It is
   "not this time", on `pin: ""`'s terms, and is DROPPED rather than sent to
   the workshop -- MEASURED (issue #264, ladder B): sent, it was refused on
   13 of 24 answers in one day, each a `tool` row saying the robot had
-  tried to build a tool it never described."""
+  tried to build a tool it never described. ⚠ The bay does not count: the
+  decoder fills an enum with its first member (`"bay": "A"` beside an
+  empty name and no parts, measured on the second round), and a bay alone
+  describes nothing to build."""
   spec = shop.get("spec") if isinstance(shop.get("spec"), dict) else {}
   parts = spec.get("parts") if isinstance(spec.get("parts"), list) else []
   named = any(isinstance(p, dict) and (str(p.get("part") or "").strip()
                                        or str(p.get("id") or "").strip())
               for p in parts)
-  return not (str(shop.get("name") or "").strip() or str(shop.get("bay") or "").strip()
+  return not (str(shop.get("name") or "").strip()
               or str(spec.get("name") or "").strip() or named)
 
 

@@ -135,11 +135,13 @@ def test_the_idle_build_tool_a_decoder_emits_is_not_a_build(monkeypatch):
   idle_part = {"name": "", "bay": "", "spec": {"name": "", "parts": [
     {"id": "", "part": "", "pos": [0, 0, 0], "euler": [0, 0, 0], "on": "",
      "size": [0, 0, 0], "axis": {"verb": "", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}}]}}
-  for shop in (idle, idle_part):
+  # ...and a bay alone is not a build either: the decoder fills an enum
+  # with its first member (`"bay": "A"`, measured on the second round)
+  for shop in (idle, idle_part, {**idle, "bay": "A"}):
     assert ov.idle_build(shop)
     d = menu.validate({"action": "idle", "reason": "r", "build_tool": shop}, tools=())
     assert d.build_tool is None
-  for shop in ({**idle, "name": "scoop"}, {**idle, "bay": "C"},
+  for shop in ({**idle, "name": "scoop"}, {**idle, "spec": {"name": "scoop", "parts": []}},
                {**idle, "spec": {"name": "", "parts": [{"id": "", "part": "servo_fs90"}]}}):
     assert not ov.idle_build(shop)
     assert menu.validate({"action": "idle", "reason": "r", "build_tool": shop},
