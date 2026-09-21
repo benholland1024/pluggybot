@@ -10,7 +10,7 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
-### Built tools get their own rack (#277) — opens when this PR is deployed, at the week's end with #275 and #276
+### Built tools get their own rack (#277) — opens when this PR is deployed; the week's measurement runs on it
 
 **What changed on the wire and in the mind.** The world has a second free
 body, `rack_built` (hint `rack`), beside the first rack in both served
@@ -30,7 +30,11 @@ Same model, same arm, same origin, same pair.
 a robot could delete the pen every drawing job is written against — a tax
 on the behaviour the workshop exists to measure, and a hazard to every
 other quality's instrument. Now building is free of that cost and the
-originals cannot be lost. What to read:
+originals cannot be lost. ⚠ Until the PAIR SEAM lands (#168's open half:
+`can_reshape` refuses on a pair, and the served world is one), every
+`build_tool` on the deployed pair is a `tool` row `refused` at the seam
+before a point moves — this period cannot show a hang, only whether the
+robot tries. What to read:
 
 - `tool` rows: `built` / `hung` against `refused`, and the refusals'
   reasons — whether the robot reaches for `D`/`E` or an original's name

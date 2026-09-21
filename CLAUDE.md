@@ -929,8 +929,9 @@ save a filmstrip PNG named after the script.
   shows `rack: {original: [...], built: {A..C: module|null}}`, and a world
   whose `world_config` has no `built_bays` gets NO workshop (no field, no
   rule — the tower's shape); `can_reshape` refuses a world compiled without
-  the `rack_built` body. The hand-built rail's stations are for the
-  fetch's `_tool_station` only. Order, all before a point moves: the envelope (`validate.check`), the seam's
+  the `rack_built` body. ⚠ ON A PAIR `can_reshape` STILL REFUSES (the
+  seam is single-robot; #168's open half), so the served pair cannot
+  hang a tool until both lifecycles rebind. Order, all before a point moves: the envelope (`validate.check`), the seam's
   preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
   points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
   60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
