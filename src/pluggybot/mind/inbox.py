@@ -51,6 +51,10 @@ from pluggybot.telemetry.protocol import (
   VISITOR_OUTCOMES,
 )
 
+#: The operator's three ticket kinds (issue #284), each naming a ticket.
+TICKET_INBOUND_TYPES = ("ticket_reply", "ticket_close", "ticket_delete")
+assert set(TICKET_INBOUND_TYPES) <= set(INBOUND_TYPES)
+
 #: Longest message text kept, in characters: the MESSAGE rows' cap in
 #: `mind/text.py` (issue #217), one figure for a visitor's sentence and the
 #: other robot's. This is also the cap the website enforces
@@ -62,7 +66,7 @@ MAX_TEXT = registry.MAX_MESSAGE_CHARS
 # is a message on the same terms with a paragraph's cap, and it never
 # comes through the socket.
 assert all(m.cap == MAX_TEXT for m in registry.MESSAGES
-           if m.writer in (registry.VISITOR, registry.PEER)), \
+           if m.writer in (registry.VISITOR, registry.PEER, registry.OPERATOR)), \
   "a message row's cap disagrees with the queue's"
 #: ...and the display name attached to it.
 MAX_WHO = 40
@@ -176,6 +180,13 @@ class VisitorMessage:
   #: delta would race the appetite, which is eating points on the physics
   #: seam while the message is in flight.
   points: int | None = None
+  #: `ticket_reply` / `ticket_close` / `ticket_delete` only (issue #284):
+  #: which of the robot's tickets the operator means, by the id the SIM
+  #: gave it (`tk_0001`). An id, validated against the desk by the handler
+  #: -- the inbox cleans, it does not know what tickets exist. `text` is
+  #: the reply, or the words a ticket is closed with (a close may carry
+  #: none); `who` is the admin's username, as on every admin kind.
+  ticket: str = ""
   #: sim seconds when the robot took delivery, not when it was sent
   t: float = 0.0
 
@@ -215,6 +226,8 @@ class VisitorMessage:
       out.update({"frac": self.frac, "wh": self.wh})
     if self.kind == "set_points":
       out["points"] = self.points
+    if self.kind in TICKET_INBOUND_TYPES:
+      out["ticket"] = self.ticket
     return out
 
 
@@ -364,13 +377,18 @@ class Inbox:
         return None
       # Optional, and REFUSED when present and unreadable rather than
       # dropped: a rating that named a life and lost the name on the way in
-      # would be applied to whichever life is running.
-      if raw.get("generation") is not None:
+      # would be applied to whichever life is running. ⚠ A WHOLE number, by
+      # value: `int(True)` is 1 and `int(1.5)` is 1, and either would have
+      # named a life the sender never meant.
+      given = raw.get("generation")
+      if given is not None:
+        if isinstance(given, bool):
+          return None
         try:
-          generation = int(raw["generation"])
+          generation = int(given)
         except (TypeError, ValueError):
           return None
-        if generation < 0:
+        if generation != given or generation < 0:
           return None
     module = ""
     # `reset_robot` (issue #107) names nothing: the robot is the robot. It
@@ -415,13 +433,22 @@ class Inbox:
       # a negative balance would be arrears arriving through the front door.
       if points < 0:
         return None
+    ticket = ""
+    if kind in TICKET_INBOUND_TYPES:
+      # The operator's side of a ticket (issue #284): which one, by the
+      # sim's own id -- `reset_tool`'s shape, and the desk is the judge of
+      # whether it exists. A reply with nothing in it is not a reply; a
+      # close may carry no words.
+      ticket = clean(raw.get("ticket"), MAX_ID)
+      if not ticket or (kind == "ticket_reply" and not text):
+        return None
     return VisitorMessage(id=clean(raw.get("id"), MAX_ID), kind=kind,
                           text=text, who=clean(raw.get("from"), MAX_WHO),
                           thread=thread, turn=turn, earlier=earlier,
                           sender=sender, seq=seq, quality=quality,
                           generation=generation,
                           module=module, frac=frac, wh=wh, points=points,
-                          t=float(t))
+                          ticket=ticket, t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 

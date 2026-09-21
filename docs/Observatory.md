@@ -10,6 +10,93 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Support tickets (#284) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** The `autonomous` prompt
+gained one section, SUPPORT TICKETS (Overseer.md §2g), and two paperwork
+fields, `ticket {kind, title, text}` and `ticket_reply {ticket, text}`;
+the user turn gained a `tickets` block (open tickets with their threads,
+the newest three closed with their closing words and points, `slotsLeft`);
+the `autonomous` reward table gained a `ticket` row (25, paid once, at the
+operator's close; `challenges.json`, unoffered). So the prefix moved, and
+`guarded` did not. The map's event list gained `ticket_replied`,
+unconfigurable. On the wire: one additive event, `ticket` (`opened` /
+`replied` / `closed` / `deleted` / `refused` / `unknown`), a `tickets`
+snapshot on open, and three inbound admin kinds (`ticket_reply`,
+`ticket_close`, `ticket_delete`), advertised in `accepts` on every served
+world. The website files a `ticket` observatory row per event and runs the
+desk from the controls page. Same model, same arm, same origin, same pair.
+
+**What the period is for.** Nothing before it recorded what the robot
+would say about its world to the people who built it; the ticket is that
+channel, with a person at the other end and a reward only a person can
+release. The rule prescribes nothing — not what to file, not that filing
+is worth it — so the first thing to read is whether the robot files at
+all, and what, when nobody asks. What to read:
+
+- `ticket` rows `opened`, by `kind` and by robot: how many, what about,
+  whether the reports are true of the world (the observatory's own rows
+  are the check: a `bug` about a stow can be read against the `task` rows
+  of the same hour);
+- the ratio of `closed` to `deleted` — the operator's judgement of what
+  was worth attention — and whether the robot's filing changes after its
+  first close or its first delete (a `refused` row for a full desk is the
+  robot filing faster than a person answers);
+- `replied` rows with `sender: robot`: whether it answers a person's
+  question on a thread, or files and moves on;
+- the `tickets` block's cost on the user turn: three open tickets with
+  full threads is ~1 700 tokens a call at the caps, on top of the ~12 200
+  the deployed prompt already carries.
+
+**Not yet known.** Whether 25 points — a drawing's best day — reads as
+an invitation to file, and whether that shows as tickets filed faster
+than they are closed (the cap of three open, and a person's close, bound
+the farm either way); whether a robot writes
+tickets about the OTHER robot, which the desk allows and the rule says
+nothing about.
+
+### Built tools get their own rack (#277) — opens when this PR is deployed; the week's measurement runs on it
+
+**What changed on the wire and in the mind.** The world has a second free
+body, `rack_built` (hint `rack`), beside the first rack in both served
+worlds: three bays at the rack's pitch past bay E, tags 7–9, its stations
+in the first rack's frame (ToolPattern.md §6, route 4). The `autonomous`
+prompt's workshop rule moved: `build_tool.bay` is the rail's `A`–`C`, the
+five original modules are said to be permanent, and `rack` in the context
+is `{original: [...], built: {A, B, C}}` instead of five letters. A build
+that names `D` or `E`, or a `retire_tool` naming an original, is a `tool`
+row `refused` whose reason says whose bay or module it is. `scene_changed`
+is unchanged in shape; `bay` on it is now the rail's index and `retired`
+is only ever a built tool. `guarded` did not move. The four fixture
+recordings were re-flown on the new plan (trajectories new, nothing else).
+Same model, same arm, same origin, same pair.
+
+**What the period is for.** Before it, a built tool cost a default one and
+a robot could delete the pen every drawing job is written against — a tax
+on the behaviour the workshop exists to measure, and a hazard to every
+other quality's instrument. Now building is free of that cost and the
+originals cannot be lost. ⚠ Until the PAIR SEAM lands (#168's open half:
+`can_reshape` refuses on a pair, and the served world is one), every
+`build_tool` on the deployed pair is a `tool` row `refused` at the seam
+before a point moves — this period cannot show a hang, only whether the
+robot tries. What to read:
+
+- `tool` rows: `built` / `hung` against `refused`, and the refusals'
+  reasons — whether the robot reaches for `D`/`E` or an original's name
+  out of the old prompt's habit, and whether it builds at all now that a
+  bay is free;
+- `procedure` rows that `fetch("module_<built>")`: the first use of a tool
+  on the rail on the deployed box, and its stow;
+- a `tool` record on either volume from before this period re-hangs at the
+  rail's bay of the same index (`Entry.bay` is the rail's now), said in
+  History at the start of the first run.
+
+**Not yet known.** Whether the deployed pair ever builds a tool unprompted
+(the ladder-B flights on #264 were prompted); what the rail does to the
+second robot's stand-by spot — `RACK_CLEAR_M` now measures from the nearer
+of the two rails, and the idle spot is the robot's own start pose either
+way.
+
 ### The claw's verbs, and the features shown completable (#264) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** Two verbs on the

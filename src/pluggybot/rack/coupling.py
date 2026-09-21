@@ -32,7 +32,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.rack.tags import (
-  BAY_TAG_IDS, CHARGE_TAG_ID, MODULE_TAG_IDS, RACK_TAG_ID,
+  BAY_TAG_IDS, CHARGE_TAG_ID, HUB_TAG_IDS, MODULE_TAG_IDS, RACK_TAG_ID,
   RACK_TAG_SIZE, SMALL_TAG_SIZE, asset_xml, plate_half_extent,
   write_tag_pngs,
 )
@@ -425,6 +425,47 @@ RACK_HALF_W = 0.93        # side posts. Grew 0.48 -> 0.68 for the fourth tool
                           # margin) and of the floor-box at (0, 4) (wrong y).
                           # home_world: rack at (0.5, -1.98) yaw 90, rail
                           # spans x -0.43..1.43 inside a house wall at -2.0.
+# ---- the BUILT-TOOL rail (issue #277) ---------------------------------------
+# A second rack beside the first, for the tools the robot builds: the five
+# hand-built modules are permanent and a built tool never takes one of
+# their bays. Its stations are given in the FIRST rack's frame, continuing
+# the pitch past bay E -- exactly where a sixth station on the one rail
+# would have fallen outside the side post (ToolPattern.md §6, route 4) --
+# and it is a separate free body with its own posts, feet, ballast and
+# wall braces, so whether it scoots is measured like the first's. Keeping
+# its bays in the one frame is what lets every swap, standoff, tag fix and
+# terminal creep work there unchanged: `STATION_YS` is the index space
+# every bay lives in, and its layout is commissioned like `RackPose.prior`.
+BUILT_STATION_YS = (1.175, 1.425, 1.675)  # three bays at the 0.25 m pitch,
+                          # 0.30 m past bay E
+BUILT_RACK_Y = 1.375      # the second rail's centre, rack-frame
+BUILT_RACK_HALF_W = 0.355 # its posts at 1.02 and 1.73. ⚠ NOT SYMMETRIC ABOUT
+                          # THE BAYS, and not bay E's 0.055 at both ends: the
+                          # fork line rides PLUG_LATERAL (0.05) to one side
+                          # of the chassis, so the robot's centreline -- and
+                          # its caster, a 20 mm sphere 18 cm ahead of the
+                          # axle -- sits at station - 0.05. Bay E's post is
+                          # on the OTHER side, 0.105 from that centreline;
+                          # a near post at 0.055 put the rail's foot under
+                          # the caster: MEASURED (home, bay A) the caster rode
+                          # the foot for 21 s of the creep, the fork's stop
+                          # met the tray, two picks failed. The near post is
+                          # 0.155 from bay A (the caster clears its foot by
+                          # 0.07, as at E); the far post is E's 0.055 past
+                          # bay C. Checked against BOTH rooms (the far post
+                          # is the thing that hits something): room_hub rail
+                          # spans x 0.12..0.83 along the north wall, 1.2 m
+                          # short of the divider at x = 2.0, its foot 0.06 m
+                          # from the rack's; home_world x -0.52..-1.23 along
+                          # the living room's south wall, 0.77 m short of
+                          # the west wall and bay C's centreline 0.5 m
+                          # inside that wall's inflation band -- a fourth
+                          # bay would halve that and a fifth put it in the
+                          # band, which is why there are three.
+#: EVERY BAY, BY INDEX: the hand-built five, then the built rail's. Bay<->tag
+#: pairing is by index into this (`BAY_TAG_IDS`), so it is APPENDED to, never
+#: reordered; a bay index in `HubLifecycle.rack_inventory` indexes this.
+STATION_YS = HUB_STATION_YS + BUILT_STATION_YS
 CHARGE_PIN_Z = 0.09       # pogo pins at bumper height (chassis 0.06-0.12)
 CHARGE_TAG_X = 0.109      # rack-local x of the charge tag's PLATE CENTRE --
                           # the anchor a measured standoff fix is computed
@@ -459,8 +500,9 @@ BAY_TAG_FACE_X = RACK_HANG_X + 0.004
 RACK_TAG_FACES: dict[int, tuple[float, float]] = {
   RACK_TAG_ID: (RACK_TAG_X + PLATE_HALF_T, 0.0),
   CHARGE_TAG_ID: (CHARGE_TAG_X + PLATE_HALF_T, CHARGE_BAY_Y),
-  **{BAY_TAG_IDS[i]: (BAY_TAG_FACE_X, y) for i, y in enumerate(HUB_STATION_YS)},
+  **{BAY_TAG_IDS[i]: (BAY_TAG_FACE_X, y) for i, y in enumerate(STATION_YS)},
 }
+assert len(BAY_TAG_IDS) == len(STATION_YS), "one bay tag per station, by index"
 
 
 def bay_tag_id(station_y: float) -> int:
@@ -468,16 +510,31 @@ def bay_tag_id(station_y: float) -> int:
 
   Was a hardcoded two-bay equality check in mission.py -- fine while there
   were exactly two bays and silently wrong the moment there were three.
-  Pairing is by INDEX into HUB_STATION_YS, so bays may sit anywhere.
+  Pairing is by INDEX into STATION_YS, so bays may sit anywhere.
   """
-  i = min(range(len(HUB_STATION_YS)),
-          key=lambda k: abs(HUB_STATION_YS[k] - station_y))
+  i = min(range(len(STATION_YS)),
+          key=lambda k: abs(STATION_YS[k] - station_y))
   return BAY_TAG_IDS[i]
 
 
 def bay_prefix(i: int) -> str:
-  """Geom-name prefix for bay i: baya_, bayb_, bayc_, ..."""
+  """Geom-name prefix for bay i: baya_, bayb_, bayc_, ... (the built
+  rail's are bayf_, bayg_, bayh_: one letter sequence over STATION_YS)."""
   return f"bay{chr(ord('a') + i)}_"
+
+
+def built_bay_index(bay: int) -> int:
+  """A built-rail bay (0..len(BUILT_STATION_YS)-1, the letter the robot
+  names) as its index into STATION_YS -- the space `rack_inventory` and the
+  tag pairing use. Refused, not clamped, outside the rail."""
+  if not 0 <= bay < len(BUILT_STATION_YS):
+    raise ValueError(f"no built-rail bay {bay}; it has {len(BUILT_STATION_YS)}")
+  return len(HUB_STATION_YS) + bay
+
+
+def is_built_bay(index: int) -> bool:
+  """Whether a STATION_YS index is on the built rail."""
+  return index >= len(HUB_STATION_YS)
 
 
 def rack_charge_contact(model, data, prefix: str = "") -> bool:
@@ -522,39 +579,46 @@ def _bay_xml(prefix: str, y: float, tag_id: int) -> str:
   return "\n      ".join(parts)
 
 
+def _rack_frame_xml(prefix: str, half_w: float) -> str:
+  """The frame every rail shares: side posts, rail, anti-tip feet, the
+  ballast/PSU shelf (1.5 kg low -- the ballast IS the stability budget)
+  and the wall braces. `prefix` names the geoms (`rack_` for the first
+  rack, `rack_built_` for the built-tool rail) and `half_w` is the rail's
+  half-length, its posts at +/-half_w."""
+  return f"""<geom name="{prefix}post_l" type="box" size="0.012 0.012 {RACK_RAIL_Z / 2:.3f}"
+            pos="{RACK_BRACKET_X:.4f} {half_w:.4f} {RACK_RAIL_Z / 2:.3f}"
+            mass="0.15" rgba="0.50 0.52 0.55 1"/>
+      <geom name="{prefix}post_r" type="box" size="0.012 0.012 {RACK_RAIL_Z / 2:.3f}"
+            pos="{RACK_BRACKET_X:.4f} {-half_w:.4f} {RACK_RAIL_Z / 2:.3f}"
+            mass="0.15" rgba="0.50 0.52 0.55 1"/>
+      <geom name="{prefix}rail" type="box" size="0.012 {half_w:.3f} 0.012"
+            pos="{RACK_BRACKET_X:.4f} 0 {RACK_RAIL_Z:.3f}" mass="0.20"
+            rgba="0.50 0.52 0.55 1"/>
+      <geom name="{prefix}foot_l" type="box" size="0.070 0.015 0.010"
+            pos="0.10 {half_w:.4f} 0.010" mass="0.10" friction="1.0"
+            rgba="0.35 0.37 0.40 1"/>
+      <geom name="{prefix}foot_r" type="box" size="0.070 0.015 0.010"
+            pos="0.10 {-half_w:.4f} 0.010" mass="0.10" friction="1.0"
+            rgba="0.35 0.37 0.40 1"/>
+      <geom name="{prefix}shelf" type="box" size="0.030 {half_w - 0.02:.3f} 0.012"
+            pos="0.08 0 0.032" mass="1.50" rgba="0.40 0.42 0.45 1"/>
+      <!-- wall braces: the rack LEANS on the wall, so every robot press
+           transfers straight into it -- without these it scooted 9.6 mm
+           under a sustained charge-bay press (measured; free-body rack) -->
+      <geom name="{prefix}brace_l" type="box" size="{RACK_BRACKET_X / 2:.4f} 0.010 0.010"
+            pos="{RACK_BRACKET_X / 2:.4f} {half_w:.4f} 0.35" mass="0.05"
+            rgba="0.50 0.52 0.55 1"/>
+      <geom name="{prefix}brace_r" type="box" size="{RACK_BRACKET_X / 2:.4f} 0.010 0.010"
+            pos="{RACK_BRACKET_X / 2:.4f} {-half_w:.4f} 0.35" mass="0.05"
+            rgba="0.50 0.52 0.55 1"/>"""
+
+
 def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
                    yaw_deg: float = 0.0) -> str:
   """The unified rack as ONE free body at an arbitrary room pose."""
   return f"""<body name="rack" pos="{pos[0]:.4f} {pos[1]:.4f} {pos[2]:.4f}" euler="0 0 {yaw_deg:.1f}">
       <freejoint/>
-      <!-- frame: side posts, rail, anti-tip feet, ballast/PSU shelf (1.5 kg
-           low -- the ballast IS the stability budget) -->
-      <geom name="rack_post_l" type="box" size="0.012 0.012 {RACK_RAIL_Z / 2:.3f}"
-            pos="{RACK_BRACKET_X:.4f} {RACK_HALF_W:.4f} {RACK_RAIL_Z / 2:.3f}"
-            mass="0.15" rgba="0.50 0.52 0.55 1"/>
-      <geom name="rack_post_r" type="box" size="0.012 0.012 {RACK_RAIL_Z / 2:.3f}"
-            pos="{RACK_BRACKET_X:.4f} {-RACK_HALF_W:.4f} {RACK_RAIL_Z / 2:.3f}"
-            mass="0.15" rgba="0.50 0.52 0.55 1"/>
-      <geom name="rack_rail" type="box" size="0.012 {RACK_HALF_W:.3f} 0.012"
-            pos="{RACK_BRACKET_X:.4f} 0 {RACK_RAIL_Z:.3f}" mass="0.20"
-            rgba="0.50 0.52 0.55 1"/>
-      <geom name="rack_foot_l" type="box" size="0.070 0.015 0.010"
-            pos="0.10 {RACK_HALF_W:.4f} 0.010" mass="0.10" friction="1.0"
-            rgba="0.35 0.37 0.40 1"/>
-      <geom name="rack_foot_r" type="box" size="0.070 0.015 0.010"
-            pos="0.10 {-RACK_HALF_W:.4f} 0.010" mass="0.10" friction="1.0"
-            rgba="0.35 0.37 0.40 1"/>
-      <geom name="rack_shelf" type="box" size="0.030 {RACK_HALF_W - 0.02:.3f} 0.012"
-            pos="0.08 0 0.032" mass="1.50" rgba="0.40 0.42 0.45 1"/>
-      <!-- wall braces: the rack LEANS on the wall, so every robot press
-           transfers straight into it -- without these it scooted 9.6 mm
-           under a sustained charge-bay press (measured; free-body rack) -->
-      <geom name="rack_brace_l" type="box" size="{RACK_BRACKET_X / 2:.4f} 0.010 0.010"
-            pos="{RACK_BRACKET_X / 2:.4f} {RACK_HALF_W:.4f} 0.35" mass="0.05"
-            rgba="0.50 0.52 0.55 1"/>
-      <geom name="rack_brace_r" type="box" size="{RACK_BRACKET_X / 2:.4f} 0.010 0.010"
-            pos="{RACK_BRACKET_X / 2:.4f} {-RACK_HALF_W:.4f} 0.35" mass="0.05"
-            rgba="0.50 0.52 0.55 1"/>
+      {_rack_frame_xml("rack_", RACK_HALF_W)}
       <geom name="rack_tag" type="box"
             size="0.002 {RACK_PLATE_HALF:.4f} {RACK_PLATE_HALF:.4f}"
             pos="{RACK_TAG_X:.4f} 0 {RACK_RAIL_Z + 0.075:.3f}"
@@ -579,6 +643,29 @@ def _rack_body_xml(pos: tuple[float, float, float] = (0, 0, 0),
       <geom name="rack_pin_r" type="cylinder" size="0.004 0.006" zaxis="1 0 0"
             pos="0.114 {CHARGE_BAY_Y - 0.03:.4f} {CHARGE_PIN_Z:.3f}" mass="0.005"
             rgba="0.85 0.75 0.30 1"/>
+    </body>"""
+
+
+#: The built-tool rail's body name (issue #277): what a world that has one
+#: carries, and what `HubLifecycle` reads to know whether a tool can hang.
+BUILT_RACK_BODY = "rack_built"
+
+
+def _built_rack_body_xml(pos: tuple[float, float], yaw_deg: float) -> str:
+  """The built-tool rail as its own free body, beside the first rack at
+  the same yaw (issue #277): the shared frame, its three bays (rail-local
+  y is rack-frame y less `BUILT_RACK_Y`, so a bay geom's rack-frame place
+  is exactly `STATION_YS`'s), no charge bay and no rack tag -- the rail
+  is commissioned beside the first rack and found through it."""
+  x, y = rack_frame_to_world(0.0, BUILT_RACK_Y, pos, yaw_deg)
+  first = len(HUB_STATION_YS)
+  bays = chr(10).join(
+    f'      {_bay_xml(bay_prefix(first + k), sy - BUILT_RACK_Y, BAY_TAG_IDS[first + k])}'
+    for k, sy in enumerate(BUILT_STATION_YS))
+  return f"""<body name="{BUILT_RACK_BODY}" pos="{x:.4f} {y:.4f} 0.0000" euler="0 0 {yaw_deg:.1f}">
+      <freejoint/>
+      {_rack_frame_xml("rack_built_", BUILT_RACK_HALF_W)}
+{bays}
     </body>"""
 
 
@@ -1113,7 +1200,8 @@ def write_hub_world(path: str = "models/hub_world.xml") -> None:
   """
   ya, yb, yc, yd, ye = HUB_STATION_YS
   lcd_face, plug_face, pen_face, claw_face, seed_face = _module_faces()
-  tag_ids = write_tag_pngs()
+  write_tag_pngs()
+  tag_ids = HUB_TAG_IDS
   xml = f"""<!-- GENERATED by pluggybot.rack.coupling.write_hub_world().
      Regenerate: uv run python -m pluggybot.rack.coupling
      Bare hub world (milestone 8): fork robot + wall + the unified tool rack
@@ -1206,10 +1294,13 @@ def rack_frame_to_world(x_local: float, y_local: float,
           py + x_local * s + y_local * c)
 
 
-def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float) -> str:
-  """The rack body + its four hanging modules at an arbitrary room pose --
+def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float,
+                         built: bool = True) -> str:
+  """The rack body + its five hanging modules at an arbitrary room pose --
   the one worldbody snippet every world that has a hub shares (hub_world,
-  room_hub via hub_rack.xml, home_world)."""
+  room_hub via hub_rack.xml, home_world). `built` adds the built-tool rail
+  beside it (issue #277): the navigated rooms carry it, the bare spike
+  world does not."""
   ya, yb, yc, yd, ye = HUB_STATION_YS
   lcd_face, plug_face, pen_face, claw_face, seed_face = _module_faces()
   ax, ay_ = rack_frame_to_world(RACK_HANG_X, ya, pos, yaw_deg)
@@ -1219,6 +1310,7 @@ def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float) -> str:
   ex, ey_ = rack_frame_to_world(RACK_HANG_X, ye, pos, yaw_deg)
   body_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R - PEG_ABOVE_BODY
   return f"""{_rack_body_xml((pos[0], pos[1], 0.0), yaw_deg)}
+    {_built_rack_body_xml(pos, yaw_deg) if built else ""}
     {module_xml("module_lcd", ax, ay_, HUB_PEG_Z,
                 "0.20 0.45 0.75 1", face=lcd_face, yaw_deg=yaw_deg)}
     {module_xml("module_plug", bx, by_, HUB_PEG_Z,
@@ -1234,7 +1326,8 @@ def rack_and_modules_xml(pos: tuple[float, float], yaw_deg: float) -> str:
 
 def write_hub_rack(path: str = "models/hub_rack.xml") -> None:
   """The rack + modules as a room include, placed on room 1's north wall."""
-  tag_ids = write_tag_pngs()
+  write_tag_pngs()
+  tag_ids = HUB_TAG_IDS
   xml = f"""<!-- GENERATED by pluggybot.rack.coupling.write_hub_rack().
      Regenerate: uv run python -m pluggybot.rack.coupling
      The tool rack + hanging modules placed against room 1's north wall,

@@ -823,6 +823,33 @@ PARTS: tuple[Part, ...] = (
          "that touch the peg need print accuracy.",
   ),
   Part(
+    "built_rack_rail_stock", "Built-tool rail: a second, shorter rack of the "
+    "same stock beside the first, for the tools the robot builds",
+    "structure", "chosen", ("body",),
+    ("rack",), dimensionsMm={"railLength": 710, "width": 740, "depth": 170,
+                             "height": 550}, quantity=1,
+    capabilities={"bays": 3, "pitchMm": 250},
+    feeds=(
+      code("rack.coupling.BUILT_RACK_HALF_W", "m", "half the rail", expect=0.355),
+      code("rack.coupling.BUILT_RACK_Y", "m",
+           "its centre in the first rack's frame, continuing the pitch past bay E"),
+      code("rack.coupling.BUILT_STATION_YS", "m",
+           "the three built-tool bays at 0.25 m pitch, in the first rack's "
+           "frame; appended to, never reordered (bay-tag pairing is by index)"),
+      Feed("rack_built_shelf.mass", geom("rack_built_shelf", "mass"), "kg", "the base"),
+      Feed("rack_built_rail.mass", geom("rack_built_rail", "mass"), "kg"),
+      Feed("rack_built_post_l.mass",
+           same(geom("rack_built_post_l", "mass"), geom("rack_built_post_r", "mass")),
+           "kg"),
+    ),
+    why={"partNumber": STOCK, "source": STOCK, "massG": "not weighed",
+         "priceEur": STOCK},
+    note="The five hand-built modules are permanent and hang on the first "
+         "rack; a built tool hangs here and only here (issue #277). Same "
+         "frame as the first rack, no charge bay, no rack tag: it is "
+         "surveyed beside the first and found through it.",
+  ),
+  Part(
     "rack_printed_parts", "Rack V-trays, tray brackets, tag plates and the "
     "robot's fork: 3D-printed (PETG)", "structure", "chosen", ("body",),
     ("rack", "pluggybot"), quantity=1,

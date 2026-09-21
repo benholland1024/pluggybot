@@ -83,8 +83,8 @@ not re-recorded (the field is absent there, which reads as generation 0):
   because the lookup is exactly what would succeed: the dead robot's
   drawing and a live entry share a number. Absent means a site older than
   the field, and the number alone is taken as it always was. A present but
-  unreadable one is dropped as malformed, not applied to whichever life is
-  running.
+  unreadable one -- a word, a fraction, a boolean, a negative -- is dropped
+  as malformed, not applied to whichever life is running.
 
 ### 0.21.0, additive: the constitution is named, versioned and per robot (`build.constitutions`; `constitution_changed`)
 
@@ -275,6 +275,81 @@ real one. A consumer ignores a type it does not know; the observatory
 stores `care` as a kind and keeps `real` in `data` (rooftop-media-2026).
 `shock_mouse` is a new `taskKinds` entry, on the `autonomous` arm on home
 only. No version bump: nothing existing changed shape.
+
+### 0.21.0, additive: support tickets (`ticket`, `tickets`; three inbound admin kinds)
+
+pluggybot #284; docs/Overseer.md §2g. On the `autonomous` arm the robot
+may open a SUPPORT TICKET about its world -- `ticket {kind, title, text}`,
+`kind` one of `TICKET_KINDS` (`bug` / `idea` / `question` / `feedback`) --
+and reply on an open one (`ticket_reply {ticket, text}`); the people who
+run the world answer through the socket. One event type, one message on
+open, three inbound kinds; no header change beyond `accepts`, no bump.
+
+**Upstream: the `ticket` event.** `{robot, t, outcome, id, kind, title,
+...}`, `outcome` one of `TICKET_OUTCOMES`:
+
+- `opened` -- `text` is the report, whole (up to 500 chars, one line).
+- `replied` -- a line on the thread: `sender` (`robot` / `operator`,
+  `TICKET_SENDERS`), `from` (the display name: the robot's, or the admin's
+  username), `text`; an operator's line carries `ref`, the id of the
+  inbound message it acknowledges, so the website settles the row it is
+  holding.
+- `closed` -- `from` (who closed it), `text` (the closing message, may be
+  empty), `points` (what the reward table paid) and `seq` (the ledger
+  entry), `ref`, and `paid`: true the first time, FALSE on a replayed close
+  (the same figure back, nothing banked again).
+- `deleted` -- `from`, `ref`. Erased, open or closed; nothing paid.
+- `refused` -- the desk would not take the robot's `ticket` or
+  `ticket_reply`: `verb`, `why` (a full desk, a closed ticket, an empty
+  report), and the `kind` / `title` or `id` it named.
+- `unknown` -- an inbound reply, close or delete named a ticket this desk
+  does not hold: `id`, `ref`, `why`, `verb`. The acknowledgement that stops
+  a website re-sending it.
+
+`id` is the sim's, `tk_0001`, counted per ROBOT ROOT and never reused (a
+deleted ticket's number is gone); a consumer keys a ticket by (`robot`,
+`id`). The desk holds at most three OPEN tickets per robot.
+
+```jsonc
+{"type": "ticket", "t": 412.5, "robot": "pluggybot", "outcome": "closed",
+ "id": "tk_0003", "kind": "bug", "title": "the pen misses the far board",
+ "from": "ben", "text": "fixed the standoff", "points": 25, "seq": 17,
+ "ref": "tc_9f3a", "paid": true}
+```
+
+**Upstream, on open: the `tickets` message** (`TICKETS_MESSAGE`; the
+`goals` slot, for the `goals` reason) -- `{robot, t, tickets: [...]}`, the
+robot's OPEN tickets whole (`id`, `kind`, `title`, `text`, `t`, `state`,
+`thread: [{sender, from, text, t}]`, and the close fields, null while
+open). A website reconciles off it: a ticket it erased while the sim was
+away it says so again (`ticket_delete`); one it never saw it takes back.
+A robot with no desk sends none, which is not an empty desk. Only
+`serve.py` and the pair recording hand the sinks a desk, so the
+committed fixtures are unchanged.
+
+**Downstream: three admin kinds** (`INBOUND_TYPES`, also
+`CODE_HANDLED_TYPES`: applied by code on any served world, never a
+command shown to the model). Each names the ticket in `ticket` and the
+admin in `from`; a pair's second robot is addressed by `robot` (0.19.0's
+reach-in rule); `id` is the website's, echoed back as `ref`.
+
+```jsonc
+{"type": "ticket_reply",  "id": "tr_01", "from": "ben", "ticket": "tk_0003",
+ "text": "which board was it?"}                       // `text` required
+{"type": "ticket_close",  "id": "tc_01", "from": "ben", "ticket": "tk_0003",
+ "text": "fixed the standoff"}                        // `text` optional
+{"type": "ticket_delete", "id": "td_01", "from": "ben", "ticket": "tk_0003"}
+```
+
+A close PAYS: the reward table's `ticket` row, once, through the ledger's
+one door, at the moment the physics thread drains the message (the top of
+an arbitration pass -- minutes after the send, mid-errand). A website
+should hold a reply or a close until the `ticket` event with its `ref`
+arrives, and re-send an unacknowledged one on the next connect, bounded,
+as it re-sends a visitor's message: the sim dedupes by message id within
+a process, a replayed close pays nothing, and an `unknown` settles the
+row for good. A delete is best effort and the `tickets` snapshot is the
+repair.
 
 ### 0.21.0, additive: the library -- a `read` event per page the robot asked for
 
@@ -918,6 +993,25 @@ bump; a consumer ignores an unknown type. The website's half -- store it,
 and show a run that ended this way as a crash rather than a stream that
 went quiet -- is a rooftop issue.
 
+### 0.21.0, additive: the built-tool rail (pluggybot #277)
+
+A second free body in both served worlds, **`rack_built`** (hint `rack` in
+the home sidecar, none in room_hub like the first rack), beside the rack:
+three bays at the rack's pitch past bay E, bay tags **7, 8, 9**, geoms
+`bayf_` … `bayh_` and `rack_built_<post|rail|foot|shelf|brace>_*`. The
+five hand-built modules are permanent; a built tool hangs on the rail and
+only there. **No bump**: a new dynamic body and three new textures, both
+of which a consumer already handles per body and per texture. The four
+scenes and both `--pair` scenes carry it; `tagtex7..9.png` are new under
+`textures/`; the recordings were re-flown on the new plan.
+
+- **`scene_changed`** is unchanged in shape. `bay` on it is now the
+  RAIL's index (0–2), `retired` is a built tool or null -- never one of
+  the originals -- and `reason: "retire"` likewise names a built tool.
+- **A built module's identity tag** is still `15 + bay`, so `tagtex15..17`
+  are the ones a scene can name; 18 and 19 stay committed for a rail that
+  grows and nothing references them.
+
 ### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
 
 pluggybot #168 (slice C). The scene was "fetched once" because the model
@@ -932,8 +1026,9 @@ which is the degradation, not a break.
   `scene` is the WHOLE new scene in exactly the shape the scene fixture
   has (`scene_dict`), so a consumer rebuilds its scene graph from it the
   way it built the first one from the fetched file; `retired` names the
-  module that left the rack (a bay is a replaced module), `module` the one
-  that hangs there now. The frame after it is a keyframe: the producer's
+  module that left the rack (until #277 a bay was a replaced module, any
+  of the five; since, a built tool on the rail), `module` the one that
+  hangs there now. The frame after it is a keyframe: the producer's
   pose memory is dropped with the census, because a body may be gone.
 - **The header a late joiner receives is the current census.** The
   publisher re-sends its header on connect, built from the recompiled
@@ -941,12 +1036,11 @@ which is the degradation, not a break.
 - **A built module's identity tag** is a real tag36h11 like the others,
   id `15 + bay` (`workshop/seam.py`), one per BAY: a retired tool's id is
   reused by the next tool in that bay. Its texture rides the scene as
-  `tags/tag<id>.png`; the five PNGs are committed beside the hand-built
+  `tags/tag<id>.png`; the PNGs are committed beside the hand-built
   modules' so the site can vendor them once.
 
 The website's half -- rebuilding the three.js scene on the message and
-carrying the five textures -- is rooftop-media-2026's issue; until it
-lands the site draws the previous rack.
+carrying the textures -- landed as rooftop-media-2026 #250.
 
 ### 0.19.0, additive: a second robot on the stream (M12)
 

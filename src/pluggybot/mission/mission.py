@@ -229,6 +229,17 @@ OTHER_ROBOT_CELLS = 12
 #: a robot in the way, and the drive WAITS this long before looking again.
 OTHER_NEAR_M = 1.2
 OTHER_WAIT_S = 2.0
+#: A drive's LAST leg -- its final waypoint and the goal itself -- is a
+#: terminal approach (`drive_toward(slow_radius=)`, navigation.py's rule),
+#: tapering over this many metres. The path waypoints before it keep the
+#: sweeping law. MEASURED (issue #277): a stow begun 13 cm from the bay's
+#: standoff -- a procedure that fetches a tool, tries it where it stands
+#: and stows it -- handed the plain law a goal closer than its overshoot
+#: and orbited it, 690 deg of turning in 16 s; whether the stagnation cut
+#: then landed inside `drive_to`'s 15 cm "close enough" was a coin the map
+#: tossed, and the built-tool rail beside bay E turned it over. The
+#: dispenser's own hops use the same 0.25 (`tools/dispenser.py`).
+ARRIVAL_SLOW_RADIUS = 0.25
 
 
 class MissionAborted(RuntimeError):
@@ -558,10 +569,15 @@ class HubMission:
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < 0.08:
         waypoints.pop(0)
-      if waypoints:
+      # The last waypoint is the goal's cell and the goal is 8 cm at most
+      # beyond it: both are the final approach, and get the law that
+      # cannot orbit (ARRIVAL_SLOW_RADIUS); every waypoint before them is
+      # swept through.
+      if len(waypoints) > 1:
         v, w = drive_toward(self.pose, waypoints[0])
       else:
-        v, w = drive_toward(self.pose, (wx, wy))
+        v, w = drive_toward(self.pose, waypoints[0] if waypoints else (wx, wy),
+                            slow_radius=ARRIVAL_SLOW_RADIUS)
       yield from self._nav_routine(v, w)
       if self.swap.pressing:
         # The BUMPER reflex (issue #94), the lidar reflex's twin for what

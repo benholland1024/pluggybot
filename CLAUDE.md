@@ -575,6 +575,36 @@ save a filmstrip PNG named after the script.
   bump; the run record carries `reads` whole and `ideas_traced` reads
   them (`asked` · `reads` · `traced`, a refusal kept apart). The test suite
   never touches the network: every test hands `Wiki(fetch=)` a dict.
+- **The robot can open support tickets, on `autonomous` only, and a
+  person closes them** (issue #284; `mind/tickets.py`; Overseer.md §2g;
+  `tests/test_tickets.py` pins each rule in milliseconds). Two paperwork
+  fields, `ticket {kind, title, text}` (`TICKET_KINDS`: bug / idea /
+  question / feedback) and `ticket_reply {ticket, text}`; the `tickets`
+  block in the user turn; `TICKETS_RULE`, which PRESCRIBES NOTHING (no
+  suggestion to file, no charge/battery/rack; a test reads it). The desk
+  is a text-registry DOCUMENT (`MAX_OPEN_TICKETS` 3 OPEN at once, refuses
+  when full; `MAX_TICKET_CHARS` 500; one JSON per ticket under
+  `$PLUGGY_THOUGHTS/tickets/`, the counter its own record so an id is
+  never reused) and it is the LIFECYCLE's (`HubLifecycle.tickets`, every
+  arm; `Menu.tickets` is what offers the fields, set by `build()` on
+  `autonomous`). ⚠ Three admin inbound kinds, `ticket_reply` /
+  `ticket_close` / `ticket_delete` (`CODE_HANDLED_TYPES`), drained in
+  `_visitor_step`: a reply lands on the thread and in History and fires
+  `ticket_replied` (the tenth event type, UNCONFIGURABLE); a close PAYS
+  the `ticket` row of `challenges.json` (25, unoffered, `guarded`'s table
+  and prefix unchanged) through `scoring.evaluate` + `_bank` ONCE -- a
+  replayed close answers `paid: false`; a delete erases and pays nothing.
+  ⚠ NOT the visitor tier's pending entry + `settle`: a true death restarts
+  the ledger's `seq`, so a pending seq would settle a new robot's entry.
+  ⚠ No decision field closes a ticket and nothing in `economy/` imports
+  the desk (a test walks the tree). The desk survives a true death (a
+  ticket is about the WORLD). On the wire: the `ticket` event
+  (`TICKET_OUTCOMES`), a `tickets` snapshot on open (only `serve.py` and
+  the pair recording hand the sinks a desk -- fixtures unchanged), `ref`
+  echoing the admin message an outcome acknowledges, `unknown` for a
+  ticket the desk does not hold. The website's half (rooftop-media-2026:
+  `pw_tickets`, the Tickets card on `/controls`, the `ticket` observatory
+  kind) holds an admin action until the `ref` comes back.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and
@@ -885,11 +915,14 @@ save a filmstrip PNG named after the script.
   The lifecycle keeps the `MjSpec` it was compiled from (`robot.world_spec`
   — MEASURED trajectory-identical to `from_xml_path` on both worlds, so
   keeping it costs nothing; `build()` and `serve.py` pass `spec=`). A BAY
-  IS A REPLACED MODULE: `hang_tool(tool, bay)` retires the module there
-  (`seam.retire`: the body and its subtree, the actuators on its joints,
-  its payload — the dispenser's seeds), attaches the built module with its
-  tag (`seam.attach`, tag id `15 + bay`, PNG written once atomically) and
-  `spec.recompile(model, data)`s: **~4–13 ms, `time` and `qpos` carried
+  IS ONE OF THE BUILT-TOOL RAIL'S, and a built tool already there is
+  retired (issue #277): `hang_tool(tool, bay)` takes the rail's own index
+  (A = 0, `coupling.built_bay_index` maps it into `rack_inventory`, whose
+  values index `STATION_YS`), retires a built tool in it (`seam.retire`:
+  the body and its subtree, the actuators on its joints — and REFUSES the
+  five hand-built modules by name, `seam.HAND_BUILT`), attaches the built
+  module with its tag (`seam.attach`, tag id `15 + bay`, PNG written once
+  atomically) and `spec.recompile(model, data)`s: **~4–13 ms, `time` and `qpos` carried
   across BY NAME, and NEW `MjModel`/`MjData` objects** — the old handles
   keep stepping a stale world. ⚠ So `HubLifecycle.rebind(model, data)` is
   the whole point: it re-points what the lifecycle owns (mission → swap,
@@ -918,8 +951,17 @@ save a filmstrip PNG named after the script.
   D; Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
   `HubLifecycle._workshop_routine`). Two decision FIELDS on `define`'s
   terms — `build_tool {name, bay, spec}`, `retire_tool name` — no replace:
-  a bay is NAMED and whatever hangs there is retired for good. Order, all
-  before a point moves: the envelope (`validate.check`), the seam's
+  a bay is NAMED and a tool of the robot's own hanging there is retired for
+  good. ⚠ THE FIVE ORIGINALS ARE PERMANENT AND A BUILT TOOL HANGS ON ITS
+  OWN RAIL (issue #277): `build_tool.bay` is the rail's `A`–`C`
+  (`BAY_LETTERS` off `BUILT_STATION_YS`; `D`/`E` refused with whose bay
+  they are), `retire_tool` refuses an original with the reason, the context
+  shows `rack: {original: [...], built: {A..C: module|null}}`, and a world
+  whose `world_config` has no `built_bays` gets NO workshop (no field, no
+  rule — the tower's shape); `can_reshape` refuses a world compiled without
+  the `rack_built` body. ⚠ ON A PAIR `can_reshape` STILL REFUSES (the
+  seam is single-robot; #168's open half), so the served pair cannot
+  hang a tool until both lifecycles rebind. Order, all before a point moves: the envelope (`validate.check`), the seam's
   preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
   points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
   60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
@@ -977,8 +1019,12 @@ save a filmstrip PNG named after the script.
   (a `table`, two 26 mm mass cubes tagged 23/24 -- #227 sets the unknown's
   mass through `body_mass` and grades it); neither issue touches the
   generator. Two additive hints, `cage` and `mouse`; `dynamic_flags`
-  counts a mocap body as dynamic so the mouse rides the wire. ⚠ ONE RACK,
-  ONE CHARGE BAY, unchanged: a second rack is a different design. ⚠ The
+  counts a mocap body as dynamic so the mouse rides the wire. ⚠ ONE
+  CHARGE BAY and ONE RACK PRIOR, unchanged: the built-tool rail (#277) is
+  a second body in the FIRST rack's frame, found through it, and
+  `RACK_CLEAR_M` is measured from the nearer of the two centres
+  (`HubLifecycle.rack_distance`); a rack at its own pose is a different
+  design. ⚠ The
   reserve's worst point is the loop's south-west corner BY ROUTE (45 m),
   not the straight-line farthest corner; `tests/test_world_budget.py`
   routes every zone over a raster of the compiled world to check it.
@@ -999,9 +1045,14 @@ save a filmstrip PNG named after the script.
   detour and stalled. Unfixed on purpose (the same fallback carries every
   bay and board approach into a wall's inflation); a flown test keeps its
   legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
-  any rack geometry change; five tool bays (A–E) plus the charge bay, and
-  `HUB_STATION_YS` is APPENDED to, never reordered, because bay↔tag pairing
-  is by index; a sixth tool needs the rail to grow (ToolPattern.md §6).
+  any rack geometry change; five tool bays (A–E) plus the charge bay on
+  the rack, and THREE MORE ON THE BUILT-TOOL RAIL beside it (`rack_built`,
+  a second free body continuing the pitch past E in the rack's frame,
+  issue #277; ToolPattern.md §6 route 4 has the clearances in both rooms).
+  `STATION_YS = HUB_STATION_YS + BUILT_STATION_YS` and `BAY_TAG_IDS` are
+  APPENDED to, never reordered, because bay↔tag pairing is by index; a
+  sixth HAND-BUILT tool needs the rail to grow, a fourth built one the
+  rail's.
   `models/room_1_scenery.xml` is the floor plan behind both `room_1.xml` and
   `room_hub.xml`. `models/schuko_sockets.xml`: `uv run python -m
   pluggybot.docking.schuko` after moving an outlet.

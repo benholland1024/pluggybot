@@ -60,11 +60,12 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.rack.coupling import HUB_STATION_YS, module_power_contact
+from pluggybot.rack.coupling import STATION_YS, module_power_contact
 from pluggybot.tick import Routine
 
-#: Which bay each module hangs in (`HUB_STATION_YS` is indexed by bay, and
-#: bay <-> tag pairing is by that index -- ToolPattern.md §6).
+#: Which bay each hand-built module hangs in (`STATION_YS` is indexed by
+#: bay, and bay <-> tag pairing is by that index -- ToolPattern.md §6); a
+#: built tool's bay is on the second rail, past these (issue #277).
 TOOL_BAYS = {"module_lcd": 0, "module_plug": 1, "module_pen": 2,
              "module_claw": 3, "module_seed": 4}
 #: The one role every program has today; M12 adds the second.
@@ -201,7 +202,7 @@ def _rack(life) -> dict[str, int]:
 
 
 def _tool_station(life, tool: str) -> float:
-  return HUB_STATION_YS[_rack(life)[tool]]
+  return STATION_YS[_rack(life)[tool]]
 
 
 def _fetch(life, args: dict) -> Routine:

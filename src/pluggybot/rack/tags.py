@@ -35,13 +35,15 @@ PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 # Tag identities. The whole point of real tags: these are decoded, not
 # inferred from where a blob happened to sit in the frame.
 RACK_TAG_ID = 0
-BAY_TAG_IDS = (1, 2, 4, 5, 6)  # bays A-E -- same ORDER as HUB_STATION_YS,
-                         # which is what pairs them (coupling.bay_tag_id). Not
-                         # contiguous because 3 was already the charge bay and
-                         # renumbering would invalidate every generated tag
+BAY_TAG_IDS = (1, 2, 4, 5, 6,   # bays A-E -- same ORDER as coupling.STATION_YS,
+               7, 8, 9)        # which is what pairs them (coupling.bay_tag_id).
+                         # Not contiguous because 3 was already the charge bay
+                         # and renumbering would invalidate every generated tag
                          # PNG and rack model for cosmetics. Bay E (id 6) came
                          # with the seed dispenser, appended for the same
-                         # reason the station tuple is appended to.
+                         # reason the station tuple is appended to; 7-9 are
+                         # the BUILT-TOOL rail's three bays (issue #277,
+                         # coupling.BUILT_STATION_YS), appended likewise.
 CHARGE_TAG_ID = 3
 MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
                   "module_claw": 13, "module_seed": 14}
@@ -95,12 +97,19 @@ def tag_image(tag_id: int) -> np.ndarray:
   return np.kron(out, np.ones((PIXELS_PER_CELL, PIXELS_PER_CELL), dtype=np.uint8))
 
 
+#: The tags a HUB world's geoms carry: the rack's, the bays' (both rails')
+#: and the five modules'. The tower's and the bench's are the home world's
+#: props, and a built module's material is added by `seam.attach` when it
+#: hangs -- so this, not `write_tag_pngs`' list, is what the hub emitters
+#: declare (a scene test holds every declared texture referenced).
+HUB_TAG_IDS = (RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values())
+
+
 def write_tag_pngs(directory: Path = TAG_DIR) -> list[int]:
-  """Write every tag PNG the hub worlds reference. Returns the ids written."""
+  """Write every tag PNG any world references. Returns the ids written."""
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
-  ids = [RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values(),
-         *BLOCK_TAG_IDS, *MASS_TAG_IDS]
+  ids = [*HUB_TAG_IDS, *BLOCK_TAG_IDS, *MASS_TAG_IDS]
   for tag_id in ids:
     Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
   return ids

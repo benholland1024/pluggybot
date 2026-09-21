@@ -97,6 +97,12 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166; `autonomous` only, §2b) | — |
 | `care` | go to the lab and do one thing for the mouse that pays nothing: the feed plate, the toy plate, or company beside the cage (issue #226; `autonomous` only, §2f) | `care`, `real` |
 
+Paperwork that rides any of them and costs no turn is listed where it is
+designed: the memory verbs (§7), the standing order and the event map
+(§2), `define` / `undefine` (§2b), `build_tool` / `retire_tool` (§2d),
+`lookup` (§2e), the acts (§2c), `care` / `real` / `mouse_will` (§2f),
+`ticket` / `ticket_reply` (§2g).
+
 **The menu is the world.** `Menu.for_world` resolves boards, figures and
 zones from the same `world_config` everything else reads, and `available()`
 drops what a world cannot do (`room_hub` has no whiteboards, so no `draw`).
@@ -274,11 +280,24 @@ describe a **tool** — real parts from the catalog (`rack/catalog.py`,
 `protocol/parts.json`, the same table the website's parts page shows) at
 positions on the standard module frame, a printed PLA box or two, an
 actuator with an axis and a verb — and the world builds it and hangs it on
-the rack. Two decision fields on `define`'s terms, paperwork that costs no
-turn: `build_tool: {name, bay, spec}` and `retire_tool: name`. No replace:
-a bay is **named**, and whatever hangs there — one of the five hand-built
-modules or a tool of the robot's own — is retired for good (the rack has
-five bays; a sixth needs the rail to grow, ToolPattern.md §6).
+the robot's **own rack**. Two decision fields on `define`'s terms, paperwork
+that costs no turn: `build_tool: {name, bay, spec}` and `retire_tool: name`.
+No replace: a bay is **named**, and a tool of the robot's own already
+hanging there is retired for good.
+
+**Two racks, since #277.** The five hand-built modules (LCD, plug, pen,
+claw, dispenser) hang on the first rack and are **permanent**: no bay of
+theirs can be named (`build_tool.bay` is the rail's `A`–`C`; `D` and `E`
+are refused with whose bay they are) and `retire_tool` refuses their
+names with the reason. Beside it stands the **built-tool rail**, a second
+free body continuing the first's 0.25 m pitch past bay E with three bays
+of its own (`coupling.BUILT_STATION_YS`; ToolPattern.md §6, route 4) — the
+only bays a build may take. Until #277 a build named any of the five and
+the module there went, originals included: a robot could delete the tools
+every offered job is written against, and every built tool cost a default
+one — a tax on the behaviour the workshop exists to measure. A world
+without the rail has no workshop at all (`world_config`'s `built_bays`,
+the tower's shape): both served worlds carry it.
 
 What code keeps, in order, before anything moves:
 
@@ -312,10 +331,14 @@ Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
 `hung` (the module, the bay, the verbs, what it retired), `retired` — and
 a hang or a retire is followed by the world's `scene_changed`. What the
-robot built is shown back to it: `rack` (what hangs where) and `tools`
-(each spec, its bay, its cost) ride the volatile half of the context. A
-built tool's axis is `<name>.<verb>` in the procedure language, and the
-tool is fetched like any module.
+robot built is shown back to it: `rack` — `original`, the five as a list
+no field can name, and `built`, the rail's bays by letter with an empty one
+`null` — and `tools` (each spec, its bay, its cost) ride the volatile half
+of the context. A built tool's axis is `<name>.<verb>` in the procedure
+language, and the tool is fetched like any module: its bay indexes
+`STATION_YS` past the five, and every swap, standoff and tag fix works on
+the rail as it does on the first rack, because the rail's stations are
+commissioned in the same frame.
 
 What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
 JSON per tool. Each is re-validated against today's catalog when the
@@ -486,6 +509,95 @@ set — `build()` on `autonomous`, on a world with a lab — and
 a care act from the rack is ~1.0 Wh and ~100 s one way, the reckoning
 drifts ~0.25 m over the trip and `go_charge` from the lab docks through it
 (SimNotes).
+
+### 2g. Support tickets: the robot writes to the people who run its world (issue #284; `autonomous` only)
+
+**What the robot thinks of its world is a reading nobody has taken.** The
+observatory records what the robot does; the visitor channel records what
+it says to strangers; nothing recorded what it would say to the people
+who built the place, if it could. So it can: a **support ticket** is a
+`bug`, an `idea`, a `question` or `feedback` about the world, in the
+robot's own words, filed with the operators and answered by a person.
+`mind/tickets.py` is the desk; the website's half (a Tickets card on
+`/experiments/pluggyworld/controls`, the `ticket` observatory kind) is
+rooftop-media-2026's.
+
+**Two paperwork fields, one document, one message row.** `ticket`
+(`{kind, title, text}`) opens one; `ticket_reply` (`{ticket, text}`) puts
+a line on an open thread. Both ride any answer and cost no turn, on
+`pin`'s terms. The desk is a DOCUMENT in the text registry (`tickets`:
+robot-written, `MAX_OPEN_TICKETS` = 3 open at once, refuses when full,
+one JSON record per ticket under `$PLUGGY_THOUGHTS/tickets/`, written
+through the store like every other document, `text.admit` the gate); an
+operator's line is a MESSAGE row (`operator`, a message's cap). What the
+robot is shown is the `tickets` block of the user turn — every open
+ticket with its thread (each line labelled with who wrote it: a report of
+what somebody said, never a turn), the newest three closed ones with who
+closed them, with what words and what it paid, and `slotsLeft` — and one
+rule, `TICKETS_RULE`, which says the shape and **prescribes nothing**: not
+what to file, not how often, not that it is worth doing. What this is
+for is what the robot says about its world when nobody asks; a rule that
+said "report the bugs you find" would make every ticket a prompted one
+(a test reads it for a suggestion, and for charge / battery / rack).
+
+**Everything after the filing is the operator's**, through three inbound
+kinds on the admin socket, code-handled like `reset_tool` and never a
+command shown to the model:
+
+| inbound | what happens at the desk | what the robot sees |
+|---|---|---|
+| `ticket_reply` | a line on the thread, from the admin's username | the thread; a History line, *ben replied on my ticket tk_0001 (…): …*; the event `ticket_replied` for its map |
+| `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the points; `ticket_replied` |
+| `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
+
+The robot cannot close, delete or withdraw a ticket. So a full desk is
+the operator's to clear, and the refusal says so; and the two things a
+person can do with a ticket are exactly the two outcomes: *worth
+attention* (closed, paid) and *not* (deleted, unpaid). No grade in
+between, by decision — an admin who wants "closed but not useful" deletes.
+
+**What a closed ticket pays, and through which door.** A `ticket` row in
+`economy/challenges.json` (25, `tier: auto`, unoffered — the tower's
+reason: it is shown to the `autonomous` arm's table and hashed into no
+result, and `guarded`'s table, prefix and `GUARDED_RULES_SHA` are
+unchanged) and an evaluator, `scoring.eval_ticket`, that confirms the
+desk holds the ticket, its kind is one the desk takes and it was closed
+— measured off the desk, which only the robot's own filing and the
+operator's inbound can write. `HubLifecycle._ticket_close` calls
+`scoring.evaluate` and `_bank`, the same two calls a drawing goes
+through; the ledger re-derives the 25. **Nothing awards itself**: no
+decision field closes a ticket, and nothing in `economy/` imports the desk
+(a test walks the tree). A replayed close — the website re-sends one it
+never saw acknowledged — answers the same figure and pays nothing (`Desk.
+close` returns `changed` False; `paid` False on the wire). A deleted
+ticket leaves no ledger row at all. Why not the visitor tier's pending
+entry and `Ledger.settle`, which is the door a rating uses? Because a true
+death archives the ledger and restarts `seq`, so a pending `seq` filed
+before one would settle a NEW robot's entry — and because "erases it
+entirely" should hold on the ledger too.
+
+**Why the desk is the lifecycle's and not the mind's.** `HubLifecycle.
+tickets` exists on every arm; `Menu.tickets` (set by `build()` on
+`autonomous` alone) is what offers the two fields, the block and the
+rule. A ticket opened on `autonomous` is therefore closed — and paid — by
+whatever runs next on the same volume, a scripted day included, and the
+three inbound kinds are in `CODE_HANDLED_TYPES` so a served world always
+advertises them. The desk survives a restart and a **true death** both: a
+ticket is a report about the WORLD, and the next robot inherits the world
+(the counter is its own record, so a deleted ticket never hands its id to
+the next one; the website keys a ticket by robot root and id).
+
+**On the wire**, additive, no bump (protocol/README.md): one event type,
+`ticket` — `opened` / `replied` (with `sender` `robot` or `operator`, and
+`ref` echoing the admin message it acknowledges) / `closed` (`points`,
+`paid`, `ref`) / `deleted` (`ref`) / `refused` (`why`) / `unknown` (a
+reply, close or delete naming a ticket the desk does not hold — the
+acknowledgement that stops a website re-sending it) — and a `tickets`
+snapshot on open, the open tickets whole, so a website that erased one
+while the sim was away can say so again. The run record carries the
+events (`tickets`, beside `reads`). `ticket_replied` is the tenth event
+type, unconfigurable like `message_received`: a row keyed on the ticket's
+kind or title would be a rule the robot wrote about its own text.
 
 ### 2c. The other robot (issue #167, M12)
 
@@ -730,14 +842,16 @@ otherwise).
   agent going quiet is #141's confound), it is armed only where there is a
   map, and it is **not prevented in code** — a map that cannot remove its own
   `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves.
-- **Nine event types** (`events.EVENT_TYPES`): `nothing_to_do`,
+- **Ten event types** (`events.EVENT_TYPES`): `nothing_to_do`,
   `task_complete`, `task_failed` (these two take a `kind` filter),
   `decision_failed`, `battery_below`, `battery_above`, `points_below` (level
   events, edge-triggered and re-armed — the hysteresis rule from
   ActivityPattern.md), `message_received`, `every` (a period, floor
-  `MIN_PERIOD_S` 1 s). ⚠ `message_received` takes **no configuration**: a row
+  `MIN_PERIOD_S` 1 s), `ticket_replied` (an operator answered or closed a
+  support ticket, §2g). ⚠ `message_received` takes **no configuration**: a row
   keyed on a sender or a keyword would be a free-text path from a visitor to
-  the robot's body, which is the invariant §10 rests on. `nothing_to_do` is
+  the robot's body, which is the invariant §10 rests on; `ticket_replied`
+  takes none either. `nothing_to_do` is
   the loop reaching its decision branch — at mission start and after every
   `idle`/`explore`/`recall` — so a map carrying only `task_complete → ask`
   goes quiet on its first tick.

@@ -81,7 +81,8 @@
   "furniture_counter": "counter",
   "furniture_table": "table",
   "stairs": "stairs",
-  "rack": "rack"
+  "rack": "rack",
+  "rack_built": "rack"
  },
  "zones": [
   {

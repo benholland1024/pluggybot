@@ -35,7 +35,8 @@ import mujoco
 
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
-  HUB_STATION_YS, module_power_contact, rack_charge_contact,
+  BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS,
+  built_bay_index, module_power_contact, rack_charge_contact,
 )
 from pluggybot.economy.census import Zone
 from pluggybot.mission.errand import (
@@ -48,8 +49,10 @@ from pluggybot.mission.mission import (
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
+from pluggybot.mind import tickets as tickets_desk
 from pluggybot.mind import wiki
 from pluggybot.mind import text as text_registry
+from pluggybot.mind.tickets import Desk, DeskRefused
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
@@ -213,8 +216,10 @@ WAIT_FOR_WORK_S = 5.0
 #: measured on the pair fixture, the second robot finished a stow and stood
 #: by at the bay standoff for six minutes, and the first robot's next pick
 #: failed 0.4 m from it. Standing by begins by clearing this radius of the
-#: rack prior, back to the robot's own start pose. The bay standoff is
-#: ~1.2 m and `OTHER_NEAR_M` (what a planner routes round) is 1.2 m.
+#: rack prior -- and of the built-tool rail's centre beside it, since #277
+#: (`HubLifecycle.rack_distance`) -- back to the robot's own start pose.
+#: The bay standoff is ~1.2 m and `OTHER_NEAR_M` (what a planner routes
+#: round) is 1.2 m.
 RACK_CLEAR_M = 2.0
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
@@ -333,12 +338,21 @@ class HubLifecycle:
     #: every class that assigns `self.model` and requires a `rebind`.
     self.on_rebind: list = []
     #: WHICH MODULE HANGS IN WHICH BAY, as data the seam edits (module ->
-    #: bay index into `HUB_STATION_YS`). Starts as the five hand-built
-    #: modules; a built tool takes a bay by retiring the module in it.
+    #: bay index into `coupling.STATION_YS`: 0-4 the first rack's, then
+    #: the built-tool rail's). Starts as the five hand-built modules, which
+    #: are permanent (issue #277); a built tool takes a built-rail bay,
+    #: retiring a built tool already there.
     from pluggybot.procedure.steps import TOOL_BAYS
     self.rack_inventory: dict[str, int] = dict(TOOL_BAYS)
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
+    #: Whether THIS world carries the built-tool rail (issue #277), read off
+    #: the compiled model: the bare spike world does not, and there a tool
+    #: cannot hang at all (`can_reshape` says so). Nothing else reads the
+    #: rail's presence -- the grammar keys off `world_config`'s count, which
+    #: a test holds equal to this.
+    self.has_built_rack = mujoco.mj_name2id(
+      model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
     self.tools_built = 0
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
@@ -576,6 +590,18 @@ class HubLifecycle:
     #: One row per read asked for, for the run record and the observatory
     #: (`read` event): what was asked, the outcome, the page, its revision.
     self.reads: list[dict] = []
+    # ---- support tickets (issue #284) ----
+    #: THE DESK: what this robot has told the people who run its world,
+    #: and what they said back. The LIFECYCLE's rather than the mind's --
+    #: a close pays and a reply is filed on any arm, so a ticket opened
+    #: on `autonomous` is answered by whatever runs next on the same
+    #: volume; what the arm decides is whether the robot may OPEN one
+    #: (`Menu.tickets`). Beside the thought files, and in memory where
+    #: those are.
+    self.tickets = Desk(self.thoughts.root / "tickets"
+                        if self.thoughts.root is not None else None)
+    #: One row per `ticket` event, for the run record and the observatory.
+    self.ticket_events: list[dict] = []
     #: WHY THE MIND IS BEING CONSULTED (issue #221): the map row that asked
     #: (`event`, `kind`, `value`), the once-per-life `bootstrap`, or the
     #: `loop` reaching its decision branch where there is no map. Shown as
@@ -938,12 +964,23 @@ class HubLifecycle:
     for hook in list(self.on_event):
       hook(dict(message))
 
-  def _clear_rack_routine(self) -> Routine:
-    """Stand by away from the rack: within `RACK_CLEAR_M` of the rack prior,
-    drive back to the start pose; anywhere else, stay put."""
-    px, py, _ = self.mission.pose
+  def rack_distance(self, px: float, py: float) -> float:
+    """How far a point is from the racks: the nearer of the first rack's
+    prior and the built-tool rail's centre beside it (issue #277) -- the
+    rail's far bay standoff is 1.8 m from the prior, inside the clearance
+    only just, and its approach lane not at all."""
     r = self.mission.rack_prior
-    if self.home_pose is None or math.hypot(px - r.x, py - r.y) >= RACK_CLEAR_M:
+    d = math.hypot(px - r.x, py - r.y)
+    if self.has_built_rack:
+      bx, by = r.to_world(0.0, BUILT_RACK_Y)
+      d = min(d, math.hypot(px - bx, py - by))
+    return d
+
+  def _clear_rack_routine(self) -> Routine:
+    """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
+    back to the start pose; anywhere else, stay put."""
+    px, py, _ = self.mission.pose
+    if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return
     hx, hy = self.home_pose[0], self.home_pose[1]
     self._say(f"standing by: clearing the rack for the others -- back to "
@@ -1355,10 +1392,13 @@ class HubLifecycle:
       callback(model, data)
 
   def hang_tool(self, tool, bay: int) -> dict:
-    """A built tool takes a bay: the module there is RETIRED, the tool's
-    module is attached at the same station, the world is recompiled with
-    its state carried across, every holder is rebound, the tool's verbs
-    are registered, and `scene_changed` goes out on the wire.
+    """A built tool takes a bay ON THE BUILT-TOOL RAIL (`bay` is the rail's
+    own index, A = 0; issue #277): a built tool already there is RETIRED,
+    the tool's module is attached at the station, the world is recompiled
+    with its state carried across, every holder is rebound, the tool's
+    verbs are registered, and `scene_changed` goes out on the wire. The
+    five hand-built modules hang on the first rack and are never in the
+    way: nothing here can name their bays.
 
     Between errands only, with nothing on the fork: a recompile mid-errand
     would pull the world out from under a routine holding a transient tool
@@ -1372,7 +1412,8 @@ class HubLifecycle:
     self.can_reshape(bay)
     if tool.body in self.rack_inventory:
       raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
-    retired = next((m for m, b in self.rack_inventory.items() if b == bay), None)
+    index = built_bay_index(bay)
+    retired = next((m for m, b in self.rack_inventory.items() if b == index), None)
     record = {"tool": tool.name, "module": tool.body, "bay": bay,
               "retired": retired, "t": round(float(self.data.time), 3)}
     if retired is not None:
@@ -1385,40 +1426,47 @@ class HubLifecycle:
     record["recompileMs"] = self._recompile(reason="tool", tool=tool.name,
                                             module=tool.body, bay=bay,
                                             retired=retired)
-    self.rack_inventory[tool.body] = bay
+    self.rack_inventory[tool.body] = index
     self.built[tool.body] = tool
     record["verbs"] = wbuild.register(tool)
-    self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)}"
-              + (f", retiring the {retired.removeprefix('module_')}" if retired else ""),
+    self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)} of my rack"
+              + (f", retiring my {retired.removeprefix('module_')}" if retired else ""),
               detail=f"recompile {record['recompileMs']} ms")
     return record
 
   def retire_tool(self, module: str) -> dict:
-    """Take a module off the rack for good: its bay goes empty. A built
-    tool's verbs leave the registries with it; a hand-built module's stay
-    (they are the language's), gated on a module that is no longer there.
-    Same preconditions as `hang_tool`."""
+    """Take a BUILT tool off its rail for good: its bay goes empty and its
+    verbs leave the registries with it. A hand-built module is refused by
+    name (issue #277): the five originals are permanent, and the language's
+    verbs for them stay. Same preconditions as `hang_tool`."""
     from pluggybot.workshop import seam
+    if module in seam.HAND_BUILT:
+      raise seam.SeamRefused(f"the {module.removeprefix('module_')} is one of the "
+                             "original modules and stays on the rack")
     if module not in self.rack_inventory:
       raise seam.SeamRefused(f"{module} is not on the rack")
-    bay = self.rack_inventory[module]
+    index = self.rack_inventory[module]
+    bay = index - len(HUB_STATION_YS)
     self.can_reshape(bay)
     record = {"module": module, "bay": bay, "t": round(float(self.data.time), 3),
               "retiredWhat": self._retire_from_spec(module)}
     record["recompileMs"] = self._recompile(reason="retire", tool=None,
                                             module=None, bay=bay, retired=module)
-    self._say(f"I took the {module.removeprefix('module_')} off the rack; bay "
+    self._say(f"I took my {module.removeprefix('module_')} off my rack; bay "
               f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
     return record
 
   def can_reshape(self, bay: int) -> None:
     """Every reason the world may not be recompiled right now, or nothing.
     Checked BEFORE a build spends anything, so a refused hang never
-    follows a paid print."""
+    follows a paid print. `bay` is a built-rail index."""
     from pluggybot.workshop import seam
     if self.spec is None:
       raise seam.SeamRefused("this world was compiled without its spec; "
                              "build it through `build()` to hang tools")
+    if not self.has_built_rack:
+      raise seam.SeamRefused("this world has no built-tool rack; a built tool "
+                             "has nowhere to hang here")
     if self.peers:
       raise seam.SeamRefused("a pair shares one world; the seam is "
                              "single-robot until both lifecycles rebind")
@@ -1426,8 +1474,9 @@ class HubLifecycle:
     if self.state in ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN") or _carried(self):
       raise seam.SeamRefused("a tool is hung between errands with the fork "
                              "empty, never mid-errand")
-    if not 0 <= bay < len(HUB_STATION_YS):
-      raise seam.SeamRefused(f"no bay {bay}; the rack has {len(HUB_STATION_YS)}")
+    if not 0 <= bay < len(BUILT_STATION_YS):
+      raise seam.SeamRefused(f"no bay {bay}; the built-tool rail has "
+                             f"{len(BUILT_STATION_YS)}")
 
   def _retire_from_spec(self, module: str) -> dict:
     from pluggybot.workshop import build as wbuild
@@ -1471,6 +1520,7 @@ class HubLifecycle:
     if shop is None or not (decision.build_tool or decision.retire_tool):
       return
     from pluggybot.workshop import cost as wcost
+    from pluggybot.workshop import seam
     from pluggybot.workshop.library import BAYS, WorkshopRefused
     from pluggybot.workshop.seam import SeamRefused
     t = float(self.data.time)
@@ -1480,6 +1530,12 @@ class HubLifecycle:
       try:
         entry = shop.entries.get(name)
         if entry is None:
+          # ...and an original named here gets the reason, not "no such
+          # tool" (issue #277): the grammar enumerates built names, but a
+          # prose answer or an old habit can still say "pen"
+          if f"module_{name}" in seam.HAND_BUILT:
+            raise WorkshopRefused([f"the {name} is one of the original modules "
+                                   "and stays on the rack"])
           raise WorkshopRefused([f"no built tool {name!r} to retire"])
         self.retire_tool(f"module_{name}")
         shop.retire(name)
@@ -2027,6 +2083,15 @@ class HubLifecycle:
       self._set_battery(msg)
     for msg in self.inbox.drain(("set_points",)):
       self._set_points(msg)
+    # The operator's side of a ticket (issue #284): a reply, a close, a
+    # delete -- applied here by code, like every admin kind. What the
+    # robot is shown is the thread, on its next turn.
+    for msg in self.inbox.drain(("ticket_reply",)):
+      self._ticket_reply(msg)
+    for msg in self.inbox.drain(("ticket_close",)):
+      self._ticket_close(msg)
+    for msg in self.inbox.drain(("ticket_delete",)):
+      self._ticket_delete(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -2484,6 +2549,139 @@ class HubLifecycle:
     else:
       self._say(f"READ failed ({row['why']}): {q!r}")
       self._remember(f"asked the library for {q!r}: failed, {row['why']}")
+
+  # ---- support tickets (issue #284) -------------------------------------------
+
+  def _ticket_event(self, outcome: str, ticket=None, **fields) -> dict:
+    """One `ticket` event: on the wire, in the record, narrated by the
+    caller. Carries the ticket's id, kind and title where there is one."""
+    t = float(self.data.time)
+    event = {"type": "ticket", "t": round(t, 3), "robot": self.root,
+             "outcome": outcome,
+             **({"id": ticket.id, "kind": ticket.kind, "title": ticket.title}
+                if ticket is not None else {}),
+             **fields}
+    self.ticket_events.append({k: v for k, v in event.items() if k != "type"})
+    self._emit(event)
+    return event
+
+  def _tickets(self, decision) -> None:
+    """Apply a decision's two ticket fields (issue #284): a ticket opened
+    with the desk, a line on an open thread. The desk refuses out loud --
+    a full desk, a closed ticket, an empty report -- and the refusal is
+    narrated, remembered and on the wire, because a ticket the robot
+    believes it filed and did not is the failure that matters.
+
+    Nothing here pays: a ticket earns at the CLOSE, through the ledger's
+    one door, when the operator's `ticket_close` arrives."""
+    t = float(self.data.time)
+    if decision.ticket:
+      f = decision.ticket
+      try:
+        ticket = self.tickets.open(f.get("kind", ""), f.get("title", ""),
+                                   f.get("text", ""), t)
+      except DeskRefused as e:
+        self._ticket_event("refused", why=str(e), verb="ticket",
+                           kind=str(f.get("kind", "")), title=str(f.get("title", "")))
+        self._say(f"TICKET refused: {e}")
+        self._remember(f"tried to open a ticket ({f.get('kind') or '?'}: "
+                       f"{f.get('title') or f.get('text', '')[:40]}) -- refused: {e}")
+      else:
+        self._ticket_event("opened", ticket, text=ticket.text)
+        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}")
+        self._remember(f"opened ticket {ticket.id} ({ticket.kind}): "
+                       f"{ticket.title} -- {ticket.text}")
+    if decision.ticket_reply:
+      r = decision.ticket_reply
+      try:
+        ticket = self.tickets.reply(r.get("ticket", ""), r.get("text", ""), t,
+                                    sender=tickets_desk.ROBOT, who=self.robot_name)
+      except DeskRefused as e:
+        self._ticket_event("refused", why=str(e), verb="ticket_reply",
+                           id=str(r.get("ticket", "")))
+        self._say(f"TICKET reply refused: {e}")
+      else:
+        line = ticket.thread[-1]
+        self._ticket_event("replied", ticket, sender=tickets_desk.ROBOT,
+                           **{"from": self.robot_name}, text=line.text)
+        self._say(f"TICKET {ticket.id} -- replied: {line.text}")
+        self._remember(f"replied on ticket {ticket.id} ({ticket.title}): {line.text}")
+
+  def _ticket_reply(self, msg) -> None:
+    """An operator's line on one of the robot's tickets (issue #284): onto
+    the thread, into History (the system quoting the sender, as a visitor's
+    words are), on the wire as the acknowledgement the website settles its
+    row by, and `ticket_replied` for the map. A ticket this desk does not
+    hold, or one already closed, is answered `unknown` -- the fate that
+    stops a website re-sending it."""
+    who = msg.who or "the operator"
+    try:
+      ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
+                                  sender=tickets_desk.OPERATOR, who=who)
+    except DeskRefused as e:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id, why=str(e),
+                         verb="ticket_reply")
+      self._say(f"TICKET reply from {who} ignored: {e}")
+      return
+    line = ticket.thread[-1]
+    self._ticket_event("replied", ticket, sender=tickets_desk.OPERATOR,
+                       **{"from": who}, text=line.text, ref=msg.id)
+    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}")
+    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title}): "
+                   f"{line.text}")
+    self._occur("ticket_replied")
+
+  def _ticket_close(self, msg) -> None:
+    """The operator closed a ticket (issue #284): the desk ends it, the
+    reward table's `ticket` row is banked through the ledger's one door --
+    `scoring.evaluate` measures the desk, `Ledger.award` re-derives the
+    points -- ONCE, and the closing message goes into History. A replayed
+    close (the website never saw the acknowledgement) answers the same
+    figure and pays nothing; a ticket the desk does not hold is `unknown`."""
+    who = msg.who or "the operator"
+    t = float(self.data.time)
+    ticket, changed = self.tickets.close(msg.ticket, by=who, text=msg.text, t=t)
+    if ticket is None:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id,
+                         why=f"no ticket {msg.ticket!r} on the desk",
+                         verb="ticket_close")
+      self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
+      return
+    if changed:
+      # Measured off the desk AFTER the close was applied (`sample_ticket`),
+      # never off the message: the evaluator's `closed` is the desk's state.
+      verdict = scoring.evaluate(
+        "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
+        table=self.ledger.table if self.ledger is not None else None)
+      entry = self._bank(verdict)
+      if entry is not None:
+        self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+      said = f": {ticket.closed_text}" if ticket.closed_text else ""
+      paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
+      self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
+      self._remember(f"{who} closed my ticket {ticket.id} ({ticket.kind}: "
+                     f"{ticket.title}){said}{paid}")
+      self._occur("ticket_replied")
+    self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
+                       text=ticket.closed_text, points=ticket.points,
+                       seq=ticket.seq, ref=msg.id, paid=changed)
+
+  def _ticket_delete(self, msg) -> None:
+    """The operator erased a ticket (issue #284): off the desk, open or
+    closed, and nothing paid. The History line stays -- the robot did file
+    it, and the record is append-only -- and says the ticket was removed."""
+    who = msg.who or "the operator"
+    ticket = self.tickets.delete(msg.ticket)
+    if ticket is None:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id,
+                         why=f"no ticket {msg.ticket!r} on the desk",
+                         verb="ticket_delete")
+      self._say(f"TICKET delete from {who} ignored: no ticket {msg.ticket!r}")
+      return
+    self._ticket_event("deleted", ticket, **{"from": who}, ref=msg.id)
+    self._say(f"TICKET {ticket.id} deleted by {who}")
+    self._remember(f"{who} removed my ticket {ticket.id} ({ticket.kind}: "
+                   f"{ticket.title}); it will not be answered")
 
   # ---- acts toward the other robot (issue #208) -------------------------------
 
@@ -3801,6 +3999,9 @@ class HubLifecycle:
     # puts the page on the shelf for the next turn, and every read -- a
     # page, a miss, a failure, a refusal -- on the wire and in the record.
     self._read(decision)
+    # ...and a support ticket, or a line on one (issue #284): filed with
+    # the desk, refused out loud, on the wire either way. Paperwork.
+    self._tickets(decision)
     # ...and the library's two verbs (issue #166), paperwork like the four
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
@@ -4056,6 +4257,9 @@ class HubLifecycle:
       # outcome, the page and its revision -- the rows `ideas_traced` is
       # measured off, beside the observatory's `read` events.
       "reads": list(self.reads),
+      # Every `ticket` event (issue #284): opened, replied on, closed and
+      # paid, deleted, refused -- the observatory's rows, for the record.
+      "tickets": list(self.ticket_events),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.
@@ -4976,15 +5180,33 @@ def overseer_context(life) -> dict:
   # `reading`, because `library` above is the PROCEDURE library's block.
   if getattr(life.overseer, "wiki", None) is not None:
     state["reading"] = [dict(page) for page in life._shelf]
-  # THE WORKSHOP (issue #168): what hangs in which bay, the tools the
-  # robot built, and their names for `retire_tool`'s grammar.
+  # THE DESK (issue #284): the robot's open tickets with their threads,
+  # the newest closed ones with what came of them, and how many more it
+  # may open -- only where the arm offers the field (`Menu.tickets`), so
+  # `guarded`'s context is unchanged. Every line on a thread is labelled
+  # with who wrote it: a report of what somebody said, never a turn.
+  if life.overseer is not None and getattr(life.overseer.menu, "tickets", False):
+    state["tickets"] = life.tickets.as_context()
+  # THE WORKSHOP (issue #168): what hangs where, the tools the robot
+  # built, and their names for `retire_tool`'s grammar. Two racks since
+  # #277: the originals, which no field can name, as a list; the robot's
+  # own rail by bay letter -- the grammar of `build_tool.bay` -- with an
+  # empty bay shown as null so the slot is learnable.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
   if shop is not None:
-    from pluggybot.workshop.library import BAYS
-    state["rack"] = {BAYS[b]: m for m, b in sorted(life.rack_inventory.items(),
-                                                    key=lambda kv: kv[1])}
+    state["rack"] = rack_context(life.rack_inventory)
     state["tools"] = shop.as_context()
   return state
+
+
+def rack_context(inventory: dict[str, int]) -> dict:
+  """`rack` as the model sees it: `original` (the five hand-built modules,
+  permanent) and `built` (the built-tool rail, letter -> module or null)."""
+  from pluggybot.workshop.library import BAYS
+  first = len(HUB_STATION_YS)
+  by_index = {b: m for m, b in inventory.items()}
+  return {"original": [by_index[i] for i in range(first) if i in by_index],
+          "built": {BAYS[k]: by_index.get(first + k) for k in range(len(BAYS))}}
 
 
 def attach_mode_stream(life, sinks, pacer=None,
@@ -5085,6 +5307,11 @@ def world_config(world: str) -> dict:
       # without a lab.
       "lab": {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
               "bench": tuple(home.LAB_BENCH_XY)},
+      # The built-tool rail's bay count (issue #277): what gives the
+      # `autonomous` arm a workshop at all. 0 on a world without the rail
+      # (none served today; the bare spike world is not a `world_config`
+      # world), and then `build_tool` is not in the grammar.
+      "built_bays": len(BUILT_STATION_YS),
       # Every named region, for an overseer's `explore(zone)` (issue #15).
       # Off the generator's own ZONES, like the census zone above -- the
       # region the LLM can name is the region the website draws.
@@ -5124,6 +5351,7 @@ def world_config(world: str) -> dict:
       "meta": None,            # ...and no whiteboards: the standing board
                                # lives in the bare hub_world, which is not a
                                # navigated room
+      "built_bays": len(BUILT_STATION_YS),   # the rail fits its north wall
     }
   raise ValueError(f"unknown world {world!r} (room_hub or home)")
 

@@ -34,6 +34,7 @@ from pathlib import Path
 import pytest
 
 from pluggybot.mind import inbox, overseer as ov, store, text, thoughts
+from pluggybot.mind import tickets as desk
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import FINDINGS, GOALS, HISTORY, MAIN, NOTES, TOP_OF_MIND, ThoughtFiles
 from pluggybot.procedure import library as procedures
@@ -48,7 +49,7 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
 #: The modules that OWN a surface. Every one reads its rules off the
 #: registry and its bytes off the store; none touches the disk itself.
 OWNERS = ("mind/thoughts.py", "procedure/library.py", "workshop/library.py",
-          "mind/inbox.py", "mind/text.py")
+          "mind/inbox.py", "mind/text.py", "mind/tickets.py")
 #: What a disk write looks like in a syntax tree: a method only a Path has
 #: (a string has none of these), a bare `open`, or an `os` / `shutil` call
 #: that moves bytes. `str.replace` is not `os.replace`.
@@ -89,11 +90,12 @@ def _calls(path: Path) -> set[str]:
 
 
 def test_every_text_surface_is_a_registry_row():
-  """Six files, two libraries, three message channels: eleven rows, and
-  each owner's numbers are the row's. A cap or a writer typed in an owner
-  would be a second table."""
+  """Six files, two libraries, the ticket desk, four message channels:
+  thirteen rows, and each owner's numbers are the row's. A cap or a writer
+  typed in an owner would be a second table."""
   names = {s.name for s in text.SURFACES}
-  assert names == {*THOUGHT_FILES, "procedures", "tools", "visitor", "peer", "library"}
+  assert names == {*THOUGHT_FILES, "procedures", "tools", "tickets",
+                   "visitor", "peer", "library", "operator"}
   assert thoughts.SPECS == {s.name: s for s in text.FILES}
   assert thoughts.NAMES == THOUGHT_FILES
   assert procedures.Library(None).cap == text.BY_NAME["procedures"].cap == text.MAX_PROCEDURES
@@ -102,6 +104,12 @@ def test_every_text_surface_is_a_registry_row():
   assert workshop.SUFFIX == text.BY_NAME["tools"].suffix
   assert inbox.MAX_TEXT == text.BY_NAME["visitor"].cap == text.BY_NAME["peer"].cap
   assert ov.MAX_TELL == text.BY_NAME["peer"].cap
+  # ...and the desk (#284): the cap counts OPEN tickets and is the row's;
+  # a line on a thread is a message's length, the operator row's.
+  assert desk.MAX_OPEN == text.BY_NAME["tickets"].cap == text.MAX_OPEN_TICKETS
+  assert desk.SUFFIX == text.BY_NAME["tickets"].suffix
+  assert desk.MAX_LINE == text.BY_NAME["operator"].cap == inbox.MAX_TEXT
+  assert desk.MAX_TEXT == text.MAX_TICKET_CHARS > inbox.MAX_TEXT
   # ...and the library's page is a paragraph, not a sentence (#216): its
   # own cap, read by the module that delivers it.
   from pluggybot.mind import wiki
@@ -124,7 +132,8 @@ def test_the_two_shapes_stay_two():
     assert len(s.verbs) <= 2, f"{s.name}: an add, a remove, and no third"
     assert (s.verbs == ()) == (s.writer != text.ROBOT), s.name
   for m in text.MESSAGES:
-    assert m.shape == text.MESSAGE and m.writer in (text.VISITOR, text.PEER, text.LIBRARY)
+    assert m.shape == text.MESSAGE and m.writer in (text.VISITOR, text.PEER,
+                                                    text.LIBRARY, text.OPERATOR)
     assert m.writer not in THOUGHT_WRITERS or m.writer == "robot"
     assert not m.stable and not m.default and not m.offered_with
     with pytest.raises(text.Refused, match="is a message"):
@@ -165,7 +174,8 @@ def test_every_owner_passes_the_gate_and_none_touches_the_disk():
   """The grep, as a syntax-tree walk: the three document owners call
   `admit`, and no owner calls anything that writes a file -- only the
   store does. A bespoke write path is exactly a module that fails this."""
-  for rel in ("mind/thoughts.py", "procedure/library.py", "workshop/library.py"):
+  for rel in ("mind/thoughts.py", "procedure/library.py", "workshop/library.py",
+              "mind/tickets.py"):
     assert "admit" in _calls(SRC / rel), f"{rel} writes without the gate"
   for rel in OWNERS:
     hit = _disk_writes(SRC / rel)

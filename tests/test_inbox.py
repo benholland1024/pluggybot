@@ -78,6 +78,10 @@ def test_json_text_and_dicts_are_both_accepted():
    "a life the rating named and then could not say"),
   ({"type": "rating", "seq": 3, "quality": 0.5, "generation": -1},
    "a life that cannot exist"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": 1.5},
+   "a fraction of a life (int() would have made it 1)"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": True},
+   "a boolean (int(True) is 1)"),
 ])
 def test_malformed_input_is_dropped_and_counted(raw, why):
   inbox = Inbox()
@@ -402,7 +406,8 @@ def test_the_inbound_vocabulary_is_the_protocols():
   """One source: mind/inbox.py parses exactly what protocol.py publishes, so
   the wire spec and the parser cannot drift."""
   assert INBOUND_TYPES == ("message", "rating", "reset_tool", "reset_robot",
-                          "set_battery", "set_points")
+                          "set_battery", "set_points",
+                          "ticket_reply", "ticket_close", "ticket_delete")
   assert "move" not in INBOUND_TYPES and "clear_board" not in INBOUND_TYPES
 
 

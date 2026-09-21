@@ -89,8 +89,10 @@ MAX_FINDINGS = 64
 #: A message's senders. `visitor` is a stranger at the website (issue
 #: #16); `robot` is the other robot (issue #208) -- both land in the same
 #: `visitorMessages` list under the same rule; `library` is the page the
-#: robot asked for (issue #216), shown once in its own `reading` block.
-VISITOR, PEER, LIBRARY = "visitor", "robot", "library"
+#: robot asked for (issue #216), shown once in its own `reading` block;
+#: `operator` is one of the people who run the world answering a support
+#: ticket the robot opened (issue #284), shown on the ticket's thread.
+VISITOR, PEER, LIBRARY, OPERATOR = "visitor", "robot", "library", "operator"
 
 
 class Refused(Exception):
@@ -170,10 +172,25 @@ MAX_PROCEDURES = 8
 
 
 def _bays() -> int:
-  # ⚠ ONE TOOL PER BAY: the workshop's cap is the RACK's, not a number
-  # chosen here (ToolPattern.md §6) -- a sixth needs the rail to grow.
-  from pluggybot.rack.coupling import HUB_STATION_YS
-  return len(HUB_STATION_YS)
+  # ⚠ ONE TOOL PER BAY: the workshop's cap is the BUILT-TOOL RAIL's, not a
+  # number chosen here (ToolPattern.md §6, route 4; issue #277) -- a fourth
+  # needs that rail to grow.
+  from pluggybot.rack.coupling import BUILT_STATION_YS
+  return len(BUILT_STATION_YS)
+
+
+#: How many support tickets a robot may have OPEN at once (issue #284).
+#: Three, because each one is a request for a person's attention and every
+#: open ticket rides the user turn whole: a fourth waits for the operator
+#: to close or delete one, which is the remedy the refusal names -- the
+#: robot cannot withdraw a ticket, so a full desk is the operator's to
+#: clear. The reward (challenges.json's `ticket` row, paid at close) is
+#: bounded by it too.
+MAX_OPEN_TICKETS = 3
+#: ...and how long a ticket's report may be. Longer than a message (a bug
+#: report has steps in it) and shorter than a page: ~125 tokens at the cap,
+#: times three open tickets, on every call.
+MAX_TICKET_CHARS = 500
 
 
 DOCUMENTS: tuple[Surface, ...] = (
@@ -218,6 +235,18 @@ DOCUMENTS: tuple[Surface, ...] = (
   Surface("tools", DOCUMENT, ROBOT, _bays(), ENTRIES, REFUSE,
           ("build_tool", "retire_tool"), "tool", "tool",
           store="tools", suffix=".tool.json", offered_with="workshop"),
+  # SUPPORT TICKETS (issue #284): what the robot has told the people who
+  # run its world -- a bug, an idea, a question, feedback -- one JSON
+  # record per ticket, its thread inside it. ONE verb, `ticket`, which
+  # ADDS: there is no remove, because closing and erasing are the
+  # operator's (the inbound `ticket_close` / `ticket_delete`), and the
+  # robot's reply on a thread (`ticket_reply`) edits an entry rather than
+  # adding one, so it is not a verb here and passes no cap but the
+  # thread's own. The cap counts OPEN tickets: a closed one stays in the
+  # record and costs no slot.
+  Surface("tickets", DOCUMENT, ROBOT, MAX_OPEN_TICKETS, ENTRIES, REFUSE,
+          ("ticket",), "ticket", "ticket",
+          store="tickets", suffix=".ticket.json", offered_with="tickets"),
 )
 
 # ---- the messages ------------------------------------------------------------
@@ -248,6 +277,15 @@ MESSAGES: tuple[Surface, ...] = (
   # notes. The `read` event is its record on the wire and the observatory.
   Surface("library", MESSAGE, LIBRARY, MAX_PAGE_CHARS, CHARS, ROLL,
           (), "read", "read"),
+  # An operator's line on a ticket's thread (issue #284): a reply, or the
+  # message a ticket is closed with. A message's cap -- the same one the
+  # inbound socket enforces -- and no outcome vocabulary: the robot may
+  # answer on the thread or let it stand, and neither is a verdict on the
+  # wire. Never in `visitorMessages`: it is shown on the ticket it
+  # belongs to, under the ticket's own rule, and the `ticket` event is
+  # its record.
+  Surface("operator", MESSAGE, OPERATOR, MAX_MESSAGE_CHARS, CHARS, ROLL,
+          (), "ticket", "ticket"),
 )
 
 SURFACES: tuple[Surface, ...] = DOCUMENTS + MESSAGES
