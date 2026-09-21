@@ -254,7 +254,7 @@ first solve — the first reading of the capability metric #155 waits for.
 
 **And whether it can be done at all is settled** (issue #264): a procedure
 in the robot's own language -- `fetch`, four legs, `face`, `pick(21)`,
-`place(20)`, `pick(22)`, `place(21)`, four legs home, `stow` -- passes
+`place(20)`, `pick(22)`, `place(21)`, the errand stowing the claw -- passes
 this grader from the rack, so a robot that never does is a finding about
 the robot. The physics was never the problem; the language's reach to
 the claw was (Overseer.md §2b, the claw's pair). `scripts/solve.py

@@ -1606,8 +1606,10 @@ save a filmstrip PNG named after the script.
   `tuck_routine` at `MODULE_DRIVE_LIFT` (at `APPROACH_LIFT` the claw sits
   in the lidar's front-stop cone), and `lab_route`'s first leg 0.6 m short
   of the garden doorway (the door post trips the reflex from a cold
-  start). ⚠ A procedure that goes to the workshop or the lab brings its
-  tool home in legs: the auto-stow's 90 s drive cannot. ⚠ `place`'s ok is
+  start). ⚠ The errand's own stow returns from the WORKSHOP (measured,
+  once `place` ends tucked); a procedure that goes to the LAB brings its
+  tool home in legs, 30 m of street being past the auto-stow's 90 s
+  drive. ⚠ `place`'s ok is
   measured off the world after the retreat (rests one pitch up, within
   half an edge), never off the release.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):

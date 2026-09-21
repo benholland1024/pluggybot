@@ -1596,9 +1596,10 @@ workshop's spawn point is its table; the garden doorway leg of the lab
 route stalls from a cold start (the plan hugs the wall and the door post
 trips the reflex -- the leg now ends 0.6 m short); the planner's own way
 back from the street hugs the house wall past the garden light's pole and
-stalls there (the bench solution returns through the open garden). And
-the auto-stow's 90 s drive cannot return from the workshop corner: a
-procedure that goes that far brings the tool home in legs.
+stalls there (the bench solution returns through the open garden). The
+auto-stow that "could not return from the workshop corner" was the cone
+bug above: tucked, the errand's own stow brings the claw home from there
+(bay error 0.3 mm); from the lab the solution drives the road in legs.
 
 What is true now: `solutions.TOWER` passes `eval_stack_tower` from the
 rack (445 sim s, 2.7 Wh, 5.5 mm of lean); `solutions.WEIGH` weighs the

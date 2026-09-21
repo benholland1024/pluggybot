@@ -267,7 +267,7 @@ def test_the_tower_solution_compiles_against_the_home_world():
   for src in (solutions.TOWER, solutions.TOWER_AT_THE_ROW, solutions.WEIGH):
     lang.compile_procedure(src, facts)
   verbs = [s[1] for s in lang.parse(solutions.TOWER).body if s[0] == "verb"]
-  assert verbs[0] == "fetch" and verbs[-1] == "stow"
+  assert verbs[0] == "fetch" and verbs[-1] == "place"      # the errand stows
   assert verbs.count("pick") == 2 and verbs.count("place") == 2
   weigh = lang.parse(solutions.WEIGH)
   assert ("verb", "pick", {"tag": ("num", 24)}, 17) in weigh.body and "lift.force" in solutions.WEIGH
@@ -349,10 +349,12 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   """Ladder A, whole: `solutions.TOWER` run as a `procedure:` errand from
   the living-room rack, the claw fetched and stowed, `done`, the grade on
   the seam with its hold -- the verdict a robot would be paid for. ~170 s
-  wall, behind --endurance: every rule it stands on is pinned above."""
+  wall, behind --endurance: every rule it stands on is pinned above. The
+  procedure ends at the last `place`: the STOW is the errand's own, from
+  the workshop corner (it stalled there until `place` ended tucked)."""
   life, out = _from_the_rack(tmp_path, "tower")
   proc = out["errand"]["procedure"]
-  assert proc["ok"] and proc["completed"] == proc["total"] == 15, proc
+  assert proc["ok"] and proc["completed"] == proc["total"] == 10, proc
   assert out["errand"]["stowed"] and proc["toolsHung"]
   places = [s for s in proc["steps"] if s["verb"] == "place"]
   assert all(p["ok"] and p["offsetMm"] < stack.REST_OFFSET_M * 1000 for p in places)

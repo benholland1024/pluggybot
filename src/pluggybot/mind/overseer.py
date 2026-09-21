@@ -2426,7 +2426,9 @@ and recorded -- and how you do it is yours. Where the work has to STAND, \
 the grader measures it twice, at your word and again after a hold of some \
 seconds, and NOTHING may touch it in between: stand clear, or a hand that \
 steadied it counts as holding it up. A claimed challenge stands until you \
-say done, and a failed grade closes it as failed -- it may be offered again.
+say done, and a failed grade closes it as failed -- it may be offered again. \
+Said before the work stands (with an `explore`, say), `done` is graded as \
+things are and fails.
 """
 
 

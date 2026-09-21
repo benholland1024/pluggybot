@@ -19,17 +19,19 @@ Each source is a statement of what the world requires, read that way:
 - THE TOWER needs a route the planner can follow (four legs inside the
   lidar's reach -- `drive_to` into unmapped space aims at the nearest
   known-free cell, and the workshop's table stands on its spawn point),
-  a heading square to the row so the eye sees the blocks head-on, and the
-  tool brought home in legs: from the workshop corner `stow`'s own drive
-  (90 s) runs out of patience, and a procedure that stops with the claw on
-  the fork leaves the next errand no fork.
+  and a heading square to the row so the eye sees the blocks head-on. It
+  ends where the work is: the errand around it hangs the claw back
+  (MEASURED from the workshop corner, once `place` ended in the driving
+  configuration -- before that the front-stop reflex stalled the return).
 - THE BENCH needs the lab route (`lifecycle.lab_route`'s legs, the first
   short of the garden doorway for the reason given there), a tare --
   the lift's force with the empty claw at the height the cube will be
   read at -- a few readings averaged against `axes.LOAD_NOISE_N`, the cube
-  set back down, and the arm tucked (`move("arm", 0)`) before the drive
-  home: out, the claw's body sits in the lidar's front-stop cone and the
-  reflex backs the robot away from itself. The finding itself is the
+  set back down, the arm tucked (`move("arm", 0)`) before the drive home
+  -- out, the claw's body sits in the lidar's front-stop cone and the
+  reflex backs the robot away from itself -- and the road home driven in
+  legs (the lab is 30 m of street away; the tower's auto-stow was measured
+  from the workshop, not from there). The finding itself is the
   mind's to write (`record`, off the locals History shows it); the script
   and the test write it from `mass` the way a mind would.
 - THE MOUSE has its program in code already (`lifecycle.cage_program`, the
@@ -38,9 +40,10 @@ Each source is a statement of what the world requires, read that way:
 """
 
 #: The tower (challenge/stack.py; offered as `stack_tower`, home world).
-#: MEASURED (2026-09-21, from the rack, hosting pack): 15 steps, 445 sim s,
-#: 2.7 Wh, the two placements 2.0 and 4.9 mm off, 5.5 mm of lean at the
-#: grade, +26 points with the neatness bonus, the claw back on bay D.
+#: MEASURED (2026-09-21, from the rack, hosting pack): 10 steps, 448 sim s
+#: with the errand's own stow, 2.7 Wh, the two placements a few mm off,
+#: 5.9 mm of lean at the grade, +26 points with the neatness bonus, the
+#: claw back on bay D to 0.3 mm.
 TOWER = '''def tower():
   budget(steps=40, seconds=1500)
   fetch("module_claw")
@@ -53,11 +56,6 @@ TOWER = '''def tower():
   place(20)
   pick(22)
   place(21)
-  drive_to(-8.0, -3.5)
-  drive_to(-6.0, 1.0)
-  drive_to(-3.5, 1.0)
-  drive_to(0.0, 0.5)
-  stow()
 '''
 
 #: The same, from a stand in the workshop with the claw already on the fork
