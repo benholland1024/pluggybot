@@ -83,8 +83,8 @@ not re-recorded (the field is absent there, which reads as generation 0):
   because the lookup is exactly what would succeed: the dead robot's
   drawing and a live entry share a number. Absent means a site older than
   the field, and the number alone is taken as it always was. A present but
-  unreadable one is dropped as malformed, not applied to whichever life is
-  running.
+  unreadable one -- a word, a fraction, a boolean, a negative -- is dropped
+  as malformed, not applied to whichever life is running.
 
 ### 0.21.0, additive: the constitution is named, versioned and per robot (`build.constitutions`; `constitution_changed`)
 
