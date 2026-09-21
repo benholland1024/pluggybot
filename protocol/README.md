@@ -276,6 +276,81 @@ stores `care` as a kind and keeps `real` in `data` (rooftop-media-2026).
 `shock_mouse` is a new `taskKinds` entry, on the `autonomous` arm on home
 only. No version bump: nothing existing changed shape.
 
+### 0.21.0, additive: support tickets (`ticket`, `tickets`; three inbound admin kinds)
+
+pluggybot #284; docs/Overseer.md §2g. On the `autonomous` arm the robot
+may open a SUPPORT TICKET about its world -- `ticket {kind, title, text}`,
+`kind` one of `TICKET_KINDS` (`bug` / `idea` / `question` / `feedback`) --
+and reply on an open one (`ticket_reply {ticket, text}`); the people who
+run the world answer through the socket. One event type, one message on
+open, three inbound kinds; no header change beyond `accepts`, no bump.
+
+**Upstream: the `ticket` event.** `{robot, t, outcome, id, kind, title,
+...}`, `outcome` one of `TICKET_OUTCOMES`:
+
+- `opened` -- `text` is the report, whole (up to 500 chars, one line).
+- `replied` -- a line on the thread: `sender` (`robot` / `operator`,
+  `TICKET_SENDERS`), `from` (the display name: the robot's, or the admin's
+  username), `text`; an operator's line carries `ref`, the id of the
+  inbound message it acknowledges, so the website settles the row it is
+  holding.
+- `closed` -- `from` (who closed it), `text` (the closing message, may be
+  empty), `points` (what the reward table paid) and `seq` (the ledger
+  entry), `ref`, and `paid`: true the first time, FALSE on a replayed close
+  (the same figure back, nothing banked again).
+- `deleted` -- `from`, `ref`. Erased, open or closed; nothing paid.
+- `refused` -- the desk would not take the robot's `ticket` or
+  `ticket_reply`: `verb`, `why` (a full desk, a closed ticket, an empty
+  report), and the `kind` / `title` or `id` it named.
+- `unknown` -- an inbound reply, close or delete named a ticket this desk
+  does not hold: `id`, `ref`, `why`, `verb`. The acknowledgement that stops
+  a website re-sending it.
+
+`id` is the sim's, `tk_0001`, counted per ROBOT ROOT and never reused (a
+deleted ticket's number is gone); a consumer keys a ticket by (`robot`,
+`id`). The desk holds at most three OPEN tickets per robot.
+
+```jsonc
+{"type": "ticket", "t": 412.5, "robot": "pluggybot", "outcome": "closed",
+ "id": "tk_0003", "kind": "bug", "title": "the pen misses the far board",
+ "from": "ben", "text": "fixed the standoff", "points": 10, "seq": 17,
+ "ref": "tc_9f3a", "paid": true}
+```
+
+**Upstream, on open: the `tickets` message** (`TICKETS_MESSAGE`; the
+`goals` slot, for the `goals` reason) -- `{robot, t, tickets: [...]}`, the
+robot's OPEN tickets whole (`id`, `kind`, `title`, `text`, `t`, `state`,
+`thread: [{sender, from, text, t}]`, and the close fields, null while
+open). A website reconciles off it: a ticket it erased while the sim was
+away it says so again (`ticket_delete`); one it never saw it takes back.
+A robot with no desk sends none, which is not an empty desk. Only
+`serve.py` and the pair recording hand the sinks a desk, so the
+committed fixtures are unchanged.
+
+**Downstream: three admin kinds** (`INBOUND_TYPES`, also
+`CODE_HANDLED_TYPES`: applied by code on any served world, never a
+command shown to the model). Each names the ticket in `ticket` and the
+admin in `from`; a pair's second robot is addressed by `robot` (0.19.0's
+reach-in rule); `id` is the website's, echoed back as `ref`.
+
+```jsonc
+{"type": "ticket_reply",  "id": "tr_01", "from": "ben", "ticket": "tk_0003",
+ "text": "which board was it?"}                       // `text` required
+{"type": "ticket_close",  "id": "tc_01", "from": "ben", "ticket": "tk_0003",
+ "text": "fixed the standoff"}                        // `text` optional
+{"type": "ticket_delete", "id": "td_01", "from": "ben", "ticket": "tk_0003"}
+```
+
+A close PAYS: the reward table's `ticket` row, once, through the ledger's
+one door, at the moment the physics thread drains the message (the top of
+an arbitration pass -- minutes after the send, mid-errand). A website
+should hold a reply or a close until the `ticket` event with its `ref`
+arrives, and re-send an unacknowledged one on the next connect, bounded,
+as it re-sends a visitor's message: the sim dedupes by message id within
+a process, a replayed close pays nothing, and an `unknown` settles the
+row for good. A delete is best effort and the `tickets` snapshot is the
+repair.
+
 ### 0.21.0, additive: the library -- a `read` event per page the robot asked for
 
 pluggybot #216; docs/Overseer.md §2e. On the `autonomous` arm the robot may

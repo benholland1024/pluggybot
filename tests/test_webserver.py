@@ -746,6 +746,9 @@ class _FakeLife:
     # the thoughts the lifecycle was handed.
     self.root = "pluggybot"
     self.thoughts = kw.get("thoughts")
+    # ...and the ticket desk (issue #284), which the real lifecycle always
+    # has and the stream opens with.
+    self.tickets = None
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 

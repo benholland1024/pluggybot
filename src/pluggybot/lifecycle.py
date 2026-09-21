@@ -49,8 +49,10 @@ from pluggybot.mission.mission import (
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
+from pluggybot.mind import tickets as tickets_desk
 from pluggybot.mind import wiki
 from pluggybot.mind import text as text_registry
+from pluggybot.mind.tickets import Desk, DeskRefused
 from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
@@ -588,6 +590,18 @@ class HubLifecycle:
     #: One row per read asked for, for the run record and the observatory
     #: (`read` event): what was asked, the outcome, the page, its revision.
     self.reads: list[dict] = []
+    # ---- support tickets (issue #284) ----
+    #: THE DESK: what this robot has told the people who run its world,
+    #: and what they said back. The LIFECYCLE's rather than the mind's --
+    #: a close pays and a reply is filed on any arm, so a ticket opened
+    #: on `autonomous` is answered by whatever runs next on the same
+    #: volume; what the arm decides is whether the robot may OPEN one
+    #: (`Menu.tickets`). Beside the thought files, and in memory where
+    #: those are.
+    self.tickets = Desk(self.thoughts.root / "tickets"
+                        if self.thoughts.root is not None else None)
+    #: One row per `ticket` event, for the run record and the observatory.
+    self.ticket_events: list[dict] = []
     #: WHY THE MIND IS BEING CONSULTED (issue #221): the map row that asked
     #: (`event`, `kind`, `value`), the once-per-life `bootstrap`, or the
     #: `loop` reaching its decision branch where there is no map. Shown as
@@ -2069,6 +2083,15 @@ class HubLifecycle:
       self._set_battery(msg)
     for msg in self.inbox.drain(("set_points",)):
       self._set_points(msg)
+    # The operator's side of a ticket (issue #284): a reply, a close, a
+    # delete -- applied here by code, like every admin kind. What the
+    # robot is shown is the thread, on its next turn.
+    for msg in self.inbox.drain(("ticket_reply",)):
+      self._ticket_reply(msg)
+    for msg in self.inbox.drain(("ticket_close",)):
+      self._ticket_close(msg)
+    for msg in self.inbox.drain(("ticket_delete",)):
+      self._ticket_delete(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -2526,6 +2549,139 @@ class HubLifecycle:
     else:
       self._say(f"READ failed ({row['why']}): {q!r}")
       self._remember(f"asked the library for {q!r}: failed, {row['why']}")
+
+  # ---- support tickets (issue #284) -------------------------------------------
+
+  def _ticket_event(self, outcome: str, ticket=None, **fields) -> dict:
+    """One `ticket` event: on the wire, in the record, narrated by the
+    caller. Carries the ticket's id, kind and title where there is one."""
+    t = float(self.data.time)
+    event = {"type": "ticket", "t": round(t, 3), "robot": self.root,
+             "outcome": outcome,
+             **({"id": ticket.id, "kind": ticket.kind, "title": ticket.title}
+                if ticket is not None else {}),
+             **fields}
+    self.ticket_events.append({k: v for k, v in event.items() if k != "type"})
+    self._emit(event)
+    return event
+
+  def _tickets(self, decision) -> None:
+    """Apply a decision's two ticket fields (issue #284): a ticket opened
+    with the desk, a line on an open thread. The desk refuses out loud --
+    a full desk, a closed ticket, an empty report -- and the refusal is
+    narrated, remembered and on the wire, because a ticket the robot
+    believes it filed and did not is the failure that matters.
+
+    Nothing here pays: a ticket earns at the CLOSE, through the ledger's
+    one door, when the operator's `ticket_close` arrives."""
+    t = float(self.data.time)
+    if decision.ticket:
+      f = decision.ticket
+      try:
+        ticket = self.tickets.open(f.get("kind", ""), f.get("title", ""),
+                                   f.get("text", ""), t)
+      except DeskRefused as e:
+        self._ticket_event("refused", why=str(e), verb="ticket",
+                           kind=str(f.get("kind", "")), title=str(f.get("title", "")))
+        self._say(f"TICKET refused: {e}")
+        self._remember(f"tried to open a ticket ({f.get('kind') or '?'}: "
+                       f"{f.get('title') or f.get('text', '')[:40]}) -- refused: {e}")
+      else:
+        self._ticket_event("opened", ticket, text=ticket.text)
+        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}")
+        self._remember(f"opened ticket {ticket.id} ({ticket.kind}): "
+                       f"{ticket.title} -- {ticket.text}")
+    if decision.ticket_reply:
+      r = decision.ticket_reply
+      try:
+        ticket = self.tickets.reply(r.get("ticket", ""), r.get("text", ""), t,
+                                    sender=tickets_desk.ROBOT, who=self.robot_name)
+      except DeskRefused as e:
+        self._ticket_event("refused", why=str(e), verb="ticket_reply",
+                           id=str(r.get("ticket", "")))
+        self._say(f"TICKET reply refused: {e}")
+      else:
+        line = ticket.thread[-1]
+        self._ticket_event("replied", ticket, sender=tickets_desk.ROBOT,
+                           **{"from": self.robot_name}, text=line.text)
+        self._say(f"TICKET {ticket.id} -- replied: {line.text}")
+        self._remember(f"replied on ticket {ticket.id} ({ticket.title}): {line.text}")
+
+  def _ticket_reply(self, msg) -> None:
+    """An operator's line on one of the robot's tickets (issue #284): onto
+    the thread, into History (the system quoting the sender, as a visitor's
+    words are), on the wire as the acknowledgement the website settles its
+    row by, and `ticket_replied` for the map. A ticket this desk does not
+    hold, or one already closed, is answered `unknown` -- the fate that
+    stops a website re-sending it."""
+    who = msg.who or "the operator"
+    try:
+      ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
+                                  sender=tickets_desk.OPERATOR, who=who)
+    except DeskRefused as e:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id, why=str(e),
+                         verb="ticket_reply")
+      self._say(f"TICKET reply from {who} ignored: {e}")
+      return
+    line = ticket.thread[-1]
+    self._ticket_event("replied", ticket, sender=tickets_desk.OPERATOR,
+                       **{"from": who}, text=line.text, ref=msg.id)
+    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}")
+    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title}): "
+                   f"{line.text}")
+    self._occur("ticket_replied")
+
+  def _ticket_close(self, msg) -> None:
+    """The operator closed a ticket (issue #284): the desk ends it, the
+    reward table's `ticket` row is banked through the ledger's one door --
+    `scoring.evaluate` measures the desk, `Ledger.award` re-derives the
+    points -- ONCE, and the closing message goes into History. A replayed
+    close (the website never saw the acknowledgement) answers the same
+    figure and pays nothing; a ticket the desk does not hold is `unknown`."""
+    who = msg.who or "the operator"
+    t = float(self.data.time)
+    ticket, changed = self.tickets.close(msg.ticket, by=who, text=msg.text, t=t)
+    if ticket is None:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id,
+                         why=f"no ticket {msg.ticket!r} on the desk",
+                         verb="ticket_close")
+      self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
+      return
+    if changed:
+      # Measured off the desk AFTER the close was applied (`sample_ticket`),
+      # never off the message: the evaluator's `closed` is the desk's state.
+      verdict = scoring.evaluate(
+        "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
+        table=self.ledger.table if self.ledger is not None else None)
+      entry = self._bank(verdict)
+      if entry is not None:
+        self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+      said = f": {ticket.closed_text}" if ticket.closed_text else ""
+      paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
+      self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
+      self._remember(f"{who} closed my ticket {ticket.id} ({ticket.kind}: "
+                     f"{ticket.title}){said}{paid}")
+      self._occur("ticket_replied")
+    self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
+                       text=ticket.closed_text, points=ticket.points,
+                       seq=ticket.seq, ref=msg.id, paid=changed)
+
+  def _ticket_delete(self, msg) -> None:
+    """The operator erased a ticket (issue #284): off the desk, open or
+    closed, and nothing paid. The History line stays -- the robot did file
+    it, and the record is append-only -- and says the ticket was removed."""
+    who = msg.who or "the operator"
+    ticket = self.tickets.delete(msg.ticket)
+    if ticket is None:
+      self._ticket_event("unknown", id=msg.ticket, ref=msg.id,
+                         why=f"no ticket {msg.ticket!r} on the desk",
+                         verb="ticket_delete")
+      self._say(f"TICKET delete from {who} ignored: no ticket {msg.ticket!r}")
+      return
+    self._ticket_event("deleted", ticket, **{"from": who}, ref=msg.id)
+    self._say(f"TICKET {ticket.id} deleted by {who}")
+    self._remember(f"{who} removed my ticket {ticket.id} ({ticket.kind}: "
+                   f"{ticket.title}); it will not be answered")
 
   # ---- acts toward the other robot (issue #208) -------------------------------
 
@@ -3843,6 +3999,9 @@ class HubLifecycle:
     # puts the page on the shelf for the next turn, and every read -- a
     # page, a miss, a failure, a refusal -- on the wire and in the record.
     self._read(decision)
+    # ...and a support ticket, or a line on one (issue #284): filed with
+    # the desk, refused out loud, on the wire either way. Paperwork.
+    self._tickets(decision)
     # ...and the library's two verbs (issue #166), paperwork like the four
     # above: compiled and refused out loud by the library, narrated either
     # way, and the action stands whatever the library said.
@@ -4098,6 +4257,9 @@ class HubLifecycle:
       # outcome, the page and its revision -- the rows `ideas_traced` is
       # measured off, beside the observatory's `read` events.
       "reads": list(self.reads),
+      # Every `ticket` event (issue #284): opened, replied on, closed and
+      # paid, deleted, refused -- the observatory's rows, for the record.
+      "tickets": list(self.ticket_events),
       # What the overseer chose and what it cost (issue #15). Empty without
       # one, so every existing caller's dict is unchanged in every value it
       # already read.
@@ -5018,6 +5180,13 @@ def overseer_context(life) -> dict:
   # `reading`, because `library` above is the PROCEDURE library's block.
   if getattr(life.overseer, "wiki", None) is not None:
     state["reading"] = [dict(page) for page in life._shelf]
+  # THE DESK (issue #284): the robot's open tickets with their threads,
+  # the newest closed ones with what came of them, and how many more it
+  # may open -- only where the arm offers the field (`Menu.tickets`), so
+  # `guarded`'s context is unchanged. Every line on a thread is labelled
+  # with who wrote it: a report of what somebody said, never a turn.
+  if life.overseer is not None and getattr(life.overseer.menu, "tickets", False):
+    state["tickets"] = life.tickets.as_context()
   # THE WORKSHOP (issue #168): what hangs where, the tools the robot
   # built, and their names for `retire_tool`'s grammar. Two racks since
   # #277: the originals, which no field can name, as a list; the robot's

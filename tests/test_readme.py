@@ -50,8 +50,11 @@ def _label_lines(block: str) -> list[str]:
 
 
 def _diagram_verbs(block: str) -> set[str]:
-  """`add / remove` pairs written into a memory node's label."""
-  return {v for pair in re.findall(r'<br/>(\w+) / (\w+)"\]', block) for v in pair}
+  """`add / remove` pairs written into a memory node's label -- or one
+  verb alone, for a document with an add and no remove (the ticket desk:
+  closing is the operator's)."""
+  return {v for pair in re.findall(r'<br/>(\w+)(?: / (\w+))?"\]', block)
+          for v in pair if v}
 
 
 def test_the_loop_diagram_names_exactly_the_lifecycle_states():
@@ -89,5 +92,5 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   # picture; a node like `USE_TOOL / SWAP_RETURN` names two.
   drawn = set(re.findall(r"\b([A-Z][A-Z_]{3,})\b", memory))
   drawn -= {"LR", "TB", "MAIN", "GOALS", "TOP", "NOTES", "FIND", "HIST", "USE",
-            "VISITOR", "PROCS", "TOOLS"}
+            "VISITOR", "PROCS", "TOOLS", "TICKETS"}
   assert drawn <= _state_names(loop), drawn - _state_names(loop)

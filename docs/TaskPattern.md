@@ -214,7 +214,13 @@ move across in the PR that offers the kind — which re-flies `guarded`.
 The same file holds a row that is offered but NOT to the control:
 `take` (issue #228) is offered on `autonomous` alone, through the target
 seam, so its row stays out of the file `guarded` is shown and the results
-hash for as long as that is true.
+hash for as long as that is true. And one row that is no offer at all:
+`ticket` (issue #284, Overseer.md §2g) is what a support ticket the robot
+opened pays when a PERSON closes it — the one verdict a person makes,
+banked through `scoring.evaluate` and `Ledger.award` like every other, off
+a measurement of the desk that only the robot's filing and the operator's
+inbound close can write. It sits here because the desk is the
+`autonomous` arm's alone.
 
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted

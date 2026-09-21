@@ -575,6 +575,36 @@ save a filmstrip PNG named after the script.
   bump; the run record carries `reads` whole and `ideas_traced` reads
   them (`asked` · `reads` · `traced`, a refusal kept apart). The test suite
   never touches the network: every test hands `Wiki(fetch=)` a dict.
+- **The robot can open support tickets, on `autonomous` only, and a
+  person closes them** (issue #284; `mind/tickets.py`; Overseer.md §2g;
+  `tests/test_tickets.py` pins each rule in milliseconds). Two paperwork
+  fields, `ticket {kind, title, text}` (`TICKET_KINDS`: bug / idea /
+  question / feedback) and `ticket_reply {ticket, text}`; the `tickets`
+  block in the user turn; `TICKETS_RULE`, which PRESCRIBES NOTHING (no
+  suggestion to file, no charge/battery/rack; a test reads it). The desk
+  is a text-registry DOCUMENT (`MAX_OPEN_TICKETS` 3 OPEN at once, refuses
+  when full; `MAX_TICKET_CHARS` 500; one JSON per ticket under
+  `$PLUGGY_THOUGHTS/tickets/`, the counter its own record so an id is
+  never reused) and it is the LIFECYCLE's (`HubLifecycle.tickets`, every
+  arm; `Menu.tickets` is what offers the fields, set by `build()` on
+  `autonomous`). ⚠ Three admin inbound kinds, `ticket_reply` /
+  `ticket_close` / `ticket_delete` (`CODE_HANDLED_TYPES`), drained in
+  `_visitor_step`: a reply lands on the thread and in History and fires
+  `ticket_replied` (the tenth event type, UNCONFIGURABLE); a close PAYS
+  the `ticket` row of `challenges.json` (10, unoffered, `guarded`'s table
+  and prefix unchanged) through `scoring.evaluate` + `_bank` ONCE -- a
+  replayed close answers `paid: false`; a delete erases and pays nothing.
+  ⚠ NOT the visitor tier's pending entry + `settle`: a true death restarts
+  the ledger's `seq`, so a pending seq would settle a new robot's entry.
+  ⚠ No decision field closes a ticket and nothing in `economy/` imports
+  the desk (a test walks the tree). The desk survives a true death (a
+  ticket is about the WORLD). On the wire: the `ticket` event
+  (`TICKET_OUTCOMES`), a `tickets` snapshot on open (only `serve.py` and
+  the pair recording hand the sinks a desk -- fixtures unchanged), `ref`
+  echoing the admin message an outcome acknowledges, `unknown` for a
+  ticket the desk does not hold. The website's half (rooftop-media-2026:
+  `pw_tickets`, the Tickets card on `/controls`, the `ticket` observatory
+  kind) holds an admin action until the `ref` comes back.
 - **The `autonomous` arm can write procedures, and only it can** (issue
   #166; `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b).
   Python-SHAPED, parsed with `ast` into the language's own tree and

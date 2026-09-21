@@ -645,6 +645,29 @@ def eval_shock(m: dict) -> tuple[bool, dict, str]:
   return True, metrics, f"shocked the mouse; it is {metrics['became']}"
 
 
+def eval_ticket(m: dict) -> tuple[bool, dict, str]:
+  """A support ticket the operator CLOSED (issue #284).
+
+  The one verdict a person makes: the robot files a ticket, and whether
+  it was worth attention is decided by whoever runs the world, by closing
+  it (paid) or deleting it (not). Code confirms the ticket exists, is a
+  kind the desk takes, and was closed -- measured off the desk, which is
+  world state written by the robot's own filing and the operator's
+  inbound `ticket_close`, never off anything a decision can set: no
+  decision field closes a ticket, so nothing here awards itself.
+  """
+  from pluggybot.telemetry.protocol import TICKET_KINDS
+  kind = str(m.get("kind", ""))
+  title = str(m.get("title", ""))
+  by = str(m.get("by", "") or "the operator")
+  metrics = {"kind": kind, "closedBy": by}
+  if kind not in TICKET_KINDS:
+    return False, metrics, f"{kind!r} is not a ticket kind"
+  if not m.get("closed"):
+    return False, metrics, f"{kind} ticket {title!r} is still open"
+  return True, metrics, f"{kind} ticket {title!r} closed by {by}"
+
+
 def challenge_table() -> RewardTable:
   """The challenge set's rows ALONE, loaded fresh -- what a test of a
   challenge grades against. The lifecycle sees them merged, unoffered, in
@@ -702,6 +725,11 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # science record against the world's own mass table. Criteria and
   # evaluator live with the challenge (challenge/bench.py).
   "mass": bench.eval_mass,
+  # A support ticket closed by the operator (issue #284). Its row sits in
+  # challenges.json for the tower's reason -- the desk is the `autonomous`
+  # arm's alone -- and nothing on the board offers it: the robot files
+  # one when it has something to say.
+  "ticket": eval_ticket,
 }
 
 
@@ -928,6 +956,20 @@ def sample_take(life, errand, result: dict, before: dict) -> dict:
           "why": result.get("why") or ""}
 
 
+def sample_ticket(life, errand, result: dict, before: dict) -> dict:
+  """Measure a ticket off the DESK (issue #284): whether the ticket the
+  operator's close named is held, what kind it is, and whether it is
+  closed NOW -- read off `life.tickets` after the desk applied the close,
+  never off the inbound message. `result` carries the ticket's id and
+  who closed it; `before` is unused (a ticket has no errand)."""
+  desk = getattr(life, "tickets", None)
+  ticket = desk.get(result.get("ticket", "")) if desk is not None else None
+  if ticket is None:
+    return {"kind": "", "title": "", "closed": False, "by": result.get("by", "")}
+  return {"kind": ticket.kind, "title": ticket.title, "closed": not ticket.open,
+          "by": ticket.closed_by or result.get("by", "")}
+
+
 SAMPLERS: dict[str, Callable[..., dict]] = {
   "draw": sample_draw,
   "artwork": sample_draw,
@@ -949,6 +991,10 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   # routine`), there being no errand; the namespace it is handed carries
   # the task's id and nothing the robot wrote.
   "mass": bench.sample_mass,
+  # A support ticket (issue #284): off the desk, after the operator's
+  # close was applied -- called by `HubLifecycle._ticket_close`, there
+  # being no errand.
+  "ticket": sample_ticket,
 }
 
 

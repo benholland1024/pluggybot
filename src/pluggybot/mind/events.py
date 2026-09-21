@@ -88,6 +88,10 @@ EVENT_TYPES = (
   "points_below",      # a balance, in points
   "message_received",  # a visitor said something. NO configuration -- below
   "every",             # seconds
+  "ticket_replied",    # the operator answered, or closed, one of the robot's
+                       # support tickets (issue #284). NO configuration --
+                       # a reply and a close both fire it; which ticket, and
+                       # what was said, is the `tickets` block's to show
 )
 
 #: The events whose configuration is a LEVEL, and which are therefore
@@ -163,7 +167,12 @@ FAILURE_CLASSES = ("failure", "policy")
 #: can trigger a row but cannot choose WHICH one, and the website's visitor
 #: quota already bounds the rate. Do not add a filter here without
 #: re-arguing that invariant.
-UNCONFIGURABLE_EVENTS = ("message_received", "nothing_to_do")
+#: `ticket_replied` (issue #284) takes none for the same reason one layer
+#: over: the operator is not a stranger, but the ticket's kind and title
+#: are the ROBOT's words, and a row keyed on them would be a rule the robot
+#: wrote about its own text -- the map says "somebody answered", the
+#: `tickets` block says what.
+UNCONFIGURABLE_EVENTS = ("message_received", "nothing_to_do", "ticket_replied")
 
 #: The extra action, and the reason the table is the right object: consulting
 #: the mind is a THING THE MAP DOES rather than the frame the map sits in.
@@ -205,7 +214,7 @@ ACTION_FAILURES = (
 
 #: How many rows a map may hold. A GRAMMAR BOUND, not a policy: it caps the
 #: array in the structured-output schema and the bytes on every call, and it
-#: is deliberately larger than any coherent map needs (there are nine event
+#: is deliberately larger than any coherent map needs (there are ten event
 #: types and three of them are unconfigurable, so a map that says one thing
 #: about each hazard fits in half of it). Nothing about which rows they are
 #: is limited.

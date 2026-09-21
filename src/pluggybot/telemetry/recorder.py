@@ -118,6 +118,10 @@ class StreamRobot:
   #: event_map_message`). None on a scripted robot, and a mind with no map
   #: (origin `none`) answers None itself.
   overseer: object = None
+  #: The support-ticket desk (issue #284; `tickets.Desk`), for the open
+  #: tickets on open. None where the producer did not hand one over,
+  #: which is every demo script: the served world and the pair do.
+  tickets: object = None
 
 
 class FrameBuilder:
@@ -146,7 +150,8 @@ class FrameBuilder:
                steering: bool = False,
                robot_name: str | None = None,
                build: dict | None = None,
-               others: list | None = None, overseer=None) -> None:
+               others: list | None = None, overseer=None,
+               tickets=None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -165,7 +170,8 @@ class FrameBuilder:
     self.robots: list[StreamRobot] = [
       StreamRobot(ROBOT_ROOT, robot_display_name(robot_name), status_fn,
                   spend=spend, metabolism=metabolism, thoughts=thoughts,
-                  goals=goals, steering=bool(steering), overseer=overseer),
+                  goals=goals, steering=bool(steering), overseer=overseer,
+                  tickets=tickets),
       *(others or ())]
     self.others = list(others or [])
     self.activities = activities
@@ -437,6 +443,16 @@ class FrameBuilder:
       if msg is not None:
         out.append(msg)
     return out
+
+  def tickets_messages(self, t: float) -> list[dict]:
+    """Each robot's open support tickets, whole, on open (issue #284;
+    `Desk.snapshot`) -- the `goals` slot, for the `goals` reason: no
+    keyframe carries them, and a website that erased one while the sim
+    was away can say so again. A robot with no desk contributes nothing:
+    absent means "there is no desk", which a consumer must not draw as an
+    empty one."""
+    return [r.tickets.snapshot(float(t), r.root) for r in self.robots
+            if r.tickets is not None]
 
   def prompt_messages(self, t: float) -> list[dict]:
     """What each mind is told, on open (issue #241) -- the `thought` slot,
@@ -731,7 +747,7 @@ class TelemetryRecorder:
                robot_name: str | None = None, build: dict | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ,
                others: list | None = None, heightmap=None,
-               overseer=None) -> None:
+               overseer=None, tickets=None) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
@@ -740,7 +756,8 @@ class TelemetryRecorder:
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
-                                 build=build, others=others, overseer=overseer)
+                                 build=build, others=others, overseer=overseer,
+                                 tickets=tickets)
     self._grids = grid_samplers(grid, others, grid_hz, dedupe=True,
                                 heightmap=heightmap,
                                 heightmap_hz=RECORD_HEIGHTMAP_HZ)
@@ -764,6 +781,9 @@ class TelemetryRecorder:
     # ...and what each mind is TOLD (issue #241): the prefix, sectioned.
     for prompt in self._builder.prompt_messages(float(data.time)):
       self._queue.put(prompt)
+    # ...and each robot's open support tickets (issue #284), same slot.
+    for opened in self._builder.tickets_messages(float(data.time)):
+      self._queue.put(opened)
     # Whatever is already on the walls, before the first frame (0.5.0). A
     # recording made against boards that survived a previous run opens with
     # a robot standing in front of a drawing it did not make -- and without
