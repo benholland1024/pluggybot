@@ -16,15 +16,16 @@ unaided.
 
 Each source is a statement of what the world requires, read that way:
 
-- THE TOWER needs a route the planner can follow (four legs inside the
-  lidar's reach -- `drive_to` into unmapped space aims at the nearest
-  known-free cell, and the workshop's table stands on its spawn point),
-  and a heading square to the row so the eye sees the blocks head-on. It
-  ends where the work is: the errand around it hangs the claw back
-  (MEASURED from the workshop corner, once `place` ended in the driving
-  configuration -- before that the front-stop reflex stalled the return).
-- THE BENCH needs the lab route (`lifecycle.lab_route`'s legs, the first
-  short of the garden doorway for the reason given there), a tare --
+- THE TOWER is six verbs once `pick` can go to a cube it cannot see: the
+  route to the workshop in legs inside the lidar's reach (`drive_to` into
+  unmapped space aims at the nearest known-free cell -- a single leg from
+  the rack stalled in the hall at 41 s -- and the workshop's table stands
+  on its spawn point) and a stand on the room's open side, square to the
+  row, are `lifecycle.zone_route` and `steps.prop_stand`'s, on `fetch`'s
+  terms. The errand around it hangs the claw back from the workshop
+  corner (MEASURED, once `place` ended in the driving configuration --
+  before that the front-stop reflex stalled the return).
+- THE BENCH needs a tare --
   the lift's force with the empty claw at the height the cube will be
   read at -- a few readings averaged against `axes.LOAD_NOISE_N`, the cube
   set back down, the arm tucked (`move("arm", 0)`) before the drive home
@@ -39,23 +40,21 @@ Each source is a statement of what the world requires, read that way:
   needed was the route's first leg moved off the garden doorway.
 """
 
-#: The tower (challenge/stack.py; offered as `stack_tower`, home world).
-#: MEASURED (2026-09-21, from the rack, hosting pack): 10 steps, 448 sim s
-#: with the errand's own stow, 2.7 Wh, the two placements a few mm off,
-#: 5.9 mm of lean at the grade, +26 points with the neatness bonus, the
-#: claw back on bay D to 0.3 mm.
+#: The tower (challenge/stack.py; offered as `stack_tower`, home world) --
+#: the six lines a model wrote on ladder B's third day, verbatim. `pick`
+#: goes to where the house set a cube out when it cannot see it (its
+#: `prop_stand`), and the errand around the procedure hangs the claw back.
+#: MEASURED (2026-09-21, from the rack, hosting pack): 489 sim s, 2.7 Wh,
+#: placements 2.6 and 4.7 mm off, 5.3 mm of lean at the grade, +26 with
+#: the neatness bonus, the claw back on bay D to 0.7 mm.
 TOWER = '''def tower():
-  budget(steps=40, seconds=1500)
+  budget(steps=80, seconds=420)
   fetch("module_claw")
-  drive_to(-3.5, 1.0)
-  drive_to(-6.0, 1.0)
-  drive_to(-8.0, -3.5)
-  drive_to(-10.2, -4.75)
-  face(3.1415)
-  pick(21)
-  place(20)
-  pick(22)
+  pick(20)
   place(21)
+  pick(22)
+  place(20)
+  stow()
 '''
 
 #: The same, from a stand in the workshop with the claw already on the fork
@@ -69,22 +68,16 @@ TOWER_AT_THE_ROW = '''def tower():
 '''
 
 #: The bench (challenge/bench.py; offered as `find_mass`, home world).
-#: MEASURED (2026-09-21, from the rack, hosting pack, the bank's first
-#: draw): 32 steps, 348 sim s, 2.7 Wh, tare 6.39 N, loaded 7.84 N, `mass`
-#: 0.148 kg -- within the grade's 10 % -- +25 points, the claw back on bay
-#: D. The return goes through the open garden (7.0, 1.2): the planner's
-#: own way back hugs the house wall past the garden light's pole and the
-#: front-stop reflex stalled it there.
+#: The tare is read at the rack (the lift carries the same weight
+#: anywhere), `pick(24)` drives the lab route itself, and the return goes
+#: through the open garden (7.0, 1.2): the planner's own way back hugs the
+#: house wall past the garden light's pole and the front-stop reflex
+#: stalled it there. MEASURED (2026-09-21, from the rack, hosting pack,
+#: the bank's first draw): 26 steps, `mass` within the grade's 10 %, +25,
+#: the claw back on bay D.
 WEIGH = '''def weigh():
   budget(steps=60, seconds=1800)
   fetch("module_claw")
-  drive_to(4.4, 0.7)
-  drive_to(10.0, 3.1)
-  drive_to(16.0, 3.1)
-  drive_to(19.0, 3.1)
-  drive_to(22.0, 3.0)
-  drive_to(25.9, 2.0)
-  face(0)
   move("lift", 0.16)
   wait(2)
   tare = 0

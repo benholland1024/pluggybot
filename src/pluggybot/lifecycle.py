@@ -4692,6 +4692,27 @@ def lab_route(world: str) -> list[tuple[float, float]]:
           (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)]          # the lab's door
 
 
+#: The way to the WORKSHOP from the rack (issue #264), in legs inside the
+#: lidar's reach, for the same reason the lab has a route: `drive_to` into
+#: unmapped space aims at the nearest known-free cell and a single 15 m leg
+#: stalled in the hall at 41 s. Hall, the workshop doorway's far side, then
+#: clear of the table that stands on the workshop's spawn point.
+WORKSHOP_ROUTE = ((-3.5, 1.0), (-6.0, 1.0), (-8.0, -3.5))
+
+
+def zone_route(world: str, zone: str) -> list[tuple[float, float]]:
+  """The legs from the house to a zone's threshold, in order: the house's
+  own map, what `cage_program` drives by and what a verb that has to reach
+  a prop drives by (`steps._travel_routine`). Empty where none is written."""
+  if world != "home":
+    return []
+  if zone == "lab":
+    return lab_route(world)
+  if zone == "workshop":
+    return [tuple(leg) for leg in WORKSHOP_ROUTE]
+  return []
+
+
 #: A leg this close is one the robot has reached: the route resumes at the
 #: one after it. The arrival radius of a `drive_to` is centimetres; this is
 #: "standing in that doorway", generously.

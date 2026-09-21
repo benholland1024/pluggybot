@@ -63,6 +63,7 @@ def _fake_claw(held=None, after=_KEEP):
     return tick.result({"gripped_before_lift": True})
   return SimpleNamespace(held=lambda: state["held"], calibrate_from_body=lambda: (0.29, -0.05),
                          held_hang=lambda g: (0.0, 0.0, -0.016),
+                         tuck_routine=lambda: tick.result(None),
                          drive_over_routine=lambda *a, **kw: tick.result(True),
                          pick_up_routine=routine, place_on_routine=routine,
                          set_lift_routine=lambda *a, **kw: tick.result(None))
@@ -97,6 +98,7 @@ def test_pick_refuses_a_full_hand_and_place_an_empty_one(monkeypatch):
 def test_a_tag_the_eye_never_decodes_fails_out_loud(monkeypatch):
   monkeypatch.setattr(st, "_claw", lambda life: _fake_claw())
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
+  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(False))
   r = _run(st._pick, SimpleNamespace(mission=SimpleNamespace(pose=(0, 0, 0))), {"tag": 21})
   assert not r["ok"] and r["reason"] == "tag 21 is not a cube this robot can see from here"
   # ...and a tag that is not a cube at all never even looks (the claw only
@@ -267,10 +269,10 @@ def test_the_tower_solution_compiles_against_the_home_world():
   for src in (solutions.TOWER, solutions.TOWER_AT_THE_ROW, solutions.WEIGH):
     lang.compile_procedure(src, facts)
   verbs = [s[1] for s in lang.parse(solutions.TOWER).body if s[0] == "verb"]
-  assert verbs[0] == "fetch" and verbs[-1] == "place"      # the errand stows
-  assert verbs.count("pick") == 2 and verbs.count("place") == 2
+  assert verbs == ["fetch", "pick", "place", "pick", "place", "stow"]
   weigh = lang.parse(solutions.WEIGH)
-  assert ("verb", "pick", {"tag": ("num", 24)}, 17) in weigh.body and "lift.force" in solutions.WEIGH
+  assert any(v[:2] == ("verb", "pick") and v[2] == {"tag": ("num", 24)} for v in weigh.body)
+  assert "lift.force" in solutions.WEIGH
   assert solutions.PROCEDURES == {"stack_tower": solutions.TOWER, "find_mass": solutions.WEIGH}
   from pluggybot.economy.tasks import KINDS
   assert all(KINDS[k].discharge == "procedure" for k in solutions.PROCEDURES)
@@ -314,6 +316,45 @@ def test_the_offers_say_where_the_house_set_the_props_out(tmp_path):
   assert "mass" not in str(producer.facts.get("lab", {}))
 
 
+def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch):
+  """`pick(20)` from the rack failed at once on ladder B's third day. Now
+  a miss travels: the zone's route legs (each inside the lidar's reach),
+  a stand on the room's open side facing the cube, and one more look --
+  `fetch`'s terms, the rack's layout being what tells a fetch where its
+  bay is. A tag the world does not place travels nowhere."""
+  from pluggybot.lifecycle import zone_route
+  for tag, zone, side, heading in ((20, "workshop", +1, math.pi), (24, "lab", -1, 0.0)):
+    z, cube, stand, hd = st.prop_stand("home", tag)
+    assert z == zone and hd == heading
+    assert abs((stand[0] - cube[0]) - side * st.STAND_M) < 1e-9 and stand[1] == cube[1]
+  assert st.prop_stand("home", 7) is None and st.prop_stand("room_hub", 20) is None
+  legs = zone_route("home", "workshop")
+  hops = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(legs, legs[1:])]
+  assert legs and max(hops) < 8.0 and legs[-1] != (-8.5, -2.0)    # the table's spot
+  assert zone_route("home", "lab")[-1] == (22.0, 3.0) and zone_route("room_hub", "lab") == []
+  # the travel: legs behind the robot dropped, every leg driven, then faced
+  drives, faced = [], []
+  life = SimpleNamespace(world="home", mission=SimpleNamespace(
+    pose_xy=lambda: (-6.0, 1.0),
+    drive_to_routine=lambda x, y, timeout: (drives.append((x, y)), tick.result(True))[1],
+    face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
+  went = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+  assert went and drives == [(-8.0, -3.5), (-10.2, -4.75)] and faced == [math.pi]
+  # ...and a pick that saw nothing the first time travels and looks again
+  looks = []
+  monkeypatch.setattr(st, "_spot_routine", lambda life, tag: (
+    looks.append(tag), tick.result(None if len(looks) == 1 else
+                                   {"centre": (-11.0, -4.75, 0.013), "lateral": 0.0, "range": 0.8,
+                                    "half": 0.013, "layer": 0, "toward": (-1.0, 0.0),
+                                    "xyz": (-10.987, -4.75, 0.013)}))[1])
+  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(True))
+  claw = _fake_claw(after="block_1_box")
+  life.mission.pose = (-10.2, -4.75, math.pi)
+  seen, arrived = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+                           st._approach_routine(life, claw, 21, carrying=False))
+  assert looks == [21, 21] and seen["travelled"] and arrived
+
+
 def test_the_prompt_states_the_eyes_reach_and_returns_emptiness():
   from pluggybot.mind.overseer import procedure_rule
   rule = procedure_rule()
@@ -350,11 +391,11 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   the living-room rack, the claw fetched and stowed, `done`, the grade on
   the seam with its hold -- the verdict a robot would be paid for. ~170 s
   wall, behind --endurance: every rule it stands on is pinned above. The
-  procedure ends at the last `place`: the STOW is the errand's own, from
-  the workshop corner (it stalled there until `place` ended tucked)."""
+  six lines are a model's own; `pick` travels to the workshop itself."""
   life, out = _from_the_rack(tmp_path, "tower")
   proc = out["errand"]["procedure"]
-  assert proc["ok"] and proc["completed"] == proc["total"] == 10, proc
+  assert proc["ok"] and proc["completed"] == proc["total"] == 6, proc
+  assert all(s.get("seenAtM") for s in proc["steps"] if s["verb"] == "pick")
   assert out["errand"]["stowed"] and proc["toolsHung"]
   places = [s for s in proc["steps"] if s["verb"] == "place"]
   assert all(p["ok"] and p["offsetMm"] < stack.REST_OFFSET_M * 1000 for p in places)

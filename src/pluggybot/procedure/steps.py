@@ -347,6 +347,73 @@ def _spot_routine(life, tag: int) -> Routine:
   return None
 
 
+#: How far from a set-out cube the verb stands to look for it, and on which
+#: side: the props stand in rows along y against a wall (`home.TOWER_XY`,
+#: `bench.MASS_OFFSETS`), so the open side is along x, toward the room.
+STAND_M = 0.8
+
+
+def prop_stand(world: str, tag: int):
+  """Where the house set the cube carrying `tag` out, and where to stand to
+  see it: `(zone, cube_xy, stand_xy, heading)`, or None for a tag the
+  world's config does not place. A work-order fact, on `fetch`'s terms --
+  the rack's layout tells a fetch where its bay is."""
+  from pluggybot.lifecycle import world_config, zone_centre
+  from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
+  cfg = world_config(world)
+  tag = int(tag)
+  if tag in BLOCK_TAG_IDS and cfg.get("tower"):
+    zone = cfg["tower"]["name"]
+    cube = tuple(float(v) for v in cfg["tower"]["blocks"][BLOCK_TAG_IDS.index(tag)])
+  elif tag in MASS_TAG_IDS and cfg.get("lab"):
+    from pluggybot.challenge.bench import MASS_OFFSETS
+    zone = cfg["lab"]["name"]
+    bx, by = cfg["lab"]["bench"]
+    dx, dy = MASS_OFFSETS[MASS_TAG_IDS.index(tag)]
+    cube = (float(bx) + dx, float(by) + dy)
+  else:
+    return None
+  try:
+    cx, _ = zone_centre(world, zone)
+  except ValueError:
+    return None
+  side = 1.0 if cx > cube[0] else -1.0                # the room is this way
+  stand = (cube[0] + side * STAND_M, cube[1])
+  heading = math.pi if side > 0 else 0.0               # ...and the cube the other
+  return zone, cube, stand, heading
+
+
+def _travel_routine(life, tag: int) -> Routine:
+  """Go to where the house set the cube out and face it: the zone's route
+  legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
+  stand. Legs already behind the robot are dropped (`cage_route`'s rule).
+  Returns True on arrival at the stand."""
+  from pluggybot.lifecycle import LEG_DONE_M, zone_route
+  where = prop_stand(life.world, tag)
+  if where is None:
+    return False
+  zone, _, stand, heading = where
+  legs = zone_route(life.world, zone)
+  px, py = life.mission.pose_xy()
+  # drop the legs behind: from the nearest leg on, or the one after it if
+  # the robot already stands there; inside the zone, none of them
+  if legs:
+    dist = [math.hypot(x - px, y - py) for x, y in legs]
+    i = min(range(len(legs)), key=dist.__getitem__)
+    if dist[i] <= LEG_DONE_M:
+      i += 1
+    if math.hypot(stand[0] - px, stand[1] - py) < math.hypot(stand[0] - legs[-1][0],
+                                                              stand[1] - legs[-1][1]):
+      i = len(legs)
+    legs = legs[i:]
+  for x, y in [*legs, stand]:
+    arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+    if not arrived and (x, y) != stand:
+      return False
+  yield from life.mission.face_routine(heading)
+  return True
+
+
 def _approach_routine(life, claw, tag: int, carrying: bool,
                       hang: tuple[float, float] = (0.0, 0.0)) -> Routine:
   """Spot the cube, then put the grip point over it: `ClawTool.
@@ -362,6 +429,20 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   from pluggybot.tools.gripper import CARRY_LIFT
   claw.calibrate_from_body()
   seen = yield from _spot_routine(life, tag)
+  if seen is None:
+    # Not in view from here: go to where the house set it out (issue
+    # #264, `prop_stand`) -- `fetch` drives to its bay the same way -- and
+    # look once more. MEASURED without this: a model's `pick(20)` from the
+    # rack failed at once and the day's tower ended there.
+    if carrying:
+      yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
+    else:
+      yield from claw.tuck_routine()
+    went = yield from _travel_routine(life, tag)
+    if went:
+      seen = yield from _spot_routine(life, tag)
+      if seen is not None:
+        seen = {**seen, "travelled": True}
   if seen is None:
     return None, False
   heading = life.mission.pose[2]
@@ -603,7 +684,8 @@ VERBS: dict[str, Verb] = {
   "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
                "find the cube carrying this tag, drive over it and take it; "
                "ok when the jaws hold it. The eye decodes a cube's tag from "
-               "about 0.7-1 m away, facing it, and not from closer"),
+               "about 0.7-1 m away, facing it, and not from closer; a cube "
+               "not in view is looked for where it was set out"),
   "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
                 "set the held cube down on top of the cube carrying this tag "
                 "and back off; ok when it rests there. The eye's reach is "
