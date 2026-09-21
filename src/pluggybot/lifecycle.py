@@ -2030,6 +2030,19 @@ class HubLifecycle:
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
+      # A rating names the LIFE its entry belonged to when the site knows
+      # it (rooftop-media-2026 #319): `seq` restarts at 1 after a true
+      # death, so a dead robot's drawing and a live entry share a number,
+      # and settling by number alone would pay this robot for that one's
+      # work. Checked BEFORE the lookup, because the lookup is what would
+      # succeed. Absent means an older site, and there is nothing to check.
+      if (msg.generation is not None
+          and msg.generation != self.ledger.generations()):
+        self._say(f"VISITOR rating ignored: job {msg.seq} was another "
+                  f"robot's life, not mine",
+                  detail=(f"rated generation {msg.generation}, this is "
+                          f"generation {self.ledger.generations()}"))
+        continue
       try:
         # `by` is the wire's `from` -- the site sends the rater's username
         # when there is one (rooftop-media-2026 #259), so the ledger's own

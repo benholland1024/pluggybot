@@ -386,6 +386,7 @@ class Ledger:
     # the spread comes first here: with `**entry` last, the stored award time
     # would silently overwrite the settle time.
     self._emit({**entry, "type": "earned", "robot": robot,
+                "generation": self.generations(robot),
                 "t": round(float(t), 3), "settled": True})
     return entry
 
@@ -413,7 +414,16 @@ class Ledger:
     if len(acct["entries"]) > MAX_ENTRIES:
       acct["dropped"] += len(acct["entries"]) - MAX_ENTRIES
       del acct["entries"][:len(acct["entries"]) - MAX_ENTRIES]
-    self._emit({"type": "earned", "robot": robot, **entry})
+    # ⚠ THE GENERATION RIDES EVERY `earned` (rooftop-media-2026 #319). `seq`
+    # restarts at 1 when a true death archives the account (`archive`), so
+    # `(robot, seq)` alone names one entry PER LIFE -- and a consumer that
+    # keyed its mirror on the pair overwrote the first life's rows with
+    # every later one, each landing under the old row's date and vanishing
+    # from every newest-first list. `(robot, generation, seq)` is the
+    # identity; the count is `survival.generations`' (0 for the first
+    # robot), never the memory store's 1-based one.
+    self._emit({"type": "earned", "robot": robot,
+                "generation": self.generations(robot), **entry})
     return entry
 
   def _to_balance(self, acct: dict, points: int) -> tuple[int, int]:

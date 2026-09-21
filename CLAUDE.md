@@ -775,7 +775,11 @@ save a filmstrip PNG named after the script.
   ONE message per turn and the outcome goes back as a typed `visitor_reply`.
   ⚠ RATINGS NEVER REACH THE MODEL — a rating moves a balance, so
   `_visitor_step` drains those straight to the ledger; nor does an admin
-  command. ⚠ A message the queue threw away SAYS so (`Inbox.drain_evicted`
+  command. ⚠ AN EARNING NAMES ITS LIFE (rooftop #319): `seq` restarts at
+  1 on a true death, so `(robot, seq)` is one entry PER LIFE — `earned`
+  carries `generation` (the ledger's count, = `survival.generations`), the
+  site keys its mirror on the triple, and a `rating` naming another life
+  is refused before the lookup (the lookup is what would succeed). ⚠ A message the queue threw away SAYS so (`Inbox.drain_evicted`
   → `visitor_reply` with outcome `dropped`), and `dropped` is in
   `VISITOR_OUTCOMES` (what a consumer must render) and NOT in
   `DECIDED_OUTCOMES` (what a mind may say) — the party that benefits from a
