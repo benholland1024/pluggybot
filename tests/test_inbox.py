@@ -74,6 +74,10 @@ def test_json_text_and_dicts_are_both_accepted():
   ({"type": "rating", "seq": 3, "quality": 4.0}, "a rating outside 0..1"),
   ({"type": "rating", "seq": "three", "quality": 0.5}, "an unparseable seq"),
   ({"type": "rating", "seq": 3}, "a rating with no rating in it"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": "two"},
+   "a life the rating named and then could not say"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": -1},
+   "a life that cannot exist"),
 ])
 def test_malformed_input_is_dropped_and_counted(raw, why):
   inbox = Inbox()
@@ -613,6 +617,69 @@ def test_a_rating_the_ledger_refuses_is_narrated_not_raised(seq, quality, why):
 
   assert any("ignored" in line for line in said), why
   assert len(inbox) == 0, "a refused rating was left to be retried forever"
+
+
+def _pending_artwork(ledger):
+  from pluggybot.economy import scoring
+  return ledger.award(scoring.evaluate("artwork", {
+    "strokes": 6, "strokesInked": 6, "formMm": 0.8, "inkedFraction": 0.97,
+    "travelInkFraction": 0.0, "fill": 0.2, "board": "whiteboard_a"}), t=100.0)
+
+
+def test_a_rating_for_another_life_of_this_robot_is_refused(tmp_path):
+  """⚠ `seq` COMES ROUND AGAIN after a true death (rooftop-media-2026 #319):
+  the archived account restarts at 1, so the dead robot's drawing and this
+  robot's first job share a number. A rating that names the life it meant
+  is refused when that is not the life running -- checked BEFORE the lookup,
+  because the lookup is exactly what would succeed. Fails without the check:
+  the live entry settles and this robot is paid for the dead one's work."""
+  from pluggybot.economy.ledger import Ledger
+
+  ledger = Ledger()
+  dead = _pending_artwork(ledger)
+  assert ledger.archive()["generation"] == 1           # a true death
+  live = _pending_artwork(ledger)
+  assert live["seq"] == dead["seq"], "the premise: one number, two lives"
+
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox, ledger=ledger)
+  said: list = []
+  life.say_hooks.append(lambda t, line: said.append(line))
+  inbox.offer({"type": "rating", "id": "r1", "seq": dead["seq"],
+               "quality": 1.0, "generation": 0})       # the dead robot's
+
+  life._visitor_step()
+
+  assert ledger.pending(), "the live entry was settled by the dead one's rating"
+  assert ledger.balance() == 0
+  assert any("ignored" in line and "another robot's life" in line
+             for line in said), said
+  assert len(inbox) == 0
+
+  # The same number for THIS life settles as it always did...
+  inbox.offer({"type": "rating", "id": "r2", "seq": live["seq"],
+               "quality": 1.0, "generation": 1})
+  life._visitor_step()
+  assert not ledger.pending() and ledger.balance() == 20
+
+
+def test_a_rating_that_names_no_life_is_taken_on_trust():
+  """A site older than the field sends none, and there is nothing to check:
+  the number alone is what it always was, the sim's own row."""
+  from pluggybot.economy.ledger import Ledger
+
+  ledger = Ledger()
+  ledger.archive()
+  live = _pending_artwork(ledger)
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox, ledger=ledger)
+  msg = inbox.offer({"type": "rating", "id": "r1", "seq": live["seq"],
+                     "quality": 1.0})
+  assert msg is not None and msg.generation is None
+  assert "generation" not in msg.as_dict(), "absent, not null, on the record"
+
+  life._visitor_step()
+  assert not ledger.pending() and ledger.balance() == 20
 
 
 def test_a_rating_with_no_ledger_at_all_is_harmless():

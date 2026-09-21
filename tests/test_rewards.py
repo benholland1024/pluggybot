@@ -511,6 +511,34 @@ def test_a_visitor_judged_task_banks_nothing_until_it_is_rated():
   assert seen[-1]["seq"] == entry["seq"]
 
 
+def test_an_earning_names_the_life_it_belongs_to():
+  """⚠ `seq` RESTARTS AT 1 AFTER A TRUE DEATH (rooftop-media-2026 #319).
+
+  `Ledger.archive` wipes the account back to seed, counter included, so
+  `(robot, seq)` names one entry PER LIFE -- and the website, which keyed its
+  mirror on the pair, overwrote the first life's rows with every later
+  one: each landed under the old row's date and vanished from every
+  newest-first list, the rating panel's included. The generation on the
+  message is what tells the two apart. Fails without it: the key is absent.
+  """
+  seen: list = []
+  ledger = Ledger()
+  ledger.on_event.append(seen.append)
+  first = ledger.award(evaluate("artwork", GOOD_DRAWING), t=1.0)
+  ledger.settle(first["seq"], quality=0.5, t=2.0)
+  assert ledger.archive()["generation"] == 1
+  second = ledger.award(evaluate("artwork", GOOD_DRAWING), t=3.0)
+  ledger.settle(second["seq"], quality=0.5, t=4.0)
+
+  assert first["seq"] == second["seq"] == 1, "the counter did not restart"
+  generations = [m["generation"] for m in seen if m["type"] == "earned"]
+  assert generations == [0, 0, 1, 1], "the bank and the settle, per life"
+  # The count is `survival.generations`' -- how many robots this volume has
+  # used up, 0 for the first -- so a consumer can key an earning and a frame
+  # on the same number.
+  assert generations[-1] == ledger.generations()
+
+
 def test_a_rating_cannot_be_applied_twice_or_out_of_range():
   ledger = Ledger()
   entry = ledger.award(evaluate("artwork", GOOD_DRAWING))

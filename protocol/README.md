@@ -58,6 +58,34 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: an earning names the life it belongs to (`earned.generation`; `rating.generation`)
+
+rooftop-media-2026 #319. `seq` is the ledger's per-robot counter, and a
+TRUE DEATH (0.17.0) restarts it at 1 with the rest of the account -- so
+`(robot, seq)` names one entry PER LIFE, and a consumer that keyed a mirror
+on the pair overwrote the first life's rows with every later one, each
+landing under the old row's date and vanishing from every newest-first
+list (the site's rating panel showed drawings from a fortnight before and
+nothing since). No bump; the fixtures are single-life recordings and are
+not re-recorded (the field is absent there, which reads as generation 0):
+
+- **`earned.generation`** — the ledger's count of robots this volume has
+  used up, `0` for the first, the SAME number as the frame's
+  `survival.generations` and a `true_death`'s `generation`, on the bank and
+  on the settle alike. ⚠ Not the memory store's 1-based `records.generation`
+  (0.21.0 above): two counters, two owners. The identity of an earning is
+  `(robot, generation, seq)`; a consumer whose key lacks the middle term
+  should treat an absent field as `0`.
+- **`rating.generation`**, inbound, optional — which life the rated entry
+  belonged to, echoed off the `earned` that announced it. A rating whose
+  generation is not the living one is refused out loud (`VISITOR rating
+  ignored: job N was another robot's life, not mine`) BEFORE the lookup,
+  because the lookup is exactly what would succeed: the dead robot's
+  drawing and a live entry share a number. Absent means a site older than
+  the field, and the number alone is taken as it always was. A present but
+  unreadable one is dropped as malformed, not applied to whichever life is
+  running.
+
 ### 0.21.0, additive: the constitution is named, versioned and per robot (`build.constitutions`; `constitution_changed`)
 
 pluggybot #263. `Main.md` used to be copied to the volume from a default in
@@ -1595,6 +1623,7 @@ it opened, and a message can only arrive while that connection is up.
 {"type": "question",   "id": "q_01", "from": "ada",
  "text": "what are you working on?"}
 {"type": "rating",     "id": "r_01", "seq": 3, "quality": 0.8}
+                       // + "generation": 0, optional, since #319 (above)
 ```
 
 - **`id` is the SERVER's**, and the sim only ever echoes it back. It is the
