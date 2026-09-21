@@ -364,13 +364,18 @@ class Inbox:
         return None
       # Optional, and REFUSED when present and unreadable rather than
       # dropped: a rating that named a life and lost the name on the way in
-      # would be applied to whichever life is running.
-      if raw.get("generation") is not None:
+      # would be applied to whichever life is running. ⚠ A WHOLE number, by
+      # value: `int(True)` is 1 and `int(1.5)` is 1, and either would have
+      # named a life the sender never meant.
+      given = raw.get("generation")
+      if given is not None:
+        if isinstance(given, bool):
+          return None
         try:
-          generation = int(raw["generation"])
+          generation = int(given)
         except (TypeError, ValueError):
           return None
-        if generation < 0:
+        if generation != given or generation < 0:
           return None
     module = ""
     # `reset_robot` (issue #107) names nothing: the robot is the robot. It

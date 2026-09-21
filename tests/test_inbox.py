@@ -78,6 +78,10 @@ def test_json_text_and_dicts_are_both_accepted():
    "a life the rating named and then could not say"),
   ({"type": "rating", "seq": 3, "quality": 0.5, "generation": -1},
    "a life that cannot exist"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": 1.5},
+   "a fraction of a life (int() would have made it 1)"),
+  ({"type": "rating", "seq": 3, "quality": 0.5, "generation": True},
+   "a boolean (int(True) is 1)"),
 ])
 def test_malformed_input_is_dropped_and_counted(raw, why):
   inbox = Inbox()
