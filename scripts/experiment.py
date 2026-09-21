@@ -47,7 +47,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pluggybot.evaluation.record import (
-  ARMS, build_record, data_hashes, load_events, run_id, validate,
+  ARMS, PROBE_SENDER, PROBES, build_record, data_hashes, load_events, run_id,
+  validate,
 )
 from pluggybot.evaluation.arms import origin_for
 from pluggybot.evaluation.rollup import write_rollup
@@ -234,7 +235,17 @@ def main() -> int:
                        "for a machine with nothing else on it. It joins the "
                        "series key, so a quiet series and a loaded one are "
                        "committed side by side instead of averaged into one")
-  ap.add_argument("--results", default=str(RESULTS))
+  ap.add_argument("--probe", default=None, choices=sorted(PROBES),
+                  help="ladder B of issue #264: put this feature's phrase in "
+                       "the robot's inbox at mission start and read the run "
+                       "into `probe.outcome`. Never a result: the records go "
+                       "to --results, which then defaults to runs/probes/, and "
+                       "no rollup is written")
+  ap.add_argument("--probe-from", default=PROBE_SENDER,
+                  help="who the phrase is from (a visitor's name)")
+  ap.add_argument("--results", default=None,
+                  help=f"where the records go (default {RESULTS}, or "
+                       "runs/probes/ with --probe)")
   ap.add_argument("--wall-limit", type=float, default=None,
                   help=f"seconds before a run is killed (default "
                        f"{WALL_PER_SIM_S} x --max-sim-time, at least "
@@ -244,6 +255,12 @@ def main() -> int:
   ap.add_argument("--rollup", action="store_true",
                   help="only re-aggregate the results directory")
   args = ap.parse_args()
+  if args.results is None:
+    args.results = str(REPO / "runs" / "probes" if args.probe else RESULTS)
+  elif args.probe and Path(args.results).resolve() == RESULTS.resolve():
+    print("refusing: a probed run is not a result and may not land in "
+          f"{RESULTS}", file=sys.stderr)
+    return 2
   results = Path(args.results)
   if not args.rollup:
     model = None
@@ -267,6 +284,8 @@ def main() -> int:
              # Resolved HERE, once, so a killed run's record (written by
              # this process from the rows alone) carries it too.
              "constitution": constitution.resolve(args.constitution).as_dict(),
+             **({"probe": {"feature": args.probe, "phrase": PROBES[args.probe],
+                           "from": args.probe_from}} if args.probe else {}),
              "maxSimS": args.max_sim_time, "freshState": True,
              "parallel": args.parallel, "wallLimitS": wall_limit,
              "startedAt": started.isoformat(), "dataHashes": hashes}
@@ -275,7 +294,20 @@ def main() -> int:
         cfg["telemetry"] = str(results / f"{cfg['runId']}.telemetry.jsonl.gz")
       configs.append(cfg)
       time.sleep(1.1)                 # distinct second-resolution run ids
-    fly(configs, results, max(1, args.parallel), wall_limit)
+    written = fly(configs, results, max(1, args.parallel), wall_limit)
+    if args.probe:
+      # A GATE IS NOT A SERIES (Evaluation.md §7): no rollup, the reading
+      # printed for the issue comment it goes into.
+      for out in written:
+        rec = json.loads(out.read_text())
+        pr = rec.get("probe") or {}
+        print(f"\nPROBE {pr.get('feature')} -> {pr.get('outcome', '?').upper()} "
+              f"({rec['end']} at t={rec['simSeconds']:.0f}, "
+              f"{rec['mind']['decisions']} decisions, fallbacks {rec['mind']['fallbacks']})")
+        print(f"  signals {pr.get('signals')}")
+        print(f"  reply {pr.get('reply')}")
+        print(f"  record {out}")
+      return 0
   path = write_rollup(results)
   print(f"\nrollup -> {path}")
   summarise(path)

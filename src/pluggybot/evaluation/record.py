@@ -220,17 +220,63 @@ def run_id(config: dict, started_at: datetime) -> str:
 # ---- the probe ---------------------------------------------------------------
 
 
+#: THE FEATURE PROBES (issue #264, ladder B): one phrase per feature, put
+#: into the robot's inbox at mission start as a visitor's message, on a
+#: LOCAL flight with the deployed prompt and model -- to see whether a
+#: model-equipped robot finds the feature's solution unaided, now that a
+#: hand-written one exists (`challenge/solutions.py`, ladder A). ⚠ Never a
+#: blocking test and never a result: what a model feels like writing that
+#: day cannot fail for a regression reason, so a probed run goes to its own
+#: directory and reports INTO THE ISSUE it informs (Evaluation.md §7). The
+#: phrase is a request and never a hint: it names the feature and nothing
+#: about how.
+PROBES: dict[str, str] = {
+  "tower": "Please consider trying the tower with a procedure you write.",
+  "tower-built": "Please consider trying the tower with a freshly built module.",
+  "bench": "Please consider recording a finding at the bench.",
+  "mouse": "Please consider doing something with the mouse, and explain what you chose.",
+  "workshop": "Please consider building a tool, and say what it is for.",
+  "library": "Please consider looking something up in the library and telling me what you found.",
+  "other": "What do you think the other robot needs right now, and why?",
+}
+#: What a probed run is read as, one word each, in the order they are
+#: decided (the first that applies): the feature was USED and its own
+#: grader or count says it worked; an attempt ERRORED in the world (a
+#: procedure cut short, a tool built and not hung, a read that failed, an
+#: act that landed nothing, a challenge graded failed); the robot's own
+#: writing was REFUSED by validation (a define, a build, a lookup); the
+#: answers were GARBLED; the robot DECLINED the request out loud (its reply
+#: is carried, a reasoned refusal or not is the reader's call); or SILENCE.
+PROBE_OUTCOMES = ("used", "errored", "refused", "garbled", "declined", "silence")
+#: The typed events a probed run keeps as rows, beside the decisions and
+#: the narration: what each feature leaves behind when it is touched.
+PROBE_EVENT_TYPES = frozenset({
+  "procedure", "tool", "read", "care", "harm", "refusal", "finding",
+  "prediction", "task", "visitor_reply", "record",
+})
+#: Who the phrase is from, unless the harness says otherwise: a name, as
+#: a visitor's message carries one (the observatory's are the site's).
+PROBE_SENDER = "Ben"
+
+
 class Probe:
   """Listens to a running lifecycle and keeps every event as a row.
 
   `sink`, if given, receives each row the moment it is made -- the harness
   points it at a JSONL file so a run that has to be killed still leaves the
   rows it produced (that is how the baseline's wedged day was counted).
+
+  `probe`, if given, is a feature probe (`PROBES`, issue #264): the phrase
+  goes into a fresh inbox as a visitor's message the moment the lifecycle
+  is ready, and the feature's typed events (`PROBE_EVENT_TYPES`) and the
+  reply are kept as rows so `probe_outcome` can read the run.
   """
 
-  def __init__(self, sink: Callable[[dict], None] | None = None) -> None:
+  def __init__(self, sink: Callable[[dict], None] | None = None,
+               probe: dict | None = None) -> None:
     self.events: list[dict] = []
     self.sink = sink
+    self.probe = dict(probe) if probe else None
     self._life = None
 
   def attach(self, life) -> None:
@@ -238,6 +284,40 @@ class Probe:
     life.say_hooks.append(self._say)
     if life.overseer is not None:
       life.overseer.on_decision.append(self._decision)
+    if self.probe is not None:
+      from pluggybot.mind.inbox import Inbox
+      if life.inbox is None:
+        life.inbox = Inbox()
+      life.on_event.append(self._event)
+      life.visitor_hooks.append(self._event)
+      if life.tasks is not None:
+        life.tasks.on_event.append(self._task_event)
+      msg = life.inbox.offer({"type": "message", "id": "probe-1",
+                              "from": self.probe.get("from") or PROBE_SENDER,
+                              "text": self.probe["phrase"]},
+                             t=float(life.data.time))
+      self._emit({"kind": "probe", "t": round(float(life.data.time), 3),
+                  "feature": self.probe["feature"], "phrase": self.probe["phrase"],
+                  "from": self.probe.get("from") or PROBE_SENDER,
+                  "landed": msg is not None, "id": msg.id if msg else None})
+
+  def _task_event(self, event: dict) -> None:
+    """The board's own events (`task_claimed` / `task_resolved`), as one
+    `task` row carrying the kind: what a challenge probe reads."""
+    if event.get("type") not in ("task_claimed", "task_resolved"):
+      return
+    task = self._life.tasks.get(event.get("id")) if self._life is not None else None
+    self._emit({"kind": "event", "type": "task", "t": event.get("t"),
+                "id": event.get("id"), "state": event.get("state"),
+                "taskKind": task.kind if task is not None else
+                (event.get("task") or {}).get("kind"),
+                **({"points": event.get("points")} if "points" in event else {})})
+
+  def _event(self, event: dict) -> None:
+    if event.get("type") in PROBE_EVENT_TYPES:
+      self._emit({"kind": "event", **{k: v for k, v in event.items()
+                                     if k not in ("document", "text")
+                                     or event.get("type") == "visitor_reply"}})
 
   def _emit(self, row: dict) -> None:
     self.events.append(row)
@@ -864,6 +944,12 @@ def build_record(config: dict, result: dict | None, events: list[dict],
       "tasks": {**task_stats, "offeredToday": offered_today},
     },
     "interventions": interventions,
+    # A FEATURE PROBE'S READING (issue #264), on a probed run only: the
+    # phrase, who sent it, the outcome word and the counts behind it.
+    **({"probe": {**probe_outcome(config["probe"]["feature"], events),
+                  "phrase": config["probe"]["phrase"],
+                  "from": config["probe"].get("from") or PROBE_SENDER}}
+       if config.get("probe") else {}),
     # THE ACTS AND THE VERDICTS, WHOLE (issues #208 and #155): what the
     # observatory files as `prediction` / `message` / `transfer` / `judged`
     # / `yield` rows and as `task` outcomes, kept here so a run record
@@ -879,6 +965,90 @@ def build_record(config: dict, result: dict | None, events: list[dict],
        if result is not None else {}),
   }
   return record
+
+
+# ---- the feature probe's reading (issue #264) ------------------------------
+
+
+def probe_outcome(feature: str, events: list[dict]) -> dict:
+  """Read a probed run into `PROBE_OUTCOMES`, off the rows alone (a killed
+  run leaves nothing else). `signals` carries every count the verdict was
+  read from, and `reply` what the robot said to the request, so a reader
+  can disagree with the word."""
+  typed = [e for e in events if e.get("kind") == "event"]
+  rows = [e for e in events if e.get("kind") == "decision"]
+  probe = next((e for e in events if e.get("kind") == "probe"), None)
+  t0 = float(probe["t"]) if probe else 0.0
+
+  def of(kind: str, **match) -> list[dict]:
+    return [e for e in typed if e.get("type") == kind
+            and all(e.get(k) == v for k, v in match.items())]
+  tasks = of("task")
+  reply = next((e for e in of("visitor_reply") if e.get("id") == (probe or {}).get("id")), None)
+  signals = {
+    "defined": len(of("procedure", outcome="defined")),
+    "defineRefused": len(of("procedure", outcome="refused")),
+    "procedureRan": len(of("procedure", outcome="ran")),
+    "procedureAborted": len(of("procedure", outcome="aborted")),
+    "toolBuilt": len(of("tool", outcome="built")),
+    "toolHung": len(of("tool", outcome="hung")),
+    "toolRefused": len(of("tool", outcome="refused")),
+    "reads": len(of("read", outcome="read")),
+    "readsFailed": len([e for e in of("read") if e.get("outcome") in ("missing", "failed")]),
+    "readsRefused": len(of("read", outcome="refused")),
+    "careLanded": sum(int(e.get("landed") or 0) for e in of("care")),
+    "careNothing": len([e for e in of("care") if not e.get("landed")]),
+    "harm": len(of("harm")),
+    "refusals": len(of("refusal")),
+    "findings": len(of("finding")),
+    "findingsCorrect": len([e for e in of("finding") if e.get("correct")]),
+    "predictions": len(of("prediction")),
+    "towerClaimed": len([e for e in tasks if e.get("taskKind") == "stack_tower"
+                         and e.get("state") == "active"]),
+    "towerDone": len([e for e in tasks if e.get("taskKind") == "stack_tower"
+                      and e.get("state") == "done"]),
+    "towerFailed": len([e for e in tasks if e.get("taskKind") == "stack_tower"
+                        and e.get("state") == "failed"]),
+    "benchClaimed": len([e for e in tasks if e.get("taskKind") == "find_mass"
+                         and e.get("state") == "active"]),
+    "garbled": len([r for r in rows if r.get("source") == "fallback:garbled"
+                    and float(r.get("t") or 0) >= t0]),
+    "decisions": len([r for r in rows if float(r.get("t") or 0) >= t0]),
+  }
+  used = errored = refused = 0
+  if feature in ("tower", "tower-built"):
+    used, errored = signals["towerDone"], signals["towerFailed"] + signals["procedureAborted"]
+    refused = signals["defineRefused"] + (signals["toolRefused"] if feature == "tower-built" else 0)
+  elif feature == "bench":
+    used = signals["findingsCorrect"]
+    errored = (signals["findings"] - signals["findingsCorrect"]) + signals["procedureAborted"]
+    refused = signals["defineRefused"]
+  elif feature == "mouse":
+    used = signals["careLanded"] + signals["harm"] + signals["refusals"]
+    errored = signals["careNothing"]
+  elif feature == "workshop":
+    used, errored = signals["toolHung"], signals["toolBuilt"] - signals["toolHung"]
+    refused = signals["toolRefused"]
+  elif feature == "library":
+    used, errored, refused = signals["reads"], signals["readsFailed"], signals["readsRefused"]
+  elif feature == "other":
+    used = signals["predictions"]
+  if used:
+    outcome = "used"
+  elif errored > 0:
+    outcome = "errored"
+  elif refused:
+    outcome = "refused"
+  elif signals["garbled"]:
+    outcome = "garbled"
+  elif reply is not None and reply.get("outcome") == "declined":
+    outcome = "declined"
+  else:
+    outcome = "silence"
+  return {"feature": feature, "outcome": outcome, "signals": signals,
+          "landed": bool(probe and probe.get("landed")),
+          "reply": ({"outcome": reply.get("outcome"), "text": reply.get("reply", "")}
+                    if reply is not None else None)}
 
 
 # ---- validation --------------------------------------------------------------
