@@ -1585,7 +1585,7 @@ save a filmstrip PNG named after the script.
   and the mind never sees it** (issue #264; Evaluation.md §7 "the shape of
   a capability gate"; `challenge/solutions.py`, `scripts/solve.py --feature
   {tower,bench,mouse}`, `tests/test_solutions.py`). Ladder A: `solutions.
-  TOWER` stacks the tower from the rack (445 sim s, 2.7 Wh, 5.5 mm of lean,
+  TOWER` stacks the tower from the rack (489 sim s, 2.7 Wh, 5.3 mm of lean,
   +26), `solutions.WEIGH` weighs the bench's cube to 2 %, the feed act
   lands — each a flight behind `--endurance` with its rules pinned fast; a
   feature whose solution cannot be written is a DEFECT, fixed before pay
@@ -1604,9 +1604,16 @@ save a filmstrip PNG named after the script.
   calibrate_from_body` at the deployed reach, `held_hang` re-read on
   arrival (a cube slips 7 mm down and 10 mm along the pads over a carry),
   `tuck_routine` at `MODULE_DRIVE_LIFT` (at `APPROACH_LIFT` the claw sits
-  in the lidar's front-stop cone), and `lab_route`'s first leg 0.6 m short
+  in the lidar's front-stop cone), `lab_route`'s first leg 0.6 m short
   of the garden doorway (the door post trips the reflex from a cold
-  start). ⚠ The errand's own stow returns from the WORKSHOP (measured,
+  start), and a cube NOT IN VIEW looked for where the house set it out
+  (`steps.prop_stand` + `lifecycle.zone_route`, on `fetch`'s terms: a
+  single `drive_to` across the house stalls in the hall at 41 s, so the
+  workshop has route legs as the lab does). The offers carry where the
+  props were set out (`{placement}`; `MAX_DESCRIPTION` 280 → 420, the
+  house's own offers were being cut), the `lab` context block carries
+  `route`, `pick`'s doc says the eye's reach. `solutions.TOWER` is the
+  six lines a model wrote on ladder B's third day, verbatim. ⚠ The errand's own stow returns from the WORKSHOP (measured,
   once `place` ends tucked); a procedure that goes to the LAB brings its
   tool home in legs, 30 m of street being past the auto-stow's 90 s
   drive. ⚠ `place`'s ok is

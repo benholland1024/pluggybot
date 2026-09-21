@@ -253,10 +253,10 @@ kind `stack_tower`), procedures written for it (`procedure` rows), and the
 first solve — the first reading of the capability metric #155 waits for.
 
 **And whether it can be done at all is settled** (issue #264): a procedure
-in the robot's own language -- `fetch`, four legs, `face`, `pick(21)`,
-`place(20)`, `pick(22)`, `place(21)`, the errand stowing the claw -- passes
-this grader from the rack, so a robot that never does is a finding about
-the robot. The physics was never the problem; the language's reach to
+in the robot's own language -- `fetch("module_claw")`, `pick(20)`,
+`place(21)`, `pick(22)`, `place(20)`, `stow()`, a model's own six lines --
+passes this grader from the rack, so a robot that never does is a finding
+about the robot. The physics was never the problem; the language's reach to
 the claw was (Overseer.md §2b, the claw's pair). `scripts/solve.py
 --feature tower` is the flight, `tests/test_solutions.py` its proof.
 

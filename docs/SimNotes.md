@@ -1601,10 +1601,18 @@ auto-stow that "could not return from the workshop corner" was the cone
 bug above: tucked, the errand's own stow brings the claw home from there
 (bay error 0.3 mm); from the lab the solution drives the road in legs.
 
-What is true now: `solutions.TOWER` passes `eval_stack_tower` from the
-rack (445 sim s, 2.7 Wh, 5.5 mm of lean); `solutions.WEIGH` weighs the
-bench's cube to 2 %; the feed act lands. `tests/test_solutions.py` pins
-each rule above in milliseconds and flies the three behind `--endurance`.
+And one more, from ladder B's third day: a model wrote `fetch; pick(20);
+place(21); pick(22); place(20); stow` and `pick(20)` failed at the rack --
+the cube was 15 m away and a single `drive_to` across the house stalls in
+the hall at 41 s (the unmapped-goal defect). So a cube out of view is
+looked for where the house set it out: route legs to the zone, a stand on
+the room's open side, one more look.
+
+What is true now: `solutions.TOWER` -- those six lines, verbatim -- passes
+`eval_stack_tower` from the rack (489 sim s, 2.7 Wh, 5.3 mm of lean);
+`solutions.WEIGH` weighs the bench's cube to 2 %; the feed act lands.
+`tests/test_solutions.py` pins each rule above in milliseconds and flies
+the three behind `--endurance`.
 
 ## Debugging workflow that worked
 

@@ -251,7 +251,17 @@ height instead (2 mm); the grip offset is read off the body at the
 deployed reach, never the belief; the held cube slips ~7 mm down and ~10
 mm along the pads over a carry, so its hang is re-measured on arrival;
 and a place ends in the DRIVING configuration, because at carry height
-with the arm out the module sits in the lidar's front-stop cone. The
+with the arm out the module sits in the lidar's front-stop cone. And a
+cube NOT IN VIEW is looked for where the house set it out
+(`steps.prop_stand`, `lifecycle.zone_route`): the zone's route legs, a
+stand on the room's open side facing the cube, one more look -- `fetch`'s
+terms, the rack's layout being what tells a fetch where its bay is.
+Ladder B's third day wrote `fetch; pick(20); place(21); pick(22);
+place(20); stow` from the rack and failed at `pick(20)` for want of
+exactly that; those six lines, verbatim, are now the ladder-A solution
+and pass from the rack (489 s, 5.3 mm of lean). The offers say where the
+props were set out (`{placement}`, a work-order fact), the `lab` block
+carries the road (`route`), the verb docs say the eye's reach. The
 prompt's verb list grew by two lines (`describe_vocabulary`), which is a
 period on the observatory; `guarded` is untouched. The hand-written
 solutions that pass each grader live in `challenge/solutions.py`, never
