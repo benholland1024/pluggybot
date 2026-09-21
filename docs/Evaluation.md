@@ -1781,6 +1781,30 @@ that machinery exists to make a series comparable, and a gate is not trying to
 be. The probe answers most of them without a sim at all, which is the lesson
 the deadline taught once already.
 
+**The shape of a capability gate** (issue #264): *solution first, model
+second, local both.* A feature nobody uses is indistinguishable from one that
+cannot be completed, so the gate has two ladders and they are climbed in
+order. **Ladder A — a solution exists:** a hand-written procedure, spec or
+program in the robot's own vocabulary, run on the `scripted` arm through the
+feature's own grader (`scoring.evaluate`, the door the robot's attempt goes
+through) — a demo script and an `--endurance` flight, with the rules it
+stands on pinned fast (`challenge/solutions.py`, `scripts/solve.py`,
+`tests/test_solutions.py`). A feature whose ladder-A solution cannot be
+written is a defect in the feature, filed and fixed before any prompt or pay
+moves: the tower's was the language's reach to the claw, and the fix was two
+verbs, not a hint. **Ladder B — a model-equipped robot finds one:** a LOCAL
+flight on the `autonomous` arm with the deployed prompt and model, the
+feature's phrase put in the inbox at mission start as a visitor's message
+(`scripts/experiment.py --probe <feature>`; `record.PROBES`), and the record
+read into one word (`record.PROBE_OUTCOMES`: used / errored / refused /
+garbled / declined / silence) with the counts it was read from. Never a
+blocking test and never a result — what a model feels like writing that day
+cannot fail for a regression reason — so a probed run's record goes to
+`probes/`, no rollup is written, and the reading is a comment on the issue
+it informs. A ladder-B failure on a feature ladder A passes is the lever
+question — the pay (data, a period), the rule text, or the model — and the
+comment says which, or says it does not know.
+
 ## 8. Writing it down as it is collected
 
 ⚠ **A RESULT THAT WAS NEVER EXPLAINED IS A RESULT NOBODY CAN READ, INCLUDING US

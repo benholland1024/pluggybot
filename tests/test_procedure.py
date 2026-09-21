@@ -62,7 +62,9 @@ def test_the_vocabulary_is_the_issues_verbs():
   assert set(st.VERBS) == {"fetch", "stow", "drive_to", "face", "set_lift",
                            "grip", "release", "draw", "look", "wait",
                            # the motor level, issue #166
-                           "move", "drive"}
+                           "move", "drive",
+                           # the claw's pair, issue #264
+                           "pick", "place"}
   assert all(d["doc"] for d in st.describe_vocabulary())
 
 

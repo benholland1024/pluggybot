@@ -187,9 +187,15 @@ class TaskProducer:
   """
 
   def __init__(self, board: TaskBoard, cadence: Cadence,
-               targets: dict[str, list[str]] | None = None) -> None:
+               targets: dict[str, list[str]] | None = None,
+               facts: dict | None = None) -> None:
     self.board = board
     self.cadence = cadence
+    #: What the world knows about its own props (issue #264): `world_config`'s
+    #: `tower` and `lab` blocks, read for an offer's `{placement}` clause --
+    #: where the house set the blocks and the cubes out. Empty on a world
+    #: without them, and the clause reads as nothing.
+    self.facts = dict(facts or {})
     self.targets = {kind: list(names)
                     for kind, names in (targets or {}).items() if names}
     # Only the kinds this world has something to point at. A world with no
@@ -370,8 +376,29 @@ class TaskProducer:
       params.update({"known_g": round(bench.KNOWN_MASS_KG * 1000),
                      "known_tag": bench.MASS_TAG_IDS[0],
                      "unknown_tag": bench.MASS_TAG_IDS[1]})
+      at = (self.facts.get("lab") or {}).get("bench")
+      if at:
+        cubes = [(float(at[0]) + dx, float(at[1]) + dy) for dx, dy in bench.MASS_OFFSETS]
+        params["placement"] = (f", set out at {_xy(cubes[0])} (tag "
+                               f"{bench.MASS_TAG_IDS[0]}) and {_xy(cubes[1])} "
+                               f"(tag {bench.MASS_TAG_IDS[1]})")
       return params, {"kg": bench.default_bank().pick(self.board.seq)}
+    if kind == "stack_tower":
+      # Where the house set the blocks out (issue #264): start positions,
+      # in the order their tags run, never where they are now.
+      from pluggybot.rack.tags import BLOCK_TAG_IDS
+      blocks = (self.facts.get("tower") or {}).get("blocks") or ()
+      if blocks:
+        params["placement"] = (
+          "They were set out in a row at "
+          + ", ".join(_xy(b) for b in blocks) + ", tags "
+          + ", ".join(str(t) for t in BLOCK_TAG_IDS[:len(blocks)])
+          + " in that order, on every face. ")
     return params, {}
+
+
+def _xy(point) -> str:
+  return f"({float(point[0]):.2f}, {float(point[1]):.2f})"
 
   # ---- what a long run looks like ------------------------------------------
 

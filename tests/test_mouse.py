@@ -655,13 +655,16 @@ def test_the_context_shows_the_mouse_only_from_inside_the_lab(home_model, tmp_pa
   life = _life(home_model, tmp_path)
   state = overseer_context(life)
   # (`bench` is the bench's surveyed position, issue #227 -- furniture,
-  # visible from anywhere like a whiteboard's pose)
+  # visible from anywhere like a whiteboard's pose; `route` the road
+  # there, issue #264 -- the house's map, what `cage_program` drives by)
+  route = [[round(x, 1), round(y, 1)] for x, y in lc.lab_route("home")]
   assert state["lab"] == {"room": "lab", "inRoom": False, "mouse": None,
-                          "bench": [27.68, 1.5]}
+                          "bench": [27.68, 1.5], "route": route}
+  assert len(route) == 5 and route[-1] == [22.0, 3.0]
   _place(home_model, life.data, 25.0, 2.0)
   life.cage._advance(1.0, _press(feed=True), False)
   assert overseer_context(life)["lab"] == {"room": "lab", "inRoom": True, "mouse": "eating",
-                                           "bench": [27.68, 1.5]}
+                                           "bench": [27.68, 1.5], "route": route}
   # the offer says what it asks for first
   life.tasks.offer("shock_mouse", "lab", ttl=100.0, t=0.0)
   [offer] = overseer_context(life)["offeredTasks"]

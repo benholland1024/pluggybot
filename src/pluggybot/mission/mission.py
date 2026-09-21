@@ -745,6 +745,81 @@ class HubMission:
     self.travel_source = "nominal"
     return NOMINAL_TRAVEL
 
+  def _camera_mount(self) -> tuple[np.ndarray, np.ndarray]:
+    """The dock camera's pose in the CHASSIS frame -- the robot's own
+    kinematics at the current lift, read off the model rather than
+    re-typed, so a camera move cannot silently stale a constant."""
+    bid = self.swap.chassis_bid
+    body_r = self.data.xmat[bid].reshape(3, 3)
+    cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
+    cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id] - self.data.xpos[bid])
+    return cam_p, cam_r
+
+  def _in_chassis(self, t) -> np.ndarray:
+    """One PnP translation (apriltag camera frame: x right, y down, z
+    forward) as a chassis-frame point: MuJoCo's camera looks along -z with
+    y up, so y and z are negated, then the mount is applied."""
+    cam_p, cam_r = self._camera_mount()
+    tx, ty, tz = t
+    return cam_p + cam_r @ np.array([tx, -ty, -tz])
+
+  def spot(self, tag_id: int, at_height: float | None = None) -> dict | None:
+    """One tag's centre in the BELIEVED world frame, off one decode from
+    where the robot stands (issue #264; the claw's `pick`/`place` verbs
+    read it). None when the tag does not decode from here -- a sensor's
+    honest answer, never a lookup. `xyz` is the tag centre (z off the
+    chassis's own height, a constant of the body), `toward` the unit
+    vector from the camera to the tag in the world's horizontal plane --
+    the face the camera sees faces it, so the cube behind that face sits
+    half an edge further along `toward`.
+
+    ⚠ TWO RANGES. PnP's distance to a small tag is quantised by the tag's
+    size in pixels: a 20 mm block tag is ~24 px wide at 0.8 m and half a
+    pixel is 2 %, MEASURED as ±10-15 mm of range scatter between looks
+    (never a calibratable bias) while the lateral, off the tag's centre
+    pixel, held to a millimetre or two. So a caller that KNOWS the tag's
+    height -- a cube's tag sits half an edge up per layer -- passes it as
+    `at_height`, and the position is the ray through the tag's centre
+    pixel cut by that plane: the same centre pixel the lateral trusts,
+    good to ~2 mm at 0.8 m. Without it, PnP's, for a tag of unknown
+    height."""
+    det = self.tags.detect(self.data).get(int(tag_id))
+    if det is None:
+      return None
+    cam_p, cam_r = self._camera_mount()
+    tag_ch = self._in_chassis(det["t"])
+    if at_height is not None:
+      # the ray through the tag's centre pixel, cut by the plane at the
+      # tag's height IN THE WORLD FRAME (apriltag camera frame: x right,
+      # y down, z forward; MuJoCo's camera looks along -z with y up). ⚠
+      # The world's, not the chassis's: a module on the fork pitches the
+      # chassis ~0.1 deg, which at this geometry is 7 mm of range -- an
+      # IMU's reading on hardware, the body's attitude here.
+      fx, fy, cx, cy = self.tags.detector.camera_params
+      u, v = det["center"]
+      cam_w = np.asarray(self.data.cam_xpos[self._cam_id], dtype=float)
+      ray_w = self.data.cam_xmat[self._cam_id].reshape(3, 3) @ np.array(
+        [(u - cx) / fx, -(v - cy) / fy, -1.0])
+      if abs(float(ray_w[2])) > 1e-6:
+        t = (float(at_height) - float(cam_w[2])) / float(ray_w[2])
+        if t > 0:
+          bid = self.swap.chassis_bid
+          body_r = self.data.xmat[bid].reshape(3, 3)
+          tag_ch = body_r.T @ (cam_w + t * ray_w - self.data.xpos[bid])
+    bx, by, bth = self.pose
+    c, s = math.cos(bth), math.sin(bth)
+    # chassis body origin rides 0.08 m ahead of the axle midpoint the
+    # believed pose tracks
+    ax, ay = float(tag_ch[0]) + 0.08, float(tag_ch[1])
+    wx, wy = bx + c * ax - s * ay, by + s * ax + c * ay
+    wz = float(self.data.xpos[self.swap.chassis_bid][2]) + float(tag_ch[2])
+    dx, dy = float(tag_ch[0] - cam_p[0]), float(tag_ch[1] - cam_p[1])
+    tx, ty = c * dx - s * dy, s * dx + c * dy
+    norm = math.hypot(tx, ty) or 1.0
+    return {"tag": int(tag_id), "xyz": (wx, wy, wz),
+            "toward": (tx / norm, ty / norm),
+            "range": float(det["t"][2]), "lateral": float(det["t"][0])}
+
   def _measured_standoff(self, tag_id: int, tag_face_x: float,
                          anchor_x: float, distance: float,
                          lateral: float = 0.0,
@@ -776,18 +851,8 @@ class HubMission:
     det = dets.get(tag_id)
     if det is None:
       return None
-    bid = self.swap.chassis_bid
-    body_r = self.data.xmat[bid].reshape(3, 3)
-    cam_r = body_r.T @ self.data.cam_xmat[self._cam_id].reshape(3, 3)
-    cam_p = body_r.T @ (self.data.cam_xpos[self._cam_id]
-                        - self.data.xpos[bid])
-
-    def in_chassis(t):
-      # apriltag camera frame (x right, y down, z forward) -> MuJoCo camera
-      # frame (x right, y up, looking along -z): negate y and z
-      tx, ty, tz = t
-      return cam_p + cam_r @ np.array([tx, -ty, -tz])
-
+    cam_p, cam_r = self._camera_mount()
+    in_chassis = self._in_chassis
     tag_ch = in_chassis(det["t"])
     # The tag plane's horizontal normal, pointing INTO the rack; the rack's
     # outward normal (its local +x) is the negation.

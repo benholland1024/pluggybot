@@ -153,6 +153,13 @@ class VisitorMessage:
   #: `rating` only: which ledger entry is being rated, and how well (0..1).
   seq: int = 0
   quality: float = 0.0
+  #: `rating` only: which LIFE the entry belonged to (rooftop-media-2026
+  #: #319) -- the `generation` its `earned` message carried. `seq` comes
+  #: round again after a true death, so a rating for a dead robot's drawing
+  #: names a live entry by number; the handler refuses the mismatch. `None`
+  #: is a site older than the field, which the handler cannot check and does
+  #: not.
+  generation: int | None = None
   #: `reset_tool` only (issue #30): which module the admin wants back on its
   #: bay. A NAME, validated against the model by the handler -- the inbox
   #: cleans, it does not know what modules exist.
@@ -200,6 +207,8 @@ class VisitorMessage:
                   "earlier": [e.as_context() for e in self.earlier]})
     if self.kind == "rating":
       out.update({"seq": self.seq, "quality": self.quality})
+      if self.generation is not None:
+        out["generation"] = self.generation
     if self.kind == "reset_tool":
       out["module"] = self.module
     if self.kind == "set_battery":
@@ -344,7 +353,7 @@ class Inbox:
         except (TypeError, ValueError):
           turn = 1
         earlier = _earlier(raw.get("earlier"))
-    seq, quality = 0, 0.0
+    seq, quality, generation = 0, 0.0, None
     if kind == "rating":
       try:
         seq = int(raw.get("seq"))
@@ -353,6 +362,16 @@ class Inbox:
         return None
       if seq <= 0 or not 0.0 <= quality <= 1.0:
         return None
+      # Optional, and REFUSED when present and unreadable rather than
+      # dropped: a rating that named a life and lost the name on the way in
+      # would be applied to whichever life is running.
+      if raw.get("generation") is not None:
+        try:
+          generation = int(raw["generation"])
+        except (TypeError, ValueError):
+          return None
+        if generation < 0:
+          return None
     module = ""
     # `reset_robot` (issue #107) names nothing: the robot is the robot. It
     # rides the same admin path as `reset_tool` and carries only who asked.
@@ -400,6 +419,7 @@ class Inbox:
                           text=text, who=clean(raw.get("from"), MAX_WHO),
                           thread=thread, turn=turn, earlier=earlier,
                           sender=sender, seq=seq, quality=quality,
+                          generation=generation,
                           module=module, frac=frac, wh=wh, points=points,
                           t=float(t))
 

@@ -1861,6 +1861,17 @@ class HubLifecycle:
     # still on the fork goes home before the verdict.
     carried = procedure._carried(self)
     if carried is not None:
+      # ...and a cube still in the claw's jaws is SET DOWN first (issue
+      # #264): MEASURED, a stacking procedure whose own time budget ran
+      # out right after a pick was stowed holding the block -- the hang
+      # failed, the claw ended up off its bay in front of the rack, and
+      # every charge approach after it found no tag. A cube on the floor
+      # where the robot stands is where it was found.
+      claw = procedure._claw(self)
+      held = claw.held() if claw is not None else None
+      if held is not None:
+        self._say(f"PROCEDURE {program.name} ended holding {held} -- setting it down")
+        yield from claw.set_down_routine()
       self.state = "SWAP_RETURN"
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
@@ -2018,6 +2029,19 @@ class HubLifecycle:
       self._set_points(msg)
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
+        continue
+      # A rating names the LIFE its entry belonged to when the site knows
+      # it (rooftop-media-2026 #319): `seq` restarts at 1 after a true
+      # death, so a dead robot's drawing and a live entry share a number,
+      # and settling by number alone would pay this robot for that one's
+      # work. Checked BEFORE the lookup, because the lookup is what would
+      # succeed. Absent means an older site, and there is nothing to check.
+      if (msg.generation is not None
+          and msg.generation != self.ledger.generations()):
+        self._say(f"VISITOR rating ignored: job {msg.seq} was another "
+                  f"robot's life, not mine",
+                  detail=(f"rated generation {msg.generation}, this is "
+                          f"generation {self.ledger.generations()}"))
         continue
       try:
         # `by` is the wire's `from` -- the site sends the rater's username
@@ -4384,9 +4408,11 @@ def task_producer(board, world: str, book=None, cadence=None,
   it is called.
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
+  cfg = world_config(world)
   return TaskProducer(board, cadence or default_cadence(world),
                       world_targets(world, book, procedures=procedures,
-                                    robots=robots))
+                                    robots=robots),
+                      facts={k: cfg[k] for k in ("tower", "lab") if cfg.get(k)})
 
 
 def world_screens(model, data):
@@ -4677,11 +4703,38 @@ def lab_route(world: str) -> list[tuple[float, float]]:
     return []
   from pluggybot.home import world as home
   y = home.STREET_DOOR_Y
-  return [(home.GARDEN_X[0], sum(home.DOOR_GARDEN_Y) / 2.0),   # living -> garden
+  # ⚠ The first leg stops SHORT of the garden doorway, not on it (issue
+  # #264): arriving on the door line, the plan north hugs the wall from
+  # 15 cm away, the turn toward it puts a door post inside the front-stop
+  # reflex, and the leg to the gate stalled 5.4 m short from a cold start.
+  # 0.6 m back in the living room the same program ran 9/9 (the feed act,
+  # 105 s, 0.95 Wh).
+  return [(home.GARDEN_X[0] - 0.6, sum(home.DOOR_GARDEN_Y) / 2.0),   # living -> garden
           (home.SIDEWALK_X[0], y),                              # the gate
           (home.GARDEN_2_X[0], y),                              # the other gate
           (home.LOBBY_X[0], y),                                 # the lobby's door
           (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)]          # the lab's door
+
+
+#: The way to the WORKSHOP from the rack (issue #264), in legs inside the
+#: lidar's reach, for the same reason the lab has a route: `drive_to` into
+#: unmapped space aims at the nearest known-free cell and a single 15 m leg
+#: stalled in the hall at 41 s. Hall, the workshop doorway's far side, then
+#: clear of the table that stands on the workshop's spawn point.
+WORKSHOP_ROUTE = ((-3.5, 1.0), (-6.0, 1.0), (-8.0, -3.5))
+
+
+def zone_route(world: str, zone: str) -> list[tuple[float, float]]:
+  """The legs from the house to a zone's threshold, in order: the house's
+  own map, what `cage_program` drives by and what a verb that has to reach
+  a prop drives by (`steps._travel_routine`). Empty where none is written."""
+  if world != "home":
+    return []
+  if zone == "lab":
+    return lab_route(world)
+  if zone == "workshop":
+    return [tuple(leg) for leg in WORKSHOP_ROUTE]
+  return []
 
 
 #: A leg this close is one the robot has reached: the route resumes at the
@@ -4901,6 +4954,14 @@ def overseer_context(life) -> dict:
     at = (world_config(life.world).get("lab") or {}).get("bench")
     if at:
       state["lab"]["bench"] = [round(float(v), 2) for v in at]
+    # ...and THE WAY THERE (issue #264): the legs of the road from the
+    # house to the lab's door, in order -- the house's own map, the same
+    # fact `cage_program` drives by. A procedure that wants the bench has
+    # to cross the street, and `drive_to` plans through known space only:
+    # ladder B's bench day wrote the whole weighing and no legs.
+    legs = lab_route(life.world)
+    if legs:
+      state["lab"]["route"] = [[round(float(x), 1), round(float(y), 1)] for x, y in legs]
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what

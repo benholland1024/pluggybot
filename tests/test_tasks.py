@@ -24,7 +24,7 @@ from pluggybot import lifecycle as lc
 from pluggybot.economy import scoring
 from pluggybot.mind.overseer import Menu, scripted
 from pluggybot.economy.tasks import (
-  KINDS, MAX_OFFERED, Task, TaskBoard, kind_names,
+  KINDS, MAX_DESCRIPTION, MAX_OFFERED, Task, TaskBoard, kind_names,
 )
 from pluggybot.telemetry.protocol import TASK_SOURCES, TASK_STATES
 
@@ -401,7 +401,7 @@ def test_a_description_from_a_stranger_is_cleaned_and_capped():
   task = Task.create("draw_figure", "whiteboard_a", "t_1",
                      description="draw\na\rhouse\x00 " + "x" * 400)
   assert "\n" not in task.description and "\x00" not in task.description
-  assert len(task.description) <= 280
+  assert len(task.description) <= MAX_DESCRIPTION
 
 
 # ---- the events ---------------------------------------------------------------

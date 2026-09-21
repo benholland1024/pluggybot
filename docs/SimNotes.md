@@ -1541,6 +1541,79 @@ calibrate against the known cube; a mass set at runtime goes on the model
 AND the spec (the workshop's recompile rebuilds from the spec, and a
 runtime-only mass reverted to the world file's placeholder in the probe).
 
+## The tower had never been stacked, and the claw could always do it (issue #264)
+
+Every passing tower test `stack.place()`d the blocks and tested the grader,
+so nobody knew whether a 26 mm cube picked, carried and released onto
+another would stand. Probed first with the claw's own routines from TRUE
+poses (`drive_over`, `pick_up`, a lowering to one pitch above the base, the
+jaws opened): 2.6 and 5.9 mm of lean, verdict ok with the hold. The physics
+was never the problem. The next three weeks of the evening were the
+language's reach to the claw, and each wall was a measurement:
+
+- **A 20 mm tag is ~24 px wide from the dock eye at 0.8 m.** It decodes in
+  a band around 0.65-1.0 m and patchily inside it (which lift sees it
+  changes with the range by centimetres), and never inside ~0.65 m -- not
+  the fork prongs, the frame's bottom edge: the eye looks level and the
+  floor leaves the picture. A verb that needs a decode hunts lifts and backs
+  off 0.25 m at a time out of the blind zone.
+- **PnP's range to a tag that small is quantised by the pixel.** Half a
+  pixel of 24 is 2 %, and it read as ±10-15 mm of range scatter between
+  looks -- fitted as a 1.1 % scale first, which flipped sign on the next
+  sample. The tag's centre PIXEL is good to a millimetre, so the position
+  is the ray through it cut at the cube's known layer height
+  (`HubMission.spot(at_height=)`): 2 mm. In the WORLD frame: a module on
+  the fork pitches the chassis 0.1 deg, which is 7 mm of range at that
+  geometry.
+- **Off-axis, the same decode is 25 mm long.** A verb stages itself to look
+  head-on from 0.55 m short of the cube before it approaches.
+- **The grip offset off the belief bakes in the drift.** `ClawTool.
+  calibrate` measures the grip site against the reckoner; after 1.2 m of
+  driving that put a block 43 mm long. Off the BODY instead -- and at the
+  DEPLOYED reach: the mission tucks the arm to drive, and an offset read
+  tucked put the grip 60 mm long once the arm came out.
+- **The held cube is not where the grip is, and it moves.** It hangs 8 mm
+  behind and 18 mm below the grip point at the pick, then slips ~7 mm down
+  and ~10 mm along the pads over a carry's turns. A release aimed at the
+  grip point pressed it into the base and shoved the base 24 mm; a hang
+  measured at the pick left a 10 mm aim error. `held_hang` is re-read on
+  arrival, the along-track difference crept out, the release height set
+  off it (`PLACE_GAP` 4 mm above the surface).
+- **At carry height with the arm out the claw sits in the lidar's cone.**
+  The module's body is 8 cm from the lidar; at `APPROACH_LIFT` with the arm
+  in it crosses the scan plane inside the ±20 deg front-stop window, and
+  `drive_to` backed the robot away from itself for as long as it was asked
+  to drive. 36 mm higher -- the swap's own carry lift, where every mission
+  leg already drives -- it clears. `tuck_routine`.
+- **The sidestep the language can write moves the axle a centimetre.** A
+  `face`, a `drive`, a `face` back: the caster swings and the axle lands
+  ~1 cm off, and no sensor a procedure can read says where. That, with the
+  decode band, is why the motor-level procedure topped out at two layers
+  and the claw got `pick`/`place` at `fetch`/`stow`'s level.
+
+Three navigation traps met on the way and routed around, not fixed: the
+workshop's spawn point is its table; the garden doorway leg of the lab
+route stalls from a cold start (the plan hugs the wall and the door post
+trips the reflex -- the leg now ends 0.6 m short); the planner's own way
+back from the street hugs the house wall past the garden light's pole and
+stalls there (the bench solution returns through the open garden). The
+auto-stow that "could not return from the workshop corner" was the cone
+bug above: tucked, the errand's own stow brings the claw home from there
+(bay error 0.3 mm); from the lab the solution drives the road in legs.
+
+And one more, from ladder B's third day: a model wrote `fetch; pick(20);
+place(21); pick(22); place(20); stow` and `pick(20)` failed at the rack --
+the cube was 15 m away and a single `drive_to` across the house stalls in
+the hall at 41 s (the unmapped-goal defect). So a cube out of view is
+looked for where the house set it out: route legs to the zone, a stand on
+the room's open side, one more look.
+
+What is true now: `solutions.TOWER` -- those six lines, verbatim -- passes
+`eval_stack_tower` from the rack (489 sim s, 2.7 Wh, 5.3 mm of lean);
+`solutions.WEIGH` weighs the bench's cube to 2 %; the feed act lands.
+`tests/test_solutions.py` pins each rule above in milliseconds and flies
+the three behind `--endurance`.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

@@ -18,6 +18,8 @@ The verbs, in the words the issue used:
   face(heading)        turn in place                    `face_routine`
   set_lift(height)     the mast, ramped                 `HubSwap.set_lift_routine`
   grip() / release()   the claw's jaws, ramped          `ClawTool.jaws_routine`
+  pick(tag)            a tagged cube, spotted and taken  `ClawTool.drive_over_routine`
+  place(tag)           the held cube onto a tagged one   `ClawTool.place_on_routine`
   draw(program, board) the pen's whole use-phase        `drawing_errand`
   look()               one tag decode, no motion        `TagSpotter.detect`
   wait(seconds)        stand still
@@ -263,23 +265,314 @@ def _claw(life):
 
 def _holding_anything(claw) -> str | None:
   """Both pads touching the same geom that belongs neither to the robot nor
-  to the claw module itself: the grip's contact criterion (`ClawTool.
-  holding`) without a named target."""
-  model, data = claw.model, claw.data
-  pad = next(iter(claw._jaw_gids))
-  own = {int(model.body_rootid[model.geom_bodyid[pad]]),
-         int(model.body_rootid[claw.swap.chassis_bid])}
-  touched: dict[int, set] = {}
-  for i in range(data.ncon):
-    c = data.contact[i]
-    for jaw, other in ((c.geom1, c.geom2), (c.geom2, c.geom1)):
-      if jaw in claw._jaw_gids and other not in claw._jaw_gids \
-          and int(model.body_rootid[model.geom_bodyid[other]]) not in own:
-        touched.setdefault(int(other), set()).add(int(jaw))
-  for gid, pads in touched.items():
-    if len(pads) == 2:
-      return model.geom(gid).name
+  to the claw module itself: `ClawTool.held`, the grip's contact criterion
+  without a named target."""
+  return claw.held()
+
+
+#: The lifts a `pick`/`place` looks from, in the order tried. MEASURED
+#: (issue #264, the home world's 20 mm block tags off the dock eye): a tag
+#: that size is ~24 px wide at 0.8 m and decodes patchily -- which lift
+#: sees it changes with the range by a few centimetres, and none sees the
+#: floor inside ~0.65 m, where it leaves the bottom of the frame. So the
+#: verb hunts, as `swap_at_bay` re-looks for a bay, and the lifts stay
+#: above the pads' floor contact (0.03) with a block in the jaws.
+SPOT_LIFTS = (0.06, 0.045, 0.075, 0.09, 0.105, 0.12)
+#: From the grip pose the row is ~0.3 m ahead of the axle, so the eye is
+#: ~0.2 m from it: two steps of this back reach the band it decodes from,
+#: and one step from a stage pose keeps the look under `SPOT_FAR_M`.
+SPOT_BACK_OFF_M = 0.25
+SPOT_BACK_OFFS = 2
+#: A decode is trusted for the approach only when the tag sits this close
+#: to the camera's axis AND no further than `SPOT_FAR_M` away. MEASURED:
+#: a block tag seen 0.26 m off-axis at 0.8 m placed its centre 25 mm long
+#: and 13 mm across; on-axis at 0.72 m the same decode is good to a
+#: couple of millimetres (`HubMission.spot`'s pixel-ray range). Off-axis
+#: or far, the verb stages itself to look head-on from `STAGE_M` short of
+#: the cube (the eye then ~0.74 m from it, the middle of its band) and
+#: spots again.
+SPOT_ON_AXIS_M = 0.03
+SPOT_FAR_M = 0.95
+STAGE_M = 0.55
+#: The objects `pick`/`place` know the shape of: the challenge blocks and
+#: the bench's masses (challenge/stack.py's cube, tagged on every face), so
+#: a decoded face is half an edge from the centre and the top of one is
+#: half an edge above its tag.
+_CUBE_TAGS: dict[int, float] = {}
+
+
+def _cube_half(tag: int) -> float | None:
+  if not _CUBE_TAGS:
+    from pluggybot.challenge.stack import BLOCK_HALF
+    from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
+    for i in (*BLOCK_TAG_IDS, *MASS_TAG_IDS):
+      _CUBE_TAGS[int(i)] = BLOCK_HALF
+  return _CUBE_TAGS.get(int(tag))
+
+
+def _spot_routine(life, tag: int) -> Routine:
+  """Find one tagged cube from where the robot stands: a look at each of
+  `SPOT_LIFTS` until the tag decodes, the cube's centre in the believed
+  world frame off that decode (`HubMission.spot`: the tag's centre, half
+  an edge further along the line of sight), or None. A sensor's answer --
+  the robot has to have driven somewhere it can see the thing -- with one
+  allowance: a robot that has just picked or placed stands with the grip
+  point over the row, inside the eye's blind zone, so a miss backs the
+  chassis off `SPOT_BACK_OFF_M` and looks again, `SPOT_BACK_OFFS` times."""
+  half = _cube_half(tag)
+  if half is None:
+    return None
+  swap = life.mission.swap
+  for attempt in range(SPOT_BACK_OFFS + 1):
+    if attempt:
+      yield from swap._drive_until_routine(SPOT_BACK_OFF_M, -0.10, stall_stop=False)
+      yield from swap._run_routine(0.5, 0.0)
+    for lift in SPOT_LIFTS:
+      yield from swap.ramp_routine(swap.lift_act, lift, LIFT_SPEED, settle=0.3)
+      seen = life.mission.spot(tag)
+      if seen is not None:
+        # which LAYER the cube stands in, off PnP's height (good to a few
+        # mm, and a layer is 26), then the position off the tag's centre
+        # pixel at that layer's known height (`HubMission.spot`'s two
+        # ranges) -- the same decode, read the precise way
+        layer = max(0, int(round((seen["xyz"][2] - half) / (2 * half))))
+        precise = life.mission.spot(tag, at_height=half + 2 * half * layer)
+        if precise is not None:
+          seen = precise
+        x, y, z = seen["xyz"]
+        tx, ty = seen["toward"]
+        return {**seen, "centre": (x + half * tx, y + half * ty, z),
+                "half": half, "layer": layer, "lift": lift,
+                "backedOff": bool(attempt)}
   return None
+
+
+#: How far from a set-out cube the verb stands to look for it, and on which
+#: side: the props stand in rows along y against a wall (`home.TOWER_XY`,
+#: `bench.MASS_OFFSETS`), so the open side is along x, toward the room.
+STAND_M = 0.8
+
+
+def prop_stand(world: str, tag: int):
+  """Where the house set the cube carrying `tag` out, and where to stand to
+  see it: `(zone, cube_xy, stand_xy, heading)`, or None for a tag the
+  world's config does not place. A work-order fact, on `fetch`'s terms --
+  the rack's layout tells a fetch where its bay is."""
+  from pluggybot.lifecycle import world_config, zone_centre
+  from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
+  cfg = world_config(world)
+  tag = int(tag)
+  if tag in BLOCK_TAG_IDS and cfg.get("tower"):
+    zone = cfg["tower"]["name"]
+    cube = tuple(float(v) for v in cfg["tower"]["blocks"][BLOCK_TAG_IDS.index(tag)])
+  elif tag in MASS_TAG_IDS and cfg.get("lab"):
+    from pluggybot.challenge.bench import MASS_OFFSETS
+    zone = cfg["lab"]["name"]
+    bx, by = cfg["lab"]["bench"]
+    dx, dy = MASS_OFFSETS[MASS_TAG_IDS.index(tag)]
+    cube = (float(bx) + dx, float(by) + dy)
+  else:
+    return None
+  try:
+    cx, _ = zone_centre(world, zone)
+  except ValueError:
+    return None
+  side = 1.0 if cx > cube[0] else -1.0                # the room is this way
+  stand = (cube[0] + side * STAND_M, cube[1])
+  heading = math.pi if side > 0 else 0.0               # ...and the cube the other
+  return zone, cube, stand, heading
+
+
+def _travel_routine(life, tag: int) -> Routine:
+  """Go to where the house set the cube out and face it: the zone's route
+  legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
+  stand. Legs already behind the robot are dropped (`cage_route`'s rule).
+  Returns True on arrival at the stand."""
+  from pluggybot.lifecycle import LEG_DONE_M, zone_route
+  where = prop_stand(life.world, tag)
+  if where is None:
+    return False
+  zone, _, stand, heading = where
+  legs = zone_route(life.world, zone)
+  px, py = life.mission.pose_xy()
+  # drop the legs behind: from the nearest leg on, or the one after it if
+  # the robot already stands there; inside the zone, none of them
+  if legs:
+    dist = [math.hypot(x - px, y - py) for x, y in legs]
+    i = min(range(len(legs)), key=dist.__getitem__)
+    if dist[i] <= LEG_DONE_M:
+      i += 1
+    if math.hypot(stand[0] - px, stand[1] - py) < math.hypot(stand[0] - legs[-1][0],
+                                                              stand[1] - legs[-1][1]):
+      i = len(legs)
+    legs = legs[i:]
+  for x, y in [*legs, stand]:
+    arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+    if not arrived and (x, y) != stand:
+      return False
+  yield from life.mission.face_routine(heading)
+  return True
+
+
+def _approach_routine(life, claw, tag: int, carrying: bool,
+                      hang: tuple[float, float] = (0.0, 0.0)) -> Routine:
+  """Spot the cube, then put the grip point over it: `ClawTool.
+  drive_over_routine`, the runway-and-converge approach the pickup demo
+  measured to a few millimetres. A first decode taken off-axis is only
+  good enough to STAGE by (`SPOT_ON_AXIS_M`): the robot drives to look at
+  the cube head-on from `STAGE_M` short of it, spots again, and approaches
+  off that. Carrying, the lift goes back to carry height before every
+  drive -- the looks are taken low, and at a spot lift the pads clear a
+  floor block's top by ~3 mm (measured pushing the target 8 cm along the
+  floor on a run-in). Returns (seen, arrived); seen is None when the tag
+  was never decoded."""
+  from pluggybot.tools.gripper import CARRY_LIFT
+  claw.calibrate_from_body()
+  seen = yield from _spot_routine(life, tag)
+  if seen is None:
+    # Not in view from here: go to where the house set it out (issue
+    # #264, `prop_stand`) -- `fetch` drives to its bay the same way -- and
+    # look once more. MEASURED without this: a model's `pick(20)` from the
+    # rack failed at once and the day's tower ended there.
+    if carrying:
+      yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
+    else:
+      yield from claw.tuck_routine()
+    went = yield from _travel_routine(life, tag)
+    if went:
+      seen = yield from _spot_routine(life, tag)
+      if seen is not None:
+        seen = {**seen, "travelled": True}
+  if seen is None:
+    return None, False
+  heading = life.mission.pose[2]
+  if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
+    # stage along the heading the procedure chose (it faced the row), so
+    # the cube ends up straight ahead of the fork line -- the camera's line
+    x, y, _ = seen["centre"]
+    if carrying:
+      yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
+    yield from claw.drive_over_routine((x - STAGE_M * math.cos(heading),
+                                        y - STAGE_M * math.sin(heading)),
+                                       heading, stow=not carrying)
+    again = yield from _spot_routine(life, tag)
+    if again is not None:
+      seen = {**again, "staged": True}
+  x, y, _ = seen["centre"]
+  # aim the held object at the target: its hang in the chassis frame,
+  # turned into the world at the approach heading, comes off the goal
+  c, sn = math.cos(heading), math.sin(heading)
+  x -= c * hang[0] - sn * hang[1]
+  y -= sn * hang[0] + c * hang[1]
+  if carrying:
+    yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
+  arrived = yield from claw.drive_over_routine((x, y), heading, stow=not carrying)
+  return seen, bool(arrived)
+
+
+def _pick(life, args: dict) -> Routine:
+  """Pick up the cube carrying a tag (issue #264): spot it, drive the grip
+  point over it (`ClawTool.drive_over_routine`, the runway-and-converge
+  approach the pickup demo measured to a few millimetres), close, lift.
+  ok when both pads hold something afterwards -- measured, as `grip` is."""
+  claw = _claw(life)
+  if claw is None:
+    return {"ok": False, "reason": "the claw is not on the fork"}
+  held = claw.held()
+  if held is not None:
+    return {"ok": False, "reason": f"already holding {held}"}
+  tag = int(args["tag"])
+  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=False)
+  if seen is None:
+    return {"ok": False, "tag": tag,
+            "reason": f"tag {tag} is not a cube this robot can see from here"}
+  picked = yield from claw.pick_up_routine()
+  held = claw.held()
+  return {"ok": held is not None, "tag": tag, "arrived": bool(arrived),
+          "holding": held, "seenAtM": round(seen["range"], 3),
+          "grippedBeforeLift": bool(picked.get("gripped_before_lift"))}
+
+
+def _place(life, args: dict) -> Routine:
+  """Set the held cube down on top of the cube carrying a tag: spot it,
+  approach carrying (lift up, arm out), lower to its top, let go, back
+  off (`ClawTool.place_on_routine`). ok is MEASURED off the world after
+  the retreat: the cube that was held now rests on the target -- one
+  pitch above it and within half an edge sideways (challenge/stack.py's
+  own "rests on") -- and the jaws are empty. A block that fell beside
+  says so."""
+  claw = _claw(life)
+  if claw is None:
+    return {"ok": False, "reason": "the claw is not on the fork"}
+  held = claw.held()
+  if held is None:
+    return {"ok": False, "reason": "nothing in the jaws to place"}
+  tag = int(args["tag"])
+  # how the held cube hangs in the jaws (`ClawTool.held_hang`): the verb
+  # aims the CUBE at the target, not the grip point
+  hang = claw.held_hang(held)
+  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=True,
+                                               hang=hang[:2])
+  if seen is None:
+    return {"ok": False, "tag": tag,
+            "reason": f"tag {tag} is not a cube this robot can see from here"}
+  x, y, z = seen["centre"]
+  half = seen["half"]
+  # ...and again on arrival: MEASURED, a cube slips ~7 mm down and ~10 mm
+  # along the pads over a carry's turns, so the hang the aim used is
+  # stale by that much. The along-track part is crept out here (the
+  # lateral has no axis to trim with and measured under a millimetre);
+  # the vertical sets the release height, or the stale one presses the
+  # cube into the target and shoves it (7 mm, measured).
+  after = claw.held_hang(held)
+  slip = hang[0] - after[0]
+  if abs(slip) > 0.002:
+    yield from life.mission.swap._drive_until_routine(abs(slip), 0.03 if slip > 0 else -0.03,
+                                                      stall_stop=False)
+    yield from life.mission.swap._run_routine(0.5, 0.0)
+  # The top of the cube off its LAYER and the cube's known edge -- geometry,
+  # not the raw z (8 mm low off-axis), because a release aimed below the
+  # surface presses the held block into it and rides the module up its fork.
+  yield from claw.place_on_routine((seen["layer"] + 1) * 2 * half,
+                                   bottom_below_grip=half - after[2])
+  model, data = life.model, life.data
+  bid = int(model.geom_bodyid[model.geom(held).id])
+  hx, hy, hz = (float(v) for v in data.xpos[bid])
+  target_geom = _cube_geom(model, tag)
+  if target_geom is not None:
+    tbid = int(model.geom_bodyid[model.geom(target_geom).id])
+    tx, ty, tz = (float(v) for v in data.xpos[tbid])
+  else:
+    tx, ty, tz = x, y, z
+  off = math.hypot(hx - tx, hy - ty)
+  dz = hz - tz
+  from pluggybot.challenge.stack import PITCH_M, PITCH_TOL_M, REST_OFFSET_M
+  rests = abs(dz - PITCH_M) <= PITCH_TOL_M and off <= REST_OFFSET_M
+  out = {"ok": rests and claw.held() is None, "tag": tag, "arrived": bool(arrived),
+         "placed": held, "offsetMm": round(off * 1000, 1),
+         "aboveMm": round(dz * 1000, 1)}
+  if not rests:
+    out["reason"] = (f"released, but it rests {off * 1000:.0f} mm across and "
+                     f"{dz * 1000:.0f} mm up from the target, not on it")
+  elif claw.held() is not None:
+    out["reason"] = "the jaws did not let go"
+  return out
+
+
+def _cube_geom(model, tag: int) -> str | None:
+  """The box geom of the cube tagged `tag`, if this world has it (the
+  tower's blocks and the bench's masses carry their tag id in `tags.py`)."""
+  from pluggybot.challenge.stack import BLOCKS
+  from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
+  names = dict(zip(BLOCK_TAG_IDS, BLOCKS))
+  names.update(zip(MASS_TAG_IDS, ("mass_known", "mass_unknown")))
+  body = names.get(int(tag))
+  if body is None:
+    return None
+  try:
+    return model.geom(f"{body}_box").name
+  except KeyError:
+    return None
 
 
 def _grip(life, args: dict) -> Routine:
@@ -383,6 +676,20 @@ VERBS: dict[str, Verb] = {
                    _set_lift, "walk the mast to a height, ramped"),
   "grip": Verb("grip", {}, _grip, "close the claw; ok when both pads hold something"),
   "release": Verb("release", {}, _release, "open the claw; ok when nothing is held"),
+  # The claw's pair (issue #264), at `fetch`/`stow`'s level: a tagged cube
+  # found from where the robot stands, approached closed-loop, taken or set
+  # down on another. The dock eye sees a cube's 20 mm tag from roughly
+  # 0.65-1.0 m and not closer, so a procedure drives within about a metre
+  # and faces it first.
+  "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
+               "find the cube carrying this tag, drive over it and take it; "
+               "ok when the jaws hold it. The eye decodes a cube's tag from "
+               "about 0.7-1 m away, facing it, and not from closer; a cube "
+               "not in view is looked for where it was set out"),
+  "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
+                "set the held cube down on top of the cube carrying this tag "
+                "and back off; ok when it rests there. The eye's reach is "
+                "pick's"),
   "draw": Verb("draw", {"figure": Arg("str", choices="figures"),
                         "board": Arg("str", choices="boards")},
                _draw, "the pen's use-phase on a board; ok when ink landed"),
