@@ -965,7 +965,9 @@ def build_record(config: dict, result: dict | None, events: list[dict],
         "verdicts": list(result.get("verdicts") or ()),
         # ...and the library's reads (issue #216), whole, for the same
         # shape's sake: the `read` rows the observatory files.
-        "reads": list(result.get("reads") or ())}
+        "reads": list(result.get("reads") or ()),
+        # ...and the support tickets' events (issue #284), likewise.
+        "tickets": list(result.get("tickets") or ())}
        if result is not None else {}),
   }
   return record

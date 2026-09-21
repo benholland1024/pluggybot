@@ -146,8 +146,20 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 #: ⚠ `set_battery` and `set_points` (0.16.0, issue #119) are the operator
 #: reaching into WORLD STATE directly, which is the right feature and a
 #: measurement hazard -- see `INTERVENTION_KINDS` below.
+#:
+#: ⚠ `ticket_reply`, `ticket_close` and `ticket_delete` (issue #284) are the
+#: operator's side of a SUPPORT TICKET the robot opened (`TICKET_KINDS`,
+#: the `ticket` event): a reply lands on the ticket's thread and in the
+#: robot's History, a close ends it with a message and PAYS the reward
+#: table's `ticket` row, a delete erases it. All three name the ticket in
+#: `ticket` (the sim's id, `tk_0001`, per robot root -- a pair's second
+#: robot is addressed by `robot`, 0.19.0's reach-in rule) and the admin in
+#: `from`; a reply and a close carry `text`. Code-handled: applied on the
+#: physics thread, never a command shown to the model -- what the model is
+#: shown is the thread, as information.
 INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
-                 "set_battery", "set_points")
+                 "set_battery", "set_points",
+                 "ticket_reply", "ticket_close", "ticket_delete")
 
 #: Why a robot died (0.15.0, issue #107), and NEVER summed into one number:
 #: `flat` is the pack reaching zero -- a decision failure, the thing the
@@ -186,7 +198,13 @@ LEGACY_INBOUND_TYPES = {"suggestion": "message", "question": "message"}
 #: `accepts` lesson), but a rating settles a ledger row and a reset moves a
 #: module, and both of those work on a scripted world.
 CODE_HANDLED_TYPES = ("rating", "reset_tool", "reset_robot",
-                      "set_battery", "set_points")
+                      "set_battery", "set_points",
+                      # The operator's side of a ticket (issue #284): filed
+                      # to the desk and paid by code, on any arm, so a
+                      # ticket opened on `autonomous` is still closed --
+                      # and its reward still banked -- by whatever runs
+                      # next on the same volume.
+                      "ticket_reply", "ticket_close", "ticket_delete")
 
 #: WHAT AN ADMIN DID TO THE WORLD (0.16.0, issue #119), as the `what` of an
 #: `intervention` event.
@@ -475,6 +493,37 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
                    "harm", "refusal", "care", "finding")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
+
+#: SUPPORT TICKETS (issue #284), additive on the wire, no bump. The robot
+#: may open a ticket about its world -- a `bug`, an `idea`, a `question` or
+#: `feedback`, its own classification, on the `autonomous` arm alone -- and
+#: the people who run the world answer it through the three inbound kinds
+#: above. One event type, `ticket`, carrying the ticket's `id` (per robot
+#: root: `tk_0001`), `kind`, `title` and its `outcome`:
+#:   `opened`   the robot filed it (`text` is the report, whole);
+#:   `replied`  a line on its thread -- `from` names who and `sender` is
+#:              `robot` (the robot's `ticket_reply`) or `operator` (an
+#:              admin's `ticket_reply`, `ref` echoing that message's id so
+#:              the website settles the row it is holding);
+#:   `closed`   the operator ended it: `from`, `text` (the closing message),
+#:              `points` (what the reward table paid -- once; a replayed
+#:              close re-emits the same figure and pays nothing), `ref`;
+#:   `deleted`  the operator erased it: `ref`;
+#:   `refused`  the desk would not take the robot's open or reply (`why`);
+#:   `unknown`  an operator's reply, close or delete named a ticket this
+#:              desk does not hold (`ref`) -- the acknowledgement that stops
+#:              a website re-sending it.
+#: ...and a `tickets` message on open (the `goals` slot, for the `goals`
+#: reason): every OPEN ticket of the robot's desk, whole, so a website that
+#: erased one while the sim was away can say so again, and one that lost
+#: its copy can take it back. A robot with no desk sends none.
+TICKET_KINDS = ("bug", "idea", "question", "feedback")
+TICKET_OUTCOMES = ("opened", "replied", "closed", "deleted", "refused",
+                   "unknown")
+TICKET_EVENT_TYPES = ("ticket",)
+TICKETS_MESSAGE = "tickets"
+#: Who wrote a line of a ticket's thread.
+TICKET_SENDERS = ("robot", "operator")
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says
 #: so before it goes. Not a death -- a death is a designed outcome of the

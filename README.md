@@ -57,7 +57,7 @@ stateDiagram-v2
 agent's own event map says whether to consult it (`EVENT_TYPES`:
 `nothing_to_do`, `task_complete`, `task_failed`, `decision_failed`,
 `battery_below`, `battery_above`, `points_below`, `message_received`,
-`every`). The floor and the gate are `guarded`'s rails and come off on
+`every`, `ticket_replied`). The floor and the gate are `guarded`'s rails and come off on
 `autonomous`; the interrupt out of `USE_TOOL` is a row of the agent's map,
 and abort means stow. An errand is queued by a standing order, a decision, a
 task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
@@ -93,6 +93,9 @@ flowchart LR
         PROCS["procedures/<br/>define / undefine"]
         TOOLS["tools/<br/>build_tool / retire_tool"]
     end
+    subgraph desk [tickets — robot opens, a person closes; open ones shown, autonomous only]
+        TICKETS["tickets/<br/>ticket"]
+    end
 
     DECIDE((DECIDE)) -->|think first, then the action,<br/>then the paperwork verbs| core
     DECIDE --> notes
@@ -103,7 +106,10 @@ flowchart LR
     RECALL -.->|recalled, next turn| DECIDE
     USE["SWAP_PICK / USE_TOOL / SWAP_RETURN"] -->|verdict| HIST
     procedural -->|a procedure runs as an errand ·<br/>a built tool hangs in a bay| USE
-    VISITOR([a visitor · the other robot]) -->|message| HIST
+    DECIDE -->|opens · replies on| desk
+    VISITOR([a visitor · the other robot · an operator]) -->|message · a ticket's reply or close| HIST
+    VISITOR -->|reply · close · delete| desk
+    desk -->|open tickets, their threads| DECIDE
     DEAD((DEAD)) -->|died · archived| HIST
     prefix --> DECIDE
     core --> DECIDE
@@ -113,7 +119,10 @@ flowchart LR
 
 Retiring is the only forgetting: `unpin`, `unnote`, `retract` and `drop_goal`
 mark a record retired and `recall` can still find it. A true death archives
-everything the robot and the system wrote; the constitution survives.
+everything the robot and the system wrote; the constitution survives, and so
+does the ticket desk (issue #284): a ticket is a report about the world, and
+the next robot inherits the world. The robot cannot close a ticket; a person
+closes it (paid, once) or deletes it (not).
 
 ## Scripts
 

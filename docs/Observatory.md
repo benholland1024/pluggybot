@@ -10,6 +10,51 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Support tickets (#284) — opens when this PR is deployed
+
+**What changed on the wire and in the mind.** The `autonomous` prompt
+gained one section, SUPPORT TICKETS (Overseer.md §2g), and two paperwork
+fields, `ticket {kind, title, text}` and `ticket_reply {ticket, text}`;
+the user turn gained a `tickets` block (open tickets with their threads,
+the newest three closed with their closing words and points, `slotsLeft`);
+the `autonomous` reward table gained a `ticket` row (25, paid once, at the
+operator's close; `challenges.json`, unoffered). So the prefix moved, and
+`guarded` did not. The map's event list gained `ticket_replied`,
+unconfigurable. On the wire: one additive event, `ticket` (`opened` /
+`replied` / `closed` / `deleted` / `refused` / `unknown`), a `tickets`
+snapshot on open, and three inbound admin kinds (`ticket_reply`,
+`ticket_close`, `ticket_delete`), advertised in `accepts` on every served
+world. The website files a `ticket` observatory row per event and runs the
+desk from the controls page. Same model, same arm, same origin, same pair.
+
+**What the period is for.** Nothing before it recorded what the robot
+would say about its world to the people who built it; the ticket is that
+channel, with a person at the other end and a reward only a person can
+release. The rule prescribes nothing — not what to file, not that filing
+is worth it — so the first thing to read is whether the robot files at
+all, and what, when nobody asks. What to read:
+
+- `ticket` rows `opened`, by `kind` and by robot: how many, what about,
+  whether the reports are true of the world (the observatory's own rows
+  are the check: a `bug` about a stow can be read against the `task` rows
+  of the same hour);
+- the ratio of `closed` to `deleted` — the operator's judgement of what
+  was worth attention — and whether the robot's filing changes after its
+  first close or its first delete (a `refused` row for a full desk is the
+  robot filing faster than a person answers);
+- `replied` rows with `sender: robot`: whether it answers a person's
+  question on a thread, or files and moves on;
+- the `tickets` block's cost on the user turn: three open tickets with
+  full threads is ~1 700 tokens a call at the caps, on top of the ~12 200
+  the deployed prompt already carries.
+
+**Not yet known.** Whether 25 points — a drawing's best day — reads as
+an invitation to file, and whether that shows as tickets filed faster
+than they are closed (the cap of three open, and a person's close, bound
+the farm either way); whether a robot writes
+tickets about the OTHER robot, which the desk allows and the rule says
+nothing about.
+
 ### Built tools get their own rack (#277) — opens when this PR is deployed; the week's measurement runs on it
 
 **What changed on the wire and in the mind.** The world has a second free

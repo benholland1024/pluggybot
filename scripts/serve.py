@@ -562,6 +562,8 @@ def main() -> None:
                           steering=boss is not None,
                           # ...and its event map on connect (issue #238).
                           overseer=boss,
+                          # ...and its open support tickets (issue #284).
+                          tickets=life.tickets,
                           robot_name=args.robot_name,
                           build=identity)
   life.mission.step_hooks.append(publisher.step_hook)
@@ -615,6 +617,7 @@ def main() -> None:
                                         else None),
                                  mode=switch, metabolism=hunger,
                                  steering=boss is not None, overseer=boss,
+                                 tickets=life.tickets,
                                  robot_name=args.robot_name,
                                  build=identity,
                                  grid=life.mission.grid,
@@ -753,7 +756,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                         steering=second.overseer is not None,
                         grid=second.mission.grid,
                         heightmap=second.near_field,
-                        overseer=second.overseer)]
+                        overseer=second.overseer,
+                        tickets=second.tickets)]
   sink_kw = dict(model_name=pair_model_name(cfg["model_name"]),
                  status_fn=first.telemetry_status, keyframe_s=args.keyframe_s,
                  activities=first.activities, boards=book, screens=screens,
@@ -762,6 +766,7 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                  thoughts=first.thoughts, spend=purse if can_spend else None,
                  mode=switch, metabolism=first.metabolism,
                  steering=boss is not None, overseer=boss,
+                 tickets=first.tickets,
                  robot_name=names[0],
                  build=identity, grid=first.mission.grid, others=others,
                  heightmap=first.near_field)
