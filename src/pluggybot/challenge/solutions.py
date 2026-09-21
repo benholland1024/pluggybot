@@ -73,7 +73,7 @@ TOWER_AT_THE_ROW = '''def tower():
 #: through the open garden (7.0, 1.2): the planner's own way back hugs the
 #: house wall past the garden light's pole and the front-stop reflex
 #: stalled it there. MEASURED (2026-09-21, from the rack, hosting pack,
-#: the bank's first draw): 26 steps, `mass` within the grade's 10 %, +25,
+#: the bank's first draw): 25 steps, 387 sim s, 2.8 Wh, `mass` 0.149 kg within the grade's 10 %, +25,
 #: the claw back on bay D.
 WEIGH = '''def weigh():
   budget(steps=60, seconds=1800)
