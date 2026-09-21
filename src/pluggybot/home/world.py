@@ -100,7 +100,8 @@ import json
 import math
 
 from pluggybot.rack.coupling import (
-  CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml, rack_frame_to_world,
+  BUILT_RACK_BODY, CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml,
+  rack_frame_to_world,
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.activity.plate import (
@@ -788,6 +789,9 @@ def build_home_world() -> tuple[str, dict]:
                 "0.58 0.54 0.50 1"), "stairs", "stairs")
 
   hints["rack"] = "rack"
+  # ...and the built-tool rail beside it (issue #277), the same silhouette
+  # for the site to reskin.
+  hints[BUILT_RACK_BODY] = "rack"
 
   # ---- the ground the website draws (issue #68) -----------------------------
   # GENERATED from the layout rather than written down, which is the point:

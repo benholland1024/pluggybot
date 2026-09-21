@@ -6,18 +6,21 @@ What these hold down:
   1. THE SPEC PATH IS THE OLD PATH. A world compiled from its `MjSpec` is
      trajectory-identical to `MjModel.from_xml_path`, so keeping the spec
      costs nothing (both worlds, hashed after 500 steps).
-  2. THE SEAM. `hang_tool` retires the module in a bay, hangs the built
-     tool there, recompiles with the state carried across, rebinds every
-     holder, registers the verbs and emits `scene_changed` -- measured on a
-     bare lifecycle, not flown.
+  2. THE SEAM. `hang_tool` hangs the built tool in a bay of the BUILT-TOOL
+     RAIL (issue #277) -- retiring a built tool already there, never one of
+     the five originals -- recompiles with the state carried across,
+     rebinds every holder, registers the verbs and emits `scene_changed`;
+     measured on a bare lifecycle, not flown. The module then HANGS: it
+     settles into the rail's trays and `module_state` reads it hung.
   3. NO STALE HOLDER, two ways. At run time: every object reachable from
      the lifecycle that holds an `MjModel` or `MjData` holds the NEW one.
      Statically: every class in `src/` that assigns `self.model` or
      `self.data` defines `rebind`, or is on the roster below with a reason.
      The static fence is what catches a holder added next month; the
      runtime walk is what catches one the lifecycle forgot to call.
-  4. BETWEEN ERRANDS ONLY. Mid-errand, with a module on the fork, or on a
-     pair, the seam refuses out loud.
+  4. BETWEEN ERRANDS ONLY. Mid-errand, with a module on the fork, on a
+     pair, or in a world compiled without the rail, the seam refuses out
+     loud -- and a hand-built module is refused by name, wherever asked.
 """
 
 import ast
@@ -30,10 +33,15 @@ import pytest
 
 from pluggybot.lifecycle import HubLifecycle, world_config
 from pluggybot.procedure import axes
+from pluggybot.rack import coupling
+from pluggybot.rack.coupling import BUILT_STATION_YS, HUB_STATION_YS, RACK_HANG_X
 from pluggybot.robot import world_spec
 from pluggybot.workshop import seam, validate
 from pluggybot.workshop.seam import SeamRefused
 from test_workshop import SCOOP
+
+#: A second built tool, for the tests that need two on the rail.
+SCOOP2 = {**SCOOP, "name": "scoop2"}
 
 SRC = Path(__file__).parent.parent / "src" / "pluggybot"
 
@@ -129,27 +137,39 @@ def test_the_seam_hangs_a_tool_and_rebinds_every_holder():
 
   rec = life.hang_tool(tool, 2)
 
-  assert rec["retired"] == "module_pen" and rec["verbs"] == ["scoop.tilt"]
+  # nothing retired: the rail's bay was empty, and no original can be
+  assert rec["retired"] is None and rec["verbs"] == ["scoop.tilt"]
   assert rec["recompileMs"] < 200
-  # the world: a new model, the pen gone, the scoop in bay C, state carried
+  # the world: a new model, the five originals still there, the scoop in
+  # the rail's bay C, state carried
   assert life.model is not old_model
   names = {mujoco.mj_id2name(life.model, mujoco.mjtObj.mjOBJ_BODY, i)
            for i in range(life.model.nbody)}
-  assert "module_scoop" in names and "module_pen" not in names
+  assert "module_scoop" in names and "module_pen" in names
   assert float(life.data.time) == pytest.approx(t_before)
   assert np.allclose(life.data.xpos[life.model.body("module_lcd").id], lcd_before)
-  assert life.rack_inventory == {"module_lcd": 0, "module_plug": 1, "module_claw": 3,
-                                 "module_seed": 4, "module_scoop": 2}
+  assert life.rack_inventory == {"module_lcd": 0, "module_plug": 1, "module_pen": 2,
+                                 "module_claw": 3, "module_seed": 4,
+                                 "module_scoop": len(HUB_STATION_YS) + 2}
   assert "scoop.tilt" in axes.AXES and "scoop.tilt" in axes.SENSORS
+  # ...at the rail's station, in the world (the rack frame -> world map
+  # the swap and the standoff both use)
+  prior = life.mission.rack_prior
+  hx, hy = prior.to_world(RACK_HANG_X, BUILT_STATION_YS[2])
+  scoop = life.data.xpos[life.model.body("module_scoop").id]
+  assert abs(float(scoop[0]) - hx) < 0.01 and abs(float(scoop[1]) - hy) < 0.01
   # the wire
   changed = [e for e in events if e.get("type") == "scene_changed"]
   assert len(changed) == 1
-  assert changed[0]["module"] == "module_scoop" and changed[0]["retired"] == "module_pen"
+  assert changed[0]["module"] == "module_scoop" and changed[0]["retired"] is None
   assert any(b["name"] == "module_scoop" for b in changed[0]["scene"]["bodies"])
-  # ...and the world still steps, with the swap reading the new module
-  for _ in range(200):
+  # ...and the world still steps, the module SETTLES INTO THE TRAYS, and
+  # the swap reads it hung there (the rail's trays hold a peg like the
+  # first rack's; `module_state` knows the rail's stations)
+  for _ in range(1000):
     mujoco.mj_step(life.model, life.data)
-  assert life.mission.swap.module_state("module_scoop")["on_fork"] is False
+  st = life.mission.swap.module_state("module_scoop")
+  assert st["on_fork"] is False and st["hung"] is True, st
   # THE RUNTIME FENCE: nothing reachable from the lifecycle holds the old
   # world. Shown to fail by commenting out one `rebind` call in
   # `HubLifecycle.rebind`.
@@ -158,7 +178,7 @@ def test_the_seam_hangs_a_tool_and_rebinds_every_holder():
   assert stale == [], [p for p, _ in stale]
 
 
-def test_the_seam_refuses_mid_errand_on_the_fork_and_on_a_pair():
+def test_the_seam_refuses_mid_errand_on_the_fork_on_a_pair_and_without_a_rail():
   life = _life()
   tool = validate.check(SCOOP)
   life.state = "USE_TOOL"
@@ -169,48 +189,110 @@ def test_the_seam_refuses_mid_errand_on_the_fork_and_on_a_pair():
   with pytest.raises(SeamRefused, match="pair"):
     life.hang_tool(tool, 2)
   life.peers = []
-  with pytest.raises(SeamRefused, match="no bay 7"):
-    life.hang_tool(tool, 7)
+  with pytest.raises(SeamRefused, match="no bay 3; the built-tool rail has 3"):
+    life.hang_tool(tool, 3)
   bare = HubLifecycle(life.model, life.data, realtime=False, world="room_hub",
                       errand=False)
   with pytest.raises(SeamRefused, match="without its spec"):
     bare.hang_tool(tool, 2)
-
-
-def test_retiring_takes_the_payload_and_the_actuators_with_it():
-  """The dispenser leaves with its three seeds and its gate; the claw's
-  jaw bodies go with the claw; what stays is what was not the module's."""
+  # A WORLD WITHOUT THE RAIL (issue #277): the bare spike world's shape,
+  # made here by deleting the rail from room_hub's spec. Read off the
+  # compiled model, so the refusal is what the world is, not a flag.
   cfg = world_config("room_hub")
   spec = world_spec(cfg["model"])
-  gone = seam.retire(spec, "module_seed")
-  assert gone["payload"] == ["seed_0", "seed_1", "seed_2"]
-  assert gone["actuators"] == ["seed_gate"]
-  gone = seam.retire(spec, "module_claw")
-  assert set(gone["bodies"]) == {"module_claw", "module_claw_jaw_l", "module_claw_jaw_r"}
-  assert set(gone["actuators"]) == {"claw_l", "claw_r"}
+  spec.delete(spec.body(coupling.BUILT_RACK_BODY))
   model = spec.compile()
-  assert model.body("module_pen").id > 0
-  assert model.nu == 8 - 3
-  with pytest.raises(SeamRefused):
-    seam.retire(spec, "module_claw")
+  norail = HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                        world="room_hub", spec=spec, errand=False)
+  assert norail.has_built_rack is False and life.has_built_rack is True
+  with pytest.raises(SeamRefused, match="no built-tool rack"):
+    norail.hang_tool(tool, 0)
+
+
+@pytest.mark.parametrize("module", sorted(coupling.MODULE_TAG_IDS))
+def test_a_hand_built_module_is_never_retired(module):
+  """The five originals are permanent (issue #277): the seam refuses them
+  by name at the spec, and the lifecycle refuses before it touches the
+  spec -- what every offered job is written against cannot be deleted by
+  the robot it is offered to. Shown to fail by dropping `HAND_BUILT` from
+  `seam.retire`: the pen, its carriage and its actuator all go."""
+  cfg = world_config("room_hub")
+  spec = world_spec(cfg["model"])
+  with pytest.raises(SeamRefused, match="original modules"):
+    seam.retire(spec, module)
+  assert spec.body(module) is not None
+  life = _life()
+  with pytest.raises(SeamRefused, match="original modules"):
+    life.retire_tool(module)
+  assert module in life.rack_inventory
+
+
+def test_retiring_a_built_tool_takes_its_actuators_and_empties_its_bay():
+  """A built tool leaves with its actuators and its verbs; a bay named
+  again while a built tool hangs there retires that tool first."""
+  life = _life()
+  events = []
+  life.on_event.append(events.append)
+  life.hang_tool(validate.check(SCOOP), 0)
+  assert life.model.actuator("module_scoop_tilt").id >= 0
+  rec = life.retire_tool("module_scoop")
+  assert rec["bay"] == 0 and rec["retiredWhat"]["actuators"] == ["module_scoop_tilt"]
+  assert "module_scoop" not in life.rack_inventory and "scoop.tilt" not in axes.AXES
+  names = {mujoco.mj_id2name(life.model, mujoco.mjtObj.mjOBJ_BODY, i)
+           for i in range(life.model.nbody)}
+  assert "module_scoop" not in names and "module_pen" in names
+  # ...and naming the bay another built tool holds retires that one
+  life.hang_tool(validate.check(SCOOP), 1)
+  rec = life.hang_tool(validate.check(SCOOP2), 1)
+  assert rec["retired"] == "module_scoop"
+  assert life.rack_inventory.get("module_scoop2") == len(HUB_STATION_YS) + 1
+  assert "module_scoop" not in life.rack_inventory
+  with pytest.raises(SeamRefused, match="not on the rack"):
+    life.retire_tool("module_scoop")
 
 
 def test_ids_shift_on_a_retire_and_the_state_still_follows_by_name():
-  """MEASURED: deleting the pen moves the claw from body 34 to 31 and the
-  claw is exactly where it was. This is why every rebind resolves by name."""
+  """MEASURED: deleting a built tool moves every body after it in the
+  tree (a second built tool here; it was the claw, 34 -> 31, while an
+  original could be retired) and the moved body is exactly where it was.
+  This is why every rebind resolves by name."""
   cfg = world_config("room_hub")
   spec = world_spec(cfg["model"])
+  from pluggybot.rack.localize import RackPose
+  prior = cfg["rack"] or RackPose.prior()
+  seam.attach(spec, validate.check(SCOOP), 0, (prior.x, prior.y),
+              np.degrees(prior.yaw))
+  seam.attach(spec, validate.check(SCOOP2), 1, (prior.x, prior.y),
+              np.degrees(prior.yaw))
   model = spec.compile()
   data = mujoco.MjData(model)
   for _ in range(500):
     mujoco.mj_step(model, data)
-  claw = model.body("module_claw").id
+  second = model.body("module_scoop2").id
   mujoco.mj_forward(model, data)
-  pose = data.xpos[claw].copy()
-  seam.retire(spec, "module_pen")
+  pose = data.xpos[second].copy()
+  seam.retire(spec, "module_scoop")
   model2, data2 = seam.recompile(spec, model, data)
-  assert model2.body("module_claw").id < claw
-  assert np.allclose(data2.xpos[model2.body("module_claw").id], pose)
+  assert model2.body("module_scoop2").id < second
+  assert np.allclose(data2.xpos[model2.body("module_scoop2").id], pose)
+
+
+def test_every_bay_on_the_rail_pairs_with_its_own_tag():
+  """The rail's three stations index `STATION_YS` after the first rack's
+  five, each with its own bay tag in the rack-fixed layout the dock camera
+  fits to (issue #277) -- so a built tool's approach ranges off ITS bay's
+  marker like any other, and a fix at the far bay is a fit over the rail's
+  tags, not one tag's coin-flip yaw."""
+  from pluggybot.rack.tags import BAY_TAG_IDS
+  first = len(HUB_STATION_YS)
+  assert coupling.STATION_YS[first:] == BUILT_STATION_YS
+  for k, y in enumerate(BUILT_STATION_YS):
+    assert coupling.built_bay_index(k) == first + k
+    assert coupling.is_built_bay(first + k) and not coupling.is_built_bay(k)
+    assert coupling.bay_tag_id(y) == BAY_TAG_IDS[first + k]
+    assert coupling.RACK_TAG_FACES[BAY_TAG_IDS[first + k]] == (coupling.BAY_TAG_FACE_X, y)
+  with pytest.raises(ValueError):
+    coupling.built_bay_index(len(BUILT_STATION_YS))
 
 
 def test_the_tag_png_is_written_once(tmp_path):

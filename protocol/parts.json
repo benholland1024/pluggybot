@@ -1713,6 +1713,94 @@
    }
   },
   {
+   "id": "built_rack_rail_stock",
+   "name": "Built-tool rail: a second, shorter rack of the same stock beside the first, for the tools the robot builds",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "body"
+   ],
+   "usedBy": [
+    "rack"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": {
+    "railLength": 710,
+    "width": 740,
+    "depth": 170,
+    "height": 550
+   },
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "bays": 3,
+    "pitchMm": 250
+   },
+   "feeds": [
+    {
+     "constant": "rack.coupling.BUILT_RACK_HALF_W",
+     "where": "code",
+     "value": 0.355,
+     "unit": "m",
+     "note": "half the rail",
+     "expect": 0.355
+    },
+    {
+     "constant": "rack.coupling.BUILT_RACK_Y",
+     "where": "code",
+     "value": 1.375,
+     "unit": "m",
+     "note": "its centre in the first rack's frame, continuing the pitch past bay E"
+    },
+    {
+     "constant": "rack.coupling.BUILT_STATION_YS",
+     "where": "code",
+     "value": [
+      1.175,
+      1.425,
+      1.675
+     ],
+     "unit": "m",
+     "note": "the three built-tool bays at 0.25 m pitch, in the first rack's frame; appended to, never reordered (bay-tag pairing is by index)"
+    },
+    {
+     "constant": "rack_built_shelf.mass",
+     "where": "model",
+     "value": 1.5,
+     "unit": "kg",
+     "note": "the base"
+    },
+    {
+     "constant": "rack_built_rail.mass",
+     "where": "model",
+     "value": 0.2,
+     "unit": "kg",
+     "note": ""
+    },
+    {
+     "constant": "rack_built_post_l.mass",
+     "where": "model",
+     "value": 0.15,
+     "unit": "kg",
+     "note": ""
+    }
+   ],
+   "why": {
+    "partNumber": "stock material, not a catalog part",
+    "source": "stock material, not a catalog part",
+    "massG": "not weighed",
+    "priceEur": "stock material, not a catalog part"
+   },
+   "note": "The five hand-built modules are permanent and hang on the first rack; a built tool hangs here and only here (issue #277). Same frame as the first rack, no charge bay, no rack tag: it is surveyed beside the first and found through it.",
+   "workshop": {
+    "usable": false,
+    "why": "on the body shelf, not the catalog"
+   }
+  },
+  {
    "id": "rack_printed_parts",
    "name": "Rack V-trays, tray brackets, tag plates and the robot's fork: 3D-printed (PETG)",
    "kind": "structure",

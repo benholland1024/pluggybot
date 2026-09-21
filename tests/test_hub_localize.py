@@ -38,15 +38,25 @@ def test_every_hub_marker_decodes_with_the_right_id(room_model):
     BAY_TAG_IDS, CHARGE_TAG_ID, MODULE_TAG_IDS, RACK_TAG_ID, RACK_TAG_SIZE,
     TagDetector,
   )
+  from pluggybot.rack.coupling import BUILT_RACK_Y, HUB_STATION_YS, rack_frame_to_world
   data = mujoco.MjData(room_model)
-  _place(room_model, data, -0.9, 4.0, math.pi / 2)
   det = TagDetector(room_model, "left_eye", tag_size=RACK_TAG_SIZE)
   try:
-    found = det.detect(data)
+    _place(room_model, data, -0.9, 4.0, math.pi / 2)
+    found = set(det.detect(data))
+    # ...and the built-tool rail (issue #277) from a vantage centred on IT:
+    # its far bays sit 1.6 m beside the rack, outside the head camera's
+    # view from the rack's own vantage
+    first = len(HUB_STATION_YS)
+    rx, _ = rack_frame_to_world(0.0, BUILT_RACK_Y)
+    _place(room_model, data, rx, 4.0, math.pi / 2)
+    on_rail = set(det.detect(data))
   finally:
     det.close()
-  expected = {RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values()}
-  assert expected <= set(found), f"missing tags: {sorted(expected - set(found))}"
+  expected = {RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS[:first], *MODULE_TAG_IDS.values()}
+  assert expected <= found, f"missing tags: {sorted(expected - found)}"
+  rail = set(BAY_TAG_IDS[first:])
+  assert rail <= on_rail, f"missing rail tags: {sorted(rail - on_rail)}"
 
 
 def test_tag_pnp_range_is_accurate(room_model):

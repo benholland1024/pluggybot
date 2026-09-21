@@ -71,6 +71,7 @@ from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.activity.cage import MOUSE_STATES
 from pluggybot.economy.questions import clean_answer
+from pluggybot.rack.coupling import BUILT_STATION_YS
 from pluggybot.mind import spend as spend_mod
 from pluggybot.mind.spend import SpendBook
 from pluggybot.economy.scoring import RewardTable, default_table
@@ -253,8 +254,9 @@ ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
            "care", "explore", "charge", "idle", "recall", "procedure")
 #: `procedure` is a FAMILY, not a single action (issue #166): the concrete
 #: The bays a built tool may take (issue #168), by letter: the grammar of
-#: `build_tool.bay`. One per station; the rack's count, not a choice here.
-BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(5))
+#: `build_tool.bay`. One per station of the BUILT-TOOL RAIL (issue #277):
+#: the rail's count, not a choice here, and never the first rack's five.
+BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(len(BUILT_STATION_YS)))
 #: token is `procedure:<name>` for a procedure in the robot's library, and
 #: the name is enumerated per call like a task id. Only a menu built with
 #: `procedures=True` -- the `autonomous` arm -- offers it at all, which is
@@ -2362,17 +2364,20 @@ def procedure_rule() -> str:
 WORKSHOP_HEAD = """\
 TOOLS YOU MAY BUILD
 
-You may design a tool from real, purchasable parts and hang it on the rack:
-`build_tool: {"name": "<name>", "bay": "<A-E>", "spec": {...}}` on any answer.
-It costs no turn to say, but it costs POINTS and TIME: the parts at the
-catalog's price (one point per euro; printed plastic by the gram), then the
-print and assembly time standing still. Unaffordable is refused before
-anything is bought; a spec outside the coupling envelope is refused with
-every reason at once and nothing is spent. The bay you name is taken:
-whatever hangs there -- one of the five original modules, or a tool of
-yours -- is retired for good. `retire_tool: "<name>"` takes a tool of yours
-off the rack and leaves its bay empty. There is no replace. `rack` in your
-context says what hangs where; `tools` lists what you built, with its spec.
+You may design a tool from real, purchasable parts and hang it on your own
+rack: `build_tool: {"name": "<name>", "bay": "<%(bays)s>", "spec": {...}}` on
+any answer. It costs no turn to say, but it costs POINTS and TIME: the parts
+at the catalog's price (one point per euro; printed plastic by the gram),
+then the print and assembly time standing still. Unaffordable is refused
+before anything is bought; a spec outside the coupling envelope is refused
+with every reason at once and nothing is spent. There are two racks side by
+side: the five original modules hang on the first and are permanent -- no
+bay of theirs can be named and none of them can be retired -- and a rail
+beside it with %(count)s bays, %(bays)s, is yours. The bay you name is taken:
+a tool of yours already hanging there is retired for good. `retire_tool:
+"<name>"` takes a tool of yours off your rail and leaves its bay empty. There
+is no replace. `rack` in your context says what hangs where -- `original`
+the five, `built` your bays -- and `tools` lists what you built, with its spec.
 
 A built tool's axes appear in the procedure language as `<name>.<verb>`,
 so `move("scoop.tilt", 1.2)` moves a servo you specified, and
@@ -2562,6 +2567,8 @@ def workshop_rule() -> str:
     lines.append(f"  {part.id}: {part.name} -- " + ", ".join(bits))
   scaffold = catalog.by_id()["scaffold_pla_box"].capabilities["printBedMm"]
   head = WORKSHOP_HEAD % {
+    "bays": "-".join((BAY_LETTERS[0], BAY_LETTERS[-1])),
+    "count": len(BAY_LETTERS),
     "mass_g": coupling.MODULE_MASS_CEILING * 1000,
     "moment": coupling.LATCH_MOMENT_NM,
     "wall_mm": (coupling.TOOL_HALF_X + coupling.WALL_CLEARANCE) * 1000,
@@ -4596,11 +4603,15 @@ def build(world: str, book=None, enabled: bool | None = None,
             else None)
     library = Library(world_facts(world), root=root)
     menu = replace(menu, procedures=True)
-    # THE WORKSHOP (issue #168): the same arm, beside the library.
-    from pluggybot.workshop.library import Workshop
-    workshop = Workshop(root=(thoughts.root / "tools" if thoughts.root is not None
-                              else None))
-    menu = replace(menu, workshop=True)
+    # THE WORKSHOP (issue #168): the same arm, beside the library -- where
+    # the world has a built-tool rail to hang on (issue #277): a world
+    # without one has no `build_tool` in its grammar, the tower's shape.
+    from pluggybot.lifecycle import world_config
+    if world_config(world).get("built_bays"):
+      from pluggybot.workshop.library import Workshop
+      workshop = Workshop(root=(thoughts.root / "tools" if thoughts.root is not None
+                                else None))
+      menu = replace(menu, workshop=True)
     # THE LIBRARY (issue #216): the same arm, beside the other two. The
     # ledger is what pays the throttle off; the fetch is the real one.
     desk = reading.Wiki(ledger=ledger)
@@ -4609,7 +4620,6 @@ def build(world: str, book=None, enabled: bool | None = None,
     # zone is in the prompt (the disclosure line, the `care` action, the
     # `real` field) only here, and the offer to shock the mouse only
     # where the prompt is (`lifecycle.world_targets`).
-    from pluggybot.lifecycle import world_config
     zone = world_config(world).get("lab")
     if zone:
       menu = replace(menu, lab=zone["name"])

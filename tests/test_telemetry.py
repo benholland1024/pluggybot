@@ -190,13 +190,14 @@ def test_room_hub_coverage():
   assert len(referenced) == model.ntex        # all 12 tags in use
   assert {t["name"] for t in scene["textures"]} == referenced
   robot, world = body_census(model)
-  # 21 = 7 robot links + the rack + five modules + the pen's two moving
-  # parts + the dispenser's shuttle + three loose seeds. A census, so it
-  # fails whenever the world gains or loses a dynamic body -- which is
-  # the point: every one of them costs a pose in every keyframe.
-  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 21
+  # 22 = 7 robot links + the rack + the built-tool rail (a second free
+  # body since #277) + five modules + the pen's two moving parts + the
+  # dispenser's shuttle + three loose seeds. A census, so it fails
+  # whenever the world gains or loses a dynamic body -- which is the
+  # point: every one of them costs a pose in every keyframe.
+  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 22
   assert len(robot) == 7
-  assert {"rack", "module_lcd", "module_seed", "seed_0"} <= set(world)
+  assert {"rack", "rack_built", "module_lcd", "module_seed", "seed_0"} <= set(world)
 
 
 # ---- recorder --------------------------------------------------------------
@@ -1006,9 +1007,13 @@ def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
       assert len(states) > 3, f"{root} barely moved: {states}"
     else:
       assert "EXPLORE" in states, f"{root} never explored: {states}"
+      # ...and "moved" is the FARTHEST it got from where it started, not
+      # first against last: a robot standing by goes back to its own start
+      # pose, and a room_hub_pair day that played the game and came home
+      # read 5 cm end to end (#277's re-fly: 2 swaps, 2 errands, 0.05 m).
       first_xy = [f["robots"][root]["bodies"][root][:2] for f in frames
                   if root in f["robots"][root].get("bodies", {})]
-      travelled = math.dist(first_xy[0], first_xy[-1])
+      travelled = max(math.dist(first_xy[0], xy) for xy in first_xy)
       assert travelled > 1.0, f"{root} barely moved: {travelled:.2f} m"
   # Two APPETITES, not one block copied twice: the first robot earned and
   # ate; the second's block is its own account's story, not a copy.

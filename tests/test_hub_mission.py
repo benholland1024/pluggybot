@@ -94,6 +94,55 @@ def test_a_second_fetch_works_after_a_stow(room_model):
   assert powered, "the second fetch seated the module but did not power it"
 
 
+def test_a_drive_ends_with_a_terminal_approach_and_sweeps_before_it(room_model, monkeypatch):
+  """The last leg of `drive_to` -- its final waypoint and the goal -- is a
+  terminal approach (`slow_radius`), every waypoint before it the sweeping
+  law (issue #277; `ARRIVAL_SLOW_RADIUS`). MEASURED why: a stow begun 13 cm
+  from the bay's standoff handed the plain law a goal closer than its
+  overshoot and orbited it for 690 deg, and whether the stagnation cut then
+  fell inside the 15 cm 'close enough' was the map's coin -- the rail
+  beside bay E turned it over. Kinematic, no physics: the plan is stubbed
+  to three waypoints, the step to a teleport, and `drive_toward` is spied
+  for the `slow_radius` each call carries. Fails without the wiring: every
+  call carries None."""
+  from pluggybot.mission import mission as mm
+  from pluggybot.mission.mission import HubMission
+  from pluggybot import tick
+  data = mujoco.MjData(room_model)
+  mission = HubMission(room_model, data, realtime=False)
+  try:
+    mission.start_at(0.0, 0.0, 0.0)
+    goal = (0.9, 0.0)
+    legs = [(0.3, 0.0), (0.6, 0.0), (0.9, 0.0)]
+    mission._plan_to = lambda wx, wy: list(legs)
+    calls = []
+    real = mm.drive_toward
+
+    def spy(pose, waypoint, slow_radius=None):
+      calls.append((tuple(round(v, 3) for v in waypoint), slow_radius))
+      return real(pose, waypoint, slow_radius=slow_radius)
+    monkeypatch.setattr(mm, "drive_toward", spy)
+
+    def teleport(v, w):
+      # the step: 5 cm along the bow per call, into the reckoner directly --
+      # no physics, no wheels
+      r = mission.swap.reckoner
+      r.x += 0.05 * math.cos(r.theta)
+      r.y += 0.05 * math.sin(r.theta)
+      data.time += 0.1
+      yield 0.0, 0.0
+    mission._nav_routine = teleport
+    arrived = tick.run(mission.swap, mission.drive_to_routine(*goal, timeout=30.0))
+  finally:
+    mission.close()
+  assert arrived
+  by_target = {}
+  for target, radius in calls:
+    by_target.setdefault(target, set()).add(radius)
+  assert by_target[(0.3, 0.0)] == {None} and by_target[(0.6, 0.0)] == {None}, by_target
+  assert by_target[(0.9, 0.0)] == {mm.ARRIVAL_SLOW_RADIUS}, by_target
+
+
 @pytest.mark.slow
 def test_full_hub_mission():
   """The milestone-8 claim, end to end: map the room, navigate to the rack,

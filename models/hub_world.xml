@@ -21,6 +21,12 @@
     <material name="tagmat5" texture="tagtex5" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex6" type="cube" file="tags/tag6.png"/>
     <material name="tagmat6" texture="tagtex6" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex7" type="cube" file="tags/tag7.png"/>
+    <material name="tagmat7" texture="tagtex7" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex8" type="cube" file="tags/tag8.png"/>
+    <material name="tagmat8" texture="tagtex8" specular="0.05" shininess="0.05" reflectance="0"/>
+    <texture name="tagtex9" type="cube" file="tags/tag9.png"/>
+    <material name="tagmat9" texture="tagtex9" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex10" type="cube" file="tags/tag10.png"/>
     <material name="tagmat10" texture="tagtex10" specular="0.05" shininess="0.05" reflectance="0"/>
     <texture name="tagtex11" type="cube" file="tags/tag11.png"/>
@@ -60,8 +66,6 @@
 
     <body name="rack" pos="0.0000 0.0000 0.0000" euler="0 0 0.0">
       <freejoint/>
-      <!-- frame: side posts, rail, anti-tip feet, ballast/PSU shelf (1.5 kg
-           low -- the ballast IS the stability budget) -->
       <geom name="rack_post_l" type="box" size="0.012 0.012 0.200"
             pos="0.0700 0.9300 0.200"
             mass="0.15" rgba="0.50 0.52 0.55 1"/>

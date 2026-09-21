@@ -38,7 +38,7 @@ from typing import Callable
 
 from pluggybot.control import wrap_angle
 from pluggybot.economy.census import Zone, count_objects, score, survey_route, true_count
-from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.rack.coupling import HUB_STATION_YS, STATION_YS
 from pluggybot.tick import Routine
 from pluggybot.tools.drawing import Board, Envelope, PenPlotter, board_standoff
 from pluggybot.tools.strokes import StrokeProgram, from_cli
@@ -131,8 +131,9 @@ def programmed_errand(program, task: str = "program",
                       rack: dict | None = None) -> Errand:
   """An errand whose middle AND ends are a program's steps (issue #58).
 
-  `rack` is a lifecycle's inventory (module -> bay) once the workshop has
-  hung a tool (issue #168); without it, the shipped five.
+  `rack` is a lifecycle's inventory (module -> bay index into STATION_YS)
+  once the workshop has hung a tool (issue #168); without it, the shipped
+  five. A built tool's index is past the five, on the rail (issue #277).
 
   `task` names the evaluator that grades the finished job -- "program" for
   the generic per-step verdict, or an existing kind's evaluator ("draw")
@@ -150,7 +151,7 @@ def programmed_errand(program, task: str = "program",
   if board is not None:
     detail.update({"board": board, "figure": figure})
   return Errand(name=name or f"{task}:{program.name}", module=first_tool,
-                station_y=(HUB_STATION_YS[(rack or TOOL_BAYS)[first_tool]]
+                station_y=(STATION_YS[(rack or TOOL_BAYS)[first_tool]]
                            if first_tool else 0.0),
                 use_at=(0.0, 0.0), use=None, task=task, program=program,
                 role=role, needs_use_pose=False, detail=detail)

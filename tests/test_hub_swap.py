@@ -264,16 +264,22 @@ def test_bay_tag_ids_pair_by_index(hub_model):
   two-bay equality check, which would have silently steered every bay-C swap
   onto bay B's marker -- the exact class of bug real AprilTags were adopted
   to make impossible."""
-  from pluggybot.rack.coupling import HUB_STATION_YS, bay_tag_id
+  from pluggybot.rack.coupling import HUB_STATION_YS, STATION_YS, bay_tag_id
   from pluggybot.rack.tags import BAY_TAG_IDS
-  assert len(BAY_TAG_IDS) == len(HUB_STATION_YS), "a bay has no tag"
+  # ...and the built-tool rail's three (issue #277): one index space,
+  # `STATION_YS`, the rack's five first and the rail's after them
+  assert len(BAY_TAG_IDS) == len(STATION_YS), "a bay has no tag"
   assert len(set(BAY_TAG_IDS)) == len(BAY_TAG_IDS), "duplicate bay tag id"
-  for i, y in enumerate(HUB_STATION_YS):
+  for i, y in enumerate(STATION_YS):
     assert bay_tag_id(y) == BAY_TAG_IDS[i]
     assert bay_tag_id(y + 0.01) == BAY_TAG_IDS[i], "nearest-bay lookup is tight"
+  # the bare hub world carries the rack's bays alone; room_hub both rails'
   for i in range(len(HUB_STATION_YS)):
     gid = hub_model.geom(f"bay{chr(ord('a') + i)}_bay_tag").id
     assert gid >= 0
+  room = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  for i in range(len(STATION_YS)):
+    assert room.geom(f"bay{chr(ord('a') + i)}_bay_tag").id >= 0
 
 
 def test_pen_module_is_a_usable_tool(hub_model):

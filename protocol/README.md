@@ -918,6 +918,25 @@ bump; a consumer ignores an unknown type. The website's half -- store it,
 and show a run that ended this way as a crash rather than a stream that
 went quiet -- is a rooftop issue.
 
+### 0.21.0, additive: the built-tool rail (pluggybot #277)
+
+A second free body in both served worlds, **`rack_built`** (hint `rack` in
+the home sidecar, none in room_hub like the first rack), beside the rack:
+three bays at the rack's pitch past bay E, bay tags **7, 8, 9**, geoms
+`bayf_` … `bayh_` and `rack_built_<post|rail|foot|shelf|brace>_*`. The
+five hand-built modules are permanent; a built tool hangs on the rail and
+only there. **No bump**: a new dynamic body and three new textures, both
+of which a consumer already handles per body and per texture. The four
+scenes and both `--pair` scenes carry it; `tagtex7..9.png` are new under
+`textures/`; the recordings were re-flown on the new plan.
+
+- **`scene_changed`** is unchanged in shape. `bay` on it is now the
+  RAIL's index (0–2), `retired` is a built tool or null -- never one of
+  the originals -- and `reason: "retire"` likewise names a built tool.
+- **A built module's identity tag** is still `15 + bay`, so `tagtex15..17`
+  are the ones a scene can name; 18 and 19 stay committed for a rail that
+  grows and nothing references them.
+
 ### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
 
 pluggybot #168 (slice C). The scene was "fetched once" because the model
@@ -932,8 +951,9 @@ which is the degradation, not a break.
   `scene` is the WHOLE new scene in exactly the shape the scene fixture
   has (`scene_dict`), so a consumer rebuilds its scene graph from it the
   way it built the first one from the fetched file; `retired` names the
-  module that left the rack (a bay is a replaced module), `module` the one
-  that hangs there now. The frame after it is a keyframe: the producer's
+  module that left the rack (until #277 a bay was a replaced module, any
+  of the five; since, a built tool on the rail), `module` the one that
+  hangs there now. The frame after it is a keyframe: the producer's
   pose memory is dropped with the census, because a body may be gone.
 - **The header a late joiner receives is the current census.** The
   publisher re-sends its header on connect, built from the recompiled
@@ -941,12 +961,11 @@ which is the degradation, not a break.
 - **A built module's identity tag** is a real tag36h11 like the others,
   id `15 + bay` (`workshop/seam.py`), one per BAY: a retired tool's id is
   reused by the next tool in that bay. Its texture rides the scene as
-  `tags/tag<id>.png`; the five PNGs are committed beside the hand-built
+  `tags/tag<id>.png`; the PNGs are committed beside the hand-built
   modules' so the site can vendor them once.
 
 The website's half -- rebuilding the three.js scene on the message and
-carrying the five textures -- is rooftop-media-2026's issue; until it
-lands the site draws the previous rack.
+carrying the textures -- landed as rooftop-media-2026 #250.
 
 ### 0.19.0, additive: a second robot on the stream (M12)
 
