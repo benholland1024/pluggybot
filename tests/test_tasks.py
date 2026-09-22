@@ -297,7 +297,10 @@ def test_a_task_outlives_a_restart(tmp_path):
 
   back = board(path=path)
   assert back[standing.id].state == "offered"
-  assert back[standing.id].deadline == standing.deadline
+  # the deadline is what was LEFT at the last save (t=2.0), from the new
+  # mission's 0 -- a deadline in the old clock could outlive every later
+  # mission (the served world, 2026-09-22)
+  assert back[standing.id].deadline == standing.deadline - 2.0
   assert back[standing.id].description == standing.description
   assert back[finished.id].state == "done"
   assert back[finished.id].points > 0
@@ -315,6 +318,61 @@ def test_a_task_interrupted_by_a_restart_comes_back_failed(tmp_path):
   b.claim(task.id, t=1.0)
   b.start(task.id, t=2.0)
   assert board(path=path)[task.id].state == "failed"
+
+
+def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
+  """A deadline is absolute sim time and every mission starts at 0. Measured
+  on the deployed world (2026-09-22): an offer made at 3125 s of a 3600 s
+  mission stood ~4700 s, and one made at 3606 s could never lapse -- and it
+  held its target booked. On load the deadline is what was left at the last
+  save, from 0; an older file with no `simTime` loads as it was."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  late = offered(b, ttl=720.0, t=3125.0)                     # deadline 3845
+  last = offered(b, target="whiteboard_b", ttl=720.0, t=3606.0)  # deadline 4326
+  assert b.sim_t == 3606.0
+  back = board(path=path)
+  assert back[late.id].deadline == 239.0 and back[last.id].deadline == 720.0
+  assert [t.id for t in back.expire_due(238.0)] == []
+  assert [t.id for t in back.expire_due(239.0)] == [late.id]
+  assert [t.id for t in back.expire_due(720.0)] == [last.id]
+  # already overdue at the save: lapses at once, never a negative deadline
+  b2 = board(path=tmp_path / "over.json")
+  gone = offered(b2, ttl=10.0, t=0.0)
+  offered(b2, target="whiteboard_b", ttl=100.0, t=50.0)      # the save at 50
+  assert board(path=tmp_path / "over.json")[gone.id].deadline == 0.0
+  # an older build's file, no simTime: loaded as it was
+  old = tmp_path / "old.json"
+  was = offered(board(path=old), ttl=720.0, t=3125.0)
+  doc = json.loads(old.read_text())
+  del doc["simTime"]
+  old.write_text(json.dumps(doc))
+  assert board(path=old)[was.id].deadline == 3845.0
+
+
+def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
+  """`load` runs before any hook exists, so a job a restart failed left no
+  row: on the observatory the bench's one claim read `active` for five
+  hours (2026-09-22). `announce_interrupted` emits the `task_resolved`
+  each would have been, after the hooks are attached, and once."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  task = offered(b)
+  b.claim(task.id, t=1.0)
+  b.start(task.id, t=2.0)
+  back = board(path=path)
+  assert [t.id for t in back.interrupted] == [task.id]
+  heard = []
+  back.on_event.append(heard.append)
+  [said] = back.announce_interrupted(t=0.5)
+  assert said.id == task.id and said.state == "failed"
+  [msg] = heard
+  assert msg["type"] == "task_resolved" and msg["state"] == "failed"
+  assert msg["id"] == task.id and msg["points"] == 0
+  assert msg["verdict"]["reason"] == "interrupted by a restart"
+  assert msg["task"]["kind"] == task.kind
+  assert back.announce_interrupted() == [] and len(heard) == 1
+  assert board(path=path).interrupted == []                 # failed on disk now
 
 
 def test_a_task_claimed_but_not_started_at_a_restart_is_offered_again(tmp_path):
@@ -341,7 +399,7 @@ def test_a_task_claimed_but_not_started_at_a_restart_is_offered_again(tmp_path):
     t = back[tid]
     assert t.state == "offered" and t.claimed_by == "" and t.claimed_t is None
     assert t.claimable(50.0), tid
-  assert back[task.id].deadline == task.deadline
+  assert back[task.id].deadline == task.deadline - 2.0      # rebased, see above
   assert back[asked.id].answer == "" and back[asked.id].secret == {"answer": "12"}
   assert back[game.id].claims == {} and back[game.id].open_roles() == game.roles
   assert back[done.id].state == "done"

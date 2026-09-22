@@ -675,6 +675,22 @@ class TaskBoard:
     self.tasks: dict[str, Task] = {}
     self.seq = 0
     self.dropped = 0
+    #: The PRODUCER's own state, persisted with the board because the board
+    #: is what survives a restart (`TaskProducer` reads and writes it in
+    #: place): where its rotation stood (`cursor`, a kind's NAME), and how
+    #: far its figure list had turned. Measured on the deployed world
+    #: (2026-09-22, 30 hours of rows): a mission there is 3600 sim s and
+    #: every restart built a fresh producer at the top of its list, so the
+    #: last kind in home's rotation (`find_mass`) was offered ONCE while
+    #: the seventh (`shock_mouse`) was offered fifteen times.
+    self.producer: dict = {}
+    #: Sim time of the last change saved, so a restart can give an open
+    #: offer the life it had LEFT rather than a deadline in a clock that
+    #: no longer exists (see `load`).
+    self.sim_t = 0.0
+    #: Tasks a restart failed (`load`), until `announce_interrupted` puts
+    #: them on the wire.
+    self.interrupted: list[Task] = []
     if self.path is not None and self.path.exists():
       self.load()
 
@@ -933,6 +949,7 @@ class TaskBoard:
       self.dropped += 1
 
   def _emit(self, msg: dict) -> None:
+    self.sim_t = max(self.sim_t, float(msg.get("t") or 0.0))
     for hook in self.on_event:
       hook(dict(msg))
     # Saved on every transition, like the boards and the ledger and for the
@@ -950,6 +967,7 @@ class TaskBoard:
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text(json.dumps(
       {"version": STATE_VERSION, "seq": self.seq, "dropped": self.dropped,
+       "simTime": round(self.sim_t, 3), "producer": dict(self.producer),
        "tasks": [t.as_state() for t in self.tasks.values()]}, indent=1) + "\n")
     # Rename over the target: a crash mid-write leaves the previous board
     # intact rather than a truncated file that loads as an empty world.
@@ -975,6 +993,20 @@ class TaskBoard:
     and the next life takes it or lets it lapse on its own deadline. A
     committed answer goes with the claim; the next claimant commits its own.
     A job with roles drops every role held for the same reason.
+
+    ⚠ An offer's deadline is REBASED to the new mission's clock: what it
+    had left when the board was last saved (`simTime`), counted from 0.
+    A deadline is absolute sim time and every mission starts at 0, so an
+    offer made in the last quarter-hour of a 3600 s mission carried a
+    deadline the next mission could reach only after its own 3600 s --
+    measured on the deployed world, two offers stood ~4700 s, and one
+    made at 3606 s could never lapse at all. A file with no `simTime`
+    (an older build's) is loaded as it was.
+
+    ⚠ The tasks a restart FAILED are kept in `interrupted` until
+    `announce_interrupted` puts them on the wire: `load` runs before any
+    hook is attached, and a failure nobody was told about read on the
+    observatory as a job `active` for ever (the bench, 2026-09-22).
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -987,7 +1019,11 @@ class TaskBoard:
         f"1..{STATE_VERSION} -- delete the file to start with no tasks")
     self.seq = int(doc.get("seq", 0))
     self.dropped = int(doc.get("dropped", 0))
+    self.producer = dict(doc.get("producer") or {})
+    saved_t = doc.get("simTime")
+    rebase = float(saved_t) if saved_t is not None else None
     self.tasks = {}
+    self.interrupted = []
     for spec in doc.get("tasks", ()):
       try:
         task = Task.from_json(spec)
@@ -1001,9 +1037,24 @@ class TaskBoard:
         task = replace(task, state="failed",
                        verdict={"task": task.task, "ok": False, "points": 0,
                                 "reason": "interrupted by a restart"})
+        self.interrupted.append(task)
       elif task.state == "claimed" or (task.state == "offered" and task.claims):
         task = replace(task, state="offered", claimed_by="", claimed_t=None,
                        answer="", claims={})
+      if task.state == "offered" and task.deadline is not None and rebase is not None:
+        # What was LEFT when the board was saved, from the new clock's 0;
+        # never below 0, so an offer already overdue lapses at once.
+        task = replace(task, deadline=round(max(0.0, task.deadline - rebase), 3))
       self.tasks[task.id] = task
     self.seq = max(self.seq, len(self.tasks))
     return self
+
+  def announce_interrupted(self, t: float = 0.0) -> list[Task]:
+    """Put the tasks a restart failed on the wire, once, as the
+    `task_resolved` each would have been -- called after the hooks are
+    attached (the lifecycle's `begin`), because `load` runs before them.
+    Idempotent: a pair's second robot announces nothing."""
+    gone, self.interrupted = self.interrupted, []
+    for task in gone:
+      self._move(task, "task_resolved", t)
+    return gone

@@ -4298,6 +4298,11 @@ class HubLifecycle:
     # (issue #227), which an open offer on the board still names.
     self.restore_tools()
     self.restore_bench()
+    # ...and the jobs the last restart failed are said out loud, here,
+    # because the board loaded them before any hook existed to hear it.
+    if self.tasks is not None:
+      for task in self.tasks.announce_interrupted(t=float(self.data.time)):
+        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
     return self._day_routine(start, max_sim_time, explore_budget)
 
   def end(self, aborted: bool = False) -> dict:

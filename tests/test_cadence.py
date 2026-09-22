@@ -29,6 +29,7 @@ from pluggybot.economy.cadence import (
   CADENCE_ENV, CADENCE_VERSION, Cadence, TaskProducer, default_cadence,
   reload_cadence,
 )
+from pluggybot.economy import scoring
 from pluggybot.economy.tasks import KINDS, TaskBoard
 
 HOME_TARGETS = {"board": ["whiteboard_a", "whiteboard_b"],
@@ -596,3 +597,73 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   quiet.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   quiet.run(cfg["start"], max_sim_time=budget)
   assert quiet.data.time < budget, "a preset-errand mission stopped ending"
+
+
+# ---- the rotation across a restart --------------------------------------------
+
+
+def test_the_rotation_resumes_where_the_last_mission_left_it(tmp_path):
+  """The producer is built fresh every mission; its cursor is the board's
+  now (`TaskBoard.producer`, persisted), keyed by the kind's NAME. Measured
+  on the deployed world (2026-09-22, hourly missions): a fresh cursor at the
+  top of a nine-kind list offered the last kind once in thirty hours."""
+  path = tmp_path / "tasks.json"
+  beat = cadence(maxOffered=1, cooldownS=0.0)
+  b = board(path=path, max_offered=1)
+  maker = producer(beat, b=b)
+  assert maker.cursor == 0 and b.producer == {}
+  [first] = maker.seed(0.0)
+  assert first.kind == "whiteboard_answer" and b.producer["cursor"] == "draw_figure"
+  b.resolve(first.id, scoring.evaluate("answer", {}, table=b.table), t=1.0)
+  [second] = maker.tick(100.0)
+  assert second.kind == "draw_figure" and second.params["program"] == "house"
+  assert b.producer == {"cursor": "rate_artwork", "figure": 1}
+  # a restart: a fresh producer over the loaded board carries on
+  again = producer(beat, b=board(path=path, max_offered=1))
+  assert again.cursor == maker.cursor == 2 and again.figure == 1
+  assert again.kinds[again.cursor] == "rate_artwork"
+  # ...and a rotation that no longer has that kind starts at the top
+  short = producer(cadence(kinds={"whiteboard_answer": {}, "count_plants": {}}),
+                   b=board(path=path))
+  assert short.cursor == 0
+  # nothing persisted (no path): the same code, no file, no error
+  assert producer(beat).cursor == 0
+
+
+def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
+  """The deployed pattern in miniature: missions of 3600 s, the board
+  persisted between them, a fresh producer each time, one robot working
+  the jobs it can. Without the persisted cursor the last kind is offered
+  a fraction as often as the first; with it, the lab's three kinds share
+  the lab's one slot evenly."""
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.lifecycle import board_book, world_targets
+  targets = world_targets("home", board_book("home"), procedures=True,
+                          robots=("Luca", "Rowan"))
+  beat = default_cadence("home")
+  path = tmp_path / "tasks.json"
+  offers: dict = {}
+  for _ in range(12):
+    b = TaskBoard(path=path).load()
+    maker = TaskProducer(b, beat, targets)
+    for made in maker.seed(0.0, pack_wh=8.0):
+      offers[made.kind] = offers.get(made.kind, 0) + 1
+    t, working, busy_until = 0.0, None, 0.0
+    while t < 3600.0:
+      t += 1.0
+      b.expire_due(t)
+      for made in maker.tick(t, pack_wh=8.0):
+        offers[made.kind] = offers.get(made.kind, 0) + 1
+      if working is not None and t >= busy_until:
+        b.resolve(working.id, scoring.evaluate(working.task, {}, table=b.table), t=t)
+        working = None
+      if working is None:
+        ready = [x for x in b.claimable(t, pack_wh=8.0)
+                 if not x.needs_answer and not x.predicts and KINDS[x.kind].discharge == "errand"]
+        if ready and b.claim(ready[0].id, t=t, pack_wh=8.0) is not None:
+          b.start(ready[0].id, t=t)
+          working, busy_until = b[ready[0].id], t + 240.0
+    b.save()
+  lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse", "find_mass")]
+  assert min(lab) >= 3, (lab, offers)
+  assert max(lab) - min(lab) <= 1, (lab, offers)

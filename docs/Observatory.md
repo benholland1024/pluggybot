@@ -10,6 +10,32 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The rotation survives a restart — opens when this PR is deployed
+
+**What changed on the wire.** Nothing in the mind, the arm, the world or
+the prompt; what the board OFFERS. Three restart rules, found by asking
+why the bench (`find_mass`, offered since #227) had come up once in
+thirty hours of rows: the producer's rotation cursor is persisted with
+the task board and a fresh mission resumes it, where before every hourly
+restart began the nine-kind list from the top and the lab's one slot went
+to `shock_mouse` first (15 offers) with `find_mass` last (1); an open
+offer's deadline is rebased on load to what it had left (two offers stood
+~4700 s, one made at 3606 s could never lapse and held the lab booked);
+and a task a restart failed is announced as the `task_resolved` it would
+have been (the bench's one claim, t_3994, read `active` for five hours
+because `load` failed it silently). Expect the lab kinds at roughly equal
+rates from here, `feed_mouse` and `find_mass` appearing where they did
+not, and a `failed` row at every mission start for whatever the last one
+was working on.
+
+**What the period is for.** The first period in which the bench and the
+paid feed are actually offered at the rate the cadence says. Read the
+#287 period's questions off this period's rows, not the previous one's.
+
+**Not yet known.** Whether a 4B-class mind attempts the bench at 50 when
+it sees the offer hourly; it claimed the one it was shown within a minute
+and never said `done`.
+
 ### The paid feed (#287) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** One offered kind,
