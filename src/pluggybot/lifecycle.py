@@ -1489,12 +1489,14 @@ class HubLifecycle:
     five hand-built modules hang on the first rack and are never in the
     way: nothing here can name their bays.
 
-    Between errands only, with nothing on the fork: a recompile mid-errand
-    would pull the world out from under a routine holding a transient tool
-    controller (the pen, claw and dispenser classes are built per errand
-    and are NOT rebound -- they must not outlive a recompile). Refused,
-    out loud, otherwise. A pair shares one world and two lifecycles; the
-    seam is single-robot until both rebind together.
+    Between errands only, with nothing on the fork -- FOR EVERY ROBOT in
+    the world (issue #315): a recompile mid-errand would pull the world
+    out from under a routine holding a transient tool controller (the pen,
+    claw and dispenser classes are built per errand and are NOT rebound --
+    they must not outlive a recompile), and a pair's two lifecycles run
+    over one (model, data). Refused, out loud, otherwise, naming the robot
+    that is busy. The recompile is this robot's to run and everybody's to
+    follow: `_recompile` rebinds them all.
     """
     from pluggybot.workshop import build as wbuild
     from pluggybot.workshop import seam
