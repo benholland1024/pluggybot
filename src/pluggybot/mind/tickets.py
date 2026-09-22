@@ -104,6 +104,13 @@ def _cut(value: object, limit: int) -> tuple[str, bool]:
   return (text[:limit], True) if len(text) > limit else (text, False)
 
 
+def cut_said(cut: bool, limit: int) -> str:
+  """...and what the narration says -- the OPERATOR's console line, which
+  is a different voice from the robot's own note and so a second string,
+  in one place rather than at each of the four call sites."""
+  return f" -- CUT at {limit} characters" if cut else ""
+
+
 def cut_note(cut: bool, limit: int) -> str:
   """What History and the narration say when a text was cut -- the ROBOT's
   own words, in its own record, so a later turn reads what happened as

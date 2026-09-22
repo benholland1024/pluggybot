@@ -229,6 +229,11 @@ def test_text_past_the_cap_is_cut_and_the_robot_is_told_three_ways(tmp_path):
   assert not short.cut and "cut" not in short.as_dict()
 
 
+def history_has_cut(life) -> bool:
+  """Did the robot's own record say a text was cut, in its own words?"""
+  return f"cut at {desk.MAX_LINE} characters" in life.thoughts.read("History.md")
+
+
 def test_the_cut_is_narrated_and_written_into_history(tmp_path):
   """The two surfaces the robot reads back: the `ticket` event carries
   `cut`, and History says what happened in its own words."""
@@ -253,6 +258,16 @@ def test_the_cut_is_narrated_and_written_into_history(tmp_path):
     # ...and the state the NEXT call is built from carries the mark.
     block = overseer_context(life)["tickets"]["open"][0]
     assert block["cut"] is True and block["thread"][-1]["cut"] is True
+    # ...and an OPERATOR's line says so on the wire as well as in the
+    # block, because the website keeps its own copy of that line and two
+    # copies that disagree about a text is what #307 is about.
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_9", "from": "ben",
+                      "ticket": "tk_0001", "text": "z" * 900})
+    life._visitor_step()
+    theirs = [m for m in seen if m["type"] == "ticket"][-1]
+    assert (theirs["sender"], theirs["cut"], theirs["ref"]) == ("operator", True, "tr_9")
+    assert "ben replied on my ticket tk_0001" in life.thoughts.read("History.md")
+    assert history_has_cut(life), "the robot is told the line it is READING was cut"
   finally:
     life.mission.close()
 

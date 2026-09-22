@@ -2723,8 +2723,7 @@ class HubLifecycle:
         self._ticket_event("opened", ticket, text=ticket.text,
                            **({"cut": True} if ticket.cut else {}))
         self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}"
-                  + (f" -- CUT at {tickets_desk.MAX_TEXT} characters"
-                     if ticket.cut else ""))
+                  f"{tickets_desk.cut_said(ticket.cut, tickets_desk.MAX_TEXT)}")
         # ⚠ THE CUT GOES IN HISTORY (the length follow-up on #284), which
         # the robot reads back: a truncation it is not told about is one
         # it goes on believing it filed whole, and four of the deployed
@@ -2753,8 +2752,7 @@ class HubLifecycle:
                            **{"from": self.robot_name}, text=line.text,
                            **({"cut": True} if line.cut else {}))
         self._say(f"TICKET {ticket.id} -- replied: {line.text}"
-                  + (f" -- CUT at {tickets_desk.MAX_LINE} characters"
-                     if line.cut else ""))
+                  f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
         self._remember(f"replied on ticket {ticket.id} ({ticket.title})"
                        f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                        f"{line.text}")
@@ -2783,8 +2781,7 @@ class HubLifecycle:
                        **{"from": who}, text=line.text, ref=msg.id,
                        **({"cut": True} if line.cut else {}))
     self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}"
-              + (f" -- CUT at {tickets_desk.MAX_LINE} characters"
-                 if line.cut else ""))
+              f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
     self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title})"
                    f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                    f"{line.text}")
