@@ -1869,7 +1869,10 @@ it opened, and a message can only arrive while that connection is up.
   ```
 
   Code-handled, never shown to the overseer, refused while a module is seated
-  on the fork — `reset_tool`'s rules, one object up. It warps the robot to
+  on the fork — `reset_tool`'s rules, one object up — ⚠ unless the robot is
+  DEAD and out of the errand that killed it (issue #311), when nothing can
+  put that tool down any more and the rescue brings it back to its bay in
+  the same action. It warps the robot to
   its mission start pose, refills the pack and restarts the survival clock.
   ⚠ **Admin-only and NAMED**, unlike `rating`, which is anonymous on purpose:
   if a stranger can revive the robot then survival time measures the kindness

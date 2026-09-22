@@ -970,10 +970,15 @@ class HubLifecycle:
     up -- `stand_up`'s rule, and the reason it is a `while`-shaped check
     rather than a one-shot: a robot that died with the pen on its fork must
     not have it yanked out of the coupling, but it must still get up once
-    the errand has put the thing down.
+    the errand has put the thing down. ⚠ ...OR ONCE NOTHING CAN (issue
+    #311): this is the caller with no operator behind it, so a tool the
+    errand failed to stow -- a robot toppled carrying it cannot reach the
+    rack -- used to mean a robot that stayed down until the container
+    restarted. `parked_dead` is the moment waiting stops being a wait.
     """
     if (self.dead is None or self.restart_after_s is None
-        or self.tool_powered or self.home_pose is None):
+        or self.home_pose is None
+        or (self.tool_powered and not self.parked_dead)):
       return
     if self._standing_up:
       return
@@ -2203,6 +2208,19 @@ class HubLifecycle:
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
                 f"balance {entry['balance']}")
 
+  @property
+  def parked_dead(self) -> bool:
+    """Dead, AND out of the errand that killed it (issue #311).
+
+    The day loop runs its dead branch BETWEEN errands, so a robot that dies
+    mid-errand goes on driving until the errand returns and only then parks
+    in `_wait_dead_routine`, which is what sets this state. Once it has, no
+    errand will ever run again -- and that is the difference the stand-up
+    rule turns on: a seated module is a tool something might still put
+    down, until the robot is parked, when it is a tool nothing ever will.
+    """
+    return self.dead is not None and self.state == "DEAD"
+
   def _reset_tool(self, msg) -> None:
     """Put a lost module back on its bay, because an admin said so (#30).
 
@@ -2224,9 +2242,7 @@ class HubLifecycle:
     addressed, so reading one fork meant a tool the OTHER robot was holding
     read as lost.
 
-    The reset pose is `model.qpos0`: every world compiles its modules hung
-    at their own bays, so "back where it belongs" is the model's own answer
-    rather than a second copy of the rack geometry.
+    The module goes back to `model.qpos0` through `_return_module`.
     """
     name, who = msg.module, msg.who or "an admin"
     if not name.startswith("module_"):
@@ -2248,12 +2264,24 @@ class HubLifecycle:
       self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
                 "a tool in use is not lost")
       return
+    self._return_module(name)
+    self._say(f"ADMIN {who} reset {name} -- back on its bay")
+
+  def _return_module(self, name: str) -> None:
+    """Put one module back where the world compiled it, at rest.
+
+    The reset pose is `model.qpos0`: every world compiles its modules hung
+    at their own bays, so "back where it belongs" is the model's own answer
+    rather than a second copy of the rack geometry. Two callers -- the
+    admin's tool reset, and a rescue that has to take a tool off the fork
+    of a robot it is standing up (issue #311).
+    """
+    jid = int(self.model.body(name).jntadr[0])
     qadr = int(self.model.jnt_qposadr[jid])
     dadr = int(self.model.jnt_dofadr[jid])
     self.data.qpos[qadr:qadr + 7] = self.model.qpos0[qadr:qadr + 7]
     self.data.qvel[dadr:dadr + 6] = 0.0
     mujoco.mj_forward(self.model, self.data)
-    self._say(f"ADMIN {who} reset {name} -- back on its bay")
 
   def _fork_holding(self, module: str) -> str | None:
     """Which robot has `module` electrically seated, by root -- or None.
@@ -2285,7 +2313,15 @@ class HubLifecycle:
     a run with one in it is not a survival data point.
     """
     who = msg.who or "an admin"
-    if self.tool_powered:
+    # ⚠ "STOW IT FIRST" IS ADVICE, AND A CORPSE CANNOT TAKE IT (issue
+    # #311). Warping a robot out from under a seated module would make the
+    # mess `reset_tool` exists to clean up -- while the errand holding it
+    # can still put it down. Once the robot is PARKED dead no errand ever
+    # runs again, so the wait is for something that cannot happen, and
+    # every door was shut: this refusal, the same one on `set_battery`, and
+    # `reset_tool` refusing a tool seated on a fork. The rescue takes the
+    # tool home with it (`_stand_up`).
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN reset refused: {self.module} is seated on the fork "
                 "-- stow it first")
       return
@@ -2329,6 +2365,17 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.mission.swap.pinned = False
+    # ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
+    # leaves a seated module where it fell -- and on THIS path there may be
+    # nobody to notice: the restart timer has no operator behind it, so a
+    # module left on the floor of the hall is a bay that is empty for good
+    # and an approach lane with a tool in it. A person walking over to pick
+    # the robot up picks the pen up too. Only reachable from `parked_dead`,
+    # where no errand can be mid-stow and disagree about what it holds.
+    if self.tool_powered and self.module:
+      self._return_module(self.module)
+      self.tool_powered = False
+      self._say(f"{self.module} was still on my fork -- back on its bay")
     self.mission.start_at(*self.home_pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
@@ -2459,7 +2506,7 @@ class HubLifecycle:
     a full gauge next to a corpse unexplained.
     """
     who = msg.who or "an admin"
-    if self.tool_powered:
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN set_battery refused: {self.module} is seated on the "
                 "fork -- stow it first")
       return
@@ -2498,13 +2545,17 @@ class HubLifecycle:
     Refused mid-swap on `_set_battery`'s terms, and for a weaker reason:
     there is no physical hazard here. It is refused anyway so that "an
     admin command is refused while a module is on the fork" is one rule
-    rather than a per-kind table somebody has to remember.
+    rather than a per-kind table somebody has to remember. ⚠ Which is why
+    #311's narrowing is `parked_dead` and applies to all three kinds and
+    not to `reset_robot` alone: a robot parked dead has no errand left to
+    put the tool down, and a rule with one exception per kind is the table
+    this sentence exists to avoid.
     """
     who = msg.who or "an admin"
     if self.ledger is None:
       self._say("ADMIN set_points refused: this world keeps no ledger")
       return
-    if self.tool_powered:
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN set_points refused: {self.module} is seated on the "
                 "fork -- stow it first")
       return
