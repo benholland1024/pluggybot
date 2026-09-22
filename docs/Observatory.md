@@ -10,6 +10,39 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### An answer is refused, never repaired (#296) — opens when this PR is deployed
+
+**What changed on the wire.** Nothing in the prompt, the schema, the arm
+or the world; what a `take_task` on a question COMMITS to, and what a
+garbled decision's row says. Until now `questions.clean_answer` kept the
+digits of whatever arrived in `answer` and truncated to two, and the
+deployed model — which fills the always-required field with a stray
+figure off its own context on turns that asked no question — was
+committed to "80" for a tricycle (an "8.0", the pack's capacity in Wh),
+"02" three times (a "0.2x" battery fraction), "38", "90", "76": seven of
+66 claims in the 30 hours before 2026-09-22 graded wrong on a number the
+robot never said, beside one honest "10" for 20 / 5. Rowan's ticket
+tk_0001 is the report. Now such a claim is malformed (`fallback:garbled`,
+the standing order or `idle`), the offer stands for the next turn, the
+refusal rides the fallback row's `reason` in words ("your answer was
+refused: task 't_3936' asks a question and the answer '8.0' is not one:
+a whole number of at most 2 digits, and nothing else"), and `answer` /
+`mouse_will` are each kept only on a job that asked for that field —
+so a row no longer reads "predicting resting" on an answer job, and a
+stray "24" on a shock claim no longer shadows a valid prediction.
+
+**What the period is for.** Whether the deployed model, TOLD why, stops
+putting stray figures in `answer`: count `garbled` rows whose reason
+carries "asks a question" against `take_task … answering N` rows, per
+robot. The previous period's seven wrong commitments are the baseline;
+a wrong commitment from here on is a whole number the model chose.
+
+**Not yet known.** The other half of the same ticket: 40 of the 58
+CORRECT commitments in that window failed on the ink (Rowan 24 of 27,
+Luca 16 of 31 — "the board does not show it: the ink is 7.6 mm from
+those glyphs", or no ink at all). Not this PR's; its own issue, with a
+flight on the pair.
+
 ### The rotation survives a restart — opens when this PR is deployed
 
 **What changed on the wire.** Nothing in the mind, the arm, the world or

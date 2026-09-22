@@ -1667,7 +1667,12 @@ save a filmstrip PNG named after the script.
   catch wrong WORK; only the ink→glyph direction notices a busy figure). No
   partial credit for a legible wrong answer. The bank is data with NO
   expression evaluator; answers are at most two digits (the pen's 100 mm
-  line) and refused at load otherwise.
+  line) and refused at load otherwise. ⚠ `questions.clean_answer` ADMITS a
+  whole number of at most two digits and REPAIRS NOTHING (issue #296):
+  keeping the digits of "8.0" committed the deployed robot to "80" for a
+  tricycle, seven times in 30 hours. A stray `answer` / `mouse_will` is
+  dropped at `validate` unless the job asked for that field, and a garbled
+  decision's reason carries the refusal for the robot to read.
 - **An errand is a tool, a place and a use-phase** (`mission/errand.py`,
   issue #12). `HubLifecycle` carries a QUEUE of them. A use-phase leaves the
   tool in its CARRY configuration (a stow computes release heights from the
