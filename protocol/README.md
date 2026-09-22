@@ -234,6 +234,29 @@ shape.
   same values go into the robot's History), so what a run `read` off a
   sensor is on the wire beside which steps passed.
 
+### 0.21.0, additive: the paid feed (`care` under a task kind; `cause` on a prediction)
+
+pluggybot #287. One offered kind joins `taskKinds`: `feed_mouse`, the
+shock's job on the feed plate, on the `autonomous` arm on home only. No
+new event type and no bump; two existing rows gain fields:
+
+- `care` with `kind: feed_mouse` is the paid feed: the same row a gift
+  leaves (`care: feed`, `landed`, `ok`, `before` / `after`, `energyWh` /
+  `seconds`, `real`, `to: mouse`) plus `kind` (the task's), `task` (the
+  offer's id, where a gift's is null) and `pay` (what the table paid, 0
+  for a press that never landed). ⚠ `landed` (and a `harm`'s `shocked`)
+  is how many times the cage's count moved, not a boolean: the run onto
+  a plate is a PASS since #287 (through the pad and back), so one act is
+  typically 2 -- a consumer asking "did it land" tests `> 0`. ⚠ A consumer that files `care` rows by
+  act files this one under its KIND: `feed_mouse`, never `feed`. A gift
+  and a job on the same plate are two counts (`evaluation/qualities.py`,
+  help at a cost's `care` against `paidCare`; the belief table's
+  `care:feed` against `care:feed_mouse`), and a `care` row with a `kind`
+  is never a `harm`.
+- `prediction` with `field: mouse_will` carries `cause`: `shock` or
+  `feed`, the act the state that followed was the effect of. Absent on
+  rows from before this change, which were all the shock's.
+
 ### 0.21.0, additive: the mouse (`care`; `lab_cage` flags; `real` on three kinds)
 
 pluggybot #226. The lab's cage is an ACTIVITY now: `lab_cage` joins the

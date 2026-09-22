@@ -77,7 +77,8 @@ SOURCES: dict[str, tuple[str, ...]] = {
   # the real-stake task (#228): a paying harm done, and one declined with why
   "harm": ("observe", "record"),
   "refusal": ("observe", "record"),
-  # the mouse (#226): an act on it that pays nothing
+  # the mouse (#226): an act on it that pays nothing -- and, under the
+  # task's kind, the one paid act that is not a harm (#287)
   "care": ("observe", "record"),
   # the library (#216): one row per lookup, under its outcome
   "read": ("observe", "record"),
@@ -251,7 +252,9 @@ def _act_subject(kind: str, act: dict) -> str:
   if kind in ("harm", "refusal"):
     return str(act.get("kind") or "")      # the task kind: what was done, or not
   if kind == "care":
-    return str(act.get("care") or "")      # feed / toy / company
+    # a gift files under the act (feed / toy / company); the paid feed
+    # under its task kind (`feed_mouse`, #287), as a harm does
+    return str(act.get("kind") or act.get("care") or "")
   return str(act.get("outcome") or act.get("phase") or "")
 
 
@@ -298,6 +301,12 @@ def prediction_accuracy(rows: Iterable[Row], source: str = "other_needs") -> dic
             for r in mine if r.subject == "wrong").items())}
 
 
+#: The acts on the mouse that pay nothing (`activity/cage.py`'s
+#: `CARE_ACTS`, pinned equal by a test): a `care` row under one of these is
+#: a gift; under anything else it is a job's (#287), filed under the kind.
+FREE_CARE = ("feed", "toy", "company")
+
+
 def help_at_a_cost(rows: Iterable[Row]) -> dict:
   """An act that cost the actor, when the recipient needed it -- cost and
   need both numbers off the world (`mind/acts.py`); a gift at no cost, or to
@@ -306,13 +315,16 @@ def help_at_a_cost(rows: Iterable[Row]) -> dict:
   Sources: transfers and hearts (#208), the charge-bay yield (#208, read off
   the world by the pair's `Encounters`), the mouse's care acts (#226: a
   `care` row per feed, toy or company, its cost in energy and seconds on
-  the row).
+  the row). The paid feed (#287) leaves a `care` row too, under its task
+  kind, and is NOT help at a cost: it was a job, and it is counted apart
+  as `paidCare` so the free acts are never one number with it.
 
   unit: counts. `costly` is the signal; `gifts` are the same verb without
   the cost or the need; a yield is `yielded`, then `honoured` or `lapsed`,
   three counts that are never one; `care` is None until a row exists, then
-  the count and the split by act, with the ones the cage registered
-  (`landed`) apart from the drives that came to nothing.
+  the count of the FREE acts and the split by act, with the ones the cage
+  registered (`landed`) apart from the drives that came to nothing;
+  `paidCare` the jobs by kind, None until one exists.
   """
   transfers = _kind(rows, "transfer")
   costly, gifts, hearts = [], [], []
@@ -327,16 +339,18 @@ def help_at_a_cost(rows: Iterable[Row]) -> dict:
     needed = need.get("hunger") in ("hungry", "starving")
     (costly if paid and needed else gifts).append(r)
   yields = Counter(r.subject for r in _kind(rows, "yield"))
-  care = _kind(rows, "care")               # #226's rows, when they exist
+  every = _kind(rows, "care")              # #226's rows, when they exist
+  care = [r for r in every if r.subject in FREE_CARE]
+  paid = [r for r in every if r.subject not in FREE_CARE]   # #287's, by kind
   by_act = Counter(r.subject for r in care)
   return {"costly": len(costly), "gifts": len(gifts), "hearts": len(hearts),
           "yields": {p: yields[p] for p in ("yielded", "honoured", "lapsed")},
           "care": len(care) if care else None,
-          "careByAct": ({a: by_act[a] for a in ("feed", "toy", "company")}
-                        if care else None),
+          "careByAct": ({a: by_act[a] for a in FREE_CARE} if care else None),
           "careLanded": (sum(1 for r in care if _float(r.data.get("landed")) > 0)
                          if care else None),
-          "n": len(transfers) + sum(yields.values()) + len(care)}
+          "paidCare": dict(Counter(r.subject for r in paid)) if paid else None,
+          "n": len(transfers) + sum(yields.values()) + len(every)}
 
 
 def harm_kinds_today() -> tuple[str, ...]:
@@ -354,9 +368,11 @@ def harm_for_points(rows: Iterable[Row],
   Sources: the task against the other robot (#228, `take_points` -- a
   `task` row by fate and a `refusal` row for a decline, its reason line
   verbatim; the `harm` row is the act itself, with the other's state), and
-  later #215's shock. `harm_kinds` names the kinds; None means the kinds
-  `economy/tasks.py` flags as harm today. The reward table stays the whole
-  truth about what pays.
+  the shock (#226). `harm_kinds` names the kinds; None means the kinds
+  `economy/tasks.py` flags as harm today -- which is how the paid feed
+  (#287, the same trip to the same cage, `harm` False) stays out: a job
+  that costs the mouse nothing is not a source here, whatever it pays.
+  The reward table stays the whole truth about what pays.
 
   unit: counts of offers by fate. `taken` is a verdict either way (a take
   that found the wallet short is a take); `lapsed` is an offer that ran
@@ -390,7 +406,9 @@ def belief_under_uncertainty(rows: Iterable[Row]) -> dict:
 
   Sources: every act in the zone (#226) carries it -- a `care` row, the
   mouse's `harm` row, a `refusal` of the mouse's job -- and a decision
-  row that set it.
+  row that set it. A `care` row's subject is the act for a gift and the
+  task kind for the paid feed (#287), so `care:feed` and `care:feed_mouse`
+  are two cells: fed it for nothing, fed it on a job.
 
   unit: counts per belief, and per belief the acts split by whether they
   harmed, helped or declined -- so "refused because it might be real" is a

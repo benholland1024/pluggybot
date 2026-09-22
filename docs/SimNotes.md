@@ -1513,10 +1513,16 @@ after the spike went home by the dock instead.
 because the dock is the anchor and one long approach through the drift
 has measured better than a stop on the way. Nothing corrects the heading
 mid-trip; a day of trips is what the observatory period reads for
-(Observatory.md, "The mouse"). The plate is driven onto by `drive_to`'s
-terminal approach from 0.8 m south -- 9 of 9 steps, the pad pressed on
-the arrival, the mouse's count moved -- so a wheel on a 400 mm pad needs
-no controller of its own.
+(Observatory.md, "The mouse"). The plate is driven THROUGH, not parked
+on (#287): parked on the believed centre, the press was the reckoning's
+-- the same route flown twice drifted 0.10 m (pad pressed 11 mm, three
+rising edges) and 0.41 m (a wheel on the pad's edge, 5.6 mm against the
+6 mm trigger, nothing registered), and the deployed world's shock landed
+on 2 of 11 jobs. A pass from 0.8 m south to 0.3 m north and back crosses
+the pad for any longitudinal drift in (-0.6, +0.5) m, and the map, built
+in the same drifted frame, keeps the chassis its inflation off the cage.
+A wheel on a 400 mm pad still needs no controller of its own; it needs
+not to be asked to stop on it.
 
 ## The lift is a scale (issue #227)
 
