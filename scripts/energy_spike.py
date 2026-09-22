@@ -52,11 +52,13 @@ from pluggybot.lifecycle import (
 #: with a different tier and a different figure, so they are priced as
 #: `draw` in economy/energy.json rather than flown twice for the same number.
 ACTIONS = ("carry", "draw", "census", "dance")
-#: The lab's acts (issue #226), priced on request: `--actions care:feed,
-#: care:toy,care:company,shock`. Each is a program of `drive_to` legs to
-#: the second house and one act there, and the errand ENDS IN THE LAB, so
-#: the spike drives home between them to keep every row from the rack.
-CAGE_ACTIONS = ("care:feed", "care:toy", "care:company", "shock")
+#: The lab's acts (issues #226, #287), priced on request: `--actions
+#: care:feed,care:toy,care:company,shock,feed` (`feed` is the paid job's
+#: errand, `care:feed` the gift's -- the same program, two rows). Each is a
+#: program of `drive_to` legs to the second house and one act there, and
+#: the errand ENDS IN THE LAB, so the spike drives home between them to
+#: keep every row from the rack.
+CAGE_ACTIONS = ("care:feed", "care:toy", "care:company", "shock", "feed")
 
 #: A pack far bigger than any errand, so nothing being measured is cut short.
 #: See the module docstring: this is about not measuring a death.

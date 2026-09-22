@@ -157,9 +157,19 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 #: `from`; a reply and a close carry `text`. Code-handled: applied on the
 #: physics thread, never a command shown to the model -- what the model is
 #: shown is the thread, as information.
+#:
+#: ⚠ `image` (issue #275) is the website's answer to a `look` request
+#: (`LOOK_EVENT_TYPES` below): `{robot, ref, jpeg}`, the picture the site
+#: rendered from the robot's head-camera pose, base64. The one inbound kind
+#: that is PERCEPTUAL data rather than a person's words or an operator's
+#: reach-in: it is delivered to the mind as an image on its next turn,
+#: never as text, and only for the request it answers -- a picture for a
+#: look that is not open is dropped. Advertised in `accepts` with every
+#: other kind a mind reads.
 INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
                  "set_battery", "set_points",
-                 "ticket_reply", "ticket_close", "ticket_delete")
+                 "ticket_reply", "ticket_close", "ticket_delete",
+                 "image")
 
 #: Why a robot died (0.15.0, issue #107), and NEVER summed into one number:
 #: `flat` is the pack reaching zero -- a decision failure, the thing the
@@ -407,6 +417,20 @@ CONSTITUTION_CHANGE_WHYS = ("swapped", "replaced", "edited")
 #: it is a trace (`evaluation/qualities.py`, `ideas_traced`).
 LIBRARY_EVENT_TYPES = ("read",)
 READ_OUTCOMES = ("read", "missing", "failed", "refused")
+#: THE EYE (issue #275), additive on the wire, no bump: a `look` event per
+#: picture the robot asked for -- `ref` (the request's id, `look:<root>:<n>`,
+#: what the website's `image` answer names), `robot`, `t`, `outcome`
+#: (below), `camera` (the head camera's world pose: `pos`, `forward`, `up`
+#: unit vectors, `fovy` in degrees, `width` x `height` asked for), `at`
+#: (where the robot stood: `x`, `y`, `headingDeg`), `bytes` (the JPEG that
+#: came, 0 otherwise), `waitS` (sim seconds from the ask to the answer or
+#: the deadline) and `why` on a `none`. The SAME row is sent twice: as
+#: `asked` when the request goes out (this is what a renderer answers) and
+#: again as `seen` or `none` when it resolves. The observatory files the
+#: resolution; "did it look, and what did it say about it" is a `look` row
+#: beside the next decision's `think`.
+LOOK_EVENT_TYPES = ("look",)
+LOOK_OUTCOMES = ("asked", "seen", "none")
 #: What a row IS (`mind/memory.py` imports these): `core` a line of an
 #: always-shown document (its `topic` is the document's name), `note` a
 #: titled line in a topic the robot named (`findings/<task>` is the science

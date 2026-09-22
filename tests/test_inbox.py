@@ -407,7 +407,8 @@ def test_the_inbound_vocabulary_is_the_protocols():
   the wire spec and the parser cannot drift."""
   assert INBOUND_TYPES == ("message", "rating", "reset_tool", "reset_robot",
                           "set_battery", "set_points",
-                          "ticket_reply", "ticket_close", "ticket_delete")
+                          "ticket_reply", "ticket_close", "ticket_delete",
+                          "image")
   assert "move" not in INBOUND_TYPES and "clear_board" not in INBOUND_TYPES
 
 

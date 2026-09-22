@@ -38,6 +38,7 @@ plus the fact that the model's ONLY output is an action from a fixed menu --
 there is no free-text path from a visitor to the robot's body.
 """
 
+import base64
 import json
 import re
 import threading
@@ -80,6 +81,17 @@ MAX_QUEUE = 32
 #: bound above is a message count, which is no protection at all against one
 #: enormous message.
 MAX_RAW_BYTES = 8192
+#: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
+#: website rendered from the robot's own camera pose, base64, and a 640 x
+#: 480 frame is 15-60 kB. Its own bound, on the decoded bytes and on the
+#: raw message that carries them; anything else over `MAX_RAW_BYTES` is
+#: still dropped unread. Sized for a bound rather than a target: ten
+#: times the frame the site sends.
+MAX_IMAGE_BYTES = 400_000
+MAX_IMAGE_RAW_BYTES = MAX_IMAGE_BYTES * 4 // 3 + 1024
+#: What every JPEG starts with. Checked at the door so the bytes handed to
+#: a model are a picture and never a string somebody chose.
+JPEG_MAGIC = b"\xff\xd8\xff"
 #: Earlier turns of a conversation a FOLLOW-UP may carry (rooftop-media-2026
 #: #125): the newest this many are kept and the rest are dropped at the
 #: door. Four exchanges is ~2 000 characters of context on the one turn that
@@ -180,6 +192,12 @@ class VisitorMessage:
   #: delta would race the appetite, which is eating points on the physics
   #: seam while the message is in flight.
   points: int | None = None
+  #: `image` only (issue #275): which `look` request this answers (the
+  #: sim's own `ref`, echoed back) and the JPEG itself, decoded. Never
+  #: shown as text anywhere -- `mind/look.py` hands it to the mind as an
+  #: image part of its next turn, and only for the request that is open.
+  ref: str = ""
+  image: bytes = b""
   #: `ticket_reply` / `ticket_close` / `ticket_delete` only (issue #284):
   #: which of the robot's tickets the operator means, by the id the SIM
   #: gave it (`tk_0001`). An id, validated against the desk by the handler
@@ -228,6 +246,8 @@ class VisitorMessage:
       out["points"] = self.points
     if self.kind in TICKET_INBOUND_TYPES:
       out["ticket"] = self.ticket
+    if self.kind == "image":
+      out.update({"ref": self.ref, "bytes": len(self.image)})
     return out
 
 
@@ -334,13 +354,21 @@ class Inbox:
 
   def _parse(self, raw: object, t: float,
              sender: str = registry.VISITOR) -> VisitorMessage | None:
+    oversize = False
     if isinstance(raw, (str, bytes)):
-      if len(raw) > MAX_RAW_BYTES:
+      if len(raw) > MAX_IMAGE_RAW_BYTES:
         return None                         # dropped unread; see MAX_RAW_BYTES
+      # A picture is the one kind allowed past the sentence-sized cap, and
+      # which kind this is cannot be known before it is parsed; anything
+      # else that needed the room is dropped a few lines down, once it
+      # has said what it is.
+      oversize = len(raw) > MAX_RAW_BYTES
       raw = json.loads(raw)
     if not isinstance(raw, dict):
       return None
     kind = raw.get("type")
+    if oversize and kind != "image":
+      return None                           # dropped; see MAX_RAW_BYTES
     # A retired name is folded to its replacement HERE, at the one door, so
     # nothing past this line -- the queue, the overseer's context, the reply,
     # the narration -- has ever heard of `suggestion` or `question`
@@ -433,6 +461,21 @@ class Inbox:
       # a negative balance would be arrears arriving through the front door.
       if points < 0:
         return None
+    ref, image = "", b""
+    if kind == "image":
+      # The website's answer to a `look` (issue #275). The bytes are
+      # checked for what they claim to be and for size HERE, at the door;
+      # whether the request is still open is `mind/look.py`'s question.
+      ref = clean(raw.get("ref"), MAX_ID)
+      jpeg = raw.get("jpeg")
+      if not ref or not isinstance(jpeg, str):
+        return None
+      try:
+        image = base64.b64decode(jpeg, validate=True)
+      except (ValueError, TypeError):
+        return None
+      if not image.startswith(JPEG_MAGIC) or len(image) > MAX_IMAGE_BYTES:
+        return None
     ticket = ""
     if kind in TICKET_INBOUND_TYPES:
       # The operator's side of a ticket (issue #284): which one, by the
@@ -448,7 +491,7 @@ class Inbox:
                           sender=sender, seq=seq, quality=quality,
                           generation=generation,
                           module=module, frac=frac, wh=wh, points=points,
-                          ticket=ticket, t=float(t))
+                          ticket=ticket, ref=ref, image=image, t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 
