@@ -4794,7 +4794,16 @@ def _interrupt_turn(state: dict, errand: str, why: str) -> str:
   tool: "abort" is not "stop", it is "drive back to the rack and hang the
   thing up", which costs energy of its own. A robot asked "carry on?" without
   that would read the question as free.
+
+  ⚠ AND NOT THE EVENT MAP (issue #317). The block belongs to the turn where
+  the map can be EDITED, and this is not one -- `interrupt_schema` names no
+  map and the answer is a binary. Worse, `lastAskedSAgo` is the silence the
+  last DECISION closed and an interrupt does not stamp that clock, so on
+  this turn it would be a number about a different question. `_without_map`
+  is the picture's rule (`_without_pictures`): the state stays whole and the
+  view narrows.
   """
+  state = {k: v for k, v in state.items() if k != "eventMap"}
   return (f"You are part-way through `{errand}`, and {why}.\n\n"
           + json.dumps(state, indent=1, sort_keys=True)
           + "\n\nCarry on and finish it, or stop now, put the tool back on "

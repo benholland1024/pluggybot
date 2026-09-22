@@ -1118,14 +1118,43 @@ def test_the_unminded_death_line_names_what_the_list_said_about_asking():
                                         action="charge"),))) \
       == "my one rule does not ask me"
   assert ev.silence(narrow) == \
-      "the only rules that ask me are on task_complete, and none has fired"
+      "the only rules that ask me are on task_complete"
   two = ev.EventMap((ev.Row(event="every", action="ask", value=600.0),
                      ev.Row(event="message_received", action="ask")))
-  assert ev.silence(two).startswith(
-    "the only rules that ask me are on every and message_received")
+  assert ev.silence(two) == \
+      "the only rules that ask me are on every and message_received"
+  #  ⚠ ...AND IT CLAIMS NOTHING ABOUT WHAT FIRED, which the list cannot know
+  #  and which can be FALSE: `battery_below` and `points_below` are
+  #  `INTERRUPTING_EVENTS`, so an `ask` row on either can fire mid-errand
+  #  and consult the mind through `_ask_interrupt` -- which does not stamp
+  #  the unminded clock. How long the silence was is the measured half of
+  #  the death line; this half is the configuration and stops there.
+  fires = ev.EventMap((ev.Row(event="battery_below", value=0.3, action="ask"),))
+  assert "battery_below" in ev.INTERRUPTING_EVENTS
+  assert ev.silence(fires) == "the only rules that ask me are on battery_below"
   #  ...and none of them tells the robot what to do about it.
-  for emap in (empty, mute, narrow, two):
+  for emap in (empty, mute, narrow, two, fires):
     assert "should" not in ev.silence(emap)
+
+
+def test_the_interrupt_turn_is_not_shown_the_list(menu):
+  """⚠ THE BLOCK BELONGS TO THE TURN WHERE THE MAP CAN BE EDITED, and a
+  mid-errand interrupt is not one: `interrupt_schema` names no map and the
+  answer is a binary. Worse, `lastAskedSAgo` is the silence the last
+  DECISION closed and an interrupt does not stamp that clock, so here it
+  would be a number about a different question. The picture's rule
+  (`_without_pictures`): the state stays whole and the view narrows."""
+  state = {"simTimeS": 2000.0, "battery": {"fraction": 0.28},
+           "eventMap": {"rows": [{"event": "battery_below", "value": 0.3,
+                                  "action": "ask"}], "lastAskedSAgo": 88.0}}
+  turn = ov._interrupt_turn(ov.model_state(dict(state), autonomous=True),
+                            "draw", "your pack is at 28%")
+  assert "eventMap" not in turn and "lastAskedSAgo" not in turn
+  #  ...and the turn is otherwise what it was: the state is not narrowed
+  #  anywhere else, and the decision's turn still carries the block.
+  assert '"simTimeS"' in turn and "put the tool back" in turn
+  assert '"eventMap"' in ov._user_turn(ov.model_state(dict(state),
+                                                      autonomous=True))
 
 
 def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
