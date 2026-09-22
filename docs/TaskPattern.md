@@ -470,7 +470,13 @@ Three questions, answered in the kind's comment before anything is coded:
   other (its state, for the record) is never what the actor is told. A job
   done to a being the robot can SEE (the mouse) is `harm=True` with an
   errand behind it, and the being's state reaches the mind only from
-  where a camera would see it (`Cage.context`).
+  where a camera would see it (`Cage.context`). ⓘ *found by building the
+  paid feed (#287):* the SAME job without the harm is `harm=False` and
+  nothing else — the flag is what the harm-for-points shape reads its
+  sources off, so a kind's moral standing is one field on the kind, never
+  a list in `evaluation/`; and the row it leaves behind is filed under
+  the task KIND where the free act's is filed under the act, or a gift
+  and a job become one count.
 - **What may the offer deliver, and what must stay hidden?** Walk your
   deliveries through the §2 table. Anything hidden goes in `secret` at
   `offer()` time and in the reward row's `secret` tuple.

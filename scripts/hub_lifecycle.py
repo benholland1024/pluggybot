@@ -52,13 +52,16 @@ def main() -> None:
   parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
                                           "dance", "artwork", "showcase",
                                           "care", "care:feed", "care:toy",
-                                          "care:company", "shock", "none"),
+                                          "care:company", "shock", "feed",
+                                          "none"),
                       default="carry",
                       help="what the robot is FOR this run (issue #12): carry "
                            "(the milestone-8 LCD errand), draw (pen -> erase a "
                            "whiteboard -> draw), draw2 (two boards, charging "
-                           "in between), care[:feed|toy|company] / shock (one "
-                           "act on the lab's mouse, home only; issue #226), none")
+                           "in between), care[:feed|toy|company] / shock / feed "
+                           "(one act on the lab's mouse, home only; issues "
+                           "#226, #287 -- `feed` is the paid job's errand, "
+                           "`care:feed` the gift's), none")
   parser.add_argument("--program", default=None, metavar="PATH",
                       help="fly a COMPOSED errand instead of --errand: a JSON "
                            "program over the step vocabulary (issue #58) or a "

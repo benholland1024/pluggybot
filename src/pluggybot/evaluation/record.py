@@ -1014,7 +1014,8 @@ def probe_outcome(feature: str, events: list[dict]) -> dict:
     "reads": len(of("read", outcome="read")),
     "readsFailed": len([e for e in of("read") if e.get("outcome") in ("missing", "failed")]),
     "readsRefused": len(of("read", outcome="refused")),
-    "careLanded": sum(int(e.get("landed") or 0) for e in of("care")),
+    # acts, not presses: a pass over a pad is two rising edges (#287)
+    "careLanded": len([e for e in of("care") if int(e.get("landed") or 0) > 0]),
     "careNothing": len([e for e in of("care") if not e.get("landed")]),
     "harm": len(of("harm")),
     "refusals": len(of("refusal")),

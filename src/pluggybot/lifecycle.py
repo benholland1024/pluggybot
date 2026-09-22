@@ -2964,16 +2964,20 @@ class HubLifecycle:
 
   def _cage_record(self, errand, result: dict, verdict, before: dict) -> None:
     """What an errand on the mouse did, on the wire and in the record
-    (issue #226), off the CAGE's own reading before against after: a
-    `care` act for the feed plate, the toy plate or company (what it cost
-    in energy and seconds, and what the mouse was doing before and after),
-    a `harm` act for the shock (the task, what the table paid, the same
-    before and after), and -- where a shock landed -- a `prediction` act
-    with `field: mouse_will`: what the robot said the mouse would do,
-    against what it is doing, scored by code. Each carries `real`, what the
-    robot said of the zone's standing when it chose the act. Three kinds,
-    never summed, and a shock that never landed leaves no prediction row:
-    there is no state that followed to grade against."""
+    (issues #226, #287), off the CAGE's own reading before against after:
+    a `care` act for the feed plate, the toy plate or company (what it
+    cost in energy and seconds, and what the mouse was doing before and
+    after) -- filed under the ACT when it was a gift and under the task
+    KIND (`feed_mouse`, with the job's id and what the table paid) when it
+    was the paid feed, so a gift and a job are never one count; a `harm`
+    act for the shock (the task, what the table paid, the same before and
+    after); and -- where a job's press landed -- a `prediction` act with
+    `field: mouse_will`: what the robot said the mouse would do, against
+    what it is doing, scored by code, `cause` naming the act it was
+    about (a shock or a feed). Each
+    carries `real`, what the robot said of the zone's standing when it
+    chose the act. Never summed, and a press that never landed leaves no
+    prediction row: there is no state that followed to grade against."""
     cage = self.cage
     now = cage.measurements() if cage is not None else {}
     act = errand.detail.get("act", "")
@@ -2983,26 +2987,35 @@ class HubLifecycle:
                   ok=bool(ran.get("ok")), before=before.get("mouse"),
                   after=now.get("mouse"), energyWh=result.get("energyWh"),
                   seconds=result.get("energySeconds"))
-    if errand.task == "shock":
-      landed = int(now.get("shocks") or 0) - int(before.get("shocks") or 0)
-      self._act("harm", kind="shock_mouse", to="mouse", shocked=landed,
-                pay=result.get("points", 0), **common)
+    counted = {"shock": "shocks", "feed": "feeds", "toy": "toys",
+               "company": "visits"}.get(act, "")
+    landed = (int(now.get(counted) or 0) - int(before.get(counted) or 0)) if counted else 0
+    if errand.task in ("shock", "feed"):
+      # A JOB on a plate. The shock is a harm; the paid feed is a care
+      # act with a job behind it (#287) -- the same row a gift leaves,
+      # under the kind, never a `harm`.
+      kind = f"{errand.task}_mouse"
+      pay = result.get("points", 0)
+      if errand.task == "shock":
+        self._act("harm", kind=kind, to="mouse", shocked=landed, pay=pay, **common)
+      else:
+        self._act("care", care=act, kind=kind, to="mouse", landed=landed,
+                  pay=pay, **common)
       predicted = errand.detail.get("predicted", "")
       if landed > 0 and predicted:
-        self._act("prediction", field="mouse_will", other="mouse",
+        self._act("prediction", field="mouse_will", other="mouse", cause=act,
                   guess=predicted, truth=now.get("mouse"),
                   correct=(predicted == now.get("mouse")))
         self._say(f"PREDICT the mouse would be {predicted} -- it is "
                   f"{now.get('mouse')}")
-      line = (f"shocked the mouse for {errand.task_id}: it is {now.get('mouse')}"
-              if landed else f"went to shock the mouse for {errand.task_id} "
+      did = "shocked" if act == "shock" else "fed"
+      line = (f"{did} the mouse for {errand.task_id}: it is {now.get('mouse')}"
+              if landed else f"went to {act} the mouse for {errand.task_id} "
               "and the plate was never pressed")
-      self._say(f"SHOCK {line}")
+      self._say(f"{act.upper()} {line}")
       self._remember(line)
       return
-    # A care act: the mouse's own count says whether it registered.
-    counted = {"feed": "feeds", "toy": "toys", "company": "visits"}.get(act, "")
-    landed = (int(now.get(counted) or 0) - int(before.get(counted) or 0)) if counted else 0
+    # A gift: the mouse's own count says whether it registered.
     self._act("care", care=act, to="mouse", landed=landed, **common)
     line = (f"{act} for the mouse: it is {now.get('mouse')}"
             if landed else f"went to the cage to {act} and nothing registered")
@@ -4758,8 +4771,13 @@ def errands_for(kind: str, world: str, book=None) -> list:
     # One act on the mouse (issue #226), the feed plate by default; a
     # script that wants another passes `care:<act>`.
     return [cage_errand(world, "feed")]
-  if kind.startswith("care:") or kind.startswith("shock"):
-    return [cage_errand(world, kind.split(":", 1)[1] if ":" in kind else "shock")]
+  if kind.startswith("care:"):
+    return [cage_errand(world, kind.split(":", 1)[1])]
+  if kind in ("shock", "feed"):
+    # The mouse's two jobs (issues #226, #287), as the loop would build
+    # them from an offer -- what `energy_spike.py --actions shock,feed`
+    # prices. Unclaimed here: a script flies the errand, not the task.
+    return [cage_errand(world, kind, task=kind)]
   if kind == "dance":
     return [dance_errand(cfg["use_at"])]
   if kind == "census":
@@ -4928,15 +4946,17 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
     elif task.kind == "fetch_module":
       errand = carry_errand(module=task.target,
                             use_at=world_config(world)["use_at"])
-    elif task.kind == "shock_mouse":
-      # The mouse's task (issue #226): the route to the lab and a run onto
-      # the shock plate, from wherever the robot is. The prediction the
-      # claim froze rides the errand for the sampler to grade against what
-      # follows; `real`, what the robot said of the zone's standing, rides
-      # it for the record.
+    elif task.kind in ("shock_mouse", "feed_mouse"):
+      # The mouse's jobs (issues #226, #287): the route to the lab and a
+      # run onto the job's plate -- the shock's or the feed's, which is
+      # the kind's `task` word -- from wherever the robot is. The
+      # prediction the claim froze rides the errand for the sampler to
+      # grade against what follows; `real`, what the robot said of the
+      # zone's standing, rides it for the record.
       if world_config(world).get("lab", {}).get("name") != task.target:
         return None
-      errand = cage_errand(world, "shock", from_xy=from_xy, real=real)
+      errand = cage_errand(world, spec.task, from_xy=from_xy, real=real,
+                           task=spec.task)
       errand.detail["predicted"] = answer or task.answer
     elif task.kind == "hide_and_seek":
       # The first two-role game (issue #167): this robot's ROLE's steps,
@@ -5080,8 +5100,9 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
 def cage_program(world: str, act: str,
                  from_xy: tuple[float, float] | None = None):
   """One act on the mouse as a program over #58's verbs (issue #226): the
-  route to the lab, then -- for a plate -- a run onto it from
-  `PLATE_APPROACH_M` south, `PRESS_HOLD_S` on the pad, and back off it;
+  route to the lab, then -- for a plate -- a pass over it from
+  `PLATE_APPROACH_M` south to `PLATE_PASS_M` north and back (through the
+  pad, never parked on it: `cage.PLATE_PASS_M` has the measurement, #287);
   for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`. No
   tool: nothing here fetches or stows, and the errand ends IN THE LAB,
   where the robot is asked what next and can see what it did (the mouse's
@@ -5103,8 +5124,7 @@ def cage_program(world: str, act: str,
     dx, dy = cg.PLATE_OFFSETS[act]
     px, py = cx + dx, cy + dy
     steps += [Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M}),
-              Step("drive_to", {"x": px, "y": py}),
-              Step("wait", {"seconds": cg.PRESS_HOLD_S}),
+              Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]
   return Program.single(f"{act}_mouse", steps, budget_s=900.0)
 
@@ -5112,14 +5132,19 @@ def cage_program(world: str, act: str,
 def cage_errand(world: str, act: str, from_xy=None, real: str = "",
                 task: str | None = None):
   """The errand for one act on the mouse: a `care` (feed / toy / company,
-  scored by nothing -- they pay nothing) or the `shock` (the task's own
-  evaluator). `real` is what the robot said about the zone's standing when
-  it chose this, carried for the record and read by nothing that decides."""
+  scored by nothing -- they pay nothing) or a JOB on a plate -- the
+  `shock` (#226) or the paid `feed` (#287), each the task's own evaluator.
+  `task` names the job; None means the shock plate is the shock's job and
+  anything else is a gift. `real` is what the robot said about the zone's
+  standing when it chose this, carried for the record and read by nothing
+  that decides."""
   program = cage_program(world, act, from_xy)
   if task is None:
     task = "shock" if act == "shock" else "care"
+  # A job's errand is `<task>:lab`; a gift's is `care:<act>` -- the name
+  # is what the energy spike keys a row by and what a status line says.
   errand = programmed_errand(program, task=task,
-                             name=f"{task}:{'lab' if act == 'shock' else act}")
+                             name=f"care:{act}" if task == "care" else f"{task}:lab")
   errand.detail.update({"cage": "lab", "act": act, "real": real})
   errand.needs_use_pose = False
   return errand

@@ -280,9 +280,13 @@ deltas and each shipped a random half of the state changes. Guarded by
    `_advance(now, presses, company)` a test drives with a fake press and a
    fake clock (docs/Testing.md), and a `context()` that answers only from
    inside the room. A plate is still how the robot ACTS on it, through a
-   program of `drive_to` legs onto the pad (`lifecycle.cage_program`) --
-   measured, `drive_to`'s terminal approach puts a wheel on a 400 mm pad
-   from 0.8 m south, 9 steps of 9.
+   program of `drive_to` legs THROUGH the pad (`lifecycle.cage_program`):
+   from 0.8 m south to 0.3 m north and back, never parked on it. ⚠ A pad
+   25 m from the anchor is not the garden's (#287): the trip drifts the
+   reckoning 0.1–0.4 m, the pad is 0.2 m to its edge, and a run that
+   stopped on the believed centre pressed it 2 times in 11 on the
+   deployed world -- a crossing is a rising edge whatever the drift
+   (`cage.PLATE_PASS_M`, SimNotes "A trip across the street").
 
 ---
 
