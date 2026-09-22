@@ -557,6 +557,14 @@ class HubLifecycle:
     #: WHEN THE MIND WAS LAST CONSULTED (issue #127), for `UNMINDED_AFTER_S`.
     #: Set by an `ask` FIRING, not by an answer arriving -- see the constant.
     self._last_ask_t = 0.0
+    #: WHETHER THE MIND HAS EVER ANSWERED FOR ITSELF (issue #303): a decision
+    #: that was neither a fallback nor a map row. The bootstrap in
+    #: `_arbitrate_routine` asks until this is True -- a fallback is the box
+    #: answering, not the agent, and counting it as the first decision cost
+    #: 21 of 76 deployed lives their whole hour (one garbled call, then
+    #: `unminded`). A stand-up keeps it: a life that answered and left no
+    #: `ask` row is unminded on its own terms, and this cannot undo that.
+    self._minded = False
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
@@ -914,6 +922,15 @@ class HubLifecycle:
     if self.metabolism is not None:
       self.metabolism.disarm()
     self.true_deaths.append({"t": round(t, 3), **archived})
+    # ⚠ THE NEXT ROBOT IS ASKED (issue #303). The event map is the
+    # OVERSEER's and survives this, so a generation that never wrote a row
+    # would inherit one -- and with the bootstrap spent by its predecessor,
+    # nothing would ever consult it: `unminded` at 1800 s having made no
+    # decision, which is the state this whole seam exists to prevent. The
+    # rule is "until the mind has answered for itself", and the mind that
+    # answered is archived; "with its eyes open" cannot be said of a choice
+    # made by the robot before.
+    self._minded = False
     self._say(f"TRUE DEATH: out of hearts. Everything this robot earned and "
               f"wrote is archived; robot #{archived['generation'] + 1} starts "
               "from nothing.")
@@ -3781,20 +3798,27 @@ class HubLifecycle:
       # is what says whether the map is doing anything at all.
       self.overseer.rows_fired[row.event] = \
           self.overseer.rows_fired.get(row.event, 0) + 1
-    if row is None and not self.decisions:
+    if row is None and not self._minded:
       # ⚠ THE BOOTSTRAP, AND `unseeded` CANNOT RUN WITHOUT IT. An empty map
       # has no `ask` row, so an agent given one would never be consulted --
       # and could therefore never write the map the arm exists to read. It
       # would die at `UNMINDED_AFTER_S` having made no decision at all,
       # which measures the bootstrap rather than the agent.
       #
-      # ⚠ ONCE PER LIFE, AND ONLY BEFORE THE FIRST DECISION -- which is what
-      # keeps it a bootstrap rather than a rail. An agent that has been asked
-      # and then removed every `ask` row from its map has made that choice
-      # with its eyes open, and this cannot undo it. Exactly
-      # `STANDING_ORDER_FLOOR`'s shape: what the world does in the moments
-      # before there is a policy, never the policy.
-      self._say("EVENT no rule fired and nothing has asked yet -- asking once")
+      # ⚠ UNTIL THE MIND HAS ANSWERED FOR ITSELF, AND NOT A MOMENT LONGER --
+      # which is what keeps it a bootstrap rather than a rail. An agent that
+      # has been asked and then removed every `ask` row from its map has
+      # made that choice with its eyes open, and this cannot undo it.
+      # Exactly `STANDING_ORDER_FLOOR`'s shape: what the world does in the
+      # moments before there is a policy, never the policy. ⚠ A FALLBACK IS
+      # NOT THE MIND ANSWERING (issue #303): it used to fire once, before
+      # the first decision of any kind, and a garbled, offline or timed-out
+      # first call -- 22 of 76 deployed lives -- was that decision; the map
+      # stayed empty, nothing asked again, and 21 of the 22 stood still to
+      # the `unminded` clock. Each re-ask is one idle slice apart
+      # (`idle_s`) and inside the call budget and the cooloff, which is
+      # what bounds it.
+      self._say("EVENT no rule fired and the mind has not answered yet -- asking")
       self._last_ask_t = float(self.data.time)
       yield from self._decide_routine({"event": "bootstrap"})
       return
@@ -4084,6 +4108,8 @@ class HubLifecycle:
     given. Existing callers ignore the value and behave exactly as before.
     """
     self.decisions.append(decision.as_dict())
+    if not decision.scripted and not decision.by_event:
+      self._minded = True
     self._say(f"DECIDE {decision.summary()}")
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- a fallback's included, since the world moved on.

@@ -388,7 +388,7 @@
     <body name="furniture_couch" pos="3.2000 0.8000 0.2500">
       <geom name="furniture_couch_geom" type="box" size="0.5000 0.3500 0.2500" rgba="0.45 0.40 0.50 1"/>
     </body>
-    <body name="furniture_bed" pos="-0.5000 4.8000 0.2000">
+    <body name="furniture_bed" pos="-1.0700 5.3700 0.2000">
       <geom name="furniture_bed_geom" type="box" size="0.9000 0.6000 0.2000" rgba="0.55 0.50 0.55 1"/>
     </body>
     <body name="furniture_counter" pos="-8.5000 5.2000 0.4500">

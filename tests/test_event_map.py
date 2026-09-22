@@ -30,6 +30,7 @@ from pluggybot.lifecycle import UNMINDED_AFTER_S, board_book
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
+from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 from test_overseer import FakeClient, full  # noqa: I001 -- tests/ is on sys.path
@@ -729,10 +730,12 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   map, and dies at `UNMINDED_AFTER_S` having made no decision at all -- a run
   that measured the bootstrap rather than the agent.
 
-  ⚠ ONCE PER LIFE AND ONLY BEFORE THE FIRST DECISION, which is what keeps it
-  a bootstrap rather than a rail: an agent that has been asked and then
-  removed every `ask` row has made that choice with its eyes open, and this
-  cannot undo it.
+  ⚠ UNTIL THE MIND HAS ANSWERED FOR ITSELF AND NOT A MOMENT LONGER (issue
+  #303 -- a fallback does not count), which is what keeps it a bootstrap
+  rather than a rail: an agent that has been asked and then removed every
+  `ask` row has made that choice with its eyes open, and this cannot undo
+  it. The rule is pinned in milliseconds by `test_a_garbled_bootstrap_is_
+  asked_again` / `test_the_bootstrap_is_still_not_a_rail`; this flies it.
   """
   from pluggybot.lifecycle import run_demo
 
@@ -746,6 +749,84 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
       "asked once from an empty map, and never again by the map's own rules"
   assert out["decisions"][0]["source"] == "llm"
   assert out["overseer"]["eventMap"]["fired"] == {}
+
+
+def _arbitrate_twice(boss, tmp_path):
+  """Two passes of the arbitration seam on an unseeded lifecycle, with the
+  idle slice stubbed: what is under test is whether the second pass asks,
+  not how long the robot stands there."""
+  from pluggybot import tick
+  from pluggybot.lifecycle import world_config
+  from test_overseer import _lifecycle
+  life = _lifecycle("home", overseer=boss)
+  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  try:
+    life.mission.start_at(*world_config("home")["start"])
+    life.mission.run(life._arbitrate_routine())
+    life.mission.run(life._arbitrate_routine())
+  finally:
+    life.mission.close()
+  return life
+
+
+def test_a_garbled_bootstrap_is_asked_again(menu, tmp_path):
+  """Issue #303. The bootstrap fired once, before the first decision OF ANY
+  KIND -- and a fallback is a decision. So when the one call came back
+  malformed (GLM through the router answered `{" \n \t,\t"pin":…`), or the
+  endpoint was down, or the call timed out, that fallback was the first
+  decision, the map stayed empty, nothing ever asked again, and the robot
+  stood still to the `unminded` clock. Measured off the observatory over
+  three days: 22 of 76 lives began with a fallback and 21 of them made
+  exactly one decision all hour. A fallback is the box answering, not the
+  agent; the bootstrap asks until the agent has answered for itself.
+  """
+  boss = make(menu, "I would love to draw a house!",          # garbled
+              full(action="idle", reason="working it out"),
+              origin="unseeded")
+  life = _arbitrate_twice(boss, tmp_path)
+  assert [d["source"] for d in life.decisions] == ["fallback:garbled", "llm"], \
+      "the second pass did not ask again after a garbled first call"
+  assert len(boss.client.calls) == 2
+  assert life._minded
+
+
+def test_the_bootstrap_is_still_not_a_rail(menu, tmp_path):
+  """The other half of issue #303's rule: an agent that HAS answered, and
+  left a map with no `ask` row, is unminded on its own terms -- the second
+  pass idles and makes no call. `test_an_unseeded_agent_is_asked_once_or_
+  the_arm_measures_nothing` flies the same claim."""
+  boss = make(menu, full(action="idle", reason="working it out"),
+              origin="unseeded")
+  life = _arbitrate_twice(boss, tmp_path)
+  assert [d["source"] for d in life.decisions] == ["llm"]
+  assert len(boss.client.calls) == 1
+  assert len(boss.event_map) == 0 and life._minded
+
+
+def test_the_next_generation_is_asked_even_though_the_map_outlives_it(menu,
+                                                                     tmp_path):
+  """Issue #303, the other end of a life. `_true_death` archives what the
+  robot wrote -- History, Notes, Findings, its Goals -- but the event map
+  is the OVERSEER's and survives, so the next generation inherits rows it
+  never wrote. With the bootstrap spent by its predecessor nothing would
+  ever consult it: `unminded` at 1800 s having made no decision, which is
+  the state this seam exists to prevent. Live on the deployed world as
+  this was written -- Rowan's 24th life died out of hearts at 09:56 with
+  an empty map, and its 25th had made no decision an hour later.
+  """
+  from pluggybot.economy.ledger import HEARTS, Ledger
+  from test_overseer import _lifecycle
+  boss = make(menu, full(action="idle", reason="working it out"),
+              origin="unseeded")
+  ledger = Ledger(path=tmp_path / "ledger.json")
+  life = _lifecycle("home", overseer=boss, ledger=ledger,
+                    thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  life._minded = True                       # this life has answered
+  ledger.robots[life.root]["hearts"] = 1    # ...and it is on its last
+  life._die("flat", "the pack reached zero")
+  assert life.true_deaths, "the fixture did not reach a true death"
+  assert ledger.hearts() == HEARTS, "a new robot starts with a full set"
+  assert not life._minded, "the next generation inherited a spent bootstrap"
 
 
 def test_an_unseeded_agent_starts_empty_and_is_told_so(menu):

@@ -168,6 +168,52 @@ def test_doorways_are_wide_enough_to_drive_through(home_model):
     assert hi - lo >= 0.6, f"{name} doorway too narrow for planning + control"
 
 
+def test_a_board_can_be_stood_in_front_of(home_model):
+  """A board whose USE POSE has furniture inside the front-stop reflex is a
+  board the robot cannot reliably draw on (#305).
+
+  Standing at a board means standing at `board_standoff`, and the LIDAR
+  reflex reverses the robot for `BACKOFF_TIME` whenever anything within
+  `FRONT_STOP_RANGE` of the scanner lies dead ahead. The scanner rides
+  `LIDAR_ORIGIN[0]` in front of the axle, so a thing this far from the use
+  pose is at the trip range when the robot turns to face it -- and turn it
+  does, squaring up on arrival. `whiteboard_b`'s use pose had the bed's
+  corner 0.23 m away: an approach that swung the corner through the front
+  cone tripped the reflex, reversed, came back, tripped again, and the
+  drive stagnated with the pen never reaching the board. It depended on
+  the approach angle, so the board drew from some directions and not
+  others, which is worse than never working.
+
+  FURNITURE, not the walls or the board: the standoff is measured TO the
+  board and its wall, and the robot arrives facing them deliberately. What
+  must not be there is something it was never sent to.
+  """
+  from pluggybot.behavior.navigation import FRONT_STOP_RANGE
+  from pluggybot.mission.mission import LIDAR_ORIGIN
+  from pluggybot.tools.drawing import board_standoff
+
+  bar = FRONT_STOP_RANGE + LIDAR_ORIGIN[0]
+  data = mujoco.MjData(home_model)
+  mujoco.mj_forward(home_model, data)
+  furniture = [g for g in range(home_model.ngeom)
+               if (mujoco.mj_id2name(home_model, mujoco.mjtObj.mjOBJ_GEOM, g) or "")
+               .startswith("furniture_")]
+  assert furniture, "no furniture in the house -- the test would pass vacuously"
+  for name, spec in home.BOARDS.items():
+    ux, uy = board_standoff(Board.from_meta(
+      {"geom": spec["geom"], "pos": list(spec["pos"]),
+       "half": list(spec["half"]), "heading": spec["heading"]}))
+    for g in furniture:
+      pos, half = data.geom_xpos[g], home_model.geom_size[g]
+      gap = math.hypot(max(abs(ux - pos[0]) - half[0], 0.0),
+                       max(abs(uy - pos[1]) - half[1], 0.0))
+      assert gap >= bar, (
+        f"{mujoco.mj_id2name(home_model, mujoco.mjtObj.mjOBJ_GEOM, g)} is "
+        f"{gap:.2f} m from {name}'s use pose ({ux:.2f}, {uy:.2f}); the "
+        f"front-stop reflex needs {bar:.2f} m and the robot will bounce "
+        "off it instead of drawing")
+
+
 def test_zones_tile_the_world_without_overlapping():
   """EVERY pair, not the adjacent ones. The old version checked ZONES[0] vs
   [1] and [1] vs [2], which was every pair when there were three; with nine it
