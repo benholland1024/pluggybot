@@ -809,7 +809,7 @@ def board_before(life, errand) -> dict:
   # POLYLINES rather than on a count (issue #22) and the same "what was
   # already there" question has to be answerable about both.
   return {"board": board, "strokes": rec.strokes, "clears": rec.clears,
-          "lines": len(rec.lines)}
+          "lines": len(rec.lines), "dropped": rec.dropped}
 
 
 def sample_draw(life, errand, result: dict, before: dict) -> dict:
@@ -820,10 +820,12 @@ def sample_draw(life, errand, result: dict, before: dict) -> dict:
   if rec is None:
     inked, fill = 0, 0.0
   else:
-    # A clear during the use-phase resets the count, so the board's whole
-    # stroke count IS this errand's; otherwise take the delta.
-    fresh = rec.clears > before.get("clears", 0)
-    inked = rec.strokes if fresh else rec.strokes - before.get("strokes", 0)
+    # The lines THIS robot added since `before` -- a clear during the
+    # use-phase resets the record, so then the whole board is this
+    # errand's; otherwise the tail -- and never the other robot's
+    # (`_errand_lines`, issue #298: the stroke COUNTER is the board's,
+    # and on a shared board it counted whatever anybody drew meanwhile).
+    inked = len(_errand_lines(life, board, before))
     fill = rec.fill
   return {
     "board": board,
@@ -846,15 +848,29 @@ def _errand_lines(life, board: str, before: dict) -> list:
   errand that did not erase must not be scored on what was already there. A
   clear during the use-phase resets the record, so everything on the board is
   this errand's; otherwise take the tail.
+
+  ⚠ THIS ROBOT'S LINES ONLY (issue #298). A pair shares one board book, and
+  the tail is whatever anybody drew since `before`: Rowan's answer, never
+  drawn because its pick had failed, was graded against the house Luca
+  was drawing on the same board at the time -- "the ink is 12.8 mm from
+  those glyphs". A line with no `by` (a state file from before the field)
+  counts as this robot's, which is what it was on a single-robot world.
   """
   book = getattr(life, "boards", None)
   if book is None or not board or board not in book:
     return []
   rec = book[board]
   fresh = rec.clears > before.get("clears", 0)
-  added = len(rec.lines) if fresh else len(rec.lines) - before.get("lines", 0)
-  lines = rec.lines[len(rec.lines) - max(added, 0):] if added > 0 else []
-  return [line["points"] for line in lines]
+  # Appended since `before`, counting the oldest lines the cap evicted
+  # meanwhile (`rec.dropped`); the tail we can read is what is kept.
+  added = (len(rec.lines) if fresh else
+           len(rec.lines) + rec.dropped
+           - before.get("lines", 0) - before.get("dropped", 0))
+  added = min(max(added, 0), len(rec.lines))
+  lines = rec.lines[len(rec.lines) - added:] if added > 0 else []
+  mine = getattr(life, "root", None)
+  return [line["points"] for line in lines
+          if mine is None or line.get("by", mine) == mine]
 
 
 def sample_answer(life, errand, result: dict, before: dict) -> dict:

@@ -1021,7 +1021,11 @@ save a filmstrip PNG named after the script.
   geometry — a stroke is a `draw` event carrying the polyline the pen inked,
   painted in the browser. Board state (`tools/boards.py`) is world state
   written on every stroke; `fill` is measured against the pen's REACH
-  (110 × 200 mm), not the slab.
+  (110 × 200 mm), not the slab. ⚠ A line record carries `by`, and a
+  verdict reads ONLY ITS OWN ROBOT'S lines since `board_before`
+  (`scoring._errand_lines`, issue #298): a pair shares one book, and
+  Rowan's undrawn answer was graded against the house Luca was drawing
+  ("the ink is 12.8 mm from those glyphs"); the reverse would have PAID.
 - **The `tasks` block is the one wire block that is not a per-key delta**
   (0.9.0): a task can cease to exist and a delta cannot say "gone", so
   present means COMPLETE. The header advertises `taskKinds`, not ids.
@@ -1076,10 +1080,13 @@ save a filmstrip PNG named after the script.
   pen went on the floor. A world bigger than the property pins its extent
   or its tags vanish; `test_the_dock_camera_decodes_a_bay_tag_from_the_
   standoff` holds it (SimNotes). ⚠ `drive_to` an UNMAPPED goal aims at
-  the known-free cell nearest it by straight line, which beside a house
-  is INDOORS: a 12 m leg along the north street set off on a 463-waypoint
-  detour and stalled. Unfixed on purpose (the same fallback carries every
-  bay and board approach into a wall's inflation); a flown test keeps its
+  the known-free cell nearest it by straight line IN THE ROBOT'S OWN
+  COMPONENT (issue #298: the nearest cell anywhere was a one-cell island
+  beside `whiteboard_b`, `astar` answered None in 0 s and the board paid
+  nobody for 30 hours), which beside a house is still INDOORS: a 12 m leg
+  along the north street set off on a 463-waypoint detour and stalled.
+  That half is unfixed on purpose (the same fallback carries every bay
+  and board approach into a wall's inflation); a flown test keeps its
   legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
   any rack geometry change; five tool bays (A–E) plus the charge bay on
   the rack, and THREE MORE ON THE BUILT-TOOL RAIL beside it (`rack_built`,
@@ -1620,7 +1627,9 @@ save a filmstrip PNG named after the script.
   `WAIT_FOR_WORK_S` slices instead of ending the day when momentarily idle
   — after CLEARING THE RACK (`RACK_CLEAR_M` 2.0 m of the rack prior, back
   to its start; measured: an idle second robot at the bay standoff failed
-  the first robot's next pick 0.4 m away),
+  the first robot's next pick 0.4 m away — and a DECIDED `idle` clears it
+  the same way, issue #298, because with a mind the loop never reaches
+  this branch and Rowan stood at the standoff for an hour),
   and `run_errand` honours `drive_to`'s answer (a use-phase after a failed
   drive is skipped and the tool still goes home).
 - **Points are a currency, and staying alive costs some** (issues #135 +
@@ -1679,6 +1688,12 @@ save a filmstrip PNG named after the script.
   lift it starts at). ⚠ A result has to outlive a frame: Python between two
   physics steps costs zero sim time, so hold a screen result
   (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING, not the return value.
+  ⚠ A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298): no drive to the
+  use pose, no return of a module it never had, `error: never picked up
+  <module>`, and a History line saying whether the pick missed or the
+  module was not on its bay. On the pair the old phantom trip parked the
+  robot at the rack as the other came back to stow, and the stows, picks
+  and "no route" failures cascaded from there (Rowan paid 3 of 27).
 - **A challenge is a task whose criteria were written before the robot saw
   it** (issue #120; `challenge/stack.py`, Challenges.md). Same MEASURE / JUDGE
   / PAY door as every task: its evaluator and sampler are on `scoring.py`'s

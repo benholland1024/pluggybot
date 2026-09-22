@@ -229,8 +229,11 @@ def test_the_neighbouring_lines_stopped_shouting():
                   use_at=(1.0, 1.0), use=None, needs_use_pose=False)
   life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)        # never got there
   life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False,
-                                                     "hung": False}
+  # Picked, then lost on the way (issue #298: a pick that FAILED ends the
+  # errand at the rack and says so in other words).
+  states = iter([{"on_fork": True, "hung": False}])
+  life.mission.swap.module_state = lambda *a, **kw: next(
+    states, {"on_fork": False, "hung": False})
   said = narration(life)
   life.run_errand(errand)
   arrival = [ln for ln in said if ln.startswith("USE_TOOL:")]

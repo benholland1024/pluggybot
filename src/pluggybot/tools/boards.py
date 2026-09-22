@@ -323,8 +323,10 @@ class BoardBook:
     self._mark(rec, pts)
     points = [[round(y, NDIGITS), round(z, NDIGITS)] for y, z in pts]
     # Remembered, not just streamed: this is the only copy of the line that
-    # outlives the message. Oldest-first eviction at the cap, counted.
-    rec.lines.append({"program": program, "points": points})
+    # outlives the message. Oldest-first eviction at the cap, counted. WHO
+    # drew it rides the record (issue #298): a pair shares one book, and
+    # a verdict reads only its own robot's ink off it.
+    rec.lines.append({"program": program, "points": points, "by": by})
     if len(rec.lines) > MAX_LINES:
       rec.dropped += len(rec.lines) - MAX_LINES
       del rec.lines[:len(rec.lines) - MAX_LINES]
