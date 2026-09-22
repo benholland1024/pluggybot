@@ -580,12 +580,12 @@ def test_a_second_drawing_is_not_scored_on_the_first_ones_ink():
   inherit the previous figure's strokes and score them again."""
   b = book()
   b.stroke("whiteboard_a", "house", [(0.0, 0.0), (0.03, 0.0)])
-  before = {"board": "whiteboard_a", "strokes": b["whiteboard_a"].strokes,
-            "clears": 0}
   errand = Errand(name="draw:whiteboard_a", module="module_pen", station_y=0.0,
                   use_at=(0, 0), detail={"board": "whiteboard_a", "strokes": 2})
-  v = scoring.score_errand(fake_life(boards=b), errand,
-                           {"strokes": 2, "shape_rms_mm": 0.8}, before)
+  life = fake_life(boards=b)
+  before = scoring.board_before(life, errand)      # what `run_errand` passes
+  v = scoring.score_errand(life, errand, {"strokes": 2, "shape_rms_mm": 0.8},
+                           before)
   assert not v.ok, "the previous drawing's strokes were counted as this one's"
 
 

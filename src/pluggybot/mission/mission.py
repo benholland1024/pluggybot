@@ -29,6 +29,7 @@ import time
 
 import mujoco
 import numpy as np
+from scipy import ndimage
 
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
@@ -509,12 +510,25 @@ class HubMission:
     goal = self.grid.world_to_cell(wx, wy)
     goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
     if not trav[goal[1], goal[0]]:
-      # The goal sits in unknown or inflated space. Plan to the KNOWN-FREE
-      # cell nearest it instead: driving there grows the map toward the
-      # goal, and the next replan gets closer. (A blind greedy advance was
-      # tried first and measured awful: it rammed the floor-box's reflex
-      # zone forever, ignoring the very map it was building.)
-      ys, xs = np.nonzero(trav)
+      # The goal sits in unknown or inflated space. Plan to the nearest
+      # cell OF THIS ROBOT'S OWN COMPONENT instead -- the 4-connected
+      # component its start cell is in, `astar`'s own neighbourhood:
+      # driving there grows the map toward the goal, and the next replan
+      # gets closer. (A blind greedy advance was tried first and measured
+      # awful: it rammed the floor-box's reflex zone forever, ignoring the
+      # very map it was building.)
+      # ⚠ OWN COMPONENT, not the nearest free cell anywhere (issue #298):
+      # the bedroom seen through its doorway leaves one-cell islands of
+      # free space near whiteboard_b, the island nearest the board's use
+      # pose was one cell nearer than the reachable wedge beside it,
+      # `astar` answered None and the drive gave up in 0 s -- the board
+      # paid nobody in 30 deployed hours, and never did in a single-robot
+      # flight. ⚠ A TRAVERSABLE goal in another component still plans
+      # None, deliberately: that is a frontier behind the other robot, and
+      # explore's strike logic counts on the drive stepping nothing
+      # (`test_explore_does_not_spin_when_the_other_robot_blocks_...`).
+      labels, _ = ndimage.label(trav)
+      ys, xs = np.nonzero(labels == labels[start[1], start[0]])
       if len(xs) == 0:
         return None
       d2 = (xs - goal[0]) ** 2 + (ys - goal[1]) ** 2

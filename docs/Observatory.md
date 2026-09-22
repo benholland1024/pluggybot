@@ -10,6 +10,41 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The boards pay again (#298) — opens when this PR is deployed
+
+**What changed on the wire.** Nothing in the mind, the prompt or the
+world; four rules of the loop, each found by reading the previous
+period's rows and the container's narration. (1) `whiteboard_b` was
+unreachable: its use pose is in the bedroom, seen from the start only
+through the divider doorway, and `_plan_to` aimed an unmapped goal at the
+known-free cell nearest it anywhere — a one-cell island — so the drive
+gave up in 0 s; 25 correct claims, 0 paid, in the 30 hours before
+2026-09-22, and the same in a single-robot flight. It aims at the nearest
+cell of the robot's own component now, and the flight draws 7 of 7 at
+1.74 mm. (2) A failed pick — the other robot holding the pen, which is
+most picks on a pair — no longer drives to the board and back to "return"
+nothing; the errand ends at the rack with `error: never picked up
+module_pen` and a History line that says why. (3) A decided `idle` clears
+the rack like standing by for work does; Rowan idling at the bay standoff
+was what failed Luca's stows and planned its "no route to the charge
+bay". (4) A verdict reads only its own robot's ink off the shared board:
+Rowan's undrawn answer was scored against Luca's house at 12.8 mm.
+
+Expect: `whiteboard_b` rows that pay; far fewer `task_failed` on answer
+jobs 60–200 s after a claim (those were phantom trips, not drawings);
+`SWAP_RETURN FAILED` rare; no admin `reset_tool` of the pen needed to get
+the day going again; a `could not pick up module_pen` History line where
+the pair contends for it, honestly.
+
+**What the period is for.** Answer jobs and drawings PAID per board per
+robot, against the previous period's 18 of 58 correct commitments paid
+(Luca 15 of 31, Rowan 3 of 27, `whiteboard_b` 0 of 25). The remaining
+failures should be what a pair genuinely costs: the pen held by the other
+robot, said so.
+
+**Not yet known.** How often the pair still contends for the one pen once
+neither robot parks at the rack — the `could not pick up` line counts it.
+
 ### An answer is refused, never repaired (#296) — opens when this PR is deployed
 
 **What changed on the wire.** Nothing in the prompt, the schema, the arm

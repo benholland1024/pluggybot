@@ -209,6 +209,45 @@ def test_run_many_throws_a_hook_exception_into_every_live_routine():
   assert sorted(seen) == ["a-finally", "b-finally"]
 
 
+def test_a_failed_pick_ends_the_errand_at_the_rack():
+  """Issue #298. On the deployed pair a pick fails whenever the other robot
+  holds the tool, and the errand used to carry on regardless: drive to
+  the use pose with nothing on the fork, skip the use, drive back and
+  attempt to RETURN a module it never had. That phantom trip parked the
+  robot at the rack exactly when the other came back to stow, whose stow
+  then failed, whose next pick then failed -- Rowan's correct answers
+  paid 3 of 27, and it filed a ticket about its pen. Now the errand ends
+  at the rack, scored as it stands, and History says why.
+  """
+  from test_overseer import _lifecycle
+  from pluggybot import tick
+  from pluggybot.mission.errand import Errand
+  life = _lifecycle("room_hub", errand=False)
+  drives, swaps = [], []
+  life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+  life.mission.swap_at_bay_routine = lambda *a, **kw: (swaps.append(a[1]), tick.result(None))[1]
+  # the other robot has the LCD: not on this fork, not on its bay
+  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
+  used = []
+  errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
+                  use_at=(1.0, 1.0), use=lambda _l: used.append(1) or {},
+                  needs_use_pose=False)
+  result = life.run_errand(errand)
+  assert swaps == ["pick"], swaps                      # no return of nothing
+  assert drives == [] and used == []                  # no trip, no use
+  assert result["picked"] is False and result["stowed"] is False
+  assert result["error"] == "never picked up module_lcd"
+  assert any("could not pick up module_lcd" in ln and "not on its bay" in ln
+             for ln in life.thoughts.read("History.md").splitlines()), \
+      life.thoughts.read("History.md")
+  # ...and a pick that MISSED with the module still hanging says that instead
+  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  result = life.run_errand(errand)
+  assert result["picked"] is False and result["stowed"] is True
+  assert any("the pick missed and it is still on its bay" in ln
+             for ln in life.thoughts.read("History.md").splitlines())
+
+
 def test_the_planner_routes_round_the_other_robots_reported_pose():
   """Unit test on the grid, no mission: a free room, the other robot
   reported on the straight line, and every waypoint keeps clear of it."""
@@ -531,6 +570,43 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
     f"a robot idling at the rack did not clear it: drives={near}"
   far = life_at(cfg["start"][0], cfg["start"][1])
   assert not far, f"a robot already clear of the rack drove anyway: {far}"
+
+
+def test_a_decided_idle_clears_the_rack_first(monkeypatch):
+  """Issue #298. With a mind, the loop never reaches the standby branch
+  above: a decided `idle` -- the model's, a map row's, the fallback floor's
+  -- stood still wherever the robot was, and after a failed pick or a
+  charge that is the bay standoff. On the deployed pair Rowan idled there
+  from 550 s ("waiting out the pen"); Luca's next stow failed, its picks
+  failed, and its drive home planned "no route to the charge bay" in 0 s,
+  inside Rowan's mask against the south wall. Same rule as standing by
+  for work: within `RACK_CLEAR_M`, drive home first; elsewhere, stay put.
+  """
+  from pluggybot import lifecycle as lc, tick
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.rack.coupling import RACK_ROOM_POS
+  cfg = lc.world_config("room_hub")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+
+  def idle_at(x, y):
+    life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                           world="room_hub", errand=False,
+                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                           grid_bounds=cfg["grid_bounds"],
+                           low_battery_wh=cfg["low_battery_wh"])
+    life.home_pose = tuple(float(v) for v in cfg["start"])
+    life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
+    drives = []
+    life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+    life.mission._drive_routine = lambda *a, **kw: tick.result(None)   # the idle itself
+    life._after_decision(Decision(action="idle", reason="standing by"))
+    return drives
+
+  rx, ry = RACK_ROOM_POS
+  near = idle_at(rx + 0.3, ry - 0.6)               # the bay standoff
+  assert near and near[0][:2] == cfg["start"][:2], \
+    f"a robot that decided to idle at the rack did not clear it: drives={near}"
+  assert not idle_at(cfg["start"][0], cfg["start"][1]), "already clear, drove anyway"
 
 
 def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hysteresis():

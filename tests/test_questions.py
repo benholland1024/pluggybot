@@ -675,6 +675,52 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
   assert len(mind.answered) >= 2
 
 
+def test_a_verdict_reads_only_its_own_robots_ink_off_a_shared_board():
+  """Issue #298. A pair shares one board book. Rowan's answer on
+  whiteboard_a -- never drawn, its pick had failed -- was graded against
+  the house Luca was drawing on the same board at that moment: "6 was the
+  right answer, but the board does not show it: the ink is 12.8 mm from
+  those glyphs". And the reverse would PAY: `strokesInked` was the board's
+  stroke counter, so an errand that drew nothing scored the other's seven
+  strokes as its own. The line record carries `by`, and both samplers read
+  only this robot's lines since `before`. Shown to fail without the fix
+  with the answer scored on the house (7 strokes, 12+ mm) instead of on
+  nothing.
+  """
+  book = BoardBook([BoardRecord("whiteboard_a", (0.11, 0.2))],
+                   clock=lambda: "2026-09-22T00:00:00")
+  b = board()
+  task = question_task(b, ask="how many sides has a hexagon?", answer="6")
+  task = b.claim(task.id, t=1.0, answer="6")
+  errand = Errand(name="draw:whiteboard_a", module="module_pen", station_y=0.0,
+                  use_at=(0, 0), task="answer", task_id=task.id,
+                  detail={"board": "whiteboard_a", "strokes": 1})
+  rowan = SimpleNamespace(boards=book, tasks=_Board(task), root="r2_pluggybot",
+                          data=SimpleNamespace(time=10.0))
+  before = scoring.board_before(rowan, errand)
+  # Luca draws a house on the shared board while Rowan's errand is out
+  for stroke in strokes.program("house").strokes:
+    book.stroke("whiteboard_a", "house", decimate(list(stroke)), by="pluggybot")
+  assert scoring._errand_lines(rowan, "whiteboard_a", before) == []
+  drawn = scoring.sample_draw(rowan, errand, {"strokes": 0}, before)
+  assert drawn["strokesInked"] == 0, "Luca's strokes were counted as Rowan's"
+  answered = scoring.sample_answer(rowan, errand, {"strokes": 0}, before)
+  assert "matchMm" not in answered, "Luca's house was measured as Rowan's answer"
+  verdict = scoring.evaluate("answer", answered, table=TABLE)
+  assert not verdict.ok and verdict.reason == "no ink reached whiteboard_a"
+  # ...and Rowan's own ink, drawn after, is Rowan's
+  for stroke in q.answer_strokes("6"):
+    book.stroke("whiteboard_a", "answer", decimate(list(stroke)), by="r2_pluggybot")
+  answered = scoring.sample_answer(rowan, errand, {"strokes": 1}, before)
+  assert scoring.evaluate("answer", answered, table=TABLE).ok
+  assert scoring.sample_draw(rowan, errand, {"strokes": 1}, before)["strokesInked"] \
+      == len(q.answer_strokes("6"))
+  # a line with no `by` -- a state file from before the field -- is this robot's
+  book["whiteboard_a"].lines[-1].pop("by")
+  assert len(scoring._errand_lines(rowan, "whiteboard_a", before)) \
+      == len(q.answer_strokes("6"))
+
+
 def test_answer_is_not_a_figure_anyone_may_ask_for():
   """`text` is off the overseer's figure menu because it takes arbitrary
   caller text; `answer` is where that text landed, so it is off it too.
