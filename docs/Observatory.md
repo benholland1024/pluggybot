@@ -53,9 +53,20 @@ field being filled. From here the rows are a signal. What to read:
 
 **Not yet known.** Whether the model fills a part list when the drop stops
 absorbing its answer — `idle_build` is the reason the 433 stop being
-rows, not a reason the 434th describes a tool. A probe on the fixed path
-(`experiment.py --probe workshop`) flies a SINGLE robot and so tests that
-half alone; the pair seam has no probe and is read here.
+rows, not a reason the 434th describes a tool.
+
+⚠ A probe on the fixed path (`experiment.py --probe workshop`, one day,
+2026-09-23, reported on #264) says the 433 were not attempts at all:
+`toolRefused` 0, and **`build_tool` was absent from all 16 decision
+rows**, so `idle_build` had nothing to drop and the model described no
+tool. Asked directly to build one it answered and deferred — short on
+points for upkeep — then spent the day earning. So READ THE 433 AS A
+SCHEMA FIELD BEING FILLED, not as a robot trying and failing, and read
+`specified` here as the first honest count of how often it reaches for
+the workshop at all. The levers that points at are COST and OCCASION: a
+tool costs points the robot wants for upkeep, and nothing in a day makes
+one useful. ⚠ That probe flies a SINGLE robot, so it tests that half
+alone; the pair seam has no probe and is read here.
 
 ### The robot can see the list that decides when it is asked (#317) — opens when this PR is deployed
 
