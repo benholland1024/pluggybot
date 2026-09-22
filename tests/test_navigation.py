@@ -139,6 +139,48 @@ def _halo_world():
   return g, pose
 
 
+def test_an_unmapped_goal_is_aimed_at_through_the_robots_own_component():
+  """Issue #298: whiteboard_b paid nobody in 30 deployed hours, and a
+  single-robot flight never reached it either -- `SWAP_PICK done` and
+  `USE_TOOL: never got there` in the same second.
+
+  `_plan_to` aimed an unreachable goal at the KNOWN-FREE cell nearest it,
+  anywhere on the map. The bedroom, seen through its doorway from the
+  start pose, leaves one-cell islands of free space near the board; the
+  island nearest the use pose was one cell nearer than the reachable
+  wedge beside it, `astar` answered None and the drive gave up in 0 s.
+  The nearest cell of the robot's OWN component is where to aim: driving
+  there grows the map toward the goal, as the comment always said.
+
+  Minimised: everything unknown but a free corridor from the start and a
+  free island, nearer the goal than the corridor's end and joined to
+  nothing. Fails without the fix with `_plan_to` returning None.
+  """
+  import mujoco
+  from pluggybot.mission.mission import HubMission
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  g = m.grid
+  g.grid[:] = 0.0                                       # nothing known
+  x0, y0 = g.world_to_cell(1.0, 1.0)
+  x1, _ = g.world_to_cell(2.5, 1.0)
+  g.grid[y0 - 3:y0 + 4, x0 - 3:x1 + 1] = -5.0           # a free corridor
+  ix, iy = g.world_to_cell(3.9, 1.0)
+  g.grid[iy - 1:iy + 2, ix - 1:ix + 2] = -5.0           # a free island
+  goal = (4.0, 1.0)                                     # unknown, past both
+  path = m._plan_to(*goal)
+  assert path is not None, "the island nearest the goal was aimed at, and it is not reachable"
+  assert all(x <= 2.5 + g.resolution for x, _ in path), \
+      "the plan leaves the robot's own component"
+  assert path[-1][0] > 2.3, "the plan stops short of the corridor's end"
+  # ...while a goal that IS known free, but in the island, still plans None:
+  # that shape is a frontier behind the other robot, and explore's strike
+  # logic counts on the drive stepping nothing there.
+  assert m._plan_to(3.9, 1.0) is None
+
+
 def test_a_sealed_in_robot_can_still_plan_to_a_frontier():
   """THE EXPLORE TRAP (issue #92), minimised and pinned.
 

@@ -1402,17 +1402,41 @@ drive's stagnation check (10 s without 2 cm of progress) rightly ends.
 The old world could not show it: its street stopped at the property, so
 no unmapped goal ever sat just outside a building the robot knew.
 
-**What is true now:** the rule is unchanged, deliberately. The same
-fallback is what lets a bay or board approach reach a goal INSIDE a wall's
-inflation (the approach plans to the nearest traversable cell and finishes
-on `drive_toward`), so the fix -- for an UNKNOWN goal, aim at the nearest
-cell that borders unknown space, since driving there is what grows the map
-toward the goal; for an INFLATED one, today's rule -- changes every drive
-whose goal is unmapped and wants its own flights. The flown lap keeps
-every leg inside what the leg before mapped (6.6 m against the LIDAR's
-8 m; `test_home_world.loop_legs`). Expect the same stall from an
+**What is true now:** the straight-line rule stands, deliberately, with
+one word changed (issue #298): the nearest known-free cell OF THE ROBOT'S
+OWN COMPONENT (`scipy.ndimage.label` over the traversable mask, 4-connected
+like `astar`), never one it cannot reach. The same fallback is what lets a
+bay or board approach reach a goal INSIDE a wall's inflation (the approach
+plans to the nearest traversable cell and finishes on `drive_toward`), so
+the fuller fix -- for an UNKNOWN goal, aim at the nearest cell that borders
+unknown space, since driving there is what grows the map toward the goal;
+for an INFLATED one, today's rule -- changes every drive whose goal is
+unmapped and wants its own flights. The flown lap keeps every leg inside
+what the leg before mapped (6.6 m against the LIDAR's 8 m;
+`test_home_world.loop_legs`). Expect the same stall from an
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
+
+## whiteboard_b was aimed at through a one-cell island (issue #298)
+
+The deployed pair paid nobody for a drawing on `whiteboard_b` in thirty
+hours -- 25 correct answer claims, 0 paid -- and it was not the pair:
+`home_draw.py --board whiteboard_b`, one robot, read `SWAP_PICK done` and
+`USE_TOOL: never got there` in the same second. The board is in the
+bedroom, seen from the start pose only through the 1 m divider doorway,
+and what the LIDAR paints through a doorway is a wedge of free cells with
+ragged edges. The use pose (0.45, 5.62) sits in the north wall's
+inflation, so `_plan_to` aimed at the known-free cell nearest it by
+straight line: a one-cell island at the wedge's edge, one cell nearer
+than the wedge itself and joined to nothing. `astar` answered None and
+the drive gave up in 0 s; every replan found the same island. On the
+deployed world the map is empty at every hourly restart and the mind
+takes a job before it explores, so the bedroom was never mapped and the
+board never reached. Aimed at the nearest cell of the robot's own
+component instead, the same flight arrives at 80 s and draws 7 of 7
+strokes at 1.74 mm form error. `test_navigation.py` pins the rule on a
+synthetic grid: a corridor, an unconnected island nearer the goal, and a
+plan that stays in the corridor.
 
 ## The tag camera spent 97 % of its render on shadows (rooftop-media-2026 #296)
 

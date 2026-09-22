@@ -1723,6 +1723,20 @@ class HubLifecycle:
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
               f" ({errand.name})")
+    if not carried:
+      # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
+      # go on: drive to the use pose with nothing on the fork, skip the
+      # use, drive back and attempt a RETURN of a module it never had --
+      # narrated "dropped the tool on the way" -- and on the deployed pair
+      # that phantom trip parked the robot at the rack exactly when the
+      # other came back to stow, whose stow then failed, whose next pick
+      # then failed: Rowan's correct answers paid 3 of 27. History says
+      # which of the two things a failed pick is, because the robot was
+      # diagnosing its pen for what was the other robot holding it.
+      hung = self.mission.swap.module_state(self.module)["hung"]
+      self._remember(f"could not pick up {self.module} for {errand.name}: "
+                     + ("the pick missed and it is still on its bay" if hung
+                        else "it was not on its bay"))
 
     self.state = "USE_TOOL"
     # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
@@ -1745,31 +1759,34 @@ class HubLifecycle:
     # answered before the carry drive rather than after it -- which is where
     # aborting saves the most, since the trip out and back is most of an
     # errand's energy.
-    aborted = self.interrupted()
-    arrived = (False if aborted else
+    aborted = carried and self.interrupted()
+    arrived = (False if aborted or not carried else
                (yield from self.mission.drive_to_routine(*errand.use_at,
                                                           timeout=60.0)))
-    still = self.mission.swap.module_state(self.module)["on_fork"]
+    still = carried and self.mission.swap.module_state(self.module)["on_fork"]
     # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
     # (issue #116). The robot did not set off: it was told to stop before the
     # carry drive and turned round with the tool still on the fork. Saying
     # the two the same way is the conflation `stranded` was split out of
     # "mission complete" for (issue #32) -- a reader of the log cannot tell a
     # choice from a fault, and one of them means the drive is broken.
-    self._say("USE_TOOL: " + ("turned back before setting off" if aborted
+    self._say("USE_TOOL: " + ("nothing on the fork to take there" if not carried
+                              else "turned back before setting off" if aborted
                               else "arrived" if arrived else "never got there")
-              + ("" if still else " -- but dropped the tool on the way"))
+              + ("" if still or not carried else " -- but dropped the tool on the way"))
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
+    if not carried:
+      used = {"error": f"never picked up {self.module}"}
     # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
     # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
     # agent's own instruction, and recording it as `error` would make an
     # act of caution read as a broken drawing in every count that reads
     # `errands`. `whFailed` and the reward table both key off that.
-    if aborted or self.interrupted():
+    elif aborted or self.interrupted():
       used = {"interrupted": True,
               "stopped": "interrupted",
               "reason": "stowed part-way on the agent's own interrupt"}
@@ -1808,11 +1825,15 @@ class HubLifecycle:
     # the choice and why `abortCostWh` is worth recording.
     self._in_errand = False
     self.state = "SWAP_RETURN"
-    yield from self.mission.swap_at_bay_routine(errand.station_y, "return",
-                                                module=self.module)
+    if carried:
+      yield from self.mission.swap_at_bay_routine(errand.station_y, "return",
+                                                  module=self.module)
+      self.swaps_done += 1
     stowed = self.mission.swap.module_state(self.module)["hung"]
-    self.swaps_done += 1
-    self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}")
+    self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
+              if carried else
+              "SWAP_RETURN skipped -- nothing to return"
+              + (" (the module hangs on its bay)" if stowed else ""))
     spent = max(0.0, spent_from - self.battery.energy_wh)
     estimated = self.affords(errand).cost_wh
     result = {"errand": errand.name, "module": errand.module,
@@ -4170,6 +4191,13 @@ class HubLifecycle:
       yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
     if decision.action == "idle":
+      # ...AND NOT AT THE RACK (issue #298). With a mind, the loop never
+      # reaches the standby branch that clears it, so a robot that idled
+      # after a failed pick or a charge stood at the bay standoff for the
+      # rest of the hour -- inside the other robot's `OTHER_ROBOT_CELLS`
+      # mask, against the south wall: its stows failed, its picks failed,
+      # and a drive home planned "no route to the charge bay" in 0 s.
+      yield from self._clear_rack_routine()
       yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
       return ""
     if decision.action == "recall":
