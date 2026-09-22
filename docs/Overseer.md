@@ -1002,9 +1002,21 @@ otherwise).
   (`events.ACTION_FAILURES`: `busy` / `unrunnable` / `unclaimable` /
   `unbuildable` / `beyond`, counted by cause in the record). `busy` is the
   whole rate limit and deliberately not per-row.
-- **The bootstrap**: an empty map has no `ask` row, so `_arbitrate` asks once
-  per life, only before the first decision — the world's behaviour before
-  there is a policy, never the policy.
+- **The bootstrap**: an empty map has no `ask` row, so `_arbitrate` asks
+  until the mind has answered for itself — a decision that was neither a
+  fallback nor a map row — and not a moment longer: the world's behaviour
+  before there is a policy, never the policy. ⚠ Until issue #303 it asked
+  once before the first decision *of any kind*, and a fallback is one: a
+  garbled, offline or timed-out first call was the decision, the map stayed
+  empty and the robot stood still to the `unminded` clock — 22 of 76
+  deployed lives began that way and 21 of them made exactly one decision
+  all hour. Each re-ask is an idle slice apart (`AUTONOMOUS_IDLE_S`, 60 s)
+  and inside the call budget and the cooloff; a stand-up does not re-arm
+  it, because a life that answered and left no `ask` row is unminded on
+  its own terms. ⚠ A TRUE DEATH DOES re-arm it: the map is the overseer's
+  and outlives the robot, so the next generation inherits rows it never
+  wrote, and "with its eyes open" cannot be said of a choice its
+  predecessor made.
 - **The migration.** `standing_order` keeps working for one version: it
   writes a `decision_failed` row **in place**, and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are
@@ -1618,8 +1630,9 @@ gate every document write passes (the files' `append`, the library's
   read how memory was USED and not only what it held.
 
 `askedBy` rides the state beside these: the map row that fired (`event`,
-`kind`, `value`), the once-per-life `bootstrap`, or the `loop` reaching its
-decision branch — until #221 every ask looked the same from inside.
+`kind`, `value`), the `bootstrap` (until the mind first answers for
+itself), or the `loop` reaching its decision branch — until #221 every
+ask looked the same from inside.
 
 ### Rules that travel with it
 

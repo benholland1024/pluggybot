@@ -10,6 +10,49 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A garbled first call no longer costs the life (#303) — opens when this PR is deployed
+
+**What changed on the wire.** Nothing in the mind, the prompt or the
+world; one condition in the loop. The bootstrap ask — the one consultation
+an unseeded map gets before the agent has written any `ask` row — fired
+once, before the first decision *of any kind*, and a fallback is a
+decision. Off the observatory, 2026-09-19 22:00 → 09-22 10:00 UTC: 22 of
+76 lives began with `fallback:garbled` (17), `offline` (3) or `timeout`
+(2), and 21 of them made exactly one decision all hour — the map stayed
+empty, nothing asked again, the robot stood still to the 1800 s clock,
+stood up at 300 s with the same empty map and idled to the hourly
+restart. `unminded` was 66 of 125 deaths in four days, most of it this.
+Now the bootstrap asks until the mind has answered for itself, one idle
+slice (60 s) apart and inside the call budget and the cooloff; a life that
+answered and left no `ask` row is still unminded on its own terms. A TRUE
+DEATH re-arms it — the map is the overseer's and outlives the robot, so a
+new generation inheriting an `ask`-less map would never be consulted at
+all; live as this was written, Rowan's 24th life died out of hearts at
+09:56 with an empty map and its 25th had decided nothing an hour later.
+
+Expect: `unminded` deaths to fall to the rows where the agent's own map
+has no `ask` row; lives with `decisions = 1` to disappear except where
+the endpoint stayed down; the bootstrap narration ("no rule fired and the
+mind has not answered yet -- asking") more than once at the start of a
+life whose first call failed.
+
+**What the period is for.** How much of `unminded` was the box: the
+previous period's 21-of-76 is the baseline, and what remains after it is
+the agent's — the measurement the rail was built for.
+
+**Not yet known.** WHY a first call fails three times as often as a later
+one. Measured for this PR: over three days the deployed pair garbled 7.0 %
+of mid-life calls (65 of 922) and 20.5 % of first calls (16 of 78), with
+offline and timeout on top — 29.5 % of lives began with a failed call. The
+probe on the deployed prompt (`--deployed --model
+zai-org/GLM-5.3-Flash:cheapest --calls 12`, $0.03) garbled 1 in 12, the
+mid-life rate, with the SAME signature as the deployed failures: a JSON
+object opening with stray tabs and a comma before the first key, the
+schema accepted. So the failure mode is one the model has at any point in
+a life; what is not established is why the first call carries three times
+the rate. A cold route on the router's `:cheapest` provider at process
+start is the obvious candidate and is not evidence yet.
+
 ### The boards pay again (#298) — opens when this PR is deployed
 
 **What changed on the wire.** Nothing in the mind, the prompt or the
