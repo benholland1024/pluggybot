@@ -1417,6 +1417,43 @@ what the leg before mapped (6.6 m against the LIDAR's 8 m;
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
 
+## ...and then the bed was standing in its way (issue #305)
+
+The same board, the half #298 did not reach. With the planner fixed the
+robot drives the whole way and stops 0.26 m from the use pose, and there
+it bounces: the LIDAR's front-stop reflex reverses it 0.8 s whenever
+something within `FRONT_STOP_RANGE` (0.25 m of the scanner) lies dead
+ahead, and the bed's north-east corner sat 0.23 m from whiteboard_b's use
+pose. Back off, come back, trip again, until the drive stagnates after
+10 s and the errand stows a pen that never drew. MEASURED: 13 of 13 trips
+on a flight from the hall spawn ranged the same world point, (0.42, 5.41)
+-- the bed's corner -- while `_pressing` never fired once, so this is the
+lidar reflex and not the bumper.
+
+⚠ It depended on the APPROACH ANGLE, which is why the board had ink on it
+and a history of failures at the same time: the corner has to swing
+through the ±20° front cone. From the living-room spawn, whose straight
+line to the board threads the bedroom doorway, the same errand drew
+fine -- which is how #298's flown proof passed while the deployed pair,
+coming from the rack and the hall, failed three times in a row.
+
+Two things were tried and only one works. **Gating the reflex on forward
+rolling** -- the bumper's own rule, "a pure spin is heading, which the
+gyro owns" -- was implemented and flown: no change, because reaching a
+pose 0.23 m from an obstacle means driving forward at it, which is
+exactly what the reflex is for. **Moving the furniture** is the fix: the
+bed is in the bedroom's north-west corner now, 1 cm off both walls, and
+its corner is 0.62 m from the use pose. The identical flight arrives at
+85.6 s and draws 9 of 9 strokes at 2.05 mm.
+
+**What is true now:** a board's use pose must have `FRONT_STOP_RANGE +
+LIDAR_ORIGIN[0]` = 0.35 m of clearance from any furniture, because the
+robot squares up there and the scanner rides 0.10 m ahead of the axle.
+`test_home_world.py::test_a_board_can_be_stood_in_front_of` is the bar
+and fails at the old position with the number. The walls and the board
+are exempt: the standoff is measured TO them and the robot arrives
+facing them on purpose.
+
 ## whiteboard_b was aimed at through a one-cell island (issue #298)
 
 The deployed pair paid nobody for a drawing on `whiteboard_b` in thirty

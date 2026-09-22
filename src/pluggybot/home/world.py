@@ -189,6 +189,29 @@ BOARDS = {
 
 PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 
+#: The bed, in the bedroom's NORTH-WEST CORNER (issue #305). Half-extents
+#: first, because the corner is derived from them.
+#:
+#: ⚠ IT IS IN THE CORNER SO THAT `whiteboard_b` CAN BE DRAWN ON. Standing at
+#: a board means standing at its `BOARD_STANDOFF` pose, and the LIDAR's
+#: front-stop reflex backs the robot off anything within `FRONT_STOP_RANGE`
+#: dead ahead. At (-0.5, 4.8) the bed's north-east corner sat 0.23 m from
+#: whiteboard_b's use pose (0.45, 5.62), inside that reflex: an approach
+#: that brought the corner into the front cone tripped it, reversed 0.8 s,
+#: came back and tripped again until the drive stagnated and the errand
+#: stowed an unused pen. Whether it tripped at all depended on the approach
+#: angle, so the board worked from some directions and not others -- 13 of
+#: 13 trips on a flight from the hall ranged the same point, the bed's
+#: corner, while a flight from the living-room spawn drew fine.
+#: `test_home_world.py::test_a_board_can_be_stood_in_front_of` is the bar.
+BED_HALF = (0.90, 0.60, 0.20)
+#: ...and the gap left at the two walls. "Touching" with a millimetre to
+#: spare: a box flush against a wall face is a contact pair at settle, and
+#: this file's own rule is that a bare `MjData` starts with none.
+BED_WALL_GAP = 0.01
+BED_XY = (HOUSE_X[0] + WALL_HALF_T + BED_HALF[0] + BED_WALL_GAP,
+          HOUSE_Y[1] - WALL_HALF_T - BED_HALF[1] - BED_WALL_GAP)
+
 # The reference ACTIVITY (issue #8): a pressure plate just inside the garden
 # doorway, turning on a garden light beside it (issue #93 -- it used to latch
 # a GATE in the east fence, until #68 put the street behind that gate and
@@ -771,7 +794,11 @@ def build_home_world() -> tuple[str, dict]:
   # modelled as a frame plus cushions would hand the builder the wrong one.
   add(_box_body("furniture_couch", 3.2, 0.8, 0.25, 0.50, 0.35, 0.25,
                 "0.45 0.40 0.50 1"), "furniture_couch", "couch")
-  add(_box_body("furniture_bed", -0.5, 4.8, 0.20, 0.90, 0.60, 0.20,
+  # ⚠ The bed's HEAD is its -x end (the website's `bedShape` convention since
+  # rooftop-media-2026 #337), so in this corner the pillows meet the west
+  # wall. A box carries no sign; the two repos agree on which end it is.
+  add(_box_body("furniture_bed", BED_XY[0], BED_XY[1], BED_HALF[2],
+                BED_HALF[0], BED_HALF[1], BED_HALF[2],
                 "0.55 0.50 0.55 1"), "furniture_bed", "bed")
   add(_box_body("furniture_counter", -8.5, 5.2, 0.45, 2.00, 0.30, 0.45,
                 "0.60 0.56 0.50 1"), "furniture_counter", "counter")
