@@ -141,6 +141,9 @@ class Ticket:
   thread: list[Line] = field(default_factory=list)
   closed_by: str = ""
   closed_text: str = ""
+  #: Did the CLOSING message arrive longer than `MAX_LINE`? `Line.cut`'s
+  #: terms: every text on a ticket says whether it is all of itself.
+  closed_cut: bool = False
   closed_t: float | None = None
   #: What the ledger paid at the close, and the entry's `seq` -- recorded
   #: by `pay`, so a replayed close can answer with the same figure.
@@ -158,6 +161,7 @@ class Ticket:
             "text": self.text, "t": round(float(self.t), 3), "state": self.state,
             "thread": [line.as_dict() for line in self.thread],
             "closedBy": self.closed_by, "closedText": self.closed_text,
+            "closedCut": self.closed_cut,
             "closedT": self.closed_t, "points": self.points, "seq": self.seq,
             "cut": self.cut}
 
@@ -173,6 +177,7 @@ class Ticket:
                state=str(rec.get("state", "open")), thread=thread,
                closed_by=str(rec.get("closedBy", "")),
                closed_text=str(rec.get("closedText", "")),
+               closed_cut=bool(rec.get("closedCut")),
                closed_t=rec.get("closedT"),
                points=rec.get("points"), seq=rec.get("seq"),
                cut=bool(rec.get("cut")))
@@ -195,6 +200,7 @@ class Ticket:
            "thread": [line.as_dict() for line in self.thread[-THREAD_SHOWN:]]}
     if not self.open:
       out.update({"closedBy": self.closed_by, "closedWith": self.closed_text,
+                  **({"closedWithCut": True} if self.closed_cut else {}),
                   "points": self.points})
     return out
 
@@ -326,7 +332,7 @@ class Desk:
       return ticket, False
     ticket.state = "closed"
     ticket.closed_by = _clean(by, 40)
-    ticket.closed_text, _ = _cut(text, MAX_LINE)
+    ticket.closed_text, ticket.closed_cut = _cut(text, MAX_LINE)
     ticket.closed_t = round(float(t), 3)
     self._save(ticket)
     self._trim_closed()

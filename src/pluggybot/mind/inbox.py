@@ -388,7 +388,12 @@ class Inbox:
     # sentence, and applying it to every kind cut an operator's reply --
     # and the close's own message -- to 280 characters at the door, before
     # the desk that owns the number ever saw it.
-    limit = MAX_TICKET_TEXT if kind in TICKET_INBOUND_TYPES else MAX_TEXT
+    # ⚠ ...AND ONE MORE THAN IT, `validate`'s trick on the robot's own
+    # side: the DESK owns the number and reports the cut, and a line
+    # sliced to exactly the cap here would reach it indistinguishable
+    # from one that fitted -- which is the silent truncation this whole
+    # change is about, left in the one path the website cannot reach.
+    limit = MAX_TICKET_TEXT + 1 if kind in TICKET_INBOUND_TYPES else MAX_TEXT
     text = clean(raw.get("text"), limit)
     if kind == "message" and not text:
       return None                           # nothing was actually said

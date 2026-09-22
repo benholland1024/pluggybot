@@ -2776,10 +2776,17 @@ class HubLifecycle:
       self._say(f"TICKET reply from {who} ignored: {e}")
       return
     line = ticket.thread[-1]
+    # ⚠ AN OPERATOR'S LINE SAYS WHEN IT WAS CUT TOO, and the reason is not
+    # symmetry: the ROBOT is reading this line, so a cut one is an
+    # incomplete instruction it would otherwise act on as if it were whole.
     self._ticket_event("replied", ticket, sender=tickets_desk.OPERATOR,
-                       **{"from": who}, text=line.text, ref=msg.id)
-    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}")
-    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title}): "
+                       **{"from": who}, text=line.text, ref=msg.id,
+                       **({"cut": True} if line.cut else {}))
+    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}"
+              + (f" -- CUT at {tickets_desk.MAX_LINE} characters"
+                 if line.cut else ""))
+    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title})"
+                   f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                    f"{line.text}")
     self._occur("ticket_replied")
 
@@ -2808,7 +2815,8 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      said = f": {ticket.closed_text}" if ticket.closed_text else ""
+      said = (f"{tickets_desk.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE)}"
+              f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
       self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
       self._remember(f"{who} closed my ticket {ticket.id} ({ticket.kind}: "
@@ -2816,7 +2824,8 @@ class HubLifecycle:
       self._occur("ticket_replied")
     self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
                        text=ticket.closed_text, points=ticket.points,
-                       seq=ticket.seq, ref=msg.id, paid=changed)
+                       seq=ticket.seq, ref=msg.id, paid=changed,
+                       **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
     """The operator erased a ticket (issue #284): off the desk, open or

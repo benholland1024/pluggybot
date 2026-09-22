@@ -315,7 +315,11 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
   one line), with `cut: true` where the robot wrote more than that and the
   rest was not kept. A consumer shows the mark: a reader is entitled to
   know it is not reading all of it. (So is the robot -- the sim narrates
-  it and writes it into History.)
+  it and writes it into History.) ⚠ EVERY text on a ticket carries it:
+  `replied` in either direction, and `closed` for the closing message --
+  a line the desk cut is an incomplete instruction, and the robot is the
+  one reading it. The `tickets` snapshot carries `cut` and `closedCut`
+  per ticket.
 - `replied` -- a line on the thread: `sender` (`robot` / `operator`,
   `TICKET_SENDERS`), `from` (the display name: the robot's, or the admin's
   username), `text` (the same 500, in EITHER direction -- a thread is a

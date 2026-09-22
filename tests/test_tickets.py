@@ -257,6 +257,33 @@ def test_the_cut_is_narrated_and_written_into_history(tmp_path):
     life.mission.close()
 
 
+def test_every_text_on_a_ticket_says_whether_it_is_all_of_itself(tmp_path):
+  """⚠ FOUND BY REVIEWING THE FIX: three write paths cut, and only the
+  robot's two reported it. An OPERATOR's line arriving over the socket
+  was sliced to exactly the cap at the inbox's door, so the desk that
+  owns the number could not tell it from one that fitted -- and the
+  robot then read an incomplete instruction as if it were whole. The
+  closing message threw its flag away outright.
+
+  Shown to fail without the fix: clean a ticket kind to `MAX_TICKET_TEXT`
+  rather than one more, and `cut` is False for every length."""
+  box = Inbox()
+  d = desk.Desk(tmp_path)
+  ticket = d.open("bug", "t", "report", t=0.0)
+  for n, expected in ((desk.MAX_LINE, False), (desk.MAX_LINE + 1, True), (900, True)):
+    msg = box.offer({"type": "ticket_reply", "id": f"r{n}", "from": "ben",
+                     "ticket": ticket.id, "text": "y" * n})
+    line = d.reply(ticket.id, msg.text, t=1.0, sender=desk.OPERATOR, who="ben").thread[-1]
+    assert (len(line.text), line.cut) == (desk.MAX_LINE, expected), n
+  # ...and the closing message, which is a text on a ticket like any other.
+  closed, _ = d.close(ticket.id, by="ben", text="z" * 900, t=2.0)
+  assert closed.closed_cut and len(closed.closed_text) == desk.MAX_LINE
+  assert closed.as_context()["closedWithCut"] is True
+  assert desk.Desk(tmp_path).get(ticket.id).closed_cut, "and it survives a restart"
+  fitted, _ = d.close(d.open("idea", "t", "r", t=3.0).id, by="ben", text="thanks", t=4.0)
+  assert not fitted.closed_cut and "closedWithCut" not in fitted.as_context()
+
+
 def test_the_rule_states_the_cap_and_still_prescribes_nothing():
   rule = ov.tickets_rule()
   assert str(desk.MAX_TEXT) in rule and "cut" in rule
