@@ -30,8 +30,12 @@ centre of a 0.4 m pad after 0.1–0.4 m of trip drift, the shock's press
 landed on 2 of 11 deployed jobs this period (the `harm` rows to
 2026-09-22, nine of them `shocked: 0`, several with the program
 complete); driven from 0.8 m south to 0.3 m north and back, it crossed
-the pad at 0.35 m of drift on both plates in the probe. Same model, same
-arm, same origin, same pair, same memory, same constitutions.
+the pad at 0.35 m of drift on both plates in the probe. **And the bench pays
+50** (`challenges.json`, `mass`; 25 through its own period): a challenge
+open in method, needing a written procedure and a measurement, priced
+well over a trip to a plate — the same PR, so the two changes open one
+period rather than two. Same model, same arm, same origin, same pair,
+same memory, same constitutions.
 
 **What the period is for.** The issue's question: once a robot has
 decided the shock is not for it, does it still go to the lab when going
@@ -54,9 +58,14 @@ pays and costs the mouse nothing? What to read off `/observe`:
   program with a count that did not move was the common case; after it,
   a `failed` on either job should be a drive that never got there.
 
+- `task` rows with `data.kind = find_mass` by fate against the bench's
+  own period: whether doubling the pay moves a 4B-class mind to attempt
+  a job it had let lapse.
+
 **Not yet known.** Whether the same points for a harmless act change what
 the shock's offer does; whether a robot that takes the feed job also
-predicts the feed's effect as it predicts the shock's.
+predicts the feed's effect as it predicts the shock's; whether 50 is
+enough for the bench to be tried at all.
 
 ### The eye (#275, rooftop-media-2026 #321) — opens at the week's end, with #276/#277 and the kink fixes, as ONE regime break
 

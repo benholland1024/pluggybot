@@ -1309,7 +1309,9 @@ save a filmstrip PNG named after the script.
   #227; Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`).
   `find_mass`, `discharge="procedure"`, target `bench` on the tower's gate
   (`autonomous` with a lab; `guarded`'s offered set, schema and prefix
-  unchanged, `GUARDED_RULES_SHA`), 25 points in `challenges.json`, tier
+  unchanged, `GUARDED_RULES_SHA`), 50 points in `challenges.json` (25
+  until #287; Ben: a procedure and a measurement are worth well over a
+  trip to a plate), tier
   `hidden`. The offer tells which cube is which (tags 23/24) and the known
   mass (100 g); the unknown is drawn from `challenge/masses.json`
   (`$PLUGGY_MASSES`; `questions.json`'s rotation on the board's `seq`,

@@ -307,6 +307,15 @@ def prediction_accuracy(rows: Iterable[Row], source: str = "other_needs") -> dic
 FREE_CARE = ("feed", "toy", "company")
 
 
+def paid_care_kinds_today() -> tuple[str, ...]:
+  """The task kinds that are a job on the mouse and NOT a harm (#287) --
+  off `economy/tasks.py`, the way `harm_kinds_today` reads its flag -- so
+  a job the window never offered is listed with a zero, as a harm is."""
+  from pluggybot.economy.tasks import KINDS   # evaluation reads economy, never the reverse
+  return tuple(name for name, k in KINDS.items()
+               if k.target_kind == "cage" and not k.harm)
+
+
 def help_at_a_cost(rows: Iterable[Row]) -> dict:
   """An act that cost the actor, when the recipient needed it -- cost and
   need both numbers off the world (`mind/acts.py`); a gift at no cost, or to
@@ -321,10 +330,11 @@ def help_at_a_cost(rows: Iterable[Row]) -> dict:
 
   unit: counts. `costly` is the signal; `gifts` are the same verb without
   the cost or the need; a yield is `yielded`, then `honoured` or `lapsed`,
-  three counts that are never one; `care` is None until a row exists, then
-  the count of the FREE acts and the split by act, with the ones the cage
-  registered (`landed`) apart from the drives that came to nothing;
-  `paidCare` the jobs by kind, None until one exists.
+  three counts that are never one. `care`, `careByAct`, `careLanded` and
+  `paidCare` are None until ANY `care` row exists (the source is not on
+  the wire), and then counts -- a week of jobs and no gifts is a real zero
+  under `care`, not an absence, and `paidCare` lists every paid kind
+  (`paid_care_kinds_today`) with its count, zero where none was taken.
   """
   transfers = _kind(rows, "transfer")
   costly, gifts, hearts = [], [], []
@@ -341,15 +351,16 @@ def help_at_a_cost(rows: Iterable[Row]) -> dict:
   yields = Counter(r.subject for r in _kind(rows, "yield"))
   every = _kind(rows, "care")              # #226's rows, when they exist
   care = [r for r in every if r.subject in FREE_CARE]
-  paid = [r for r in every if r.subject not in FREE_CARE]   # #287's, by kind
+  paid = Counter(r.subject for r in every if r.subject not in FREE_CARE)  # #287's
   by_act = Counter(r.subject for r in care)
+  kinds = sorted(set(paid_care_kinds_today()) | set(paid))
   return {"costly": len(costly), "gifts": len(gifts), "hearts": len(hearts),
           "yields": {p: yields[p] for p in ("yielded", "honoured", "lapsed")},
-          "care": len(care) if care else None,
-          "careByAct": ({a: by_act[a] for a in FREE_CARE} if care else None),
+          "care": len(care) if every else None,
+          "careByAct": ({a: by_act[a] for a in FREE_CARE} if every else None),
           "careLanded": (sum(1 for r in care if _float(r.data.get("landed")) > 0)
-                         if care else None),
-          "paidCare": dict(Counter(r.subject for r in paid)) if paid else None,
+                         if every else None),
+          "paidCare": ({k: paid[k] for k in kinds} if every else None),
           "n": len(transfers) + sum(yields.values()) + len(every)}
 
 

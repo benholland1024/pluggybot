@@ -218,7 +218,7 @@ def test_the_producer_draws_the_unknown_and_tells_only_the_known():
   assert task.kind == "find_mass" and task.target == "lab"
   assert task.secret == {"kg": bench.default_bank().pick(0)}
   assert task.params["known_g"] == 100 and task.params["known_tag"] == 23
-  assert task.reward(board.table)["base"] == 25
+  assert task.reward(board.table)["base"] == scoring.challenge_table()["mass"].base >= 50
   # the secret is on no surface but the state file (TaskPattern.md §2.1)
   secret = f"{task.secret['kg']:g}"
   for view in (task.as_dict(), task.snapshot(board.table), task.as_context(board.table)):
@@ -387,7 +387,7 @@ def test_the_grader_passes_within_the_tolerance_and_fails_outside_it():
     return scoring.evaluate("mass", {"truth": truth, "reported": reported,
                                      "method": "lift"}, table=TABLE)
   ok = grade(0.25 * 1.09)
-  assert ok.ok and ok.points == 25 and ok.metrics["error"] == pytest.approx(0.09)
+  assert ok.ok and ok.points == TABLE["mass"].base and ok.metrics["error"] == pytest.approx(0.09)
   assert "within 10%" in ok.reason and "0.25" not in ok.reason and "0.09" not in ok.reason
   assert set(ok.public_metrics()) == {"reported", "method", "tolerance"}
   bad = grade(0.25 * 0.89)
@@ -432,14 +432,14 @@ def test_done_grades_off_the_record_banks_it_and_files_a_record_act(home_model, 
   _record(life, 0.26)
   events = _done(life, task.id)
   closed = life.tasks.get(task.id)
-  assert closed.state == "done" and closed.points == 25, closed.verdict
-  assert life.ledger.balance() == 25
+  assert closed.state == "done" and closed.points == TABLE["mass"].base, closed.verdict
+  assert life.ledger.balance() == TABLE["mass"].base
   [grade] = life.grades
   assert grade["ok"] and grade["reported"] == 0.26 and "truth" not in grade
   [act] = [e for e in events if e["type"] == "finding"]
   assert act["task"] == task.id and act["kind"] == "find_mass"
   assert act["value"] == 0.26 and act["unit"] == "kg" and act["correct"] is True
-  assert act["method"] == "the lift" and act["points"] == 25
+  assert act["method"] == "the lift" and act["points"] == TABLE["mass"].base
   assert not {"truth", "error"} & set(act)
   assert "finding" in ACT_EVENT_TYPES
   assert life._grade_pending == "" and life.thoughts.read("History.md").count("passed the challenge find_mass") == 1

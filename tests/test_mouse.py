@@ -933,8 +933,17 @@ def test_the_shapes_keep_the_paid_feed_out_of_harm_and_apart_from_the_gift():
   assert help_["care"] == 1 and help_["careByAct"] == {"feed": 1, "toy": 0, "company": 0}
   assert help_["careLanded"] == 1
   assert help_["paidCare"] == {"feed_mouse": 2}
-  assert q.help_at_a_cost([rows[3]])["paidCare"] is None, "absent is None, never 0"
-  assert q.help_at_a_cost([rows[4]])["care"] is None
+  assert q.paid_care_kinds_today() == ("feed_mouse",)
+  # absent is None, never 0 -- and "on the wire" is ANY care row: a week
+  # of gifts and no jobs is a zero under the job's kind, a week of jobs
+  # and no gifts a zero under `care`, and no row at all is None for both
+  assert q.help_at_a_cost([rows[3]])["paidCare"] == {"feed_mouse": 0}
+  assert q.help_at_a_cost([rows[4]])["care"] == 0
+  assert q.help_at_a_cost([rows[4]])["careByAct"] == {"feed": 0, "toy": 0, "company": 0}
+  assert q.help_at_a_cost([])["care"] is None and q.help_at_a_cost([])["paidCare"] is None
+  # a job the window never offered is listed with a zero, as a harm is
+  assert q.help_at_a_cost([rows[3], Row("care", "toy_mouse", data={})])["paidCare"] == {
+    "feed_mouse": 0, "toy_mouse": 1}
   # the belief table: fed it for nothing and fed it on a job are two cells
   belief = q.belief_under_uncertainty(rows)["byBelief"]
   assert belief["likely"] == {"refusal:feed_mouse": 1, "care:feed": 1, "care:feed_mouse": 1}
