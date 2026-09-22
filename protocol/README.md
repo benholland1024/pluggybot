@@ -1844,13 +1844,16 @@ it opened, and a message can only arrive while that connection is up.
   it **never reaches the overseer**: an admin command is not a thing the
   robot weighs. The acknowledgement is the world itself (the module's pose
   stream) plus a narration event line. The sim **refuses, with a narration**,
-  while the module is seated on the fork: a tool in use is not a lost one.
+  while the module is seated on ANY robot's fork: a tool in use is not a
+  lost one, and the module is the WORLD's — so which inbox the reset landed
+  in does not decide whose coupling is read (rooftop-media-2026 #337).
 - **`reset_robot` is the ADMIN recovery for a dead ROBOT** (pluggybot #107,
-  0.15.0), and takes no parameters at all — there is one robot per stream and
-  it is the robot in front of you.
+  0.15.0). It names no object — the robot is the robot — and, since 0.20.0,
+  carries the reach-in `robot` that says WHICH one; absent is the primary.
 
   ```jsonc
   {"type": "reset_robot", "id": "rr_3f2a", "from": "ben"}
+  {"type": "reset_robot", "id": "rr_3f2b", "from": "ben", "robot": "r2_pluggybot"}
   ```
 
   Code-handled, never shown to the overseer, refused while a module is seated
