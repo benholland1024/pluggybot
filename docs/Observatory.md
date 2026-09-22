@@ -10,6 +10,48 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The eye (#275, rooftop-media-2026 #321) — opens at the week's end, with #276/#277 and the kink fixes, as ONE regime break
+
+**What changed on the wire and in the mind.** The `autonomous` prompt
+gained one action, `look`, and one section, LOOKING (Overseer.md §2h);
+the user turn gained a `seen` block (the picture the robot took last
+turn, as an IMAGE PART of the same turn, shown once) and `looksLeft`. So
+the prefix moved, and `guarded` did not. On the wire: one additive event,
+`look` (`asked` / `seen` / `none`), one inbound kind, `image` (the
+website's answer, a JPEG rendered by the site's headless renderer from
+the head camera's pose), and `build.eyes` in the header naming the model
+the pictures go to — the mind's own, GLM-5.3-Flash, which takes an image
+on the request (measured). The website files a `look` observatory row per
+resolution and runs the renderer as a service beside the sim. Same model,
+same arm, same origin, same pair. ⚠ NOT deployed mid-week: a mid-week
+deploy splits the constitution comparison (#263's period) in two.
+
+**What the period is for.** Until now the robot could describe MuJoCo's
+walls and nothing else; a visitor asking about the landscape was asking
+about a world the robot had never seen. The rule prescribes nothing —
+not to look, not what to say about it — so the first thing to read is
+whether the robot looks at all, and what it does with a picture. What to
+read:
+
+- `look` rows by outcome and by robot: how often it looks, and how often
+  the renderer answered inside the deadline (`none` with `waitS` at the
+  deadline is the renderer, not the robot);
+- the `think` of the decision AFTER a `seen` row: whether it describes
+  the picture, and whether what it describes is there (the site's
+  dressing-vs-geometry spec is the check on the site's side; a described
+  tree it then drives at is the check on this side);
+- `thought` / `message` / `draw` rows naming something only the picture
+  could have shown (a tree, a colour, the other robot's livery): a look
+  TRACED, on `ideas_traced`'s terms;
+- the cost: ~400 input tokens per picture on the turn after a look, on
+  top of the ~12 200 the deployed prompt carries.
+
+**Not yet known.** Whether two looks in a row is the right cap (a robot
+that turns and looks again is the interesting case, and there is no
+`turn` action); whether the deploy box's software GL answers inside ten
+seconds while the pair runs (the deadline is sim time, paced to real
+time); whether a robot ever looks at the OTHER robot.
+
 ### Support tickets (#284) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** The `autonomous` prompt

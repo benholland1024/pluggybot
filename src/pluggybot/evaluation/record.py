@@ -140,7 +140,8 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    origin: str | None = None,
                    hashes: dict | None = None,
                    commit: str | None = None,
-                   constitutions: dict | None = None) -> dict:
+                   constitutions: dict | None = None,
+                   eyes: str | None = None) -> dict:
   """WHICH BUILD produced a stream, in the experiment's own vocabulary
   (issue #132; docs/Evaluation.md §5).
 
@@ -201,6 +202,14 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # header before this carry no such block.
     **({"constitutions": {root: dict(c) for root, c in constitutions.items()}}
        if constitutions else {}),
+    # ...and WHICH MODEL LOOKED (issue #275): the id that was handed the
+    # pictures the robot took. Today the MIND'S OWN (the deployed model
+    # takes an image on the request), so it reads the same as `model` --
+    # and it is a field of its own because a captioner in front of a
+    # text-only mind would be a different regime under the same `model`:
+    # what the robot "saw" then depends on it. ABSENT where the arm cannot
+    # look, on the rung's terms.
+    **({"eyes": eyes} if eyes else {}),
   }
 
 
@@ -966,6 +975,9 @@ def build_record(config: dict, result: dict | None, events: list[dict],
         # ...and the library's reads (issue #216), whole, for the same
         # shape's sake: the `read` rows the observatory files.
         "reads": list(result.get("reads") or ()),
+        # ...and the eye's looks (issue #275), likewise: the `look` rows
+        # as the wire carries them, never the bytes.
+        "looks": list(result.get("looks") or ()),
         # ...and the support tickets' events (issue #284), likewise.
         "tickets": list(result.get("tickets") or ())}
        if result is not None else {}),

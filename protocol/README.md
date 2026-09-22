@@ -351,6 +351,67 @@ a process, a replayed close pays nothing, and an `unknown` settles the
 row for good. A delete is best effort and the `tickets` snapshot is the
 repair.
 
+### 0.21.0, additive: the eye -- a `look` event per picture the robot asked for, and the `image` inbound kind
+
+pluggybot #275; docs/Overseer.md §2h; the site's half is rooftop-media-2026
+#321. On the `autonomous` arm the robot may `look`: it stands still, the
+sim asks the website for a picture from its head camera's pose, and the
+website renders the world AS IT DRAWS IT (TresJS -- the fence, the trees,
+the furniture art; MuJoCo is geometry, TresJS is appearance) and answers
+on the ingest socket. The picture is handed to the MIND as an image on
+its next turn, never as text: an image from the camera pose is the
+sensor, and a caption would be the wire discovering what a sensor should.
+One event type, one inbound kind, additive; no header change beyond
+`accepts` and `build.eyes`, no bump.
+
+**Upstream: the `look` event** -- `{robot, t, ref, outcome, camera, at,
+bytes, waitS, why}`, `outcome` one of `LOOK_OUTCOMES`. The SAME row is
+sent twice: as **`asked`** the moment the request goes out, and again as
+**`seen`** (a picture came: `bytes` is its size, `waitS` the sim seconds it
+took) or **`none`** (nothing came inside the deadline, `LOOK_S` 10 sim s;
+`why` is `unanswered`). `ref` is the request's id, `look:<root>:<n>`, per
+robot root, and is what an answer names. `camera` is the head camera's
+WORLD pose for a renderer to stand in -- `pos` (metres), `forward` and `up`
+(unit vectors, MuJoCo's Z-up world frame: a three.js consumer sets
+`position` and `up` and looks at `position + forward` after the root's
+Z-up -> Y-up rotation), `fovy` (degrees, vertical, 41 on this robot), and
+the `width` x `height` asked for (640 x 480). `at` is where the robot
+stood (`x`, `y`, `headingDeg`). A renderer answers the `asked` row and
+ignores the rest; a consumer that files events by kind stores the
+RESOLUTION (`seen` / `none`) as the row's word, and "did it look, and what
+did it say about it" is that row beside the next decision's `think`.
+
+```jsonc
+{"type": "look", "robot": "pluggybot", "t": 412.5, "ref": "look:pluggybot:3",
+ "outcome": "asked", "camera": {"pos": [3.12, 4.5, 0.18],
+ "forward": [0.7071, 0.7071, 0.0], "up": [0.0, 0.0, 1.0], "fovy": 41.0,
+ "width": 640, "height": 480}, "at": {"x": 3.05, "y": 4.47, "headingDeg": 45.0},
+ "bytes": 0, "waitS": 0.0, "why": ""}
+{"type": "look", "robot": "pluggybot", "t": 412.5, "ref": "look:pluggybot:3",
+ "outcome": "seen", "camera": {...}, "at": {...}, "bytes": 18432,
+ "waitS": 1.4, "why": ""}
+```
+
+**Downstream: the `image` kind** (`INBOUND_TYPES`; NOT `CODE_HANDLED_TYPES`
+-- a picture is for a mind, and only an `autonomous` sim ever asks). A
+pair's second robot is addressed by `robot` (0.19.0's reach-in rule).
+`jpeg` is the picture, base64: at most `MAX_IMAGE_BYTES` (400 kB) decoded,
+and it must start as a JPEG or it is dropped at the door.
+
+```jsonc
+{"type": "image", "robot": "pluggybot", "ref": "look:pluggybot:3",
+ "jpeg": "/9j/4AAQSkZJRgAB..."}
+```
+
+A picture is taken up only for the request that is OPEN: one that timed
+out, was already answered, or was never made is dropped and counted (a
+late renderer must not hand the robot a picture of where it used to be),
+so a website should render promptly or not at all, and never retry an old
+`ref`. `build.eyes` (the header, `build_identity`) names the model the
+pictures are handed to -- today the mind's own id, absent on an arm that
+cannot look. The fixtures are not re-recorded: nothing in a header moved
+on the recorded arms.
+
 ### 0.21.0, additive: the library -- a `read` event per page the robot asked for
 
 pluggybot #216; docs/Overseer.md §2e. On the `autonomous` arm the robot may
@@ -1059,7 +1120,7 @@ bump for this half**: a single-robot stream is byte-identical to what it was
   (sparse, as ever) and its status record (`state`, `battery`, ...).
 - **Every event says whose it is** in `robot`: `death`, `reset`, `thought`,
   `journal` (a `think` since 0.21.0), `goals`, `procedure`, `earned`,
-  `intervention`, `recall`, `read`, narration lines.
+  `intervention`, `recall`, `read`, `look`, narration lines.
   `task_claimed` on a job with roles carries `claims` (`{"hider":
   "pluggybot", "seeker": "r2_pluggybot"}`); a task's `claims` also rides the
   `tasks` block.

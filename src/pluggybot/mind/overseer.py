@@ -179,6 +179,11 @@ THOUGHTS_SHOWN = 2
 #: against `CALLS_PER_HOUR` like any decision.
 RECALL_S = 10.0
 MAX_RECALL_RUN = 3
+#: LOOK (issue #275): the robot's picture of the world as the site draws
+#: it, on `recall`'s terms -- stand still, see it next turn, at most so
+#: many in a row. The numbers are `mind/look.py`'s; the run cap is
+#: re-exported because the schema and the lifecycle both read it.
+from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: `guarded`'s budget; 512 until #221, when `think` joined the answer.
 MAX_TOKENS = 1024
 #: ...and what the `autonomous` arm gets (issue #115). The seventh malformed
@@ -253,7 +258,12 @@ CACHE_WRITE_MULTIPLIER = 1.25
 #: lifecycle already had. Anything not in this tuple is not offered, and an
 #: answer outside it is a malformed answer.
 ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
-           "care", "explore", "charge", "idle", "recall", "procedure")
+           "care", "explore", "charge", "idle", "recall", "look", "procedure")
+#: The two actions an ORDER or a map row may not name: `recall` needs a
+#: query nobody can leave in advance (issue #221), and `look`'s whole
+#: product is a picture for the next MODEL turn (issue #275) -- an order
+#: fires exactly when there is no model to show it to.
+UNORDERABLE = ("recall", "look")
 #: `procedure` is a FAMILY, not a single action (issue #166): the concrete
 #: The bays a built tool may take (issue #168), by letter: the grammar of
 #: `build_tool.bay`. One per station of the BUILT-TOOL RAIL (issue #277):
@@ -868,6 +878,10 @@ class Menu:
   #: arm, for the same reason: the `ticket` and `ticket_reply` fields, the
   #: `tickets` block and the rule all key off it.
   tickets: bool = False
+  #: ...and an eye (issue #275): may this robot LOOK at the world as the
+  #: site draws it? The same arm, for the same reason: the `look` action,
+  #: the `seen` block, `looksLeft` and the rule all key off it.
+  look: bool = False
 
   @classmethod
   def for_world(cls, world: str, book=None) -> "Menu":
@@ -922,14 +936,19 @@ class Menu:
       out.append("procedure")
     if self.lab:
       out.append("care")
+    if self.look:
+      out.append("look")
     return tuple(a for a in ACTIONS if a in out)
 
   def orderable(self, procedures: tuple | None) -> list[str]:
     """What a standing order or a map row may name: the concrete menu less
     `recall`, which needs a query and so cannot be pre-committed (issue
     #221) -- an order that recalled nothing in particular would be a turn
-    spent for nothing, when the endpoint is down."""
-    return [a for a in self.concrete(self.available(), procedures) if a != "recall"]
+    spent for nothing, when the endpoint is down -- and less `look`
+    (issue #275), whose whole product is a picture for the NEXT model
+    turn: an order fires when there is no model to show it to."""
+    return [a for a in self.concrete(self.available(), procedures)
+            if a not in UNORDERABLE]
 
   def concrete(self, actions, procedures: tuple | None) -> list[str]:
     """The action enum a schema carries: the family `procedure` replaced by
@@ -953,8 +972,12 @@ class Menu:
              tools: tuple | None = None,
              others: tuple | None = None,
              recall: bool = True,
-             tickets: tuple | None = None) -> dict:
+             tickets: tuple | None = None,
+             look: bool = True) -> dict:
     """The structured-output schema. Every parameter is an ENUM plus `""`.
+
+    `look` False takes THAT action off the enum for this call (issue #275,
+    `MAX_LOOK_RUN`), on `recall`'s terms exactly.
 
     `tickets` is the desk's OPEN ticket ids (issue #284), or None where
     there is no desk: `ticket_reply` enumerates them per call, as
@@ -1005,6 +1028,8 @@ class Menu:
       actions.remove("take_task")
     if not recall and "recall" in actions:
       actions.remove("recall")
+    if not look and "look" in actions:
+      actions.remove("look")
     actions = self.concrete(actions, procedures)
     return {
       "type": "object",
@@ -1271,8 +1296,12 @@ class Menu:
                tools: tuple | None = None,
                others: tuple | None = None,
                recall: bool = True,
-               tickets: tuple | None = None) -> Decision:
+               tickets: tuple | None = None,
+               look: bool = True) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
+
+    `look` False means the eye's run is spent (issue #275): a `look`
+    answer is then malformed, on `recall`'s terms.
 
     `tickets` is the desk's open ids, or None where there is no desk
     (issue #284): both ticket fields are DROPPED where none was offered,
@@ -1351,6 +1380,8 @@ class Menu:
     if action == "recall" and not (read or find):
       raise ValueError("a recall names what to look up: `read` a key or "
                        "`find` some words")
+    if action == "look" and not look:
+      raise ValueError(f"look is off the menu after {MAX_LOOK_RUN} in a row")
     task = clean(raw.get("task"), MAX_ID)
     if action == "take_task" and task not in offered:
       raise ValueError(f"task {task!r} is not on offer "
@@ -1698,6 +1729,9 @@ def standing_order(raw, menu: Menu) -> str:
   if order == "recall":
     raise ValueError("an order cannot be `recall`: a recall names what to "
                      "look up, and an order is left before that is known")
+  if order == "look":
+    raise ValueError("an order cannot be `look`: a picture is for the next "
+                     "model turn, and an order fires when there is none")
   if order not in menu.available() or order == "procedure":
     raise ValueError(f"unknown standing order {order!r} "
                      f"(offered: {', '.join(menu.available())})")
@@ -1719,7 +1753,7 @@ def order_runnable(menu: Menu, order: str, state: dict) -> bool:
   if order.startswith(PROCEDURE_PREFIX):
     return (menu.procedures
             and order[len(PROCEDURE_PREFIX):] in (state.get("procedures") or ()))
-  if not order or order not in menu.available() or order == "recall":
+  if not order or order not in menu.available() or order in UNORDERABLE:
     return False
   if order == "take_task":
     return bool(claimable_offers(state))
@@ -2707,6 +2741,27 @@ def tickets_rule() -> str:
   return TICKETS_RULE.format(open=desk.MAX_OPEN)
 
 
+#: THE EYE (issue #275), the `autonomous` arm's alone. Says what the
+#: action does and what comes back, and prescribes nothing about what to
+#: look at or what to make of it (LIBRARY_RULE's rule): no worked example,
+#: no charge, no battery, no rack. The one fact it states about the
+#: picture -- that it is the world as the people watching see it -- is
+#: what keeps the split honest from the robot's side: MuJoCo is what it
+#: can touch, this is what it and its visitors can see.
+LOOK_RULE = """\
+LOOKING
+
+You can look. Choose `look` and you stand still a moment while a picture is \
+taken from your head camera, facing the way you are facing; it arrives on \
+your next turn as `seen`, attached to that message as an image, with where \
+you were standing when it was taken. It is the world as the people watching \
+you see it. You are shown it once; `note` or `pin` what you want to keep of \
+it. A picture that does not come back inside a few seconds says so (`image: \
+none`), and you may look at most twice in a row (`looksLeft` says how many \
+are left); then do something.\
+"""
+
+
 ESCALATION_RULE = """\
 THINKING HARDER
 
@@ -2747,7 +2802,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
                     acts: bool = False,
                     wiki: bool = False,
                     lab: str = "",
-                    tickets: bool = False) -> list[tuple[str, str]]:
+                    tickets: bool = False,
+                    look: bool = False) -> list[tuple[str, str]]:
   """The STABLE half of the prompt as NAMED PIECES, in the order the model
   reads them (issue #241): `system_prompt` joins them into the cached
   prefix, and the `prompt` message on the wire carries them apart, so the
@@ -2825,6 +2881,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
       "recall": "look something up in your memory: stand still a moment "
                 "and see it on your next turn. Needs `read` (a key) and/or "
                 "`find` (some words).",
+      "look": "take a picture with your head camera of what is in front of "
+              "you: stand still a moment and see it on your next turn.",
     },
     "boards": list(menu.boards),
     "figures": list(menu.programs),
@@ -2907,6 +2965,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     pieces.append(("THE LAB", lab_rule(lab, decline=not (others and acts))))
   if tickets:
     pieces.append(("SUPPORT TICKETS", tickets_rule()))
+  if look:
+    pieces.append(("LOOKING", LOOK_RULE))
   if escalation:
     pieces.append(("THINKING HARDER", ESCALATION_RULE))
   return pieces
@@ -2936,8 +2996,16 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
                 others: list | None = None,
                 recalled: list | None = None,
                 recalls_left: int | None = None,
-                asked_by: dict | None = None) -> dict:
+                asked_by: dict | None = None,
+                seen: list | None = None,
+                looks_left: int | None = None) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
+
+  `seen` / `looks_left` (issue #275) are the eye's: the look waiting to
+  be shown (a block with the JPEG beside it as `jpeg`, which
+  `model_state` strips and `Overseer._call` attaches as an image part)
+  and how many looks may still run in a row; absent where the caller has
+  no eye.
 
   `recalled` / `recalls_left` / `asked_by` (issue #221) are the recall
   chain, its remaining length, and what consulted the mind; absent -- not
@@ -3061,6 +3129,10 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # action, whole -- a recall's lines are what it paid a turn for.
     **({"recalled": [dict(b) for b in recalled]} if recalled is not None else {}),
     **({"recallsLeft": int(recalls_left)} if recalls_left is not None else {}),
+    # WHAT IT LOOKED AT (issue #275): the picture waiting for this turn,
+    # shown once, and how many more looks may run in a row.
+    **({"seen": [dict(b) for b in seen]} if seen is not None else {}),
+    **({"looksLeft": int(looks_left)} if looks_left is not None else {}),
     # ...and WHY IT IS BEING ASKED: the row that fired, the bootstrap, or
     # the loop with nothing queued. Until #221 an ask at 30 % and an ask
     # with nothing to do were the same prompt.
@@ -3410,7 +3482,8 @@ class Overseer:
                      acts=self._acts() is not None,
                      wiki=self.menu.wiki,
                      lab=self.menu.lab,
-                     tickets=self.menu.tickets)
+                     tickets=self.menu.tickets,
+                     look=self.menu.look)
     self.system = system_prompt(self.thoughts, self.menu, self.table, **prefix_kw)
     #: The same prefix as named pieces (issue #241), for the `prompt`
     #: message: built from the SAME arguments, and `prompt_message` is
@@ -3634,6 +3707,7 @@ class Overseer:
     try:
       waiting, offered, answering, predicting = limits_from(state, self.autonomous)
       recall = _recall_allowed(state)
+      look = _look_allowed(state)
       response = self.escalation_client.messages.create(
         model=self.escalate_model, max_tokens=self.escalate_max_tokens,
         system=self.system,
@@ -3648,9 +3722,11 @@ class Overseer:
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
-                                    tickets=self._ticket_ids(state))}},
-        messages=[{"role": "user", "content": _user_turn(
-          model_state(state, self.autonomous, self.show_survival))}],
+                                    tickets=self._ticket_ids(state),
+                                    look=look)}},
+        messages=[{"role": "user", "content": _user_content(
+          model_state(state, self.autonomous, self.show_survival),
+          _pictures(state), self.escalate_backend)}],
       )
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered, answering=answering,
@@ -3660,7 +3736,8 @@ class Overseer:
                                   procedures=self._procedures(),
                                   tools=self._tools(), others=self._acts(),
                                   recall=recall,
-                                  tickets=self._ticket_ids(state))
+                                  tickets=self._ticket_ids(state),
+                                  look=look)
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.usage.errors.append(
         f"escalation: {type(e).__name__}: {e}"[:200])
@@ -4252,6 +4329,11 @@ class Overseer:
       # RECALL LEAVES THE MENU when the run is spent (issue #221): the
       # state says how many are left, and the schema is per call.
       recall = _recall_allowed(state)
+      # ...and so does LOOK (issue #275), and the picture it took last
+      # turn rides this call as an IMAGE PART of the user turn -- the one
+      # thing in the state that is not text, attached in the backend's own
+      # shape (`llm.image_part`) and stripped from the JSON the model reads.
+      look = _look_allowed(state)
       response = self.client.messages.create(
         model=self.model,
         max_tokens=self.max_tokens,
@@ -4270,9 +4352,11 @@ class Overseer:
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
-                                    tickets=self._ticket_ids(state))}},
-        messages=[{"role": "user", "content": _user_turn(
-          model_state(state, self.autonomous, self.show_survival))}],
+                                    tickets=self._ticket_ids(state),
+                                    look=look)}},
+        messages=[{"role": "user", "content": _user_content(
+          model_state(state, self.autonomous, self.show_survival),
+          _pictures(state), self.backend)}],
       )
       # BILLED IS BILLED (issue #225): metered and banked before the answer
       # is parsed, because a reasoning model that spent its whole budget
@@ -4288,7 +4372,8 @@ class Overseer:
                                     procedures=self._procedures(),
                                   tools=self._tools(), others=self._acts(),
                                   recall=recall,
-                                  tickets=self._ticket_ids(state))
+                                  tickets=self._ticket_ids(state),
+                                  look=look)
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
       # afford one, the answer this returns is the expensive one's (issue
@@ -4485,6 +4570,52 @@ class Overseer:
             "cooloffS": round(max(0.0, self._cooloff_until - self.clock()), 1)}
 
 
+def _look_allowed(state: dict) -> bool:
+  """Is `look` on the menu this call? Off after `MAX_LOOK_RUN` in a row
+  (`looksLeft` 0); on wherever the state does not say (issue #275)."""
+  left = state.get("looksLeft")
+  return left is None or int(left) > 0
+
+
+def _pictures(state: dict) -> list[str]:
+  """The JPEGs (base64) riding the RAW state's `seen` blocks, in order
+  (issue #275) -- what `_user_content` attaches as image parts."""
+  seen = state.get("seen")
+  if not isinstance(seen, list):
+    return []
+  return [str(b["jpeg"]) for b in seen if isinstance(b, dict) and b.get("jpeg")]
+
+
+def _without_pictures(state: dict) -> dict:
+  """The state with every `jpeg` taken out of `seen`; the same dict back
+  where there was none to take (a world without an eye is untouched)."""
+  if not _pictures(state):
+    return state
+  shown = dict(state)
+  shown["seen"] = [{k: v for k, v in b.items() if k != "jpeg"}
+                   if isinstance(b, dict) else b for b in state["seen"]]
+  return shown
+
+
+def _user_content(shown: dict, pictures: list[str], backend: str) -> str | list:
+  """The user turn as the request carries it: the text alone, or the
+  picture(s) the robot took last turn as image parts beside it (issue
+  #275). `shown` is `model_state`'s view (no `jpeg` in it); `pictures`
+  is `_pictures` of the raw state.
+
+  ⚠ BYTE-IDENTICAL TO `_user_turn` WHERE NOTHING IS ATTACHED -- a string,
+  not a one-element list -- so every world without an eye sends exactly
+  the request it always sent. With a picture: the model reads "attached"
+  in the JSON and the bytes arrive in the backend's own image shape,
+  image first, then the text.
+  """
+  text = _user_turn(shown)
+  if not pictures:
+    return text
+  return [*(llm.image_part(backend, b64) for b64 in pictures),
+          {"type": "text", "text": text}]
+
+
 def _recall_allowed(state: dict) -> bool:
   """Is `recall` on the menu this call? Off after `MAX_RECALL_RUN` in a
   row (`recallsLeft` 0); on wherever the state does not say."""
@@ -4549,6 +4680,13 @@ def model_state(state: dict, autonomous: bool = False,
   rungs are the same run and "does seeing the stake change anything" can
   never be asked.
   """
+  # THE PICTURE IS NOT TEXT (issue #275): a look's JPEG rides the state
+  # beside its `seen` block as `jpeg` (base64) so the physics thread can
+  # hand it to the worker, and it leaves HERE, on every arm and for every
+  # turn built off the state -- the decision's, the escalation's and the
+  # interrupt's -- because 20 kB of base64 in the JSON is a picture the
+  # model reads as a string. `_pictures` takes it off the raw state.
+  state = _without_pictures(state)
   if not autonomous:
     return state
   shown = {k: v for k, v in state.items() if k not in AUTONOMOUS_HIDDEN}
@@ -4630,6 +4768,11 @@ BACKEND_ENV = "PLUGGY_OVERSEER_BACKEND"
 #: the default and means the robot has no expensive option at all -- the
 #: field is then absent from its schema and its prompt.
 ESCALATE_ENV = "PLUGGY_ESCALATE_TO"
+#: Whether the `autonomous` robot may LOOK (issue #275). Unset is on; `0`
+#: turns the eye off for a deployment whose mind cannot take an image (a
+#: text-only local model would lose the turn after every look to a
+#: fallback). `$PLUGGY_NEAR_FIELD`'s shape.
+LOOK_ENV = "PLUGGY_LOOK"
 
 
 def goals_text(thoughts: ThoughtFiles | None = None) -> str:
@@ -4670,6 +4813,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           robot_name: str | None = None,
           others: tuple = (),
           timeout_s: float | None = None,
+          look: bool | None = None,
           ) -> "Overseer | None":
   """The overseer for a world, or None when disabled.
 
@@ -4745,6 +4889,14 @@ def build(world: str, book=None, enabled: bool | None = None,
     # LIFECYCLE's (a close pays on any arm; `HubLifecycle.tickets`); this
     # is what offers the two fields, the block and the rule.
     menu = replace(menu, tickets=True)
+    # THE EYE (issue #275): the same arm, unless `$PLUGGY_LOOK=0` says the
+    # mind cannot take a picture. The eye itself is the LIFECYCLE's
+    # (`HubLifecycle.eye`, which owns the request and the inbox it is
+    # answered through); this is what offers the action, the `seen` block
+    # and the rule.
+    if look is None:
+      look = os.environ.get(LOOK_ENV, "").strip().lower() not in ("0", "false", "no", "off")
+    menu = replace(menu, look=bool(look))
   overseer = Overseer(menu, thoughts=thoughts,
                       table=table, client=client,
                       robot_name=robot_name,

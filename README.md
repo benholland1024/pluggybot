@@ -32,6 +32,9 @@ stateDiagram-v2
     DECIDE --> RECALL : chose recall
     RECALL --> DECIDE
 
+    DECIDE --> LOOK : chose look
+    LOOK --> DECIDE : a picture came ·<br/>or none inside 10 s
+
     DECIDE --> SWAP_PICK : an errand is queued
     SWAP_PICK --> USE_TOOL : module on the fork
     USE_TOOL --> SWAP_RETURN : finished · or interrupted<br/>(battery_below ·<br/>points_below)
@@ -62,7 +65,10 @@ agent's own event map says whether to consult it (`EVENT_TYPES`:
 and abort means stow. An errand is queued by a standing order, a decision, a
 task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
 by text, standing still; what it found rides the next turn, at most three
-recalls in a row. A death (`DEATH_CAUSES`) can land in any moving state.
+recalls in a row. `LOOK` (issue #275) asks the website for a picture from
+the head camera's pose and stands still until it comes; the picture rides
+the next turn as an image, at most two looks in a row. A death
+(`DEATH_CAUSES`) can land in any moving state.
 On `autonomous` the agent also writes code and builds tools: a procedure it
 defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
 a tool it specified (issue #168) is built where it stands and hung in a bay.
