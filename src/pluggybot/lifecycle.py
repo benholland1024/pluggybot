@@ -2720,9 +2720,23 @@ class HubLifecycle:
         self._remember(f"tried to open a ticket ({f.get('kind') or '?'}: "
                        f"{f.get('title') or f.get('text', '')[:40]}) -- refused: {e}")
       else:
-        self._ticket_event("opened", ticket, text=ticket.text)
-        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}")
-        self._remember(f"opened ticket {ticket.id} ({ticket.kind}): "
+        self._ticket_event("opened", ticket, text=ticket.text,
+                           **({"cut": True} if ticket.cut else {}))
+        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}"
+                  + (f" -- CUT at {tickets_desk.MAX_TEXT} characters"
+                     if ticket.cut else ""))
+        # ⚠ THE CUT GOES IN HISTORY (the length follow-up on #284), which
+        # the robot reads back: a truncation it is not told about is one
+        # it goes on believing it filed whole, and four of the deployed
+        # robot's updates ended mid-word that way.
+        #
+        # ⚠ AND IT GOES BEFORE THE TEXT. A History line is capped at
+        # `MAX_LINE_CHARS` (400) and a ticket's text is 500, so this line
+        # is ALWAYS trimmed and a mark at its end is the first thing
+        # lost -- the same defect one surface over. The record keeps the
+        # text whole; History keeps what happened to it.
+        self._remember(f"opened ticket {ticket.id} ({ticket.kind})"
+                       f"{tickets_desk.cut_note(ticket.cut, tickets_desk.MAX_TEXT)}: "
                        f"{ticket.title} -- {ticket.text}")
     if decision.ticket_reply:
       r = decision.ticket_reply
@@ -2736,9 +2750,14 @@ class HubLifecycle:
       else:
         line = ticket.thread[-1]
         self._ticket_event("replied", ticket, sender=tickets_desk.ROBOT,
-                           **{"from": self.robot_name}, text=line.text)
-        self._say(f"TICKET {ticket.id} -- replied: {line.text}")
-        self._remember(f"replied on ticket {ticket.id} ({ticket.title}): {line.text}")
+                           **{"from": self.robot_name}, text=line.text,
+                           **({"cut": True} if line.cut else {}))
+        self._say(f"TICKET {ticket.id} -- replied: {line.text}"
+                  + (f" -- CUT at {tickets_desk.MAX_LINE} characters"
+                     if line.cut else ""))
+        self._remember(f"replied on ticket {ticket.id} ({ticket.title})"
+                       f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
+                       f"{line.text}")
 
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto

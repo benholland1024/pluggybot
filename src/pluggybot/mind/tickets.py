@@ -86,16 +86,48 @@ def _clean(value: object, limit: int) -> str:
   return clean(value, limit)
 
 
+def _cut(value: object, limit: int) -> tuple[str, bool]:
+  """The text, and whether it arrived LONGER than the cap.
+
+  ⚠ A SILENT TRUNCATION IS THE DEFECT THIS EXISTS FOR (issue #284, the
+  length follow-up). The first build sliced and said nothing, so four of
+  the deployed robot's updates ended mid-word and it had no way to know:
+  a robot that cannot tell its report was cut goes on believing it filed
+  the whole thing. `wiki.Page.cut` is the same answer one surface over.
+
+  The caller hands in one character MORE than the cap where it can
+  (`lang.MAX_SOURCE_CHARS + 1`'s trick, in `Menu.validate`), so "cleaned
+  to the cap and one over" is the evidence. Cleaning collapses
+  whitespace, so this reports THAT there was more, never how much more.
+  """
+  text = _clean(value, limit + 1)
+  return (text[:limit], True) if len(text) > limit else (text, False)
+
+
+def cut_note(cut: bool, limit: int) -> str:
+  """What History and the narration say when a text was cut -- the ROBOT's
+  own words, in its own record, so a later turn reads what happened as
+  well as what was kept. Empty where nothing was cut: the mark means
+  something only if it is absent when the text fitted."""
+  return (f", cut at {limit} characters (I wrote more and the rest was "
+          "not kept)" if cut else "")
+
+
 @dataclass
 class Line:
   sender: str                        # `robot` / `operator`
   who: str                           # the display name
   text: str
   t: float
+  #: Did this line arrive longer than `MAX_LINE`? Kept on the record and
+  #: shown wherever the line is, so whoever reads it knows they are not
+  #: reading all of it.
+  cut: bool = False
 
   def as_dict(self) -> dict:
     return {"sender": self.sender, "from": self.who, "text": self.text,
-            "t": round(float(self.t), 3)}
+            "t": round(float(self.t), 3),
+            **({"cut": True} if self.cut else {})}
 
 
 @dataclass
@@ -114,6 +146,8 @@ class Ticket:
   #: by `pay`, so a replayed close can answer with the same figure.
   points: int | None = None
   seq: int | None = None
+  #: Did the REPORT arrive longer than `MAX_TEXT`? `Line.cut`'s terms.
+  cut: bool = False
 
   @property
   def open(self) -> bool:
@@ -124,12 +158,14 @@ class Ticket:
             "text": self.text, "t": round(float(self.t), 3), "state": self.state,
             "thread": [line.as_dict() for line in self.thread],
             "closedBy": self.closed_by, "closedText": self.closed_text,
-            "closedT": self.closed_t, "points": self.points, "seq": self.seq}
+            "closedT": self.closed_t, "points": self.points, "seq": self.seq,
+            "cut": self.cut}
 
   @classmethod
   def from_record(cls, rec: dict) -> "Ticket":
     thread = [Line(str(x.get("sender", OPERATOR)), str(x.get("from", "")),
-                   str(x.get("text", "")), float(x.get("t", 0.0)))
+                   str(x.get("text", "")), float(x.get("t", 0.0)),
+                   bool(x.get("cut")))
               for x in rec.get("thread", ()) if isinstance(x, dict)]
     return cls(id=str(rec["id"]), kind=str(rec.get("kind", "")),
                title=str(rec.get("title", "")), text=str(rec.get("text", "")),
@@ -138,7 +174,8 @@ class Ticket:
                closed_by=str(rec.get("closedBy", "")),
                closed_text=str(rec.get("closedText", "")),
                closed_t=rec.get("closedT"),
-               points=rec.get("points"), seq=rec.get("seq"))
+               points=rec.get("points"), seq=rec.get("seq"),
+               cut=bool(rec.get("cut")))
 
   def as_dict(self) -> dict:
     """The wire's shape: the record, whole (the `tickets` message)."""
@@ -151,6 +188,10 @@ class Ticket:
     with what words, and what it paid."""
     out = {"id": self.id, "kind": self.kind, "title": self.title,
            "text": self.text, "openedAtS": round(float(self.t), 1),
+           # ⚠ SHOWN, not only narrated: the robot reads this block on
+           # every turn, and a report it can see was cut is one it can
+           # follow up on rather than one it believes it filed whole.
+           **({"cut": True} if self.cut else {}),
            "thread": [line.as_dict() for line in self.thread[-THREAD_SHOWN:]]}
     if not self.open:
       out.update({"closedBy": self.closed_by, "closedWith": self.closed_text,
@@ -226,7 +267,7 @@ class Desk:
     the one gate every document write passes."""
     kind = str(kind or "").strip()
     title = _clean(title, MAX_TITLE)
-    text = _clean(text, MAX_TEXT)
+    text, cut = _cut(text, MAX_TEXT)
     reasons = []
     if kind not in TICKET_KINDS:
       reasons.append(f"a ticket's kind is one of {', '.join(TICKET_KINDS)}, "
@@ -244,7 +285,8 @@ class Desk:
                           "will be taken"]) from None
     self.seq += 1
     ticket = Ticket(id=f"tk_{self.seq:04d}", kind=kind,
-                    title=title or text[:MAX_TITLE], text=text, t=float(t))
+                    title=title or text[:MAX_TITLE], text=text, t=float(t),
+                    cut=cut)
     self.tickets[ticket.id] = ticket
     self._save_counter()
     self._save(ticket)
@@ -256,7 +298,7 @@ class Desk:
     (`sender` is stated by the caller, never read off the wire). The
     thread keeps its newest `MAX_THREAD` lines."""
     ticket = self.get(ticket_id)
-    text = _clean(text, MAX_LINE)
+    text, cut = _cut(text, MAX_LINE)
     if ticket is None:
       raise self._refuse([f"no ticket {ticket_id!r} on the desk"])
     if not ticket.open:
@@ -265,7 +307,7 @@ class Desk:
       raise self._refuse(["a reply says something: `text` is empty"])
     if sender not in TICKET_SENDERS:
       raise ValueError(f"a thread line's sender is one of {TICKET_SENDERS}")
-    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t)))
+    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut))
     del ticket.thread[:-MAX_THREAD]
     self._save(ticket)
     return ticket
@@ -284,7 +326,7 @@ class Desk:
       return ticket, False
     ticket.state = "closed"
     ticket.closed_by = _clean(by, 40)
-    ticket.closed_text = _clean(text, MAX_LINE)
+    ticket.closed_text, _ = _cut(text, MAX_LINE)
     ticket.closed_t = round(float(t), 3)
     self._save(ticket)
     self._trim_closed()

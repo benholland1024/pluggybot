@@ -529,6 +529,10 @@ YIELD_PHASES = ("yielded", "honoured", "lapsed")
 #:              `robot` (the robot's `ticket_reply`) or `operator` (an
 #:              admin's `ticket_reply`, `ref` echoing that message's id so
 #:              the website settles the row it is holding);
+#: `opened` and a robot's `replied` carry `cut: true` where the text
+#: arrived longer than `MAX_TICKET_CHARS` and the rest was not kept: a
+#: reader is entitled to know it is not reading all of it, and so is the
+#: robot (it is narrated and written to History).
 #:   `closed`   the operator ended it: `from`, `text` (the closing message),
 #:              `points` (what the reward table paid -- once; a replayed
 #:              close re-emits the same figure and pays nothing), `ref`;
