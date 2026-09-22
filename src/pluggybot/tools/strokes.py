@@ -289,8 +289,8 @@ def answer(text: str = "0") -> StrokeProgram:
 
   Note what this is NOT: a second `text` program. `text` takes arbitrary
   caller text and is kept off the overseer's menu for exactly that reason
-  (`mind/overseer.py`, `Menu.for_world`). An answer is at most two characters
-  from a fixed alphabet, sanitised by `questions.clean_answer` before a
+  (`mind/overseer.py`, `Menu.for_world`). An answer is a whole number of at
+  most two digits or nothing, by `questions.clean_answer`, before a
   single stroke exists -- which is what makes this the one place a model's
   own words may reach a wall a stranger is watching.
   """

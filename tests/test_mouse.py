@@ -357,6 +357,37 @@ def test_the_fields_parse_with_a_lab_and_are_dropped_without_one():
     _menu(lab="").validate(_raw(action="care"), procedures=())
 
 
+def test_a_take_task_keeps_only_the_field_its_job_asked_for():
+  """Issue #296. `answer` is required on every turn, and the deployed model
+  fills it with a stray figure on turns that asked no question -- "24" off
+  the last job's History line, on a shock claim (measured, 3 of 4 probe
+  calls). The claim then read `answer or mouse_will`, the stray "24"
+  shadowed a valid "hiding", and the shock job was refused as "nobody
+  answered it". The reverse -- `mouse_will: resting` on an answer job --
+  put "predicting resting" on the row that hid Rowan's "80". Each field is
+  kept only on a job that asked for it, at the door like every other stray.
+  """
+  menu = _menu()
+  shock = menu.validate(_raw(action="take_task", task="t_1", answer="24",
+                             mouse_will="hiding"),
+                        offered=("t_1", "t_2"), answering=("t_2",),
+                        predicting=("t_1",), procedures=())
+  assert (shock.answer, shock.mouse_will) == ("", "hiding")
+  assert (shock.answer or shock.mouse_will) == "hiding", "what the claim reads"
+  assert shock.summary().startswith("take_task (t_1, predicting hiding)")
+  question = menu.validate(_raw(action="take_task", task="t_2", answer="3",
+                                mouse_will="resting"),
+                           offered=("t_1", "t_2"), answering=("t_2",),
+                           predicting=("t_1",), procedures=())
+  assert (question.answer, question.mouse_will) == ("3", "")
+  assert question.summary().startswith("take_task (t_2, answering 3)")
+  # a job that asks for neither keeps neither
+  plain = menu.validate(_raw(action="take_task", task="t_3", answer="3",
+                             mouse_will="resting"),
+                        offered=("t_3",), procedures=())
+  assert (plain.answer, plain.mouse_will) == ("", "")
+
+
 def test_taking_the_shock_without_a_prediction_is_malformed_and_with_one_is_kept():
   menu = _menu()
   with pytest.raises(ValueError, match="what the mouse will do"):

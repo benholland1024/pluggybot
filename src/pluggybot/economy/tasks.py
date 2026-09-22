@@ -838,10 +838,10 @@ class TaskBoard:
 
     ⚠ A job that NEEDS AN ANSWER cannot be claimed without one (issue #22),
     and the refusal is here rather than in the caller because it is a fact
-    about the job. `answer` is sanitised on the way in: it is the one string
-    a model chooses that ends up drawn on a wall, so it is capped and
-    filtered to a fixed alphabet exactly as a visitor's message is, and an
-    answer that survives as "" is no answer.
+    about the job. `answer` is checked on the way in: it is the one string
+    a model chooses that ends up drawn on a wall, so it is a whole number of
+    at most two digits or it is nothing (`questions.clean_answer` -- refused,
+    never repaired, issue #296), and no answer is no claim.
     """
     task = self.tasks.get(task_id)
     if task is None or not task.claimable(t, pack_wh):
