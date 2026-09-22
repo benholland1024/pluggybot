@@ -390,7 +390,12 @@ save a filmstrip PNG named after the script.
     model decisions across the committed LLM days is 833 s. The clock is
     reset by the ASK, not the answer (an outage is the box), armed ONLY where
     there is a map, and NOT prevented in code (a map that cannot remove its
-    own `ask` row is a rail);
+    own `ask` row is a rail). ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS
+    ANSWERED FOR ITSELF (`HubLifecycle._minded`, issue #303) — a fallback
+    is the box answering, and counting it as the first decision cost 21 of
+    76 deployed lives their whole hour (one garbled call, then `unminded`);
+    a stand-up does not re-arm it, a TRUE DEATH does (the map outlives the
+    robot and the next generation never wrote it);
   - the origin is an ablation and `none` is the default (`--origin`,
     `$PLUGGY_ORIGIN`): `seeded` is today's loop as rows, `unseeded` is empty
     plus a corrected prompt — a null result there is strong evidence, a
