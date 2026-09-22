@@ -10,6 +10,57 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The robot can see the list that decides when it is asked (#317) — opens when this PR is deployed
+
+**What changed in the mind.** The volatile context gained one block,
+`eventMap` — the rows in force, written the way an answer writes them,
+and `lastAskedSAgo`, the silence the question being answered closed. The
+`autonomous` prompt's WHEN YOU ARE ASKED rule gained two sentences (where
+the list is; that a one-row answer is a one-row list) and the unseeded
+ablation's block is now YOUR LIST STARTS EMPTY rather than YOUR LIST IS
+EMPTY, because the prefix is cached and went on saying "empty" for the
+whole run after the agent had filled it. So the prefix moved and
+`prompt_sha` with it, on `autonomous` at origin `seeded`/`unseeded`
+alone; `guarded` has no map, so its prefix, context, schema and
+`GUARDED_RULES_SHA` are unchanged, and the arm, the reward table and the
+world are unchanged. The `unminded` death line now names which of the
+three silences it was; the wire carries it in the `death` event's `why`
+as it always did, no bump. `UNMINDED_AFTER_S` is UNCHANGED at 1800 s,
+re-read below.
+
+**What the period is for.** The rows before it are a robot editing a
+configuration it had never been shown, under a rule that says what it
+sends REPLACES what is there. Read off the observatory over the seven
+days to 2026-09-22, build `31a24f2` and its predecessors: `unminded` 87
+of 164 deaths, mean life 1 609 s; of 502 live map edits, 35 left no `ask`
+row and **none of the 35 was ever undone** — undoing one needs a
+decision and a decision needs an ask; 15 collapsed a six-to-nine-row map
+to a SINGLE row and 13 of those had no `ask` in it, which reads as an
+answer meaning "add this one rule". Of the 87 `unminded` deaths, the map
+in force was empty for 42, had rules and no `ask` for 10, and had an
+`ask` on an event that never came round for 2 (33 fell outside the
+window). 88 of 190 lives never wrote a row at all. What to read from
+here:
+
+- `unminded` as a share of deaths, and the mean life in minutes, against
+  those numbers — the issue's own acceptance;
+- the shape of the edits: whether the one-row collapse stops, which is
+  the half of this that is a misread grammar rather than a choice;
+- `events.score.keepsAsk` over the edits — whether an agent that can SEE
+  it has no `ask` row keeps one, which is the question the arm is asking
+  and is why no `keepsAsk`, countdown or warning is in the block;
+- whether `lastAskedSAgo` is used at all: a robot that reads a long
+  silence and writes itself an `ask` row is reading its own world.
+
+**Not yet known.** Whether this is enough. #303's bootstrap (deployed
+2026-09-22, hours before this reading) removed the "one spent ask" path
+and the 42 empty-map deaths are mostly its; what is left after both is
+the agent's own configuration, which is the thing being measured. And
+whether the event map should be ARCHIVED at a true death rather than
+inherited: today a new generation is governed by its predecessor's rows
+and is now TOLD so in its first History line, which is honesty about the
+inheritance, not a decision about it.
+
 ### A ticket says all of itself, or says it was cut (#307) — opens when this PR is deployed
 
 **What changed in the mind.** The `autonomous` prompt's SUPPORT TICKETS

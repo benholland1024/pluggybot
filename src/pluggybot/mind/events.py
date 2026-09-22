@@ -674,6 +674,58 @@ class EventClock:
         self._last[r] = t
 
 
+# ---- what the list says about being asked -----------------------------------
+
+
+def asks_on(emap: EventMap | None) -> tuple[str, ...]:
+  """The events an `ask` row is on, in the map's own order. `()` for a map
+  that never consults anybody -- which includes an EMPTY one."""
+  if emap is None:
+    return ()
+  seen: list[str] = []
+  for r in emap.rows:
+    if r.action == ASK and r.event not in seen:
+      seen.append(r.event)
+  return tuple(seen)
+
+
+def silence(emap: EventMap | None) -> str:
+  """Why nobody asked, as the `unminded` death line says it (issue #317).
+
+  ⚠ A FACT ABOUT THE LIST, NEVER A VERDICT ON IT. "my list is empty" and
+  "the only rules that ask me are on `task_complete`" are things the agent
+  could have read off its own configuration; "you should have kept an `ask`
+  row" is the answer to the question the arm is asking, and it is not said
+  here or anywhere else the robot can read.
+
+  It matters because the three are different mistakes with different
+  repairs, and the death line was the same sentence for all of them.
+  Measured on the deployed pair over the seven days to 2026-09-22: of the 54
+  `unminded` deaths whose map was still in the observatory's window, 42 died
+  with an EMPTY list, 10 with a list that had rules and no `ask` among them,
+  and 2 with an `ask` row on an event that never came round.
+  """
+  rows = emap.rows if emap is not None else ()
+  asks = asks_on(emap)
+  if not rows:
+    return "my list is empty, so nothing was ever going to ask me"
+  if not asks:
+    #  ⚠ THE SINGULAR IS THE COMMON CASE, not a nicety: 13 of the 15
+    #  deployed edits that collapsed a map left exactly one row in it.
+    return ("my one rule does not ask me" if len(rows) == 1
+            else f"none of my {len(rows)} rules asks me")
+  named = asks[0] if len(asks) == 1 else \
+      ", ".join(asks[:-1]) + " and " + asks[-1]
+  #  ⚠ AND NO CLAIM ABOUT WHAT FIRED. This read "and none has fired", which
+  #  the map cannot know and which can be FALSE: `battery_below` and
+  #  `points_below` are `INTERRUPTING_EVENTS`, so an `ask` row on either can
+  #  fire mid-errand, consult the mind through `_ask_interrupt` -- and not
+  #  stamp the unminded clock, which only `_arbitrate`'s two asks do. How
+  #  long the silence was is the first half of the death line and is
+  #  measured; what the list SAYS is this half, and it stops there.
+  return f"the only rules that ask me are on {named}"
+
+
 # ---- the static report -------------------------------------------------------
 
 
@@ -769,6 +821,6 @@ __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
            "LEVEL_EVENTS", "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS",
-           "Row", "UNCONFIGURABLE_EVENTS", "diff", "kind_tokens",
+           "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
            "kind_vocabulary", "matches_kind", "origin_map", "parse", "row",
-           "row_action", "score", "seeded", "thresholds_ordered"]
+           "row_action", "score", "seeded", "silence", "thresholds_ordered"]
