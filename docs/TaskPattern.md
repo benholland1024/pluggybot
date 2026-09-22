@@ -523,7 +523,14 @@ Add the kind to `cadence.json`'s rotation (or deliberately not — a kind can
 exist only for visitors or the overseer to invoke). Check the target
 arithmetic: a kind whose targets are all booked or cooling down every tick is
 scenery, and the least-recently-offered rule only shares targets that are
-actually eligible.
+actually eligible. ⓘ *found by looking for the bench on the observatory
+(2026-09-22):* the deployed mission is an hour of sim time and restarts,
+and until then the rotation's cursor restarted with it — the last kind in
+a nine-kind list was offered once in thirty hours. The cursor is the
+board's now (`TaskBoard.producer`, by kind name) and a fresh producer
+resumes it; the order of the list is still what decides who gets a shared
+target first within a lap, so a kind that shares a target (the three lab
+kinds all name `lab`) is offered a third as often as it would alone.
 
 ### 6. The wire
 

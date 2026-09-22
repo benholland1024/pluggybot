@@ -1601,7 +1601,19 @@ save a filmstrip PNG named after the script.
   sim-hours to 14 — the empty world dressed as a safety feature); a claim
   still sees `spendable_wh`. A passed-over kind KEEPS the head of the queue;
   one offer per tick and no catch-up; targets least-recently-offered, never
-  first; nothing random. When work may still ARRIVE (`HubLifecycle.expects_work`
+  first; nothing random. ⚠ **The rotation SURVIVES A RESTART** (2026-09-22):
+  the cursor (a kind's NAME) and the figure counter live in
+  `TaskBoard.producer`, persisted with the board, and a fresh producer
+  resumes there -- measured on the deployed world, where a mission is
+  3600 sim s and every restart built a producer at the top of a nine-kind
+  list, the last kind (`find_mass`) was offered ONCE in thirty hours
+  against fifteen `shock_mouse`. Two more restart rules ride with it: an
+  open offer's deadline is REBASED on load to what it had left at the last
+  save (`simTime`; an offer made at 3606 s of a mission could never lapse
+  and held its target for ever), and a task a restart failed is announced
+  in `begin()` (`announce_interrupted`) because `load` runs before any
+  hook exists -- the bench's one claim read `active` on the observatory for
+  five hours. `tests/test_cadence.py` and `tests/test_tasks.py` pin each. When work may still ARRIVE (`HubLifecycle.expects_work`
   — follows `producer`, and a pair sets it on the second robot, whose
   board grows on the FIRST robot's producer; keyed on `producer` the hider
   called its day complete mid-game) the loop stands by in

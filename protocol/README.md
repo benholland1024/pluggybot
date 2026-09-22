@@ -1723,7 +1723,12 @@ terms as `accepts`.
 and `active` when it actually starts working on it. The block catches a late
 joiner up; these are the **moments**, which is what a marker animates on.
 `verdict` is the same redacted object `earned` carries — one evaluation with
-two consumers, never a second judgement.
+two consumers, never a second judgement. A task that was `active` when the
+process died comes back `failed` (`verdict.reason` "interrupted by a
+restart") and, since 2026-09-22, is announced as this `task_resolved` at
+the next mission's start — before that, the failure was written to the
+state file with no row, and a consumer keeping history saw the job
+`active` for ever.
 
 ### 0.7.0 → 0.8.0 (the robot says what it is for)
 

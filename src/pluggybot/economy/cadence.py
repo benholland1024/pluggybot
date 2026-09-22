@@ -204,10 +204,21 @@ class TaskProducer:
     self.kinds = tuple(name for name in cadence.kinds
                        if name in KINDS
                        and KINDS[name].target_kind in self.targets)
+    #: THE ROTATION RESUMES WHERE THE LAST MISSION LEFT IT. The cursor and
+    #: the figure counter live in the board's `producer` dict, which the
+    #: board persists with its tasks, and this writes them there IN PLACE
+    #: as they move. The cursor is stored as the kind's NAME, so an edited
+    #: rotation resumes at the same kind or, for a kind that is gone, at
+    #: the top. Measured on the deployed world (`TaskBoard.producer`): with
+    #: a fresh producer every hourly mission, the last kind in home's list
+    #: was offered once in thirty hours; the pure rotation offers it as
+    #: often as any lab kind.
+    self.state: dict = board.producer if isinstance(getattr(board, "producer", None), dict) else {}
     #: rotation cursor over `self.kinds`
-    self.cursor = 0
+    self.cursor = (self.kinds.index(self.state["cursor"])
+                   if self.state.get("cursor") in self.kinds else 0)
     #: ...and over each kind's `programs` list, so successive drawings differ
-    self.figure = 0
+    self.figure = int(self.state.get("figure") or 0)
     #: target -> sim time it was last named by an offer
     self.last_offered: dict[str, float] = {}
     #: sim time of the next tick that may place an offer
@@ -311,6 +322,7 @@ class TaskProducer:
         passed = index if passed is None else passed
         continue
       self.cursor = passed if passed is not None else (index + 1) % n
+      self.state["cursor"] = self.kinds[self.cursor]
       return self._offer(kind, target, t)
     # Counted once per attempt, not once per candidate skipped: what a long
     # run wants to know is how many offers the battery cost it, not how many
@@ -362,6 +374,7 @@ class TaskProducer:
     if programs:
       params["program"] = programs[self.figure % len(programs)]
       self.figure += 1
+      self.state["figure"] = self.figure
     if kind == "whiteboard_answer":
       from pluggybot.economy.questions import default_bank
       question = default_bank().pick(self.board.seq)
