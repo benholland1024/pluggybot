@@ -66,7 +66,7 @@ class _Mind:
     self.menu = ov.Menu.for_world("room_hub")
 
 
-def _life(tmp_path, world="room_hub", points=100, workshop=None):
+def _life(tmp_path, world="room_hub", points=100, workshop=None, step=True):
   cfg = world_config(world)
   spec = world_spec(cfg["model"])
   model = spec.compile()
@@ -80,7 +80,9 @@ def _life(tmp_path, world="room_hub", points=100, workshop=None):
                       overseer=_Mind(workshop if workshop is not None
                                      else Workshop(tmp_path / "tools")))
   life.state = "DECIDE"
-  for _ in range(200):
+  # ⚠ `step=False` is the REAL path's state at `begin()`: a fresh `MjData`
+  # that nothing has stepped, `xpos` all zeros (issue #315).
+  for _ in range(200 if step else 0):
     mujoco.mj_step(model, data)
   # The print and assembly wait is ~15 sim-minutes of physics; the fast
   # tests record it rather than step it (the seconds are pinned once in
@@ -129,30 +131,75 @@ def test_the_fields_exist_only_with_a_workshop():
   assert d.as_dict()["buildTool"]["bay"] == "A"
 
 
+#: THE ROW THE DEPLOYED PAIR SENT 433 TIMES IN SEVEN DAYS (issue #315),
+#: verbatim off the observatory: `"scoop"` is the prompt's own worked
+#: example and `parts` is empty. Every one of the 433 was refused, and
+#: `idle_build` did not drop it because the spec name was set.
+DEPLOYED_IDLE = {"name": "", "bay": "A",
+                 "spec": {"name": "scoop", "parts": []}}
+
+
 def test_the_idle_build_tool_a_decoder_emits_is_not_a_build(monkeypatch):
   """A constrained decoder fills every property, so an answer that is not
-  building still carries `build_tool: {"name": "", "bay": "", "spec":
-  {"name": "", "parts": []}}` (or an all-empty part). MEASURED (issue
-  #264, ladder B): sent to the workshop, that was refused on 13 of 24
-  answers in one day, each a `tool` row for a build the robot never
-  described. Idle means "not this time"; a name, a bay or a named part
-  means a build, and THAT is the workshop's to refuse."""
+  building still carries a whole `build_tool`. MEASURED (issue #264,
+  ladder B): sent to the workshop, that was refused on 13 of 24 answers
+  in one day, each a `tool` row for a build the robot never described.
+
+  ⚠ THE PART LIST IS THE WHOLE TEST (issue #315). `spec.name` is a
+  required string, so the decoder fills it with the nearest string the
+  prefix offers -- the example's `"scoop"` -- and `bay` is an enum it
+  fills with the first member. `parts` is the one required field whose
+  zero the prompt cannot supply. A spec naming no part describes nothing
+  to build, whatever it is called."""
   menu = ov.Menu.for_world("room_hub")
   idle = {"name": "", "bay": "", "spec": {"name": "", "parts": []}}
   idle_part = {"name": "", "bay": "", "spec": {"name": "", "parts": [
     {"id": "", "part": "", "pos": [0, 0, 0], "euler": [0, 0, 0], "on": "",
      "size": [0, 0, 0], "axis": {"verb": "", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}}]}}
-  # ...and a bay alone is not a build either: the decoder fills an enum
-  # with its first member (`"bay": "A"`, measured on the second round)
-  for shop in (idle, idle_part, {**idle, "bay": "A"}):
-    assert ov.idle_build(shop)
+  for shop in (idle, idle_part, {**idle, "bay": "A"}, DEPLOYED_IDLE,
+               {**idle, "name": "scoop"},
+               {**idle, "name": "scoop", "spec": {"name": "scoop", "parts": []}}):
+    assert ov.idle_build(shop), shop
     d = menu.validate({"action": "idle", "reason": "r", "build_tool": shop}, tools=())
     assert d.build_tool is None
-  for shop in ({**idle, "name": "scoop"}, {**idle, "spec": {"name": "scoop", "parts": []}},
-               {**idle, "spec": {"name": "", "parts": [{"id": "", "part": "servo_fs90"}]}}):
-    assert not ov.idle_build(shop)
+  # ...and ONE NAMED PART is a build, however wrong: an id the catalog
+  # does not have is a real attempt and the workshop refuses it out loud,
+  # which is the teaching path. A drop teaches nothing.
+  for shop in ({**idle, "spec": {"name": "", "parts": [{"id": "", "part": "servo_fs90"}]}},
+               {**idle, "spec": {"name": "", "parts": [{"id": "blade", "part": ""}]}},
+               {**idle, "spec": {"name": "scoop", "parts": [{"id": "x", "part": "nope"}]}}):
+    assert not ov.idle_build(shop), shop
     assert menu.validate({"action": "idle", "reason": "r", "build_tool": shop},
                          tools=()).build_tool is not None
+
+
+def test_a_refusal_names_what_a_tool_may_be_built_from(tmp_path):
+  """"If it IS an attempt, the refusal is useless" (issue #315): the part
+  list is the field 433 specs never filled in, and `no catalog part
+  'blade'` never said what would have worked. Both refusals now carry the
+  buildable catalog -- one predicate, `spec.unbuildable`, so the list the
+  prompt shows and the list a refusal names cannot drift apart."""
+  from pluggybot.workshop import spec as wspec
+  life = _life(tmp_path, points=100)
+  bad = {"name": "scoop", "parts": [{"id": "blade", "part": "blade",
+                                     "pos": [-30, 0, -8]}]}
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": bad}))
+  assert _outcomes(events) == ["specified", "refused"]
+  reason = next(r for r in events[-1]["reasons"] if "no catalog part" in r)
+  assert "'blade'" in reason
+  for part in wspec.buildable():
+    assert part in reason, reason
+  assert "servo_fs90" in reason and "scaffold_pla_box" in reason
+  assert life.ledger.balance() == 100 and life.waited == []
+  # ...and the same list when the spec names no part at all -- reachable
+  # from a hand-written or a restored spec, never from a decision now
+  with pytest.raises(wspec.Refused) as e:
+    wspec.parse({"name": "scoop", "parts": []})
+  assert any("a spec IS its parts" in r and "servo_fs90" in r for r in e.value.reasons)
+  # every part the PROMPT offers is a part a refusal names, and no other
+  from pluggybot.rack import catalog
+  assert [p.id for p in catalog.PARTS
+          if wspec.unbuildable(p) is None] == wspec.buildable()
 
 
 def test_guarded_prefix_does_not_move():
@@ -223,6 +270,23 @@ def test_an_unaffordable_tool_is_refused_before_anything_prints(tmp_path):
   assert any("cannot afford it: 3 points" in r for r in events[-1]["reasons"])
   assert life.ledger.balance() == 1
   assert life.waited == []                          # no print time waited
+
+
+def test_the_seam_is_checked_before_a_point_moves(tmp_path):
+  """THE ORDER (issue #315): spec -> seam -> already-hung -> price -> PAY
+  -> print -> hang. A build the seam would refuse is refused before
+  `Ledger.spend` runs, so a paid, refused build is not a thing the robot
+  can be handed. The one refusal that can arrive after the money is the
+  seam breaking DURING the print (a death mid-fabrication), which says so
+  with its `cost` on the event."""
+  life = _life(tmp_path, points=100)
+  life.state = "USE_TOOL"                       # what `can_reshape` refuses
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any("between errands" in r for r in events[-1]["reasons"])
+  assert "cost" not in events[-1]
+  assert life.ledger.balance() == 100 and life.waited == []
+  assert life.overseer.workshop.names() == ()
 
 
 def test_a_bad_bay_or_name_or_a_taken_one_is_refused(tmp_path):
@@ -492,3 +556,27 @@ def test_the_spec_is_described_so_a_strict_provider_decodes_it():
   for part_ in SCOOP["parts"]:
     assert set(part_) <= set(part["properties"]), part_
     assert set(part_) >= set(part["required"]), part_
+
+
+def test_a_built_tool_comes_back_after_a_restart_on_the_real_path(tmp_path):
+  """`test_what_the_robot_built_hangs_again_next_day` calls `restore_tools`
+  on a world that has been STEPPED. The real path does not: `begin()` runs
+  it before anything has stepped, and a fresh `MjData` has `xpos` all
+  zeros -- so `module_state` read every module as on the fork, `_carried`
+  said `module_lcd`, `can_reshape` refused, and every built tool was lost
+  with "could not be hung again" (issue #315). On a served world a restart
+  is roughly hourly, so nothing built would ever have survived one."""
+  shop = Workshop(tmp_path / "tools")
+  life = _life(tmp_path, points=100, workshop=shop)
+  _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP}))
+  assert "module_scoop" in life.rack_inventory
+  # ...a new day, a new world, the records the only thing carried over
+  again = _life(tmp_path, points=100, workshop=Workshop(tmp_path / "tools"),
+                step=False)
+  entry = again.overseer.workshop.entries["scoop"]
+  assert entry.valid and entry.reasons == []
+  assert "module_scoop" not in again.rack_inventory        # not yet
+  again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
+  assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
+  assert again.overseer.workshop.entries["scoop"].reasons == []
+  assert again.ledger.balance() == 100                     # paid once

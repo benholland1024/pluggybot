@@ -802,21 +802,33 @@ _NUMBERS = {"type": "array", "items": {"type": "number"}}
 
 def idle_build(shop: dict) -> bool:
   """The `build_tool` a constrained decoder emits when the model is NOT
-  building: no name anywhere and no part naming a catalog part. It is
-  "not this time", on `pin: ""`'s terms, and is DROPPED rather than sent to
-  the workshop -- MEASURED (issue #264, ladder B): sent, it was refused on
-  13 of 24 answers in one day, each a `tool` row saying the robot had
-  tried to build a tool it never described. ⚠ The bay does not count: the
-  decoder fills an enum with its first member (`"bay": "A"` beside an
-  empty name and no parts, measured on the second round), and a bay alone
-  describes nothing to build."""
+  building. It is "not this time", on `pin: ""`'s terms, and is DROPPED
+  rather than sent to the workshop -- MEASURED (issue #264, ladder B):
+  sent, it was refused on 13 of 24 answers in one day, each a `tool` row
+  saying the robot had tried to build a tool it never described.
+
+  ⚠ THE PART LIST IS THE WHOLE TEST, AND A NAME COUNTS FOR NOTHING (issue
+  #315). The deployed pair specified 433 tools in seven days and every one
+  of them was this row:
+
+      {"name": "", "bay": "A", "spec": {"name": "scoop", "parts": []}}
+
+  -- `"scoop"` is the prompt's own worked example, and `spec.name` is a
+  required string the decoder has to fill with SOMETHING, so it fills it
+  with the nearest string the prefix offers. `parts` is the one required
+  field whose zero value the prompt cannot supply: an empty array is what
+  a decoder emits when the model meant nothing by the field. So a spec
+  naming no part describes nothing to build, whatever it is called, and
+  the outer name and the bay are read the same way -- the decoder fills an
+  enum with its first member (`"bay": "A"` beside an empty name and no
+  parts, measured on the second round). A build that names a part but gets
+  it wrong is a real attempt and reaches the workshop, which refuses it
+  out loud and says what the catalog holds (`workshop/spec.py`)."""
   spec = shop.get("spec") if isinstance(shop.get("spec"), dict) else {}
   parts = spec.get("parts") if isinstance(spec.get("parts"), list) else []
-  named = any(isinstance(p, dict) and (str(p.get("part") or "").strip()
-                                       or str(p.get("id") or "").strip())
-              for p in parts)
-  return not (str(shop.get("name") or "").strip()
-              or str(spec.get("name") or "").strip() or named)
+  return not any(isinstance(p, dict) and (str(p.get("part") or "").strip()
+                                          or str(p.get("id") or "").strip())
+                 for p in parts)
 
 
 SPEC_SCHEMA = {

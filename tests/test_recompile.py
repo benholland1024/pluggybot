@@ -18,9 +18,14 @@ What these hold down:
      `self.data` defines `rebind`, or is on the roster below with a reason.
      The static fence is what catches a holder added next month; the
      runtime walk is what catches one the lifecycle forgot to call.
-  4. BETWEEN ERRANDS ONLY. Mid-errand, with a module on the fork, on a
-     pair, or in a world compiled without the rail, the seam refuses out
-     loud -- and a hand-built module is refused by name, wherever asked.
+  4. BETWEEN ERRANDS ONLY -- FOR EVERY ROBOT IN THE WORLD. Mid-errand,
+     with a module on the fork, while the OTHER robot of a pair is
+     mid-errand, or in a world compiled without the rail, the seam refuses
+     out loud -- and a hand-built module is refused by name, wherever asked.
+  5. A PAIR HANGS A TOOL (issue #315). Two lifecycles over one world: the
+     robot that did not build is rebound with the one that did, the shared
+     physics loop steps the NEW world, and the rail is the world's -- a bay
+     the other robot's tool hangs in is refused with whose it is.
 """
 
 import ast
@@ -31,6 +36,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot import tick
 from pluggybot.lifecycle import HubLifecycle, world_config
 from pluggybot.procedure import axes
 from pluggybot.rack import coupling
@@ -178,17 +184,13 @@ def test_the_seam_hangs_a_tool_and_rebinds_every_holder():
   assert stale == [], [p for p, _ in stale]
 
 
-def test_the_seam_refuses_mid_errand_on_the_fork_on_a_pair_and_without_a_rail():
+def test_the_seam_refuses_mid_errand_on_the_fork_and_without_a_rail():
   life = _life()
   tool = validate.check(SCOOP)
   life.state = "USE_TOOL"
   with pytest.raises(SeamRefused, match="between errands"):
     life.hang_tool(tool, 2)
   life.state = "DECIDE"
-  life.peers = [object()]
-  with pytest.raises(SeamRefused, match="pair"):
-    life.hang_tool(tool, 2)
-  life.peers = []
   with pytest.raises(SeamRefused, match="no bay 3; the built-tool rail has 3"):
     life.hang_tool(tool, 3)
   bare = HubLifecycle(life.model, life.data, realtime=False, world="room_hub",
@@ -329,3 +331,184 @@ def test_every_holder_of_the_world_can_be_rebound():
       if not has_rebind and key not in TRANSIENT_HOLDERS:
         missing.append(key)
   assert missing == [], f"holds the world and cannot be rebound: {missing}"
+
+
+# ---- 5. a pair hangs a tool (issue #315) ------------------------------------
+
+def _pair():
+  """Two lifecycles over one world, settled. ⚠ The steps are load-bearing
+  and `_life` steps for the same reason: before the first one `xpos` is
+  all zeros, so `module_state` reads every module as on the fork. These
+  tests call `hang_tool` directly; the REAL path reaches it through
+  `begin()`, which forwards the kinematics itself (and did not, which is
+  why nothing built ever survived a restart --
+  `test_a_built_tool_comes_back_after_a_restart_on_the_real_path`)."""
+  from pluggybot.pair import build_pair
+  lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
+                     realtime=False)
+  for _ in range(100):
+    mujoco.mj_step(lives[0].model, lives[0].data)
+  for life in lives:
+    life.state = "DECIDE"
+  return lives
+
+
+def test_a_pair_is_compiled_from_a_spec_both_lifecycles_keep():
+  """The deployed world is a pair, and `build_pair` threw the spec away
+  after `compile()` -- so `can_reshape` refused every build with "this
+  world was compiled without its spec" before it ever reached the pair
+  rule (issue #315: 433 specified, 433 refused). One spec, one rack: the
+  rail is the WORLD's, and two inventories would diverge the moment
+  either robot hung anything."""
+  a, b = _pair()
+  assert a.spec is not None and a.spec is b.spec
+  assert a.rack_inventory is b.rack_inventory
+  assert a.has_built_rack and b.has_built_rack
+  a.can_reshape(0)                                  # no refusal at all
+
+
+def test_a_tool_built_by_one_robot_rebinds_the_other_and_the_shared_loop():
+  """The whole of #315's blocker 1. Robot A hangs a tool while robot B is
+  driving, both under ONE `tick.run_many` loop:
+
+    - every lifecycle is rebound, not just the builder's (`_recompile`);
+    - the loop's own `mj_step` reads the world off the swap each step, so
+      it steps the NEW one -- captured once at loop start, `data.time`
+      simply stops advancing while every rebound holder reads the new
+      world (that is the failure this asserts against);
+    - robot B's pose is carried across by name;
+    - nothing reachable from EITHER lifecycle holds the old world.
+  """
+  a, b = _pair()
+  old_model, old_data = a.model, a.data
+  r2 = old_model.body("r2_pluggybot").id
+  mujoco.mj_forward(old_model, old_data)
+  b_before = old_data.xpos[r2].copy()
+  tool = validate.check(SCOOP)
+  events = []
+  a.on_event.append(events.append)
+
+  def builder(n):
+    yield from ((0.0, 0.0) for _ in range(n))
+    builder.rec = a.hang_tool(tool, 0)              # between two steps
+    yield from ((0.0, 0.0) for _ in range(n))
+
+  def driver(n):
+    yield from ((0.05, 0.0) for _ in range(2 * n))
+
+  n = 100
+  t0 = float(a.data.time)
+  tick.run_many([(a.mission.swap, builder(n)), (b.mission.swap, driver(n))],
+                name="pair-build")
+
+  assert builder.rec["module"] == "module_scoop" and builder.rec["retired"] is None
+  # THE LOOP STEPPED THE NEW WORLD: 2n steps of sim time, not n
+  assert a.model is not old_model and a.data is not old_data
+  assert float(a.data.time) - t0 == pytest.approx(2 * n * a.model.opt.timestep)
+  # ...and the robot that did NOT build followed it, down to its swap
+  assert b.model is a.model and b.data is a.data
+  assert b.mission.swap.model is a.model and b.mission.swap.data is a.data
+  # ...with its pose carried across by name (its ids moved: a body was added)
+  # (it drove ~2 cm in 200 steps at 0.05 m/s: the claim is that the pose
+  # CARRIED, not that it held still, and a lost `qpos` reads as the origin)
+  mujoco.mj_forward(a.model, a.data)
+  moved = a.data.xpos[a.model.body("r2_pluggybot").id]
+  assert np.linalg.norm(moved[:2] - b_before[:2]) < 0.25 and moved[2] > 0.0
+  # one rack, and B can see and fetch what A built
+  assert b.rack_inventory["module_scoop"] == len(HUB_STATION_YS)
+  from pluggybot.lifecycle import world_facts
+  assert "module_scoop" in world_facts(b.world, rack=b.rack_inventory).tools
+  # the wire said so once
+  assert [e["type"] for e in events if e.get("type") == "scene_changed"] == \
+      ["scene_changed"]
+  # THE RUNTIME FENCE, on BOTH lives
+  for life in (a, b):
+    stale = [p for p, o in _holders(life) if o is old_model or o is old_data]
+    assert stale == [], (life.root, [p for p, _ in stale])
+
+
+def test_the_seam_waits_for_the_other_robot_and_says_whose_errand_it_is(monkeypatch):
+  """A pair shares one world, so a recompile pulls it out from under BOTH
+  routines -- and a tool controller (the pen, the claw, the dispenser) is
+  built per errand and is never rebound. Every robot has to be between
+  errands with its fork empty, and the refusal names the busy one: "wait"
+  and "never" are different answers."""
+  from pluggybot.procedure import steps
+  a, b = _pair()
+  tool = validate.check(SCOOP)
+  b.state = "SWAP_RETURN"
+  with pytest.raises(SeamRefused, match=f"{b.robot_name} is busy"):
+    a.hang_tool(tool, 0)
+  b.state = "DECIDE"
+  # ...and so does a module on the OTHER robot's fork
+  monkeypatch.setattr(steps, "_carried",
+                      lambda life: "module_pen" if life is b else None)
+  with pytest.raises(SeamRefused, match=f"{b.robot_name} is busy"):
+    a.hang_tool(tool, 0)
+  monkeypatch.undo()
+  a.hang_tool(tool, 0)                              # both idle: it hangs
+
+
+def test_a_bay_the_other_robots_tool_hangs_in_is_not_this_robots_to_take():
+  """One rail, two minds (issue #315). "The bay you name is taken" is a
+  rule about a robot's OWN tools; the other robot's module is refused with
+  whose it is, on `bay_index`'s terms for the five originals, and the
+  world is not recompiled behind the refusal."""
+  a, b = _pair()
+  a.hang_tool(validate.check(SCOOP), 0)
+  world = b.model
+  with pytest.raises(SeamRefused, match="holds the scoop, which is not yours"):
+    b.hang_tool(validate.check(SCOOP2), 0)
+  with pytest.raises(SeamRefused, match="not yours to retire"):
+    b.retire_tool("module_scoop")
+  assert b.model is world and "module_scoop" in b.rack_inventory
+  # ...and its OWN bay is still free to it
+  b.hang_tool(validate.check(SCOOP2), 1)
+  assert b.rack_inventory["module_scoop2"] == len(HUB_STATION_YS) + 1
+  # ⚠ AND THE RULE STILL LETS A ROBOT REPLACE ITS OWN. "The bay you name
+  # is taken" is the prompt's promise and the ownership test must not eat
+  # it: `built` is what THIS lifecycle hung, so A retires A's scoop and
+  # takes bay A back. Nothing pinned this before, and an ownership check
+  # written off the shared inventory instead would have broken it silently.
+  rec = a.hang_tool(validate.check({**SCOOP, "name": "scoop3"}), 0)
+  assert rec["retired"] == "module_scoop"
+  assert "module_scoop" not in a.rack_inventory
+  assert a.rack_inventory["module_scoop3"] == len(HUB_STATION_YS)
+
+
+def test_the_changed_scene_is_the_fixtures_shape_sidecar_and_pair_name():
+  """The site REPLACES its whole scene graph with `scene_changed.scene`
+  (rooftop #250), and protocol/README.md promises "exactly the shape the
+  scene fixture has". It was not: no `meta`, so every `visual` hint, the
+  zones, the spawns and the plate glyphs were absent, and a pair was named
+  the single-robot world. Dormant until #315 -- a pair could not hang a
+  tool at all -- and on the deployed home world it would have repainted
+  the house as grey primitives the moment the robot built anything."""
+  import json
+  from pathlib import Path
+
+  from pluggybot.robot import pair_model_name
+  from pluggybot.telemetry.scene import scene_dict
+  a, b = _pair()
+  events = []
+  a.on_event.append(events.append)
+  a.hang_tool(validate.check(SCOOP), 0)
+  scene = next(e for e in events if e.get("type") == "scene_changed")["scene"]
+  cfg = world_config("room_hub")
+  assert scene["model"] == pair_model_name(cfg["model_name"])
+  assert any(body["name"] == "module_scoop" for body in scene["bodies"])
+  assert any(body["name"] == "r2_pluggybot" for body in scene["bodies"])
+  # ...and on a world WITH a sidecar, every field the fixture carries
+  life = _life("home")
+  events = []
+  life.on_event.append(events.append)
+  life.hang_tool(validate.check(SCOOP), 0)
+  scene = next(e for e in events if e.get("type") == "scene_changed")["scene"]
+  cfg = world_config("home")
+  meta = json.loads(Path(cfg["meta"]).read_text())
+  fixture = scene_dict(life.model, cfg["model_name"], meta=meta)
+  assert scene["model"] == cfg["model_name"] == "home_world"
+  assert set(scene) == set(fixture)
+  assert scene["zones"] and scene["zones"] == fixture["zones"]
+  assert scene["plates"] and scene["plates"] == fixture["plates"]
+  assert any(body["visual"] for body in scene["bodies"])
