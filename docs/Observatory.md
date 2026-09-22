@@ -17,7 +17,7 @@ observatory is NOT a result and never enters `results/`.
 both walls. `models/home_world.xml`, its meta and
 `protocol/scene.home_world.json` are regenerated; the website renders the
 bed from that scene, and its head (the pillows) is its −x end from
-rooftop-media-2026 #338, so in this corner they meet the west wall.
+rooftop-media-2026 #334, so in this corner they meet the west wall.
 Nothing else in the house moves, no protocol version bumps, and the
 settle contact count is unchanged at 136.
 

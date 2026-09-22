@@ -189,7 +189,7 @@ BOARDS = {
 
 PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 
-#: The bed, in the bedroom's NORTH-WEST CORNER (issue #305). Half-extents
+#: The bed, in the bedroom's NORTH-WEST CORNER (#305). Half-extents
 #: first, because the corner is derived from them.
 #:
 #: ⚠ IT IS IN THE CORNER SO THAT `whiteboard_b` CAN BE DRAWN ON. Standing at
@@ -795,7 +795,7 @@ def build_home_world() -> tuple[str, dict]:
   add(_box_body("furniture_couch", 3.2, 0.8, 0.25, 0.50, 0.35, 0.25,
                 "0.45 0.40 0.50 1"), "furniture_couch", "couch")
   # ⚠ The bed's HEAD is its -x end (the website's `bedShape` convention since
-  # rooftop-media-2026 #337), so in this corner the pillows meet the west
+  # rooftop-media-2026 #334), so in this corner the pillows meet the west
   # wall. A box carries no sign; the two repos agree on which end it is.
   add(_box_body("furniture_bed", BED_XY[0], BED_XY[1], BED_HALF[2],
                 BED_HALF[0], BED_HALF[1], BED_HALF[2],

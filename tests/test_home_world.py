@@ -170,7 +170,7 @@ def test_doorways_are_wide_enough_to_drive_through(home_model):
 
 def test_a_board_can_be_stood_in_front_of(home_model):
   """A board whose USE POSE has furniture inside the front-stop reflex is a
-  board the robot cannot reliably draw on (issue #305).
+  board the robot cannot reliably draw on (#305).
 
   Standing at a board means standing at `board_standoff`, and the LIDAR
   reflex reverses the robot for `BACKOFF_TIME` whenever anything within

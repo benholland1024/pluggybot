@@ -1417,7 +1417,7 @@ what the leg before mapped (6.6 m against the LIDAR's 8 m;
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
 
-## ...and then the bed was standing in its way (issue #305)
+## ...and then the bed was standing in its way (#305)
 
 The same board, the half #298 did not reach. With the planner fixed the
 robot drives the whole way and stops 0.26 m from the use pose, and there
