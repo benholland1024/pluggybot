@@ -10,6 +10,38 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The bed is out of whiteboard_b's way (#305) — opens when this PR is deployed
+
+**What changed on the wire.** The world: `furniture_bed` moves from
+(-0.50, 4.80) to the bedroom's north-west corner, (-1.07, 5.37), 1 cm off
+both walls. `models/home_world.xml`, its meta and
+`protocol/scene.home_world.json` are regenerated; the website renders the
+bed from that scene, and its head (the pillows) is its −x end from
+rooftop-media-2026 #334, so in this corner they meet the west wall.
+Nothing else in the house moves, no protocol version bumps, and the
+settle contact count is unchanged at 136.
+
+Why: whiteboard_b's use pose had the bed's corner 0.23 m away, inside the
+front-stop reflex's 0.25 m, so an approach that swung the corner through
+the front cone bounced the robot off it until the drive stagnated — the
+board drew from some directions and not others. SimNotes has the
+measurement.
+
+Expect: whiteboard_b jobs that pay from any approach. Both robots reach it
+from the rack and from the hall now; before, only an approach through the
+bedroom doorway worked.
+
+**What the period is for.** whiteboard_b's paid rate, per robot, against
+whiteboard_a's. Those two should now differ only by distance. It also
+finally makes #298's period readable: its whiteboard_b rows were measuring
+the bed.
+
+**Not yet known.** Whether any OTHER stand-at pose in the house is inside
+the reflex of something — the new test covers the two boards, and the
+rack bays, the lab plates and the bench are not checked. The pick-failure
+rate (6 of 23 since the #298 deploy, across dance, census and both
+boards) is its own question and is not this.
+
 ### A garbled first call no longer costs the life (#303) — opens when this PR is deployed
 
 **What changed on the wire.** Nothing in the mind, the prompt or the
