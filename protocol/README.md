@@ -911,6 +911,18 @@ order the model reads them:
   rather than showing an empty fold. `scripts/overseer_probe.py --prompt`
   prints the message a deployment would send, section by section, which
   is how a person reads a deployment's prompt without ssh.
+- ⚠ **A RELAY MUST HOLD IT, AND THIS ONE DID NOT** (rooftop-media-2026
+  #338). `prompt`, `records`, `event_map` and the `thought` documents all
+  ride the `goals` slot for the `goals` reason, and the website's hub
+  cached the documents and dropped the other three -- so every visitor to
+  the live world, who is ALWAYS a late joiner (the sim connects once and
+  stays for hours), read "no mind is attached, a set routine is running"
+  under the Rules of an `autonomous` pair, two messages after the same
+  burst's `goals` said `steering: true`. The sim's half is correct as
+  written; "absent means nothing is being told anything" is a claim a
+  consumer may only make about what the SIM sent it, and a relay that
+  drops one owes its viewers the replay it gives the header and the
+  keyframe.
 
 ### 0.21.0, additive: the memory's rows (`record`, `records`) and the event map (`event_map`)
 
