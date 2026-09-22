@@ -187,9 +187,18 @@ def _bays() -> int:
 #: clear. The reward (challenges.json's `ticket` row, paid at close) is
 #: bounded by it too.
 MAX_OPEN_TICKETS = 3
-#: ...and how long a ticket's report may be. Longer than a message (a bug
-#: report has steps in it) and shorter than a page: ~125 tokens at the cap,
-#: times three open tickets, on every call.
+#: ...and how long a ticket's text may be, in EITHER direction (issue
+#: #284, the length follow-up). Longer than a message (a bug report has
+#: steps in it) and shorter than a page: ~125 tokens at the cap, times
+#: three open tickets and the thread lines shown with them, on every call.
+#:
+#: ⚠ ONE NUMBER FOR THE REPORT AND FOR A LINE OF THE THREAD. A line's cap
+#: was a MESSAGE's (280) in the first build, on the reasoning that a
+#: message is a sentence -- true of a visitor's and false of a robot
+#: filing a technical update: MEASURED on the deployed world 2026-09-22,
+#: four of Rowan's lines on `tk_0003` were cut mid-word at exactly 280,
+#: one of them an offer to report sensor readings that never finished its
+#: sentence. A ticket's line is a TICKET's text, whoever writes it.
 MAX_TICKET_CHARS = 500
 
 
@@ -277,14 +286,15 @@ MESSAGES: tuple[Surface, ...] = (
   # notes. The `read` event is its record on the wire and the observatory.
   Surface("library", MESSAGE, LIBRARY, MAX_PAGE_CHARS, CHARS, ROLL,
           (), "read", "read"),
-  # An operator's line on a ticket's thread (issue #284): a reply, or the
-  # message a ticket is closed with. A message's cap -- the same one the
-  # inbound socket enforces -- and no outcome vocabulary: the robot may
-  # answer on the thread or let it stand, and neither is a verdict on the
-  # wire. Never in `visitorMessages`: it is shown on the ticket it
-  # belongs to, under the ticket's own rule, and the `ticket` event is
-  # its record.
-  Surface("operator", MESSAGE, OPERATOR, MAX_MESSAGE_CHARS, CHARS, ROLL,
+  # A line on a ticket's thread (issue #284): an operator's reply, the
+  # message a ticket is closed with, and the robot's own answer back --
+  # ONE row, because a thread is one surface and both ends write the same
+  # kind of text. A TICKET's cap, not a message's (see MAX_TICKET_CHARS),
+  # and no outcome vocabulary: the robot may answer on the thread or let
+  # it stand, and neither is a verdict on the wire. Never in
+  # `visitorMessages`: it is shown on the ticket it belongs to, under the
+  # ticket's own rule, and the `ticket` event is its record.
+  Surface("operator", MESSAGE, OPERATOR, MAX_TICKET_CHARS, CHARS, ROLL,
           (), "ticket", "ticket"),
 )
 

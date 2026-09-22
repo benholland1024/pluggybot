@@ -311,10 +311,20 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
 **Upstream: the `ticket` event.** `{robot, t, outcome, id, kind, title,
 ...}`, `outcome` one of `TICKET_OUTCOMES`:
 
-- `opened` -- `text` is the report, whole (up to 500 chars, one line).
+- `opened` -- `text` is the report, whole (up to `MAX_TICKET_CHARS`, 500,
+  one line), with `cut: true` where the robot wrote more than that and the
+  rest was not kept. A consumer shows the mark: a reader is entitled to
+  know it is not reading all of it. (So is the robot -- the sim narrates
+  it and writes it into History.) ⚠ EVERY text on a ticket carries it:
+  `replied` in either direction, and `closed` for the closing message --
+  a line the desk cut is an incomplete instruction, and the robot is the
+  one reading it. The `tickets` snapshot carries `cut` and `closedCut`
+  per ticket.
 - `replied` -- a line on the thread: `sender` (`robot` / `operator`,
   `TICKET_SENDERS`), `from` (the display name: the robot's, or the admin's
-  username), `text`; an operator's line carries `ref`, the id of the
+  username), `text` (the same 500, in EITHER direction -- a thread is a
+  ticket's surface, not a message's), `cut` on the robot's own as above;
+  an operator's line carries `ref`, the id of the
   inbound message it acknowledges, so the website settles the row it is
   holding.
 - `closed` -- `from` (who closed it), `text` (the closing message, may be

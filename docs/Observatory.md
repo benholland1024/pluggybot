@@ -10,6 +10,46 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A ticket says all of itself, or says it was cut (#307) — opens when this PR is deployed
+
+**What changed in the mind.** The `autonomous` prompt's SUPPORT TICKETS
+rule gained one paragraph — the length (500 characters, a report and a
+thread line alike) and that a cut is reported — so the prefix moved and
+`prompt_sha` with it; `guarded` did not move, and the schema, the arm,
+the reward table and the world are unchanged. What a ticket's text may
+BE changed underneath it: a line of a thread carried a message's 280
+until now, at three gates (the inbox's door, the desk, the decision's
+validation), and the website re-cut a 500-character report to 280 of its
+own. On the wire: `cut` on a `ticket` event and `cut` / `closedCut` on
+the `tickets` snapshot, additive, no bump.
+
+**What the period is for.** The rows before it are cut rows: four of
+Rowan's lines on `tk_0003` ended mid-word at exactly 280, one of them an
+offer to run `pen_check` and report `pen.carriage` / `pen.contact`
+readings — an offer that reached nobody because the sentence stopped.
+Nothing recovers those; what was cut was never stored. What to read from
+here:
+
+- how much of the 500 the robots actually use, and how often `cut` is
+  true on a `ticket` row (the observatory keeps it): a robot cut on most
+  of what it files is writing to a limit still too small, and the number
+  is data rather than an opinion;
+- whether being TOLD the limit changes the writing — a robot that says
+  the most useful thing first and puts the rest in a second line is
+  reading its own rule;
+- whether a thread gets longer now that a reply can hold a measurement.
+  `THREAD_SHOWN` is still 4 and the block still rides every call: at
+  three open tickets with four full lines each it is ~1 900 tokens
+  against the deployed prompt's ~12 200, and that worst case is now
+  reachable where it was not before.
+
+**Not yet known.** Whether 500 is the right number, which is the first
+thing the `cut` rows will say. And one cap the sim does not own: the
+website slices UTF-16 units where the sim counts code points, so a
+report with emoji in it is still cut further there, unmarked — nil for
+English technical prose, reported on rooftop-media-2026 #336 rather
+than changed under a length fix.
+
 ### The bed is out of whiteboard_b's way (#305) — opens when this PR is deployed
 
 **What changed on the wire.** The world: `furniture_bed` moves from

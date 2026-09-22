@@ -104,12 +104,15 @@ def test_every_text_surface_is_a_registry_row():
   assert workshop.SUFFIX == text.BY_NAME["tools"].suffix
   assert inbox.MAX_TEXT == text.BY_NAME["visitor"].cap == text.BY_NAME["peer"].cap
   assert ov.MAX_TELL == text.BY_NAME["peer"].cap
-  # ...and the desk (#284): the cap counts OPEN tickets and is the row's;
-  # a line on a thread is a message's length, the operator row's.
+  # ...and the desk (#284): the cap counts OPEN tickets and is the row's.
   assert desk.MAX_OPEN == text.BY_NAME["tickets"].cap == text.MAX_OPEN_TICKETS
   assert desk.SUFFIX == text.BY_NAME["tickets"].suffix
-  assert desk.MAX_LINE == text.BY_NAME["operator"].cap == inbox.MAX_TEXT
+  # ⚠ A LINE OF A THREAD IS A TICKET'S TEXT, NOT A MESSAGE'S (the length
+  # follow-up on #284): one number for both directions, off the operator
+  # row, and the queue's own cap is a visitor's sentence and stays one.
+  assert desk.MAX_LINE == text.BY_NAME["operator"].cap == text.MAX_TICKET_CHARS
   assert desk.MAX_TEXT == text.MAX_TICKET_CHARS > inbox.MAX_TEXT
+  assert inbox.MAX_TICKET_TEXT == text.MAX_TICKET_CHARS
   # ...and the library's page is a paragraph, not a sentence (#216): its
   # own cap, read by the module that delivers it.
   from pluggybot.mind import wiki

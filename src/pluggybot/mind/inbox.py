@@ -55,6 +55,12 @@ from pluggybot.telemetry.protocol import (
 #: The operator's three ticket kinds (issue #284), each naming a ticket.
 TICKET_INBOUND_TYPES = ("ticket_reply", "ticket_close", "ticket_delete")
 assert set(TICKET_INBOUND_TYPES) <= set(INBOUND_TYPES)
+#: ...and what a line of a ticket's thread may be, which is NOT a message's
+#: length (the length follow-up on #284): a thread is a ticket's surface
+#: and its row says so. Read off the registry rather than repeated here --
+#: a cap typed twice is how the prompt tells the robot one number and the
+#: door enforces another.
+MAX_TICKET_TEXT = registry.BY_NAME["operator"].cap
 
 #: Longest message text kept, in characters: the MESSAGE rows' cap in
 #: `mind/text.py` (issue #217), one figure for a visitor's sentence and the
@@ -67,7 +73,7 @@ MAX_TEXT = registry.MAX_MESSAGE_CHARS
 # is a message on the same terms with a paragraph's cap, and it never
 # comes through the socket.
 assert all(m.cap == MAX_TEXT for m in registry.MESSAGES
-           if m.writer in (registry.VISITOR, registry.PEER, registry.OPERATOR)), \
+           if m.writer in (registry.VISITOR, registry.PEER)), \
   "a message row's cap disagrees with the queue's"
 #: ...and the display name attached to it.
 MAX_WHO = 40
@@ -377,7 +383,18 @@ class Inbox:
     kind = LEGACY_INBOUND_TYPES.get(kind, kind)
     if kind not in INBOUND_TYPES:
       return None
-    text = clean(raw.get("text"), MAX_TEXT)
+    # ⚠ A TICKET'S LINE IS CLEANED TO A TICKET'S LENGTH, not a message's
+    # (the length follow-up on #284). This queue's cap is a visitor's
+    # sentence, and applying it to every kind cut an operator's reply --
+    # and the close's own message -- to 280 characters at the door, before
+    # the desk that owns the number ever saw it.
+    # ⚠ ...AND ONE MORE THAN IT, `validate`'s trick on the robot's own
+    # side: the DESK owns the number and reports the cut, and a line
+    # sliced to exactly the cap here would reach it indistinguishable
+    # from one that fitted -- which is the silent truncation this whole
+    # change is about, left in the one path the website cannot reach.
+    limit = MAX_TICKET_TEXT + 1 if kind in TICKET_INBOUND_TYPES else MAX_TEXT
+    text = clean(raw.get("text"), limit)
     if kind == "message" and not text:
       return None                           # nothing was actually said
     thread, turn, earlier = "", 1, ()
