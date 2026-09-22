@@ -70,7 +70,8 @@ from pluggybot.perception.heightmap import HeightMap
 from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
                              charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
-  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
+  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, ROBOT_ROOT, robot_display_name,
+  robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
@@ -2216,8 +2217,12 @@ class HubLifecycle:
     Handled by CODE on the physics thread, like a rating: an admin command
     is not a thing the robot weighs, so it never reaches the overseer's
     context. Refused, with a narration, while the module is electrically
-    seated on the fork -- a tool in use is not lost, and yanking it out of
-    the coupling mid-errand would MAKE the mess this exists to clean up.
+    seated on ANY robot's fork -- a tool in use is not lost, and yanking it
+    out of the coupling mid-errand would MAKE the mess this exists to clean
+    up. ⚠ Any robot's, not this one's (rooftop-media-2026 #337): the module
+    is the WORLD's, and a reach-in lands in whichever inbox the website
+    addressed, so reading one fork meant a tool the OTHER robot was holding
+    read as lost.
 
     The reset pose is `model.qpos0`: every world compiles its modules hung
     at their own bays, so "back where it belongs" is the model's own answer
@@ -2236,8 +2241,11 @@ class HubLifecycle:
     if jid < 0 or self.model.jnt_type[jid] != mujoco.mjtJoint.mjJNT_FREE:
       self._say(f"ADMIN reset refused: {name!r} is not a free module")
       return
-    if module_power_contact(self.model, self.data, name):
-      self._say(f"ADMIN reset refused: {name} is seated on the fork -- "
+    holder = self._fork_holding(name)
+    if holder is not None:
+      whose = ("the fork" if holder == self.mission.handle.root
+               else f"{holder}'s fork")
+      self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
                 "a tool in use is not lost")
       return
     qadr = int(self.model.jnt_qposadr[jid])
@@ -2246,6 +2254,18 @@ class HubLifecycle:
     self.data.qvel[dadr:dadr + 6] = 0.0
     mujoco.mj_forward(self.model, self.data)
     self._say(f"ADMIN {who} reset {name} -- back on its bay")
+
+  def _fork_holding(self, module: str) -> str | None:
+    """Which robot has `module` electrically seated, by root -- or None.
+
+    EVERY robot's fork, in model order, because the module is the world's
+    and so is the answer.
+    """
+    for root in robot_roots(self.model):
+      prefix = root[:-len(ROBOT_ROOT)]
+      if module_power_contact(self.model, self.data, module, prefix):
+        return root
+    return None
 
   def _reset_robot(self, msg) -> None:
     """Put the ROBOT back, because an admin said so (issue #107).

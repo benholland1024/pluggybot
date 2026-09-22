@@ -799,7 +799,12 @@ save a filmstrip PNG named after the script.
   never a delta — a delta races the appetite on the physics seam),
   `reset_tool` and `reset_robot` are inbound kinds, admin-only AT THE
   WEBSITE (`from` is a label), code-handled on the physics thread, never
-  shown to the overseer, refused while a module is seated on the fork. Each
+  shown to the overseer, refused while a module is seated on the fork.
+  ⚠ WHOSE fork is not the same question per kind (rooftop-media-2026
+  #337): the three that reach into a ROBOT read `self.tool_powered`, the
+  robot the message was addressed to; `reset_tool` moves a WORLD object
+  and reads EVERY robot's (`_fork_holding`), or a module the other robot
+  is holding reads as lost and is yanked out of its coupling. Each
   leaves FOUR traces: `life.interventions` (what a rollup reads), an
   `intervention` event, a narration line, a line in `History.md`. ⚠ ONE
   event type for all kinds: a `reset` of a DEAD robot is a rescue and not an
