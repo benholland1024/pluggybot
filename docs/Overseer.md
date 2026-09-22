@@ -876,8 +876,18 @@ something that can think comes past, and lapses honestly as `expired`.
 The answer is **frozen at claim time and never revised** (correctness is
 `wrote == expected`, so an editable commitment would not be one), and the
 errand that draws it is handed the *glyphs*, never the question.
-`questions.clean_answer` reduces it to at most two characters from `0-9`
-before a stroke exists — so this is not a way back onto free text.
+`questions.clean_answer` admits a whole number of at most two digits and
+nothing else before a stroke exists — so this is not a way back onto free
+text. ⚠ Admits, never repairs (issue #296): until then it kept the digits
+of whatever arrived and truncated, and the deployed model, which fills the
+always-required `answer` field with a stray figure off its own context,
+was committed to "80" for a tricycle (an "8.0", the pack's capacity) and
+"02" for half of 18 (a "0.2x" battery fraction) — seven of 66 claims in
+30 hours graded wrong on a number the robot never said. Now such a claim
+is refused as malformed, the refusal rides the fallback's reason into
+History in the words the robot needs ("the answer '8.0' is not one: a
+whole number of at most 2 digits, and nothing else"), and `answer` /
+`mouse_will` are each kept only on a job that asked for that field.
 
 What the overseer cannot do with a task: price one (the payout is looked up
 from `economy/rewards.json` on every read), close one (`TaskBoard.resolve`

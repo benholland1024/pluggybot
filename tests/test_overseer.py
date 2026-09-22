@@ -190,6 +190,30 @@ def test_a_broken_answer_falls_back_to_the_scripted_policy(menu, answer,
   assert d.action in ("draw", "census", "dance", "carry", "explore")
 
 
+def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
+  """Issue #296. A malformed `answer` used to reach History as a bare
+  `[fallback:garbled]`: the model whose "8.0" was refused saw a turn vanish
+  and learned nothing, then filed a ticket saying it had answered 3. The
+  refusal now rides the fallback decision's reason, in the words `validate`
+  raised -- the action and the source stay the fallback's own.
+  """
+  offer = {"id": "t_1", "kind": "whiteboard_answer", "claimable": True,
+           "needsAnswer": True}
+  boss = make(menu, full(action="take_task", task="t_1", answer="8.0",
+                         reason="a tricycle has 3 wheels"))
+  d = boss.decide({"offeredTasks": [offer], "tasksThisMission": [],
+                   "decisions": 0})
+  assert d.source == "fallback:garbled" and d.scripted
+  assert "your answer was refused: task 't_1' asks a question and the " \
+         "answer '8.0' is not one: a whole number of at most 2 digits" in d.reason
+  assert d.summary().endswith("[fallback:garbled]")
+  # ...and only a GARBLED answer has words to carry: a dead endpoint says
+  # nothing the robot could act on.
+  offline = make(menu, RuntimeError("connection reset")).decide(
+    {"offeredTasks": [offer], "tasksThisMission": [], "decisions": 0})
+  assert offline.source == "fallback:offline" and "refused" not in offline.reason
+
+
 def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):
   """The physics-never-blocks guarantee, from the overseer's side: `pending`
   goes false by the deadline even though the worker thread is still alive, so

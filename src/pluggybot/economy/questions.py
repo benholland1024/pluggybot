@@ -145,7 +145,7 @@ MATCH_STEP = 0.0005
 
 
 def clean_answer(text) -> str:
-  """Whatever came back from the mind -> something the pen can write.
+  """Whatever came back from the mind -> the whole number it said, or "".
 
   Sanitising, on the inbox's terms and for the inbox's reason: this is the
   ONE string a model chooses that ends up drawn a metre wide on a wall a
@@ -154,13 +154,18 @@ def clean_answer(text) -> str:
   that lands safely, and it is safe because of this function rather than
   because of anything the model was asked to do.
 
-  Everything outside `ANSWER_ALPHABET` is dropped rather than escaped, and
-  the result is truncated to `MAX_ANSWER`. An answer that survives as "" is
-  no answer, and the claim is refused.
+  ⚠ REFUSED, NEVER REPAIRED (issue #296). A whole number of at most
+  `MAX_ANSWER` digits -- what the prompt asks for -- or "" (no answer: the
+  claim is refused, the offer stands). Keeping the digits of whatever
+  arrived turned "8.0" into "80" and "0.25" into "02": seven of 66
+  deployed claims in 30 hours graded wrong on a number the robot never
+  said, the field having been filled with a stray figure off its own
+  context. Leading zeros are the one thing normalised ("07" IS 7).
   """
-  raw = "" if text is None else str(text)
-  kept = [c for c in raw.strip().upper() if c in ANSWER_ALPHABET]
-  return "".join(kept[:MAX_ANSWER])
+  raw = ("" if text is None else str(text)).strip()
+  if not raw or len(raw) > MAX_ANSWER or any(c not in ANSWER_ALPHABET for c in raw):
+    return ""
+  return str(int(raw))
 
 
 def answer_strokes(text: str) -> tuple[tuple[tuple[float, float], ...], ...]:

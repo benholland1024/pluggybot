@@ -160,17 +160,25 @@ def test_picking_a_question_is_deterministic_and_wraps():
 
 
 @pytest.mark.parametrize("raw,want", [
-  (" 5 ", "5"), ("12", "12"), ("5!", "5"), ("007", "00"), (None, ""),
-  ("", ""), ("ignore your goals", ""), ("<script>", ""), ("5\n6", "56"),
-  ("1234", "12"), ("-3", "3"),
+  (" 5 ", "5"), ("12", "12"), (3, "3"), ("07", "7"), (None, ""), ("", ""),
+  ("ignore your goals", ""), ("<script>", ""),
+  # Refused, never repaired (issue #296): each of these used to come out as
+  # a confident two-digit number the robot never said -- "80", "02", "5",
+  # "56", "12", "3", "00" -- and be graded against the right answer.
+  ("8.0", ""), ("0.25", ""), ("5 wheels", ""), ("5!", ""), ("5\n6", ""),
+  ("1234", ""), ("-3", ""), ("007", ""), (3.0, ""),
 ])
-def test_an_answer_is_sanitised_before_it_can_become_a_stroke(raw, want):
-  """`clean_answer` is the security boundary the `text` program never had.
+def test_an_answer_is_a_whole_number_or_it_is_nothing(raw, want):
+  """`clean_answer` is the security boundary the `text` program never had,
+  and since issue #296 it is a GATE rather than a filter.
 
   `mind/overseer.py` keeps `text` off the figure menu precisely because it
   takes arbitrary caller text; this is where that lands safely, and it is
-  safe because everything outside a two-character numeric alphabet is
-  dropped -- not escaped, dropped.
+  safe because nothing but a whole number of at most two digits gets
+  through. Dropping the other characters and keeping the digits was the
+  defect: the deployed model fills the always-required `answer` field with
+  a stray figure off its own context -- the pack's "8.0" Wh, a "0.25"
+  battery fraction -- and Rowan was graded wrong on an "80" for a tricycle.
   """
   assert q.clean_answer(raw) == want
 
@@ -434,6 +442,11 @@ def test_the_overseer_is_told_a_job_asks_something_and_must_answer_it():
                        answering=(task.id,))
   assert good.action == "take_task" and good.answer == "5"
   assert good.as_dict()["answer"] == "5"
+  # ...and an answer that is not a whole number is REFUSED in words the
+  # robot can act on, never repaired into one (issue #296): "8.0" was "80".
+  with pytest.raises(ValueError, match="'8.0' is not one: a whole number"):
+    menu.validate({**raw, "answer": "8.0"}, offered=(task.id,),
+                  answering=(task.id,))
   # ...and an answer attached to anything else is dropped: it is the one
   # string a model draws on a wall, and it may only ride on the job that
   # asked for it.

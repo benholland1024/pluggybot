@@ -71,7 +71,7 @@ from pluggybot.mind import tickets as desk
 from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_ID, clean
 from pluggybot.activity.cage import MOUSE_STATES
-from pluggybot.economy.questions import clean_answer
+from pluggybot.economy.questions import MAX_ANSWER, clean_answer
 from pluggybot.rack.coupling import BUILT_STATION_YS
 from pluggybot.mind import spend as spend_mod
 from pluggybot.mind.spend import SpendBook
@@ -504,9 +504,10 @@ class Decision:
   task: str = ""
   #: ...and what the robot says the answer IS, for a job that asks a question
   #: (issue #22). The one string a model chooses that ends up drawn on a wall
-  #: a stranger is watching, which is why it is sanitised to a two-character
-  #: numeric alphabet by `questions.clean_answer` before it can become a
-  #: single stroke. It is frozen into the task at claim time and never
+  #: a stranger is watching, which is why it is a whole number of at most two
+  #: digits or nothing (`questions.clean_answer`, refused never repaired,
+  #: #296) before it can become a single stroke -- and it is kept only on a
+  #: job that asked a question. It is frozen into the task at claim time and never
   #: revised: correctness is decided against THIS, so a commitment that could
   #: be edited after the ink was down would not be a commitment.
   answer: str = ""
@@ -1388,8 +1389,14 @@ class Menu:
                        f"(claimable: {', '.join(offered) or 'nothing'})")
     answer = clean_answer(raw.get("answer"))
     if action == "take_task" and task in answering and not answer:
+      # Refused, not repaired (issue #296): "8.0" is not an answer, and the
+      # robot is told so in these words (`fallback` carries them into the
+      # History line). `MAX_ID` chars of what it said, never the whole
+      # string -- this line is prose the model reads back.
       raise ValueError(f"task {task!r} asks a question and the answer "
-                       f"{raw.get('answer')!r} is not one this pen can write")
+                       f"{clean(raw.get('answer'), MAX_ID)!r} is not one: "
+                       f"a whole number of at most {MAX_ANSWER} digits, "
+                       "and nothing else")
     # THE LAB'S THREE (issue #226), dropped where no zone was offered, on
     # the standing order's terms. `care` is the action's parameter and
     # defaults to the feed plate; `real` rides any action; `mouse_will` is
@@ -1552,7 +1559,14 @@ class Menu:
                     read=read, find=find,
                     respond_to=respond_to, outcome=outcome, reply=reply,
                     task=task if action == "take_task" else "",
-                    answer=answer if action == "take_task" else "",
+                    # THE FIELD THE JOB ASKED FOR, and only that one (issue
+                    # #296): `answer` is required on every turn and the
+                    # deployed model fills it with a stray figure ("24" off
+                    # History, on a shock claim: 3 of 4 probe calls), which
+                    # `answer or mouse_will` at the claim let shadow a valid
+                    # prediction. Dropped at the door like any stray field.
+                    answer=(answer if action == "take_task"
+                            and task in answering else ""),
                     # Capped here and refused there: a line too long is
                     # trimmed (it is prose, and half a sentence is still a
                     # sentence), while a write the permission table forbids
@@ -1577,7 +1591,8 @@ class Menu:
                     lookup=lookup,
                     care=care if action == "care" else "",
                     real=real,
-                    mouse_will=mouse_will if action == "take_task" else "",
+                    mouse_will=(mouse_will if action == "take_task"
+                                and task in predicting else ""),
                     ticket=ticket, ticket_reply=ticket_reply,
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
@@ -3982,6 +3997,13 @@ class Overseer:
     if decision is None:
       why = slot.get("error") or "timeout"
       decision = self.fallback(state, why)
+      if slot.get("refused"):
+        # What was wrong with the answer, on the decision the robot reads
+        # back (issue #296) -- the action and the source are the fallback's
+        # own; only the reason says why it was consulted.
+        decision = replace(decision, reason=(f"{decision.reason} -- your "
+                                             f"answer was refused: "
+                                             f"{slot['refused']}"))
       # The vendor's own words for what went wrong, for the measurement
       # seam: `_call` wrote them to `usage.errors` a moment ago.
       error = next((e for e in reversed(self.usage.errors)
@@ -4407,6 +4429,12 @@ class Overseer:
       # `stats()` shows.
       self.usage.errors.append(f"call: {type(e).__name__}: {e}"[:200])
       slot = {"error": fallback_reason(e)}
+      if slot["error"] == "garbled":
+        # THE REFUSAL, IN WORDS, FOR THE ROBOT (issue #296): a malformed
+        # answer used to reach History as a bare `[fallback:garbled]`, so a
+        # model whose "8.0" was refused saw a turn vanish and learned
+        # nothing. `result` folds this into the fallback's reason.
+        slot["refused"] = clean(str(e), MAX_REPLY)
     # ⚠ PUBLISHING AND RELEASING ARE ONE CRITICAL SECTION. `result()` returns
     # the moment `_slot` is set, so anything done between setting it and
     # clearing `_in_flight` is a window in which the caller has its answer and
