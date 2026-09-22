@@ -1622,6 +1622,15 @@ class HubLifecycle:
     rebind protocol exists to prevent. The peers' `on_rebind` sinks fire
     with them, which is how a publisher registered on the first robot
     follows a tool the second one built.
+
+    ⚠ THE RECOMPILE IS NOT THE COST. MEASURED on the home world, 2026-09-22:
+    `spec.recompile` 4-5 ms, this whole method ~160 ms, and 136 ms of that
+    is `rebind` recreating the tag detector's `Renderer` -- an EGL context,
+    which is what a Renderer bound to the old model has to become. It is one
+    hitch on the physics thread per build or retire, not a per-step cost,
+    and it is why a recompile is refused mid-errand rather than throttled.
+    `scene_dict` is 18 ms of the rest, and the sidecar this passes it is
+    0.1 ms of that.
     """
     from pluggybot.workshop import seam
     from pluggybot.telemetry.scene import scene_dict
