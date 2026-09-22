@@ -1601,6 +1601,17 @@ save a filmstrip PNG named after the script.
   death (it keeps the volume, so the next life reads its predecessor's death
   line). ⚠ A stand-up STEPS the sim and the restart seam is on every step:
   `_standing_up` guards the recursion, on the admin path too.
+  ⚠ **A SEATED MODULE STOPS A STAND-UP ONLY WHILE SOMETHING CAN STILL PUT
+  IT DOWN** (issue #311; `parked_dead` = dead AND out of the errand that
+  killed it, which is what `_wait_dead_routine` sets). The day loop parks a
+  dead robot only once its errand has returned, and no errand runs after
+  that — so a tool the errand failed to stow (a robot toppled carrying it
+  cannot reach the rack) shut EVERY door: this reset, `set_battery`, and
+  `reset_tool` refusing a tool on a fork. The robot stayed down until the
+  container restarted, and the caller that matters here has no operator
+  behind it. The rescue takes the tool home with it (`_return_module`,
+  shared with `reset_tool`), because the timer has nobody to notice a
+  module left on the floor and that is a bay empty for good.
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md). An errand is machinery (a tool, a place, a
   use-phase); an activity is scenery that reacts; a task is what the house
