@@ -1472,7 +1472,7 @@ class HubLifecycle:
     if self.depth_camera is not None:
       self.depth_camera.rebind(model)
     if self.screen is not None:
-      self.screen.model, self.screen.data = model, data
+      self.screen.rebind(model, data)
     if self.activities is not None:
       self.activities.rebind(model, data)
     if self.game is not None and hasattr(self.game, "rebind"):

@@ -181,15 +181,23 @@ def test_a_refusal_names_what_a_tool_may_be_built_from(tmp_path):
   prompt shows and the list a refusal names cannot drift apart."""
   from pluggybot.workshop import spec as wspec
   life = _life(tmp_path, points=100)
-  bad = {"name": "scoop", "parts": [{"id": "blade", "part": "blade",
-                                     "pos": [-30, 0, -8]}]}
+  bad = {"name": "scoop", "parts": [{"id": f"p{i}", "part": f"widget{i}",
+                                     "pos": [-30, 0, -8]} for i in range(4)]}
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": bad}))
   assert _outcomes(events) == ["specified", "refused"]
-  reason = next(r for r in events[-1]["reasons"] if "no catalog part" in r)
-  assert "'blade'" in reason
+  reasons = events[-1]["reasons"]
+  catalog_lines = [r for r in reasons if "may be built from" in r]
+  assert len(catalog_lines) == 1, reasons
   for part in wspec.buildable():
-    assert part in reason, reason
-  assert "servo_fs90" in reason and "scaffold_pla_box" in reason
+    assert part in catalog_lines[0], catalog_lines
+  assert "servo_fs90" in catalog_lines[0] and "scaffold_pla_box" in catalog_lines[0]
+  # ⚠ ONCE, and last: repeated beside each bad part it ran 598 chars on
+  # this spec and a History line is 400 -- the robot read the catalog three
+  # times and never saw that `widget3` was one of the parts it got wrong.
+  joined = "; ".join(reasons)
+  assert len(joined) < 400, len(joined)
+  for i in range(4):
+    assert f"no catalog part 'widget{i}'" in joined, joined
   assert life.ledger.balance() == 100 and life.waited == []
   # ...and the same list when the spec names no part at all -- reachable
   # from a hand-written or a restored spec, never from a decision now
