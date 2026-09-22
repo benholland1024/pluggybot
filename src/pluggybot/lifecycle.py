@@ -110,6 +110,17 @@ DEATH_CHECK_S = 0.1
 #: 2.2x that, so no healthy day can trip it, and it is half a standard
 #: 3600 s day, so a robot that goes quiet is still caught inside one.
 #:
+#: ⚠ RE-READ AGAINST THE DEPLOYED CADENCE (issue #317, 2026-09-22): 915 gaps
+#: between consecutive decisions over seven days of the `autonomous` pair
+#: read median **88 s**, p95 516 s, p99 798 s, worst **1375 s**. So the
+#: margin is 1.31x, not 2.2x -- the constant still clears every healthy gap
+#: measured, and it is now the tighter of the two readings rather than the
+#: looser. UNCHANGED, deliberately, in both directions: tightening it would
+#: start booking a long procedure plus a full charge as the agent going
+#: quiet, and loosening it would only make each silent life cost more sim
+#: time without changing a thing the agent does. Re-read it again if the
+#: cadence moves; do not tune it to move a number.
+#:
 #: ⚠ THE CLOCK IS RESET BY BEING ASKED, NOT BY AN ANSWER, and the difference
 #: is the whole honesty of the metric. Gating on a model ANSWER would make a
 #: half-hour endpoint outage a death of the AGENT's kind -- the box's failure
@@ -558,6 +569,22 @@ class HubLifecycle:
     #: WHEN THE MIND WAS LAST CONSULTED (issue #127), for `UNMINDED_AFTER_S`.
     #: Set by an `ask` FIRING, not by an answer arriving -- see the constant.
     self._last_ask_t = 0.0
+    #: ...and WHEN THE MIND WAS LAST ACTUALLY ASKED, which is NOT the same
+    #: clock (issue #317). `_last_ask_t` is armed at mission start and at a
+    #: stand-up so a life does not die of a clock it was born past; nobody
+    #: asked at either moment, and measuring the silence from there would
+    #: tell a robot on its first question that somebody had asked it three
+    #: seconds ago. None until a real ask.
+    self._asked_t: float | None = None
+    #: ...and HOW LONG THE SILENCE BEFORE THIS QUESTION WAS, in sim seconds,
+    #: for the `eventMap` block. ⚠ THE GAP BEFORE THE ASK, NOT SINCE IT: the
+    #: context is built INSIDE the ask it belongs to and sim time runs on
+    #: while the call flies, so nothing read there can reconstruct it --
+    #: `_stamp_ask` takes the difference before it restamps. None where
+    #: nothing has asked this life yet: "you have not been asked" and "you
+    #: were asked a moment ago" are different facts about a map, and the
+    #: first one is the whole point of the block.
+    self._asked_after_s: float | None = None
     #: WHETHER THE MIND HAS EVER ANSWERED FOR ITSELF (issue #303): a decision
     #: that was neither a fallback nor a map row. The bootstrap in
     #: `_arbitrate_routine` asks until this is True -- a fallback is the box
@@ -839,8 +866,15 @@ class HubLifecycle:
     if (self.event_map is not None
         and self.data.time - self._last_ask_t >= UNMINDED_AFTER_S):
       quiet = self.data.time - self._last_ask_t
+      # ...AND WHAT THE LIST SAID ABOUT IT (issue #317). "My own map stopped
+      # consulting me" was the same sentence for three different mistakes --
+      # a list never written, a list written with no `ask` in it, and an
+      # `ask` on an event that never came round -- and History is the one
+      # place a later life reads what happened to this one. A fact about the
+      # configuration, never a verdict on it: `events.silence` is the wording
+      # and the argument.
       self._die("unminded", f"nothing has asked me anything for {quiet:.0f} s "
-                            "-- my own map stopped consulting me")
+                            f"-- {ev.silence(self.event_map)}")
       return
     tilt = self._chassis_tilt()
     if tilt < TOPPLE_TILT_RAD:
@@ -940,7 +974,19 @@ class HubLifecycle:
     # first. That is the inheritance, and it is the only one.
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
-                   "knew went with it.")
+                   "knew went with it."
+                   # ...EXCEPT THE LIST, WHICH DID NOT (issue #317). The
+                   # event map is the OVERSEER's and survives this, so a
+                   # new generation is governed from its first tick by
+                   # rules it never wrote -- and until it is told, it has
+                   # no way to know that the rules it can see in `eventMap`
+                   # are not its own. Saying so is the inheritance being
+                   # honest about itself; whether to archive the map with
+                   # the rest is a design question this does not answer.
+                   + (" The list of rules that decides when I am asked is "
+                      "the one it left behind, not one I wrote."
+                      if self.event_map is not None and len(self.event_map)
+                      else ""))
     self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
                 "archived": archived.get("archived", {})})
@@ -2344,6 +2390,11 @@ class HubLifecycle:
     # map it comes back to is still its own. The next death is exactly half
     # a sim-hour away unless it changes its mind.
     self._last_ask_t = float(self.data.time)
+    # ...and the silence it is shown starts over with it (issue #317): the
+    # gap a dead robot closed belongs to the life that closed it, and a
+    # robot standing up from `unminded` is one nothing has asked YET, which
+    # is the fact worth reading.
+    self._asked_t = self._asked_after_s = None
     self.state = "EXPLORE"
     event = {"type": "reset", "t": round(t, 3), "robot": self.root,
              "by": by, "wasDead": was["cause"] if was else None,
@@ -3813,6 +3864,19 @@ class HubLifecycle:
       self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
     return self.overseer.interrupt_result()
 
+  def _stamp_ask(self) -> None:
+    """The mind is being consulted NOW: reset the unminded clock and keep
+    the silence it closed (issues #127, #317).
+
+    ⚠ THE CLOCK IS RESET BY THE ASK AND NOT BY THE ANSWER -- see
+    `UNMINDED_AFTER_S`. This is the only place that does both, so the gap
+    the robot is shown and the clock that kills it can never disagree.
+    """
+    t = float(self.data.time)
+    self._asked_after_s = (None if self._asked_t is None
+                           else round(t - self._asked_t, 1))
+    self._asked_t = self._last_ask_t = t
+
   def _arbitrate(self) -> None:
     return self.mission.run(self._arbitrate_routine())
 
@@ -3864,7 +3928,7 @@ class HubLifecycle:
       # (`idle_s`) and inside the call budget and the cooloff, which is
       # what bounds it.
       self._say("EVENT no rule fired and the mind has not answered yet -- asking")
-      self._last_ask_t = float(self.data.time)
+      self._stamp_ask()
       yield from self._decide_routine({"event": "bootstrap"})
       return
     if row is None:
@@ -3880,7 +3944,7 @@ class HubLifecycle:
       # `UNMINDED_AFTER_S`. A mind consulted through a dead endpoint is
       # still a mind being consulted, and booking that as the agent going
       # quiet would put the box back in the column the agent is judged on.
-      self._last_ask_t = float(self.data.time)
+      self._stamp_ask()
       yield from self._decide_routine({"event": row.event, "kind": row.kind,
                                        "value": row.value})
       return
@@ -5385,7 +5449,17 @@ def overseer_context(life) -> dict:
                          **({"seen": life._seen,
                              "looks_left": MAX_LOOK_RUN - life._look_run}
                             if getattr(life.overseer.menu, "look", False)
-                            else {}))
+                            else {}),
+                         # THE LIST OF RULES IT WROTE (issue #317), read
+                         # back as the rows an answer would send, with the
+                         # silence this question closed. Absent -- not
+                         # empty -- where this world honours no map, so
+                         # `guarded`'s context is unchanged; `[]` where
+                         # there IS a map and nothing is in it, which is
+                         # the case that kills.
+                         event_map=({"rows": life.event_map.as_list(),
+                                     "lastAskedSAgo": life._asked_after_s}
+                                    if life.event_map is not None else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)

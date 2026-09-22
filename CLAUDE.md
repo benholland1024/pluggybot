@@ -387,7 +387,10 @@ save a filmstrip PNG named after the script.
     `busy` is the whole rate limit, deliberately not per-row;
   - **going unminded is a death** (a fourth cause, never summed):
     `UNMINDED_AFTER_S` = 1800 sim s, measured — the worst healthy gap between
-    model decisions across the committed LLM days is 833 s. The clock is
+    model decisions across the committed LLM days is 833 s, and 1375 s over
+    915 gaps of the deployed pair (#317, 2026-09-22: a 1.31× margin, read
+    and left alone — tightening books a long errand as silence, loosening
+    only makes a silent life cost more). The clock is
     reset by the ASK, not the answer (an outage is the box), armed ONLY where
     there is a map, and NOT prevented in code (a map that cannot remove its
     own `ask` row is a rail). ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS
@@ -395,7 +398,20 @@ save a filmstrip PNG named after the script.
     is the box answering, and counting it as the first decision cost 21 of
     76 deployed lives their whole hour (one garbled call, then `unminded`);
     a stand-up does not re-arm it, a TRUE DEATH does (the map outlives the
-    robot and the next generation never wrote it);
+    robot and the next generation never wrote it — and is TOLD so in its
+    first History line, #317);
+  - **the list is READ BACK** (issue #317): `eventMap` in the volatile
+    context is `{rows, lastAskedSAgo}` — the rows as an answer writes them
+    and the silence this question closed (`_stamp_ask` takes the gap BEFORE
+    it restamps, or a number read inside its own ask is zero). Absent with
+    no map (`guarded` unchanged), `[]` where one is empty, which is the case
+    that kills. ⚠ THE ROWS AND THE CLOCK, NEVER THE VERDICT — no `keepsAsk`,
+    no countdown, no warning: `events.score` answers that off the config and
+    it is the question the arm asks. Measured before it: of 502 live edits
+    35 left no `ask` row and NONE was ever undone (undoing one needs a
+    decision, and a decision needs an ask), 13 collapsing a six-to-nine-row
+    map to one row. The `unminded` death line names which silence it was
+    (`events.silence`);
   - the origin is an ablation and `none` is the default (`--origin`,
     `$PLUGGY_ORIGIN`): `seeded` is today's loop as rows, `unseeded` is empty
     plus a corrected prompt — a null result there is strong evidence, a

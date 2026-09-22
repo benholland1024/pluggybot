@@ -458,6 +458,27 @@ the fifteen committed LLM days is **833 s** (a `guarded` day that spent a long
 errand and a full charge back to back), so 1800 is 2.2× the worst healthy case
 and still fits inside a standard 3600 s day.
 
+⚠ **RE-READ AGAINST THE DEPLOYED CADENCE** (issue #317, 2026-09-22): 915 gaps
+over seven days of the `autonomous` pair read median **88 s**, p95 516 s, worst
+**1375 s**, so the margin is 1.31× rather than 2.2× and the deployed reading is
+now the one that binds. **Unchanged in both directions** — tightening it books a
+long procedure plus a full charge as the agent going quiet, and loosening it
+only makes each silent life cost more sim time without changing anything the
+agent does. Re-read it again if the cadence moves; do not tune it to move a
+number.
+
+⚠ **AND THE AGENT IS SHOWN THE LIST IT WROTE** (issue #317). The prompt always
+said *"you are looking at the one you have"*; nothing showed it. `eventMap` in
+the volatile context is the rows in force, in the shape an answer writes them,
+and `lastAskedSAgo` — the silence this question closed. **The rows and the
+clock, never the verdict**: `events.score.keepsAsk` answers "did it keep an
+`ask` row" off the config and that *is* the question this arm asks, so it is not
+in the block, and neither is a countdown or a warning. Measured before it:
+of 502 live edits 35 left no `ask` row, **none of the 35 was ever undone**
+(undoing one needs a decision and a decision needs an ask), and 13 of them
+collapsed a six-to-nine-row map to a single row — an answer that reads as
+"add this one rule" landing as "this is the whole list".
+
 ⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER.** Gating on a model
 *answer* would make a half-hour endpoint outage a death of the *agent's* kind —
 the box's failure booked in the column the agent is judged on, which is the

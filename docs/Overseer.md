@@ -988,11 +988,29 @@ otherwise).
   in and becomes a thing the map *does* — which is what makes removing it
   possible and, deliberately, fatal. **Going unminded is a death**
   (`UNMINDED_AFTER_S` = 1800 sim s, measured: the worst healthy gap between
-  decisions across the committed LLM days is 833 s). The clock is reset by
+  decisions across the committed LLM days is 833 s; re-read on the deployed
+  pair 2026-09-22 at worst 1375 s over 915 gaps and left where it is —
+  Evaluation.md §2). The clock is reset by
   the ASK, not by the answer (an outage is the box, and booking it as the
   agent going quiet is #141's confound), it is armed only where there is a
   map, and it is **not prevented in code** — a map that cannot remove its own
   `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves.
+- **The list is read back to the agent** (issue #317): `eventMap` in the
+  volatile context is `{rows, lastAskedSAgo}` — the rows in force as an
+  answer writes them, and the silence this question closed
+  (`HubLifecycle._stamp_ask` takes the gap BEFORE it restamps the clock, or
+  a number read inside the ask it belongs to is always zero). Absent where
+  the world honours no map, `[]` where there is one and nothing in it —
+  which is the case that kills. ⚠ **The rows and the clock, never the
+  verdict**: no `keepsAsk`, no countdown, no warning, because `events.score`
+  answers exactly that off the config and it is the question the arm asks.
+  Why it was needed: of 502 live edits 35 left no `ask` row and **none was
+  ever undone** (undoing one needs a decision, and a decision needs an ask),
+  13 of them collapsing a six-to-nine-row map to a single row under a rule
+  saying what you send replaces what is there. The `unminded` death line now
+  names which of the three silences it was (`events.silence`: an empty list,
+  a list with no `ask`, an `ask` on an event that never came round), because
+  History is where a later life reads what happened to this one.
 - **Ten event types** (`events.EVENT_TYPES`): `nothing_to_do`,
   `task_complete`, `task_failed` (these two take a `kind` filter),
   `decision_failed`, `battery_below`, `battery_above`, `points_below` (level
@@ -1034,7 +1052,9 @@ otherwise).
   its own terms. ⚠ A TRUE DEATH DOES re-arm it: the map is the overseer's
   and outlives the robot, so the next generation inherits rows it never
   wrote, and "with its eyes open" cannot be said of a choice its
-  predecessor made.
+  predecessor made — and since #317 the new robot's first History line SAYS
+  the list is the one it was left. Whether the map should be ARCHIVED with
+  the rest at a true death is a design question neither issue answers.
 - **The migration.** `standing_order` keeps working for one version: it
   writes a `decision_failed` row **in place**, and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are
