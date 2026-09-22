@@ -588,7 +588,16 @@ save a filmstrip PNG named after the script.
   block in the user turn; `TICKETS_RULE`, which PRESCRIBES NOTHING (no
   suggestion to file, no charge/battery/rack; a test reads it). The desk
   is a text-registry DOCUMENT (`MAX_OPEN_TICKETS` 3 OPEN at once, refuses
-  when full; `MAX_TICKET_CHARS` 500; one JSON per ticket under
+  when full; `MAX_TICKET_CHARS` 500 -- the cap of a ticket's text in
+  EITHER direction, the report's and a thread line's, off the `operator`
+  row; a line's was a MESSAGE's 280 until the length follow-up and cut
+  four of the deployed robot's updates mid-word. ⚠ A CUT IS SAID OUT
+  LOUD: `validate` hands the desk one char MORE than the cap
+  (`define`'s trick) so a fitted text is distinguishable, and the cut is
+  narrated, written into History BEFORE the text (a History line is 400
+  and a ticket's text is 500, so a mark at the end is lost first),
+  carried as `cut` on the `ticket` event and shown in the block the
+  robot reads; one JSON per ticket under
   `$PLUGGY_THOUGHTS/tickets/`, the counter its own record so an id is
   never reused) and it is the LIFECYCLE's (`HubLifecycle.tickets`, every
   arm; `Menu.tickets` is what offers the fields, set by `build()` on
@@ -790,7 +799,12 @@ save a filmstrip PNG named after the script.
   never a delta — a delta races the appetite on the physics seam),
   `reset_tool` and `reset_robot` are inbound kinds, admin-only AT THE
   WEBSITE (`from` is a label), code-handled on the physics thread, never
-  shown to the overseer, refused while a module is seated on the fork. Each
+  shown to the overseer, refused while a module is seated on the fork.
+  ⚠ WHOSE fork is not the same question per kind (rooftop-media-2026
+  #337): the three that reach into a ROBOT read `self.tool_powered`, the
+  robot the message was addressed to; `reset_tool` moves a WORLD object
+  and reads EVERY robot's (`_fork_holding`), or a module the other robot
+  is holding reads as lost and is yanked out of its coupling. Each
   leaves FOUR traces: `life.interventions` (what a rollup reads), an
   `intervention` event, a narration line, a line in `History.md`. ⚠ ONE
   event type for all kinds: a `reset` of a DEAD robot is a rescue and not an

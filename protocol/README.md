@@ -311,10 +311,20 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
 **Upstream: the `ticket` event.** `{robot, t, outcome, id, kind, title,
 ...}`, `outcome` one of `TICKET_OUTCOMES`:
 
-- `opened` -- `text` is the report, whole (up to 500 chars, one line).
+- `opened` -- `text` is the report, whole (up to `MAX_TICKET_CHARS`, 500,
+  one line), with `cut: true` where the robot wrote more than that and the
+  rest was not kept. A consumer shows the mark: a reader is entitled to
+  know it is not reading all of it. (So is the robot -- the sim narrates
+  it and writes it into History.) ⚠ EVERY text on a ticket carries it:
+  `replied` in either direction, and `closed` for the closing message --
+  a line the desk cut is an incomplete instruction, and the robot is the
+  one reading it. The `tickets` snapshot carries `cut` and `closedCut`
+  per ticket.
 - `replied` -- a line on the thread: `sender` (`robot` / `operator`,
   `TICKET_SENDERS`), `from` (the display name: the robot's, or the admin's
-  username), `text`; an operator's line carries `ref`, the id of the
+  username), `text` (the same 500, in EITHER direction -- a thread is a
+  ticket's surface, not a message's), `cut` on the robot's own as above;
+  an operator's line carries `ref`, the id of the
   inbound message it acknowledges, so the website settles the row it is
   holding.
 - `closed` -- `from` (who closed it), `text` (the closing message, may be
@@ -911,6 +921,18 @@ order the model reads them:
   rather than showing an empty fold. `scripts/overseer_probe.py --prompt`
   prints the message a deployment would send, section by section, which
   is how a person reads a deployment's prompt without ssh.
+- ⚠ **A RELAY MUST HOLD IT, AND THIS ONE DID NOT** (rooftop-media-2026
+  #338). `prompt`, `records`, `event_map` and the `thought` documents all
+  ride the `goals` slot for the `goals` reason, and the website's hub
+  cached the documents and dropped the other three -- so every visitor to
+  the live world, who is ALWAYS a late joiner (the sim connects once and
+  stays for hours), read "no mind is attached, a set routine is running"
+  under the Rules of an `autonomous` pair, two messages after the same
+  burst's `goals` said `steering: true`. The sim's half is correct as
+  written; "absent means nothing is being told anything" is a claim a
+  consumer may only make about what the SIM sent it, and a relay that
+  drops one owes its viewers the replay it gives the header and the
+  keyframe.
 
 ### 0.21.0, additive: the memory's rows (`record`, `records`) and the event map (`event_map`)
 
@@ -1834,13 +1856,16 @@ it opened, and a message can only arrive while that connection is up.
   it **never reaches the overseer**: an admin command is not a thing the
   robot weighs. The acknowledgement is the world itself (the module's pose
   stream) plus a narration event line. The sim **refuses, with a narration**,
-  while the module is seated on the fork: a tool in use is not a lost one.
+  while the module is seated on ANY robot's fork: a tool in use is not a
+  lost one, and the module is the WORLD's — so which inbox the reset landed
+  in does not decide whose coupling is read (rooftop-media-2026 #337).
 - **`reset_robot` is the ADMIN recovery for a dead ROBOT** (pluggybot #107,
-  0.15.0), and takes no parameters at all — there is one robot per stream and
-  it is the robot in front of you.
+  0.15.0). It names no object — the robot is the robot — and, since 0.20.0,
+  carries the reach-in `robot` that says WHICH one; absent is the primary.
 
   ```jsonc
   {"type": "reset_robot", "id": "rr_3f2a", "from": "ben"}
+  {"type": "reset_robot", "id": "rr_3f2b", "from": "ben", "robot": "r2_pluggybot"}
   ```
 
   Code-handled, never shown to the overseer, refused while a module is seated

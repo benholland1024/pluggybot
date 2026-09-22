@@ -16,6 +16,7 @@ import mujoco
 from pluggybot import lifecycle as lc
 from pluggybot.mind.inbox import Inbox
 from pluggybot.lifecycle import HubLifecycle
+from pluggybot.robot import SECOND, world_with_robots
 from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
 
 MODULE = "module_lcd"
@@ -104,3 +105,30 @@ def test_the_code_handled_kinds_are_a_subset_of_the_inbound_vocabulary():
   assert set(CODE_HANDLED_TYPES) <= set(INBOUND_TYPES)
   assert "reset_tool" in CODE_HANDLED_TYPES
   assert "message" not in CODE_HANDLED_TYPES
+
+
+def test_a_tool_the_other_robot_is_holding_is_not_lost_either(monkeypatch):
+  """⚠ EVERY robot's fork, not the one that took the message
+  (rooftop-media-2026 #337). A reach-in lands in whichever inbox the
+  website addressed -- and until the site named one, always the primary's
+  -- so reading the primary's fork alone meant a module the SECOND robot
+  was carrying read as lost, and the reset yanked it out of the coupling:
+  exactly the mess the refusal exists to prevent."""
+  model = world_with_robots("models/hub_world.xml", second_at=(3.0, 3.0))
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  life = HubLifecycle(model, data, viewer=None, realtime=False,
+                      errand=False, inbox=Inbox())
+  try:
+    adr, _ = module_qpos(life)
+    before = list(life.data.qpos[adr:adr + 7])
+    #  Seated on the SECOND robot's fork and nobody else's: the first
+    #  robot's own fork reads empty, which is what the old check read.
+    monkeypatch.setattr(lc, "module_power_contact",
+                        lambda m, d, name, prefix="": prefix == SECOND.prefix)
+    life.inbox.offer({"type": "reset_tool", "id": "a_01", "module": MODULE})
+    life._visitor_step()
+    assert f"seated on {SECOND.root}'s fork" in life.log[-1]
+    assert list(life.data.qpos[adr:adr + 7]) == before
+  finally:
+    life.mission.close()

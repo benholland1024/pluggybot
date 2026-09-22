@@ -580,6 +580,24 @@ command shown to the model:
 | `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the points; `ticket_replied` |
 | `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
 
+**A ticket's text is 500 characters in either direction, and a cut is
+said out loud** (`MAX_TICKET_CHARS`; the length follow-up). The first
+build gave a thread line a MESSAGE's cap, 280, on the reasoning that a
+message is a sentence -- true of a visitor's, false of a robot filing a
+technical update, and measured on the deployed world: four of Rowan's
+lines on `tk_0003` ended mid-word at exactly 280, one of them an offer to
+report sensor readings that never finished its sentence. A thread is a
+ticket's surface and its registry row says so, which moves all three
+gates at once -- the inbox's door, the desk, and the decision's
+validation. The cap is now stated in the rule, `Menu.validate` hands the
+desk ONE CHARACTER MORE than it (`define`'s trick with
+`lang.MAX_SOURCE_CHARS + 1`) so a text that fitted is distinguishable
+from one that did not, and a cut is narrated, written into History and
+marked `cut` in the block the robot reads every turn -- `wiki.Page.cut`'s
+answer, one surface over. ⚠ The History note goes BEFORE the text: a
+History line is capped at 400 and a ticket's text is 500, so a mark at
+the end is the first thing lost.
+
 The robot cannot close, delete or withdraw a ticket. So a full desk is
 the operator's to clear, and the refusal says so; and the two things a
 person can do with a ticket are exactly the two outcomes: *worth

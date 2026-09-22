@@ -23,7 +23,7 @@ from pluggybot.economy.ledger import Ledger
 from pluggybot.lifecycle import overseer_context
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
-from pluggybot.mind import text
+from pluggybot.mind import inbox, text
 from pluggybot.mind import tickets as desk
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
@@ -170,6 +170,144 @@ def test_the_desk_writes_through_the_store_and_the_gate():
   assert "registry.admit(ROW" in (SRC / "mind/tickets.py").read_text()
 
 
+# ---- the length, and being told about it (the follow-up on #284) -----------------
+
+#: Longer than a message, shorter than the cap: what a robot filing a
+#: technical update actually writes (Rowan's were 280-400 before the cut).
+REPORT = ("Twice today the pen went on the floor at whiteboard_b. " * 8)[:460].strip()
+
+
+def test_a_ticket_is_a_ticket_s_length_in_both_directions_and_never_a_message_s():
+  """⚠ THE DEFECT, MEASURED ON THE DEPLOYED WORLD (2026-09-22): a line of
+  a thread was capped at a MESSAGE's 280 -- the `operator` row's -- so
+  four of Rowan's updates on `tk_0003` ended mid-word, one of them an
+  offer to report sensor readings. Shown to fail without the fix: put
+  `MAX_MESSAGE_CHARS` back on the `operator` row and both halves cut at
+  280.
+
+  One number, read off the registry by all three gates: the inbox's door,
+  the desk, and the decision's own validation."""
+  assert desk.MAX_TEXT == desk.MAX_LINE == text.MAX_TICKET_CHARS == 500
+  assert desk.MAX_LINE > inbox.MAX_TEXT, "a thread line is not a visitor's sentence"
+  d = desk.Desk(None)
+  ticket = d.open("bug", "the pen misses", REPORT, t=1.0)
+  assert ticket.text == REPORT and not ticket.cut
+  line = d.reply(ticket.id, REPORT, t=2.0, sender=desk.OPERATOR, who="ben").thread[-1]
+  assert line.text == REPORT and not line.cut
+  # ...including the one that arrives over the SOCKET, which cleaned every
+  # kind to the queue's cap before the desk that owns the number saw it.
+  box = Inbox()
+  msg = box.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
+                   "ticket": "tk_0001", "text": REPORT})
+  assert msg.text == REPORT
+  # A visitor's message is untouched by any of it.
+  said = box.offer({"type": "message", "id": "m_1", "text": "x" * 400})
+  assert len(said.text) == inbox.MAX_TEXT == 280
+
+
+def test_text_past_the_cap_is_cut_and_the_robot_is_told_three_ways(tmp_path):
+  """⚠ A SILENT TRUNCATION IS THE DEFECT, not the cap itself. Shown to
+  fail without the fix: drop `cut` and the robot's report ends mid-word
+  with nothing in the narration, nothing in History and nothing in the
+  block it reads every turn -- which is exactly how four updates were
+  lost without anybody noticing for a day."""
+  long = "w" * 900
+  d = desk.Desk(tmp_path)
+  ticket = d.open("bug", "t", long, t=1.0)
+  assert ticket.cut and len(ticket.text) == desk.MAX_TEXT
+  assert ticket.as_context()["cut"] is True, "shown where the robot reads it"
+  assert d.reply(ticket.id, long, t=2.0).thread[-1].cut is True
+  assert ticket.as_context()["thread"][-1]["cut"] is True
+  # ...and it survives the restart, because the cut is a fact about the
+  # text and the text is what was kept.
+  again = desk.Desk(tmp_path).get(ticket.id)
+  assert again.cut and again.thread[-1].cut
+  # A text that FITS is not marked -- the mark means something.
+  fits = d.open("idea", "t", REPORT, t=3.0)
+  assert not fits.cut and "cut" not in fits.as_context()
+  short = d.reply(fits.id, "which board was it?", t=4.0).thread[-1]
+  assert not short.cut and "cut" not in short.as_dict()
+
+
+def history_has_cut(life) -> bool:
+  """Did the robot's own record say a text was cut, in its own words?"""
+  return f"cut at {desk.MAX_LINE} characters" in life.thoughts.read("History.md")
+
+
+def test_the_cut_is_narrated_and_written_into_history(tmp_path):
+  """The two surfaces the robot reads back: the `ticket` event carries
+  `cut`, and History says what happened in its own words."""
+  boss, life = _desk_life(tmp_path,
+                          full(action="idle", ticket=dict(BUG, text="w" * 900)),
+                          full(action="recall", read="history",
+                               ticket_reply={"ticket": "tk_0001", "text": "y" * 900}))
+  seen = _events(life)
+  try:
+    life._decide()
+    life._decide()
+    rows = [m for m in seen if m["type"] == "ticket"]
+    assert [(m["outcome"], m.get("cut")) for m in rows] == [
+      ("opened", True), ("replied", True)]
+    history = life.thoughts.read("History.md")
+    # ⚠ BEFORE THE TEXT, not after it: a History line is capped at 400
+    # and a ticket's text is 500, so a mark at the end is the first thing
+    # cut. Shown to fail without the fix: move `cut_note` to the end of
+    # either line and neither survives into History.
+    assert history.count(f"cut at {desk.MAX_TEXT} characters") == 2
+    assert history.count("the rest was not kept") == 2
+    # ...and the state the NEXT call is built from carries the mark.
+    block = overseer_context(life)["tickets"]["open"][0]
+    assert block["cut"] is True and block["thread"][-1]["cut"] is True
+    # ...and an OPERATOR's line says so on the wire as well as in the
+    # block, because the website keeps its own copy of that line and two
+    # copies that disagree about a text is what #307 is about.
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_9", "from": "ben",
+                      "ticket": "tk_0001", "text": "z" * 900})
+    life._visitor_step()
+    theirs = [m for m in seen if m["type"] == "ticket"][-1]
+    assert (theirs["sender"], theirs["cut"], theirs["ref"]) == ("operator", True, "tr_9")
+    assert "ben replied on my ticket tk_0001" in life.thoughts.read("History.md")
+    assert history_has_cut(life), "the robot is told the line it is READING was cut"
+  finally:
+    life.mission.close()
+
+
+def test_every_text_on_a_ticket_says_whether_it_is_all_of_itself(tmp_path):
+  """⚠ FOUND BY REVIEWING THE FIX: three write paths cut, and only the
+  robot's two reported it. An OPERATOR's line arriving over the socket
+  was sliced to exactly the cap at the inbox's door, so the desk that
+  owns the number could not tell it from one that fitted -- and the
+  robot then read an incomplete instruction as if it were whole. The
+  closing message threw its flag away outright.
+
+  Shown to fail without the fix: clean a ticket kind to `MAX_TICKET_TEXT`
+  rather than one more, and `cut` is False for every length."""
+  box = Inbox()
+  d = desk.Desk(tmp_path)
+  ticket = d.open("bug", "t", "report", t=0.0)
+  for n, expected in ((desk.MAX_LINE, False), (desk.MAX_LINE + 1, True), (900, True)):
+    msg = box.offer({"type": "ticket_reply", "id": f"r{n}", "from": "ben",
+                     "ticket": ticket.id, "text": "y" * n})
+    line = d.reply(ticket.id, msg.text, t=1.0, sender=desk.OPERATOR, who="ben").thread[-1]
+    assert (len(line.text), line.cut) == (desk.MAX_LINE, expected), n
+  # ...and the closing message, which is a text on a ticket like any other.
+  closed, _ = d.close(ticket.id, by="ben", text="z" * 900, t=2.0)
+  assert closed.closed_cut and len(closed.closed_text) == desk.MAX_LINE
+  assert closed.as_context()["closedWithCut"] is True
+  assert desk.Desk(tmp_path).get(ticket.id).closed_cut, "and it survives a restart"
+  fitted, _ = d.close(d.open("idea", "t", "r", t=3.0).id, by="ben", text="thanks", t=4.0)
+  assert not fitted.closed_cut and "closedWithCut" not in fitted.as_context()
+
+
+def test_the_rule_states_the_cap_and_still_prescribes_nothing():
+  rule = ov.tickets_rule()
+  assert str(desk.MAX_TEXT) in rule and "cut" in rule
+  assert "you are told when it happens" in rule
+  for word in ("charge", "battery", "rack", "for example", "e.g.",
+               "worth reporting", "report the"):
+    assert word not in rule.lower(), word
+
+
 # ---- the reward: one row, one door, paid at the close ----------------------------
 
 
@@ -249,9 +387,14 @@ def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
   assert d.ticket is None and d.ticket_reply == {"ticket": "tk_0001", "text": "hi"}
   assert d.as_dict()["ticketReply"] == {"ticket": "tk_0001", "text": "hi"}
   assert "ticket" not in Menu().validate(full(action="idle")).as_dict()
-  # The report is capped where the schema cannot say so.
+  # The report is capped where the schema cannot say so -- at ONE MORE
+  # than the cap, `define`'s trick, so the desk can tell a text that
+  # fitted from one that was cut (the length follow-up on #284).
   d = auto.menu.validate(full(action="idle", ticket=dict(BUG, text="w" * 2000)), tickets=())
-  assert len(d.ticket["text"]) == desk.MAX_TEXT
+  assert len(d.ticket["text"]) == desk.MAX_TEXT + 1
+  d = auto.menu.validate(full(action="idle", ticket_reply={"ticket": "tk_0001", "text": "w" * 2000}),
+                         tickets=("tk_0001",))
+  assert len(d.ticket_reply["text"]) == desk.MAX_LINE + 1
 
 
 def test_the_ids_in_the_grammar_are_the_open_ones_off_the_state():

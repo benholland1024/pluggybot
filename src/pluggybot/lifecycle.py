@@ -70,7 +70,8 @@ from pluggybot.perception.heightmap import HeightMap
 from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
                              charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
-  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
+  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, ROBOT_ROOT, robot_display_name,
+  robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
@@ -2216,8 +2217,12 @@ class HubLifecycle:
     Handled by CODE on the physics thread, like a rating: an admin command
     is not a thing the robot weighs, so it never reaches the overseer's
     context. Refused, with a narration, while the module is electrically
-    seated on the fork -- a tool in use is not lost, and yanking it out of
-    the coupling mid-errand would MAKE the mess this exists to clean up.
+    seated on ANY robot's fork -- a tool in use is not lost, and yanking it
+    out of the coupling mid-errand would MAKE the mess this exists to clean
+    up. ⚠ Any robot's, not this one's (rooftop-media-2026 #337): the module
+    is the WORLD's, and a reach-in lands in whichever inbox the website
+    addressed, so reading one fork meant a tool the OTHER robot was holding
+    read as lost.
 
     The reset pose is `model.qpos0`: every world compiles its modules hung
     at their own bays, so "back where it belongs" is the model's own answer
@@ -2236,8 +2241,11 @@ class HubLifecycle:
     if jid < 0 or self.model.jnt_type[jid] != mujoco.mjtJoint.mjJNT_FREE:
       self._say(f"ADMIN reset refused: {name!r} is not a free module")
       return
-    if module_power_contact(self.model, self.data, name):
-      self._say(f"ADMIN reset refused: {name} is seated on the fork -- "
+    holder = self._fork_holding(name)
+    if holder is not None:
+      whose = ("the fork" if holder == self.mission.handle.root
+               else f"{holder}'s fork")
+      self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
                 "a tool in use is not lost")
       return
     qadr = int(self.model.jnt_qposadr[jid])
@@ -2246,6 +2254,18 @@ class HubLifecycle:
     self.data.qvel[dadr:dadr + 6] = 0.0
     mujoco.mj_forward(self.model, self.data)
     self._say(f"ADMIN {who} reset {name} -- back on its bay")
+
+  def _fork_holding(self, module: str) -> str | None:
+    """Which robot has `module` electrically seated, by root -- or None.
+
+    EVERY robot's fork, in model order, because the module is the world's
+    and so is the answer.
+    """
+    for root in robot_roots(self.model):
+      prefix = root[:-len(ROBOT_ROOT)]
+      if module_power_contact(self.model, self.data, module, prefix):
+        return root
+    return None
 
   def _reset_robot(self, msg) -> None:
     """Put the ROBOT back, because an admin said so (issue #107).
@@ -2720,9 +2740,22 @@ class HubLifecycle:
         self._remember(f"tried to open a ticket ({f.get('kind') or '?'}: "
                        f"{f.get('title') or f.get('text', '')[:40]}) -- refused: {e}")
       else:
-        self._ticket_event("opened", ticket, text=ticket.text)
-        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}")
-        self._remember(f"opened ticket {ticket.id} ({ticket.kind}): "
+        self._ticket_event("opened", ticket, text=ticket.text,
+                           **({"cut": True} if ticket.cut else {}))
+        self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}"
+                  f"{tickets_desk.cut_said(ticket.cut, tickets_desk.MAX_TEXT)}")
+        # ⚠ THE CUT GOES IN HISTORY (the length follow-up on #284), which
+        # the robot reads back: a truncation it is not told about is one
+        # it goes on believing it filed whole, and four of the deployed
+        # robot's updates ended mid-word that way.
+        #
+        # ⚠ AND IT GOES BEFORE THE TEXT. A History line is capped at
+        # `MAX_LINE_CHARS` (400) and a ticket's text is 500, so this line
+        # is ALWAYS trimmed and a mark at its end is the first thing
+        # lost -- the same defect one surface over. The record keeps the
+        # text whole; History keeps what happened to it.
+        self._remember(f"opened ticket {ticket.id} ({ticket.kind})"
+                       f"{tickets_desk.cut_note(ticket.cut, tickets_desk.MAX_TEXT)}: "
                        f"{ticket.title} -- {ticket.text}")
     if decision.ticket_reply:
       r = decision.ticket_reply
@@ -2736,9 +2769,13 @@ class HubLifecycle:
       else:
         line = ticket.thread[-1]
         self._ticket_event("replied", ticket, sender=tickets_desk.ROBOT,
-                           **{"from": self.robot_name}, text=line.text)
-        self._say(f"TICKET {ticket.id} -- replied: {line.text}")
-        self._remember(f"replied on ticket {ticket.id} ({ticket.title}): {line.text}")
+                           **{"from": self.robot_name}, text=line.text,
+                           **({"cut": True} if line.cut else {}))
+        self._say(f"TICKET {ticket.id} -- replied: {line.text}"
+                  f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
+        self._remember(f"replied on ticket {ticket.id} ({ticket.title})"
+                       f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
+                       f"{line.text}")
 
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto
@@ -2757,10 +2794,16 @@ class HubLifecycle:
       self._say(f"TICKET reply from {who} ignored: {e}")
       return
     line = ticket.thread[-1]
+    # ⚠ AN OPERATOR'S LINE SAYS WHEN IT WAS CUT TOO, and the reason is not
+    # symmetry: the ROBOT is reading this line, so a cut one is an
+    # incomplete instruction it would otherwise act on as if it were whole.
     self._ticket_event("replied", ticket, sender=tickets_desk.OPERATOR,
-                       **{"from": who}, text=line.text, ref=msg.id)
-    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}")
-    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title}): "
+                       **{"from": who}, text=line.text, ref=msg.id,
+                       **({"cut": True} if line.cut else {}))
+    self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}"
+              f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
+    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title})"
+                   f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                    f"{line.text}")
     self._occur("ticket_replied")
 
@@ -2789,7 +2832,8 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      said = f": {ticket.closed_text}" if ticket.closed_text else ""
+      said = (f"{tickets_desk.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE)}"
+              f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
       self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
       self._remember(f"{who} closed my ticket {ticket.id} ({ticket.kind}: "
@@ -2797,7 +2841,8 @@ class HubLifecycle:
       self._occur("ticket_replied")
     self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
                        text=ticket.closed_text, points=ticket.points,
-                       seq=ticket.seq, ref=msg.id, paid=changed)
+                       seq=ticket.seq, ref=msg.id, paid=changed,
+                       **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
     """The operator erased a ticket (issue #284): off the desk, open or
