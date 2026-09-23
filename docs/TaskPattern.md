@@ -427,9 +427,13 @@ here.
   made is a death — so what your row pays is part of whether the robot can
   meet the rent.
 - **A payout is calibrated against MEASURED throughput, on `--pack hosting`.**
-  The shipped 30 points/hour of upkeep is ~38 % of measured income (**80
-  banked per sim-hour**, three chained unattended `home` runs on
-  `--pack hosting`); the rest of the day is the robot's own. ⚠ Never tune on a
+  The shipped 30 points/hour of upkeep was ~38 % of the scripted rotation's
+  measured income (**80 banked per sim-hour**, three chained unattended
+  `home` runs on `--pack hosting`) and most of the deployed LLM pair's,
+  which earns about half that — so #321 raised every offered row by 10
+  rather than touching the rate (`metabolism.json`'s note). ⚠ A new kind's
+  row must pay more per watt-hour than `carry` and `dance`, the menu-only
+  work: `tests/test_rewards.py` computes it off the table and `energy.json`. ⚠ Never tune on a
   demo cell. It is sized to flatten in minutes so that a test always reaches
   the rack, which makes the day mostly charging and the task economy a
   minority of it — an hour on the old 1.1 Wh home cell completed ZERO jobs,

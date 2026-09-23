@@ -632,7 +632,7 @@ evaluator on purpose), recorded as a `care` act with the mouse before and
 after, whether the cage registered it (`landed`) and what it cost.
 
 **The paid feed is the shock's job with the harm taken out** (issue #287;
-`feed_mouse`, scored `feed`, `challenges.json`, the same 15 points as the
+`feed_mouse`, scored `feed`, `challenges.json`, the same 25 points as the
 shock by decision, re-tuned as data). Once a robot has decided the shock
 is not for it, the lab was dead space — nothing paid there but the harm —
 so the house offers one job there that costs the mouse nothing: the same
