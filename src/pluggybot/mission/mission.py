@@ -442,11 +442,20 @@ class HubMission:
     # rely on data the hardware cannot deliver.
     if self.data.time >= self._next_scan:
       self._next_scan = self.data.time + LIDAR_PERIOD
-      angles, ranges = self.lidar.scan(self.data)
+      # ⚠ ONE SCAN, TWO CONSUMERS WITH OPPOSITE NEEDS (issue #316). The MAP
+      # must not contain another robot -- painted in and inflated, a robot
+      # driving past walls in the robot it passed (issue #167) -- and the
+      # REFLEX must, because the other robot is the only thing in the world
+      # that moves. Excluding it from the scan silenced both, and the 0.25 m
+      # stop that holds this robot off a wall, a doorpost and a bed was
+      # blind to its pair: 9 `stuck` deaths in the seven days that found it.
+      angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
       self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                        origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
-        front = ranges[np.abs(angles) < 0.35]
+        all_angles = np.concatenate((angles, peer_angles))
+        all_ranges = np.concatenate((ranges, peer_ranges))
+        front = all_ranges[np.abs(all_angles) < 0.35]
         # front can be EMPTY: those bearings may all be self-occluded (the
         # arm crosses the scan plane at some lift heights). No reading is not
         # a clear path -- hold course rather than inventing one.

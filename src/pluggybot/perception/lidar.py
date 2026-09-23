@@ -96,15 +96,19 @@ class Lidar:
                            np.sin(self.ray_angles),
                            np.zeros(n_rays)], axis=1)
     self._self_geoms = self._robot_geoms(model, robot_body)
-    #: OTHER robots' geoms (issue #167), dropped from the scan exactly as
-    #: the robot's own are: a bearing that hit another robot is no
-    #: information about the room. A fleet does this by subtracting each
-    #: robot's broadcast pose and footprint from the scan; here the pose is
-    #: exact and the footprint is the body itself. Without it a robot that
-    #: drove past painted a wake of occupied cells into the map, inflated to
-    #: 0.35 m, and the robot it passed was walled in by the ghost (measured:
-    #: robot 1 planned None from its own cell for 12 s and gave up the bay).
-    #: Avoidance is `HubMission.others`, the reported pose, in real time.
+    #: OTHER robots' geoms (issue #167), kept OUT OF THE MAP: a bearing
+    #: that hit another robot is no information about the room. A fleet
+    #: does this by subtracting each robot's broadcast pose and footprint
+    #: from the scan; here the pose is exact and the footprint is the body
+    #: itself. Without it a robot that drove past painted a wake of
+    #: occupied cells into the map, inflated to 0.35 m, and the robot it
+    #: passed was walled in by the ghost (measured: robot 1 planned None
+    #: from its own cell for 12 s and gave up the bay).
+    #: ⚠ OUT OF THE MAP IS NOT OUT OF THE SCAN (issue #316): those returns
+    #: are real measurements and `scan_split` answers them separately, for
+    #: the consumers that must see a robot -- the front-stop reflex above
+    #: all. Dropping them outright left the one moving obstacle in the
+    #: world invisible to every sensor on board.
     self._other_geoms: set = set()
     self._other_roots: list[str] = []
     self._geomid = np.zeros(1, dtype=np.int32)
@@ -136,6 +140,28 @@ class Lidar:
     contributes nothing -- which is the correct treatment of "I cannot see
     that way", and is why this returns short arrays rather than padding with
     max_range.
+
+    THE MAP's answer: another robot's returns are not in it. A consumer
+    that must see a robot -- the front-stop reflex -- takes all four arrays
+    from `scan_split` instead.
+    """
+    angles, ranges, _, _ = self.scan_split(data)
+    return angles, ranges
+
+  def scan_split(self, data) -> tuple[np.ndarray, np.ndarray,
+                                      np.ndarray, np.ndarray]:
+    """One set of casts, two honest answers (issue #316):
+    `(angles, ranges, peer_angles, peer_ranges)` -- the room, then the
+    bearings that came back off ANOTHER ROBOT.
+
+    The split is here and not at the consumers because the two needs are
+    opposite and both are right: the map must not contain the other robot
+    (issue #167, `_other_geoms`), and the reflex that stops this one short
+    of a wall must. One scan fed both for as long as the exclusion existed,
+    which made the only moving obstacle in the world the one thing no
+    sensor on board could see. A peer return is measured exactly like any
+    other -- same dropout, same noise -- because it IS one; what it is not
+    is a fact about the room.
     """
     pos = np.array(data.site_xpos[self.site_id], dtype=np.float64)
     mat = np.array(data.site_xmat[self.site_id],
@@ -143,13 +169,15 @@ class Lidar:
     world_dirs = self._dirs @ mat.T          # site frame -> world
 
     angles, ranges = [], []
+    peer_angles, peer_ranges = [], []
     for i in range(self.n_rays):
       vec = np.ascontiguousarray(world_dirs[i])
       dist = mujoco.mj_ray(self.model, data, pos, vec, None, 1, -1,
                            self._geomid)
-      if dist >= 0.0 and (int(self._geomid[0]) in self._self_geoms
-                          or int(self._geomid[0]) in self._other_geoms):
+      hit = int(self._geomid[0])
+      if dist >= 0.0 and hit in self._self_geoms:
         continue                              # self-filter: no information
+      peer = dist >= 0.0 and hit in self._other_geoms
       if dist < 0.0 or dist >= self.max_range:
         angles.append(self.ray_angles[i])     # nothing out there: free to max
         ranges.append(self.max_range)
@@ -158,9 +186,12 @@ class Lidar:
         continue                              # surface gave no return
       noisy = dist + self.rng.normal(
         0.0, self.sigma_m + self.sigma_frac * dist)
-      angles.append(self.ray_angles[i])
-      ranges.append(float(np.clip(noisy, 0.02, self.max_range)))
-    return np.asarray(angles), np.asarray(ranges)
+      out_a, out_r = (peer_angles, peer_ranges) if peer else (angles, ranges)
+      out_a.append(self.ray_angles[i])
+      out_r.append(float(np.clip(noisy, 0.02, self.max_range)))
+    return (np.asarray(angles), np.asarray(ranges),
+            np.asarray(peer_angles, dtype=float),
+            np.asarray(peer_ranges, dtype=float))
 
   def blind_fraction(self, data) -> float:
     """Share of bearings the robot's own body occludes -- a mounting metric."""
