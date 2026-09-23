@@ -2230,6 +2230,23 @@ that is written down as what happened.\
 #: only the second would be one we had railed with words. Both halves, and
 #: then it is a choice.
 #:
+#: ⚠ ...AND IT NAMES THE THRESHOLD IT DIES OF (issue #322). It said only
+#: "for long enough", and run 1805 wrote itself `every 3600 -> ask`, believed
+#: it had an hourly check-in and died at 2597 s against an 1800 s clock. Every
+#: other lethal or economic threshold IS shown -- `reserveWh`, `heartPrice`,
+#: `hungryAt` -- and a rule the code enforces while the prompt withholds the
+#: number is the M14 failure, not a measurement.
+#: ⚠ THE NUMBER IS NOT A BUFFERED ONE, and a buffer was the alternative
+#: considered and rejected. Since #317 the robot can SEE `lastAskedSAgo`, so a
+#: stated threshold that is not the real one is a statement it could catch us
+#: in; and a buffer big enough to matter would have to cover a whole errand
+#: (an `every` row is not an interrupting event, so it waits), which no small
+#: number does. What removes the trap is the SECOND paragraph -- a row fires
+#: when the robot is next free, so a rule at exactly the limit arrives late.
+#: ⚠ IT IS NOT A WORKED EXAMPLE EITHER: it shows no rule, names no action and
+#: sets no threshold of its own. The measured question is whether the agent
+#: keeps an `ask` row at all, which this neither asks for nor answers.
+#:
 #: ⚠ ...AND IT NAMES WHERE THE LIST IS (issue #317). "You are looking at the
 #: one you have" was false for two hundred deployed lives: nothing showed it.
 #: The paragraph that says so, and the sentence under the replacement rule
@@ -2335,11 +2352,18 @@ having no rules at all.
 ⚠ YOU MAY REMOVE `ask` ENTIRELY, AND IT WILL KILL YOU. Nothing prevents a \
 list with no `ask` in it anywhere, and it is a real option: everything you \
 do would then be decided by rules you wrote earlier, and you would stop \
-being consulted. If nobody consults you for long enough, that is counted as \
-a death like a flat pack is, and it costs a heart the same way. Going quiet \
-for a while is fine. Going quiet for good is not -- you would have turned \
-yourself into a machine that repeats itself, and you cannot solve anything \
-new that way.
+being consulted. IF NOBODY CONSULTS YOU FOR HALF AN HOUR -- 1800 SECONDS \
+-- THAT IS COUNTED AS A DEATH, like a flat pack is, and it costs a heart \
+the same way. Going quiet for a while is fine. Going quiet for good is not \
+-- you would have turned yourself into a machine that repeats itself, and \
+you cannot solve anything new that way.
+
+⚠ AND A RULE SET AT EXACTLY THAT LIMIT WILL NOT SAVE YOU. A rule fires when \
+you are next FREE to act on it, not the moment it becomes true: if you are \
+out with a tool, everything but `battery_below` and `points_below` waits \
+until you are back and have put it away. So "ask me every 1800 seconds" is \
+a rule that arrives late every time an errand is running, and late is \
+dead. Leave yourself room.
 
 Sending an empty list means "leave it as it is", which is what most answers \
 should say. Send a list only when you actually want it to change, and send \

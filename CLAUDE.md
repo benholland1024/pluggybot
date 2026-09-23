@@ -385,7 +385,15 @@ save a filmstrip PNG named after the script.
     ACTION_FAILURES` (`busy`/`unrunnable`/`unclaimable`/`unbuildable`/
     `beyond`), stated in `EVENT_MAP_RULE`, counted by cause in the record;
     `busy` is the whole rate limit, deliberately not per-row;
-  - **going unminded is a death** (a fourth cause, never summed):
+  - **going unminded is a death** (a fourth cause, never summed), and
+    ⚠ THE AGENT IS TOLD THE NUMBER (#322, in `EVENT_MAP_RULE`; a test reads
+    it off the constant, so the value and the wording move together) along
+    with the fact that a row fires when the robot is next FREE, so a rule at
+    exactly the limit arrives late. NOT a buffered number (the robot sees
+    `lastAskedSAgo`) and NOT a raised one: the median deployed run reaches
+    2030 sim s and 16 of 116 reach 3600, so raising hides the metric.
+    A MID-ERRAND INTERRUPT STAMPS THE CLOCK (#322): same mind, different
+    question, and only the decision branch counted until then.
     `UNMINDED_AFTER_S` = 1800 sim s, measured — the worst healthy gap between
     model decisions across the committed LLM days is 833 s, and 1375 s over
     915 gaps of the deployed pair (#317, 2026-09-22: a 1.31× margin, read
@@ -411,7 +419,11 @@ save a filmstrip PNG named after the script.
     35 left no `ask` row and NONE was ever undone (undoing one needs a
     decision, and a decision needs an ask), 13 collapsing a six-to-nine-row
     map to one row. The `unminded` death line names which silence it was
-    (`events.silence`);
+    (`events.silence`); and `score.shadowed` / `shadowedEvents` count the
+    rules the agent believes it has and does not — a DISCRETE occurrence is
+    consumed by the first row that matches, so anything under a broader row
+    on the same event is dead (a level row re-arms and a periodic row stays
+    overdue, so neither is ever shadowed; reordering is not the repair);
   - the origin is an ablation and `none` is the default (`--origin`,
     `$PLUGGY_ORIGIN`): `seeded` is today's loop as rows, `unseeded` is empty
     plus a corrected prompt — a null result there is strong evidence, a

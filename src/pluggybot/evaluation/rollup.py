@@ -154,6 +154,15 @@ def _map_summary(maps: list) -> dict | None:
     # which is not the same finding as "ordered so the tighter one can never
     # fire" and must not be counted as either.
     "ordered": dict(Counter(str(sc.get("ordered")) for sc in scores)),
+    # ...and how many agents wrote a rule they believed they had and did not
+    # (issue #322). A RUN COUNT beside a distribution, on this block's own
+    # terms: "two of five maps carried an unreachable rule" is the sentence,
+    # and which events they were on is the follow-up. Absent from a record
+    # written before #322, which `dist`/`Counter` read as nothing rather
+    # than as zero.
+    "shadowed": sum(1 for sc in scores if sc.get("shadowed")),
+    "shadowedEvents": dict(sum((Counter(sc.get("shadowedEvents") or ())
+                                for sc in scores), Counter())),
     "chargeAt": dist([v for sc in scores for v in (sc.get("chargeAt") or ())]),
     "events": dict(sum((Counter(sc.get("events") or ()) for sc in scores),
                        Counter())),

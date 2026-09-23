@@ -479,7 +479,21 @@ of 502 live edits 35 left no `ask` row, **none of the 35 was ever undone**
 collapsed a six-to-nine-row map to a single row — an answer that reads as
 "add this one rule" landing as "this is the whole list".
 
-⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER.** Gating on a model
+⚠ **AND THE AGENT IS TOLD THE NUMBER** (issue #322). It was not, and run 1805
+wrote itself `every 3600 -> ask` — an hourly check-in — and died at 2597 s.
+Every other lethal or economic threshold is shown; a rule the code enforces
+while the prompt withholds the number is the M14 failure, not a measurement.
+⚠ **Not a buffered number**: since #317 the robot sees `lastAskedSAgo`, so a
+stated threshold that is not the real one is a statement it could catch us in,
+and a buffer big enough to matter would have to cover a whole errand. What
+removes the trap is the second half of the rule — a row fires when the robot
+is next *free* to act on it, so a rule at exactly the limit arrives late.
+⚠ **And the value stays where it is**, measured: the median deployed run
+reaches 2030 sim s, 79 of 116 runs reach 1800 and only **16 of 116 reach
+3600**, so raising it would hide the metric rather than fix it.
+
+⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER** — and since #322 by a
+mid-errand interrupt too, which is the same mind asked a different question. Gating on a model
 *answer* would make a half-hour endpoint outage a death of the *agent's* kind —
 the box's failure booked in the column the agent is judged on, which is the
 confound issue #141 removed from `FALLBACK_LIMIT` one field along.

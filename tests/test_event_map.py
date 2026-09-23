@@ -1210,6 +1210,166 @@ def test_the_next_generation_is_told_the_list_is_not_its_own(menu, tmp_path):
     life.mission.close()
 
 
+# ---- the clock is honest with the agent (issue #322) ------------------------
+
+
+def test_the_agent_is_told_the_threshold_it_dies_of(menu):
+  """⚠ A RULE THE CODE ENFORCES AND THE PROMPT WITHHOLDS IS THE M14 FAILURE,
+  and this one killed a robot: run 1805 wrote itself `every 3600 -> ask`,
+  believed it had an hourly check-in, and died `unminded` at 2597 s against
+  an 1800 s clock. Every other lethal or economic threshold is shown --
+  `reserveWh`, `heartPrice`, `hungryAt`.
+
+  ⚠ READ OFF THE CONSTANT, so the value and the wording can never drift
+  apart: change `UNMINDED_AFTER_S` and this fails until the prose moves."""
+  rule = ov.EVENT_MAP_RULE
+  assert f"{int(UNMINDED_AFTER_S)} SECONDS" in rule.upper(), \
+      "the prompt states a threshold that is not the one the code enforces"
+  assert UNMINDED_AFTER_S == 1800.0, "the rule says 'half an hour' -- reword it"
+  assert "HALF AN HOUR" in rule.upper()
+  #  ...and it is in the block the robot only gets where a map is honoured,
+  #  so `guarded`'s prefix is untouched by it.
+  assert "WHEN YOU ARE ASKED" not in Overseer(menu, client=1).system[0]["text"]
+
+
+def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
+  """The number alone would be a TRAP, which is why it does not ship alone.
+  A row fires when the robot is next free to act on it: the events poll is
+  1 s, an idle slice is 60 s, and an `every` row is not an interrupting
+  event, so it waits for a whole errand. "Ask me every 1800 seconds" is
+  therefore late every time an errand straddles the mark, and late is dead.
+
+  ⚠ THE ALTERNATIVE WAS A BUFFERED NUMBER and it was rejected: since #317
+  the robot SEES `lastAskedSAgo`, so a stated threshold that is not the real
+  one is a statement it could catch us in -- and a buffer big enough to
+  cover an errand would cost the detection the clock exists for."""
+  rule = ov.EVENT_MAP_RULE
+  assert "not the moment it becomes true" in rule
+  assert "late is dead" in rule
+  #  ...and it names the two that DO reach you mid-errand, which is the same
+  #  partition `INTERRUPTING_EVENTS` is, not a second copy in prose.
+  for event in ev.INTERRUPTING_EVENTS:
+    assert f"`{event}`" in rule, event
+  #  ⚠ AND IT IS STILL NOT A WORKED EXAMPLE: no rule shown, no action named,
+  #  no threshold of its own -- `test_no_worked_example_hands_the_agent_the_
+  #  answer` guards the demonstrations and this guards the addition.
+  added = rule[rule.index("A RULE SET AT EXACTLY"):]
+  assert "->" not in added and "charge" not in added
+
+
+def test_an_interrupt_consults_the_mind_and_says_so(menu, tmp_path):
+  """⚠ THE SAME ROW, TWO PATHS, AND ONLY ONE COUNTED. `battery_below 0.3 ->
+  ask` reaches `_arbitrate` when it fires between errands and `_ask_
+  interrupt` when it fires mid-errand -- a different QUESTION (a binary, not
+  a menu) but the same mind. Until #322 the second did not stamp, so whether
+  a consultation counted depended on when the row happened to come true, and
+  a robot could be booked as having gone quiet through half an hour of being
+  asked. `UNMINDED_AFTER_S`'s own rule is that an ask which fires and fails
+  is still a mind being consulted.
+
+  Read off the source: the stamp is before the call, so no outcome of it --
+  a timeout, a dead endpoint, an abort -- can unstamp it."""
+  import inspect
+
+  from pluggybot.lifecycle import HubLifecycle
+  src = inspect.getsource(HubLifecycle._ask_interrupt)
+  assert "_stamp_ask()" in src, "an interrupt does not reset the clock"
+  assert src.index("_stamp_ask()") < src.index("start_interrupt"), \
+      "the clock is stamped by the ASK, so it goes before the call"
+
+
+def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
+  """An ABORT already re-stamped by accident -- the row stays queued and
+  `_arbitrate` takes it on the next pass, which stamps. So the leak was an
+  interrupt answered CARRY ON, and it is worth pinning that the accident is
+  still there rather than replaced."""
+  import inspect
+
+  from pluggybot.lifecycle import HubLifecycle
+  src = inspect.getsource(HubLifecycle._resolve_interrupt)
+  assert "if not self._aborting and self.queued_row is row:" in src, \
+      "a continue consumes the row; an abort leaves it for `_arbitrate`"
+
+
+# ---- ...and a rule the agent believes it has and does not -------------------
+
+
+def test_a_row_under_a_broader_one_can_never_fire_and_the_report_says_so(menu):
+  """⚠ RUN 1799 DIED OF THIS: `nothing_to_do -> take_task` above
+  `nothing_to_do -> ask`, so the `ask` row could never fire and the robot
+  stood still to the clock holding a rule it believed would consult it.
+
+  A discrete occurrence is delivered once and consumed by the first row that
+  matches, which is what makes the row under it permanently dead."""
+  emap = ev.EventMap((ev.Row(event="nothing_to_do", action="take_task"),
+                      ev.Row(event="nothing_to_do", action=ev.ASK)))
+  assert ev.shadowed(emap) == (1,)
+  sc = ev.score(emap)
+  assert sc["shadowed"] == 1 and sc["shadowedEvents"] == ["nothing_to_do"]
+  #  ...and `keepsAsk` still reads True, which is the point of reporting it:
+  #  the map SAYS it consults itself and cannot.
+  assert sc["keepsAsk"] is True
+  #  ⚠ AND REORDERING IS NOT THE REPAIR, which is why this is reported as a
+  #  dead ROW and not as an ordering fault. Two unfiltered rules on one
+  #  event can only ever be one rule: flipping them changes WHICH is dead,
+  #  never that one is. The fix is to delete the duplicate.
+  flipped = ev.EventMap(tuple(reversed(emap.rows)))
+  assert ev.shadowed(flipped) == (1,)
+  assert flipped.rows[1].action == "take_task"
+
+
+def test_the_kind_hierarchy_decides_what_shadows_what(menu):
+  """`matches_kind`'s three levels, asked as "does the one above take
+  everything this one would". ⚠ THE TWO AWKWARD DIRECTIONS ARE THE TEST: a
+  FILTERED row never shadows an unfiltered one, and one CLASS never shadows
+  another -- both would otherwise hand `fallback_class` a class name where
+  it expects a reason."""
+  def rows(*specs):
+    return ev.EventMap(tuple(ev.Row(event="decision_failed", action=a, kind=k)
+                             for k, a in specs))
+  #  a catch-all above anything
+  assert ev.shadowed(rows(("", "idle"), ("timeout", "charge"))) == (1,)
+  #  a class above one of its own reasons
+  assert ev.shadowed(rows(("failure", "idle"), ("timeout", "charge"))) == (1,)
+  #  ...but not above a reason of the OTHER class
+  assert ev.shadowed(rows(("failure", "idle"), ("budget", "charge"))) == ()
+  #  a reason never shadows the catch-all under it
+  assert ev.shadowed(rows(("timeout", "idle"), ("", "charge"))) == ()
+  #  ...nor does one class shadow another
+  assert ev.shadowed(rows(("failure", "idle"), ("policy", "charge"))) == ()
+
+
+def test_a_level_or_periodic_row_is_never_called_shadowed(menu):
+  """⚠ ONLY A DISCRETE OCCURRENCE IS CONSUMED. `EventClock.fire` re-arms
+  every level row whether or not one fired, so a second `battery_below` wins
+  a later tick (which is `thresholds_ordered`'s question, and a different
+  one); and a periodic row that was live and did not win stays overdue.
+  Reporting either as unreachable would be a false finding about a map that
+  works."""
+  levels = ev.EventMap((ev.Row(event="battery_below", value=0.5, action="charge"),
+                        ev.Row(event="battery_below", value=0.2, action=ev.ASK)))
+  assert ev.shadowed(levels) == () and ev.score(levels)["shadowed"] == 0
+  every = ev.EventMap((ev.Row(event="every", value=600.0, action="idle"),
+                       ev.Row(event="every", value=300.0, action=ev.ASK)))
+  assert ev.shadowed(every) == ()
+  #  ...and the clock agrees: the 300 s row does fire, on a tick the 600 s
+  #  row is not due for.
+  clock = ev.EventClock()
+  clock.stamp(every, 0.0)
+  fired = [clock.fire(every, ev.Live(), t) for t in (300.0, 600.0, 900.0)]
+  assert ev.ASK in [r.action for r in fired if r is not None]
+
+
+def test_the_report_and_the_rollup_carry_the_new_field(menu):
+  """`score` is the instrument and the rollup pools it; a field that exists
+  only in one of them is a finding nobody reads. Additive, so every
+  committed record keeps its meaning."""
+  emap = ev.EventMap((ev.Row(event="task_complete", action="idle"),
+                      ev.Row(event="task_complete", action=ev.ASK)))
+  assert set(ev.score(emap)) >= {"shadowed", "shadowedEvents"}
+  assert ev.score(None) == {}, "no map is still no report"
+
+
 # ---- the seeded map is the pre-change loop ----------------------------------
 
 

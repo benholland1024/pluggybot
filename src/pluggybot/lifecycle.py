@@ -121,6 +121,15 @@ DEATH_CHECK_S = 0.1
 #: time without changing a thing the agent does. Re-read it again if the
 #: cadence moves; do not tune it to move a number.
 #:
+#: ⚠ AND THE AGENT IS TOLD THIS NUMBER (issue #322), in `EVENT_MAP_RULE`,
+#: because every other lethal threshold is -- `reserveWh`, `heartPrice`,
+#: `hungryAt`. It was not, and run 1805 wrote itself `every 3600 -> ask`
+#: believing an hourly check-in would keep it, and died at 2597 s. A rule
+#: the code enforces and the prompt does not state is the M14 failure.
+#: ⚠ SO THE VALUE AND THE WORDING MOVE TOGETHER: `tests/test_event_map.py::
+#: test_the_agent_is_told_the_threshold_it_dies_of` reads this constant and
+#: fails on a prompt that still says the old number.
+#:
 #: ⚠ THE CLOCK IS RESET BY BEING ASKED, NOT BY AN ANSWER, and the difference
 #: is the whole honesty of the metric. Gating on a model ANSWER would make a
 #: half-hour endpoint outage a death of the AGENT's kind -- the box's failure
@@ -4057,8 +4066,20 @@ class HubLifecycle:
     robot is standing still mid-errand and the world has to keep running
     around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
     carries the argument).
+
+    ⚠ AND IT STAMPS THE UNMINDED CLOCK (issue #322), which it did not until
+    this. This is a mind being consulted -- a different QUESTION from the
+    decision branch's, a binary rather than a menu, but the same mind and
+    the same row: `battery_below 0.3 -> ask` reaches `_arbitrate` when it
+    fires between errands and reaches HERE when it fires mid-errand. Not
+    stamping made the clock's answer depend on when the row happened to come
+    true, and `UNMINDED_AFTER_S`'s own rule is that an ask which fires and
+    fails is still a mind being consulted. An abort already re-stamped by
+    accident (the row stays queued and `_arbitrate` takes it next pass), so
+    what this fixes is an interrupt answered CARRY ON.
     """
     self.state = "DECIDE"
+    self._stamp_ask()
     self.overseer.start_interrupt(
       overseer_context(self), self._errand_name,
       f"your pack is at {self.battery.fraction:.0%}")

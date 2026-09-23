@@ -1050,7 +1050,22 @@ otherwise).
   the ASK, not by the answer (an outage is the box, and booking it as the
   agent going quiet is #141's confound), it is armed only where there is a
   map, and it is **not prevented in code** — a map that cannot remove its own
-  `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves.
+  `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves,
+  and since #322 it says the NUMBER: every other lethal threshold is shown
+  (`reserveWh`, `heartPrice`, `hungryAt`), and run 1805 wrote itself `every
+  3600 -> ask`, believed it had an hourly check-in and died at 2597 s. ⚠ The
+  number does not ship alone — a row fires when the robot is next free, so a
+  rule at exactly the limit arrives late every time an errand straddles it,
+  and the rule says so. A BUFFERED number was the alternative and was
+  rejected: the robot can see `lastAskedSAgo` since #317, so a stated
+  threshold that is not the real one is one it could catch us in.
+- **An interrupt consults the mind, and counts** (issue #322). The same row
+  reaches `_arbitrate` between errands and `_ask_interrupt` mid-errand — a
+  binary rather than a menu, but the same mind — and until #322 only the
+  first stamped the clock, so whether a consultation counted depended on
+  when the row happened to come true. An abort already re-stamped by
+  accident (the row stays queued); what this fixes is an interrupt answered
+  *carry on*.
 - **The list is read back to the agent** (issue #317): `eventMap` in the
   volatile context is `{rows, lastAskedSAgo}` — the rows in force as an
   answer writes them, and the silence this question closed
@@ -1120,7 +1135,15 @@ otherwise).
 - **What the record gets**: `stats()["eventMap"]` — origin, the map at every
   edit, what fired, what failed and why, and `events.score` (did it write a
   charging rule, at what fractions, does it keep an `ask`, does it map its own
-  failure, are its thresholds ordered) — a map is evaluable without flying.
+  failure, are its thresholds ordered, and since #322 `shadowed` — how many
+  rules it believes it has and does not, because a discrete occurrence is
+  consumed by the first row that matches and everything under a broader row
+  on the same event is dead; run 1799 died `unminded` holding
+  `nothing_to_do -> take_task` above `nothing_to_do -> ask`. ⚠ Discrete
+  events only: a level row is re-armed whether or not one fired and a
+  periodic row that lost a tick stays overdue, so neither is ever
+  unreachable. ⚠ Reordering is not the repair and it is reported as a dead
+  ROW — two unfiltered rules on one event can only ever be one rule) — a map is evaluable without flying.
   The run record is the research artifact; since issue #238 the CURRENT
   map also rides the stream as an `event_map` message (on open and on every
   edit, `Overseer.on_map`; protocol/README.md), so the site's panel and
