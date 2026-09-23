@@ -10,6 +10,40 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The robot is told whose tool it is and what a procedure needs (#324) — opens when this PR is deployed
+
+**What changed in the context, not the prefix.** No rule text moved, so
+`guarded`'s prefix and `GUARDED_RULES_SHA` are unchanged and its context
+has neither block (both are `autonomous`-only surfaces). The volatile half
+gained two things and lost an ambiguity. `rack.built` is now
+`{module, by}` per bay instead of a module name — `by` is "you" or the
+other robot's display name — and a library entry carries `needs`, the
+modules its `move` and `read` calls require. And a procedure whose tool is
+retired now leaves `runnable()` the moment the rail changes rather than at
+the next restart.
+
+**What the period is for.** #315 made a tool buildable on the pair; this
+asks whether a robot that builds one can then USE it. Three things become
+readable:
+
+- whether a build in a bay the other robot owns still happens. It is
+  refused before anything is spent, so the cost is a wasted decision — but
+  it should now approach zero, because the bay says whose it is before the
+  robot names it;
+- whether a `procedure` row fails with `no axis` or `needs module_… on the
+  fork`. Both mean the robot ran code for a tool it had not fetched, and
+  both should now be rare: `needs` says what to fetch, and a procedure
+  whose tool is gone is no longer in the enum to be chosen;
+- whether a retired tool's procedure is ever rebuilt into life — a
+  `LIBRARY my procedure X runs again` line is the robot getting a capability
+  back, and nothing measured that before.
+
+**Not yet known.** Whether any of it binds. The probe on #315's fixed path
+put `build_tool` on 0 of 16 decisions, so the robot is not yet reaching for
+the workshop at all — #314 (the powers are not in "WHAT YOU CAN DO") and
+#321 (the points economy) are the levers for that, and this period's rows
+stay empty until one of them lands.
+
 ### A tool can be built at all (#315) — opens when this PR is deployed
 
 **What changed in the world, not the mind.** The prompt, the schema, the
@@ -53,7 +87,16 @@ field being filled. From here the rows are a signal. What to read:
   `waitedS` on a `tool` row is how long it stood; a `refused` at verb
   `hang` carrying "hangs when the rack is free" means the tool is built,
   paid for and RECORDED, and went up at the next mission start instead.
-  If either is common the lever is the loop, not the prompt.
+  ⚠ **THIS IS THE TRIGGER FOR SPLITTING THE RAIL** (issue #324). The
+  obvious answer to contention is a rail each, and it is the wrong one
+  for now, for the reason the charge bay already gave -- contention is
+  the opportunity, and two rails delete the signal that two minds
+  negotiating one resource produces. It also fixes nothing expensive:
+  the binding constraint is that `can_reshape` must refuse while EITHER
+  robot is mid-errand, which a second rail does not touch. Split it when
+  these rows say contention is what stops builds landing -- give-ups a
+  material share of builds, or `waitedS` routinely near `HANG_WAIT_S`
+  (600 s) -- and not before.
 
 **Not yet known.** Whether the model fills a part list when the drop stops
 absorbing its answer — `idle_build` is the reason the 433 stop being

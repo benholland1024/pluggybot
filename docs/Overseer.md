@@ -397,6 +397,29 @@ is retiring it. Nothing arbitrates the rail beyond that: which of three
 bays each robot takes is the minds' to negotiate, as tool contention on
 the first rack always has been.
 
+**Whose tool is it, and which tool does a procedure need** (issue #324).
+Two facts the robot could previously only learn by failing. A built bay
+says `{module, by}` — `by` is "you" or the other robot's display name —
+because the rail is shared and a bay may hold a tool this robot may
+neither take nor retire; ⚠ the TAG cannot carry it, since a built
+module's tag is `15 + bay` and belongs to the bay, reused by whatever
+hangs there next. And a library entry says `needs`: the modules its
+`move` and `read` calls require, off the `requires` that
+`workshop/build.py` puts on every axis and sensor a built tool brings.
+The source was always shown, so the association was inferable; this
+states it, which is the difference between reading your own code and
+being told what to fetch.
+
+⚠ **A retired tool takes its procedures with it, now DURING a run.** An
+unknown axis is refused at `define` and again when the library loads, so
+a restart always marked a procedure whose tool was gone — but nothing did
+it mid-day, and the workshop can retire a tool mid-day. Such a procedure
+stayed in `runnable()` and in the action enum, and the robot found out by
+committing an errand to it. `Library.revalidate` recompiles every entry
+whenever the rail changes, for every robot in the world; entries are kept
+and MARKED, never dropped, so rebuilding the tool makes them runnable
+again.
+
 What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
 JSON per tool. Each is re-validated against today's catalog when the
 workshop loads and, if it still validates, **hung again** at the start of

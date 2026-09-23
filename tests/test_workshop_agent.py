@@ -252,8 +252,12 @@ def test_a_build_pays_waits_and_hangs(tmp_path):
   # the model is shown both racks and its tools: the originals as a list
   # no field can name, its own rail by the letters `build_tool` takes
   state = overseer_context(life)
-  assert state["rack"] == {"original": list(TOOL_BAYS),
-                           "built": {"A": None, "B": None, "C": "module_scoop"}}
+  assert state["rack"] == {
+    "original": list(TOOL_BAYS),
+    # ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324): the rail is the world's
+    # and a pair shares it, so "the scoop is in C" was never the whole fact.
+    "built": {"A": None, "B": None,
+              "C": {"module": "module_scoop", "by": "you"}}}
   assert state["tools"][0]["hung"] and state["tools"][0]["bay"] == "C"
 
 
@@ -715,3 +719,134 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
   # ...and gave up is not lost: recorded, paid once, hangs next run
   assert life.overseer.workshop.names() == ("scoop",)
   assert life.ledger.balance() == 97
+
+
+# ---- 8. whose tool is it, and which tool does a procedure need (issue #324) --
+
+def test_a_built_bay_says_whose_tool_it_is():
+  """One rail, two robots: a bay may hold the other robot's tool, which this
+  robot may not take and may not retire. Until this it could only find out
+  by trying. ⚠ The TAG cannot carry it — a built module's tag is `15 + bay`
+  and belongs to the BAY, reused by whatever hangs there next — so the
+  context is the only place ownership can be said."""
+  from pluggybot.lifecycle import rack_context
+  from pluggybot.pair import build_pair
+  from pluggybot.workshop import validate
+  a, b = build_pair("room_hub", pack="hosting", errands=("none", "none"),
+                    realtime=False)
+  for _ in range(100):
+    mujoco.mj_step(a.model, a.data)
+  a.state = b.state = "DECIDE"
+  a.hang_tool(validate.check(SCOOP), 0)
+  b.hang_tool(validate.check({**SCOOP, "name": "grabber"}), 1)
+
+  mine = rack_context(a.rack_inventory, a.built_by())["built"]
+  theirs = rack_context(b.rack_inventory, b.built_by())["built"]
+  assert mine["A"] == {"module": "module_scoop", "by": "you"}
+  assert mine["B"] == {"module": "module_grabber", "by": b.robot_name}
+  assert theirs["A"] == {"module": "module_scoop", "by": a.robot_name}
+  assert theirs["B"] == {"module": "module_grabber", "by": "you"}
+  assert mine["C"] is theirs["C"] is None
+  # ...and it agrees with what the seam will actually refuse
+  with pytest.raises(Exception, match="not yours to retire"):
+    b.retire_tool("module_scoop")
+
+
+def test_a_procedure_says_which_tool_it_needs(tmp_path):
+  """`build.register` puts `requires=module_<name>` on a built tool's axes
+  and sensors, so `move("scoop.tilt", ...)` without the scoop on the fork
+  fails with a reason that names the module — but only at the point of
+  failure, after an errand has been committed to it. The source was always
+  shown, so the association was inferable; this states it."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure.library import Library
+  from pluggybot.workshop import validate
+  life = _life(tmp_path, points=100)
+  life.hang_tool(validate.check(SCOOP), 0)
+  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
+  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
+                    '  move("scoop.tilt", 1.0)\n  stow()')
+  lib.define("look", 'def look():\n  wait(1.0)\n')
+  rows = {r["name"]: r for r in lib.as_context()}
+  assert rows["dig"]["needs"] == ["module_scoop"]
+  assert "needs" not in rows["look"]        # absent, not empty: a learnable slot
+  # the walk reaches into loops, branches and read() inside a condition
+  lib.define("probe", 'def probe():\n  for i in range(2):\n'
+                      '    if read("lift.force") > 0:\n'
+                      '      move("claw.jaws", 0.02)\n')
+  # ⚠ ...AND WHAT A `fetch` NAMES, or it lies by omission. The high-level
+  # verbs declare no tool -- `draw` needs the pen, `pick` the claw, and
+  # `Verb` says neither -- so a procedure that fetches the pen and draws
+  # names no axis at all and reported NO needs, which reads as "needs no
+  # tool" and is worse than an absent field.
+  lib.define("hold", 'def hold():\n  fetch("module_claw")\n'
+                     '  grip()\n  release()\n  stow()')
+  rows = {r["name"]: r for r in lib.as_context()}
+  assert rows["probe"]["needs"] == ["module_claw"]
+  assert rows["hold"]["needs"] == ["module_claw"], rows["hold"]
+  # ...and this is WHY it was missed: not one axis, not one sensor
+  assert lib.get("hold").references()["axes"] == ()
+  assert lib.get("hold").references()["sensors"] == ()
+
+
+def test_retiring_a_tool_takes_its_procedures_out_of_the_enum(tmp_path):
+  """An unknown axis is refused at `define` and again when the library
+  LOADS, so a restart always marked a procedure whose tool was gone —
+  ⚠ but nothing did it WITHIN a run, and the workshop can retire a tool
+  mid-day. The procedure stayed in `runnable()` and in the action enum, and
+  the robot found out by committing an errand to it and watching `move`
+  fail. Kept and MARKED, never dropped: rebuilding the tool makes it
+  runnable again, because this recompiles rather than remembering."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure.library import Library
+  from pluggybot.workshop import validate
+  life = _life(tmp_path, points=100)
+  life.hang_tool(validate.check(SCOOP), 0)
+  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
+  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
+                    '  move("scoop.tilt", 1.0)\n  stow()')
+  life.overseer.library = lib
+  assert lib.runnable() == ("dig",)
+
+  life.retire_tool("module_scoop")
+  assert lib.runnable() == ()                        # out of the enum
+  row = lib.as_context()[0]
+  assert row["runnable"] is False and "needs" not in row
+  assert any("scoop.tilt" in r for r in row["reasons"])
+  assert lib.entries["dig"].source                   # kept, not deleted
+
+  life.hang_tool(validate.check(SCOOP), 0)
+  assert lib.runnable() == ("dig",)                  # and it runs again
+  assert lib.as_context()[0]["needs"] == ["module_scoop"]
+
+
+def test_replacing_a_tool_tells_the_robot_once(tmp_path):
+  """⚠ ONE RACK CHANGE, ONE LINE. `hang_tool` calls `_retire_from_spec`,
+  so revalidating in the helper AND after `register` told the robot twice
+  in a single action that the same procedure had broken — with two
+  different reason texts, because the second pass saw the replacement's
+  axes in the "is not one of" list. History is capped; saying it twice
+  costs a line that could have been something else.
+
+  And a validity FLIP is news where a reworded reason is not: what is
+  already broken stays broken, and the fresh reasons are in the context
+  either way."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure.library import Library
+  from pluggybot.workshop import validate
+  life = _life(tmp_path, points=100)
+  life.hang_tool(validate.check(SCOOP), 0)
+  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
+  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
+                    '  move("scoop.tilt", 1.0)\n  stow()')
+  life.overseer.library = lib
+  said: list = []
+  life.say_hooks.append(lambda t, line, *a: said.append(line))
+
+  rec = life.hang_tool(validate.check({**SCOOP, "name": "scoop2"}), 0)
+  lines = [s for s in said if "LIBRARY" in s]
+  assert len(lines) == 1, lines
+  assert rec["relearned"] == ["dig"]
+  # ...and the one line describes the rack as it ENDED, not mid-swap
+  assert "module_scoop2" in lines[0] and "scoop2.tilt" in lines[0]
+  assert "relearned" not in rec["retiredWhat"]

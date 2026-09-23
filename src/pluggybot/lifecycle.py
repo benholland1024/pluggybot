@@ -1553,6 +1553,7 @@ class HubLifecycle:
     self.rack_inventory[tool.body] = index
     self.built[tool.body] = tool
     record["verbs"] = wbuild.register(tool)
+    record["relearned"] = self._revalidate_library()
     self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)} of my rack"
               + (f", retiring my {retired.removeprefix('module_')}" if retired else ""),
               detail=f"recompile {record['recompileMs']} ms")
@@ -1582,6 +1583,13 @@ class HubLifecycle:
               "retiredWhat": self._retire_from_spec(module)}
     record["recompileMs"] = self._recompile(reason="retire", tool=None,
                                             module=None, bay=bay, retired=module)
+    # ⚠ ONCE, HERE, not inside `_retire_from_spec` (issue #324): `hang_tool`
+    # calls that helper too, and revalidating there AND after `register`
+    # told the robot twice, in one action, that the same procedure had
+    # broken -- with two different reason texts, because the second pass saw
+    # the replacement's axes. The rack is in its final state at each of the
+    # two PUBLIC doors, and nowhere in between.
+    record["relearned"] = self._revalidate_library()
     self._say(f"I took my {module.removeprefix('module_')} off my rack; bay "
               f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
     return record
@@ -1592,6 +1600,24 @@ class HubLifecycle:
   #: roster and the reason -- so a world pulled out from under a running
   #: errand leaves that errand stepping a world that no longer exists.
   MID_ERRAND = ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN")
+
+  def built_by(self) -> dict[str, str]:
+    """Which robot built each tool on the rail: module -> display name, with
+    this robot's own as "you" (issue #324).
+
+    ⚠ READ OFF `built`, which is what a lifecycle HUNG -- the shared
+    `rack_inventory` says what is on the rail and cannot say whose it is.
+    A robot with no peers owns everything it hung and nothing else. This is
+    a PUBLIC fact: the rail is the world's and either robot can see, scan
+    and fetch what hangs there, so naming its builder tells nobody anything
+    a look at the rack would not (`others_context`'s line, kept).
+    """
+    mine = {module: "you" for module in self.built}
+    for other in self.peers:
+      name = other.robot_name or other.root
+      for module in getattr(other, "built", {}):
+        mine.setdefault(module, name)
+    return mine
 
   def seam_busy(self) -> str:
     """Why the world may not be recompiled THIS INSTANT, or "".
@@ -1644,6 +1670,26 @@ class HubLifecycle:
     self.built.pop(module, None)
     wbuild.unregister(module)
     return gone
+
+  def _revalidate_library(self) -> list[str]:
+    """The rail moved, so every procedure is re-compiled against it (issue
+    #324) -- for EVERY robot in this world, because the rail is the world's
+    and a tool one robot retires takes its axes out of the other's
+    procedures too. What changed is narrated and returned for the `tool`
+    event; a procedure that stopped being runnable is the interesting half,
+    and one that started again (its tool rebuilt) is worth saying too.
+    """
+    moved: list[str] = []
+    for life in (self, *self.peers):
+      library = getattr(life.overseer, "library", None) if life.overseer else None
+      if library is None:
+        continue
+      for name in library.revalidate(world_facts(life.world, rack=life.rack_inventory)):
+        entry = library.entries[name]
+        state = "runs again" if entry.valid else f"cannot run: {'; '.join(entry.reasons)}"
+        life._say(f"LIBRARY my procedure {name} {state}")
+        moved.append(name)
+    return moved
 
   def _recompile(self, **why) -> float:
     """Recompile the edited spec, rebind everything, tell the wire. Returns
@@ -5747,19 +5793,37 @@ def overseer_context(life) -> dict:
   # empty bay shown as null so the slot is learnable.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
   if shop is not None:
-    state["rack"] = rack_context(life.rack_inventory)
+    state["rack"] = rack_context(life.rack_inventory, life.built_by())
     state["tools"] = shop.as_context()
   return state
 
 
-def rack_context(inventory: dict[str, int]) -> dict:
+def rack_context(inventory: dict[str, int], built_by: dict | None = None) -> dict:
   """`rack` as the model sees it: `original` (the five hand-built modules,
-  permanent) and `built` (the built-tool rail, letter -> module or null)."""
+  permanent) and `built` (the built-tool rail, letter -> the tool there or
+  null).
+
+  ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324). The rail is the WORLD's and
+  both robots of a pair share it, so a bay may hold the other robot's tool
+  -- which this robot may not take and may not retire. Until this it could
+  only find that out by trying, and the refusal was the first it heard of
+  it. `by` is "you" or the other robot's display name; the TAG cannot carry
+  this, because a built module's tag is `15 + bay` and belongs to the bay
+  rather than the tool, so the context is the only place it can be said.
+  Null where nobody living claims it -- a tool on the rail whose builder is
+  not in this world is a fact, not a guess to fill in."""
   from pluggybot.workshop.library import BAYS
   first = len(HUB_STATION_YS)
   by_index = {b: m for m, b in inventory.items()}
+  built_by = built_by or {}
+
+  def bay(k: int):
+    module = by_index.get(first + k)
+    if module is None:
+      return None
+    return {"module": module, "by": built_by.get(module)}
   return {"original": [by_index[i] for i in range(first) if i in by_index],
-          "built": {BAYS[k]: by_index.get(first + k) for k in range(len(BAYS))}}
+          "built": {BAYS[k]: bay(k) for k in range(len(BAYS))}}
 
 
 def attach_mode_stream(life, sinks, pacer=None,

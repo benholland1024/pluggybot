@@ -1039,7 +1039,11 @@ save a filmstrip PNG named after the script.
   OWN RAIL (issue #277): `build_tool.bay` is the rail's `A`–`C`
   (`BAY_LETTERS` off `BUILT_STATION_YS`; `D`/`E` refused with whose bay
   they are), `retire_tool` refuses an original with the reason, the context
-  shows `rack: {original: [...], built: {A..C: module|null}}`, and a world
+  shows `rack: {original: [...], built: {A..C: {module, by}|null}}` —
+  `by` is "you" or the other robot's name, off `HubLifecycle.built_by()`,
+  because the rail is the WORLD's and the TAG cannot say it (a built
+  module's tag is `15 + bay`, the bay's, reused by the next tool there;
+  issue #324) — and a world
   whose `world_config` has no `built_bays` gets NO workshop (no field, no
   rule — the tower's shape); `can_reshape` refuses a world compiled without
   the `rack_built` body. ⚠ A PAIR HANGS A TOOL (issue #315, #168's open
