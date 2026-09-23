@@ -1673,7 +1673,6 @@ class HubLifecycle:
     event; a procedure that stopped being runnable is the interesting half,
     and one that started again (its tool rebuilt) is worth saying too.
     """
-    from pluggybot.procedure import axes            # noqa: F401 -- registered by now
     moved: list[str] = []
     for life in (self, *self.peers):
       library = getattr(life.overseer, "library", None) if life.overseer else None
