@@ -1590,8 +1590,11 @@ class Menu:
     if action == PROCEDURE_NEW and self.procedures:
       spec = raw.get("define")
       if not (isinstance(spec, dict) and str(spec.get("source", "")).strip()):
+        have = ", ".join(PROCEDURE_PREFIX + n for n in list(procedures or ())[:4])
         raise ValueError(f"{PROCEDURE_NEW} runs the procedure this same "
-                         "answer defines, and this answer defines none")
+                         "answer defines, and this answer defines none -- to "
+                         "run one already in your library, name it"
+                         + (f" ({have})" if have else ""))
     elif action.startswith(PROCEDURE_PREFIX) and self.procedures:
       name = action[len(PROCEDURE_PREFIX):]
       if procedures is None or name not in procedures:

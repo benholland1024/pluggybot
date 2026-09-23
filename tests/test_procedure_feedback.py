@@ -231,10 +231,15 @@ def test_the_answer_that_defines_a_procedure_can_name_it_even_in_an_empty_librar
 
 
 def test_procedure_new_needs_a_define_on_the_same_answer():
+  """...and the refusal says how to run one that is already there: ladder B
+  on the bench lost two turns in a row to `procedure:new` with no define,
+  meaning "run my weigh again"."""
   from pluggybot.mind.overseer import PROCEDURE_NEW
   menu = _menu()
   with pytest.raises(ValueError, match="defines none"):
     menu.validate({"action": PROCEDURE_NEW, "reason": "x"}, procedures=())
+  with pytest.raises(ValueError, match=r"name it \(procedure:weigh\)"):
+    menu.validate({"action": PROCEDURE_NEW, "reason": "x"}, procedures=("weigh",))
   menu.validate({"action": PROCEDURE_NEW, "reason": "x",
                  "define": {"name": "weigh", "source": "def weigh():\n  wait(1)\n"}},
                 procedures=())
