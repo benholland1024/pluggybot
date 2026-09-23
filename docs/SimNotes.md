@@ -1262,10 +1262,25 @@ of a ghost. A real fleet subtracts each robot's broadcast footprint from its
 scans; so does this one now (`Lidar.exclude_robot`), and avoidance reads the
 other robot's REPORTED pose in real time (`HubMission.others`, masked at plan
 time; a stagnated drive with the other within 1.2 m waits 2 s and looks
-again instead of giving up). **What is true now:** another robot is never in
-the map, only in the mask; the pick lands at 50 s with the other robot
-crossing its path, and the second robot's pick fails honestly at the empty
-bay.
+again instead of giving up). Dropping it from the scan outright was half a
+sensor too far: the same rays fed the 0.25 m front-stop reflex, which for
+seven deployed days could not see the one thing in the world that moves —
+382 encounters, nine `stuck` deaths, and no row anywhere saying two robots
+had touched. `Lidar.scan_split` answers the two consumers separately
+(issue #316), and contact is an `encounter` phase.
+
+**What is true now:** another robot is never in the map, always in the
+reflex, and in the mask as its reported pose. ⚠ The mask is an obstacle of
+its own: a goal inside one cannot be reached at all, because the nearest
+cell A* may plan to is (0.60 − d) away and a stagnated drive is only called
+arrived inside 0.15 m — so a robot standing within 0.45 m of a bay standoff
+makes that bay unpickable, measured 0/3 picks at 0.26 m against 3/3 at
+0.56 m (issue #313, which spent a week looking like a pen fault, a planner
+fault and a contention fault in turn). `HubMission.peer_on_the_goal` is
+the arithmetic; the swap gives the bay up by name rather than spending a
+second attempt on a point it cannot reach. The pick lands at 50 s with the
+other robot crossing its path, and the second robot's pick fails honestly
+at the empty bay.
 
 ## Near-field 3D: the sensor before the map (issue #34)
 

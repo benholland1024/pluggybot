@@ -230,6 +230,9 @@ OTHER_ROBOT_CELLS = 12
 #: a robot in the way, and the drive WAITS this long before looking again.
 OTHER_NEAR_M = 1.2
 OTHER_WAIT_S = 2.0
+#: How close to the goal a stagnated drive counts as having arrived after
+#: all -- the tolerance the bay approach then measures its way out of.
+CLOSE_ENOUGH_M = 0.15
 #: A drive's LAST leg -- its final waypoint and the goal itself -- is a
 #: terminal approach (`drive_toward(slow_radius=)`, navigation.py's rule),
 #: tapering over this many metres. The path waypoints before it keep the
@@ -313,6 +316,12 @@ class HubMission:
     self.tags = TagSpotter(model, handle=handle)
     self.cruise_timestep = model.opt.timestep
     self.backoff_until = 0.0
+    #: Set by `swap_at_bay_routine` when it gave a bay up because another
+    #: robot was standing on its standoff (issue #313), cleared at the top
+    #: of every attempt: how far off that robot said it was. The caller
+    #: narrates it -- `HubMission` knows the distance and the lifecycle
+    #: knows whose it is.
+    self.peer_at_bay_m: float | None = None
     self.step_count = 0
     self.collision_steps = 0
     self._resolve(model)
@@ -442,11 +451,20 @@ class HubMission:
     # rely on data the hardware cannot deliver.
     if self.data.time >= self._next_scan:
       self._next_scan = self.data.time + LIDAR_PERIOD
-      angles, ranges = self.lidar.scan(self.data)
+      # ⚠ ONE SCAN, TWO CONSUMERS WITH OPPOSITE NEEDS (issue #316). The MAP
+      # must not contain another robot -- painted in and inflated, a robot
+      # driving past walls in the robot it passed (issue #167) -- and the
+      # REFLEX must, because the other robot is the only thing in the world
+      # that moves. Excluding it from the scan silenced both, and the 0.25 m
+      # stop that holds this robot off a wall, a doorpost and a bed was
+      # blind to its pair: 9 `stuck` deaths in the seven days that found it.
+      angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
       self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                        origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
-        front = ranges[np.abs(angles) < 0.35]
+        all_angles = np.concatenate((angles, peer_angles))
+        all_ranges = np.concatenate((ranges, peer_ranges))
+        front = all_ranges[np.abs(all_angles) < 0.35]
         # front can be EMPTY: those bearings may all be self-occluded (the
         # arm crosses the scan plane at some lift heights). No reading is not
         # a clear path -- hold course rather than inventing one.
@@ -569,7 +587,7 @@ class HubMission:
           last_improve = self.data.time
           waypoints = []
           continue
-        return dist < 0.15               # stagnated: close enough or fail
+        return dist < CLOSE_ENOUGH_M     # stagnated: close enough or fail
       if self.data.time < self.backoff_until:
         yield from self._nav_routine(-0.15, 0.0)
         waypoints = []
@@ -578,7 +596,7 @@ class HubMission:
         next_replan = self.data.time + 2.0
         planned = self._plan_to(wx, wy)
         if planned is None:
-          return dist < 0.15             # no known space at all
+          return dist < CLOSE_ENOUGH_M   # no known space at all
         waypoints = planned
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < 0.08:
@@ -630,11 +648,45 @@ class HubMission:
         return True
     return False
 
+  def peer_on_the_goal(self, wx: float, wy: float) -> float | None:
+    """How far off the nearest robot standing ON this goal is, or None.
+
+    ARITHMETIC, NOT A GUESS (issue #313). `_mask_others` takes a disc of
+    `OTHER_ROBOT_CELLS` (0.60 m) out of the traversable mask around every
+    other robot's reported pose, so when the goal is inside one the nearest
+    cell A* may plan to is `radius - distance` away from it -- and a drive
+    that stagnates there is only called arrived inside `CLOSE_ENOUGH_M`.
+    A peer nearer the goal than the difference (0.45 m) therefore makes
+    arrival IMPOSSIBLE, however many attempts are spent on it.
+
+    That is the whole of #313: a robot parked at one bay's standoff is
+    0.26 m from its neighbour's, the best reachable point is 0.35 m short,
+    and three pick attempts out of three failed at "no route" -- while the
+    same robot 0.56 m away leaves 0.06 m and three out of three land. It
+    is not contention, contact or the planner: nothing the swap does can
+    reach a goal the map has been told to keep it out of.
+
+    The distance is to the REPORTED pose (a network fact, drifting
+    0.24-0.55 m on the deployed pair), which is also what the mask uses --
+    so this answers the question the planner actually asked.
+    """
+    if not self.others:
+      return None
+    radius = OTHER_ROBOT_CELLS * self.grid.resolution - CLOSE_ENOUGH_M
+    near = min((math.hypot(ox - wx, oy - wy)
+                for ox, oy in (where() for where in self.others)), default=None)
+    return near if near is not None and near < radius else None
+
   def _mask_others(self, trav) -> None:
     """Take every other robot's footprint out of the traversable mask,
-    inflated as the map's obstacles are (issue #167). The lidar sees the
-    other robot too, but a scan marks where it WAS; this is where it says
-    it is now."""
+    inflated as the map's obstacles are (issue #167). This is where the
+    other robot SAYS it is now -- a network fact, refreshed every replan.
+    Its body is in no scan of this robot's (`Lidar.scan_split`: the map
+    never sees another robot, and since issue #316 the front-stop reflex
+    always does), so the mask is the only thing routing around it.
+    ⚠ A goal INSIDE one of these discs cannot be reached at all --
+    `peer_on_the_goal` is that arithmetic, and callers ask it before
+    spending another attempt on a drive that has nowhere to arrive."""
     if not self.others:
       return
     rows, cols = trav.shape
@@ -1072,6 +1124,7 @@ class HubMission:
     # Adopt whatever the tag has shown us so far, then aim at that. Driving
     # to the neighborhood is itself what buys line of sight, so the belief
     # is refreshed once more after arriving.
+    self.peer_at_bay_m = None
     self.refresh_rack()
     sx, sy, hd = bay_standoff(station_y, self.rack)
     # A route failure this early usually means the planner ran out of KNOWN
@@ -1082,6 +1135,18 @@ class HubMission:
     for _ in range(2):
       if (yield from self.drive_to_routine(sx, sy)):
         break
+      # ...unless ANOTHER ROBOT IS STANDING ON THE STANDOFF (issue #313),
+      # which no amount of spinning or re-ranging can plan around: the
+      # goal is inside the disc the planner has been told to avoid, and
+      # the drive above has already spent its whole patience waiting for
+      # it to move. Say which it was and stop -- the second attempt costs
+      # another timeout and a spin to arrive at the same place, and the
+      # failure it eventually reported ("no route") sent a robot looking
+      # for a fault in its own pen.
+      near = self.peer_on_the_goal(sx, sy)
+      if near is not None:
+        self.peer_at_bay_m = near
+        return "peer-at-bay"
       yield from self._spin_routine()
       self.refresh_rack()
       sx, sy, hd = bay_standoff(station_y, self.rack)

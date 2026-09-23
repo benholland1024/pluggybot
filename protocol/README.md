@@ -58,6 +58,26 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: two robots touching is an `encounter` phase (`touched` / `separated`)
+
+pluggybot #316. `encounter` has carried proximity since 0.19.0 -- `met`
+within 1.5 m, `parted` beyond 2.0 m -- and CONTACT, the one thing in that
+range a consumer would actually want marked, left nothing behind at all:
+`HubSwap.collision_steps` counts a chassis contact that is not the charge
+pins, and it is on no record and no wire. So a week with 382 encounters
+and nine `stuck` deaths could not say whether any of them was one robot
+driving into the other.
+
+Two phases, same message shape (`robots`, `distanceM`, `t`), read off the
+contact array on the pair's own activity hook: `touched` on the way in and
+`separated` once they have been apart for 50 ms -- the bumper's own hold,
+because a robot meeting something at cruise speed bounces. The activity's
+flags gain `touching` and `bumps` (the count). `ENCOUNTER_PHASES` in
+`telemetry/protocol.py` is the vocabulary; a consumer that knows only
+`met` and `parted` ignores the rest. **No bump**: nothing existing
+changed shape, and the fixtures are not re-recorded (`room_hub_pair`
+carries no encounter at all -- the two never came within 1.5 m).
+
 ### 0.21.0, additive: an earning names the life it belongs to (`earned.generation`; `rating.generation`)
 
 rooftop-media-2026 #319. `seq` is the ledger's per-robot counter, and a

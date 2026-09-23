@@ -44,7 +44,7 @@ from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
-  MissionAborted, HubMission, RackPose, charge_standoff,
+  MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -1087,6 +1087,42 @@ class HubLifecycle:
       d = min(d, math.hypot(px - bx, py - by))
     return d
 
+  def peer_at_the_bay(self, station_y: float) -> tuple[str, float] | None:
+    """Whose robot stood on the standoff this swap needed, and how far off
+    (issue #313) -- or None where the bay was not given up for one.
+
+    The RULE has one home, `HubMission.peer_on_the_goal`: this asks only
+    whether the last attempt refused for that reason, and puts a name to
+    it. `RACK_CLEAR_M` is the other half of the same problem and does not
+    cover this one: it moves a robot that is STANDING BY, and the robot
+    in the way here is charging or swapping, which is minutes at a time on
+    the one bay of each that the pair shares.
+    """
+    near = self.mission.peer_at_bay_m
+    if near is None:
+      return None
+    sx, sy, _ = bay_standoff(station_y, self.mission.rack)
+    return self._nearest_peer(sx, sy, near)
+
+  def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
+    """The same question asked of a POINT, for the approach that keeps no
+    verdict of its own (`go_charge_routine`). Asked as the narration is
+    written, which is the same sim instant the drive gave up in."""
+    near = self.mission.peer_on_the_goal(wx, wy)
+    return None if near is None else self._nearest_peer(wx, wy, near)
+
+  def _nearest_peer(self, wx: float, wy: float,
+                    near: float) -> tuple[str, float] | None:
+    """`near` is the DISTANCE the rule answered; this only picks whose it
+    is -- the nearest peer to the point, by the reported pose the rule
+    measured against."""
+    if not self.peers:
+      return None
+    who = min(self.peers,
+              key=lambda o: math.hypot(o.mission.pose_xy()[0] - wx,
+                                       o.mission.pose_xy()[1] - wy))
+    return (who.robot_name or who.root), near
+
   def _clear_rack_routine(self) -> Routine:
     """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
     back to the start pose; anywhere else, stay put."""
@@ -1416,7 +1452,19 @@ class HubLifecycle:
       self.mission.refresh_rack()
       sx, sy, hd = charge_standoff(self.mission.rack)
     else:
-      self._say("GO_CHARGE: no route to the charge bay")
+      # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
+      # asymmetry (issue #313). The same arithmetic applies -- a peer
+      # within 0.45 m of this standoff puts it outside anything the planner
+      # may route to, and MEASURED on the rack prior the neighbouring tool
+      # bay is 0.200 m from it, so a robot swapping there blocks this
+      # approach outright -- but a bay given up is a lost errand and a
+      # charge given up is a death. So this one keeps BOTH attempts and
+      # only says whose robot it was; the swap's early return does not
+      # belong here.
+      blocked = self.peer_at(sx, sy)
+      self._say("GO_CHARGE: no route to the charge bay"
+                + ("" if blocked is None else
+                   f" -- {blocked[0]} is standing {blocked[1]:.2f} m from it"))
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
@@ -1995,9 +2043,12 @@ class HubLifecycle:
     yield from self.mission.swap_at_bay_routine(errand.station_y, "pick",
                                                 module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
+    blocked = self.peer_at_the_bay(errand.station_y)
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
-              f" ({errand.name})")
+              f" ({errand.name})"
+              + ("" if blocked is None else
+                 f" -- {blocked[0]} was standing {blocked[1]:.2f} m from the bay"))
     if not carried:
       # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
       # go on: drive to the use pose with nothing on the fork, skip the
@@ -2009,8 +2060,17 @@ class HubLifecycle:
       # which of the two things a failed pick is, because the robot was
       # diagnosing its pen for what was the other robot holding it.
       hung = self.mission.swap.module_state(self.module)["hung"]
+      # ⚠ ...AND WHICH OF THE THREE, because the robot reads this back
+      # (issue #313). A pick that never reached the rack is not a pick that
+      # missed: Rowan diagnosed its pen, told the other robot to move out
+      # of a pose measured harmless, and began declining pen jobs it
+      # expected to fail -- off a correlation in its own History that no
+      # line ever named. The distance is what makes it countable.
       self._remember(f"could not pick up {self.module} for {errand.name}: "
-                     + ("the pick missed and it is still on its bay" if hung
+                     + (f"{blocked[0]} was standing {blocked[1]:.2f} m from "
+                        "the bay, nearer than the planner may route"
+                        if blocked is not None else
+                        "the pick missed and it is still on its bay" if hung
                         else "it was not on its bay"))
 
     self.state = "USE_TOOL"
@@ -2055,7 +2115,8 @@ class HubLifecycle:
     before = scoring.board_before(self, errand)
     used: dict = {}
     if not carried:
-      used = {"error": f"never picked up {self.module}"}
+      used = {"error": f"never picked up {self.module}",
+              **({} if blocked is None else {"peerAtBayM": round(blocked[1], 3)})}
     # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
     # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
     # agent's own instruction, and recording it as `error` would make an
@@ -2105,7 +2166,14 @@ class HubLifecycle:
                                                   module=self.module)
       self.swaps_done += 1
     stowed = self.mission.swap.module_state(self.module)["hung"]
-    self._say(f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
+    # A stow given up for a robot on the standoff says so too (issue #313):
+    # the bay it could not reach is the bay the tool now stays off, and a
+    # tool left on the fork is the next errand's failure as well as this
+    # one's.
+    blocked = self.peer_at_the_bay(errand.station_y) if carried else None
+    self._say((f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
+               + ("" if blocked is None else
+                  f" -- {blocked[0]} was standing {blocked[1]:.2f} m from the bay"))
               if carried else
               "SWAP_RETURN skipped -- nothing to return"
               + (" (the module hangs on its bay)" if stowed else ""))

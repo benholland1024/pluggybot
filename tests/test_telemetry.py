@@ -22,8 +22,9 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from pluggybot import tick
-from pluggybot.telemetry.protocol import (HUNGER_STATES, PROTOCOL_VERSION,
-                                          body_census, dynamic_flags)
+from pluggybot.telemetry.protocol import (ENCOUNTER_PHASES, HUNGER_STATES,
+                                          PROTOCOL_VERSION, body_census,
+                                          dynamic_flags)
 from pluggybot.telemetry.recorder import (FrameBuilder,
                                           TelemetryRecorder)
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
@@ -1049,7 +1050,7 @@ def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
   # fixture cannot be made to meet on request without steering a robot at
   # the other for the camera. Whatever a flight does carry is well-formed.
   for e in (e for e in events if e["type"] == "encounter"):
-    assert e["phase"] in ("met", "parted") and set(e["robots"]) == set(roots)
+    assert e["phase"] in ENCOUNTER_PHASES and set(e["robots"]) == set(roots)
 
 
 def test_the_home_fixture_shows_the_census_answer():
