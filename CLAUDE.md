@@ -1284,10 +1284,18 @@ save a filmstrip PNG named after the script.
   room's returns and the peer's, feeding the 0.25 m front stop) and the
   near-field depth camera (`DepthFrame.peers`, issue #328: the same frame
   sorted by what each ray hit, feeding `HubMission.watch_for_peers`, which
-  HOLDS the drive while another robot's body is within
-  `PEER_STOP_AHEAD_M` 0.60 m and `PEER_STOP_HALF_M` 0.20 m of dead ahead —
-  a held drive, never a blind reverse, because the other robot is the one
-  obstacle that moves). ⚠ MEASURED (#328): the scan plane at 0.223 m
+  records a sighting inside `PEER_STOP_AHEAD_M` 0.60 m and
+  `PEER_STOP_HALF_M` 0.20 m of dead ahead, and `drive_to_routine` HOLDS
+  for one — never a blind reverse, because the other robot is the one
+  obstacle that moves. ⚠ **THE HOLD IS AGAINST THE TRAVEL LEFT**
+  (`PEER_CLEARANCE_M` 0.30 = the front face 0.20 m ahead of the axle plus
+  0.10 m): a drive with 0.1 m to go cannot reach a body 0.5 m ahead, and
+  holding for one is how a robot parked BESIDE the charge bay stopped the
+  other charging at all — MEASURED, a peer 0.50-0.56 m from the charge
+  standoff took the approach from 96 s and a dock to 201 s and none, because
+  arriving turns the robot to face the rack and sweeps a body it never
+  travels into through the corridor. ⚠ The seam only SEES
+  (`peer_sighting`, fresh for `PEER_HOLD_S`); the drive decides.) ⚠ MEASURED (#328): the scan plane at 0.223 m
   crosses only the peer's MAST, so a peer 0.25 m across the bow put ZERO
   rays in the front cone and the closest approach was 0.225 m — inside
   contact — where the depth channel holds at 0.594 m; and the camera

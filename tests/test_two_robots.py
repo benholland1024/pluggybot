@@ -1006,7 +1006,37 @@ def test_the_seam_hands_the_frames_peers_to_the_drive():
   me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
   me._next_near_field = 0.0
   me._near_field_step()
-  assert me.mission.peer_hold_until > 0.0, "the frame's peers never arrived"
-  assert me.mission.peer_holds == 1
+  assert me.mission.peer_sighting() is not None, "the frame's peers never arrived"
+  assert 0.3 < me.mission.peer_sighting() < 0.6, me.mission.peer_sighting()
+  # ...and the seam only SEES: what to do about it is the drive's, and
+  # nothing has held yet.
+  assert me.mission.peer_holds == 0
+  # a sighting ages out rather than standing for ever
+  me.data.time += 1.0
+  assert me.mission.peer_sighting() is None
   dark = build_pair("room_hub", near_field=False, errands=("none", "none"))[0]
-  assert dark.depth_camera is None and dark.mission.peer_hold_until == 0.0
+  assert dark.depth_camera is None and dark.mission.peer_sighting() is None
+
+
+def test_a_peer_the_drive_stops_short_of_is_not_held_for():
+  """The hold is against the TRAVEL LEFT, not against the camera (issue
+  #328). A robot with 0.1 m still to drive cannot reach a body 0.5 m
+  ahead, and holding for one is not caution -- MEASURED, it took the
+  charge approach from 96 s and a dock to 201 s and none, because arriving
+  at the standoff turns the robot to face the rack and sweeps the robot
+  parked BESIDE the bay through the corridor."""
+  from pluggybot import tick
+  me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
+  me._next_near_field = 0.0
+  me._near_field_step()
+  seen = me.mission.peer_sighting()
+  assert seen is not None and seen < 0.6
+  px, py, _ = me.mission.pose
+  # a goal it reaches well short of the sighting: no hold, and it arrives
+  me.mission.drive_to(px + 0.1, py, timeout=20.0)
+  assert me.mission.peer_holds == 0, "held for a body it stops short of"
+  # ...and the same sighting with the goal beyond it does hold
+  me.mission.step_hooks.append(lambda: None)
+  px, py, _ = me.mission.pose
+  me.mission.drive_to(px + 2.0, py, timeout=20.0)
+  assert me.mission.peer_holds > 0, "drove on with a body in the way"

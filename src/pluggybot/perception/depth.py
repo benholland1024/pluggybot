@@ -214,29 +214,29 @@ class DepthCamera:
     if self._theirs.size:
       theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
       if theirs.any():
-        peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng)
-    z = np.where(robot | shadow, np.nan, z)
-    z = np.where((z < self.min_z) | (z > self.max_z), np.nan, z)
-    z = z + self.rng.normal(0.0, 1.0, n) * self.noise_k * np.square(
-      np.nan_to_num(z))
-    z = np.where(self.rng.random(n) < self.dropout, np.nan, z)
-    valid = ~np.isnan(z)
-    depth = z[valid] / self._axial[valid]
-    points = self.origin_robot + self._dirs_robot[valid] * depth[:, None]
+        peers = self._cloud(np.where(theirs, z, np.nan),
+                             self.peer_rng)[1]
+    z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
                       self_fraction=float(robot.mean()), peers=peers)
 
-  def _cloud(self, z: np.ndarray, rng) -> np.ndarray:
-    """Range gate, noise, dropout and the pinhole reconstruction -- the
-    same treatment `frame` gives the room, on whichever stream it is
-    handed. A peer return is a measurement and is modelled like one."""
+  def _cloud(self, z: np.ndarray, rng) -> tuple[np.ndarray, np.ndarray]:
+    """Range gate, noise, dropout and the pinhole reconstruction: `(z,
+    points)`.
+
+    ⚠ ONE SENSOR MODEL, TWO CHANNELS. The room and the peers go through
+    this same function on their own streams, because a peer return that
+    was gated or noised differently would be a different instrument
+    reporting on the same casts -- and the difference would be invisible
+    until something decided off it.
+    """
     z = np.where((z < self.min_z) | (z > self.max_z), np.nan, z)
     z = z + rng.normal(0.0, 1.0, z.size) * self.noise_k * np.square(
       np.nan_to_num(z))
     z = np.where(rng.random(z.size) < self.dropout, np.nan, z)
     valid = ~np.isnan(z)
     depth = z[valid] / self._axial[valid]
-    return self.origin_robot + self._dirs_robot[valid] * depth[:, None]
+    return z, self.origin_robot + self._dirs_robot[valid] * depth[:, None]
 
   def _shadow(self, z: np.ndarray) -> np.ndarray:
     """Pixels the RIGHT imager cannot see (the module docstring). A NaN

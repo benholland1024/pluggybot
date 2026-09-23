@@ -250,11 +250,23 @@ CLOSE_ENOUGH_M = 0.15
 #: this and is unchanged; it sees the mast alone (issue #316).
 PEER_STOP_AHEAD_M = 0.60
 PEER_STOP_HALF_M = 0.20
-#: How long one sighting holds the drive: three frames at `depth.PERIOD`.
-#: A hold that outlived the sighting would be a robot standing still
-#: because something USED to be there, which is the mistake the map makes
-#: and the reason the peer channel exists at all.
+#: How long a sighting stays worth acting on: three frames at
+#: `depth.PERIOD`. A hold that outlived the sighting would be a robot
+#: standing still because something USED to be there, which is the mistake
+#: the map makes and the reason the peer channel exists at all.
 PEER_HOLD_S = 0.3
+#: ⚠ AND THE HOLD IS AGAINST THE TRAVEL LEFT, NOT AGAINST THE CAMERA
+#: (issue #328). A robot with 0.1 m still to drive cannot reach a peer
+#: 0.5 m ahead, and holding for one is how a robot parked BESIDE the
+#: charge bay stopped the other robot charging at all: measured, a peer
+#: 0.50-0.56 m from the charge standoff took the approach from 96 s and a
+#: dock to 201 s and none, because arriving at the standoff turns the
+#: robot to face the rack and sweeps a body it will never travel into
+#: through the corridor. So the drive holds only for a peer nearer than
+#: what is left of the drive plus this: the robot's front face, which
+#: rides 0.20 m ahead of the axle the points are measured from, and
+#: 0.10 m of clearance behind it.
+PEER_CLEARANCE_M = 0.30
 #: A drive's LAST leg -- its final waypoint and the goal itself -- is a
 #: terminal approach (`drive_toward(slow_radius=)`, navigation.py's rule),
 #: tapering over this many metres. The path waypoints before it keep the
@@ -344,11 +356,15 @@ class HubMission:
     #: narrates it -- `HubMission` knows the distance and the lifecycle
     #: knows whose it is.
     self.peer_at_bay_m: float | None = None
-    #: The peer stop (issue #328): until when a sighting holds the drive,
-    #: and how many times it has fired (episodes, not frames -- the thing
-    #: worth counting is "how often did seeing the other robot change what
-    #: this one did", which is what says whether any of this helps).
-    self.peer_hold_until = 0.0
+    #: The peer stop (issue #328): the last sighting in the corridor ahead
+    #: -- how far off it was and when -- and how many times a drive has
+    #: actually HELD for one. Episodes, not frames, and counted where the
+    #: hold happens rather than where the sighting does: a robot that sees
+    #: the other one while parked has not changed what it was doing, and
+    #: "how often did this change anything" is the number that says
+    #: whether any of it helps.
+    self.peer_seen_m: float | None = None
+    self.peer_seen_t = 0.0
     self.peer_holds = 0
     self.step_count = 0
     self.collision_steps = 0
@@ -594,6 +610,7 @@ class HubMission:
     toward the goal for 10 sim-seconds)."""
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
+    holding = False                    # is this drive standing for a peer
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
@@ -616,7 +633,8 @@ class HubMission:
           waypoints = []
           continue
         return dist < CLOSE_ENOUGH_M     # stagnated: close enough or fail
-      if self.data.time < self.peer_hold_until:
+      peer_m = self.peer_sighting()
+      if peer_m is not None and peer_m < dist + PEER_CLEARANCE_M:
         # ⚠ A ROBOT IS HELD FOR, NOT BACKED AWAY FROM (issue #328), and the
         # branch sits above the backoff for that reason. The wall reflex
         # reverses because a wall will still be there in a second and
@@ -624,11 +642,18 @@ class HubMission:
         # is the one obstacle in this world that MOVES, so standing still
         # costs a second and solves it -- and the reverse is blind behind,
         # which is a poor thing to do near the only other thing that drives.
+        # ⚠ ...AND ONLY FOR A BODY THIS DRIVE COULD REACH (`PEER_CLEARANCE_M`):
+        # holding for one it stops short of is what took a charge from 96 s
+        # to never.
         # Bounded by `timeout` like every other wait here, and the drive
         # stagnates honestly if the other robot never moves.
+        if not holding:
+          self.peer_holds += 1
+          holding = True
         yield from self._nav_routine(0.0, 0.0)
         waypoints = []
         continue
+      holding = False
       if self.data.time < self.backoff_until:
         yield from self._nav_routine(-0.15, 0.0)
         waypoints = []
@@ -709,17 +734,27 @@ class HubMission:
     return float(x[ahead].min()) if ahead.any() else None
 
   def watch_for_peers(self, points) -> float | None:
-    """One depth frame's peer channel: hold the drive if another robot's
-    body is in the way (issue #328). Called from the near-field seam, and
-    the only thing it touches is the hold clock -- the ANSWER is
-    `drive_to_routine`'s, exactly as the front stop's is."""
+    """One depth frame's peer channel, recorded (issue #328): how far off
+    the nearest body in the corridor was, and when it was seen.
+
+    The seam only SEES. Whether a sighting is worth stopping for depends
+    on how far this robot still has to drive, which is the drive's
+    business and nobody else's -- the same division the front stop makes,
+    where the scan arms a clock and `drive_to_routine` decides what to do
+    about it.
+    """
     near = self.peer_ahead(points)
-    if near is None:
-      return None
-    if self.data.time >= self.peer_hold_until:
-      self.peer_holds += 1
-    self.peer_hold_until = self.data.time + PEER_HOLD_S
+    if near is not None:
+      self.peer_seen_m, self.peer_seen_t = near, float(self.data.time)
     return near
+
+  def peer_sighting(self) -> float | None:
+    """The last peer sighting if it is still fresh (`PEER_HOLD_S`), else
+    None -- a sighting that has aged out is where the robot USED to be."""
+    if (self.peer_seen_m is None
+        or self.data.time - self.peer_seen_t > PEER_HOLD_S):
+      return None
+    return self.peer_seen_m
 
   def peer_on_the_goal(self, wx: float, wy: float) -> float | None:
     """How far off the nearest robot standing ON this goal is, or None.

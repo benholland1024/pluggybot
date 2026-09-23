@@ -1290,6 +1290,16 @@ the peer's near face falls inside `depth.MIN_Z` and the camera loses it,
 which is why the stop fires at 0.60 m and the lidar's 0.25 m reflex stays
 underneath as the floor.
 
+⚠ The corridor is measured against WHAT IS LEFT OF THE DRIVE, not
+against the camera: a robot with 0.1 m to go cannot reach a body 0.5 m
+ahead. Holding for one anyway is not caution -- measured, a peer parked
+0.50-0.56 m from the CHARGE standoff took that approach from 96 s and a
+dock to 201 s and none, because arriving at a standoff turns the robot to
+face the rack and sweeps a body it never travels into through the
+corridor. A tool bay never showed it (the peer sits beside the approach
+there, 0 holds at every legal distance); the charge bay did, and a charge
+that does not happen is a `flat` death.
+
 ⚠ **Which half does what.** The BROADCAST (`HubMission.others`) is plan
 time only: A* keeps 0.6 m clear of where the other robot SAYS it is, and a
 stagnated drive waits when it says it is near. That is a fleet fact and
