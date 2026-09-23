@@ -331,12 +331,18 @@ def test_idling_splits_idle_by_who_produced_it_and_reads_runs_per_robot_in_order
           Row("decision", "carry", robot="b", t=3, data={"source": "llm:m"})]
   out = q.idling(rows)
   assert out["decisions"] == 9 and out["own"] == 7
+  assert out["asked"] == 6 and out["mapped"] == 1
   #  ⚠ THE ONE PARTITION (`overseer.fallback_class`): a throttle firing the
   #  agent's own standing order is the policy working, a timeout is the box
   assert ov.fallback_class("fallback:idle-run") == "policy"
   assert ov.fallback_class("fallback:timeout") == "failure"
-  assert out["idle"] == {"chosen": 5, "policy": 1, "failure": 1}
-  assert out["idleShare"] == pytest.approx(5 / 7)
+  #  ...and a row of the agent's map is not the mind answering (issue #333):
+  #  both are the agent's, and "it configured this" is different evidence
+  #  from "it chose this now"
+  assert out["idle"] == {"chosen": 4, "configured": 1, "policy": 1,
+                         "failure": 1}
+  assert out["idleShare"] == pytest.approx(4 / 6)
+  assert out["configuredShare"] == pytest.approx(1 / 1)
   #  a's stretch of three (t=1..3, any source) and b's of three (t=0..2,
   #  sorted); the lone fallback idle after the draw is not a run
   assert out["idleRuns"] == [3, 3] and out["longestIdleRun"] == 3

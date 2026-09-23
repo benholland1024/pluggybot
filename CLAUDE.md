@@ -211,8 +211,9 @@ wording, settled direction. Before doing anything, read:
   bought for ONESELF, off the `HEART_BOUGHT` / `HEART_REFUSED` narration —
   a two-repo contract on `THOUGHT <verb>:`'s terms, pinned in
   `tests/test_hearts.py`; a heart for the other is a `transfer`), `deaths
-  by cause`, and `idling` (idle by who produced it through
-  `overseer.fallback_class`; the idle runs), which sits BESIDE deaths in
+  by cause`, and `idling` (idle by who produced it -- the mind asked, a row
+  of its own map (#333), and `overseer.fallback_class`'s two; the idle
+  runs), which sits BESIDE deaths in
   `QUALITIES` because high idling with low deaths is the failure mode.
   ⚠ THE PROMPT DOES NOT CHANGE FOR IT (a test reads every rule for the
   word): a quality is what we measure, never what the robot is asked to
@@ -452,6 +453,13 @@ save a filmstrip PNG named after the script.
     `idle`/`explore`/`recall`, so `nothing_to_do` is an event type and a
     seeded map carrying only `task_complete -> ask` goes quiet on its first
     tick; design against the FINAL hazard set (`points_below` is in it);
+  - ⚠ `nothing_to_do` is the robot's QUEUE, NEVER THE WORLD (issue #333),
+    and the rule says so: described as "there is nothing waiting", its
+    `-> idle` row was 58 of 80 deployed idles with offers open. Its `kind`
+    is `offers` / `none` / `""` off `lifecycle.shown_offers` -- the list the
+    context carries, so a row and the view cannot disagree -- and never
+    affordability (a claim rail through the map). No worked example of it
+    in the rule (a test reads the rule for the old sentence and for one);
   - `decision_failed` narrows to WHY, on the same `kind` field `task_complete`
     uses: a reason from `FALLBACK_REASONS`, one of the two CLASSES
     (`failure`/`policy`), or `""` for any — three levels, first match wins.

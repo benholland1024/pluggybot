@@ -413,6 +413,80 @@ def test_an_event_that_takes_no_filter_still_drops_one(menu):
   assert "message_received" in ev.UNCONFIGURABLE_EVENTS
 
 
+def test_nothing_to_do_says_the_queue_is_empty_not_the_world(menu):
+  """Issue #333: the rule told the robot `nothing_to_do` meant "there is
+  nothing waiting", while the code fires it on an empty ERRAND QUEUE and
+  never looked at the board -- so `idle` was the sensible answer, and 58 of
+  80 deployed idles were `nothing_to_do -> idle` with offers open. The
+  description is what the code checks, and the new `kind` is listed like
+  `task_complete`'s, never shown in a worked row: an example that picks an
+  action for `offers` hands the agent the answer."""
+  rule = ov.EVENT_MAP_RULE
+  line = next(ln for ln in rule.splitlines()
+              if ln.strip().startswith("nothing_to_do"))
+  assert "nothing waiting" not in rule.replace("\n", " ")
+  assert "queued" in line and "`offers`" in line and "`none`" in line
+  assert not any("nothing_to_do" in ln or "offers" in ln
+                 for ln in rule.splitlines() if "->" in ln)
+
+
+def test_nothing_to_do_narrows_to_whether_the_board_shows_an_offer(menu):
+  """Issue #333, on `task_complete`'s pattern: a row that READS narrow
+  BEHAVES narrow, and a token from another event's vocabulary is refused
+  rather than dropped. Shown to fail with `nothing_to_do` back in
+  `UNCONFIGURABLE_EVENTS`, where the kind was dropped and every row was a
+  catch-all."""
+  offers = ev.row({"event": "nothing_to_do", "action": ev.ASK,
+                   "kind": "offers"}, menu)
+  either = ev.row({"event": "nothing_to_do", "action": "idle"}, menu)
+  assert offers.kind == "offers" and either.kind == ""
+  on_offer = ev.Live(occurred=(("nothing_to_do", "offers"),))
+  on_empty = ev.Live(occurred=(("nothing_to_do", "none"),))
+  assert ev.EventClock().fire(ev.EventMap((offers,)), on_offer, 0.0) == offers
+  assert ev.EventClock().fire(ev.EventMap((offers,)), on_empty, 0.0) is None
+  assert ev.EventClock().fire(ev.EventMap((either,)), on_empty, 0.0) == either
+  with pytest.raises(ValueError, match="unknown kind"):
+    ev.row({"event": "nothing_to_do", "action": "idle", "kind": "draw"}, menu)
+  with pytest.raises(ValueError, match="unknown kind"):
+    ev.row({"event": "task_complete", "action": "idle", "kind": "offers"},
+           menu)
+  kinds = (menu.schema(event_map=True)["properties"]["event_map"]["items"]
+           ["properties"]["kind"]["enum"])
+  assert {"offers", "none"} <= set(kinds)
+  #  ...and an unfiltered row above a filtered one starves it, as it does on
+  #  every filtered event.
+  assert ev.shadowed(ev.EventMap((either, offers))) == (1,)
+
+
+@pytest.mark.parametrize("shown", [False, True])
+def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
+  """Issue #333, the lifecycle's half: the kind is read off `shown_offers`,
+  the same list the robot's context carries, so a row and the view cannot
+  disagree about the board. Shown to fail by delivering `nothing_to_do`
+  with no kind, which no `offers` row accepts."""
+  from pluggybot import tick
+  from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.lifecycle import shown_offers, world_config
+  from test_overseer import _lifecycle
+  board = TaskBoard(path=None)
+  if shown:
+    board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
+  boss = make(menu, full(action="idle", reason="looking at the board"),
+              origin="unseeded",
+              event_map=ev.EventMap((ev.Row(event="nothing_to_do",
+                                            action=ev.ASK, kind="offers"),)))
+  life = _lifecycle("home", overseer=boss, tasks=board)
+  life._minded = True                       # past the bootstrap
+  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  try:
+    life.mission.start_at(*world_config("home")["start"])
+    assert bool(shown_offers(life)) is shown
+    life.mission.run(life._arbitrate_routine())
+  finally:
+    life.mission.close()
+  assert len(boss.client.calls) == (1 if shown else 0)
+
+
 def test_a_standing_order_does_not_delete_a_specific_failure_rule(menu):
   """⚠ THE BUG THIS CHANGE WOULD HAVE CREATED. A scalar standing order means
   "on ANY failure", so it is an UNFILTERED row -- and `with_row` matching on

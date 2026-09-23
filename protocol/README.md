@@ -1041,8 +1041,11 @@ beside them until the site has moved off them.
 - **`event_map`** -- the robot's own map (issue #127), on open and on every
   EDIT: `rows` in order, each `{event, action, kind?, value?}` exactly as
   the run record keeps them (`kind` and `value` absent where they do not
-  apply); `origin` (`seeded` / `unseeded`); `why` (`origin` when a stream
-  opens, `edit` after an answer changed it); `source` (the decision that
+  apply; `kind` is a menu action on `task_complete` / `task_failed`, a
+  reason or class on `decision_failed`, and `offers` / `none` on
+  `nothing_to_do` since pluggybot #333 -- additive, no bump); `origin`
+  (`seeded` / `unseeded`); `why` (`origin` when a stream opens, `edit`
+  after an answer changed it); `source` (the decision that
   set it -- `llm`, `llm:<model>`; `null` at open); `edits` (how many so
   far). ⚠ A world with NO map sends nothing -- every scripted world, every
   arm at origin `none` -- and that is not an empty map: `rows: []` is an

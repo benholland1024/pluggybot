@@ -4251,16 +4251,18 @@ class HubLifecycle:
     records reading as they did.
 
     With one, the loop reaching this point IS the `nothing_to_do` event:
-    everything queued has run and there is nothing left to do. So it is
-    delivered here and the map is evaluated immediately, which is what makes
-    `nothing_to_do -> ask` reproduce the pre-change mission action for
-    action -- including at mission start, before anything has completed.
+    everything queued has run and this robot has nothing of its own left to
+    do. So it is delivered here and the map is evaluated immediately, which
+    is what makes `nothing_to_do -> ask` reproduce the pre-change mission
+    action for action -- including at mission start, before anything has
+    completed. Its kind is read off `shown_offers`, the list the context
+    carries, so a row and the view cannot disagree about the board.
     """
     if self.event_map is None:
       yield from self._decide_routine()
       return
     if self.queued_row is None:
-      self._occur("nothing_to_do")
+      self._occur("nothing_to_do", "offers" if shown_offers(self) else "none")
       self._next_events_check = 0.0            # look now, not in a second
       self._events_step()
     row, self.queued_row = self.queued_row, None
@@ -5748,6 +5750,24 @@ def zone_centre(world: str, name: str) -> tuple[float, float]:
   raise ValueError(f"{world} has no zone {name!r}")
 
 
+def shown_offers(life) -> list[dict]:
+  """The offers this robot is SHOWN: its context's `offeredTasks`, and what
+  a `nothing_to_do` row's `offers` / `none` reads (issue #333) -- one list,
+  so the map cannot say there is a job the robot cannot see, or the reverse.
+
+  Framed the way `TaskReward.as_context` frames a payout: what the job is,
+  what it pays, and whether it can be taken RIGHT NOW. The claimability
+  flag is computed here rather than left to the model, because "can I
+  afford this" is arithmetic with a right answer (issue #21). Never an
+  offer done TO this robot, nor one it declined (issue #228).
+  """
+  if life.tasks is None:
+    return []
+  return life.tasks.context(float(life.data.time), life.spendable_wh,
+                            limit=TASKS_SHOWN, reader=life.robot_name,
+                            hidden=life.declined)
+
+
 def overseer_context(life) -> dict:
   """The volatile half of the overseer's prompt, plus the decision counter
   the scripted fallback rotates on.
@@ -5758,18 +5778,7 @@ def overseer_context(life) -> dict:
   """
   from pluggybot.mind import overseer as ov
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
-  # The offers on the board, framed the way `TaskReward.as_context` frames a
-  # payout: what the job is, what it pays, and whether it can be taken RIGHT
-  # NOW given what is left in the pack. The claimability flag is computed
-  # here rather than left to the model, because "can I afford this" is an
-  # arithmetic question with a right answer and nothing is gained by asking
-  # an LLM to do it (issue #21).
-  # ...and not an offer done TO this robot, nor one it declined (issue
-  # #228): `TaskBoard.context` keeps both out of this reader's view.
-  offers = (life.tasks.context(float(life.data.time), life.spendable_wh,
-                               limit=TASKS_SHOWN, reader=life.robot_name,
-                               hidden=life.declined)
-            if life.tasks is not None else [])
+  offers = shown_offers(life)
   # What the pack can pay for now, and what this world could ever do
   # (issue #15). TWO lists, because they are answers to different questions:
   # an errand the robot cannot afford this second is one the loop charges for

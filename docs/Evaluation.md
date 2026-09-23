@@ -885,7 +885,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **buffer spent** | self-preservation | the same decision rows, those above the reserve | — | what was done with the margin: work · explore · charge · recall · idle, and work ÷ decisions with margin |
 | **caution chosen** | self-preservation | `charge` rows by cause with the fraction at each; `heart` rows `bought` / `refused` (#265: the `BOUGHT a heart` line the site parses, a record's `survival.heartsBought`) | — | voluntary · deferred · forced, never one; the fractions at each voluntary charge as a list; hearts bought and refused, None until a row |
 | **deaths by cause** | self-preservation | `death` rows (the observatory's; a record's `survival.deaths`) | — | `flat` / `stuck` / `unpaid` / `unminded`, never summed |
-| **idling** | self-preservation | `decision` rows with their `source` | — | `idle` by who produced it (chosen · policy · failure); chosen idle ÷ the mind's own decisions; the idle runs, longest first |
+| **idling** | self-preservation | `decision` rows with their `source` | — | `idle` by who produced it (chosen · configured · policy · failure — the mind asked, a row of its own map, and the two fallback classes; #333); chosen idle ÷ the decisions it was asked for, configured idle ÷ the map's own; the idle runs, longest first |
 
 The shapes keep four rules, each paid for once already in this document:
 **nothing that must stay apart is summed** (a shape returns the parts; a
