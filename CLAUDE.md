@@ -731,13 +731,27 @@ save a filmstrip PNG named after the script.
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a
   computed argument is checked when computed, by the same `check_arg`. ⚠
   THE LIBRARY is `$PLUGGY_THOUGHTS/procedures/`, `MAX_PROCEDURES` 8, two
-  decision FIELDS `define {name, source}` / `undefine`, NO REPLACE (refused;
-  undefine first), full refuses out loud, sources survive a restart and are
+  decision FIELDS `define {name, source}` / `undefine`; a redefinition alone
+  is refused and a REPLACEMENT IS ONE ANSWER — `undefine` X beside `define`
+  X, because `_define` removes before it adds (issue #264: every text said
+  "undefine first" and the deployed library filled with `stack3b`), full
+  refuses out loud, sources survive a restart and are
   recompiled against today's world (an invalid one is kept, marked, shown).
   ⚠ Invoked as `procedure:<name>` — the action, a standing order, or an
   event-map row (`standing_order()` accepts the token; `order_runnable`
   reads `state["procedures"]`); the name is an enum per call
-  (`Menu.schema(procedures=)`). ⚠ `Menu.procedures` is set by `build()` on
+  (`Menu.schema(procedures=)`). ⚠ `procedure:new` (`PROCEDURE_NEW`) runs
+  what the SAME answer defines: the enum is built before the answer, so a
+  new name could never be named in it and the decoder substituted an old
+  one (#264). On the enum wherever there is a library, an empty one too;
+  valid only beside a `define`; runs NOTHING if that define was refused;
+  never an order or a map row; `new` is not a procedure name. ⚠ EVERY RUN
+  OF A PROCEDURE THE ROBOT WROTE LEAVES ONE HISTORY LINE
+  (`lifecycle.procedure_outcome`): how far, where it stopped and why (a
+  step's `reason` — `fetch`, `stow`, `drive_to`, `face` give one), its
+  locals. A robot told nothing re-ran a failing `fetch` five times over.
+  ⚠ `fetch` checks the fork first: the tool already there is had, another
+  is "stow it first" — never a loaded fork driven into a bay. ⚠ `Menu.procedures` is set by `build()` on
   `autonomous` ONLY and everything keys off it; `guarded`'s menu, schema
   and prefix are byte-identical (`GUARDED_RULES_SHA`). ⚠ `PROCEDURE_RULE`'s
   worked example may not show charge, a battery threshold or the rack
@@ -1285,7 +1299,10 @@ save a filmstrip PNG named after the script.
   `begin()` (setup → the day routine) + `end()` (the summary), which is
   what `run_pair` shares one loop between. ⚠ A hook's `MissionAborted` is
   thrown into EVERY live routine, then re-raised: one robot's stop is the
-  day's stop. ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
+  day's stop. ⚠ THE SWAP'S FINE TIMESTEP IS THE MODEL'S, so it is counted
+  per model (`mission.fine_step_begin/end`, issue #264): the first robot out
+  of its swap used to put cruise back under the other's terminal approach.
+  ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
   mission's `others` (callables → the other's dead-reckoned x, y — a
   network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
   the traversable mask at plan time, a stagnated drive with another
@@ -1861,8 +1878,12 @@ save a filmstrip PNG named after the script.
   (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING, not the return value.
   ⚠ A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298): no drive to the
   use pose, no return of a module it never had, `error: never picked up
-  <module>`, and a History line saying whether the pick missed or the
-  module was not on its bay. On the pair the old phantom trip parked the
+  <module>`, and a History line saying WHICH (`HubLifecycle.pick_failure`,
+  shared with `fetch`: whose fork holds it — `lifecycle.carrying`, the
+  others' public surface — a robot at the bay, no route, a miss and how
+  off `PICK_WHY`, or nowhere; #264: `swap_at_bay_routine`'s answer was
+  thrown away and "the pick missed" covered approaches that never got
+  there). On the pair the old phantom trip parked the
   robot at the rack as the other came back to stow, and the stows, picks
   and "no route" failures cascaded from there (Rowan paid 3 of 27).
 - **A challenge is a task whose criteria were written before the robot saw

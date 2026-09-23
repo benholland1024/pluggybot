@@ -293,3 +293,56 @@ def test_a_drive_that_did_not_arrive_says_where_it_stopped():
   verdict = tick.run(SimpleNamespace(_step_once=lambda *a: None),
                      st._drive_to(life, {"x": 4.0, "y": 6.0}))
   assert verdict["reason"] == "did not arrive: it stopped 5.0 m short of (4, 6), at (1.0, 2.0)"
+
+
+# ---- 7. a stow puts the tool back as a pick left it, first -----------------
+
+
+def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
+  """A return computes its release heights from the lift it STARTS at, and
+  a procedure may have moved it. MEASURED: a claw stowed from 0.03 m -- where
+  Luca's weighing had lowered it -- was driven into the rack and knocked to
+  the floor; from the pick's height it hung. The flight is behind
+  --endurance (tests/test_solutions.py); this is the order of the calls."""
+  from pluggybot.tools.gripper import CLAW_MODULE, MODULE_DRIVE_LIFT
+  calls = []
+
+  def rec(name, *args):
+    def make(*a, **kw):
+      calls.append((name, a[0] if a else None))
+      return tick.result("arrived")
+    return make
+  state = {"on_fork": True, "hung": False}
+  swap = SimpleNamespace(module_state=lambda t: dict(state) if t == CLAW_MODULE
+                         else {"on_fork": False, "hung": True},
+                         set_lift_routine=rec("set_lift"), handle=SimpleNamespace(prefix=""))
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
+                         model=None, data=None,
+                         mission=SimpleNamespace(swap=swap, set_arm_routine=rec("set_arm"),
+                                                 swap_at_bay_routine=rec("return")))
+  held = SimpleNamespace(held=lambda: "block_1", set_down_routine=rec("set_down"))
+  monkeypatch.setattr(st, "_claw", lambda _life: held)
+  tick.run(SimpleNamespace(_step_once=lambda *a: None), st._stow(life, {}))
+  assert [c[0] for c in calls] == ["set_down", "set_arm", "set_lift", "return"]
+  assert ("set_arm", 0.0) in calls and ("set_lift", MODULE_DRIVE_LIFT) in calls
+
+
+def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypatch):
+  """Live, `pick(22)` failed "not a cube this robot can see from here" where
+  the same six lines stacked the tower locally, and the line could not say
+  whether the route to the cube never arrived or arrived and the tag did not
+  decode -- two different things to fix."""
+  claw = SimpleNamespace(calibrate_from_body=lambda: None,
+                         tuck_routine=lambda: tick.result(None))
+  life = SimpleNamespace(world="home", mission=SimpleNamespace(
+    pose_xy=lambda: (-6.0, 1.0), face_routine=lambda h: tick.result(True)))
+  monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
+  stepper = SimpleNamespace(_step_once=lambda *a: None)
+  life.mission.drive_to_routine = lambda x, y, timeout: tick.result(False)
+  seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
+  assert seen is None
+  assert unseen.endswith("the route to where the house set it out stopped at (-6.0, 1.0)")
+  life.mission.drive_to_routine = lambda x, y, timeout: tick.result(True)
+  seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
+  assert seen is None and unseen.startswith(
+    "tag 22 did not decode even from where the house set it out, by (-11.00, -4.50)")

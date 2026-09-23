@@ -98,9 +98,11 @@ def test_pick_refuses_a_full_hand_and_place_an_empty_one(monkeypatch):
 def test_a_tag_the_eye_never_decodes_fails_out_loud(monkeypatch):
   monkeypatch.setattr(st, "_claw", lambda life: _fake_claw())
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
-  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(False))
+  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(
+    (False, "and it is not one the house set out")))
   r = _run(st._pick, SimpleNamespace(mission=SimpleNamespace(pose=(0, 0, 0))), {"tag": 21})
-  assert not r["ok"] and r["reason"] == "tag 21 is not a cube this robot can see from here"
+  assert not r["ok"] and r["reason"] == ("tag 21 is not a cube this robot can see "
+                                         "from here, and it is not one the house set out")
   # ...and a tag that is not a cube at all never even looks (the claw only
   # knows the shape of the blocks and the bench's masses)
   assert tick.run(SimpleNamespace(_step_once=lambda *a: None),
@@ -338,8 +340,8 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
     pose_xy=lambda: (-6.0, 1.0),
     drive_to_routine=lambda x, y, timeout: (drives.append((x, y)), tick.result(True))[1],
     face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
-  went = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
-  assert went and drives == [(-8.0, -3.5), (-10.2, -4.75)] and faced == [math.pi]
+  went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+  assert went and why == "" and drives == [(-8.0, -3.5), (-10.2, -4.75)] and faced == [math.pi]
   # ...and a pick that saw nothing the first time travels and looks again
   looks = []
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: (
@@ -347,12 +349,12 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
                                    {"centre": (-11.0, -4.75, 0.013), "lateral": 0.0, "range": 0.8,
                                     "half": 0.013, "layer": 0, "toward": (-1.0, 0.0),
                                     "xyz": (-10.987, -4.75, 0.013)}))[1])
-  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(True))
+  monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result((True, "")))
   claw = _fake_claw(after="block_1_box")
   life.mission.pose = (-10.2, -4.75, math.pi)
-  seen, arrived = tick.run(SimpleNamespace(_step_once=lambda *a: None),
-                           st._approach_routine(life, claw, 21, carrying=False))
-  assert looks == [21, 21] and seen["travelled"] and arrived
+  seen, arrived, unseen = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+                                   st._approach_routine(life, claw, 21, carrying=False))
+  assert looks == [21, 21] and seen["travelled"] and arrived and unseen == ""
 
 
 def test_an_aborted_procedure_sets_a_held_cube_down_before_the_stow(monkeypatch):
@@ -459,8 +461,37 @@ def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
   the activity's table are pinned fast (tests/test_mouse.py)."""
   life, out = _from_the_rack(tmp_path, "mouse")
   proc = out["errand"]["procedure"]
-  assert proc["ok"] and proc["completed"] == proc["total"] == 9, proc
+  # every step of the house's own program (8 since #287's pass through the
+  # pad; the count is the program's, not the claim)
+  assert proc["ok"] and proc["completed"] == proc["total"], proc
   care = out["care"]
   assert care["landed"] >= 1 and care["ok"]
   assert (care["before"], care["after"]) == ("resting", "eating")
   assert life.cage.state == "eating"
+
+
+@pytest.mark.endurance
+def test_a_claw_lowered_by_a_procedure_is_stowed_from_the_pick_height(tmp_path):
+  """Luca's weighing (issue #264): `set_lift(0.03)`, then `stow()`. The
+  return starts from the lift it is handed; from 0.03 m it drove the claw
+  into the rack and knocked it to the floor. `stow` restores the carry
+  configuration first (pinned fast in tests/test_procedure_feedback.py);
+  this is the physics. ~2 min wall."""
+  import sys
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  from pluggybot.lifecycle import world_config
+  life, _ = demo.build_life(False, str(tmp_path))
+  m = life.mission
+  m.start_at(*world_config("home")["start"])
+  m.start_discovery()
+  m._spin()
+  station = HUB_STATION_YS[st.TOOL_BAYS["module_claw"]]
+  m.swap_at_bay(station, "pick", module="module_claw")
+  assert m.swap.module_state("module_claw")["on_fork"]
+  life.module = "module_claw"
+  m.drive_to(4.4, 0.7)
+  tick.run(m.swap, m.swap.set_lift_routine(0.03, speed=0.05))
+  verdict = tick.run(m.swap, st._stow(life, {}))
+  assert verdict["ok"], verdict
+  assert m.swap.module_state("module_claw")["hung"]

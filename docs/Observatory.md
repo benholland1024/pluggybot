@@ -10,6 +10,39 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The development loop (#264) — opens when this PR is deployed
+
+**What changed in the mind.** The robots wrote the right code and could
+not finish it (read off their own History, 2026-09-23): a procedure cut
+short told them nothing, a procedure defined in an answer could not be run
+in it (the decoder ran an old one), a replacement read as two turns, and a
+failed pick said "missed" for an approach that never reached the rack. Now:
+one History line per run of a procedure the robot wrote (where it stopped
+and why), `procedure:new`, one-answer replacement said out loud, one
+sentence for a failed pick naming whose fork holds the tool, `fetch` that
+checks the fork, and a bench grade that says it reads `record` lines. The
+`autonomous` prefix moved (`PROCEDURE_HEAD`, the powers index); `guarded`'s
+did not. And one physics change a pair alone can see: the swap's fine
+timestep is counted per model.
+
+**What the period is for.** Whether the tower and the bench are finished
+now that the loop around the code closes. What to read:
+
+- `procedure` rows: `ran` against `aborted`, and `failedReason` — which
+  step stops them now, in their own words. A `define` followed by a run of
+  the SAME name on the same answer is `procedure:new` working.
+- `refused` rows saying "the library is full" or "already defined": they
+  should fall, if one-answer replacement is being used.
+- History lines "could not pick up": which clause — someone's fork, a robot
+  at the bay, no route, a miss and how. The mechanism of the misses is the
+  open question this period answers (every local reproduction picked clean).
+- `stack_tower` and `find_mass` tasks by fate; `finding` acts.
+- Deaths "knocked over" within seconds of the other robot's stand-up (three
+  on the previous builds): #332 should end them; if not, that is next.
+
+**Not yet known.** Why a pick misses live and never locally; whether the
+robots use `procedure:new` without being shown an example of it.
+
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 
 **Three changes, one regime break.**

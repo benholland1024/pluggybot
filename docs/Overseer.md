@@ -230,12 +230,22 @@ thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
 `MAX_PROCEDURES` (8, because every source rides the user turn so the robot
 can read what it wrote). Two verbs, both
 decision *fields* so writing one costs no turn: `define: {name, source}` and
-`undefine: name`. **No replace** — a redefinition is refused; undefine first,
-in a decision of its own — so one bad generation cannot rewrite everything
-the robot knows how to do. A full library, a source that does not compile, a
-name that does not match its `def`: each refuses out loud, narrated and
-counted (`library.refusals`), and a `procedure` event carries `defined` /
-`undefined` / `refused` with the source. Sources survive a restart and are
+`undefine: name`. A redefinition on its own is refused; a **replacement names
+the old one in `undefine` on the same answer**, and the undefine is applied
+first — deliberate, and one procedure per answer, so one bad generation
+cannot rewrite everything the robot knows how to do. (Until #264 every text
+said "undefine first", the deployed robots read it as a turn of its own, and
+the library filled with `stack3b` and `weigh_cube2`.) **`procedure:new`**
+runs the procedure the same answer defines — the action enum is built from
+the library before the answer, so a new name could never be named in it and
+the constrained decoder substituted an old one; it runs nothing if the define
+was refused, and is never an order or a map row. A full library, a source
+that does not compile, a name that does not match its `def`: each refuses out
+loud, narrated and counted (`library.refusals`), and a `procedure` event
+carries `defined` / `undefined` / `refused` with the source. **Every run
+leaves one History line** (`procedure_outcome`): how far it got, the line,
+verb and reason where it stopped short, and its locals — the robot's only way
+to see what its code did. Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 

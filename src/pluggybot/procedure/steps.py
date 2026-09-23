@@ -254,10 +254,32 @@ def _carried(life) -> str | None:
   return None
 
 
+def carry_configuration_routine(life, tool: str) -> Routine:
+  """The tool as a pick left it, before any RETURN (issue #264): a cube in
+  the claw's jaws set down first, the arm in, the lift where a pick leaves
+  a module (`MODULE_DRIVE_LIFT`). A return computes its release heights from
+  the lift it STARTS at, and a procedure may have moved it: MEASURED, a
+  claw stowed from 0.03 m -- where a weighing procedure had lowered it --
+  was driven into the rack and knocked to the floor, while the same stow
+  from the pick's height hung it in 45 s. Returns what it set down."""
+  from pluggybot.tools.gripper import CLAW_MODULE, MODULE_DRIVE_LIFT
+  set_down = None
+  if tool == CLAW_MODULE:
+    claw = _claw(life)
+    held = claw.held() if claw is not None else None
+    if held is not None:
+      yield from claw.set_down_routine()
+      set_down = held
+  yield from life.mission.set_arm_routine(0.0)
+  yield from life.mission.swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
+  return {"setDown": set_down}
+
+
 def _stow(life, args: dict) -> Routine:
   tool = _carried(life)
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
+  yield from carry_configuration_routine(life, tool)
   why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
                                                     "return", module=tool)
   st = life.mission.swap.module_state(tool)
@@ -426,11 +448,13 @@ def _travel_routine(life, tag: int) -> Routine:
   """Go to where the house set the cube out and face it: the zone's route
   legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
   stand. Legs already behind the robot are dropped (`cage_route`'s rule).
-  Returns True on arrival at the stand."""
+  Returns (arrived, why): `why` is the clause a failed look ends with --
+  "never got there" and "got there and could not see it" are different
+  things to have to fix (issue #264)."""
   from pluggybot.lifecycle import LEG_DONE_M, zone_route
   where = prop_stand(life.world, tag)
   if where is None:
-    return False
+    return False, "and it is not one the house set out"
   zone, _, stand, heading = where
   legs = zone_route(life.world, zone)
   px, py = life.mission.pose_xy()
@@ -448,9 +472,11 @@ def _travel_routine(life, tag: int) -> Routine:
   for x, y in [*legs, stand]:
     arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
     if not arrived and (x, y) != stand:
-      return False
+      px, py = life.mission.pose_xy()
+      return False, (f"and the route to where the house set it out stopped at "
+                     f"({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
-  return True
+  return True, ""
 
 
 def _approach_routine(life, claw, tag: int, carrying: bool,
@@ -468,6 +494,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   from pluggybot.tools.gripper import CARRY_LIFT
   claw.calibrate_from_body()
   seen = yield from _spot_routine(life, tag)
+  unseen = f"tag {tag} is not a cube this robot can see from here"
   if seen is None:
     # Not in view from here: go to where the house set it out (issue
     # #264, `prop_stand`) -- `fetch` drives to its bay the same way -- and
@@ -477,13 +504,20 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
       yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
     else:
       yield from claw.tuck_routine()
-    went = yield from _travel_routine(life, tag)
+    went, why = yield from _travel_routine(life, tag)
     if went:
       seen = yield from _spot_routine(life, tag)
       if seen is not None:
         seen = {**seen, "travelled": True}
+      else:
+        cx, cy = prop_stand(life.world, tag)[1][:2]
+        unseen = (f"tag {tag} did not decode even from where the house set it "
+                  f"out, by ({cx:.2f}, {cy:.2f}): it has moved, or something "
+                  "is in the way")
+    else:
+      unseen = f"{unseen}, {why}"
   if seen is None:
-    return None, False
+    return None, False, unseen
   heading = life.mission.pose[2]
   if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
     # stage along the heading the procedure chose (it faced the row), so
@@ -506,7 +540,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   if carrying:
     yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
   arrived = yield from claw.drive_over_routine((x, y), heading, stow=not carrying)
-  return seen, bool(arrived)
+  return seen, bool(arrived), ""
 
 
 def _pick(life, args: dict) -> Routine:
@@ -521,10 +555,9 @@ def _pick(life, args: dict) -> Routine:
   if held is not None:
     return {"ok": False, "reason": f"already holding {held}"}
   tag = int(args["tag"])
-  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=False)
+  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=False)
   if seen is None:
-    return {"ok": False, "tag": tag,
-            "reason": f"tag {tag} is not a cube this robot can see from here"}
+    return {"ok": False, "tag": tag, "reason": unseen}
   picked = yield from claw.pick_up_routine()
   held = claw.held()
   return {"ok": held is not None, "tag": tag, "arrived": bool(arrived),
@@ -550,11 +583,10 @@ def _place(life, args: dict) -> Routine:
   # how the held cube hangs in the jaws (`ClawTool.held_hang`): the verb
   # aims the CUBE at the target, not the grip point
   hang = claw.held_hang(held)
-  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=True,
-                                               hang=hang[:2])
+  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=True,
+                                                       hang=hang[:2])
   if seen is None:
-    return {"ok": False, "tag": tag,
-            "reason": f"tag {tag} is not a cube this robot can see from here"}
+    return {"ok": False, "tag": tag, "reason": unseen}
   x, y, z = seen["centre"]
   half = seen["half"]
   # ...and again on arrival: MEASURED, a cube slips ~7 mm down and ~10 mm
