@@ -1090,12 +1090,28 @@ class HubLifecycle:
     the one bay of each that the pair shares.
     """
     near = self.mission.peer_at_bay_m
-    if near is None or not self.peers:
+    if near is None:
       return None
     sx, sy, _ = bay_standoff(station_y, self.mission.rack)
+    return self._nearest_peer(sx, sy, near)
+
+  def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
+    """The same question asked of a POINT, for the approach that keeps no
+    verdict of its own (`go_charge_routine`). Asked as the narration is
+    written, which is the same sim instant the drive gave up in."""
+    near = self.mission.peer_on_the_goal(wx, wy)
+    return None if near is None else self._nearest_peer(wx, wy, near)
+
+  def _nearest_peer(self, wx: float, wy: float,
+                    near: float) -> tuple[str, float] | None:
+    """`near` is the DISTANCE the rule answered; this only picks whose it
+    is -- the nearest peer to the point, by the reported pose the rule
+    measured against."""
+    if not self.peers:
+      return None
     who = min(self.peers,
-              key=lambda o: math.hypot(o.mission.pose_xy()[0] - sx,
-                                       o.mission.pose_xy()[1] - sy))
+              key=lambda o: math.hypot(o.mission.pose_xy()[0] - wx,
+                                       o.mission.pose_xy()[1] - wy))
     return (who.robot_name or who.root), near
 
   def _clear_rack_routine(self) -> Routine:
@@ -1427,7 +1443,19 @@ class HubLifecycle:
       self.mission.refresh_rack()
       sx, sy, hd = charge_standoff(self.mission.rack)
     else:
-      self._say("GO_CHARGE: no route to the charge bay")
+      # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
+      # asymmetry (issue #313). The same arithmetic applies -- a peer
+      # within 0.45 m of this standoff puts it outside anything the planner
+      # may route to, and MEASURED on the rack prior the neighbouring tool
+      # bay is 0.200 m from it, so a robot swapping there blocks this
+      # approach outright -- but a bay given up is a lost errand and a
+      # charge given up is a death. So this one keeps BOTH attempts and
+      # only says whose robot it was; the swap's early return does not
+      # belong here.
+      blocked = self.peer_at(sx, sy)
+      self._say("GO_CHARGE: no route to the charge bay"
+                + ("" if blocked is None else
+                   f" -- {blocked[0]} is standing {blocked[1]:.2f} m from it"))
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
