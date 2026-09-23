@@ -15,6 +15,7 @@ The acceptance list, one section each:
 """
 
 import json
+from dataclasses import replace
 
 import mujoco
 import pytest
@@ -22,12 +23,22 @@ import pytest
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.metabolism import (Appetite, Metabolism, TICK_S,
                                           METABOLISM_PATH)
-from pluggybot.economy.scoring import evaluate
+from pluggybot.economy.scoring import RewardTable, default_table, evaluate
 from pluggybot.telemetry.protocol import HUNGER_STATES, PROTOCOL_VERSION
 
 
 #: A carry that actually happened, in the evaluator's own metric names.
 CARRIED = {"picked": True, "stowed": True, "module": "module_lcd"}
+
+#: ...paying 2, the unit of food these tests count in. Pinned here rather
+#: than read off rewards.json: what is under test is the appetite, and a
+#: re-tune of the table (issue #321 took `carry` to 5) must not move it.
+UNIT_TABLE = RewardTable({**default_table().tasks,
+                          "carry": replace(default_table()["carry"], base=2)})
+
+
+def unit_ledger(**kw) -> Ledger:
+  return Ledger(table=UNIT_TABLE, **kw)
 
 #: The smallest world with a body the telemetry census keys on.
 MINI_XML = """
@@ -65,7 +76,7 @@ def fed(ledger, points: int, task: str = "carry") -> None:
 
 
 def test_hunger_is_charged_on_sim_time_not_wall_time():
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 20)
   m = Metabolism(led, appetite())
   m.tick(0.0)                       # anchors, charges nothing
@@ -80,7 +91,7 @@ def test_a_tick_finer_than_the_interval_charges_nothing_and_loses_nothing():
   """The seam runs at ~500 Hz. Ticks under TICK_S must be free AND must not
   drop the time they saw -- an interval check that reset the anchor would
   quietly make a fast-stepping world immortal."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 20)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -99,7 +110,7 @@ def test_a_restart_neither_wipes_hunger_nor_back_charges_an_hour_of_it(tmp_path)
   the gap costs nothing; what survives is the BALANCE, in the ledger's file.
   """
   state = tmp_path / "ledger.json"
-  led = Ledger(path=state, cap=20)
+  led = unit_ledger(path=state, cap=20)
   fed(led, 20)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -108,7 +119,7 @@ def test_a_restart_neither_wipes_hunger_nor_back_charges_an_hour_of_it(tmp_path)
 
   # ...the container cycles. New process, new ledger off the same file, and
   # sim time restarts at zero.
-  led2 = Ledger(path=state, cap=20)
+  led2 = unit_ledger(path=state, cap=20)
   assert led2.balance() == 11, "hunger did not survive the restart"
   m2 = Metabolism(led2, appetite())
   m2.tick(0.0)
@@ -124,7 +135,7 @@ def test_sim_time_going_backwards_re_anchors_rather_than_crediting():
   backwards. Charging a negative interval would hand the robot a refund of
   everything it had eaten -- and the sign is the whole bug, so nothing about
   the balance looks wrong until it is enormous."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 20)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -141,7 +152,7 @@ def test_the_fraction_of_a_point_survives_a_restart(tmp_path):
   costs nothing -- and a robot restarted every few minutes would never get
   hungry at all. The strongest form of the double-charge bug's mirror."""
   state = tmp_path / "ledger.json"
-  led = Ledger(path=state, cap=20)
+  led = unit_ledger(path=state, cap=20)
   fed(led, 20)
   # 5 s at 360/hour is half a point: nothing is eaten, but half is owed.
   m = Metabolism(led, appetite())
@@ -153,7 +164,7 @@ def test_the_fraction_of_a_point_survives_a_restart(tmp_path):
   # write a second -- so an award mid-mission is what puts it on disk.
   fed(led, 2)
 
-  led2 = Ledger(path=state, cap=20)
+  led2 = unit_ledger(path=state, cap=20)
   m2 = Metabolism(led2, appetite())
   m2.tick(0.0)
   # Another five seconds completes the point the last run started.
@@ -165,7 +176,7 @@ def test_hunger_stops_at_zero_and_never_goes_into_debt():
   """"Zero is narrative, never a capability lock" (issue #36), and arrears
   are the sneaky version of the lock: a robot that owed an hour of appetite
   would see its first job back pay nothing."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 4)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -180,7 +191,7 @@ def test_hunger_stops_at_zero_and_never_goes_into_debt():
 
 
 def test_earnings_over_the_cap_are_refused_out_loud():
-  led = Ledger(cap=6)
+  led = unit_ledger(cap=6)
   v = evaluate("carry", CARRIED, table=led.table)
   led.award(v)                      # carry pays 2
   led.award(v)
@@ -198,7 +209,7 @@ def test_earnings_over_the_cap_are_refused_out_loud():
 
 
 def test_a_partial_award_banks_what_fits():
-  led = Ledger(cap=5)
+  led = unit_ledger(cap=5)
   v = evaluate("carry", CARRIED, table=led.table)
   led.award(v)
   led.award(v)                      # 4 of 5
@@ -211,7 +222,7 @@ def test_no_cap_means_no_cap_and_no_new_fields():
   """Every mission, demo and recording before this issue. The absent fields
   are the claim: an entry written without an appetite is byte-identical to
   the ones written before the cap existed."""
-  led = Ledger()
+  led = unit_ledger()
   v = evaluate("carry", CARRIED, table=led.table)
   entry = None
   for _ in range(50):
@@ -222,7 +233,7 @@ def test_no_cap_means_no_cap_and_no_new_fields():
 
 def test_a_rating_settles_through_the_cap():
   """A deferred payout is not a way around a ceiling (issue #16 meets #36)."""
-  led = Ledger(cap=4)
+  led = unit_ledger(cap=4)
   v = evaluate("artwork", {"board": "whiteboard_a", "strokes": 6,
                            "strokesInked": 6, "formMm": 0.6,
                            "inkedFraction": 0.99, "travelInkFraction": 0.0,
@@ -246,7 +257,7 @@ def test_a_day_is_work_then_satisfaction_then_free_time_then_hunger_again():
   what is under test here is the STATE MACHINE, which is where the rhythm
   lives -- the physics is the same physics either way.
   """
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   m = Metabolism(led, appetite())
   m.tick(0.0)
   assert m.state == "starving", "a fresh robot has not earned anything yet"
@@ -278,7 +289,7 @@ def test_the_state_does_not_flap_around_a_single_threshold():
   """Without hysteresis a balance sitting on the line changes state on every
   point eaten and every point earned -- forty transitions an hour, and forty
   lines in History.md saying nothing."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 12)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -296,7 +307,7 @@ def test_the_state_does_not_flap_around_a_single_threshold():
 
 
 def test_a_transition_is_narrated_once_not_a_level_every_tick():
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   m = Metabolism(led, appetite())
   fed(led, 12)
   m.tick(0.0)
@@ -311,7 +322,7 @@ def test_a_restarted_robot_in_the_ambiguous_band_goes_back_to_work():
   that came back still coasting on a satisfaction it could no longer justify
   would idle through the first stretch of every mission, and there is no way
   to tell the two cases apart from the balance alone."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 8)                       # between hungry_at (5) and satisfied_at (12)
   m = Metabolism(led, appetite())
   assert not m.satisfied
@@ -415,7 +426,7 @@ def test_the_committed_file_is_the_shipped_default():
 
 
 def test_the_snapshot_is_the_vocabulary_and_says_where_it_sits():
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   m = Metabolism(led, appetite())
   fed(led, 12)
   m.tick(0.0)
@@ -431,7 +442,7 @@ def test_the_ledger_block_explains_its_own_balance():
   """earned - consumed - spent == balance has to be checkable from the wire
   alone: a site that showed the balance falling with no consumed figure
   beside it would be showing points leaking."""
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   fed(led, 12)
   m = Metabolism(led, appetite())
   m.tick(0.0)
@@ -444,7 +455,7 @@ def test_the_ledger_block_explains_its_own_balance():
 def test_the_frame_carries_the_block_and_the_header_the_vocabulary(tmp_path):
   from pluggybot.telemetry.recorder import FrameBuilder
   model, data = mini()
-  led = Ledger(cap=20)
+  led = unit_ledger(cap=20)
   m = Metabolism(led, appetite())
   builder = FrameBuilder(model, data, metabolism=m)
   header = builder.header()

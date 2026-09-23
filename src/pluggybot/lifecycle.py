@@ -836,15 +836,24 @@ class HubLifecycle:
     self._restart_step()
 
   def _near_field_step(self) -> None:
-    """One depth frame into the height map, at the sensor's rate, placed
-    by the BELIEVED pose (dead reckoning, the axle midpoint) exactly as the
-    occupancy grid places a LIDAR scan: the sensor never learns where the
-    robot is, and drift smears the map honestly."""
+    """One depth frame, at the sensor's rate, to its two consumers.
+
+    The MAP takes the room, placed by the BELIEVED pose (dead reckoning,
+    the axle midpoint) exactly as the occupancy grid places a LIDAR scan:
+    the sensor never learns where the robot is, and drift smears the map
+    honestly. The DRIVE takes the peers (issue #328) -- the same frame's
+    returns off another robot's body, in the robot's own frame, where no
+    pose belief can smear them and nothing has to be broadcast for them to
+    be true."""
     if self.data.time < self._next_near_field:
       return
     self._next_near_field = float(self.data.time) + nf.PERIOD
     frame = self.depth_camera.frame(self.data)
     self.near_field.update(self.mission.pose, frame.points)
+    # ...and the peers that same frame saw, which the map is not told about
+    # and the drive is (issue #328). One frame, two consumers, the split
+    # `Lidar.scan_split` already makes one sensor along.
+    self.mission.watch_for_peers(frame.peers)
     self.near_field_frames += 1
 
   # ---- death (issue #107) --------------------------------------------------
@@ -2322,10 +2331,18 @@ class HubLifecycle:
                if st["verb"] == "fetch" and st.get("ok")]
     hung = all(self.mission.swap.module_state(tool)["hung"] for tool in fetched)
     run["toolsHung"] = hung
+    # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
+    # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
+    # names no line of the source, and the step's own reason was on no
+    # wire at all -- a reader could see a run was cut short, not what cut it.
+    failed = next((s for s in run["steps"]
+                   if run.get("failedAt") is not None and s.get("i") == run["failedAt"]), {})
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
+                **({"failedLine": failed["line"]} if failed.get("line") else {}),
+                **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
                 **({"locals": run["locals"]} if run.get("locals") else {})})
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
@@ -3687,17 +3704,26 @@ class HubLifecycle:
     library.facts = world_facts(self.world, rack=self.rack_inventory)
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
+
+    def shelf() -> dict:
+      # The library AS IT STANDS after this event, and its cap (rooftop-
+      # media-2026 #342): a consumer folding `defined`/`undefined` rows
+      # re-anchors on the names, so one row it never received cannot leave
+      # it showing a procedure the robot no longer keeps, and the cap is
+      # this number rather than a copy of it typed into a website.
+      return {"library": {"names": list(library.names()), "cap": library.cap}}
     if decision.undefine:
       try:
         library.undefine(decision.undefine, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE undefine refused: {e}")
         self._emit({**base, "outcome": "refused", "name": decision.undefine,
-                    "verb": "undefine", "reasons": list(e.reasons)})
+                    "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
         self._say(f"PROCEDURE undefined {decision.undefine}")
         self._remember(f"forgot the procedure {decision.undefine}")
-        self._emit({**base, "outcome": "undefined", "name": decision.undefine})
+        self._emit({**base, "outcome": "undefined", "name": decision.undefine,
+                    **shelf()})
     if decision.define:
       name = decision.define.get("name", "")
       source = decision.define.get("source", "")
@@ -3707,12 +3733,12 @@ class HubLifecycle:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
-                    "source": source})
+                    "source": source, **shelf()})
       else:
         self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
         self._remember(f"wrote the procedure {proc.name}")
         self._emit({**base, "outcome": "defined", "name": proc.name,
-                    "program": proc.as_dict()})
+                    "program": proc.as_dict(), **shelf()})
 
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.
@@ -4225,16 +4251,18 @@ class HubLifecycle:
     records reading as they did.
 
     With one, the loop reaching this point IS the `nothing_to_do` event:
-    everything queued has run and there is nothing left to do. So it is
-    delivered here and the map is evaluated immediately, which is what makes
-    `nothing_to_do -> ask` reproduce the pre-change mission action for
-    action -- including at mission start, before anything has completed.
+    everything queued has run and this robot has nothing of its own left to
+    do. So it is delivered here and the map is evaluated immediately, which
+    is what makes `nothing_to_do -> ask` reproduce the pre-change mission
+    action for action -- including at mission start, before anything has
+    completed. Its kind is read off `shown_offers`, the list the context
+    carries, so a row and the view cannot disagree about the board.
     """
     if self.event_map is None:
       yield from self._decide_routine()
       return
     if self.queued_row is None:
-      self._occur("nothing_to_do")
+      self._occur("nothing_to_do", "offers" if shown_offers(self) else "none")
       self._next_events_check = 0.0            # look now, not in a second
       self._events_step()
     row, self.queued_row = self.queued_row, None
@@ -4876,6 +4904,7 @@ class HubLifecycle:
       "acts": list(self.acts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
+      "peer_holds": self.mission.peer_holds,
       "press_steps": self.mission.swap.press_steps,
       "sim_time": float(self.data.time),
       # Every time a hazard row reached the robot mid-errand (issue #116),
@@ -5721,6 +5750,29 @@ def zone_centre(world: str, name: str) -> tuple[float, float]:
   raise ValueError(f"{world} has no zone {name!r}")
 
 
+def shown_offers(life) -> list[dict]:
+  """The offers this robot is SHOWN: its context's `offeredTasks`, and what
+  a `nothing_to_do` row's `offers` / `none` reads (issue #333) -- one list,
+  so the map cannot say there is a job the robot cannot see, or the reverse.
+
+  Framed the way `TaskReward.as_context` frames a payout: what the job is,
+  what it pays, and whether it can be taken RIGHT NOW. The claimability
+  flag is computed here rather than left to the model, because "can I
+  afford this" is arithmetic with a right answer (issue #21). Never an
+  offer done TO this robot, nor one it declined (issue #228).
+
+  ⚠ FILTERED ON `claim_budget_wh`, THE OFFER RAIL, NOT ON `spendable_wh`:
+  on `autonomous` the rail is off and the rules say an offer it cannot pay
+  for "is listed like any other". Filtered on the pack, below ~37 % the
+  deployed robots were shown an empty board under that sentence.
+  """
+  if life.tasks is None:
+    return []
+  return life.tasks.context(float(life.data.time), life.claim_budget_wh,
+                            limit=TASKS_SHOWN, reader=life.robot_name,
+                            hidden=life.declined)
+
+
 def overseer_context(life) -> dict:
   """The volatile half of the overseer's prompt, plus the decision counter
   the scripted fallback rotates on.
@@ -5731,18 +5783,7 @@ def overseer_context(life) -> dict:
   """
   from pluggybot.mind import overseer as ov
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
-  # The offers on the board, framed the way `TaskReward.as_context` frames a
-  # payout: what the job is, what it pays, and whether it can be taken RIGHT
-  # NOW given what is left in the pack. The claimability flag is computed
-  # here rather than left to the model, because "can I afford this" is an
-  # arithmetic question with a right answer and nothing is gained by asking
-  # an LLM to do it (issue #21).
-  # ...and not an offer done TO this robot, nor one it declined (issue
-  # #228): `TaskBoard.context` keeps both out of this reader's view.
-  offers = (life.tasks.context(float(life.data.time), life.spendable_wh,
-                               limit=TASKS_SHOWN, reader=life.robot_name,
-                               hidden=life.declined)
-            if life.tasks is not None else [])
+  offers = shown_offers(life)
   # What the pack can pay for now, and what this world could ever do
   # (issue #15). TWO lists, because they are answers to different questions:
   # an errand the robot cannot afford this second is one the loop charges for

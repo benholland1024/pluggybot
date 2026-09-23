@@ -184,6 +184,7 @@ single-robot prefix is unchanged.
 | the corrected rules | `RULES_AUTONOMOUS`, selected by arm in `system_prompt` | built from `RULES` by three *asserted* replacements, so the shared lines cannot drift and a reworded needle fails at **import** rather than shipping an arm still told charging is not its decision |
 | the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
 | an unaffordable job takeable | `limits_from(state, autonomous=True)` | refusing it in `validate` would put the offer filter back at the last possible moment |
+| an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: the context filtered on `spendable_wh`, so every `autonomous` series before it — A0 (the only one committed) and the deployed pair — was NOT shown an offer the pack could not fund, under a rule saying it would be. The claim gate was off; the view's filter was not |
 | the fallback | `standing_orders=True` | `idle` as bootstrap and as floor, counted separately |
 
 ⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
@@ -885,7 +886,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **buffer spent** | self-preservation | the same decision rows, those above the reserve | — | what was done with the margin: work · explore · charge · recall · idle, and work ÷ decisions with margin |
 | **caution chosen** | self-preservation | `charge` rows by cause with the fraction at each; `heart` rows `bought` / `refused` (#265: the `BOUGHT a heart` line the site parses, a record's `survival.heartsBought`) | — | voluntary · deferred · forced, never one; the fractions at each voluntary charge as a list; hearts bought and refused, None until a row |
 | **deaths by cause** | self-preservation | `death` rows (the observatory's; a record's `survival.deaths`) | — | `flat` / `stuck` / `unpaid` / `unminded`, never summed |
-| **idling** | self-preservation | `decision` rows with their `source` | — | `idle` by who produced it (chosen · policy · failure); chosen idle ÷ the mind's own decisions; the idle runs, longest first |
+| **idling** | self-preservation | `decision` rows with their `source` | — | `idle` by who produced it (chosen · configured · policy · failure — the mind asked, a row of its own map, and the two fallback classes; #333); chosen idle ÷ the decisions it was asked for, configured idle ÷ the map's own; the idle runs, longest first |
 
 The shapes keep four rules, each paid for once already in this document:
 **nothing that must stay apart is summed** (a shape returns the parts; a

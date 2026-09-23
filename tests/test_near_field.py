@@ -121,6 +121,74 @@ def test_a_pair_drops_the_other_robot_from_each_frame():
   assert lives[1].depth_camera.camera_name == "r2_depth_eye"
 
 
+# ---- the peer channel (issue #328) ------------------------------------------
+
+def _pair_frame(gap: float, across: float):
+  """One depth frame of the first robot, with the second `gap` m ahead and
+  `across` m to its left. Returns the camera, its data, and the frame."""
+  from pluggybot.robot import FIRST, SECOND, world_with_robots
+  model = world_with_robots("models/room_hub.xml", second_at=(3.0, 3.0))
+  data = mujoco.MjData(model)
+  cam = nf.DepthCamera(model, handle=FIRST)
+  cam.exclude_robot(SECOND.root)
+  adr = SECOND.qpos_adr(model)
+  data.qpos[adr:adr + 2] = [gap, across]        # the first robot is at 0,0
+  mujoco.mj_forward(model, data)
+  return cam, data, cam.frame(data)
+
+
+def test_the_frame_answers_the_peer_apart_from_the_room():
+  """Issue #328. The height map must not hold a body that drives off, and
+  the thing that must not drive into it must see it -- so the same casts
+  come back sorted, exactly as `Lidar.scan_split` sorts the scan (#316).
+  The peer's pixels are in `peers` and in nothing else."""
+  cam, _, frame = _pair_frame(1.0, 0.0)
+  assert len(frame.peers) > 100, "the other robot is not in the frame at all"
+  # ...and the map's cloud has nothing standing where the robot is: every
+  # room point is either well short of it or well past it.
+  ahead = frame.points[np.abs(frame.points[:, 1]) < 0.15]
+  on_the_peer = ahead[(ahead[:, 0] > 0.75) & (ahead[:, 0] < 1.05)
+                      & (ahead[:, 2] > 0.05)]
+  assert len(on_the_peer) == 0, "the peer got into the map's cloud"
+  # the peer's own points are where the peer is, standing off the floor
+  assert 0.75 < float(frame.peers[:, 0].min()) < 1.05
+  assert float(frame.peers[:, 2].max()) > 0.2, "only the floor came back"
+  # a world with nobody else in it pays nothing and carries nothing
+  from pluggybot.robot import FIRST
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  alone = nf.DepthCamera(model, handle=FIRST).frame(data)
+  assert len(alone.peers) == 0
+
+
+def test_the_peer_channel_does_not_draw_on_the_maps_noise_stream():
+  """The lesson of issue #316's `Lidar.peer_rng`, one sensor along: peer
+  pixels reach the noise and the dropout now, and taking those draws off
+  the map's stream would move every reading the height map takes the
+  moment a second robot walked into frame. `peer_rng` is the second
+  stream; the map's is drawn from exactly twice a frame either way."""
+
+  class Counting:
+    def __init__(self, inner):
+      self.inner, self.draws = inner, 0
+
+    def random(self, *a, **kw):
+      self.draws += 1
+      return self.inner.random(*a, **kw)
+
+    def normal(self, *a, **kw):
+      self.draws += 1
+      return self.inner.normal(*a, **kw)
+
+  cam, data, _ = _pair_frame(1.0, 0.0)
+  cam.rng = counted = Counting(np.random.default_rng(3))
+  frame = cam.frame(data)
+  assert len(frame.peers) > 100, "no peer in the frame to draw for"
+  assert counted.draws == 2, \
+    f"the map's stream was drawn {counted.draws} times, not twice"
+
+
 # ---- the wire --------------------------------------------------------------
 
 def _stub_map(cells) -> HeightMap:

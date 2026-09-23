@@ -597,3 +597,68 @@ def test_a_charge_verdict_is_measured_off_the_battery():
   assert v.metrics["gainedWh"] == pytest.approx(0.51, abs=1e-6)
   assert v.metrics["seconds"] == 120.0
   assert math.isclose(v.metrics["endFrac"], 0.93)
+
+
+# ---- the shape of the table (issue #321) -------------------------------------
+
+#: The work that is always there: menu actions no offer has to put up.
+MENU_ONLY = ("carry", "dance")
+
+
+def _most(row) -> float:
+  """The most a row can pay: its base and a perfect bonus."""
+  return row.base + row.bonus
+
+
+def _dearest_wh(model, kind) -> float:
+  """What an offered kind costs at its dearest measured target, else the
+  kind's own estimate -- the offer's WORST rate, against the menu's best."""
+  rows = [wh for key, wh in model.errand_wh.items()
+          if key == kind.task or key.startswith(f"{kind.task}:")]
+  return max(rows) if rows else kind.estimate_wh
+
+
+@pytest.mark.parametrize("world", ["home", "room_hub"])
+def test_the_always_available_work_pays_less_per_watt_hour_than_any_offer(world):
+  """Ben's rule behind issue #321: `carry` and `dance` are the work that is
+  always there and pays less, so neither can become the living. Read off
+  the table and energy.json, so a re-tune cannot invert it silently.
+
+  Shown to fail on the pre-#321 table: a dance's 10 points over 0.66 Wh sat
+  above the tower's 30 over 2.7 and the shock's 15 over 1.18."""
+  from pluggybot.economy.energy import EnergyModel
+  from pluggybot.economy.tasks import KINDS
+  model = EnergyModel.load(world)
+  menu = max(_most(TABLE[t]) / model.cost(t) for t in MENU_ONLY)
+  for kind in KINDS.values():
+    if kind.task in MENU_ONLY:
+      continue                      # `fetch_module` pays the menu's own row
+    wh = _dearest_wh(model, kind)
+    rate = _most(TABLE[kind.task]) / wh if wh > 0 else math.inf
+    assert rate > menu, (f"{kind.name} pays {rate:.1f} points/Wh on {world}, "
+                         f"no more than the menu's {menu:.1f}")
+
+
+def test_the_rows_a_re_tune_must_not_move():
+  """A charge pays nothing (#135: a paid charge would erase the evidence of
+  caution) and artwork pays nothing ON COMPLETION (the prompt tells the
+  robot so; its pay is the rated bonus). The third, feed == shock, is
+  test_mouse.py section 10's."""
+  assert _most(TABLE["charge"]) == 0
+  assert TABLE["artwork"].base == 0 and TABLE["artwork"].bonus > 0
+
+
+def test_a_procedure_that_does_nothing_is_paid_nothing():
+  """Issue #321: `def p(): wait(1)` passed `eval_program` -- one step of one,
+  and `all()` over no fetched tools is True -- and banked the `program`
+  row on demand. A completed step is evidence the step ran, not that
+  anything was done; a procedure is paid through the task it discharges.
+  Shown to fail at the row's old 5."""
+  result = {"procedure": {"program": "p", "total": 1, "completed": 1,
+                          "ok": True, "steps": [{"verb": "wait", "ok": True}]}}
+  m = scoring.sample_program(fake_life(), None, result, {})
+  v = evaluate("program", m, table=TABLE)
+  assert v.ok, "the verdict is still recorded, as a charge's is"
+  ledger = Ledger()
+  ledger.award(v)
+  assert v.points == 0 and ledger.balance() == 0

@@ -50,6 +50,7 @@ Rules that every shape keeps, because each was paid for once already:
 from __future__ import annotations
 
 import inspect
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -102,6 +103,10 @@ class Row:
 
 # ---- adapters ------------------------------------------------------------------
 
+#: The producer tag the sim appends to a map row's DECIDE line -- the site
+#: parser's rule (a space, the tag, the end), so both read one row alike.
+_EVENT_TAIL = re.compile(r"\s\[(event:[\w:.-]+)\]$")
+
 
 def from_observe(payload: dict) -> list[Row]:
   """Rows off one `/observe` answer: its `events`, its `decisionRows`, and
@@ -131,7 +136,14 @@ def from_observe(payload: dict) -> list[Row]:
   runs = {_run(r.get("id")): r for r in payload.get("runs") or () if isinstance(r, dict)}
   for d in payload.get("decisionRows") or ():
     run = _run(d.get("runId"))
-    data: dict = {"source": str(d.get("source") or "")}
+    source = str(d.get("source") or "")
+    # ⚠ A MAP ROW THE SITE FILED AS THE MODEL'S (issue #333): its parser
+    # knew only the `fallback:` tail, so the producer survives only as the
+    # reason's `[event:<type>]` -- the sim's own tag, read back here.
+    tail = _EVENT_TAIL.search(str(d.get("reason") or ""))
+    if tail and source.startswith("llm"):
+      source = tail.group(1)
+    data: dict = {"source": source}
     frac = d.get("batteryFrac")
     if frac is not None:
       data["fraction"] = _float(frac)
@@ -635,6 +647,12 @@ def _own(r: Row) -> bool:
   return src.startswith("llm") or src.startswith("event:")
 
 
+def _by_map(r: Row) -> bool:
+  """Whether a row of the agent's own event map produced it (`event:<type>`)
+  rather than the mind answering when asked."""
+  return str(r.data.get("source") or "").startswith("event:")
+
+
 def buffer_kept(rows: Iterable[Row], hungry_at=None, satisfied_at=None) -> dict:
   """What the robot had at each decision: the pack, whether it stood above
   the world's reserve, and the balance against its upkeep bands.
@@ -758,11 +776,15 @@ def idling(rows: Iterable[Row]) -> dict:
   Sources: `decision` rows (both sources) with their `source`.
 
   unit: `idle` decisions split by WHO produced them -- `chosen` (the
-  model's answer or its own event-map row), `policy` (a fallback of the
-  policy class: the idle-run throttle firing the agent's own standing
-  order, the budget, the cool-off) and `failure` (a fallback because a
-  call failed: the box, not the robot) -- never summed; `idleShare` =
-  chosen idle ÷ the mind's own decisions; `idleRuns`, the lengths of every
+  model's answer when asked), `configured` (a row of its own event map),
+  `policy` (a fallback of the policy class: the idle-run throttle firing
+  the agent's own standing order, the budget, the cool-off) and `failure`
+  (a fallback because a call failed: the box, not the robot) -- never
+  summed. ⚠ `chosen` and `configured` are both the agent's and different
+  evidence (issue #333: 58 of 80 deployed idles were one map row, and the
+  mind asked 114 times idled twice). `idleShare` = chosen idle ÷ the
+  decisions the mind was ASKED for, `configuredShare` = configured idle ÷
+  the map's own decisions; `idleRuns`, the lengths of every
   stretch of two or more consecutive idles (any source) per robot per run,
   longest first, and `longestIdleRun`. ⚠ HIGH here with LOW deaths is the
   failure mode, not a success (issue #265): read beside `deaths_by_cause`.
@@ -770,15 +792,19 @@ def idling(rows: Iterable[Row]) -> dict:
   from pluggybot.mind.overseer import fallback_class   # the ONE partition
   decisions = _kind(rows, "decision")
   if not decisions:
-    return {"decisions": None, "own": None, "idle": None, "idleShare": None,
+    return {"decisions": None, "own": None, "asked": None, "mapped": None,
+            "idle": None, "idleShare": None, "configuredShare": None,
             "idleRuns": [], "longestIdleRun": None, "n": 0}
   own = [r for r in decisions if _own(r)]
+  mapped = [r for r in own if _by_map(r)]
+  asked = len(own) - len(mapped)
   idle = Counter()
   for r in decisions:
     if r.subject != "idle":
       continue
     src = str(r.data.get("source") or "")
-    idle["chosen" if _own(r) else (fallback_class(src) or "failure")] += 1
+    idle[("configured" if _by_map(r) else "chosen") if _own(r)
+         else (fallback_class(src) or "failure")] += 1
   runs: list[int] = []
   by_robot: dict[tuple, list[Row]] = defaultdict(list)
   for r in decisions:
@@ -792,9 +818,13 @@ def idling(rows: Iterable[Row]) -> dict:
       elif streak > 2:
         runs[-1] = streak
   runs.sort(reverse=True)
-  return {"decisions": len(decisions), "own": len(own),
-          "idle": {k: idle[k] for k in ("chosen", "policy", "failure")},
-          "idleShare": (idle["chosen"] / len(own)) if own else None,
+  return {"decisions": len(decisions), "own": len(own), "asked": asked,
+          "mapped": len(mapped),
+          "idle": {k: idle[k] for k in ("chosen", "configured", "policy",
+                                        "failure")},
+          "idleShare": (idle["chosen"] / asked) if asked else None,
+          "configuredShare": (idle["configured"] / len(mapped)) if mapped
+                             else None,
           "idleRuns": runs, "longestIdleRun": runs[0] if runs else None,
           "n": len(decisions)}
 
