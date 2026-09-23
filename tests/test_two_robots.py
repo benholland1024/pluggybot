@@ -1039,3 +1039,26 @@ def test_a_peer_the_drive_stops_short_of_is_not_held_for():
   px, py, _ = me.mission.pose
   me.mission.drive_to(px + 2.0, py, timeout=20.0)
   assert me.mission.peer_holds > 0, "drove on with a body in the way"
+
+
+def test_the_fine_step_is_counted_so_the_first_swap_out_cannot_end_the_others():
+  """The swap's step is the MODEL's, and a pair shares one (issue #264): the
+  robot whose swap ended first put the cruise step back under the other's
+  terminal approach -- peg contacts at twice the step, on a failure one robot
+  alone can never show."""
+  from types import SimpleNamespace
+  from pluggybot.mission import mission as ms
+  model = SimpleNamespace(opt=SimpleNamespace(timestep=0.002))
+  ms.fine_step_begin(model)                  # one robot's swap
+  ms.fine_step_begin(model)                  # the other's, overlapping
+  ms.fine_step_end(model, 0.002)             # ...which ends first
+  assert model.opt.timestep == ms.SWAP_TIMESTEP
+  ms.fine_step_end(model, 0.002)
+  assert model.opt.timestep == 0.002
+
+
+def test_the_bay_swap_takes_the_fine_step_only_through_the_count():
+  import inspect
+  src = inspect.getsource(HubMission.swap_at_bay_routine)
+  assert "fine_step_begin(self.model)" in src and "fine_step_end(" in src
+  assert "opt.timestep =" not in src, "writes the shared step itself"

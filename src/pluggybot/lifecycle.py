@@ -320,6 +320,52 @@ TASKS_SHOWN = 5
 #: How many of a procedure's locals its History line carries (issue #227).
 #: A procedure's variables are its only readout; a dozen fits a line.
 LOCALS_SHOWN = 12
+#: What a bay approach that came away empty-handed DID, in the words the
+#: robot reads back (issue #264): `HubMission.swap_at_bay_routine` answers
+#: one of these and every caller used to throw it away, so History said "the
+#: pick missed" for a robot that never reached the rack (`no-route` has its
+#: own sentence in `pick_failure`). A key missing here is the bare miss.
+PICK_WHY = {
+  "stalled": "the fork stalled against something on the way in",
+  "timeout": "the approach ran out of time before the fork was in",
+  "arrived": "the fork went in and came out without it",
+}
+#: How a procedure the robot wrote stopped short without a failed step
+#: (`lang.run_procedure_routine`'s `stopped`), in the History line's words.
+PROCEDURE_STOPS = {
+  "budget": "it ran out of the time its budget gave it",
+  "steps": "it ran out of the steps its budget gave it",
+  "interrupted": "it was interrupted",
+}
+
+
+def procedure_outcome(name: str, run: dict) -> str:
+  """The ONE History line a procedure the robot wrote leaves behind (issue
+  #264): how far it got, and -- when it stopped short -- the line, the verb
+  and the reason, because a robot told nothing re-ran the same failing
+  `fetch` five times over and could not fix what it could not see. Its
+  locals ride at the end, as they have since #227: they are its readout."""
+  line = f"ran the procedure {name} ({run.get('completed', 0)}/{run.get('total', 0)} steps)"
+  if not run.get("ok"):
+    steps = run.get("steps") or []
+    at = run.get("failedAt")
+    failed = next((s for s in steps if s.get("i") == at), None) if at is not None else None
+    stopped = run.get("stopped")
+    if failed is not None:
+      where = (f"line {failed['line']}, {failed.get('verb', 'a step')}"
+               if failed.get("line") else "an expression" if failed.get("verb") == "expr"
+               else failed.get("verb", "a step"))
+      line += f" -- it stopped at {where}: {failed.get('reason') or 'the step failed'}"
+    elif stopped in PROCEDURE_STOPS:
+      last = steps[-1] if steps else {}
+      line += " -- " + PROCEDURE_STOPS[stopped] + (
+        f" after line {last['line']}" if last.get("line") else "")
+    else:
+      line += f" -- it stopped: {run.get('error') or stopped or 'early'}"
+  if run.get("locals"):
+    shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
+    line += f" -- it ended with {shown}"
+  return line
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
 #: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
@@ -1112,6 +1158,29 @@ class HubLifecycle:
       return None
     sx, sy, _ = bay_standoff(station_y, self.mission.rack)
     return self._nearest_peer(sx, sy, near)
+
+  def pick_failure(self, tool: str, station_y: float, why: str = "") -> str:
+    """Why a pick left `tool` off THIS robot's fork, as one clause the robot
+    reads back -- the errand's History line and a `fetch` step's reason say
+    the same thing (issue #264). Most actionable first: whoever holds it
+    (carrying is the others' PUBLIC surface), whoever stood in the way,
+    then the bay itself -- a miss the robot can retry, told apart from an
+    approach that never got there, and from a tool that is nowhere."""
+    holder = next((p for p in self.peers if carrying(p) == tool), None)
+    if holder is not None:
+      return f"{tool} is on {holder.robot_name or holder.root}'s fork"
+    blocked = self.peer_at_the_bay(station_y)
+    if blocked is not None:
+      return (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
+              "nearer than the planner may route")
+    if self.mission.swap.module_state(tool)["hung"]:
+      if why == "no-route":
+        return ("there was no route to where the fork lines up with its bay, "
+                "so no pick was tried; it is still hanging there")
+      how = PICK_WHY.get(why)
+      return ("the pick missed and it is still on its bay"
+              + (f" ({how})" if how else ""))
+    return "it was not on its bay, and no robot is carrying it"
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
@@ -2049,15 +2118,15 @@ class HubLifecycle:
                   else "task_failed", errand.name)
       self._errand_name = ""
       return result
-    yield from self.mission.swap_at_bay_routine(errand.station_y, "pick",
-                                                module=self.module)
+    why = yield from self.mission.swap_at_bay_routine(
+      errand.station_y, "pick", module=self.module)
     carried = self.mission.swap.module_state(self.module)["on_fork"]
     blocked = self.peer_at_the_bay(errand.station_y)
+    missed = (None if carried else
+              self.pick_failure(self.module, errand.station_y, why))
     self.swaps_done += 1
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
-              f" ({errand.name})"
-              + ("" if blocked is None else
-                 f" -- {blocked[0]} was standing {blocked[1]:.2f} m from the bay"))
+              f" ({errand.name})" + ("" if missed is None else f" -- {missed}"))
     if not carried:
       # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
       # go on: drive to the use pose with nothing on the fork, skip the
@@ -2068,19 +2137,12 @@ class HubLifecycle:
       # then failed: Rowan's correct answers paid 3 of 27. History says
       # which of the two things a failed pick is, because the robot was
       # diagnosing its pen for what was the other robot holding it.
-      hung = self.mission.swap.module_state(self.module)["hung"]
-      # ⚠ ...AND WHICH OF THE THREE, because the robot reads this back
-      # (issue #313). A pick that never reached the rack is not a pick that
-      # missed: Rowan diagnosed its pen, told the other robot to move out
-      # of a pose measured harmless, and began declining pen jobs it
-      # expected to fail -- off a correlation in its own History that no
-      # line ever named. The distance is what makes it countable.
+      # ⚠ ...AND WHICH ONE, because the robot reads this back (issues #313,
+      # #264): Rowan diagnosed its pen off a correlation no line ever named,
+      # and "the pick missed" covered an approach that never reached the
+      # rack. `pick_failure` is the one sentence for it; `fetch` says the same.
       self._remember(f"could not pick up {self.module} for {errand.name}: "
-                     + (f"{blocked[0]} was standing {blocked[1]:.2f} m from "
-                        "the bay, nearer than the planner may route"
-                        if blocked is not None else
-                        "the pick missed and it is still on its bay" if hung
-                        else "it was not on its bay"))
+                     f"{missed}")
 
     self.state = "USE_TOOL"
     # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
@@ -2124,7 +2186,7 @@ class HubLifecycle:
     before = scoring.board_before(self, errand)
     used: dict = {}
     if not carried:
-      used = {"error": f"never picked up {self.module}",
+      used = {"error": f"never picked up {self.module}", "pickWhy": why,
               **({} if blocked is None else {"peerAtBayM": round(blocked[1], 3)})}
     # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
     # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
@@ -2347,14 +2409,12 @@ class HubLifecycle:
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
               f"{run['completed']}/{run['total']} steps")
-    # A PROCEDURE'S VARIABLES ARE ITS READOUT (issue #227): what it read
-    # off a sensor and computed is in its locals and nowhere else, and a
-    # job that asks for a number needs them to reach the mind. One History
-    # line, the way every other outcome reaches it.
-    if run.get("locals"):
-      shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
-      self._remember(f"ran the procedure {program.name} "
-                     f"({run['completed']}/{run['total']} steps) -- it ended with {shown}")
+    # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
+    # #227, #264): its locals are its readout, and where it stopped and why
+    # is the only way it can fix one. A house program's outcome is its
+    # task's verdict and needs no second line.
+    if is_proc or run.get("locals"):
+      self._remember(procedure_outcome(program.name, run))
     result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
               **({"error": run["error"]} if "error" in run else {})}
     # A draw step's own measurements ride at the top level, so the ink
@@ -5705,6 +5765,14 @@ def load_program(path: str, world: str):
   return compile_procedure(text, world_facts(world))
 
 
+def carrying(other) -> str:
+  """What another robot carries, as its PUBLIC surface says it: its module,
+  verified on its own fork -- one definition for `others_context` and for
+  naming who holds a tool a pick came away without (issue #264)."""
+  module = getattr(other, "module", "")
+  return module if module and other.mission.swap.module_state(module)["on_fork"] else ""
+
+
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
   nothing else -- name, reported pose, state, the status line they narrate
@@ -5714,8 +5782,7 @@ def others_context(life) -> list[dict]:
   out = []
   for other in life.peers:
     x, y = other.mission.pose_xy()
-    carried = other.module if (other.module and other.mission.swap.module_state(
-      other.module)["on_fork"]) else ""
+    carried = carrying(other)
     out.append({"name": other.robot_name, "robot": other.mission.handle.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
                 "doing": other.status[:120], "carrying": carried,

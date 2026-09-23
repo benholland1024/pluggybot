@@ -935,8 +935,8 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "write a procedure of your own into your library: `{name, source}`. It "
    "costs no turn."),
   ("undefine", "procedures", "PROCEDURES YOU MAY WRITE",
-   "take a procedure of yours back out of the library. There is no "
-   "replace -- undefine, then define."),
+   "take a procedure of yours back out of the library. With `define` on "
+   "the same answer it replaces one: the undefine is done first."),
   ("done", "procedures", "CHALLENGES",
    "the id of a challenge you claimed and say now stands, ready to be "
    "graded."),
@@ -2694,15 +2694,18 @@ else: no strings except a verb's or read's argument, no other calls, no
 imports. A procedure runs until it finishes, a step fails, or a budget runs
 out; whatever it fetched is hung back up either way. A step fails when the
 world says so -- a tool not seated, a drive that did not arrive, a target
-outside an axis's range -- and the record says which step and why. When a
-run ends, the values of its variables are written into your History: that
-is how a number you `read` inside a procedure reaches you.
+outside an axis's range. When a run ends, one line in your History says how
+far it got, and if it stopped short, the line and the reason; the values of
+its variables are on the same line: that is how a number you `read` inside
+a procedure reaches you.
 
 To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
-on any answer; it costs no turn. To remove one: `undefine: "<name>"`. There
-is no replace -- undefine, then define. The library holds %(cap)d and refuses
-out loud when full. Your library, with each source, is in `procedures`
-below; an entry marked not runnable says why.
+on any answer; it costs no turn. To remove one: `undefine: "<name>"`. To
+replace one, put its name in `undefine` and the new source in `define` on
+the same answer: the undefine is done first. The library holds %(cap)d and
+refuses out loud when full, and an `undefine` on the same answer makes room
+first. Your library, with each source, is in `procedures` below; an entry
+marked not runnable says why.
 
 VERBS (a statement each; arguments in this order, or by keyword)
 """

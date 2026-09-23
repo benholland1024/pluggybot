@@ -87,9 +87,30 @@ CHARGE_PRESS_STALL_S = 4.0
 CHARGE_LOOK_LIFT = 0.0
 FACING_TOLERANCE = math.radians(0.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
+#: Swaps on SWAP_TIMESTEP, per MODEL (issue #264). The step is the model's
+#: and a pair shares one: the first robot out of its swap used to put the
+#: cruise step back under the other's terminal approach -- its peg contacts
+#: at twice the step, a failure one robot alone can never show.
+_FINE_STEP: dict[int, int] = {}
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
 LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
+
+
+def fine_step_begin(model) -> None:
+  """A swap enters the fine step; counted, because the step is the model's."""
+  _FINE_STEP[id(model)] = _FINE_STEP.get(id(model), 0) + 1
+  model.opt.timestep = SWAP_TIMESTEP
+
+
+def fine_step_end(model, cruise: float) -> None:
+  """...and leaves it; cruise comes back only when no swap is still on it."""
+  left = _FINE_STEP.get(id(model), 1) - 1
+  if left > 0:
+    _FINE_STEP[id(model)] = left
+  else:
+    _FINE_STEP.pop(id(model), None)
+    model.opt.timestep = cruise
 
 
 def rack_heading(rack: RackPose | None = None) -> float:
@@ -1324,7 +1345,7 @@ class HubMission:
       # and it is the PEG that must land over the tray line.
       travel = self._terminal_travel(station_y)
       tag_id = bay_tag_id(station_y)
-      self.model.opt.timestep = SWAP_TIMESTEP
+      fine_step_begin(self.model)
       try:
         if verb == "pick":
           why = yield from self.swap.pick_routine(
@@ -1333,7 +1354,7 @@ class HubMission:
           why = yield from self.swap.put_back_routine(
             steer_fn=self.steer_fn(tag_id), dist=travel - CARRY_OFFSET)
       finally:
-        self.model.opt.timestep = self.cruise_timestep
+        fine_step_end(self.model, self.cruise_timestep)
       yield from self.set_arm_routine(0.0)  # tuck it back before driving off
       if module is None:
         break

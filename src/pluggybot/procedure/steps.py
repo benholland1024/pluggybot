@@ -205,16 +205,42 @@ def _tool_station(life, tool: str) -> float:
   return STATION_YS[_rack(life)[tool]]
 
 
+def _seated(life, tool: str) -> bool:
+  return bool(life.mission.swap.module_state(tool)["on_fork"]) and \
+    module_power_contact(life.model, life.data, tool,
+                         life.mission.swap.handle.prefix)
+
+
 def _fetch(life, args: dict) -> Routine:
   tool = args["tool"]
   station = _tool_station(life, tool)
+  # ⚠ THE FORK FIRST (issue #264). A fork that already holds the tool has
+  # it; one that holds ANOTHER was driven into a bay loaded, and the
+  # deployed robots wrote `clean_fork` / `stow_recover` procedures around
+  # the wreck. Neither drives anywhere.
+  held = _carried(life)
+  if held == tool:
+    life.module = tool
+    ok = _seated(life, tool)
+    return {"ok": ok, "tool": tool, "why": "held", "powered": ok,
+            **({} if ok else {"reason": f"{tool} is on the fork but not "
+                                        "seated; stow it and fetch it again"})}
+  if held is not None:
+    return {"ok": False, "tool": tool, "why": "loaded",
+            "reason": f"the fork already holds {held}; stow it first"}
   life.module = tool
   why = yield from life.mission.swap_at_bay_routine(station, "pick", module=tool)
-  st = life.mission.swap.module_state(tool)
-  ok = bool(st["on_fork"]) and module_power_contact(
-    life.model, life.data, tool, life.mission.swap.handle.prefix)
+  ok = _seated(life, tool)
   life.swaps_done += 1
-  return {"ok": ok, "tool": tool, "why": why, "powered": ok}
+  verdict = {"ok": ok, "tool": tool, "why": why, "powered": ok}
+  if not ok:
+    # The sentence the errand's History line says (`pick_failure`): a
+    # procedure cut short at its first line told the robot nothing, and the
+    # deployed robots re-ran the same failing fetch five times over.
+    said = getattr(life, "pick_failure", None)
+    verdict["reason"] = (f"could not pick up {tool}"
+                         + (f": {said(tool, station, why)}" if said else ""))
+  return verdict
 
 
 def _carried(life) -> str | None:
@@ -234,9 +260,14 @@ def _stow(life, args: dict) -> Routine:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
                                                     "return", module=tool)
-  hung = bool(life.mission.swap.module_state(tool)["hung"])
+  st = life.mission.swap.module_state(tool)
+  hung = bool(st["hung"])
   life.swaps_done += 1
-  return {"ok": hung, "tool": tool, "why": why}
+  return {"ok": hung, "tool": tool, "why": why,
+          **({} if hung else {"reason": (
+            f"could not hang {tool} back on its bay; "
+            + ("it is still on the fork" if st["on_fork"] else
+               "it is neither on the fork nor on its bay"))})}
 
 
 def _drive_to(life, args: dict) -> Routine:

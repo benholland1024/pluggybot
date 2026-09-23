@@ -184,12 +184,19 @@ class Library:
     if not _NAME.match(name):
       reasons.append(f"{name!r} is not a name this library allows")
     if name in self.entries:
-      reasons.append(f"{name!r} is already defined -- undefine it first, "
-                     "there is no replace")
+      # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
+      # before `define`, so a replacement is one answer -- and "undefine it
+      # first" read as a turn of its own to every deployed robot, which
+      # wrote `stack3b` and `weigh_cube2` beside the originals instead.
+      reasons.append(f"{name!r} is already defined -- to replace it, put "
+                     f"{name!r} in `undefine` on the same answer as this "
+                     "define: the undefine is done first")
     try:
       registry.admit(ROW, registry.ROBOT, len(self.entries) + 1, cap=self.cap)
-    except registry.Refused as e:
-      reasons.append(f"the library {str(e).removeprefix(ROW.name + ' ')}")
+    except registry.Refused:
+      reasons.append(f"the library is full (it holds {self.cap}) -- an "
+                     "`undefine` on the same answer as this define makes room "
+                     "first")
     proc = None
     if not reasons:
       try:
