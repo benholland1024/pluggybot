@@ -1288,7 +1288,16 @@ NOTHING broadcast, closest approach was 0.225 m -- inside contact -- on
 the lidar alone and 0.594 m with the depth channel. Below a ~0.4 m gap
 the peer's near face falls inside `depth.MIN_Z` and the camera loses it,
 which is why the stop fires at 0.60 m and the lidar's 0.25 m reflex stays
-underneath as the floor. ⚠ The mask is an obstacle of
+underneath as the floor.
+
+⚠ **Which half does what.** The BROADCAST (`HubMission.others`) is plan
+time only: A* keeps 0.6 m clear of where the other robot SAYS it is, and a
+stagnated drive waits when it says it is near. That is a fleet fact and
+honest as one, and routing round a robot 3 m away is exactly what it is
+good for -- but it drifts 0.24-0.55 m and it is not a perception. The
+SENSORS decide in real time and need the other robot to say nothing. So a
+wrong or missing broadcast now costs a detour rather than a collision,
+which is the whole of issue #328. ⚠ The mask is an obstacle of
 its own: a goal inside one cannot be reached at all, because the nearest
 cell A* may plan to is (0.60 − d) away and a stagnated drive is only called
 arrived inside 0.15 m — so a robot standing within 0.45 m of a bay standoff
