@@ -629,6 +629,10 @@ def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
   assert _outcomes(events) == ["specified", "built", "hung"]
   assert "module_scoop" in life.rack_inventory
   assert life.ledger.balance() == 97                 # paid once, and it hung
+  # ...and the HUNG row says how long it stood: a build that waited and
+  # then hung is what a contended rack looks like, and an uncontended one
+  # reads 0. Without it the observatory sees only the give-ups.
+  assert events[-1]["waitedS"] > 0
   assert life.overseer.workshop.names() == ("scoop",)
   # ...and it did NOT wait for ever: the bound is a constant with an argument
   from pluggybot.lifecycle import HANG_WAIT_S, SEAM_POLL_S

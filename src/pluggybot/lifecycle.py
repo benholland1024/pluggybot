@@ -1791,9 +1791,13 @@ class HubLifecycle:
       shop.record(tool, spec, idx, bill, t)
       self.tools_built += 1
       self._remember(f"built my tool {name} and hung it in bay {bay}")
+      # `waitedS` rides the HUNG row too, not only the refused one: a build
+      # that waited 40 s and then hung is what a contended rack looks like,
+      # and a rack that is never contended reads 0 (issue #315).
       self._emit({**base, "outcome": "hung", "name": name, "bay": bay,
                   "module": tool.body, "retired": hung["retired"],
-                  "verbs": hung["verbs"], "cost": bill})
+                  "verbs": hung["verbs"], "cost": bill,
+                  "waitedS": round(waited, 1)})
 
   def _await_seam_routine(self, bay: int) -> Routine:
     """Stand still until the rack is free to be reshaped, or give up.
