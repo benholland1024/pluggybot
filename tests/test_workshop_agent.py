@@ -818,3 +818,35 @@ def test_retiring_a_tool_takes_its_procedures_out_of_the_enum(tmp_path):
   life.hang_tool(validate.check(SCOOP), 0)
   assert lib.runnable() == ("dig",)                  # and it runs again
   assert lib.as_context()[0]["needs"] == ["module_scoop"]
+
+
+def test_replacing_a_tool_tells_the_robot_once(tmp_path):
+  """⚠ ONE RACK CHANGE, ONE LINE. `hang_tool` calls `_retire_from_spec`,
+  so revalidating in the helper AND after `register` told the robot twice
+  in a single action that the same procedure had broken — with two
+  different reason texts, because the second pass saw the replacement's
+  axes in the "is not one of" list. History is capped; saying it twice
+  costs a line that could have been something else.
+
+  And a validity FLIP is news where a reworded reason is not: what is
+  already broken stays broken, and the fresh reasons are in the context
+  either way."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure.library import Library
+  from pluggybot.workshop import validate
+  life = _life(tmp_path, points=100)
+  life.hang_tool(validate.check(SCOOP), 0)
+  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
+  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
+                    '  move("scoop.tilt", 1.0)\n  stow()')
+  life.overseer.library = lib
+  said: list = []
+  life.say_hooks.append(lambda t, line, *a: said.append(line))
+
+  rec = life.hang_tool(validate.check({**SCOOP, "name": "scoop2"}), 0)
+  lines = [s for s in said if "LIBRARY" in s]
+  assert len(lines) == 1, lines
+  assert rec["relearned"] == ["dig"]
+  # ...and the one line describes the rack as it ENDED, not mid-swap
+  assert "module_scoop2" in lines[0] and "scoop2.tilt" in lines[0]
+  assert "relearned" not in rec["retiredWhat"]

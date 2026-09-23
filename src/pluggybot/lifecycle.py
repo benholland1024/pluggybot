@@ -1583,6 +1583,13 @@ class HubLifecycle:
               "retiredWhat": self._retire_from_spec(module)}
     record["recompileMs"] = self._recompile(reason="retire", tool=None,
                                             module=None, bay=bay, retired=module)
+    # ⚠ ONCE, HERE, not inside `_retire_from_spec` (issue #324): `hang_tool`
+    # calls that helper too, and revalidating there AND after `register`
+    # told the robot twice, in one action, that the same procedure had
+    # broken -- with two different reason texts, because the second pass saw
+    # the replacement's axes. The rack is in its final state at each of the
+    # two PUBLIC doors, and nowhere in between.
+    record["relearned"] = self._revalidate_library()
     self._say(f"I took my {module.removeprefix('module_')} off my rack; bay "
               f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
     return record
@@ -1662,7 +1669,6 @@ class HubLifecycle:
     del self.rack_inventory[module]
     self.built.pop(module, None)
     wbuild.unregister(module)
-    gone["relearned"] = self._revalidate_library()
     return gone
 
   def _revalidate_library(self) -> list[str]:

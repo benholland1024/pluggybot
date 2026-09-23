@@ -108,7 +108,12 @@ class Library:
     moved = []
     for name, entry in list(self.entries.items()):
       fresh = self._entry(name, entry.source)
-      if fresh.valid != entry.valid or fresh.reasons != entry.reasons:
+      # ⚠ A FLIP IS NEWS; A REWORDED REASON IS NOT. Comparing `reasons` too
+      # narrated a procedure as newly broken every time the rail changed
+      # around it, because the refusal quotes the list of tools that DO
+      # exist. What is already broken stays broken, and the fresh reasons
+      # are shown in the context either way.
+      if fresh.valid != entry.valid:
         moved.append(name)
       self.entries[name] = fresh
     return moved
