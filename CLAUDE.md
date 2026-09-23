@@ -372,7 +372,11 @@ save a filmstrip PNG named after the script.
   is ABSENT elsewhere (`guarded` is the control, prefix byte-identical);
   a field is the answer (`think`/`action`/`reason`), an action's
   parameter (`ACTION_PARAMETERS`, each read back out of its action's own
-  line) or an indexed power — no fourth kind; `standing_order` is the one
+  line) or an indexed power — no fourth kind; the SECTION is DATA and
+  `Menu.fields(headings=)` composes `See X.` against the sections this
+  prefix carries, so the conditional pieces are built BEFORE the fixed
+  five (`FIXED_SECTIONS`, asserted) and a pointer cannot dangle;
+  `standing_order` is the one
   `MIGRATED_FIELDS` exception and only where a map replaced its section
   (#127); no entry names charge, the battery or the rack, shows a worked
   rule or a threshold, or suggests USING a field.

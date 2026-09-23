@@ -125,8 +125,19 @@ is the INDEX and the prose sections stay the manual.
   power that is not offered cannot appear — a field the world ignores is a
   rule the code contradicts, which is what M14 measured — and a field the
   world honours cannot go unnamed. `tests/test_powers.py` reads the grammar
-  and the index off *one* build and fails in both directions; three
-  failure modes are shown in the PR.
+  and the index off *one* build and fails in both directions. The index
+  reads booleans off the menu where the schema reads a none-able tuple per
+  call, because it rides the cached prefix; that the two agree about
+  *existence* is pinned rather than assumed.
+- **A pointer cannot dangle**, because the section is data and
+  `Menu.fields()` composes `See X.` against the headings this prefix will
+  carry — so the conditional pieces are built before the fixed five they
+  are added to (`FIXED_SECTIONS`, asserted). Written as prose in the line
+  it was already wrong: `hearts` without `mortal` is a build `build()`
+  accepts, and there `buy_heart` sent the robot to a `YOU CAN DIE` section
+  that was not in the prefix. An entry whose manual is absent keeps its
+  line and drops the pointer; a tuple offers alternatives, first present
+  wins, which is how `decline` points at the acts' section or the lab's.
 - **`autonomous` only, and the key is absent rather than empty elsewhere.**
   `guarded` is the control and its prefix is byte-identical to the flown one
   (Evaluation.md §2). Every power at issue is `autonomous`-only anyway; the
@@ -151,7 +162,7 @@ is the INDEX and the prose sections stay the manual.
   a field — `real`, `mouse_will`, `decline` and `ticket` are what the lab,
   the acts and the desk are measuring.
 
-It costs the prefix ~4.4 kB (48.7 → 53.0 kB on the deployed pair, ~1 100
+It costs the prefix ~4.4 kB (48.7 → 53.1 kB on the deployed pair, ~1 100
 cached tokens) and it is a regime break, because it is the prompt:
 Observatory.md opens a period for it.
 

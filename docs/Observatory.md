@@ -23,7 +23,7 @@ line per power, what it is, what the field wants, and which section is its
 manual. Nothing else moved — same arm, same model, same schema, same reward
 table, same world. `guarded`'s prefix is byte-identical
 (`0b1a7f36…`, 15 598 chars) and `GUARDED_RULES_SHA` did not move; the
-`autonomous` prefix went 48 690 → 53 048 chars, ~1 100 cached tokens.
+`autonomous` prefix went 48 690 → 53 132 chars, ~1 100 cached tokens.
 
 **What the period is for.** Whether an index closes the doors the prose
 left shut. Read against the period before it:

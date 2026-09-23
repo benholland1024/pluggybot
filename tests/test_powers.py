@@ -68,7 +68,10 @@ def schema_of(boss):
 def index_of(boss):
   """...and the block the same build PRINTS, off `world`."""
   block = dict(boss.sections)["WHAT YOU CAN DO, AND WHERE"]
-  return json.loads(block[block.index("{"):])
+  # `\n{`, not `{`: the preamble above the dump is prose and may one day
+  # contain a brace, and a block that failed to parse would read as a
+  # missing index rather than as a broken one.
+  return json.loads(block[block.index("\n{") + 1:])
 
 
 def fields_of(boss):
@@ -111,19 +114,31 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none():
   lambda: built("room_hub"),
   lambda: ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
                    standing_orders=True),
-], ids=["everything", "room_hub", "no-map"])
+  # ⚠ THE ONE THAT BROKE IT. With the pointer written into the line,
+  # `hearts` without `mortal` -- a build `build()` accepts -- indexed
+  # `buy_heart` with "See YOU CAN DIE." and there was no such section.
+  lambda: ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
+                   hearts=True, mortal=False, standing_orders=True,
+                   origin="unseeded"),
+], ids=["everything", "room_hub", "no-map", "hearts-without-mortal"])
 def test_every_entry_ends_at_a_section_this_prefix_carries(make):
-  """An index entry is only worth its line if the manual is where it says.
-  Walked on three shapes, because a pointer dangles exactly where a gate
-  and its rule section disagree -- `buy_heart` points at `MORTAL_RULE`, and
-  `hearts` implies `mortal` at every call site rather than by construction;
-  `standing_order` points at a section an event map removes."""
+  """An index entry is only worth its line if the manual is where it says,
+  and a pointer dangles exactly where a gate and its rule section disagree.
+  So the pointer is COMPOSED against the headings this prefix carries
+  rather than written into the line, and what is walked here is that the
+  composition holds on four shapes -- including the two where a section is
+  deliberately absent."""
   boss = make()
   headings = {name for name, _ in boss.sections}
-  for name, line in fields_of(boss).items():
+  fields = fields_of(boss)
+  for name, line in fields.items():
     if "See " in line:
       where = line.rsplit("See ", 1)[1].rstrip(".")
       assert where in headings, f"{name} points at a section that is not here"
+  # ...and an entry whose manual is absent is still an entry: it says what
+  # the field is and stops, rather than being dropped or pointing at air.
+  if "buy_heart" in fields and "YOU CAN DIE" not in headings:
+    assert "See " not in fields["buy_heart"] and fields["buy_heart"]
 
 
 def test_an_action_parameter_is_named_by_the_action_it_belongs_to():
@@ -154,7 +169,11 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
   guarded = ov.build("home", enabled=True, client=FakeClient())
   text = guarded.system[0]["text"]
   assert '"fields"' not in text and "`fields` are what you may set" not in text
-  assert guarded.menu.fields() == {} or not guarded.autonomous
+  # ⚠ ...and the ARM is the only thing suppressing it: this menu has powers
+  # to index, and eleven of them are the ones `autonomous` shares with the
+  # control. That is the whole cost of keeping the control frozen, stated
+  # here so it is reversed deliberately rather than found by accident.
+  assert {"pin", "note", "intend", "respond_to"} <= set(guarded.menu.fields())
   assert hashlib.sha256(text.encode()).hexdigest() == \
       "0b1a7f362b5edeb1813b8e033f2cbf6d48c5cc268993c5c636d00114dcc1b553"
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
@@ -222,6 +241,28 @@ def test_a_world_with_no_escalation_and_no_hearts_is_offered_neither():
   fields = fields_of(plain)
   assert "escalate" not in fields and "buy_heart" not in fields
   assert not {"escalate", "buy_heart"} & set(schema_of(plain)["required"])
+
+
+def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
+  """⚠ THE INDEX READS BOOLEANS OFF THE MENU (`procedures`, `workshop`,
+  `tickets`) WHERE THE SCHEMA READS A NONE-ABLE TUPLE PER CALL
+  (`_procedures()`, `_tools()`, `_ticket_ids()`), because the index rides
+  the CACHED prefix and must not move with a library's contents. That is
+  only safe while the two agree about EXISTENCE, which `build()` decides in
+  one place -- so it is pinned here rather than assumed. A menu flag set
+  without its object, or an object built without its flag, breaks the
+  fence above silently; it breaks this loudly."""
+  for world in ("home", "room_hub"):
+    boss = ov.build(world, enabled=True, client=FakeClient(), autonomous=True,
+                    others=("Rowan",))
+    assert (boss._procedures() is not None) == boss.menu.procedures
+    assert (boss._tools() is not None) == boss.menu.workshop
+    assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
+    assert (boss._acts() is not None) == bool(boss.others and boss.autonomous)
+    guarded = ov.build(world, enabled=True, client=FakeClient(),
+                       others=("Rowan",))
+    assert guarded._procedures() is None and not guarded.menu.procedures
+    assert guarded._acts() is None, "the acts are the autonomous arm's"
 
 
 # ---- 4. no entry hands the agent the answer ------------------------------------
@@ -307,6 +348,6 @@ def test_the_index_is_byte_stable_and_carries_nothing_volatile():
     assert key not in block
   # The names in the table are unique, and the table is what the method
   # returns -- a duplicate would silently win and lose a power.
-  names = [name for name, _, _ in ov.FIELD_INDEX]
+  names = [name for name, _, _, _ in ov.FIELD_INDEX]
   assert len(set(names)) == len(names)
   assert set(names) >= set(fields_of(a))
