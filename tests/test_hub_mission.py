@@ -144,6 +144,44 @@ def test_a_drive_ends_with_a_terminal_approach_and_sweeps_before_it(room_model, 
 
 
 @pytest.mark.slow
+def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, monkeypatch):
+  """Issue #339, off the deployed pair: Rowan was knocked over mid-pick and
+  `refine_standoff`'s drive back to the standoff had no budget. On its side
+  it could not get there, so the loop outlived the death; the timer stood it
+  up at the far end of the house, and the same loop drove it straight at the
+  rack's standoff, into a wall at full torque until the pack was flat --
+  thirteen lives. Kinematic, no physics: a robot that cannot move (the step
+  only advances the clock) must still get out, within three passes of
+  `REFINE_BUDGET_S`. Fails without the budget: the step cap fires."""
+  from pluggybot import tick
+  from pluggybot.mission import mission as mm
+  data = mujoco.MjData(room_model)
+  mission = mm.HubMission(room_model, data, realtime=False)
+  try:
+    mission.start_at(0.0, 0.0, 0.0)
+    cap = int(4 * mm.REFINE_BUDGET_S / room_model.opt.timestep)
+
+    def cannot_move(v, w):
+      if (data.time - t0) / room_model.opt.timestep > cap:
+        raise RuntimeError("refine_standoff is unbounded again (issue #339)")
+      data.time += room_model.opt.timestep
+      yield v, w
+    monkeypatch.setattr(mission, "_nav_routine", cannot_move)
+    monkeypatch.setattr(mission, "_drive_routine", lambda s, v, w: tick.result(None))
+    monkeypatch.setattr(mission, "face_routine", lambda hd: tick.result(True))
+    t0 = float(data.time)
+    routine = mission.refine_standoff_routine(0.0, 0.3, 0.0)
+    try:
+      while True:
+        next(routine)                           # no physics: nobody moves
+    except StopIteration as done:
+      lateral = done.value
+    assert lateral == pytest.approx(0.3), "the robot never moved, and says so"
+    assert data.time - t0 == pytest.approx(3 * mm.REFINE_BUDGET_S, abs=0.01)
+  finally:
+    mission.close()
+
+
 def test_full_hub_mission():
   """The milestone-8 claim, end to end: map the room, navigate to the rack,
   fine-align on the fiducials, pick the LCD module, carry it across the

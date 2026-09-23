@@ -90,6 +90,13 @@ SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
 LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
+#: Sim seconds one drive back in to a bay standoff may take in
+#: `refine_standoff` (issue #339). MEASURED healthy: 0.97-1.25 s over six
+#: passes (draw, census, dance on home). What it bounds: a robot knocked
+#: over mid-pick drove at the standoff for ever -- through its death, then
+#: from the far end of the house where the timer stood it up, into a wall at
+#: full torque until flat -- thirteen lives in a row on the deployed pair.
+REFINE_BUDGET_S = 10.0
 
 
 def rack_heading(rack: RackPose | None = None) -> float:
@@ -854,7 +861,9 @@ class HubMission:
       if abs(lat) < 0.015:
         break
       yield from self._drive_routine(2.5, -0.15, 0.0)   # back off ~0.35 m
-      while math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
+      until = float(self.data.time) + REFINE_BUDGET_S
+      while (math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05
+             and self.data.time < until):
         v, w = drive_toward(self.pose, (sx, sy))
         yield from self._nav_routine(v, w)
       yield from self.face_routine(hd)
