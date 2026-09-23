@@ -138,9 +138,9 @@ def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason(monkeypat
   L.define("stack3", 'def stack3():\n  fetch("module_claw")\n  wait(1)\n')
   life.run_errand(errand_from(Decision(action="procedure:stack3"), "room_hub", library=L))
   history = life.thoughts.read("History.md")
-  assert ("ran the procedure stack3 (0/1 steps) -- it stopped at line 2, fetch: "
+  assert ("the procedure stack3 did not finish -- it stopped at line 2, fetch: "
           "could not pick up module_claw: the pick missed and it is still on its "
-          "bay (the fork went in and came out without it)") in history
+          "bay (the fork went in and came out without it) (0 steps had run)") in history
   cut = next(e for e in events if e.get("type") == "procedure"
              and e.get("outcome") == "aborted")
   assert cut["failedLine"] == 2
@@ -156,15 +156,20 @@ def test_a_procedure_that_finished_says_so(monkeypatch):
   L.define("tidy", 'def tidy():\n  fetch("module_claw")\n  stow()\n')
   life.run_errand(errand_from(Decision(action="procedure:tidy"), "room_hub", library=L))
   history = life.thoughts.read("History.md")
-  assert re.search(r"ran the procedure tidy \(2/2 steps\)$", history, re.M)
+  assert re.search(r"ran the procedure tidy to its end \(2 steps\)$", history, re.M)
 
 
-def test_a_procedure_out_of_budget_says_so_after_its_last_line():
-  run = {"ok": False, "completed": 3, "total": 3, "stopped": "budget",
-         "steps": [{"i": 2, "verb": "pick", "line": 5, "ok": True}]}
-  assert (lc.procedure_outcome("stack", run)
-          == "ran the procedure stack (3/3 steps) -- it ran out of the time its "
-             "budget gave it after line 5")
+def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
+  """MEASURED (ladder B, 2026-09-24): the line said "(4/4 steps) -- it ran
+  out of the time its budget gave it", the model read "all four steps
+  landed", said `done`, and the grade found two blocks of three. The count
+  is of calls MADE, so a stopped run never shows it as a fraction."""
+  run = {"ok": False, "completed": 4, "total": 4, "stopped": "budget", "seconds": 324.2,
+         "steps": [{"i": 3, "verb": "pick", "line": 6, "ok": True}]}
+  line = lc.procedure_outcome("stack_tower", run)
+  assert line == ("the procedure stack_tower did not finish -- it ran out of the time "
+                  "its budget gave it (324 s) after line 6 (4 steps had run)")
+  assert "/" not in line
 
 
 # ---- 4. a replacement is one answer, as the prompt says --------------------

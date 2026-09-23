@@ -347,9 +347,17 @@ def procedure_outcome(name: str, run: dict) -> str:
   #264): how far it got, and -- when it stopped short -- the line, the verb
   and the reason, because a robot told nothing re-ran the same failing
   `fetch` five times over and could not fix what it could not see. Its
-  locals ride at the end, as they have since #227: they are its readout."""
-  line = f"ran the procedure {name} ({run.get('completed', 0)}/{run.get('total', 0)} steps)"
-  if not run.get("ok"):
+  locals ride at the end, as they have since #227: they are its readout.
+
+  ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
+  count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
+  B, 2026-09-24), a model read "(4/4 steps)" as "all four steps landed",
+  said `done`, and the grade found two blocks of three."""
+  done = int(run.get("completed", 0) or 0)
+  steps_said = f"{done} step{'' if done == 1 else 's'}"
+  if run.get("ok"):
+    line = f"ran the procedure {name} to its end ({steps_said})"
+  else:
     steps = run.get("steps") or []
     at = run.get("failedAt")
     failed = next((s for s in steps if s.get("i") == at), None) if at is not None else None
@@ -358,13 +366,17 @@ def procedure_outcome(name: str, run: dict) -> str:
       where = (f"line {failed['line']}, {failed.get('verb', 'a step')}"
                if failed.get("line") else "an expression" if failed.get("verb") == "expr"
                else failed.get("verb", "a step"))
-      line += f" -- it stopped at {where}: {failed.get('reason') or 'the step failed'}"
+      why = f"it stopped at {where}: {failed.get('reason') or 'the step failed'}"
     elif stopped in PROCEDURE_STOPS:
       last = steps[-1] if steps else {}
-      line += " -- " + PROCEDURE_STOPS[stopped] + (
-        f" after line {last['line']}" if last.get("line") else "")
+      took = run.get("seconds")
+      why = (PROCEDURE_STOPS[stopped]
+             + (f" ({took:.0f} s)" if stopped == "budget" and took is not None else "")
+             + (f" after line {last['line']}" if last.get("line") else ""))
     else:
-      line += f" -- it stopped: {run.get('error') or stopped or 'early'}"
+      why = f"it stopped: {run.get('error') or stopped or 'early'}"
+    line = (f"the procedure {name} did not finish -- {why} "
+            f"({steps_said} had run)")
   if run.get("locals"):
     shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
     line += f" -- it ended with {shown}"
