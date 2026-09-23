@@ -58,6 +58,41 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: where a run failed, and the library on its own events (`failedLine`, `failedReason`, `library`)
+
+rooftop-media-2026 #342, which shows each robot's procedures on the site.
+Two things a reader of the scripts needs that the `procedure` event
+(0.19.0, below) did not carry:
+
+- **`failedLine` and `failedReason` on an `aborted` run.** `failedAt` counts
+  verb calls EXECUTED, so inside a loop it names no line of the source (two
+  `wait`s in a `for`, then a `stow` with nothing on the fork, fail at
+  `failedAt` 2 on line 4), and the failed step's own reason was on no wire
+  at all. `failedLine` is the source line of the step that failed -- a
+  procedure written in the language only; a step program has no source.
+  `failedReason` is the reason the step gave, on either kind, and absent
+  where it gave none (a `drive_to` that stopped short records only how far
+  short, in the run record). A run that went through carries neither.
+- **`library` on every library event** -- `defined`, `undefined`, and a
+  `refused` carrying `verb`: `{"names": [...], "cap": 8}`, the library as it
+  stands AFTER that event, so an undefine and a define in one decision are
+  two libraries. A consumer folding the rows re-anchors on the names, so a
+  row it never received cannot leave a procedure on its page that the robot
+  no longer keeps; and the cap is read off the wire rather than typed.
+
+```jsonc
+{"type": "procedure", "t": 1834.2, "robot": "pluggybot", "name": "loop",
+ "outcome": "aborted", "completed": 2, "total": 3, "failedAt": 2,
+ "stopped": null, "failedLine": 4, "failedReason": "nothing on the fork to stow",
+ "program": {"name": "loop", "source": "def loop():\n  ...", "budgetS": 600.0,
+             "stepsBudget": 60}}
+{"type": "procedure", "t": 1901.0, "robot": "pluggybot", "outcome": "defined",
+ "name": "two", "program": {...}, "library": {"names": ["loop", "two"], "cap": 8}}
+```
+
+**No bump**: fields added to an existing event, nothing changed shape, and
+no fixture carries a `procedure` event (their worlds have no mind).
+
 ### 0.21.0, additive: two robots touching is an `encounter` phase (`touched` / `separated`)
 
 pluggybot #316. `encounter` has carried proximity since 0.19.0 -- `met`
