@@ -72,6 +72,48 @@ tool costs points the robot wants for upkeep, and nothing in a day makes
 one useful. ⚠ That probe flies a SINGLE robot, so it tests that half
 alone; the pair seam has no probe and is read here.
 
+### The robot is told the half-hour it dies of (#322) — opens when this PR is deployed
+
+**What changed in the mind.** `EVENT_MAP_RULE` now states the threshold —
+half an hour, 1800 seconds — and, in the paragraph after it, that a row
+fires when the robot is next FREE to act on it, so a rule set at exactly
+the limit arrives late every time an errand straddles it. The prefix moved
+and `prompt_sha` with it, on `autonomous` at origin `seeded`/`unseeded`
+alone; `guarded` has no map, so its prefix, context, schema and
+`GUARDED_RULES_SHA` are unchanged. `UNMINDED_AFTER_S` is UNCHANGED at
+1800 s. Two things changed underneath: a mid-errand interrupt now stamps
+the clock (it consults the mind, and until now only the decision branch
+counted), and `events.score` gained `shadowed` / `shadowedEvents`, pooled
+in the rollup — additive, nothing on the wire moves.
+
+**What the period is for.** The rows before it are two deaths that were
+the robot being denied a fact. Run 1805 wrote `every 3600 -> ask`,
+believed it had an hourly check-in, and died `unminded` at 2597 s against
+a clock it was never shown. Run 1799 held `nothing_to_do -> take_task`
+above `nothing_to_do -> ask`, so the `ask` row could never fire, and
+nothing in `score` said so. What to read from here:
+
+- **whether `every N -> ask` periods cluster just under 1800.** This is
+  the cost of stating the number and it is the thing to watch: an agent
+  that writes `every 1700 -> ask` and nothing else is minimally
+  complying with a threshold rather than keeping itself minded, and the
+  distribution says which. Before: 300 s × 34, 900 × 7, 600 × 6,
+  1200 × 1, 1800 × 1, 3600 × 1;
+- `score.shadowed` over the edits — how often an agent writes a rule it
+  believes it has and does not, which nothing could see until now;
+- `unminded` as a share of deaths against #317's period, remembering that
+  two changes are in flight at once and neither is isolated;
+- whether the interrupt stamp moves the `unminded` count at all. It
+  should barely: 128 of 502 maps carried an `ask` on an interrupting
+  event, none of them as its only ask.
+
+**Not yet known.** Whether telling an agent the threshold makes it keep
+itself minded or makes it game the clock — the first reading above is
+that question. And `UNMINDED_AFTER_S` stays at 1800 on a measurement
+argument, not a comfort one: the median deployed run reaches 2030 sim s
+and only 16 of 116 reach 3600, so raising it would stop recording most
+silent robots rather than stop producing them.
+
 ### The robot can see the list that decides when it is asked (#317) — opens when this PR is deployed
 
 **What changed in the mind.** The volatile context gained one block,
