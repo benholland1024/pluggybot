@@ -836,15 +836,24 @@ class HubLifecycle:
     self._restart_step()
 
   def _near_field_step(self) -> None:
-    """One depth frame into the height map, at the sensor's rate, placed
-    by the BELIEVED pose (dead reckoning, the axle midpoint) exactly as the
-    occupancy grid places a LIDAR scan: the sensor never learns where the
-    robot is, and drift smears the map honestly."""
+    """One depth frame, at the sensor's rate, to its two consumers.
+
+    The MAP takes the room, placed by the BELIEVED pose (dead reckoning,
+    the axle midpoint) exactly as the occupancy grid places a LIDAR scan:
+    the sensor never learns where the robot is, and drift smears the map
+    honestly. The DRIVE takes the peers (issue #328) -- the same frame's
+    returns off another robot's body, in the robot's own frame, where no
+    pose belief can smear them and nothing has to be broadcast for them to
+    be true."""
     if self.data.time < self._next_near_field:
       return
     self._next_near_field = float(self.data.time) + nf.PERIOD
     frame = self.depth_camera.frame(self.data)
     self.near_field.update(self.mission.pose, frame.points)
+    # ...and the peers that same frame saw, which the map is not told about
+    # and the drive is (issue #328). One frame, two consumers, the split
+    # `Lidar.scan_split` already makes one sensor along.
+    self.mission.watch_for_peers(frame.peers)
     self.near_field_frames += 1
 
   # ---- death (issue #107) --------------------------------------------------
@@ -4893,6 +4902,7 @@ class HubLifecycle:
       "acts": list(self.acts),
       "rack_discovered": self.mission.rack_discovered,
       "collision_steps": self.mission.collision_steps,
+      "peer_holds": self.mission.peer_holds,
       "press_steps": self.mission.swap.press_steps,
       "sim_time": float(self.data.time),
       # Every time a hazard row reached the robot mid-errand (issue #116),

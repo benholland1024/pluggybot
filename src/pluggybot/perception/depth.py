@@ -53,7 +53,7 @@ Honest where the part is, and the tests pin each:
   business, and the map takes the believed pose (`HeightMap.update`).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 
 import mujoco
@@ -88,17 +88,30 @@ DROPOUT = 0.01            # returns lost to dark or specular surfaces; the activ
                           # projector makes this small, not zero
 FLOOR_TOL = 0.02          # m: a point under this is floor, for the mount metric
 
+#: One empty cloud, shared: a frame with no peer in it allocates nothing.
+_NO_POINTS = np.zeros((0, 3))
+
 
 @dataclass
 class DepthFrame:
   """One frame: `z` is HEIGHT x WIDTH axial depth in metres, NaN where the
-  pixel is invalid (out of range, shadowed, dropped, or the robot itself);
-  `points` is the (k, 3) cloud in the robot frame -- x ahead of the axle
-  midpoint, y to its left, z above the floor -- one row per valid pixel;
-  `self_fraction` is the share of the frame the robot's own body filled."""
+  pixel is invalid (out of range, shadowed, dropped, or a robot -- this one
+  or another); `points` is the (k, 3) cloud in the robot frame -- x ahead of
+  the axle midpoint, y to its left, z above the floor -- one row per valid
+  pixel; `self_fraction` is the share of the frame the robot's own body
+  filled.
+
+  `peers` is the SAME cloud for the pixels that landed on ANOTHER ROBOT
+  (issue #328), empty where there is none. It is kept apart for the reason
+  the LIDAR keeps its peer returns apart (`Lidar.scan_split`, issue #316):
+  the height map must not contain a robot that will have driven off by the
+  time anything reads the map, and the thing that must not drive into it
+  must. Nothing is inferred here -- these are the same casts, sorted by
+  what they hit."""
   z: np.ndarray
   points: np.ndarray
   self_fraction: float
+  peers: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
 
 
 class DepthCamera:
@@ -116,6 +129,11 @@ class DepthCamera:
     self.min_z, self.max_z = min_z, max_z
     self.noise_k, self.dropout, self.baseline = noise_k, dropout, baseline
     self.rng = np.random.default_rng(seed)
+    #: ...and the stream the PEER channel draws on (issue #328, the lesson
+    #: of #316's `Lidar.peer_rng`): a peer pixel is as noisy as any other,
+    #: and taking its noise off the map's stream would move every reading
+    #: the height map takes the moment a second robot walked into frame.
+    self.peer_rng = np.random.default_rng(seed + 1)
     self._other_roots: list[str] = []
     n = width * height
     self._geomid = np.zeros(n, dtype=np.int32)
@@ -160,9 +178,17 @@ class DepthCamera:
       self._other_geoms |= robot_geoms(model, root)
     self._filtered = np.fromiter(self._self_geoms | self._other_geoms,
                                  dtype=np.int32)
+    #: ...and the two halves of it apart, because the frame now answers
+    #: them apart (issue #328). Both stay out of `points`.
+    self._mine = np.fromiter(self._self_geoms, dtype=np.int32)
+    self._theirs = np.fromiter(self._other_geoms, dtype=np.int32)
 
   def exclude_robot(self, root_name: str) -> None:
-    """Drop another robot's body from every frame, as the LIDAR does."""
+    """Keep another robot's body out of the MAP's cloud, as the LIDAR keeps
+    it out of the scan -- and, since issue #328, answer it on `peers`
+    instead of throwing it away. One name, both halves, because a caller
+    that asked for the exclusion is exactly the caller that needs the
+    channel: it has a second robot in its world."""
     self._other_roots.append(root_name)
     self.rebind(self.model)
 
@@ -178,16 +204,39 @@ class DepthCamera:
     robot = hit & np.isin(self._geomid, self._filtered)
     # The shadow is cast on the true geometry, with the robot's own body
     # still standing in the scene as an occluder.
-    z = np.where(robot | self._shadow(z), np.nan, z)
+    shadow = self._shadow(z)
+    # ANOTHER ROBOT'S PIXELS, BEFORE THEY ARE THROWN AWAY (issue #328).
+    # They leave on their own channel and the map never sees them, which is
+    # the same trade `Lidar.scan_split` makes one sensor along: the map must
+    # not hold a body that moves, and the reflex must see it. Skipped
+    # entirely when no peer is in frame, so a single robot pays nothing.
+    peers = _NO_POINTS
+    if self._theirs.size:
+      theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
+      if theirs.any():
+        peers = self._cloud(np.where(theirs, z, np.nan),
+                             self.peer_rng)[1]
+    z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
+    return DepthFrame(z=z.reshape(self.height, self.width), points=points,
+                      self_fraction=float(robot.mean()), peers=peers)
+
+  def _cloud(self, z: np.ndarray, rng) -> tuple[np.ndarray, np.ndarray]:
+    """Range gate, noise, dropout and the pinhole reconstruction: `(z,
+    points)`.
+
+    ⚠ ONE SENSOR MODEL, TWO CHANNELS. The room and the peers go through
+    this same function on their own streams, because a peer return that
+    was gated or noised differently would be a different instrument
+    reporting on the same casts -- and the difference would be invisible
+    until something decided off it.
+    """
     z = np.where((z < self.min_z) | (z > self.max_z), np.nan, z)
-    z = z + self.rng.normal(0.0, 1.0, n) * self.noise_k * np.square(
+    z = z + rng.normal(0.0, 1.0, z.size) * self.noise_k * np.square(
       np.nan_to_num(z))
-    z = np.where(self.rng.random(n) < self.dropout, np.nan, z)
+    z = np.where(rng.random(z.size) < self.dropout, np.nan, z)
     valid = ~np.isnan(z)
     depth = z[valid] / self._axial[valid]
-    points = self.origin_robot + self._dirs_robot[valid] * depth[:, None]
-    return DepthFrame(z=z.reshape(self.height, self.width), points=points,
-                      self_fraction=float(robot.mean()))
+    return z, self.origin_robot + self._dirs_robot[valid] * depth[:, None]
 
   def _shadow(self, z: np.ndarray) -> np.ndarray:
     """Pixels the RIGHT imager cannot see (the module docstring). A NaN

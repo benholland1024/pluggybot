@@ -1270,7 +1270,44 @@ had touched. `Lidar.scan_split` answers the two consumers separately
 (issue #316), and contact is an `encounter` phase.
 
 **What is true now:** another robot is never in the map, always in the
-reflex, and in the mask as its reported pose. ⚠ The mask is an obstacle of
+SENSORS, and in the mask as its reported pose. Both sensors sort the same
+casts by what they hit -- `Lidar.scan_split` (#316) and `DepthFrame.peers`
+(#328) -- and neither hands the map a body that will have driven off by
+the time anything reads it.
+
+⚠ The two see very different things, and the lidar sees the less useful
+one. Measured on the pair: the scan plane at 0.223 m crosses only the
+peer's MAST (30 mm square; the chassis, fork, battery and even its own
+lidar body all top out below 0.20 m), and the front stop's +/-0.35 rad
+cone holds 3 rays of it at 0.9 m and NONE at all with the peer 0.25 m
+across the bow -- while its 0.15 m of half-width is still wide enough to
+clip. The depth camera carries 150-970 points of the same peer between
+2.0 m and 0.4 m, and its answer is a corridor test on the robot's own
+footprint rather than a cone. Driving past a peer 0.25 m off the bow with
+NOTHING broadcast, closest approach was 0.225 m -- inside contact -- on
+the lidar alone and 0.594 m with the depth channel. Below a ~0.4 m gap
+the peer's near face falls inside `depth.MIN_Z` and the camera loses it,
+which is why the stop fires at 0.60 m and the lidar's 0.25 m reflex stays
+underneath as the floor.
+
+⚠ The corridor is measured against WHAT IS LEFT OF THE DRIVE, not
+against the camera: a robot with 0.1 m to go cannot reach a body 0.5 m
+ahead. Holding for one anyway is not caution -- measured, a peer parked
+0.50-0.56 m from the CHARGE standoff took that approach from 96 s and a
+dock to 201 s and none, because arriving at a standoff turns the robot to
+face the rack and sweeps a body it never travels into through the
+corridor. A tool bay never showed it (the peer sits beside the approach
+there, 0 holds at every legal distance); the charge bay did, and a charge
+that does not happen is a `flat` death.
+
+⚠ **Which half does what.** The BROADCAST (`HubMission.others`) is plan
+time only: A* keeps 0.6 m clear of where the other robot SAYS it is, and a
+stagnated drive waits when it says it is near. That is a fleet fact and
+honest as one, and routing round a robot 3 m away is exactly what it is
+good for -- but it drifts 0.24-0.55 m and it is not a perception. The
+SENSORS decide in real time and need the other robot to say nothing. So a
+wrong or missing broadcast now costs a detour rather than a collision,
+which is the whole of issue #328. ⚠ The mask is an obstacle of
 its own: a goal inside one cannot be reached at all, because the nearest
 cell A* may plan to is (0.60 − d) away and a stagnated drive is only called
 arrived inside 0.15 m — so a robot standing within 0.45 m of a bay standoff
