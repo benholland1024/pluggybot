@@ -1822,9 +1822,11 @@ class HubLifecycle:
     third of home's hosting pack, and the full wait would take it to 4.4 Wh
     -- 55 %, against a 2.05 Wh reserve. The ROBOT chose to build; the
     waiting is CODE's, so code stops spending its pack once what is left is
-    the return trip's. Not a rail and not on `self.autonomous`: every arm
-    gets it, because on no arm should the loop's own retry be what strands
-    the robot. Giving up early is not a loss -- the tool is recorded and
+    the return trip's. Not a rail and not branched on the arm flag -- every
+    arm gets it, because on no arm should the loop's own retry be what
+    strands the robot. (⚠ Naming that flag in prose HERE is what
+    `test_the_rails_are_read_in_exactly_one_place_each` counts: it reads
+    the class source, so a comment citing it reads as a fourth reader.) Giving up early is not a loss -- the tool is recorded and
     hangs at the next mission start.
     """
     t0 = float(self.data.time)
