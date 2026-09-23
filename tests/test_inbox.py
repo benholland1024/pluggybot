@@ -29,10 +29,15 @@ import pytest
 from pluggybot.mind.inbox import (
   MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, Inbox, VisitorMessage, clean,
 )
+from pluggybot.economy.scoring import default_table
 from pluggybot.mind.overseer import Decision, Menu
 from pluggybot.telemetry.protocol import (
   DECIDED_OUTCOMES, INBOUND_TYPES, VISITOR_OUTCOMES,
 )
+
+#: What a full rating of an artwork pays: the table's, so a re-tune
+#: (issue #321 took it 20 -> 30) moves no rule about routing one.
+FULL_RATING = default_table()["artwork"].points(True, 1.0)
 
 
 def message(**kw) -> dict:
@@ -571,8 +576,8 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
   life._visitor_step()
 
   settled = ledger.entries()[-1]
-  assert not settled["pending"] and settled["points"] == 20
-  assert ledger.balance() == 20
+  assert not settled["pending"] and settled["points"] == FULL_RATING
+  assert ledger.balance() == FULL_RATING
   assert ledger.pending() == []
   assert any("rated task" in line for line in said)
   # The ledger's own record names the rater the wire carried (the site's
@@ -666,7 +671,7 @@ def test_a_rating_for_another_life_of_this_robot_is_refused(tmp_path):
   inbox.offer({"type": "rating", "id": "r2", "seq": live["seq"],
                "quality": 1.0, "generation": 1})
   life._visitor_step()
-  assert not ledger.pending() and ledger.balance() == 20
+  assert not ledger.pending() and ledger.balance() == FULL_RATING
 
 
 def test_a_rating_that_names_no_life_is_taken_on_trust():
@@ -685,7 +690,7 @@ def test_a_rating_that_names_no_life_is_taken_on_trust():
   assert "generation" not in msg.as_dict(), "absent, not null, on the record"
 
   life._visitor_step()
-  assert not ledger.pending() and ledger.balance() == 20
+  assert not ledger.pending() and ledger.balance() == FULL_RATING
 
 
 def test_a_rating_with_no_ledger_at_all_is_harmless():
