@@ -199,3 +199,97 @@ def test_a_refused_define_says_the_undefine_goes_on_the_same_answer():
   said = " ".join(e.value.reasons)
   assert "same answer" in said and "there is no replace" not in said
   assert "(it holds 1)" in said                     # never "2 of 1"
+
+
+# ---- 5. a procedure is run on the answer that defines it -------------------
+
+
+def _menu():
+  from dataclasses import replace
+  from pluggybot.mind.overseer import Menu
+  from pluggybot.lifecycle import board_book
+  return replace(Menu.for_world("home", board_book("home")), procedures=True)
+
+
+def test_the_answer_that_defines_a_procedure_can_name_it_even_in_an_empty_library():
+  """The enum is built from the library BEFORE the answer: a procedure
+  defined in it could never be named in it, and the decoder substituted
+  one that could -- Luca's weighing ran `count_blocks` and it blamed
+  itself. `procedure:new` is the answer's own define, and never an order."""
+  from pluggybot.mind.overseer import PROCEDURE_NEW, standing_order
+  menu = _menu()
+  schema = menu.schema(procedures=())
+  assert PROCEDURE_NEW in schema["properties"]["action"]["enum"]
+  assert PROCEDURE_NEW not in menu.orderable(())
+  with pytest.raises(ValueError, match="an order has no answer"):
+    standing_order(PROCEDURE_NEW, menu)
+
+
+def test_procedure_new_needs_a_define_on_the_same_answer():
+  from pluggybot.mind.overseer import PROCEDURE_NEW
+  menu = _menu()
+  with pytest.raises(ValueError, match="defines none"):
+    menu.validate({"action": PROCEDURE_NEW, "reason": "x"}, procedures=())
+  menu.validate({"action": PROCEDURE_NEW, "reason": "x",
+                 "define": {"name": "weigh", "source": "def weigh():\n  wait(1)\n"}},
+                procedures=())
+
+
+def _deciding_life(monkeypatch, library):
+  life = _room_hub_life()
+  _stub_swaps(life, monkeypatch)
+  life.overseer = SimpleNamespace(library=library)
+  events = []
+  life.on_event.append(events.append)
+  return life, events
+
+
+def test_procedure_new_runs_what_the_same_answer_defined_and_not_another(monkeypatch):
+  from pluggybot.mind.overseer import PROCEDURE_NEW
+  L = lib.Library(lc.world_facts("room_hub"))
+  L.define("old", "def old():\n  fetch(\"module_claw\")\n  stow()\n")
+  life, events = _deciding_life(monkeypatch, L)
+  decision = Decision(action=PROCEDURE_NEW, reason="weigh it now",
+                      define={"name": "weigh", "source": "def weigh():\n  wait(1)\n"})
+  tick.run(life.mission.swap, life._after_decision_routine(decision))
+  queued = [e.program.name for e in life.errands if e.program is not None]
+  assert queued == ["weigh"]                 # queued for the loop, and not `old`
+
+
+def test_procedure_new_runs_nothing_when_the_define_was_refused(monkeypatch):
+  from pluggybot.mind.overseer import PROCEDURE_NEW
+  L = lib.Library(lc.world_facts("room_hub"))
+  L.define("old", "def old():\n  wait(1)\n")
+  life, events = _deciding_life(monkeypatch, L)
+  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  decision = Decision(action=PROCEDURE_NEW, reason="try",
+                      define={"name": "bad", "source": "def bad():\n  import os\n"})
+  tick.run(life.mission.swap, life._after_decision_routine(decision))
+  assert not [e for e in life.errands if e.program is not None]
+  assert "ran nothing: `procedure:new`" in life.thoughts.read("History.md")
+
+
+def test_new_is_not_a_name_a_procedure_may_take():
+  L = lib.Library(lc.world_facts("room_hub"))
+  with pytest.raises(lib.LibraryRefused, match="procedure:new"):
+    L.define("new", "def new():\n  wait(1)\n")
+
+
+# ---- 6. a failed grade and a failed drive say what they read ---------------
+
+
+def test_a_bench_grade_with_no_finding_says_what_it_reads():
+  """Luca wrote its 207.8 g as a NOTE under findings/tasks; the grade said
+  "nothing since the claim" and Luca learned a timing lesson instead."""
+  from pluggybot.challenge import bench
+  ok, _, reason = bench.eval_mass({"truth": 0.2, "reported": None})
+  assert not ok
+  assert "`record`" in reason and "mass_bench" in reason and "notes are not read" in reason
+
+
+def test_a_drive_that_did_not_arrive_says_where_it_stopped():
+  life = SimpleNamespace(mission=SimpleNamespace(
+    drive_to_routine=lambda x, y, timeout: tick.result(False), pose=(1.0, 2.0, 0.0)))
+  verdict = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+                     st._drive_to(life, {"x": 4.0, "y": 6.0}))
+  assert verdict["reason"] == "did not arrive: it stopped 5.0 m short of (4, 6), at (1.0, 2.0)"

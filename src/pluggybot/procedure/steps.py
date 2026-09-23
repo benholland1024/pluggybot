@@ -274,12 +274,19 @@ def _drive_to(life, args: dict) -> Routine:
   x, y = float(args["x"]), float(args["y"])
   arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
   px, py, _ = life.mission.pose
-  return {"ok": bool(arrived), "shortM": round(math.hypot(x - px, y - py), 3)}
+  short = round(math.hypot(x - px, y - py), 3)
+  return {"ok": bool(arrived), "shortM": short,
+          **({} if arrived else {"reason": (
+            f"did not arrive: it stopped {short:.1f} m short of ({x:g}, {y:g}), "
+            f"at ({px:.1f}, {py:.1f})")})}
 
 
 def _face(life, args: dict) -> Routine:
   squared = yield from life.mission.face_routine(float(args["heading"]))
-  return {"ok": bool(squared)}
+  return {"ok": bool(squared),
+          **({} if squared else {"reason": (
+            f"did not square up to heading {float(args['heading']):.2f} rad "
+            "within its time")})}
 
 
 def _set_lift(life, args: dict) -> Routine:

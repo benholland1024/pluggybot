@@ -401,9 +401,13 @@ def test_the_family_is_on_the_menu_and_the_tokens_in_the_schema(menu):
   assert "procedure:sun" in rows
   assert schema["properties"]["define"]["required"] == ["name", "source"]
   assert schema["properties"]["undefine"]["enum"] == ["look_around", "sun", ""]
-  # an empty library: no token, and no family left behind as a bare word
+  # an empty library: no family left behind as a bare word, and one token --
+  # `procedure:new`, the procedure the answer itself defines (issue #264),
+  # which no order and no map row may name
   empty = menu.schema(procedures=())["properties"]["action"]["enum"]
-  assert not any(a.startswith("procedure") for a in empty)
+  assert [a for a in empty if a.startswith("procedure")] == ["procedure:new"]
+  assert "procedure:new" not in schema["properties"]["standing_order"]["enum"]
+  assert "procedure:new" not in rows
 
 
 def test_validate_accepts_a_library_name_and_refuses_the_rest(menu):

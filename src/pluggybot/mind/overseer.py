@@ -274,6 +274,13 @@ BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(len(BUILT_STATION_YS)))
 #: `procedures=True` -- the `autonomous` arm -- offers it at all, which is
 #: what keeps `guarded`'s prefix byte-identical.
 PROCEDURE_PREFIX = "procedure:"
+#: ...and the one procedure token that names no entry (issue #264): the
+#: procedure THIS answer defines. The enum is built from the library before
+#: the answer is written, so a procedure defined in it could never be named
+#: in it -- the decoder substituted one that could, and a deployed robot ran
+#: `count_blocks` for its new weighing, then blamed itself. Never an order or
+#: a map row: neither has an answer to define in.
+PROCEDURE_NEW = PROCEDURE_PREFIX + "new"
 
 #: The actions that BUILD AN ERRAND, and so cost a pack's worth of energy
 #: (issue #15). The rest are either free (`idle`), bounded and
@@ -933,7 +940,7 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "ask for a bigger mind on this decision."),
   ("define", "procedures", "PROCEDURES YOU MAY WRITE",
    "write a procedure of your own into your library: `{name, source}`. It "
-   "costs no turn."),
+   "costs no turn; the action `procedure:new` runs it on the same answer."),
   ("undefine", "procedures", "PROCEDURES YOU MAY WRITE",
    "take a procedure of yours back out of the library. With `define` on "
    "the same answer it replaces one: the undefine is done first."),
@@ -1175,17 +1182,18 @@ class Menu:
     (issue #275), whose whole product is a picture for the NEXT model
     turn: an order fires when there is no model to show it to."""
     return [a for a in self.concrete(self.available(), procedures)
-            if a not in UNORDERABLE]
+            if a not in UNORDERABLE and a != PROCEDURE_NEW]
 
   def concrete(self, actions, procedures: tuple | None) -> list[str]:
     """The action enum a schema carries: the family `procedure` replaced by
-    one `procedure:<name>` per runnable procedure (none, with an empty
-    library -- as `take_task` goes with an empty board)."""
+    one `procedure:<name>` per runnable procedure, and `procedure:new` --
+    the one this answer defines -- wherever there is a library at all, an
+    empty one included: a first procedure is written and run in one go."""
     out = []
     for a in actions:
       if a == "procedure":
         if procedures is not None:
-          out += [PROCEDURE_PREFIX + n for n in procedures]
+          out += [PROCEDURE_PREFIX + n for n in procedures] + [PROCEDURE_NEW]
       else:
         out.append(a)
     return out
@@ -1579,7 +1587,12 @@ class Menu:
     `guarded` run a perfectly good decision.
     """
     action = str(raw.get("action", "")).strip()
-    if action.startswith(PROCEDURE_PREFIX) and self.procedures:
+    if action == PROCEDURE_NEW and self.procedures:
+      spec = raw.get("define")
+      if not (isinstance(spec, dict) and str(spec.get("source", "")).strip()):
+        raise ValueError(f"{PROCEDURE_NEW} runs the procedure this same "
+                         "answer defines, and this answer defines none")
+    elif action.startswith(PROCEDURE_PREFIX) and self.procedures:
       name = action[len(PROCEDURE_PREFIX):]
       if procedures is None or name not in procedures:
         raise ValueError(f"no runnable procedure named {name!r} "
@@ -1972,6 +1985,9 @@ def standing_order(raw, menu: Menu) -> str:
     # fires (`order_runnable`), because the library moves between calls.
     if not order[len(PROCEDURE_PREFIX):]:
       raise ValueError("a procedure order names a procedure")
+    if order == PROCEDURE_NEW:
+      raise ValueError(f"an order cannot be `{PROCEDURE_NEW}`: it runs what "
+                       "an answer defines, and an order has no answer")
     return order
   if order == "recall":
     raise ValueError("an order cannot be `recall`: a recall names what to "
@@ -2700,7 +2716,9 @@ its variables are on the same line: that is how a number you `read` inside
 a procedure reaches you.
 
 To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
-on any answer; it costs no turn. To remove one: `undefine: "<name>"`. To
+on any answer; it costs no turn. To run it on that same answer, choose the
+action `procedure:new`: it runs the procedure the answer defines, and
+nothing at all if the define is refused. To remove one: `undefine: "<name>"`. To
 replace one, put its name in `undefine` and the new source in `define` on
 the same answer: the undefine is done first. The library holds %(cap)d and
 refuses out loud when full, and an `undefine` on the same answer makes room

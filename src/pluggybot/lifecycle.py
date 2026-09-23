@@ -23,6 +23,7 @@ the fork is carrying, and it is the same seam the plug module will use when
 it charges away from the hub.
 """
 
+import dataclasses
 import inspect
 import json
 import math
@@ -58,7 +59,8 @@ from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
-  MAX_RECALL_RUN, RECALL_S, THINK_SLICE_S, order_runnable,
+  MAX_RECALL_RUN, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S, THINK_SLICE_S,
+  order_runnable,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused
@@ -3754,6 +3756,7 @@ class HubLifecycle:
     defined, undefined or refused -- what the robot wrote rides the event
     whole, as a thought does.
     """
+    self._defined_now = None                   # what `procedure:new` runs
     library = getattr(self.overseer, "library", None)
     if library is None or not (decision.define or decision.undefine):
       return
@@ -3795,6 +3798,7 @@ class HubLifecycle:
                     "verb": "define", "reasons": list(e.reasons),
                     "source": source, **shelf()})
       else:
+        self._defined_now = proc.name
         self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
         self._remember(f"wrote the procedure {proc.name}")
         self._emit({**base, "outcome": "defined", "name": proc.name,
@@ -4766,6 +4770,19 @@ class HubLifecycle:
     if decision.action == "look":
       yield from self._look_routine()
       return ""
+    if decision.action == PROCEDURE_NEW:
+      # The procedure THIS answer defined (issue #264), which `_define` has
+      # just written -- or nothing at all: running some other one because
+      # the new one was refused is the mistake this token exists to end.
+      name = getattr(self, "_defined_now", None)
+      if not name:
+        self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- the define on the "
+                  "same answer was refused")
+        self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the "
+                       "same answer defines, and that define was refused")
+        yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+        return "unbuildable"
+      decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
     errand = errand_from(decision, self.world, self.boards,
                          library=getattr(self.overseer, "library", None),
                          rack=self.rack_inventory,

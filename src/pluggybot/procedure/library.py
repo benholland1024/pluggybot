@@ -183,6 +183,10 @@ class Library:
     name = str(name or "").strip()
     if not _NAME.match(name):
       reasons.append(f"{name!r} is not a name this library allows")
+    elif name == "new":
+      # `procedure:new` is the answer's own define (issue #264), never an entry
+      reasons.append("'new' is not a name this library allows: "
+                     "`procedure:new` runs whatever the answer defines")
     if name in self.entries:
       # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
       # before `define`, so a replacement is one answer -- and "undefine it
