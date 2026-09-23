@@ -10,6 +10,49 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The powers are in the block that lists them (#314) — opens when this PR is deployed
+
+**What changed is the prompt, so it is a regime break.** `WHAT YOU CAN DO,
+AND WHERE` carried the MENU alone: twelve errands, and nothing saying the
+robot may write a procedure, build a tool, retire one, set its event map,
+record a finding, look something up or open a ticket. Those are paperwork
+fields, explained in prose sections further down and named nowhere else, so
+a model reading the one block that claims to enumerate its powers read
+twelve errands and stopped. `world` now carries a second key, `fields`: one
+line per power, what it is, what the field wants, and which section is its
+manual. Nothing else moved — same arm, same model, same schema, same reward
+table, same world. `guarded`'s prefix is byte-identical
+(`0b1a7f36…`, 15 598 chars) and `GUARDED_RULES_SHA` did not move; the
+`autonomous` prefix went 48 690 → 53 132 chars, ~1 100 cached tokens.
+
+**What the period is for.** Whether an index closes the doors the prose
+left shut. Read against the period before it:
+
+- **`define` used for what it is.** The trigger was one decision on
+  2026-09-22: the robot set out to edit its event map, reached for
+  `define` with the map's JSON as the procedure's source, and spent a
+  library slot on it. `procedure: refused` should fall, and the shape of
+  what is left should change from wrong-verb to wrong-code.
+- **findings at all.** Zero `finding` rows in the seven days to
+  2026-09-23, and the newest finding is what `find_mass` is graded off —
+  so no bench claim in that window could have been paid, whatever the
+  grader would have said about it. Any non-zero count is the answer.
+- **`build_tool` reached for on purpose.** 420 specs in the same seven
+  days and 420 refused, which #315 attributed to a decoder filling a
+  required field rather than to a robot deciding to build. With the field
+  indexed, a build should become rarer and better-formed rather than
+  commoner — a fall in `tool: refused` with a rise in `tool: built` is the
+  reading, and a rise in both is not.
+- **`event_map` edited through its own field**, and `ticket` / `lookup` /
+  `record` used at all.
+
+**Not yet known.** Whether an index is enough, or whether the prompt is
+not the binding constraint. #321 (the points economy) is the other lever
+named in #324's period, and if the counts above do not move, that is
+evidence for it rather than against this. ⚠ Nothing here says the robot
+SHOULD use any of these fields: what is being read is whether it can find
+the door, never whether it walks through it.
+
 ### The robot is told whose tool it is and what a procedure needs (#324) — opens when this PR is deployed
 
 **What changed in the context, not the prefix.** No rule text moved, so

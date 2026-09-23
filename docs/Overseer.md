@@ -104,6 +104,68 @@ designed: the memory verbs (§7), the standing order and the event map
 `lookup` (§2e), the acts (§2c), `care` / `real` / `mouse_will` (§2f),
 `ticket` / `ticket_reply` (§2g).
 
+**...and the robot is handed an index of it** (issue #314). Until then that
+list existed only here and in the prose sections of the prefix: the one
+block that claims to enumerate what the robot can do, `WHAT YOU CAN DO, AND
+WHERE`, was a dump of `world` whose `actions` key carried the *menu* alone.
+Nothing in it said the robot may write a procedure, build a tool, set its
+event map, record a finding, look something up or open a ticket. Measured on
+the wire, 2026-09-22: the robot set out to edit its event map and reached
+for `define` — the procedure verb — with the map's JSON as the procedure's
+source, spending a library slot on it. It knew what it wanted and could not
+find the door. In the same seven days the deployed pair recorded **zero**
+findings, which is the field a `find_mass` challenge is graded off.
+
+So `world` carries a second key, `fields`: one line per paperwork power,
+saying what it is, what the field wants, and which section below is its
+manual. `FIELD_INDEX` is the table and `Menu.fields()` reads it; the index
+is the INDEX and the prose sections stay the manual.
+
+- **Every gate is the one `Menu.schema` keys the same field off**, so a
+  power that is not offered cannot appear — a field the world ignores is a
+  rule the code contradicts, which is what M14 measured — and a field the
+  world honours cannot go unnamed. `tests/test_powers.py` reads the grammar
+  and the index off *one* build and fails in both directions. The index
+  reads booleans off the menu where the schema reads a none-able tuple per
+  call, because it rides the cached prefix; that the two agree about
+  *existence* is pinned rather than assumed.
+- **A pointer cannot dangle**, because the section is data and
+  `Menu.fields()` composes `See X.` against the headings this prefix will
+  carry — so the conditional pieces are built before the fixed five they
+  are added to (`FIXED_SECTIONS`, asserted). Written as prose in the line
+  it was already wrong: `hearts` without `mortal` is a build `build()`
+  accepts, and there `buy_heart` sent the robot to a `YOU CAN DIE` section
+  that was not in the prefix. An entry whose manual is absent keeps its
+  line and drops the pointer; a tuple offers alternatives, first present
+  wins, which is how `decline` points at the acts' section or the lab's.
+- **`autonomous` only, and the key is absent rather than empty elsewhere.**
+  `guarded` is the control and its prefix is byte-identical to the flown one
+  (Evaluation.md §2). Every power at issue is `autonomous`-only anyway; the
+  eleven this arm shares with the control (the visitor channel, the memory,
+  the goals) are indexed here because a *complete* index is the point, and
+  the gate goes the day `guarded` is re-flown or retired.
+- **Three kinds of field, one door each.** `think` / `action` / `reason` are
+  the answer; `ACTION_PARAMETERS` (`board`, `program`, `zone`, `read`,
+  `find`, `task`, `answer`, `care`) are named in their own action's line and
+  a test reads each one back out of it; everything else is a power with an
+  index entry.
+- **`standing_order` is the one field with no entry** (`MIGRATED_FIELDS`),
+  and only where there is an event map: its rule section is dropped from the
+  prefix there on purpose (issue #127 — telling the robot about both is
+  teaching it one mechanism twice, in two vocabularies, one of which is a
+  single row of the other) and the field is honoured for one more version by
+  migrating into a `decision_failed` row. Without a map the rule is in the
+  prefix and so is the entry. The day the field goes, both go.
+- **No entry hands the agent the answer.** `EVENT_MAP_RULE`'s rule applies
+  to any text that reaches the prompt, so no line names charging, the
+  battery or the rack, shows a worked rule or a threshold, or suggests using
+  a field — `real`, `mouse_will`, `decline` and `ticket` are what the lab,
+  the acts and the desk are measuring.
+
+It costs the prefix ~4.4 kB (48.7 → 53.1 kB on the deployed pair, ~1 100
+cached tokens) and it is a regime break, because it is the prompt:
+Observatory.md opens a period for it.
+
 **The menu is the world.** `Menu.for_world` resolves boards, figures and
 zones from the same `world_config` everything else reads, and `available()`
 drops what a world cannot do (`room_hub` has no whiteboards, so no `draw`).

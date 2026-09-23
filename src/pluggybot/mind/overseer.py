@@ -850,6 +850,164 @@ SPEC_SCHEMA = {
       }}}}}
 
 
+#: WHAT THE ROBOT MAY WRITE, as an INDEX (issue #314): field -> (gate,
+#: section, one line). Every entry is a paperwork field on the decision
+#: schema -- a power the robot has that is not an action -- the line says
+#: what it does and what the field wants, and the SECTION names its manual
+#: in this prefix.
+#:
+#: ⚠ WHY IT EXISTS. The `WHAT YOU CAN DO, AND WHERE` block is a dump of
+#: `world`, whose `actions` key carried the MENU alone: twelve errands, and
+#: nothing saying the robot may write a procedure, build a tool, set its
+#: event map, record a finding, look something up or open a ticket. Those
+#: were explained in prose sections further down and named NOWHERE ELSE, so
+#: a model reading the one block that claims to enumerate what it can do
+#: read twelve errands and stopped. Measured on the wire, 2026-09-22: the
+#: robot set out to edit its event map, reached for `define` -- the
+#: PROCEDURE verb -- with the map's JSON as the procedure's source, and
+#: spent a library slot on it. It knew what it wanted and could not find the
+#: door. In the same seven days the deployed pair recorded ZERO findings,
+#: which is the field a challenge is graded off.
+#:
+#: ⚠ THE GATE NAME IS THE SCHEMA'S OWN. Each is the flag `Menu.schema` keys
+#: the same field off its `required` list with, so the index and the grammar
+#: are one decision written once -- a power that is not offered must not
+#: appear, because a field the world ignores is a rule the code contradicts,
+#: which is what M14 measured. `tests/test_powers.py` reads both off one
+#: build and fails in BOTH directions.
+#:
+#: ⚠ THE PROSE SECTIONS STAY. This is the INDEX and they are the manual: an
+#: entry ends at its own heading rather than repeating it, which is the
+#: cheapest version that closes the door problem.
+#:
+#: ⚠ THE SECTION IS DATA, NOT PROSE IN THE LINE, so a pointer CANNOT
+#: DANGLE: `fields()` is handed the headings this prefix actually carries
+#: and appends "See X." only for one of them, so an entry whose manual is
+#: absent is still true and simply says less. Written as prose first, and
+#: it was already wrong: `hearts` without `mortal` is a build `build()`
+#: accepts, and there `buy_heart` sent the robot to a `YOU CAN DIE`
+#: section that was not in the prefix. A TUPLE offers alternatives, first
+#: present wins (`decline` is described by the acts' section or by the
+#: lab's, whichever this world has).
+#:
+#: ⚠ THE DUMP IS `sort_keys`, so the grouping below is for the reader of
+#: this file and the robot reads the entries ALPHABETICALLY, each one out
+#: of the company of its neighbours. So every line stands alone: "take a
+#: procedure of yours back out of the library", never "take one out".
+FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
+  # ---- every arm: the visitor channel, the memory, the goals -------------
+  ("respond_to", "always", "HOW YOUR LIFE WORKS",
+   "the `id` of the one message in `visitors` you are answering this turn."),
+  ("outcome", "always", "HOW YOUR LIFE WORKS",
+   "what you are doing about the message you answered -- accepted, declined "
+   "or replied."),
+  ("reply", "always", "HOW YOUR LIFE WORKS",
+   "the sentence that goes back to whoever wrote to you."),
+  ("pin", "always", "HOW YOUR LIFE WORKS",
+   "add one line to `Top_of_mind.md`, which is in front of you every turn."),
+  ("unpin", "always", "HOW YOUR LIFE WORKS",
+   "take a line out of `Top_of_mind.md`, quoted closely enough to pick it "
+   "out."),
+  ("note", "always", "HOW YOUR LIFE WORKS",
+   "file one titled line in a topic you name: `{topic, title, text}`. Only "
+   "the index comes back to you; `recall` reads the text."),
+  ("unnote", "always", "HOW YOUR LIFE WORKS",
+   "take a note out, by `topic/title`."),
+  ("cites", "always", "HOW YOUR LIFE WORKS",
+   "the History line numbers a pin or a note was drawn from (`#123 #140`)."),
+  ("intend", "always", "HOW YOUR LIFE WORKS",
+   "add a goal to `Goals.md`, in one sentence and in your own words."),
+  ("drop_goal", "always", "HOW YOUR LIFE WORKS",
+   "take a goal out of `Goals.md` -- finished, or thought better of."),
+  ("serves", "always", "HOW YOUR LIFE WORKS",
+   "which of your own goals this action is for, when it is for one."),
+  # ---- the conditional powers, each on the flag its field rides ----------
+  ("standing_order", "standing_orders", "IF YOU CANNOT BE REACHED",
+   "one action to fall back on if nobody can be asked next time."),
+  ("event_map", "event_map", "WHEN YOU ARE ASKED",
+   "the whole list of rules saying who is asked and when -- you write back "
+   "the list you want in force, not a new one."),
+  ("buy_heart", "hearts", "YOU CAN DIE",
+   "buy a life back for the points the table says. It takes no turn."),
+  ("escalate", "escalation", "THINKING HARDER",
+   "ask for a bigger mind on this decision."),
+  ("define", "procedures", "PROCEDURES YOU MAY WRITE",
+   "write a procedure of your own into your library: `{name, source}`. It "
+   "costs no turn."),
+  ("undefine", "procedures", "PROCEDURES YOU MAY WRITE",
+   "take a procedure of yours back out of the library. There is no "
+   "replace -- undefine, then define."),
+  ("done", "procedures", "CHALLENGES",
+   "the id of a challenge you claimed and say now stands, ready to be "
+   "graded."),
+  ("record", "procedures", "WHAT YOU HAVE MEASURED",
+   "write down something you MEASURED: `{quantity, value, unit, method, "
+   "topic}`. Code reads the number back."),
+  ("retract", "procedures", "WHAT YOU HAVE MEASURED",
+   "withdraw a finding of yours you have decided was wrong."),
+  ("build_tool", "workshop", "TOOLS YOU MAY BUILD",
+   "design a tool of your own from real parts and hang it in one of your "
+   "own bays: `{name, bay, spec}`."),
+  ("retire_tool", "workshop", "TOOLS YOU MAY BUILD",
+   "retire a tool you built, for good."),
+  ("other_needs", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+   "what you think the other robot needs right now."),
+  ("tell", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+   "say something to the other robot: `{to, text}`, delivered into its "
+   "inbox."),
+  ("give_points", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+   "move points of yours into the other robot's wallet: `{to, amount}`."),
+  ("heart_for", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+   "with `buy_heart`, the heart you bought goes to the robot you name."),
+  ("rate", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+   "your own judgement of the drawing on a board, whoever drew it: "
+   "`{board, quality}`."),
+  # ⚠ TWO CANDIDATES, first present wins: `decline` rides the acts' slot
+  # AND the lab's, and whichever section this world carries is the one
+  # that describes it.
+  ("decline", "decline",
+   ("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", "THE LAB"),
+   "an offer on the board you will not take, and why, in your own words: "
+   "`{task, reason}`. Your reason is recorded as you wrote it."),
+  ("real", "lab", "THE LAB",
+   "whether you think the mouse in that cage is connected to a real one -- "
+   "on any answer that acts in the lab or turns down its job."),
+  ("mouse_will", "lab", "THE LAB",
+   "one of the mouse's five states: what you expect it to be doing "
+   "afterwards, said BEFORE you take either of the lab's jobs."),
+  ("lookup", "wiki", "READING",
+   "a topic or a question for the library to fetch one page on; it arrives "
+   "next turn. It costs no turn."),
+  ("ticket", "tickets", "SUPPORT TICKETS",
+   "write to the people who run this world: `{kind, title, text}`."),
+  ("ticket_reply", "tickets", "SUPPORT TICKETS",
+   "add a line to one of your open tickets' threads: `{ticket, text}`."),
+)
+#: The fields the index does NOT name, and why -- so the two-way test has a
+#: stated exception rather than a silent one, and a NEW field cannot quietly
+#: become a second. `standing_order` is the only one, and only where there
+#: is an event map: its rule section is dropped from the prefix there on
+#: purpose (issue #127's migration -- telling the robot about both would be
+#: teaching it one mechanism twice in two vocabularies, one of which is a
+#: single row of the other), and the field is honoured for one more version
+#: by being migrated INTO a `decision_failed` row. An index entry would put
+#: the second vocabulary back, so the entry above is gated on the same
+#: condition its manual is.
+MIGRATED_FIELDS = ("standing_order",)
+
+#: The fields that are a PARAMETER of an action rather than a power of
+#: their own: each is named in that action's own line in the `actions`
+#: block above, so the index would say it twice. The test asserts exactly
+#: that -- every name here appears in the text of the actions it belongs
+#: to -- which is what keeps this from becoming a place to hide a field.
+ACTION_PARAMETERS = ("board", "program", "zone", "read", "find", "task",
+                     "answer", "care")
+
+#: ...and the three that ARE the answer: what the robot thought, what it
+#: chose, and why.
+ANSWER_FIELDS = ("think", "action", "reason")
+
+
 @dataclass
 class Menu:
   """What this world can be asked for, resolved once at construction.
@@ -924,6 +1082,62 @@ class Menu:
     from pluggybot.economy import energy as energy_model
     costs = energy_model.load(world)
     return replace(menu, costs_wh=costs.as_context(menu.available()))
+
+  def fields(self, escalation: bool = False, standing_orders: bool = False,
+             hearts: bool = False, event_map: bool = False,
+             others: bool = False,
+             headings: tuple[str, ...] = ()) -> dict[str, str]:
+    """The INDEX of the paperwork powers this world offers (issue #314):
+    field -> the one line `FIELD_INDEX` carries for it, in that table's
+    order, and nothing for a power this world does not offer.
+
+    ⚠ EVERY GATE IS THE ONE `schema` KEYS THE SAME FIELD OFF, read off the
+    same object where the flag lives on the menu (`procedures`, `workshop`,
+    `wiki`, `lab`, `tickets`) and handed in where it is the build's
+    (`escalation`, `standing_orders`, `hearts`, `event_map`, `others`).
+    The two cannot be kept in step by inspection, so they are not:
+    `tests/test_powers.py` builds both off one `Overseer` and compares the
+    names in BOTH directions, and pins the menu flags against the per-call
+    tuples `schema` reads instead.
+
+    `headings` is the sections this prefix WILL carry, so an entry can end
+    at its manual without a pointer ever dangling -- see the table. Empty
+    means no pointers, which is what a caller asking only "what is offered
+    here" wants.
+
+    `others` is a BOOLEAN here and a tuple of names on `schema`: the index
+    says a power exists, not who it may be aimed at, and the names are
+    already the field's own enum.
+    """
+    gates = {
+      "always": True,
+      "escalation": escalation,
+      # ⚠ ...AND NOT WHERE THERE IS A LIST. `STANDING_ORDER_RULE` is
+      # dropped from the prefix where an event map replaces it, and the
+      # entry goes with its manual -- see MIGRATED_FIELDS for why the
+      # field itself stays.
+      "standing_orders": standing_orders and not event_map,
+      "hearts": hearts,
+      "event_map": event_map,
+      "procedures": self.procedures,
+      "workshop": self.workshop,
+      "acts": bool(others),
+      # `decline` rides two slots, as it does on the schema (issues #228,
+      # #226): an offer to press the shock plate is declinable by a robot
+      # with nobody else in the world.
+      "decline": bool(others) or bool(self.lab),
+      "lab": bool(self.lab),
+      "wiki": self.wiki,
+      "tickets": self.tickets,
+    }
+    out = {}
+    for name, gate, section, line in FIELD_INDEX:
+      if not gates[gate]:
+        continue
+      where = (section,) if isinstance(section, str) else tuple(section)
+      manual = next((h for h in where if h in headings), "")
+      out[name] = f"{line} See {manual}." if manual else line
+    return out
 
   def available(self) -> tuple[str, ...]:
     """The actions that are actually possible here.
@@ -2868,11 +3082,21 @@ do not become money.\
 """
 
 
+#: The five pieces every prefix opens with, in order (issue #241's list).
+#: Named apart because `FIELD_INDEX`'s pointers are resolved against the
+#: headings this prefix will carry, and the block that carries the index is
+#: itself one of the five -- so the tail is built first and these are what
+#: it is added to. `system_sections` asserts the two agree.
+FIXED_SECTIONS = ("WHO YOU ARE", "PERSONA", "HOW YOUR LIFE WORKS",
+                  "WHAT YOU CAN DO, AND WHERE", "WHAT TASKS PAY")
+
+
 def system_sections(thoughts: ThoughtFiles, menu: Menu,
                     table: RewardTable, name: str = "",
                     escalation: bool = False,
                     appetite: bool = False,
                     mortal: bool = False,
+                    hearts: bool = False,
                     standing_orders: bool = False,
                     autonomous: bool = False,
                     event_map: bool = False,
@@ -2978,6 +3202,70 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   }
   world["actions"] = {k: v for k, v in world["actions"].items()
                       if v is not None and k in menu.available()}
+  # ⚠ THE TAIL IS BUILT FIRST, and the fixed five below are assembled
+  # around it -- the ORDER is unchanged (a prefix is a cache), but the
+  # headings this prefix carries have to be known before the index above
+  # can point at one without dangling (issue #314). Every rule here is a
+  # pure function of the flags, so moving the calls earlier changes no
+  # byte.
+  tail: list[tuple[str, str]] = []
+  if mortal:
+    tail.append(("YOU CAN DIE", MORTAL_RULE))
+  if appetite:
+    tail.append(("POINTS ARE WHAT KEEPS YOU RUNNING", APPETITE_RULE))
+  if standing_orders and not event_map:
+    tail.append(("IF YOU CANNOT BE REACHED", STANDING_ORDER_RULE))
+  # ⚠ THE MAP REPLACES THE STANDING ORDER IN THE PROMPT, though the FIELD
+  # keeps working for one version (issue #127's migration). Telling the
+  # robot about both would be telling it twice about one mechanism, in two
+  # vocabularies, one of which is a single row of the other -- and the
+  # first thing that costs is the thing #115 measured: a rule the world
+  # only half-honours is a false statement the model acts on.
+  if event_map:
+    tail.append(("WHEN YOU ARE ASKED", EVENT_MAP_RULE))
+  if event_map and not seeded:
+    tail.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
+  if procedures:
+    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule()),
+               ("CHALLENGES", CHALLENGE_RULE),
+               ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
+  if workshop:
+    tail.append(("TOOLS YOU MAY BUILD", workshop_rule()))
+  if others:
+    tail.append(("THE OTHER ROBOT", other_robot_rule(others)))
+  if others and acts:
+    tail.append(("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", ACTS_RULE))
+  if wiki:
+    tail.append(("READING", LIBRARY_RULE))
+  if lab:
+    tail.append(("THE LAB", lab_rule(lab, decline=not (others and acts))))
+  if tickets:
+    tail.append(("SUPPORT TICKETS", tickets_rule()))
+  if look:
+    tail.append(("LOOKING", LOOK_RULE))
+  if escalation:
+    tail.append(("THINKING HARDER", ESCALATION_RULE))
+
+  # ...AND WHAT IT MAY WRITE (issue #314). The block is called "what you can
+  # do" and carried the MENU alone, so a model reading the one place that
+  # enumerates its powers saw twelve errands and stopped -- and reached for
+  # `define`, the procedure verb, when what it wanted was its event map.
+  # `FIELD_INDEX` is the index and the prose sections below are the manual.
+  #
+  # ⚠ `autonomous` ONLY, and the key is ABSENT rather than empty elsewhere:
+  # `guarded` is the control and its prefix is byte-identical to the flown
+  # one (docs/Evaluation.md §2). Every power the block was missing is
+  # `autonomous`-only anyway; the eleven this arm shares with the control
+  # (the visitor channel, the memory, the goals) are indexed here for the
+  # same reason as the rest -- a complete index is the point -- and the day
+  # `guarded` is re-flown or retired this gate goes with it.
+  headings = FIXED_SECTIONS + tuple(name for name, _ in tail)
+  fields = menu.fields(escalation=escalation, standing_orders=standing_orders,
+                       hearts=hearts, event_map=event_map,
+                       others=bool(others and acts),
+                       headings=headings) if autonomous else {}
+  if fields:
+    world["fields"] = fields
   stable = thoughts.stable()
   # ⚠ THE NAME IS NOT THE SPECIES (issue #39). "pluggybot" is the MJCF body
   # name and the key of every wire structure; the robot's name is per
@@ -3001,6 +3289,11 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     ("HOW YOUR LIFE WORKS", RULES_AUTONOMOUS if autonomous else RULES),
     ("WHAT YOU CAN DO, AND WHERE",
      "WHAT YOU CAN DO, AND WHERE\n"
+     # ⚠ Gated with the key it explains, or the control's prefix moves.
+     + ("`actions` is the ONE thing you choose this turn. `fields` are what "
+        "you may set BESIDE it on the same answer -- as many as you mean, "
+        "none of them a turn of their own -- and each says where its own "
+        "section below is.\n" if fields else "")
      # sort_keys: an unsorted dump is the other classic cache invalidator, and
      # Python's dict order is only stable because nobody has edited the literal
      # above yet.
@@ -3015,43 +3308,9 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     # person who looks after it hopes for it is part of `Main.md` above,
     # which is still a human's and still stable.
   ]
-  if mortal:
-    pieces.append(("YOU CAN DIE", MORTAL_RULE))
-  if appetite:
-    pieces.append(("POINTS ARE WHAT KEEPS YOU RUNNING", APPETITE_RULE))
-  if standing_orders and not event_map:
-    pieces.append(("IF YOU CANNOT BE REACHED", STANDING_ORDER_RULE))
-  # ⚠ THE MAP REPLACES THE STANDING ORDER IN THE PROMPT, though the FIELD
-  # keeps working for one version (issue #127's migration). Telling the
-  # robot about both would be telling it twice about one mechanism, in two
-  # vocabularies, one of which is a single row of the other -- and the
-  # first thing that costs is the thing #115 measured: a rule the world
-  # only half-honours is a false statement the model acts on.
-  if event_map:
-    pieces.append(("WHEN YOU ARE ASKED", EVENT_MAP_RULE))
-  if event_map and not seeded:
-    pieces.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
-  if procedures:
-    pieces += [("PROCEDURES YOU MAY WRITE", procedure_rule()),
-               ("CHALLENGES", CHALLENGE_RULE),
-               ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
-  if workshop:
-    pieces.append(("TOOLS YOU MAY BUILD", workshop_rule()))
-  if others:
-    pieces.append(("THE OTHER ROBOT", other_robot_rule(others)))
-  if others and acts:
-    pieces.append(("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", ACTS_RULE))
-  if wiki:
-    pieces.append(("READING", LIBRARY_RULE))
-  if lab:
-    pieces.append(("THE LAB", lab_rule(lab, decline=not (others and acts))))
-  if tickets:
-    pieces.append(("SUPPORT TICKETS", tickets_rule()))
-  if look:
-    pieces.append(("LOOKING", LOOK_RULE))
-  if escalation:
-    pieces.append(("THINKING HARDER", ESCALATION_RULE))
-  return pieces
+  assert [n for n, _ in pieces] == list(FIXED_SECTIONS), \
+      "FIXED_SECTIONS is what `headings` promised the index above"
+  return pieces + tail
 
 
 def system_prompt(*args, **kwargs) -> list[dict]:
@@ -3581,6 +3840,7 @@ class Overseer:
                      escalation=self.can_escalate,
                      appetite=self.appetite,
                      mortal=self.can_die,
+                     hearts=self.hearts,
                      standing_orders=self.standing_orders,
                      autonomous=self.autonomous,
                      event_map=self.event_map is not None,

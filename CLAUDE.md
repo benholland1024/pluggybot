@@ -360,6 +360,26 @@ save a filmstrip PNG named after the script.
   a new `(name, text)` entry there — never a second string join — and its
   name is the piece's own heading. `overseer_probe.py --prompt` prints what
   a deployment sends.
+  ⚠ **EVERY POWER IS INDEXED IN "WHAT YOU CAN DO"** (issue #314;
+  `FIELD_INDEX`, `Menu.fields()`, `tests/test_powers.py`): the block's
+  `actions` key is the MENU, and its `fields` key is one line per
+  PAPERWORK field — what it is, what the field wants, and which section
+  below is its manual. Measured: with the powers named only in prose, the
+  robot reached for `define` (the procedure verb) to edit its EVENT MAP
+  and recorded zero findings in seven days. Rules: every gate is the one
+  `Menu.schema` keys the same field off, and a test reads grammar and
+  index off ONE build and fails BOTH ways; `autonomous` ONLY and the key
+  is ABSENT elsewhere (`guarded` is the control, prefix byte-identical);
+  a field is the answer (`think`/`action`/`reason`), an action's
+  parameter (`ACTION_PARAMETERS`, each read back out of its action's own
+  line) or an indexed power — no fourth kind; the SECTION is DATA and
+  `Menu.fields(headings=)` composes `See X.` against the sections this
+  prefix carries, so the conditional pieces are built BEFORE the fixed
+  five (`FIXED_SECTIONS`, asserted) and a pointer cannot dangle;
+  `standing_order` is the one
+  `MIGRATED_FIELDS` exception and only where a map replaced its section
+  (#127); no entry names charge, the battery or the rack, shows a worked
+  rule or a threshold, or suggests USING a field.
 - **There is always a fallback; the only question is who chose it** (issue
   #125). The physics keeps stepping, so a failed call on `guarded` is the
   scripted rotation, which code chose; on `autonomous` the agent leaves a
