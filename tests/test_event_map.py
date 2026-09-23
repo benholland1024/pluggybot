@@ -453,6 +453,10 @@ def test_nothing_to_do_narrows_to_whether_the_board_shows_an_offer(menu):
   kinds = (menu.schema(event_map=True)["properties"]["event_map"]["items"]
            ["properties"]["kind"]["enum"])
   assert {"offers", "none"} <= set(kinds)
+  #  ...and the line it writes into History says what it is. "nothing to do
+  #  (offers)" would contradict itself, on every decision the row makes.
+  assert offers.describe() == "nothing queued (offers) -> ask"
+  assert "nothing to do" not in either.describe()
   #  ...and an unfiltered row above a filtered one starves it, as it does on
   #  every filtered event.
   assert ev.shadowed(ev.EventMap((either, offers))) == (1,)
@@ -1206,8 +1210,19 @@ def test_the_unminded_death_line_names_what_the_list_said_about_asking():
   fires = ev.EventMap((ev.Row(event="battery_below", value=0.3, action="ask"),))
   assert "battery_below" in ev.INTERRUPTING_EVENTS
   assert ev.silence(fires) == "the only rules that ask me are on battery_below"
+  #  ...and a rule that asks only on a KIND says which (issue #333): with
+  #  `nothing_to_do (offers) -> ask` alone, an empty board is why nobody
+  #  asked, and "on nothing_to_do" would hide it. One unfiltered `ask` row
+  #  on the event takes every kind, so the event stands bare.
+  offers = ev.EventMap((ev.Row(event="nothing_to_do", action="ask", kind="offers"),
+                        ev.Row(event="task_complete", action="ask", kind="draw"),
+                        ev.Row(event="task_complete", action="ask", kind="census")))
+  assert ev.silence(offers) == ("the only rules that ask me are on "
+                                "nothing_to_do (offers) and task_complete (draw, census)")
+  either = ev.EventMap(offers.rows + (ev.Row(event="nothing_to_do", action="ask"),))
+  assert ev.silence(either).endswith("on nothing_to_do and task_complete (draw, census)")
   #  ...and none of them tells the robot what to do about it.
-  for emap in (empty, mute, narrow, two, fires):
+  for emap in (empty, mute, narrow, two, fires, offers):
     assert "should" not in ev.silence(emap)
 
 

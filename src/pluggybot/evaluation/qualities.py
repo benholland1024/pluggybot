@@ -50,6 +50,7 @@ Rules that every shape keeps, because each was paid for once already:
 from __future__ import annotations
 
 import inspect
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -102,6 +103,10 @@ class Row:
 
 # ---- adapters ------------------------------------------------------------------
 
+#: The producer tag the sim appends to a map row's DECIDE line -- the site
+#: parser's rule (a space, the tag, the end), so both read one row alike.
+_EVENT_TAIL = re.compile(r"\s\[(event:[\w:.-]+)\]$")
+
 
 def from_observe(payload: dict) -> list[Row]:
   """Rows off one `/observe` answer: its `events`, its `decisionRows`, and
@@ -131,7 +136,14 @@ def from_observe(payload: dict) -> list[Row]:
   runs = {_run(r.get("id")): r for r in payload.get("runs") or () if isinstance(r, dict)}
   for d in payload.get("decisionRows") or ():
     run = _run(d.get("runId"))
-    data: dict = {"source": str(d.get("source") or "")}
+    source = str(d.get("source") or "")
+    # ⚠ A MAP ROW THE SITE FILED AS THE MODEL'S (issue #333): its parser
+    # knew only the `fallback:` tail, so the producer survives only as the
+    # reason's `[event:<type>]` -- the sim's own tag, read back here.
+    tail = _EVENT_TAIL.search(str(d.get("reason") or ""))
+    if tail and source.startswith("llm"):
+      source = tail.group(1)
+    data: dict = {"source": source}
     frac = d.get("batteryFrac")
     if frac is not None:
       data["fraction"] = _float(frac)

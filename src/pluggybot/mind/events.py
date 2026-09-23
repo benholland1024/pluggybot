@@ -289,6 +289,10 @@ class Row:
                             if self.value is not None else "points below",
             "every": f"every {self.value:.0f} s"
                      if self.value is not None else "every",
+            # ⚠ NOT "nothing to do" (issue #333): this line is written into
+            # History on every decision a row makes, and it is the robot's
+            # QUEUE -- "nothing to do (offers)" would say the opposite.
+            "nothing_to_do": "nothing queued",
             }.get(self.event, self.event.replace("_", " "))
     if self.kind:
       what = f"{what} ({self.kind})"
@@ -694,15 +698,24 @@ class EventClock:
 
 
 def asks_on(emap: EventMap | None) -> tuple[str, ...]:
-  """The events an `ask` row is on, in the map's own order. `()` for a map
+  """The events an `ask` row is on, in the map's own order, each with its
+  kinds where every `ask` row on it is narrowed -- `nothing_to_do (offers)`
+  asks only when the board shows a job, and a death line that said
+  `nothing_to_do` would hide why nobody asked (issue #333). `()` for a map
   that never consults anybody -- which includes an EMPTY one."""
   if emap is None:
     return ()
-  seen: list[str] = []
+  kinds: dict[str, list[str]] = {}
   for r in emap.rows:
-    if r.action == ASK and r.event not in seen:
-      seen.append(r.event)
-  return tuple(seen)
+    if r.action != ASK:
+      continue
+    seen = kinds.setdefault(r.event, [])
+    if not r.kind:
+      seen[:] = [""]
+    elif "" not in seen and r.kind not in seen:
+      seen.append(r.kind)
+  return tuple(e if "" in ks else f"{e} ({', '.join(ks)})"
+               for e, ks in kinds.items())
 
 
 def _covers(earlier: Row, later: Row) -> bool:

@@ -366,6 +366,28 @@ def test_a_records_decisions_charges_deaths_and_hearts_feed_the_sixth_quality():
   assert q.caution_chosen(rows)["voluntaryFrac"] == [0.3]
 
 
+def test_a_map_row_the_site_filed_as_the_models_is_read_back_as_the_map():
+  """Issue #333: the site's parser knew only the `fallback:` tail until the
+  same issue, so a week of map rows sits in the observatory as
+  `llm:<model>`, their `[event:<type>]` still ending the reason. `idling`
+  would count them as the mind choosing to stand still: of the 312 idles
+  filed as the model's in 1000 rows read on 2026-09-23, 293 were a row."""
+  payload = {"decisionRows": [
+    {"runId": 7, "action": "idle", "source": "llm:m", "simTime": "1",
+     "reason": "nothing to do -> idle [event:nothing_to_do]"},
+    {"runId": 7, "action": "idle", "source": "llm:m", "simTime": "2",
+     "reason": "the board is empty, so I will wait"},
+    {"runId": 7, "action": "idle", "source": "fallback:timeout", "simTime": "3",
+     "reason": "no answer [event:nothing_to_do]"},
+    {"runId": 7, "action": "idle", "source": "event:nothing_to_do", "simTime": "4",
+     "reason": "nothing queued -> idle"}]}
+  sources = [r.data["source"] for r in q.from_observe(payload)]
+  assert sources == ["event:nothing_to_do", "llm:m", "fallback:timeout",
+                     "event:nothing_to_do"]
+  assert q.idling(q.from_observe(payload))["idle"] == {
+    "chosen": 1, "configured": 2, "policy": 0, "failure": 1}
+
+
 def test_observe_decisions_carry_the_pack_and_the_runs_own_reserve_arithmetic():
   payload = {"runs": [{"id": 7, "packWh": 8.0, "reserveWh": 2.05},
                       {"id": 8, "packWh": None, "reserveWh": None}],
