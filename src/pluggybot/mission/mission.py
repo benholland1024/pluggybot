@@ -97,6 +97,25 @@ LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 
 
+def swap_trace(rec: dict | None) -> str:
+  """One line of what a swap did (`HubMission.last_swap`), for the log of a
+  failed one (issue #264): the route, then per attempt the fix, the belief's
+  drift against the true pose, the travel, the approach's answer and where
+  the fork ended up against the module."""
+  if not rec:
+    return "no swap recorded"
+  parts = [f"route {rec.get('route')}"]
+  for i, a in enumerate(rec.get("attempts") or (), 1):
+    e = a.get("err") or [0.0, 0.0, 0.0]
+    line = (f"#{i} fix {a.get('fix') or 'none'}, belief off {e[0]:+.0f},{e[1]:+.0f} mm "
+            f"{e[2]:+.1f} deg, travel {a.get('travel')} m -> {a.get('why')}")
+    if a.get("forkToModuleMm"):
+      f = a["forkToModuleMm"]
+      line += f", fork to module {f[0]:+.0f},{f[1]:+.0f} mm"
+    parts.append(line)
+  return "; ".join(parts)
+
+
 def fine_step_begin(model) -> None:
   """A swap enters the fine step; counted, because the step is the model's."""
   _FINE_STEP[id(model)] = _FINE_STEP.get(id(model), 0) + 1
@@ -377,6 +396,7 @@ class HubMission:
     #: narrates it -- `HubMission` knows the distance and the lifecycle
     #: knows whose it is.
     self.peer_at_bay_m: float | None = None
+    self.last_swap: dict | None = None        # `swap_trace`'s source, issue #264
     #: The peer stop (issue #328): the last sighting in the corridor ahead
     #: -- how far off it was and when -- and how many times a drive has
     #: actually HELD for one. Episodes, not frames, and counted where the
@@ -447,6 +467,21 @@ class HubMission:
   def pose(self) -> tuple[float, float, float]:
     r = self.swap.reckoner
     return r.x, r.y, r.theta
+
+  def truth_error(self) -> list[float]:
+    """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
+    dead reckoning has drifted by, for a failed swap's trace (issue #264).
+    A diagnostic the sim can afford and a robot could not -- nothing reads
+    it to act."""
+    q = self.swap.root_qadr
+    d = self.data
+    yaw = 2.0 * math.atan2(float(d.qpos[q + 6]), float(d.qpos[q + 3]))
+    ax = float(d.qpos[q]) - 0.08 * math.cos(yaw)
+    ay = float(d.qpos[q + 1]) - 0.08 * math.sin(yaw)
+    bx, by, bth = self.pose
+    dyaw = (bth - yaw + math.pi) % (2 * math.pi) - math.pi
+    return [round(1000 * (bx - ax), 1), round(1000 * (by - ay), 1),
+            round(math.degrees(dyaw), 2)]
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Place the robot and initialize odometry from the known start pose."""
@@ -1254,6 +1289,12 @@ class HubMission:
     # to the neighborhood is itself what buys line of sight, so the belief
     # is refreshed once more after arriving.
     self.peer_at_bay_m = None
+    #: What this swap DID, for the narration of a failed one (issue #264):
+    #: the route, then per attempt the fix, the belief's error against the
+    #: true pose, the approach's answer and where the fork ended up against
+    #: the module. Read, never acted on -- every live pick missed for a
+    #: reason no local reproduction showed, and the logs said nothing.
+    self.last_swap = {"verb": verb, "route": "ok", "attempts": []}
     self.refresh_rack()
     sx, sy, hd = bay_standoff(station_y, self.rack)
     # A route failure this early usually means the planner ran out of KNOWN
@@ -1275,11 +1316,14 @@ class HubMission:
       near = self.peer_on_the_goal(sx, sy)
       if near is not None:
         self.peer_at_bay_m = near
+        self.last_swap["route"] = "peer-at-bay"
         return "peer-at-bay"
+      self.last_swap["route"] = "spun"
       yield from self._spin_routine()
       self.refresh_rack()
       sx, sy, hd = bay_standoff(station_y, self.rack)
     else:
+      self.last_swap["route"] = "no-route"
       return "no-route"
     if self.refresh_rack() is not None:
       sx, sy, hd = bay_standoff(station_y, self.rack)
@@ -1345,6 +1389,9 @@ class HubMission:
       # and it is the PEG that must land over the tray line.
       travel = self._terminal_travel(station_y)
       tag_id = bay_tag_id(station_y)
+      attempt_rec = {"fix": self.fix_source if fix is not None else None,
+                     "err": self.truth_error(), "travel": round(travel, 3)}
+      self.last_swap["attempts"].append(attempt_rec)
       fine_step_begin(self.model)
       try:
         if verb == "pick":
@@ -1356,9 +1403,13 @@ class HubMission:
       finally:
         fine_step_end(self.model, self.cruise_timestep)
       yield from self.set_arm_routine(0.0)  # tuck it back before driving off
+      attempt_rec["why"] = why
       if module is None:
         break
       st = self.swap.module_state(module)
+      vx = self.data.site_xpos[self.swap.vertex_sid]
+      attempt_rec["forkToModuleMm"] = [round(1000 * (st["pos"][i] - float(vx[i])), 1)
+                                       for i in (0, 1)]
       if verb == "pick":
         ok = st["on_fork"] and module_power_contact(self.model, self.data,
                                                     module, self.handle.prefix)

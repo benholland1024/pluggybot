@@ -360,3 +360,45 @@ def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
   me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]
   monkeypatch.setattr(steps, "_carried", lambda life: None)
   assert HubLifecycle.seam_busy(me).startswith("Rowan is busy (it is mid-errand)")
+
+
+# ---- 8. a failed swap leaves its trace in the log --------------------------
+
+
+def test_the_trace_measures_the_belief_against_the_true_pose():
+  """Every live pick missed for a reason no local reproduction showed; the
+  trace says how far the belief had drifted from the truth when it tried."""
+  life = _room_hub_life()
+  m = life.mission
+  m.start_at(1.0, 1.0, 0.5)
+  assert m.truth_error() == pytest.approx([0.0, 0.0, 0.0], abs=0.2)
+  m.swap.reckoner.x += 0.012
+  assert m.truth_error()[0] == pytest.approx(12.0, abs=0.2)
+
+
+def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
+  """`_say`'s message is the robot's status line on the site -- a sentence
+  it could say; the trace is evidence, `detail`, the log's alone."""
+  from pluggybot.mission.errand import Errand
+  from pluggybot.mission.mission import swap_trace
+  from pluggybot.rack.coupling import HUB_STATION_YS
+  rec = {"verb": "pick", "route": "ok", "attempts": [
+    {"fix": "plane:2", "err": [3.0, -12.4, -1.4], "travel": 0.187, "why": "arrived",
+     "forkToModuleMm": [2.0, 15.1]}]}
+  assert swap_trace(rec) == ("route ok; #1 fix plane:2, belief off +3,-12 mm -1.4 deg, "
+                             "travel 0.187 m -> arrived, fork to module +2,+15 mm")
+  life = _room_hub_life()
+
+  def failed(*a, **kw):
+    life.mission.last_swap = rec
+    return tick.result("arrived")
+  life.mission.swap_at_bay_routine = failed
+  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  said = []
+  life.say_hooks.append(lambda t, msg: said.append(msg))
+  life.run_errand(Errand(name="carry:test", module="module_lcd",
+                         station_y=HUB_STATION_YS[0], use_at=(1.0, 1.0),
+                         use=lambda _l: {}, needs_use_pose=False))
+  assert any("belief off +3,-12 mm" in line for line in life.log)
+  assert not any("belief off" in msg for msg in said)

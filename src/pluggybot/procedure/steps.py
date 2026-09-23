@@ -240,7 +240,16 @@ def _fetch(life, args: dict) -> Routine:
     said = getattr(life, "pick_failure", None)
     verdict["reason"] = (f"could not pick up {tool}"
                          + (f": {said(tool, station, why)}" if said else ""))
+    _trace(life, verdict, f"fetch {tool}")
   return verdict
+
+
+def _trace(life, verdict: dict, what: str) -> None:
+  """A failed swap's trace (issue #264, `mission.swap_trace`) on the step's
+  verdict, which the runner narrates as `detail` -- the log's, never the
+  status line or History, which are the robot's."""
+  from pluggybot.mission.mission import swap_trace
+  verdict["trace"] = f"{what}: {swap_trace(getattr(life.mission, 'last_swap', None))}"
 
 
 def _carried(life) -> str | None:
@@ -285,11 +294,14 @@ def _stow(life, args: dict) -> Routine:
   st = life.mission.swap.module_state(tool)
   hung = bool(st["hung"])
   life.swaps_done += 1
-  return {"ok": hung, "tool": tool, "why": why,
-          **({} if hung else {"reason": (
-            f"could not hang {tool} back on its bay; "
-            + ("it is still on the fork" if st["on_fork"] else
-               "it is neither on the fork nor on its bay"))})}
+  verdict = {"ok": hung, "tool": tool, "why": why,
+             **({} if hung else {"reason": (
+               f"could not hang {tool} back on its bay; "
+               + ("it is still on the fork" if st["on_fork"] else
+                  "it is neither on the fork nor on its bay"))})}
+  if not hung:
+    _trace(life, verdict, f"stow {tool}")
+  return verdict
 
 
 def _drive_to(life, args: dict) -> Routine:

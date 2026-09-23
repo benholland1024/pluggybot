@@ -46,6 +46,7 @@ from pluggybot.mission.errand import (
 )
 from pluggybot.mission.mission import (
   MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
+  swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -2132,8 +2133,10 @@ class HubLifecycle:
     missed = (None if carried else
               self.pick_failure(self.module, errand.station_y, why))
     self.swaps_done += 1
+    # the swap's trace is EVIDENCE (issue #264): `detail`, the log's alone
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
-              f" ({errand.name})" + ("" if missed is None else f" -- {missed}"))
+              f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
+              detail="" if carried else swap_trace(self.mission.last_swap))
     if not carried:
       # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
       # go on: drive to the use pose with nothing on the fork, skip the
