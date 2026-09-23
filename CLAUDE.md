@@ -733,6 +733,11 @@ save a filmstrip PNG named after the script.
   (EVENT_MAP_RULE's rule; a test reads the example block). The flown proof
   (a procedure the agent wrote, invoked by its own `every` row, 84 s) is
   behind `--endurance`; every rule in it is pinned in milliseconds.
+  ⚠ The website's Procedures section (rooftop-media-2026 #342) is built off
+  the `procedure` event: it re-anchors its fold on `library` {names, cap},
+  which every library event carries as it stands AFTER it, and marks
+  `failedLine` on the source -- `failedAt` counts verb calls EXECUTED and
+  names no line inside a loop. Two-repo fields (protocol/README.md).
 - **The allowance** (`mind/spend.py`, `mind/mode.py`, issue #37): the model is
   SHOWN what its thinking cost and has one boolean (`escalate`) to ask for a
   bigger mind; every gate is code — `$PLUGGY_WEEKLY_USD` (default $10,

@@ -2331,10 +2331,18 @@ class HubLifecycle:
                if st["verb"] == "fetch" and st.get("ok")]
     hung = all(self.mission.swap.module_state(tool)["hung"] for tool in fetched)
     run["toolsHung"] = hung
+    # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
+    # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
+    # names no line of the source, and the step's own reason was on no
+    # wire at all -- a reader could see a run was cut short, not what cut it.
+    failed = next((s for s in run["steps"]
+                   if run.get("failedAt") is not None and s.get("i") == run["failedAt"]), {})
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
+                **({"failedLine": failed["line"]} if failed.get("line") else {}),
+                **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
                 **({"locals": run["locals"]} if run.get("locals") else {})})
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
@@ -3696,17 +3704,26 @@ class HubLifecycle:
     library.facts = world_facts(self.world, rack=self.rack_inventory)
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
+
+    def shelf() -> dict:
+      # The library AS IT STANDS after this event, and its cap (rooftop-
+      # media-2026 #342): a consumer folding `defined`/`undefined` rows
+      # re-anchors on the names, so one row it never received cannot leave
+      # it showing a procedure the robot no longer keeps, and the cap is
+      # this number rather than a copy of it typed into a website.
+      return {"library": {"names": list(library.names()), "cap": library.cap}}
     if decision.undefine:
       try:
         library.undefine(decision.undefine, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE undefine refused: {e}")
         self._emit({**base, "outcome": "refused", "name": decision.undefine,
-                    "verb": "undefine", "reasons": list(e.reasons)})
+                    "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
         self._say(f"PROCEDURE undefined {decision.undefine}")
         self._remember(f"forgot the procedure {decision.undefine}")
-        self._emit({**base, "outcome": "undefined", "name": decision.undefine})
+        self._emit({**base, "outcome": "undefined", "name": decision.undefine,
+                    **shelf()})
     if decision.define:
       name = decision.define.get("name", "")
       source = decision.define.get("source", "")
@@ -3716,12 +3733,12 @@ class HubLifecycle:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
-                    "source": source})
+                    "source": source, **shelf()})
       else:
         self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
         self._remember(f"wrote the procedure {proc.name}")
         self._emit({**base, "outcome": "defined", "name": proc.name,
-                    "program": proc.as_dict()})
+                    "program": proc.as_dict(), **shelf()})
 
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.

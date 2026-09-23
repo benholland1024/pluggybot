@@ -506,6 +506,30 @@ def test_a_decision_defines_and_undefines_and_every_refusal_is_narrated(tmp_path
   assert [e["outcome"] for e in events[-2:]] == ["undefined", "defined"]
 
 
+def test_every_library_event_carries_the_library_as_it_stands_and_its_cap(tmp_path):
+  """A consumer folding `defined`/`undefined` rows (the website's panel,
+  rooftop-media-2026 #342) re-anchors on the names each library event
+  carries, so a row it missed cannot leave a procedure on its page that the
+  robot no longer keeps -- and the cap is read off the wire, never typed.
+  Each event carries the library AFTER its own change: an undefine and a
+  define in one decision are two different libraries."""
+  life = _life()
+  L = lib.Library(HUB, root=tmp_path / "p", cap=2)
+  life.overseer = SimpleNamespace(library=L)
+  events: list = []
+  life.on_event.append(events.append)
+  life._define(Decision(action="idle", define={"name": "one", "source": "def one():\n  look()\n"}))
+  assert events[-1]["library"] == {"names": ["one"], "cap": 2}
+  life._define(Decision(action="idle", define={"name": "one", "source": "def one():\n  wait(1)\n"}))
+  assert events[-1]["outcome"] == "refused" and events[-1]["library"] == {"names": ["one"], "cap": 2}
+  life._define(Decision(action="idle", undefine="nope"))
+  assert events[-1]["verb"] == "undefine" and events[-1]["library"]["names"] == ["one"]
+  life._define(Decision(action="idle", undefine="one",
+                        define={"name": "two", "source": "def two():\n  look()\n"}))
+  assert [(e["outcome"], e["library"]["names"]) for e in events[-2:]] == [
+    ("undefined", []), ("defined", ["two"])]
+
+
 def test_a_procedure_runs_by_name_as_a_composed_errand(monkeypatch):
   from test_procedure import _stub_swaps
   life = _life()
@@ -535,6 +559,31 @@ def test_a_procedure_cut_short_is_stowed(monkeypatch):
                                        "room_hub", library=L))
   assert result["procedure"]["failedAt"] == 1 and on_fork == {}
   assert result["stowed"] and not result["verdict"]["ok"]
+
+
+def test_a_failed_run_names_the_line_that_failed_and_why(monkeypatch):
+  """`failedAt` counts verb calls EXECUTED, so inside a loop it names no
+  line of the source (here the third call is on line 4, not the third
+  verb in the text). The `aborted` event says the line and the step's own
+  reason beside the count (rooftop-media-2026 #342), which is what lets a
+  reader mark the failing line on the source rather than guess it; a run
+  that went through carries neither."""
+  from test_procedure import _stub_swaps
+  life = _life()
+  _stub_swaps(life, monkeypatch)
+  events: list = []
+  life.on_event.append(events.append)
+  L = lib.Library(HUB)
+  L.define("loop", 'def loop():\n  for i in range(2):\n    wait(0.1)\n  stow()\n')
+  L.define("fine", 'def fine():\n  for i in range(2):\n    wait(0.1)\n')
+  for name in ("loop", "fine"):
+    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "room_hub", library=L))
+  aborted, ran = [e for e in events if e.get("type") == "procedure"
+                  and e["outcome"] in ("aborted", "ran")]
+  assert aborted["name"] == "loop" and aborted["outcome"] == "aborted"
+  assert (aborted["failedAt"], aborted["failedLine"]) == (2, 4)
+  assert aborted["failedReason"] == "nothing on the fork to stow"
+  assert ran["outcome"] == "ran" and "failedLine" not in ran and "failedReason" not in ran
 
 
 # ---- the flown one: written by the agent, invoked by its own row ------------------
