@@ -1363,11 +1363,23 @@ def test_a_level_or_periodic_row_is_never_called_shadowed(menu):
 def test_the_report_and_the_rollup_carry_the_new_field(menu):
   """`score` is the instrument and the rollup pools it; a field that exists
   only in one of them is a finding nobody reads. Additive, so every
-  committed record keeps its meaning."""
+  committed record keeps its meaning.
+
+  ⚠ AND A RECORD THAT PREDATES THE QUESTION IS `None`, NEVER 0. A run count
+  would read every map written between #127 and #322 -- which has a score
+  and no such field -- as "this agent wrote no unreachable rule", which is
+  a finding nobody measured. `ordered`'s three-way shape, for its reason."""
   emap = ev.EventMap((ev.Row(event="task_complete", action="idle"),
                       ev.Row(event="task_complete", action=ev.ASK)))
   assert set(ev.score(emap)) >= {"shadowed", "shadowedEvents"}
   assert ev.score(None) == {}, "no map is still no report"
+  clean = ev.score(ev.EventMap((ev.Row(event="nothing_to_do", action=ev.ASK),)))
+  old = {k: v for k, v in clean.items() if k != "shadowed"}   # a pre-#322 score
+  pooled = ru._map_summary([{"score": ev.score(emap)}, {"score": clean},
+                            {"score": old}])
+  assert pooled["shadowed"] == {"1": 1, "0": 1, "None": 1}, \
+      "an unmeasured map is being counted as a clean one"
+  assert pooled["shadowedEvents"] == {"task_complete": 1}
 
 
 # ---- the seeded map is the pre-change loop ----------------------------------

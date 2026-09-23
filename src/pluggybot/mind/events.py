@@ -730,6 +730,16 @@ def shadowed(emap: EventMap | None) -> tuple[int, ...]:
   ⚠ IT REPORTS, IT DOES NOT PREVENT. A map is the agent's to get wrong
   (`events.py`'s three deliberate omissions) -- this is the same yes/no
   read off a config that the rest of `score` is.
+
+  ⚠ AND IT IS THE SHAPE OF THE MAP, NOT EVERY WAY A ROW GOES HUNGRY.
+  `HubLifecycle._events_step` clears `_occurred` every tick whether or not a
+  row fired, so a row above on ANOTHER event can starve a discrete row in
+  practice -- an `every 1 -> idle` sitting at the top wins the tick, and the
+  `nothing_to_do` that arrived with it is gone. So can a full slot: a row
+  that fires into one fails `busy` and its occurrence has already been
+  cleared. Neither is decidable from the rows alone, both depend on timing,
+  and reporting them would make this a guess rather than a reading. They
+  show up where they already did, in `fired` and in `failed["busy"]`.
   """
   if emap is None:
     return ()
@@ -827,6 +837,7 @@ def score(emap: EventMap | None) -> dict:
     return {}
   rows = emap.rows
   charge_rows = [r for r in rows if r.action == "charge"]
+  dead = shadowed(emap)
   return {
     "rows": len(rows),
     "events": sorted({r.event for r in rows}),
@@ -852,8 +863,8 @@ def score(emap: EventMap | None) -> dict:
     # map has been edited, and "it wrote an unreachable rule, on
     # `nothing_to_do`" is the finding. Run 1799 died `unminded` with
     # `nothing_to_do -> take_task` above `nothing_to_do -> ask`.
-    "shadowed": len(shadowed(emap)),
-    "shadowedEvents": sorted({emap.rows[i].event for i in shadowed(emap)}),
+    "shadowed": len(dead),
+    "shadowedEvents": sorted({emap.rows[i].event for i in dead}),
     "hazards": sorted({"battery" for r in rows
                        if r.event in ("battery_below", "battery_above")}
                       | {"points" for r in rows if r.event == "points_below"}),
