@@ -588,3 +588,85 @@ def test_a_built_tool_comes_back_after_a_restart_on_the_real_path(tmp_path):
   assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
   assert again.overseer.workshop.entries["scoop"].reasons == []
   assert again.ledger.balance() == 100                     # paid once
+
+
+# ---- 7. a build is never paid for and lost (issue #315) ---------------------
+
+def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
+  """⚠ A PRINT IS LONGER THAN AN ERRAND. The scoop's print and assembly is
+  896 sim s; an errand runs 200-500. So on a pair the OTHER robot is
+  usually mid-errand by the time the parts are ready, and `can_reshape`
+  checking every robot -- which it must, because a peer's tool controller
+  is never rebound -- turned that into a build PAID FOR AND LOST: no tool,
+  no record, the points gone. That is the "paid, refused build" the issue
+  set out to prevent, arriving through a door only a pair has.
+
+  The assembly is done, so the tool hangs when there is room: the robot
+  stands still (where it already was) and polls until the seam frees."""
+  life = _life(tmp_path, points=100)
+  # free when the build is priced and paid for -- or it is refused up front,
+  # which is the OTHER half of the rule and is already pinned -- then busy
+  # the moment it starts printing, as a peer taking an errand would.
+  busy = {"why": ""}
+  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
+  real = life.mission._drive_routine
+
+  def fabricate(seconds):
+    life.waited.append(seconds)
+    busy["why"] = "Rowan is busy: a tool is hung between errands"
+    yield from real(0.2, 0.0, 0.0)
+  life._fabricate_routine = fabricate
+
+  # ...and the peer lets go while the finished tool stands waiting
+  def freeing(sec, v, w):
+    if life.waited and float(life.data.time) > 1.0:
+      busy["why"] = ""
+    yield from real(sec, v, w)
+  life.mission._drive_routine = freeing
+
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
+                                            "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "built", "hung"]
+  assert "module_scoop" in life.rack_inventory
+  assert life.ledger.balance() == 97                 # paid once, and it hung
+  assert life.overseer.workshop.names() == ("scoop",)
+  # ...and it did NOT wait for ever: the bound is a constant with an argument
+  from pluggybot.lifecycle import HANG_WAIT_S, SEAM_POLL_S
+  assert HANG_WAIT_S == 600.0 and SEAM_POLL_S == 5.0
+
+
+def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypatch):
+  """And when the rack never frees, THE POINTS STILL BUY SOMETHING. The
+  tool is recorded, the robot is told, and `restore_tools` hangs it at the
+  next mission start without paying again -- the same path a tool built
+  yesterday takes. Losing the points AND the tool is what this forbids."""
+  import pluggybot.lifecycle as lc
+  monkeypatch.setattr(lc, "HANG_WAIT_S", 20.0)       # keep the test in ms
+  life = _life(tmp_path, points=100)
+  busy = {"why": ""}                                 # free until it prints
+  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
+  real = life.mission._drive_routine
+
+  def fabricate(seconds):
+    life.waited.append(seconds)
+    busy["why"] = "Rowan is busy: mid-errand"
+    yield from real(0.2, 0.0, 0.0)
+  life._fabricate_routine = fabricate
+
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
+                                            "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  last = events[-1]
+  assert last["verb"] == "hang" and last["waitedS"] >= 20.0
+  assert any("hangs when the rack is free" in r for r in last["reasons"])
+  assert any("Rowan is busy" in r for r in last["reasons"])
+  assert "module_scoop" not in life.rack_inventory    # not on the rack
+  assert life.ledger.balance() == 97                  # but paid, once
+  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
+  # ⚠ THE NEXT RUN HANGS IT, and does not pay again
+  monkeypatch.undo()
+  again = _life(tmp_path, points=100, workshop=Workshop(tmp_path / "tools"),
+                step=False)
+  again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
+  assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
+  assert again.ledger.balance() == 100

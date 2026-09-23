@@ -156,6 +156,19 @@ EVENTS_CHECK_S = 1.0
 #: change what every committed number means without anybody choosing it.
 RESTART_AFTER_S = 300.0
 
+#: How long a finished build will stand and wait for room on the rack
+#: (issue #315), and how often it looks. A DESIGN DECISION, not a
+#: measurement of anything physical: the parts are bought and assembled and
+#: the only question is when there is a safe instant to recompile the world
+#: into. One full errand's worth -- an errand runs 200-500 sim s and
+#: `solutions.TOWER` is 489 -- because a peer that is busy for longer than
+#: that is a world worth reporting, not one to stand in for ever.
+#: ⚠ WITHOUT IT A BUILD ON A PAIR IS USUALLY PAID FOR AND LOST: the scoop
+#: prints for 896 sim s, which is longer than the other robot's errand, so
+#: the rack is occupied again by the time the parts are ready.
+HANG_WAIT_S = 600.0
+SEAM_POLL_S = 5.0
+
 #: Who a `reset` event names when the WORLD did it rather than a person. A
 #: sentinel, because `by` is the label an operator log prints and a consumer
 #: should not have to parse prose to tell an admin's hand from a timer --
@@ -1571,6 +1584,23 @@ class HubLifecycle:
   #: errand leaves that errand stepping a world that no longer exists.
   MID_ERRAND = ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN")
 
+  def seam_busy(self) -> str:
+    """Why the world may not be recompiled THIS INSTANT, or "".
+
+    The one reason that can change while the robot stands still, which is
+    why it is its own predicate: `_await_seam_routine` polls exactly this
+    and nothing else, so a wait can never mask a permanent refusal (no
+    spec, no rail, no such bay) as something worth waiting for.
+    """
+    from pluggybot.procedure.steps import _carried
+    for life in (self, *self.peers):
+      if life.state in self.MID_ERRAND or _carried(life):
+        who = ("" if life is self
+               else f"{life.robot_name or life.root} is busy: ")
+        return (who + "a tool is hung between errands with the fork empty, "
+                "never mid-errand")
+    return ""
+
   def can_reshape(self, bay: int) -> None:
     """Every reason the world may not be recompiled right now, or nothing.
     Checked BEFORE a build spends anything, so a refused hang never
@@ -1590,13 +1620,9 @@ class HubLifecycle:
     if not self.has_built_rack:
       raise seam.SeamRefused("this world has no built-tool rack; a built tool "
                              "has nowhere to hang here")
-    from pluggybot.procedure.steps import _carried
-    for life in (self, *self.peers):
-      if life.state in self.MID_ERRAND or _carried(life):
-        who = ("" if life is self
-               else f"{life.robot_name or life.root} is busy: ")
-        raise seam.SeamRefused(who + "a tool is hung between errands with the "
-                               "fork empty, never mid-errand")
+    busy = self.seam_busy()
+    if busy:
+      raise seam.SeamRefused(busy)
     if not 0 <= bay < len(BUILT_STATION_YS):
       raise seam.SeamRefused(f"no bay {bay}; the built-tool rail has "
                              f"{len(BUILT_STATION_YS)}")
@@ -1740,15 +1766,27 @@ class HubLifecycle:
       self._emit({**base, "outcome": "built", "name": name, "bay": bay,
                   "cost": bill})
       yield from self._fabricate_routine(bill["waitS"])
+      # ...and then WAIT FOR ROOM (issue #315): a print is longer than an
+      # errand, so on a pair the rack is usually occupied again by now.
+      waited = yield from self._await_seam_routine(idx)
       try:
         hung = self.hang_tool(tool, idx)
       except SeamRefused as e:
-        # the preconditions held before the wait and broke during it (a
-        # death mid-print): the parts are bought and the module is not on
-        # the rack, which is what happened, and is said so
-        shop.refuse(name, [str(e)], t)
+        # THE POINTS ALWAYS BUY SOMETHING. The preconditions held before
+        # the spend and broke while it printed -- the peer took the seam,
+        # or the robot died mid-print -- and the parts are bought either
+        # way. So the tool is RECORDED, and `restore_tools` hangs it at
+        # the next mission start without paying again, which is the same
+        # path a tool built yesterday takes. Losing the points AND the
+        # tool is the "paid, refused build" this issue exists to prevent.
+        shop.record(tool, spec, idx, bill, t)
+        why = [str(e), "built and paid for; it hangs when the rack is free"]
+        shop.refuse(name, why, t)
+        self._say(f"WORKSHOP my {name} is built but cannot hang yet: {e}")
+        self._remember(f"built my tool {name}; it hangs when the rack is free")
         self._emit({**base, "outcome": "refused", "verb": "hang", "name": name,
-                    "bay": bay, "reasons": [str(e)], "cost": bill})
+                    "bay": bay, "reasons": why, "cost": bill,
+                    "waitedS": round(waited, 1)})
         return
       shop.record(tool, spec, idx, bill, t)
       self.tools_built += 1
@@ -1756,6 +1794,29 @@ class HubLifecycle:
       self._emit({**base, "outcome": "hung", "name": name, "bay": bay,
                   "module": tool.body, "retired": hung["retired"],
                   "verbs": hung["verbs"], "cost": bill})
+
+  def _await_seam_routine(self, bay: int) -> Routine:
+    """Stand still until the rack is free to be reshaped, or give up.
+
+    ⚠ THE PEER CAN TAKE THE SEAM AWAY WHILE THE TOOL PRINTS (issue #315).
+    The scoop's print and assembly is 896 sim s -- LONGER THAN A TYPICAL
+    ERRAND -- so on a pair the other robot is usually mid-errand by the
+    time the parts are ready, and before this the build was PAID FOR and
+    then lost at the hang: no tool, no record, three points gone. That is
+    the "paid, refused build" the issue set out to prevent, arriving
+    through a door only a pair has.
+
+    So the honest model is that the assembly is DONE and the tool hangs
+    when there is room: the robot is already standing here, and waiting
+    costs it only more of the time it was already spending. `HANG_WAIT_S`
+    bounds it at one full errand's worth (measured: an errand runs
+    200-500 sim s; `solutions.TOWER` is 489), because a peer that is
+    always busy is a world to report, not one to stand in for ever.
+    """
+    t0 = float(self.data.time)
+    while self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S:
+      yield from self.mission._drive_routine(SEAM_POLL_S, 0.0, 0.0)
+    return float(self.data.time) - t0
 
   def _fabricate_routine(self, seconds: float) -> Routine:
     """The print and the assembly: the robot stands where it is for this
