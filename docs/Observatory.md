@@ -10,6 +10,20 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A robot knocked over mid-errand gets up once (#339) — opens when this PR is deployed
+
+**A bug fix.** A robot knocked over mid-pick used to stay inside
+`refine_standoff`'s unbounded drive back to the bay: through its death,
+and after every stand-up the timer gave it, into a wall at full torque
+until flat. On build `0f2faf5` that was Rowan from t = 3145 s: `flat`
+401-403 s after each stand-up, thirteen lives, two true deaths. The drive
+back in now has a budget. No prompt, table or schema moves.
+
+**What the period is for.** Before this, a run of silent `flat` deaths
+shortly after stand-ups, following a `stuck` death, was this defect and not
+the mind: read deaths by cause with the topple in view. After it, a topple
+should cost one life.
+
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 
 **Three changes, one regime break.**
