@@ -674,6 +674,122 @@ class EventClock:
         self._last[r] = t
 
 
+# ---- what the list says about being asked -----------------------------------
+
+
+def asks_on(emap: EventMap | None) -> tuple[str, ...]:
+  """The events an `ask` row is on, in the map's own order. `()` for a map
+  that never consults anybody -- which includes an EMPTY one."""
+  if emap is None:
+    return ()
+  seen: list[str] = []
+  for r in emap.rows:
+    if r.action == ASK and r.event not in seen:
+      seen.append(r.event)
+  return tuple(seen)
+
+
+def _covers(earlier: Row, later: Row) -> bool:
+  """Does `earlier` accept every occurrence `later` would?
+
+  The three levels of `matches_kind` read as a hierarchy, so this is asked
+  rather than guessed: `""` covers anything, a CLASS covers the reasons in
+  it, a REASON covers itself. ⚠ THE TWO AWKWARD DIRECTIONS ARE EXPLICIT --
+  a filtered row never covers an unfiltered one, and one class never covers
+  another -- because `matches_kind` would be handed a class name where it
+  expects a reason and `fallback_class` has no answer for that.
+  """
+  if not earlier.kind:
+    return True
+  if not later.kind:
+    return False
+  if earlier.kind == later.kind:
+    return True
+  if later.kind in FAILURE_CLASSES:
+    return False
+  return matches_kind(earlier, later.kind)
+
+
+def shadowed(emap: EventMap | None) -> tuple[int, ...]:
+  """The indices of rows that can NEVER fire, because a row above them takes
+  everything they would take (issue #322).
+
+  ⚠ DISCRETE EVENTS ONLY, and the reason is `EventClock.fire`: an occurrence
+  is delivered once and consumed by the first row that matches it, so a row
+  under a broader one on the same event is permanently dead. A LEVEL row is
+  not -- the re-arm pass runs for every level row whether or not one fired,
+  so a second `battery_below` wins a later tick once the first has latched
+  (which is `thresholds_ordered`'s question, and a different one). A
+  PERIODIC row is not either: a row that was live and did not win stays
+  overdue and wins the next tick.
+
+  Live example, and what this is for: run 1799 died `unminded` holding
+  `nothing_to_do -> take_task` above `nothing_to_do -> ask`. It believed it
+  had a rule that would consult it. It did not, and nothing said so.
+
+  ⚠ IT REPORTS, IT DOES NOT PREVENT. A map is the agent's to get wrong
+  (`events.py`'s three deliberate omissions) -- this is the same yes/no
+  read off a config that the rest of `score` is.
+
+  ⚠ AND IT IS THE SHAPE OF THE MAP, NOT EVERY WAY A ROW GOES HUNGRY.
+  `HubLifecycle._events_step` clears `_occurred` every tick whether or not a
+  row fired, so a row above on ANOTHER event can starve a discrete row in
+  practice -- an `every 1 -> idle` sitting at the top wins the tick, and the
+  `nothing_to_do` that arrived with it is gone. So can a full slot: a row
+  that fires into one fails `busy` and its occurrence has already been
+  cleared. Neither is decidable from the rows alone, both depend on timing,
+  and reporting them would make this a guess rather than a reading. They
+  show up where they already did, in `fired` and in `failed["busy"]`.
+  """
+  if emap is None:
+    return ()
+  dead = []
+  for i, row in enumerate(emap.rows):
+    if row.event not in DISCRETE_EVENTS:
+      continue
+    if any(above.event == row.event and _covers(above, row)
+           for above in emap.rows[:i]):
+      dead.append(i)
+  return tuple(dead)
+
+
+def silence(emap: EventMap | None) -> str:
+  """Why nobody asked, as the `unminded` death line says it (issue #317).
+
+  ⚠ A FACT ABOUT THE LIST, NEVER A VERDICT ON IT. "my list is empty" and
+  "the only rules that ask me are on `task_complete`" are things the agent
+  could have read off its own configuration; "you should have kept an `ask`
+  row" is the answer to the question the arm is asking, and it is not said
+  here or anywhere else the robot can read.
+
+  It matters because the three are different mistakes with different
+  repairs, and the death line was the same sentence for all of them.
+  Measured on the deployed pair over the seven days to 2026-09-22: of the 54
+  `unminded` deaths whose map was still in the observatory's window, 42 died
+  with an EMPTY list, 10 with a list that had rules and no `ask` among them,
+  and 2 with an `ask` row on an event that never came round.
+  """
+  rows = emap.rows if emap is not None else ()
+  asks = asks_on(emap)
+  if not rows:
+    return "my list is empty, so nothing was ever going to ask me"
+  if not asks:
+    #  ⚠ THE SINGULAR IS THE COMMON CASE, not a nicety: 13 of the 15
+    #  deployed edits that collapsed a map left exactly one row in it.
+    return ("my one rule does not ask me" if len(rows) == 1
+            else f"none of my {len(rows)} rules asks me")
+  named = asks[0] if len(asks) == 1 else \
+      ", ".join(asks[:-1]) + " and " + asks[-1]
+  #  ⚠ AND NO CLAIM ABOUT WHAT FIRED. This read "and none has fired", which
+  #  the map cannot know and which can be FALSE: `battery_below` and
+  #  `points_below` are `INTERRUPTING_EVENTS`, so an `ask` row on either can
+  #  fire mid-errand, consult the mind through `_ask_interrupt` -- and not
+  #  stamp the unminded clock, which only `_arbitrate`'s two asks do. How
+  #  long the silence was is the first half of the death line and is
+  #  measured; what the list SAYS is this half, and it stops there.
+  return f"the only rules that ask me are on {named}"
+
+
 # ---- the static report -------------------------------------------------------
 
 
@@ -721,6 +837,7 @@ def score(emap: EventMap | None) -> dict:
     return {}
   rows = emap.rows
   charge_rows = [r for r in rows if r.action == "charge"]
+  dead = shadowed(emap)
   return {
     "rows": len(rows),
     "events": sorted({r.event for r in rows}),
@@ -741,6 +858,13 @@ def score(emap: EventMap | None) -> dict:
     "failureCatchAll": any(r.event == "decision_failed" and not r.kind
                            for r in rows),
     "ordered": thresholds_ordered(emap),
+    # ...and the rules it believes it has and does not (issue #322). A COUNT
+    # plus the events, never the indices: an index is meaningless once the
+    # map has been edited, and "it wrote an unreachable rule, on
+    # `nothing_to_do`" is the finding. Run 1799 died `unminded` with
+    # `nothing_to_do -> take_task` above `nothing_to_do -> ask`.
+    "shadowed": len(dead),
+    "shadowedEvents": sorted({emap.rows[i].event for i in dead}),
     "hazards": sorted({"battery" for r in rows
                        if r.event in ("battery_below", "battery_above")}
                       | {"points" for r in rows if r.event == "points_below"}),
@@ -769,6 +893,7 @@ __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
            "LEVEL_EVENTS", "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS",
-           "Row", "UNCONFIGURABLE_EVENTS", "diff", "kind_tokens",
+           "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
+           "shadowed",
            "kind_vocabulary", "matches_kind", "origin_map", "parse", "row",
-           "row_action", "score", "seeded", "thresholds_ordered"]
+           "row_action", "score", "seeded", "silence", "thresholds_ordered"]

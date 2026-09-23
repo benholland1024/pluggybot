@@ -141,9 +141,20 @@ class Workshop:
 
   def as_context(self) -> list[dict]:
     """Every tool the robot built: its spec, its bay, what it cost, and why
-    it is not on the rack if it is not."""
+    it is not on the rack if it is not.
+
+    ⚠ `hung` MEANS ON THE RACK, which is not the same as `valid` (issue
+    #315). A build that finished with the rack occupied is recorded and
+    still validates -- that is what gets it hung again at the next mission
+    start -- but it is NOT hanging now, and telling the robot it was would
+    leave it believing it had a tool it does not, which is the one thing
+    every robot-written document here refuses to do. An entry carrying
+    reasons is an entry that is not on the rack, whichever way it got
+    there; `hung()` keeps meaning "can be hung", because that is the
+    question `restore_tools` asks."""
     return [{"name": e.name, "bay": BAYS[e.bay], "spec": e.spec,
-             "costPoints": e.cost.get("points"), "hung": e.valid,
+             "costPoints": e.cost.get("points"),
+             "hung": e.valid and not e.reasons,
              **({"reasons": e.reasons} if e.reasons else {})}
             for e in self.entries.values()]
 
@@ -183,10 +194,14 @@ class Workshop:
       raise WorkshopRefused(reasons)
     return tool, idx
 
-  def record(self, tool: Tool, raw_spec, bay: int, cost: dict, t: float) -> Entry:
-    """A built, hung tool into the records (after the points are paid and
-    the module hangs)."""
-    entry = Entry(tool.name, raw_spec, bay, dict(cost), t, tool, [])
+  def record(self, tool: Tool, raw_spec, bay: int, cost: dict, t: float,
+             reasons: list[str] | None = None) -> Entry:
+    """A built, paid-for tool into the records. `reasons` is why it is NOT
+    on the rack, for a build that finished with the rack occupied (issue
+    #315): the record is what hangs it at the next mission start, and the
+    reasons are what stop the robot being told it already has it."""
+    entry = Entry(tool.name, raw_spec, bay, dict(cost), t, tool,
+                  list(reasons or []))
     self.entries[tool.name] = entry
     self.built += 1
     self.spent += int(cost.get("points", 0))

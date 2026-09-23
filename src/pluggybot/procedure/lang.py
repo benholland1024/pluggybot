@@ -109,6 +109,67 @@ class Procedure:
       return None
     return walk(self.body)
 
+  def references(self) -> dict:
+    """What this procedure reaches for: the axes a `move` names, the sensors
+    a `read` names, and the modules a `fetch` names -- in source order,
+    deduplicated (issue #324).
+
+    ⚠ `tools` IS NOT REDUNDANT WITH `axes`. The high-level verbs declare no
+    tool: `draw` needs the pen, `pick`/`place`/`grip` need the claw, and
+    `Verb` carries nothing that says so -- each checks inside its own body.
+    So a procedure of `fetch("module_pen"); draw(...); stow()` names no axis
+    at all, and reading its needs off axes alone answered "none", which is
+    worse than saying nothing. A `fetch` target is the procedure declaring
+    which tool it is about, and it is right there in the source.
+
+    PURE: the tree only, no world. Which MODULE an axis needs is
+    `axes.AXES[...].requires`, and resolving that is the caller's job
+    (`Library.as_context`) because it depends on what is registered now.
+
+    Every ROLE is walked, not just `body`: they are the same tuple for
+    anything `define` produces (single-role), and this cannot silently
+    under-report if that ever stops being true.
+    """
+    axes_named: list[str] = []
+    sensors: list[str] = []
+    tools: list[str] = []
+
+    def expr(e):
+      if not isinstance(e, tuple):
+        return
+      if e[0] == "read" and isinstance(e[1], str):
+        sensors.append(e[1])
+      for sub in e[1:]:
+        expr(sub)
+
+    def walk(block):
+      for st_ in block:
+        if st_[0] == "verb":
+          for name, value in st_[2].items():
+            if value[0] == "str":
+              if st_[1] == "move" and name == "axis":
+                axes_named.append(value[1])
+              elif st_[1] == "fetch" and name == "tool":
+                tools.append(value[1])
+            expr(value)
+        elif st_[0] == "set":
+          expr(st_[2])
+        elif st_[0] == "if":
+          for cond, body in st_[1]:
+            expr(cond)
+            walk(body)
+          walk(st_[2])
+        elif st_[0] == "repeat":
+          walk(st_[3])
+        elif st_[0] == "while":
+          expr(st_[1])
+          walk(st_[2])
+    for block in (self.roles.values() or (self.body,)):
+      walk(block)
+    return {"axes": tuple(dict.fromkeys(axes_named)),
+            "sensors": tuple(dict.fromkeys(sensors)),
+            "tools": tuple(dict.fromkeys(tools))}
+
   def as_dict(self) -> dict:
     return {"name": self.name, "source": self.source,
             "budgetS": self.budget_s, "stepsBudget": self.steps_budget}

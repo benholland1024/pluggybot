@@ -110,6 +110,26 @@ DEATH_CHECK_S = 0.1
 #: 2.2x that, so no healthy day can trip it, and it is half a standard
 #: 3600 s day, so a robot that goes quiet is still caught inside one.
 #:
+#: ⚠ RE-READ AGAINST THE DEPLOYED CADENCE (issue #317, 2026-09-22): 915 gaps
+#: between consecutive decisions over seven days of the `autonomous` pair
+#: read median **88 s**, p95 516 s, p99 798 s, worst **1375 s**. So the
+#: margin is 1.31x, not 2.2x -- the constant still clears every healthy gap
+#: measured, and it is now the tighter of the two readings rather than the
+#: looser. UNCHANGED, deliberately, in both directions: tightening it would
+#: start booking a long procedure plus a full charge as the agent going
+#: quiet, and loosening it would only make each silent life cost more sim
+#: time without changing a thing the agent does. Re-read it again if the
+#: cadence moves; do not tune it to move a number.
+#:
+#: ⚠ AND THE AGENT IS TOLD THIS NUMBER (issue #322), in `EVENT_MAP_RULE`,
+#: because every other lethal threshold is -- `reserveWh`, `heartPrice`,
+#: `hungryAt`. It was not, and run 1805 wrote itself `every 3600 -> ask`
+#: believing an hourly check-in would keep it, and died at 2597 s. A rule
+#: the code enforces and the prompt does not state is the M14 failure.
+#: ⚠ SO THE VALUE AND THE WORDING MOVE TOGETHER: `tests/test_event_map.py::
+#: test_the_agent_is_told_the_threshold_it_dies_of` reads this constant and
+#: fails on a prompt that still says the old number.
+#:
 #: ⚠ THE CLOCK IS RESET BY BEING ASKED, NOT BY AN ANSWER, and the difference
 #: is the whole honesty of the metric. Gating on a model ANSWER would make a
 #: half-hour endpoint outage a death of the AGENT's kind -- the box's failure
@@ -144,6 +164,19 @@ EVENTS_CHECK_S = 1.0
 #: written against one span per run and turning this on by default would
 #: change what every committed number means without anybody choosing it.
 RESTART_AFTER_S = 300.0
+
+#: How long a finished build will stand and wait for room on the rack
+#: (issue #315), and how often it looks. A DESIGN DECISION, not a
+#: measurement of anything physical: the parts are bought and assembled and
+#: the only question is when there is a safe instant to recompile the world
+#: into. One full errand's worth -- an errand runs 200-500 sim s and
+#: `solutions.TOWER` is 489 -- because a peer that is busy for longer than
+#: that is a world worth reporting, not one to stand in for ever.
+#: ⚠ WITHOUT IT A BUILD ON A PAIR IS USUALLY PAID FOR AND LOST: the scoop
+#: prints for 896 sim s, which is longer than the other robot's errand, so
+#: the rack is occupied again by the time the parts are ready.
+HANG_WAIT_S = 600.0
+SEAM_POLL_S = 5.0
 
 #: Who a `reset` event names when the WORLD did it rather than a person. A
 #: sentinel, because `by` is the label an operator log prints and a consumer
@@ -558,6 +591,22 @@ class HubLifecycle:
     #: WHEN THE MIND WAS LAST CONSULTED (issue #127), for `UNMINDED_AFTER_S`.
     #: Set by an `ask` FIRING, not by an answer arriving -- see the constant.
     self._last_ask_t = 0.0
+    #: ...and WHEN THE MIND WAS LAST ACTUALLY ASKED, which is NOT the same
+    #: clock (issue #317). `_last_ask_t` is armed at mission start and at a
+    #: stand-up so a life does not die of a clock it was born past; nobody
+    #: asked at either moment, and measuring the silence from there would
+    #: tell a robot on its first question that somebody had asked it three
+    #: seconds ago. None until a real ask.
+    self._asked_t: float | None = None
+    #: ...and HOW LONG THE SILENCE BEFORE THIS QUESTION WAS, in sim seconds,
+    #: for the `eventMap` block. ⚠ THE GAP BEFORE THE ASK, NOT SINCE IT: the
+    #: context is built INSIDE the ask it belongs to and sim time runs on
+    #: while the call flies, so nothing read there can reconstruct it --
+    #: `_stamp_ask` takes the difference before it restamps. None where
+    #: nothing has asked this life yet: "you have not been asked" and "you
+    #: were asked a moment ago" are different facts about a map, and the
+    #: first one is the whole point of the block.
+    self._asked_after_s: float | None = None
     #: WHETHER THE MIND HAS EVER ANSWERED FOR ITSELF (issue #303): a decision
     #: that was neither a fallback nor a map row. The bootstrap in
     #: `_arbitrate_routine` asks until this is True -- a fallback is the box
@@ -839,8 +888,15 @@ class HubLifecycle:
     if (self.event_map is not None
         and self.data.time - self._last_ask_t >= UNMINDED_AFTER_S):
       quiet = self.data.time - self._last_ask_t
+      # ...AND WHAT THE LIST SAID ABOUT IT (issue #317). "My own map stopped
+      # consulting me" was the same sentence for three different mistakes --
+      # a list never written, a list written with no `ask` in it, and an
+      # `ask` on an event that never came round -- and History is the one
+      # place a later life reads what happened to this one. A fact about the
+      # configuration, never a verdict on it: `events.silence` is the wording
+      # and the argument.
       self._die("unminded", f"nothing has asked me anything for {quiet:.0f} s "
-                            "-- my own map stopped consulting me")
+                            f"-- {ev.silence(self.event_map)}")
       return
     tilt = self._chassis_tilt()
     if tilt < TOPPLE_TILT_RAD:
@@ -940,7 +996,19 @@ class HubLifecycle:
     # first. That is the inheritance, and it is the only one.
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
-                   "knew went with it.")
+                   "knew went with it."
+                   # ...EXCEPT THE LIST, WHICH DID NOT (issue #317). The
+                   # event map is the OVERSEER's and survives this, so a
+                   # new generation is governed from its first tick by
+                   # rules it never wrote -- and until it is told, it has
+                   # no way to know that the rules it can see in `eventMap`
+                   # are not its own. Saying so is the inheritance being
+                   # honest about itself; whether to archive the map with
+                   # the rest is a design question this does not answer.
+                   + (" The list of rules that decides when I am asked is "
+                      "the one it left behind, not one I wrote."
+                      if self.event_map is not None and len(self.event_map)
+                      else ""))
     self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
                 "archived": archived.get("archived", {})})
@@ -970,10 +1038,15 @@ class HubLifecycle:
     up -- `stand_up`'s rule, and the reason it is a `while`-shaped check
     rather than a one-shot: a robot that died with the pen on its fork must
     not have it yanked out of the coupling, but it must still get up once
-    the errand has put the thing down.
+    the errand has put the thing down. ⚠ ...OR ONCE NOTHING CAN (issue
+    #311): this is the caller with no operator behind it, so a tool the
+    errand failed to stow -- a robot toppled carrying it cannot reach the
+    rack -- used to mean a robot that stayed down until the container
+    restarted. `parked_dead` is the moment waiting stops being a wait.
     """
     if (self.dead is None or self.restart_after_s is None
-        or self.tool_powered or self.home_pose is None):
+        or self.home_pose is None
+        or (self.tool_powered and not self.parked_dead)):
       return
     if self._standing_up:
       return
@@ -1421,7 +1494,7 @@ class HubLifecycle:
     if self.depth_camera is not None:
       self.depth_camera.rebind(model)
     if self.screen is not None:
-      self.screen.model, self.screen.data = model, data
+      self.screen.rebind(model, data)
     if self.activities is not None:
       self.activities.rebind(model, data)
     if self.game is not None and hasattr(self.game, "rebind"):
@@ -1438,12 +1511,14 @@ class HubLifecycle:
     five hand-built modules hang on the first rack and are never in the
     way: nothing here can name their bays.
 
-    Between errands only, with nothing on the fork: a recompile mid-errand
-    would pull the world out from under a routine holding a transient tool
-    controller (the pen, claw and dispenser classes are built per errand
-    and are NOT rebound -- they must not outlive a recompile). Refused,
-    out loud, otherwise. A pair shares one world and two lifecycles; the
-    seam is single-robot until both rebind together.
+    Between errands only, with nothing on the fork -- FOR EVERY ROBOT in
+    the world (issue #315): a recompile mid-errand would pull the world
+    out from under a routine holding a transient tool controller (the pen,
+    claw and dispenser classes are built per errand and are NOT rebound --
+    they must not outlive a recompile), and a pair's two lifecycles run
+    over one (model, data). Refused, out loud, otherwise, naming the robot
+    that is busy. The recompile is this robot's to run and everybody's to
+    follow: `_recompile` rebinds them all.
     """
     from pluggybot.workshop import build as wbuild
     from pluggybot.workshop import seam
@@ -1452,6 +1527,17 @@ class HubLifecycle:
       raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
     index = built_bay_index(bay)
     retired = next((m for m, b in self.rack_inventory.items() if b == index), None)
+    # ⚠ ONE RACK, TWO MINDS (issue #315): the rail is the WORLD's, so on a
+    # pair the module in this bay may be the OTHER robot's -- and "naming a
+    # bay retires what hangs there" is a rule about a robot's OWN tools.
+    # Refused with whose it is, on `bay_index`'s terms for the originals:
+    # a bay is negotiated between the minds, not taken from one by the
+    # other. `built` is what this lifecycle hung, so the test is ownership
+    # and not the shared inventory.
+    if retired is not None and retired not in self.built:
+      raise seam.SeamRefused(
+        f"bay {chr(ord('A') + bay)} holds the {retired.removeprefix('module_')}, "
+        "which is not yours to retire -- name a bay of your own")
     record = {"tool": tool.name, "module": tool.body, "bay": bay,
               "retired": retired, "t": round(float(self.data.time), 3)}
     if retired is not None:
@@ -1467,6 +1553,7 @@ class HubLifecycle:
     self.rack_inventory[tool.body] = index
     self.built[tool.body] = tool
     record["verbs"] = wbuild.register(tool)
+    record["relearned"] = self._revalidate_library()
     self._say(f"I hung my {tool.name} in bay {chr(ord('A') + bay)} of my rack"
               + (f", retiring my {retired.removeprefix('module_')}" if retired else ""),
               detail=f"recompile {record['recompileMs']} ms")
@@ -1483,6 +1570,12 @@ class HubLifecycle:
                              "original modules and stays on the rack")
     if module not in self.rack_inventory:
       raise seam.SeamRefused(f"{module} is not on the rack")
+    # ...and on a pair the rail is shared (issue #315): a module this
+    # lifecycle did not hang is the other robot's, and `built` is what it
+    # hung. Same rule as the bay in `hang_tool`, said the other way round.
+    if module not in self.built:
+      raise seam.SeamRefused(f"the {module.removeprefix('module_')} is on the "
+                             "rack but is not yours to retire")
     index = self.rack_inventory[module]
     bay = index - len(HUB_STATION_YS)
     self.can_reshape(bay)
@@ -1490,14 +1583,71 @@ class HubLifecycle:
               "retiredWhat": self._retire_from_spec(module)}
     record["recompileMs"] = self._recompile(reason="retire", tool=None,
                                             module=None, bay=bay, retired=module)
+    # ⚠ ONCE, HERE, not inside `_retire_from_spec` (issue #324): `hang_tool`
+    # calls that helper too, and revalidating there AND after `register`
+    # told the robot twice, in one action, that the same procedure had
+    # broken -- with two different reason texts, because the second pass saw
+    # the replacement's axes. The rack is in its final state at each of the
+    # two PUBLIC doors, and nowhere in between.
+    record["relearned"] = self._revalidate_library()
     self._say(f"I took my {module.removeprefix('module_')} off my rack; bay "
               f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
     return record
 
+  #: The states a recompile may not land in. A tool controller (the pen,
+  #: the claw, the dispenser) is built per errand, holds (model, data) and
+  #: is NOT rebound -- `tests/test_recompile.py::TRANSIENT_HOLDERS` is the
+  #: roster and the reason -- so a world pulled out from under a running
+  #: errand leaves that errand stepping a world that no longer exists.
+  MID_ERRAND = ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN")
+
+  def built_by(self) -> dict[str, str]:
+    """Which robot built each tool on the rail: module -> display name, with
+    this robot's own as "you" (issue #324).
+
+    ⚠ READ OFF `built`, which is what a lifecycle HUNG -- the shared
+    `rack_inventory` says what is on the rail and cannot say whose it is.
+    A robot with no peers owns everything it hung and nothing else. This is
+    a PUBLIC fact: the rail is the world's and either robot can see, scan
+    and fetch what hangs there, so naming its builder tells nobody anything
+    a look at the rack would not (`others_context`'s line, kept).
+    """
+    mine = {module: "you" for module in self.built}
+    for other in self.peers:
+      name = other.robot_name or other.root
+      for module in getattr(other, "built", {}):
+        mine.setdefault(module, name)
+    return mine
+
+  def seam_busy(self) -> str:
+    """Why the world may not be recompiled THIS INSTANT, or "".
+
+    The one reason that can change while the robot stands still, which is
+    why it is its own predicate: `_await_seam_routine` polls exactly this
+    and nothing else, so a wait can never mask a permanent refusal (no
+    spec, no rail, no such bay) as something worth waiting for.
+    """
+    from pluggybot.procedure.steps import _carried
+    for life in (self, *self.peers):
+      if life.state in self.MID_ERRAND or _carried(life):
+        who = ("" if life is self
+               else f"{life.robot_name or life.root} is busy: ")
+        return (who + "a tool is hung between errands with the fork empty, "
+                "never mid-errand")
+    return ""
+
   def can_reshape(self, bay: int) -> None:
     """Every reason the world may not be recompiled right now, or nothing.
     Checked BEFORE a build spends anything, so a refused hang never
-    follows a paid print. `bay` is a built-rail index."""
+    follows a paid print. `bay` is a built-rail index.
+
+    ⚠ A PAIR SHARES ONE WORLD, so EVERY robot in it has to be between
+    errands with its fork empty, not just this one (issue #315). The
+    recompile itself is one robot's to run -- it rebinds all of them
+    (`_recompile`) -- but the refusal is the whole pair's, and it names
+    the robot that is busy, because "wait" and "never" are different
+    answers and the robot is the one that has to tell them apart.
+    """
     from pluggybot.workshop import seam
     if self.spec is None:
       raise seam.SeamRefused("this world was compiled without its spec; "
@@ -1505,13 +1655,9 @@ class HubLifecycle:
     if not self.has_built_rack:
       raise seam.SeamRefused("this world has no built-tool rack; a built tool "
                              "has nowhere to hang here")
-    if self.peers:
-      raise seam.SeamRefused("a pair shares one world; the seam is "
-                             "single-robot until both lifecycles rebind")
-    from pluggybot.procedure.steps import _carried
-    if self.state in ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN") or _carried(self):
-      raise seam.SeamRefused("a tool is hung between errands with the fork "
-                             "empty, never mid-errand")
+    busy = self.seam_busy()
+    if busy:
+      raise seam.SeamRefused(busy)
     if not 0 <= bay < len(BUILT_STATION_YS):
       raise seam.SeamRefused(f"no bay {bay}; the built-tool rail has "
                              f"{len(BUILT_STATION_YS)}")
@@ -1525,20 +1671,72 @@ class HubLifecycle:
     wbuild.unregister(module)
     return gone
 
+  def _revalidate_library(self) -> list[str]:
+    """The rail moved, so every procedure is re-compiled against it (issue
+    #324) -- for EVERY robot in this world, because the rail is the world's
+    and a tool one robot retires takes its axes out of the other's
+    procedures too. What changed is narrated and returned for the `tool`
+    event; a procedure that stopped being runnable is the interesting half,
+    and one that started again (its tool rebuilt) is worth saying too.
+    """
+    moved: list[str] = []
+    for life in (self, *self.peers):
+      library = getattr(life.overseer, "library", None) if life.overseer else None
+      if library is None:
+        continue
+      for name in library.revalidate(world_facts(life.world, rack=life.rack_inventory)):
+        entry = library.entries[name]
+        state = "runs again" if entry.valid else f"cannot run: {'; '.join(entry.reasons)}"
+        life._say(f"LIBRARY my procedure {name} {state}")
+        moved.append(name)
+    return moved
+
   def _recompile(self, **why) -> float:
     """Recompile the edited spec, rebind everything, tell the wire. Returns
-    the milliseconds it took."""
+    the milliseconds it took.
+
+    ⚠ EVERY LIFECYCLE IN THIS WORLD IS REBOUND, not just the one that
+    built the tool (issue #315). A pair is two lifecycles over one
+    (model, data), and `spec.recompile` returns NEW objects: the robot
+    that did not build would otherwise go on stepping the old world --
+    two simulations, silently diverging, which is the exact failure the
+    rebind protocol exists to prevent. The peers' `on_rebind` sinks fire
+    with them, which is how a publisher registered on the first robot
+    follows a tool the second one built.
+
+    ⚠ THE RECOMPILE IS NOT THE COST. MEASURED on the home world, 2026-09-22:
+    `spec.recompile` 4-5 ms, this whole method ~160 ms, and 136 ms of that
+    is `rebind` recreating the tag detector's `Renderer` -- an EGL context,
+    which is what a Renderer bound to the old model has to become. It is one
+    hitch on the physics thread per build or retire, not a per-step cost,
+    and it is why a recompile is refused mid-errand rather than throttled.
+    `scene_dict` is 18 ms of the rest, and the sidecar this passes it is
+    0.1 ms of that.
+    """
     from pluggybot.workshop import seam
     from pluggybot.telemetry.scene import scene_dict
     t0 = time.perf_counter()
     model, data = seam.recompile(self.spec, self.model, self.data)
     ms = round((time.perf_counter() - t0) * 1000, 2)
-    self.rebind(model, data)
+    for life in (self, *self.peers):
+      life.rebind(model, data)
     # The wire (protocol/README.md "scene_changed"): the whole new scene,
-    # so a consumer rebuilds its scene graph; the next frame is a keyframe.
+    # IN EXACTLY THE SHAPE THE SCENE FIXTURE HAS, because the site replaces
+    # its whole scene graph with it. So the generator's sidecar comes with
+    # it (the `visual` hints, the zones, the spawns, the plate glyphs) and
+    # a pair's scene is named the PAIR world -- without either, building a
+    # tool on the deployed world would repaint the house as grey primitives
+    # and call it `home_world` (issue #315; it could not fire on a pair at
+    # all until then, so the gap was dormant).
+    cfg = world_config(self.world)
+    name = cfg["model_name"]
+    if self.peers:
+      from pluggybot.robot import pair_model_name
+      name = pair_model_name(name)
+    meta = json.loads(Path(cfg["meta"]).read_text()) if cfg["meta"] else None
     self._emit({"type": "scene_changed", "t": round(float(self.data.time), 3),
                 "robot": self.root, **why,
-                "scene": scene_dict(model, world_config(self.world)["model_name"])})
+                "scene": scene_dict(model, name, meta=meta)})
     return ms
 
   # ---- the workshop as the agent's (issue #168 slice D) --------------------
@@ -1574,6 +1772,12 @@ class HubLifecycle:
           if f"module_{name}" in seam.HAND_BUILT:
             raise WorkshopRefused([f"the {name} is one of the original modules "
                                    "and stays on the rack"])
+          # ...and on a pair the rail is shared, so a tool the robot can SEE
+          # in its `rack` block may be the other robot's (issue #315). That
+          # is a different answer from "there is no such tool".
+          if f"module_{name}" in self.rack_inventory:
+            raise WorkshopRefused([f"the {name} is on the rack but is not yours "
+                                   "to retire"])
           raise WorkshopRefused([f"no built tool {name!r} to retire"])
         self.retire_tool(f"module_{name}")
         shop.retire(name)
@@ -1617,22 +1821,74 @@ class HubLifecycle:
       self._emit({**base, "outcome": "built", "name": name, "bay": bay,
                   "cost": bill})
       yield from self._fabricate_routine(bill["waitS"])
+      # ...and then WAIT FOR ROOM (issue #315): a print is longer than an
+      # errand, so on a pair the rack is usually occupied again by now.
+      waited = yield from self._await_seam_routine(idx)
       try:
         hung = self.hang_tool(tool, idx)
       except SeamRefused as e:
-        # the preconditions held before the wait and broke during it (a
-        # death mid-print): the parts are bought and the module is not on
-        # the rack, which is what happened, and is said so
-        shop.refuse(name, [str(e)], t)
+        # THE POINTS ALWAYS BUY SOMETHING. The preconditions held before
+        # the spend and broke while it printed -- the peer took the seam,
+        # or the robot died mid-print -- and the parts are bought either
+        # way. So the tool is RECORDED, and `restore_tools` hangs it at
+        # the next mission start without paying again, which is the same
+        # path a tool built yesterday takes. Losing the points AND the
+        # tool is the "paid, refused build" this issue exists to prevent.
+        why = [str(e), "built and paid for; it hangs when the rack is free"]
+        shop.record(tool, spec, idx, bill, t, reasons=why)
+        shop.refuse(name, why, t)
+        self._say(f"WORKSHOP my {name} is built but cannot hang yet: {e}")
+        self._remember(f"built my tool {name}; it hangs when the rack is free")
         self._emit({**base, "outcome": "refused", "verb": "hang", "name": name,
-                    "bay": bay, "reasons": [str(e)], "cost": bill})
+                    "bay": bay, "reasons": why, "cost": bill,
+                    "waitedS": round(waited, 1)})
         return
       shop.record(tool, spec, idx, bill, t)
       self.tools_built += 1
       self._remember(f"built my tool {name} and hung it in bay {bay}")
+      # `waitedS` rides the HUNG row too, not only the refused one: a build
+      # that waited 40 s and then hung is what a contended rack looks like,
+      # and a rack that is never contended reads 0 (issue #315).
       self._emit({**base, "outcome": "hung", "name": name, "bay": bay,
                   "module": tool.body, "retired": hung["retired"],
-                  "verbs": hung["verbs"], "cost": bill})
+                  "verbs": hung["verbs"], "cost": bill,
+                  "waitedS": round(waited, 1)})
+
+  def _await_seam_routine(self, bay: int) -> Routine:
+    """Stand still until the rack is free to be reshaped, or give up.
+
+    ⚠ THE PEER CAN TAKE THE SEAM AWAY WHILE THE TOOL PRINTS (issue #315).
+    The scoop's print and assembly is 896 sim s -- LONGER THAN A TYPICAL
+    ERRAND -- so on a pair the other robot is usually mid-errand by the
+    time the parts are ready, and before this the build was PAID FOR and
+    then lost at the hang: no tool, no record, three points gone. That is
+    the "paid, refused build" the issue set out to prevent, arriving
+    through a door only a pair has.
+
+    So the honest model is that the assembly is DONE and the tool hangs
+    when there is room: the robot is already standing here, and waiting
+    costs it only more of the time it was already spending. `HANG_WAIT_S`
+    bounds it at one full errand's worth (measured: an errand runs
+    200-500 sim s; `solutions.TOWER` is 489), because a peer that is
+    always busy is a world to report, not one to stand in for ever.
+
+    ⚠ AND IT IS BOUNDED BY THE PACK AS WELL AS THE CLOCK. Standing still
+    is 10.5 W with the near-field camera on: the print alone is 2.6 Wh, a
+    third of home's hosting pack, and the full wait would take it to 4.4 Wh
+    -- 55 %, against a 2.05 Wh reserve. The ROBOT chose to build; the
+    waiting is CODE's, so code stops spending its pack once what is left is
+    the return trip's. Not a rail and not branched on the arm flag -- every
+    arm gets it, because on no arm should the loop's own retry be what
+    strands the robot. (⚠ Naming that flag in prose HERE is what
+    `test_the_rails_are_read_in_exactly_one_place_each` counts: it reads
+    the class source, so a comment citing it reads as a fourth reader.) Giving up early is not a loss -- the tool is recorded and
+    hangs at the next mission start.
+    """
+    t0 = float(self.data.time)
+    while (self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S
+           and self.battery.energy_wh > self.low_battery_wh):
+      yield from self.mission._drive_routine(SEAM_POLL_S, 0.0, 0.0)
+    return float(self.data.time) - t0
 
   def _fabricate_routine(self, seconds: float) -> Routine:
     """The print and the assembly: the robot stands where it is for this
@@ -1658,6 +1914,7 @@ class HubLifecycle:
         entry.tool, entry.reasons = None, [f"could not be hung again: {e}"]
         self._say(f"WORKSHOP could not hang my {entry.name} again: {e}")
         continue
+      entry.reasons = []          # on the rack now; why it was not is stale
       hung.append(entry.name)
     return hung
 
@@ -2203,6 +2460,19 @@ class HubLifecycle:
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
                 f"balance {entry['balance']}")
 
+  @property
+  def parked_dead(self) -> bool:
+    """Dead, AND out of the errand that killed it (issue #311).
+
+    The day loop runs its dead branch BETWEEN errands, so a robot that dies
+    mid-errand goes on driving until the errand returns and only then parks
+    in `_wait_dead_routine`, which is what sets this state. Once it has, no
+    errand will ever run again -- and that is the difference the stand-up
+    rule turns on: a seated module is a tool something might still put
+    down, until the robot is parked, when it is a tool nothing ever will.
+    """
+    return self.dead is not None and self.state == "DEAD"
+
   def _reset_tool(self, msg) -> None:
     """Put a lost module back on its bay, because an admin said so (#30).
 
@@ -2224,9 +2494,7 @@ class HubLifecycle:
     addressed, so reading one fork meant a tool the OTHER robot was holding
     read as lost.
 
-    The reset pose is `model.qpos0`: every world compiles its modules hung
-    at their own bays, so "back where it belongs" is the model's own answer
-    rather than a second copy of the rack geometry.
+    The module goes back to `model.qpos0` through `_return_module`.
     """
     name, who = msg.module, msg.who or "an admin"
     if not name.startswith("module_"):
@@ -2248,12 +2516,24 @@ class HubLifecycle:
       self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
                 "a tool in use is not lost")
       return
+    self._return_module(name)
+    self._say(f"ADMIN {who} reset {name} -- back on its bay")
+
+  def _return_module(self, name: str) -> None:
+    """Put one module back where the world compiled it, at rest.
+
+    The reset pose is `model.qpos0`: every world compiles its modules hung
+    at their own bays, so "back where it belongs" is the model's own answer
+    rather than a second copy of the rack geometry. Two callers -- the
+    admin's tool reset, and a rescue that has to take a tool off the fork
+    of a robot it is standing up (issue #311).
+    """
+    jid = int(self.model.body(name).jntadr[0])
     qadr = int(self.model.jnt_qposadr[jid])
     dadr = int(self.model.jnt_dofadr[jid])
     self.data.qpos[qadr:qadr + 7] = self.model.qpos0[qadr:qadr + 7]
     self.data.qvel[dadr:dadr + 6] = 0.0
     mujoco.mj_forward(self.model, self.data)
-    self._say(f"ADMIN {who} reset {name} -- back on its bay")
 
   def _fork_holding(self, module: str) -> str | None:
     """Which robot has `module` electrically seated, by root -- or None.
@@ -2285,7 +2565,15 @@ class HubLifecycle:
     a run with one in it is not a survival data point.
     """
     who = msg.who or "an admin"
-    if self.tool_powered:
+    # ⚠ "STOW IT FIRST" IS ADVICE, AND A CORPSE CANNOT TAKE IT (issue
+    # #311). Warping a robot out from under a seated module would make the
+    # mess `reset_tool` exists to clean up -- while the errand holding it
+    # can still put it down. Once the robot is PARKED dead no errand ever
+    # runs again, so the wait is for something that cannot happen, and
+    # every door was shut: this refusal, the same one on `set_battery`, and
+    # `reset_tool` refusing a tool seated on a fork. The rescue takes the
+    # tool home with it (`_stand_up`).
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN reset refused: {self.module} is seated on the fork "
                 "-- stow it first")
       return
@@ -2329,6 +2617,17 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.mission.swap.pinned = False
+    # ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
+    # leaves a seated module where it fell -- and on THIS path there may be
+    # nobody to notice: the restart timer has no operator behind it, so a
+    # module left on the floor of the hall is a bay that is empty for good
+    # and an approach lane with a tool in it. A person walking over to pick
+    # the robot up picks the pen up too. Only reachable from `parked_dead`,
+    # where no errand can be mid-stow and disagree about what it holds.
+    if self.tool_powered and self.module:
+      self._return_module(self.module)
+      self.tool_powered = False
+      self._say(f"{self.module} was still on my fork -- back on its bay")
     self.mission.start_at(*self.home_pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
@@ -2344,6 +2643,11 @@ class HubLifecycle:
     # map it comes back to is still its own. The next death is exactly half
     # a sim-hour away unless it changes its mind.
     self._last_ask_t = float(self.data.time)
+    # ...and the silence it is shown starts over with it (issue #317): the
+    # gap a dead robot closed belongs to the life that closed it, and a
+    # robot standing up from `unminded` is one nothing has asked YET, which
+    # is the fact worth reading.
+    self._asked_t = self._asked_after_s = None
     self.state = "EXPLORE"
     event = {"type": "reset", "t": round(t, 3), "robot": self.root,
              "by": by, "wasDead": was["cause"] if was else None,
@@ -2459,7 +2763,7 @@ class HubLifecycle:
     a full gauge next to a corpse unexplained.
     """
     who = msg.who or "an admin"
-    if self.tool_powered:
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN set_battery refused: {self.module} is seated on the "
                 "fork -- stow it first")
       return
@@ -2498,13 +2802,17 @@ class HubLifecycle:
     Refused mid-swap on `_set_battery`'s terms, and for a weaker reason:
     there is no physical hazard here. It is refused anyway so that "an
     admin command is refused while a module is on the fork" is one rule
-    rather than a per-kind table somebody has to remember.
+    rather than a per-kind table somebody has to remember. ⚠ Which is why
+    #311's narrowing is `parked_dead` and applies to all three kinds and
+    not to `reset_robot` alone: a robot parked dead has no errand left to
+    put the tool down, and a rule with one exception per kind is the table
+    this sentence exists to avoid.
     """
     who = msg.who or "an admin"
     if self.ledger is None:
       self._say("ADMIN set_points refused: this world keeps no ledger")
       return
-    if self.tool_powered:
+    if self.tool_powered and not self.parked_dead:
       self._say(f"ADMIN set_points refused: {self.module} is seated on the "
                 "fork -- stow it first")
       return
@@ -3804,14 +4112,39 @@ class HubLifecycle:
     robot is standing still mid-errand and the world has to keep running
     around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
     carries the argument).
+
+    ⚠ AND IT STAMPS THE UNMINDED CLOCK (issue #322), which it did not until
+    this. This is a mind being consulted -- a different QUESTION from the
+    decision branch's, a binary rather than a menu, but the same mind and
+    the same row: `battery_below 0.3 -> ask` reaches `_arbitrate` when it
+    fires between errands and reaches HERE when it fires mid-errand. Not
+    stamping made the clock's answer depend on when the row happened to come
+    true, and `UNMINDED_AFTER_S`'s own rule is that an ask which fires and
+    fails is still a mind being consulted. An abort already re-stamped by
+    accident (the row stays queued and `_arbitrate` takes it next pass), so
+    what this fixes is an interrupt answered CARRY ON.
     """
     self.state = "DECIDE"
+    self._stamp_ask()
     self.overseer.start_interrupt(
       overseer_context(self), self._errand_name,
       f"your pack is at {self.battery.fraction:.0%}")
     while self.overseer.interrupt_pending:
       self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
     return self.overseer.interrupt_result()
+
+  def _stamp_ask(self) -> None:
+    """The mind is being consulted NOW: reset the unminded clock and keep
+    the silence it closed (issues #127, #317).
+
+    ⚠ THE CLOCK IS RESET BY THE ASK AND NOT BY THE ANSWER -- see
+    `UNMINDED_AFTER_S`. This is the only place that does both, so the gap
+    the robot is shown and the clock that kills it can never disagree.
+    """
+    t = float(self.data.time)
+    self._asked_after_s = (None if self._asked_t is None
+                           else round(t - self._asked_t, 1))
+    self._asked_t = self._last_ask_t = t
 
   def _arbitrate(self) -> None:
     return self.mission.run(self._arbitrate_routine())
@@ -3864,7 +4197,7 @@ class HubLifecycle:
       # (`idle_s`) and inside the call budget and the cooloff, which is
       # what bounds it.
       self._say("EVENT no rule fired and the mind has not answered yet -- asking")
-      self._last_ask_t = float(self.data.time)
+      self._stamp_ask()
       yield from self._decide_routine({"event": "bootstrap"})
       return
     if row is None:
@@ -3880,7 +4213,7 @@ class HubLifecycle:
       # `UNMINDED_AFTER_S`. A mind consulted through a dead endpoint is
       # still a mind being consulted, and booking that as the agent going
       # quiet would put the box back in the column the agent is judged on.
-      self._last_ask_t = float(self.data.time)
+      self._stamp_ask()
       yield from self._decide_routine({"event": row.event, "kind": row.kind,
                                        "value": row.value})
       return
@@ -4392,6 +4725,16 @@ class HubLifecycle:
     self._end_run = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
+    # ⚠ THE KINEMATICS HAVE TO BE VALID FIRST (issue #315). `MjData` starts
+    # with `xpos` all zeros and nothing here has stepped yet, so every
+    # module read as sitting on the fork -- `_carried` said `module_lcd`,
+    # `can_reshape` refused, and EVERY built tool failed to re-hang with
+    # "could not be hung again". Nothing built survived a restart, which on
+    # a served world is once an hour. `mj_forward` writes the derived
+    # quantities and never `qpos`/`qvel`/`time`, so it cannot move the
+    # trajectory: MEASURED identical over 3000 driven steps of the home
+    # world, and `seam.recompile` already calls it for the same reason.
+    mujoco.mj_forward(self.model, self.data)
     # What the robot built before today hangs again (issue #168): the
     # world file knows nothing of built tools -- nor of the bench's unknown
     # (issue #227), which an open offer on the board still names.
@@ -5385,7 +5728,17 @@ def overseer_context(life) -> dict:
                          **({"seen": life._seen,
                              "looks_left": MAX_LOOK_RUN - life._look_run}
                             if getattr(life.overseer.menu, "look", False)
-                            else {}))
+                            else {}),
+                         # THE LIST OF RULES IT WROTE (issue #317), read
+                         # back as the rows an answer would send, with the
+                         # silence this question closed. Absent -- not
+                         # empty -- where this world honours no map, so
+                         # `guarded`'s context is unchanged; `[]` where
+                         # there IS a map and nothing is in it, which is
+                         # the case that kills.
+                         event_map=({"rows": life.event_map.as_list(),
+                                     "lastAskedSAgo": life._asked_after_s}
+                                    if life.event_map is not None else None))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)
@@ -5440,19 +5793,37 @@ def overseer_context(life) -> dict:
   # empty bay shown as null so the slot is learnable.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
   if shop is not None:
-    state["rack"] = rack_context(life.rack_inventory)
+    state["rack"] = rack_context(life.rack_inventory, life.built_by())
     state["tools"] = shop.as_context()
   return state
 
 
-def rack_context(inventory: dict[str, int]) -> dict:
+def rack_context(inventory: dict[str, int], built_by: dict | None = None) -> dict:
   """`rack` as the model sees it: `original` (the five hand-built modules,
-  permanent) and `built` (the built-tool rail, letter -> module or null)."""
+  permanent) and `built` (the built-tool rail, letter -> the tool there or
+  null).
+
+  ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324). The rail is the WORLD's and
+  both robots of a pair share it, so a bay may hold the other robot's tool
+  -- which this robot may not take and may not retire. Until this it could
+  only find that out by trying, and the refusal was the first it heard of
+  it. `by` is "you" or the other robot's display name; the TAG cannot carry
+  this, because a built module's tag is `15 + bay` and belongs to the bay
+  rather than the tool, so the context is the only place it can be said.
+  Null where nobody living claims it -- a tool on the rail whose builder is
+  not in this world is a fact, not a guess to fill in."""
   from pluggybot.workshop.library import BAYS
   first = len(HUB_STATION_YS)
   by_index = {b: m for m, b in inventory.items()}
+  built_by = built_by or {}
+
+  def bay(k: int):
+    module = by_index.get(first + k)
+    if module is None:
+      return None
+    return {"module": module, "by": built_by.get(module)}
   return {"original": [by_index[i] for i in range(first) if i in by_index],
-          "built": {BAYS[k]: by_index.get(first + k) for k in range(len(BAYS))}}
+          "built": {BAYS[k]: bay(k) for k in range(len(BAYS))}}
 
 
 def attach_mode_stream(life, sinks, pacer=None,

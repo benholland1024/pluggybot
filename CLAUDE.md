@@ -385,9 +385,20 @@ save a filmstrip PNG named after the script.
     ACTION_FAILURES` (`busy`/`unrunnable`/`unclaimable`/`unbuildable`/
     `beyond`), stated in `EVENT_MAP_RULE`, counted by cause in the record;
     `busy` is the whole rate limit, deliberately not per-row;
-  - **going unminded is a death** (a fourth cause, never summed):
+  - **going unminded is a death** (a fourth cause, never summed), and
+    ⚠ THE AGENT IS TOLD THE NUMBER (#322, in `EVENT_MAP_RULE`; a test reads
+    it off the constant, so the value and the wording move together) along
+    with the fact that a row fires when the robot is next FREE, so a rule at
+    exactly the limit arrives late. NOT a buffered number (the robot sees
+    `lastAskedSAgo`) and NOT a raised one: the median deployed run reaches
+    2030 sim s and 16 of 116 reach 3600, so raising hides the metric.
+    A MID-ERRAND INTERRUPT STAMPS THE CLOCK (#322): same mind, different
+    question, and only the decision branch counted until then.
     `UNMINDED_AFTER_S` = 1800 sim s, measured — the worst healthy gap between
-    model decisions across the committed LLM days is 833 s. The clock is
+    model decisions across the committed LLM days is 833 s, and 1375 s over
+    915 gaps of the deployed pair (#317, 2026-09-22: a 1.31× margin, read
+    and left alone — tightening books a long errand as silence, loosening
+    only makes a silent life cost more). The clock is
     reset by the ASK, not the answer (an outage is the box), armed ONLY where
     there is a map, and NOT prevented in code (a map that cannot remove its
     own `ask` row is a rail). ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS
@@ -395,7 +406,24 @@ save a filmstrip PNG named after the script.
     is the box answering, and counting it as the first decision cost 21 of
     76 deployed lives their whole hour (one garbled call, then `unminded`);
     a stand-up does not re-arm it, a TRUE DEATH does (the map outlives the
-    robot and the next generation never wrote it);
+    robot and the next generation never wrote it — and is TOLD so in its
+    first History line, #317);
+  - **the list is READ BACK** (issue #317): `eventMap` in the volatile
+    context is `{rows, lastAskedSAgo}` — the rows as an answer writes them
+    and the silence this question closed (`_stamp_ask` takes the gap BEFORE
+    it restamps, or a number read inside its own ask is zero). Absent with
+    no map (`guarded` unchanged), `[]` where one is empty, which is the case
+    that kills. ⚠ THE ROWS AND THE CLOCK, NEVER THE VERDICT — no `keepsAsk`,
+    no countdown, no warning: `events.score` answers that off the config and
+    it is the question the arm asks. Measured before it: of 502 live edits
+    35 left no `ask` row and NONE was ever undone (undoing one needs a
+    decision, and a decision needs an ask), 13 collapsing a six-to-nine-row
+    map to one row. The `unminded` death line names which silence it was
+    (`events.silence`); and `score.shadowed` / `shadowedEvents` count the
+    rules the agent believes it has and does not — a DISCRETE occurrence is
+    consumed by the first row that matches, so anything under a broader row
+    on the same event is dead (a level row re-arms and a periodic row stays
+    overdue, so neither is ever shadowed; reordering is not the repair);
   - the origin is an ablation and `none` is the default (`--origin`,
     `$PLUGGY_ORIGIN`): `seeded` is today's loop as rows, `unseeded` is empty
     plus a corrected prompt — a null result there is strong evidence, a
@@ -1011,23 +1039,50 @@ save a filmstrip PNG named after the script.
   OWN RAIL (issue #277): `build_tool.bay` is the rail's `A`–`C`
   (`BAY_LETTERS` off `BUILT_STATION_YS`; `D`/`E` refused with whose bay
   they are), `retire_tool` refuses an original with the reason, the context
-  shows `rack: {original: [...], built: {A..C: module|null}}`, and a world
+  shows `rack: {original: [...], built: {A..C: {module, by}|null}}` —
+  `by` is "you" or the other robot's name, off `HubLifecycle.built_by()`,
+  because the rail is the WORLD's and the TAG cannot say it (a built
+  module's tag is `15 + bay`, the bay's, reused by the next tool there;
+  issue #324) — and a world
   whose `world_config` has no `built_bays` gets NO workshop (no field, no
   rule — the tower's shape); `can_reshape` refuses a world compiled without
-  the `rack_built` body. ⚠ ON A PAIR `can_reshape` STILL REFUSES (the
-  seam is single-robot; #168's open half), so the served pair cannot
-  hang a tool until both lifecycles rebind. Order, all before a point moves: the envelope (`validate.check`), the seam's
+  the `rack_built` body. ⚠ A PAIR HANGS A TOOL (issue #315, #168's open
+  half): `build_pair` KEEPS the spec and both lifecycles hold it,
+  `_recompile` rebinds EVERY lifecycle in the world (`tick.run_many`
+  reads the world off the swap each step for the same reason), and
+  `can_reshape` refuses while EITHER robot is mid-errand or holding a
+  module, naming it — "wait" and "never" are different answers. The rail
+  is the WORLD's: ONE `rack_inventory` for the pair, and a bay the other
+  robot's tool hangs in is refused with whose it is, as is retiring it
+  (`built` is what this lifecycle hung). ⚠ `scene_changed` carries the
+  generator's SIDECAR and a pair's PAIR name — the site replaces its
+  whole scene graph with it, so anything short of the fixture's shape
+  repaints the house as grey primitives. Order, all before a point moves: the envelope (`validate.check`), the seam's
   preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
   points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
   60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
   DECISIONS, said so at the constants) via `Ledger.spend` (no debt), then
   `_fabricate_routine` (its own routine so a test STUBS the ~15 sim-minute
-  wait and pins the seconds), then `hang_tool`. Every step a `tool` event
+  wait and pins the seconds), then `hang_tool`. ⚠ **A PRINT IS LONGER THAN
+  AN ERRAND** (896 sim s against 200–500), so on a pair the rack is
+  usually occupied again by the time the parts are ready: the finished
+  build WAITS for room (`seam_busy()` — the one refusal that can change
+  while the robot stands still, polled by `_await_seam_routine`;
+  `HANG_WAIT_S` 600 s), and if the rack never frees the tool is RECORDED
+  and hangs at the next mission start, paid once. Without both, a build on
+  a pair was paid for and LOST (issue #315). Every step a `tool` event
   (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
   `spec.unbuildable` is ONE predicate for the validator and the prompt's
-  parts list (`workshop_rule()`, built off the catalog) — today only
-  `servo_fs90` and `scaffold_pla_box` are buildable-from and the prompt
-  says why the rest are not. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
+  parts list (`workshop_rule()`, built off the catalog) AND for the
+  refusal a spec gets back (`spec.buildable()` is its complement, issue
+  #315: "no catalog part 'blade'" never said what would have worked) —
+  six parts are buildable-from since #199 and the prompt says why the
+  rest are not. ⚠ A `build_tool` whose spec names NO part is not a
+  build and is dropped at `validate` (`overseer.idle_build`): `spec.name`
+  is a required string a decoder fills with the prompt's example, and an
+  empty `parts` is its zero — the deployed pair sent that row 433 times
+  in seven days. One named part, however wrong, IS a build and the
+  workshop refuses it out loud. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
   survive a restart and are RE-HUNG by `restore_tools()` in `begin()`,
   paid once; an invalid one is kept, marked, shown. ⚠ `Menu.workshop` /
   `Overseer.workshop` are set by `build()` on `autonomous` alone;
@@ -1601,6 +1656,17 @@ save a filmstrip PNG named after the script.
   death (it keeps the volume, so the next life reads its predecessor's death
   line). ⚠ A stand-up STEPS the sim and the restart seam is on every step:
   `_standing_up` guards the recursion, on the admin path too.
+  ⚠ **A SEATED MODULE STOPS A STAND-UP ONLY WHILE SOMETHING CAN STILL PUT
+  IT DOWN** (issue #311; `parked_dead` = dead AND out of the errand that
+  killed it, which is what `_wait_dead_routine` sets). The day loop parks a
+  dead robot only once its errand has returned, and no errand runs after
+  that — so a tool the errand failed to stow (a robot toppled carrying it
+  cannot reach the rack) shut EVERY door: this reset, `set_battery`, and
+  `reset_tool` refusing a tool on a fork. The robot stayed down until the
+  container restarted, and the caller that matters here has no operator
+  behind it. The rescue takes the tool home with it (`_return_module`,
+  shared with `reset_tool`), because the timer has nobody to notice a
+  module left on the floor and that is a bay empty for good.
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md). An errand is machinery (a tool, a place, a
   use-phase); an activity is scenery that reacts; a task is what the house

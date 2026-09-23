@@ -835,8 +835,12 @@ def test_an_unseeded_agent_starts_empty_and_is_told_so(menu):
   never as "seeding causes X" (Evaluation.md §3's asymmetry)."""
   bare = make(menu, origin="unseeded")
   assert len(bare.event_map) == 0
-  assert "YOUR LIST IS EMPTY" in bare.system[0]["text"]
-  assert "YOUR LIST IS EMPTY" not in make(menu).system[0]["text"]
+  #  ⚠ "STARTS", NOT "IS" (issue #317): the prefix is built once and cached,
+  #  so a block saying the list is empty goes on saying it for the whole run
+  #  after the agent has filled it. What it says now is `eventMap`'s job.
+  assert "YOUR LIST STARTS EMPTY" in bare.system[0]["text"]
+  assert "YOUR LIST STARTS EMPTY" not in make(menu).system[0]["text"]
+  assert "`eventMap` below is what it says at this moment" in bare.system[0]["text"]
   assert bare.stats()["eventMap"]["origin"] == "unseeded"
 
 
@@ -867,8 +871,17 @@ def test_the_unminded_threshold_clears_every_healthy_gap_ever_measured():
   between consecutive model decisions across the fifteen committed LLM days
   in `results/` is 833 s -- a `guarded` day that spent a long errand and a
   full charge back to back. The threshold has to clear that with room, and
-  still fit inside a standard 3600 s day."""
+  still fit inside a standard 3600 s day.
+
+  ⚠ RE-READ AGAINST THE DEPLOYED CADENCE (issue #317, 2026-09-22): 915 gaps
+  over seven days of the `autonomous` pair read median 88 s, p95 516 s, and
+  worst 1375 s. So the bar that bites is now the deployed one, at 1.31x
+  rather than 2.2x -- still clear, and the constant is UNCHANGED in both
+  directions: tightening it books a long procedure plus a full charge as
+  the agent going quiet, and loosening it only makes each silent life cost
+  more sim time."""
   assert UNMINDED_AFTER_S >= 833.0 * 2
+  assert UNMINDED_AFTER_S > 1375.0
   assert UNMINDED_AFTER_S < 3600.0
 
 
@@ -910,25 +923,26 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   issue #141 removed from `FALLBACK_LIMIT`. A mind consulted through a dead
   endpoint is still a mind being consulted.
 
-  Read off the source rather than flown: `_arbitrate` stamps `_last_ask_t`
+  Read off the source rather than flown: `_arbitrate` stamps the clock
   before `_decide()` runs, so no outcome of the call can move it."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
   src = inspect.getsource(HubLifecycle._arbitrate_routine)
-  stamp = src.index("_last_ask_t")
-  assert stamp < src.index("yield from self._decide_routine(", stamp), \
-      "the ask stamps the clock before the call, so a failure cannot unstamp it"
-  # ...and nothing else in the file writes it except the two places a LIFE
-  # starts: mission start and a stand-up.
-  # ...and every OTHER write is a moment a life starts or a mind is
-  # consulted, never an answer arriving. Five: the constructor's zero,
-  # mission start, a stand-up, and `_arbitrate`'s two asks (the bootstrap
-  # and an `ask` row firing). Counted so a sixth has to be argued for --
-  # the one that would break this is a write next to a RESULT.
+  for stamp in [i for i, _ in enumerate(src) if src.startswith("_stamp_ask()", i)]:
+    assert stamp < src.index("yield from self._decide_routine(", stamp), \
+        "the ask stamps the clock before the call, a failure cannot unstamp it"
+  assert src.count("_stamp_ask()") == 2, \
+      "the bootstrap and an `ask` row firing, and nothing else in this branch"
+  # ...and every OTHER write is a moment a life starts, never an answer
+  # arriving. Four: the constructor's zero, mission start, a stand-up, and
+  # `_stamp_ask` itself. Counted so a fifth has to be argued for -- the one
+  # that would break this is a write next to a RESULT.
   whole = inspect.getsource(HubLifecycle)
-  assert whole.count("self._last_ask_t = ") == 5
+  assert whole.count("self._last_ask_t = ") == 4
   assert "_last_ask_t" not in inspect.getsource(
+    HubLifecycle._after_decision_routine)
+  assert "_stamp_ask" not in inspect.getsource(
     HubLifecycle._after_decision_routine)
 
 
@@ -952,6 +966,420 @@ def test_a_robot_stood_back_up_does_not_die_again_instantly():
 
   from pluggybot.lifecycle import HubLifecycle
   assert "_last_ask_t" in inspect.getsource(HubLifecycle._stand_up)
+
+
+# ---- the list is read back to the agent (issue #317) ------------------------
+
+
+def _context(menu, boss, **kw):
+  """The volatile context a lifecycle built on this overseer would send."""
+  from pluggybot.lifecycle import overseer_context
+  from test_overseer import _lifecycle
+  life = _lifecycle("home", overseer=boss, **kw)
+  try:
+    return life, overseer_context(life)
+  except BaseException:                      # pragma: no cover -- fixture only
+    life.mission.close()
+    raise
+
+
+def test_the_list_is_read_back_as_the_rows_an_answer_would_send(menu):
+  """⚠ THE PROMPT SAID SO BEFORE THE CODE DID. `EVENT_MAP_RULE` has always
+  told the robot it is "looking at the one you have and saying what it
+  should be from now on" -- and nothing showed it the one it had. A rule
+  the code contradicts is the false statement M14 found in the charging
+  rule, one mechanism along.
+
+  The rows go out in the shape an ANSWER writes them (`Row.as_dict`), not
+  as the prose `Row.describe` produces: what the agent has to do with them
+  is send them back, and a block it cannot copy is a block that teaches the
+  wrong grammar."""
+  boss = make(menu, origin="seeded")
+  life, state = _context(menu, boss)
+  try:
+    assert state["eventMap"]["rows"] == boss.event_map.as_list()
+    assert state["eventMap"]["rows"][0].keys() <= {"event", "action",
+                                                   "value", "kind"}
+  finally:
+    life.mission.close()
+
+
+def test_an_empty_list_is_shown_as_an_empty_list_rather_than_left_out(menu):
+  """⚠ THE CASE THAT KILLS. 88 of 190 deployed lives (seven days to
+  2026-09-22) never wrote a row at all, and 42 of the 87 `unminded` deaths
+  were a life whose map was still empty. An absent block reads as "there is
+  no such thing here"; `[]` reads as "your list is empty, and nothing in it
+  is going to ask you", which is the fact."""
+  boss = make(menu, origin="unseeded")
+  life, state = _context(menu, boss)
+  try:
+    assert len(boss.event_map) == 0
+    assert state["eventMap"] == {"rows": [], "lastAskedSAgo": None}
+  finally:
+    life.mission.close()
+
+
+def test_a_world_that_honours_no_map_is_shown_none_of_this(menu):
+  """`guarded` and the deployed control have no map, so they have no block:
+  "there is no such thing here" and "yours is empty" are different facts and
+  only the second is about an agent. The control's context is unchanged."""
+  life, state = _context(menu, Overseer(menu, client=1, standing_orders=True))
+  try:
+    assert life.event_map is None
+    assert "eventMap" not in state
+  finally:
+    life.mission.close()
+
+
+def test_the_block_carries_the_rows_and_the_clock_and_never_the_verdict(menu):
+  """⚠ DO NOT HAND IT THE ANSWER (Evaluation.md §2). `events.score` answers
+  "did it keep an `ask` row" off the config, and that IS the question this
+  arm asks -- so `keepsAsk`, a countdown to the death, and the length of the
+  clock are all out. What is in is what the list says and how long the
+  silence before this question was: two facts the agent could have read off
+  its own world and could not."""
+  boss = make(menu, origin="seeded")
+  life, state = _context(menu, boss)
+  try:
+    assert set(state["eventMap"]) == {"rows", "lastAskedSAgo"}
+    flat = str(state["eventMap"])
+    assert "keepsAsk" not in flat and str(UNMINDED_AFTER_S) not in flat
+  finally:
+    life.mission.close()
+
+
+def test_the_silence_shown_is_the_gap_before_the_ask_not_since_it(menu,
+                                                                 tmp_path):
+  """⚠ READ INSIDE THE ASK IT BELONGS TO. The context is built after the
+  clock has been stamped, so `data.time - _last_ask_t` there is about zero
+  and says nothing at all -- which is how a number that looks right gets
+  shipped meaning nothing. `_stamp_ask` takes the difference first."""
+  from pluggybot.lifecycle import overseer_context
+  boss = make(menu, full(action="idle"), full(action="idle"),
+              origin="unseeded")
+  life = _arbitrate_twice(boss, tmp_path)
+  try:
+    #  ⚠ THE FIRST QUESTION OF A LIFE IS ASKED BY NOBODY, and the clock the
+    #  death reads was armed at mission start rather than by an ask. Saying
+    #  "3 s ago" there would be measuring from the wrong event.
+    assert life._asked_after_s is None
+    life._asked_t = float(life.data.time) - 900.0
+    life._stamp_ask()
+    assert overseer_context(life)["eventMap"]["lastAskedSAgo"] == 900.0
+    assert life._last_ask_t == life._asked_t == float(life.data.time)
+  finally:
+    life.mission.close()
+
+
+def test_a_robot_stood_back_up_is_shown_a_silence_of_its_own(menu, tmp_path):
+  """The gap a dead robot closed belongs to the life that closed it. A robot
+  standing up from `unminded` is one nothing has asked YET, and None says
+  that where a carried-over number would say it had just been consulted."""
+  from test_overseer import _lifecycle
+  boss = make(menu, origin="unseeded")
+  life = _lifecycle("home", overseer=boss,
+                    thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  try:
+    life._asked_after_s = 12.0
+    life.mortal = True
+    life.home_pose = (0.0, 0.0, 0.0)
+    life._die("flat", "the pack reached zero")
+    life._stand_up("the world", True, dict(life.dead))
+    assert life._asked_after_s is None
+  finally:
+    life.mission.close()
+
+
+# ---- ...and the death line says which of the three mistakes it was ----------
+
+
+def test_the_unminded_death_line_names_what_the_list_said_about_asking():
+  """⚠ THREE DIFFERENT MISTAKES WORE ONE SENTENCE. "My own map stopped
+  consulting me" was said to a robot that never wrote a rule, to one that
+  wrote nine and put no `ask` among them, and to one whose only `ask` was on
+  an event that never came round. Measured over the seven days to
+  2026-09-22, of the 54 `unminded` deaths whose map was still in the
+  observatory's window: 42, 10 and 2.
+
+  A FACT ABOUT THE LIST, NEVER A VERDICT ON IT -- there is no "you should
+  have kept an `ask` row" here or anywhere the robot can read."""
+  empty = ev.EventMap(())
+  mute = ev.EventMap(tuple(ev.Row(**r) for r in
+                           [{"event": "nothing_to_do", "action": "idle"},
+                            {"event": "task_complete", "action": "idle"}]))
+  narrow = ev.EventMap((ev.Row(event="task_complete", action="ask"),
+                        ev.Row(event="nothing_to_do", action="idle")))
+  assert ev.silence(empty) == \
+      "my list is empty, so nothing was ever going to ask me"
+  assert ev.silence(mute) == "none of my 2 rules asks me"
+  #  ⚠ ...and the SINGULAR, which is the commonest shape of all: 13 of the
+  #  15 deployed edits that collapsed a map left exactly one row in it.
+  assert ev.silence(ev.EventMap((ev.Row(event="battery_below", value=0.3,
+                                        action="charge"),))) \
+      == "my one rule does not ask me"
+  assert ev.silence(narrow) == \
+      "the only rules that ask me are on task_complete"
+  two = ev.EventMap((ev.Row(event="every", action="ask", value=600.0),
+                     ev.Row(event="message_received", action="ask")))
+  assert ev.silence(two) == \
+      "the only rules that ask me are on every and message_received"
+  #  ⚠ ...AND IT CLAIMS NOTHING ABOUT WHAT FIRED, which the list cannot know
+  #  and which can be FALSE: `battery_below` and `points_below` are
+  #  `INTERRUPTING_EVENTS`, so an `ask` row on either can fire mid-errand
+  #  and consult the mind through `_ask_interrupt` -- which does not stamp
+  #  the unminded clock. How long the silence was is the measured half of
+  #  the death line; this half is the configuration and stops there.
+  fires = ev.EventMap((ev.Row(event="battery_below", value=0.3, action="ask"),))
+  assert "battery_below" in ev.INTERRUPTING_EVENTS
+  assert ev.silence(fires) == "the only rules that ask me are on battery_below"
+  #  ...and none of them tells the robot what to do about it.
+  for emap in (empty, mute, narrow, two, fires):
+    assert "should" not in ev.silence(emap)
+
+
+def test_the_interrupt_turn_is_not_shown_the_list(menu):
+  """⚠ THE BLOCK BELONGS TO THE TURN WHERE THE MAP CAN BE EDITED, and a
+  mid-errand interrupt is not one: `interrupt_schema` names no map and the
+  answer is a binary. Worse, `lastAskedSAgo` is the silence the last
+  DECISION closed and an interrupt does not stamp that clock, so here it
+  would be a number about a different question. The picture's rule
+  (`_without_pictures`): the state stays whole and the view narrows."""
+  state = {"simTimeS": 2000.0, "battery": {"fraction": 0.28},
+           "eventMap": {"rows": [{"event": "battery_below", "value": 0.3,
+                                  "action": "ask"}], "lastAskedSAgo": 88.0}}
+  turn = ov._interrupt_turn(ov.model_state(dict(state), autonomous=True),
+                            "draw", "your pack is at 28%")
+  assert "eventMap" not in turn and "lastAskedSAgo" not in turn
+  #  ...and the turn is otherwise what it was: the state is not narrowed
+  #  anywhere else, and the decision's turn still carries the block.
+  assert '"simTimeS"' in turn and "put the tool back" in turn
+  assert '"eventMap"' in ov._user_turn(ov.model_state(dict(state),
+                                                      autonomous=True))
+
+
+def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
+                                                                tmp_path):
+  """History is where a later life reads what happened to this one, and the
+  `unminded` line is the only record of a configuration that has since been
+  thrown away with the process. Flown through `_death_step`, not asserted
+  off the string, because the wiring is the claim."""
+  from test_overseer import _lifecycle
+  boss = make(menu, origin="unseeded")
+  life = _lifecycle("home", overseer=boss,
+                    thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  try:
+    life.mortal = True
+    life.data.time = UNMINDED_AFTER_S + 1.0
+    life._next_death_check = 0.0
+    life._death_step()
+    assert life.dead["cause"] == "unminded"
+    assert "my list is empty" in life.dead["why"]
+    assert "my list is empty" in life.thoughts.read("History.md")
+  finally:
+    life.mission.close()
+
+
+def test_the_next_generation_is_told_the_list_is_not_its_own(menu, tmp_path):
+  """⚠ THE MAP OUTLIVES THE ROBOT (#303's finding) AND THE KNOWLEDGE OF IT
+  DOES NOT. A true death archives what the robot wrote, so the new
+  generation is governed from its first tick by rules it never wrote and
+  cannot tell from its own. Saying so is the inheritance being honest about
+  itself -- whether the map should be archived with the rest is a design
+  question this does not answer."""
+  from pluggybot.economy.ledger import Ledger
+  from test_overseer import _lifecycle
+  boss = make(menu, origin="unseeded",
+              event_map=ev.EventMap((ev.Row(event="nothing_to_do",
+                                            action="idle"),)))
+  ledger = Ledger(path=tmp_path / "ledger.json")
+  life = _lifecycle("home", overseer=boss, ledger=ledger,
+                    thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  try:
+    ledger.robots[life.root]["hearts"] = 1
+    life._die("flat", "the pack reached zero")
+    assert life.true_deaths
+    assert "not one I wrote" in life.thoughts.read("History.md")
+    #  ...and a generation that inherits nothing is told nothing.
+    boss.event_map = ev.EventMap(())
+    ledger.robots[life.root]["hearts"] = 1
+    life.dead = None
+    life._die("flat", "again")
+    tail = life.thoughts.read("History.md").rsplit("I am the", 1)[-1]
+    assert "not one I wrote" not in tail
+  finally:
+    life.mission.close()
+
+
+# ---- the clock is honest with the agent (issue #322) ------------------------
+
+
+def test_the_agent_is_told_the_threshold_it_dies_of(menu):
+  """⚠ A RULE THE CODE ENFORCES AND THE PROMPT WITHHOLDS IS THE M14 FAILURE,
+  and this one killed a robot: run 1805 wrote itself `every 3600 -> ask`,
+  believed it had an hourly check-in, and died `unminded` at 2597 s against
+  an 1800 s clock. Every other lethal or economic threshold is shown --
+  `reserveWh`, `heartPrice`, `hungryAt`.
+
+  ⚠ READ OFF THE CONSTANT, so the value and the wording can never drift
+  apart: change `UNMINDED_AFTER_S` and this fails until the prose moves."""
+  rule = ov.EVENT_MAP_RULE
+  assert f"{int(UNMINDED_AFTER_S)} SECONDS" in rule.upper(), \
+      "the prompt states a threshold that is not the one the code enforces"
+  assert UNMINDED_AFTER_S == 1800.0, "the rule says 'half an hour' -- reword it"
+  assert "HALF AN HOUR" in rule.upper()
+  #  ...and it is in the block the robot only gets where a map is honoured,
+  #  so `guarded`'s prefix is untouched by it.
+  assert "WHEN YOU ARE ASKED" not in Overseer(menu, client=1).system[0]["text"]
+
+
+def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
+  """The number alone would be a TRAP, which is why it does not ship alone.
+  A row fires when the robot is next free to act on it: the events poll is
+  1 s, an idle slice is 60 s, and an `every` row is not an interrupting
+  event, so it waits for a whole errand. "Ask me every 1800 seconds" is
+  therefore late every time an errand straddles the mark, and late is dead.
+
+  ⚠ THE ALTERNATIVE WAS A BUFFERED NUMBER and it was rejected: since #317
+  the robot SEES `lastAskedSAgo`, so a stated threshold that is not the real
+  one is a statement it could catch us in -- and a buffer big enough to
+  cover an errand would cost the detection the clock exists for."""
+  rule = ov.EVENT_MAP_RULE
+  assert "not the moment it becomes true" in rule
+  assert "late is dead" in rule
+  #  ...and it names the two that DO reach you mid-errand, which is the same
+  #  partition `INTERRUPTING_EVENTS` is, not a second copy in prose.
+  for event in ev.INTERRUPTING_EVENTS:
+    assert f"`{event}`" in rule, event
+  #  ⚠ AND IT IS STILL NOT A WORKED EXAMPLE: no rule shown, no action named,
+  #  no threshold of its own -- `test_no_worked_example_hands_the_agent_the_
+  #  answer` guards the demonstrations and this guards the addition.
+  added = rule[rule.index("A RULE SET AT EXACTLY"):]
+  assert "->" not in added and "charge" not in added
+
+
+def test_an_interrupt_consults_the_mind_and_says_so(menu, tmp_path):
+  """⚠ THE SAME ROW, TWO PATHS, AND ONLY ONE COUNTED. `battery_below 0.3 ->
+  ask` reaches `_arbitrate` when it fires between errands and `_ask_
+  interrupt` when it fires mid-errand -- a different QUESTION (a binary, not
+  a menu) but the same mind. Until #322 the second did not stamp, so whether
+  a consultation counted depended on when the row happened to come true, and
+  a robot could be booked as having gone quiet through half an hour of being
+  asked. `UNMINDED_AFTER_S`'s own rule is that an ask which fires and fails
+  is still a mind being consulted.
+
+  Read off the source: the stamp is before the call, so no outcome of it --
+  a timeout, a dead endpoint, an abort -- can unstamp it."""
+  import inspect
+
+  from pluggybot.lifecycle import HubLifecycle
+  src = inspect.getsource(HubLifecycle._ask_interrupt)
+  assert "_stamp_ask()" in src, "an interrupt does not reset the clock"
+  assert src.index("_stamp_ask()") < src.index("start_interrupt"), \
+      "the clock is stamped by the ASK, so it goes before the call"
+
+
+def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
+  """An ABORT already re-stamped by accident -- the row stays queued and
+  `_arbitrate` takes it on the next pass, which stamps. So the leak was an
+  interrupt answered CARRY ON, and it is worth pinning that the accident is
+  still there rather than replaced."""
+  import inspect
+
+  from pluggybot.lifecycle import HubLifecycle
+  src = inspect.getsource(HubLifecycle._resolve_interrupt)
+  assert "if not self._aborting and self.queued_row is row:" in src, \
+      "a continue consumes the row; an abort leaves it for `_arbitrate`"
+
+
+# ---- ...and a rule the agent believes it has and does not -------------------
+
+
+def test_a_row_under_a_broader_one_can_never_fire_and_the_report_says_so(menu):
+  """⚠ RUN 1799 DIED OF THIS: `nothing_to_do -> take_task` above
+  `nothing_to_do -> ask`, so the `ask` row could never fire and the robot
+  stood still to the clock holding a rule it believed would consult it.
+
+  A discrete occurrence is delivered once and consumed by the first row that
+  matches, which is what makes the row under it permanently dead."""
+  emap = ev.EventMap((ev.Row(event="nothing_to_do", action="take_task"),
+                      ev.Row(event="nothing_to_do", action=ev.ASK)))
+  assert ev.shadowed(emap) == (1,)
+  sc = ev.score(emap)
+  assert sc["shadowed"] == 1 and sc["shadowedEvents"] == ["nothing_to_do"]
+  #  ...and `keepsAsk` still reads True, which is the point of reporting it:
+  #  the map SAYS it consults itself and cannot.
+  assert sc["keepsAsk"] is True
+  #  ⚠ AND REORDERING IS NOT THE REPAIR, which is why this is reported as a
+  #  dead ROW and not as an ordering fault. Two unfiltered rules on one
+  #  event can only ever be one rule: flipping them changes WHICH is dead,
+  #  never that one is. The fix is to delete the duplicate.
+  flipped = ev.EventMap(tuple(reversed(emap.rows)))
+  assert ev.shadowed(flipped) == (1,)
+  assert flipped.rows[1].action == "take_task"
+
+
+def test_the_kind_hierarchy_decides_what_shadows_what(menu):
+  """`matches_kind`'s three levels, asked as "does the one above take
+  everything this one would". ⚠ THE TWO AWKWARD DIRECTIONS ARE THE TEST: a
+  FILTERED row never shadows an unfiltered one, and one CLASS never shadows
+  another -- both would otherwise hand `fallback_class` a class name where
+  it expects a reason."""
+  def rows(*specs):
+    return ev.EventMap(tuple(ev.Row(event="decision_failed", action=a, kind=k)
+                             for k, a in specs))
+  #  a catch-all above anything
+  assert ev.shadowed(rows(("", "idle"), ("timeout", "charge"))) == (1,)
+  #  a class above one of its own reasons
+  assert ev.shadowed(rows(("failure", "idle"), ("timeout", "charge"))) == (1,)
+  #  ...but not above a reason of the OTHER class
+  assert ev.shadowed(rows(("failure", "idle"), ("budget", "charge"))) == ()
+  #  a reason never shadows the catch-all under it
+  assert ev.shadowed(rows(("timeout", "idle"), ("", "charge"))) == ()
+  #  ...nor does one class shadow another
+  assert ev.shadowed(rows(("failure", "idle"), ("policy", "charge"))) == ()
+
+
+def test_a_level_or_periodic_row_is_never_called_shadowed(menu):
+  """⚠ ONLY A DISCRETE OCCURRENCE IS CONSUMED. `EventClock.fire` re-arms
+  every level row whether or not one fired, so a second `battery_below` wins
+  a later tick (which is `thresholds_ordered`'s question, and a different
+  one); and a periodic row that was live and did not win stays overdue.
+  Reporting either as unreachable would be a false finding about a map that
+  works."""
+  levels = ev.EventMap((ev.Row(event="battery_below", value=0.5, action="charge"),
+                        ev.Row(event="battery_below", value=0.2, action=ev.ASK)))
+  assert ev.shadowed(levels) == () and ev.score(levels)["shadowed"] == 0
+  every = ev.EventMap((ev.Row(event="every", value=600.0, action="idle"),
+                       ev.Row(event="every", value=300.0, action=ev.ASK)))
+  assert ev.shadowed(every) == ()
+  #  ...and the clock agrees: the 300 s row does fire, on a tick the 600 s
+  #  row is not due for.
+  clock = ev.EventClock()
+  clock.stamp(every, 0.0)
+  fired = [clock.fire(every, ev.Live(), t) for t in (300.0, 600.0, 900.0)]
+  assert ev.ASK in [r.action for r in fired if r is not None]
+
+
+def test_the_report_and_the_rollup_carry_the_new_field(menu):
+  """`score` is the instrument and the rollup pools it; a field that exists
+  only in one of them is a finding nobody reads. Additive, so every
+  committed record keeps its meaning.
+
+  ⚠ AND A RECORD THAT PREDATES THE QUESTION IS `None`, NEVER 0. A run count
+  would read every map written between #127 and #322 -- which has a score
+  and no such field -- as "this agent wrote no unreachable rule", which is
+  a finding nobody measured. `ordered`'s three-way shape, for its reason."""
+  emap = ev.EventMap((ev.Row(event="task_complete", action="idle"),
+                      ev.Row(event="task_complete", action=ev.ASK)))
+  assert set(ev.score(emap)) >= {"shadowed", "shadowedEvents"}
+  assert ev.score(None) == {}, "no map is still no report"
+  clean = ev.score(ev.EventMap((ev.Row(event="nothing_to_do", action=ev.ASK),)))
+  old = {k: v for k, v in clean.items() if k != "shadowed"}   # a pre-#322 score
+  pooled = ru._map_summary([{"score": ev.score(emap)}, {"score": clean},
+                            {"score": old}])
+  assert pooled["shadowed"] == {"1": 1, "0": 1, "None": 1}, \
+      "an unmeasured map is being counted as a clean one"
+  assert pooled["shadowedEvents"] == {"task_complete": 1}
 
 
 # ---- the seeded map is the pre-change loop ----------------------------------

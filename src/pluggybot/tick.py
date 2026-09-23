@@ -113,10 +113,15 @@ def run_many(pairs, name: str = "", step=None) -> list:
   swaps = [sw for sw, _ in pairs]
   if step is None:
     import mujoco
-    model, data = swaps[0].model, swaps[0].data
 
     def step():
-      mujoco.mj_step(model, data)
+      # ⚠ READ OFF THE SWAP EVERY STEP, never captured once (issue #315).
+      # A tool built mid-run recompiles the world, and `spec.recompile`
+      # returns NEW MjModel / MjData objects: a closure that bound them at
+      # loop start would go on stepping the world the robots left, while
+      # every rebound holder read the new one. The swap is rebound, so it
+      # is the one place that always knows which world this is.
+      mujoco.mj_step(swaps[0].model, swaps[0].data)
   cmds = [st.tick() for st in steps]
   while any(c is not None for c in cmds):
     exc = None

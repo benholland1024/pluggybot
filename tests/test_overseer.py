@@ -368,7 +368,7 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
   assert [s["name"] for s in guarded.prompt_message(0.0)["sections"]][5:] == []
   assert [s["name"] for s in everything.prompt_message(0.0)["sections"]][5:] == [
     "YOU CAN DIE", "POINTS ARE WHAT KEEPS YOU RUNNING", "WHEN YOU ARE ASKED",
-    "YOUR LIST IS EMPTY", "PROCEDURES YOU MAY WRITE", "CHALLENGES",
+    "YOUR LIST STARTS EMPTY", "PROCEDURES YOU MAY WRITE", "CHALLENGES",
     "WHAT YOU HAVE MEASURED", "TOOLS YOU MAY BUILD", "THE OTHER ROBOT",
     "WHAT YOU CAN DO ABOUT THE OTHER ROBOT", "THINKING HARDER"]
   # The sha is the regime marker: the same build twice is the same sha, a

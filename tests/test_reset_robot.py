@@ -19,6 +19,7 @@ from pluggybot import lifecycle as lc
 from pluggybot.lifecycle import HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu
+from pluggybot.economy.ledger import Ledger
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.telemetry.protocol import (
@@ -297,3 +298,121 @@ def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():
   # test, a spike and a filmstrip cannot.
   assert _life(mortal=None).mortal is False
   assert _life(inbox=Inbox(), mortal=None).mortal is True
+
+
+# ---- a robot that died holding a tool (issue #311) ------------------------
+#
+# Every admin door refuses while a module is seated -- this reset, the same
+# check on `set_battery`, and `reset_tool` refusing a tool on a fork -- and a
+# corpse cannot stow, so the state was permanent: the robot stayed down until
+# the container restarted. The rule now turns on whether anything can still
+# put the tool down, which is what `parked_dead` says.
+
+def _dead_holding(monkeypatch, parked: bool, **kw):
+  """A robot that died with a module still coupled, parked or mid-errand."""
+  life = _life(inbox=Inbox(), **kw)
+  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
+  life.mission._drive(0.2, 0.0, 0.0)
+  assert life.tool_powered, "the seam did not see the seated module"
+  life._die("flat", "the pack reached zero")
+  #  The day loop parks a dead robot only once the errand that killed it
+  #  has returned; `_wait_dead_routine` is what sets DEAD.
+  life.state = "DEAD" if parked else "DRIVE"
+  return life
+
+
+def test_a_robot_parked_dead_holding_a_tool_is_stood_up_and_the_tool_goes_home(
+    monkeypatch):
+  """⚠ THE DEADLOCK (issue #311). Once the day loop has parked a dead robot
+  no errand runs again, so waiting for the errand to stow is waiting for
+  something that cannot happen -- and the tool comes home with it, because
+  a module left on the floor is a bay that is empty for good."""
+  life = _dead_holding(monkeypatch, parked=True)
+  try:
+    adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
+    life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)      # carried, off its bay
+    mujoco.mj_forward(life.model, life.data)
+    home = list(life.model.qpos0[adr:adr + 7])
+
+    life.inbox.offer({"type": "reset_robot", "id": "rr_311", "from": "ben"})
+    life._visitor_step()
+
+    assert life.dead is None, "the rescue was refused and nothing else can help"
+    assert life.resets and life.resets[-1]["wasDead"] == "flat"
+    #  Stated as a DISTANCE, not a pose: the module settles on its peg
+    #  while the rescue runs, so "back at its bay" is centimetres rather
+    #  than millimetres -- against the metre it was carried away.
+    at = life.data.qpos[adr:adr + 3]
+    assert math.dist(at, home[:3]) < 0.05, "the tool was left where the robot fell"
+    assert math.dist(at, (1.0, 1.0, 0.4)) > 0.5, "it never left the fork"
+    #  (`tool_powered` is not asserted here: the stub above answers True for
+    #  every prefix and every module, so the seam recomputes it True during
+    #  the rescue -- a fact about the stub and not about the world.)
+  finally:
+    life.mission.close()
+
+
+def test_a_dead_robot_still_in_its_errand_waits_for_the_stow(monkeypatch):
+  """⚠ The refusal is not gone, it is NARROWED. While the errand that
+  killed it is still driving it may yet put the tool down, and warping the
+  robot out from under it would make the mess `reset_tool` cleans up."""
+  life = _dead_holding(monkeypatch, parked=False)
+  try:
+    pose = life.data.qpos[:3].copy()
+    life.inbox.offer({"type": "reset_robot", "id": "rr_312", "from": "ben"})
+    life._visitor_step()
+    assert "refused" in life.status and "seated on the fork" in life.status
+    assert list(life.data.qpos[:3]) == pytest.approx(list(pose))
+    assert life.resets == []
+  finally:
+    life.mission.close()
+
+
+def test_the_restart_timer_gets_a_parked_robot_up_with_a_tool_on_its_fork(
+    monkeypatch):
+  """⚠ THE CALLER WITH NO OPERATOR BEHIND IT, and the reason this is worth
+  fixing rather than documenting: on the served world nobody is watching,
+  so a tool the errand failed to stow -- a robot toppled carrying it cannot
+  reach the rack -- meant a robot down until the container restarted."""
+  life = _dead_holding(monkeypatch, parked=True)
+  try:
+    life.restart_after_s = 300.0
+    life._restart_step()
+    assert life.dead is not None, "it got up before its time"
+    life.dead["t"] = float(life.data.time) - 301.0
+    life._restart_step()
+    assert life.dead is None
+    assert life.resets[-1]["auto"] is True
+    #  ⚠ An auto-restart is NEVER an intervention: the timer fires only on
+    #  a dead robot, so there is nothing to contaminate.
+    assert life.resets[-1]["intervention"] is False
+  finally:
+    life.mission.close()
+
+
+def test_every_admin_kind_treats_a_parked_dead_robot_the_same(monkeypatch):
+  """⚠ ONE RULE, NOT A PER-KIND TABLE — which is what `_set_points`'
+  docstring says its own refusal is for. All three doors were shut on a
+  robot that died holding a tool (issue #311), so all three open on
+  `parked_dead`; an exception that held for the rescue alone would be the
+  table that sentence exists to avoid."""
+  for kind, body in (("reset_robot", {}),
+                     ("set_battery", {"frac": 1.0}),
+                     ("set_points", {"points": 40})):
+    #  `set_points` refuses a world with no ledger BEFORE it looks at the
+    #  fork, which is a different (and correct) refusal.
+    life = _dead_holding(monkeypatch, parked=True, ledger=Ledger())
+    try:
+      life.inbox.offer({"type": kind, "id": f"a_{kind}", "from": "ben", **body})
+      life._visitor_step()
+      assert "stow it first" not in life.status, kind
+    finally:
+      life.mission.close()
+
+    still = _dead_holding(monkeypatch, parked=False, ledger=Ledger())
+    try:
+      still.inbox.offer({"type": kind, "id": f"b_{kind}", "from": "ben", **body})
+      still._visitor_step()
+      assert "stow it first" in still.status, kind
+    finally:
+      still.mission.close()

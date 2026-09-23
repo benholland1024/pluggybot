@@ -902,7 +902,7 @@ order the model reads them:
   twice), `PERSONA`, `HOW YOUR LIFE WORKS` (`RULES` / `RULES_AUTONOMOUS`),
   `WHAT YOU CAN DO, AND WHERE`, `WHAT TASKS PAY`; then the arm's rules as
   they apply: `YOU CAN DIE`, `POINTS ARE WHAT KEEPS YOU RUNNING`, `IF YOU
-  CANNOT BE REACHED` or `WHEN YOU ARE ASKED` (+ `YOUR LIST IS EMPTY`),
+  CANNOT BE REACHED` or `WHEN YOU ARE ASKED` (+ `YOUR LIST STARTS EMPTY`),
   `PROCEDURES YOU MAY WRITE`, `CHALLENGES`, `WHAT YOU HAVE MEASURED`, `TOOLS
   YOU MAY BUILD`, `THE OTHER ROBOT`, `WHAT YOU CAN DO ABOUT THE OTHER
   ROBOT`, `THINKING HARDER`. A consumer folds each and does not depend on
@@ -1131,7 +1131,13 @@ which is the degradation, not a break.
   "module", "bay", "retired", "scene"}`**, an event line between frames.
   `scene` is the WHOLE new scene in exactly the shape the scene fixture
   has (`scene_dict`), so a consumer rebuilds its scene graph from it the
-  way it built the first one from the fetched file; `retired` names the
+  way it built the first one from the fetched file — **including the
+  generator's sidecar** (the `visual` hints, `zones`, `spawns`, `plates`)
+  and, on a pair, the PAIR world's `model` name. It did not carry either
+  until pluggybot #315; nothing noticed, because until the same issue a
+  pair could not hang a tool and the one world with a sidecar is served
+  as a pair. A consumer that replaces its scene from this message would
+  otherwise have lost every zone and hint the moment a tool was built; `retired` names the
   module that left the rack (until #277 a bay was a replaced module, any
   of the five; since, a built tool on the rail), `module` the one that
   hangs there now. The frame after it is a keyframe: the producer's
@@ -1869,7 +1875,10 @@ it opened, and a message can only arrive while that connection is up.
   ```
 
   Code-handled, never shown to the overseer, refused while a module is seated
-  on the fork — `reset_tool`'s rules, one object up. It warps the robot to
+  on the fork — `reset_tool`'s rules, one object up — ⚠ unless the robot is
+  DEAD and out of the errand that killed it (issue #311), when nothing can
+  put that tool down any more and the rescue brings it back to its bay in
+  the same action. It warps the robot to
   its mission start pose, refills the pack and restarts the survival clock.
   ⚠ **Admin-only and NAMED**, unlike `rating`, which is anonymous on purpose:
   if a stranger can revive the robot then survival time measures the kindness

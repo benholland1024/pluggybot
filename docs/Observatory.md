@@ -10,6 +10,204 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The robot is told whose tool it is and what a procedure needs (#324) — opens when this PR is deployed
+
+**What changed in the context, not the prefix.** No rule text moved, so
+`guarded`'s prefix and `GUARDED_RULES_SHA` are unchanged and its context
+has neither block (both are `autonomous`-only surfaces). The volatile half
+gained two things and lost an ambiguity. `rack.built` is now
+`{module, by}` per bay instead of a module name — `by` is "you" or the
+other robot's display name — and a library entry carries `needs`, the
+modules its `move` and `read` calls require. And a procedure whose tool is
+retired now leaves `runnable()` the moment the rail changes rather than at
+the next restart.
+
+**What the period is for.** #315 made a tool buildable on the pair; this
+asks whether a robot that builds one can then USE it. Three things become
+readable:
+
+- whether a build in a bay the other robot owns still happens. It is
+  refused before anything is spent, so the cost is a wasted decision — but
+  it should now approach zero, because the bay says whose it is before the
+  robot names it;
+- whether a `procedure` row fails with `no axis` or `needs module_… on the
+  fork`. Both mean the robot ran code for a tool it had not fetched, and
+  both should now be rare: `needs` says what to fetch, and a procedure
+  whose tool is gone is no longer in the enum to be chosen;
+- whether a retired tool's procedure is ever rebuilt into life — a
+  `LIBRARY my procedure X runs again` line is the robot getting a capability
+  back, and nothing measured that before.
+
+**Not yet known.** Whether any of it binds. The probe on #315's fixed path
+put `build_tool` on 0 of 16 decisions, so the robot is not yet reaching for
+the workshop at all — #314 (the powers are not in "WHAT YOU CAN DO") and
+#321 (the points economy) are the levers for that, and this period's rows
+stay empty until one of them lands.
+
+### A tool can be built at all (#315) — opens when this PR is deployed
+
+**What changed in the world, not the mind.** The prompt, the schema, the
+reward table, the arm and the model are unchanged; `guarded`'s prefix and
+`GUARDED_RULES_SHA` did not move. What changed is that the workshop the
+`autonomous` prompt has advertised since #168 now WORKS on the deployed
+pair. Three things stood in the way and all three are gone: `build_pair`
+threw away the `MjSpec` it compiled from, so `can_reshape` refused every
+build before it reached any other rule; the seam refused a pair outright;
+and `overseer.idle_build` did not drop a `build_tool` whose spec named no
+part, so a decoder filling a required field reached the workshop and left
+a `tool: refused` row. The seam now recompiles a pair — every lifecycle
+in the world is rebound together, and it is refused, naming the robot,
+while EITHER robot is mid-errand or holding a module. The rail is the
+world's: a bay the other robot's tool hangs in is refused with whose it
+is, and so is retiring it.
+
+**What the period is for.** Over the seven days to 2026-09-22 (build
+`31a24f2` and its predecessors) the deployed pair specified 433 tools and
+built none: `tools: {specified: 433, refused: 433}`, 9 of 9 in the last
+24 hours. Every refusal was the same row — `{"name": "", "bay": "A",
+"spec": {"name": "scoop", "parts": []}}`, the prompt's own worked example
+echoed back with an empty part list. So the 433 measure nothing about
+whether this robot can design a tool; they measure a required schema
+field being filled. From here the rows are a signal. What to read:
+
+- `tool` rows by outcome: `specified` against `refused`, `built`, `hung`.
+  A `specified` row is now a decision to build something described, so
+  the rate is the first honest count of how often the robot reaches for
+  the workshop at all;
+- the refusals' REASONS: whether a spec that names parts fails on the
+  envelope (mass, moment, clearance, the bed), on an unknown catalog id,
+  or on the seam's "the other robot is busy" — the third is a wait and the
+  first two are design;
+- whether a hung tool is ever FETCHED (`procedure` rows naming
+  `module_<name>`), which is the question the workshop exists to ask and
+  which no deployed row has been able to answer;
+- how often a finished build has to WAIT for the peer: one rack, two
+  robots, and a print is 896 sim s against an errand's 200-500, so the
+  rack is usually occupied again by the time the parts are ready.
+  `waitedS` on a `tool` row is how long it stood; a `refused` at verb
+  `hang` carrying "hangs when the rack is free" means the tool is built,
+  paid for and RECORDED, and went up at the next mission start instead.
+  ⚠ **THIS IS THE TRIGGER FOR SPLITTING THE RAIL** (issue #324). The
+  obvious answer to contention is a rail each, and it is the wrong one
+  for now, for the reason the charge bay already gave -- contention is
+  the opportunity, and two rails delete the signal that two minds
+  negotiating one resource produces. It also fixes nothing expensive:
+  the binding constraint is that `can_reshape` must refuse while EITHER
+  robot is mid-errand, which a second rail does not touch. Split it when
+  these rows say contention is what stops builds landing -- give-ups a
+  material share of builds, or `waitedS` routinely near `HANG_WAIT_S`
+  (600 s) -- and not before.
+
+**Not yet known.** Whether the model fills a part list when the drop stops
+absorbing its answer — `idle_build` is the reason the 433 stop being
+rows, not a reason the 434th describes a tool.
+
+⚠ A probe on the fixed path (`experiment.py --probe workshop`, one day,
+2026-09-23, reported on #264) says the 433 were not attempts at all:
+`toolRefused` 0, and **`build_tool` was absent from all 16 decision
+rows**, so `idle_build` had nothing to drop and the model described no
+tool. Asked directly to build one it answered and deferred — short on
+points for upkeep — then spent the day earning. So READ THE 433 AS A
+SCHEMA FIELD BEING FILLED, not as a robot trying and failing, and read
+`specified` here as the first honest count of how often it reaches for
+the workshop at all. The levers that points at are COST and OCCASION: a
+tool costs points the robot wants for upkeep, and nothing in a day makes
+one useful. ⚠ That probe flies a SINGLE robot, so it tests that half
+alone; the pair seam has no probe and is read here.
+
+### The robot is told the half-hour it dies of (#322) — opens when this PR is deployed
+
+**What changed in the mind.** `EVENT_MAP_RULE` now states the threshold —
+half an hour, 1800 seconds — and, in the paragraph after it, that a row
+fires when the robot is next FREE to act on it, so a rule set at exactly
+the limit arrives late every time an errand straddles it. The prefix moved
+and `prompt_sha` with it, on `autonomous` at origin `seeded`/`unseeded`
+alone; `guarded` has no map, so its prefix, context, schema and
+`GUARDED_RULES_SHA` are unchanged. `UNMINDED_AFTER_S` is UNCHANGED at
+1800 s. Two things changed underneath: a mid-errand interrupt now stamps
+the clock (it consults the mind, and until now only the decision branch
+counted), and `events.score` gained `shadowed` / `shadowedEvents`, pooled
+in the rollup — additive, nothing on the wire moves.
+
+**What the period is for.** The rows before it are two deaths that were
+the robot being denied a fact. Run 1805 wrote `every 3600 -> ask`,
+believed it had an hourly check-in, and died `unminded` at 2597 s against
+a clock it was never shown. Run 1799 held `nothing_to_do -> take_task`
+above `nothing_to_do -> ask`, so the `ask` row could never fire, and
+nothing in `score` said so. What to read from here:
+
+- **whether `every N -> ask` periods cluster just under 1800.** This is
+  the cost of stating the number and it is the thing to watch: an agent
+  that writes `every 1700 -> ask` and nothing else is minimally
+  complying with a threshold rather than keeping itself minded, and the
+  distribution says which. Before: 300 s × 34, 900 × 7, 600 × 6,
+  1200 × 1, 1800 × 1, 3600 × 1;
+- `score.shadowed` over the edits — how often an agent writes a rule it
+  believes it has and does not, which nothing could see until now;
+- `unminded` as a share of deaths against #317's period, remembering that
+  two changes are in flight at once and neither is isolated;
+- whether the interrupt stamp moves the `unminded` count at all. It
+  should barely: 128 of 502 maps carried an `ask` on an interrupting
+  event, none of them as its only ask.
+
+**Not yet known.** Whether telling an agent the threshold makes it keep
+itself minded or makes it game the clock — the first reading above is
+that question. And `UNMINDED_AFTER_S` stays at 1800 on a measurement
+argument, not a comfort one: the median deployed run reaches 2030 sim s
+and only 16 of 116 reach 3600, so raising it would stop recording most
+silent robots rather than stop producing them.
+
+### The robot can see the list that decides when it is asked (#317) — opens when this PR is deployed
+
+**What changed in the mind.** The volatile context gained one block,
+`eventMap` — the rows in force, written the way an answer writes them,
+and `lastAskedSAgo`, the silence the question being answered closed. The
+`autonomous` prompt's WHEN YOU ARE ASKED rule gained two sentences (where
+the list is; that a one-row answer is a one-row list) and the unseeded
+ablation's block is now YOUR LIST STARTS EMPTY rather than YOUR LIST IS
+EMPTY, because the prefix is cached and went on saying "empty" for the
+whole run after the agent had filled it. So the prefix moved and
+`prompt_sha` with it, on `autonomous` at origin `seeded`/`unseeded`
+alone; `guarded` has no map, so its prefix, context, schema and
+`GUARDED_RULES_SHA` are unchanged, and the arm, the reward table and the
+world are unchanged. The `unminded` death line now names which of the
+three silences it was; the wire carries it in the `death` event's `why`
+as it always did, no bump. `UNMINDED_AFTER_S` is UNCHANGED at 1800 s,
+re-read below.
+
+**What the period is for.** The rows before it are a robot editing a
+configuration it had never been shown, under a rule that says what it
+sends REPLACES what is there. Read off the observatory over the seven
+days to 2026-09-22, build `31a24f2` and its predecessors: `unminded` 87
+of 164 deaths, mean life 1 609 s; of 502 live map edits, 35 left no `ask`
+row and **none of the 35 was ever undone** — undoing one needs a
+decision and a decision needs an ask; 15 collapsed a six-to-nine-row map
+to a SINGLE row and 13 of those had no `ask` in it, which reads as an
+answer meaning "add this one rule". Of the 87 `unminded` deaths, the map
+in force was empty for 42, had rules and no `ask` for 10, and had an
+`ask` on an event that never came round for 2 (33 fell outside the
+window). 88 of 190 lives never wrote a row at all. What to read from
+here:
+
+- `unminded` as a share of deaths, and the mean life in minutes, against
+  those numbers — the issue's own acceptance;
+- the shape of the edits: whether the one-row collapse stops, which is
+  the half of this that is a misread grammar rather than a choice;
+- `events.score.keepsAsk` over the edits — whether an agent that can SEE
+  it has no `ask` row keeps one, which is the question the arm is asking
+  and is why no `keepsAsk`, countdown or warning is in the block;
+- whether `lastAskedSAgo` is used at all: a robot that reads a long
+  silence and writes itself an `ask` row is reading its own world.
+
+**Not yet known.** Whether this is enough. #303's bootstrap (deployed
+2026-09-22, hours before this reading) removed the "one spent ask" path
+and the 42 empty-map deaths are mostly its; what is left after both is
+the agent's own configuration, which is the thing being measured. And
+whether the event map should be ARCHIVED at a true death rather than
+inherited: today a new generation is governed by its predecessor's rows
+and is now TOLD so in its first History line, which is honesty about the
+inheritance, not a decision about it.
+
 ### A ticket says all of itself, or says it was cut (#307) — opens when this PR is deployed
 
 **What changed in the mind.** The `autonomous` prompt's SUPPORT TICKETS
@@ -383,11 +581,11 @@ Same model, same arm, same origin, same pair.
 a robot could delete the pen every drawing job is written against — a tax
 on the behaviour the workshop exists to measure, and a hazard to every
 other quality's instrument. Now building is free of that cost and the
-originals cannot be lost. ⚠ Until the PAIR SEAM lands (#168's open half:
-`can_reshape` refuses on a pair, and the served world is one), every
-`build_tool` on the deployed pair is a `tool` row `refused` at the seam
-before a point moves — this period cannot show a hang, only whether the
-robot tries. What to read:
+originals cannot be lost. ⚠ The PAIR SEAM did not exist in this period
+(`can_reshape` refused on a pair, and the served world is one), so every
+`build_tool` on the deployed pair was a `tool` row `refused` before a
+point moved — this period cannot show a hang, only whether the robot
+tries. #315 is the period that can. What to read:
 
 - `tool` rows: `built` / `hung` against `refused`, and the refusals'
   reasons — whether the robot reaches for `D`/`E` or an original's name

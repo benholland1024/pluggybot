@@ -154,6 +154,17 @@ def _map_summary(maps: list) -> dict | None:
     # which is not the same finding as "ordered so the tighter one can never
     # fire" and must not be counted as either.
     "ordered": dict(Counter(str(sc.get("ordered")) for sc in scores)),
+    # ...and the rules the agent believed it had and did not (issue #322).
+    # ⚠ THREE-WAY, ON `ordered`'s TERMS AND FOR ITS REASON. A run count
+    # (`sum(1 for sc if sc.get(...))`) would read a record written between
+    # #127 and #322 -- which has a map score and no such field -- as "this
+    # agent wrote no unreachable rule", which is a finding nobody measured.
+    # "None" is "this record predates the question" and must not be summed
+    # with "0". The keys are the counts, so {"0": 4, "2": 1} is four maps
+    # with none and one with two.
+    "shadowed": dict(Counter(str(sc.get("shadowed")) for sc in scores)),
+    "shadowedEvents": dict(sum((Counter(sc.get("shadowedEvents") or ())
+                                for sc in scores), Counter())),
     "chargeAt": dist([v for sc in scores for v in (sc.get("chargeAt") or ())]),
     "events": dict(sum((Counter(sc.get("events") or ()) for sc in scores),
                        Counter())),

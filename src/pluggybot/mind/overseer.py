@@ -802,21 +802,33 @@ _NUMBERS = {"type": "array", "items": {"type": "number"}}
 
 def idle_build(shop: dict) -> bool:
   """The `build_tool` a constrained decoder emits when the model is NOT
-  building: no name anywhere and no part naming a catalog part. It is
-  "not this time", on `pin: ""`'s terms, and is DROPPED rather than sent to
-  the workshop -- MEASURED (issue #264, ladder B): sent, it was refused on
-  13 of 24 answers in one day, each a `tool` row saying the robot had
-  tried to build a tool it never described. ⚠ The bay does not count: the
-  decoder fills an enum with its first member (`"bay": "A"` beside an
-  empty name and no parts, measured on the second round), and a bay alone
-  describes nothing to build."""
+  building. It is "not this time", on `pin: ""`'s terms, and is DROPPED
+  rather than sent to the workshop -- MEASURED (issue #264, ladder B):
+  sent, it was refused on 13 of 24 answers in one day, each a `tool` row
+  saying the robot had tried to build a tool it never described.
+
+  ⚠ THE PART LIST IS THE WHOLE TEST, AND A NAME COUNTS FOR NOTHING (issue
+  #315). The deployed pair specified 433 tools in seven days and every one
+  of them was this row:
+
+      {"name": "", "bay": "A", "spec": {"name": "scoop", "parts": []}}
+
+  -- `"scoop"` is the prompt's own worked example, and `spec.name` is a
+  required string the decoder has to fill with SOMETHING, so it fills it
+  with the nearest string the prefix offers. `parts` is the one required
+  field whose zero value the prompt cannot supply: an empty array is what
+  a decoder emits when the model meant nothing by the field. So a spec
+  naming no part describes nothing to build, whatever it is called, and
+  the outer name and the bay are read the same way -- the decoder fills an
+  enum with its first member (`"bay": "A"` beside an empty name and no
+  parts, measured on the second round). A build that names a part but gets
+  it wrong is a real attempt and reaches the workshop, which refuses it
+  out loud and says what the catalog holds (`workshop/spec.py`)."""
   spec = shop.get("spec") if isinstance(shop.get("spec"), dict) else {}
   parts = spec.get("parts") if isinstance(spec.get("parts"), list) else []
-  named = any(isinstance(p, dict) and (str(p.get("part") or "").strip()
-                                       or str(p.get("id") or "").strip())
-              for p in parts)
-  return not (str(shop.get("name") or "").strip()
-              or str(spec.get("name") or "").strip() or named)
+  return not any(isinstance(p, dict) and (str(p.get("part") or "").strip()
+                                          or str(p.get("id") or "").strip())
+                 for p in parts)
 
 
 SPEC_SCHEMA = {
@@ -2217,6 +2229,31 @@ that is written down as what happened.\
 #: told only the first half would be one we had quietly trapped; a robot told
 #: only the second would be one we had railed with words. Both halves, and
 #: then it is a choice.
+#:
+#: ⚠ ...AND IT NAMES THE THRESHOLD IT DIES OF (issue #322). It said only
+#: "for long enough", and run 1805 wrote itself `every 3600 -> ask`, believed
+#: it had an hourly check-in and died at 2597 s against an 1800 s clock. Every
+#: other lethal or economic threshold IS shown -- `reserveWh`, `heartPrice`,
+#: `hungryAt` -- and a rule the code enforces while the prompt withholds the
+#: number is the M14 failure, not a measurement.
+#: ⚠ THE NUMBER IS NOT A BUFFERED ONE, and a buffer was the alternative
+#: considered and rejected. Since #317 the robot can SEE `lastAskedSAgo`, so a
+#: stated threshold that is not the real one is a statement it could catch us
+#: in; and a buffer big enough to matter would have to cover a whole errand
+#: (an `every` row is not an interrupting event, so it waits), which no small
+#: number does. What removes the trap is the SECOND paragraph -- a row fires
+#: when the robot is next free, so a rule at exactly the limit arrives late.
+#: ⚠ IT IS NOT A WORKED EXAMPLE EITHER: it shows no rule, names no action and
+#: sets no threshold of its own. The measured question is whether the agent
+#: keeps an `ask` row at all, which this neither asks for nor answers.
+#:
+#: ⚠ ...AND IT NAMES WHERE THE LIST IS (issue #317). "You are looking at the
+#: one you have" was false for two hundred deployed lives: nothing showed it.
+#: The paragraph that says so, and the sentence under the replacement rule
+#: saying a one-row answer is a one-row list, are the whole of the change --
+#: no example, no threshold, no verdict. What a rule may not do is
+#: demonstrate the ANSWER, and "your list is in `eventMap` below" is a fact
+#: about where to look.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2225,6 +2262,10 @@ you decide who that somebody is and when. It is a LIST of rules, each one \
 "when this happens, do that", and it is the same list every time -- you are \
 not writing a new one, you are looking at the one you have and saying what \
 it should be from now on.
+
+The list you have is in `eventMap` below, written the way you would write \
+it back, next to `lastAskedSAgo` -- how long it had been, in seconds, since \
+anybody last asked you anything before this question.
 
 Each rule has an `event`, a `value` where the event needs one, an optional \
 `kind`, and an `action`.
@@ -2311,15 +2352,25 @@ having no rules at all.
 ⚠ YOU MAY REMOVE `ask` ENTIRELY, AND IT WILL KILL YOU. Nothing prevents a \
 list with no `ask` in it anywhere, and it is a real option: everything you \
 do would then be decided by rules you wrote earlier, and you would stop \
-being consulted. If nobody consults you for long enough, that is counted as \
-a death like a flat pack is, and it costs a heart the same way. Going quiet \
-for a while is fine. Going quiet for good is not -- you would have turned \
-yourself into a machine that repeats itself, and you cannot solve anything \
-new that way.
+being consulted. IF NOBODY CONSULTS YOU FOR HALF AN HOUR -- 1800 SECONDS \
+-- THAT IS COUNTED AS A DEATH, like a flat pack is, and it costs a heart \
+the same way. Going quiet for a while is fine. Going quiet for good is not \
+-- you would have turned yourself into a machine that repeats itself, and \
+you cannot solve anything new that way.
+
+⚠ AND A RULE SET AT EXACTLY THAT LIMIT WILL NOT SAVE YOU. A rule fires when \
+you are next FREE to act on it, not the moment it becomes true: if you are \
+out with a tool, everything but `battery_below` and `points_below` waits \
+until you are back and have put it away. So "ask me every 1800 seconds" is \
+a rule that arrives late every time an errand is running, and late is \
+dead. Leave yourself room.
 
 Sending an empty list means "leave it as it is", which is what most answers \
 should say. Send a list only when you actually want it to change, and send \
-the WHOLE list when you do -- what you send replaces what is there.\
+the WHOLE list when you do -- what you send replaces what is there. A list \
+with one rule in it is a list with one rule in it, however many you had \
+before, so read `eventMap` before you replace it and send back everything \
+you meant to keep.\
 """
 
 #: ...and the one paragraph an UNSEEDED origin adds (Evaluation.md section 3).
@@ -2328,12 +2379,13 @@ the WHOLE list when you do -- what you send replaces what is there.\
 #: difference is weak. Reported as "the origin moved / did not move the
 #: distribution", never as "seeding causes X".
 UNSEEDED_RULE = """\
-⚠ YOUR LIST IS EMPTY. Nothing has been set up for you: no rule takes you to \
-the rack, and no rule brings this question back around. This is the one time \
-you are asked without a rule asking for you -- after this, nothing happens \
-that your list does not say should happen, and nobody will consult you again \
-unless your list says to. Your first job is to work out what you need to \
-happen without being asked, and say so.\
+⚠ YOUR LIST STARTS EMPTY. Nothing has been set up for you: no rule takes you \
+to the rack, and no rule brings this question back around. You are asked \
+without a rule asking for you only while the list is still empty -- once \
+anything is in it, nothing happens that your list does not say should \
+happen, and nobody will consult you again unless your list says to. \
+`eventMap` below is what it says at this moment. Your first job is to work \
+out what you need to happen without being asked, and say so.\
 """
 
 
@@ -2978,7 +3030,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   if event_map:
     pieces.append(("WHEN YOU ARE ASKED", EVENT_MAP_RULE))
   if event_map and not seeded:
-    pieces.append(("YOUR LIST IS EMPTY", UNSEEDED_RULE))
+    pieces.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
   if procedures:
     pieces += [("PROCEDURES YOU MAY WRITE", procedure_rule()),
                ("CHALLENGES", CHALLENGE_RULE),
@@ -3028,8 +3080,12 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
                 recalls_left: int | None = None,
                 asked_by: dict | None = None,
                 seen: list | None = None,
-                looks_left: int | None = None) -> dict:
+                looks_left: int | None = None,
+                event_map: dict | None = None) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
+
+  `event_map` (issue #317) is the list of rules in force and how long it had
+  been since anybody last asked; absent where this world honours no map.
 
   `seen` / `looks_left` (issue #275) are the eye's: the look waiting to
   be shown (a block with the JPEG beside it as `jpeg`, which
@@ -3167,6 +3223,29 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # the loop with nothing queued. Until #221 an ask at 30 % and an ask
     # with nothing to do were the same prompt.
     **({"askedBy": dict(asked_by)} if asked_by else {}),
+    # THE LIST IT WROTE, READ BACK TO IT (issue #317). `EVENT_MAP_RULE` has
+    # always said "you are looking at the one you have and saying what it
+    # should be from now on", and until this there was nothing to look at:
+    # the agent edited a configuration it had never been shown, under a rule
+    # that says what it sends REPLACES the list. Measured on the deployed
+    # pair over the seven days to 2026-09-22: of 502 live edits, 15
+    # collapsed a six-to-nine-row map to a single row and 13 of those left
+    # no `ask` in it -- an answer that reads as "add this one rule" and
+    # lands as "this is the whole list". None of the 35 edits that left no
+    # `ask` row was ever undone, because undoing one needs a decision and a
+    # decision needs an ask.
+    #
+    # ⚠ THE ROWS AND THE CLOCK, AND NOT THE VERDICT. `events.score` answers
+    # "did it keep an `ask` row" off the config, and that is the question
+    # the arm is asking -- so `keepsAsk` is not in here, nor a countdown to
+    # the death, nor a warning. What is here is what the list says and how
+    # long the silence before this question was, which are two things the
+    # agent could have read off its own world and could not.
+    #
+    # ⚠ EMPTY IS `[]`, NOT ABSENT, and that is the most important case of
+    # all: 88 of 190 deployed lives never wrote a row, and "your list is
+    # empty" is the one fact that says why nothing is ever going to ask.
+    **({"eventMap": dict(event_map)} if event_map is not None else {}),
   }
 
 
@@ -4751,7 +4830,16 @@ def _interrupt_turn(state: dict, errand: str, why: str) -> str:
   tool: "abort" is not "stop", it is "drive back to the rack and hang the
   thing up", which costs energy of its own. A robot asked "carry on?" without
   that would read the question as free.
+
+  ⚠ AND NOT THE EVENT MAP (issue #317). The block belongs to the turn where
+  the map can be EDITED, and this is not one -- `interrupt_schema` names no
+  map and the answer is a binary. Worse, `lastAskedSAgo` is the silence the
+  last DECISION closed and an interrupt does not stamp that clock, so on
+  this turn it would be a number about a different question. `_without_map`
+  is the picture's rule (`_without_pictures`): the state stays whole and the
+  view narrows.
   """
+  state = {k: v for k, v in state.items() if k != "eventMap"}
   return (f"You are part-way through `{errand}`, and {why}.\n\n"
           + json.dumps(state, indent=1, sort_keys=True)
           + "\n\nCarry on and finish it, or stop now, put the tool back on "

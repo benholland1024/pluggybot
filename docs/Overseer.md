@@ -325,8 +325,23 @@ What code keeps, in order, before anything moves:
    still. Paid before anything prints (`Ledger.spend`, no debt); an
    unaffordable tool is refused before a second passes.
 4. **The seam** (`HubLifecycle.hang_tool`, §2c of the slice plan on #168):
-   between errands, fork empty, single robot. Checked before the points
-   move, so a refused hang never follows a paid print.
+   between errands, fork empty — **for every robot in the world**.
+   Checked before the points move, so a refused hang never follows a paid
+   print. The one refusal that can arrive after the money is the seam
+   breaking DURING the print (a death mid-fabrication); it says so, with
+   its cost on the event.
+
+A `build_tool` whose spec names **no part** never reaches any of this: it
+is dropped at `Menu.validate` (`overseer.idle_build`), silently, on
+`pin: ""`'s terms. Constrained decoding fills every required property, and
+`spec.name` is a required string the decoder fills with the nearest string
+the prefix offers — the worked example's `"scoop"` — while `parts` is the
+one required field whose zero the prompt cannot supply. So an empty part
+list is a decoder saying nothing, not a robot describing a tool, and 433
+of them were being recorded as failed builds (#315). **One named part,
+however wrong, IS a build**: it reaches the workshop and is refused out
+loud, with the buildable catalog named in the refusal, because a refusal
+is the only thing here that teaches and a drop teaches nothing.
 
 Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
@@ -340,6 +355,70 @@ language, and the tool is fetched like any module: its bay indexes
 `STATION_YS` past the five, and every swap, standoff and tag fix works on
 the rail as it does on the first rack, because the rail's stations are
 commissioned in the same frame.
+
+**A pair hangs a tool** (issue #315). Until then the seam refused a pair
+outright and `build_pair` did not even keep the `MjSpec` it compiled
+from, so the deployed world — which is a pair — advertised a workshop in
+its prompt, required `build_tool` in its schema, and could not hang
+anything: 433 specs in seven days, 433 refused. A pair is two lifecycles
+over one `(model, data)`, and `MjSpec.recompile` returns NEW objects, so
+the rule is that **the recompile is one robot's to run and everybody's to
+follow**: `_recompile` rebinds every lifecycle in the world and fires
+each one's `on_rebind` sinks, and `tick.run_many` reads the world off the
+swap on every step rather than capturing it at loop start. What that buys
+is bounded by what the seam still refuses: a tool controller (the pen,
+the claw, the dispenser) is built per errand and is never rebound, so
+**every** robot has to be between errands with its fork empty, and the
+refusal names the busy one — "wait" and "never" are different answers and
+the robot is the one who has to tell them apart.
+
+⚠ **A print is longer than an errand**, and that nearly made the fix
+worse than the defect. The scoop prints and assembles for 896 sim s; an
+errand runs 200–500. So on a pair the other robot is usually mid-errand
+by the time the parts are ready — and since the seam must refuse while a
+peer is mid-errand, the build was **paid for and lost**: no tool, no
+record, the points gone, which is the one outcome #315 set out to
+prevent. Two halves fix it. The assembly is done, so the tool **hangs
+when there is room**: the robot stands where it already was and polls
+`seam_busy()` — its own predicate precisely so a wait can never mask a
+permanent refusal (no spec, no rail, no such bay) as something worth
+waiting for — for up to `HANG_WAIT_S`, one full errand's worth. And if
+the rack never frees, **the points still buy something**: the tool is
+recorded, the robot is told, and `restore_tools` hangs it at the next
+mission start without paying again, which is the path a tool built
+yesterday already takes.
+
+The rail itself is the **world's**, like the first rack: one
+`rack_inventory` for the pair, so a tool either robot builds is one both
+can see and fetch. "The bay you name is taken" is therefore a rule about
+a robot's OWN tools — a bay the other robot's tool hangs in is refused
+with whose it is, on `bay_index`'s terms for the five originals, and so
+is retiring it. Nothing arbitrates the rail beyond that: which of three
+bays each robot takes is the minds' to negotiate, as tool contention on
+the first rack always has been.
+
+**Whose tool is it, and which tool does a procedure need** (issue #324).
+Two facts the robot could previously only learn by failing. A built bay
+says `{module, by}` — `by` is "you" or the other robot's display name —
+because the rail is shared and a bay may hold a tool this robot may
+neither take nor retire; ⚠ the TAG cannot carry it, since a built
+module's tag is `15 + bay` and belongs to the bay, reused by whatever
+hangs there next. And a library entry says `needs`: the modules its
+`move` and `read` calls require, off the `requires` that
+`workshop/build.py` puts on every axis and sensor a built tool brings.
+The source was always shown, so the association was inferable; this
+states it, which is the difference between reading your own code and
+being told what to fetch.
+
+⚠ **A retired tool takes its procedures with it, now DURING a run.** An
+unknown axis is refused at `define` and again when the library loads, so
+a restart always marked a procedure whose tool was gone — but nothing did
+it mid-day, and the workshop can retire a tool mid-day. Such a procedure
+stayed in `runnable()` and in the action enum, and the robot found out by
+committing an errand to it. `Library.revalidate` recompiles every entry
+whenever the rail changes, for every robot in the world; entries are kept
+and MARKED, never dropped, so rebuilding the tool makes them runnable
+again.
 
 What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
 JSON per tool. Each is re-validated against today's catalog when the
@@ -988,11 +1067,44 @@ otherwise).
   in and becomes a thing the map *does* — which is what makes removing it
   possible and, deliberately, fatal. **Going unminded is a death**
   (`UNMINDED_AFTER_S` = 1800 sim s, measured: the worst healthy gap between
-  decisions across the committed LLM days is 833 s). The clock is reset by
+  decisions across the committed LLM days is 833 s; re-read on the deployed
+  pair 2026-09-22 at worst 1375 s over 915 gaps and left where it is —
+  Evaluation.md §2). The clock is reset by
   the ASK, not by the answer (an outage is the box, and booking it as the
   agent going quiet is #141's confound), it is armed only where there is a
   map, and it is **not prevented in code** — a map that cannot remove its own
-  `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves.
+  `ask` row would be a rail. The prompt (`EVENT_MAP_RULE`) says both halves,
+  and since #322 it says the NUMBER: every other lethal threshold is shown
+  (`reserveWh`, `heartPrice`, `hungryAt`), and run 1805 wrote itself `every
+  3600 -> ask`, believed it had an hourly check-in and died at 2597 s. ⚠ The
+  number does not ship alone — a row fires when the robot is next free, so a
+  rule at exactly the limit arrives late every time an errand straddles it,
+  and the rule says so. A BUFFERED number was the alternative and was
+  rejected: the robot can see `lastAskedSAgo` since #317, so a stated
+  threshold that is not the real one is one it could catch us in.
+- **An interrupt consults the mind, and counts** (issue #322). The same row
+  reaches `_arbitrate` between errands and `_ask_interrupt` mid-errand — a
+  binary rather than a menu, but the same mind — and until #322 only the
+  first stamped the clock, so whether a consultation counted depended on
+  when the row happened to come true. An abort already re-stamped by
+  accident (the row stays queued); what this fixes is an interrupt answered
+  *carry on*.
+- **The list is read back to the agent** (issue #317): `eventMap` in the
+  volatile context is `{rows, lastAskedSAgo}` — the rows in force as an
+  answer writes them, and the silence this question closed
+  (`HubLifecycle._stamp_ask` takes the gap BEFORE it restamps the clock, or
+  a number read inside the ask it belongs to is always zero). Absent where
+  the world honours no map, `[]` where there is one and nothing in it —
+  which is the case that kills. ⚠ **The rows and the clock, never the
+  verdict**: no `keepsAsk`, no countdown, no warning, because `events.score`
+  answers exactly that off the config and it is the question the arm asks.
+  Why it was needed: of 502 live edits 35 left no `ask` row and **none was
+  ever undone** (undoing one needs a decision, and a decision needs an ask),
+  13 of them collapsing a six-to-nine-row map to a single row under a rule
+  saying what you send replaces what is there. The `unminded` death line now
+  names which of the three silences it was (`events.silence`: an empty list,
+  a list with no `ask`, an `ask` on an event that never came round), because
+  History is where a later life reads what happened to this one.
 - **Ten event types** (`events.EVENT_TYPES`): `nothing_to_do`,
   `task_complete`, `task_failed` (these two take a `kind` filter),
   `decision_failed`, `battery_below`, `battery_above`, `points_below` (level
@@ -1034,7 +1146,9 @@ otherwise).
   its own terms. ⚠ A TRUE DEATH DOES re-arm it: the map is the overseer's
   and outlives the robot, so the next generation inherits rows it never
   wrote, and "with its eyes open" cannot be said of a choice its
-  predecessor made.
+  predecessor made — and since #317 the new robot's first History line SAYS
+  the list is the one it was left. Whether the map should be ARCHIVED with
+  the rest at a true death is a design question neither issue answers.
 - **The migration.** `standing_order` keeps working for one version: it
   writes a `decision_failed` row **in place**, and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are
@@ -1044,7 +1158,15 @@ otherwise).
 - **What the record gets**: `stats()["eventMap"]` — origin, the map at every
   edit, what fired, what failed and why, and `events.score` (did it write a
   charging rule, at what fractions, does it keep an `ask`, does it map its own
-  failure, are its thresholds ordered) — a map is evaluable without flying.
+  failure, are its thresholds ordered, and since #322 `shadowed` — how many
+  rules it believes it has and does not, because a discrete occurrence is
+  consumed by the first row that matches and everything under a broader row
+  on the same event is dead; run 1799 died `unminded` holding
+  `nothing_to_do -> take_task` above `nothing_to_do -> ask`. ⚠ Discrete
+  events only: a level row is re-armed whether or not one fired and a
+  periodic row that lost a tick stays overdue, so neither is ever
+  unreachable. ⚠ Reordering is not the repair and it is reported as a dead
+  ROW — two unfiltered rules on one event can only ever be one rule) — a map is evaluable without flying.
   The run record is the research artifact; since issue #238 the CURRENT
   map also rides the stream as an `event_map` message (on open and on every
   edit, `Overseer.on_map`; protocol/README.md), so the site's panel and
