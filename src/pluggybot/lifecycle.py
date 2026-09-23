@@ -5760,10 +5760,15 @@ def shown_offers(life) -> list[dict]:
   flag is computed here rather than left to the model, because "can I
   afford this" is arithmetic with a right answer (issue #21). Never an
   offer done TO this robot, nor one it declined (issue #228).
+
+  ⚠ FILTERED ON `claim_budget_wh`, THE OFFER RAIL, NOT ON `spendable_wh`:
+  on `autonomous` the rail is off and the rules say an offer it cannot pay
+  for "is listed like any other". Filtered on the pack, below ~37 % the
+  deployed robots were shown an empty board under that sentence.
   """
   if life.tasks is None:
     return []
-  return life.tasks.context(float(life.data.time), life.spendable_wh,
+  return life.tasks.context(float(life.data.time), life.claim_budget_wh,
                             limit=TASKS_SHOWN, reader=life.robot_name,
                             hidden=life.declined)
 

@@ -270,7 +270,10 @@ wording, settled direction. Before doing anything, read:
   reason is additive, renaming one is breaking (two-repo contract).
 - **The `autonomous` arm** (issue #115; `--rung A0|A1`): THREE rails come off
   together — `HubLifecycle.autonomous`, read by `needs_charge`,
-  `_afford_next` and `claim_budget_wh` and by NOTHING else — the prompt is
+  `_afford_next` and `claim_budget_wh` and by NOTHING else (the offers the
+  model is SHOWN go through `claim_budget_wh` too, `lifecycle.
+  shown_offers`: until #333 they were filtered on the pack, so every
+  `autonomous` series before it had rail three on in the VIEW) — the prompt is
   corrected in the same change (`RULES_AUTONOMOUS`, built from `RULES` by
   ASSERTED replacements so a reworded needle fails at import), and
   `model_state` drops the code-computed verdicts (`affordableActions` /

@@ -209,6 +209,32 @@ def test_all_three_rails_still_fire_on_the_control():
   assert dear.claimable(0.0, None) is True, "...and off, it is takeable"
 
 
+@pytest.mark.parametrize("autonomous", [False, True])
+def test_an_offer_the_pack_cannot_fund_is_shown_exactly_where_the_filter_is_off(
+    autonomous):
+  """Rail three is OFF on this arm, and the rules tell the robot so -- "no
+  code hides a job you cannot afford", "an offer you cannot pay for is
+  listed like any other". The claim gate read `claim_budget_wh`, but the
+  context kept filtering on `spendable_wh`, so below ~37 % pack the deployed
+  robots were shown an empty board: the rail, at presentation, under a rule
+  saying it was gone. Found with issue #333, whose `nothing_to_do` kind
+  reads the same list. Shown to fail by filtering `shown_offers` on
+  `spendable_wh` again."""
+  from pluggybot.economy.tasks import TaskBoard
+  board = TaskBoard(path=None)
+  life = _life(autonomous=autonomous, tasks=board)
+  task = board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
+  life.battery.energy_wh = life.reserve_margin_wh + task.estimate_wh / 2
+  assert not task.claimable(0.0, life.spendable_wh), "the pack cannot fund it"
+  shown = [t["id"] for t in lc.shown_offers(life)]
+  assert shown == ([task.id] if autonomous else [])
+  if autonomous:
+    #  ...and the model is not told whether it can pay (AUTONOMOUS_HIDDEN_OFFER)
+    [offer] = ov.model_state({"offeredTasks": lc.shown_offers(life)},
+                             autonomous=True)["offeredTasks"]
+    assert "claimable" not in offer
+
+
 def test_the_rails_are_read_in_exactly_one_place_each():
   """One flag, three readers, and nothing else. A rail removed somewhere
   this does not name is a rail that comes off on the deployed world too."""
