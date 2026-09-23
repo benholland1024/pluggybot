@@ -1779,8 +1779,8 @@ class HubLifecycle:
         # the next mission start without paying again, which is the same
         # path a tool built yesterday takes. Losing the points AND the
         # tool is the "paid, refused build" this issue exists to prevent.
-        shop.record(tool, spec, idx, bill, t)
         why = [str(e), "built and paid for; it hangs when the rack is free"]
+        shop.record(tool, spec, idx, bill, t, reasons=why)
         shop.refuse(name, why, t)
         self._say(f"WORKSHOP my {name} is built but cannot hang yet: {e}")
         self._remember(f"built my tool {name}; it hangs when the rack is free")
@@ -1857,6 +1857,7 @@ class HubLifecycle:
         entry.tool, entry.reasons = None, [f"could not be hung again: {e}"]
         self._say(f"WORKSHOP could not hang my {entry.name} again: {e}")
         continue
+      entry.reasons = []          # on the rack now; why it was not is stale
       hung.append(entry.name)
     return hung
 

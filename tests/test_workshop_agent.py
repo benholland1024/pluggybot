@@ -667,6 +667,13 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   assert "module_scoop" not in life.rack_inventory    # not on the rack
   assert life.ledger.balance() == 97                  # but paid, once
   assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
+  # ⚠ AND THE ROBOT IS NOT TOLD IT HAS IT. `hung` in the context means ON
+  # THE RACK; the entry still VALIDATES (that is what re-hangs it next
+  # run), and telling the robot those are the same thing would leave it
+  # believing it had a tool it does not.
+  shown = life.overseer.workshop.as_context()[0]
+  assert shown["hung"] is False
+  assert any("hangs when the rack is free" in r for r in shown["reasons"])
   # ⚠ THE NEXT RUN HANGS IT, and does not pay again
   monkeypatch.undo()
   again = _life(tmp_path, points=100, workshop=Workshop(tmp_path / "tools"),
@@ -674,6 +681,9 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
   assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
   assert again.ledger.balance() == 100
+  # ...and now it IS hung, so why it was not is stale and gone
+  shown = again.overseer.workshop.as_context()[0]
+  assert shown["hung"] is True and "reasons" not in shown
 
 
 def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
