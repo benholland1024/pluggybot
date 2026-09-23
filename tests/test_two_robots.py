@@ -414,8 +414,11 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
                      tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
   arrange_game(lives)
-  lives[0].thoughts.learn("the other one is quick", t=0.0)
-  lives[1].thoughts.learn("the first one is slow", t=0.0)
+  # `pin`, not `learn`: the verb was retired with the memory tiers (issue
+  # #221) and this line has raised `AttributeError` at setup ever since --
+  # an endurance test nobody ran is an endurance test nobody has.
+  lives[0].thoughts.pin("the other one is quick", t=0.0)
+  lives[1].thoughts.pin("the first one is slow", t=0.0)
   path = str(tmp_path / "pair.jsonl")
   run_pair(lives, max_sim_time=12.0, record=path)
   rows = [json.loads(line) for line in open(path)]
