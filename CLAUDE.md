@@ -1047,7 +1047,14 @@ save a filmstrip PNG named after the script.
   60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
   DECISIONS, said so at the constants) via `Ledger.spend` (no debt), then
   `_fabricate_routine` (its own routine so a test STUBS the ~15 sim-minute
-  wait and pins the seconds), then `hang_tool`. Every step a `tool` event
+  wait and pins the seconds), then `hang_tool`. ⚠ **A PRINT IS LONGER THAN
+  AN ERRAND** (896 sim s against 200–500), so on a pair the rack is
+  usually occupied again by the time the parts are ready: the finished
+  build WAITS for room (`seam_busy()` — the one refusal that can change
+  while the robot stands still, polled by `_await_seam_routine`;
+  `HANG_WAIT_S` 600 s), and if the rack never frees the tool is RECORDED
+  and hangs at the next mission start, paid once. Without both, a build on
+  a pair was paid for and LOST (issue #315). Every step a `tool` event
   (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
   `spec.unbuildable` is ONE predicate for the validator and the prompt's
   parts list (`workshop_rule()`, built off the catalog) AND for the

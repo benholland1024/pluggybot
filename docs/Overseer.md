@@ -372,6 +372,22 @@ the claw, the dispenser) is built per errand and is never rebound, so
 refusal names the busy one — "wait" and "never" are different answers and
 the robot is the one who has to tell them apart.
 
+⚠ **A print is longer than an errand**, and that nearly made the fix
+worse than the defect. The scoop prints and assembles for 896 sim s; an
+errand runs 200–500. So on a pair the other robot is usually mid-errand
+by the time the parts are ready — and since the seam must refuse while a
+peer is mid-errand, the build was **paid for and lost**: no tool, no
+record, the points gone, which is the one outcome #315 set out to
+prevent. Two halves fix it. The assembly is done, so the tool **hangs
+when there is room**: the robot stands where it already was and polls
+`seam_busy()` — its own predicate precisely so a wait can never mask a
+permanent refusal (no spec, no rail, no such bay) as something worth
+waiting for — for up to `HANG_WAIT_S`, one full errand's worth. And if
+the rack never frees, **the points still buy something**: the tool is
+recorded, the robot is told, and `restore_tools` hangs it at the next
+mission start without paying again, which is the path a tool built
+yesterday already takes.
+
 The rail itself is the **world's**, like the first rack: one
 `rack_inventory` for the pair, so a tool either robot builds is one both
 can see and fetch. "The bay you name is taken" is therefore a rule about
