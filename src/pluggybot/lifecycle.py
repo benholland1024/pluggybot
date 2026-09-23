@@ -1757,11 +1757,16 @@ class HubLifecycle:
     """
     from pluggybot.procedure.steps import _carried
     for life in (self, *self.peers):
-      if life.state in self.MID_ERRAND or _carried(life):
-        who = ("" if life is self
-               else f"{life.robot_name or life.root} is busy: ")
-        return (who + "a tool is hung between errands with the fork empty, "
-                "never mid-errand")
+      held = _carried(life)
+      if life.state in self.MID_ERRAND or held:
+        # WHAT is in the way, not just the rule (issue #264): a deployed
+        # robot holding a claw it could not stow was told only "never
+        # mid-errand", and specified its tool twice more.
+        what = (f"its fork holds {held}" if held else "it is mid-errand")
+        who = (("your fork holds " + held + ": stow it first -- " if held
+                else "you are mid-errand -- ") if life is self
+               else f"{life.robot_name or life.root} is busy ({what}): ")
+        return (who + "a tool is hung between errands with every fork empty")
     return ""
 
   def can_reshape(self, bay: int) -> None:

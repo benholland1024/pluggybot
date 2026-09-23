@@ -346,3 +346,17 @@ def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypa
   seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
   assert seen is None and unseen.startswith(
     "tag 22 did not decode even from where the house set it out, by (-11.00, -4.50)")
+
+
+def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
+  """A deployed robot holding a claw it could not stow was told only "never
+  mid-errand", and specified its tool twice more: the refusal names the
+  module on the fork, and whose."""
+  from pluggybot.procedure import steps
+  me = SimpleNamespace(peers=[], state="DECIDE", robot_name="Luca", root="pluggybot",
+                       MID_ERRAND=HubLifecycle.MID_ERRAND)
+  monkeypatch.setattr(steps, "_carried", lambda life: "module_claw")
+  assert HubLifecycle.seam_busy(me).startswith("your fork holds module_claw: stow it first")
+  me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]
+  monkeypatch.setattr(steps, "_carried", lambda life: None)
+  assert HubLifecycle.seam_busy(me).startswith("Rowan is busy (it is mid-errand)")
