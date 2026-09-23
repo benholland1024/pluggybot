@@ -1025,7 +1025,6 @@ def test_a_peer_the_drive_stops_short_of_is_not_held_for():
   charge approach from 96 s and a dock to 201 s and none, because arriving
   at the standoff turns the robot to face the rack and sweeps the robot
   parked BESIDE the bay through the corridor."""
-  from pluggybot import tick
   me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
   me._next_near_field = 0.0
   me._near_field_step()
