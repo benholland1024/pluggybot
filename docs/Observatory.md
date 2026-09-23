@@ -47,9 +47,13 @@ field being filled. From here the rows are a signal. What to read:
 - whether a hung tool is ever FETCHED (`procedure` rows naming
   `module_<name>`), which is the question the workshop exists to ask and
   which no deployed row has been able to answer;
-- how often the seam refuses for the peer: one rack, two robots, and a
-  build needs a moment when neither is mid-errand. If that moment is rare
-  the refusal rate says so, and the lever is the loop, not the prompt.
+- how often a finished build has to WAIT for the peer: one rack, two
+  robots, and a print is 896 sim s against an errand's 200-500, so the
+  rack is usually occupied again by the time the parts are ready.
+  `waitedS` on a `tool` row is how long it stood; a `refused` at verb
+  `hang` carrying "hangs when the rack is free" means the tool is built,
+  paid for and RECORDED, and went up at the next mission start instead.
+  If either is common the lever is the loop, not the prompt.
 
 **Not yet known.** Whether the model fills a part list when the drop stops
 absorbing its answer — `idle_build` is the reason the 433 stop being
