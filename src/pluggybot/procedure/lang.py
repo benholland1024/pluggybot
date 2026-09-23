@@ -109,6 +109,49 @@ class Procedure:
       return None
     return walk(self.body)
 
+  def references(self) -> dict:
+    """Every axis a `move` names and every sensor a `read` names, in source
+    order, deduplicated (issue #324).
+
+    PURE: the tree only, no world. Which MODULE each one needs is
+    `axes.AXES[...].requires`, and resolving that is the caller's job
+    (`Library.as_context`) because it depends on what is registered right
+    now -- and the interesting case is an axis that is NOT.
+    """
+    axes_named: list[str] = []
+    sensors: list[str] = []
+
+    def expr(e):
+      if not isinstance(e, tuple):
+        return
+      if e[0] == "read" and isinstance(e[1], str):
+        sensors.append(e[1])
+      for sub in e[1:]:
+        expr(sub)
+
+    def walk(block):
+      for st_ in block:
+        if st_[0] == "verb":
+          for name, value in st_[2].items():
+            if st_[1] == "move" and name == "axis" and value[0] == "str":
+              axes_named.append(value[1])
+            expr(value)
+        elif st_[0] == "set":
+          expr(st_[2])
+        elif st_[0] == "if":
+          for cond, body in st_[1]:
+            expr(cond)
+            walk(body)
+          walk(st_[2])
+        elif st_[0] == "repeat":
+          walk(st_[3])
+        elif st_[0] == "while":
+          expr(st_[1])
+          walk(st_[2])
+    walk(self.body)
+    return {"axes": tuple(dict.fromkeys(axes_named)),
+            "sensors": tuple(dict.fromkeys(sensors))}
+
   def as_dict(self) -> dict:
     return {"name": self.name, "source": self.source,
             "budgetS": self.budget_s, "stepsBudget": self.steps_budget}
