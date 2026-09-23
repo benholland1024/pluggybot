@@ -10,6 +10,27 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The dock camera sees the rack after a bench offer (#264) — opens when this PR is deployed
+
+**A bug fix; a reading from before it is suspect wherever work starts at
+the rack.** Setting the bench's unknown mass (#227) ran `mj_setConst` on
+the live model, which re-derives the world's pinned camera extent (37.2 ->
+70.0) and put the dock camera's near plane past the bay standoff. From
+then to the process's end `bay_fix` read nothing and every pick and stow
+ran on dead reckoning alone: 13 of 15 picks failed on build `0f2faf5`.
+The mass is set when a `find_mass` offer lands, and at a run's start while
+an open one came back off the board (`restore_bench`), so how many runs
+were blind since the bench reached main (2026-09-20) depends on when an
+offer was open — and before #297 an offer could outlive restarts (its
+deadline was on the clock of the run that made it). Drawing, the census,
+the claw, the tower, the bench itself and a built tool all start with a
+pick. No prompt, table or schema moves.
+
+**What the period is for.** Picks first (`SWAP_PICK` in the container
+log), then task income and `unpaid` deaths against the period before.
+Where an earlier reading put work that starts at the rack down to the
+mind, the before/after says whether it was the rack.
+
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 
 **Three changes, one regime break.**
