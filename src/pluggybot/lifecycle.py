@@ -1812,9 +1812,20 @@ class HubLifecycle:
     bounds it at one full errand's worth (measured: an errand runs
     200-500 sim s; `solutions.TOWER` is 489), because a peer that is
     always busy is a world to report, not one to stand in for ever.
+
+    ⚠ AND IT IS BOUNDED BY THE PACK AS WELL AS THE CLOCK. Standing still
+    is 10.5 W with the near-field camera on: the print alone is 2.6 Wh, a
+    third of home's hosting pack, and the full wait would take it to 4.4 Wh
+    -- 55 %, against a 2.05 Wh reserve. The ROBOT chose to build; the
+    waiting is CODE's, so code stops spending its pack once what is left is
+    the return trip's. Not a rail and not on `self.autonomous`: every arm
+    gets it, because on no arm should the loop's own retry be what strands
+    the robot. Giving up early is not a loss -- the tool is recorded and
+    hangs at the next mission start.
     """
     t0 = float(self.data.time)
-    while self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S:
+    while (self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S
+           and self.battery.energy_wh > self.low_battery_wh):
       yield from self.mission._drive_routine(SEAM_POLL_S, 0.0, 0.0)
     return float(self.data.time) - t0
 

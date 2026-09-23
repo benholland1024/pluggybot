@@ -670,3 +670,34 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
   assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
   assert again.ledger.balance() == 100
+
+
+def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
+  """Standing still is 10.5 W: the print alone is 2.6 Wh, a third of
+  home's hosting pack, and a full 600 s wait on top would take it to 55 %
+  against a 2.05 Wh reserve. The ROBOT chose to build; the WAITING is
+  code's, so code stops spending the pack once what is left is the return
+  trip's. Not a rail — it is on every arm, because on no arm should the
+  loop's own retry be what strands the robot."""
+  life = _life(tmp_path, points=100)
+  busy = {"why": ""}
+  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
+  real = life.mission._drive_routine
+
+  def fabricate(seconds):
+    life.waited.append(seconds)
+    busy["why"] = "Rowan is busy: mid-errand"      # ...and never frees
+    yield from real(0.2, 0.0, 0.0)
+  life._fabricate_routine = fabricate
+  # a pack already down to its reserve: the clock has 600 s left to run
+  life.battery.energy_wh = life.low_battery_wh
+  t0 = float(life.data.time)
+
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
+                                            "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  assert events[-1]["waitedS"] < 5.0                # gave up at once
+  assert float(life.data.time) - t0 < 5.0
+  # ...and gave up is not lost: recorded, paid once, hangs next run
+  assert life.overseer.workshop.names() == ("scoop",)
+  assert life.ledger.balance() == 97
