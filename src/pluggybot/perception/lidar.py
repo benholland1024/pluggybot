@@ -91,6 +91,18 @@ class Lidar:
     self.sigma_frac = sigma_frac    # proportional term: ±1 % of range
     self.dropout = dropout          # returns lost to dark/specular surfaces
     self.rng = np.random.default_rng(seed)
+    #: ...and a SECOND stream for the returns that come back off another
+    #: robot (issue #316). A peer return is as noisy as any other -- it is
+    #: a measurement -- but drawing its noise from the room's stream would
+    #: have moved every reading the MAP takes in a pair world the moment
+    #: peers stopped being thrown away, and then no pair flight could say
+    #: whether it changed because the reflex now brakes or because the
+    #: sensor rolled different numbers. MEASURED both ways: with one
+    #: stream the map's 20-scan hash moved, with two it is byte-identical
+    #: to the scan before this issue. Per-ray noise is IID either way, so
+    #: nothing about the sensor's honesty rests on which stream it is
+    #: drawn from.
+    self.peer_rng = np.random.default_rng(seed + 1)
     self.ray_angles = np.linspace(-math.pi, math.pi, n_rays, endpoint=False)
     self._dirs = np.stack([np.cos(self.ray_angles),
                            np.sin(self.ray_angles),
@@ -182,9 +194,10 @@ class Lidar:
         angles.append(self.ray_angles[i])     # nothing out there: free to max
         ranges.append(self.max_range)
         continue
-      if self.rng.random() < self.dropout:
+      rng = self.peer_rng if peer else self.rng
+      if rng.random() < self.dropout:
         continue                              # surface gave no return
-      noisy = dist + self.rng.normal(
+      noisy = dist + rng.normal(
         0.0, self.sigma_m + self.sigma_frac * dist)
       out_a, out_r = (peer_angles, peer_ranges) if peer else (angles, ranges)
       out_a.append(self.ray_angles[i])

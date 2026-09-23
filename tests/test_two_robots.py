@@ -732,6 +732,36 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   room = np.abs(angles) < 0.15
   assert not room.any() or ranges[room].min() > 3.0, \
     "the other robot is still in the map's scan"
+  # ⚠ A PEER RETURN MAY NOT DRAW ON THE MAP'S NOISE STREAM (`Lidar.peer_rng`).
+  # With one stream, giving the reflex its peer returns would have moved
+  # every reading the MAP takes in a pair world -- and then no pair flight
+  # could say whether it changed because the reflex brakes now or because
+  # the sensor rolled different numbers. MEASURED both ways: with two
+  # streams a pair world's 20-scan map hash is identical to the scan
+  # before issue #316; with one it is not.
+  #
+  # Counted rather than hashed: at `dropout` 0 every room ray that HIT
+  # draws exactly twice (the dropout roll and the noise), a ray that
+  # returned nothing draws not at all, and a peer ray must draw neither.
+  class Counting:
+    def __init__(self, inner):
+      self.inner, self.draws = inner, 0
+
+    def random(self, *a, **kw):
+      self.draws += 1
+      return self.inner.random(*a, **kw)
+
+    def normal(self, *a, **kw):
+      self.draws += 1
+      return self.inner.normal(*a, **kw)
+
+  m.lidar.dropout = 0.0
+  m.lidar.rng = counted = Counting(np.random.default_rng(7))
+  room_a, room_r, peer_a, _ = m.lidar.scan_split(data)
+  assert peer_a.size, "no peer returns in this frame at all"
+  hits = int((room_r < m.lidar.max_range).sum())
+  assert counted.draws == 2 * hits, \
+    f"the map's stream was drawn {counted.draws} times for {hits} of its own returns"
   # A world with nobody else in it splits into nothing: the single-robot
   # path is the same ray loop it always was.
   m.lidar._other_geoms = set()
