@@ -1254,10 +1254,27 @@ save a filmstrip PNG named after the script.
   network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
   the traversable mask at plan time, a stagnated drive with another
   robot within `OTHER_NEAR_M` WAITS (`OTHER_WAIT_S`) instead of failing,
-  and each lidar DROPS the other robot's body from its scans
-  (`Lidar.exclude_robot`) — measured: painted into the grid and inflated,
-  a robot driving past walled in the robot it passed, which planned None
-  from its own cell for 12 s and gave up the bay. ⚠ One rack, one charge
+  and each lidar keeps the other robot OUT OF THE MAP AND IN THE REFLEX
+  (`Lidar.scan_split`, issue #316: one set of casts, the room's returns
+  and the peer's) — measured: painted into the grid and inflated, a robot
+  driving past walled in the robot it passed, which planned None from its
+  own cell for 12 s and gave up the bay; and dropped from the scan
+  outright, the 0.25 m front stop was blind to the only thing in the world
+  that moves (382 `met` and nine `stuck` deaths in the week that found
+  it). A robot-to-robot CONTACT is an `encounter` row (`touched` /
+  `separated`, `ENCOUNTER_PHASES`), not only `collision_steps`, which is
+  on no record and no wire. ⚠ **THE MASK SWALLOWS A GOAL INSIDE IT**
+  (issue #313): the nearest cell A* may plan to is (0.6 − d) from the
+  goal and a stagnated drive counts as arrived only inside
+  `CLOSE_ENOUGH_M` (0.15), so a peer within **0.45 m** of a bay standoff
+  makes that bay unreachable however many attempts are spent on it —
+  MEASURED 0/3 picks with a robot at the neighbouring standoff (0.26 m)
+  against 3/3 at 0.56 m. `HubMission.peer_on_the_goal` is that arithmetic
+  and has one home; `swap_at_bay_routine` answers `peer-at-bay` and the
+  lifecycle names the robot and the distance (`peer_at_the_bay`), because
+  "no route" sent one robot looking for a fault in its own pen.
+  `RACK_CLEAR_M` does not cover it: that moves a robot STANDING BY, and
+  the one in the way is charging or swapping. ⚠ One rack, one charge
   bay, contended and unarbitrated: a scripted pair sent for the same tool
   ends with the second's pick failing honestly at an empty bay; two robots
   needing to charge at once is a death the second bay (later slice)

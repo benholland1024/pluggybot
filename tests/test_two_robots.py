@@ -414,8 +414,11 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
                      tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
   arrange_game(lives)
-  lives[0].thoughts.learn("the other one is quick", t=0.0)
-  lives[1].thoughts.learn("the first one is slow", t=0.0)
+  # `pin`, not `learn`: the verb was retired with the memory tiers (issue
+  # #221) and this line has raised `AttributeError` at setup ever since --
+  # an endurance test nobody ran is an endurance test nobody has.
+  lives[0].thoughts.pin("the other one is quick", t=0.0)
+  lives[1].thoughts.pin("the first one is slow", t=0.0)
   path = str(tmp_path / "pair.jsonl")
   run_pair(lives, max_sim_time=12.0, record=path)
   rows = [json.loads(line) for line in open(path)]
@@ -640,7 +643,8 @@ def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hyster
   assert len(events) == 1, "a pair hovering between the thresholds chattered"
   apart(2.0)
   assert [e["phase"] for e in events] == ["met", "parted"]
-  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
+  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1,
+                            "touching": False, "bumps": 0}
   assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)
 
 
@@ -676,3 +680,254 @@ def test_the_second_robot_wears_its_own_livery_and_nothing_else_is_repainted():
   # ...and the paint is opt-out: `None` attaches an identical twin.
   twin = world_with_robots("models/room_hub.xml", second_at=PARK, chassis_rgba=None)
   assert np.allclose(twin.geom(SECOND.el("chassis")).rgba, CHASSIS_RGBA)
+
+
+# ---- the pair as an OBSTACLE (issues #316, #313) -----------------------------
+
+
+def test_the_front_stop_sees_the_other_robot_and_the_map_still_does_not():
+  """Issue #316. One scan fed two consumers with opposite needs -- the map,
+  which must not contain the other robot (#167: painted in and inflated, a
+  robot driving past walls in the robot it passed), and the 0.25 m reflex,
+  which must -- and the exclusion silenced both. The only moving obstacle
+  in the world was the one thing no sensor on board could see: `met` 382
+  against nine `stuck` deaths in the seven days that found it.
+
+  Drive one robot at a stationary peer and it stops. Take `scan_split`
+  away -- feed `grid.update` and the reflex the same filtered scan -- and
+  it drives on into it.
+  """
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(0.5, 3.0, 0.0)                  # facing +x, the other 1.5 m ahead
+  m.lidar.exclude_robot(SECOND.root)         # as `pair.build_pair` does
+  mujoco.mj_forward(model, data)
+  for _ in range(40):                        # stop on the claim: ~0.2 s a go
+    m.run(m._drive_routine(0.2, 0.3, 0.0))
+    if m.backoff_until > 0.0:
+      break
+  assert m.backoff_until > 0.0, "the reflex never armed for the other robot"
+  assert m.pose[0] < 1.6, "stopped before it could have seen anything"
+  # ...and the map is still innocent of it: no cell under the other robot
+  # is an obstacle, which is the half #167 measured and this must not undo.
+  ix, iy = m.grid.world_to_cell(2.0, 3.0)
+  around = m.grid.grid[iy - 3:iy + 4, ix - 3:ix + 4]
+  assert (around <= 0.0).all(), "the other robot was painted into the map"
+
+
+def test_a_scan_answers_the_room_and_the_peer_apart():
+  """`Lidar.scan_split` is the whole of the fix: one set of casts, the
+  room's returns and the peer's, and `scan()` still answers the map's."""
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(0.5, 3.0, 0.0)
+  mujoco.mj_forward(model, data)
+  m.lidar.exclude_robot(SECOND.root)
+  angles, ranges, peer_angles, peer_ranges = m.lidar.scan_split(data)
+  ahead = np.abs(peer_angles) < 0.15
+  assert ahead.any() and peer_ranges[ahead].min() < 1.6, \
+    "the peer's own returns are missing"
+  room = np.abs(angles) < 0.15
+  assert not room.any() or ranges[room].min() > 3.0, \
+    "the other robot is still in the map's scan"
+  # ⚠ A PEER RETURN MAY NOT DRAW ON THE MAP'S NOISE STREAM (`Lidar.peer_rng`).
+  # With one stream, giving the reflex its peer returns would have moved
+  # every reading the MAP takes in a pair world -- and then no pair flight
+  # could say whether it changed because the reflex brakes now or because
+  # the sensor rolled different numbers. MEASURED both ways: with two
+  # streams a pair world's 20-scan map hash is identical to the scan
+  # before issue #316; with one it is not.
+  #
+  # Counted rather than hashed: at `dropout` 0 every room ray that HIT
+  # draws exactly twice (the dropout roll and the noise), a ray that
+  # returned nothing draws not at all, and a peer ray must draw neither.
+  class Counting:
+    def __init__(self, inner):
+      self.inner, self.draws = inner, 0
+
+    def random(self, *a, **kw):
+      self.draws += 1
+      return self.inner.random(*a, **kw)
+
+    def normal(self, *a, **kw):
+      self.draws += 1
+      return self.inner.normal(*a, **kw)
+
+  m.lidar.dropout = 0.0
+  m.lidar.rng = counted = Counting(np.random.default_rng(7))
+  room_a, room_r, peer_a, _ = m.lidar.scan_split(data)
+  assert peer_a.size, "no peer returns in this frame at all"
+  hits = int((room_r < m.lidar.max_range).sum())
+  assert counted.draws == 2 * hits, \
+    f"the map's stream was drawn {counted.draws} times for {hits} of its own returns"
+  # A world with nobody else in it splits into nothing: the single-robot
+  # path is the same ray loop it always was.
+  m.lidar._other_geoms = set()
+  _, _, alone_a, alone_r = m.lidar.scan_split(data)
+  assert alone_a.size == 0 and alone_r.size == 0
+
+
+def test_a_robot_that_drives_into_its_pair_leaves_a_row():
+  """Issue #316's fourth question: a collision left nothing behind but
+  `HubSwap.collision_steps`, which is on no record and no wire, so a week
+  of `stuck` deaths could not be attributed either way. Contact is now a
+  phase of the encounter -- sensed off the contact array, latched like the
+  plate's press."""
+  from pluggybot.activity.encounter import Encounters
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  enc = Encounters(model, FIRST, SECOND)
+  events = []
+  enc.on_event.append(events.append)
+  enc.sense(model, data)
+  assert enc.bumps == 0 and not enc.flags["touching"]
+  # ...now put the second robot where its body meets the first's, which
+  # starts at the origin: the chassis is 0.24 m long, so 0.2 m of
+  # separation is two chassis in contact (measured: 24 contact points; at
+  # 0.25 m, none).
+  adr = SECOND.qpos_adr(model)
+  data.qpos[adr:adr + 2] = [0.2, 0.0]
+  mujoco.mj_forward(model, data)
+  assert data.ncon, "no contacts at all: the world is not touching anything"
+  enc.sense(model, data)
+  touched = [e for e in events if e["phase"] == "touched"]
+  assert touched, "two robots in contact and nothing on the wire"
+  assert set(touched[0]["robots"]) == {FIRST.root, SECOND.root}
+  assert enc.bumps == 1 and enc.flags["touching"]
+  enc.sense(model, data)
+  assert enc.bumps == 1, "one contact, counted twice"
+  # ...and it is over once they are apart, past the bumper's own hold.
+  data.qpos[adr:adr + 2] = [2.0, 3.0]
+  mujoco.mj_forward(model, data)
+  data.time += 1.0
+  enc.sense(model, data)
+  assert not enc.flags["touching"]
+  assert [e["phase"] for e in events][-1] == "separated"
+
+
+def test_a_peer_at_the_neighbouring_bay_puts_the_standoff_out_of_reach():
+  """Issue #313, as arithmetic rather than a correlation.
+
+  `_mask_others` takes 0.60 m out of the traversable mask around the other
+  robot's reported pose, and a stagnated drive counts as arrived only
+  inside 0.15 m -- so a peer nearer the goal than the difference makes
+  arrival impossible however many attempts are spent on it. That is the
+  measured table in #313: a robot at one bay's standoff is 0.26 m from its
+  neighbour's and the pick failed 0/3; 0.56 m away it landed 3/3.
+  """
+  from pluggybot.mission.mission import CLOSE_ENOUGH_M
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  m.grid.grid[:] = -5.0                      # everything known free
+  gx, gy = 2.0, 1.0
+  for beside, reachable in ((0.26, False), (0.56, True)):
+    m.others = [lambda d=beside: (gx + d, gy)]
+    near = m.peer_on_the_goal(gx, gy)
+    path = m._plan_to(gx, gy)
+    assert path is not None
+    short = math.hypot(path[-1][0] - gx, path[-1][1] - gy)
+    assert (near is None) is reachable, f"{beside} m: {near}"
+    # ...and the rule agrees with what the planner actually does, which is
+    # the only reason to trust it: the best cell A* may use is that far off.
+    assert (short < CLOSE_ENOUGH_M) is reachable, f"{beside} m: {short:.3f} m short"
+  m.others = []
+  assert m.peer_on_the_goal(gx, gy) is None
+
+
+def test_a_bay_given_up_for_a_peer_says_so_instead_of_trying_again():
+  """A drive that cannot arrive is not a drive worth a second attempt
+  (issue #313): the swap spent another 90 s timeout and a spin to reach the
+  same unreachable point, then reported "no route" -- and the robot read
+  that as a fault in its own tool."""
+  from pluggybot import tick
+  from pluggybot.mission.mission import bay_standoff
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  data = mujoco.MjData(model)
+  m = HubMission(model, data, viewer=None, realtime=False)
+  m.start_at(1.0, 1.0, 0.0)
+  station = HUB_STATION_YS[0]
+  sx, sy, _ = bay_standoff(station, m.rack)
+  spins = []
+  m._spin_routine = lambda *a, **kw: (spins.append(1), tick.result(None))[1]
+  m.drive_to_routine = lambda *a, **kw: tick.result(False)   # never arrives
+  m.others = [lambda: (sx + 0.26, sy)]
+  why = m.run(m.swap_at_bay_routine(station, "pick", module="module_lcd"))
+  assert why == "peer-at-bay" and spins == []
+  assert m.peer_at_bay_m == pytest.approx(0.26, abs=0.02)
+  # ...and a bay nobody is standing on fails exactly as it always did.
+  m.others = [lambda: (sx + 2.0, sy)]
+  why = m.run(m.swap_at_bay_routine(station, "pick", module="module_lcd"))
+  assert why == "no-route" and len(spins) == 2
+  assert m.peer_at_bay_m is None
+
+
+def test_a_pick_lost_to_a_peer_names_it_in_history():
+  """The narration #313 asks for: which robot, how far off. Rowan
+  diagnosed its pen, told the other robot to move out of a pose measured
+  harmless, and started declining pen jobs -- off a correlation in its own
+  History that no line ever named."""
+  from test_overseer import _lifecycle
+  from pluggybot import tick
+  from pluggybot.mission.errand import Errand
+  from pluggybot.mission.mission import bay_standoff
+  life = _lifecycle("room_hub", errand=False)
+  station = HUB_STATION_YS[0]
+  sx, sy, _ = bay_standoff(station, life.mission.rack)
+
+  class Peer:                                # the public surface, no more
+    robot_name, root = "Rowan", SECOND.root
+
+    class mission:
+      pose_xy = staticmethod(lambda: (sx + 0.26, sy))
+
+  life.peers = [Peer()]
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+
+  def blocked(*a, **kw):                     # what the real swap just did
+    life.mission.peer_at_bay_m = 0.26
+    return tick.result("peer-at-bay")
+
+  life.mission.swap_at_bay_routine = blocked
+  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  errand = Errand(name="carry:test", module="module_lcd", station_y=station,
+                  use_at=(1.0, 1.0), use=lambda _l: {}, needs_use_pose=False)
+  result = life.run_errand(errand)
+  assert result["error"] == "never picked up module_lcd"
+  assert result["peerAtBayM"] == 0.26
+  history = life.thoughts.read("History.md")
+  assert "Rowan was standing 0.26 m from the bay" in history, history
+  assert "the pick missed" not in history, "blamed the tool for a blocked bay"
+
+
+def test_a_charge_bay_blocked_by_a_peer_is_named_but_not_given_up_on():
+  """The asymmetry (issue #313): the SAME arithmetic covers the charge
+  bay -- and the neighbouring tool bay's standoff is 0.200 m from it on
+  the rack prior, so a robot swapping there blocks the approach outright
+  -- but a tool bay given up is a lost errand and a charge given up is a
+  death. So `go_charge_routine` says whose robot it was and still spends
+  both of its attempts."""
+  from test_overseer import _lifecycle
+  from pluggybot import tick
+  from pluggybot.mission.mission import charge_standoff
+  life = _lifecycle("room_hub", errand=False)
+  sx, sy, _ = charge_standoff(life.mission.rack)
+
+  class Peer:
+    robot_name, root = "Rowan", SECOND.root
+
+    class mission:
+      pose_xy = staticmethod(lambda: (sx + 0.2, sy))
+
+  life.peers = [Peer()]
+  life.mission.others = [Peer.mission.pose_xy]
+  spins = []
+  life.mission._spin_routine = lambda *a, **kw: (spins.append(1), tick.result(None))[1]
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  assert life.mission.run(life.go_charge_routine()) is False
+  assert len(spins) == 2, "the charge approach gave up an attempt early"
+  assert any("Rowan is standing 0.20 m from it" in line for line in life.log), life.log[-3:]

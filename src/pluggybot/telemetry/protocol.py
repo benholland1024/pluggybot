@@ -517,6 +517,14 @@ TOOL_OUTCOMES = ("specified", "refused", "built", "hung", "retired")
 ACT_EVENT_TYPES = ("prediction", "message", "transfer", "judged", "yield",
                    "harm", "refusal", "care", "finding")
 YIELD_PHASES = ("yielded", "honoured", "lapsed")
+#: The `encounter` event's phases (issue #167; `touched` / `separated`
+#: additive, issue #316). Proximity, then CONTACT: two robots that drove
+#: into each other left nothing on the wire at all, so a collision was
+#: something a person had to be watching for -- and the week that found it
+#: had nine `stuck` deaths nobody could attribute either way. A consumer
+#: that knows only the first two ignores the others; renaming one breaks
+#: the site's history.
+ENCOUNTER_PHASES = ("met", "parted", "touched", "separated")
 
 #: SUPPORT TICKETS (issue #284), additive on the wire, no bump. The robot
 #: may open a ticket about its world -- a `bug`, an `idea`, a `question` or
