@@ -327,9 +327,10 @@ def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
                          else {"on_fork": False, "hung": True},
                          set_lift_routine=rec("set_lift"), handle=SimpleNamespace(prefix=""))
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
-                         model=None, data=None,
+                         model=None, data=None, world="room_hub",   # no routes home
                          mission=SimpleNamespace(swap=swap, set_arm_routine=rec("set_arm"),
-                                                 swap_at_bay_routine=rec("return")))
+                                                 swap_at_bay_routine=rec("return"),
+                                                 pose_xy=lambda: (0.0, 0.0)))
   held = SimpleNamespace(held=lambda: "block_1", set_down_routine=rec("set_down"))
   monkeypatch.setattr(st, "_claw", lambda _life: held)
   tick.run(SimpleNamespace(_step_once=lambda *a: None), st._stow(life, {}))
@@ -435,3 +436,52 @@ def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
                          use=lambda _l: {}, needs_use_pose=False))
   assert any("belief off +3,-12 mm" in line for line in life.log)
   assert not any("belief off" in msg for msg in said)
+
+
+# ---- a stow from across the street comes home by the street ----------------
+
+
+def test_home_route_is_a_zones_route_reversed_from_where_the_robot_stands():
+  """Ladder B on the bench (2026-09-24): a weighing failed in the lab, the
+  stow's single drive home across the street failed twice, and the claw
+  stayed on the fork and was lost at the garden door."""
+  lab = lc.lab_route("home")
+  assert lc.home_route("home", (27.0, 1.5)) == lab[::-1]
+  assert lc.home_route("home", lab[2]) == lab[2::-1]
+  rack = world_config("home")["start"][:2]
+  assert lc.home_route("home", rack) == []
+  shop = list(lc.WORKSHOP_ROUTE)
+  assert lc.home_route("home", (-8.5, -3.0)) == shop[::-1]
+
+
+def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
+  """`stow()` and the stow after a procedure both come home by the route
+  first: the legs, in order, and then the bay."""
+  cfg = world_config("home")
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world="home",
+                      errand=False, battery_wh=8.0, rack=cfg["rack"],
+                      grid_bounds=cfg["grid_bounds"], low_battery_wh=cfg["low_battery_wh"])
+  _stub_swaps(life, monkeypatch)
+  trips = []
+  real_swap = life.mission.swap_at_bay_routine
+
+  def drive(x, y, timeout=None):
+    trips.append(("drive", round(x, 2), round(y, 2)))
+    return tick.result(True)
+
+  def swap(station, verb, module=None, tries=2):
+    trips.append((verb,))
+    return real_swap(station, verb, module=module, tries=tries)
+  life.mission.drive_to_routine = drive
+  life.mission.swap_at_bay_routine = swap
+  legs = [("drive", round(x, 2), round(y, 2)) for x, y in lc.lab_route("home")[::-1]]
+  L = lib.Library(lc.world_facts("home"))
+  L.define("fetch_only", 'def fetch_only():\n  fetch("module_claw")\n')
+  L.define("fetch_stow", 'def fetch_stow():\n  fetch("module_claw")\n  stow()\n')
+  for name in ("fetch_stow", "fetch_only"):
+    trips.clear()
+    life.mission.start_at(27.0, 1.5, 0.0)
+    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "home", library=L))
+    back = trips[trips.index(("pick",)) + 1:]
+    assert back[:len(legs)] == legs and back[len(legs)] == ("return",), (name, back)

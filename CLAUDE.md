@@ -1952,10 +1952,15 @@ save a filmstrip PNG named after the script.
   props were set out (`{placement}`; `MAX_DESCRIPTION` 280 → 420, the
   house's own offers were being cut), the `lab` context block carries
   `route`, `pick`'s doc says the eye's reach. `solutions.TOWER` is the
-  six lines a model wrote on ladder B's third day, verbatim. ⚠ The errand's own stow returns from the WORKSHOP (measured,
-  once `place` ends tucked); a procedure that goes to the LAB brings its
-  tool home in legs, 30 m of street being past the auto-stow's 90 s
-  drive. ⚠ `place`'s ok is
+  six lines a model wrote on ladder B's third day, verbatim. ⚠ A STOW
+  FROM OUT ALONG A ZONE'S ROUTE COMES HOME BY THAT ROUTE FIRST
+  (`lifecycle.home_route`, `steps.home_legs_routine`; `stow()` and the
+  stow after a procedure alike): a weighing that failed in the lab left
+  the claw on the fork, the swap's single drive home across 30 m of street
+  failed twice, and the claw was lost at the garden door. ⚠ The claw
+  holds only what can MOVE (`ClawTool.held()`: a body with degrees of
+  freedom) -- lowered to 0.02 m both pads rest on the floor, and `pick`
+  was refused "already holding floor". ⚠ `place`'s ok is
   measured off the world after the retreat (rests one pitch up, within
   half an edge), never off the release.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):

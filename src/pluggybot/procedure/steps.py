@@ -284,11 +284,22 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   return {"setDown": set_down}
 
 
+def home_legs_routine(life) -> Routine:
+  """Back to the house along a zone's route before a RETURN (issue #264;
+  `lifecycle.home_route`): the swap's own route to its bay is one drive,
+  and from the lab that is 30 m of street. Best effort, leg by leg -- the
+  swap's route is still what ends at the bay."""
+  from pluggybot.lifecycle import home_route
+  for x, y in home_route(life.world, life.mission.pose_xy()):
+    yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+
+
 def _stow(life, args: dict) -> Routine:
   tool = _carried(life)
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   yield from carry_configuration_routine(life, tool)
+  yield from home_legs_routine(life)
   why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
                                                     "return", module=tool)
   st = life.mission.swap.module_state(tool)

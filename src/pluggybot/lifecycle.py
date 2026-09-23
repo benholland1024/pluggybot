@@ -2407,6 +2407,7 @@ class HubLifecycle:
       self.state = "SWAP_RETURN"
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
+      yield from procedure.home_legs_routine(self)
       yield from self.mission.swap_at_bay_routine(
         procedure._tool_station(self, carried), "return", module=carried)
       self.swaps_done += 1
@@ -5735,6 +5736,25 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
                           and lab["min"][1] <= fy <= lab["max"][1]):
     i = len(legs)
   return legs[i:]
+
+
+def home_route(world: str, from_xy: tuple[float, float]) -> list[tuple[float, float]]:
+  """The legs BACK to the house from out along a zone's route: that route
+  reversed, from the leg nearest the robot. Nothing where the nearest leg
+  is a route's first (the robot is at the house end already) or where no
+  route is written. Why (issue #264, ladder B): a weighing that failed in
+  the lab left the claw on the fork, the stow's single drive home across
+  the street failed twice, and the claw was lost at the garden door."""
+  fx, fy = from_xy
+  for zone in ("lab", "workshop"):
+    legs = zone_route(world, zone)
+    if not legs:
+      continue
+    dist = [math.hypot(x - fx, y - fy) for x, y in legs]
+    i = min(range(len(legs)), key=dist.__getitem__)
+    if i > 0:
+      return legs[i::-1]
+  return []
 
 
 def cage_program(world: str, act: str,
