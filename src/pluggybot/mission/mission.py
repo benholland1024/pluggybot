@@ -233,6 +233,28 @@ OTHER_WAIT_S = 2.0
 #: How close to the goal a stagnated drive counts as having arrived after
 #: all -- the tolerance the bay approach then measures its way out of.
 CLOSE_ENOUGH_M = 0.15
+#: ANOTHER ROBOT'S BODY IN THE WAY (issue #328), off the near-field depth
+#: camera's peer channel (`DepthFrame.peers`): a peer point nearer than
+#: this, inside the corridor this robot is about to drive through, holds
+#: the drive still until it clears.
+#:
+#: The numbers are MEASURED, not chosen. The corridor is the ROBOT: its
+#: widest parts are the tyres at 0.150 m either side of centre and the fork
+#: prongs at 0.143, so 0.20 leaves 50 mm and no more. The range is what the
+#: camera can actually deliver: a peer's nearest point sits at about
+#: (centre gap - 0.12) in this frame, so 0.60 m fires at a ~0.72 m gap
+#: where the frame carries 300-600 points of it -- and it has to fire up
+#: there, because below a ~0.4 m gap the peer's near face falls inside
+#: `depth.MIN_Z` (0.28 m) and the camera stops seeing the thing it is
+#: about to hit. The LIDAR's 0.25 m front stop is the floor under all of
+#: this and is unchanged; it sees the mast alone (issue #316).
+PEER_STOP_AHEAD_M = 0.60
+PEER_STOP_HALF_M = 0.20
+#: How long one sighting holds the drive: three frames at `depth.PERIOD`.
+#: A hold that outlived the sighting would be a robot standing still
+#: because something USED to be there, which is the mistake the map makes
+#: and the reason the peer channel exists at all.
+PEER_HOLD_S = 0.3
 #: A drive's LAST leg -- its final waypoint and the goal itself -- is a
 #: terminal approach (`drive_toward(slow_radius=)`, navigation.py's rule),
 #: tapering over this many metres. The path waypoints before it keep the
@@ -322,6 +344,12 @@ class HubMission:
     #: narrates it -- `HubMission` knows the distance and the lifecycle
     #: knows whose it is.
     self.peer_at_bay_m: float | None = None
+    #: The peer stop (issue #328): until when a sighting holds the drive,
+    #: and how many times it has fired (episodes, not frames -- the thing
+    #: worth counting is "how often did seeing the other robot change what
+    #: this one did", which is what says whether any of this helps).
+    self.peer_hold_until = 0.0
+    self.peer_holds = 0
     self.step_count = 0
     self.collision_steps = 0
     self._resolve(model)
@@ -588,6 +616,19 @@ class HubMission:
           waypoints = []
           continue
         return dist < CLOSE_ENOUGH_M     # stagnated: close enough or fail
+      if self.data.time < self.peer_hold_until:
+        # ⚠ A ROBOT IS HELD FOR, NOT BACKED AWAY FROM (issue #328), and the
+        # branch sits above the backoff for that reason. The wall reflex
+        # reverses because a wall will still be there in a second and
+        # reversing is what buys the room to plan round it; the other robot
+        # is the one obstacle in this world that MOVES, so standing still
+        # costs a second and solves it -- and the reverse is blind behind,
+        # which is a poor thing to do near the only other thing that drives.
+        # Bounded by `timeout` like every other wait here, and the drive
+        # stagnates honestly if the other robot never moves.
+        yield from self._nav_routine(0.0, 0.0)
+        waypoints = []
+        continue
       if self.data.time < self.backoff_until:
         yield from self._nav_routine(-0.15, 0.0)
         waypoints = []
@@ -647,6 +688,38 @@ class HubMission:
           or math.hypot(ox - wx, oy - wy) < OTHER_NEAR_M):
         return True
     return False
+
+  def peer_ahead(self, points) -> float | None:
+    """The nearest point of ANOTHER ROBOT's body in the corridor this one
+    is about to drive through, or None (issue #328).
+
+    Points are the depth camera's peer channel, in the robot frame: x
+    ahead of the axle, y to its left. The test is the robot's own
+    footprint swept forward, not a cone -- a cone is what the LIDAR's front
+    stop has, and it is why a peer 0.25 m across the bow put ZERO rays in
+    it while its chassis was still wide enough to clip (measured, issue
+    #328). Height is not tested: a robot is solid all the way up, and the
+    only points here are a robot's.
+    """
+    if points is None or len(points) == 0:
+      return None
+    x, y = points[:, 0], points[:, 1]
+    ahead = ((x > 0.0) & (x <= PEER_STOP_AHEAD_M)
+             & (np.abs(y) <= PEER_STOP_HALF_M))
+    return float(x[ahead].min()) if ahead.any() else None
+
+  def watch_for_peers(self, points) -> float | None:
+    """One depth frame's peer channel: hold the drive if another robot's
+    body is in the way (issue #328). Called from the near-field seam, and
+    the only thing it touches is the hold clock -- the ANSWER is
+    `drive_to_routine`'s, exactly as the front stop's is."""
+    near = self.peer_ahead(points)
+    if near is None:
+      return None
+    if self.data.time >= self.peer_hold_until:
+      self.peer_holds += 1
+    self.peer_hold_until = self.data.time + PEER_HOLD_S
+    return near
 
   def peer_on_the_goal(self, wx: float, wy: float) -> float | None:
     """How far off the nearest robot standing ON this goal is, or None.
@@ -1295,6 +1368,7 @@ def run_demo(start=(0.5, 3.0, math.pi / 2), station_y=HUB_STATION_YS[0],
     "picked": picked["on_fork"],
     "returned": returned["hung"],
     "collision_steps": mission.collision_steps,
+    "peer_holds": mission.peer_holds,
     "press_steps": mission.swap.press_steps,
     "sim_time": float(data.time),
     "aborted": aborted,

@@ -1274,9 +1274,22 @@ save a filmstrip PNG named after the script.
   network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
   the traversable mask at plan time, a stagnated drive with another
   robot within `OTHER_NEAR_M` WAITS (`OTHER_WAIT_S`) instead of failing,
-  and each lidar keeps the other robot OUT OF THE MAP AND IN THE REFLEX
-  (`Lidar.scan_split`, issue #316: one set of casts, the room's returns
-  and the peer's) — measured: painted into the grid and inflated, a robot
+  and each sensor keeps the other robot OUT OF THE MAP AND IN THE DRIVE
+  — the lidar (`Lidar.scan_split`, issue #316: one set of casts, the
+  room's returns and the peer's, feeding the 0.25 m front stop) and the
+  near-field depth camera (`DepthFrame.peers`, issue #328: the same frame
+  sorted by what each ray hit, feeding `HubMission.watch_for_peers`, which
+  HOLDS the drive while another robot's body is within
+  `PEER_STOP_AHEAD_M` 0.60 m and `PEER_STOP_HALF_M` 0.20 m of dead ahead —
+  a held drive, never a blind reverse, because the other robot is the one
+  obstacle that moves). ⚠ MEASURED (#328): the scan plane at 0.223 m
+  crosses only the peer's MAST, so a peer 0.25 m across the bow put ZERO
+  rays in the front cone and the closest approach was 0.225 m — inside
+  contact — where the depth channel holds at 0.594 m; and the camera
+  carries 150–970 points of a peer between 2.0 m and 0.4 m, losing its
+  near face below that to `depth.MIN_Z`. The camera is OPT-IN
+  (`near_field=`, ON in `serve.py`) and the lidar stop is the floor
+  under it) — measured: painted into the grid and inflated, a robot
   driving past walled in the robot it passed, which planned None from its
   own cell for 12 s and gave up the bay; and dropped from the scan
   outright, the 0.25 m front stop was blind to the only thing in the world
@@ -1606,7 +1619,12 @@ save a filmstrip PNG named after the script.
   (`heightmap` beside `grid`, one per robot, `HeightMapSampler`,
   protocol/README.md "the `heightmap` message"; the recordings carry it) so
   a day of it can be looked at on the observatory before anything depends
-  on it. `tests/test_near_field.py` pins each rule.
+  on it. ⚠ **STILL TRUE, AND THE PEER CHANNEL IS NOT THE EXCEPTION**
+  (issue #328): `DepthFrame.peers` is the SENSOR's answer — the frame
+  sorted by what each ray hit, the map never given a peer point, the drive
+  reading the frame and not the map. A rule that read the height map would
+  be the first one; this is not it. `tests/test_near_field.py` pins each
+  rule.
 - **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
   does not.** The default pure-pursuit law cannot converge on a destination
   closer than its own overshoot and ORBITS it (~900° of turning per 200 mm

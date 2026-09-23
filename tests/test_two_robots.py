@@ -931,3 +931,82 @@ def test_a_charge_bay_blocked_by_a_peer_is_named_but_not_given_up_on():
   assert life.mission.run(life.go_charge_routine()) is False
   assert len(spins) == 2, "the charge approach gave up an attempt early"
   assert any("Rowan is standing 0.20 m from it" in line for line in life.log), life.log[-3:]
+
+
+# ---- the pair's BODIES (issue #328) ------------------------------------------
+
+
+def _pair_with_the_peer_across_the_bow(across: float, ahead: float = 1.3):
+  """A pair with the near-field camera on, the second robot placed `ahead`
+  and `across` of the first, and NOTHING BROADCAST between them: no
+  reported pose, so the plan-time mask has nothing to route around and the
+  only thing standing between the two is what the first robot can sense."""
+  from pluggybot.pair import build_pair
+  lives = build_pair("room_hub", near_field=True, errands=("none", "none"))
+  me, peer = lives
+  model, data = me.model, me.data
+  px, py, _ = me.mission.pose
+  adr = SECOND.qpos_adr(model)
+  data.qpos[adr:adr + 2] = [px + ahead, py + across]
+  mujoco.mj_forward(model, data)
+  me.mission.grid.grid[:] = -5.0            # a mapped, empty room
+  me.mission.others = []                    # the broadcast is what we are not using
+  return me, peer
+
+
+def _closest_approach(me, peer) -> float:
+  """The nearest the two chassis got, sampled on the physics seam."""
+  a = me.model.body(FIRST.root).id
+  b = me.model.body(SECOND.root).id
+  seen = []
+
+  def watch() -> None:
+    pa, pb = me.data.xpos[a], me.data.xpos[b]
+    seen.append(math.hypot(pa[0] - pb[0], pa[1] - pb[1]))
+
+  me.mission.step_hooks.append(watch)
+  return seen
+
+
+def test_a_peer_across_the_bow_stops_the_drive_with_nothing_broadcast():
+  """Issue #328, the whole of it. The LIDAR's front stop sees the other
+  robot's MAST and only inside a +/-0.35 rad cone, so a peer 0.25 m across
+  the bow puts ZERO rays in it while its chassis -- 0.15 m of half-width
+  the scan plane passes clean over -- is still wide enough to clip. The
+  depth camera's peer channel sees the body: measured 685 points at a
+  0.5 m gap and 0.25 m across, where the LIDAR has none.
+
+  Flown with NOTHING BROADCAST, because that is the claim: avoidance must
+  not rest on the other robot's reported pose. MEASURED both ways, closest
+  approach between the two body origins (they meet at 0.24 m):
+
+  | peer across the bow | with the peer channel | without |
+  |---|---|---|
+  | 0.00 m | 0.551 m | 0.311 m (the LIDAR, on the mast) |
+  | 0.25 m | 0.594 m | **0.225 m** |
+  | 0.40 m | 0.312 m | 0.275 m |
+  """
+  me, peer = _pair_with_the_peer_across_the_bow(across=0.25)
+  seen = _closest_approach(me, peer)
+  px, py, _ = me.mission.pose
+  me.mission.drive_to(px + 2.6, py, timeout=25.0)
+  assert seen, "the seam never ran"
+  assert min(seen) > 0.24, f"the chassis met: closest {min(seen):.3f} m"
+  assert me.mission.collision_steps == 0
+  assert me.mission.peer_holds > 0, "it kept clear without ever holding"
+
+
+def test_the_seam_hands_the_frames_peers_to_the_drive():
+  """One line of wiring, pinned on its own: `_near_field_step` is where
+  the peer channel reaches the mission, and a world without the camera
+  keeps the LIDAR-only behaviour of issue #316."""
+  from pluggybot.pair import build_pair
+  # ...inside the stop range, which the drive test approaches from beyond:
+  # at a 0.6 m gap the peer's nearest point is ~0.48 m ahead.
+  me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
+  me._next_near_field = 0.0
+  me._near_field_step()
+  assert me.mission.peer_hold_until > 0.0, "the frame's peers never arrived"
+  assert me.mission.peer_holds == 1
+  dark = build_pair("room_hub", near_field=False, errands=("none", "none"))[0]
+  assert dark.depth_camera is None and dark.mission.peer_hold_until == 0.0
