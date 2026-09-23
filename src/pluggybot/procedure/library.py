@@ -136,6 +136,12 @@ class Library:
     after an errand has been committed to it. The source is shown, so the
     association was always inferable; this states it.
 
+    ⚠ IT COUNTS WHAT A `fetch` NAMES TOO, or it lies by omission: the
+    high-level verbs declare no tool (`draw` needs the pen, `pick` the
+    claw, and `Verb` says neither), so a procedure that fetches the pen and
+    draws names no axis and would have reported NO needs -- read as "needs
+    no tool", which is worse than an absent field.
+
     An axis that does not exist is REFUSED at `define` (`move`'s `axis`
     arg reads `facts.axes`), and re-refused whenever the rail changes
     (`revalidate`), so `needs` names modules a procedure can actually ask
@@ -151,6 +157,7 @@ class Library:
                  if a in axes.AXES and axes.AXES[a].requires}
         needs |= {axes.SENSORS[n].requires for n in refs["sensors"]
                   if n in axes.SENSORS and axes.SENSORS[n].requires}
+        needs |= set(refs["tools"])
         if needs:
           row["needs"] = sorted(needs)
       if e.reasons:

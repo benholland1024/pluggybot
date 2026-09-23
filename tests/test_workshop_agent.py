@@ -774,8 +774,19 @@ def test_a_procedure_says_which_tool_it_needs(tmp_path):
   lib.define("probe", 'def probe():\n  for i in range(2):\n'
                       '    if read("lift.force") > 0:\n'
                       '      move("claw.jaws", 0.02)\n')
+  # ⚠ ...AND WHAT A `fetch` NAMES, or it lies by omission. The high-level
+  # verbs declare no tool -- `draw` needs the pen, `pick` the claw, and
+  # `Verb` says neither -- so a procedure that fetches the pen and draws
+  # names no axis at all and reported NO needs, which reads as "needs no
+  # tool" and is worse than an absent field.
+  lib.define("hold", 'def hold():\n  fetch("module_claw")\n'
+                     '  grip()\n  release()\n  stow()')
   rows = {r["name"]: r for r in lib.as_context()}
   assert rows["probe"]["needs"] == ["module_claw"]
+  assert rows["hold"]["needs"] == ["module_claw"], rows["hold"]
+  # ...and this is WHY it was missed: not one axis, not one sensor
+  assert lib.get("hold").references()["axes"] == ()
+  assert lib.get("hold").references()["sensors"] == ()
 
 
 def test_retiring_a_tool_takes_its_procedures_out_of_the_enum(tmp_path):

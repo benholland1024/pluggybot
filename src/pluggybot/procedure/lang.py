@@ -110,16 +110,29 @@ class Procedure:
     return walk(self.body)
 
   def references(self) -> dict:
-    """Every axis a `move` names and every sensor a `read` names, in source
-    order, deduplicated (issue #324).
+    """What this procedure reaches for: the axes a `move` names, the sensors
+    a `read` names, and the modules a `fetch` names -- in source order,
+    deduplicated (issue #324).
 
-    PURE: the tree only, no world. Which MODULE each one needs is
+    ⚠ `tools` IS NOT REDUNDANT WITH `axes`. The high-level verbs declare no
+    tool: `draw` needs the pen, `pick`/`place`/`grip` need the claw, and
+    `Verb` carries nothing that says so -- each checks inside its own body.
+    So a procedure of `fetch("module_pen"); draw(...); stow()` names no axis
+    at all, and reading its needs off axes alone answered "none", which is
+    worse than saying nothing. A `fetch` target is the procedure declaring
+    which tool it is about, and it is right there in the source.
+
+    PURE: the tree only, no world. Which MODULE an axis needs is
     `axes.AXES[...].requires`, and resolving that is the caller's job
-    (`Library.as_context`) because it depends on what is registered right
-    now -- and the interesting case is an axis that is NOT.
+    (`Library.as_context`) because it depends on what is registered now.
+
+    Every ROLE is walked, not just `body`: they are the same tuple for
+    anything `define` produces (single-role), and this cannot silently
+    under-report if that ever stops being true.
     """
     axes_named: list[str] = []
     sensors: list[str] = []
+    tools: list[str] = []
 
     def expr(e):
       if not isinstance(e, tuple):
@@ -133,8 +146,11 @@ class Procedure:
       for st_ in block:
         if st_[0] == "verb":
           for name, value in st_[2].items():
-            if st_[1] == "move" and name == "axis" and value[0] == "str":
-              axes_named.append(value[1])
+            if value[0] == "str":
+              if st_[1] == "move" and name == "axis":
+                axes_named.append(value[1])
+              elif st_[1] == "fetch" and name == "tool":
+                tools.append(value[1])
             expr(value)
         elif st_[0] == "set":
           expr(st_[2])
@@ -148,9 +164,11 @@ class Procedure:
         elif st_[0] == "while":
           expr(st_[1])
           walk(st_[2])
-    walk(self.body)
+    for block in (self.roles.values() or (self.body,)):
+      walk(block)
     return {"axes": tuple(dict.fromkeys(axes_named)),
-            "sensors": tuple(dict.fromkeys(sensors))}
+            "sensors": tuple(dict.fromkeys(sensors)),
+            "tools": tuple(dict.fromkeys(tools))}
 
   def as_dict(self) -> dict:
     return {"name": self.name, "source": self.source,
