@@ -100,8 +100,9 @@ SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 def swap_trace(rec: dict | None) -> str:
   """One line of what a swap did (`HubMission.last_swap`), for the log of a
   failed one (issue #264): the route, then per attempt the fix, the belief's
-  drift against the true pose, the travel, the approach's answer and where
-  the fork ended up against the module."""
+  drift against the true pose, the travel, the approach's answer and, on a
+  pick, where the module stood against the fork when the approach ended --
+  ahead and LEFT in the robot's frame; the capture window is +/-11 mm left."""
   if not rec:
     return "no swap recorded"
   parts = [f"route {rec.get('route')}"]
@@ -109,9 +110,9 @@ def swap_trace(rec: dict | None) -> str:
     e = a.get("err") or [0.0, 0.0, 0.0]
     line = (f"#{i} fix {a.get('fix') or 'none'}, belief off {e[0]:+.0f},{e[1]:+.0f} mm "
             f"{e[2]:+.1f} deg, travel {a.get('travel')} m -> {a.get('why')}")
-    if a.get("forkToModuleMm"):
-      f = a["forkToModuleMm"]
-      line += f", fork to module {f[0]:+.0f},{f[1]:+.0f} mm"
+    if a.get("moduleFromForkMm"):
+      f = a["moduleFromForkMm"]
+      line += f", module from fork {f[0]:+.0f} ahead {f[1]:+.0f} left mm"
     parts.append(line)
   return "; ".join(parts)
 
@@ -1396,7 +1397,11 @@ class HubMission:
       try:
         if verb == "pick":
           why = yield from self.swap.pick_routine(
-            steer_fn=self.steer_fn(tag_id), dist=travel + PICK_OVERSHOOT)
+            steer_fn=self.steer_fn(tag_id), dist=travel + PICK_OVERSHOOT,
+            module=module)
+          if self.swap.approach_end is not None:
+            attempt_rec["moduleFromForkMm"] = [round(1000 * v, 1)
+                                               for v in self.swap.approach_end]
         else:
           why = yield from self.swap.put_back_routine(
             steer_fn=self.steer_fn(tag_id), dist=travel - CARRY_OFFSET)
@@ -1407,9 +1412,6 @@ class HubMission:
       if module is None:
         break
       st = self.swap.module_state(module)
-      vx = self.data.site_xpos[self.swap.vertex_sid]
-      attempt_rec["forkToModuleMm"] = [round(1000 * (st["pos"][i] - float(vx[i])), 1)
-                                       for i in (0, 1)]
       if verb == "pick":
         ok = st["on_fork"] and module_power_contact(self.model, self.data,
                                                     module, self.handle.prefix)

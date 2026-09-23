@@ -381,6 +381,29 @@ def test_the_trace_measures_the_belief_against_the_true_pose():
   assert m.truth_error()[0] == pytest.approx(12.0, abs=0.2)
 
 
+def test_a_missed_pick_is_measured_where_the_approach_ended():
+  """The trace's offset is the one a miss is ABOUT: the module against the
+  fork before the lift, in the robot's frame. A fork 30 mm to the right of
+  the peg -- outside the +/-11 mm capture window -- reads the module 30 mm
+  LEFT and at the fork, and it is read before the lift's first step; read
+  after the retreat (as it first was), a miss put the fork 0.35 m away."""
+  from pluggybot.rack.coupling import HUB_STATION_YS
+  from pluggybot.rack.swap import HubSwap
+  from pluggybot.control import wheel_targets
+  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
+  swap = HubSwap(model, mujoco.MjData(model))
+  swap.place_at_standoff(HUB_STATION_YS[0], dy=0.03)
+  for cmd in swap.pick_routine(module="module_lcd"):
+    swap._step_once(*wheel_targets(*cmd))
+    if swap.approach_end is not None:
+      break                                   # the claim is settled here
+  else:
+    pytest.fail("the pick returned without measuring its approach")
+  ahead, left = swap.approach_end
+  assert 0.022 < left < 0.038, left
+  assert abs(ahead) < 0.05, ahead
+
+
 def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
   """`_say`'s message is the robot's status line on the site -- a sentence
   it could say; the trace is evidence, `detail`, the log's alone."""
@@ -389,9 +412,9 @@ def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
   from pluggybot.rack.coupling import HUB_STATION_YS
   rec = {"verb": "pick", "route": "ok", "attempts": [
     {"fix": "plane:2", "err": [3.0, -12.4, -1.4], "travel": 0.187, "why": "arrived",
-     "forkToModuleMm": [2.0, 15.1]}]}
+     "moduleFromForkMm": [2.0, 15.1]}]}
   assert swap_trace(rec) == ("route ok; #1 fix plane:2, belief off +3,-12 mm -1.4 deg, "
-                             "travel 0.187 m -> arrived, fork to module +2,+15 mm")
+                             "travel 0.187 m -> arrived, module from fork +2 ahead +15 left mm")
   life = _room_hub_life()
 
   def failed(*a, **kw):

@@ -151,6 +151,10 @@ class HubSwap:
     # mission bottoms out in _step_once, so one hook here is enough to
     # drive a viewer (or any telemetry) through the whole run.
     self.on_step = None
+    #: The named module against the fork's vertex at the end of the last
+    #: pick's approach, before the lift: (ahead, left) in metres, in the
+    #: robot's frame. A failed swap's trace (issue #264); nothing acts on it.
+    self.approach_end: tuple[float, float] | None = None
 
   # ---- plumbing ------------------------------------------------------------
 
@@ -381,17 +385,22 @@ class HubSwap:
   def pick(self, steer_fn=None, dist: float | None = None) -> str:
     return self.run(self.pick_routine(steer_fn, dist))
 
-  def pick_routine(self, steer_fn=None, dist: float | None = None) -> Routine:
+  def pick_routine(self, steer_fn=None, dist: float | None = None,
+                   module: str | None = None) -> Routine:
     """Slide under the module's peg, lift it off the trays, back away.
 
     dist overrides the approach travel: callers that know their believed
     distance to the hang plane (the mission) pass it explicitly -- a fixed
     travel assumes a perfect standoff, and the coupling's capture window is
-    +/-11 mm while navigation's arrival radius is 80.
+    +/-11 mm while navigation's arrival radius is 80. A named `module` is
+    measured against the fork where the approach ends (`approach_end`).
     """
+    self.approach_end = None
     why = yield from self._drive_until_routine(
       APPROACH_DIST if dist is None else dist, APPROACH_V, steer_fn=steer_fn)
     yield from self._run_routine(0.5, 0.0)                  # settle
+    if module is not None:
+      self.approach_end = self.module_from_fork(module)
     lift_now = float(self.data.ctrl[self.lift_act])
     yield from self._run_routine(2.0, 0.0, lift_target=lift_now + LIFT_STEP)
     yield from self._drive_until_routine(RETREAT_DIST, -0.08, stall_stop=False)
@@ -443,6 +452,17 @@ class HubSwap:
     rm = self.data.xmat[bid].reshape(3, 3)
     d = [float(world_pos[k]) - float(rp[k]) for k in range(3)]
     return tuple(sum(float(rm[i][j]) * d[i] for i in range(3)) for j in range(3))
+
+  def module_from_fork(self, name: str) -> tuple[float, float]:
+    """Where a module is against the fork's vertex, (ahead, left) in metres
+    in the robot's own frame: the pick's capture window is the LEFT one."""
+    p = self.data.xpos[self.model.body(name).id]
+    v = self.data.site_xpos[self.vertex_sid]
+    q = self.root_qadr
+    yaw = 2.0 * math.atan2(float(self.data.qpos[q + 6]), float(self.data.qpos[q + 3]))
+    dx, dy = float(p[0] - v[0]), float(p[1] - v[1])
+    c, s = math.cos(yaw), math.sin(yaw)
+    return dx * c + dy * s, -dx * s + dy * c
 
   def module_state(self, name: str) -> dict:
     """Where a module is, in the terms every demo and test verifies: riding
