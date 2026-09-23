@@ -465,11 +465,13 @@ PROMPT_MESSAGE = "prompt"
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/
-#: `stopped`. The program itself rides every one whole, like a thought
-#: document. Additive on the wire; a consumer ignores an unknown type.
-#: `defined` / `undefined` (issue #166) are the library's: what the robot
-#: wrote, with its `source`, and what it took out; a `refused` carrying
-#: `verb` is a library refusal rather than a run's.
+#: `stopped` (and `failedLine`/`failedReason` where a step failed). The
+#: program itself rides every one whole, like a thought document. Additive
+#: on the wire; a consumer ignores an unknown type. `defined` / `undefined`
+#: (issue #166) are the library's: what the robot wrote, with its `source`,
+#: and what it took out; a `refused` carrying `verb` is a library refusal
+#: rather than a run's. All three carry `library` ({names, cap}) as it
+#: stands after them (protocol/README.md).
 PROCEDURE_OUTCOMES = ("validated", "refused", "ran", "aborted",
                       "defined", "undefined")
 
