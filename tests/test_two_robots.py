@@ -643,7 +643,8 @@ def test_an_encounter_is_met_on_the_way_in_and_parted_on_the_way_out_with_hyster
   assert len(events) == 1, "a pair hovering between the thresholds chattered"
   apart(2.0)
   assert [e["phase"] for e in events] == ["met", "parted"]
-  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1}
+  assert meetings.flags == {"near": False, "distanceM": 2.0, "met": 1,
+                            "touching": False, "bumps": 0}
   assert (ENCOUNTER_M, PARTED_M) == (1.5, 2.0)
 
 
