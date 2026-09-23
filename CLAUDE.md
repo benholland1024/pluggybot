@@ -1030,20 +1030,43 @@ save a filmstrip PNG named after the script.
   shows `rack: {original: [...], built: {A..C: module|null}}`, and a world
   whose `world_config` has no `built_bays` gets NO workshop (no field, no
   rule — the tower's shape); `can_reshape` refuses a world compiled without
-  the `rack_built` body. ⚠ ON A PAIR `can_reshape` STILL REFUSES (the
-  seam is single-robot; #168's open half), so the served pair cannot
-  hang a tool until both lifecycles rebind. Order, all before a point moves: the envelope (`validate.check`), the seam's
+  the `rack_built` body. ⚠ A PAIR HANGS A TOOL (issue #315, #168's open
+  half): `build_pair` KEEPS the spec and both lifecycles hold it,
+  `_recompile` rebinds EVERY lifecycle in the world (`tick.run_many`
+  reads the world off the swap each step for the same reason), and
+  `can_reshape` refuses while EITHER robot is mid-errand or holding a
+  module, naming it — "wait" and "never" are different answers. The rail
+  is the WORLD's: ONE `rack_inventory` for the pair, and a bay the other
+  robot's tool hangs in is refused with whose it is, as is retiring it
+  (`built` is what this lifecycle hung). ⚠ `scene_changed` carries the
+  generator's SIDECAR and a pair's PAIR name — the site replaces its
+  whole scene graph with it, so anything short of the fixture's shape
+  repaints the house as grey primitives. Order, all before a point moves: the envelope (`validate.check`), the seam's
   preconditions (`can_reshape`), the PRICE (`cost.price`: catalog euros as
   points, `POINTS_PER_EUR` 1, `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G`
   60 + `ASSEMBLE_S_PER_PART` 120 of standing still — three DESIGN
   DECISIONS, said so at the constants) via `Ledger.spend` (no debt), then
   `_fabricate_routine` (its own routine so a test STUBS the ~15 sim-minute
-  wait and pins the seconds), then `hang_tool`. Every step a `tool` event
+  wait and pins the seconds), then `hang_tool`. ⚠ **A PRINT IS LONGER THAN
+  AN ERRAND** (896 sim s against 200–500), so on a pair the rack is
+  usually occupied again by the time the parts are ready: the finished
+  build WAITS for room (`seam_busy()` — the one refusal that can change
+  while the robot stands still, polled by `_await_seam_routine`;
+  `HANG_WAIT_S` 600 s), and if the rack never frees the tool is RECORDED
+  and hangs at the next mission start, paid once. Without both, a build on
+  a pair was paid for and LOST (issue #315). Every step a `tool` event
   (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
   `spec.unbuildable` is ONE predicate for the validator and the prompt's
-  parts list (`workshop_rule()`, built off the catalog) — today only
-  `servo_fs90` and `scaffold_pla_box` are buildable-from and the prompt
-  says why the rest are not. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
+  parts list (`workshop_rule()`, built off the catalog) AND for the
+  refusal a spec gets back (`spec.buildable()` is its complement, issue
+  #315: "no catalog part 'blade'" never said what would have worked) —
+  six parts are buildable-from since #199 and the prompt says why the
+  rest are not. ⚠ A `build_tool` whose spec names NO part is not a
+  build and is dropped at `validate` (`overseer.idle_build`): `spec.name`
+  is a required string a decoder fills with the prompt's example, and an
+  empty `parts` is its zero — the deployed pair sent that row 433 times
+  in seven days. One named part, however wrong, IS a build and the
+  workshop refuses it out loud. ⚠ Records under `$PLUGGY_THOUGHTS/tools/`
   survive a restart and are RE-HUNG by `restore_tools()` in `begin()`,
   paid once; an invalid one is kept, marked, shown. ⚠ `Menu.workshop` /
   `Overseer.workshop` are set by `build()` on `autonomous` alone;

@@ -156,6 +156,19 @@ EVENTS_CHECK_S = 1.0
 #: change what every committed number means without anybody choosing it.
 RESTART_AFTER_S = 300.0
 
+#: How long a finished build will stand and wait for room on the rack
+#: (issue #315), and how often it looks. A DESIGN DECISION, not a
+#: measurement of anything physical: the parts are bought and assembled and
+#: the only question is when there is a safe instant to recompile the world
+#: into. One full errand's worth -- an errand runs 200-500 sim s and
+#: `solutions.TOWER` is 489 -- because a peer that is busy for longer than
+#: that is a world worth reporting, not one to stand in for ever.
+#: ⚠ WITHOUT IT A BUILD ON A PAIR IS USUALLY PAID FOR AND LOST: the scoop
+#: prints for 896 sim s, which is longer than the other robot's errand, so
+#: the rack is occupied again by the time the parts are ready.
+HANG_WAIT_S = 600.0
+SEAM_POLL_S = 5.0
+
 #: Who a `reset` event names when the WORLD did it rather than a person. A
 #: sentinel, because `by` is the label an operator log prints and a consumer
 #: should not have to parse prose to tell an admin's hand from a timer --
@@ -1472,7 +1485,7 @@ class HubLifecycle:
     if self.depth_camera is not None:
       self.depth_camera.rebind(model)
     if self.screen is not None:
-      self.screen.model, self.screen.data = model, data
+      self.screen.rebind(model, data)
     if self.activities is not None:
       self.activities.rebind(model, data)
     if self.game is not None and hasattr(self.game, "rebind"):
@@ -1489,12 +1502,14 @@ class HubLifecycle:
     five hand-built modules hang on the first rack and are never in the
     way: nothing here can name their bays.
 
-    Between errands only, with nothing on the fork: a recompile mid-errand
-    would pull the world out from under a routine holding a transient tool
-    controller (the pen, claw and dispenser classes are built per errand
-    and are NOT rebound -- they must not outlive a recompile). Refused,
-    out loud, otherwise. A pair shares one world and two lifecycles; the
-    seam is single-robot until both rebind together.
+    Between errands only, with nothing on the fork -- FOR EVERY ROBOT in
+    the world (issue #315): a recompile mid-errand would pull the world
+    out from under a routine holding a transient tool controller (the pen,
+    claw and dispenser classes are built per errand and are NOT rebound --
+    they must not outlive a recompile), and a pair's two lifecycles run
+    over one (model, data). Refused, out loud, otherwise, naming the robot
+    that is busy. The recompile is this robot's to run and everybody's to
+    follow: `_recompile` rebinds them all.
     """
     from pluggybot.workshop import build as wbuild
     from pluggybot.workshop import seam
@@ -1503,6 +1518,17 @@ class HubLifecycle:
       raise seam.SeamRefused(f"{tool.body} already hangs on the rack")
     index = built_bay_index(bay)
     retired = next((m for m, b in self.rack_inventory.items() if b == index), None)
+    # ⚠ ONE RACK, TWO MINDS (issue #315): the rail is the WORLD's, so on a
+    # pair the module in this bay may be the OTHER robot's -- and "naming a
+    # bay retires what hangs there" is a rule about a robot's OWN tools.
+    # Refused with whose it is, on `bay_index`'s terms for the originals:
+    # a bay is negotiated between the minds, not taken from one by the
+    # other. `built` is what this lifecycle hung, so the test is ownership
+    # and not the shared inventory.
+    if retired is not None and retired not in self.built:
+      raise seam.SeamRefused(
+        f"bay {chr(ord('A') + bay)} holds the {retired.removeprefix('module_')}, "
+        "which is not yours to retire -- name a bay of your own")
     record = {"tool": tool.name, "module": tool.body, "bay": bay,
               "retired": retired, "t": round(float(self.data.time), 3)}
     if retired is not None:
@@ -1534,6 +1560,12 @@ class HubLifecycle:
                              "original modules and stays on the rack")
     if module not in self.rack_inventory:
       raise seam.SeamRefused(f"{module} is not on the rack")
+    # ...and on a pair the rail is shared (issue #315): a module this
+    # lifecycle did not hang is the other robot's, and `built` is what it
+    # hung. Same rule as the bay in `hang_tool`, said the other way round.
+    if module not in self.built:
+      raise seam.SeamRefused(f"the {module.removeprefix('module_')} is on the "
+                             "rack but is not yours to retire")
     index = self.rack_inventory[module]
     bay = index - len(HUB_STATION_YS)
     self.can_reshape(bay)
@@ -1545,10 +1577,42 @@ class HubLifecycle:
               f"{chr(ord('A') + bay)} is empty", detail=f"recompile {record['recompileMs']} ms")
     return record
 
+  #: The states a recompile may not land in. A tool controller (the pen,
+  #: the claw, the dispenser) is built per errand, holds (model, data) and
+  #: is NOT rebound -- `tests/test_recompile.py::TRANSIENT_HOLDERS` is the
+  #: roster and the reason -- so a world pulled out from under a running
+  #: errand leaves that errand stepping a world that no longer exists.
+  MID_ERRAND = ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN")
+
+  def seam_busy(self) -> str:
+    """Why the world may not be recompiled THIS INSTANT, or "".
+
+    The one reason that can change while the robot stands still, which is
+    why it is its own predicate: `_await_seam_routine` polls exactly this
+    and nothing else, so a wait can never mask a permanent refusal (no
+    spec, no rail, no such bay) as something worth waiting for.
+    """
+    from pluggybot.procedure.steps import _carried
+    for life in (self, *self.peers):
+      if life.state in self.MID_ERRAND or _carried(life):
+        who = ("" if life is self
+               else f"{life.robot_name or life.root} is busy: ")
+        return (who + "a tool is hung between errands with the fork empty, "
+                "never mid-errand")
+    return ""
+
   def can_reshape(self, bay: int) -> None:
     """Every reason the world may not be recompiled right now, or nothing.
     Checked BEFORE a build spends anything, so a refused hang never
-    follows a paid print. `bay` is a built-rail index."""
+    follows a paid print. `bay` is a built-rail index.
+
+    ⚠ A PAIR SHARES ONE WORLD, so EVERY robot in it has to be between
+    errands with its fork empty, not just this one (issue #315). The
+    recompile itself is one robot's to run -- it rebinds all of them
+    (`_recompile`) -- but the refusal is the whole pair's, and it names
+    the robot that is busy, because "wait" and "never" are different
+    answers and the robot is the one that has to tell them apart.
+    """
     from pluggybot.workshop import seam
     if self.spec is None:
       raise seam.SeamRefused("this world was compiled without its spec; "
@@ -1556,13 +1620,9 @@ class HubLifecycle:
     if not self.has_built_rack:
       raise seam.SeamRefused("this world has no built-tool rack; a built tool "
                              "has nowhere to hang here")
-    if self.peers:
-      raise seam.SeamRefused("a pair shares one world; the seam is "
-                             "single-robot until both lifecycles rebind")
-    from pluggybot.procedure.steps import _carried
-    if self.state in ("SWAP_PICK", "USE_TOOL", "SWAP_RETURN") or _carried(self):
-      raise seam.SeamRefused("a tool is hung between errands with the fork "
-                             "empty, never mid-errand")
+    busy = self.seam_busy()
+    if busy:
+      raise seam.SeamRefused(busy)
     if not 0 <= bay < len(BUILT_STATION_YS):
       raise seam.SeamRefused(f"no bay {bay}; the built-tool rail has "
                              f"{len(BUILT_STATION_YS)}")
@@ -1578,18 +1638,50 @@ class HubLifecycle:
 
   def _recompile(self, **why) -> float:
     """Recompile the edited spec, rebind everything, tell the wire. Returns
-    the milliseconds it took."""
+    the milliseconds it took.
+
+    ⚠ EVERY LIFECYCLE IN THIS WORLD IS REBOUND, not just the one that
+    built the tool (issue #315). A pair is two lifecycles over one
+    (model, data), and `spec.recompile` returns NEW objects: the robot
+    that did not build would otherwise go on stepping the old world --
+    two simulations, silently diverging, which is the exact failure the
+    rebind protocol exists to prevent. The peers' `on_rebind` sinks fire
+    with them, which is how a publisher registered on the first robot
+    follows a tool the second one built.
+
+    ⚠ THE RECOMPILE IS NOT THE COST. MEASURED on the home world, 2026-09-22:
+    `spec.recompile` 4-5 ms, this whole method ~160 ms, and 136 ms of that
+    is `rebind` recreating the tag detector's `Renderer` -- an EGL context,
+    which is what a Renderer bound to the old model has to become. It is one
+    hitch on the physics thread per build or retire, not a per-step cost,
+    and it is why a recompile is refused mid-errand rather than throttled.
+    `scene_dict` is 18 ms of the rest, and the sidecar this passes it is
+    0.1 ms of that.
+    """
     from pluggybot.workshop import seam
     from pluggybot.telemetry.scene import scene_dict
     t0 = time.perf_counter()
     model, data = seam.recompile(self.spec, self.model, self.data)
     ms = round((time.perf_counter() - t0) * 1000, 2)
-    self.rebind(model, data)
+    for life in (self, *self.peers):
+      life.rebind(model, data)
     # The wire (protocol/README.md "scene_changed"): the whole new scene,
-    # so a consumer rebuilds its scene graph; the next frame is a keyframe.
+    # IN EXACTLY THE SHAPE THE SCENE FIXTURE HAS, because the site replaces
+    # its whole scene graph with it. So the generator's sidecar comes with
+    # it (the `visual` hints, the zones, the spawns, the plate glyphs) and
+    # a pair's scene is named the PAIR world -- without either, building a
+    # tool on the deployed world would repaint the house as grey primitives
+    # and call it `home_world` (issue #315; it could not fire on a pair at
+    # all until then, so the gap was dormant).
+    cfg = world_config(self.world)
+    name = cfg["model_name"]
+    if self.peers:
+      from pluggybot.robot import pair_model_name
+      name = pair_model_name(name)
+    meta = json.loads(Path(cfg["meta"]).read_text()) if cfg["meta"] else None
     self._emit({"type": "scene_changed", "t": round(float(self.data.time), 3),
                 "robot": self.root, **why,
-                "scene": scene_dict(model, world_config(self.world)["model_name"])})
+                "scene": scene_dict(model, name, meta=meta)})
     return ms
 
   # ---- the workshop as the agent's (issue #168 slice D) --------------------
@@ -1625,6 +1717,12 @@ class HubLifecycle:
           if f"module_{name}" in seam.HAND_BUILT:
             raise WorkshopRefused([f"the {name} is one of the original modules "
                                    "and stays on the rack"])
+          # ...and on a pair the rail is shared, so a tool the robot can SEE
+          # in its `rack` block may be the other robot's (issue #315). That
+          # is a different answer from "there is no such tool".
+          if f"module_{name}" in self.rack_inventory:
+            raise WorkshopRefused([f"the {name} is on the rack but is not yours "
+                                   "to retire"])
           raise WorkshopRefused([f"no built tool {name!r} to retire"])
         self.retire_tool(f"module_{name}")
         shop.retire(name)
@@ -1668,22 +1766,74 @@ class HubLifecycle:
       self._emit({**base, "outcome": "built", "name": name, "bay": bay,
                   "cost": bill})
       yield from self._fabricate_routine(bill["waitS"])
+      # ...and then WAIT FOR ROOM (issue #315): a print is longer than an
+      # errand, so on a pair the rack is usually occupied again by now.
+      waited = yield from self._await_seam_routine(idx)
       try:
         hung = self.hang_tool(tool, idx)
       except SeamRefused as e:
-        # the preconditions held before the wait and broke during it (a
-        # death mid-print): the parts are bought and the module is not on
-        # the rack, which is what happened, and is said so
-        shop.refuse(name, [str(e)], t)
+        # THE POINTS ALWAYS BUY SOMETHING. The preconditions held before
+        # the spend and broke while it printed -- the peer took the seam,
+        # or the robot died mid-print -- and the parts are bought either
+        # way. So the tool is RECORDED, and `restore_tools` hangs it at
+        # the next mission start without paying again, which is the same
+        # path a tool built yesterday takes. Losing the points AND the
+        # tool is the "paid, refused build" this issue exists to prevent.
+        why = [str(e), "built and paid for; it hangs when the rack is free"]
+        shop.record(tool, spec, idx, bill, t, reasons=why)
+        shop.refuse(name, why, t)
+        self._say(f"WORKSHOP my {name} is built but cannot hang yet: {e}")
+        self._remember(f"built my tool {name}; it hangs when the rack is free")
         self._emit({**base, "outcome": "refused", "verb": "hang", "name": name,
-                    "bay": bay, "reasons": [str(e)], "cost": bill})
+                    "bay": bay, "reasons": why, "cost": bill,
+                    "waitedS": round(waited, 1)})
         return
       shop.record(tool, spec, idx, bill, t)
       self.tools_built += 1
       self._remember(f"built my tool {name} and hung it in bay {bay}")
+      # `waitedS` rides the HUNG row too, not only the refused one: a build
+      # that waited 40 s and then hung is what a contended rack looks like,
+      # and a rack that is never contended reads 0 (issue #315).
       self._emit({**base, "outcome": "hung", "name": name, "bay": bay,
                   "module": tool.body, "retired": hung["retired"],
-                  "verbs": hung["verbs"], "cost": bill})
+                  "verbs": hung["verbs"], "cost": bill,
+                  "waitedS": round(waited, 1)})
+
+  def _await_seam_routine(self, bay: int) -> Routine:
+    """Stand still until the rack is free to be reshaped, or give up.
+
+    ⚠ THE PEER CAN TAKE THE SEAM AWAY WHILE THE TOOL PRINTS (issue #315).
+    The scoop's print and assembly is 896 sim s -- LONGER THAN A TYPICAL
+    ERRAND -- so on a pair the other robot is usually mid-errand by the
+    time the parts are ready, and before this the build was PAID FOR and
+    then lost at the hang: no tool, no record, three points gone. That is
+    the "paid, refused build" the issue set out to prevent, arriving
+    through a door only a pair has.
+
+    So the honest model is that the assembly is DONE and the tool hangs
+    when there is room: the robot is already standing here, and waiting
+    costs it only more of the time it was already spending. `HANG_WAIT_S`
+    bounds it at one full errand's worth (measured: an errand runs
+    200-500 sim s; `solutions.TOWER` is 489), because a peer that is
+    always busy is a world to report, not one to stand in for ever.
+
+    ⚠ AND IT IS BOUNDED BY THE PACK AS WELL AS THE CLOCK. Standing still
+    is 10.5 W with the near-field camera on: the print alone is 2.6 Wh, a
+    third of home's hosting pack, and the full wait would take it to 4.4 Wh
+    -- 55 %, against a 2.05 Wh reserve. The ROBOT chose to build; the
+    waiting is CODE's, so code stops spending its pack once what is left is
+    the return trip's. Not a rail and not branched on the arm flag -- every
+    arm gets it, because on no arm should the loop's own retry be what
+    strands the robot. (⚠ Naming that flag in prose HERE is what
+    `test_the_rails_are_read_in_exactly_one_place_each` counts: it reads
+    the class source, so a comment citing it reads as a fourth reader.) Giving up early is not a loss -- the tool is recorded and
+    hangs at the next mission start.
+    """
+    t0 = float(self.data.time)
+    while (self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S
+           and self.battery.energy_wh > self.low_battery_wh):
+      yield from self.mission._drive_routine(SEAM_POLL_S, 0.0, 0.0)
+    return float(self.data.time) - t0
 
   def _fabricate_routine(self, seconds: float) -> Routine:
     """The print and the assembly: the robot stands where it is for this
@@ -1709,6 +1859,7 @@ class HubLifecycle:
         entry.tool, entry.reasons = None, [f"could not be hung again: {e}"]
         self._say(f"WORKSHOP could not hang my {entry.name} again: {e}")
         continue
+      entry.reasons = []          # on the rack now; why it was not is stale
       hung.append(entry.name)
     return hung
 
@@ -4507,6 +4658,16 @@ class HubLifecycle:
     self._end_run = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
+    # ⚠ THE KINEMATICS HAVE TO BE VALID FIRST (issue #315). `MjData` starts
+    # with `xpos` all zeros and nothing here has stepped yet, so every
+    # module read as sitting on the fork -- `_carried` said `module_lcd`,
+    # `can_reshape` refused, and EVERY built tool failed to re-hang with
+    # "could not be hung again". Nothing built survived a restart, which on
+    # a served world is once an hour. `mj_forward` writes the derived
+    # quantities and never `qpos`/`qvel`/`time`, so it cannot move the
+    # trajectory: MEASURED identical over 3000 driven steps of the home
+    # world, and `seam.recompile` already calls it for the same reason.
+    mujoco.mj_forward(self.model, self.data)
     # What the robot built before today hangs again (issue #168): the
     # world file knows nothing of built tools -- nor of the bench's unknown
     # (issue #227), which an open offer on the board still names.

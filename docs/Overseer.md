@@ -325,8 +325,23 @@ What code keeps, in order, before anything moves:
    still. Paid before anything prints (`Ledger.spend`, no debt); an
    unaffordable tool is refused before a second passes.
 4. **The seam** (`HubLifecycle.hang_tool`, §2c of the slice plan on #168):
-   between errands, fork empty, single robot. Checked before the points
-   move, so a refused hang never follows a paid print.
+   between errands, fork empty — **for every robot in the world**.
+   Checked before the points move, so a refused hang never follows a paid
+   print. The one refusal that can arrive after the money is the seam
+   breaking DURING the print (a death mid-fabrication); it says so, with
+   its cost on the event.
+
+A `build_tool` whose spec names **no part** never reaches any of this: it
+is dropped at `Menu.validate` (`overseer.idle_build`), silently, on
+`pin: ""`'s terms. Constrained decoding fills every required property, and
+`spec.name` is a required string the decoder fills with the nearest string
+the prefix offers — the worked example's `"scoop"` — while `parts` is the
+one required field whose zero the prompt cannot supply. So an empty part
+list is a decoder saying nothing, not a robot describing a tool, and 433
+of them were being recorded as failed builds (#315). **One named part,
+however wrong, IS a build**: it reaches the workshop and is refused out
+loud, with the buildable catalog named in the refusal, because a refusal
+is the only thing here that teaches and a drop teaches nothing.
 
 Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
@@ -340,6 +355,47 @@ language, and the tool is fetched like any module: its bay indexes
 `STATION_YS` past the five, and every swap, standoff and tag fix works on
 the rail as it does on the first rack, because the rail's stations are
 commissioned in the same frame.
+
+**A pair hangs a tool** (issue #315). Until then the seam refused a pair
+outright and `build_pair` did not even keep the `MjSpec` it compiled
+from, so the deployed world — which is a pair — advertised a workshop in
+its prompt, required `build_tool` in its schema, and could not hang
+anything: 433 specs in seven days, 433 refused. A pair is two lifecycles
+over one `(model, data)`, and `MjSpec.recompile` returns NEW objects, so
+the rule is that **the recompile is one robot's to run and everybody's to
+follow**: `_recompile` rebinds every lifecycle in the world and fires
+each one's `on_rebind` sinks, and `tick.run_many` reads the world off the
+swap on every step rather than capturing it at loop start. What that buys
+is bounded by what the seam still refuses: a tool controller (the pen,
+the claw, the dispenser) is built per errand and is never rebound, so
+**every** robot has to be between errands with its fork empty, and the
+refusal names the busy one — "wait" and "never" are different answers and
+the robot is the one who has to tell them apart.
+
+⚠ **A print is longer than an errand**, and that nearly made the fix
+worse than the defect. The scoop prints and assembles for 896 sim s; an
+errand runs 200–500. So on a pair the other robot is usually mid-errand
+by the time the parts are ready — and since the seam must refuse while a
+peer is mid-errand, the build was **paid for and lost**: no tool, no
+record, the points gone, which is the one outcome #315 set out to
+prevent. Two halves fix it. The assembly is done, so the tool **hangs
+when there is room**: the robot stands where it already was and polls
+`seam_busy()` — its own predicate precisely so a wait can never mask a
+permanent refusal (no spec, no rail, no such bay) as something worth
+waiting for — for up to `HANG_WAIT_S`, one full errand's worth. And if
+the rack never frees, **the points still buy something**: the tool is
+recorded, the robot is told, and `restore_tools` hangs it at the next
+mission start without paying again, which is the path a tool built
+yesterday already takes.
+
+The rail itself is the **world's**, like the first rack: one
+`rack_inventory` for the pair, so a tool either robot builds is one both
+can see and fetch. "The bay you name is taken" is therefore a rule about
+a robot's OWN tools — a bay the other robot's tool hangs in is refused
+with whose it is, on `bay_index`'s terms for the five originals, and so
+is retiring it. Nothing arbitrates the rail beyond that: which of three
+bays each robot takes is the minds' to negotiate, as tool contention on
+the first rack always has been.
 
 What survives a restart: the records under `$PLUGGY_THOUGHTS/tools/`, one
 JSON per tool. Each is re-validated against today's catalog when the

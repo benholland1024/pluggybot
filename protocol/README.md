@@ -1131,7 +1131,13 @@ which is the degradation, not a break.
   "module", "bay", "retired", "scene"}`**, an event line between frames.
   `scene` is the WHOLE new scene in exactly the shape the scene fixture
   has (`scene_dict`), so a consumer rebuilds its scene graph from it the
-  way it built the first one from the fetched file; `retired` names the
+  way it built the first one from the fetched file — **including the
+  generator's sidecar** (the `visual` hints, `zones`, `spawns`, `plates`)
+  and, on a pair, the PAIR world's `model` name. It did not carry either
+  until pluggybot #315; nothing noticed, because until the same issue a
+  pair could not hang a tool and the one world with a sidecar is served
+  as a pair. A consumer that replaces its scene from this message would
+  otherwise have lost every zone and hint the moment a tool was built; `retired` names the
   module that left the rack (until #277 a bay was a replaced module, any
   of the five; since, a built tool on the rail), `module` the one that
   hangs there now. The frame after it is a keyframe: the producer's

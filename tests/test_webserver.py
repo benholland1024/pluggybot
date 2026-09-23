@@ -711,6 +711,12 @@ class _FakeLife:
 
   def __init__(self, model, data, **kw):
     self.init_kwargs = kw
+    # The world it was built on, as the real lifecycle holds it -- and
+    # `rebind` REPLACES both (issue #168), which is why anything reading
+    # the world after setup has to read it through here. `say_crash` does
+    # (issue #315): a crash message off a `data` captured at setup would
+    # report a sim time a recompiled run had left behind.
+    self.model, self.data = model, data
     self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []

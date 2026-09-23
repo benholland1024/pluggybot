@@ -258,6 +258,15 @@ def unbuildable(part: catalog.Part) -> str | None:
   return None
 
 
+def buildable() -> list[str]:
+  """Every catalog id a tool may actually be built from, in catalog order.
+  `unbuildable`'s complement, so the refusal a robot reads and the list the
+  prompt carries come off one predicate (issue #315: 433 specs named no
+  part at all, and "no catalog part 'blade'" never said what would have
+  worked)."""
+  return [part.id for part in catalog.PARTS if unbuildable(part) is None]
+
+
 def _scaffold_mass(part: catalog.Part, half) -> float:
   density = float(part.capabilities["densityKgM3"])
   return density * 8.0 * half[0] * half[1] * half[2]
@@ -338,13 +347,21 @@ def parse(raw) -> Tool:
     reasons.append(f"the rack already has a module_{name}")
   parts_raw = raw.get("parts")
   if not isinstance(parts_raw, list) or not parts_raw:
-    raise Refused(reasons + ["parts must be a non-empty list"])
+    # ⚠ THE PART LIST IS WHAT A SPEC IS, and a refusal that only said so
+    # in the abstract was what 433 deployed specs got back (issue #315).
+    # Reached from a decision only by a hand-written or restored spec now
+    # -- `overseer.idle_build` drops a partless one before it arrives.
+    raise Refused(reasons + [
+      "parts must be a non-empty list: a spec IS its parts, each one "
+      "{\"id\", \"part\", \"pos\"} -- a tool may be built from "
+      + ", ".join(buildable())])
   if len(parts_raw) > MAX_PARTS:
     reasons.append(f"{len(parts_raw)} parts; the most a tool may have is {MAX_PARTS}")
 
   parts_by_id = catalog.by_id()
   placed: list[Placed] = []
   ids: set[str] = set()
+  unknown_part = False
   for i, pr in enumerate(parts_raw):
     where = f"part {i}"
     if not isinstance(pr, dict):
@@ -365,6 +382,7 @@ def parse(raw) -> Tool:
     part = parts_by_id.get(pr.get("part"))
     if part is None:
       reasons.append(f"{where}: no catalog part {pr.get('part')!r}")
+      unknown_part = True
       continue
     if "catalog" not in part.shelves:
       reasons.append(f"{where}: {part.id} is on the body shelf, not the catalog")
@@ -435,6 +453,14 @@ def parse(raw) -> Tool:
   for v in set(verbs):
     if verbs.count(v) > 1:
       reasons.append(f"axis verb {v!r} used twice")
+  # ⚠ ONCE PER REFUSAL, NOT ONCE PER PART (issue #315). Saying what the
+  # catalog holds is the point -- 433 specs named no part and "no catalog
+  # part 'blade'" never said what would have worked -- but repeating the
+  # list beside every bad part cost 598 chars on a four-part spec, and a
+  # History line is 400: the robot read the list three times and never saw
+  # which of its parts were wrong.
+  if unknown_part:
+    reasons.append("a tool may be built from " + ", ".join(buildable()))
   if reasons:
     raise Refused(reasons)
   return Tool(name=name, parts=tuple(placed))

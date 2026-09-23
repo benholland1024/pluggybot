@@ -657,7 +657,10 @@ def main() -> None:
                  max_sim_time=args.max_sim_time,
                  explore_budget=cfg["explore_budget"])
   except Exception as e:
-    say_crash(e, data, publisher, recorder)
+    # ⚠ `life.data`, never the local bound at setup: a recompiled world is
+    # NEW MjData (issue #315) and a crash message off the old one reports a
+    # sim time the run left behind.
+    say_crash(e, life.data, publisher, recorder)
     raise
   finally:
     publisher.close()
@@ -781,8 +784,14 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
               if args.record is not None else None)
   sinks = [publisher.message] + ([recorder.emit] if recorder else [])
   first.mission.step_hooks.append(publisher.step_hook)
+  # A recompiled world (issues #168, #315): the publisher's census follows
+  # it, or it describes a world that no longer exists. Registered on the
+  # FIRST robot, where its step hook is -- `_recompile` rebinds every
+  # lifecycle, so a tool the SECOND robot builds arrives here too.
+  first.on_rebind.append(publisher.rebind)
   if recorder is not None:
     first.mission.step_hooks.append(recorder.step_hook)
+    first.on_rebind.append(recorder.rebind)
   for life in lives:
     root = life.mission.handle.root
     # A narration line says WHOSE it is, so the observatory files it under
@@ -821,6 +830,7 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
     first.mission.step_hooks.append(pacer.step_hook)
+    first.on_rebind.append(pacer.rebind)
   attach_mode_stream(first, sinks, pacer=pacer)
   maker = first.producer
   if maker is not None and not tasks.open_tasks():
@@ -831,7 +841,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
     results = run_pair(lives, max_sim_time=args.max_sim_time,
                        explore_budget=cfg["explore_budget"])
   except Exception as e:
-    say_crash(e, data, publisher, recorder)
+    # `first.data`, for the reason the single-robot path gives above.
+    say_crash(e, first.data, publisher, recorder)
     raise
   finally:
     publisher.close()

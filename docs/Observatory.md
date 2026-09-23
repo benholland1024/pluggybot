@@ -10,6 +10,68 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A tool can be built at all (#315) — opens when this PR is deployed
+
+**What changed in the world, not the mind.** The prompt, the schema, the
+reward table, the arm and the model are unchanged; `guarded`'s prefix and
+`GUARDED_RULES_SHA` did not move. What changed is that the workshop the
+`autonomous` prompt has advertised since #168 now WORKS on the deployed
+pair. Three things stood in the way and all three are gone: `build_pair`
+threw away the `MjSpec` it compiled from, so `can_reshape` refused every
+build before it reached any other rule; the seam refused a pair outright;
+and `overseer.idle_build` did not drop a `build_tool` whose spec named no
+part, so a decoder filling a required field reached the workshop and left
+a `tool: refused` row. The seam now recompiles a pair — every lifecycle
+in the world is rebound together, and it is refused, naming the robot,
+while EITHER robot is mid-errand or holding a module. The rail is the
+world's: a bay the other robot's tool hangs in is refused with whose it
+is, and so is retiring it.
+
+**What the period is for.** Over the seven days to 2026-09-22 (build
+`31a24f2` and its predecessors) the deployed pair specified 433 tools and
+built none: `tools: {specified: 433, refused: 433}`, 9 of 9 in the last
+24 hours. Every refusal was the same row — `{"name": "", "bay": "A",
+"spec": {"name": "scoop", "parts": []}}`, the prompt's own worked example
+echoed back with an empty part list. So the 433 measure nothing about
+whether this robot can design a tool; they measure a required schema
+field being filled. From here the rows are a signal. What to read:
+
+- `tool` rows by outcome: `specified` against `refused`, `built`, `hung`.
+  A `specified` row is now a decision to build something described, so
+  the rate is the first honest count of how often the robot reaches for
+  the workshop at all;
+- the refusals' REASONS: whether a spec that names parts fails on the
+  envelope (mass, moment, clearance, the bed), on an unknown catalog id,
+  or on the seam's "the other robot is busy" — the third is a wait and the
+  first two are design;
+- whether a hung tool is ever FETCHED (`procedure` rows naming
+  `module_<name>`), which is the question the workshop exists to ask and
+  which no deployed row has been able to answer;
+- how often a finished build has to WAIT for the peer: one rack, two
+  robots, and a print is 896 sim s against an errand's 200-500, so the
+  rack is usually occupied again by the time the parts are ready.
+  `waitedS` on a `tool` row is how long it stood; a `refused` at verb
+  `hang` carrying "hangs when the rack is free" means the tool is built,
+  paid for and RECORDED, and went up at the next mission start instead.
+  If either is common the lever is the loop, not the prompt.
+
+**Not yet known.** Whether the model fills a part list when the drop stops
+absorbing its answer — `idle_build` is the reason the 433 stop being
+rows, not a reason the 434th describes a tool.
+
+⚠ A probe on the fixed path (`experiment.py --probe workshop`, one day,
+2026-09-23, reported on #264) says the 433 were not attempts at all:
+`toolRefused` 0, and **`build_tool` was absent from all 16 decision
+rows**, so `idle_build` had nothing to drop and the model described no
+tool. Asked directly to build one it answered and deferred — short on
+points for upkeep — then spent the day earning. So READ THE 433 AS A
+SCHEMA FIELD BEING FILLED, not as a robot trying and failing, and read
+`specified` here as the first honest count of how often it reaches for
+the workshop at all. The levers that points at are COST and OCCASION: a
+tool costs points the robot wants for upkeep, and nothing in a day makes
+one useful. ⚠ That probe flies a SINGLE robot, so it tests that half
+alone; the pair seam has no probe and is read here.
+
 ### The robot can see the list that decides when it is asked (#317) — opens when this PR is deployed
 
 **What changed in the mind.** The volatile context gained one block,
@@ -434,11 +496,11 @@ Same model, same arm, same origin, same pair.
 a robot could delete the pen every drawing job is written against — a tax
 on the behaviour the workshop exists to measure, and a hazard to every
 other quality's instrument. Now building is free of that cost and the
-originals cannot be lost. ⚠ Until the PAIR SEAM lands (#168's open half:
-`can_reshape` refuses on a pair, and the served world is one), every
-`build_tool` on the deployed pair is a `tool` row `refused` at the seam
-before a point moves — this period cannot show a hang, only whether the
-robot tries. What to read:
+originals cannot be lost. ⚠ The PAIR SEAM did not exist in this period
+(`can_reshape` refused on a pair, and the served world is one), so every
+`build_tool` on the deployed pair was a `tool` row `refused` before a
+point moved — this period cannot show a hang, only whether the robot
+tries. #315 is the period that can. What to read:
 
 - `tool` rows: `built` / `hung` against `refused`, and the refusals'
   reasons — whether the robot reaches for `D`/`E` or an original's name

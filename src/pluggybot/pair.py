@@ -41,7 +41,7 @@ from pluggybot.lifecycle import (
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
 from pluggybot.mission.mission import MissionAborted
-from pluggybot.robot import FIRST, SECOND, pair_model_name, world_with_robots
+from pluggybot.robot import FIRST, SECOND, pair_model_name, world_spec
 
 
 #: The second robot's default display name; the first keeps `Pluggy`.
@@ -110,8 +110,13 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   from pluggybot.telemetry.protocol import robot_display_name
   cfg = world_config(world)
   starts = (cfg["start"], cfg["start2"])
-  model = world_with_robots(cfg["model"], second_at=starts[1][:2],
-                            prefix=handles[1].prefix)
+  # THE SPEC IS KEPT, and both lifecycles get it (issue #315): a pair is
+  # compiled from a spec either way -- `world_with_robots` throws it away
+  # after `compile()` -- and without it `can_reshape` refuses every build
+  # with "this world was compiled without its spec", which is what the
+  # deployed pair was hitting before it ever reached the pair rule below.
+  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix)
+  model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
@@ -176,7 +181,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                         mode=mode if i == 0 else None,
                         world=world, errands=errands_for(errand, world, book),
                         handle=handle, robot_name=name, ledger=ledger,
-                        overseer=boss, thoughts=memory,
+                        overseer=boss, thoughts=memory, spec=spec,
                         metabolism=hunger, tasks=board,
                         producer=maker if i == 0 else None,
                         mortal=mortal, autonomous=autonomous, **life_kw)
@@ -184,6 +189,15 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     # producer: the second stands by for work like the first does.
     life.expects_work = maker is not None
     lives.append(life)
+  # ONE RACK FOR THE PAIR (issue #315). The rack, its bays and the modules
+  # on it are the WORLD's and never prefixed -- tool contention is the
+  # minds' to negotiate -- so the inventory the workshop edits is ONE dict
+  # both lifecycles hold: a tool the second robot builds is a tool the
+  # first can see, fetch and stand clear of. Two copies would diverge the
+  # moment either robot hung anything, and `can_reshape` reads the other
+  # robot's fork off it.
+  for life in lives[1:]:
+    life.rack_inventory = lives[0].rack_inventory
   # Each mission is told where the OTHERS say they are, its lidar drops
   # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
   # and its mind is shown what they broadcast (`peers`).
@@ -307,6 +321,11 @@ def record_pair(lives: list, path: str):
                         tickets=o.tickets)
             for o in others])
   first.mission.step_hooks.append(recorder.step_hook)
+  # ...and a recompiled world reaches its census (issues #168, #315). On
+  # the FIRST robot alone, as its step hook is: `_recompile` rebinds every
+  # lifecycle in the world, so a tool the second robot builds fires this
+  # through the first robot's own rebind.
+  first.on_rebind.append(recorder.rebind)
   if first.boards is not None:
     first.boards.on_event.append(recorder.emit)
   if first.ledger is not None:
