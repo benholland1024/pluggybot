@@ -10,6 +10,18 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A robot that falls over keeps an honest map (#339) — opens when this PR is deployed
+
+**A bug fix.** A robot lying on its side painted free space through the
+walls into its map, and the map outlived the stand-up: on build `0f2faf5`
+Rowan's hall came back solid occupied, with a free fan through the living
+room's walls. A scan now goes into the map only while the chassis is level.
+No prompt, table or schema moves.
+
+**What the period is for.** The maps on the site after a topple (the
+`grid` a robot streams). Not its deaths: the `flat` deaths that followed
+Rowan's topple were a different defect (#339's budget PR).
+
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 
 **Three changes, one regime break.**

@@ -126,6 +126,29 @@ def test_a_robot_on_its_side_is_a_stuck_death_and_a_wobble_is_not():
   assert seen[-1]["type"] == "death" and seen[-1]["cause"] == "stuck"
 
 
+def test_a_robot_on_its_side_writes_nothing_into_its_map():
+  """Issue #339, off the deployed world: Rowan lay on its side scanning,
+  half its rays saw the sky and went into the map as free space 8 m through
+  the walls, and every life after the stand-up drove into one of them until
+  the pack was flat. A scan is a map of the room only while the chassis is
+  level; upright again, the map takes scans again."""
+  from pluggybot.mission.mission import MAP_TILT_RAD
+  life = _life()
+  m = life.mission
+  lidar_z = float(life.data.site_xpos[m.lidar.site_id][2])
+  assert MAP_TILT_RAD < math.atan2(lidar_z, m.lidar.max_range), \
+      "tilted this far, the scan plane meets the floor inside the LIDAR's range"
+  m._drive(0.3, 0.0, 0.0)
+  before = m.grid.grid.copy()
+  assert before.any(), "the premise: an upright scan writes the map"
+  _topple(life)
+  m._drive(1.0, 0.0, 0.0)                      # ten scans on its side
+  assert (m.grid.grid == before).all(), "a scan taken on its side went into the map"
+  m.start_at(*world_config("room_hub")["start"])
+  m._drive(0.3, 0.0, 0.0)
+  assert (m.grid.grid != before).any(), "upright again, the map takes scans"
+
+
 def test_a_failed_dock_is_a_stuck_death_and_ends_a_day_nobody_can_reset(
     monkeypatch):
   """`stranded` used to end the day as a sentence of its own; it is §3's

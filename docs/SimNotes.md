@@ -1763,6 +1763,36 @@ reckoner seeing it -- 500 steps with the opening spin's wheel command
 still in `ctrl` put 49° between belief and truth, painted a diagonal
 ghost wall across the living room, and looked exactly like a seam bug.
 
+## A robot on its side maps the sky (issue #339)
+
+After a topple on the deployed pair (build `0f2faf5`), Rowan's live map
+(the stream's `grid`) had its hall -- where it stands up -- painted solid
+occupied with concentric floor-hit arcs, and a free fan running east through
+the living room's walls and out past the fence, its outer edge an 8 m arc
+about where it had fallen. Luca's map, off the same stream, was sane.
+
+Three rules met there. The LIDAR casts along its real frame, and no return
+is "free to max range", so on its side about half its rays see the sky and
+go into the map as 8 m of free space at the believed, upright bearings
+(reproduced: 5 s on its side painted 38 622 free cells onto an empty map,
+straight through the walls). A dead robot keeps scanning, because its wait
+steps through `_drive_routine` and every step runs `_after_step`. And a
+stand-up warps and refills but keeps the map. **What is true now:** a scan
+goes into the map only while `HubMission.level()`, within `MAP_TILT_RAD`
+(1.5°) of level. Past 1.6° the scan plane meets the floor inside the 8 m
+range (the LIDAR sits 0.223 m up); draw, census and dance tilt the chassis
+0.66° at most and the charge press 1.40°, measured. The reflex still reads
+every scan, and a deploy clears a map already damaged: the grid lives in
+memory only.
+
+⚠ **It was not the death loop it was found beside.** Rowan went `flat`
+401-403 s into every life after that topple, pushing into `wall_west_1` at
+~70 W, and the map looked like the reason. It was not: the same death loop
+reproduces WITH the gate in place, and replaying Rowan's own map from its
+stand-up pose explores the house without touching the wall. The loop was
+`refine_standoff`'s unbounded drive back to a bay standoff (#339, the
+budget PR). Trust the reproduction over the story that fits.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

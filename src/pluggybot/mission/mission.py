@@ -90,6 +90,15 @@ SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
 LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
+#: A scan goes into the MAP only while the chassis is this close to level
+#: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
+#: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
+#: the sky -- "free to max range", 8 m through every wall, for as long as
+#: it lies there. MEASURED on the home world: draw, census and dance peak
+#: at 0.66 deg (median 0.018), the charge press at 1.40 -- a scan skipped
+#: at the dock costs nothing, a sky scan costs the map. The reflex still
+#: reads every scan.
+MAP_TILT_RAD = math.radians(1.5)
 
 
 def rack_heading(rack: RackPose | None = None) -> float:
@@ -418,6 +427,13 @@ class HubMission:
       if ahead > 0:
         time.sleep(min(ahead, 0.05))
 
+  def level(self) -> bool:
+    """Whether the chassis is level enough for a scan to be a map of the
+    room (`MAP_TILT_RAD`): its up axis against the world's, as an IMU says."""
+    q = self.swap.root_qadr
+    x, y = float(self.data.qpos[q + 4]), float(self.data.qpos[q + 5])
+    return 1.0 - 2.0 * (x * x + y * y) >= math.cos(MAP_TILT_RAD)
+
   def pose_xy(self) -> tuple[float, float]:
     """Where this robot SAYS it is -- what another robot may be told."""
     return (self.swap.reckoner.x, self.swap.reckoner.y)
@@ -503,8 +519,9 @@ class HubMission:
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
-      self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                       origin=LIDAR_ORIGIN)
+      if self.level():
+        self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
+                         origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))
