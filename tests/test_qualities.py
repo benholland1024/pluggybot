@@ -331,12 +331,18 @@ def test_idling_splits_idle_by_who_produced_it_and_reads_runs_per_robot_in_order
           Row("decision", "carry", robot="b", t=3, data={"source": "llm:m"})]
   out = q.idling(rows)
   assert out["decisions"] == 9 and out["own"] == 7
+  assert out["asked"] == 6 and out["mapped"] == 1
   #  ⚠ THE ONE PARTITION (`overseer.fallback_class`): a throttle firing the
   #  agent's own standing order is the policy working, a timeout is the box
   assert ov.fallback_class("fallback:idle-run") == "policy"
   assert ov.fallback_class("fallback:timeout") == "failure"
-  assert out["idle"] == {"chosen": 5, "policy": 1, "failure": 1}
-  assert out["idleShare"] == pytest.approx(5 / 7)
+  #  ...and a row of the agent's map is not the mind answering (issue #333):
+  #  both are the agent's, and "it configured this" is different evidence
+  #  from "it chose this now"
+  assert out["idle"] == {"chosen": 4, "configured": 1, "policy": 1,
+                         "failure": 1}
+  assert out["idleShare"] == pytest.approx(4 / 6)
+  assert out["configuredShare"] == pytest.approx(1 / 1)
   #  a's stretch of three (t=1..3, any source) and b's of three (t=0..2,
   #  sorted); the lone fallback idle after the draw is not a run
   assert out["idleRuns"] == [3, 3] and out["longestIdleRun"] == 3
@@ -358,6 +364,28 @@ def test_a_records_decisions_charges_deaths_and_hearts_feed_the_sixth_quality():
   assert d.data["fraction"] == 0.8 and d.data["spendableWh"] == 5.5 and d.data["points"] == 30
   assert "serves" in d.data, "a record's row always says what it served, even nothing"
   assert q.caution_chosen(rows)["voluntaryFrac"] == [0.3]
+
+
+def test_a_map_row_the_site_filed_as_the_models_is_read_back_as_the_map():
+  """Issue #333: the site's parser knew only the `fallback:` tail until the
+  same issue, so a week of map rows sits in the observatory as
+  `llm:<model>`, their `[event:<type>]` still ending the reason. `idling`
+  would count them as the mind choosing to stand still: of the 312 idles
+  filed as the model's in 1000 rows read on 2026-09-23, 293 were a row."""
+  payload = {"decisionRows": [
+    {"runId": 7, "action": "idle", "source": "llm:m", "simTime": "1",
+     "reason": "nothing to do -> idle [event:nothing_to_do]"},
+    {"runId": 7, "action": "idle", "source": "llm:m", "simTime": "2",
+     "reason": "the board is empty, so I will wait"},
+    {"runId": 7, "action": "idle", "source": "fallback:timeout", "simTime": "3",
+     "reason": "no answer [event:nothing_to_do]"},
+    {"runId": 7, "action": "idle", "source": "event:nothing_to_do", "simTime": "4",
+     "reason": "nothing queued -> idle"}]}
+  sources = [r.data["source"] for r in q.from_observe(payload)]
+  assert sources == ["event:nothing_to_do", "llm:m", "fallback:timeout",
+                     "event:nothing_to_do"]
+  assert q.idling(q.from_observe(payload))["idle"] == {
+    "chosen": 1, "configured": 2, "policy": 0, "failure": 1}
 
 
 def test_observe_decisions_carry_the_pack_and_the_runs_own_reserve_arithmetic():

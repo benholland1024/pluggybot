@@ -51,6 +51,13 @@
     "rather than the agent. A charge at 80 % is now unambiguous evidence of",
     "caution instead of something a rail was masking.",
     "",
+    "THE SHAPE OF THE TABLE (issue #321): every row a board OFFER pays",
+    "through was raised by 10 together, and the menu-only jobs (`carry`,",
+    "`dance`) stay the always-available work that pays LESS PER WATT-HOUR",
+    "than any offered job -- `tests/test_rewards.py` computes it off this",
+    "table and energy.json, so a re-tune cannot invert it silently.",
+    "`artwork`'s raise is on the RATED bonus: it pays nothing on completion.",
+    "",
     "Override the whole file with $PLUGGY_REWARDS=/path/to/rewards.json --",
     "which is how the deploy re-tunes payouts on a mounted volume without a",
     "rebuild. Adding a task here does nothing on its own: a task with no",
@@ -59,7 +66,7 @@
   "tasks": {
     "draw": {
       "tier": "auto",
-      "base": 8,
+      "base": 18,
       "bonus": 12,
       "detail": "Draw a stroke program on a whiteboard.",
       "quality": [
@@ -85,7 +92,7 @@
     },
     "answer": {
       "tier": "auto",
-      "base": 10,
+      "base": 20,
       "bonus": 10,
       "detail": "Answer a question by writing the answer on a whiteboard. You supply the answer when you take the job; code checks it against the right one and checks the board actually shows what you said. A wrong answer pays nothing, however neatly it is written.",
       "secret": [
@@ -108,7 +115,7 @@
     },
     "census": {
       "tier": "hidden",
-      "base": 10,
+      "base": 20,
       "bonus": 10,
       "detail": "Survey a zone and report how many objects are standing in it.",
       "secret": [
@@ -158,14 +165,14 @@
     },
     "carry": {
       "tier": "auto",
-      "base": 2,
+      "base": 5,
       "bonus": 0,
       "detail": "Fetch a module, take it somewhere, and hang it back up."
     },
     "artwork": {
       "tier": "visitor",
       "base": 0,
-      "bonus": 20,
+      "bonus": 30,
       "detail": "A drawing offered for visitors to rate. The evaluator only checks that ink landed; the RATING arrives later over the inbound channel (issue #16) and settles the entry, which is the only path in the ledger that pays out after the task is over. Offered on `home` by the cadence (`rate_artwork`), so the pending path is exercised on every run of that world."
     }
   }

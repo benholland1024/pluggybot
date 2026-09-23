@@ -165,7 +165,9 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
   here is `autonomous`-only anyway.
 
   The sha below is the guarded prefix of the deployed world as this change
-  found it, measured before the index existed and unchanged by it."""
+  found it, measured before the index existed and unchanged by it -- and
+  re-pinned by #321, whose reward table rides every arm's prefix: five
+  payouts moved in it and nothing else did."""
   guarded = ov.build("home", enabled=True, client=FakeClient())
   text = guarded.system[0]["text"]
   assert '"fields"' not in text and "`fields` are what you may set" not in text
@@ -175,7 +177,7 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
   # here so it is reversed deliberately rather than found by accident.
   assert {"pin", "note", "intend", "respond_to"} <= set(guarded.menu.fields())
   assert hashlib.sha256(text.encode()).hexdigest() == \
-      "0b1a7f362b5edeb1813b8e033f2cbf6d48c5cc268993c5c636d00114dcc1b553"
+      "109f9f93192b1a7d6be108dac3c29696f9033e97e14b6e539568f2e3fb178af3"
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
   # ...and the heading the site reads sections by is the one it was.
   assert dict(guarded.sections)["WHAT YOU CAN DO, AND WHERE"].startswith(

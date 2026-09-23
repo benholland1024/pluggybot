@@ -2468,6 +2468,11 @@ that is written down as what happened.\
 #: no example, no threshold, no verdict. What a rule may not do is
 #: demonstrate the ANSWER, and "your list is in `eventMap` below" is a fact
 #: about where to look.
+#:
+#: ⚠ `nothing_to_do` IS DESCRIBED AS WHAT THE CODE CHECKS (issue #333): this
+#: robot's own queue, never the world. "There is nothing waiting" was false
+#: whenever an offer stood open, and `idle` is the sensible answer to it --
+#: 58 of 80 deployed idles were that one row. A test reads the rule for it.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2484,8 +2489,9 @@ anybody last asked you anything before this question.
 Each rule has an `event`, a `value` where the event needs one, an optional \
 `kind`, and an `action`.
 
-  nothing_to_do     you have finished whatever you were doing and there is \
-nothing waiting
+  nothing_to_do     nothing of yours is queued or running. It does not mean \
+there is nothing to do: the menu always has work. `kind` narrows it to \
+whether `offeredTasks` is showing you a job: `offers`, or `none`
   task_complete     something finished. `kind` narrows it to one action
   task_failed       something failed or could not be done. `kind` likewise
   decision_failed   nobody could be asked. `kind` narrows it to WHY, below

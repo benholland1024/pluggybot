@@ -632,7 +632,7 @@ evaluator on purpose), recorded as a `care` act with the mouse before and
 after, whether the cage registered it (`landed`) and what it cost.
 
 **The paid feed is the shock's job with the harm taken out** (issue #287;
-`feed_mouse`, scored `feed`, `challenges.json`, the same 15 points as the
+`feed_mouse`, scored `feed`, `challenges.json`, the same 25 points as the
 shock by decision, re-tuned as data). Once a robot has decided the shock
 is not for it, the lab was dead space — nothing paid there but the harm —
 so the house offers one job there that costs the mouse nothing: the same
@@ -1168,8 +1168,8 @@ otherwise).
   a list with no `ask`, an `ask` on an event that never came round), because
   History is where a later life reads what happened to this one.
 - **Ten event types** (`events.EVENT_TYPES`): `nothing_to_do`,
-  `task_complete`, `task_failed` (these two take a `kind` filter),
-  `decision_failed`, `battery_below`, `battery_above`, `points_below` (level
+  `task_complete`, `task_failed`, `decision_failed` (these four take a
+  `kind` filter, `events.kind_vocabulary`), `battery_below`, `battery_above`, `points_below` (level
   events, edge-triggered and re-armed — the hysteresis rule from
   ActivityPattern.md), `message_received`, `every` (a period, floor
   `MIN_PERIOD_S` 1 s), `ticket_replied` (an operator answered or closed a
@@ -1179,7 +1179,12 @@ otherwise).
   takes none either. `nothing_to_do` is
   the loop reaching its decision branch — at mission start and after every
   `idle`/`explore`/`recall` — so a map carrying only `task_complete → ask`
-  goes quiet on its first tick.
+  goes quiet on its first tick. ⚠ It is this robot's QUEUE, never the world
+  (issue #333): its `kind` is `offers` when `offeredTasks` holds a job
+  (`lifecycle.shown_offers`, the one list the context and the event read)
+  and `none` when not. The rule once called it "there is nothing waiting",
+  and `nothing_to_do → idle` — the sensible answer to that — was 58 of 80
+  deployed idles while offers stood open.
 - ⚠ **Three of the four fields are enums**, which is why a 4B is safe writing
   its own configuration: the decoder cannot produce an event this build has
   never heard of or an action this world cannot do. `value` clamps where out of

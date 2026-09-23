@@ -10,6 +10,60 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
+
+**Three changes, one regime break.**
+- **The economy (#321).** +10 on every row a board offer pays through —
+  draw, answer and census 30 at best (were 20), artwork's RATED bonus 30
+  (still nothing on completion), the bench 60, hide and seek, `take`,
+  `shock` and `feed` 25 — the tower 50 (was 30), `carry` 5 (was 2),
+  `program` 0 (was 5: a `wait(1)` procedure banked it on demand). `dance`,
+  `charge` and `ticket` unchanged. The metabolism cap 600 (was 400);
+  upkeep 30/sim-hour, `hungryAt` 20, `satisfiedAt` 45 and the heart's 200
+  unchanged.
+- **The event map (#333).** `EVENT_MAP_RULE` said `nothing_to_do` meant
+  "there is nothing waiting"; it now says nothing of the robot's own is
+  queued or running, and the event takes a `kind`: `offers` / `none`.
+- **The offer view (found with #333).** On `autonomous` an offer the pack
+  cannot fund is now listed, as the rules always said. Filtered on the
+  pack, the deployed board read empty below about 37 %.
+
+The deployed prefix went 53 132 → 53 318 chars (`prompt_sha` `353b813f…`
+→ `842b6339…`) and the diff is exactly the table, the `program` row's
+detail and the `nothing_to_do` line. `guarded`'s prefix moves with the
+table alone (`0b1a7f36…` → `109f9f93…`); `GUARDED_RULES_SHA` unchanged.
+The site's half (rooftop-media-2026) files a map row's decision under
+`event:<type>` — it read `llm:<model>` — and `idling` splits `configured`
+(a row of the agent's map) from `chosen` (the mind, asked); `idleShare` is
+now chosen ÷ the decisions the mind was asked for, so it does not compare
+with the number before this.
+
+**What the period is for.** Before, over the 7 days to 2026-09-23: Rowan
+at 0 points in 53 % of balance readings, below `hungryAt` in 79 %,
+satisfied in 6 %, never above 91; Luca 18 % / 43 % / 39 %, never above
+274. Deaths on build `e77704c`: `unpaid` 9, `flat` 5, `unminded` 0. Of 80
+idles in 200 decision rows, 58 were `nothing_to_do -> idle`, 19
+fallbacks, 2 the mind's own (asked 114 times). Read:
+
+- **the balance by band, per robot** (buffer kept): whether Rowan leaves
+  zero, and whether either robot ever nears the cap;
+- **`unpaid` and `flat` side by side.** More income should lower the
+  first; the offer view can raise the second, and that is the arm's own
+  question rather than a regression;
+- **idle by producer**, and whether maps start narrowing `nothing_to_do`
+  — what they send `offers` to, and whether `-> idle` survives only on
+  `none`;
+- **procedure runs with no task behind them.** The row now says it pays
+  nothing; a fall says the 5 was a reason to run them;
+- **hearts bought**, and tower and bench claims now that they pay 50 and
+  60.
+
+**Not yet known.** None of the three is isolated: a fall in `unpaid` could
+be income or fewer idle slices. The upkeep's fraction of income is not
+measured on the new table (the scripted 80/hour is the old one's), and
+`MORTAL_RULE`'s "two and a half hours of work" for a heart is
+`HEART_PRICE` over that 80; #321 left the heart's price alone on purpose.
+
 ### The powers are in the block that lists them (#314) — opens when this PR is deployed
 
 **What changed is the prompt, so it is a regime break.** `WHAT YOU CAN DO,

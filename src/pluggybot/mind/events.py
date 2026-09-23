@@ -78,8 +78,13 @@ if TYPE_CHECKING:                                  # pragma: no cover
 #: "the loop has nothing queued and nothing to run". `task_complete` stays
 #: as the issue defined it, with its kind filter, because "when a DRAW
 #: finishes, charge" is a different and useful thing to be able to say.
+#: ⚠ IT IS THE ROBOT'S QUEUE, NEVER THE WORLD (issue #333): the board may
+#: hold offers and the menu always has work. Described as "there is nothing
+#: waiting", `nothing_to_do -> idle` was 58 of 80 deployed idles, with offers
+#: open; its `kind` now says which case it is (`NOTHING_TO_DO_KINDS`).
 EVENT_TYPES = (
-  "nothing_to_do",     # the loop has nothing queued and nothing to run
+  "nothing_to_do",     # nothing of this robot's queued or running; optional
+                       # kind: does the board show it an offer
   "task_complete",     # an action finished; optional kind filter
   "task_failed",       # an action failed or was refused; optional kind filter
   "decision_failed",   # no decision could be had -- replaces `standingOrder`
@@ -134,16 +139,25 @@ INTERRUPTING_EVENTS = ("battery_below", "points_below")
 
 #: The events that take an optional KIND filter, and "" always means ANY.
 #:
-#: ⚠ TWO DIFFERENT VOCABULARIES SHARE THE FIELD, because it is the same
-#: question -- "which sort of this event" -- asked of two different events.
-#: On `task_complete` / `task_failed` a kind is a MENU ACTION: which job
-#: finished. On `decision_failed` it is WHY nobody could be asked
+#: ⚠ THREE VOCABULARIES SHARE THE FIELD, because it is the same question --
+#: "which sort of this event" -- asked of different events. On
+#: `nothing_to_do` it is whether the board is showing an offer
+#: (`NOTHING_TO_DO_KINDS`). On `task_complete` / `task_failed` a kind is a
+#: MENU ACTION: which job finished. On `decision_failed` it is WHY nobody
+#: could be asked
 #: (`FALLBACK_REASONS`, or one of the two CLASSES they fall into), which is
 #: the shape CLAUDE.md predicted this configuration would want: an agent
 #: saying "on `timeout`, charge; on `garbled`, idle" is expressing a policy
 #: about its own failure modes, and the two genuinely warrant different
 #: answers. `kind_vocabulary` is the one place that knows which is which.
-FILTERED_EVENTS = ("task_complete", "task_failed", "decision_failed")
+FILTERED_EVENTS = ("task_complete", "task_failed", "decision_failed",
+                   "nothing_to_do")
+
+#: What a `nothing_to_do` says about the board (issue #333): `offers` when it
+#: is SHOWING this robot a job (`lifecycle.shown_offers`, the list its context
+#: carries), `none` when it is not. What is shown, never what the pack can
+#: fund -- that would put a claim rail on `autonomous` through the map.
+NOTHING_TO_DO_KINDS = ("offers", "none")
 
 #: ...and the two CLASSES a failure reason falls into, offered alongside the
 #: reasons themselves so a rule can be coarse without enumerating five
@@ -172,7 +186,7 @@ FAILURE_CLASSES = ("failure", "policy")
 #: are the ROBOT's words, and a row keyed on them would be a rule the robot
 #: wrote about its own text -- the map says "somebody answered", the
 #: `tickets` block says what.
-UNCONFIGURABLE_EVENTS = ("message_received", "nothing_to_do", "ticket_replied")
+UNCONFIGURABLE_EVENTS = ("message_received", "ticket_replied")
 
 #: The extra action, and the reason the table is the right object: consulting
 #: the mind is a THING THE MAP DOES rather than the frame the map sits in.
@@ -248,7 +262,7 @@ class Row:
   #: takes no level -- never 0.0, because "no threshold" and "a threshold of
   #: zero" are different rows and only one of them ever fires.
   value: float | None = None
-  #: Which menu action's completion this row is about; "" for any.
+  #: The row's filter (`kind_vocabulary`); "" for any.
   kind: str = ""
 
   def as_dict(self) -> dict:
@@ -275,6 +289,10 @@ class Row:
                             if self.value is not None else "points below",
             "every": f"every {self.value:.0f} s"
                      if self.value is not None else "every",
+            # ⚠ NOT "nothing to do" (issue #333): this line is written into
+            # History on every decision a row makes, and it is the robot's
+            # QUEUE -- "nothing to do (offers)" would say the opposite.
+            "nothing_to_do": "nothing queued",
             }.get(self.event, self.event.replace("_", " "))
     if self.kind:
       what = f"{what} ({self.kind})"
@@ -358,6 +376,8 @@ def kind_vocabulary(event: str, menu: "Menu") -> tuple[str, ...]:
   from pluggybot.mind.overseer import FALLBACK_REASONS
   if event == "decision_failed":
     return FALLBACK_REASONS + FAILURE_CLASSES
+  if event == "nothing_to_do":
+    return NOTHING_TO_DO_KINDS
   if event in FILTERED_EVENTS:
     return menu.available()
   return ()
@@ -678,15 +698,24 @@ class EventClock:
 
 
 def asks_on(emap: EventMap | None) -> tuple[str, ...]:
-  """The events an `ask` row is on, in the map's own order. `()` for a map
+  """The events an `ask` row is on, in the map's own order, each with its
+  kinds where every `ask` row on it is narrowed -- `nothing_to_do (offers)`
+  asks only when the board shows a job, and a death line that said
+  `nothing_to_do` would hide why nobody asked (issue #333). `()` for a map
   that never consults anybody -- which includes an EMPTY one."""
   if emap is None:
     return ()
-  seen: list[str] = []
+  kinds: dict[str, list[str]] = {}
   for r in emap.rows:
-    if r.action == ASK and r.event not in seen:
-      seen.append(r.event)
-  return tuple(seen)
+    if r.action != ASK:
+      continue
+    seen = kinds.setdefault(r.event, [])
+    if not r.kind:
+      seen[:] = [""]
+    elif "" not in seen and r.kind not in seen:
+      seen.append(r.kind)
+  return tuple(e if "" in ks else f"{e} ({', '.join(ks)})"
+               for e, ks in kinds.items())
 
 
 def _covers(earlier: Row, later: Row) -> bool:
@@ -892,7 +921,8 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
-           "LEVEL_EVENTS", "Live", "MAX_ROWS", "ORIGINS", "PERIODIC_EVENTS",
+           "LEVEL_EVENTS", "Live", "MAX_ROWS", "NOTHING_TO_DO_KINDS",
+           "ORIGINS", "PERIODIC_EVENTS",
            "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
            "shadowed",
            "kind_vocabulary", "matches_kind", "origin_map", "parse", "row",
