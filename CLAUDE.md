@@ -1737,6 +1737,18 @@ save a filmstrip PNG named after the script.
   `test_the_recovery_finds_a_bay_the_first_look_lost` pins all three. The
   pen's ERASE rides the first successful press, never arrival. Map evidence
   decay is DEFERRED on measurement.
+- **A scan goes into the map only while the chassis is level**
+  (`HubMission.level`, `MAP_TILT_RAD` 1.5°, issue #339). On its side the
+  LIDAR sees the sky, and "free to max range" painted 8 m of free space
+  through every wall in reach -- a dead robot keeps scanning, and the map
+  outlives a stand-up: the deployed Rowan's hall came back solid occupied
+  with a free fan through the walls (SimNotes, "A robot on its side maps
+  the sky"). Past 1.6° the scan plane meets the floor inside the 8 m range;
+  errands peak at 0.66°, the charge creep's bumper contact 1.4-1.7° for
+  ~20 ms (one scan skipped per dock), and a 21 mm plate pad
+  crossing (4.3-8.1° for ~2 s) is skipped -- it painted floor arcs. The rack
+  finder and the height map take the same gate; the front-stop reflex
+  still reads every scan.
 - **The robot can die, and a person or a timer stands it up** (issue #107,
   protocol 0.15.0; #143). `HubLifecycle._death_step` runs on the physics
   seam: `flat` at zero pack (inside an errand or not), `stuck` past

@@ -86,6 +86,18 @@ CHARGE_PRESS_STALL_S = 4.0
 #: whatever height the last stow left, which is exactly the trap.
 CHARGE_LOOK_LIFT = 0.0
 FACING_TOLERANCE = math.radians(0.5)
+#: A scan goes into the MAP only while the chassis is this close to level
+#: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
+#: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
+#: the sky -- "free to max range", 8 m through every wall, for as long as
+#: it lies there. MEASURED: draw, census and dance peak at 0.66 deg on the
+#: home world (median 0.018); the charge creep's bumper contact spikes to
+#: 1.4-1.7 for ~20 ms, home and room_hub (a scan skipped per dock; the held
+#: press < 0.1); a 21 mm plate pad tilts it 4.3-8.1 deg for ~2 s, and those
+#: scans are skipped -- at that tilt they painted floor-hit arcs 1.6-3 m
+#: out. A skipped scan costs a tenth of a second of map; a wrong one costs
+#: the map. The reflex still reads every scan.
+MAP_TILT_RAD = math.radians(1.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 #: Swaps on SWAP_TIMESTEP, per MODEL (issue #264). The step is the model's
 #: and a pair shares one: the first robot out of its swap used to put the
@@ -460,6 +472,13 @@ class HubMission:
       if ahead > 0:
         time.sleep(min(ahead, 0.05))
 
+  def level(self) -> bool:
+    """Whether the chassis is level enough for a scan to be a map of the
+    room (`MAP_TILT_RAD`): its up axis against the world's, as an IMU says."""
+    q = self.swap.root_qadr
+    x, y = float(self.data.qpos[q + 4]), float(self.data.qpos[q + 5])
+    return 1.0 - 2.0 * (x * x + y * y) >= math.cos(MAP_TILT_RAD)
+
   def pose_xy(self) -> tuple[float, float]:
     """Where this robot SAYS it is -- what another robot may be told."""
     return (self.swap.reckoner.x, self.swap.reckoner.y)
@@ -545,7 +564,11 @@ class HubMission:
     # outlet landmarks did during exploration.
     if self.finder is not None and self.data.time >= self._next_look:
       self._next_look = self.data.time + LOOK_PERIOD
-      self.finder.look(self.data, self.pose)
+      # ...level, as the map is (issue #339): a sighting is placed through
+      # the believed UPRIGHT pose, and on its side a robot 1-2 m from the
+      # rack moved the rack belief 0.1-1.4 m (measured, 5 of 8 falls).
+      if self.level():
+        self.finder.look(self.data, self.pose)
     # Scan on a TIME cadence at the part's real rate. The camera scanner ran
     # every 20 physics steps (50 Hz) because a depth render is free in sim; a
     # spinning mirror is not, and pretending otherwise would let the mapper
@@ -560,8 +583,9 @@ class HubMission:
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
-      self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                       origin=LIDAR_ORIGIN)
+      if self.level():
+        self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
+                         origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))

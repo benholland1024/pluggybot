@@ -1740,6 +1740,43 @@ What is true now: `solutions.TOWER` -- those six lines, verbatim -- passes
 `tests/test_solutions.py` pins each rule above in milliseconds and flies
 the three behind `--endurance`.
 
+## A robot on its side maps the sky (issue #339)
+
+After a topple on the deployed pair (build `0f2faf5`), Rowan's live map
+(the stream's `grid`) had its hall -- where it stands up -- painted solid
+occupied with concentric floor-hit arcs, and a free fan running east through
+the living room's walls and out past the fence, its outer edge an 8 m arc
+about where it had fallen. Luca's map, off the same stream, was sane.
+
+Three rules met there. The LIDAR casts along its real frame, and no return
+is "free to max range", so on its side about half its rays see the sky and
+go into the map as 8 m of free space at the believed, upright bearings
+(reproduced: 5 s on its side painted 38 622 free cells onto an empty map,
+straight through the walls). A dead robot keeps scanning, because its wait
+steps through `_drive_routine` and every step runs `_after_step`. And a
+stand-up warps and refills but keeps the map. **What is true now:** a scan
+goes into the map only while `HubMission.level()`, within `MAP_TILT_RAD`
+(1.5°) of level. Past 1.6° the scan plane meets the floor inside the 8 m
+range (the LIDAR sits 0.223 m up); draw, census and dance tilt the chassis
+0.66° at most and the charge creep's bumper contact spikes to 1.4-1.7° for
+about 20 ms (one scan skipped per dock; the held press is under 0.1°),
+measured, while crossing a 21 mm
+plate pad tilts it 4.3-8.1° for about 2 s -- those scans are skipped, and
+at that tilt they had been painting floor-hit arcs 1.6-3 m out on every
+crossing. The rack finder's sightings and the near-field height map take
+the same gate: on its side 1-2 m from the rack, a robot's camera had moved
+the rack belief 0.1-1.4 m. The reflex still reads
+every scan, and a deploy clears a map already damaged: the grid lives in
+memory only.
+
+⚠ **It was not the death loop it was found beside.** Rowan went `flat`
+401-403 s into every life after that topple, pushing into `wall_west_1` at
+~70 W, and the map looked like the reason. It was not: the same death loop
+reproduces WITH the gate in place, and replaying Rowan's own map from its
+stand-up pose explores the house without touching the wall. The loop was
+`refine_standoff`'s unbounded drive back to a bay standoff (#339, the
+budget PR). Trust the reproduction over the story that fits.
+
 ## A rack end is not symmetric for the robot (issue #277)
 
 The built-tool rail is the first rack's frame emitter run again beside it,
