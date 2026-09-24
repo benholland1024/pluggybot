@@ -127,26 +127,35 @@ def test_a_robot_on_its_side_is_a_stuck_death_and_a_wobble_is_not():
 
 
 def test_a_robot_on_its_side_writes_nothing_into_its_map():
-  """Issue #339, off the deployed world: Rowan lay on its side scanning,
-  half its rays saw the sky and went into the map as free space 8 m through
-  the walls, and every life after the stand-up drove into one of them until
-  the pack was flat. A scan is a map of the room only while the chassis is
-  level; upright again, the map takes scans again."""
+  """Issue #339, off the deployed world: Rowan lay on its side scanning, half
+  its rays saw the sky, and they went into the map as free space 8 m through
+  the walls -- a map its every later life inherited. The same fall reached
+  the rack belief through the camera, and the height map through the depth
+  camera. Each is a map of the room only while the chassis is level; upright
+  again, each takes its sensor again."""
+  from types import SimpleNamespace
   from pluggybot.mission.mission import MAP_TILT_RAD
-  life = _life()
+  life = _life(near_field=True)
   m = life.mission
   lidar_z = float(life.data.site_xpos[m.lidar.site_id][2])
   assert MAP_TILT_RAD < math.atan2(lidar_z, m.lidar.max_range), \
       "tilted this far, the scan plane meets the floor inside the LIDAR's range"
+  looks, folds = [], []
+  m.finder = SimpleNamespace(look=lambda data, pose: looks.append(1))
+  fold = life.near_field.update
+  life.near_field.update = lambda pose, points: (folds.append(1), fold(pose, points))
   m._drive(0.3, 0.0, 0.0)
   before = m.grid.grid.copy()
-  assert before.any(), "the premise: an upright scan writes the map"
+  assert before.any() and looks and folds, "the premise: upright, all three are written"
+  seen = (len(looks), len(folds))
   _topple(life)
   m._drive(1.0, 0.0, 0.0)                      # ten scans on its side
   assert (m.grid.grid == before).all(), "a scan taken on its side went into the map"
+  assert (len(looks), len(folds)) == seen, "a toppled camera's frames went into a belief"
   m.start_at(*world_config("room_hub")["start"])
   m._drive(0.3, 0.0, 0.0)
   assert (m.grid.grid != before).any(), "upright again, the map takes scans"
+  assert len(looks) > seen[0] and len(folds) > seen[1]
 
 
 def test_a_failed_dock_is_a_stuck_death_and_ends_a_day_nobody_can_reset(

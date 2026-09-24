@@ -95,9 +95,11 @@ SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 #: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
 #: the sky -- "free to max range", 8 m through every wall, for as long as
 #: it lies there. MEASURED on the home world: draw, census and dance peak
-#: at 0.66 deg (median 0.018), the charge press at 1.40 -- a scan skipped
-#: at the dock costs nothing, a sky scan costs the map. The reflex still
-#: reads every scan.
+#: at 0.66 deg (median 0.018), the charge press at 1.40; crossing a 21 mm
+#: plate pad tilts it 4.3-8.1 deg for ~2 s, and those scans are skipped --
+#: at that tilt they painted floor-hit arcs 1.6-3 m out. A skipped scan
+#: costs a tenth of a second of map; a wrong one costs the map. The reflex
+#: still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
 
 
@@ -504,7 +506,11 @@ class HubMission:
     # outlet landmarks did during exploration.
     if self.finder is not None and self.data.time >= self._next_look:
       self._next_look = self.data.time + LOOK_PERIOD
-      self.finder.look(self.data, self.pose)
+      # ...level, as the map is (issue #339): a sighting is placed through
+      # the believed UPRIGHT pose, and on its side a robot 1-2 m from the
+      # rack moved the rack belief 0.1-1.4 m (measured, 5 of 8 falls).
+      if self.level():
+        self.finder.look(self.data, self.pose)
     # Scan on a TIME cadence at the part's real rate. The camera scanner ran
     # every 20 physics steps (50 Hz) because a depth render is free in sim; a
     # spinning mirror is not, and pretending otherwise would let the mapper

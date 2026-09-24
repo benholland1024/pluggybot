@@ -1724,7 +1724,9 @@ save a filmstrip PNG named after the script.
   outlives a stand-up: the deployed Rowan's hall came back solid occupied
   with a free fan through the walls (SimNotes, "A robot on its side maps
   the sky"). Past 1.6° the scan plane meets the floor inside the 8 m range;
-  errands peak at 0.66°, the charge press at 1.40°. The front-stop reflex
+  errands peak at 0.66°, the charge press at 1.40°, and a 21 mm plate pad
+  crossing (4.3-8.1° for ~2 s) is skipped -- it painted floor arcs. The rack
+  finder and the height map take the same gate; the front-stop reflex
   still reads every scan.
 - **The robot can die, and a person or a timer stands it up** (issue #107,
   protocol 0.15.0; #143). `HubLifecycle._death_step` runs on the physics

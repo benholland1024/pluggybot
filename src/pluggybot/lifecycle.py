@@ -849,7 +849,8 @@ class HubLifecycle:
       return
     self._next_near_field = float(self.data.time) + nf.PERIOD
     frame = self.depth_camera.frame(self.data)
-    self.near_field.update(self.mission.pose, frame.points)
+    if self.mission.level():      # the grid's rule (issue #339): level, or no map
+      self.near_field.update(self.mission.pose, frame.points)
     # ...and the peers that same frame saw, which the map is not told about
     # and the drive is (issue #328). One frame, two consumers, the split
     # `Lidar.scan_split` already makes one sensor along.
