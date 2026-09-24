@@ -77,6 +77,12 @@ DEFAULT_BUDGET_S = 600.0
 MAX_WAIT_S = 60.0
 #: Per-step drive timeout: the native errand's carry drive uses 60 s.
 DRIVE_TIMEOUT_S = 60.0
+#: A drive to where the house set a cube out that ends farther than this
+#: from it did not get there (issue #264): the look that follows is not a
+#: look "from where the house set it out", and saying it was sent a robot
+#: hunting a tag problem it did not have. A stagnated drive ends 0.1-0.3 m
+#: short and still sees the cube.
+STAND_SHORT_M = 0.5
 #: The lift's travel, as the plotter clips it.
 LIFT_RANGE_M = (0.02, 0.30)
 LIFT_SPEED = 0.05       # m/s, the lead-screw class ceiling (tools/gripper.py)
@@ -494,10 +500,16 @@ def _travel_routine(life, tag: int) -> Routine:
     legs = legs[i:]
   for x, y in [*legs, stand]:
     arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
-    if not arrived and (x, y) != stand:
-      px, py = life.mission.pose_xy()
+    if arrived:
+      continue
+    px, py = life.mission.pose_xy()
+    if (x, y) != stand:
       return False, (f"and the route to where the house set it out stopped at "
                      f"({px:.1f}, {py:.1f})")
+    short = math.hypot(stand[0] - px, stand[1] - py)
+    if short > STAND_SHORT_M:
+      return False, (f"and the drive to where the house set it out stopped "
+                     f"{short:.1f} m short of it, at ({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
   return True, ""
 

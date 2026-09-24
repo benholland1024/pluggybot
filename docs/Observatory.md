@@ -20,7 +20,11 @@ failed pick said "missed" for an approach that never reached the rack. Now:
 one History line per run of a procedure the robot wrote (where it stopped
 and why), `procedure:new`, one-answer replacement said out loud, one
 sentence for a failed pick naming whose fork holds the tool, `fetch` that
-checks the fork, and a bench grade that says it reads `record` lines. The
+checks the fork, a bench grade that says it reads `record` lines, refused
+defines written into History and a one-answer rewrite that keeps the old
+procedure when the new one is refused, a stopped run graded as stopped, a
+claw that does not count the floor as held, and a stow from the lab that
+comes home by the street. The
 `autonomous` prefix moved (`PROCEDURE_HEAD`, the powers index); `guarded`'s
 did not. And one physics change a pair alone can see: the swap's fine
 timestep is counted per model.
@@ -34,14 +38,16 @@ now that the loop around the code closes. What to read:
 - `refused` rows saying "the library is full" or "already defined": they
   should fall, if one-answer replacement is being used.
 - History lines "could not pick up": which clause — someone's fork, a robot
-  at the bay, no route, a miss and how. The mechanism of the misses is the
-  open question this period answers (every local reproduction picked clean).
+  at the bay, no route, a miss and how. The live misses on `0f2faf5` were the
+  bench blinding the dock camera (#338); read this period with #338 deployed,
+  or the picks confound everything below them.
 - `stack_tower` and `find_mass` tasks by fate; `finding` acts.
 - Deaths "knocked over" within seconds of the other robot's stand-up (three
   on the previous builds): #332 should end them; if not, that is next.
 
-**Not yet known.** Why a pick misses live and never locally; whether the
-robots use `procedure:new` without being shown an example of it.
+**Not yet known.** Whether the robots use `procedure:new` without being
+shown an example of it; whether a full library (both deployed robots were
+at 8 of 8) is emptied now that the refusal reaches them.
 
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 

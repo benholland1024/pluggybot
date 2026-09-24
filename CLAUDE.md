@@ -1953,9 +1953,10 @@ save a filmstrip PNG named after the script.
   house's own offers were being cut), the `lab` context block carries
   `route`, `pick`'s doc says the eye's reach. `solutions.TOWER` is the
   six lines a model wrote on ladder B's third day, verbatim. ⚠ A STOW
-  FROM OUT ALONG A ZONE'S ROUTE COMES HOME BY THAT ROUTE FIRST
-  (`lifecycle.home_route`, `steps.home_legs_routine`; `stow()` and the
-  stow after a procedure alike): a weighing that failed in the lab left
+  FROM OUT ALONG THE LAB'S ROUTE COMES HOME BY THAT ROUTE FIRST, never a
+  leg farther out than the robot (`lifecycle.home_route`,
+  `steps.home_legs_routine`; `stow()` and the stow after a procedure
+  alike; the workshop's single drive home works): a weighing that failed in the lab left
   the claw on the fork, the swap's single drive home across 30 m of street
   failed twice, and the claw was lost at the garden door. ⚠ The claw
   holds only what can MOVE (`ClawTool.held()`: a body with degrees of

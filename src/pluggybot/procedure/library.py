@@ -35,6 +35,10 @@ __all__ = ["MAX_PROCEDURES", "SUFFIX", "Entry", "Library", "LibraryRefused"]
 
 ROW = registry.BY_NAME["procedures"]
 SUFFIX = ROW.suffix   # Python-SHAPED, not Python: not a name a linter or a person should run
+#: The one refusal `procedure:new` needs (issue #264): the answer's own
+#: define, never an entry -- at `define`, at `check` and at load.
+NEW_REFUSED = ("'new' is not a name this library allows: "
+               "`procedure:new` runs whatever the answer defines")
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
@@ -79,6 +83,11 @@ class Library:
     return self.store.root if isinstance(self.store, FileStore) else None
 
   def _entry(self, name: str, source: str) -> Entry:
+    if name == "new":
+      # saved before `procedure:new` existed (issue #264): kept and shown, not
+      # runnable, so the token keeps its one meaning and the slot can be freed
+      return Entry(name, source, None, [NEW_REFUSED + " -- undefine it and write "
+                                        "it again under another name"])
     try:
       proc = lang.compile_procedure(source, self.facts)
     except Refused as e:
@@ -185,8 +194,7 @@ class Library:
       reasons.append(f"{name!r} is not a name this library allows")
     elif name == "new":
       # `procedure:new` is the answer's own define (issue #264), never an entry
-      reasons.append("'new' is not a name this library allows: "
-                     "`procedure:new` runs whatever the answer defines")
+      reasons.append(NEW_REFUSED)
     if name in self.entries:
       # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
       # before `define`, so a replacement is one answer -- and "undefine it
@@ -228,3 +236,22 @@ class Library:
     del self.entries[name]
     self.undefined += 1
     self.store.remove(f"{name}{SUFFIX}")
+
+  def check(self, name: str, source: str) -> list[str]:
+    """What `define` would refuse this source for once `name` is free: the
+    name and the language -- never "already defined" or "full", which an
+    `undefine` of the same name on the same answer resolves (issue #264).
+    Changes nothing: the lifecycle asks BEFORE that undefine, because in
+    order a refused rewrite had already deleted the procedure it was meant
+    to improve. There is still no replace: `define` and `undefine` are the
+    library's only two changes."""
+    name = str(name or "").strip()
+    if not _NAME.match(name):
+      return [f"{name!r} is not a name this library allows"]
+    if name == "new":
+      return [NEW_REFUSED]
+    try:
+      proc = lang.compile_procedure(source, self.facts)
+    except Refused as e:
+      return list(e.reasons)
+    return [] if proc.name == name else [f"the def is named {proc.name!r}, not {name!r}"]

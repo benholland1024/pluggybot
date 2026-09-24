@@ -1204,6 +1204,7 @@ class Menu:
              event_map: bool = False,
              task_ids: tuple | None = None,
              procedures: tuple | None = None,
+             keeps: tuple | None = None,
              tools: tuple | None = None,
              others: tuple | None = None,
              recall: bool = True,
@@ -1376,13 +1377,16 @@ class Menu:
            if standing_orders else {}),
         # THE LIBRARY'S TWO VERBS (issue #166), paperwork fields on `pin`'s
         # terms: a procedure to add (its name and its source, which the
-        # library compiles and refuses out loud) and one to take out. There
-        # is no replace. Absent where there is no library.
+        # library compiles and refuses out loud) and one to take out -- one
+        # name on both is a replacement. Absent where there is no library.
         **({"define": {"type": "object", "additionalProperties": False,
                        "required": ["name", "source"],
                        "properties": {"name": {"type": "string"},
                                       "source": {"type": "string"}}},
-            "undefine": enum(procedures),
+            # ...every entry the library KEEPS, runnable or not (issue #264):
+            # one marked not runnable after a restart or a retired tool held
+            # a slot the grammar could never free.
+            "undefine": enum(keeps if keeps is not None else procedures),
             # ...and `done` (issue #207): the claimed challenge the robot
             # says stands. A free string, like `task`: the board changes
             # every call and is checked in the lifecycle.
@@ -4118,6 +4122,7 @@ class Overseer:
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
+                                    keeps=self._keeps(),
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
@@ -4704,6 +4709,11 @@ class Overseer:
     there is no library -- `_task_ids`' shape, for the same reason."""
     return self.library.runnable() if self.library is not None else None
 
+  def _keeps(self) -> tuple | None:
+    """Every name the library holds, runnable or not: what `undefine` may
+    name (issue #264). None where there is no library."""
+    return self.library.names() if self.library is not None else None
+
   def _ticket_ids(self, state: dict) -> tuple | None:
     """The desk's open ticket ids for this call's grammar (issue #284), or
     None where there is no desk -- `_procedures`' shape: an empty tuple
@@ -4755,6 +4765,7 @@ class Overseer:
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
+                                    keeps=self._keeps(),
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,

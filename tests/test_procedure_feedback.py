@@ -74,6 +74,16 @@ def test_a_failed_pick_tells_a_miss_from_an_approach_that_never_got_there():
   assert lost == "it was not on its bay, and no robot is carrying it"
 
 
+def test_a_tool_that_came_onto_this_fork_unseated_is_not_called_lost():
+  """A half-seated pick: on this robot's own fork, no power contact. It fell
+  through every case to "not on its bay, and no robot is carrying it"."""
+  me = SimpleNamespace(peers=[], peer_at_the_bay=lambda station_y: None,
+                       mission=SimpleNamespace(swap=SimpleNamespace(
+                         module_state=lambda t: {"on_fork": True, "hung": False})))
+  said = HubLifecycle.pick_failure(me, "module_claw", 0.1, "arrived")
+  assert said.startswith("module_claw came onto the fork but did not seat")
+
+
 # ---- 2. the fork, before a fetch drives anywhere ---------------------------
 
 
@@ -166,10 +176,29 @@ def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
   is of calls MADE, so a stopped run never shows it as a fraction."""
   run = {"ok": False, "completed": 4, "total": 4, "stopped": "budget", "seconds": 324.2,
          "steps": [{"i": 3, "verb": "pick", "line": 6, "ok": True}]}
-  line = lc.procedure_outcome("stack_tower", run)
+  [line] = lc.procedure_outcome("stack_tower", run)
   assert line == ("the procedure stack_tower did not finish -- it ran out of the time "
                   "its budget gave it (324 s) after line 6 (4 steps had run)")
   assert "/" not in line
+
+
+def test_a_long_reason_never_costs_a_run_its_readout():
+  """History cuts a line at 400 characters without a mark, and a failed
+  pick's reason in front of a weighing's locals cut off `mass =` -- the one
+  number the bench grade needed recorded. The locals keep a line of their
+  own when they would not fit; a fault inside the run is named, never
+  quoted (the exception is the log's), and keeps no false count."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  why = "tag 24 did not decode even from where the house set it out, " * 3
+  run = {"ok": False, "completed": 7, "failedAt": 6, "stopped": None,
+         "steps": [{"i": 6, "verb": "pick", "line": 12, "ok": False, "reason": why}],
+         "locals": {f"reading_{k}": 1.2345 + k for k in range(11)} | {"mass": 199.876}}
+  lines = lc.procedure_outcome("weigh", run)
+  assert len(lines) == 2 and all(len(x) <= MAX_LINE_CHARS for x in lines)
+  assert lines[1].startswith("the procedure weigh ended with") and "mass = 199.876" in lines[1]
+  [line] = lc.procedure_outcome("weigh", {"ok": False, "completed": 0,
+                                          "error": "KeyError: 'axis'"})
+  assert line == "the procedure weigh did not finish -- it stopped on a fault inside the run"
 
 
 # ---- 4. a replacement is one answer, as the prompt says --------------------
@@ -277,6 +306,33 @@ def test_procedure_new_runs_nothing_when_the_define_was_refused(monkeypatch):
   tick.run(life.mission.swap, life._after_decision_routine(decision))
   assert not [e for e in life.errands if e.program is not None]
   assert "ran nothing: `procedure:new`" in life.thoughts.read("History.md")
+
+
+def test_a_refused_define_is_written_where_the_robot_reads(monkeypatch):
+  """Narrated and put on the wire, a refusal reached everyone but the robot
+  that made it -- and both deployed libraries were full, so "an `undefine`
+  on the same answer makes room" was said to nobody who could act on it."""
+  life, _ = _deciding_life(monkeypatch, lib.Library(lc.world_facts("room_hub")))
+  life._define(Decision(action="idle", reason="x",
+                        define={"name": "bad", "source": "def bad():\n  import os\n"}))
+  assert "could not write the procedure bad:" in life.thoughts.read("History.md")
+
+
+def test_a_one_answer_rewrite_that_is_refused_keeps_the_procedure_it_had(monkeypatch):
+  """Undefine and define of one name is a swap: applied in order, a refused
+  define had already deleted the procedure it was meant to improve."""
+  L = lib.Library(lc.world_facts("room_hub"))
+  L.define("weigh", "def weigh():\n  wait(1)\n")
+  life, _ = _deciding_life(monkeypatch, L)
+  life._define(Decision(action="idle", reason="x", undefine="weigh",
+                        define={"name": "weigh", "source": "def weigh():\n  import os\n"}))
+  assert "weigh" in L.runnable() and "wait(1)" in L.entries["weigh"].source
+  history = life.thoughts.read("History.md")
+  assert "could not rewrite the procedure weigh -- the one I had is kept:" in history
+  assert "forgot the procedure weigh" not in history
+  life._define(Decision(action="idle", reason="x", undefine="weigh",
+                        define={"name": "weigh", "source": "def weigh():\n  wait(2)\n"}))
+  assert "wait(2)" in L.entries["weigh"].source and life._defined_now == "weigh"
 
 
 def test_new_is_not_a_name_a_procedure_may_take():
@@ -448,10 +504,14 @@ def test_home_route_is_a_zones_route_reversed_from_where_the_robot_stands():
   lab = lc.lab_route("home")
   assert lc.home_route("home", (27.0, 1.5)) == lab[::-1]
   assert lc.home_route("home", lab[2]) == lab[2::-1]
+  # ...and never out before in (review of #336): the lobby is sent to its
+  # own door, not the lab's; the garden to the house, not the gate
+  assert lc.home_route("home", (20.5, 0.0)) == lab[3::-1]
+  assert lc.home_route("home", (7.5, 1.3)) == [lab[0]]
   rack = world_config("home")["start"][:2]
   assert lc.home_route("home", rack) == []
-  shop = list(lc.WORKSHOP_ROUTE)
-  assert lc.home_route("home", (-8.5, -3.0)) == shop[::-1]
+  # the workshop's single drive home works, and its legs cross the kitchen's wall
+  assert lc.home_route("home", (-8.5, 4.0)) == lc.home_route("home", (-8.5, -3.0)) == []
 
 
 def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
@@ -485,3 +545,54 @@ def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
     life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "home", library=L))
     back = trips[trips.index(("pick",)) + 1:]
     assert back[:len(legs)] == legs and back[len(legs)] == ("return",), (name, back)
+
+
+def test_a_drive_that_stalled_short_of_the_stand_is_not_a_look_from_it():
+  """Review of #336: a failed drive to the final stand still returned
+  `went`, and the robot was told the tag "did not decode even from where
+  the house set it out" when it had stopped metres short of it. A drive
+  that stagnates a few centimetres out still counts: it sees from there."""
+  _, _, stand, _ = st.prop_stand("home", 21)
+
+  def travel(dx):
+    life = SimpleNamespace(world="home", mission=SimpleNamespace(
+      pose_xy=lambda: (stand[0] + dx, stand[1]),
+      drive_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
+      face_routine=lambda h: tick.result(True)))
+    return tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+  went, why = travel(2.0)
+  assert not went and why.startswith(
+    "and the drive to where the house set it out stopped 2.0 m short of it")
+  assert travel(0.3) == (True, "")
+
+
+# ---- review of #336: the library's edges -----------------------------------
+
+
+def test_undefine_can_name_an_entry_that_cannot_run(tmp_path):
+  """An entry marked not runnable (after a restart, or a retired tool) was
+  outside the `undefine` enum -- the one thing that could free its slot --
+  while the refusal told the robot to undefine it. And a procedure saved as
+  `new` before the token existed loads as one that cannot run, so
+  `procedure:new` keeps its one meaning and the slot can still be freed."""
+  (tmp_path / f"new{lib.SUFFIX}").write_text("def new():\n  wait(1)\n")
+  (tmp_path / f"broken{lib.SUFFIX}").write_text("def broken():\n  fetch('module_gone')\n")
+  (tmp_path / f"ok{lib.SUFFIX}").write_text("def ok():\n  wait(1)\n")
+  L = lib.Library(lc.world_facts("room_hub"), root=tmp_path)
+  assert set(L.names()) == {"new", "broken", "ok"} and L.runnable() == ("ok",)
+  schema = _menu().schema(procedures=L.runnable(), keeps=L.names())
+  props = schema["properties"]
+  assert {"new", "broken", "ok"} <= set(props["undefine"]["enum"])
+  assert "procedure:broken" not in props["action"]["enum"]
+  assert props["action"]["enum"].count("procedure:new") == 1
+
+
+def test_a_retired_tool_on_a_peers_record_is_carried_by_nobody():
+  """`carrying` reads a peer's last module; a built tool since retired is
+  no body in the world, and the lookup raised where `_carried` has always
+  guarded it -- now reached from every failed pick's sentence, too."""
+  def gone(name):
+    raise KeyError(name)
+  peer = SimpleNamespace(module="probe", mission=SimpleNamespace(
+    swap=SimpleNamespace(module_state=gone)))
+  assert lc.carrying(peer) == ""

@@ -342,17 +342,22 @@ PROCEDURE_STOPS = {
 }
 
 
-def procedure_outcome(name: str, run: dict) -> str:
-  """The ONE History line a procedure the robot wrote leaves behind (issue
-  #264): how far it got, and -- when it stopped short -- the line, the verb
-  and the reason, because a robot told nothing re-ran the same failing
-  `fetch` five times over and could not fix what it could not see. Its
-  locals ride at the end, as they have since #227: they are its readout.
+def procedure_outcome(name: str, run: dict) -> list[str]:
+  """The History a procedure the robot wrote leaves behind (issue #264):
+  how far it got, and -- when it stopped short -- the line, the verb and
+  the reason, because a robot told nothing re-ran the same failing `fetch`
+  five times over and could not fix what it could not see. Its locals ride
+  at the end, as they have since #227: they are its readout -- on a line of
+  their own when the reason would push them past History's 400 characters,
+  where they would be cut without a mark.
 
   ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
   count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
   B, 2026-09-24), a model read "(4/4 steps)" as "all four steps landed",
-  said `done`, and the grade found two blocks of three."""
+  said `done`, and the grade found two blocks of three. ⚠ A FAULT INSIDE
+  THE RUN is named, never quoted: the exception is the log's (issue #76),
+  and that path keeps no count to give."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
   done = int(run.get("completed", 0) or 0)
   steps_said = f"{done} step{'' if done == 1 else 's'}"
   if run.get("ok"):
@@ -373,14 +378,19 @@ def procedure_outcome(name: str, run: dict) -> str:
       why = (PROCEDURE_STOPS[stopped]
              + (f" ({took:.0f} s)" if stopped == "budget" and took is not None else "")
              + (f" after line {last['line']}" if last.get("line") else ""))
+    elif run.get("error"):
+      why = "it stopped on a fault inside the run"
     else:
-      why = f"it stopped: {run.get('error') or stopped or 'early'}"
-    line = (f"the procedure {name} did not finish -- {why} "
-            f"({steps_said} had run)")
-  if run.get("locals"):
-    shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
-    line += f" -- it ended with {shown}"
-  return line
+      why = f"it stopped: {stopped or 'early'}"
+    line = (f"the procedure {name} did not finish -- {why}"
+            + ("" if run.get("error") else f" ({steps_said} had run)"))
+  if not run.get("locals"):
+    return [line]
+  shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
+  tail = f" -- it ended with {shown}"
+  if len(line) + len(tail) <= MAX_LINE_CHARS:
+    return [line + tail]
+  return [line, f"the procedure {name} ended with {shown}"]
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
 #: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
@@ -1181,6 +1191,11 @@ class HubLifecycle:
     (carrying is the others' PUBLIC surface), whoever stood in the way,
     then the bay itself -- a miss the robot can retry, told apart from an
     approach that never got there, and from a tool that is nowhere."""
+    if self.mission.swap.module_state(tool)["on_fork"]:
+      # ...its OWN fork first: half-seated, it fell through to "not on its
+      # bay, and no robot is carrying it" while it rode this very fork
+      return (f"{tool} came onto the fork but did not seat (no power "
+              "contact); stow it and fetch it again")
     holder = next((p for p in self.peers if carrying(p) == tool), None)
     if holder is not None:
       return f"{tool} is on {holder.robot_name or holder.root}'s fork"
@@ -2436,7 +2451,8 @@ class HubLifecycle:
     # is the only way it can fix one. A house program's outcome is its
     # task's verdict and needs no second line.
     if is_proc or run.get("locals"):
-      self._remember(procedure_outcome(program.name, run))
+      for line in procedure_outcome(program.name, run):
+        self._remember(line)
     result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
               **({"error": run["error"]} if "error" in run else {})}
     # A draw step's own measurements ride at the top level, so the ink
@@ -3795,11 +3811,33 @@ class HubLifecycle:
       # it showing a procedure the robot no longer keeps, and the cap is
       # this number rather than a copy of it typed into a website.
       return {"library": {"names": list(library.names()), "cap": library.cap}}
+    name = str((decision.define or {}).get("name", "")).strip()
+    source = (decision.define or {}).get("source", "")
+    # ONE NAME ON BOTH is a rewrite, and it is checked before anything
+    # changes (issue #264, `Library.check`): applied in order, a refused
+    # define had already deleted the procedure it was meant to improve.
+    if decision.define and decision.undefine == name:
+      held = library.check(name, source)
+      if held:
+        library.refusals.append({"t": t, "verb": "define", "name": name,
+                                 "reasons": held})
+        self._say(f"PROCEDURE define {name!r} refused: {'; '.join(held)} "
+                  f"-- {name} is kept as it was")
+        self._remember(f"could not rewrite the procedure {name} -- the one I "
+                       "had is kept: " + "; ".join(held))
+        self._emit({**base, "outcome": "refused", "name": name,
+                    "verb": "define", "reasons": held, "source": source,
+                    **shelf()})
+        return
     if decision.undefine:
       try:
         library.undefine(decision.undefine, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE undefine refused: {e}")
+        # ...and said WHERE THE ROBOT READS (issue #264): narrated and put on
+        # the wire, a refusal reached everyone but the robot that made it.
+        self._remember(f"could not forget the procedure {decision.undefine}: "
+                       + "; ".join(e.reasons))
         self._emit({**base, "outcome": "refused", "name": decision.undefine,
                     "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
@@ -3808,12 +3846,12 @@ class HubLifecycle:
         self._emit({**base, "outcome": "undefined", "name": decision.undefine,
                     **shelf()})
     if decision.define:
-      name = decision.define.get("name", "")
-      source = decision.define.get("source", "")
       try:
         proc = library.define(name, source, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
+        self._remember(f"could not write the procedure {name}: "
+                       + "; ".join(e.reasons))
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
                     "source": source, **shelf()})
@@ -5739,22 +5777,31 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
 
 
 def home_route(world: str, from_xy: tuple[float, float]) -> list[tuple[float, float]]:
-  """The legs BACK to the house from out along a zone's route: that route
-  reversed, from the leg nearest the robot. Nothing where the nearest leg
-  is a route's first (the robot is at the house end already) or where no
-  route is written. Why (issue #264, ladder B): a weighing that failed in
-  the lab left the claw on the fork, the stow's single drive home across
-  the street failed twice, and the claw was lost at the garden door."""
+  """The legs BACK to the house from out along the lab's route: that route
+  reversed, from the leg nearest the robot, dropping any leg that lies
+  farther out than the robot does -- a stow from the garden is not sent to
+  the gate first, nor one from the lobby to the lab's door. Nothing at the
+  house end. Why (issue #264, ladder B): a weighing that failed in the lab
+  left the claw on the fork, the swap's single drive home across 30 m of
+  street failed twice, and the claw was lost at the garden door.
+
+  The lab's route only: the workshop's single drive home was measured to
+  work, and its legs pass through the workshop doorway -- from the kitchen
+  beside it, through a wall and back."""
+  legs = lab_route(world)
+  if not legs:
+    return []
   fx, fy = from_xy
-  for zone in ("lab", "workshop"):
-    legs = zone_route(world, zone)
-    if not legs:
-      continue
-    dist = [math.hypot(x - fx, y - fy) for x, y in legs]
-    i = min(range(len(legs)), key=dist.__getitem__)
-    if i > 0:
-      return legs[i::-1]
-  return []
+  dist = [math.hypot(x - fx, y - fy) for x, y in legs]
+  i = min(range(len(legs)), key=dist.__getitem__)
+  if i == 0:
+    return []
+  hx, hy = legs[0]
+  out = math.hypot(fx - hx, fy - hy)
+  back = legs[i::-1]
+  while back and math.hypot(back[0][0] - hx, back[0][1] - hy) > out:
+    back = back[1:]
+  return back
 
 
 def cage_program(world: str, act: str,
@@ -5826,7 +5873,12 @@ def carrying(other) -> str:
   verified on its own fork -- one definition for `others_context` and for
   naming who holds a tool a pick came away without (issue #264)."""
   module = getattr(other, "module", "")
-  return module if module and other.mission.swap.module_state(module)["on_fork"] else ""
+  if not module:
+    return ""
+  try:
+    return module if other.mission.swap.module_state(module)["on_fork"] else ""
+  except (KeyError, ValueError):
+    return ""                     # no longer in the world: a retired built tool
 
 
 def others_context(life) -> list[dict]:
