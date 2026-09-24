@@ -1044,14 +1044,18 @@ beside them until the site has moved off them.
   apply; `kind` is a menu action on `task_complete` / `task_failed`, a
   reason or class on `decision_failed`, and `offers` / `none` on
   `nothing_to_do` since pluggybot #333 -- additive, no bump); `origin`
-  (`seeded` / `unseeded`); `why` (`origin` when a stream opens, `edit`
-  after an answer changed it); `source` (the decision that
-  set it -- `llm`, `llm:<model>`; `null` at open); `edits` (how many so
-  far). ⚠ A world with NO map sends nothing -- every scripted world, every
-  arm at origin `none` -- and that is not an empty map: `rows: []` is an
-  `unseeded` agent that has not written a rule yet. One per robot; an
-  unchanged answer sends nothing. The run record stays the research
-  artifact (the log at every edit, what fired, `score`).
+  (`seeded` / `unseeded`: what a NEW robot starts with); `why` (`origin`
+  when a stream opens, `edit` after an answer changed it, `true_death`
+  when a new robot's map replaced a dead one's); `source` (the decision
+  that set it -- `llm`, `llm:<model>`; `null` otherwise); `edits` (how many
+  by the robot in force this run: from zero after a true death); `restored: true` where the run began from the list the robot
+  KEPT across a restart, absent otherwise (pluggybot #337; `true_death`
+  and `restored` are additive, no bump). ⚠ A world with NO map sends
+  nothing -- every scripted world, every arm at origin `none` -- and that
+  is not an empty map: `rows: []` is an `unseeded` agent that has not
+  written a rule yet. One per robot; an unchanged answer sends nothing.
+  The run record stays the research artifact (the log at every edit, what
+  fired, `score`).
 
   ```json
   {"type": "event_map", "t": 1934.2, "robot": "pluggybot", "origin": "unseeded",
