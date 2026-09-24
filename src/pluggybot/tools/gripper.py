@@ -184,7 +184,10 @@ class ClawTool:
   def held(self) -> str | None:
     """The geom both pads are touching that belongs neither to the robot
     nor to the claw itself, or None: `holding` without a named target,
-    which is what a procedure's `grip`/`pick` verdict reads."""
+    which is what a procedure's `grip`/`pick` verdict reads. ⚠ Only
+    something that can MOVE is held: lowered to 0.02-0.03 m the pads rest
+    on the floor, and ladder B's weighing was refused `pick(24)` with
+    "already holding floor" (issue #264)."""
     model, data = self.model, self.data
     pad = next(iter(self._jaw_gids))
     own = {int(model.body_rootid[model.geom_bodyid[pad]]),
@@ -193,8 +196,9 @@ class ClawTool:
     for i in range(data.ncon):
       c = data.contact[i]
       for jaw, other in ((c.geom1, c.geom2), (c.geom2, c.geom1)):
+        root = int(model.body_rootid[model.geom_bodyid[other]])
         if jaw in self._jaw_gids and other not in self._jaw_gids \
-            and int(model.body_rootid[model.geom_bodyid[other]]) not in own:
+            and root not in own and model.body_dofnum[root] > 0:
           touched.setdefault(int(other), set()).add(int(jaw))
     for gid, pads in touched.items():
       if len(pads) == 2:

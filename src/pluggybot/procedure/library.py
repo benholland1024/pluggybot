@@ -35,6 +35,10 @@ __all__ = ["MAX_PROCEDURES", "SUFFIX", "Entry", "Library", "LibraryRefused"]
 
 ROW = registry.BY_NAME["procedures"]
 SUFFIX = ROW.suffix   # Python-SHAPED, not Python: not a name a linter or a person should run
+#: The one refusal `procedure:new` needs (issue #264): the answer's own
+#: define, never an entry -- at `define`, at `check` and at load.
+NEW_REFUSED = ("'new' is not a name this library allows: "
+               "`procedure:new` runs whatever the answer defines")
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
@@ -79,6 +83,11 @@ class Library:
     return self.store.root if isinstance(self.store, FileStore) else None
 
   def _entry(self, name: str, source: str) -> Entry:
+    if name == "new":
+      # saved before `procedure:new` existed (issue #264): kept and shown, not
+      # runnable, so the token keeps its one meaning and the slot can be freed
+      return Entry(name, source, None, [NEW_REFUSED + " -- undefine it and write "
+                                        "it again under another name"])
     try:
       proc = lang.compile_procedure(source, self.facts)
     except Refused as e:
@@ -183,13 +192,23 @@ class Library:
     name = str(name or "").strip()
     if not _NAME.match(name):
       reasons.append(f"{name!r} is not a name this library allows")
+    elif name == "new":
+      # `procedure:new` is the answer's own define (issue #264), never an entry
+      reasons.append(NEW_REFUSED)
     if name in self.entries:
-      reasons.append(f"{name!r} is already defined -- undefine it first, "
-                     "there is no replace")
+      # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
+      # before `define`, so a replacement is one answer -- and "undefine it
+      # first" read as a turn of its own to every deployed robot, which
+      # wrote `stack3b` and `weigh_cube2` beside the originals instead.
+      reasons.append(f"{name!r} is already defined -- to replace it, put "
+                     f"{name!r} in `undefine` on the same answer as this "
+                     "define: the undefine is done first")
     try:
       registry.admit(ROW, registry.ROBOT, len(self.entries) + 1, cap=self.cap)
-    except registry.Refused as e:
-      reasons.append(f"the library {str(e).removeprefix(ROW.name + ' ')}")
+    except registry.Refused:
+      reasons.append(f"the library is full (it holds {self.cap}) -- an "
+                     "`undefine` on the same answer as this define makes room "
+                     "first")
     proc = None
     if not reasons:
       try:
@@ -217,3 +236,36 @@ class Library:
     del self.entries[name]
     self.undefined += 1
     self.store.remove(f"{name}{SUFFIX}")
+
+  def check(self, name: str, source: str, freeing: str = "") -> list[str]:
+    """What `define` would refuse this source for once `freeing` -- an entry
+    the same answer undefines -- is gone: every reason `define` gives, in its
+    words (issue #264). Changes nothing: the lifecycle asks BEFORE that
+    undefine, because in order a refused define had already deleted the
+    procedure it was meant to improve or to make room for. There is still no
+    replace: `define` and `undefine` are the library's only two changes."""
+    name = str(name or "").strip()
+    freeing = str(freeing or "").strip()
+    held = [e for e in self.entries if e != freeing]
+    reasons: list[str] = []
+    if not _NAME.match(name):
+      reasons.append(f"{name!r} is not a name this library allows")
+    elif name == "new":
+      reasons.append(NEW_REFUSED)
+    if name in held:
+      reasons.append(f"{name!r} is already defined -- to replace it, put "
+                     f"{name!r} in `undefine` on the same answer as this "
+                     "define: the undefine is done first")
+    try:
+      registry.admit(ROW, registry.ROBOT, len(held) + 1, cap=self.cap)
+    except registry.Refused:
+      reasons.append(f"the library is full (it holds {self.cap}) -- an "
+                     "`undefine` on the same answer as this define makes room "
+                     "first")
+    if reasons:
+      return reasons
+    try:
+      proc = lang.compile_procedure(source, self.facts)
+    except Refused as e:
+      return list(e.reasons)
+    return [] if proc.name == name else [f"the def is named {proc.name!r}, not {name!r}"]

@@ -359,6 +359,16 @@ def test_the_generic_verdict_reads_the_rack_not_the_runner():
   assert not ok and "never measured" in reason
 
 
+def test_a_run_its_own_budget_stopped_fails_whole_and_says_so_without_a_fraction():
+  """Issue #264: a procedure's `total` is the calls it MADE, so a budget stop
+  after every call succeeded read "2/2 steps, tools hung" -- graded ok, and
+  banked into History beside the line saying the run did not finish."""
+  m = {"program": "p", "total": 2, "completed": 2, "failedAt": None,
+       "stopped": "budget", "toolsHung": True}
+  ok, _, reason = scoring.eval_program(m)
+  assert not ok and reason == "p: did not finish -- stopped (budget) after 2 steps"
+
+
 # ---- serialisation: task state, the wire, a recording --------------------------
 
 

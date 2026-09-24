@@ -274,6 +274,13 @@ BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(len(BUILT_STATION_YS)))
 #: `procedures=True` -- the `autonomous` arm -- offers it at all, which is
 #: what keeps `guarded`'s prefix byte-identical.
 PROCEDURE_PREFIX = "procedure:"
+#: ...and the one procedure token that names no entry (issue #264): the
+#: procedure THIS answer defines. The enum is built from the library before
+#: the answer is written, so a procedure defined in it could never be named
+#: in it -- the decoder substituted one that could, and a deployed robot ran
+#: `count_blocks` for its new weighing, then blamed itself. Never an order or
+#: a map row: neither has an answer to define in.
+PROCEDURE_NEW = PROCEDURE_PREFIX + "new"
 
 #: The actions that BUILD AN ERRAND, and so cost a pack's worth of energy
 #: (issue #15). The rest are either free (`idle`), bounded and
@@ -933,10 +940,10 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "ask for a bigger mind on this decision."),
   ("define", "procedures", "PROCEDURES YOU MAY WRITE",
    "write a procedure of your own into your library: `{name, source}`. It "
-   "costs no turn."),
+   "costs no turn; the action `procedure:new` runs it on the same answer."),
   ("undefine", "procedures", "PROCEDURES YOU MAY WRITE",
-   "take a procedure of yours back out of the library. There is no "
-   "replace -- undefine, then define."),
+   "take a procedure of yours back out of the library. With `define` on "
+   "the same answer it replaces one: the undefine is done first."),
   ("done", "procedures", "CHALLENGES",
    "the id of a challenge you claimed and say now stands, ready to be "
    "graded."),
@@ -1175,17 +1182,18 @@ class Menu:
     (issue #275), whose whole product is a picture for the NEXT model
     turn: an order fires when there is no model to show it to."""
     return [a for a in self.concrete(self.available(), procedures)
-            if a not in UNORDERABLE]
+            if a not in UNORDERABLE and a != PROCEDURE_NEW]
 
   def concrete(self, actions, procedures: tuple | None) -> list[str]:
     """The action enum a schema carries: the family `procedure` replaced by
-    one `procedure:<name>` per runnable procedure (none, with an empty
-    library -- as `take_task` goes with an empty board)."""
+    one `procedure:<name>` per runnable procedure, and `procedure:new` --
+    the one this answer defines -- wherever there is a library at all, an
+    empty one included: a first procedure is written and run in one go."""
     out = []
     for a in actions:
       if a == "procedure":
         if procedures is not None:
-          out += [PROCEDURE_PREFIX + n for n in procedures]
+          out += [PROCEDURE_PREFIX + n for n in procedures] + [PROCEDURE_NEW]
       else:
         out.append(a)
     return out
@@ -1196,6 +1204,7 @@ class Menu:
              event_map: bool = False,
              task_ids: tuple | None = None,
              procedures: tuple | None = None,
+             keeps: tuple | None = None,
              tools: tuple | None = None,
              others: tuple | None = None,
              recall: bool = True,
@@ -1368,13 +1377,16 @@ class Menu:
            if standing_orders else {}),
         # THE LIBRARY'S TWO VERBS (issue #166), paperwork fields on `pin`'s
         # terms: a procedure to add (its name and its source, which the
-        # library compiles and refuses out loud) and one to take out. There
-        # is no replace. Absent where there is no library.
+        # library compiles and refuses out loud) and one to take out -- one
+        # name on both is a replacement. Absent where there is no library.
         **({"define": {"type": "object", "additionalProperties": False,
                        "required": ["name", "source"],
                        "properties": {"name": {"type": "string"},
                                       "source": {"type": "string"}}},
-            "undefine": enum(procedures),
+            # ...every entry the library KEEPS, runnable or not (issue #264):
+            # one marked not runnable after a restart or a retired tool held
+            # a slot the grammar could never free.
+            "undefine": enum(keeps if keeps is not None else procedures),
             # ...and `done` (issue #207): the claimed challenge the robot
             # says stands. A free string, like `task`: the board changes
             # every call and is checked in the lifecycle.
@@ -1579,7 +1591,15 @@ class Menu:
     `guarded` run a perfectly good decision.
     """
     action = str(raw.get("action", "")).strip()
-    if action.startswith(PROCEDURE_PREFIX) and self.procedures:
+    if action == PROCEDURE_NEW and self.procedures:
+      spec = raw.get("define")
+      if not (isinstance(spec, dict) and str(spec.get("source", "")).strip()):
+        have = ", ".join(PROCEDURE_PREFIX + n for n in list(procedures or ())[:4])
+        raise ValueError(f"{PROCEDURE_NEW} runs the procedure this same "
+                         "answer defines, and this answer defines none -- to "
+                         "run one already in your library, name it"
+                         + (f" ({have})" if have else ""))
+    elif action.startswith(PROCEDURE_PREFIX) and self.procedures:
       name = action[len(PROCEDURE_PREFIX):]
       if procedures is None or name not in procedures:
         raise ValueError(f"no runnable procedure named {name!r} "
@@ -1972,6 +1992,9 @@ def standing_order(raw, menu: Menu) -> str:
     # fires (`order_runnable`), because the library moves between calls.
     if not order[len(PROCEDURE_PREFIX):]:
       raise ValueError("a procedure order names a procedure")
+    if order == PROCEDURE_NEW:
+      raise ValueError(f"an order cannot be `{PROCEDURE_NEW}`: it runs what "
+                       "an answer defines, and an order has no answer")
     return order
   if order == "recall":
     raise ValueError("an order cannot be `recall`: a recall names what to "
@@ -2694,15 +2717,20 @@ else: no strings except a verb's or read's argument, no other calls, no
 imports. A procedure runs until it finishes, a step fails, or a budget runs
 out; whatever it fetched is hung back up either way. A step fails when the
 world says so -- a tool not seated, a drive that did not arrive, a target
-outside an axis's range -- and the record says which step and why. When a
-run ends, the values of its variables are written into your History: that
-is how a number you `read` inside a procedure reaches you.
+outside an axis's range. When a run ends, one line in your History says how
+far it got, and if it stopped short, the line and the reason; the values of
+its variables follow, on that line or the next: that is how a number you
+`read` inside a procedure reaches you.
 
 To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
-on any answer; it costs no turn. To remove one: `undefine: "<name>"`. There
-is no replace -- undefine, then define. The library holds %(cap)d and refuses
-out loud when full. Your library, with each source, is in `procedures`
-below; an entry marked not runnable says why.
+on any answer; it costs no turn. To run it on that same answer, choose the
+action `procedure:new`: it runs the procedure the answer defines, and
+nothing at all if the define is refused. To remove one: `undefine: "<name>"`. To
+replace one, put its name in `undefine` and the new source in `define` on
+the same answer: the undefine is done first. The library holds %(cap)d and
+refuses out loud when full, and an `undefine` on the same answer makes room
+first. Your library, with each source, is in `procedures` below; an entry
+marked not runnable says why.
 
 VERBS (a statement each; arguments in this order, or by keyword)
 """
@@ -4094,6 +4122,7 @@ class Overseer:
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
+                                    keeps=self._keeps(),
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
@@ -4680,6 +4709,11 @@ class Overseer:
     there is no library -- `_task_ids`' shape, for the same reason."""
     return self.library.runnable() if self.library is not None else None
 
+  def _keeps(self) -> tuple | None:
+    """Every name the library holds, runnable or not: what `undefine` may
+    name (issue #264). None where there is no library."""
+    return self.library.names() if self.library is not None else None
+
   def _ticket_ids(self, state: dict) -> tuple | None:
     """The desk's open ticket ids for this call's grammar (issue #284), or
     None where there is no desk -- `_procedures`' shape: an empty tuple
@@ -4731,6 +4765,7 @@ class Overseer:
                                     event_map=self.event_map is not None,
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
+                                    keeps=self._keeps(),
                                     tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,

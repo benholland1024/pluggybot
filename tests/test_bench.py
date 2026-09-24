@@ -581,4 +581,4 @@ def test_a_procedures_locals_reach_the_run_history_and_the_wire(monkeypatch):
   ran = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "ran")
   assert ran["locals"] == {"f": pytest.approx(life.battery.energy_wh * 2, abs=1e-3)}
   history = life.thoughts.read("History.md")
-  assert re.search(r"ran the procedure weigh \(1/1 steps\) -- it ended with f = [\d.]+", history)
+  assert re.search(r"ran the procedure weigh to its end \(1 step\) -- it ended with f = [\d.]+", history)

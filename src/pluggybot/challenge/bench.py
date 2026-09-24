@@ -255,7 +255,14 @@ def eval_mass(m: dict) -> tuple[bool, dict, str]:
   if truth is None or truth <= 0:
     return False, metrics, "the bench was not read"
   if reported_kg is None:
-    return False, metrics, "no finding for the unknown mass was recorded since the claim"
+    # WHAT THE GRADE READS, said at the one moment it matters (issue #264):
+    # a deployed robot measured the cube, wrote it as a NOTE under another
+    # topic, read "nothing since the claim" as a timing fault and learned
+    # the wrong lesson. The offer already says all of this.
+    return False, metrics, (
+      "no finding for the unknown mass was recorded since the claim -- the "
+      f"grade reads `record` lines under topic {FINDINGS_TOPIC.split('/', 1)[1]} "
+      f"whose quantity says '{QUANTITY_WORD}', in kg or g; notes are not read")
   error = abs(float(reported_kg) - float(truth)) / float(truth)
   metrics["error"] = round(error, 4)
   ok = error <= TOLERANCE

@@ -550,6 +550,14 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
   total = int(total)
   if m.get("refused"):
     return False, metrics, f"{metrics['program']} was refused before it ran"
+  # A procedure's `total` is the calls it MADE (issue #264): a run its own
+  # budget stopped after every call succeeded has completed == total, and
+  # graded on the count alone it read "2/2 steps, tools hung" -- beside the
+  # History line saying it did not finish. No fraction here either.
+  if metrics["stopped"] and metrics["failedAt"] is None:
+    return False, metrics, (f"{metrics['program']}: did not finish -- stopped "
+                            f"({metrics['stopped']}) after {completed} step"
+                            f"{'' if completed == 1 else 's'}")
   if completed < total:
     where = (f"step {metrics['failedAt'] + 1} failed"
              if metrics["failedAt"] is not None

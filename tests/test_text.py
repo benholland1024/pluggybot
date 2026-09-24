@@ -191,7 +191,7 @@ def test_a_full_library_and_a_full_workshop_refuse_through_the_gate():
   the document and the remedy, and the record is untouched."""
   lib = procedures.Library(None, cap=1)
   lib.define("one", "def one():\n  look()\n")
-  with pytest.raises(procedures.LibraryRefused, match="library is full .*undefine one first"):
+  with pytest.raises(procedures.LibraryRefused, match=r"library is full \(it holds 1\) .*`undefine` on the same answer"):
     lib.define("two", "def two():\n  look()\n")
   assert lib.names() == ("one",)
   shop = workshop.Workshop(None)
