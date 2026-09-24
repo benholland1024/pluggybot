@@ -731,13 +731,27 @@ save a filmstrip PNG named after the script.
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a
   computed argument is checked when computed, by the same `check_arg`. ⚠
   THE LIBRARY is `$PLUGGY_THOUGHTS/procedures/`, `MAX_PROCEDURES` 8, two
-  decision FIELDS `define {name, source}` / `undefine`, NO REPLACE (refused;
-  undefine first), full refuses out loud, sources survive a restart and are
+  decision FIELDS `define {name, source}` / `undefine`; a redefinition alone
+  is refused and a REPLACEMENT IS ONE ANSWER — `undefine` X beside `define`
+  X, because `_define` removes before it adds (issue #264: every text said
+  "undefine first" and the deployed library filled with `stack3b`), full
+  refuses out loud, sources survive a restart and are
   recompiled against today's world (an invalid one is kept, marked, shown).
   ⚠ Invoked as `procedure:<name>` — the action, a standing order, or an
   event-map row (`standing_order()` accepts the token; `order_runnable`
   reads `state["procedures"]`); the name is an enum per call
-  (`Menu.schema(procedures=)`). ⚠ `Menu.procedures` is set by `build()` on
+  (`Menu.schema(procedures=)`). ⚠ `procedure:new` (`PROCEDURE_NEW`) runs
+  what the SAME answer defines: the enum is built before the answer, so a
+  new name could never be named in it and the decoder substituted an old
+  one (#264). On the enum wherever there is a library, an empty one too;
+  valid only beside a `define`; runs NOTHING if that define was refused;
+  never an order or a map row; `new` is not a procedure name. ⚠ EVERY RUN
+  OF A PROCEDURE THE ROBOT WROTE LEAVES ONE HISTORY LINE
+  (`lifecycle.procedure_outcome`): how far, where it stopped and why (a
+  step's `reason` — `fetch`, `stow`, `drive_to`, `face` give one), its
+  locals. A robot told nothing re-ran a failing `fetch` five times over.
+  ⚠ `fetch` checks the fork first: the tool already there is had, another
+  is "stow it first" — never a loaded fork driven into a bay. ⚠ `Menu.procedures` is set by `build()` on
   `autonomous` ONLY and everything keys off it; `guarded`'s menu, schema
   and prefix are byte-identical (`GUARDED_RULES_SHA`). ⚠ `PROCEDURE_RULE`'s
   worked example may not show charge, a battery threshold or the rack
@@ -1285,7 +1299,10 @@ save a filmstrip PNG named after the script.
   `begin()` (setup → the day routine) + `end()` (the summary), which is
   what `run_pair` shares one loop between. ⚠ A hook's `MissionAborted` is
   thrown into EVERY live routine, then re-raised: one robot's stop is the
-  day's stop. ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
+  day's stop. ⚠ THE SWAP'S FINE TIMESTEP IS THE MODEL'S, so it is counted
+  per model (`mission.fine_step_begin/end`, issue #264): the first robot out
+  of its swap used to put cruise back under the other's terminal approach.
+  ⚠ MUTUAL AWARENESS is the reported pose, not the scan: each
   mission's `others` (callables → the other's dead-reckoned x, y — a
   network fact) masks a disc of `OTHER_ROBOT_CELLS` (12 = 0.6 m) out of
   the traversable mask at plan time, a stagnated drive with another
@@ -1475,8 +1492,11 @@ save a filmstrip PNG named after the script.
   lands (`HubLifecycle._bench_offered` off the board's own event;
   `restore_bench` after a restart) -- `bench.set_unknown_mass` writes
   `body_mass`, scales the inertia, runs `mj_setConst` on a SCRATCH MjData
-  (it writes `qpos0` into the data it is handed) and writes the SPEC's
-  geom too, or the workshop's recompile reverts it. The truth lives in
+  (it writes `qpos0` into the data it is handed) and PUTS BACK the world's
+  pinned `stat.extent`/`center`, which it re-derives from the bounding box
+  (37.2 -> 70.0 put the dock camera's near plane past the bay standoff:
+  every pick after a bench offer ran blind, #264), and writes the
+  SPEC's geom too, or the workshop's recompile reverts it. The truth lives in
   `Task.secret` and the mass table; `truth` and `error` are `secret` on
   the row (the reported value beside either gives the mass away). Graded
   on `done` by `_grade_mass`: the NEWEST finding under `findings/mass_
@@ -1670,7 +1690,14 @@ save a filmstrip PNG named after the script.
   explicit `squared` answer. An empty pack does NOT stop the body (motors
   draw ~30 W at 0 Wh) and every mission guard is checked BETWEEN errands, so
   an unbounded loop drains the pack and runs past `max_sim_time`. A bound is
-  not a recovery — that is #107's death.
+  not a recovery — that is #107's death. `refine_standoff`'s drive back in
+  is `REFINE_BUDGET_S` 10 s (issue #339): unbounded, a robot knocked over
+  mid-pick drove at the standoff through its death AND every stand-up after
+  it (the timer stands up a robot mid-errand when nothing is seated), into
+  a wall until flat -- thirteen lives on the deployed pair. A give-up is
+  `refine_blocked`, and the swap and the charge approach then take NO
+  attempt from there (`blocked`): a fork deployed off the line pushes a
+  module off its trays, which is what the refine is for.
 - **A press is not travel** (`HubSwap.pinned`, `HubSwap.pressing`; issues
   #22, #94). Wheels held against something immovable pump imaginary travel
   into dead reckoning (828 mm from one charge press; 4.28 m in 30 s against
@@ -1717,6 +1744,18 @@ save a filmstrip PNG named after the script.
   `test_the_recovery_finds_a_bay_the_first_look_lost` pins all three. The
   pen's ERASE rides the first successful press, never arrival. Map evidence
   decay is DEFERRED on measurement.
+- **A scan goes into the map only while the chassis is level**
+  (`HubMission.level`, `MAP_TILT_RAD` 1.5°, issue #339). On its side the
+  LIDAR sees the sky, and "free to max range" painted 8 m of free space
+  through every wall in reach -- a dead robot keeps scanning, and the map
+  outlives a stand-up: the deployed Rowan's hall came back solid occupied
+  with a free fan through the walls (SimNotes, "A robot on its side maps
+  the sky"). Past 1.6° the scan plane meets the floor inside the 8 m range;
+  errands peak at 0.66°, the charge creep's bumper contact 1.4-1.7° for
+  ~20 ms (one scan skipped per dock), and a 21 mm plate pad
+  crossing (4.3-8.1° for ~2 s) is skipped -- it painted floor arcs. The rack
+  finder and the height map take the same gate; the front-stop reflex
+  still reads every scan.
 - **The robot can die, and a person or a timer stands it up** (issue #107,
   protocol 0.15.0; #143). `HubLifecycle._death_step` runs on the physics
   seam: `flat` at zero pack (inside an errand or not), `stuck` past
@@ -1861,8 +1900,12 @@ save a filmstrip PNG named after the script.
   (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING, not the return value.
   ⚠ A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298): no drive to the
   use pose, no return of a module it never had, `error: never picked up
-  <module>`, and a History line saying whether the pick missed or the
-  module was not on its bay. On the pair the old phantom trip parked the
+  <module>`, and a History line saying WHICH (`HubLifecycle.pick_failure`,
+  shared with `fetch`: whose fork holds it — `lifecycle.carrying`, the
+  others' public surface — a robot at the bay, no route, a miss and how
+  off `PICK_WHY`, or nowhere; #264: `swap_at_bay_routine`'s answer was
+  thrown away and "the pick missed" covered approaches that never got
+  there). On the pair the old phantom trip parked the
   robot at the rack as the other came back to stow, and the stows, picks
   and "no route" failures cascaded from there (Rowan paid 3 of 27).
 - **A challenge is a task whose criteria were written before the robot saw
@@ -1931,10 +1974,17 @@ save a filmstrip PNG named after the script.
   props were set out (`{placement}`; `MAX_DESCRIPTION` 280 → 420, the
   house's own offers were being cut), the `lab` context block carries
   `route`, `pick`'s doc says the eye's reach. `solutions.TOWER` is the
-  six lines a model wrote on ladder B's third day, verbatim. ⚠ The errand's own stow returns from the WORKSHOP (measured,
-  once `place` ends tucked); a procedure that goes to the LAB brings its
-  tool home in legs, 30 m of street being past the auto-stow's 90 s
-  drive. ⚠ `place`'s ok is
+  six lines a model wrote on ladder B's third day, verbatim. ⚠ A STOW
+  FROM OUT ALONG THE LAB'S ROUTE COMES HOME BY THAT ROUTE FIRST, from the
+  door the robot's ZONE is behind (`lifecycle.HOME_FROM`, never the nearest
+  leg by straight line; `steps.home_legs_routine`; `stow()` and the stow
+  after a procedure alike; the workshop's single drive home works): a
+  weighing that failed in the lab left
+  the claw on the fork, the swap's single drive home across 30 m of street
+  failed twice, and the claw was lost at the garden door. ⚠ The claw
+  holds only what can MOVE (`ClawTool.held()`: a body with degrees of
+  freedom) -- lowered to 0.02 m both pads rest on the floor, and `pick`
+  was refused "already holding floor". ⚠ `place`'s ok is
   measured off the world after the retreat (rests one pitch up, within
   half an edge), never off the release.
 - **A task is scored by CODE, and nothing awards itself points** (issue #14):

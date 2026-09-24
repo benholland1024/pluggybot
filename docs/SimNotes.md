@@ -1437,6 +1437,13 @@ from_the_standoff` decodes a real tag through the real pipeline, with the
 unpinned world kept beside it as the premise. The lesson generalises: any
 world whose bounding box grows past the property's must pin its extent, or
 its cameras lose whatever they look at from closer than a hundredth of it.
+⚠ **A pin in the XML does not survive a runtime `mj_setConst`**, which
+re-derives the extent all over again: the bench's set-out (#227) called it
+on the live model, so a bench offer undid the pin for the rest of the
+process, and the deployed pair's picks failed 13 of 15 with nothing raised
+(issue #264; a run's first pick could still land off a belief fresh from
+the start pose). `bench.set_unknown_mass` puts the statistic back;
+anything else that calls `mj_setConst` on a live model must do the same.
 
 ## A goal out of sight is aimed at through the nearest wall (issue #215)
 
@@ -1733,6 +1740,43 @@ What is true now: `solutions.TOWER` -- those six lines, verbatim -- passes
 `tests/test_solutions.py` pins each rule above in milliseconds and flies
 the three behind `--endurance`.
 
+## A robot on its side maps the sky (issue #339)
+
+After a topple on the deployed pair (build `0f2faf5`), Rowan's live map
+(the stream's `grid`) had its hall -- where it stands up -- painted solid
+occupied with concentric floor-hit arcs, and a free fan running east through
+the living room's walls and out past the fence, its outer edge an 8 m arc
+about where it had fallen. Luca's map, off the same stream, was sane.
+
+Three rules met there. The LIDAR casts along its real frame, and no return
+is "free to max range", so on its side about half its rays see the sky and
+go into the map as 8 m of free space at the believed, upright bearings
+(reproduced: 5 s on its side painted 38 622 free cells onto an empty map,
+straight through the walls). A dead robot keeps scanning, because its wait
+steps through `_drive_routine` and every step runs `_after_step`. And a
+stand-up warps and refills but keeps the map. **What is true now:** a scan
+goes into the map only while `HubMission.level()`, within `MAP_TILT_RAD`
+(1.5°) of level. Past 1.6° the scan plane meets the floor inside the 8 m
+range (the LIDAR sits 0.223 m up); draw, census and dance tilt the chassis
+0.66° at most and the charge creep's bumper contact spikes to 1.4-1.7° for
+about 20 ms (one scan skipped per dock; the held press is under 0.1°),
+measured, while crossing a 21 mm
+plate pad tilts it 4.3-8.1° for about 2 s -- those scans are skipped, and
+at that tilt they had been painting floor-hit arcs 1.6-3 m out on every
+crossing. The rack finder's sightings and the near-field height map take
+the same gate: on its side 1-2 m from the rack, a robot's camera had moved
+the rack belief 0.1-1.4 m. The reflex still reads
+every scan, and a deploy clears a map already damaged: the grid lives in
+memory only.
+
+⚠ **It was not the death loop it was found beside.** Rowan went `flat`
+401-403 s into every life after that topple, pushing into `wall_west_1` at
+~70 W, and the map looked like the reason. It was not: the same death loop
+reproduces WITH the gate in place, and replaying Rowan's own map from its
+stand-up pose explores the house without touching the wall. The loop was
+`refine_standoff`'s unbounded drive back to a bay standoff (#339, the
+budget PR). Trust the reproduction over the story that fits.
+
 ## A rack end is not symmetric for the robot (issue #277)
 
 The built-tool rail is the first rack's frame emitter run again beside it,
@@ -1762,6 +1806,28 @@ between two of the lifecycle's routines moves the robot without the
 reckoner seeing it -- 500 steps with the opening spin's wheel command
 still in `ctrl` put 49° between belief and truth, painted a diagonal
 ghost wall across the living room, and looked exactly like a seam bug.
+
+## A loop with no budget outlived the robot (issue #339)
+
+On the deployed pair (build `0f2faf5`) Rowan was knocked over mid-pick, and
+every life after that ended `flat` 401-403 s after its stand-up, silent,
+pushing into `wall_west_1` at ~70 W. `refine_standoff`'s drive back to a
+bay standoff looped `while` it was more than 5 cm away -- no budget, no
+stall check, no planner. On its side the robot could never arrive, so the
+loop outlived the death; the timer stood it up at the far end of the house
+(its rule waits only for a SEATED module, #311), and the same loop drove it
+straight at the rack's standoff until the pack was flat, then resumed after
+every stand-up. Found by walking the day routine's generator chain
+(`gi_yieldfrom`) in a reproduction: `refine_standoff_routine` both while
+dead and after the stand-up. The robot's map, corrupted by the same topple
+(#340), looked like the reason and was not -- the loop reproduces with the
+map fixed. **What is true now:** `REFINE_BUDGET_S` (10 s; healthy passes
+measured 0.97-1.25 s). A robot stood up mid-errand still finishes the errand
+it died in, in bounded passes: in the reproduction, about 70 s of it, and
+91 % of the pack left. A budget that runs out is `refine_blocked`, and the
+swap and the charge approach take no attempt from where it stopped: out of
+line, a deployed fork or a creep is the knocked-off module the refine
+exists to prevent (second review).
 
 ## Debugging workflow that worked
 

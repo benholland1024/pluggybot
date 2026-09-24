@@ -581,7 +581,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
     if not verdict.get("ok"):
       result["failedAt"] = count - 1
       life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line})"
-                + (f" -- {verdict['reason']}" if verdict.get("reason") else ""))
+                + (f" -- {verdict['reason']}" if verdict.get("reason") else ""),
+                detail=verdict.get("trace", ""))
       raise _Stop("failed")
     result["completed"] = count
 

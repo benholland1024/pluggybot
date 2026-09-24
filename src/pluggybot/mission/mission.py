@@ -86,10 +86,70 @@ CHARGE_PRESS_STALL_S = 4.0
 #: whatever height the last stow left, which is exactly the trap.
 CHARGE_LOOK_LIFT = 0.0
 FACING_TOLERANCE = math.radians(0.5)
+#: A scan goes into the MAP only while the chassis is this close to level
+#: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
+#: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
+#: the sky -- "free to max range", 8 m through every wall, for as long as
+#: it lies there. MEASURED: draw, census and dance peak at 0.66 deg on the
+#: home world (median 0.018); the charge creep's bumper contact spikes to
+#: 1.4-1.7 for ~20 ms, home and room_hub (a scan skipped per dock; the held
+#: press < 0.1); a 21 mm plate pad tilts it 4.3-8.1 deg for ~2 s, and those
+#: scans are skipped -- at that tilt they painted floor-hit arcs 1.6-3 m
+#: out. A skipped scan costs a tenth of a second of map; a wrong one costs
+#: the map. The reflex still reads every scan.
+MAP_TILT_RAD = math.radians(1.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
+#: Swaps on SWAP_TIMESTEP, per MODEL (issue #264). The step is the model's
+#: and a pair shares one: the first robot out of its swap used to put the
+#: cruise step back under the other's terminal approach -- its peg contacts
+#: at twice the step, a failure one robot alone can never show.
+_FINE_STEP: dict[int, int] = {}
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
 LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
+#: Sim seconds one drive back in to a bay standoff may take in
+#: `refine_standoff` (issue #339). MEASURED healthy: 0.97-1.25 s over six
+#: passes (draw, census, dance on home). What it bounds: a robot knocked
+#: over mid-pick drove at the standoff for ever -- through its death, then
+#: from the far end of the house where the timer stood it up, into a wall at
+#: full torque until flat -- thirteen lives in a row on the deployed pair.
+REFINE_BUDGET_S = 10.0
+
+
+def swap_trace(rec: dict | None) -> str:
+  """One line of what a swap did (`HubMission.last_swap`), for the log of a
+  failed one (issue #264): the route, then per attempt the fix, the belief's
+  drift against the true pose, the travel, the approach's answer and, on a
+  pick, where the module stood against the fork when the approach ended --
+  ahead and LEFT in the robot's frame; the capture window is +/-11 mm left."""
+  if not rec:
+    return "no swap recorded"
+  parts = [f"route {rec.get('route')}"]
+  for i, a in enumerate(rec.get("attempts") or (), 1):
+    e = a.get("err") or [0.0, 0.0, 0.0]
+    line = (f"#{i} fix {a.get('fix') or 'none'}, belief off {e[0]:+.0f},{e[1]:+.0f} mm "
+            f"{e[2]:+.1f} deg, travel {a.get('travel')} m -> {a.get('why')}")
+    if a.get("moduleFromForkMm"):
+      f = a["moduleFromForkMm"]
+      line += f", module from fork {f[0]:+.0f} ahead {f[1]:+.0f} left mm"
+    parts.append(line)
+  return "; ".join(parts)
+
+
+def fine_step_begin(model) -> None:
+  """A swap enters the fine step; counted, because the step is the model's."""
+  _FINE_STEP[id(model)] = _FINE_STEP.get(id(model), 0) + 1
+  model.opt.timestep = SWAP_TIMESTEP
+
+
+def fine_step_end(model, cruise: float) -> None:
+  """...and leaves it; cruise comes back only when no swap is still on it."""
+  left = _FINE_STEP.get(id(model), 1) - 1
+  if left > 0:
+    _FINE_STEP[id(model)] = left
+  else:
+    _FINE_STEP.pop(id(model), None)
+    model.opt.timestep = cruise
 
 
 def rack_heading(rack: RackPose | None = None) -> float:
@@ -327,6 +387,7 @@ class HubMission:
     #: one tag's own PnP yaw -- the fallback when it is the only rack tag
     #: in view, and a coin flip square-on (`_measured_standoff`).
     self.fix_source = ""
+    self.refine_blocked = False   # `refine_standoff` ran out of budget short
     self._next_look = 0.0
     self.viewer = viewer
     self.realtime = realtime
@@ -356,6 +417,7 @@ class HubMission:
     #: narrates it -- `HubMission` knows the distance and the lifecycle
     #: knows whose it is.
     self.peer_at_bay_m: float | None = None
+    self.last_swap: dict | None = None        # `swap_trace`'s source, issue #264
     #: The peer stop (issue #328): the last sighting in the corridor ahead
     #: -- how far off it was and when -- and how many times a drive has
     #: actually HELD for one. Episodes, not frames, and counted where the
@@ -418,6 +480,13 @@ class HubMission:
       if ahead > 0:
         time.sleep(min(ahead, 0.05))
 
+  def level(self) -> bool:
+    """Whether the chassis is level enough for a scan to be a map of the
+    room (`MAP_TILT_RAD`): its up axis against the world's, as an IMU says."""
+    q = self.swap.root_qadr
+    x, y = float(self.data.qpos[q + 4]), float(self.data.qpos[q + 5])
+    return 1.0 - 2.0 * (x * x + y * y) >= math.cos(MAP_TILT_RAD)
+
   def pose_xy(self) -> tuple[float, float]:
     """Where this robot SAYS it is -- what another robot may be told."""
     return (self.swap.reckoner.x, self.swap.reckoner.y)
@@ -426,6 +495,21 @@ class HubMission:
   def pose(self) -> tuple[float, float, float]:
     r = self.swap.reckoner
     return r.x, r.y, r.theta
+
+  def truth_error(self) -> list[float]:
+    """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
+    dead reckoning has drifted by, for a failed swap's trace (issue #264).
+    A diagnostic the sim can afford and a robot could not -- nothing reads
+    it to act."""
+    q = self.swap.root_qadr
+    d = self.data
+    yaw = 2.0 * math.atan2(float(d.qpos[q + 6]), float(d.qpos[q + 3]))
+    ax = float(d.qpos[q]) - 0.08 * math.cos(yaw)
+    ay = float(d.qpos[q + 1]) - 0.08 * math.sin(yaw)
+    bx, by, bth = self.pose
+    dyaw = (bth - yaw + math.pi) % (2 * math.pi) - math.pi
+    return [round(1000 * (bx - ax), 1), round(1000 * (by - ay), 1),
+            round(math.degrees(dyaw), 2)]
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Place the robot and initialize odometry from the known start pose."""
@@ -488,7 +572,11 @@ class HubMission:
     # outlet landmarks did during exploration.
     if self.finder is not None and self.data.time >= self._next_look:
       self._next_look = self.data.time + LOOK_PERIOD
-      self.finder.look(self.data, self.pose)
+      # ...level, as the map is (issue #339): a sighting is placed through
+      # the believed UPRIGHT pose, and on its side a robot 1-2 m from the
+      # rack moved the rack belief 0.1-1.4 m (measured, 5 of 8 falls).
+      if self.level():
+        self.finder.look(self.data, self.pose)
     # Scan on a TIME cadence at the part's real rate. The camera scanner ran
     # every 20 physics steps (50 Hz) because a depth render is free in sim; a
     # spinning mirror is not, and pretending otherwise would let the mapper
@@ -503,8 +591,9 @@ class HubMission:
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
-      self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                       origin=LIDAR_ORIGIN)
+      if self.level():
+        self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
+                         origin=LIDAR_ORIGIN)
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))
@@ -846,17 +935,28 @@ class HubMission:
     to the floor), and the tag servo's steering authority over a 0.2 m
     creep is only ~1-2 cm. The fix is the oldest one in driving: back up
     and take another run at it -- drive_toward's P-controller converges
-    laterally given a runway. Returns the final believed lateral error.
+    laterally given a runway. Returns the final believed lateral error, and
+    sets `refine_blocked` when a drive back ran out of `REFINE_BUDGET_S`
+    short of the standoff: a caller then takes no attempt from there.
     """
+    self.refine_blocked = False
     for _ in range(3):
       dx, dy = sx - self.pose[0], sy - self.pose[1]
       lat = -dx * math.sin(hd) + dy * math.cos(hd)
       if abs(lat) < 0.015:
         break
       yield from self._drive_routine(2.5, -0.15, 0.0)   # back off ~0.35 m
-      while math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
+      until = float(self.data.time) + REFINE_BUDGET_S
+      while (math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05
+             and self.data.time < until):
         v, w = drive_toward(self.pose, (sx, sy))
         yield from self._nav_routine(v, w)
+      if math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
+        # ...and SAYS so (review of #341): out of budget, the robot is not
+        # lined up, and a caller that deployed the fork from here would
+        # push a module off its trays -- what this routine exists to stop.
+        self.refine_blocked = True
+        break
       yield from self.face_routine(hd)
     dx, dy = sx - self.pose[0], sy - self.pose[1]
     return -dx * math.sin(hd) + dy * math.cos(hd)
@@ -1195,6 +1295,9 @@ class HubMission:
       yield from self.drive_to_routine(sx, sy, timeout=30.0)
       yield from self.face_routine(hd)
       yield from self.refine_standoff_routine(sx, sy, hd)
+      if self.refine_blocked:
+        why = "blocked"                             # no creep from off the line
+        continue
       why = yield from self.swap._drive_until_routine(
         max_travel, creep_v, stall_stop=True, stall_time=CHARGE_PRESS_STALL_S,
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
@@ -1233,6 +1336,12 @@ class HubMission:
     # to the neighborhood is itself what buys line of sight, so the belief
     # is refreshed once more after arriving.
     self.peer_at_bay_m = None
+    #: What this swap DID, for the narration of a failed one (issue #264):
+    #: the route, then per attempt the fix, the belief's error against the
+    #: true pose, the approach's answer and where the fork ended up against
+    #: the module. Read, never acted on -- every live pick missed for a
+    #: reason no local reproduction showed, and the logs said nothing.
+    self.last_swap = {"verb": verb, "route": "ok", "attempts": []}
     self.refresh_rack()
     sx, sy, hd = bay_standoff(station_y, self.rack)
     # A route failure this early usually means the planner ran out of KNOWN
@@ -1254,11 +1363,14 @@ class HubMission:
       near = self.peer_on_the_goal(sx, sy)
       if near is not None:
         self.peer_at_bay_m = near
+        self.last_swap["route"] = "peer-at-bay"
         return "peer-at-bay"
+      self.last_swap["route"] = "spun"
       yield from self._spin_routine()
       self.refresh_rack()
       sx, sy, hd = bay_standoff(station_y, self.rack)
     else:
+      self.last_swap["route"] = "no-route"
       return "no-route"
     if self.refresh_rack() is not None:
       sx, sy, hd = bay_standoff(station_y, self.rack)
@@ -1315,6 +1427,9 @@ class HubMission:
       # ...and None even after the recovery keeps the believed standoff,
       # which is what every approach trusted before there were fixes.
       yield from self.refine_standoff_routine(sx, sy, hd)
+      if self.refine_blocked:
+        why = "blocked"                             # no fork deployed from here
+        continue
       yield from self.set_arm_routine(ARM_EXT)      # deploy only once lined up
       # Travel computed from the BELIEVED distance to the hang plane --
       # fixed travels assume a perfect standoff, and arrival is only good
@@ -1324,17 +1439,25 @@ class HubMission:
       # and it is the PEG that must land over the tray line.
       travel = self._terminal_travel(station_y)
       tag_id = bay_tag_id(station_y)
-      self.model.opt.timestep = SWAP_TIMESTEP
+      attempt_rec = {"fix": self.fix_source if fix is not None else None,
+                     "err": self.truth_error(), "travel": round(travel, 3)}
+      self.last_swap["attempts"].append(attempt_rec)
+      fine_step_begin(self.model)
       try:
         if verb == "pick":
           why = yield from self.swap.pick_routine(
-            steer_fn=self.steer_fn(tag_id), dist=travel + PICK_OVERSHOOT)
+            steer_fn=self.steer_fn(tag_id), dist=travel + PICK_OVERSHOOT,
+            module=module)
+          if self.swap.approach_end is not None:
+            attempt_rec["moduleFromForkMm"] = [round(1000 * v, 1)
+                                               for v in self.swap.approach_end]
         else:
           why = yield from self.swap.put_back_routine(
             steer_fn=self.steer_fn(tag_id), dist=travel - CARRY_OFFSET)
       finally:
-        self.model.opt.timestep = self.cruise_timestep
+        fine_step_end(self.model, self.cruise_timestep)
       yield from self.set_arm_routine(0.0)  # tuck it back before driving off
+      attempt_rec["why"] = why
       if module is None:
         break
       st = self.swap.module_state(module)

@@ -77,6 +77,12 @@ DEFAULT_BUDGET_S = 600.0
 MAX_WAIT_S = 60.0
 #: Per-step drive timeout: the native errand's carry drive uses 60 s.
 DRIVE_TIMEOUT_S = 60.0
+#: A drive to where the house set a cube out that ends farther than this
+#: from it did not get there (issue #264): the robot still looks from where
+#: it stopped, but a failed look is not one "from where the house set it
+#: out", and saying it was sent a robot hunting a tag problem it did not
+#: have. A stagnated drive ends 0.1-0.3 m short, which is there.
+STAND_SHORT_M = 0.5
 #: The lift's travel, as the plotter clips it.
 LIFT_RANGE_M = (0.02, 0.30)
 LIFT_SPEED = 0.05       # m/s, the lead-screw class ceiling (tools/gripper.py)
@@ -205,16 +211,51 @@ def _tool_station(life, tool: str) -> float:
   return STATION_YS[_rack(life)[tool]]
 
 
+def _seated(life, tool: str) -> bool:
+  return bool(life.mission.swap.module_state(tool)["on_fork"]) and \
+    module_power_contact(life.model, life.data, tool,
+                         life.mission.swap.handle.prefix)
+
+
 def _fetch(life, args: dict) -> Routine:
   tool = args["tool"]
   station = _tool_station(life, tool)
+  # ⚠ THE FORK FIRST (issue #264). A fork that already holds the tool has
+  # it; one that holds ANOTHER was driven into a bay loaded, and the
+  # deployed robots wrote `clean_fork` / `stow_recover` procedures around
+  # the wreck. Neither drives anywhere.
+  held = _carried(life)
+  if held == tool:
+    life.module = tool
+    ok = _seated(life, tool)
+    return {"ok": ok, "tool": tool, "why": "held", "powered": ok,
+            **({} if ok else {"reason": f"{tool} is on the fork but not "
+                                        "seated; stow it and fetch it again"})}
+  if held is not None:
+    return {"ok": False, "tool": tool, "why": "loaded",
+            "reason": f"the fork already holds {held}; stow it first"}
   life.module = tool
   why = yield from life.mission.swap_at_bay_routine(station, "pick", module=tool)
-  st = life.mission.swap.module_state(tool)
-  ok = bool(st["on_fork"]) and module_power_contact(
-    life.model, life.data, tool, life.mission.swap.handle.prefix)
+  ok = _seated(life, tool)
   life.swaps_done += 1
-  return {"ok": ok, "tool": tool, "why": why, "powered": ok}
+  verdict = {"ok": ok, "tool": tool, "why": why, "powered": ok}
+  if not ok:
+    # The sentence the errand's History line says (`pick_failure`): a
+    # procedure cut short at its first line told the robot nothing, and the
+    # deployed robots re-ran the same failing fetch five times over.
+    said = getattr(life, "pick_failure", None)
+    verdict["reason"] = (f"could not pick up {tool}"
+                         + (f": {said(tool, station, why)}" if said else ""))
+    _trace(life, verdict, f"fetch {tool}")
+  return verdict
+
+
+def _trace(life, verdict: dict, what: str) -> None:
+  """A failed swap's trace (issue #264, `mission.swap_trace`) on the step's
+  verdict, which the runner narrates as `detail` -- the log's, never the
+  status line or History, which are the robot's."""
+  from pluggybot.mission.mission import swap_trace
+  verdict["trace"] = f"{what}: {swap_trace(getattr(life.mission, 'last_swap', None))}"
 
 
 def _carried(life) -> str | None:
@@ -228,27 +269,75 @@ def _carried(life) -> str | None:
   return None
 
 
+def carry_configuration_routine(life, tool: str) -> Routine:
+  """The tool as a pick left it, before any RETURN (issue #264): a cube in
+  the claw's jaws set down first, the arm in, the lift where a pick leaves
+  a module (`MODULE_DRIVE_LIFT`). A return computes its release heights from
+  the lift it STARTS at, and a procedure may have moved it: MEASURED, a
+  claw stowed from 0.03 m -- where a weighing procedure had lowered it --
+  was driven into the rack and knocked to the floor, while the same stow
+  from the pick's height hung it in 45 s. Returns what it set down."""
+  from pluggybot.tools.gripper import CLAW_MODULE, MODULE_DRIVE_LIFT
+  set_down = None
+  if tool == CLAW_MODULE:
+    claw = _claw(life)
+    held = claw.held() if claw is not None else None
+    if held is not None:
+      yield from claw.set_down_routine()
+      set_down = held
+  yield from life.mission.set_arm_routine(0.0)
+  yield from life.mission.swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
+  return {"setDown": set_down}
+
+
+def home_legs_routine(life) -> Routine:
+  """Back to the house along a zone's route before a RETURN (issue #264;
+  `lifecycle.home_route`): the swap's own route to its bay is one drive,
+  and from the lab that is 30 m of street. Best effort, leg by leg -- the
+  swap's route is still what ends at the bay."""
+  from pluggybot.lifecycle import home_route
+  for x, y in home_route(life.world, life.mission.pose_xy()):
+    yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+
+
 def _stow(life, args: dict) -> Routine:
   tool = _carried(life)
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
+  yield from carry_configuration_routine(life, tool)
+  yield from home_legs_routine(life)
   why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
                                                     "return", module=tool)
-  hung = bool(life.mission.swap.module_state(tool)["hung"])
+  st = life.mission.swap.module_state(tool)
+  hung = bool(st["hung"])
   life.swaps_done += 1
-  return {"ok": hung, "tool": tool, "why": why}
+  verdict = {"ok": hung, "tool": tool, "why": why,
+             **({} if hung else {"reason": (
+               f"could not hang {tool} back on its bay; "
+               + ("it is still on the fork" if st["on_fork"] else
+                  "it is neither on the fork nor on its bay"))})}
+  if not hung:
+    _trace(life, verdict, f"stow {tool}")
+  return verdict
 
 
 def _drive_to(life, args: dict) -> Routine:
   x, y = float(args["x"]), float(args["y"])
   arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
   px, py, _ = life.mission.pose
-  return {"ok": bool(arrived), "shortM": round(math.hypot(x - px, y - py), 3)}
+  short = round(math.hypot(x - px, y - py), 3)
+  return {"ok": bool(arrived), "shortM": short,
+          **({} if arrived else {"reason": (
+            f"did not arrive: it stopped {short:.1f} m short of ({x:g}, {y:g}), "
+            f"at ({px:.1f}, {py:.1f})")})}
 
 
 def _face(life, args: dict) -> Routine:
   squared = yield from life.mission.face_routine(float(args["heading"]))
-  return {"ok": bool(squared)}
+  return {"ok": bool(squared),
+          **({} if squared else {"reason": (
+            f"did not square up to heading {float(args['heading']):.2f} rad "
+            "within its time")})}
 
 
 def _set_lift(life, args: dict) -> Routine:
@@ -388,11 +477,13 @@ def _travel_routine(life, tag: int) -> Routine:
   """Go to where the house set the cube out and face it: the zone's route
   legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
   stand. Legs already behind the robot are dropped (`cage_route`'s rule).
-  Returns True on arrival at the stand."""
+  Returns (arrived, why): `why` is the clause a failed look ends with --
+  "never got there" and "got there and could not see it" are different
+  things to have to fix (issue #264)."""
   from pluggybot.lifecycle import LEG_DONE_M, zone_route
   where = prop_stand(life.world, tag)
   if where is None:
-    return False
+    return False, "and it is not one the house set out"
   zone, _, stand, heading = where
   legs = zone_route(life.world, zone)
   px, py = life.mission.pose_xy()
@@ -409,10 +500,21 @@ def _travel_routine(life, tag: int) -> Routine:
     legs = legs[i:]
   for x, y in [*legs, stand]:
     arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
-    if not arrived and (x, y) != stand:
-      return False
+    if arrived:
+      continue
+    px, py = life.mission.pose_xy()
+    if (x, y) != stand:
+      return False, (f"and the route to where the house set it out stopped at "
+                     f"({px:.1f}, {py:.1f})")
+    short = math.hypot(stand[0] - px, stand[1] - py)
+    if short > STAND_SHORT_M:
+      # ...and it LOOKS from there anyway: the cube may well be in view, as
+      # it always was before this sentence existed. Only the words change.
+      yield from life.mission.face_routine(heading)
+      return True, (f"and the drive to where the house set it out stopped "
+                    f"{short:.1f} m short of it, at ({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
-  return True
+  return True, ""
 
 
 def _approach_routine(life, claw, tag: int, carrying: bool,
@@ -430,6 +532,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   from pluggybot.tools.gripper import CARRY_LIFT
   claw.calibrate_from_body()
   seen = yield from _spot_routine(life, tag)
+  unseen = f"tag {tag} is not a cube this robot can see from here"
   if seen is None:
     # Not in view from here: go to where the house set it out (issue
     # #264, `prop_stand`) -- `fetch` drives to its bay the same way -- and
@@ -439,13 +542,22 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
       yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
     else:
       yield from claw.tuck_routine()
-    went = yield from _travel_routine(life, tag)
+    went, why = yield from _travel_routine(life, tag)
     if went:
       seen = yield from _spot_routine(life, tag)
       if seen is not None:
         seen = {**seen, "travelled": True}
+      elif why:                         # it looked from where it stopped short
+        unseen = f"{unseen}, {why}"
+      else:
+        cx, cy = prop_stand(life.world, tag)[1][:2]
+        unseen = (f"tag {tag} did not decode even from where the house set it "
+                  f"out, by ({cx:.2f}, {cy:.2f}): it has moved, or something "
+                  "is in the way")
+    else:
+      unseen = f"{unseen}, {why}"
   if seen is None:
-    return None, False
+    return None, False, unseen
   heading = life.mission.pose[2]
   if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
     # stage along the heading the procedure chose (it faced the row), so
@@ -468,7 +580,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   if carrying:
     yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
   arrived = yield from claw.drive_over_routine((x, y), heading, stow=not carrying)
-  return seen, bool(arrived)
+  return seen, bool(arrived), ""
 
 
 def _pick(life, args: dict) -> Routine:
@@ -483,10 +595,9 @@ def _pick(life, args: dict) -> Routine:
   if held is not None:
     return {"ok": False, "reason": f"already holding {held}"}
   tag = int(args["tag"])
-  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=False)
+  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=False)
   if seen is None:
-    return {"ok": False, "tag": tag,
-            "reason": f"tag {tag} is not a cube this robot can see from here"}
+    return {"ok": False, "tag": tag, "reason": unseen}
   picked = yield from claw.pick_up_routine()
   held = claw.held()
   return {"ok": held is not None, "tag": tag, "arrived": bool(arrived),
@@ -512,11 +623,10 @@ def _place(life, args: dict) -> Routine:
   # how the held cube hangs in the jaws (`ClawTool.held_hang`): the verb
   # aims the CUBE at the target, not the grip point
   hang = claw.held_hang(held)
-  seen, arrived = yield from _approach_routine(life, claw, tag, carrying=True,
-                                               hang=hang[:2])
+  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=True,
+                                                       hang=hang[:2])
   if seen is None:
-    return {"ok": False, "tag": tag,
-            "reason": f"tag {tag} is not a cube this robot can see from here"}
+    return {"ok": False, "tag": tag, "reason": unseen}
   x, y, z = seen["centre"]
   half = seen["half"]
   # ...and again on arrival: MEASURED, a cube slips ~7 mm down and ~10 mm

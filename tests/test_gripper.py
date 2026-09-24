@@ -45,6 +45,12 @@ def test_claw_reaches_the_floor_but_not_below(hub_model):
     f"could not put the jaws at floor level: {residual * 1000:.1f} mm out")
   assert float(claw.grip_world()[2]) - CLAW_PAD_HALF_H > -1e-6, \
     "the pads are being driven into the floor"
+  # ...and a claw resting on the floor holds nothing (issue #264): ladder B's
+  # weighing lowered it to 0.02 m and was refused `pick(24)` with "already
+  # holding floor".
+  claw.set_lift(0.02)
+  assert claw.holding("floor"), "the premise: both pads rest on the floor"
+  assert claw.held() is None
 
 
 def test_claw_picks_powers_and_lifts(hub_model):
@@ -84,6 +90,8 @@ def test_claw_picks_powers_and_lifts(hub_model):
 
   r = claw.pick_up()
   assert r["holding"], f"no grip: {r}"
+  held = claw.held()
+  assert held and hub_model.geom_bodyid[hub_model.geom(held).id] == hub_model.body("pickup").id
   lifted = float(data.xpos[hub_model.body("pickup").id][2]) - z0
   assert lifted > 0.04, f"block only rose {lifted * 1000:.1f} mm"
   assert module_power_contact(hub_model, data, CLAW_MODULE), \
