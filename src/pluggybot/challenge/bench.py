@@ -172,13 +172,24 @@ def set_unknown_mass(model, data, kg: float, spec=None) -> float:
   one is held -- the workshop's recompile (#168) rebuilds from the spec,
   and a mass set on the model alone would revert to the placeholder the
   moment a tool was hung. ⚠ `mj_setConst` is given a scratch MjData: it
-  writes `qpos0` into whatever data it is handed."""
+  writes `qpos0` into whatever data it is handed.
+
+  ⚠ THE WORLD'S PINNED STATISTIC SURVIVES IT. `mj_setConst` re-derives
+  `stat.extent` and `stat.center` from the geometry's bounding box, and
+  every camera's near plane is `vis.map.znear * stat.extent` -- the trap
+  `home.CAMERA_EXTENT_M` pins (SimNotes). MEASURED: 37.2 -> 70.0, the near
+  plane 0.37 -> 0.70 m, and the dock camera at a bay standoff clipped the
+  rack out of its image; `bay_fix` was blind from the first bench offer on,
+  and the deployed pair's picks failed 13 of 15 (issue #264)."""
   bid = model.body(UNKNOWN).id
   kg = float(kg)
   ratio = kg / float(model.body_mass[bid])
   model.body_mass[bid] = kg
   model.body_inertia[bid] *= ratio
+  extent, center = float(model.stat.extent), model.stat.center.copy()
   mujoco.mj_setConst(model, mujoco.MjData(model))
+  model.stat.extent = extent
+  model.stat.center[:] = center
   if spec is not None:
     spec.body(UNKNOWN).geoms[0].mass = kg
   return kg
