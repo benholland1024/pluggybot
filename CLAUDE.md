@@ -1690,7 +1690,14 @@ save a filmstrip PNG named after the script.
   explicit `squared` answer. An empty pack does NOT stop the body (motors
   draw ~30 W at 0 Wh) and every mission guard is checked BETWEEN errands, so
   an unbounded loop drains the pack and runs past `max_sim_time`. A bound is
-  not a recovery — that is #107's death.
+  not a recovery — that is #107's death. `refine_standoff`'s drive back in
+  is `REFINE_BUDGET_S` 10 s (issue #339): unbounded, a robot knocked over
+  mid-pick drove at the standoff through its death AND every stand-up after
+  it (the timer stands up a robot mid-errand when nothing is seated), into
+  a wall until flat -- thirteen lives on the deployed pair. A give-up is
+  `refine_blocked`, and the swap and the charge approach then take NO
+  attempt from there (`blocked`): a fork deployed off the line pushes a
+  module off its trays, which is what the refine is for.
 - **A press is not travel** (`HubSwap.pinned`, `HubSwap.pressing`; issues
   #22, #94). Wheels held against something immovable pump imaginary travel
   into dead reckoning (828 mm from one charge press; 4.28 m in 30 s against

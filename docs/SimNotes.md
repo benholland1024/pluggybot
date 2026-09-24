@@ -1807,6 +1807,28 @@ reckoner seeing it -- 500 steps with the opening spin's wheel command
 still in `ctrl` put 49° between belief and truth, painted a diagonal
 ghost wall across the living room, and looked exactly like a seam bug.
 
+## A loop with no budget outlived the robot (issue #339)
+
+On the deployed pair (build `0f2faf5`) Rowan was knocked over mid-pick, and
+every life after that ended `flat` 401-403 s after its stand-up, silent,
+pushing into `wall_west_1` at ~70 W. `refine_standoff`'s drive back to a
+bay standoff looped `while` it was more than 5 cm away -- no budget, no
+stall check, no planner. On its side the robot could never arrive, so the
+loop outlived the death; the timer stood it up at the far end of the house
+(its rule waits only for a SEATED module, #311), and the same loop drove it
+straight at the rack's standoff until the pack was flat, then resumed after
+every stand-up. Found by walking the day routine's generator chain
+(`gi_yieldfrom`) in a reproduction: `refine_standoff_routine` both while
+dead and after the stand-up. The robot's map, corrupted by the same topple
+(#340), looked like the reason and was not -- the loop reproduces with the
+map fixed. **What is true now:** `REFINE_BUDGET_S` (10 s; healthy passes
+measured 0.97-1.25 s). A robot stood up mid-errand still finishes the errand
+it died in, in bounded passes: in the reproduction, about 70 s of it, and
+91 % of the pack left. A budget that runs out is `refine_blocked`, and the
+swap and the charge approach take no attempt from where it stopped: out of
+line, a deployed fork or a creep is the knocked-off module the refine
+exists to prevent (second review).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

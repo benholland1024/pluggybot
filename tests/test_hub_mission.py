@@ -143,6 +143,85 @@ def test_a_drive_ends_with_a_terminal_approach_and_sweeps_before_it(room_model, 
   assert by_target[(0.9, 0.0)] == {mm.ARRIVAL_SLOW_RADIUS}, by_target
 
 
+def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, monkeypatch):
+  """Issue #339, off the deployed pair: Rowan was knocked over mid-pick and
+  `refine_standoff`'s drive back to the standoff had no budget. On its side
+  it could not get there, so the loop outlived the death; the timer stood it
+  up at the far end of the house, and the same loop drove it straight at the
+  rack's standoff, into a wall at full torque until the pack was flat --
+  thirteen lives. Kinematic, no physics: a robot that cannot move (the step
+  only advances the clock) must still get out, within three passes of
+  `REFINE_BUDGET_S`. Fails without the budget: the step cap fires."""
+  from pluggybot import tick
+  from pluggybot.mission import mission as mm
+  data = mujoco.MjData(room_model)
+  mission = mm.HubMission(room_model, data, realtime=False)
+  try:
+    mission.start_at(0.0, 0.0, 0.0)
+    cap = int(4 * mm.REFINE_BUDGET_S / room_model.opt.timestep)
+
+    def cannot_move(v, w):
+      if (data.time - t0) / room_model.opt.timestep > cap:
+        raise RuntimeError("refine_standoff is unbounded again (issue #339)")
+      data.time += room_model.opt.timestep
+      yield v, w
+    monkeypatch.setattr(mission, "_nav_routine", cannot_move)
+    monkeypatch.setattr(mission, "_drive_routine", lambda s, v, w: tick.result(None))
+    monkeypatch.setattr(mission, "face_routine", lambda hd: tick.result(True))
+    t0 = float(data.time)
+    routine = mission.refine_standoff_routine(0.0, 0.3, 0.0)
+    try:
+      while True:
+        next(routine)                           # no physics: nobody moves
+    except StopIteration as done:
+      lateral = done.value
+      assert lateral == pytest.approx(0.3), "the robot never moved, and says so"
+    # one pass: out of budget short of the standoff, it stops and says so
+    assert data.time - t0 == pytest.approx(mm.REFINE_BUDGET_S, abs=0.01)
+    assert mission.refine_blocked
+  finally:
+    mission.close()
+
+
+
+def test_a_refine_that_gave_up_takes_no_attempt_from_where_it_stopped(room_model, monkeypatch):
+  """Review of #341: out of budget, `refine_standoff` returned and its
+  callers deployed the fork and crept from wherever the robot had stopped --
+  off the line, which is how a module is pushed off its trays. A give-up is
+  `refine_blocked`; the swap deploys no fork and the charge approach makes
+  no creep from there, and both answer `blocked`. Kinematic, stubbed."""
+  from pluggybot import tick
+  from pluggybot.mission import mission as mm
+  data = mujoco.MjData(room_model)
+  m = mm.HubMission(room_model, data, realtime=False)
+  try:
+    m.start_at(0.0, 0.0, 0.0)
+    done = lambda *a, **k: tick.result(True)                     # noqa: E731
+    monkeypatch.setattr(m, "drive_to_routine", done)
+    monkeypatch.setattr(m, "face_routine", done)
+    monkeypatch.setattr(m, "refresh_rack", lambda: None)
+    monkeypatch.setattr(m, "bay_fix", lambda station_y: (0.0, 0.0, 0.0))
+    monkeypatch.setattr(m, "charge_bay_fix", lambda: (0.0, 0.0, 0.0))
+    monkeypatch.setattr(m.swap, "_run_routine", lambda *a, **k: tick.result(None))
+
+    def gave_up(sx, sy, hd):
+      m.refine_blocked = True
+      return tick.result(0.1)
+    monkeypatch.setattr(m, "refine_standoff_routine", gave_up)
+    deployed, crept = [], []
+    monkeypatch.setattr(m, "set_arm_routine",
+                        lambda ext, settle=1.5: (deployed.append(ext), tick.result(None))[1])
+    monkeypatch.setattr(m.swap, "_drive_until_routine",
+                        lambda *a, **k: (crept.append(a), tick.result("arrived"))[1])
+    why = tick.run(m.swap, m.swap_at_bay_routine(HUB_STATION_YS[0], "pick", module="module_lcd"))
+    assert why == "blocked" and mm.ARM_EXT not in deployed
+    crept.clear()
+    why = tick.run(m.swap, m.charge_approach_routine(0.4, 0.05))
+    assert why == "blocked"
+    assert all(a[1] < 0 for a in crept), "a creep toward the pins from off the line"
+  finally:
+    m.close()
+
 @pytest.mark.slow
 def test_full_hub_mission():
   """The milestone-8 claim, end to end: map the room, navigate to the rack,

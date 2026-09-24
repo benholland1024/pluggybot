@@ -107,6 +107,13 @@ _FINE_STEP: dict[int, int] = {}
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
 LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
 SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
+#: Sim seconds one drive back in to a bay standoff may take in
+#: `refine_standoff` (issue #339). MEASURED healthy: 0.97-1.25 s over six
+#: passes (draw, census, dance on home). What it bounds: a robot knocked
+#: over mid-pick drove at the standoff for ever -- through its death, then
+#: from the far end of the house where the timer stood it up, into a wall at
+#: full torque until flat -- thirteen lives in a row on the deployed pair.
+REFINE_BUDGET_S = 10.0
 
 
 def swap_trace(rec: dict | None) -> str:
@@ -380,6 +387,7 @@ class HubMission:
     #: one tag's own PnP yaw -- the fallback when it is the only rack tag
     #: in view, and a coin flip square-on (`_measured_standoff`).
     self.fix_source = ""
+    self.refine_blocked = False   # `refine_standoff` ran out of budget short
     self._next_look = 0.0
     self.viewer = viewer
     self.realtime = realtime
@@ -927,17 +935,28 @@ class HubMission:
     to the floor), and the tag servo's steering authority over a 0.2 m
     creep is only ~1-2 cm. The fix is the oldest one in driving: back up
     and take another run at it -- drive_toward's P-controller converges
-    laterally given a runway. Returns the final believed lateral error.
+    laterally given a runway. Returns the final believed lateral error, and
+    sets `refine_blocked` when a drive back ran out of `REFINE_BUDGET_S`
+    short of the standoff: a caller then takes no attempt from there.
     """
+    self.refine_blocked = False
     for _ in range(3):
       dx, dy = sx - self.pose[0], sy - self.pose[1]
       lat = -dx * math.sin(hd) + dy * math.cos(hd)
       if abs(lat) < 0.015:
         break
       yield from self._drive_routine(2.5, -0.15, 0.0)   # back off ~0.35 m
-      while math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
+      until = float(self.data.time) + REFINE_BUDGET_S
+      while (math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05
+             and self.data.time < until):
         v, w = drive_toward(self.pose, (sx, sy))
         yield from self._nav_routine(v, w)
+      if math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.05:
+        # ...and SAYS so (review of #341): out of budget, the robot is not
+        # lined up, and a caller that deployed the fork from here would
+        # push a module off its trays -- what this routine exists to stop.
+        self.refine_blocked = True
+        break
       yield from self.face_routine(hd)
     dx, dy = sx - self.pose[0], sy - self.pose[1]
     return -dx * math.sin(hd) + dy * math.cos(hd)
@@ -1276,6 +1295,9 @@ class HubMission:
       yield from self.drive_to_routine(sx, sy, timeout=30.0)
       yield from self.face_routine(hd)
       yield from self.refine_standoff_routine(sx, sy, hd)
+      if self.refine_blocked:
+        why = "blocked"                             # no creep from off the line
+        continue
       why = yield from self.swap._drive_until_routine(
         max_travel, creep_v, stall_stop=True, stall_time=CHARGE_PRESS_STALL_S,
         # held at -PLUG_LATERAL, not centred: dock_eye rides the fork line
@@ -1405,6 +1427,9 @@ class HubMission:
       # ...and None even after the recovery keeps the believed standoff,
       # which is what every approach trusted before there were fixes.
       yield from self.refine_standoff_routine(sx, sy, hd)
+      if self.refine_blocked:
+        why = "blocked"                             # no fork deployed from here
+        continue
       yield from self.set_arm_routine(ARM_EXT)      # deploy only once lined up
       # Travel computed from the BELIEVED distance to the hang plane --
       # fixed travels assume a perfect standoff, and arrival is only good
