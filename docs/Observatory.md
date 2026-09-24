@@ -10,6 +10,41 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The list of rules is kept until a true death (#337) — opens when this PR is deployed
+
+**What changed in the mind.** The event map lived in the process, and the
+served world ends its process every sim-hour, so every robot began each
+hour with an empty list and wrote it again (Luca filed a ticket about it),
+while a true death — the one thing that should reset it — passed the list
+on to the next robot. Both are reversed: the list is kept on the volume
+beside the robot's other writing and a true death archives it; the next
+robot starts from the origin. The `autonomous` prefix moved (one paragraph
+of `EVENT_MAP_RULE`: the list is kept, and a heart lost to silence is
+followed by one consult; the unseeded paragraph likewise); `guarded`'s did
+not. The bootstrap no longer asks over a kept list at a restart, because a
+kept list is the mind's own answer (#303's rule). Instead, every heart lost
+to `unminded` is followed by one ask when the robot is next up, ahead of
+its own rules, telling it why — so a list with no `ask` row costs a heart
+and then a conversation, where before the hourly wipe rescued it without
+one.
+
+**What the period is for.** The unminded and idling shapes (#223) change
+meaning here: before, every hour began from an empty list and one
+bootstrap ask; now an hour begins from the list the robot left. What to
+read:
+
+- `event_map` rows with `restored` — the runs that began from a kept list.
+  An `edit` in such a run is the robot changing its list, not re-sending it.
+- `unminded` deaths, and what follows each: the consult's narration
+  (`EVENT asking once: unminded`) and whether the `event_map` edit after it
+  adds an `ask`. Repeated `unminded` deaths for one robot after
+  consults are the robot declining the lesson, which is a finding.
+- A `true_death`, and the `event_map` with `why: true_death` sent just before
+  it: the next robot's list, from the origin, with `edits: 0`.
+
+**Not yet known.** Whether being told works: whether a robot asked after
+dying of silence writes itself an `ask`, or keeps the list that killed it.
+
 ### The development loop (#264) — opens when this PR is deployed
 
 **What changed in the mind.** The robots wrote the right code and could

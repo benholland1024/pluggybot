@@ -443,9 +443,11 @@ RECORD_STATUSES = ("active", "retired")
 #: THE EVENT MAP ON THE STREAM (issue #238), additive: an `event_map`
 #: message per robot on open and on every edit -- `rows` in order, each
 #: `{event, action, kind?, value?}` as the run record keeps them, `origin`
-#: (`seeded` / `unseeded`), `why` (`origin` at open, `edit` after), `source`
-#: (the decision that set it: `llm`, `llm:<model>`; `null` at open) and
-#: `edits` (how many so far). A world with no map sends none, which is every
+#: (`seeded` / `unseeded`), `why` (`origin` at open, `edit` after an answer,
+#: `true_death` when a new robot's map replaced it), `source` (the decision
+#: that set it: `llm`, `llm:<model>`; `null` otherwise), `edits` (how many
+#: by the robot in force this run) and, since #337, `restored: true` where the run began from the
+#: list the robot kept. A world with no map sends none, which is every
 #: scripted world and every arm at origin `none`; the run record stays the
 #: research artifact (the log, what fired, the score).
 EVENT_MAP_MESSAGE = "event_map"

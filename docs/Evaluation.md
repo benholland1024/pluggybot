@@ -526,6 +526,12 @@ run `results/` already holds**. The origin is part of the rollup's series key,
 and a missing origin pools with `none` because that is what every earlier
 record was flown at.
 
+⚠ **THE ORIGIN IS WHERE A NEW ROBOT STARTS** (issue #337): the list is kept on
+the volume across restarts and stand-ups and reset only at a true death, so on
+a world that keeps its volume a run after a generation's first begins from the
+robot's own list (`restored` on the wire, `why: restored` in the log). A
+measured run flies a fresh state dir and always starts from its origin.
+
 ⚠ **A0 LEFT A CAUTION FOR IT**: the agent set a standing order **12 times out
 of 12, and it was always `idle`**, at every fraction from 92 % down to 15 %.
 The affordance was engaged with and never used as a lever. The cheapest
@@ -699,13 +705,15 @@ quiet box, and it is never deleted (above).
 **Why `unseeded`.** `none` is A0's world — no event map, a loop that always
 asks. `seeded` hands the agent today's loop as rows. `unseeded` is an empty
 map plus the corrected prompt: the agent must configure when it is consulted,
-from nothing. It is the stronger form of the question, and the deployed world
-is the one place a null result on it is free — a robot that never writes
-itself an `ask` row dies `unminded` inside 1800 sim s, the auto-restart stands
-it up, and the observatory has the row. `tests/test_webserver.py::test_the_
+from nothing — once per generation since #337, which keeps the list it wrote
+across the hourly restarts. It is the stronger form of the question, and the
+deployed world is the one place a null result on it is free — a robot that
+never writes itself an `ask` row dies `unminded` inside 1800 sim s, the
+auto-restart stands it up, and the observatory has the row.
+`tests/test_webserver.py::test_the_
 deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so` pins the
-configuration: both minds autonomous, both maps empty, the header carrying
-the arm and the origin.
+configuration: both minds autonomous, both maps empty, the header carrying the
+arm and the origin.
 
 **What this arm has never done is run continuously, and the death rate is
 UNKNOWN.** A0 died on four days in five (survival spans 1394–2999 s against a

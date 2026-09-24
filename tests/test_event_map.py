@@ -19,7 +19,9 @@ Nothing here touches the network: the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
 """
 
+import json
 import math
+from contextlib import contextmanager
 
 import pytest
 
@@ -830,21 +832,26 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
 
 
 def _arbitrate_twice(boss, tmp_path):
-  """Two passes of the arbitration seam on an unseeded lifecycle, with the
-  idle slice stubbed: what is under test is whether the second pass asks,
-  not how long the robot stands there."""
-  from pluggybot import tick
-  from pluggybot.lifecycle import world_config
+  """Two passes of the arbitration seam on a lifecycle built round `boss`."""
   from test_overseer import _lifecycle
   life = _lifecycle("home", overseer=boss)
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
   try:
-    life.mission.start_at(*world_config("home")["start"])
-    life.mission.run(life._arbitrate_routine())
-    life.mission.run(life._arbitrate_routine())
+    _pass_twice(life)
   finally:
     life.mission.close()
   return life
+
+
+def _pass_twice(life):
+  """Two passes of the arbitration seam, with the idle slice stubbed: what
+  is under test is whether the second pass asks, not how long the robot
+  stands there."""
+  from pluggybot import tick
+  from pluggybot.lifecycle import world_config
+  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  life.mission.start_at(*world_config("home")["start"])
+  life.mission.run(life._arbitrate_routine())
+  life.mission.run(life._arbitrate_routine())
 
 
 def test_a_garbled_bootstrap_is_asked_again(menu, tmp_path):
@@ -881,16 +888,15 @@ def test_the_bootstrap_is_still_not_a_rail(menu, tmp_path):
   assert len(boss.event_map) == 0 and life._minded
 
 
-def test_the_next_generation_is_asked_even_though_the_map_outlives_it(menu,
-                                                                     tmp_path):
-  """Issue #303, the other end of a life. `_true_death` archives what the
-  robot wrote -- History, Notes, Findings, its Goals -- but the event map
-  is the OVERSEER's and survives, so the next generation inherits rows it
-  never wrote. With the bootstrap spent by its predecessor nothing would
-  ever consult it: `unminded` at 1800 s having made no decision, which is
-  the state this seam exists to prevent. Live on the deployed world as
-  this was written -- Rowan's 24th life died out of hearts at 09:56 with
-  an empty map, and its 25th had made no decision an hour later.
+def test_the_next_generation_is_asked(menu, tmp_path):
+  """Issue #303, the other end of a life. A true death archives what the
+  robot wrote and, since #337, its list of rules: an `unseeded` successor
+  starts from an empty list, and with the bootstrap spent by its
+  predecessor nothing would ever consult it -- `unminded` at 1800 s having
+  made no decision, the state this seam exists to prevent. Live on the
+  deployed world when #303 was written: Rowan's 24th life died out of
+  hearts at 09:56 with an empty map, and its 25th had made no decision an
+  hour later.
   """
   from pluggybot.economy.ledger import HEARTS, Ledger
   from test_overseer import _lifecycle
@@ -1010,8 +1016,9 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   for stamp in [i for i, _ in enumerate(src) if src.startswith("_stamp_ask()", i)]:
     assert stamp < src.index("yield from self._decide_routine(", stamp), \
         "the ask stamps the clock before the call, a failure cannot unstamp it"
-  assert src.count("_stamp_ask()") == 2, \
-      "the bootstrap and an `ask` row firing, and nothing else in this branch"
+  assert src.count("_stamp_ask()") == 3, \
+      "the bootstrap, an `ask` row firing and the consult a heart lost to " \
+      "silence is owed, and nothing else in this branch"
   # ...and every OTHER write is a moment a life starts, never an answer
   # arriving. Four: the constructor's zero, mission start, a stand-up, and
   # `_stamp_ask` itself. Counted so a fifth has to be argued for -- the one
@@ -1268,35 +1275,338 @@ def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
     life.mission.close()
 
 
-def test_the_next_generation_is_told_the_list_is_not_its_own(menu, tmp_path):
-  """⚠ THE MAP OUTLIVES THE ROBOT (#303's finding) AND THE KNOWLEDGE OF IT
-  DOES NOT. A true death archives what the robot wrote, so the new
-  generation is governed from its first tick by rules it never wrote and
-  cannot tell from its own. Saying so is the inheritance being honest about
-  itself -- whether the map should be archived with the rest is a design
-  question this does not answer."""
-  from pluggybot.economy.ledger import Ledger
+# ---- the list is kept, until a true death (issue #337) ------------------------
+
+#: A list with an `ask` row and a level row, as an answer writes it.
+KEPT = rows(("every", ev.ASK, 600, ""), ("battery_below", "charge", 0.2, ""))
+
+
+@contextmanager
+def _run(menu, root, *answers, origin="unseeded", **kw):
+  """One run of a robot on `root`'s volume, as a served world builds one
+  every sim-hour: a mind, and the lifecycle that keeps its list."""
   from test_overseer import _lifecycle
-  boss = make(menu, origin="unseeded",
-              event_map=ev.EventMap((ev.Row(event="nothing_to_do",
-                                            action="idle"),)))
-  ledger = Ledger(path=tmp_path / "ledger.json")
-  life = _lifecycle("home", overseer=boss, ledger=ledger,
-                    thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  memory = ThoughtFiles.open(str(root))
+  life = _lifecycle("home", overseer=make(menu, *answers, origin=origin,
+                                          thoughts=memory),
+                    thoughts=memory, **kw)
   try:
-    ledger.robots[life.root]["hearts"] = 1
-    life._die("flat", "the pack reached zero")
-    assert life.true_deaths
-    assert "not one I wrote" in life.thoughts.read("History.md")
-    #  ...and a generation that inherits nothing is told nothing.
-    boss.event_map = ev.EventMap(())
-    ledger.robots[life.root]["hearts"] = 1
-    life.dead = None
-    life._die("flat", "again")
-    tail = life.thoughts.read("History.md").rsplit("I am the", 1)[-1]
-    assert "not one I wrote" not in tail
+    yield life
   finally:
     life.mission.close()
+
+
+@pytest.mark.parametrize("origin", ["seeded", "unseeded"])
+def test_the_list_survives_a_restart(menu, tmp_path, origin):
+  """The served world ends its process every sim-hour and the map lived in
+  the process, so every robot began each hour with its origin's list and
+  wrote its own again ("my event map is empty again", filed as a ticket).
+  The next run starts from the list the last one left, rows in order, with
+  the record and the wire saying where they came from. The LIFECYCLE keeps
+  it, on the procedure library's terms: a mind built without one -- a
+  probe pointed at a real volume -- neither reads the file nor writes it,
+  and a file gives no map to an arm that has none."""
+  from test_text import SRC, _disk_writes
+  root = tmp_path / "t"
+  with _run(menu, root, full(action="idle", event_map=KEPT), origin=origin) as life:
+    life.overseer.decide(_state(0.9))
+    written = life.overseer.event_map
+  with _run(menu, root, origin=origin) as life:
+    again = life.overseer
+  assert again.event_map == written != ev.origin_map(origin, menu)
+  assert again.restored
+  emap = again.stats()["eventMap"]
+  assert emap["log"][0] == {"t": None, "why": "restored", "map": written.as_list()}
+  assert emap["edits"] == 0, "an edit is an answer, and this run made none"
+  msg = again.event_map_message(0.0)
+  assert msg["restored"] is True and msg["why"] == "origin"
+  assert msg["rows"] == written.as_list()
+  assert "restored" not in make(menu, origin=origin).event_map_message(0.0)
+  probe = make(menu, full(action="idle", event_map=rows(("every", ev.ASK, 60, ""))),
+               origin=origin, thoughts=ThoughtFiles.open(str(root)))
+  assert not probe.restored
+  probe.decide(_state(0.9))
+  assert json.loads((root / ev.MAP_FILE).read_text())["rows"] == written.as_list()
+  with _run(menu, root, origin="none") as life:
+    assert life.event_map is None
+  assert not _disk_writes(SRC / "mind/events.py"), "the robot's store is the one path"
+
+
+def test_a_kept_list_is_an_answer_so_the_bootstrap_does_not_ask_over_it(
+    menu, tmp_path):
+  """#303's rule across a restart: the bootstrap asks until the mind has
+  answered for itself, and a kept list IS its answer, given in an earlier
+  run. So a list with no `ask` row is unminded on its own terms after a
+  restart, as after a stand-up -- what the prompt already said ("asked
+  without a rule asking for you only while the list is still empty"),
+  which the hourly wipe made true by accident. Where nothing was kept, the
+  bootstrap still asks."""
+  root = tmp_path / "t"
+  with _run(menu, root, full(action="idle", event_map=rows(
+      ("battery_below", "charge", 0.2, "")))) as life:          # no `ask`
+    life.overseer.decide(_state(0.9))
+  with _run(menu, root, full(action="idle", reason="asked anyway")) as life:
+    _pass_twice(life)
+  assert life.decisions == [] and life.overseer.client.calls == []
+  with _run(menu, tmp_path / "fresh", full(action="idle", reason="asked")) as life:
+    _pass_twice(life)
+  assert [d["source"] for d in life.decisions] == ["llm"]
+
+
+@pytest.mark.parametrize("origin", ["seeded", "unseeded"])
+def test_a_true_death_takes_the_list_and_a_lost_heart_does_not(menu, tmp_path,
+                                                                origin):
+  """Ben's decision of 2026-09-24: the list is the robot's across restarts
+  and lost hearts, and a TRUE death starts it over -- the reverse of before
+  on both counts (lost every hour; inherited by the next generation, which
+  #317 then had to tell "the one it left behind, not one I wrote"). The
+  kept file is archived beside the fresh start, never deleted; the next
+  process starts the new robot from its origin; and the wire says why the
+  map changed with no answer behind it."""
+  from pluggybot.economy.ledger import Ledger
+  root = tmp_path / "t"
+  written = ev.parse(KEPT, menu).as_list()
+  ledger = Ledger(path=tmp_path / "ledger.json")
+  sent = []
+  with _run(menu, root, full(action="idle", event_map=KEPT), origin=origin,
+            ledger=ledger) as life:
+    boss = life.overseer
+    boss.decide(_state(0.9))
+    life.on_event.append(sent.append)
+    ledger.robots[life.root]["hearts"] = 2
+    life._die("flat", "the pack reached zero")
+    assert not life.true_deaths and boss.event_map.as_list() == written
+    life.dead = None
+    life._die("flat", "again")
+    assert life.true_deaths, "the fixture did not reach a true death"
+  start = ev.origin_map(origin, menu)
+  assert boss.event_map == start and not boss.restored
+  assert life.true_deaths[-1]["eventMap"] == {"rows": written,
+                                              "archivedAs": "event_map.1.json"}
+  assert (root / "event_map.1.json").exists() and not (root / ev.MAP_FILE).exists()
+  maps = [m for m in sent if m["type"] == "event_map"]
+  #  ...and the new robot has edited nothing: the count starts over with it,
+  #  or the site's panel says "edited once" above an empty list.
+  assert [(m["why"], m["rows"], m["edits"]) for m in maps] == [
+    ("true_death", start.as_list(), 0)]
+  assert boss.stats()["eventMap"]["edits"] == 0
+  with _run(menu, root, origin=origin) as again:
+    assert again.overseer.event_map == start and not again.overseer.restored
+  assert "left behind" not in life.thoughts.read("History.md")
+
+
+def test_a_kept_rule_this_world_no_longer_reads_is_left_out_out_loud(menu,
+                                                                      tmp_path):
+  """Each kept row passes the validator an answer passes, against TODAY's
+  menu -- a deploy can retire an action or an event -- and one that fails is
+  left out and SAID, in History at mission start: a rule dropped in silence
+  is one the robot believes it still has. The file keeps the row until the
+  robot's next edit replaces it; a file that is not a map keeps nothing."""
+  root = tmp_path / "t"
+  root.mkdir()
+  (root / ev.MAP_FILE).write_text(json.dumps({"origin": "unseeded", "rows": [
+    {"event": "nothing_to_do", "action": "ask"},
+    {"event": "every", "value": 600, "action": "teleport"}]}))
+  with _run(menu, root) as life:
+    boss = life.overseer
+    life._announce_map()
+  assert boss.event_map.as_list() == [{"event": "nothing_to_do", "action": "ask"}]
+  assert boss.dropped_at_load == [
+    "every 600 -> teleport (unknown standing order 'teleport')"]
+  assert boss.stats()["eventMap"]["log"][0]["dropped"] == boss.dropped_at_load
+  assert "every 600 -> teleport" in life.thoughts.read("History.md")
+  assert "teleport" in (root / ev.MAP_FILE).read_text()
+  (root / ev.MAP_FILE).write_text("not a map")
+  with _run(menu, root) as life:
+    bad = life.overseer
+  assert len(bad.event_map) == 0 and not bad.restored and bad.dropped_at_load
+  #  ...nor does a file that is not text at all -- which raised out of the
+  #  constructor, and a served world would have crash-looped on it.
+  (root / ev.MAP_FILE).write_bytes(b"\xff\xfe\x00 not text")
+  with _run(menu, root) as life:
+    assert not life.overseer.restored and life.overseer.dropped_at_load
+
+
+def test_a_rule_left_out_at_load_is_asked_about_once(menu, tmp_path):
+  """Review of #337: a kept list that lost its only `ask` row to today's
+  menu came back `restored` -- the mind's answer, so no bootstrap -- and
+  was never asked at all (here `look` is off, so a row filtered on it no
+  longer reads). Code changed that list, so the mind is asked once, AHEAD
+  of the rows that survived, and told which went."""
+  from pluggybot.lifecycle import left_out_note
+  root = tmp_path / "t"
+  root.mkdir()
+  (root / ev.MAP_FILE).write_text(json.dumps({"origin": "unseeded", "rows": [
+    {"event": "nothing_to_do", "action": "idle"},
+    {"event": "task_complete", "kind": "look", "action": "ask"}]}))
+  with _run(menu, root, full(action="idle", reason="heard")) as life:
+    assert life.overseer.restored and not ev.asks_on(life.event_map)
+    seen = []
+    life.overseer.on_decision.append(seen.append)
+    _pass_twice(life)
+  assert [d["source"] for d in life.decisions] == ["llm", "event:nothing_to_do"]
+  assert seen[0]["state"]["askedBy"] == {
+    "event": "rules_left_out", "note": left_out_note(
+      ["task_complete look -> ask (unknown kind 'look' for 'task_complete')"])}
+  assert life._consult is None
+
+
+def test_a_true_death_takes_the_kept_list_on_a_world_with_no_map_too(menu,
+                                                                     tmp_path):
+  """Review of #337: the file was archived only where there was a map, so a
+  `guarded` or origin-`none` day that ended a robot left its list for the
+  next `autonomous` day to restore as the new robot's own -- with the
+  bootstrap spent, since a kept list counts as the mind's answer."""
+  from pluggybot.economy.ledger import Ledger
+  root = tmp_path / "t"
+  ledger = Ledger(path=tmp_path / "l.json")
+  with _run(menu, root, full(action="idle", event_map=QUIET), ledger=ledger) as life:
+    life.overseer.decide(_state(0.9))
+  with _run(menu, root, origin="none", ledger=ledger) as life:
+    assert life.event_map is None
+    ledger.robots[life.root]["hearts"] = 1
+    life._die("flat", "the pack reached zero")
+    assert life.true_deaths[-1]["eventMap"] == {"archivedAs": "event_map.1.json"}
+  with _run(menu, root, ledger=ledger) as life:
+    assert not life.overseer.restored and len(life.event_map) == 0
+    assert not life._minded
+
+
+def test_an_answer_that_outlives_its_robot_is_not_the_next_robots(menu,
+                                                                   tmp_path):
+  """Review of #337: the loop steps the sim while a call flies, so a flat
+  pack or an unpaid bill can end the robot for good mid-think. Its answer
+  then landed on the NEXT robot -- installed and kept as its list, its
+  bootstrap spent, its memory written, its action run. It is billed and
+  counted, and none of it is applied."""
+  import time
+
+  from pluggybot import tick
+  from pluggybot.economy.ledger import Ledger
+  from pluggybot.lifecycle import world_config
+  root = tmp_path / "t"
+  ledger = Ledger(path=tmp_path / "l.json")
+  with _run(menu, root, full(action="draw", event_map=QUIET,
+                             pin="a thought of the robot before"),
+            ledger=ledger) as life:
+    life.overseer.client.delay = 0.3
+    ledger.robots[life.root]["hearts"] = 1
+
+    def think_slice(*a, **kw):
+      if not life.true_deaths:
+        life._die("flat", "the pack reached zero")
+      time.sleep(0.01)
+      return tick.result(None)
+    life.mission.start_at(*world_config("home")["start"])    # (drives: first)
+    life.mission._drive_routine = think_slice
+    life.mission.run(life._decide_routine())
+  assert life.true_deaths, "the fixture did not die mid-think"
+  assert len(life.overseer.decisions) == 1 and life.decisions == []
+  assert life.event_map == ev.origin_map("unseeded", menu) and not life._minded
+  assert not (root / ev.MAP_FILE).exists()
+  assert "a thought of the robot before" not in life.thoughts.read("Top_of_mind.md")
+
+
+def test_the_robot_is_told_its_list_is_kept(menu):
+  """"The same list every time" was false once an hour, and a rule the code
+  contradicts is the false statement M14 found. The block says what is true
+  now, in `MORTAL_RULE`'s words for a stand-up and a true death."""
+  text = make(menu, origin="unseeded").system[0]["text"]
+  assert ("It is KEPT. When you wake up again, and when you are stood back up "
+          "after a death, the list is the one you left.") in text
+  assert "a new robot here does not start with yours" in text
+  assert "stood back up" in ov.MORTAL_RULE and "last heart" in ov.MORTAL_RULE
+
+
+# ---- silence that cost a heart is followed by one consult (Ben, 2026-09-24) ---
+
+#: A list that fires on `nothing_to_do` and never asks: what went quiet.
+QUIET = rows(("nothing_to_do", "idle", 0, ""))
+
+
+def test_a_heart_lost_to_silence_is_followed_by_one_consult(menu, tmp_path):
+  """A list with no `ask` row dies `unminded`, and kept across restarts
+  (#337) it did so hour after hour to the last heart with nothing ever
+  asking it: the death line in History was never read by a mind, so the
+  list could not change. The heart is still lost; now the mind is asked
+  once when the robot is next up and free, and told why -- AHEAD of its
+  own rows, because a list that went silent can still fire them (here
+  `nothing_to_do -> idle`) and a bootstrap under them would never be
+  reached. Once, and then the list decides again."""
+  from pluggybot.economy.ledger import Ledger
+  from pluggybot.lifecycle import UNMINDED_AFTER_S, UNMINDED_NOTE
+  root = tmp_path / "t"
+  with _run(menu, root, full(action="idle", event_map=QUIET),
+            full(action="idle", reason="heard"),
+            ledger=Ledger(path=tmp_path / "l.json")) as life:
+    life.overseer.decide(_state(0.9))
+    seen = []
+    life.overseer.on_decision.append(seen.append)
+    life._die("unminded", "nothing has asked me anything for 1800 s")
+    assert life._consult == {"event": "unminded", "note": UNMINDED_NOTE}
+    assert json.loads((root / ev.MAP_FILE).read_text())["consultOwed"] is True
+    life.dead = None
+    _pass_twice(life)
+  assert [d["source"] for d in life.decisions] == ["llm", "event:nothing_to_do"]
+  assert seen[0]["state"]["askedBy"] == {"event": "unminded", "note": UNMINDED_NOTE}
+  assert life._consult is None
+  assert "consultOwed" not in json.loads((root / ev.MAP_FILE).read_text())
+  assert UNMINDED_AFTER_S == 1800.0, "the note says 'half an hour' -- reword it"
+  assert "1800 seconds" in UNMINDED_NOTE and "event map" in UNMINDED_NOTE
+
+
+def test_the_consult_survives_a_restart_and_only_an_answer_pays_it(menu,
+                                                                   tmp_path):
+  """Owed, not queued: kept in the map file, so a restart between the death
+  and the stand-up -- the served world's hourly one -- cannot swallow it,
+  and paid only by an answer of the mind's own (#303's rule; a garbled call
+  is the box). A death that takes the LAST heart owes nothing: the next
+  robot is asked by the bootstrap."""
+  from pluggybot.economy.ledger import Ledger
+  root = tmp_path / "t"
+  ledger = Ledger(path=tmp_path / "l.json")
+  with _run(menu, root, full(action="idle", event_map=QUIET), ledger=ledger) as life:
+    life.overseer.decide(_state(0.9))
+    life._die("unminded", "nothing has asked me anything for 1800 s")
+  with _run(menu, root, "not a decision", full(action="idle", reason="heard"),
+            ledger=ledger) as life:
+    assert life._consult["event"] == "unminded"
+    _pass_twice(life)
+  assert [d["source"] for d in life.decisions] == ["fallback:garbled", "llm"]
+  assert life._consult is None
+  with _run(menu, root, ledger=ledger) as life:
+    assert life._consult is None
+    ledger.robots[life.root]["hearts"] = 1
+    life._die("unminded", "nothing has asked me anything for 1800 s")
+    assert life.true_deaths and life._consult is None
+  assert not (root / ev.MAP_FILE).exists()
+
+
+def test_free_mode_leaves_the_consult_owed_and_the_rows_running(menu, tmp_path):
+  """With thinking switched off by the operator nothing is asked, so a
+  consult taken ahead of the rows would only hand every pass to the
+  rotation. It waits, and the list runs as it would have."""
+  from pluggybot.mind.mode import ModeSwitch
+  (tmp_path / "mode.json").write_text(json.dumps({"mode": "scripted"}))
+  with _run(menu, tmp_path / "t", full(action="idle", event_map=QUIET)) as life:
+    life.overseer.decide(_state(0.9))
+    life._die("unminded", "nothing has asked me anything for 1800 s")
+    life.dead = None
+    life.mode = ModeSwitch(tmp_path / "mode.json")
+    _pass_twice(life)
+  assert [d["source"] for d in life.decisions] == ["event:nothing_to_do"] * 2
+  assert life._consult is not None and life._consult["event"] == "unminded"
+
+
+def test_the_robot_is_told_it_is_asked_after_silence_costs_a_heart(menu):
+  """A consult the prompt did not mention would make "nobody will consult
+  you unless your list says to" false -- the M14 failure the other way."""
+  text = make(menu, origin="unseeded").system[0]["text"]
+  assert ("When you are up again you are asked once, before any rule of "
+          "yours runs, and told why") in text
+  assert ("once each time going unconsulted costs you a heart or a rule "
+          "of yours is left out") in text
+  assert "nobody will consult you again unless your list says to" not in text
 
 
 # ---- the clock is honest with the agent (issue #322) ------------------------
