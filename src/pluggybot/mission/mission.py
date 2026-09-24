@@ -86,10 +86,6 @@ CHARGE_PRESS_STALL_S = 4.0
 #: whatever height the last stow left, which is exactly the trap.
 CHARGE_LOOK_LIFT = 0.0
 FACING_TOLERANCE = math.radians(0.5)
-SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
-SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
-LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
-SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 #: A scan goes into the MAP only while the chassis is this close to level
 #: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
 #: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
@@ -101,6 +97,10 @@ SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 #: costs a tenth of a second of map; a wrong one costs the map. The reflex
 #: still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
+SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
+SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)
+LOOK_PERIOD = 0.3         # s between rack-tag looks while navigating
+SERVO_GAIN = 3.0          # rad/s per meter of lateral error (dock_eye's gain)
 
 
 def rack_heading(rack: RackPose | None = None) -> float:

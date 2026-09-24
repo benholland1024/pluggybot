@@ -1733,36 +1733,6 @@ What is true now: `solutions.TOWER` -- those six lines, verbatim -- passes
 `tests/test_solutions.py` pins each rule above in milliseconds and flies
 the three behind `--endurance`.
 
-## A rack end is not symmetric for the robot (issue #277)
-
-The built-tool rail is the first rack's frame emitter run again beside it,
-and its posts were first placed as the rack's E-end is: 0.055 m past the
-outer bays on both sides. Bays B and C of the rail then fetched and stowed
-5/5 on the first flight in home and bay A failed twice at the pick,
-"arrived" and unpowered, the module nudged 9.6 mm along its trays. A
-contact log of the robot against both racks during the creep named it:
-`caster` on `rack_built_foot_r` for 10 731 steps. The fork line rides
-`PLUG_LATERAL` (0.05 m) to one side of the chassis, so the robot's
-centreline -- and its caster, a 20 mm sphere 18 cm ahead of the axle on
-that line -- arrives at `station - 0.05`, and a foot 0.055 to THAT side is
-directly under it: the caster climbed the 20 mm foot, the fork rose with
-it and its stop met the tray. Bay E has always worked because its post is
-on the other side, 0.105 from the centreline, and the rail's bay C works
-for the same reason. Nothing in the swap or the mission was wrong; the
-rail's near end was.
-
-What is true now: `BUILT_RACK_HALF_W` is not half the bays' span -- the
-near post is 0.155 from bay A (the caster clears the foot by 0.07, E's
-margin) and the far post E's 0.055 past bay C; a rail end on the fork's
-side of a bay needs the extra 0.10, and a probe that places the robot with
-`place_at_standoff` says nothing about a room world (it is rack-local
-coordinates for the bare hub world, and the pen fails from it in home
-too). Also learned on the way: stepping the physics with raw `mj_step`
-between two of the lifecycle's routines moves the robot without the
-reckoner seeing it -- 500 steps with the opening spin's wheel command
-still in `ctrl` put 49° between belief and truth, painted a diagonal
-ghost wall across the living room, and looked exactly like a seam bug.
-
 ## A robot on its side maps the sky (issue #339)
 
 After a topple on the deployed pair (build `0f2faf5`), Rowan's live map
@@ -1797,6 +1767,36 @@ reproduces WITH the gate in place, and replaying Rowan's own map from its
 stand-up pose explores the house without touching the wall. The loop was
 `refine_standoff`'s unbounded drive back to a bay standoff (#339, the
 budget PR). Trust the reproduction over the story that fits.
+
+## A rack end is not symmetric for the robot (issue #277)
+
+The built-tool rail is the first rack's frame emitter run again beside it,
+and its posts were first placed as the rack's E-end is: 0.055 m past the
+outer bays on both sides. Bays B and C of the rail then fetched and stowed
+5/5 on the first flight in home and bay A failed twice at the pick,
+"arrived" and unpowered, the module nudged 9.6 mm along its trays. A
+contact log of the robot against both racks during the creep named it:
+`caster` on `rack_built_foot_r` for 10 731 steps. The fork line rides
+`PLUG_LATERAL` (0.05 m) to one side of the chassis, so the robot's
+centreline -- and its caster, a 20 mm sphere 18 cm ahead of the axle on
+that line -- arrives at `station - 0.05`, and a foot 0.055 to THAT side is
+directly under it: the caster climbed the 20 mm foot, the fork rose with
+it and its stop met the tray. Bay E has always worked because its post is
+on the other side, 0.105 from the centreline, and the rail's bay C works
+for the same reason. Nothing in the swap or the mission was wrong; the
+rail's near end was.
+
+What is true now: `BUILT_RACK_HALF_W` is not half the bays' span -- the
+near post is 0.155 from bay A (the caster clears the foot by 0.07, E's
+margin) and the far post E's 0.055 past bay C; a rail end on the fork's
+side of a bay needs the extra 0.10, and a probe that places the robot with
+`place_at_standoff` says nothing about a room world (it is rack-local
+coordinates for the bare hub world, and the pen fails from it in home
+too). Also learned on the way: stepping the physics with raw `mj_step`
+between two of the lifecycle's routines moves the robot without the
+reckoner seeing it -- 500 steps with the opening spin's wheel command
+still in `ctrl` put 49° between belief and truth, painted a diagonal
+ghost wall across the living room, and looked exactly like a seam bug.
 
 ## Debugging workflow that worked
 
