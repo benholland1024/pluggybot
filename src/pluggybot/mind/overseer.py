@@ -2516,7 +2516,8 @@ anybody last asked you anything before this question.
 
 It is KEPT. When you wake up again, and when you are stood back up after a \
 death, the list is the one you left. It goes only when your last heart does: \
-a new robot here does not start with yours.
+a new robot here does not start with yours. A rule of it that this world no \
+longer reads is left out when you wake, and you are asked about it once.
 
 Each rule has an `event`, a `value` where the event needs one, an optional \
 `kind`, and an `action`.
@@ -2606,7 +2607,9 @@ list with no `ask` in it anywhere, and it is a real option: everything you \
 do would then be decided by rules you wrote earlier, and you would stop \
 being consulted. IF NOBODY CONSULTS YOU FOR HALF AN HOUR -- 1800 SECONDS \
 -- THAT IS COUNTED AS A DEATH, like a flat pack is, and it costs a heart \
-the same way. Going quiet for a while is fine. Going quiet for good is not \
+the same way. When you are up again you are asked once, before any rule of \
+yours runs, and told why; after that your list decides again. Going quiet \
+for a while is fine. Going quiet for good is not \
 -- you would have turned yourself into a machine that repeats itself, and \
 you cannot solve anything new that way.
 
@@ -2633,9 +2636,10 @@ you meant to keep.\
 UNSEEDED_RULE = """\
 ⚠ YOUR LIST STARTS EMPTY. Nothing has been set up for you: no rule takes you \
 to the rack, and no rule brings this question back around. You are asked \
-without a rule asking for you only while the list is still empty -- once \
-anything is in it, nothing happens that your list does not say should \
-happen, and nobody will consult you again unless your list says to. \
+without a rule asking for you only while the list is still empty -- and \
+once each time going unconsulted costs you a heart or a rule of yours is \
+left out. Otherwise nothing happens that your list does not say should \
+happen, and nobody will consult you unless your list says to. \
 `eventMap` below is what it says at this moment. Your first job is to work \
 out what you need to happen without being asked, and say so.\
 """
@@ -3774,6 +3778,12 @@ class Overseer:
     self._in_flight = False
     self._deadline = 0.0
     self._pending_state: dict = {}
+    #: WHOSE QUESTION IS OUT (issue #337): how many true deaths this mind has
+    #: started over from, and the count when the call now in the slot was
+    #: made. They differ when a robot died for good while its call flew, and
+    #: that answer is the dead robot's: `_record` installs none of its list.
+    self._starts_over = 0
+    self._asked_for = 0
     #: Does this world's robot get hungry (issue #36)? A bool rather than the
     #: numbers: what the prefix needs is the RULES, and the rate and the cap
     #: change per deploy while the rules do not -- so the numbers ride the
@@ -4321,6 +4331,7 @@ class Overseer:
   def start(self, state: dict) -> None:
     """Dispatch a decision. Returns immediately; poll `pending`."""
     with self._lock:
+      self._asked_for = self._starts_over
       self._pending_state = dict(state)
       self._asked_at = self.clock()
       self._deadline = self._asked_at + self.timeout_s + POLL_GRACE_S
@@ -4391,6 +4402,7 @@ class Overseer:
     with self._lock:
       slot, self._slot = self._slot, {}
       state = state if state is not None else self._pending_state
+      orphaned = self._asked_for != self._starts_over
     decision = slot.get("decision")
     error = ""
     if decision is None:
@@ -4407,7 +4419,7 @@ class Overseer:
       # seam: `_call` wrote them to `usage.errors` a moment ago.
       error = next((e for e in reversed(self.usage.errors)
                     if e.startswith("call:")), "") if slot else ""
-    self._record(decision, state, error)
+    self._record(decision, state, error, orphaned=orphaned)
     return decision
 
   # ---- the mid-errand interrupt (issue #116) --------------------------------
@@ -4638,6 +4650,7 @@ class Overseer:
     if self.event_map is None:
       return None
     before = self.event_map
+    self._starts_over += 1
     self.event_map = ev.origin_map(self.origin, self.menu)
     self.restored, self.dropped_at_load = False, []
     t = round(float(t), 1)
@@ -4649,6 +4662,16 @@ class Overseer:
       hook(dict(msg))
     return {"rows": before.as_list()}
 
+  @property
+  def edits(self) -> int:
+    """Edits to the map in force: THIS robot's, this run. Counted from the
+    last true death, or a new robot's panel would say it had edited a list
+    it never wrote (the dead one's count, above an empty list)."""
+    n = 0
+    for e in self.map_log:
+      n = 0 if e.get("why") == "true_death" else n + (e.get("why") == "edit")
+    return n
+
   def event_map_message(self, t: float, robot: str = ROBOT_ROOT,
                         why: str = "origin", source: str | None = None) -> dict | None:
     """The map as the wire carries it (issue #238, `protocol.
@@ -4656,7 +4679,7 @@ class Overseer:
     the `origin`, `why` this copy was sent (`origin` when a stream opens,
     `edit` after an answer changed it, `true_death` when a new robot's map
     replaced it), `source` (the decision that set it; None otherwise),
-    `edits` so far this run, and `restored` where this run began from the
+    `edits` (`self.edits`), and `restored` where this run began from the
     list the robot kept (issue #337). None where there is no map -- a
     scripted world, or origin `none` -- because "no map" and "an empty
     map" are different facts and only the second is the agent's."""
@@ -4664,12 +4687,11 @@ class Overseer:
       return None
     return {"type": "event_map", "t": round(float(t), 3), "robot": robot,
             "origin": self.origin, "why": why, "source": source,
-            "edits": sum(1 for e in self.map_log if e.get("why") == "edit"),
-            "rows": self.event_map.as_list(),
+            "edits": self.edits, "rows": self.event_map.as_list(),
             **({"restored": True} if self.restored else {})}
 
   def _record(self, decision: Decision, state: dict | None = None,
-              error: str = "") -> None:
+              error: str = "", orphaned: bool = False) -> None:
     self.usage.calls += 1
     if decision.by_event:
       # NEITHER a call nor a fallback (issue #127). Counted on its own so
@@ -4722,8 +4744,10 @@ class Overseer:
     # write back would let a fallback appoint its own successor -- and, in
     # the `idle`-floor case, would silently retire an order the agent never
     # withdrew. An answer that left the field empty withdraws it, which is
-    # what keeps the order at most one decision stale.
-    model_answer = not decision.scripted and not decision.by_event
+    # what keeps the order at most one decision stale. ⚠ And not an answer
+    # ORPHANED by a true death (`_starts_over`): billed and counted above,
+    # but the robot that asked is gone and the next one never wrote it.
+    model_answer = not decision.scripted and not decision.by_event and not orphaned
     if self.standing_orders and model_answer:
       self.standing_order = decision.standing_order
     # ...and the map the order is one row of (issue #127). Only a decision
@@ -5012,7 +5036,7 @@ class Overseer:
         "origin": self.origin,
         "current": self.event_map.as_list(),
         "log": list(self.map_log),
-        "edits": sum(1 for e in self.map_log if e.get("why") == "edit"),
+        "edits": self.edits,
         "fired": dict(self.rows_fired),
         "failed": dict(self.rows_failed),
         "score": ev.score(self.event_map),

@@ -145,6 +145,21 @@ DEATH_CHECK_S = 0.1
 #: ever be the box's -- see `_death_step`.
 UNMINDED_AFTER_S = 1800.0
 
+#: WHAT THE CONSULT OWED FOR THAT DEATH SAYS (`HubLifecycle._consult`;
+#: Ben's words, 2026-09-24, in the rule's own for the cause), as `askedBy`'s
+#: `note`. A suggestion, and a statement of fact: it names no row, no event
+#: and no action, so it hands over no answer.
+UNMINDED_NOTE = (f"You just lost a heart: nobody consulted you for half an hour "
+                 f"({int(UNMINDED_AFTER_S)} seconds), and that counts as a death. "
+                 "You may want to adjust your event map so it does not happen again.")
+
+
+def left_out_note(dropped) -> str:
+  """What the consult owed for kept rules this world no longer reads says:
+  which, and why -- the one thing the robot cannot see in `eventMap`."""
+  return ("Rules of your list that this world no longer reads were left out "
+          f"of it: {'; '.join(dropped)}. You may want to adjust your event map.")
+
 #: How often the event map is evaluated, in sim seconds (issue #127). One
 #: tick a second, `CHECK_S`'s reason exactly: the map is polled on the
 #: physics seam and sweeping a dozen rows at 500 Hz is Python spent to learn
@@ -542,10 +557,11 @@ class HubLifecycle:
     # volume before anything can ask it: on the lifecycle's terms, like the
     # procedure library's writes, so a mind built anywhere else -- a probe
     # pointed at a real volume -- never touches the file.
+    kept = None
     if getattr(overseer, "event_map", None) is not None:
       kept = ev.load(self.thoughts.store, overseer.menu)
       if kept is not None:
-        overseer.restore_map(*kept)
+        overseer.restore_map(kept.emap, kept.dropped)
     self.decisions: list[dict] = []
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
@@ -713,6 +729,22 @@ class HubLifecycle:
     #: nothing was kept -- the case the prompt describes as "only while the
     #: list is still empty".
     self._minded = getattr(overseer, "restored", False) is True
+    #: A CONSULT OWED, as the `askedBy` it will carry, or None (Ben,
+    #: 2026-09-24): the mind is asked once when the robot is next up and free,
+    #: BEFORE any row of its list runs, and told why. Owed for a heart lost to
+    #: `unminded` (`UNMINDED_NOTE`) -- a list that died of silence may still
+    #: fire rows on `nothing_to_do`, which would pre-empt a mere bootstrap --
+    #: and for kept rules code left out at load (`left_out_note`), because the
+    #: list in force is then not the one the mind wrote. Paid by an answer of
+    #: the mind's own, never a fallback. The unminded one is kept in the map
+    #: file, so a restart between the death and the stand-up cannot swallow
+    #: it; the other is found again at every load until an edit clears it.
+    #: The death is still a death: this makes it one the robot hears about.
+    self._consult: dict | None = None
+    if kept is not None and kept.owed:
+      self._consult = {"event": "unminded", "note": UNMINDED_NOTE}
+    elif kept is not None and kept.dropped and self._minded:
+      self._consult = {"event": "rules_left_out", "note": left_out_note(kept.dropped)}
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
@@ -1059,6 +1091,11 @@ class HubLifecycle:
                 **({"hearts": hearts} if hearts is not None else {})})
     if hearts == 0:
       self._true_death(t)
+    elif cause == "unminded":
+      # ...AND SILENCE IS FOLLOWED BY ONE CONSULT (see `_consult`); a true
+      # death owes nothing -- the next robot has the bootstrap.
+      self._consult = {"event": "unminded", "note": UNMINDED_NOTE}
+      ev.save(self.thoughts.store, self.event_map, self.overseer.origin, owed=True)
 
   def _true_death(self, t: float) -> None:
     """The last heart is gone: archive the volume and start a new robot.
@@ -1090,9 +1127,15 @@ class HubLifecycle:
     # across restarts and stand-ups, and this is the one thing that ends
     # it. The kept file goes aside like the rest (`event_map.1.json`), the
     # next robot starts from the origin, and nothing the old list armed or
-    # queued runs for it.
+    # queued runs for it. ⚠ THE FILE GOES ON EVERY WORLD, a world with no
+    # map included: a `guarded` or origin-`none` day that ended a robot
+    # would otherwise leave its list for the next `autonomous` day to
+    # restore as the new robot's own.
+    aside = self.thoughts.store.archive(ev.MAP_FILE)
+    self._consult = None
+    if aside is not None:
+      archived["eventMap"] = {"archivedAs": aside}
     if self.event_map is not None:
-      aside = self.thoughts.store.archive(ev.MAP_FILE)
       archived["eventMap"] = {**self.overseer.start_over(t), "archivedAs": aside}
       self.queued_row = None
       self._interrupt_pending = None
@@ -1365,12 +1408,19 @@ class HubLifecycle:
                 "from": dict(src), "to": to.as_dict(),
                 **({"archived": change["archived"]} if change.get("archived") else {})})
 
+  @property
+  def _owes_for_silence(self) -> bool:
+    """Is the consult owed the one kept on the volume (a heart lost to
+    `unminded`)? The other is found again at every load."""
+    return self._consult is not None and self._consult["event"] == "unminded"
+
   def _keep_map(self, msg: dict) -> None:
     """Keep the robot's list for its next run (issue #337), on every EDIT
     an answer made -- never on a true death's reset, which the new robot
     did not write and which would come back as `restored`."""
     if msg.get("why") == "edit":
-      ev.save(self.thoughts.store, self.overseer.event_map, self.overseer.origin)
+      ev.save(self.thoughts.store, self.overseer.event_map, self.overseer.origin,
+              owed=self._owes_for_silence)
 
   def _announce_map(self) -> None:
     """What came back of the robot's kept list of rules (issue #337):
@@ -4444,6 +4494,14 @@ class HubLifecycle:
     if self.event_map is None:
       yield from self._decide_routine()
       return
+    if self._consult is not None and (self.mode is None or self.mode.thinking):
+      # A CONSULT IS OWED (`_consult`): ahead of the list, whose rows are what
+      # went quiet or what code cut, leaving any queued row for the next pass.
+      # Not in free mode, where nothing is asked and the rows run as before.
+      self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
+      self._stamp_ask()
+      yield from self._decide_routine(dict(self._consult))
+      return
     if self.queued_row is None:
       self._occur("nothing_to_do", "offers" if shown_offers(self) else "none")
       self._next_events_check = 0.0            # look now, not in a second
@@ -4729,10 +4787,18 @@ class HubLifecycle:
       decision = self.overseer.decide_scripted(state, "scripted-mode")
       yield from self._after_decision_routine(decision)
       return
+    lives = len(self.true_deaths)
     self.overseer.start(state)
     while self.overseer.pending:
       yield from self.mission._drive_routine(THINK_SLICE_S, 0.0, 0.0)
     decision = self.overseer.result(state)
+    if len(self.true_deaths) != lives:
+      # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
+      # or an unpaid bill lands mid-think): the answer is its own, and none
+      # of it is the next robot's -- not its list (`Overseer._starts_over`),
+      # its memory writes, its action, or the bootstrap it would spend.
+      self._say(f"ANSWER dropped: the robot that asked is gone ({decision.source})")
+      return
     # ⚠ NO `decision_failed` EVENT IS EMITTED HERE, and that is the
     # migration working rather than an omission (issue #127). The row is
     # honoured SYNCHRONOUSLY by `Overseer.fallback`, because the fallback IS
@@ -4767,6 +4833,11 @@ class HubLifecycle:
     self.decisions.append(decision.as_dict())
     if not decision.scripted and not decision.by_event:
       self._minded = True
+      if self._consult is not None:
+        on_volume = self._owes_for_silence
+        self._consult = None
+        if on_volume:
+          ev.save(self.thoughts.store, self.event_map, self.overseer.origin)
     self._say(f"DECIDE {decision.summary()}")
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- a fallback's included, since the world moved on.

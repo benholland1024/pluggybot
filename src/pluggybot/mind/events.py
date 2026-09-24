@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:                                  # pragma: no cover
   from pluggybot.mind.overseer import Menu
@@ -596,13 +596,25 @@ def origin_map(origin: str, menu: "Menu") -> EventMap | None:
 MAP_FILE = "event_map.json"
 
 
-def save(store: "Store", emap: EventMap, origin: str) -> None:
-  """Keep the map in force, whole, for this robot's next run."""
-  store.write(MAP_FILE, json.dumps({"origin": origin, "rows": emap.as_list()},
+class Kept(NamedTuple):
+  """What a robot left on its volume: its list, why any row of it no longer
+  reads, and whether it is owed a consult for a heart lost to `unminded`."""
+
+  emap: EventMap
+  dropped: list[str]
+  owed: bool = False
+
+
+def save(store: "Store", emap: EventMap, origin: str, owed: bool = False) -> None:
+  """Keep the map in force, whole, for this robot's next run -- and a
+  consult owed for a heart lost to silence, so a restart between the death
+  and the stand-up cannot swallow it."""
+  store.write(MAP_FILE, json.dumps({"origin": origin, "rows": emap.as_list(),
+                                    **({"consultOwed": True} if owed else {})},
                                    indent=1) + "\n")
 
 
-def load(store: "Store", menu: "Menu") -> tuple[EventMap, list[str]] | None:
+def load(store: "Store", menu: "Menu") -> Kept | None:
   """The map this robot left, read against TODAY's menu, and why any row no
   longer reads; None where it left none.
 
@@ -613,15 +625,20 @@ def load(store: "Store", menu: "Menu") -> tuple[EventMap, list[str]] | None:
   procedure is a fact the robot is shown), and the file keeps the row until
   the robot's next edit replaces it. A file that is not a map keeps nothing.
   """
-  text = store.read(MAP_FILE)
+  try:
+    text = store.read(MAP_FILE)
+  except ValueError:              # not text: a crash-looping start is worse
+    text = ""
   if text is None:
     return None
   try:
-    raw = json.loads(text).get("rows")
-  except (ValueError, AttributeError):
-    raw = None
+    doc = json.loads(text)
+  except ValueError:
+    doc = None
+  doc = doc if isinstance(doc, dict) else {}
+  raw, owed = doc.get("rows"), doc.get("consultOwed") is True
   if not isinstance(raw, list):
-    return EventMap(()), [f"{MAP_FILE} is not a list of rules"]
+    return Kept(EventMap(()), [f"{MAP_FILE} is not a list of rules"], owed)
   kept, dropped = [], []
   for r in raw[:MAX_ROWS]:
     try:
@@ -629,7 +646,7 @@ def load(store: "Store", menu: "Menu") -> tuple[EventMap, list[str]] | None:
     except ValueError as e:
       # The reason without the menu it lists: the prompt carries the menu.
       dropped.append(f"{_said(r)} ({str(e).split(' (offered:')[0]})")
-  return EventMap(tuple(kept)), dropped
+  return Kept(EventMap(tuple(kept)), dropped, owed)
 
 
 def _said(raw) -> str:
@@ -979,7 +996,7 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
-           "LEVEL_EVENTS", "Live", "MAP_FILE", "MAX_ROWS",
+           "Kept", "LEVEL_EVENTS", "Live", "MAP_FILE", "MAX_ROWS",
            "NOTHING_TO_DO_KINDS", "ORIGINS", "PERIODIC_EVENTS",
            "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
            "shadowed",
