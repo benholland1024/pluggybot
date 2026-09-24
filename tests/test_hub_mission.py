@@ -175,11 +175,52 @@ def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, mon
         next(routine)                           # no physics: nobody moves
     except StopIteration as done:
       lateral = done.value
-    assert lateral == pytest.approx(0.3), "the robot never moved, and says so"
-    assert data.time - t0 == pytest.approx(3 * mm.REFINE_BUDGET_S, abs=0.01)
+      assert lateral == pytest.approx(0.3), "the robot never moved, and says so"
+    # one pass: out of budget short of the standoff, it stops and says so
+    assert data.time - t0 == pytest.approx(mm.REFINE_BUDGET_S, abs=0.01)
+    assert mission.refine_blocked
   finally:
     mission.close()
 
+
+
+def test_a_refine_that_gave_up_takes_no_attempt_from_where_it_stopped(room_model, monkeypatch):
+  """Review of #341: out of budget, `refine_standoff` returned and its
+  callers deployed the fork and crept from wherever the robot had stopped --
+  off the line, which is how a module is pushed off its trays. A give-up is
+  `refine_blocked`; the swap deploys no fork and the charge approach makes
+  no creep from there, and both answer `blocked`. Kinematic, stubbed."""
+  from pluggybot import tick
+  from pluggybot.mission import mission as mm
+  data = mujoco.MjData(room_model)
+  m = mm.HubMission(room_model, data, realtime=False)
+  try:
+    m.start_at(0.0, 0.0, 0.0)
+    done = lambda *a, **k: tick.result(True)                     # noqa: E731
+    monkeypatch.setattr(m, "drive_to_routine", done)
+    monkeypatch.setattr(m, "face_routine", done)
+    monkeypatch.setattr(m, "refresh_rack", lambda: None)
+    monkeypatch.setattr(m, "bay_fix", lambda station_y: (0.0, 0.0, 0.0))
+    monkeypatch.setattr(m, "charge_bay_fix", lambda: (0.0, 0.0, 0.0))
+    monkeypatch.setattr(m.swap, "_run_routine", lambda *a, **k: tick.result(None))
+
+    def gave_up(sx, sy, hd):
+      m.refine_blocked = True
+      return tick.result(0.1)
+    monkeypatch.setattr(m, "refine_standoff_routine", gave_up)
+    deployed, crept = [], []
+    monkeypatch.setattr(m, "set_arm_routine",
+                        lambda ext, settle=1.5: (deployed.append(ext), tick.result(None))[1])
+    monkeypatch.setattr(m.swap, "_drive_until_routine",
+                        lambda *a, **k: (crept.append(a), tick.result("arrived"))[1])
+    why = tick.run(m.swap, m.swap_at_bay_routine(HUB_STATION_YS[0], "pick", module="module_lcd"))
+    assert why == "blocked" and mm.ARM_EXT not in deployed
+    crept.clear()
+    why = tick.run(m.swap, m.charge_approach_routine(0.4, 0.05))
+    assert why == "blocked"
+    assert all(a[1] < 0 for a in crept), "a creep toward the pins from off the line"
+  finally:
+    m.close()
 
 @pytest.mark.slow
 def test_full_hub_mission():

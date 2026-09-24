@@ -1674,7 +1674,10 @@ save a filmstrip PNG named after the script.
   is `REFINE_BUDGET_S` 10 s (issue #339): unbounded, a robot knocked over
   mid-pick drove at the standoff through its death AND every stand-up after
   it (the timer stands up a robot mid-errand when nothing is seated), into
-  a wall until flat -- thirteen lives on the deployed pair.
+  a wall until flat -- thirteen lives on the deployed pair. A give-up is
+  `refine_blocked`, and the swap and the charge approach then take NO
+  attempt from there (`blocked`): a fork deployed off the line pushes a
+  module off its trays, which is what the refine is for.
 - **A press is not travel** (`HubSwap.pinned`, `HubSwap.pressing`; issues
   #22, #94). Wheels held against something immovable pump imaginary travel
   into dead reckoning (828 mm from one charge press; 4.28 m in 30 s against
