@@ -1437,6 +1437,13 @@ from_the_standoff` decodes a real tag through the real pipeline, with the
 unpinned world kept beside it as the premise. The lesson generalises: any
 world whose bounding box grows past the property's must pin its extent, or
 its cameras lose whatever they look at from closer than a hundredth of it.
+⚠ **A pin in the XML does not survive a runtime `mj_setConst`**, which
+re-derives the extent all over again: the bench's set-out (#227) called it
+on the live model, so a bench offer undid the pin for the rest of the
+process, and the deployed pair's picks failed 13 of 15 with nothing raised
+(issue #264; a run's first pick could still land off a belief fresh from
+the start pose). `bench.set_unknown_mass` puts the statistic back;
+anything else that calls `mj_setConst` on a live model must do the same.
 
 ## A goal out of sight is aimed at through the nearest wall (issue #215)
 

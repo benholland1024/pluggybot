@@ -10,17 +10,92 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The development loop (#264) — opens when this PR is deployed
+
+**What changed in the mind.** The robots wrote the right code and could
+not finish it (read off their own History, 2026-09-23): a procedure cut
+short told them nothing, a procedure defined in an answer could not be run
+in it (the decoder ran an old one), a replacement read as two turns, and a
+failed pick said "missed" for an approach that never reached the rack. Now:
+one History line per run of a procedure the robot wrote (where it stopped
+and why), `procedure:new`, one-answer replacement said out loud, one
+sentence for a failed pick naming whose fork holds the tool, `fetch` that
+checks the fork, a bench grade that says it reads `record` lines, refused
+defines written into History and a one-answer rewrite that keeps the old
+procedure when the new one is refused, a stopped run graded as stopped, a
+claw that does not count the floor as held, and a stow from the lab that
+comes home by the street. The
+`autonomous` prefix moved (`PROCEDURE_HEAD`, the powers index); `guarded`'s
+did not. And one physics change a pair alone can see: the swap's fine
+timestep is counted per model.
+
+**What the period is for.** Whether the tower and the bench are finished
+now that the loop around the code closes. What to read:
+
+- `procedure` rows: `ran` against `aborted`, and `failedReason` — which
+  step stops them now, in their own words. A `define` followed by a run of
+  the SAME name on the same answer is `procedure:new` working.
+- `refused` rows saying "the library is full" or "already defined": they
+  should fall, if one-answer replacement is being used.
+- History lines "could not pick up": which clause — someone's fork, a robot
+  at the bay, no route, a miss and how. The live misses on `0f2faf5` were the
+  bench blinding the dock camera (#338); read this period with #338 deployed,
+  or the picks confound everything below them.
+- `stack_tower` and `find_mass` tasks by fate; `finding` acts.
+- Deaths "knocked over" within seconds of the other robot's stand-up (three
+  on the previous builds): #332 should end them; if not, that is next.
+
+**Not yet known.** Whether the robots use `procedure:new` without being
+shown an example of it; whether a full library (both deployed robots were
+at 8 of 8) is emptied now that the refusal reaches them.
+
 ### A robot that falls over keeps an honest map (#339) — opens when this PR is deployed
 
 **A bug fix.** A robot lying on its side painted free space through the
 walls into its map, and the map outlived the stand-up: on build `0f2faf5`
 Rowan's hall came back solid occupied, with a free fan through the living
-room's walls. A scan now goes into the map only while the chassis is level.
-No prompt, table or schema moves.
+room's walls. A scan now goes into the map only while the chassis is level,
+and so do the rack finder's sightings and the height map's frames. No
+prompt, table or schema moves.
 
 **What the period is for.** The maps on the site after a topple (the
 `grid` a robot streams). Not its deaths: the `flat` deaths that followed
-Rowan's topple were a different defect (#339's budget PR).
+Rowan's topple were a different defect (#341).
+
+### A robot knocked over mid-errand gets up once (#339) — opens when this PR is deployed
+
+**A bug fix.** A robot knocked over mid-pick used to stay inside
+`refine_standoff`'s unbounded drive back to the bay: through its death,
+and after every stand-up the timer gave it, into a wall at full torque
+until flat. On build `0f2faf5` that was Rowan from t = 3145 s: `flat`
+401-403 s after each stand-up, thirteen lives, two true deaths. The drive
+back in now has a budget. No prompt, table or schema moves.
+
+**What the period is for.** Before this, a run of silent `flat` deaths
+shortly after stand-ups, following a `stuck` death, was this defect and not
+the mind: read deaths by cause with the topple in view. After it, a topple
+should cost one life.
+
+### The dock camera sees the rack after a bench offer (#264) — opens when this PR is deployed
+
+**A bug fix; a reading from before it is suspect wherever work starts at
+the rack.** Setting the bench's unknown mass (#227) ran `mj_setConst` on
+the live model, which re-derives the world's pinned camera extent (37.2 ->
+70.0) and put the dock camera's near plane past the bay standoff. From
+then to the process's end `bay_fix` read nothing and every pick and stow
+ran on dead reckoning alone: 13 of 15 picks failed on build `0f2faf5`.
+The mass is set when a `find_mass` offer lands, and at a run's start while
+an open one came back off the board (`restore_bench`), so how many runs
+were blind since the bench reached main (2026-09-20) depends on when an
+offer was open — and before #297 an offer could outlive restarts (its
+deadline was on the clock of the run that made it). Drawing, the census,
+the claw, the tower, the bench itself and a built tool all start with a
+pick. No prompt, table or schema moves.
+
+**What the period is for.** Picks first (`SWAP_PICK` in the container
+log), then task income and `unpaid` deaths against the period before.
+Where an earlier reading put work that starts at the rack down to the
+mind, the before/after says whether it was the rack.
 
 ### Every offered job pays more, and `nothing_to_do` says what it knows (#321, #333) — opens when this PR is deployed
 
