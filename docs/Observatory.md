@@ -10,6 +10,40 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The list of rules is kept until a true death (#337) — opens when this PR is deployed
+
+**What changed in the mind.** The event map lived in the process, and the
+served world ends its process every sim-hour, so every robot began each
+hour with an empty list and wrote it again (Luca filed a ticket about it),
+while a true death — the one thing that should reset it — passed the list
+on to the next robot. Both are reversed: the list is kept on the volume
+beside the robot's other writing and a true death archives it; the next
+robot starts from the origin. The `autonomous` prefix moved (one paragraph
+of `EVENT_MAP_RULE`: the list is kept); `guarded`'s did not. And the
+bootstrap no longer asks over a kept list at a restart, because a kept list
+is the mind's own answer (#303's rule) — so a list with no `ask` row now
+kills after a restart as it already did after a stand-up, instead of being
+rescued once an hour by the wipe.
+
+**What the period is for.** The unminded and idling shapes (#223) change
+meaning here: before, every hour began from an empty list and one
+bootstrap ask; now an hour begins from the list the robot left. What to
+read:
+
+- `event_map` rows with `restored` — the runs that began from a kept list.
+  An `edit` in such a run is the robot changing its list, not re-sending it.
+- `unminded` deaths whose line says the list has no `ask`: before this
+  period the hourly wipe rescued each of them; now they repeat until the
+  robot's last heart.
+- A `true_death` followed by an `event_map` with `why: true_death`: the next
+  robot's list, from the origin.
+
+**Not yet known.** Whether a robot whose kept list has no `ask` row ever
+gets out of it: nothing consults it, and buying a heart back needs a
+decision. If one robot dies `unminded` hour after hour to a true death,
+that is this, and not re-arming the bootstrap at a restart is the choice
+to revisit.
+
 ### The development loop (#264) — opens when this PR is deployed
 
 **What changed in the mind.** The robots wrote the right code and could

@@ -1220,12 +1220,34 @@ otherwise).
   all hour. Each re-ask is an idle slice apart (`AUTONOMOUS_IDLE_S`, 60 s)
   and inside the call budget and the cooloff; a stand-up does not re-arm
   it, because a life that answered and left no `ask` row is unminded on
-  its own terms. ⚠ A TRUE DEATH DOES re-arm it: the map is the overseer's
-  and outlives the robot, so the next generation inherits rows it never
-  wrote, and "with its eyes open" cannot be said of a choice its
-  predecessor made — and since #317 the new robot's first History line SAYS
-  the list is the one it was left. Whether the map should be ARCHIVED with
-  the rest at a true death is a design question neither issue answers.
+  its own terms, and nor does a restart over a KEPT list (next bullet):
+  that list is the mind's answer, given in an earlier run. ⚠ A TRUE DEATH
+  DOES re-arm it: the next robot starts from its origin, and "with its
+  eyes open" cannot be said of a choice its predecessor made.
+- **The list is kept until a true death** (issue #337; Ben's decision,
+  2026-09-24). The served world ends its process every sim-hour and the
+  map lived in the process, so every robot began each hour at its origin
+  — an `unseeded` one with nothing — re-sent its list (Luca filed a
+  ticket: *"my event map is empty again"*), and the one thing that did
+  NOT reset it was a true death, whose successor inherited rows it never
+  wrote (#317 had to tell it so). Both are reversed. `events.MAP_FILE`
+  lives in the robot's thought root (the second robot's under
+  `r2_pluggybot/`) and the lifecycle keeps it, as it writes the procedure
+  library: through the robot's `Store` on every edit
+  (`HubLifecycle._keep_map`) and read when the next process builds the
+  robot (`Overseer.restore_map`) — so a mind built without a lifecycle, a
+  probe pointed at a real volume, never touches it. Each kept row is
+  re-read through `events.row` against today's menu: one that no longer
+  reads is left out, said in History at mission start, and kept in the
+  file until the robot's next edit. A true death archives the file as
+  `event_map.1.json` (nothing is deleted) and calls `Overseer.start_over`
+  — the origin's map, and an `event_map` message with `why: true_death` —
+  and the lifecycle clears the event clock and any queued row. The
+  prompt says it (`EVENT_MAP_RULE`: "It is KEPT", in `MORTAL_RULE`'s words)
+  and the wire says which runs began from a kept list (`restored`). The
+  origin now names what a NEW robot starts with, so on the served world it
+  governs the first run of each generation; `experiment.py` gives every
+  run a fresh state dir, so a measured run is unchanged.
 - **The migration.** `standing_order` keeps working for one version: it
   writes a `decision_failed` row **in place**, and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are

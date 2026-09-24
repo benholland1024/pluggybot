@@ -429,9 +429,23 @@ save a filmstrip PNG named after the script.
     ANSWERED FOR ITSELF (`HubLifecycle._minded`, issue #303) — a fallback
     is the box answering, and counting it as the first decision cost 21 of
     76 deployed lives their whole hour (one garbled call, then `unminded`);
-    a stand-up does not re-arm it, a TRUE DEATH does (the map outlives the
-    robot and the next generation never wrote it — and is TOLD so in its
-    first History line, #317);
+    a stand-up does not re-arm it, nor does a restart over a KEPT list (a
+    kept list is the mind's answer, #337), and a TRUE DEATH does (the next
+    robot starts from its origin);
+  - **the list is KEPT until a true death** (issue #337; Ben's decision,
+    2026-09-24): `events.MAP_FILE` in the robot's thought root, through
+    its `Store`, and the LIFECYCLE's to keep, on the procedure library's
+    terms — written on every edit (`HubLifecycle._keep_map`, an `on_map`
+    hook; never on a reset) and read when the next process builds the
+    robot (`Overseer.restore_map`), so a mind built without a lifecycle (a
+    probe on a real volume) never touches it. Each kept row goes back
+    through `events.row` against TODAY's menu; one that fails is left out
+    and SAID in History at mission start. A true death is the one reset
+    (`Overseer.start_over`: the origin's map, the file archived as
+    `event_map.1.json`, an `event_map` message with `why: true_death`). The
+    origin names what a NEW robot starts with; origin `none` never reads
+    the file, and `experiment.py` flies a fresh state dir per run, so a
+    measured run never starts from one;
   - **the list is READ BACK** (issue #317): `eventMap` in the volatile
     context is `{rows, lastAskedSAgo}` — the rows as an answer writes them
     and the silence this question closed (`_stamp_ask` takes the gap BEFORE
