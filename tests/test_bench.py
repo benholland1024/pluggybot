@@ -296,8 +296,11 @@ def test_the_offer_sets_the_world_and_the_truth_is_absent_from_every_context(hom
   offer drew (the board's own event, so a test's `offer` and the
   producer's are one path); nothing in the mind's context, the status
   line or the offer carries the number, and body masses are in no
-  context at all."""
-  life = _life(home_model, tmp_path)
+  context at all. Its OWN model: the module's `home_model` is the one the
+  other offers here set, and under `-n auto` whichever ran first decided
+  whether the placeholder premise held."""
+  life = _life(home_model, tmp_path,
+               model=mujoco.MjModel.from_xml_path("models/home_world.xml"))
   assert bench.unknown_mass(life.model) == bench.UNKNOWN_MASS_KG
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -352,6 +355,49 @@ def test_a_restart_restores_the_open_offers_mass_and_the_recompile_keeps_it(home
   again = _life(home_model, tmp_path / "b", model=world_spec(world_config("home")["model"]).compile())
   again.restore_bench()
   assert bench.unknown_mass(again.model) == bench.UNKNOWN_MASS_KG
+
+
+def test_setting_the_mass_keeps_the_worlds_pinned_camera_extent():
+  """`mj_setConst` re-derives `stat.extent` from the bounding box, and every
+  camera's near plane is `znear * extent` -- the home world pins it
+  (`home.CAMERA_EXTENT_M`) because the loop doubled the box and pushed the
+  dock camera's near plane past the bay standoff. The set-out used to undo
+  the pin: 37.2 -> 70.0, and every pick after the first bench offer ran
+  blind (issue #264; 13 of 15 failed on the deployed pair).
+
+  The premise is asserted too, so it cannot rot: `mj_setConst` alone still
+  moves the extent."""
+  from pluggybot.home import world as home
+  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  center = model.stat.center.copy()
+  assert model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
+  bench.set_unknown_mass(model, mujoco.MjData(model), 0.25)
+  assert model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
+  assert np.allclose(model.stat.center, center)
+  assert model.vis.map.znear * model.stat.extent < 0.40
+  # the premise: the call the set-out makes moves the pin by itself
+  mujoco.mj_setConst(model, mujoco.MjData(model))
+  assert model.stat.extent > 1.5 * home.CAMERA_EXTENT_M, \
+      "mj_setConst no longer re-derives the extent; re-read this test's premise"
+
+
+def test_the_dock_camera_still_reads_a_bay_tag_after_a_bench_offer(tmp_path):
+  """The claim that failed live, on the real pipeline: an offer lands (the
+  board's own event sets the cube's mass), then the dock camera renders
+  the pen bay from its standoff, the detector decodes and PnP measures."""
+  from pluggybot.mission.mission import bay_standoff
+  from pluggybot.procedure.steps import TOOL_BAYS
+  cfg = world_config("home")
+  life = _life(None, tmp_path, model=mujoco.MjModel.from_xml_path("models/home_world.xml"))
+  try:
+    _offer(life, kg=0.25)
+    assert bench.unknown_mass(life.model) == pytest.approx(0.25)
+    station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
+    life.mission.start_at(*bay_standoff(station_y, cfg["rack"]))
+    assert life.mission.bay_fix(station_y) is not None, \
+        "the dock camera is blind at the pen bay after the bench's set-out"
+  finally:
+    life.mission.close()
 
 
 # ---- 4. the record and the grade -----------------------------------------------------
