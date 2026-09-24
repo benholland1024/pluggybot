@@ -296,8 +296,11 @@ def test_the_offer_sets_the_world_and_the_truth_is_absent_from_every_context(hom
   offer drew (the board's own event, so a test's `offer` and the
   producer's are one path); nothing in the mind's context, the status
   line or the offer carries the number, and body masses are in no
-  context at all."""
-  life = _life(home_model, tmp_path)
+  context at all. Its OWN model: the module's `home_model` is the one the
+  other offers here set, and under `-n auto` whichever ran first decided
+  whether the placeholder premise held."""
+  life = _life(home_model, tmp_path,
+               model=mujoco.MjModel.from_xml_path("models/home_world.xml"))
   assert bench.unknown_mass(life.model) == bench.UNKNOWN_MASS_KG
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
