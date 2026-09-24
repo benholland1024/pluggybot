@@ -459,9 +459,10 @@ def test_the_answer_survives_a_restart_but_never_reaches_the_wire(tmp_path):
   graded. The state file is not the wire -- it sits in /var/lib/pluggybot
   beside the reward table, which also decides what things are worth.
 
-  The SECRET survives; the committed answer does not: a claim nobody
-  started is re-offered by the restart (TaskPattern.md) and the next
-  claimant commits its own."""
+  The SECRET survives, and so does the committed answer: a claim is kept
+  for the robot that made it (issue #345; TaskPattern.md), which draws the
+  answer it committed to -- and one given back (`release`) clears it, so
+  the next claimant commits its own."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
   task = question_task(b)
@@ -469,8 +470,10 @@ def test_the_answer_survives_a_restart_but_never_reaches_the_wire(tmp_path):
   saved = json.loads(path.read_text())
   assert saved["tasks"][0]["secret"] == {"answer": "5"}
   assert saved["tasks"][0]["answer"] == "5"
-  back = TaskBoard(path=path)[task.id]
-  assert back.secret == {"answer": "5"} and back.answer == "" and back.state == "offered"
+  board_back = TaskBoard(path=path)
+  back = board_back[task.id]
+  assert back.secret == {"answer": "5"} and back.answer == "5" and back.state == "claimed"
+  assert board_back.release(task.id).answer == ""
   # ...and none of the three published shapes carries either.
   for shape in (back.as_dict(), back.snapshot(TABLE), back.as_context(2.0, 5.0)):
     assert "secret" not in shape and "expected" not in json.dumps(shape)

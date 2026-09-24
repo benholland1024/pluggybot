@@ -34,6 +34,7 @@ from typing import Callable, Literal
 
 import mujoco
 
+from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS,
@@ -476,6 +477,28 @@ class HubLifecycle:
     #: simulations quietly diverging; tests/test_recompile.py's fence lists
     #: every class that assigns `self.model` and requires a `rebind`.
     self.on_rebind: list = []
+    #: A RESTART IS A CONTINUATION (issue #345): the world as compiled,
+    #: before any built tool is hung, hashed -- a saved world is put back
+    #: body for body only into the world it was saved from.
+    self.world_fingerprint = continuation.fingerprint(model)
+    #: Set by a `continuation.Keeper`: the world is saved, so the end of a
+    #: run ends nothing and History does not say it did.
+    self.continuing = False
+    #: What `continuation.restore` put back, for the day routine's first
+    #: lines; None on a world that started from its XML.
+    self.resumed: dict | None = None
+    #: Why a saved world was NOT carried on from, for History ("" = there
+    #: was none, or it was).
+    self.restart_note = ""
+    #: The errand being run right now, for a restart to name.
+    self._errand_now = None
+    #: Called at the top of every pass of the day loop, where nothing is in
+    #: flight -- the one moment a saved world is the same with or without a
+    #: restart after it (the parity check, `scripts/determinism_spike.py`).
+    self.at_loop_top: list = []
+    #: The errands the run was STARTED with (`--errand`), so a restart can
+    #: tell the ones still waiting from ones it would be starting over.
+    self._preset: list = []
     #: WHICH MODULE HANGS IN WHICH BAY, as data the seam edits (module ->
     #: bay index into `coupling.STATION_YS`: 0-4 the first rack's, then
     #: the built-tool rail's). Starts as the five hand-built modules, which
@@ -2208,6 +2231,7 @@ class HubLifecycle:
     # can raise.
     self._in_errand = True
     self._errand_name = errand.name
+    self._errand_now = errand
     self._interrupt_pending = None
     self._aborting = False
     # The job this errand discharges is now genuinely under way (issue #21) --
@@ -2253,6 +2277,7 @@ class HubLifecycle:
       self._occur("task_complete" if used["stowed"] and "error" not in used
                   else "task_failed", errand.name)
       self._errand_name = ""
+      self._errand_now = None
       return result
     why = yield from self.mission.swap_at_bay_routine(
       errand.station_y, "pick", module=self.module)
@@ -2449,6 +2474,7 @@ class HubLifecycle:
     if self._aborting and self.interrupts:
       self.interrupts[-1]["abortCostWh"] = result["abortCostWh"]
     self._errand_name = ""
+    self._errand_now = None
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
@@ -5004,6 +5030,189 @@ class HubLifecycle:
     self.errands.append(errand)
     return ""
 
+  # ---- a restart is a continuation (issue #345) ----------------------------
+
+  def kept_state(self) -> tuple[dict, dict]:
+    """What this robot carries across a restart that no file on the volume
+    already does: JSON, and the maps as arrays (`continuation.capture`)."""
+    mission, arrays = self.mission.kept_state()
+    if self.near_field is not None:
+      arrays["heightmap"] = self.near_field.height
+      arrays["heightcount"] = self.near_field.count
+    errand = self._errand_now
+    state = {
+      "energyWh": self.battery.energy_wh, "module": self.module,
+      "state": self.state, "mission": mission,
+      "nearField": (None if self.near_field is None or self.near_field.origin is None
+                    else list(self.near_field.origin)),
+      "depthRng": (None if self.depth_camera is None else
+                   [self.depth_camera.rng.bit_generator.state,
+                    self.depth_camera.peer_rng.bit_generator.state]),
+      "mapDone": getattr(self, "map_done", False),
+      "blacklist": sorted([list(c) for c in getattr(self, "blacklist", ())]),
+      "exploreDeadline": getattr(self, "explore_deadline", None),
+      "dead": dict(self.dead) if self.dead is not None else None,
+      "survivalSince": self.survival_since, "lastAskT": self._last_ask_t,
+      "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
+      "minded": self._minded, "tiltedSince": self._tilted_since,
+      "clocks": {"death": self._next_death_check, "task": self._next_task_check,
+                 "screen": self._next_screen_sense,
+                 "events": self._next_events_check,
+                 "nearField": self._next_near_field},
+      "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
+      "gradePending": self._grade_pending,
+      # The errand the world stopped in the middle of, and what it was for.
+      "errand": (None if errand is None else
+                 {"name": errand.name, "taskId": errand.task_id,
+                  "module": errand.module,
+                  "real": errand.detail.get("real", "")}),
+      # ...and the queue: the run's own errands still waiting, by place and
+      # name, and the names of anything else (a decision's) -- which a
+      # restart drops, and says so.
+      "preset": [[i, e.name] for i, e in enumerate(self._preset)
+                 if any(e is q for q in self.errands)],
+      "queued": [e.name for e in self.errands
+                 if not e.task_id and not any(e is p for p in self._preset)],
+      "eventClock": self.event_clock.kept_state(),
+      "metabolism": (self.metabolism.kept_state()
+                     if self.metabolism is not None else None),
+    }
+    return state, arrays
+
+  def restore_kept(self, state: dict, arrays: dict, in_place: bool,
+                   why: str = "") -> None:
+    """Put `kept_state` back. What says WHERE -- the belief, the maps, the
+    exploration -- only `in_place`, into the world it was saved from; the
+    pack, the clocks and whether it is dead whatever the world looks like."""
+    self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
+    self.module = state.get("module") or self.module
+    if in_place:
+      self.mission.restore_kept(state["mission"], arrays)
+      if (self.near_field is not None and state.get("nearField") is not None
+          and "heightmap" in arrays
+          and arrays["heightmap"].shape == self.near_field.height.shape):
+        self.near_field.height[...] = arrays["heightmap"]
+        self.near_field.count[...] = arrays["heightcount"]
+        self.near_field.origin = tuple(int(v) for v in state["nearField"])
+      if self.depth_camera is not None and state.get("depthRng"):
+        self.depth_camera.rng.bit_generator.state = state["depthRng"][0]
+        self.depth_camera.peer_rng.bit_generator.state = state["depthRng"][1]
+      self.map_done = bool(state.get("mapDone"))
+      self.blacklist = {tuple(c) for c in state.get("blacklist", ())}
+      self._tilted_since = state.get("tiltedSince")
+      self._cleared_rack = bool(state.get("clearedRack"))
+    self.dead = dict(state["dead"]) if state.get("dead") else None
+    self.survival_since = float(state.get("survivalSince", self.survival_since))
+    self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
+    self._asked_t = state.get("askedT")
+    self._asked_after_s = state.get("askedAfterS")
+    if state.get("minded") is not None:
+      self._minded = bool(state["minded"])
+    clocks = state.get("clocks", {})
+    self._next_death_check = float(clocks.get("death", 0.0))
+    self._next_task_check = float(clocks.get("task", 0.0))
+    self._next_screen_sense = float(clocks.get("screen", 0.0))
+    self._next_events_check = float(clocks.get("events", 0.0))
+    self._next_near_field = float(clocks.get("nearField", 0.0))
+    self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
+    self._grade_pending = str(state.get("gradePending") or "")
+    if state.get("eventClock"):
+      self.event_clock.restore_kept(state["eventClock"])
+    if self.metabolism is not None and state.get("metabolism"):
+      self.metabolism.restore_kept(state["metabolism"])
+    self.resumed = {"inPlace": bool(in_place), "why": why,
+                    "exploreDeadline": state.get("exploreDeadline") if in_place else None,
+                    "errand": state.get("errand"), "preset": state.get("preset", []),
+                    "queued": state.get("queued", []),
+                    "wasState": state.get("state", "")}
+
+  def _resumed_line(self, r: dict) -> str:
+    """History's first line after a restart (issue #345)."""
+    line = continuation.resumed_line(
+      self.mission.pose_xy() if r["inPlace"] else None,
+      self.battery.fraction, r["why"])
+    if self.dead is not None:
+      left = self.reset_in_s
+      line += (f" -- still down ({self.dead['cause']})"
+               + (f", {left:.0f} s from standing up" if left is not None else ""))
+    if r["wasState"] in ("GO_CHARGE", "CHARGE") and self.dead is None:
+      line += "; it cut my charge short"
+    if r["queued"]:
+      line += f"; what I had queued ({', '.join(r['queued'])}) is gone"
+    return line
+
+  def _preset_left(self, r: dict) -> list:
+    """The run's own errands that were still waiting when it stopped."""
+    return [self._preset[i] for i, name in r["preset"]
+            if i < len(self._preset) and self._preset[i].name == name]
+
+  def _resume_jobs(self, cut: dict | None) -> list:
+    """The jobs this robot holds on the board, taken up again (issue #345):
+    an errand job's errand, rebuilt off the task, to queue; a procedure job
+    left claimed, the procedure being the robot's to run. A claim held by a
+    robot not in this world goes back on offer. `cut` is the errand the
+    world stopped in the middle of, which History names."""
+    from pluggybot.economy.tasks import KINDS
+    queued: list = []
+    held: set[str] = set()
+    cut_task = cut.get("taskId", "") if cut is not None else ""
+    for task in (self._held_jobs() if self.tasks is not None else ()):
+      held.add(task.id)
+      if any(e.task_id == task.id for e in self.errands):
+        continue                          # claimed in this process: queued
+      prefix = (f"the restart cut short {cut['name']}; "
+                if task.id == cut_task else "")
+      if KINDS[task.kind].discharge == "procedure":
+        self._say(f"TASK {task.id}: still mine after the restart")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
+                       "mine -- the procedure is mine to run, and to say done")
+        continue
+      errand = errand_for_task(
+        task, self.world, self.boards, answer=task.answer,
+        role=task.role_of(self.root), from_xy=self.mission.pose_xy(),
+        real=(cut.get("real", "") if task.id == cut_task else ""))
+      if errand is None:
+        self.tasks.release(task.id)
+        self._say(f"TASK {task.id}: offered again -- nothing here builds it")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is back on "
+                       "offer: nothing in this world can do it")
+        continue
+      queued.append(errand)
+      self._say(f"TASK {task.id}: still mine after the restart -- queued again")
+      self._remember(f"{prefix}the job {task.id} ({task.kind}) is still mine, "
+                     "and is queued again")
+    if cut is not None and cut_task not in held:
+      self._remember(f"the restart cut short {cut['name']}"
+                     + ("; nothing asked for it, so it is not queued again"
+                        if not cut_task else
+                        f"; the job {cut_task} is no longer mine"))
+    return queued
+
+  def _held_jobs(self) -> list:
+    """This robot's open claims, after giving back any held by a robot
+    that is not in this world: a claim with nobody behind it stands for
+    ever (the served pair held one all day, 2026-09-17)."""
+    present = {self.root, *(p.root for p in self.peers)}
+    for task in self.tasks.release_absent(present):
+      self._say(f"TASK {task.id}: offered again -- whoever held it is not "
+                "in this world")
+    return self.tasks.held_by(self.root)
+
+  def _stow_after_restart_routine(self) -> Routine:
+    """A module the restart left on the fork goes home first (issue #345):
+    abort means stow (#116), and a restart ended the errand holding it."""
+    from pluggybot.procedure import steps as procedure
+    held = procedure._carried(self)
+    if held is None:
+      return
+    self.module = held
+    self.state = "SWAP_RETURN"
+    self._say(f"the restart left {held} on my fork -- taking it back to its bay")
+    verdict = yield from procedure._stow(self, {})
+    self._remember(f"the restart left {held} on my fork; "
+                   + ("I hung it back on its bay" if verdict["ok"]
+                      else f"I could not hang it back: {verdict['reason']}"))
+
   # ---- the loop ------------------------------------------------------------
 
   def _strand(self) -> None:
@@ -5057,11 +5266,15 @@ class HubLifecycle:
           station_y: float = HUB_STATION_YS[0],
           use_at: tuple[float, float] = (-1.2, 2.5),
           max_sim_time: float = 600.0,
-          explore_budget: float = 90.0) -> dict:
+          explore_budget: float = 90.0,
+          resume: "continuation.Snapshot | None" = None) -> dict:
     """One robot's day, driven from its own loop. `begin` and `end` are the
     two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
-    issue #167): the setup, then the routine, then the summary."""
+    issue #167): the setup, then the routine, then the summary. `resume` is
+    a saved world to carry on from (issue #345), put back between the two."""
     day = self.begin(start, station_y, use_at, max_sim_time, explore_budget)
+    if resume is not None:
+      continuation.restore([self], resume)
     aborted = False
     try:
       # THE DAY IS A ROUTINE (issue #58): every branch of `_day_routine` yields its drive
@@ -5088,6 +5301,7 @@ class HubLifecycle:
     self._end_run = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
+    self._preset = list(self.errands)
     # ⚠ THE KINEMATICS HAVE TO BE VALID FIRST (issue #315). `MjData` starts
     # with `xpos` all zeros and nothing here has stepped yet, so every
     # module read as sitting on the fork -- `_carried` said `module_lcd`,
@@ -5104,7 +5318,8 @@ class HubLifecycle:
     self.restore_tools()
     self.restore_bench()
     # ...and the jobs the last restart failed are said out loud, here,
-    # because the board loaded them before any hook existed to hear it.
+    # because the board loaded them before any hook existed to hear it --
+    # a game's, whose referee lived in the process (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
         self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
@@ -5219,21 +5434,38 @@ class HubLifecycle:
                    explore_budget: float) -> Routine:
     """One life, from mission start to the end of the day, as a routine:
     the arbitration loop `run()` documents, yielding every drive command."""
-    self.mission.start_at(*start)
-    self.mission.start_discovery()
-    yield from self.mission._spin_routine()   # seed the map before deciding anything
-    self.explore_deadline = self.data.time + explore_budget
-    self._say("mission start")
+    resumed = self.resumed
+    if resumed is not None and resumed["inPlace"]:
+      # A RESTART IS A CONTINUATION (issue #345): the bodies are where they
+      # were saved and the robot believes what it believed, so nothing
+      # moves before the loop.
+      self.mission.start_discovery()
+      self.explore_deadline = (resumed["exploreDeadline"]
+                               if resumed["exploreDeadline"] is not None
+                               else self.data.time + explore_budget)
+    else:
+      self.mission.start_at(*start)
+      self.mission.start_discovery()
+      yield from self.mission._spin_routine()   # seed the map before deciding anything
+      self.explore_deadline = self.data.time + explore_budget
     self.home_pose = tuple(float(v) for v in start)
-    self.survival_since = float(self.data.time)
-    # ...and the unminded clock, on the survival clock's terms exactly
-    # (issue #127): both count from the moment this life started.
-    self._last_ask_t = float(self.data.time)
-    # A restart is a new day, and History is the file that says so
-    # (issue #38): without this line a reader cannot tell one mission's
-    # record from the four before it that share the volume.
-    self._remember(f"woke up in {self.world} with the pack at "
-                   f"{self.battery.fraction:.0%}")
+    if resumed is None:
+      self._say("mission start")
+      self.survival_since = float(self.data.time)
+      # ...and the unminded clock, on the survival clock's terms exactly
+      # (issue #127): both count from the moment this life started.
+      self._last_ask_t = float(self.data.time)
+      # History says the process started (issue #38), so one run's record
+      # is not read as the one before it.
+      self._remember(f"woke up in {self.world} with the pack at "
+                     f"{self.battery.fraction:.0%}")
+      if self.restart_note:
+        self._remember(f"the world could not carry on from where it stopped: "
+                       f"{self.restart_note}")
+    else:
+      # ...and a restart says it was one, never a new day (issue #345).
+      self._say(f"mission resumed at t={self.data.time:.0f} s")
+      self._remember(self._resumed_line(resumed))
     # ...and WHO is doing the thinking today (issue #19). In History
     # because History is the system's file and this is a fact about the
     # run rather than something the robot decided -- and because History
@@ -5257,6 +5489,14 @@ class HubLifecycle:
     self._announce_constitution()
     # ...and what came back of its list of rules (issue #337).
     self._announce_map()
+    # ...and its jobs (issue #345): a job it had claimed is still its own.
+    held = self._resume_jobs(resumed["errand"] if resumed is not None else None)
+    if resumed is not None:
+      self.errands = self._preset_left(resumed) + held
+      if resumed["inPlace"] and self.dead is None:
+        yield from self._stow_after_restart_routine()
+    else:
+      self.errands.extend(held)
 
     # A real arbitration loop, not a fixed script. Priority order, and the
     # reasons: charging outranks everything (a flat robot does nothing at
@@ -5265,7 +5505,9 @@ class HubLifecycle:
     # robot mapped, ran flat, charged, mapped again, and never got round
     # to the task it existed for. Whatever the battery does mid-errand,
     # the next pass through here reacts to it.
-    while self.data.time < max_sim_time:
+    while self.data.time < self.max_sim_time:
+      for hook in list(self.at_loop_top):
+        hook()
       # ⚠ THE IMMORTAL LOOP IS THE OLD LOOP, to the character: a pack that
       # reaches zero ends the day, and one that reached zero mid-errand
       # and recovered does not, because this is checked between errands.
@@ -5378,6 +5620,13 @@ class HubLifecycle:
         break
 
     self.state = "DONE"
+    if self.continuing:
+      # NOTHING ENDED (issue #345): the world is saved and the next run
+      # carries on from this moment, so History says nothing here -- the
+      # next run's first line says the world restarted.
+      self._say(f"stopping at t={self.data.time:.0f} s -- the world is kept "
+                "and the next run carries on from here")
+      return
     # A robot that could not reach its charger has not completed anything
     # (issue #32): the old line said "mission complete" here because the
     # battery was not yet empty, which dressed the day's actual ending --
@@ -5457,7 +5706,7 @@ def points_ledger(state: str | None = None, table=None,
 
 
 def task_board(state: str | None = None, table=None, cadence=None,
-               world: str = ""):
+               world: str = "", rebase: bool = True):
   """The world's job offers as persistent state (issue #21).
 
   `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
@@ -5468,7 +5717,9 @@ def task_board(state: str | None = None, table=None, cadence=None,
   The two CAPS come from `cadence` (issue #23) rather than from `economy/tasks.py`
   defaults, so how much work may stand at once is configuration like the rest
   of the timing policy. Without one the board keeps its own conservative
-  defaults, which is what a unit test wants.
+  defaults, which is what a unit test wants. `rebase=False` keeps the
+  deadlines on the clock they were written on, for a world that carries on
+  from a saved one (issue #345; `TaskBoard.load`).
   """
   from pluggybot.economy.tasks import TaskBoard
   # ...and what a job COSTS here (issue #15), for the same reason: a board
@@ -5476,9 +5727,9 @@ def task_board(state: str | None = None, table=None, cadence=None,
   # floor plan or refuses the small one work it does perfectly well.
   costs = energy_model.load(world) if world else None
   if cadence is None:
-    return TaskBoard(path=state, table=table, energy=costs)
+    return TaskBoard(path=state, table=table, energy=costs, rebase=rebase)
   return TaskBoard(path=state, table=table, max_tasks=cadence.max_tasks,
-                   max_offered=cadence.max_offered, energy=costs)
+                   max_offered=cadence.max_offered, energy=costs, rebase=rebase)
 
 
 def world_targets(world: str, book=None, procedures: bool = False,
@@ -6425,8 +6676,12 @@ def run_demo(start=None, view: bool = False,
              autonomous: bool = False,
              show_survival: bool = True,
              origin: str = ev.DEFAULT_ORIGIN,
-             second_robot=None, near_field: bool = False) -> dict:
+             second_robot=None, near_field: bool = False,
+             world_state: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
+
+  `world_state` keeps the world in a file and carries on from it when the
+  file is there (issue #345; `continuation`), as the served world does.
 
   `on_ready` is handed the built lifecycle once every hook is attached and
   before it runs -- the measurement harness (issue #106) attaches its probe
@@ -6441,6 +6696,7 @@ def run_demo(start=None, view: bool = False,
   book while telemetry reported the other.
   """
   cfg = world_config(world)
+  loaded = continuation.load(world_state, world)
   # Which CELL this run flies on (issue #15). `demo` flattens in minutes,
   # which is what every mission test and both committed recordings were made
   # against; `hosting` is the pack a watched world runs on, where one charge
@@ -6490,7 +6746,8 @@ def run_demo(start=None, view: bool = False,
   # may stand at once (issue #23): economy/cadence.json, per world.
   from pluggybot.economy.cadence import default_cadence
   beat = default_cadence(world) if (tasks or tasks_state) else None
-  board = (task_board(tasks_state, cadence=beat, world=world)
+  board = (task_board(tasks_state, cadence=beat, world=world,
+                      rebase=loaded.snapshot is None)
            if (tasks or tasks_state) else None)
   # The tower is offered only where a procedure can be written (issue
   # #207): the `autonomous` arm's library is what discharges a challenge.
@@ -6649,6 +6906,8 @@ def run_demo(start=None, view: bool = False,
   # whether or not anything is recording: the resync half is what stops a
   # pause becoming a sprint, and that is true of a viewer run too.
   attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
+  life.restart_note = loaded.why
+  keeper = continuation.Keeper([life], world_state) if world_state else None
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
   # put the offers on the floor before the recorder existed -- a recording
@@ -6656,14 +6915,18 @@ def run_demo(start=None, view: bool = False,
   # `board_snapshot` lesson, arriving through a different door. Seeded only
   # when nothing is already outstanding, so a restart against a persisted
   # board resumes the jobs it left rather than re-offering them all.
-  if maker is not None and not board.open_tasks():
+  if maker is not None and loaded.snapshot is None and not board.open_tasks():
     maker.seed(pack_wh=life.fundable_wh)
   if on_ready is not None:
     on_ready(life)
   try:
-    return life.run(start or cfg["start"], use_at=cfg["use_at"],
-                    max_sim_time=max_sim_time,
-                    explore_budget=explore_budget or cfg["explore_budget"])
+    r = life.run(start or cfg["start"], use_at=cfg["use_at"],
+                 max_sim_time=max_sim_time,
+                 explore_budget=explore_budget or cfg["explore_budget"],
+                 resume=loaded.snapshot)
+    if keeper is not None:
+      keeper.save()
+    return r
   finally:
     if recorder is not None:
       recorder.close()

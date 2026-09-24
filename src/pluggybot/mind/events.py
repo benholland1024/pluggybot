@@ -691,6 +691,18 @@ class EventClock:
     self._armed: dict[Row, bool] = {}
     self._last: dict[Row, float] = {}
 
+  def kept_state(self) -> dict:
+    """The latch, for a restart (issue #345): the list is kept (#337), and
+    without this a level row that had fired would fire again on waking."""
+    def key(r: Row) -> list:
+      return [r.event, r.action, r.value, r.kind]
+    return {"armed": [key(r) + [v] for r, v in self._armed.items()],
+            "last": [key(r) + [t] for r, t in self._last.items()]}
+
+  def restore_kept(self, state: dict) -> None:
+    self._armed = {Row(*a[:4]): bool(a[4]) for a in state.get("armed", ())}
+    self._last = {Row(*a[:4]): float(a[4]) for a in state.get("last", ())}
+
   def _armed_for(self, r: Row) -> bool:
     return self._armed.get(r, True)
 

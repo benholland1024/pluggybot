@@ -611,6 +611,8 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
     "end",                # reports it in the mission summary it returns
                           # (`run`'s second half since issue #167, so a pair
                           # of robots can share one loop)
+    "kept_state",         # saves its clock and latch for a restart (issue
+    "restore_kept",       # #345) and puts them back -- decides nothing
   }, f"the appetite reached {readers} -- is one of those a capability gate?"
   assert "metabolism" in src
 

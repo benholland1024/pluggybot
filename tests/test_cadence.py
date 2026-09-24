@@ -648,7 +648,11 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
     maker = TaskProducer(b, beat, targets)
     for made in maker.seed(0.0, pack_wh=8.0):
       offers[made.kind] = offers.get(made.kind, 0) + 1
-    t, working, busy_until = 0.0, None, 0.0
+    # ...and the robot carries on with the job it held (issue #345), as
+    # `HubLifecycle._resume_jobs` does: a kept claim nobody works books its
+    # target for ever.
+    held = b.held_by("pluggybot")
+    t, working, busy_until = 0.0, (held[0] if held else None), 240.0
     while t < 3600.0:
       t += 1.0
       b.expire_due(t)
@@ -666,4 +670,7 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
     b.save()
   lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse", "find_mass")]
   assert min(lab) >= 3, (lab, offers)
-  assert max(lab) - min(lab) <= 1, (lab, offers)
+  # within 2, not 1: the cursor goes BACK to a kind it passed over, so a
+  # lab kind offered in that gap comes round once more (measured 15/13/13
+  # once a claim kept across a restart books its target, issue #345)
+  assert max(lab) - min(lab) <= 2, (lab, offers)

@@ -657,7 +657,8 @@ class TaskBoard:
   def __init__(self, path: str | os.PathLike | None = None,
                table: RewardTable | None = None,
                max_tasks: int = MAX_TASKS, max_offered: int = MAX_OFFERED,
-               clock: Callable[[], str] = _now, energy=None) -> None:
+               clock: Callable[[], str] = _now, energy=None,
+               rebase: bool = True) -> None:
     self.table = table if table is not None else default_table()
     # What a job COSTS in THIS world (issue #15). Optional, and the fallback
     # is `TaskKind.estimate_wh` -- a world nobody has measured still offers
@@ -692,7 +693,7 @@ class TaskBoard:
     #: them on the wire.
     self.interrupted: list[Task] = []
     if self.path is not None and self.path.exists():
-      self.load()
+      self.load(rebase=rebase)
 
   # ---- reading -------------------------------------------------------------
 
@@ -724,6 +725,15 @@ class TaskBoard:
 
   def open_tasks(self) -> list[Task]:
     return [t for t in self.tasks.values() if t.open]
+
+  def held_by(self, robot: str) -> list[Task]:
+    """The open jobs one robot has taken on and not finished, in the order
+    it took them (issue #345). A job with roles is never here: its referee
+    lived in the process, and `load` gives those back."""
+    return sorted((t for t in self.tasks.values()
+                   if t.state in ("claimed", "active") and t.claimed_by == robot
+                   and not t.roles),
+                  key=lambda t: (t.claimed_t or 0.0, t.id))
 
   def offered(self) -> list[Task]:
     return [t for t in self.tasks.values() if t.state == "offered"]
@@ -869,6 +879,27 @@ class TaskBoard:
                               claimed_t=round(float(t), 3), answer=said),
                       "task_claimed", t)
 
+  def release(self, task_id: str) -> Task | None:
+    """Give a claim back: the job is on offer again, claim and answer
+    cleared, deadline kept. For a claim nobody can work on any more
+    (issue #345) -- never a transition a robot chooses. Saved, not
+    announced: no wire event means "given back", and the `tasks` block
+    every frame ships whole already says it."""
+    task = self.tasks.get(task_id)
+    if task is None or task.state not in ("claimed", "active"):
+      return None
+    task = replace(task, state="offered", claimed_by="", claimed_t=None,
+                   answer="", claims={})
+    self.tasks[task.id] = task
+    self.save()
+    return task
+
+  def release_absent(self, present) -> list[Task]:
+    """Give back every claim held by a robot that is not in this world."""
+    return [self.release(t.id) for t in list(self.tasks.values())
+            if t.state in ("claimed", "active") and t.claimed_by
+            and t.claimed_by not in present]
+
   def start(self, task_id: str, t: float = 0.0) -> Task | None:
     """Mark a claimed task as being worked on right now."""
     task = self.tasks.get(task_id)
@@ -974,39 +1005,37 @@ class TaskBoard:
     os.replace(tmp, target)
     return target
 
-  def load(self, path: str | os.PathLike | None = None) -> "TaskBoard":
+  def load(self, path: str | os.PathLike | None = None,
+           rebase: bool = True) -> "TaskBoard":
     """Restore the board. Older state versions load, newer ones refuse --
     the same asymmetry as the boards and the ledger, and for the same
     reason: /var/lib/pluggybot outlives the image.
 
-    ⚠ A task that was ACTIVE when the process died comes back `failed`, not
-    `active`. The robot that was doing it no longer exists, and a job nobody
-    is working on but which reads as in-progress is a marker that never
-    resolves. `expired` would be a lie in the other direction -- the offer
-    was taken.
+    ⚠ A CLAIM SURVIVES A RESTART (issue #345). The robot that took the job
+    is still that robot, so a job claimed or ACTIVE comes back claimed by
+    it: an errand job `claimed` (its errand is rebuilt off the task and
+    queued again, and marks it active when it starts -- `HubLifecycle.
+    _resume_jobs`), a procedure job still `active` (the procedure is the
+    robot's to run and say `done`). Until #345 an active job came back
+    `failed` and a claimed one `offered`, because nothing re-queued an
+    errand: the served pair held a claim with nobody behind it all day
+    (2026-09-17). A claim whose robot is not in the new world is given back
+    by the lifecycle (`release_absent`), which is the one that knows.
 
-    ⚠ ...and one that was CLAIMED but not yet started comes back `offered`,
-    with the claim cleared. Same robot, same reason -- nothing re-queues an
-    errand across a restart, so the claim would stand forever with nobody
-    behind it (the served pair held one all day, 2026-09-17) -- but nothing
-    had been done either, so nothing failed: the offer is simply up again,
-    and the next life takes it or lets it lapse on its own deadline. A
-    committed answer goes with the claim; the next claimant commits its own.
-    A job with roles drops every role held for the same reason.
+    ⚠ ...EXCEPT a job with roles, and a job whose claim IS the act: the
+    game's referee lived in the process, and an act either happened or did
+    not. Active, those come back `failed` ("interrupted by a restart") and
+    wait in `interrupted` for `announce_interrupted` to put them on the
+    wire -- `load` runs before any hook exists, and a failure nobody was
+    told about read as `active` for ever (the bench, 2026-09-22). Claimed,
+    they are offered again, claims and answer cleared.
 
-    ⚠ An offer's deadline is REBASED to the new mission's clock: what it
-    had left when the board was last saved (`simTime`), counted from 0.
-    A deadline is absolute sim time and every mission starts at 0, so an
-    offer made in the last quarter-hour of a 3600 s mission carried a
-    deadline the next mission could reach only after its own 3600 s --
-    measured on the deployed world, two offers stood ~4700 s, and one
-    made at 3606 s could never lapse at all. A file with no `simTime`
-    (an older build's) is loaded as it was.
-
-    ⚠ The tasks a restart FAILED are kept in `interrupted` until
-    `announce_interrupted` puts them on the wire: `load` runs before any
-    hook is attached, and a failure nobody was told about read on the
-    observatory as a job `active` for ever (the bench, 2026-09-22).
+    ⚠ `rebase`: an offer's deadline is moved to a clock that starts at 0 --
+    what it had left at the last save (`simTime`). A world that carries on
+    from a saved one (issue #345) keeps its clock, and its deadlines as
+    written; one that starts from its XML starts at 0, where an offer made
+    at 3606 s of a mission could otherwise never lapse (measured, 2026-09-22).
+    A file with no `simTime` (an older build's) is loaded as it was.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -1021,7 +1050,7 @@ class TaskBoard:
     self.dropped = int(doc.get("dropped", 0))
     self.producer = dict(doc.get("producer") or {})
     saved_t = doc.get("simTime")
-    rebase = float(saved_t) if saved_t is not None else None
+    shift = float(saved_t) if (saved_t is not None and rebase) else None
     self.tasks = {}
     self.interrupted = []
     for spec in doc.get("tasks", ()):
@@ -1033,7 +1062,21 @@ class TaskBoard:
         # upgrade, and one unreadable row must not cost the whole board.
         self.dropped += 1
         continue
-      if task.state == "active":
+      # ...priced HERE, as `offer` priced it -- never off the file, and never
+      # at the kind's generic figure either: that re-priced room_hub's carry
+      # from its measured 0.817 Wh to 0.93 after every restart, and a pack
+      # charged to 88 % could no longer take it (issue #345, found by the
+      # parity check).
+      priced = self.estimate_for(task.kind, task.target)
+      if priced is not None:
+        task = replace(task, estimate_wh=priced)
+      known = KINDS.get(task.kind)
+      kept = (known is not None and not task.roles
+              and known.discharge in ("errand", "procedure"))
+      if task.state in ("claimed", "active") and kept:
+        if known.discharge == "errand":
+          task = replace(task, state="claimed")
+      elif task.state == "active":
         task = replace(task, state="failed",
                        verdict={"task": task.task, "ok": False, "points": 0,
                                 "reason": "interrupted by a restart"})
@@ -1041,10 +1084,12 @@ class TaskBoard:
       elif task.state == "claimed" or (task.state == "offered" and task.claims):
         task = replace(task, state="offered", claimed_by="", claimed_t=None,
                        answer="", claims={})
-      if task.state == "offered" and task.deadline is not None and rebase is not None:
+      if task.open and task.deadline is not None and shift is not None:
         # What was LEFT when the board was saved, from the new clock's 0;
-        # never below 0, so an offer already overdue lapses at once.
-        task = replace(task, deadline=round(max(0.0, task.deadline - rebase), 3))
+        # never below 0, so an offer already overdue lapses at once. A kept
+        # CLAIM too: its deadline means nothing while it is held, and is the
+        # offer's again if it is given back (`release`).
+        task = replace(task, deadline=round(max(0.0, task.deadline - shift), 3))
       self.tasks[task.id] = task
     self.seq = max(self.seq, len(self.tasks))
     return self

@@ -30,6 +30,13 @@ fi
 if [ -n "${PLUGGY_TASKS:-}" ]; then
   set -- --task-state "${PLUGGY_TASKS}" "$@"
 fi
+# The WORLD itself (issue #345): every body, each robot's pack, pose, maps
+# and clocks, saved every sim minute and at shutdown and carried on from at
+# the next start -- so the end of a process ends nothing. On the volume for
+# the boards' reason; unset, every start builds the world from its XML.
+if [ -n "${PLUGGY_WORLD_STATE:-}" ]; then
+  set -- --world-state "${PLUGGY_WORLD_STATE}" "$@"
+fi
 if [ -n "${PLUGGY_BATTERY_WH:-}" ]; then
   set -- --battery-wh "${PLUGGY_BATTERY_WH}" "$@"
 fi
