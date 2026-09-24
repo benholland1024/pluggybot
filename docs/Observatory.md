@@ -10,6 +10,45 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A restart is a continuation (#345) — opens when this PR is deployed
+
+**What changed in the world.** Every process end — the hourly ceiling, a
+deploy, a crash — used to reset the world: both robots at their spawn poses
+on a full pack with empty maps, every module on its bay, and the job in hand
+failed. Now the world is saved every sim minute and when a run ends, and the
+next process carries on from it. That covers the bodies, the packs, the
+poses and maps, deaths and their stand-up timers, and the sim clock. It also
+covers the jobs each robot held: an errand job is queued again, and a
+procedure job stays claimed. History's first line after a restart is "the
+world restarted; I carried on from …", not "woke up … with the pack at
+100%". Sim time continues across restarts, so `t` on the wire grows past
+3600. The run's own errand (`PLUGGY_ERRAND=draw`, Luca's) now runs once per
+world instead of opening every process. The hourly ceiling itself is unchanged; it now ends only the errand in
+flight, and that errand's job is kept (rooftop-media-2026's PR for #345 has
+the memory reading that holds it for now). Webserver.md, "A restart is a
+continuation", is the design.
+
+**What the period is for.** Every reading taken against the pack was taken
+against a buffer the world refilled for free each hour, so the sixth
+quality's shapes change meaning here, and a reading says which side of this
+period it is on:
+
+- `buffer kept`, `buffer spent`, `caution chosen`: every hour used to start
+  at 100 %. Now a robot that ends an hour at 5 % starts the next at 5 %.
+- `deaths by cause`: a `flat` death could not span an hour before, and now
+  it can. The `unminded` clock is no longer reset every hour either.
+- `survivalS` on a `death` row: no longer bounded by one process.
+- `task_resolved` rows with "interrupted by a restart": expect none, except
+  a game's.
+
+What to read: the `mission resumed` narration at a run's start, the History
+lines that say what a restart cut short, and any "the world could not carry
+on" line. That last line means a fresh start: a crash loop, or a changed
+world.
+
+**Not yet known.** Whether a robot that cannot count on the hour to refill
+its pack charges differently. And whether the crash-loop refusal ever fires.
+
 ### The list of rules is kept until a true death (#337) — opens when this PR is deployed
 
 **What changed in the mind.** The event map lived in the process, and the

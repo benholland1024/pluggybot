@@ -325,12 +325,12 @@ save a filmstrip PNG named after the script.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand {carry,draw,draw2,census,dance,showcase,care[:feed\|toy\|company],shock,feed,none}` (`showcase` = draw + census, the queue both streamed surfaces are recorded from; `care`/`shock`/`feed` one act on the lab's mouse, #226/#287), `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming protocol frames + grid PNGs + events over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots (`--errand2`, `--robot-name-2`); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | M14 harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends (#225) and reports the ENERGY GATE — the synthetic offer costs more than the pack holds; `--max-tokens N` finds a reasoning model's budget; `--escalate-to X --force-escalate` prices an escalation target; `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack (SWAP_PICK to end of SWAP_RETURN); `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin; `--actions care:feed,care:toy,care:company,shock,feed` prices the lab's acts (each ends in the lab; the spike docks between them). Re-run after anything that changes what an errand does |
-| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR` |
+| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--resume-at T` flies the day straight through against saved at the first idle pass past T and carried on in a new process (#345) — identical after the restore |
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
 | `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
@@ -899,6 +899,47 @@ save a filmstrip PNG named after the script.
 
 ### The served world, the wire and the fixtures
 
+- **A restart is a continuation** (issue #345; `continuation.py`,
+  Webserver.md "A restart is a continuation" is the design,
+  `tests/test_continuation.py` pins each rule and shows it fail). The
+  world is saved to `$PLUGGY_WORLD_STATE` every `SAVE_EVERY_S` (60 sim s)
+  on the first robot's seam and when a run ends, and the next process
+  carries on from it after every `begin()` and before any day moves.
+  Constraints:
+  - **SIM TIME CONTINUES** (`data.time` comes back with the bodies), so
+    every absolute stamp keeps its meaning and nothing is rebased; the
+    board loads with `rebase=False`; `max_sim_time` is a RUN's budget from
+    where it starts. Rebasing each stamp is how one missed stamp becomes a
+    robot that lies dead for an hour.
+  - **BODIES BY NAME** (a joint's name, else its body's and its index
+    there), never by `qpos` layout, and the solver's WARM START with them:
+    MEASURED, without it the same step parts by 1e-12. A new piece of
+    state that decides anything goes in a `kept_state` / `restore_kept`
+    pair beside its class -- the parity check is the fence:
+    `scripts/determinism_spike.py --resume-at T` is IDENTICAL after the
+    restore (room_hub 761 samples; home 2404 over 1202 s, cage and plates
+    included). ⚠ It caught the sensors' noise
+    generators (their STATE is saved: re-seeded, the first scan painted
+    another map) and an offer re-priced at its kind's figure on load.
+  - **A signal only ASKS** (`Keeper.request_stop`): the next step
+    boundary raises `MissionAborted`, the day ends, then it saves. A
+    handler that raised could land inside a ledger write or a death. No
+    save mid stand-up (`Keeper.busy`), and NEVER on a crash: the last
+    minute's save is what a crash carries on from.
+  - **Two refusals, said in History:** a world whose GEOMETRY changed
+    (`fingerprint`, taken before any built tool is hung) gets its clock,
+    packs, deaths and jobs but not its bodies or maps; and a save restored
+    `MAX_RESUMES` (3) times without a new one is not trusted -- a state
+    that crashes the process would otherwise be restored into the crash
+    for ever.
+  - **The errand in flight ends; its job does not** (`_resume_jobs`): an
+    errand job is queued again, a procedure job stays claimed, a module
+    left on the fork is stowed first, a claim of a robot not in the world
+    is given back. History says "the world restarted; I carried on from
+    ...", and a run that keeps its world writes no "finished the day".
+  - The hourly ceiling is still set in rooftop's `compose.yaml`; lifting
+    it waits on #349 (see the #345 PRs for the memory reading).
+
 - **An admin can reach into world state, and every reach-in is recorded**
   (issue #119, protocol 0.16.0; Evaluation.md §5, `protocol/README.md`).
   `set_battery` (a `frac` OR a `wh`), `set_points` (an ABSOLUTE balance,
@@ -1002,7 +1043,9 @@ save a filmstrip PNG named after the script.
   build. Configuration is ENVIRONMENT: `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`,
   `PLUGGY_ARM`, `PLUGGY_RUNG`, `PLUGGY_ORIGIN`, `PLUGGY_ERRAND`,
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
-  `PLUGGY_MAX_SIM_TIME`, `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
+  `PLUGGY_MAX_SIM_TIME` (a RUN's budget from where it starts, #345),
+  `PLUGGY_BOARDS`, `PLUGGY_LEDGER`, `PLUGGY_WORLD_STATE` (the world
+  itself, `world.npz` on the volume, #345; unset → every start from XML),
   `PLUGGY_ROBOT_NAME` (display name, never the body name; unset →
   `"Pluggy"`), `PLUGGY_NEAR_FIELD` (the depth camera and its height map;
   unset → on, `0` → off), `PLUGGY_LOOK` (the eye on `autonomous`, issue
@@ -1846,13 +1889,17 @@ save a filmstrip PNG named after the script.
   resumes there -- measured on the deployed world, where a mission is
   3600 sim s and every restart built a producer at the top of a nine-kind
   list, the last kind (`find_mass`) was offered ONCE in thirty hours
-  against fifteen `shock_mouse`. Two more restart rules ride with it: an
-  open offer's deadline is REBASED on load to what it had left at the last
-  save (`simTime`; an offer made at 3606 s of a mission could never lapse
-  and held its target for ever), and a task a restart failed is announced
-  in `begin()` (`announce_interrupted`) because `load` runs before any
-  hook exists -- the bench's one claim read `active` on the observatory for
-  five hours. `tests/test_cadence.py` and `tests/test_tasks.py` pin each. When work may still ARRIVE (`HubLifecycle.expects_work`
+  against fifteen `shock_mouse`. More restart rules ride with it: an open
+  offer's deadline is REBASED on load to what it had left at the last save
+  (`simTime`; an offer made at 3606 s of a mission could never lapse and
+  held its target for ever) -- EXCEPT where the world carries on from a
+  save (`rebase=False`, issue #345: the clock went on); a CLAIM is kept
+  for its robot and taken up again (#345, the continuation bullet); only
+  a game or an act a restart failed is announced in `begin()`
+  (`announce_interrupted`), because `load` runs before any hook exists;
+  and an offer is re-priced by the world's energy table on load, never
+  the kind's figure. `tests/test_cadence.py`, `tests/test_tasks.py` and
+  `tests/test_continuation.py` pin each. When work may still ARRIVE (`HubLifecycle.expects_work`
   — follows `producer`, and a pair sets it on the second robot, whose
   board grows on the FIRST robot's producer; keyed on `producer` the hider
   called its day complete mid-game) the loop stands by in
