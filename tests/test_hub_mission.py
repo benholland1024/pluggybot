@@ -143,7 +143,6 @@ def test_a_drive_ends_with_a_terminal_approach_and_sweeps_before_it(room_model, 
   assert by_target[(0.9, 0.0)] == {mm.ARRIVAL_SLOW_RADIUS}, by_target
 
 
-@pytest.mark.slow
 def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, monkeypatch):
   """Issue #339, off the deployed pair: Rowan was knocked over mid-pick and
   `refine_standoff`'s drive back to the standoff had no budget. On its side
@@ -182,6 +181,7 @@ def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, mon
     mission.close()
 
 
+@pytest.mark.slow
 def test_full_hub_mission():
   """The milestone-8 claim, end to end: map the room, navigate to the rack,
   fine-align on the fiducials, pick the LCD module, carry it across the
