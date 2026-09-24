@@ -1475,8 +1475,11 @@ save a filmstrip PNG named after the script.
   lands (`HubLifecycle._bench_offered` off the board's own event;
   `restore_bench` after a restart) -- `bench.set_unknown_mass` writes
   `body_mass`, scales the inertia, runs `mj_setConst` on a SCRATCH MjData
-  (it writes `qpos0` into the data it is handed) and writes the SPEC's
-  geom too, or the workshop's recompile reverts it. The truth lives in
+  (it writes `qpos0` into the data it is handed) and PUTS BACK the world's
+  pinned `stat.extent`/`center`, which it re-derives from the bounding box
+  (37.2 -> 70.0 put the dock camera's near plane past the bay standoff:
+  every pick after a bench offer ran blind, #264), and writes the
+  SPEC's geom too, or the workshop's recompile reverts it. The truth lives in
   `Task.secret` and the mass table; `truth` and `error` are `secret` on
   the row (the reported value beside either gives the mass away). Graded
   on `done` by `_grade_mass`: the NEWEST finding under `findings/mass_
