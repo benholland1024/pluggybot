@@ -1238,16 +1238,50 @@ otherwise).
   robot (`Overseer.restore_map`) — so a mind built without a lifecycle, a
   probe pointed at a real volume, never touches it. Each kept row is
   re-read through `events.row` against today's menu: one that no longer
-  reads is left out, said in History at mission start, and kept in the
-  file until the robot's next edit. A true death archives the file as
-  `event_map.1.json` (nothing is deleted) and calls `Overseer.start_over`
-  — the origin's map, and an `event_map` message with `why: true_death` —
-  and the lifecycle clears the event clock and any queued row. The
+  reads is left out, said in History at mission start, kept in the file
+  until the robot's next edit, and owes a consult (next bullet) — code
+  changed the list, so it is no longer the mind's answer; its only `ask`
+  row can be what went. A true death archives the file as
+  `event_map.1.json` (nothing is deleted) on EVERY world, one with no map
+  included — a `guarded` day's death would otherwise hand the next
+  `autonomous` day the dead robot's list — and calls `Overseer.start_over`:
+  the origin's map, and an `event_map` message with `why: true_death`, sent
+  just before the `true_death` event; the lifecycle clears the event clock
+  and any queued row. ⚠ An answer that OUTLIVES its robot is dropped whole:
+  the loop steps the sim while a call flies, so a flat pack can end the
+  robot for good mid-think, and that answer is billed and counted but its
+  list (`Overseer._starts_over`), memory, action and bootstrap are not the
+  next robot's (`HubLifecycle._decide_routine`). The
   prompt says it (`EVENT_MAP_RULE`: "It is KEPT", in `MORTAL_RULE`'s words)
   and the wire says which runs began from a kept list (`restored`). The
   origin now names what a NEW robot starts with, so on the served world it
   governs the first run of each generation; `experiment.py` gives every
-  run a fresh state dir, so a measured run is unchanged.
+  run a fresh state dir, so a measured run is unchanged. `edits` on the
+  wire and in the record is the robot IN FORCE's, counted from the last
+  true death (`Overseer.edits`), or the next robot's panel says it edited a
+  list it never wrote.
+- **A heart lost to silence is followed by one consult** (Ben,
+  2026-09-24). Kept across restarts, a list with no `ask` row died
+  `unminded` hour after hour to its last heart, and nothing ever asked it:
+  the death line in History was never read by a mind, so the list could
+  not change. The death is unchanged — a heart, counted as `unminded` —
+  but `_die` now leaves a consult owed (`HubLifecycle._consult`, the
+  `askedBy` it will carry), and the robot's next arbitration asks the mind
+  once, with `askedBy: {event: "unminded",
+  note: UNMINDED_NOTE}` ("You just lost a heart: nobody consulted you for
+  half an hour (1800 seconds), and that counts as a death. You may want
+  to adjust your event map so it does not happen again."). ⚠ AHEAD of the
+  list's rows, not under them like the bootstrap: a list that went silent
+  can still fire `nothing_to_do` rows, and a bootstrap reached only when
+  no row fires would never come. Paid only by an answer of the mind's own
+  (a fallback is the box), owed in the map file (`consultOwed`) so the
+  hourly restart between a death and its stand-up cannot swallow it, and
+  owed by nobody after a true death (the next robot has the bootstrap).
+  The same slot carries the one for kept rules left out at load
+  (`rules_left_out`, `left_out_note` naming them), found again at every
+  load until an edit replaces the file. Both map rules say it, since
+  "nobody will consult you unless your list says to" would otherwise be
+  false.
 - **The migration.** `standing_order` keeps working for one version: it
   writes a `decision_failed` row **in place**, and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are

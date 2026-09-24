@@ -1048,7 +1048,7 @@ beside them until the site has moved off them.
   when a stream opens, `edit` after an answer changed it, `true_death`
   when a new robot's map replaced a dead one's); `source` (the decision
   that set it -- `llm`, `llm:<model>`; `null` otherwise); `edits` (how many
-  this run); `restored: true` where the run began from the list the robot
+  by the robot in force this run: from zero after a true death); `restored: true` where the run began from the list the robot
   KEPT across a restart, absent otherwise (pluggybot #337; `true_death`
   and `restored` are additive, no bump). ⚠ A world with NO map sends
   nothing -- every scripted world, every arm at origin `none` -- and that
