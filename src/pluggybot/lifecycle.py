@@ -530,6 +530,7 @@ class HubLifecycle:
     # because a test's stand-in overseer need not have the hook.
     hooks = getattr(overseer, "on_map", None)
     if hooks is not None:
+      hooks.append(self._keep_map)
       hooks.append(lambda msg: self._emit(dict(msg, robot=self.root)))
     # The thought files (issue #38). Present on EVERY world, unlike the
     # overseer: `History.md` is what happened to this robot, and that is as
@@ -537,6 +538,14 @@ class HubLifecycle:
     # that has `Goals.md` read on every run. In-memory when nobody supplied
     # a directory, which is every unit test and every physics spike.
     self.thoughts = thoughts if thoughts is not None else ThoughtFiles()
+    # ...and the list of rules this robot KEPT (issue #337), read off its
+    # volume before anything can ask it: on the lifecycle's terms, like the
+    # procedure library's writes, so a mind built anywhere else -- a probe
+    # pointed at a real volume -- never touches the file.
+    if getattr(overseer, "event_map", None) is not None:
+      kept = ev.load(self.thoughts.store, overseer.menu)
+      if kept is not None:
+        overseer.restore_map(*kept)
     self.decisions: list[dict] = []
     # The module whose electrical seating the power model watches. It follows
     # the errand queue -- a robot that draws and then grips is carrying a
@@ -698,7 +707,12 @@ class HubLifecycle:
     #: 21 of 76 deployed lives their whole hour (one garbled call, then
     #: `unminded`). A stand-up keeps it: a life that answered and left no
     #: `ask` row is unminded on its own terms, and this cannot undo that.
-    self._minded = False
+    #: ⚠ SO DOES A RESTART, WHERE THE LIST WAS KEPT (issue #337): a kept list
+    #: is an answer this robot's mind already gave, so the bootstrap no
+    #: longer asks over it at every process start. It still asks where
+    #: nothing was kept -- the case the prompt describes as "only while the
+    #: list is still empty".
+    self._minded = getattr(overseer, "restored", False) is True
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
@@ -1072,15 +1086,25 @@ class HubLifecycle:
       archived["thoughts"] = self.thoughts.archive()
     if self.metabolism is not None:
       self.metabolism.disarm()
+    # ...AND ITS LIST OF RULES (issue #337): the event map is the robot's
+    # across restarts and stand-ups, and this is the one thing that ends
+    # it. The kept file goes aside like the rest (`event_map.1.json`), the
+    # next robot starts from the origin, and nothing the old list armed or
+    # queued runs for it.
+    if self.event_map is not None:
+      aside = self.thoughts.store.archive(ev.MAP_FILE)
+      archived["eventMap"] = {**self.overseer.start_over(t), "archivedAs": aside}
+      self.queued_row = None
+      self._interrupt_pending = None
+      self._occurred.clear()
+      self.event_clock = ev.EventClock()
     self.true_deaths.append({"t": round(t, 3), **archived})
-    # ⚠ THE NEXT ROBOT IS ASKED (issue #303). The event map is the
-    # OVERSEER's and survives this, so a generation that never wrote a row
-    # would inherit one -- and with the bootstrap spent by its predecessor,
-    # nothing would ever consult it: `unminded` at 1800 s having made no
-    # decision, which is the state this whole seam exists to prevent. The
-    # rule is "until the mind has answered for itself", and the mind that
-    # answered is archived; "with its eyes open" cannot be said of a choice
-    # made by the robot before.
+    # ⚠ THE NEXT ROBOT IS ASKED (issue #303): the rule is "until the mind
+    # has answered for itself", and the mind that answered is archived with
+    # its list -- "with its eyes open" cannot be said of a choice made by
+    # the robot before. Spent, the bootstrap would leave an `unseeded`
+    # successor's empty list unconsulted: `unminded` at 1800 s having made
+    # no decision, the state this seam exists to prevent.
     self._minded = False
     self._say(f"TRUE DEATH: out of hearts. Everything this robot earned and "
               f"wrote is archived; robot #{archived['generation'] + 1} starts "
@@ -1090,19 +1114,7 @@ class HubLifecycle:
     # first. That is the inheritance, and it is the only one.
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
-                   "knew went with it."
-                   # ...EXCEPT THE LIST, WHICH DID NOT (issue #317). The
-                   # event map is the OVERSEER's and survives this, so a
-                   # new generation is governed from its first tick by
-                   # rules it never wrote -- and until it is told, it has
-                   # no way to know that the rules it can see in `eventMap`
-                   # are not its own. Saying so is the inheritance being
-                   # honest about itself; whether to archive the map with
-                   # the rest is a design question this does not answer.
-                   + (" The list of rules that decides when I am asked is "
-                      "the one it left behind, not one I wrote."
-                      if self.event_map is not None and len(self.event_map)
-                      else ""))
+                   "knew went with it.")
     self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
                 "archived": archived.get("archived", {})})
@@ -1352,6 +1364,28 @@ class HubLifecycle:
                 "robot": self.root, "why": change["why"],
                 "from": dict(src), "to": to.as_dict(),
                 **({"archived": change["archived"]} if change.get("archived") else {})})
+
+  def _keep_map(self, msg: dict) -> None:
+    """Keep the robot's list for its next run (issue #337), on every EDIT
+    an answer made -- never on a true death's reset, which the new robot
+    did not write and which would come back as `restored`."""
+    if msg.get("why") == "edit":
+      ev.save(self.thoughts.store, self.overseer.event_map, self.overseer.origin)
+
+  def _announce_map(self) -> None:
+    """What came back of the robot's kept list of rules (issue #337):
+    narrated where it came back, and a History line where a rule of it did
+    not -- a rule dropped in silence is one the robot believes it has."""
+    if self.event_map is None:
+      return
+    boss = self.overseer
+    if boss.restored:
+      n = len(self.event_map)
+      self._say(f"EVENT MAP kept from before: {n} rule{'s' if n != 1 else ''}")
+    if boss.dropped_at_load:
+      self._say(f"EVENT MAP not kept: {'; '.join(boss.dropped_at_load)}")
+      self._remember("my list of rules came back without what this world no "
+                     f"longer reads: {'; '.join(boss.dropped_at_load)}")
 
   def _remember(self, line: str) -> None:
     """Append one line to `History.md` (issue #38).
@@ -5150,6 +5184,8 @@ class HubLifecycle:
     # event for the wire -- so a period on the observatory is honest about
     # what the robot was told, and the robot can see it was edited.
     self._announce_constitution()
+    # ...and what came back of its list of rules (issue #337).
+    self._announce_map()
 
     # A real arbitration loop, not a fixed script. Priority order, and the
     # reasons: charging outranks everything (a flat robot does nothing at

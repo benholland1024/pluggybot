@@ -50,11 +50,13 @@ config.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:                                  # pragma: no cover
   from pluggybot.mind.overseer import Menu
+  from pluggybot.mind.store import Store
 
 
 #: THE EVENT VOCABULARY, v1. A two-repo-style contract in the same sense
@@ -583,6 +585,62 @@ def origin_map(origin: str, menu: "Menu") -> EventMap | None:
   return seeded(menu) if origin == "seeded" else EventMap(())
 
 
+# ---- kept between runs (issue #337) -------------------------------------------
+
+#: Where a robot keeps its map: a key in its thought root's store, beside
+#: the memory and the procedure library (the second robot's is under
+#: `r2_pluggybot/`). `HubLifecycle` writes it on every edit, reads it when
+#: the next process builds the robot, and archives it beside a fresh start
+#: at a true death (`event_map.1.json`). The origin names what a NEW robot
+#: starts with, so on a served world it governs a generation's first run.
+MAP_FILE = "event_map.json"
+
+
+def save(store: "Store", emap: EventMap, origin: str) -> None:
+  """Keep the map in force, whole, for this robot's next run."""
+  store.write(MAP_FILE, json.dumps({"origin": origin, "rows": emap.as_list()},
+                                   indent=1) + "\n")
+
+
+def load(store: "Store", menu: "Menu") -> tuple[EventMap, list[str]] | None:
+  """The map this robot left, read against TODAY's menu, and why any row no
+  longer reads; None where it left none.
+
+  ⚠ EACH ROW THROUGH `row`, the validator an answer passes, so a deploy
+  that retired an action or an event cannot restore a rule no answer could
+  now write. A row that fails is left OUT and the reason returned, for the
+  robot to be told: the library's rule (a world that moved under a
+  procedure is a fact the robot is shown), and the file keeps the row until
+  the robot's next edit replaces it. A file that is not a map keeps nothing.
+  """
+  text = store.read(MAP_FILE)
+  if text is None:
+    return None
+  try:
+    raw = json.loads(text).get("rows")
+  except (ValueError, AttributeError):
+    raw = None
+  if not isinstance(raw, list):
+    return EventMap(()), [f"{MAP_FILE} is not a list of rules"]
+  kept, dropped = [], []
+  for r in raw[:MAX_ROWS]:
+    try:
+      kept.append(row(r, menu))
+    except ValueError as e:
+      # The reason without the menu it lists: the prompt carries the menu.
+      dropped.append(f"{_said(r)} ({str(e).split(' (offered:')[0]})")
+  return EventMap(tuple(kept)), dropped
+
+
+def _said(raw) -> str:
+  """A kept row as it was written, for a line saying it no longer reads."""
+  if not isinstance(raw, dict):
+    return repr(raw)
+  when = " ".join(str(raw[k]) for k in ("event", "kind", "value")
+                  if raw.get(k) not in (None, ""))
+  return f"{when} -> {raw.get('action')}"
+
+
 # ---- what is true right now --------------------------------------------------
 
 
@@ -921,9 +979,10 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
-           "LEVEL_EVENTS", "Live", "MAX_ROWS", "NOTHING_TO_DO_KINDS",
-           "ORIGINS", "PERIODIC_EVENTS",
+           "LEVEL_EVENTS", "Live", "MAP_FILE", "MAX_ROWS",
+           "NOTHING_TO_DO_KINDS", "ORIGINS", "PERIODIC_EVENTS",
            "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
            "shadowed",
-           "kind_vocabulary", "matches_kind", "origin_map", "parse", "row",
-           "row_action", "score", "seeded", "silence", "thresholds_ordered"]
+           "kind_vocabulary", "load", "matches_kind", "origin_map", "parse",
+           "row", "row_action", "save", "score", "seeded", "silence",
+           "thresholds_ordered"]

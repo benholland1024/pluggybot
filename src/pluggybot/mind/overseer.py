@@ -2496,6 +2496,11 @@ that is written down as what happened.\
 #: robot's own queue, never the world. "There is nothing waiting" was false
 #: whenever an offer stood open, and `idle` is the sensible answer to it --
 #: 58 of 80 deployed idles were that one row. A test reads the rule for it.
+#:
+#: ⚠ ...AND THAT IT IS KEPT (issue #337). "The same list every time" was false
+#: once an hour on the served world, where the process restarts and the list
+#: went with it; a robot re-sending it filed a ticket about it. `MORTAL_RULE`'s
+#: words, so "stood back up" and "your last heart" mean one thing each.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2508,6 +2513,10 @@ it should be from now on.
 The list you have is in `eventMap` below, written the way you would write \
 it back, next to `lastAskedSAgo` -- how long it had been, in seconds, since \
 anybody last asked you anything before this question.
+
+It is KEPT. When you wake up again, and when you are stood back up after a \
+death, the list is the one you left. It goes only when your last heart does: \
+a new robot here does not start with yours.
 
 Each rule has an `event`, a `value` where the event needs one, an optional \
 `kind`, and an `action`.
@@ -3843,10 +3852,15 @@ class Overseer:
     self.origin = origin
     self.event_map = (ev.origin_map(origin, menu) if event_map is None
                       else event_map)
-    #: EVERY VERSION OF IT, in order: origin, each edit, and (read by the
-    #: record at the end) whatever stands last. The issue asks for all three
-    #: and they are one list, because an edit log whose first entry is the
-    #: origin cannot disagree with the origin.
+    #: ...UNLESS THE ROBOT KEPT ONE (issue #337; `restore_map`): whether
+    #: this run began from the list its last run left, and each kept row
+    #: today's menu refused.
+    self.restored = False
+    self.dropped_at_load: list[str] = []
+    #: EVERY VERSION OF IT, in order: origin (or the kept list), each edit,
+    #: and (read by the record at the end) whatever stands last. The issue
+    #: asks for all three and they are one list, because an edit log whose
+    #: first entry is the origin cannot disagree with the origin.
     self.map_log: list[dict] = ([] if self.event_map is None else
                                 [{"t": None, "why": origin,
                                   "map": self.event_map.as_list()}])
@@ -4601,13 +4615,49 @@ class Overseer:
     for hook in self.on_map:
       hook(dict(msg))
 
+  def restore_map(self, kept: ev.EventMap, dropped: list[str]) -> None:
+    """Start this run from the list the robot kept (issue #337; Overseer.md
+    "The list is kept until a true death"), which `HubLifecycle` reads off
+    the robot's volume before the first question. Only before the first
+    edit, and only onto a map this world has; `start_over` ends it."""
+    if self.event_map is None or len(self.map_log) != 1:
+      return
+    self.dropped_at_load = list(dropped)
+    if len(kept):
+      self.event_map, self.restored = kept, True
+    self.map_log[0] = {"t": None,
+                       "why": "restored" if self.restored else self.origin,
+                       "map": self.event_map.as_list(),
+                       **({"dropped": list(dropped)} if dropped else {})}
+
+  def start_over(self, t: float) -> dict | None:
+    """A TRUE DEATH TAKES THE LIST WITH IT (issue #337): the next robot
+    never wrote it, and starts where any new robot here starts -- the
+    origin's map, empty for `unseeded`. Returns what went, for the true
+    death's record; None where this world has no map."""
+    if self.event_map is None:
+      return None
+    before = self.event_map
+    self.event_map = ev.origin_map(self.origin, self.menu)
+    self.restored, self.dropped_at_load = False, []
+    t = round(float(t), 1)
+    self.map_log.append({"t": t, "why": "true_death",
+                         "map": self.event_map.as_list(),
+                         **ev.diff(before, self.event_map)})
+    msg = self.event_map_message(t, why="true_death")
+    for hook in self.on_map:
+      hook(dict(msg))
+    return {"rows": before.as_list()}
+
   def event_map_message(self, t: float, robot: str = ROBOT_ROOT,
                         why: str = "origin", source: str | None = None) -> dict | None:
     """The map as the wire carries it (issue #238, `protocol.
     EVENT_MAP_MESSAGE`): the rows in order as `Row.as_dict` writes them,
     the `origin`, `why` this copy was sent (`origin` when a stream opens,
-    `edit` after an answer changed it), `source` (the decision that set it;
-    None at open) and `edits` so far. None where there is no map -- a
+    `edit` after an answer changed it, `true_death` when a new robot's map
+    replaced it), `source` (the decision that set it; None otherwise),
+    `edits` so far this run, and `restored` where this run began from the
+    list the robot kept (issue #337). None where there is no map -- a
     scripted world, or origin `none` -- because "no map" and "an empty
     map" are different facts and only the second is the agent's."""
     if self.event_map is None:
@@ -4615,7 +4665,8 @@ class Overseer:
     return {"type": "event_map", "t": round(float(t), 3), "robot": robot,
             "origin": self.origin, "why": why, "source": source,
             "edits": sum(1 for e in self.map_log if e.get("why") == "edit"),
-            "rows": self.event_map.as_list()}
+            "rows": self.event_map.as_list(),
+            **({"restored": True} if self.restored else {})}
 
   def _record(self, decision: Decision, state: dict | None = None,
               error: str = "") -> None:
