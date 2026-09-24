@@ -67,6 +67,9 @@ def test_a_failed_pick_tells_a_miss_from_an_approach_that_never_got_there():
   assert "stalled" in stall and stall.startswith("the pick missed")
   never = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "no-route")
   assert "no pick was tried" in never and "missed" not in never
+  # ...and a lane the refine could not get back into (#339's budget)
+  held_off = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "blocked")
+  assert "blocked, so no pick was tried" in held_off and "missed" not in held_off
   blocked = HubLifecycle.pick_failure(_self(blocked=("Rowan", 0.14)),
                                       "module_pen", 0.1, "peer-at-bay")
   assert blocked.startswith("Rowan was standing 0.14 m from the bay")
@@ -183,23 +186,35 @@ def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
 
 
 def test_a_long_reason_never_costs_a_run_its_readout():
-  """History cuts a line at 400 characters without a mark, and a failed
-  pick's reason in front of a weighing's locals cut off `mass =` -- the one
-  number the bench grade needed recorded. The locals keep a line of their
-  own when they would not fit; a fault inside the run is named, never
-  quoted (the exception is the log's), and keeps no false count."""
-  from pluggybot.mind.thoughts import MAX_LINE_CHARS
-  why = "tag 24 did not decode even from where the house set it out, " * 3
-  run = {"ok": False, "completed": 7, "failedAt": 6, "stopped": None,
-         "steps": [{"i": 6, "verb": "pick", "line": 12, "ok": False, "reason": why}],
-         "locals": {f"reading_{k}": 1.2345 + k for k in range(11)} | {"mass": 199.876}}
+  """History cuts a line at 400 characters without a mark, its own
+  "[t=NNNNs] " stamp INSIDE the 400, and a failed pick's reason in front of
+  a weighing's locals cut off `mass =` -- the one number the bench grade
+  needed recorded. Written through History at a clock with a long stamp,
+  across every length where the old split kept "mass = 0" of
+  "mass = 0.207812", the number arrives whole or not at all. A fault inside
+  the run is named, never quoted (the exception is the log's), and keeps no
+  false count."""
+  life = _room_hub_life()
+  life.data.time = 123456.0
+  for k in range(120, 420):
+    run = {"ok": False, "completed": 7, "failedAt": 6, "stopped": None,
+           "steps": [{"i": 6, "verb": "pick", "line": 12, "ok": False, "reason": "x" * k}],
+           "locals": {"f23": 7.36057, "f0": 6.40608, "mass": 0.207812}}
+    for line in lc.procedure_outcome("weigh", run):
+      life._remember(line)
+    last = life.thoughts.read("History.md").splitlines()[-1]
+    assert "mass = 0.207812" in last, (k, last[-60:])
+  # twelve locals with long names: whole values only, and it says so
+  names = {f"reading_of_the_lift_force_number_{i:02d}": 1.2345 + i for i in range(12)}
+  run = {"ok": True, "completed": 3, "locals": names}
   lines = lc.procedure_outcome("weigh", run)
-  assert len(lines) == 2 and all(len(x) <= MAX_LINE_CHARS for x in lines)
-  assert lines[1].startswith("the procedure weigh ended with") and "mass = 199.876" in lines[1]
+  assert len(lines) == 2 and lines[1].endswith(" more)")
+  for item in lines[1].split(" ended with ")[1].rsplit(" (+", 1)[0].split(", "):
+    key, value = item.split(" = ")
+    assert names[key] == pytest.approx(float(value), abs=1e-4)
   [line] = lc.procedure_outcome("weigh", {"ok": False, "completed": 0,
                                           "error": "KeyError: 'axis'"})
   assert line == "the procedure weigh did not finish -- it stopped on a fault inside the run"
-
 
 # ---- 4. a replacement is one answer, as the prompt says --------------------
 
@@ -500,19 +515,22 @@ def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
 def test_home_route_is_a_zones_route_reversed_from_where_the_robot_stands():
   """Ladder B on the bench (2026-09-24): a weighing failed in the lab, the
   stow's single drive home across the street failed twice, and the claw
-  stayed on the fork and was lost at the garden door."""
+  stayed on the fork and was lost at the garden door. The way home starts at
+  the door the robot's ZONE is behind (`HOME_FROM`): by straight line, the
+  lobby was sent to the lab's door, the ring outside the facility into it,
+  and the south street nowhere at all (both reviews of #336)."""
   lab = lc.lab_route("home")
-  assert lc.home_route("home", (27.0, 1.5)) == lab[::-1]
-  assert lc.home_route("home", lab[2]) == lab[2::-1]
-  # ...and never out before in (review of #336): the lobby is sent to its
-  # own door, not the lab's; the garden to the house, not the gate
-  assert lc.home_route("home", (20.5, 0.0)) == lab[3::-1]
-  assert lc.home_route("home", (7.5, 1.3)) == [lab[0]]
+  assert lc.home_route("home", (27.0, 1.5)) == lab[::-1]              # the lab
+  assert lc.home_route("home", (20.5, 0.0)) == lab[3::-1]             # the lobby
+  assert lc.home_route("home", (25.0, -3.0)) == lab[3::-1]            # the store
+  assert lc.home_route("home", (17.5, 2.0)) == lab[2::-1]             # garden_2
+  for outside in ((13.0, 3.1), (28.8, 0.0), (22.0, 6.8), (8.0, -9.0)):
+    assert lc.home_route("home", outside) == lab[1::-1], outside      # the gate first
+  assert lc.home_route("home", (7.5, 1.3)) == [lab[0]]                # the garden
   rack = world_config("home")["start"][:2]
-  assert lc.home_route("home", rack) == []
-  # the workshop's single drive home works, and its legs cross the kitchen's wall
-  assert lc.home_route("home", (-8.5, 4.0)) == lc.home_route("home", (-8.5, -3.0)) == []
-
+  for inside in (rack, (-8.5, 4.0), (-8.5, -3.0)):                     # the house
+    assert lc.home_route("home", inside) == [], inside
+  assert lc.home_route("room_hub", (1.0, 1.0)) == []
 
 def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
   """`stow()` and the stow after a procedure both come home by the route
@@ -548,23 +566,25 @@ def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
 
 
 def test_a_drive_that_stalled_short_of_the_stand_is_not_a_look_from_it():
-  """Review of #336: a failed drive to the final stand still returned
-  `went`, and the robot was told the tag "did not decode even from where
-  the house set it out" when it had stopped metres short of it. A drive
-  that stagnates a few centimetres out still counts: it sees from there."""
-  _, _, stand, _ = st.prop_stand("home", 21)
+  """Review of #336: a failed drive to the final stand still reported a look
+  "from where the house set it out" when it had stopped metres short. It
+  still faces the cube and LOOKS from where it stopped -- the cube may be in
+  view, as it always was (second review) -- and a failed look says where it
+  was taken from. A drive that stagnates centimetres out is there."""
+  _, _, stand, heading = st.prop_stand("home", 21)
 
   def travel(dx):
+    faced = []
     life = SimpleNamespace(world="home", mission=SimpleNamespace(
       pose_xy=lambda: (stand[0] + dx, stand[1]),
       drive_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
-      face_routine=lambda h: tick.result(True)))
-    return tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
-  went, why = travel(2.0)
-  assert not went and why.startswith(
-    "and the drive to where the house set it out stopped 2.0 m short of it")
-  assert travel(0.3) == (True, "")
-
+      face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
+    went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+    return went, why, faced
+  went, why, faced = travel(2.0)
+  assert went and faced == [heading]
+  assert why.startswith("and the drive to where the house set it out stopped 2.0 m short of it")
+  assert travel(0.3) == (True, "", [heading])
 
 # ---- review of #336: the library's edges -----------------------------------
 
@@ -596,3 +616,33 @@ def test_a_retired_tool_on_a_peers_record_is_carried_by_nobody():
   peer = SimpleNamespace(module="probe", mission=SimpleNamespace(
     swap=SimpleNamespace(module_state=gone)))
   assert lc.carrying(peer) == ""
+  # ...and it is the FORK that is read, not the module a robot was last sent
+  # for: a failed stow of the claw, then an errand for the pen
+  riding = SimpleNamespace(module="module_pen", mission=SimpleNamespace(swap=SimpleNamespace(
+    module_state=lambda t: {"on_fork": t == "module_claw"})))
+  assert lc.carrying(riding) == "module_claw"
+
+
+def test_making_room_for_a_refused_procedure_keeps_the_one_it_would_have_replaced(monkeypatch):
+  """The refusal for a full library advises an `undefine` on the same answer
+  -- and both deployed libraries were full. Applied in order, a refused
+  define then cost the working procedure it was making room for (second
+  review of #336); the undefine now waits for a define that goes through.
+  An answer with no undefine is a plain refusal, never "kept"."""
+  L = lib.Library(lc.world_facts("room_hub"), cap=2)
+  L.define("a", "def a():\n  wait(1)\n")
+  L.define("c", "def c():\n  wait(1)\n")
+  life, _ = _deciding_life(monkeypatch, L)
+  life._define(Decision(action="idle", reason="x", undefine="a",
+                        define={"name": "b", "source": "def b():\n  import os\n"}))
+  history = life.thoughts.read("History.md")
+  assert set(L.names()) == {"a", "c"}
+  assert "could not write the procedure b, so a is kept too" in history
+  assert "forgot the procedure a" not in history
+  life._define(Decision(action="idle", reason="x", undefine="a",
+                        define={"name": "b", "source": "def b():\n  wait(2)\n"}))
+  assert set(L.names()) == {"b", "c"}                    # the room was made
+  life._define(Decision(action="idle", reason="x",
+                        define={"name": "", "source": "def x():\n  wait(1)\n"}))
+  assert "could not write the procedure :" in life.thoughts.read("History.md")
+  assert "is kept" not in life.thoughts.read("History.md").splitlines()[-1]

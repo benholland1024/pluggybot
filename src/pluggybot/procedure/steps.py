@@ -78,10 +78,10 @@ MAX_WAIT_S = 60.0
 #: Per-step drive timeout: the native errand's carry drive uses 60 s.
 DRIVE_TIMEOUT_S = 60.0
 #: A drive to where the house set a cube out that ends farther than this
-#: from it did not get there (issue #264): the look that follows is not a
-#: look "from where the house set it out", and saying it was sent a robot
-#: hunting a tag problem it did not have. A stagnated drive ends 0.1-0.3 m
-#: short and still sees the cube.
+#: from it did not get there (issue #264): the robot still looks from where
+#: it stopped, but a failed look is not one "from where the house set it
+#: out", and saying it was sent a robot hunting a tag problem it did not
+#: have. A stagnated drive ends 0.1-0.3 m short, which is there.
 STAND_SHORT_M = 0.5
 #: The lift's travel, as the plotter clips it.
 LIFT_RANGE_M = (0.02, 0.30)
@@ -508,8 +508,11 @@ def _travel_routine(life, tag: int) -> Routine:
                      f"({px:.1f}, {py:.1f})")
     short = math.hypot(stand[0] - px, stand[1] - py)
     if short > STAND_SHORT_M:
-      return False, (f"and the drive to where the house set it out stopped "
-                     f"{short:.1f} m short of it, at ({px:.1f}, {py:.1f})")
+      # ...and it LOOKS from there anyway: the cube may well be in view, as
+      # it always was before this sentence existed. Only the words change.
+      yield from life.mission.face_routine(heading)
+      return True, (f"and the drive to where the house set it out stopped "
+                    f"{short:.1f} m short of it, at ({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
   return True, ""
 
@@ -544,6 +547,8 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
       seen = yield from _spot_routine(life, tag)
       if seen is not None:
         seen = {**seen, "travelled": True}
+      elif why:                         # it looked from where it stopped short
+        unseen = f"{unseen}, {why}"
       else:
         cx, cy = prop_stand(life.world, tag)[1][:2]
         unseen = (f"tag {tag} did not decode even from where the house set it "

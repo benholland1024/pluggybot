@@ -323,6 +323,8 @@ TASKS_SHOWN = 5
 #: How many of a procedure's locals its History line carries (issue #227).
 #: A procedure's variables are its only readout; a dozen fits a line.
 LOCALS_SHOWN = 12
+#: What History's own "[t=NNNNs] " stamp takes of a line's `MAX_LINE_CHARS`.
+HISTORY_STAMP_ROOM = 16
 #: What a bay approach that came away empty-handed DID, in the words the
 #: robot reads back (issue #264): `HubMission.swap_at_bay_routine` answers
 #: one of these and every caller used to throw it away, so History said "the
@@ -386,11 +388,22 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
             + ("" if run.get("error") else f" ({steps_said} had run)"))
   if not run.get("locals"):
     return [line]
-  shown = ", ".join(f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN])
-  tail = f" -- it ended with {shown}"
-  if len(line) + len(tail) <= MAX_LINE_CHARS:
+  items = [f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
+  # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
+  # room is less than the cap -- measured on the second review: a 397-char
+  # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
+  room = MAX_LINE_CHARS - HISTORY_STAMP_ROOM
+  tail = f" -- it ended with {', '.join(items)}"
+  if len(line) + len(tail) <= room:
     return [line + tail]
-  return [line, f"the procedure {name} ended with {shown}"]
+  head, shown = f"the procedure {name} ended with ", []
+  for item in items:
+    left = len(items) - len(shown) - 1
+    if len(head + ", ".join(shown + [item])) + (len(f" (+{left} more)") if left else 0) > room:
+      break
+    shown.append(item)
+  left = len(items) - len(shown)
+  return [line, head + ", ".join(shown) + (f" (+{left} more)" if left else "")]
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
 #: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because
@@ -1207,6 +1220,9 @@ class HubLifecycle:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
                 "so no pick was tried; it is still hanging there")
+      if why == "blocked":        # `refine_standoff` gave up (issue #339)
+        return ("the way back to where the fork lines up with its bay was "
+                "blocked, so no pick was tried; it is still hanging there")
       how = PICK_WHY.get(why)
       return ("the pick missed and it is still on its bay"
               + (f" ({how})" if how else ""))
@@ -3813,18 +3829,28 @@ class HubLifecycle:
       return {"library": {"names": list(library.names()), "cap": library.cap}}
     name = str((decision.define or {}).get("name", "")).strip()
     source = (decision.define or {}).get("source", "")
-    # ONE NAME ON BOTH is a rewrite, and it is checked before anything
+    # AN ANSWER THAT UNDEFINES AND DEFINES is checked before anything
     # changes (issue #264, `Library.check`): applied in order, a refused
-    # define had already deleted the procedure it was meant to improve.
-    if decision.define and decision.undefine == name:
-      held = library.check(name, source)
+    # define had already deleted the procedure it was meant to improve -- or
+    # to make room for, which the refusal for a full library advises. The
+    # undefine waits for a define that goes through.
+    if decision.define and decision.undefine:
+      held = library.check(name, source, freeing=decision.undefine)
       if held:
+        kept = decision.undefine if decision.undefine in library.names() else ""
         library.refusals.append({"t": t, "verb": "define", "name": name,
                                  "reasons": held})
-        self._say(f"PROCEDURE define {name!r} refused: {'; '.join(held)} "
-                  f"-- {name} is kept as it was")
-        self._remember(f"could not rewrite the procedure {name} -- the one I "
-                       "had is kept: " + "; ".join(held))
+        self._say(f"PROCEDURE define {name!r} refused: {'; '.join(held)}"
+                  + (f" -- {kept} is kept as it was" if kept else ""))
+        if kept == name:
+          said = f"could not rewrite the procedure {name} -- the one I had is kept"
+        elif kept:
+          said = (f"could not write the procedure {name}, so {kept} is kept "
+                  "too -- the undefine on the same answer waits for a define "
+                  "that goes through")
+        else:
+          said = f"could not write the procedure {name}"
+        self._remember(f"{said}: " + "; ".join(held))
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": held, "source": source,
                     **shelf()})
@@ -5776,33 +5802,36 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
   return legs[i:]
 
 
+#: Where a stow's way home starts, by the ZONE the robot stands in (issue
+#: #264), as an index into `lab_route`: the living room's side of the garden
+#: door (0), the gate (1), the other gate (2), the lobby's door (3), the lab's
+#: (4). The route is a chain of doors, so the zone -- not the nearest leg by
+#: straight line -- says which door is next: from outside the facility the
+#: nearest leg was its lab's door, and from the south street none at all
+#: (second review of #336). A zone not named is the house: no legs.
+HOME_FROM = {"lab": 4, "lobby": 3, "store": 3, "garden_2": 2,
+             "sidewalk": 1, "street": 1, "sidewalk_2": 1,
+             "sidewalk_north": 1, "sidewalk_south": 1, "sidewalk_west": 1,
+             "sidewalk_east": 1, "sidewalk_2_north": 1, "sidewalk_2_south": 1,
+             "street_north": 1, "street_south": 1, "street_west": 1,
+             "street_east": 1, "garden": 0, "garden_south": 0}
+
+
 def home_route(world: str, from_xy: tuple[float, float]) -> list[tuple[float, float]]:
   """The legs BACK to the house from out along the lab's route: that route
-  reversed, from the leg nearest the robot, dropping any leg that lies
-  farther out than the robot does -- a stow from the garden is not sent to
-  the gate first, nor one from the lobby to the lab's door. Nothing at the
-  house end. Why (issue #264, ladder B): a weighing that failed in the lab
-  left the claw on the fork, the swap's single drive home across 30 m of
-  street failed twice, and the claw was lost at the garden door.
-
-  The lab's route only: the workshop's single drive home was measured to
-  work, and its legs pass through the workshop doorway -- from the kitchen
-  beside it, through a wall and back."""
+  reversed from the door the robot's zone is behind (`HOME_FROM`). Nothing
+  in the house. Why (issue #264, ladder B): a weighing that failed in the
+  lab left the claw on the fork, the swap's single drive home across 30 m
+  of street failed twice, and the claw was lost at the garden door. The
+  workshop's single drive home was measured to work."""
   legs = lab_route(world)
   if not legs:
     return []
   fx, fy = from_xy
-  dist = [math.hypot(x - fx, y - fy) for x, y in legs]
-  i = min(range(len(legs)), key=dist.__getitem__)
-  if i == 0:
-    return []
-  hx, hy = legs[0]
-  out = math.hypot(fx - hx, fy - hy)
-  back = legs[i::-1]
-  while back and math.hypot(back[0][0] - hx, back[0][1] - hy) > out:
-    back = back[1:]
-  return back
-
+  zone = next((z["name"] for z in world_config(world)["zones"]
+               if z["min"][0] <= fx <= z["max"][0] and z["min"][1] <= fy <= z["max"][1]
+               and z["name"] in HOME_FROM), None)
+  return [] if zone is None else legs[HOME_FROM[zone]::-1]
 
 def cage_program(world: str, act: str,
                  from_xy: tuple[float, float] | None = None):
@@ -5869,16 +5898,15 @@ def load_program(path: str, world: str):
 
 
 def carrying(other) -> str:
-  """What another robot carries, as its PUBLIC surface says it: its module,
-  verified on its own fork -- one definition for `others_context` and for
-  naming who holds a tool a pick came away without (issue #264)."""
-  module = getattr(other, "module", "")
-  if not module:
-    return ""
-  try:
-    return module if other.mission.swap.module_state(module)["on_fork"] else ""
-  except (KeyError, ValueError):
-    return ""                     # no longer in the world: a retired built tool
+  """What another robot carries, as its PUBLIC surface says it: whatever is
+  ON ITS FORK, off the coupling (`steps._carried`) -- one definition for
+  `others_context` and for naming who holds a tool a pick came away without
+  (issue #264). Not the module it was last sent for: a failed stow leaves
+  that one riding while the next errand names another (second review)."""
+  from pluggybot.procedure.steps import _carried
+  if getattr(getattr(other, "mission", None), "swap", None) is None:
+    return ""                    # a robot that shows no fork shows nothing on it
+  return _carried(other) or ""
 
 
 def others_context(life) -> list[dict]:

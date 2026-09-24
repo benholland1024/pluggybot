@@ -237,19 +237,33 @@ class Library:
     self.undefined += 1
     self.store.remove(f"{name}{SUFFIX}")
 
-  def check(self, name: str, source: str) -> list[str]:
-    """What `define` would refuse this source for once `name` is free: the
-    name and the language -- never "already defined" or "full", which an
-    `undefine` of the same name on the same answer resolves (issue #264).
-    Changes nothing: the lifecycle asks BEFORE that undefine, because in
-    order a refused rewrite had already deleted the procedure it was meant
-    to improve. There is still no replace: `define` and `undefine` are the
-    library's only two changes."""
+  def check(self, name: str, source: str, freeing: str = "") -> list[str]:
+    """What `define` would refuse this source for once `freeing` -- an entry
+    the same answer undefines -- is gone: every reason `define` gives, in its
+    words (issue #264). Changes nothing: the lifecycle asks BEFORE that
+    undefine, because in order a refused define had already deleted the
+    procedure it was meant to improve or to make room for. There is still no
+    replace: `define` and `undefine` are the library's only two changes."""
     name = str(name or "").strip()
+    freeing = str(freeing or "").strip()
+    held = [e for e in self.entries if e != freeing]
+    reasons: list[str] = []
     if not _NAME.match(name):
-      return [f"{name!r} is not a name this library allows"]
-    if name == "new":
-      return [NEW_REFUSED]
+      reasons.append(f"{name!r} is not a name this library allows")
+    elif name == "new":
+      reasons.append(NEW_REFUSED)
+    if name in held:
+      reasons.append(f"{name!r} is already defined -- to replace it, put "
+                     f"{name!r} in `undefine` on the same answer as this "
+                     "define: the undefine is done first")
+    try:
+      registry.admit(ROW, registry.ROBOT, len(held) + 1, cap=self.cap)
+    except registry.Refused:
+      reasons.append(f"the library is full (it holds {self.cap}) -- an "
+                     "`undefine` on the same answer as this define makes room "
+                     "first")
+    if reasons:
+      return reasons
     try:
       proc = lang.compile_procedure(source, self.facts)
     except Refused as e:

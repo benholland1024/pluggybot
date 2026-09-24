@@ -2719,8 +2719,8 @@ out; whatever it fetched is hung back up either way. A step fails when the
 world says so -- a tool not seated, a drive that did not arrive, a target
 outside an axis's range. When a run ends, one line in your History says how
 far it got, and if it stopped short, the line and the reason; the values of
-its variables are on the same line: that is how a number you `read` inside
-a procedure reaches you.
+its variables follow, on that line or the next: that is how a number you
+`read` inside a procedure reaches you.
 
 To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
 on any answer; it costs no turn. To run it on that same answer, choose the
