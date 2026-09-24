@@ -1751,7 +1751,9 @@ stand-up warps and refills but keeps the map. **What is true now:** a scan
 goes into the map only while `HubMission.level()`, within `MAP_TILT_RAD`
 (1.5°) of level. Past 1.6° the scan plane meets the floor inside the 8 m
 range (the LIDAR sits 0.223 m up); draw, census and dance tilt the chassis
-0.66° at most and the charge press 1.40°, measured, while crossing a 21 mm
+0.66° at most and the charge creep's bumper contact spikes to 1.4-1.7° for
+about 20 ms (one scan skipped per dock; the held press is under 0.1°),
+measured, while crossing a 21 mm
 plate pad tilts it 4.3-8.1° for about 2 s -- those scans are skipped, and
 at that tilt they had been painting floor-hit arcs 1.6-3 m out on every
 crossing. The rack finder's sightings and the near-field height map take

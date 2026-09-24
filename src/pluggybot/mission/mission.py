@@ -90,12 +90,13 @@ FACING_TOLERANCE = math.radians(0.5)
 #: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
 #: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
 #: the sky -- "free to max range", 8 m through every wall, for as long as
-#: it lies there. MEASURED on the home world: draw, census and dance peak
-#: at 0.66 deg (median 0.018), the charge press at 1.40; crossing a 21 mm
-#: plate pad tilts it 4.3-8.1 deg for ~2 s, and those scans are skipped --
-#: at that tilt they painted floor-hit arcs 1.6-3 m out. A skipped scan
-#: costs a tenth of a second of map; a wrong one costs the map. The reflex
-#: still reads every scan.
+#: it lies there. MEASURED: draw, census and dance peak at 0.66 deg on the
+#: home world (median 0.018); the charge creep's bumper contact spikes to
+#: 1.4-1.7 for ~20 ms, home and room_hub (a scan skipped per dock; the held
+#: press < 0.1); a 21 mm plate pad tilts it 4.3-8.1 deg for ~2 s, and those
+#: scans are skipped -- at that tilt they painted floor-hit arcs 1.6-3 m
+#: out. A skipped scan costs a tenth of a second of map; a wrong one costs
+#: the map. The reflex still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 SERVO_PERIOD = 0.25       # s between fiducial looks (the detector cadence)

@@ -851,11 +851,11 @@ class HubLifecycle:
     frame = self.depth_camera.frame(self.data)
     if self.mission.level():      # the grid's rule (issue #339): level, or no map
       self.near_field.update(self.mission.pose, frame.points)
+      self.near_field_frames += 1           # frames FOLDED IN, as the summary says
     # ...and the peers that same frame saw, which the map is not told about
     # and the drive is (issue #328). One frame, two consumers, the split
     # `Lidar.scan_split` already makes one sensor along.
     self.mission.watch_for_peers(frame.peers)
-    self.near_field_frames += 1
 
   # ---- death (issue #107) --------------------------------------------------
 
