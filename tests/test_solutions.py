@@ -576,3 +576,89 @@ def test_a_claw_lowered_by_a_procedure_is_stowed_from_the_pick_height(tmp_path):
   verdict = tick.run(m.swap, st._stow(life, {}))
   assert verdict["ok"], verdict
   assert m.swap.module_state("module_claw")["hung"]
+
+
+# ---- issue #353: the robot's own procedures, on the pair -------------------
+
+#: Rowan's own, verbatim off the observatory's `procedure` rows (build
+#: 42f4a11). The tower names no `fetch` and failed at `pick(20)` twice in a
+#: day; the weighing's `drive_to(22.0, 3.0)` from the house stopped 6.6-9.1 m
+#: short three times.
+ROWAN_TOWER = '''def build_tower():
+    budget(steps=80, seconds=900)
+    drive_to(-9.7, -4.75)
+    look()
+    pick(20)
+    look()
+    place(21)
+    look()
+    pick(22)
+    look()
+    place(20)
+'''
+ROWAN_WEIGHING = '''def mass_check():
+    budget(steps=60, seconds=900)
+    fetch("module_claw")
+    drive_to(22.0, 3.0)
+    drive_to(26.8, 1.6)
+    f0a = read("lift.force")
+    f0b = read("lift.force")
+    f0c = read("lift.force")
+    pick(24)
+    wait(2)
+    f1a = read("lift.force")
+    f1b = read("lift.force")
+    f1c = read("lift.force")
+    stow()
+'''
+
+
+def _rowan_on_the_pair(tmp_path, feature: str, source: str):
+  """Rowan flies `source` from the hall, Luca standing at the rack (the
+  home pair as deployed, `solve.py --pair --robot 2`)."""
+  import sys
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  from pluggybot.lifecycle import world_config
+  lives, life = demo.build_pair_lives(2, str(tmp_path))
+  cfg = world_config("home")
+  for each, start in zip(lives, (cfg["start"], cfg["start2"])):
+    each.mission.start_at(*start)
+    each.mission.start_discovery()
+    each.mission._spin()
+  try:
+    return life, demo.fly_beside(lives, life, demo.run_routine(life, feature, source))
+  finally:
+    for each in lives:
+      each.mission.close()
+
+
+@pytest.mark.endurance
+def test_rowans_own_tower_stands_on_the_pair(tmp_path):
+  """Issue #353, whole: the `drive_to` walks the workshop's doorways from
+  the hall, `pick(20)` fetches the claw itself, and the tower stands --
+  MEASURED 459 sim s, 5.7 mm of lean. ~10 min wall on a busy box; every
+  rule is pinned fast (tests/test_house_route.py, the claw tests above)."""
+  life, out = _rowan_on_the_pair(tmp_path, "tower", ROWAN_TOWER)
+  proc = out["errand"]["procedure"]
+  assert proc["ok"] and proc["toolsHung"], proc
+  drive, picks = proc["steps"][0], [s for s in proc["steps"] if s["verb"] == "pick"]
+  assert drive["ok"] and drive["route"], drive
+  assert picks[0]["fetched"] == "module_claw" and all(p["ok"] for p in picks)
+  assert out["grade"]["ok"], out["grade"]
+  assert life.mission.swap.module_state("module_claw")["hung"]
+
+
+@pytest.mark.endurance
+def test_rowans_own_weighing_crosses_the_street_and_takes_the_cube(tmp_path):
+  """Issue #353's own claim: a procedure written as Rowan wrote it --
+  `drive_to(22, 3)` from the house, then `pick(24)` -- now arrives. The
+  grade still fails: it reads a finding this procedure never records,
+  which is the robot's part. ~8 min wall on a busy box."""
+  life, out = _rowan_on_the_pair(tmp_path, "bench", ROWAN_WEIGHING)
+  proc = out["errand"]["procedure"]
+  assert proc["ok"] and proc["toolsHung"], proc
+  street = next(s for s in proc["steps"] if s["verb"] == "drive_to")
+  assert street["ok"] and len(street["route"]) == 4, street
+  pick = next(s for s in proc["steps"] if s["verb"] == "pick")
+  assert pick["ok"] and pick["holding"] == "mass_unknown_box", pick
