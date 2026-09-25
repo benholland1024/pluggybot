@@ -149,10 +149,13 @@ def test_the_loop_reports_once_per_episode(tmp_path):
   deadline = time.monotonic() + 30.0
   while dog.ticks < len(series) + 3 and time.monotonic() < deadline:
     time.sleep(0.01)
+  before_close = (tmp_path / "log.txt").read_text()
   dog.close("the test ended")
   out.close()
   text = (tmp_path / "log.txt").read_text()
   assert dog.ticks >= len(series) + 3
+  assert "allocated since the onset is still held" in before_close, \
+    "the THREAD reports, trace_s after the onset -- not close() at the end"
   assert text.count("vitals: RUNAWAY") == 1
   assert text.count("allocated since the onset is still held") == 1
   assert text.count("every thread's stack, 0 s on") == 1
