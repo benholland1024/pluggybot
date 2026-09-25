@@ -1180,7 +1180,8 @@ save a filmstrip PNG named after the script.
   OWN RAIL (issue #277): `build_tool.bay` is the rail's `A`–`C`
   (`BAY_LETTERS` off `BUILT_STATION_YS`; `D`/`E` refused with whose bay
   they are), `retire_tool` refuses an original with the reason, the context
-  shows `rack: {original: [...], built: {A..C: {module, by}|null}}` —
+  shows `built: {A..C: {module, by, where}|null}` beside `rack.original`
+  (next bullet) —
   `by` is "you" or the other robot's name, off `HubLifecycle.built_by()`,
   because the rail is the WORLD's and the TAG cannot say it (a built
   module's tag is `15 + bay`, the bay's, reused by the next tool there;
@@ -1231,6 +1232,22 @@ save a filmstrip PNG named after the script.
   `guarded`'s schema, prefix and `GUARDED_RULES_SHA` are unchanged (a
   guarded parse DROPS the fields). ⚠ The prompt's example may not mention
   charge / battery / survival (a test reads the example block).
+- **The rack view says where each tool IS, off three sources and nothing
+  else** (issue #351; Overseer.md §2i; `lifecycle.tool_places`,
+  `tests/test_rack_view.py`). `rack.original` is module → `on bay C` / `on
+  your fork` / `on Rowan's fork` / `not on its bay and on no fork` (a
+  built tool: `on its bay` — the rail's letters are the first rack's too),
+  off its bay's presence switch (`coupling.bay_switches`, catalog
+  `bay_switch`: what the rack reports over the network, one per bay,
+  read off the contact list), this robot's fork, and the others'
+  `carrying`. ⚠ The switch says a bay is TAKEN, never by what, so a
+  named fork outranks it and the view never says which module fills a
+  bay; a lost tool gets no position (a test walks the context). ⚠ ON EVERY
+  ARM — a fact, not a rail: `guarded` gets `original` and no rail, and
+  `GUARDED_RULES_SHA` does not move. ⚠ The INVENTORY is where a module
+  BELONGS (procedures validate against it); what hangs where, off the
+  world, is `HubLifecycle.racked()`, and a `tell` claim about the rack is
+  graded against that.
 - **A recording is a MIXED stream** (protocol 0.4.0): `draw`, `board_cleared`,
   `earned` and other event lines ride between frames; dispatch on `type`, no
   `type` means frame, ignore a type you do not know. Ink is NEVER MuJoCo

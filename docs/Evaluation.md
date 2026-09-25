@@ -176,6 +176,12 @@ two-robot series is never pooled with a single-robot one, and the rollup's
 series key must carry the robot count when the wire lands (slice E). The
 single-robot prefix is unchanged.
 
+**Every world's context carries `rack`** (issue #351): where each tool is,
+off a presence switch per bay, the robot's own fork and the other robot's
+`carrying`. It is on `guarded` and `autonomous` alike, because it is a fact
+and not a rail. `guarded`'s prefix is unchanged but its context is not: a
+`guarded` series flown before this saw no `rack` block (Overseer.md §2i).
+
 ### What the `autonomous` arm turns on, and where
 
 | | where | note |

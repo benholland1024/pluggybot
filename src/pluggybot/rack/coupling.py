@@ -553,6 +553,36 @@ def rack_charge_contact(model, data, prefix: str = "") -> bool:
   return bool(np.any(others == pin_l) and np.any(others == pin_r))
 
 
+#: The V a bay's presence switch sits in (issue #351): ONE switch a bay, in
+#: the +y tray, so a module hanging by its other end alone reads absent --
+#: as it would on a rack with one switch a bay.
+BAY_SWITCH_PLATES = ("tray_l_a", "tray_l_b")
+
+
+def bay_switches(model, data) -> tuple[bool | None, ...]:
+  """Each bay's presence switch, by `STATION_YS` index: True while anything
+  rests in its V, None where this world has no such bay (no built rail).
+
+  What the rack reports over the network, and all it reports (issue #351):
+  a bay is occupied, never by WHICH module -- a module hung in another's
+  bay presses that bay's switch. Read off the contact list, as the bumper
+  is (catalog `bay_switch`); the switch's force is not modelled.
+
+  No debounce, MEASURED: on home, 2.0 M samples over a 472 s charge press
+  and a carry, a switch disagreed with its module only while that module
+  was being swapped (at most 44 ms) and for one step as the world settled
+  in its first second, before any decision."""
+  g = contact_pairs(data)
+  out: list[bool | None] = []
+  for i in range(len(STATION_YS)):
+    ids = [geom_id(model, bay_prefix(i) + p) for p in BAY_SWITCH_PLATES]
+    if any(gid is None for gid in ids):
+      out.append(None)
+      continue
+    out.append(bool(g.shape[0]) and bool(np.isin(g, ids).any()))
+  return tuple(out)
+
+
 def _bay_xml(prefix: str, y: float, tag_id: int) -> str:
   """One tool bay: two rail-hung brackets ending in V-trays at the hang
   plane, plus a small bay tag (fiducial placeholder) on the rail above."""
