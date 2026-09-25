@@ -1875,6 +1875,25 @@ save a filmstrip PNG named after the script.
   behind it. The rescue takes the tool home with it (`_return_module`,
   shared with `reset_tool`), because the timer has nobody to notice a
   module left on the floor and that is a bay empty for good.
+- **A tool on the floor goes home by itself, and a drive carries the tool
+  posed** (issue #347; `tests/test_tools_on_the_floor.py`). A module
+  `lost` (`HubLifecycle.tool_whereabouts`: on no robot's fork, alive or
+  dead, seated or resting; not at a bay a swap is working,
+  `HubMission.swapping_at`; not hung on its OWN bay -- one bay over is
+  lost) for `LOST_TOOL_S` (300 sim s) without a break goes back through
+  `_return_module`: a `reset_tool` event by `auto-restart`, NEVER an
+  intervention, and a History line in every robot's. A parameter
+  (`lost_tool_after_s`) on `restart_after_s`' terms: ON in `serve.py`
+  (`--lost-tool-after`), OFF in the harness, and ticked on the FIRST
+  robot's seam alone on a pair. ⚠ Every verb that moves the base is
+  `Verb.drives` and goes through `steps.run_verb`, which puts the fork into
+  its carrying pose first (`travel_pose`: a tool's axes to their compiled
+  rest, the arm in, `MODULE_DRIVE_LIFT`; a claw holding a cube keeps it at
+  `CARRY_LIFT`, arm out); a new driving verb sets the flag. ⚠ A procedure's
+  `draw` takes the planner to `use_at` before the use-phase:
+  `drive_to_board_routine` is a straight line with no planner, and from the
+  rack it knocked Rowan over six times of six (SimNotes, "A drawing that
+  set off from the rack").
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md). An errand is machinery (a tool, a place, a
   use-phase); an activity is scenery that reacts; a task is what the house

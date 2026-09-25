@@ -10,6 +10,33 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Tools on the floor (#347) — opens when this PR is deployed
+
+**What changed in the world.** A tool that lies on no bay and on no robot's
+fork for 5 minutes goes back on its bay by itself; until now it stayed on
+the floor until a person reset it, which Ben did 9 times in the 7 days to
+2026-09-24 (8 of them the pen). A procedure's `draw` now takes the
+planner's route to its board. It used to drive straight at the board from
+wherever the robot stood, and every live `pen_check` that reached `draw`
+knocked Rowan over (6 of 6). Every procedure verb that moves the robot now
+puts the tool into its carrying pose first. SimNotes, "A drawing that set
+off from the rack", has the measurements.
+
+**What the period is for.** Phase 1's gate (#344) includes "no manual tool
+reset over 24 hours". The rows to read are `?kind=intervention` with
+subject `reset_tool`: a person's (`ADMIN <who> reset …`, counted as an
+intervention, as before) against the world's (`data.by` `auto-restart`,
+never counted). The world's rows only appear once the website half
+(rooftop-media-2026, the `reset_tool` event) is deployed too; before that
+the sim log's `WORLD put <module> back on its bay` lines are the count. The
+previous period's `stuck` deaths are the other number: 14 in the 7 days,
+6 of them `pen_check`'s draw.
+
+**Not yet known.** How often tools still FALL: this period brings them back,
+which hides how often they fall unless the world's rows are counted. And
+whether the topples this does not explain continue: the ones during swaps
+at the rack and the two on explores (#347's reading in its PR).
+
 ### The pair waits its turn at the rack (#346) — opens when this PR is deployed
 
 **What changed in the world.** On the pair, a bay the other robot stands on

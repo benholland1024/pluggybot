@@ -341,10 +341,11 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
 
 def travel_pose_routine(life) -> Routine:
   """Whatever is on the fork into its carrying pose, ramped, before a verb
-  drives (issue #347); only what a procedure moved is moved back. MEASURED
-  live: Rowan's `pen_check` left the lift at 0.15, the arm at 0.10 and the
-  carriage at 0.03, `draw` drove off like that, and the robot was knocked
-  over 16 s later with the pen 3.7 m from its bay."""
+  drives (issue #347); only what a procedure moved is moved back. A
+  procedure leaves the axes anywhere -- Rowan's `pen_check` drove off with
+  the lift at 0.15, the arm at 0.10 and the carriage at 0.03 -- and until
+  this only a RETURN restored them. (What knocked Rowan over was `draw`'s
+  straight line, not the pose: see `_draw`.)"""
   moved = False
   for act, target, speed in travel_pose(life, _carried(life)):
     if abs(float(life.data.ctrl[act]) - target) > POSE_TOL:
@@ -776,8 +777,9 @@ def _draw(life, args: dict) -> Routine:
   # ⚠ THE ROUTE FIRST, as the native errand's carry drive (issue #347). The
   # use-phase's own approach is a straight line with no planner, meant to
   # settle from `use_at`; called from the rack it drove at whiteboard_b
-  # through the house, and Rowan was knocked over on all six live runs of
-  # a `pen_check` that drew there.
+  # through the house. Every live `pen_check` that reached `draw` knocked
+  # Rowan over, six of six, in the carrying pose or out of it; MEASURED
+  # locally, 94 deg 14 s in and the pen 3.7 m from its bay, as live.
   if not (yield from life.mission.drive_to_routine(*errand.use_at,
                                                    timeout=DRIVE_TIMEOUT_S)):
     px, py, _ = life.mission.pose

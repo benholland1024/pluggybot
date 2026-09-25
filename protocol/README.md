@@ -58,6 +58,33 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: the world puts a lost tool back (`reset_tool`, upstream)
+
+pluggybot #347. A module on no bay and on no robot's fork, and at no bay a
+swap is working, for `LOST_TOOL_S` (300 sim s) without a break, goes back on
+its bay by itself on a served world, and says so between the frames:
+
+```jsonc
+{"type": "reset_tool", "t": 2411.0, "robot": "pluggybot",
+ "module": "module_pen", "by": "auto-restart", "auto": true,
+ "intervention": false, "lostS": 300.0}
+```
+
+`reset`'s shape one object down: `by` is the label (`auto-restart`, as the
+auto stand-up's), `auto` the fact, `lostS` how long it lay there. ⚠ **NEVER
+AN INTERVENTION**, and `intervention` is always `false`: a timer is not a
+hand, so no `intervention` event follows and nothing may count one. `robot`
+is the root whose seam ticks the clock (the primary on a pair); the tool is
+the world's, and every robot's History gets the line "module_pen lay on the
+floor for 5 minutes and was put back on its bay".
+
+The name is the inbound kind's, on `message`'s terms -- the same word in
+both directions. An ADMIN's `reset_tool` sends no event: its only carrier
+is still the narration line `ADMIN <who> reset <module> -- back on its bay`,
+which this event's own narration (`WORLD put <module> back on its bay ...`)
+deliberately does not match. **No bump**: a new event type, which a
+consumer ignores until it knows it, and no fixture carries one.
+
 ### 0.21.0, additive: where a run failed, and the library on its own events (`failedLine`, `failedReason`, `library`)
 
 rooftop-media-2026 #342, which shows each robot's procedures on the site.
