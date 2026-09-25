@@ -2730,7 +2730,12 @@ else: no strings except a verb's or read's argument, no other calls, no
 imports. A procedure runs until it finishes, a step fails, or a budget runs
 out; whatever it fetched is hung back up either way. A step fails when the
 world says so -- a tool not seated, a drive that did not arrive, a target
-outside an axis's range. When a run ends, one line in your History says how
+outside an axis's range. A verb that moves the robot (%(drivers)s) first
+draws the arm in and puts a tool on the fork back in its carrying pose: the
+lift where a fetch leaves it and the tool's own axes at rest, except that a
+cube in the claw stays held, out in front at carrying height. So a pose set
+with `move` or `set_lift` lasts until the next of them.
+When a run ends, one line in your History says how
 far it got, and if it stopped short, the line and the reason; the values of
 its variables follow, on that line or the next: that is how a number you
 `read` inside a procedure reaches you.
@@ -2765,7 +2770,8 @@ SENSORS for `read("<sensor>")` -- one number, measured
 def procedure_rule() -> str:
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import describe_vocabulary
+  from pluggybot.procedure.steps import VERBS, describe_vocabulary
+  drivers = ", ".join(f"`{name}`" for name, v in VERBS.items() if v.drives)
   verbs = "\n".join(
     f"  {v['verb']}({', '.join(v['args'])})  -- {v['doc']}"
     for v in describe_vocabulary())
@@ -2778,7 +2784,8 @@ def procedure_rule() -> str:
     f"  {s['name']} -- {s['doc']}"
     + (f" (requires {s['requires']})" if s["requires"] else "")
     for s in reg["sensors"])
-  return (PROCEDURE_HEAD % {"cap": MAX_PROCEDURES} + verbs + PROCEDURE_TAIL
+  return (PROCEDURE_HEAD % {"cap": MAX_PROCEDURES, "drivers": drivers}
+          + verbs + PROCEDURE_TAIL
           + ax + PROCEDURE_SENSORS + se)
 
 

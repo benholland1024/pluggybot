@@ -202,6 +202,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # robot's fork off it.
   for life in lives[1:]:
     life.rack_inventory = lives[0].rack_inventory
+    # ...and the lost-tool clock is the world's (issue #347): one hand, on
+    # the first robot's seam, or a tool would be put back twice
+    life.lost_tool_after_s = None
   # Each mission is told where the OTHERS say they are, its lidar drops
   # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
   # and its mind is shown what they broadcast (`peers`).

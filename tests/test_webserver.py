@@ -1191,6 +1191,21 @@ def test_a_served_robot_stands_itself_up_and_a_measured_one_does_not(
       "a measured run is about ONE life (issue #143)"
 
 
+def test_a_served_world_puts_a_lost_tool_back_and_a_measured_one_does_not(monkeypatch):
+  """Issue #347, on #143's terms: ON here, a parameter, 0 turns it off; the
+  harness never passes one (`HubLifecycle` defaults it off)."""
+  from pluggybot import lifecycle as lc
+
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
+  assert life.init_kwargs["lost_tool_after_s"] == lc.LOST_TOOL_S == 300.0
+  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
+                                           "--lost-tool-after", "0"])
+  assert life.init_kwargs["lost_tool_after_s"] is None
+  import inspect
+  default = inspect.signature(lc.HubLifecycle).parameters["lost_tool_after_s"].default
+  assert default is None
+
+
 def test_the_served_arm_and_the_flown_arm_are_one_definition(monkeypatch):
   """Issue #142's shape rule. `serve.py` could REPORT an arm and not set one:
   its identity read `autonomous` off `life.autonomous`, which nothing on that
@@ -1394,6 +1409,9 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   assert pub.init_kwargs["ledger"] is a.ledger._ledger is b.ledger._ledger
   assert pub.init_kwargs["tasks"] is a.tasks is b.tasks
   assert a.mode is not None and b.mode is None, "one switch, on the primary"
+  from pluggybot.lifecycle import LOST_TOOL_S
+  assert (a.lost_tool_after_s, b.lost_tool_after_s) == (LOST_TOOL_S, None), \
+      "one hand for a lost tool, on the primary's seam (issue #347)"
   # Every per-robot sink on BOTH lifecycles, and a line says whose it is.
   for life in (a, b):
     assert pub.message in life.on_event and pub.message in life.visitor_hooks

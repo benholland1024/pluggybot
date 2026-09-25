@@ -575,7 +575,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
     if bad:
       verdict = {"ok": False, "reason": "; ".join(bad)}
     else:
-      verdict = yield from spec.run(life, values)
+      verdict = yield from st.run_verb(life, spec, values)
     entry = {"i": count - 1, "verb": verb, "line": line, **verdict}
     result["steps"].append(entry)
     if not verdict.get("ok"):
