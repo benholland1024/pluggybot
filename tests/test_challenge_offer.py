@@ -145,7 +145,7 @@ def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
   [task] = board.offered()
   assert task.kind == "stack_tower" and task.target == "workshop"
   assert "workshop" in task.description and "say you are done" in task.description
-  assert task.reward(board.table)["base"] == 40
+  assert task.reward(board.table)["base"] == 90
 
 
 # ---- 2. the claim queues nothing ------------------------------------------
