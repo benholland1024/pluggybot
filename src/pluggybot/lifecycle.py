@@ -38,7 +38,7 @@ import numpy as np
 from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
-  BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS,
+  BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
   built_bay_index, module_power_contact, rack_charge_contact,
 )
 from pluggybot.economy.census import Zone
@@ -198,6 +198,25 @@ RESTART_AFTER_S = 300.0
 #: the rack is occupied again by the time the parts are ready.
 HANG_WAIT_S = 600.0
 SEAM_POLL_S = 5.0
+
+#: How long a tool lies lost before the world puts it back on its bay
+#: (issue #347), in SIM seconds: on no bay, on no robot's fork -- alive or
+#: dead, seated or not -- and not at a bay a swap is working, the whole time.
+#: Ben's number (2026-09-24), the stand-up's five minutes on the stand-up's
+#: terms: a PARAMETER (`lost_tool_after_s`), ON in `serve.py` and OFF in
+#: `experiment.py`, and never an intervention. Nine hand resets in a week
+#: (eight of them the pen) were a person doing this job; until one did, every
+#: job needing the tool failed and both robots' History filled with it.
+LOST_TOOL_S = 300.0
+#: ...checked once a sim second, `EVENTS_CHECK_S`'s reason: a lost tool is
+#: minutes, and reading every module every physics step learns nothing.
+LOST_TOOL_CHECK_S = 1.0
+
+
+def _minutes(s: float) -> str:
+  """300 -> "5 minutes": a span as a History line says it."""
+  m = round(s / 60.0, 1)
+  return f"{m:g} minute{'' if m == 1 else 's'}"
 
 #: Who a `reset` event names when the WORLD did it rather than a person. A
 #: sentinel, because `by` is the label an operator log prints and a consumer
@@ -511,6 +530,7 @@ class HubLifecycle:
                energy=None, thoughts=None, metabolism=None,
                mortal: bool | None = None,
                restart_after_s: float | None = None,
+               lost_tool_after_s: float | None = None,
                autonomous: bool = False,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
@@ -758,6 +778,7 @@ class HubLifecycle:
     # through the one branch the overseer already owned.
     self.mission.step_hooks.append(self._events_step)
     self.mission.step_hooks.append(self._rack_linger_step)
+    self.mission.step_hooks.append(self._lost_tool_step)
     self.mission.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -995,6 +1016,16 @@ class HubLifecycle:
     #: archives the volume and starts a new robot. Do not collapse them.
     self.restart_after_s = (None if restart_after_s is None
                             else float(restart_after_s))
+    #: ...and how long a TOOL lies lost before the world puts it back
+    #: (issue #347, `LOST_TOOL_S`). The world's clock, not this robot's: a
+    #: pair ticks it on the first robot's seam alone (`pair.build_pair`).
+    self.lost_tool_after_s = (None if lost_tool_after_s is None
+                              else float(lost_tool_after_s))
+    #: module -> the sim time it was first seen lost, this spell
+    self._lost_since: dict[str, float] = {}
+    self._next_lost_check = 0.0
+    #: every `reset_tool` event the world's own hand emitted
+    self.tools_returned: list[dict] = []
     self.dead: dict | None = None
     self.deaths: list[dict] = []
     #: TRUE deaths: the hearts ran out, the volume was archived and a new
@@ -3160,6 +3191,63 @@ class HubLifecycle:
       if module_power_contact(self.model, self.data, module, prefix):
         return root
     return None
+
+  # ---- a tool on the floor (issue #347) -------------------------------------
+
+  def tool_whereabouts(self, module: str) -> str:
+    """Where a module is, as the lost-tool clock reads it: `swap` (a swap
+    is working at its bay), `fork` (on ANY robot's fork, alive or dead,
+    seated or only resting there -- a seated tool on a dead robot is the
+    stand-up's, issue #311), `bay` (hung on its OWN bay) or `lost`. The
+    first three stop the clock; one hung a bay over is lost, because
+    nothing fetches it from there."""
+    index = self.rack_inventory[module]
+    lives = (self, *self.peers)
+    if any(life.mission.swapping_at == STATION_YS[index] for life in lives):
+      return "swap"
+    states = [life.mission.swap.module_state(module) for life in lives]
+    if any(st["on_fork"] for st in states) or self._fork_holding(module):
+      return "fork"
+    return "bay" if states[0]["hung"] and states[0]["bay"] == index else "lost"
+
+  def _lost_tool_step(self) -> None:
+    """The world's own hand for a tool on the floor (issue #347), once a
+    sim second: a module `lost` for `lost_tool_after_s` without a break
+    goes back to its bay. Anything that is not `lost` restarts its clock."""
+    if self.lost_tool_after_s is None or self.data.time < self._next_lost_check:
+      return
+    t = float(self.data.time)
+    self._next_lost_check = t + LOST_TOOL_CHECK_S
+    for module in list(self.rack_inventory):
+      try:
+        self.model.body(module)
+      except KeyError:
+        continue
+      if self.tool_whereabouts(module) != "lost":
+        self._lost_since.pop(module, None)
+        continue
+      since = self._lost_since.setdefault(module, t)
+      if t - since >= self.lost_tool_after_s:
+        self._return_lost_tool(module, t - since)
+
+  def _return_lost_tool(self, module: str, lost_s: float) -> None:
+    """Put a lost module back on its bay, on the auto stand-up's terms: a
+    `reset_tool` event whose `by` is `AUTO_RESTART_BY`, never an
+    intervention (a `reset_tool` is not one for an admin either, and a
+    timer is not a hand), and a line in EVERY robot's History, because
+    either may have been failing jobs for want of it."""
+    self._return_module(module)
+    self._lost_since.pop(module, None)
+    event = {"type": "reset_tool", "t": round(float(self.data.time), 3),
+             "robot": self.root, "module": module, "by": AUTO_RESTART_BY,
+             "auto": True, "intervention": False, "lostS": round(lost_s, 1)}
+    self.tools_returned.append(dict(event))
+    self._say(f"WORLD put {module} back on its bay -- it lay on no bay and on "
+              f"no fork for {lost_s:.0f} s")
+    for life in (self, *self.peers):
+      life._remember(f"{module} lay on the floor for {_minutes(lost_s)} and "
+                     "was put back on its bay")
+    self._emit(event)
 
   def _reset_robot(self, msg) -> None:
     """Put the ROBOT back, because an admin said so (issue #107).

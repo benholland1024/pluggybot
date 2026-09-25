@@ -446,6 +446,10 @@ class HubMission:
     #: gave up. The lifecycle's (it owns the bound, the waiting spot, the
     #: interrupt and History); None gives a bay up at once, as #313 did.
     self.bay_wait = None
+    #: The bay a swap is working at, by station y, from its first drive to
+    #: its verdict; None otherwise. The lost-tool clock (issue #347) leaves
+    #: that bay's module alone, whatever the module_state says mid-swap.
+    self.swapping_at: float | None = None
     #: The peer stop (issue #328): the last sighting in the corridor ahead
     #: -- how far off it was and when -- and how many times a drive has
     #: actually HELD for one. Episodes, not frames, and counted where the
@@ -1487,6 +1491,15 @@ class HubMission:
   def swap_at_bay_routine(self, station_y: float, verb: str,
                           module: str | None = None,
                           tries: int = 2) -> Routine:
+    """`_swap_routine`, with `swapping_at` held for as long as it runs."""
+    self.swapping_at = station_y
+    try:
+      return (yield from self._swap_routine(station_y, verb, module, tries))
+    finally:
+      self.swapping_at = None
+
+  def _swap_routine(self, station_y: float, verb: str,
+                    module: str | None = None, tries: int = 2) -> Routine:
     """Navigate to a bay's hand-off pose and pick or return there.
 
     module + tries: VERIFY the outcome and take another run at it. The

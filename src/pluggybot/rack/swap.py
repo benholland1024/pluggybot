@@ -474,9 +474,12 @@ class HubSwap:
     peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
     on_fork = (abs(float(p[0]) - float(vx[0])) < 0.03
                and abs(float(p[1]) - float(vx[1])) < 0.04)
-    bay_err = min(abs(ly - by) for by in STATION_YS)
+    bay = min(range(len(STATION_YS)), key=lambda i: abs(ly - STATION_YS[i]))
+    bay_err = abs(ly - STATION_YS[bay])
     hung = (abs(lx - RACK_HANG_X) < 0.012
             and abs(lz - (peg_rest_z - 0.022)) < 0.008
             and bay_err < 0.030)
     return {"pos": [float(v) for v in p], "rack_frame": [lx, ly, lz],
-            "on_fork": on_fork, "hung": hung, "bay_err_mm": bay_err * 1000}
+            "on_fork": on_fork, "hung": hung, "bay_err_mm": bay_err * 1000,
+            # which bay it is nearest, by index: `hung` is ANY bay's
+            "bay": bay}

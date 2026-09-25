@@ -199,6 +199,8 @@ class Verb:
   args: dict                   # arg name -> Arg
   run: Callable[..., Routine]  # (life, args) -> Routine returning a verdict
   doc: str
+  #: moves the base, so the fork goes into its carrying pose first (`run_verb`)
+  drives: bool = False
 
 
 def _rack(life) -> dict[str, int]:
@@ -296,6 +298,60 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   yield from life.mission.set_arm_routine(0.0)
   yield from life.mission.swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
   return {"setDown": set_down}
+
+
+#: A setpoint this close to its travel value is left alone, so a verb that
+#: finds the tool already posed costs no physics step.
+POSE_TOL = 1e-3
+
+
+def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
+  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order they
+  move (issue #347): the tool's own axes to rest, the arm in, the lift to
+  `MODULE_DRIVE_LIFT` -- the pose a pick leaves. Unlike the RETURN's
+  (`carry_configuration_routine`) it sets nothing down.
+
+  A tool's axis rests at its joint's compiled value, the pose the tool hung
+  in when the workshop checked it against the coupling envelope (the pen's
+  carriage centred, the gate shut). The claw's jaws are left as they are,
+  and a claw holding a cube keeps it where `pick` leaves it -- `CARRY_LIFT`,
+  arm out -- because tucked, the cube swings into the chassis. An empty
+  fork only tucks its arm: extended, it sweeps a rack."""
+  from pluggybot.procedure import axes
+  from pluggybot.rack.swap import ARM_EXT
+  from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
+  model, swap = life.model, life.mission.swap
+  out = []
+  for axis in axes.AXES.values():
+    if tool is None or axis.requires != tool or not axis.actuator:
+      continue
+    try:
+      act = model.actuator(axis.actuator)
+    except KeyError:
+      continue
+    rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
+    out.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
+  claw = _claw(life) if tool == CLAW_MODULE else None
+  holding = claw is not None and claw.held() is not None
+  out.append((swap.arm_act, ARM_EXT if holding else 0.0, axes.ARM_SPEED))
+  if tool is not None:
+    out.append((swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED))
+  return out
+
+
+def travel_pose_routine(life) -> Routine:
+  """Whatever is on the fork into its carrying pose, ramped, before a verb
+  drives (issue #347); only what a procedure moved is moved back. MEASURED
+  live: Rowan's `pen_check` left the lift at 0.15, the arm at 0.10 and the
+  carriage at 0.03, `draw` drove off like that, and the robot was knocked
+  over 16 s later with the pen 3.7 m from its bay."""
+  moved = False
+  for act, target, speed in travel_pose(life, _carried(life)):
+    if abs(float(life.data.ctrl[act]) - target) > POSE_TOL:
+      yield from life.mission.swap.ramp_routine(act, target, speed)
+      moved = True
+  if moved:
+    yield from life.mission.swap._run_routine(0.5, 0.0)
 
 
 def home_legs_routine(life) -> Routine:
@@ -717,6 +773,20 @@ def _draw(life, args: dict) -> Routine:
     return {"ok": False, "reason": "the pen is not on the fork"}
   errand = draw_errand_for(life.world, life.boards, args["board"],
                            program_name=args["figure"])
+  # ⚠ THE ROUTE FIRST, as the native errand's carry drive (issue #347). The
+  # use-phase's own approach is a straight line with no planner, meant to
+  # settle from `use_at`; called from the rack it drove at whiteboard_b
+  # through the house, and Rowan was knocked over on all six live runs of
+  # a `pen_check` that drew there.
+  if not (yield from life.mission.drive_to_routine(*errand.use_at,
+                                                   timeout=DRIVE_TIMEOUT_S)):
+    px, py, _ = life.mission.pose
+    short = math.hypot(errand.use_at[0] - px, errand.use_at[1] - py)
+    return {"ok": False, "board": args["board"], "figure": args["figure"],
+            "reason": f"never reached {args['board']}: the drive to where the "
+                      f"pen draws from stopped {short:.1f} m short, at "
+                      f"({px:.1f}, {py:.1f})",
+            "used": {"error": "never reached the use pose"}}
   used = yield from errand.use(life)
   used = {k: v for k, v in (used or {}).items() if k != "plotter"}
   return {"ok": bool(used.get("drew")), "board": args["board"],
@@ -784,12 +854,14 @@ def _move(life, args: dict) -> Routine:
 
 VERBS: dict[str, Verb] = {
   "fetch": Verb("fetch", {"tool": Arg("str", choices="tools")}, _fetch,
-                "pick a module off its bay; ok when seated and powered"),
-  "stow": Verb("stow", {}, _stow, "hang the carried module back; ok when hung"),
+                "pick a module off its bay; ok when seated and powered", drives=True),
+  "stow": Verb("stow", {}, _stow, "hang the carried module back; ok when hung",
+               drives=True),
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float")},
-                   _drive_to, "A* to a world point inside the map; ok on arrival"),
+                   _drive_to, "A* to a world point inside the map; ok on arrival",
+                   drives=True),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
-               _face, "turn in place; ok when squared within the budget"),
+               _face, "turn in place; ok when squared within the budget", drives=True),
   "set_lift": Verb("set_lift", {"height": Arg("float", lo=LIFT_RANGE_M[0],
                                               hi=LIFT_RANGE_M[1])},
                    _set_lift, "walk the mast to a height, ramped"),
@@ -804,14 +876,15 @@ VERBS: dict[str, Verb] = {
                "find the cube carrying this tag, drive over it and take it; "
                "ok when the jaws hold it. The eye decodes a cube's tag from "
                "about 0.7-1 m away, facing it, and not from closer; a cube "
-               "not in view is looked for where it was set out"),
+               "not in view is looked for where it was set out", drives=True),
   "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
                 "set the held cube down on top of the cube carrying this tag "
                 "and back off; ok when it rests there. The eye's reach is "
-                "pick's"),
+                "pick's", drives=True),
   "draw": Verb("draw", {"figure": Arg("str", choices="figures"),
                         "board": Arg("str", choices="boards")},
-               _draw, "the pen's use-phase on a board; ok when ink landed"),
+               _draw, "the pen's use-phase on a board; ok when ink landed",
+               drives=True),
   "look": Verb("look", {}, _look, "one tag decode from the dock camera, no motion"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
@@ -821,8 +894,19 @@ VERBS: dict[str, Verb] = {
   "drive": Verb("drive", {"v": Arg("float", lo=-DRIVE_V_MAX, hi=DRIVE_V_MAX),
                           "w": Arg("float", lo=-DRIVE_W_MAX, hi=DRIVE_W_MAX),
                           "seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)},
-                _drive, "the base at (v m/s, w rad/s) for a bounded time"),
+                _drive, "the base at (v m/s, w rad/s) for a bounded time",
+                drives=True),
 }
+
+
+def run_verb(life, verb: Verb, args: dict) -> Routine:
+  """One verb, as both runners call it (this module's and the language's).
+  A verb that drives puts the fork into its carrying pose first (issue
+  #347) -- here, once, so a verb added later cannot forget it -- and the
+  verb's own use-phase sets its working pose again on arrival."""
+  if verb.drives:
+    yield from travel_pose_routine(life)
+  return (yield from verb.run(life, args))
 
 
 def describe_vocabulary() -> list[dict]:
@@ -961,7 +1045,7 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["stopped"] = "budget"
       break
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from VERBS[step.verb].run(life, step.args)
+    verdict = yield from run_verb(life, VERBS[step.verb], step.args)
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
     if not verdict.get("ok"):
