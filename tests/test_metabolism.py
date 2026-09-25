@@ -531,7 +531,7 @@ def test_the_context_carries_the_appetite_and_omits_it_when_there_is_none():
     boards = None
     ledger = None
     verdicts: list = []
-    map_done = True
+    floor_explored = True
 
   state = ov.context_for(FakeLife(), metabolism={"state": "hungry",
                                                  "points": 3})

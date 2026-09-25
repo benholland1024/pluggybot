@@ -39,6 +39,53 @@ not taking a job whose tool it has just been told is away. It is also not
 known whether the lost-tool clock (#347, 5 minutes) already makes `not on
 its bay and on no fork` too rare to matter.
 
+### A failed job says what failed (#350) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD, so it is a regime break.** Nothing
+in the world moved, and no grade either: every verdict is measured as it was
+and pays what it paid. What moved is the words. On 42f4a11 the robots read
+`answer: no ink reached whiteboard_b` fourteen times in a day, and none of
+the fourteen was ink: 5 picks refused at the rack, 2 pens on the other's
+fork, 1 on the floor, 6 drives that gave up. Three lab trips that never left
+the living room read "the plate was never pressed". A census whose pick
+failed read "from None", and a `drive_to` the planner could not route read
+"stopped 9.1 m short", which Rowan took for the pack running short. Now:
+
+- a failed verdict LEADS with the errand's own failure before its
+  use-phase (`could not pick up …`, `never reached whiteboard_b: …`,
+  `dropped … on the way`, `never squared up to …: …`), and the measured
+  grade follows it. History says it once;
+- a drive that gives up says which of four it was: `no route over the floor
+  mapped so far`, `stalled`, the other robot by name (in the way, or at
+  the goal, and whether it is standing or lying there, #365), or `out of
+  time`. The same clause ends
+  `USE_TOOL: never got there`, a procedure's `drive_to` and `draw`, the
+  travel to a prop, `GO_CHARGE` and the `stuck` death after it, and a leg
+  of a care/feed/shock route (`never reached the cage: …, on leg 1 of 5`);
+- `mapDone` in the context is `floorExplored`, on every arm. It is a
+  volatile field: `guarded`'s prefix and `GUARDED_RULES_SHA` did not move,
+  and no rule named it.
+
+**What the period is for.**
+
+- **Tickets.** Luca's tk_0001/0002/0005 and Rowan's tk_0002/0003 came from
+  these words. A new ticket about the ink path, a dead plate or the event
+  map not landing, filed after a failure that was really the rack or a
+  route, means the words still point the wrong way.
+- **The lab belief.** Both robots decline the bench, the feed and the shock
+  over a round trip of "~7.5 Wh"; the jobs' own figure is ~2.4. Whether
+  either takes a lab job again, once Ben's ticket replies are in History
+  and a failed leg says `no route` or `stalled` rather than a distance.
+- **What a robot does after each cause.** A refused pick, a stall and the
+  other robot in the way want different next moves (wait, re-route, try
+  later). Read the decision that follows each `the drive gave up` line
+  against its cause.
+
+**Not yet known.** How the causes split live: the deployed log has never
+said, so the first day's counts are the baseline. `no route` against
+`stalled` is the split to watch for #353 (long drives follow the zone
+route).
+
 ### A robot lying down is avoided where it lies (#365) — opens when this PR is deployed
 
 **What changed in the world.** On the pair, a robot that has fallen over

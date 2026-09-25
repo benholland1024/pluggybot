@@ -446,20 +446,20 @@ def test_the_fallback_rotates_rather_than_repeating(menu):
   seen = []
   for i in range(4):
     d = scripted(menu, {"tasksThisMission": seen, "decisions": i,
-                        "mapDone": False}, "budget")
+                        "floorExplored": False}, "budget")
     seen.append(d.action)
   assert len(set(seen)) == len(seen), f"the fallback repeated itself: {seen}"
 
 
 def test_the_fallback_is_deterministic(menu):
-  state = {"tasksThisMission": ["draw"], "decisions": 3, "mapDone": False}
+  state = {"tasksThisMission": ["draw"], "decisions": 3, "floorExplored": False}
   runs = [scripted(menu, state, "budget").as_dict() for _ in range(5)]
   assert all(r == runs[0] for r in runs)
 
 
 def test_the_fallback_still_has_something_to_do_when_everything_is_done(menu):
   d = scripted(menu, {"tasksThisMission": ["draw", "census", "dance", "carry"],
-                      "decisions": 1, "mapDone": True}, "budget")
+                      "decisions": 1, "floorExplored": True}, "budget")
   assert d.action in menu.available()
 
 
@@ -753,7 +753,7 @@ def test_the_sim_keeps_running_while_the_overseer_thinks():
   life.mission.start_at(*world_config("room_hub")["start"])
   life.max_sim_time = 60.0
   life.explore_deadline = life.data.time + 1.0
-  life.blacklist, life.map_done = set(), True
+  life.blacklist, life.floor_explored = set(), True
   steps = []
   life.mission.step_hooks.append(lambda: steps.append(life.data.time))
   t0 = life.data.time

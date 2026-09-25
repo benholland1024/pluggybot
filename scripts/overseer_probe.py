@@ -124,7 +124,7 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     "simTimeS": round(120.0 + 97.3 * i, 1),
     "battery": {"fraction": round(0.92 - 0.07 * i, 3), "wh": 0.9,
                 "reserveWh": 0.55, "charging": False},
-    "mapDone": i > 0,
+    "floorExplored": i > 0,
     "points": 12 * i,
     "recentTasks": [{"task": "draw", "ok": True, "points": 18,
                      "reason": "inked 6/6 strokes on whiteboard_a"}][:i],

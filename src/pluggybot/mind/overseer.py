@@ -1924,7 +1924,7 @@ def scripted(menu: Menu, state: dict, why: str) -> Decision:
   for action in ("draw", "census", "dance", "carry"):
     if offered(action) and action not in done:
       return _fill(menu, action, why, state)
-  if "explore" in menu.available() and not state.get("mapDone"):
+  if "explore" in menu.available() and not state.get("floorExplored"):
     return _fill(menu, "explore", why, state)
   first = next((a for a in ("draw", "census", "dance", "carry")
                 if offered(a)), "")
@@ -3464,7 +3464,7 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     "affordableActions": list(affordable),
     "possibleActions": list(possible),
     **({"others": list(others)} if others is not None else {}),
-    "mapDone": bool(getattr(life, "map_done", False)),
+    "floorExplored": bool(getattr(life, "floor_explored", False)),
     "points": ledger.balance() if ledger is not None else 0,
     # LIVES LEFT (issue #136). ⚠ TOP LEVEL, NOT INSIDE `survival`, and the
     # reason is the rung ladder: A0 hides the whole `survival` block to hide

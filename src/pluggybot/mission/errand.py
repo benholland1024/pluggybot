@@ -239,10 +239,17 @@ def drawing_errand(book, board_name: str, board: Board,
       # reflex. Skip the press entirely, restore the carry pose, and say so:
       # the evaluator finds no new ink and fails the job honestly.
       yield from plotter.carry_config_routine()
-      life._say(f"USE_TOOL: never squared up to {board_name} -- "
+      # ...and which of the two it was, first in the verdict (issue #350)
+      tx, ty = plotter.board_standoff()
+      off = math.hypot(tx - life.mission.swap.reckoner.x,
+                       ty - life.mission.swap.reckoner.y)
+      how = ("the turn to face it ran out of time" if not plotter.squared else
+             f"it stopped {off:.2f} m from where the pen draws")
+      life._say(f"USE_TOOL: never squared up to {board_name} -- {how} -- "
                 "skipping the drawing")
       return {"squared": False, "board": board_name, "figure": figure.name,
-              "error": "never squared up to the board"}
+              "error": "never squared up to the board",
+              "failedBefore": f"never squared up to {board_name}: {how}"}
     life._say(f"USE_TOOL: drawing {figure.name} on {board_name} "
               f"({len(figure.strokes)} strokes, {figure.ink_length:.2f} m of ink)")
     result = yield from plotter.draw_program_routine(figure)

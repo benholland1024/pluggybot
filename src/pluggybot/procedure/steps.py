@@ -410,10 +410,14 @@ def _drive_to(life, args: dict) -> Routine:
   arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
   px, py, _ = life.mission.pose
   short = round(math.hypot(x - px, y - py), 3)
-  return {"ok": bool(arrived), "shortM": short,
-          **({} if arrived else {"reason": (
-            f"did not arrive: it stopped {short:.1f} m short of ({x:g}, {y:g}), "
-            f"at ({px:.1f}, {py:.1f})")})}
+  if arrived:
+    return {"ok": True, "shortM": short}
+  # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
+  # short of (22, 3)" was a route the planner could not make, and Rowan
+  # read it as the pack -- then told Luca, and both declined the lab.
+  why = life.drive_why(x, y)
+  return {"ok": False, "shortM": short, "why": why,
+          "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
 def _face(life, args: dict) -> Routine:
@@ -589,14 +593,14 @@ def _travel_routine(life, tag: int) -> Routine:
     px, py = life.mission.pose_xy()
     if (x, y) != stand:
       return False, (f"and the route to where the house set it out stopped at "
-                     f"({px:.1f}, {py:.1f})")
+                     f"({px:.1f}, {py:.1f}): {life.drive_why(x, y)}")
     short = math.hypot(stand[0] - px, stand[1] - py)
     if short > STAND_SHORT_M:
       # ...and it LOOKS from there anyway: the cube may well be in view, as
       # it always was before this sentence existed. Only the words change.
       yield from life.mission.face_routine(heading)
-      return True, (f"and the drive to where the house set it out stopped "
-                    f"{short:.1f} m short of it, at ({px:.1f}, {py:.1f})")
+      return True, (f"and {life.drive_why(x, y)} on the way to where the house "
+                    f"set it out, at ({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
   return True, ""
 
@@ -802,11 +806,9 @@ def _draw(life, args: dict) -> Routine:
   if not (yield from life.mission.drive_to_routine(*errand.use_at,
                                                    timeout=DRIVE_TIMEOUT_S)):
     px, py, _ = life.mission.pose
-    short = math.hypot(errand.use_at[0] - px, errand.use_at[1] - py)
     return {"ok": False, "board": args["board"], "figure": args["figure"],
-            "reason": f"never reached {args['board']}: the drive to where the "
-                      f"pen draws from stopped {short:.1f} m short, at "
-                      f"({px:.1f}, {py:.1f})",
+            "reason": f"never reached {args['board']}: "
+                      f"{life.drive_why(*errand.use_at)}, at ({px:.1f}, {py:.1f})",
             "used": {"error": "never reached the use pose"}}
   used = yield from errand.use(life)
   used = {k: v for k, v in (used or {}).items() if k != "plotter"}

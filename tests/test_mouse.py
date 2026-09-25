@@ -786,7 +786,8 @@ def test_the_route_drops_the_legs_behind_the_robot():
   errand = errand_for_task(task, "home", None, answer="hiding", from_xy=(25.0, 2.0),
                            real="likely")
   assert errand.detail == {"program": "shock_mouse", "steps": 3, "cage": "lab",
-                           "act": "shock", "real": "likely", "predicted": "hiding"}
+                           "act": "shock", "real": "likely", "predicted": "hiding",
+                           "routeLegs": 0}
   assert errand.estimate_wh == KINDS["shock_mouse"].estimate_wh
   assert errand_for_task(Task.create("shock_mouse", "store", "t_2"), "home", None) is None
   assert json.dumps(errand.program.as_dict())          # a program is data
