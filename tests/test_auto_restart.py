@@ -18,6 +18,8 @@ life reads its predecessor's `History.md` death line on every decision --
 which is the whole of what dying costs. True death archives it.
 """
 
+import math
+
 import mujoco
 import pytest
 
@@ -261,24 +263,32 @@ def test_the_death_line_survives_the_restart_and_the_next_life_reads_it():
 # ---- the refusals it inherits -------------------------------------------
 
 
-def test_the_timer_waits_for_a_seated_module_rather_than_yanking_it(monkeypatch):
-  """`reset_robot`'s rule, and the timer RETRIES rather than reporting a
-  refusal: a robot that died with the pen on its fork must not have it
-  pulled out of the coupling, but it must still get up once the errand has
-  put the thing down.
+def test_the_timer_does_not_wait_behind_a_seated_module_and_takes_it_home(
+    monkeypatch):
+  """⚠ REVERSED BY ISSUE #348. The timer used to wait for the errand to put a
+  seated tool down -- "wait until the errand returns", which Ben rejected
+  (2026-09-24): behind an errand that never returns, the robot never gets
+  up. The day loop now closes the routine a stand-up lands in
+  (`test_stand_up.py`), so nothing is left mid-stow to disagree about the
+  fork, the timer fires at its time, and the tool comes home with the robot
+  (#311's rescue). Shown to fail with the wait put back.
 
   ⚠ The seam RECOMPUTES `tool_powered` from contacts on every step, so the
   seated module is faked where the real one is read (test_reset_robot.py's
   own trick) rather than by setting the attribute, which the next step
   would overwrite."""
   life = _life()
-  seated = [True]
-  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: seated[0])
+  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
+  assert life.module, "a lifecycle names the module it carries"
+  adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
+  life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # off its bay
+  mujoco.mj_forward(life.model, life.data)
+  home = list(life.model.qpos0[adr:adr + 3])
   _kill(life)
   assert life.tool_powered, "the seam did not see the seated module"
   life.mission._drive(PAST_S, 0.0, 0.0)
-  assert life.dead is not None, "refused while the module is seated"
-  assert life.reset_in_s == 0.0, "the clock is up; it is the fork that waits"
-  seated[0] = False
-  life.mission._drive(1.0, 0.0, 0.0)
-  assert life.dead is None, "and it retried rather than giving up"
+  assert life.dead is None, "the timer waited behind the seated module"
+  #  A distance, as #311's test states it: the module settles on its peg
+  #  while the settle drive runs.
+  assert math.dist(life.data.qpos[adr:adr + 3], home) < 0.05, \
+      "the tool was left where the robot fell"

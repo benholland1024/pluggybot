@@ -224,6 +224,26 @@ def _minutes(s: float) -> str:
 #: `auto` on the same event is the machine-readable half.
 AUTO_RESTART_BY = "auto-restart"
 
+
+class _StoodUp:
+  """What a routine the day loop was driving returns when a stand-up ended
+  it (issue #348, `HubLifecycle._until_stood_up_routine`). FALSY, so "did
+  the charge trip get there" reads no; a caller for whom no has a
+  consequence (a failed dock is a `stuck` death) asks `is STOOD_UP` first."""
+
+  def __bool__(self) -> bool:
+    return False
+
+  def __repr__(self) -> str:
+    return "STOOD_UP"
+
+
+STOOD_UP = _StoodUp()
+
+#: Why a job fails when a stand-up ended the errand working on it (issue
+#: #348): `TaskBoard.load`'s "interrupted by a restart", one cause over.
+DEATH_ENDED = "interrupted by a death"
+
 # Reserve is absolute energy, not a fraction of the pack -- the milestone-7
 # lesson: the cost of getting home is set by the ROOM, not by the battery.
 LOW_BATTERY_WH = 0.35
@@ -1302,19 +1322,18 @@ class HubLifecycle:
     errand goes on driving until it returns. The clock has to start where
     the death did rather than where the loop next looks.
 
-    ⚠ REFUSED WHILE A MODULE IS SEATED, and it RETRIES rather than giving
-    up -- `stand_up`'s rule, and the reason it is a `while`-shaped check
-    rather than a one-shot: a robot that died with the pen on its fork must
-    not have it yanked out of the coupling, but it must still get up once
-    the errand has put the thing down. ⚠ ...OR ONCE NOTHING CAN (issue
-    #311): this is the caller with no operator behind it, so a tool the
-    errand failed to stow -- a robot toppled carrying it cannot reach the
-    rack -- used to mean a robot that stayed down until the container
-    restarted. `parked_dead` is the moment waiting stops being a wait.
+    ⚠ IT FIRES WHEREVER IT LANDS, A SEATED MODULE INCLUDED (issue #348).
+    It used to wait for the errand to put a seated tool down (#143), which
+    is "wait until the errand returns": a robot inside an errand that never
+    returns stayed down for good (#311 was the parked half of that). Now
+    the day loop closes the routine it lands in (`_until_stood_up_routine`)
+    before that routine runs another line, so nothing is left mid-stow to
+    disagree about what the fork holds, and the tool comes home with the
+    robot (`_stand_up`). The admin doors keep #311's rule; they are only
+    ever reached between errands.
     """
     if (self.dead is None or self.restart_after_s is None
-        or self.home_pose is None
-        or (self.tool_powered and not self.parked_dead)):
+        or self.home_pose is None):
       return
     if self._standing_up:
       return
@@ -2435,13 +2454,7 @@ class HubLifecycle:
                 detail=f"wait {bill['waitS']} s")
       self._emit({**base, "outcome": "built", "name": name, "bay": bay,
                   "cost": bill})
-      yield from self._fabricate_routine(bill["waitS"])
-      # ...and then WAIT FOR ROOM (issue #315): a print is longer than an
-      # errand, so on a pair the rack is usually occupied again by now.
-      waited = yield from self._await_seam_routine(idx)
-      try:
-        hung = self.hang_tool(tool, idx)
-      except SeamRefused as e:
+      def not_hung(e, waited: float) -> None:
         # THE POINTS ALWAYS BUY SOMETHING. The preconditions held before
         # the spend and broke while it printed -- the peer took the seam,
         # or the robot died mid-print -- and the parts are bought either
@@ -2457,6 +2470,23 @@ class HubLifecycle:
         self._emit({**base, "outcome": "refused", "verb": "hang", "name": name,
                     "bay": bay, "reasons": why, "cost": bill,
                     "waitedS": round(waited, 1)})
+
+      try:
+        yield from self._fabricate_routine(bill["waitS"])
+        # ...and then WAIT FOR ROOM (issue #315): a print is longer than an
+        # errand, so on a pair the rack is usually occupied again by now.
+        waited = yield from self._await_seam_routine(idx)
+      except GeneratorExit:
+        # ⚠ A STAND-UP ENDS THE WAIT (issue #348): `_until_stood_up_routine`
+        # closes the decision's action, this included, and the points are
+        # already spent. Recorded like a rack that never freed; no yield.
+        not_hung("a stand-up ended the wait", max(
+          0.0, float(self.data.time) - t - float(bill["waitS"])))
+        raise
+      try:
+        hung = self.hang_tool(tool, idx)
+      except SeamRefused as e:
+        not_hung(e, waited)
         return
       shop.record(tool, spec, idx, bill, t)
       self.tools_built += 1
@@ -3112,9 +3142,10 @@ class HubLifecycle:
     The day loop runs its dead branch BETWEEN errands, so a robot that dies
     mid-errand goes on driving until the errand returns and only then parks
     in `_wait_dead_routine`, which is what sets this state. Once it has, no
-    errand will ever run again -- and that is the difference the stand-up
-    rule turns on: a seated module is a tool something might still put
+    errand will ever run again -- and that is the difference the admin
+    doors turn on: a seated module is a tool something might still put
     down, until the robot is parked, when it is a tool nothing ever will.
+    (The timer no longer asks, issue #348: it ends the errand instead.)
     """
     return self.dead is not None and self.state == "DEAD"
 
@@ -3348,12 +3379,27 @@ class HubLifecycle:
     # nobody to notice: the restart timer has no operator behind it, so a
     # module left on the floor of the hall is a bay that is empty for good
     # and an approach lane with a tool in it. A person walking over to pick
-    # the robot up picks the pen up too. Only reachable from `parked_dead`,
-    # where no errand can be mid-stow and disagree about what it holds.
-    if self.tool_powered and self.module:
-      self._return_module(self.module)
-      self.tool_powered = False
-      self._say(f"{self.module} was still on my fork -- back on its bay")
+    # the robot up picks the pen up too. ⚠ Seated OR ONLY RESTING on the
+    # fork, since the timer lands mid-errand (issue #348): mid-pick is
+    # where Rowan was knocked over. No errand disagrees about what it holds,
+    # because the day loop closes the one it lands in before it runs again;
+    # a module still hung on its own bay stays, and one whose bay another
+    # has taken, or another robot's swap is working at, is left to the
+    # lost-tool clock: #347's two rules, or it lands in a module or a fork.
+    from pluggybot.procedure import steps as procedure
+    held = (self.module if self.tool_powered and self.module
+            else procedure._carried(self))
+    if held in self.rack_inventory:
+      st = self.mission.swap.module_state(held)
+      bay_y = STATION_YS[self.rack_inventory[held]]
+      worked = any(p.mission.swapping_at is not None
+                   and abs(p.mission.swapping_at - bay_y) < 1e-6
+                   for p in self.peers)
+      if not (st["hung"] and st["bay"] == self.rack_inventory[held]) \
+          and not self._bay_taken(held) and not worked:
+        self._return_module(held)
+        self.tool_powered = False
+        self._say(f"{held} was still on my fork -- back on its bay")
     self.mission.start_at(*self.home_pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
@@ -3375,6 +3421,14 @@ class HubLifecycle:
     # is the fact worth reading.
     self._asked_t = self._asked_after_s = None
     self.state = "EXPLORE"
+    # ...and a queued `battery_below` row goes (issue #348): it fired on the
+    # pack this has just refilled -- on the way to zero, most often -- and
+    # the slot it held would fail the `stood_up` row below `busy`. Any other
+    # row is news still true (a visitor spoke, a period came round) and
+    # waits its turn. An interrupt is the ended errand's.
+    if self.queued_row is not None and self.queued_row.event == "battery_below":
+      self.queued_row = None
+    self._interrupt_pending = None
     event = {"type": "reset", "t": round(t, 3), "robot": self.root,
              "by": by, "wasDead": was["cause"] if was else None,
              "deadS": dead_s, "intervention": was is None,
@@ -3400,6 +3454,8 @@ class HubLifecycle:
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
                                          if was else " while still awake"))
     self._emit(event)
+    # ...and the map hears it (issue #348), with WHO as its kind.
+    self._occur("stood_up", "timer" if auto else "admin")
     if was is None:
       # ⚠ A RESCUE IS NOT AN INTERVENTION. Standing a DEAD robot up ends one
       # survival span and starts another, which is the feature working
@@ -5050,7 +5106,8 @@ class HubLifecycle:
       yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
       return
     decision = self.overseer.decide_event(state, row)
-    why = yield from self._after_decision_routine(decision)
+    why = yield from self._until_stood_up_routine(
+      self._after_decision_routine(decision))
     if why:
       self.overseer.note_failure(why)
       self._say(f"EVENT {row.describe()} failed: {why}")
@@ -5268,7 +5325,8 @@ class HubLifecycle:
       # whole point -- a world that goes dark to save money looks broken, and
       # a robot that stops deciding looks broken faster.
       decision = self.overseer.decide_scripted(state, "scripted-mode")
-      yield from self._after_decision_routine(decision)
+      yield from self._until_stood_up_routine(
+        self._after_decision_routine(decision))
       return
     lives = len(self.true_deaths)
     self.overseer.start(state)
@@ -5291,7 +5349,8 @@ class HubLifecycle:
     # replaced the failed call, and again on the next pass through the loop.
     # Measured, on a mission flown against a client that always fails: every
     # failure produced two decisions where the pre-change loop produced one.
-    yield from self._after_decision_routine(decision)
+    yield from self._until_stood_up_routine(
+      self._after_decision_routine(decision))
 
   def _after_decision(self, decision) -> str:
     return self.mission.run(self._after_decision_routine(decision))
@@ -5724,6 +5783,132 @@ class HubLifecycle:
 
   # ---- the loop ------------------------------------------------------------
 
+  def _until_stood_up_routine(self, routine: Routine) -> Routine:
+    """Drive `routine` as `yield from` would, and CLOSE it the step a
+    stand-up lands in it (issue #348). Returns what it returned, or
+    `STOOD_UP`.
+
+    A stand-up puts the body back at the start with a full pack, so what
+    the routine was doing -- a drive planned from where the robot fell, a
+    wait for a bay, a charge -- is about a robot that is no longer there.
+    Rowan, 2026-09-23 (#339): knocked over mid-pick, an unbounded loop in
+    the errand outlived the death AND the stand-up and drove it into a wall
+    until flat, thirteen lives running. Waiting for the errand to return was
+    rejected (Ben, 2026-09-24): behind any unbounded loop it is a robot that
+    never gets up.
+
+    ⚠ CLOSED, NOT THROWN INTO, AND BEFORE IT IS RESUMED: `close()` runs
+    every `finally` below (a swap's timestep, the press flag, a pending
+    look) and nothing else, so no line of the old errand runs against the
+    new body -- EXCEPT when the stand-up lands inside a stretch the routine
+    steps itself (`_ask_interrupt` blocks while its call flies): the routine
+    runs on to its next yield before this can look, so what it narrated
+    stands and the state it set is put back to the stand-up's. A routine
+    that yielded inside a `finally` would make `close()` raise; none does
+    (a test walks the tree).
+    ⚠ THIS ROBOT'S ROUTINE ALONE: `tick.run_many` throws a step's exception
+    into EVERY robot's, and this is inside one robot's day. What the driver
+    throws in (a hook's `MissionAborted`) reaches the routine first.
+    ⚠ NEVER AROUND A QUESTION IN FLIGHT: a call has a worker thread out and
+    its answer is collected; what the answer asked the body to do is what
+    is wrapped (`_after_decision_routine`'s callers).
+    """
+    since = len(self.resets)
+    sent, exc = None, None
+    while True:
+      try:
+        cmd = routine.throw(exc) if exc is not None else routine.send(sent)
+      except StopIteration as stop:
+        return stop.value
+      exc = None
+      if len(self.resets) != since:          # up inside a blocking stretch
+        break
+      try:
+        sent = yield cmd
+      except GeneratorExit:
+        routine.close()
+        raise
+      except BaseException as e:  # noqa: BLE001 -- the routine's, as `yield from`
+        exc = e
+        continue
+      if len(self.resets) != since:          # ...or on the step just driven
+        break
+    routine.close()
+    self.state = "EXPLORE"                   # as `_stand_up` left it
+    self._void_errand()
+    return STOOD_UP
+
+  def _void_errand(self) -> None:
+    """What `run_errand_routine`'s own ending would have written, for the
+    errand a stand-up closed (issue #348): out of errand mode, one result,
+    the job failed, `task_failed` for the map beside `stood_up`, and a
+    History line saying what dying cut short. Nothing where no errand was
+    in flight.
+
+    ⚠ THE JOB IS FAILED, NOT TAKEN UP AGAIN as a restart's is (#345): a
+    kept errand runs before the mind is asked, so the robot would walk
+    straight back into the job it died doing -- the opposite of coming back
+    out of errand mode, and what `MORTAL_RULE` promises ("ends everything
+    you were doing"). A procedure's job stays the robot's to run, and a
+    game's is its referee's, as across a restart. Only a stand-up after a
+    death gets here: an admin reaches a LIVING robot between errands."""
+    from pluggybot.economy.tasks import KINDS
+    errand = self._errand_now
+    if errand is None:
+      return
+    self._in_errand = False
+    self._aborting = False
+    self._interrupt_pending = None
+    self._errand_name = ""
+    self._errand_now = None
+    self._deferrals.pop(errand.name, None)
+    t = float(self.data.time)
+    # `picked`/`stowed`/`energyWh` are the errand's to say and it did not
+    # get to: the stand-up took the body, the pack and the tool home
+    self.errand_results.append({
+      "errand": errand.name, "module": errand.module, "picked": None,
+      "stowed": None, "energyWh": None,
+      "estimateWh": round(self.affords(errand).cost_wh, 4),
+      "error": DEATH_ENDED, "stoodUp": True})
+    task = (self.tasks.get(errand.task_id)
+            if errand.task_id and self.tasks is not None else None)
+    kind = KINDS.get(task.kind) if task is not None else None
+    job = (self.tasks.abandon(task.id, DEATH_ENDED, t=t)
+           if kind is not None and kind.discharge == "errand" and not task.roles
+           else None)
+    if errand.program is not None:
+      # ...and a run that said `validated` says how it ended; its count died
+      # with the runner, so it carries none rather than a wrong one
+      program = errand.program
+      self._emit({"type": "procedure", "robot": self.root, "name": program.name,
+                  "program": program.as_dict(), "t": round(t, 3),
+                  "outcome": "aborted", "stopped": "stood_up"})
+    self._say(f"STOOD UP mid-errand: {errand.name} ended there"
+              + (f" -- TASK {job.id} failed: {DEATH_ENDED}" if job else ""))
+    # ⚠ NOT AFTER A TRUE DEATH: the errand was the robot before's, and the
+    # next one's only inheritance is being told it is not the first
+    # (`_true_death`) -- its History and its fresh map hear none of this.
+    if self.deaths and self.deaths[-1].get("hearts") == 0:
+      return
+    self._occur("task_failed", errand.name)
+    self._remember(f"dying cut short {errand.name}"
+                   + (f"; the job {job.id} ({job.kind}) is failed: {DEATH_ENDED}"
+                      if job else ""))
+
+  def _charge_trip_routine(self) -> Routine:
+    """GO_CHARGE then CHARGE, the loop's way to the rack: a dock that fails
+    is `_strand`'s, and a stand-up ends either half (issue #348) -- a flat
+    death waits up to 1386 s for a taken charge bay (#346), past the timer."""
+    self.state = "GO_CHARGE"
+    reached = yield from self._until_stood_up_routine(self.go_charge_routine())
+    if reached is STOOD_UP:
+      return
+    if not reached:
+      self._strand()
+      return
+    self.state = "CHARGE"
+    yield from self._until_stood_up_routine(self.charge_routine())
+
   def _strand(self) -> None:
     """A failed dock is a `stuck` death (issue #107): "unable to reach the
     rack" is the third of Evaluation.md §3's causes, and it ends the day
@@ -6006,7 +6191,9 @@ class HubLifecycle:
     if resumed is not None:
       self.errands = self._preset_left(resumed) + held
       if resumed["inPlace"] and self.dead is None:
-        yield from self._stow_after_restart_routine()
+        # a stow the robot dies in is ended by its stand-up, as in the loop
+        # (issue #348): a seated tool no longer holds the timer off
+        yield from self._until_stood_up_routine(self._stow_after_restart_routine())
     else:
       self.errands.extend(held)
 
@@ -6051,14 +6238,12 @@ class HubLifecycle:
       # and with the same result: a no-op here on any mission whose physics
       # is actually running.
       self._metabolism_step()
+      # ⚠ EVERYTHING HERE THAT MOVES THE BODY FOR LONG runs under
+      # `_until_stood_up_routine` (issue #348): a stand-up ends it, and the loop
+      # comes back round to here. The rest are short drives and stands.
       if self.needs_charge:
         self._cleared_rack = False
-        self.state = "GO_CHARGE"
-        if not (yield from self.go_charge_routine()):
-          self._strand()
-          continue
-        self.state = "CHARGE"
-        yield from self.charge_routine()
+        yield from self._charge_trip_routine()
       elif self.errands and not self._afford_next():
         self._cleared_rack = False
         # ⚠ AN ERRAND THAT WILL NOT FIT IS CHARGED FOR FIRST (issue #15).
@@ -6069,12 +6254,7 @@ class HubLifecycle:
         # see it coming. `_afford_next` has already narrated why and, for
         # an errand no pack in this world could cover, has already dropped
         # it -- so False here always means "go and charge".
-        self.state = "GO_CHARGE"
-        if not (yield from self.go_charge_routine()):
-          self._strand()
-          continue
-        self.state = "CHARGE"
-        yield from self.charge_routine()
+        yield from self._charge_trip_routine()
       elif self._stow_owed():
         # A RETURN THAT FAILED IS TRIED AGAIN FIRST (issue #346): a robot
         # never starts a job with a tool it failed to hang still on its
@@ -6083,13 +6263,14 @@ class HubLifecycle:
         # the board gave up, the stow was refused again -- graded "no ink
         # reached". Below charging, which works whatever the fork carries.
         self._cleared_rack = False
-        yield from self._stow_retry_routine()
+        yield from self._until_stood_up_routine(self._stow_retry_routine())
       elif self.errands:
         # Pop BEFORE running: an errand that raises must not be retried
         # forever, and a queue that only shortens on success is an infinite
         # loop dressed as a task list.
         self._cleared_rack = False
-        yield from self.run_errand_routine(self.errands.pop(0))
+        yield from self._until_stood_up_routine(
+          self.run_errand_routine(self.errands.pop(0)))
       elif self._grade_pending:
         # A challenge the robot said it finished (issue #207), graded once
         # the queue it may have filled on the same answer has drained --
@@ -6120,7 +6301,7 @@ class HubLifecycle:
       elif not self.map_done:
         self._cleared_rack = False
         self.state = "EXPLORE"
-        yield from self.explore_routine()
+        yield from self._until_stood_up_routine(self.explore_routine())
       elif self.expects_work:
         if not self._cleared_rack:
           # ...and not AT THE RACK (issue #167; RACK_CLEAR_M). Once per

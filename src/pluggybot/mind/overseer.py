@@ -2500,7 +2500,9 @@ that is written down as what happened.\
 #: ⚠ ...AND THAT IT IS KEPT (issue #337). "The same list every time" was false
 #: once an hour on the served world, where the process restarts and the list
 #: went with it; a robot re-sending it filed a ticket about it. `MORTAL_RULE`'s
-#: words, so "stood back up" and "your last heart" mean one thing each.
+#: words, so "stood back up" and "your last heart" mean one thing each --
+#: `stood_up` (issue #348) uses them too, and says what the code does: the
+#: errand a stand-up lands in ends there.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2534,6 +2536,9 @@ whether `offeredTasks` is showing you a job: `offers`, or `none`
   message_received  somebody said something to you
   every             `value` is a number of seconds
   ticket_replied    a person answered, or closed, one of your support tickets
+  stood_up          you were stood back up, at the start with a full pack, \
+and whatever you were doing ended there. `kind` narrows it to who did it: \
+`timer` (the world, after a death) or `admin` (a person)
 
 The `action` is one from the same list you are choosing from now, PLUS one \
 more: `ask`, which means "stop and think about it" -- the thing that happens \
