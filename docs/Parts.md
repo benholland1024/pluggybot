@@ -334,6 +334,7 @@ and models TBD.**
 | Part | Route | Notes → sim |
 |---|---|---|
 | Rack: rail, posts, shelf, V-trays, wall braces | rail/posts/base from stock (above); trays and brackets **3D-printed** (PETG; the trays see ~3 N loads) | geometry = `rack/coupling.py` constants; 1.86 m of rail for five bays + charge bay |
+| Bay presence switches | one Omron D2F-01L2 per bay (eight, €2.59 each) in the +y V-tray; a board on the rack reads them and reports them over the network (`rack_controller`, none chosen) | `coupling.bay_switches`: which bays are taken, never by which module — what the robot's `rack` context is built off (Overseer.md §2i). The sim reads contact, not force: a bare switch under one tray would not close for the LCD or the plug (0.70 and 0.77 N a tray against its 0.78 N), so the lever has to carry the tray, or a lighter switch; open |
 | Tool peg axles | **6 mm steel rod** (conductive — see below), 2× 63 mm conductors on a 24 mm insulating centre bush, 150 mm overall | the one loaded part **and the electrical connector** — `PEG_R`, `PEG_HALF`, `PEG_INSUL_HALF` / `PEG_COND_HALF` |
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits | prong stance ±58 mm (`FORK_Y`) |
 | Module frames (LCD, plug, pen, claw, seed dispenser) | 3D-printed plates, common peg interface | 130–211 g measured, ~250 g practical ceiling (ToolPattern.md "Mass and geometry class") |

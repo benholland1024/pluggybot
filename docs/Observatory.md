@@ -10,6 +10,35 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The rack says where each tool is (#351) — opens when this PR is deployed
+
+**What changed in the context.** `rack` used to say which bay each module
+belongs to. Now it says where each one is: `on bay C`, `on your fork`, `on
+Rowan's fork`, or `not on its bay and on no fork` (a built tool: `on its
+bay`). It is built from a presence switch per bay, which the rack reports
+over the network (a bay is taken, never by which module), the robot's own
+fork, and what the other robot says it carries. It is on every arm now:
+`guarded` gains the block, with the originals and no rail, and its prefix
+does not move. On `autonomous` one sentence of the workshop rule changed
+("says where each tool is" for "says what hangs where"), so the deployed
+prefix moved by those words. A `tell` claim about the rack ("bay C is
+empty", "module_pen is on the rack") is now graded against what hangs
+where, not the inventory. Before, "bay C is empty" said while the pen rode
+the other robot's fork was recorded false. Overseer.md §2i.
+
+**What the period is for.** Jobs lost at the rack to a tool that was not
+on its bay. On 42f4a11 three claimed jobs were lost that way: two picks of
+the pen while it rode Luca's fork, and one while it lay on the floor. The
+rows to read are the History lines a failed pick writes (`pick_failure`):
+"module_pen is on Luca's fork" and "it was not on its bay, and no robot is
+carrying it". Both should fall. A `message` act's `claimTrue` about a bay
+or a module compares only within this period.
+
+**Not yet known.** Whether the robot acts on it. Avoiding the loss means
+not taking a job whose tool it has just been told is away. It is also not
+known whether the lost-tool clock (#347, 5 minutes) already makes `not on
+its bay and on no fork` too rare to matter.
+
 ### A robot lying down is avoided where it lies (#365) — opens when this PR is deployed
 
 **What changed in the world.** On the pair, a robot that has fallen over

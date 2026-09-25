@@ -419,10 +419,10 @@ Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
 `hung` (the module, the bay, the verbs, what it retired), `retired` — and
 a hang or a retire is followed by the world's `scene_changed`. What the
-robot built is shown back to it: `rack` — `original`, the five as a list
-no field can name, and `built`, the rail's bays by letter with an empty one
-`null` — and `tools` (each spec, its bay, its cost) ride the volatile half
-of the context. A built tool's axis is `<name>.<verb>` in the procedure
+robot built is shown back to it: `rack` — `original`, the five by name
+with where each is (§2i), and `built`, the rail's bays by letter with an
+empty one `null` — and `tools` (each spec, its bay, its cost) ride the
+volatile half of the context. A built tool's axis is `<name>.<verb>` in the procedure
 language, and the tool is fetched like any module: its bay indexes
 `STATION_YS` past the five, and every swap, standoff and tag fix works on
 the rail as it does on the first rack, because the rail's stations are
@@ -471,11 +471,11 @@ the first rack always has been.
 
 **Whose tool is it, and which tool does a procedure need** (issue #324).
 Two facts the robot could previously only learn by failing. A built bay
-says `{module, by}` — `by` is "you" or the other robot's display name —
-because the rail is shared and a bay may hold a tool this robot may
-neither take nor retire; ⚠ the TAG cannot carry it, since a built
-module's tag is `15 + bay` and belongs to the bay, reused by whatever
-hangs there next. And a library entry says `needs`: the modules its
+says `{module, by}` (and `where`, §2i) — `by` is "you" or the other
+robot's display name — because the rail is shared and a bay may hold a
+tool this robot may neither take nor retire; ⚠ the TAG cannot carry it,
+since a built module's tag is `15 + bay` and belongs to the bay, reused by
+whatever hangs there next. And a library entry says `needs`: the modules its
 `move` and `read` calls require, off the `requires` that
 `workshop/build.py` puts on every axis and sensor a built tool brings.
 The source was always shown, so the association was inferable; this
@@ -890,6 +890,41 @@ bytes leave the state in `model_state`, on every arm — the one turn
 built off the state without `_user_content` is the mid-errand interrupt
 (§ "The mid-errand interrupt"), and a picture waiting on the shelf when
 one fires would otherwise ride the question as 16 kB of base64 text.
+
+### 2i. Where each tool is (issue #351; every arm)
+
+`rack` in the context says where each module IS: `on bay C`, `on your
+fork`, `on Rowan's fork`, or `not on its bay and on no fork`. A built tool
+on the rail is `on its bay`, because the rail's letters are the first
+rack's too. `rack` used to be the INVENTORY, which bay a module belongs to.
+So it listed the claw on the rack while the claw lay in the garden, and the
+pen on its bay while the pen rode the other robot's fork. Three of
+42f4a11's failed picks were jobs lost that way (Rowan, tk_0004).
+
+The view has three sources and nothing else (`lifecycle.tool_places`):
+
+- **a presence switch per bay** (`coupling.bay_switches`, the catalog's
+  `bay_switch`). This is what the rack reports over the network: a bay is
+  taken, and never by which module;
+- **the robot's own fork**;
+- **what the other robot says it carries** (`carrying`, the `others`
+  surface).
+
+A named fork outranks the switch, which cannot say what presses it. So a
+module hung in another module's bay reads as that module, as it would on a
+real rack. A lost tool is given no place, because nothing on the network
+knows where it lies. `tests/test_rack_view.py` walks the context for
+anything a sensor would not know.
+
+⚠ **It is on every arm.** It is a fact, not a rail, like `others`.
+`guarded` is shown the originals and no rail (it has no workshop). Its
+prefix and `GUARDED_RULES_SHA` do not move: this is context, not rules. On
+`autonomous` the workshop's rule says `rack` gives where each tool is.
+
+⚠ **A claim about the rack is graded against the world**
+(`HubLifecycle.racked`, what hangs where), never the inventory. Graded
+against the inventory, "bay C is empty" was false while the pen rode the
+other robot's fork.
 
 ### 2c. The other robot (issue #167, M12)
 
