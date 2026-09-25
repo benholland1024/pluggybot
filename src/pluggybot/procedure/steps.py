@@ -315,9 +315,10 @@ POSE_TOL = 1e-3
 
 
 def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
-  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order they
-  move (issue #347): the tool's own axes to rest, the arm in, the lift to
-  `MODULE_DRIVE_LIFT` -- the pose a pick leaves. Unlike the RETURN's
+  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
+  move them (issue #347; the last paragraph): the tool's own axes to rest,
+  the arm in, the lift to `MODULE_DRIVE_LIFT` -- the pose a pick leaves.
+  Unlike the RETURN's
   (`carry_configuration_routine`) it sets nothing down.
 
   A tool's axis rests at its joint's compiled value, the pose the tool hung
