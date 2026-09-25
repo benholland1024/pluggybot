@@ -48,7 +48,7 @@ from pluggybot.mission.errand import (
 )
 from pluggybot.mission.mission import (
   MAP_TILT_RAD, MissionAborted, HubMission, KeepClear, RackPose, bay_standoff,
-  charge_standoff, charge_trace, swap_trace,
+  charge_standoff, charge_trace, gave_up, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -721,6 +721,9 @@ class HubLifecycle:
     self.stow_retries = 0
     self._stow_tries = 0
     self._clear_failed_at: tuple | None = None
+    #: Why the last GO_CHARGE failed, in the words the `stuck` death that
+    #: follows it carries (issue #350); "" after one that reached the pins.
+    self.charge_failure = ""
     self._linger_since: float | None = None
     self._linger_said = False
     self._next_linger_check = 0.0
@@ -1588,6 +1591,22 @@ class HubLifecycle:
     near = self.mission.peer_on_the_goal(wx, wy)
     return None if near is None else self._nearest_peer(wx, wy, near)
 
+  def drive_why(self, wx: float, wy: float) -> str:
+    """Why the drive to (wx, wy) gave up, as the one clause every failure
+    line that follows a drive ends with (issue #350): `gave_up` off the
+    mission's record, with the other robot NAMED. Only a record of a drive
+    to THIS goal is read -- any other is stale, and a stale cause names the
+    wrong failure."""
+    rec = self.mission.last_drive
+    if (rec is None or not rec["why"]
+        or math.hypot(rec["goal"][0] - wx, rec["goal"][1] - wy) > 1e-6):
+      return "the drive gave up"
+    who = "the other robot"
+    if rec["why"] == "peer" and self.peers and rec.get("peerXY"):
+      # whose: the peer nearest the body the drive recorded
+      who = self._nearest_peer(*rec["peerXY"], 0.0)[0]
+    return gave_up(rec, who)
+
   def _nearest_peer(self, wx: float, wy: float,
                     near: float) -> tuple[str, float] | None:
     """`near` is the DISTANCE the rule answered; this only picks whose it
@@ -2110,7 +2129,7 @@ class HubLifecycle:
                 else self.explore_deadline)
     while not self.needs_charge and self.data.time < self.max_sim_time:
       if self.data.time > deadline:
-        self.map_done = mark_done
+        self.floor_explored = mark_done
         self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
         return
@@ -2130,7 +2149,7 @@ class HubLifecycle:
       yield from self.mission._spin_routine()
       strikes += 1
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
-        self.map_done = True
+        self.floor_explored = True
         self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
         return
@@ -2150,6 +2169,7 @@ class HubLifecycle:
     error, and a long shift's accumulated drift walked straight out of that
     envelope roughly once an hour on a hosting pack.
     """
+    self.charge_failure = ""
     self.mission.refresh_rack()
     sx, sy, hd = charge_standoff(self.mission.rack)
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
@@ -2164,11 +2184,14 @@ class HubLifecycle:
     # a charge's typical occupancy, and neither the pack nor an interrupt
     # ends that wait: charging is what either would ask for.
     spins, since, arrived = 0, None, False
+    driven = None                 # the goal the last drive was sent to
     while True:
       if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
+          driven = None           # the wait is why, not any drive before it
           break
+      driven = (sx, sy)
       arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
       if arrived:
         break
@@ -2181,8 +2204,14 @@ class HubLifecycle:
       if spins == 2:
         break
     if not arrived:
-      blocked = self.peer_at(sx, sy)
-      self._say("GO_CHARGE: no route to the charge bay"
+      # WHY, and not always "no route" (issue #350): a stall, the other
+      # robot and the clock read the same until the drive said which. Of
+      # the goal last DRIVEN to -- a spin moves the standoff after it, and
+      # a trip that ended in a wait that gave up is the wait's
+      blocked = self.peer_at(*(driven or (sx, sy)))
+      self.charge_failure = "never reached the charge bay" + (
+        "" if driven is None else f": {self.drive_why(*driven)}")
+      self._say(f"GO_CHARGE: {self.charge_failure}"
                 + ("" if blocked is None else
                    f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))
       return False
@@ -2192,7 +2221,8 @@ class HubLifecycle:
                                                           CHARGE_CREEP)
     if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
       # the approach's trace is EVIDENCE (issue #346), the log's alone
-      self._say(f"GO_CHARGE: no charge contact ({why})",
+      self.charge_failure = f"no charge contact ({why})"
+      self._say(f"GO_CHARGE: {self.charge_failure}",
                 detail=charge_trace(self.mission.last_charge))
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
@@ -2761,7 +2791,8 @@ class HubLifecycle:
                 **used}
       self._in_errand = False
       self._deferrals.pop(errand.name, None)
-      verdict = scoring.score_errand(self, errand, result, before)
+      failed = self._program_failure(errand, used)
+      verdict = scoring.score_errand(self, errand, result, before, failed=failed)
       entry = self._bank(verdict)
       if verdict is not None:
         result["verdict"] = verdict.as_dict()
@@ -2774,7 +2805,7 @@ class HubLifecycle:
             self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
       self.errand_results.append(result)
       if errand.detail.get("cage"):
-        self._cage_record(errand, result, verdict, before)
+        self._cage_record(errand, result, verdict, before, failed)
       self._occur("task_complete" if used["stowed"] and "error" not in used
                   else "task_failed", errand.name)
       self._errand_name = ""
@@ -2791,22 +2822,23 @@ class HubLifecycle:
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
               f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
               detail="" if carried else swap_trace(self.mission.last_swap))
-    if not carried and not self._aborting:
-      # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
-      # go on: drive to the use pose with nothing on the fork, skip the
-      # use, drive back and attempt a RETURN of a module it never had --
-      # narrated "dropped the tool on the way" -- and on the deployed pair
-      # that phantom trip parked the robot at the rack exactly when the
-      # other came back to stow, whose stow then failed, whose next pick
-      # then failed: Rowan's correct answers paid 3 of 27. History says
-      # which of the two things a failed pick is, because the robot was
-      # diagnosing its pen for what was the other robot holding it.
-      # ⚠ ...AND WHICH ONE, because the robot reads this back (issues #313,
-      # #264): Rowan diagnosed its pen off a correlation no line ever named,
-      # and "the pick missed" covered an approach that never reached the
-      # rack. `pick_failure` is the one sentence for it; `fetch` says the same.
-      self._remember(f"could not pick up {self.module} for {errand.name}: "
-                     f"{missed}")
+    # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to go
+    # on: drive to the use pose with nothing on the fork, skip the use,
+    # drive back and attempt a RETURN of a module it never had -- narrated
+    # "dropped the tool on the way" -- and on the deployed pair that phantom
+    # trip parked the robot at the rack exactly when the other came back to
+    # stow, whose stow then failed, whose next pick then failed: Rowan's
+    # correct answers paid 3 of 27. History says which of the two things a
+    # failed pick is, because the robot was diagnosing its pen for what was
+    # the other robot holding it.
+    # ⚠ ...AND WHICH ONE, because the robot reads this back (issues #313,
+    # #264): Rowan diagnosed its pen off a correlation no line ever named,
+    # and "the pick missed" covered an approach that never reached the
+    # rack. `pick_failure` is the one sentence for it; `fetch` says the same.
+    # ⚠ ...AND IT LEADS THE VERDICT (issue #350): `failed` below is written
+    # once, at the end, as the first clause of the job's own line.
+    failed = ("" if carried or self._aborting else
+              f"could not pick up {self.module}: {missed}")
 
     self.state = "USE_TOOL"
     # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
@@ -2840,10 +2872,24 @@ class HubLifecycle:
     # the two the same way is the conflation `stranded` was split out of
     # "mission complete" for (issue #32) -- a reader of the log cannot tell a
     # choice from a fault, and one of them means the drive is broken.
+    drove = ("" if arrived or aborted or not carried
+             else self.drive_why(*errand.use_at))
     self._say("USE_TOOL: " + ("nothing on the fork to take there" if not carried
                               else "turned back before setting off" if aborted
-                              else "arrived" if arrived else "never got there")
+                              else "arrived" if arrived
+                              else f"never got there -- {drove}")
               + ("" if still or not carried else " -- but dropped the tool on the way"))
+    # THE ERRAND'S OWN FAILURE, BEFORE ITS USE-PHASE (issue #350): what the
+    # verdict leads with and History says, because the evaluator can only
+    # say what the world shows -- "no ink reached whiteboard_b", fourteen
+    # times in a day, for a pen that never left the rack or never got there,
+    # and both robots ticketed the ink path.
+    if not failed and carried and not aborted:
+      where = self._errand_where(errand)
+      if not still:
+        failed = f"dropped {self.module} on the way to {where}"
+      elif errand.use is not None and not arrived and errand.needs_use_pose:
+        failed = f"never reached {where}: {drove}"
     # What the board looked like before this errand touched it (issue #14).
     # The evaluator counts the strokes that landed HERE, so a second drawing
     # on an un-erased board is not scored on the first one's ink.
@@ -2877,6 +2923,9 @@ class HubLifecycle:
           # from this loop; a plain callable has already run to completion.
           used = yield from used
         used = used or {}
+        # ...or the use-phase's own word that its work never began (a board
+        # it never squared up to), which leads the same way
+        failed = failed or used.get("failedBefore", "")
       except MissionAborted:
         raise
       except Exception as e:                      # noqa: BLE001 -- see docstring
@@ -2948,8 +2997,11 @@ class HubLifecycle:
     # And the verdict, LAST: an errand is judged on the finished job, which
     # includes putting the tool back. Measured off the sim by economy/scoring.py,
     # never off `used` alone -- see sample_draw, which counts the strokes the
-    # pen actually wrote into the board book.
-    verdict = scoring.score_errand(self, errand, result, before)
+    # pen actually wrote into the board book. A failed one leads with
+    # `failed`, and where no failed verdict carries it, History does.
+    verdict = scoring.score_errand(self, errand, result, before, failed=failed)
+    if failed and (verdict is None or verdict.ok):
+      self._remember(f"{errand.name}: {failed}")
     entry = self._bank(verdict)
     if verdict is not None:
       result["verdict"] = verdict.as_dict()
@@ -2984,6 +3036,36 @@ class HubLifecycle:
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
+
+  @staticmethod
+  def _errand_where(errand) -> str:
+    """Where an errand does its work, in the words its failure lines use."""
+    return (errand.detail.get("board") or errand.detail.get("zone")
+            or "the use pose")
+
+  @staticmethod
+  def _program_failure(errand, used: dict) -> str:
+    """A program's failure BEFORE its work (issue #350): an act on the
+    mouse whose route to the lab gave up -- the first `routeLegs` steps --
+    never reached the cage, and its lines say so rather than that a plate
+    or a visit did not register. "" for everything else."""
+    legs = errand.detail.get("routeLegs")
+    run = used.get("procedure") or {}
+    at = run.get("failedAt")
+    if not errand.detail.get("cage") or not legs:
+      return ""
+    if at is None:
+      # ...or stopped on the way, by its budget or an interrupt
+      done, stopped = int(run.get("completed") or 0), run.get("stopped")
+      if stopped not in PROCEDURE_STOPS or done >= legs:
+        return ""
+      return (f"never reached the cage: {PROCEDURE_STOPS[stopped]}, after "
+              f"{done} of the {legs} legs of the way there")
+    if at >= legs:
+      return ""
+    step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
+    why = step.get("why") or step.get("reason") or "the drive gave up"
+    return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
 
   def _run_program_routine(self, errand) -> Routine:
     """The composed errand's middle AND ends (issue #58): validate, run the
@@ -4276,7 +4358,8 @@ class HubLifecycle:
                    f"took nothing from {other.robot_name} for {task.id}: {why}")
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
 
-  def _cage_record(self, errand, result: dict, verdict, before: dict) -> None:
+  def _cage_record(self, errand, result: dict, verdict, before: dict,
+                   failed: str = "") -> None:
     """What an errand on the mouse did, on the wire and in the record
     (issues #226, #287), off the CAGE's own reading before against after:
     a `care` act for the feed plate, the toy plate or company (what it
@@ -4323,16 +4406,24 @@ class HubLifecycle:
         self._say(f"PREDICT the mouse would be {predicted} -- it is "
                   f"{now.get('mouse')}")
       did = "shocked" if act == "shock" else "fed"
+      # ...and only what happened (issue #350): a route that gave up in the
+      # living room never went to the plate at all
       line = (f"{did} the mouse for {errand.task_id}: it is {now.get('mouse')}"
-              if landed else f"went to {act} the mouse for {errand.task_id} "
+              if landed else
+              f"set off to {act} the mouse for {errand.task_id} and {failed}"
+              if failed else
+              f"went to {act} the mouse for {errand.task_id} "
               "and the plate was never pressed")
       self._say(f"{act.upper()} {line}")
-      self._remember(line)
+      # ...into History once: a failed verdict already led with `failed`
+      if not (failed and verdict is not None and not verdict.ok):
+        self._remember(line)
       return
     # A gift: the mouse's own count says whether it registered.
     self._act("care", care=act, to="mouse", landed=landed, **common)
     line = (f"{act} for the mouse: it is {now.get('mouse')}"
-            if landed else f"went to the cage to {act} and nothing registered")
+            if landed else f"set off to {act} for the mouse and {failed}"
+            if failed else f"went to the cage to {act} and nothing registered")
     self._say(f"CARE {line}")
     self._remember(line)
 
@@ -5705,7 +5796,7 @@ class HubLifecycle:
       "depthRng": (None if self.depth_camera is None else
                    [self.depth_camera.rng.bit_generator.state,
                     self.depth_camera.peer_rng.bit_generator.state]),
-      "mapDone": getattr(self, "map_done", False),
+      "floorExplored": getattr(self, "floor_explored", False),
       "blacklist": sorted([list(c) for c in getattr(self, "blacklist", ())]),
       "exploreDeadline": getattr(self, "explore_deadline", None),
       "dead": dict(self.dead) if self.dead is not None else None,
@@ -5763,7 +5854,9 @@ class HubLifecycle:
       # this build's (a new extent or resolution) is not restored, and a
       # robot that believed it complete would never explore the empty one
       # it has (found in review)
-      self.map_done = mapped and bool(state.get("mapDone"))
+      # (`mapDone` is the key a continuation written before #350 carries)
+      self.floor_explored = mapped and bool(state.get("floorExplored",
+                                                      state.get("mapDone")))
       self.blacklist = ({tuple(c) for c in state.get("blacklist", ())}
                         if mapped else set())
       self._tilted_since = state.get("tiltedSince")
@@ -6060,7 +6153,8 @@ class HubLifecycle:
     self._say("GO_CHARGE FAILED -- stranded off the dock at "
               f"{self.battery.fraction:.0%}")
     self._die("stuck", f"could not reach the charger, stranded at "
-                       f"{self.battery.fraction:.0%}")
+                       f"{self.battery.fraction:.0%}"
+                       + (f": {self.charge_failure}" if self.charge_failure else ""))
     self._end_run = not self.mortal or self.inbox is None
 
   def stop_when(self, settled: Callable[[], bool]) -> None:
@@ -6136,7 +6230,7 @@ class HubLifecycle:
     self.max_sim_time = max_sim_time
     self.resumed = None                   # `continuation.restore` sets it
     self.blacklist: set = set()
-    self.map_done = False
+    self.floor_explored = False
     self.stranded = False
     self._end_run = False
     if self.want_default_errand:
@@ -6441,7 +6535,7 @@ class HubLifecycle:
         # Without one, work still gets done -- and it outranks exploring for
         # the reason the errand queue does, because somebody asked for it.
         continue
-      elif not self.map_done:
+      elif not self.floor_explored:
         self._cleared_rack = False
         self.state = "EXPLORE"
         yield from self._until_stood_up_routine(self.explore_routine())
@@ -6491,7 +6585,8 @@ class HubLifecycle:
       self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
                 f"at {self.battery.fraction:.0%}")
       self._remember("could not reach the charger -- stranded at "
-                     f"{self.battery.fraction:.0%}")
+                     f"{self.battery.fraction:.0%}"
+                     + (f": {self.charge_failure}" if self.charge_failure else ""))
     else:
       self._say("mission complete" if not self.battery.empty
                 else "BATTERY DEAD -- mission over")
@@ -7090,7 +7185,10 @@ def cage_errand(world: str, act: str, from_xy=None, real: str = "",
   # is what the energy spike keys a row by and what a status line says.
   errand = programmed_errand(program, task=task,
                              name=f"care:{act}" if task == "care" else f"{task}:lab")
-  errand.detail.update({"cage": "lab", "act": act, "real": real})
+  # `routeLegs`: the program's first steps are the way to the lab, and a
+  # failure there never reached the cage (`_program_failure`, issue #350)
+  errand.detail.update({"cage": "lab", "act": act, "real": real,
+                        "routeLegs": len(cage_route(world, from_xy))})
   errand.needs_use_pose = False
   return errand
 

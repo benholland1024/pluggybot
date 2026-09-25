@@ -370,12 +370,18 @@ def test_a_bench_grade_with_no_finding_says_what_it_reads():
   assert "`record`" in reason and "mass_bench" in reason and "notes are not read" in reason
 
 
-def test_a_drive_that_did_not_arrive_says_where_it_stopped():
-  life = SimpleNamespace(mission=SimpleNamespace(
-    drive_to_routine=lambda x, y, timeout: tick.result(False), pose=(1.0, 2.0, 0.0)))
+def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
+  """...and WHY (issue #350): "stopped 9.1 m short of (22, 3)" was a route
+  the planner could not make, read by Rowan as the pack running short."""
+  asked = []
+  life = SimpleNamespace(
+    mission=SimpleNamespace(drive_to_routine=lambda x, y, timeout: tick.result(False),
+                            pose=(1.0, 2.0, 0.0)),
+    drive_why=lambda x, y: (asked.append((x, y)), "the drive gave up (why)")[1])
   verdict = tick.run(SimpleNamespace(_step_once=lambda *a: None),
                      st._drive_to(life, {"x": 4.0, "y": 6.0}))
-  assert verdict["reason"] == "did not arrive: it stopped 5.0 m short of (4, 6), at (1.0, 2.0)"
+  assert verdict["reason"] == "did not arrive at (4, 6): the drive gave up (why), at (1.0, 2.0)"
+  assert verdict["why"] == "the drive gave up (why)" and asked == [(4.0, 6.0)]
 
 
 # ---- 7. a stow puts the tool back as a pick left it, first -----------------
@@ -424,13 +430,15 @@ def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypa
   claw = SimpleNamespace(calibrate_from_body=lambda: None,
                          tuck_routine=lambda: tick.result(None))
   life = SimpleNamespace(world="home", mission=SimpleNamespace(
-    pose_xy=lambda: (-6.0, 1.0), face_routine=lambda h: tick.result(True)))
+    pose_xy=lambda: (-6.0, 1.0), face_routine=lambda h: tick.result(True)),
+    drive_why=lambda x, y: "the drive gave up (why)")
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
   stepper = SimpleNamespace(_step_once=lambda *a: None)
   life.mission.drive_to_routine = lambda x, y, timeout: tick.result(False)
   seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
   assert seen is None
-  assert unseen.endswith("the route to where the house set it out stopped at (-6.0, 1.0)")
+  assert unseen.endswith("the route to where the house set it out stopped at (-6.0, 1.0): "
+                         "the drive gave up (why)")
   life.mission.drive_to_routine = lambda x, y, timeout: tick.result(True)
   seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
   assert seen is None and unseen.startswith(
@@ -585,12 +593,14 @@ def test_a_drive_that_stalled_short_of_the_stand_is_not_a_look_from_it():
     life = SimpleNamespace(world="home", mission=SimpleNamespace(
       pose_xy=lambda: (stand[0] + dx, stand[1]),
       drive_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
-      face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
+      face_routine=lambda h: (faced.append(h), tick.result(True))[1]),
+      drive_why=lambda x, y: "the drive gave up 2.0 m short after 10 s (stalled)")
     went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
     return went, why, faced
   went, why, faced = travel(2.0)
   assert went and faced == [heading]
-  assert why.startswith("and the drive to where the house set it out stopped 2.0 m short of it")
+  assert why.startswith("and the drive gave up 2.0 m short after 10 s (stalled) on the way to "
+                        "where the house set it out")
   assert travel(0.3) == (True, "", [heading])
 
 # ---- review of #336: the library's edges -----------------------------------

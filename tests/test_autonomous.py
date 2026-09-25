@@ -293,7 +293,7 @@ def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
   client = _Broken()
   boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
                   calls_per_hour=99)
-  state = {"decisions": 0, "mapDone": True}
+  state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_IDLE_RUN + 3):
     decision = boss.decide(state)
     assert decision.action == ov.STANDING_ORDER_FLOOR
@@ -358,7 +358,7 @@ def test_a_run_of_bad_answers_does_not_back_off_a_healthy_endpoint():
   client = _Garbler()
   boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
                   calls_per_hour=99)
-  state = {"decisions": 0, "mapDone": True}
+  state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 3):
     assert boss.decide(state).source == "fallback:garbled"
   assert client.calls == ov.MAX_CONSECUTIVE_ERRORS + 3, \

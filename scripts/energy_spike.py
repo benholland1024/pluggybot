@@ -91,7 +91,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   # this script drives the phases directly, so it sets them itself.
   life.max_sim_time = 1e9
   life.blacklist = set()
-  life.map_done = False
+  life.floor_explored = False
   life.explore_deadline = 1e9
 
   out: dict = {"world": world, "batteryWh": battery_wh, "actions": {}}
@@ -245,7 +245,7 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
     life.mission.step_hooks.append(activities.step_hook(model, data))
   life.max_sim_time = 1e9
   life.blacklist = set()
-  life.map_done = False
+  life.floor_explored = False
   life.explore_deadline = 1e9
 
   out: dict = {"world": world}

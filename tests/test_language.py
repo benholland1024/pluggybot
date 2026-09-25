@@ -163,7 +163,8 @@ def _stub_life():
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls, model=model,
                          world="home", boards=None, ledger=None,
-                         battery=SimpleNamespace(fraction=0.5, energy_wh=4.0))
+                         battery=SimpleNamespace(fraction=0.5, energy_wh=4.0),
+                         drive_why=lambda x, y: "the drive gave up (why)")
 
 
 def run(src, life=None, facts=HOME):

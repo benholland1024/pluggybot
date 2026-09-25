@@ -304,7 +304,7 @@ def test_a_taken_charge_bay_is_waited_for_before_and_during_the_approach():
   assert life.data.time == pytest.approx(3 * lc.CHARGE_OCCUPANCY_S,
                                          abs=lc.BAY_POLL_S)
   assert spins == [], "spun for a bay somebody was standing on"
-  said = next(line for line in life.log if "GO_CHARGE: no route" in line)
+  said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
   assert "Rowan was standing 0.20 m from it" in said, said
   assert "I waited 1386 s for it to leave, 3x how long one charge" in said
 

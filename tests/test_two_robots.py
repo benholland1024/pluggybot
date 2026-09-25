@@ -333,7 +333,7 @@ def test_explore_does_not_spin_when_the_other_robot_blocks_the_only_route(monkey
   step = tick.Step(life.explore_routine(budget=30.0))
   assert step.tick() is None and step.done, "explore neither stepped nor ended"
   assert len(plans) == lc.STRIKES_TO_FINISH
-  assert life.map_done
+  assert life.floor_explored
 
 
 def test_the_lidar_drops_the_other_robots_body_from_the_scan():
@@ -556,7 +556,7 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
     def explored(*a, **kw):
       # Where the robot BELIEVES it ended up exploring, without driving.
       life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
-      life.map_done = True
+      life.floor_explored = True
       return tick.result(None)
 
     life.explore_routine = explored

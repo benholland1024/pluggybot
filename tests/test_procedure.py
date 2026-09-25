@@ -157,7 +157,8 @@ def _stub_life(clock=None):
   life = SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,
-                         model=None, world="home", boards=None)
+                         model=None, world="home", boards=None,
+                         drive_why=lambda x, y: "the drive gave up (why)")
   return life
 
 

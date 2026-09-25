@@ -2171,7 +2171,12 @@ save a filmstrip PNG named after the script.
   board book, `module_state`, the battery's own energy); a missing
   measurement is not a passing one; a hidden-truth task never publishes its
   answer (`secret` metrics are redacted from the ledger, the wire and the
-  `reason` line). `tests/test_rewards.py`.
+  `reason` line). `tests/test_rewards.py`. ⚠ A FAILED VERDICT LEADS WITH
+  THE ERRAND'S OWN FAILURE (issue #350; `evaluate(failed=)`, points
+  unchanged), and every line after a failed drive ends with
+  `HubLifecycle.drive_why` -- one of `mission.DRIVE_GAVE_UP`'s four
+  causes. "No ink reached" alone, for a pen that never left the rack, sent
+  both robots ticketing the ink path. `tests/test_failure_words.py`.
 - **What to draw is `tools/strokes.py`; how to draw it is `tools/drawing.py`,
   and the plotter never imports the content module** (issue #11). A figure
   is sized to `Envelope.for_board` (carriage ±55 mm ∩ lift ∩ face), not the
