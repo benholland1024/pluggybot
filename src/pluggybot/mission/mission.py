@@ -51,7 +51,7 @@ from pluggybot.rack.swap import (
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
 from pluggybot.mapping.astar import astar, nearest_traversable
-from pluggybot.mapping.frontier import traversable_mask
+from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import (
   LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, robot_geoms,
@@ -915,6 +915,20 @@ class HubMission:
       self._stand_in = self.grid.cell_to_world(*goal)
     path = astar(trav, start, goal)
     return None if path is None else path_to_waypoints(self.grid, path)
+
+  def in_sight(self, wx: float, wy: float) -> bool:
+    """Can one drive plan to (wx, wy): is it within the LIDAR's reach and
+    on the map, its cell seen (free or not)? Beyond either, `_plan_to`
+    aims at a stand-in, and the procedure verb goes by the house's route
+    instead (issue #353, `steps._drive_to`)."""
+    if math.hypot(wx - self.pose[0], wy - self.pose[1]) > self.lidar.max_range:
+      return False
+    cx, cy = self.grid.world_to_cell(wx, wy)
+    rows, cols = self.grid.grid.shape
+    if not (0 <= cx < cols and 0 <= cy < rows):
+      return False
+    seen = self.grid.grid[cy, cx]
+    return bool(seen < FREE_THRESH or seen > OCC_THRESH)
 
   def _route_cut_by_others(self, wx: float, wy: float) -> bool:
     """Would `_plan_to` have found a plan on the floor it last planned

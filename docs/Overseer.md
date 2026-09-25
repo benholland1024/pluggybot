@@ -346,6 +346,21 @@ period on the observatory; `guarded` is untouched. The hand-written
 solutions that pass each grader live in `challenge/solutions.py`, never
 imported by anything under `mind/`.
 
+**Two verbs get themselves where they need to be** (issue #353). On
+`42f4a11` every robot-written `drive_to(22, 3)` from the house stopped
+6.6-9.1 m short, and a `build_tower` that never fetched the claw failed at
+its first `pick` twice in a day. So a `drive_to` whose goal one drive
+cannot plan to -- past the LIDAR's 8 m, or on a cell never seen
+(`HubMission.in_sight`) -- walks the house's route first
+(`lifecycle.route_to`: back along the way out the robot is on, then out
+along the goal's, the legs behind it dropped), then the goal; a leg that
+gives up ends the verb with #350's clause, naming the leg. A goal in sight
+is one drive, as before, and the house's own legs driven one at a time
+route to nothing, so the cage programs and `solutions.WEIGH` drive as they
+did. And `pick` on an empty fork fetches the claw as `fetch` would; with
+another tool aboard, `pick` and `place` say stow it first. `place` never
+fetches: a claw off its bay holds nothing to place.
+
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
 The fifth quality, taken one step further than a procedure: the robot may

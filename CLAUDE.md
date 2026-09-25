@@ -1303,7 +1303,11 @@ save a filmstrip PNG named after the script.
   along the north street set off on a 463-waypoint detour and stalled.
   That half is unfixed on purpose (the same fallback carries every bay
   and board approach into a wall's inflation); a flown test keeps its
-  legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
+  legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"), and a
+  PROCEDURE's `drive_to` past that reach or off the map walks
+  `lifecycle.route_to`'s doorways first (#353) -- ⚠ the house's own legs
+  must route to nothing, or every cage program and `solutions.WEIGH`
+  changes route (`tests/test_house_route.py`). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
   any rack geometry change; five tool bays (A–E) plus the charge bay on
   the rack, and THREE MORE ON THE BUILT-TOOL RAIL beside it (`rack_built`,
   a second free body continuing the pitch past E in the rack's frame,

@@ -3,9 +3,11 @@ and the verbs it stands on keep their rules.
 
 The rules, each pinned without a mission (docs/Testing.md):
 
-  1. `pick`/`place` are on the vocabulary, refuse without the claw, refuse
-     a `pick` while holding and a `place` while empty, and fail out loud on
-     a tag the eye cannot see -- every verdict measured, none reported.
+  1. `pick`/`place` are on the vocabulary; `pick` fetches the claw onto an
+     empty fork and both refuse another tool aboard (issue #353); they
+     refuse a `pick` while holding and a `place` while empty, and fail out
+     loud on a tag the eye cannot see -- every verdict measured, none
+     reported.
   2. `place`'s ok is read off the WORLD after the retreat: a cube resting
      beside the target fails with the distance, one on it passes.
   3. `HubMission.spot`'s pixel-ray range: at a known tag height the cube's
@@ -79,11 +81,90 @@ def test_pick_and_place_are_verbs_with_a_measured_doc():
   assert "ok when" in st.VERBS["pick"].doc and "ok when" in st.VERBS["place"].doc
 
 
-def test_the_verbs_refuse_without_the_claw_and_say_so(monkeypatch):
-  monkeypatch.setattr(st, "_claw", lambda life: None)
-  life = SimpleNamespace()
-  assert _run(st._pick, life, {"tag": 21}) == {"ok": False, "reason": "the claw is not on the fork"}
-  assert _run(st._place, life, {"tag": 21}) == {"ok": False, "reason": "the claw is not on the fork"}
+_SEEN = {"centre": (1.0, 0.0, 0.013), "lateral": 0.0, "range": 0.8, "half": 0.013,
+         "layer": 0, "toward": (1.0, 0.0), "xyz": (1.0, 0.0, 0.013)}
+
+
+def _fork(monkeypatch, aboard, claw=None):
+  """The fork as the claw verbs read it: `aboard[0]` is the module on it,
+  and `_claw` answers only while that is the claw. Every fetch is logged."""
+  fetches = []
+  monkeypatch.setattr(st, "_carried", lambda life: aboard[0])
+  monkeypatch.setattr(st, "_claw", lambda life: claw if aboard[0] == "module_claw" else None)
+
+  def fetch(life, args):
+    fetches.append(args["tool"])
+    aboard[0] = args["tool"]
+    return tick.result({"ok": True, "tool": args["tool"], "why": "arrived", "powered": True})
+  monkeypatch.setattr(st, "_fetch", fetch)
+  return fetches
+
+
+def test_pick_fetches_the_claw_onto_an_empty_fork_first(monkeypatch):
+  """Issue #353: Rowan's `build_tower` never fetched the claw and failed at
+  its first `pick` twice in a day ("the claw is not on the fork") -- it had
+  failed that way on earlier builds, and its library was full. An empty
+  fork now takes the claw off its bay first, as `fetch` would, and the
+  look comes after."""
+  order = []
+  aboard = [None]
+  fetches = _fork(monkeypatch, aboard, _fake_claw(held=None, after="block_1_box"))
+  monkeypatch.setattr(st, "_spot_routine",
+                      lambda life, tag: (order.append((fetches[:], tag)), tick.result(_SEEN))[1])
+  life = SimpleNamespace(mission=SimpleNamespace(pose=(0.0, 0.0, 0.0)))
+  r = _run(st._pick, life, {"tag": 21})
+  assert fetches == ["module_claw"] and order[0] == (["module_claw"], 21)
+  assert r["ok"] and r["fetched"] == "module_claw" and r["holding"] == "block_1_box"
+  # ...and a claw already aboard is not fetched again
+  r = _run(st._pick, life, {"tag": 21})
+  assert fetches == ["module_claw"] and "fetched" not in r
+
+
+def test_pick_with_another_tool_aboard_says_stow_it_first(monkeypatch):
+  """`fetch`'s rule (issue #264): a loaded fork is never driven into a
+  bay. And a fetch that fails is the pick's failure, in fetch's words."""
+  aboard = ["module_pen"]
+  fetches = _fork(monkeypatch, aboard)
+  r = _run(st._pick, SimpleNamespace(), {"tag": 21})
+  assert r == {"ok": False, "reason": "the fork holds module_pen, not the claw; stow it first"}
+  assert fetches == []
+  aboard[0] = None
+  monkeypatch.setattr(st, "_fetch", lambda life, args: tick.result(
+    {"ok": False, "tool": args["tool"], "why": "blocked",
+     "reason": "could not pick up module_claw: Rowan is carrying it", "trace": "t"}))
+  monkeypatch.setattr(st, "_spot_routine", lambda life, tag: pytest.fail("looked"))
+  r = _run(st._pick, SimpleNamespace(), {"tag": 21})
+  assert r == {"ok": False, "trace": "t", "reason": (
+    "the fork was empty, and fetching the claw failed: could not pick up "
+    "module_claw: Rowan is carrying it")}
+
+
+def test_place_never_fetches_the_claw_and_says_what_to_do(monkeypatch):
+  """A claw off its bay holds nothing to place, so `place` goes nowhere on
+  an empty fork -- it says to pick first -- and with another tool aboard
+  it says what `pick` says."""
+  aboard = [None]
+  fetches = _fork(monkeypatch, aboard)
+  assert _run(st._place, SimpleNamespace(), {"tag": 21}) == {"ok": False, "reason": (
+    "the fork is empty, so nothing is in the jaws to place: pick a cube first")}
+  aboard[0] = "module_lcd"
+  assert _run(st._place, SimpleNamespace(), {"tag": 21}) == {
+    "ok": False, "reason": "the fork holds module_lcd, not the claw; stow it first"}
+  assert fetches == []
+
+
+def test_the_claw_pick_fetched_is_one_the_run_must_hang_back():
+  """`toolsHung` (the procedure's grade) is over every tool the run took
+  off the rack -- a `pick`'s claw as much as a `fetch`'s -- and a
+  procedure that only picks NEEDS the claw (issue #324's `needs`)."""
+  from pluggybot.economy import scoring
+  run = {"steps": [{"verb": "fetch", "tool": "module_pen", "ok": True},
+                   {"verb": "fetch", "tool": "module_lcd", "ok": False},
+                   {"verb": "pick", "ok": False, "fetched": "module_claw"},
+                   {"verb": "pick", "ok": True}]}
+  assert scoring.fetched_tools(run) == ["module_pen", "module_claw"]
+  proc = lang.parse("def t():\n  pick(20)\n  place(21)\n")
+  assert proc.references()["tools"] == ("module_claw",)
 
 
 def test_pick_refuses_a_full_hand_and_place_an_empty_one(monkeypatch):
@@ -337,7 +418,7 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
   # the travel: legs behind the robot dropped, every leg driven, then faced
   drives, faced = [], []
   life = SimpleNamespace(world="home", mission=SimpleNamespace(
-    pose_xy=lambda: (-6.0, 1.0),
+    pose_xy=lambda: (-6.0, 1.0), peer_on_the_goal=lambda x, y: None,
     drive_to_routine=lambda x, y, timeout: (drives.append((x, y)), tick.result(True))[1],
     face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
   went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))

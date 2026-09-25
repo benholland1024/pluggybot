@@ -405,18 +405,53 @@ def _stow(life, args: dict) -> Routine:
   return verdict
 
 
+def legs_routine(life, legs) -> Routine:
+  """Walk a route's legs in order, each a WAYPOINT (issue #353): reached
+  on arrival or within `LEG_DONE_M` of it, and passed by when another
+  robot stands on it -- arrival there is impossible by arithmetic
+  (`peer_on_the_goal`). MEASURED on the pair: the bench's route ended at
+  the garden_2 gate, its stand-in 0.2 m short, and the tower's in the
+  hall, where Rowan stands by on the workshop route's first leg. Returns
+  the leg it could not get near, or None."""
+  from pluggybot.lifecycle import LEG_DONE_M
+  for lx, ly in legs:
+    if life.mission.peer_on_the_goal(lx, ly) is not None:
+      continue
+    arrived = yield from life.mission.drive_to_routine(lx, ly, timeout=DRIVE_TIMEOUT_S)
+    px, py = life.mission.pose_xy()
+    if not arrived and math.hypot(lx - px, ly - py) > LEG_DONE_M:
+      return (lx, ly)
+  return None
+
+
 def _drive_to(life, args: dict) -> Routine:
+  from pluggybot.lifecycle import route_to
   x, y = float(args["x"]), float(args["y"])
+  # ⚠ A GOAL ONE DRIVE CANNOT PLAN TO GOES BY THE HOUSE'S ROUTE (issue
+  # #353), as `pick` and the cage programs already did: the planner sees
+  # only the map and the LIDAR reaches 8 m, and every robot-written
+  # `drive_to(22, 3)` from the house stopped 6.6-9.1 m short.
+  legs = ([] if life.mission.in_sight(x, y)
+          else route_to(life.world, life.mission.pose_xy(), (x, y)))
+  route = {"route": [[round(lx, 2), round(ly, 2)] for lx, ly in legs]} if legs else {}
+  stopped = yield from legs_routine(life, legs)
+  if stopped is not None:
+    (lx, ly), (px, py, _) = stopped, life.mission.pose
+    why = life.drive_why(lx, ly)
+    return {"ok": False, "shortM": round(math.hypot(x - px, y - py), 3), "why": why,
+            **route, "reason": f"did not arrive at ({x:g}, {y:g}): on the house's "
+                               f"route there, the leg to ({lx:g}, {ly:g}) -- {why}, "
+                               f"at ({px:.1f}, {py:.1f})"}
   arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
   px, py, _ = life.mission.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
-    return {"ok": True, "shortM": short}
+    return {"ok": True, "shortM": short, **route}
   # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
   # short of (22, 3)" was a route the planner could not make, and Rowan
   # read it as the pack -- then told Luca, and both declined the lab.
   why = life.drive_why(x, y)
-  return {"ok": False, "shortM": short, "why": why,
+  return {"ok": False, "shortM": short, "why": why, **route,
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
@@ -564,42 +599,35 @@ def prop_stand(world: str, tag: int):
 def _travel_routine(life, tag: int) -> Routine:
   """Go to where the house set the cube out and face it: the zone's route
   legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
-  stand. Legs already behind the robot are dropped (`cage_route`'s rule).
-  Returns (arrived, why): `why` is the clause a failed look ends with --
-  "never got there" and "got there and could not see it" are different
-  things to have to fix (issue #264)."""
-  from pluggybot.lifecycle import LEG_DONE_M, zone_route
+  stand. Legs already behind the robot are dropped (`cage_route`'s rule),
+  and each is walked as a waypoint (`legs_routine`). Returns (arrived,
+  why): `why` is the clause a failed look ends with -- "never got there"
+  and "got there and could not see it" are different things to have to
+  fix (issue #264)."""
+  from pluggybot.lifecycle import legs_ahead, zone_route
   where = prop_stand(life.world, tag)
   if where is None:
     return False, "and it is not one the house set out"
   zone, _, stand, heading = where
   legs = zone_route(life.world, zone)
   px, py = life.mission.pose_xy()
-  # drop the legs behind: from the nearest leg on, or the one after it if
-  # the robot already stands there; inside the zone, none of them
+  # drop the legs behind (`legs_ahead`); inside the zone, all of them
   if legs:
-    dist = [math.hypot(x - px, y - py) for x, y in legs]
-    i = min(range(len(legs)), key=dist.__getitem__)
-    if dist[i] <= LEG_DONE_M:
-      i += 1
-    if math.hypot(stand[0] - px, stand[1] - py) < math.hypot(stand[0] - legs[-1][0],
-                                                              stand[1] - legs[-1][1]):
-      i = len(legs)
-    legs = legs[i:]
-  for x, y in [*legs, stand]:
-    arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
-    if arrived:
-      continue
+    inside = math.hypot(stand[0] - px, stand[1] - py) < math.hypot(
+      stand[0] - legs[-1][0], stand[1] - legs[-1][1])
+    legs = [] if inside else legs_ahead(legs, (px, py))
+  stopped = yield from legs_routine(life, legs)
+  if stopped is not None:
     px, py = life.mission.pose_xy()
-    if (x, y) != stand:
-      return False, (f"and the route to where the house set it out stopped at "
-                     f"({px:.1f}, {py:.1f}): {life.drive_why(x, y)}")
-    short = math.hypot(stand[0] - px, stand[1] - py)
-    if short > STAND_SHORT_M:
+    return False, (f"and the route to where the house set it out stopped at "
+                   f"({px:.1f}, {py:.1f}): {life.drive_why(*stopped)}")
+  if not (yield from life.mission.drive_to_routine(*stand, timeout=DRIVE_TIMEOUT_S)):
+    px, py = life.mission.pose_xy()
+    if math.hypot(stand[0] - px, stand[1] - py) > STAND_SHORT_M:
       # ...and it LOOKS from there anyway: the cube may well be in view, as
       # it always was before this sentence existed. Only the words change.
       yield from life.mission.face_routine(heading)
-      return True, (f"and {life.drive_why(x, y)} on the way to where the house "
+      return True, (f"and {life.drive_why(*stand)} on the way to where the house "
                     f"set it out, at ({px:.1f}, {py:.1f})")
   yield from life.mission.face_routine(heading)
   return True, ""
@@ -671,26 +699,53 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
   return seen, bool(arrived), ""
 
 
+def _stow_first(held: str) -> str:
+  """A claw verb with another tool on the fork (`fetch`'s rule, issue #264)."""
+  return f"the fork holds {held}, not the claw; stow it first"
+
+
+def _fetch_claw(life) -> Routine:
+  """The claw onto an EMPTY fork, for `pick` (issue #353), exactly as
+  `fetch` takes it; a fork holding another tool is refused, never driven
+  into a bay. The verdict is `fetch`'s, its reason saying why `pick` went."""
+  from pluggybot.tools.gripper import CLAW_MODULE
+  held = _carried(life)
+  if held is not None:
+    return {"ok": False, "reason": _stow_first(held)}
+  if CLAW_MODULE not in _rack(life):
+    return {"ok": False, "reason": "the fork is empty, and this rack has no claw"}
+  got = yield from _fetch(life, {"tool": CLAW_MODULE})
+  if not got["ok"]:
+    got["reason"] = f"the fork was empty, and fetching the claw failed: {got['reason']}"
+  return got
+
+
 def _pick(life, args: dict) -> Routine:
   """Pick up the cube carrying a tag (issue #264): spot it, drive the grip
   point over it (`ClawTool.drive_over_routine`, the runway-and-converge
   approach the pickup demo measured to a few millimetres), close, lift.
-  ok when both pads hold something afterwards -- measured, as `grip` is."""
-  claw = _claw(life)
+  ok when both pads hold something afterwards -- measured, as `grip` is.
+  An empty fork fetches the claw first (issue #353): Rowan's `build_tower`
+  never did, and failed at its first `pick` twice in a day."""
+  claw, fetched = _claw(life), {}
   if claw is None:
-    return {"ok": False, "reason": "the claw is not on the fork"}
+    got = yield from _fetch_claw(life)
+    if not got["ok"]:
+      return {"ok": False, "reason": got["reason"],
+              **({"trace": got["trace"]} if got.get("trace") else {})}
+    claw, fetched = _claw(life), {"fetched": got["tool"]}
   held = claw.held()
   if held is not None:
     return {"ok": False, "reason": f"already holding {held}"}
   tag = int(args["tag"])
   seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=False)
   if seen is None:
-    return {"ok": False, "tag": tag, "reason": unseen}
+    return {"ok": False, "tag": tag, "reason": unseen, **fetched}
   picked = yield from claw.pick_up_routine()
   held = claw.held()
   return {"ok": held is not None, "tag": tag, "arrived": bool(arrived),
           "holding": held, "seenAtM": round(seen["range"], 3),
-          "grippedBeforeLift": bool(picked.get("gripped_before_lift"))}
+          "grippedBeforeLift": bool(picked.get("gripped_before_lift")), **fetched}
 
 
 def _place(life, args: dict) -> Routine:
@@ -700,10 +755,13 @@ def _place(life, args: dict) -> Routine:
   the retreat: the cube that was held now rests on the target -- one
   pitch above it and within half an edge sideways (challenge/stack.py's
   own "rests on") -- and the jaws are empty. A block that fell beside
-  says so."""
+  says so. Unlike `pick` it never fetches the claw: one off its bay holds
+  nothing to place (issue #353)."""
   claw = _claw(life)
   if claw is None:
-    return {"ok": False, "reason": "the claw is not on the fork"}
+    other = _carried(life)
+    return {"ok": False, "reason": _stow_first(other) if other is not None else
+            "the fork is empty, so nothing is in the jaws to place: pick a cube first"}
   held = claw.held()
   if held is None:
     return {"ok": False, "reason": "nothing in the jaws to place"}
@@ -881,8 +939,9 @@ VERBS: dict[str, Verb] = {
   "stow": Verb("stow", {}, _stow, "hang the carried module back; ok when hung",
                drives=True),
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float")},
-                   _drive_to, "A* to a world point inside the map; ok on arrival",
-                   drives=True),
+                   _drive_to, "A* to a world point; one past the lidar's 8 m or off "
+                   "the map goes by the house's route through its doorways "
+                   "first; ok on arrival", drives=True),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
                _face, "turn in place; ok when squared within the budget", drives=True),
   "set_lift": Verb("set_lift", {"height": Arg("float", lo=LIFT_RANGE_M[0],
@@ -899,7 +958,8 @@ VERBS: dict[str, Verb] = {
                "find the cube carrying this tag, drive over it and take it; "
                "ok when the jaws hold it. The eye decodes a cube's tag from "
                "about 0.7-1 m away, facing it, and not from closer; a cube "
-               "not in view is looked for where it was set out", drives=True),
+               "not in view is looked for where it was set out, and an "
+               "empty fork fetches the claw first", drives=True),
   "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
                 "set the held cube down on top of the cube carrying this tag "
                 "and back off; ok when it rests there. The eye's reach is "

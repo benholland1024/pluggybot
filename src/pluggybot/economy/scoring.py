@@ -956,14 +956,20 @@ def sample_carry(life, errand, result: dict, before: dict) -> dict:
           "module": errand.module}
 
 
+def fetched_tools(run: dict) -> list[str]:
+  """Every tool a run took off the rack: each `fetch` that landed, and the
+  claw a `pick` fetched for itself (issue #353, the step's `fetched`)."""
+  return [st["tool"] if st.get("verb") == "fetch" else st["fetched"]
+          for st in run.get("steps", ())
+          if (st.get("verb") == "fetch" and st.get("ok")) or st.get("fetched")]
+
+
 def sample_program(life, errand, result: dict, before: dict) -> dict:
   """Measure a composed errand: the runner's per-step verdicts (code's, off
   the world, one per step) and whether every fetched tool is hung -- read
   off the swap again here, not off the runner's word."""
   run = result.get("procedure") or {}
-  fetched = [st.get("tool") for st in run.get("steps", ())
-             if st.get("verb") == "fetch" and st.get("ok")]
-  hung = all(life.mission.swap.module_state(t)["hung"] for t in fetched)
+  hung = all(life.mission.swap.module_state(t)["hung"] for t in fetched_tools(run))
   return {**{k: run.get(k) for k in ("program", "total", "completed",
                                      "failedAt", "stopped", "seconds",
                                      "refused")},
