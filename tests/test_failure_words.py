@@ -16,7 +16,7 @@ from pluggybot import tick
 from pluggybot.economy import scoring
 from pluggybot.lifecycle import HubLifecycle
 from pluggybot.mission.errand import Errand
-from pluggybot.mission.mission import DRIVE_GAVE_UP, HubMission, gave_up
+from pluggybot.mission.mission import DRIVE_GAVE_UP, HubMission, KeepClear, gave_up
 from pluggybot.rack.coupling import HUB_STATION_YS
 from pluggybot.robot import SECOND
 
@@ -130,9 +130,12 @@ class _Drive:
   _at_stand_in = HubMission._at_stand_in
   _other_in_the_way = HubMission._other_in_the_way
   _bodies = HubMission._bodies
+  peer_on_the_goal = HubMission.peer_on_the_goal
 
-  def __init__(self, plan, step=0.0, others=(), sighting=None):
+  def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
     self.data = SimpleNamespace(time=0.0)
+    self.grid = SimpleNamespace(resolution=0.05)
+    self._cut = cut
     self.pose = (0.0, 0.0, 0.0)
     self.others = list(others)
     self.backoff_until, self.peer_holds = 0.0, 0
@@ -140,8 +143,11 @@ class _Drive:
     self.last_drive, self._stand_in = None, None
     self._plan, self._step, self._sighting = plan, step, sighting
 
-  def _plan_to(self, wx, wy, others=True):
-    return self._plan(self, others)
+  def _plan_to(self, wx, wy):
+    return self._plan(self)
+
+  def _route_cut_by_others(self, wx, wy):
+    return self._cut
 
   def peer_sighting(self):
     return self._sighting
@@ -161,27 +167,29 @@ def _drive(fake, goal=(5.0, 0.0), timeout=60.0):
   return arrived, fake.last_drive
 
 
-def _stand_in(fake, others):
+def _stand_in(fake):
   fake._stand_in = (0.2, 0.0)
   return [(0.2, 0.0)]
 
 
 CAUSES = {
   # the planner found nothing at all
-  "no plan": (_Drive(lambda f, o: None), "no_route"),
+  "no plan": (_Drive(lambda f: None), "no_route"),
   # ...or only a stand-in, and the robot stood at it
   "stand-in": (_Drive(_stand_in), "no_route"),
   # a plan it could not make progress along
-  "stalled": (_Drive(lambda f, o: [(5.0, 0.0)]), "stalled"),
+  "stalled": (_Drive(lambda f: [(5.0, 0.0)]), "stalled"),
   # the other robot's disc is what cut the route
-  "disc": (_Drive(lambda f, o: None if o else [(5.0, 0.0)],
-                  others=[lambda: (5.0, 0.3)]), "peer"),
+  "disc": (_Drive(lambda f: None, others=[lambda: (5.0, 0.3)], cut=True), "peer"),
   # waited for the other robot beside it until the time ran out
-  "waited": (_Drive(lambda f, o: [(5.0, 0.0)], others=[lambda: (0.5, 0.0)]), "peer"),
+  "waited": (_Drive(lambda f: [(5.0, 0.0)], others=[lambda: (0.5, 0.0)]), "peer"),
   # held for a body the depth camera saw in the corridor
-  "held": (_Drive(lambda f, o: [(5.0, 0.0)], sighting=0.3), "peer"),
+  "held": (_Drive(lambda f: [(5.0, 0.0)], sighting=0.3), "peer"),
+  # a robot LYING on the goal: never waited for (#365), and its disc made
+  # the goal a stand-in -- "no route" until the review
+  "lying": (_Drive(_stand_in, others=[lambda: KeepClear(5.0, 0.1, True)]), "peer"),
   # still making progress when the budget ran out
-  "clock": (_Drive(lambda f, o: [(100.0, 0.0)], step=0.02), "timeout"),
+  "clock": (_Drive(lambda f: [(100.0, 0.0)], step=0.02), "timeout"),
 }
 
 
@@ -204,19 +212,61 @@ def test_the_four_causes_read_differently_and_an_arrival_reads_none():
   assert "the other robot standing 0.3 m from where it was going" in said["peer"]
   assert "out of time" in said["timeout"]
   assert len({s[s.index("("):] for s in said.values()}) == 4
-  near = _Drive(lambda f, o: [])
+  near = _Drive(lambda f: [])
   near.pose = (4.95, 0.0, 0.0)
   arrived, rec = _drive(near)
   assert arrived is True and rec["why"] == ""
 
 
+def test_a_robot_lying_on_the_goal_is_said_to_lie_there():
+  _, rec = _drive(CAUSES["lying"][0])
+  assert (rec["peerAt"], rec["peerM"], rec["peerDown"]) == ("goal", 0.1, True)
+  assert gave_up(rec, "Rowan").endswith("(Rowan lying 0.1 m from where it was going)")
+  beside = {**rec, "peerAt": "here", "peerM": 0.4}
+  assert gave_up(beside, "Rowan").endswith("(Rowan lying in the way, 0.4 m off)")
+
+
+def test_a_stand_in_from_an_earlier_drive_is_not_this_drives():
+  """`_stand_in` is the last PLAN's, and a drive starts without one."""
+  fake = _Drive(lambda f: [(5.0, 0.0)])           # plans, and no stand-in
+  fake._stand_in = (0.1, 0.0)                     # ...one left by a drive before
+  assert _drive(fake)[1]["why"] == "stalled"
+
+
+def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
+  """`_route_cut_by_others` labels the floor `_plan_to` last used instead of
+  planning again (a plan across the home loop is ~1.3 s on the physics
+  thread): held here to a REAL plan with the other robot left out, on a
+  wall with a door the other robot stands in, and one with no door."""
+  from pluggybot.lifecycle import world_config
+  life = _lifecycle("room_hub", errand=False)
+  m = life.mission
+  m.start_at(*world_config("room_hub")["start"])          # (0.5, 3.0)
+  door = KeepClear(2.0, 3.0)
+  for gap in (True, False):
+    m.grid.grid[:] = -5.0                                   # mapped and free...
+    wall = m.grid.world_to_cell(2.0, 0.0)[0]
+    lo, hi = m.grid.world_to_cell(0, 2.5)[1], m.grid.world_to_cell(0, 3.5)[1]
+    m.grid.grid[:, wall] = 5.0                              # ...but a wall at x = 2
+    if gap:
+      m.grid.grid[lo:hi, wall] = -5.0                       # with a 1 m door in it
+    for goal in [(4.0, 3.0), (2.0, 5.0), (1.0, 1.0)]:     # beyond, in the wall, this side
+      m.others = [lambda: door]
+      masked = m._plan_to(*goal)
+      cut = m._route_cut_by_others(*goal)
+      m.others = []
+      alone = m._plan_to(*goal)
+      assert cut == (alone is not None), (gap, goal)
+      if goal == (4.0, 3.0):
+        assert masked is None and cut is gap, "the door is the other robot's"
+
+
 def test_the_lifecycle_names_the_other_robot_and_reads_no_stale_record():
   rec = {"why": "peer", "goal": (5.0, 0.0), "seconds": 60.0, "shortM": 4.2,
-         "peerM": 4.5, "peerGoalM": 0.3}
+         "peerAt": "goal", "peerM": 0.3, "peerXY": (5.0, 0.3), "peerDown": False}
   rowan = SimpleNamespace(robot_name="Rowan", root=SECOND.root,
                           mission=SimpleNamespace(pose_xy=lambda: (5.0, 0.3)))
-  me = SimpleNamespace(peers=[rowan], mission=SimpleNamespace(
-    last_drive=rec, pose_xy=lambda: (0.8, 0.0)))
+  me = SimpleNamespace(peers=[rowan], mission=SimpleNamespace(last_drive=rec))
   me._nearest_peer = lambda *a: HubLifecycle._nearest_peer(me, *a)
   assert HubLifecycle.drive_why(me, 5.0, 0.0) == (
     "the drive gave up 4.2 m short after 60 s (Rowan standing 0.3 m from where it "
@@ -258,6 +308,29 @@ def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
              for ln in life.log), life.log[-2:]
 
 
+def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
+  """Drive, fail, find the bay taken, wait, give up: the trip ended in the
+  wait, and the drive before it is not what the death should name."""
+  from test_rack_contention import _clock, _peer
+  from pluggybot.mission.mission import charge_standoff
+  life = _lifecycle("room_hub", errand=False)
+  sx, sy, _ = charge_standoff(life.mission.rack)
+  peer = _peer(sx + 3.0, sy, "CHARGE")
+  life.peers, life.mission.others = [peer], [peer.mission.pose_xy]
+  _clock(life)
+  stalled = _stalled_at(life, seconds=90.0, short=2.0)
+
+  def drive(x, y, timeout=90.0):
+    peer.pos[:] = [x + 0.2, y]                 # ...and it takes the bay meanwhile
+    return stalled(x, y, timeout)
+  life.mission.drive_to_routine = drive
+  life.mission._spin_routine = lambda *a, **kw: tick.result(None)
+  assert life.mission.run(life.go_charge_routine()) is False
+  assert life.charge_failure == "never reached the charge bay"
+  assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
+             for ln in life.log), life.log[-2:]
+
+
 # ---- 3. narration names only what happened -------------------------------------
 
 
@@ -268,6 +341,12 @@ def test_an_act_whose_route_gave_up_never_reached_the_cage():
                                    "why": "the drive gave up 1.0 m short after 180 s "
                                           "(stalled, no progress for 10 s)"}]}
   errand = SimpleNamespace(detail={"cage": "lab", "routeLegs": 5})
+  # ...or its budget or an interrupt stopped it on the way
+  cut = {"completed": 2, "stopped": "interrupted"}
+  assert HubLifecycle._program_failure(errand, {"procedure": cut}) == (
+    "never reached the cage: it was interrupted, after 2 of the 5 legs of the way there")
+  assert HubLifecycle._program_failure(
+    errand, {"procedure": {**cut, "completed": 5}}) == "", "stopped in the lab"
   assert HubLifecycle._program_failure(errand, {"procedure": run}) == (
     "never reached the cage: the drive gave up 1.0 m short after 180 s (stalled, no "
     "progress for 10 s), on leg 1 of 5 of the way there")
@@ -292,6 +371,25 @@ def test_the_care_line_says_the_route_and_not_the_mouse(tmp_path):
                     scoring.cage_before(life, errand), failed)
   assert life.status.endswith(f"set off to company for the mouse and {failed}")
   assert "nothing registered" not in life.thoughts.read("History.md")
+
+
+def test_a_job_on_the_cage_that_never_got_there_is_said_once(tmp_path):
+  """The paid job's verdict leads with the route's failure, so its cage
+  line is narrated and not written to History a second time."""
+  from test_mouse import _life as _lab_life, _shock_errand
+  import mujoco
+  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  life = _lab_life(model, tmp_path)
+  _, errand = _shock_errand(life)
+  failed = "never reached the cage: the drive gave up (why), on leg 1 of 5 of the way there"
+  before = scoring.cage_before(life, errand)
+  result = {"procedure": {"ok": False}, "points": 0}
+  verdict = scoring.evaluate("shock", scoring.sample_shock(life, errand, result, before),
+                             failed=failed)
+  life._bank(verdict)
+  life._cage_record(errand, result, verdict, before, failed)
+  assert sum(failed in ln for ln in _history(life)) == 1
+  assert life.status.endswith(f"and {failed}"), "...and the narration still says it"
 
 
 def test_a_census_that_never_ran_names_its_zone_and_never_none():

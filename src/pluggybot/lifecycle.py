@@ -1602,12 +1602,9 @@ class HubLifecycle:
         or math.hypot(rec["goal"][0] - wx, rec["goal"][1] - wy) > 1e-6):
       return "the drive gave up"
     who = "the other robot"
-    if rec["why"] == "peer" and self.peers:
-      # whose: the nearest to the goal where that was the nearer, else to me
-      mine, goal = rec.get("peerM"), rec.get("peerGoalM")
-      at = ((wx, wy) if goal is not None and (mine is None or goal < mine)
-            else self.mission.pose_xy())
-      who = self._nearest_peer(at[0], at[1], 0.0)[0]
+    if rec["why"] == "peer" and self.peers and rec.get("peerXY"):
+      # whose: the peer nearest the body the drive recorded
+      who = self._nearest_peer(*rec["peerXY"], 0.0)[0]
     return gave_up(rec, who)
 
   def _nearest_peer(self, wx: float, wy: float,
@@ -2192,6 +2189,7 @@ class HubLifecycle:
       if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
+          driven = None           # the wait is why, not any drive before it
           break
       driven = (sx, sy)
       arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
@@ -2209,8 +2207,8 @@ class HubLifecycle:
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
-      # a wait that gave up drove nowhere
-      blocked = self.peer_at(sx, sy)
+      # a trip that ended in a wait that gave up is the wait's
+      blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}")
       self._say(f"GO_CHARGE: {self.charge_failure}"
@@ -3054,7 +3052,16 @@ class HubLifecycle:
     legs = errand.detail.get("routeLegs")
     run = used.get("procedure") or {}
     at = run.get("failedAt")
-    if not errand.detail.get("cage") or not legs or at is None or at >= legs:
+    if not errand.detail.get("cage") or not legs:
+      return ""
+    if at is None:
+      # ...or stopped on the way, by its budget or an interrupt
+      done, stopped = int(run.get("completed") or 0), run.get("stopped")
+      if stopped not in PROCEDURE_STOPS or done >= legs:
+        return ""
+      return (f"never reached the cage: {PROCEDURE_STOPS[stopped]}, after "
+              f"{done} of the {legs} legs of the way there")
+    if at >= legs:
       return ""
     step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
     why = step.get("why") or step.get("reason") or "the drive gave up"
@@ -4408,7 +4415,9 @@ class HubLifecycle:
               f"went to {act} the mouse for {errand.task_id} "
               "and the plate was never pressed")
       self._say(f"{act.upper()} {line}")
-      self._remember(line)
+      # ...into History once: a failed verdict already led with `failed`
+      if not (failed and verdict is not None and not verdict.ok):
+        self._remember(line)
       return
     # A gift: the mouse's own count says whether it registered.
     self._act("care", care=act, to="mouse", landed=landed, **common)
