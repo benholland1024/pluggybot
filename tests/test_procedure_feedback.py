@@ -386,8 +386,11 @@ def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
   a procedure may have moved it. MEASURED: a claw stowed from 0.03 m -- where
   Luca's weighing had lowered it -- was driven into the rack and knocked to
   the floor; from the pick's height it hung. The flight is behind
-  --endurance (tests/test_solutions.py); this is the order of the calls."""
-  from pluggybot.tools.gripper import CLAW_MODULE, MODULE_DRIVE_LIFT
+  --endurance (tests/test_solutions.py); this is the order of the calls.
+  ⚠ The lift comes UP before the arm comes in (issue #347): a set-down
+  leaves it at `APPROACH_LIFT`, below the carry height, and MEASURED, a claw
+  drawn in that low comes off its seat."""
+  from pluggybot.tools.gripper import APPROACH_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
   calls = []
 
   def rec(name, *args):
@@ -398,16 +401,18 @@ def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
   state = {"on_fork": True, "hung": False}
   swap = SimpleNamespace(module_state=lambda t: dict(state) if t == CLAW_MODULE
                          else {"on_fork": False, "hung": True},
-                         set_lift_routine=rec("set_lift"), handle=SimpleNamespace(prefix=""))
+                         set_lift_routine=rec("set_lift"), handle=SimpleNamespace(prefix=""),
+                         lift_act=0)
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
-                         model=None, data=None, world="room_hub",   # no routes home
+                         model=None, world="room_hub",   # no routes home
+                         data=SimpleNamespace(ctrl=[APPROACH_LIFT]),   # where a set-down leaves it
                          mission=SimpleNamespace(swap=swap, set_arm_routine=rec("set_arm"),
                                                  swap_at_bay_routine=rec("return"),
                                                  pose_xy=lambda: (0.0, 0.0)))
   held = SimpleNamespace(held=lambda: "block_1", set_down_routine=rec("set_down"))
   monkeypatch.setattr(st, "_claw", lambda _life: held)
   tick.run(SimpleNamespace(_step_once=lambda *a: None), st._stow(life, {}))
-  assert [c[0] for c in calls] == ["set_down", "set_arm", "set_lift", "return"]
+  assert [c[0] for c in calls] == ["set_down", "set_lift", "set_arm", "return"]
   assert ("set_arm", 0.0) in calls and ("set_lift", MODULE_DRIVE_LIFT) in calls
 
 

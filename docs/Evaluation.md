@@ -316,7 +316,7 @@ of the actions.** The hard-coded "after every action, ask what to do next"
 stops sitting *outside* the system and becomes a row like any other, which the
 agent may reorder, condition, or delete.
 
-An **ordered list** of `(event + its configuration) → action`. Ten event types,
+An **ordered list** of `(event + its configuration) → action`. Eleven event types,
 and the actions are the existing menu plus `ask`.
 
 ⚠ **FIRST MATCH WINS, AND THE AGENT CONTROLS THE ORDER.** Several rows can be
@@ -1630,6 +1630,11 @@ number means without anybody choosing it. `config.restartAfterS` records the
 
 ⚠ **AND IT IS NOT §6's TRUE DEATH.** This **keeps** the volume, so the next life
 reads its predecessor's `History.md` death line on every decision.
+
+⚠ **...AND NEITHER IS A LOST TOOL GOING HOME** (issue #347). A module on no
+bay and no fork for `LOST_TOOL_S` (300 sim s) is put back on its bay on the
+same terms: a `reset_tool` event by `auto-restart` with `intervention: false`,
+ON in the served world and OFF in the harness (`lost_tool_after_s`).
 
 **...and it makes the observatory a better instrument.** Its weakness is that
 it is ONE uncontrolled continuous run; auto-restart makes every death a sample

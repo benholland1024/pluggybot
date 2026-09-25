@@ -10,6 +10,73 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A stand-up ends the errand it lands in (#348) — opens when this PR is deployed
+
+**What changed in the world.** A dead robot's timer stood it up at the start
+pose, but the errand it died in ran on under the new life: Rowan,
+knocked over mid-pick on 2026-09-23, drove into a wall until flat after
+every stand-up, thirteen lives (#339). Now a stand-up closes what the robot
+was doing — the errand, a charge trip, a stow retry (the one after a
+restart too), exploring, a decision's action — and the loop starts again
+from the top. The errand's
+job fails "interrupted by a death" rather than being queued again. The
+timer no longer waits for a dead robot to put a seated tool down, which
+was the same wait by another name; the tool goes home with the robot, as
+it did for a robot parked dead (#311). A `battery_below` row the map
+queued as the pack ran out is dropped at the stand-up, which refilled it.
+A tool build the stand-up interrupts is recorded as paid for and hangs
+at the next start, like a build that found the rack busy.
+
+**What changed in the mind.** `stood_up` is the eleventh event type, with
+an optional kind saying who: `timer` or `admin`. The `autonomous` prefix
+moved by one line of `EVENT_MAP_RULE`, and the schema's `event` and `kind`
+enums grew by those three tokens. `guarded`'s prefix and schema did not.
+
+**What the period is for.** Deaths by cause, with #339's signature in view:
+a run of deaths of one cause, each a few minutes after a stand-up, should
+not recur, so a topple costs one life. New rows to read:
+
+- `STOOD UP mid-errand: <errand> ended there` in the narration, and
+  `task_resolved` with the reason `interrupted by a death`: how often a
+  stand-up lands inside an errand at all. That takes a robot still in one
+  routine five minutes after dying.
+- A `procedure` row `aborted` with `stopped: stood_up`, and no step count.
+- `event_map` rows on `stood_up`: whether a robot writes one, and what it
+  does then.
+
+**Not yet known.** Whether any robot writes itself a `stood_up` rule, and
+whether losing the job it died doing changes what it takes on next.
+
+### Tools on the floor (#347) — opens when this PR is deployed
+
+**What changed in the world.** A tool that lies on no bay and on no robot's
+fork for 5 minutes goes back on its bay by itself; until now it stayed on
+the floor until a person reset it, which Ben did 9 times in the 7 days to
+2026-09-24 (8 of them the pen). A procedure's `draw` now takes the
+planner's route to its board. It used to drive straight at the board from
+wherever the robot stood, and every live `pen_check` that reached `draw`
+knocked Rowan over (6 of 6). Every procedure verb that moves the robot now
+puts the tool into its carrying pose first, and the procedure rule in the
+`autonomous` prompt says so in one sentence, which names those verbs. That
+pose, and the one every stow starts from, raise the lift before the arm
+comes in: drawn in low, the claw came off its seat.
+SimNotes, "A drawing that set off from the rack", has the measurements.
+
+**What the period is for.** Phase 1's gate (#344) includes "no manual tool
+reset over 24 hours". The rows to read are `?kind=intervention` with
+subject `reset_tool`: a person's (`ADMIN <who> reset …`, counted as an
+intervention, as before) against the world's (`data.by` `auto-restart`,
+never counted). The world's rows only appear once the website half
+(rooftop-media-2026, the `reset_tool` event) is deployed too; before that
+the sim log's `WORLD put <module> back on its bay` lines are the count. The
+previous period's `stuck` deaths are the other number: 14 in the 7 days,
+6 of them `pen_check`'s draw.
+
+**Not yet known.** How often tools still FALL: this period brings them back,
+which hides how often they fall unless the world's rows are counted. And
+whether the topples this does not explain continue: the ones during swaps
+at the rack and the two on explores (#347's reading in its PR).
+
 ### The pair waits its turn at the rack (#346) — opens when this PR is deployed
 
 **What changed in the world.** On the pair, a bay the other robot stands on

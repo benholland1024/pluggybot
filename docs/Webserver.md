@@ -56,6 +56,9 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   sender thread, which also polls the socket for inbound visitor messages
   between sends (`mind/inbox.py`); every failure — endpoint down, socket
   death, slow consumer — degrades to dropped messages.
+- **`vitals.py`** — `Watchdog`: the process's memory once a minute, and a
+  runaway's stacks and allocations. Not on the wire; it writes to the log
+  ("When the process dies", below).
 
 **Two re-keying rules.** A sparse frame is deltas against what was last
 *emitted*, so any gap leaves a consumer holding stale poses forever. (1) When
@@ -287,6 +290,81 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 
 Not kept: a decision in flight, the mind's in-process context (it reads
 History), a visitor message still in the inbox, and an open `look`.
+
+## When the process dies (issue #349)
+
+A process can end without a word. A SIGKILL leaves no traceback and no
+summary: the kernel's OOM killer sends one at the container's 2 GiB
+`mem_limit`. So does a fatal signal inside MuJoCo or osmesa. Between
+2026-09-24 11:47 and 2026-09-25 04:00 UTC seven served processes stopped
+that way: every run on the observatory's `runs` list that ended before its
+hour, three on `42f4a11` and four on `a803c83`. Two of them were sampled
+once a minute (`docker stats`). Each ran away at 115–120 MiB a minute from
+about 1 GiB, with neither robot deciding anything, and died at 1.89 and
+1.95 GiB. One of them had grown ~2.7 MiB a minute at rest for 39 minutes
+before that.
+
+So `serve.py`'s `main()` runs a watchdog (`telemetry/vitals.py`), and the
+log carries:
+
+- **`vitals: rss 843 MiB (+0.3 MiB/min), peak 843 MiB, t=1234.5 s`** once a
+  wall minute: resident memory, its rate, and the sim clock. A runaway
+  that has stopped the world shows as `t` standing still.
+- **`vitals: RUNAWAY -- ...`** when the rate has run over 50 MiB a minute
+  for two samples in a row. The first three samples are a warm-up (the
+  build and the carry-on take the process from 212 to 788 MiB in its first
+  minute). `tracemalloc` starts, and every thread's stack follows
+  (`faulthandler`; Python 3.13+ names the threads, and the image's 3.12
+  prints their ids). 20 s later tracing stops and the allocations made
+  since and still held are listed: the twelve largest, eight frames each,
+  newest frame first. Then the stacks again. This happens **once per
+  episode**: another report needs two calm minutes first. A process that
+  ends inside those 20 s builds the report on its way out.
+- **`Fatal Python error: ...`** and every thread's stack on a segfault or
+  an abort.
+- **`vitals: exiting -- <why>`** when the process ends by any path Python
+  sees: the run ended, `stopped by SIGTERM` (a deploy), an exception
+  (named, with its traceback after the line), a second signal. **A process
+  with no such line was killed.** If its last `vitals: rss` lines were
+  climbing, the kill was at the memory cap.
+
+Read it off the box: `ssh netcup docker logs rooftop-prod-sim-1 2>&1 | grep
+-A250 'vitals: RUNAWAY'`. The log covers the current container only, and
+a deploy (a push to pluggybot's `main`) replaces the container: read it
+before the next one.
+
+Why the numbers are what they are:
+
+- **50 MiB a minute, not 30.** At rest, the busiest minutes on record read
+  +23 and +20 back to back (`3518953`, 2026-09-25). A threshold of 30
+  clears them by 1.3×. 50 sits about 2× from them and 2× from the
+  runaway's 115.
+- **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
+  with the pair free-running on the dev machine (EGL, Python 3.14; the
+  image runs 3.12), four interleaved runs, per wall minute after start-up:
+  45 sim-seconds untraced, and 7.8 traced from boot with eight frames.
+  That is 5.8× slower. On a box where the pair only just holds 1×, tracing
+  from boot would leave no served world. A runaway that is still growing
+  grows in whatever it traces from the onset on.
+- **20 s of tracing, stopped before the report is built.** The pair runs
+  ~6× slower while anything is traced, and the pacer catches up
+  afterwards. Built with tracing still on, the report traced itself: 3 s
+  per million live traces against 0.14–0.22 s off (3.14 and 3.12,
+  MEASURED). A small-object leak's report took 3.9 s the first way and
+  0.3 s the second.
+- **The meter.** The thresholds were read off `docker stats` (the
+  container's cgroup) and the watchdog reads the process's resident
+  memory. In a local flight of the served image they rose together, +60
+  and +61 MiB over five minutes, a constant ~100 MiB apart (shared
+  libraries count in one and not the other).
+
+What it cannot see: memory that C allocates for itself (MuJoCo, osmesa, a
+C extension's own `malloc`) is not traced; numpy's arrays are. A report
+whose traced total is small against the `rss` growth is that answer, and
+the stacks still say what every thread was doing.
+
+The hourly ceiling (`PLUGGY_MAX_SIM_TIME`, #345) is decided afterwards,
+off these lines, once the fix for what they find is deployed.
 
 ## Measured
 

@@ -913,15 +913,25 @@ class TaskBoard:
     if task is None or task.state not in ("claimed", "active"):
       return None
     if task.restarts >= MAX_TAKE_UPS:
-      return self._move(replace(task, state="failed", resolved_t=round(float(t), 3),
-                                verdict={"task": task.task, "ok": False, "points": 0,
-                                         "reason": f"taken up through {task.restarts} "
-                                                   "restarts and never finished"}),
-                        "task_resolved", t)
+      return self.abandon(task_id, f"taken up through {task.restarts} "
+                                   "restarts and never finished", t)
     task = replace(task, restarts=task.restarts + 1)
     self.tasks[task.id] = task
     self.save()
     return task
+
+  def abandon(self, task_id: str, reason: str, t: float = 0.0) -> Task | None:
+    """Fail a claim that ended with nothing to grade, for a reason the WORLD
+    gives -- restarts it never outlived, or a death that ended the errand
+    working on it (issue #348) -- never a verdict a robot reports on itself.
+    None if it is not claimed or active."""
+    task = self.tasks.get(task_id)
+    if task is None or task.state not in ("claimed", "active"):
+      return None
+    return self._move(replace(task, state="failed", resolved_t=round(float(t), 3),
+                              verdict={"task": task.task, "ok": False, "points": 0,
+                                       "reason": reason}),
+                      "task_resolved", t)
 
   def release_absent(self, present) -> list[Task]:
     """Give back every claim held by a robot that is not in this world."""

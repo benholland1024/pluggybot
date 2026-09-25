@@ -1035,6 +1035,6 @@ def test_the_fine_step_is_counted_so_the_first_swap_out_cannot_end_the_others():
 
 def test_the_bay_swap_takes_the_fine_step_only_through_the_count():
   import inspect
-  src = inspect.getsource(HubMission.swap_at_bay_routine)
+  src = inspect.getsource(HubMission._swap_routine)   # the swap's body (#347)
   assert "fine_step_begin(self.model)" in src and "fine_step_end(" in src
   assert "opt.timestep =" not in src, "writes the shared step itself"

@@ -92,8 +92,9 @@ to produce were approach failures (issue #30): 4–8 cm of belief error, or −3
 of heading, delivers the coupling outside the envelope above, the peg misses
 the tray V, and the retreat drags the module on to the floor. The fix is in
 the approach (`HubMission.bay_fix` measures the standoff off the bay's own
-tag; `scripts/swap_spike.py` is the sweep) and the recovery is the
-`reset_tool` admin message; a new tool inherits both. Do not answer a
+tag; `scripts/swap_spike.py` is the sweep) and the recovery is the world
+putting a module lost for `LOST_TOOL_S` back on its bay (issue #347), or the
+`reset_tool` admin message sooner; a new tool inherits both. Do not answer a
 floor-dropped module by armouring the coupling — the latch was never the part
 that failed.
 
@@ -723,8 +724,8 @@ your tool makes them worse.
    grip point sits ~285 mm ahead of the axle. Grasps run open-loop from a
    memorised pose; marked delivery zones are the honest workaround. This is
    also why a floor-dropped MODULE is unrecoverable by the robot itself and
-   the recovery is the `reset_tool` admin message rather than a pickup
-   behaviour. PluggyPlan's "The next batch" item 6 (near-field 3D) is where
+   the recovery is the world's (`LOST_TOOL_S`, issue #347) or the
+   `reset_tool` admin message rather than a pickup behaviour. PluggyPlan's "The next batch" item 6 (near-field 3D) is where
    this closes.
 3. **Yaw at the coupling has ~2° of margin** against navigation's ~0.5°
    settle. Known v2 levers: y-chamfered trays, a squaring press against the

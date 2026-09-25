@@ -81,7 +81,7 @@ from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import world_spec
 from pluggybot.lifecycle import (
-  RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
+  LOST_TOOL_S, RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
   points_ledger, task_board, task_producer, world_config, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
@@ -89,9 +89,25 @@ from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
                                           crash_message)
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
+from pluggybot.telemetry import vitals
 
 
 def main() -> None:
+  """`serve`, watched (issue #349): a memory line a minute, a runaway's
+  stacks and allocations, and one line saying why the process ended -- so
+  a death with no such line was a kill."""
+  watchdog = vitals.Watchdog().start()
+  try:
+    stopped = serve(watchdog)
+  except BaseException as e:
+    watchdog.close(vitals.why_of(e))
+    raise
+  watchdog.close(vitals.why_of(None, stopped))
+
+
+def serve(watchdog: "vitals.Watchdog") -> str | None:
+  """The served world, start to end; the signal that asked it to stop (a
+  deploy's SIGTERM), if one did, so the exit line can say so."""
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
@@ -125,6 +141,12 @@ def main() -> None:
                            "on the floor until somebody notices is not a "
                            "world anybody can watch, and a measured run is "
                            "about ONE life")
+  parser.add_argument("--lost-tool-after", type=float, default=LOST_TOOL_S,
+                      metavar="S",
+                      help="SIM seconds a tool lies on no bay and no fork "
+                           "before the world puts it back (issue #347; 0 "
+                           "disables it). ON here and off in the experiment "
+                           "harness, on --restart-after's terms")
   parser.add_argument("--robot-name", default=None, metavar="NAME",
                       help="this robot's display name on the wire (issue "
                            "#39): the identity the site shows, e.g. 'Luca "
@@ -340,8 +362,7 @@ def main() -> None:
                  "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
 
   if args.pair:
-    serve_pair(args, flags, rung, origin)
-    return
+    return serve_pair(args, flags, rung, origin, watchdog)
 
   cfg = world_config(args.world)
   # A RESTART IS A CONTINUATION (issue #345): the saved world, if there is
@@ -494,6 +515,9 @@ def main() -> None:
                       # `HubLifecycle.restart_after_s`.
                       restart_after_s=(args.restart_after
                                        if args.restart_after > 0 else None),
+                      # ...and a tool on the floor goes home (issue #347)
+                      lost_tool_after_s=(args.lost_tool_after
+                                         if args.lost_tool_after > 0 else None),
                       near_field=args.near_field)
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
@@ -556,6 +580,8 @@ def main() -> None:
     # and a restart keeps them (issue #345).
     life.activities = activities
   life.restart_note = opened.why
+  # Read through `life`: a recompile replaces its MjData (issue #315).
+  watchdog.sim_time = lambda: life.data.time
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
@@ -698,10 +724,11 @@ def main() -> None:
       recorder.close()
   wall = time.monotonic() - wall0
 
-  report(r, wall, life, publisher, pacer)
+  report(r, wall, life, publisher, pacer, t0=snap.t if snap is not None else 0.0)
+  return keeper.stop_requested if keeper is not None else None
 
 
-def serve_pair(args, flags: dict, rung, origin) -> None:
+def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   """Two robots from one loop on the wire (issue #181): `build_pair` makes
   the world and the two lifecycles exactly as the pair demo and the pair
   fixture do, and this wires ONE publisher with a `StreamRobot` for the
@@ -757,11 +784,14 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      near_field=args.near_field,
                      restart_after_s=(args.restart_after
                                       if args.restart_after > 0 else None),
+                     lost_tool_after_s=(args.lost_tool_after
+                                        if args.lost_tool_after > 0 else None),
                      constitutions_named=(args.constitution, args.constitution_2),
                      resume=snap)
   first, second = lives
   for life in lives:
     life.restart_note = opened.why
+  watchdog.sim_time = lambda: first.data.time
   model, data = first.model, first.data
   screens = world_screens(model, data)
   for life in lives:
@@ -888,7 +918,9 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
       recorder.close()
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
-    report(r, wall, life, publisher, pacer, label=name)
+    report(r, wall, life, publisher, pacer, label=name,
+           t0=snap.t if snap is not None else 0.0)
+  return keeper.stop_requested if keeper is not None else None
 
 
 def open_world(path, world: str) -> "continuation.Loaded":
@@ -945,9 +977,15 @@ def say_crash(exc: Exception, data, publisher, recorder) -> dict:
   return msg
 
 
-def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> None:
+def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
+           t0: float = 0.0) -> None:
   """The close-of-mission summary, one robot at a time; `label` prefixes a
-  pair's second robot so the two do not read as one."""
+  pair's second robot so the two do not read as one. `t0` is the sim clock
+  the run started from: a carried-on world's clock does not start at zero
+  (issue #345)."""
+  # This process's share of the clock: the spend and the wall time are this
+  # process's alone, and the clock carries on across a restart (issue #345).
+  ran = r["sim_time"] - t0
   if label:
     print(f"\n---- {label} ----")
   print()
@@ -955,7 +993,10 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> Non
         f" (swaps={r['swaps_done']}, charges={r['charge_cycles']},"
         f" stowed={r['module_stowed']})")
   for e in r["errands"]:
-    extra = (f"  {e['figure']} on {e['board']}, board {e['fill']:.0%} full"
+    # A draw that never squared up to its board has no `fill` (issue #349).
+    extra = (f"  {e.get('figure')} on {e['board']}, "
+             + (f"board {e['fill']:.0%} full" if e.get("fill") is not None
+                else e.get("error") or "no fill measured")
              if e.get("board") else "")
     print(f"errand {e['errand']:<20s}: picked={e['picked']}"
           f" stowed={e['stowed']}{extra}")
@@ -969,7 +1010,7 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> Non
     o = r["overseer"]
     # Cost per SIM-hour, which is the number that matters for a box that runs
     # paced to real time: at --rate 1.0 a sim-hour is an hour of electricity.
-    per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
+    per_hour = o["usd"] / (ran / 3600.0) if ran > 0 else 0.0
     print(f"overseer               : {o['llmCalls']} LLM call(s), "
           f"{o['fallbacks']} scripted, budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left, cache hit {o['cacheHitRate']:.0%}")
@@ -1027,8 +1068,9 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> Non
             f"{v['droppedFull']} overflowed the queue")
     for reply in r.get("replies", ()):
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
-  print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
-        f"  ({r['sim_time'] / wall:.2f}x real time)")
+  print(f"sim / wall             : {ran:.1f} s / {wall:.1f} s"
+        f"  ({ran / wall:.2f}x real time)"
+        + (f", the clock carried on from {t0:.1f} s" if t0 else ""))
   if life.mode is not None and (life.paused_s or life.mode.mode != "llm"):
     # Said only when it is not the default: a run nobody touched should not
     # print a line about a switch nobody flipped.

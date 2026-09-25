@@ -1012,7 +1012,8 @@ the retry loop, so a second attempt is a fresh measurement; every row of both
 sweeps to 10 cm / ±10° then ends hung. For what measurement cannot promise
 away, the `reset_tool` inbound kind puts a lost module back at
 `model.qpos0`: admin-only, code-handled, never shown to the overseer, refused
-while a module is electrically seated.
+while a module is electrically seated. Since issue #347 the world does the
+same by itself for a module lost for `LOST_TOOL_S` (300 s).
 
 ## Drift hygiene (issue #42): the dock is the anchor, and identity beats distance
 
@@ -1891,6 +1892,34 @@ interrupt or at the reserve; a return's and a charge's run to the bound. A retur
 anything but a charge. A failed charge approach logs `charge_trace`: per
 look, fix or none, the belief's drift, the distance from the standoff, the
 other robot's distance and what the camera's line to the tag meets first.
+
+## A drawing that set off from the rack (issue #347)
+
+Rowan's `pen_check` (`fetch("module_pen")`, in one version three `move`s,
+then `draw(..., "whiteboard_b")`) reached `draw` six times on the deployed
+pair and was knocked over all six times, the pen left on the floor; the pen
+was eight of the nine tools reset by hand that week. The issue blamed the
+pose: the lift at 0.15, the arm at 0.10 and the carriage at 0.03 when `draw`
+drove off. Flown locally from the start pose, BOTH versions toppled the
+same way -- 94 deg, 14 s into the draw, at (0.4, 2.3), the pen at
+(0.46, 1.73), 3.7 m from its bay as live -- and three of the six live runs
+had carried the pen in its carrying pose. The cause was the route. A
+procedure's `draw` ran the drawing errand's use-phase, whose
+`drive_to_board_routine` is a straight `drive_toward` at the board with no
+planner, meant to settle from `use_at` after the native errand's A* carry
+drive; from the rack it drove at whiteboard_b through the house. With the
+carry drive first both versions draw at 98 % and stow, with the carrying
+pose switched off as well. Measured on the way, in the pose itself: a claw
+that let go of a cube at a 0.033 m lift and then drew its arm in came off
+its seat, the module 114 mm down the fork and unpowered, and a stow drove
+that to the rack; lifting first keeps it seated (the cube, between open
+jaws, moved 0 mm either way). **What is true now:** `draw` takes the
+planner to its board's `use_at` first and says "never reached" if it
+cannot; every verb that moves the base puts the fork into its carrying pose
+first (`steps.run_verb`), which is a rule of its own and was not what
+toppled Rowan; that pose and the return's (`carry_configuration_routine`)
+move the lift up before the arm comes in and down after it; and a module
+lost for `LOST_TOOL_S` goes back to its bay by itself.
 
 ## Debugging workflow that worked
 

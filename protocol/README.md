@@ -58,6 +58,53 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a stand-up ends the errand, and a map may say `stood_up`
+
+pluggybot #348. No new message and no bump. An `event_map` row may now
+carry `"event": "stood_up"` (the eleventh event type), with an optional
+`kind` saying who stood the robot up: `timer` (the world's restart timer,
+the `reset` event's `auto: true`) or `admin` (`reset_robot`). A consumer
+that renders an event it does not know as its token keeps working.
+
+A stand-up now ENDS the errand it lands in, where the errand used to run
+on under it. What a consumer sees is what it already renders: the
+errand's job resolves `failed` with the reason `"interrupted by a death"`
+(a `task_resolved`, as a restart's `"interrupted by a restart"` does), and
+the narration says `STOOD UP mid-errand: <errand> ended there`. A voided
+procedure run closes with `outcome: "aborted"` and `stopped: "stood_up"`
+(a new `stopped` token) and NO `completed` / `total`: the count died with
+the runner, and a consumer shows a missing count as unknown, never as
+zero. The `reset` event is unchanged.
+
+### 0.21.0, additive: the world puts a lost tool back (`reset_tool`, upstream)
+
+pluggybot #347. A module on no bay and on no robot's fork, and at no bay a
+swap is working, for `LOST_TOOL_S` (300 sim s) without a break, goes back on
+its bay by itself on a served world, and says so between the frames:
+
+```jsonc
+{"type": "reset_tool", "t": 2411.0, "robot": "pluggybot",
+ "module": "module_pen", "by": "auto-restart", "auto": true,
+ "intervention": false, "lostS": 300.0,
+ "detail": "module_pen lay on the floor for 5 minutes and was put back on its bay"}
+```
+
+`reset`'s shape one object down: `by` is the label (`auto-restart`, as the
+auto stand-up's), `auto` the fact, `lostS` how long it lay there, and
+`detail` the sentence both robots' History got, for an operator log. ⚠ **NEVER
+AN INTERVENTION**, and `intervention` is always `false`: a timer is not a
+hand, so no `intervention` event follows and nothing may count one. `robot`
+is the root whose seam ticks the clock (the primary on a pair); the tool is
+the world's, and every robot's History gets the line "module_pen lay on the
+floor for 5 minutes and was put back on its bay".
+
+The name is the inbound kind's, on `message`'s terms -- the same word in
+both directions. An ADMIN's `reset_tool` sends no event: its only carrier
+is still the narration line `ADMIN <who> reset <module> -- back on its bay`,
+which this event's own narration (`WORLD put <module> back on its bay ...`)
+deliberately does not match. **No bump**: a new event type, which a
+consumer ignores until it knows it, and no fixture carries one.
+
 ### 0.21.0, additive: where a run failed, and the library on its own events (`failedLine`, `failedReason`, `library`)
 
 rooftop-media-2026 #342, which shows each robot's procedures on the site.
@@ -1042,8 +1089,9 @@ beside them until the site has moved off them.
   EDIT: `rows` in order, each `{event, action, kind?, value?}` exactly as
   the run record keeps them (`kind` and `value` absent where they do not
   apply; `kind` is a menu action on `task_complete` / `task_failed`, a
-  reason or class on `decision_failed`, and `offers` / `none` on
-  `nothing_to_do` since pluggybot #333 -- additive, no bump); `origin`
+  reason or class on `decision_failed`, `offers` / `none` on
+  `nothing_to_do` since pluggybot #333, and `timer` / `admin` on
+  `stood_up` since #348 -- additive, no bump); `origin`
   (`seeded` / `unseeded`: what a NEW robot starts with); `why` (`origin`
   when a stream opens, `edit` after an answer changed it, `true_death`
   when a new robot's map replaced a dead one's); `source` (the decision

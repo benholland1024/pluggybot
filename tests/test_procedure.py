@@ -148,13 +148,13 @@ def _stub_life(clock=None):
     return make
   swap = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
-    set_lift_routine=routine("set_lift"))
+    set_lift_routine=routine("set_lift"), arm_act=0)
   mission = SimpleNamespace(
     swap=swap, swap_at_bay_routine=routine("swap", "arrived"),
     drive_to_routine=routine("drive_to", True),
     face_routine=routine("face", True), _drive_routine=routine("wait"),
     pose=(0.0, 0.0, 0.0), tags=SimpleNamespace(detect=lambda d: {}))
-  life = SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0),
+  life = SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,
                          model=None, world="home", boards=None)

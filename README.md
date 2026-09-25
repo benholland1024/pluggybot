@@ -60,7 +60,7 @@ stateDiagram-v2
 agent's own event map says whether to consult it (`EVENT_TYPES`:
 `nothing_to_do`, `task_complete`, `task_failed`, `decision_failed`,
 `battery_below`, `battery_above`, `points_below`, `message_received`,
-`every`, `ticket_replied`). The floor and the gate are `guarded`'s rails and come off on
+`every`, `ticket_replied`, `stood_up`). The floor and the gate are `guarded`'s rails and come off on
 `autonomous`; the interrupt out of `USE_TOOL` is a row of the agent's map,
 and abort means stow. An errand is queued by a standing order, a decision, a
 task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
@@ -68,7 +68,8 @@ by text, standing still; what it found rides the next turn, at most three
 recalls in a row. `LOOK` (issue #275) asks the website for a picture from
 the head camera's pose and stands still until it comes; the picture rides
 the next turn as an image, at most two looks in a row. A death
-(`DEATH_CAUSES`) can land in any moving state.
+(`DEATH_CAUSES`) can land in any moving state, and the stand-up that follows
+ends whatever it lands in (issue #348): the loop starts again from the top.
 On `autonomous` the agent also writes code and builds tools: a procedure it
 defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
 a tool it specified (issue #168) is built where it stands and hung in a bay.
