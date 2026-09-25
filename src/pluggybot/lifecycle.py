@@ -47,8 +47,8 @@ from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
-  MAP_TILT_RAD, MissionAborted, HubMission, RackPose, bay_standoff,
-  charge_standoff, charge_trace, swap_trace,
+  DOWN_ROBOT_CELLS, MAP_TILT_RAD, MissionAborted, HubMission, RackPose,
+  bay_standoff, charge_standoff, charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -1130,7 +1130,17 @@ class HubLifecycle:
     # ...and the peers that same frame saw, which the map is not told about
     # and the drive is (issue #328). One frame, two consumers, the split
     # `Lidar.scan_split` already makes one sensor along.
-    self.mission.watch_for_peers(frame.peers)
+    # ⚠ BUT NOT A ROBOT LYING DOWN (issue #365). The hold is for the one
+    # obstacle that MOVES, and one on the floor will not until it is stood
+    # up: MEASURED, a detour that runs straight at a robot face-down and
+    # turns at its disc's edge is held 0.52 m short, and stands there until
+    # the drive times out. The planner routes round that body instead
+    # (`keep_clear`), and the LIDAR's front stop and the bumper still see it.
+    peers = frame.peers
+    down = [p.mission.body_gids for p in self.peers if p.down()]
+    if down and len(peers):
+      peers = peers[~np.isin(frame.peer_geoms, np.concatenate(down))]
+    self.mission.watch_for_peers(peers)
 
   # ---- death (issue #107) --------------------------------------------------
 
@@ -1203,6 +1213,36 @@ class HubLifecycle:
     w, x, y, z = self.data.qpos[q + 3:q + 7]
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
+
+  def down(self) -> bool:
+    """Lying on the floor: the chassis past TOPPLE_TILT_RAD, the topple
+    death's own test, read as an IMU reads it -- from the moment of the
+    fall rather than the death two seconds later, and on a world where
+    nothing dies as much as on one where it can."""
+    return self._chassis_tilt() >= TOPPLE_TILT_RAD
+
+  def keep_clear(self, seen_by: HubMission | None = None) -> tuple:
+    """Where the OTHER robots keep clear of this one (`HubMission.others`):
+    its reported pose, or -- lying down -- `(x, y, DOWN_ROBOT_CELLS)` round
+    the middle of its body, placed where `seen_by`'s own sensors would put
+    it (`HubMission.as_seen`).
+
+    ⚠ A ROBOT ON THE FLOOR IS AVOIDED WHERE IT LIES, NOT WHERE IT SAYS IT IS
+    (issue #365; SimNotes, "A robot lying down was avoided where it said it
+    was"). The errand it fell in runs on until it returns, and a wheel
+    turning in the air is travel to the reckoner: MEASURED 0.5-2.2 m of
+    reported pose off the body in 10 s on its side, front or back. A fallen
+    robot is not a network fact that moves -- it cannot report itself, and
+    a real robot would see a robot-shaped lump -- so the TRUE body is fair
+    to use, placed as a lump in a depth image would be. Standing up
+    (`start_at`, a warp that resets the reckoner) hands it back to the
+    reported pose."""
+    if not self.down():
+      return self.mission.pose_xy()
+    x, y = self.mission.footprint_centre()
+    if seen_by is not None:
+      x, y = seen_by.as_seen(x, y)
+    return x, y, DOWN_ROBOT_CELLS
 
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
