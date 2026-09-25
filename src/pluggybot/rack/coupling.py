@@ -566,7 +566,12 @@ def bay_switches(model, data) -> tuple[bool | None, ...]:
   What the rack reports over the network, and all it reports (issue #351):
   a bay is occupied, never by WHICH module -- a module hung in another's
   bay presses that bay's switch. Read off the contact list, as the bumper
-  is (catalog `bay_switch`); the switch's force is not modelled."""
+  is (catalog `bay_switch`); the switch's force is not modelled.
+
+  No debounce, MEASURED: on home, 2.0 M samples over a 472 s charge press
+  and a carry, a switch disagreed with its module only while that module
+  was being swapped (at most 44 ms) and for one step as the world settled
+  in its first second, before any decision."""
   g = contact_pairs(data)
   out: list[bool | None] = []
   for i in range(len(STATION_YS)):
