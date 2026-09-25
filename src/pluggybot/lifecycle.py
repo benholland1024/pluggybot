@@ -47,8 +47,8 @@ from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
-  MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
-  charge_trace, swap_trace,
+  MAP_TILT_RAD, MissionAborted, HubMission, RackPose, bay_standoff,
+  charge_standoff, charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -1204,19 +1204,25 @@ class HubLifecycle:
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
 
-  def _lean(self) -> tuple[float, float]:
+  def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
     its top leans toward in its OWN frame -- 0 forward, 90 its left, -90
     its right, 180 back). The robot's frame, because that is what
-    classifies a fall: onto the fork, back over the caster, over a wheel."""
+    classifies a fall: onto the fork, back over the caster, over a wheel.
+
+    ⚠ NO DIRECTION WHILE LEVEL (the map's own rule, `MAP_TILT_RAD`):
+    MEASURED, a healthy robot reads 0.02 deg standing and at most 0.25
+    driving, and the direction of that is noise -- a flat death read it as
+    "back", which a count of falls by direction would have counted."""
     q = self.mission.swap.root_qadr
     w, x, y, z = (float(v) for v in self.data.qpos[q + 3:q + 7])
+    tilt = self._chassis_tilt()
+    if tilt < MAP_TILT_RAD:
+      return math.degrees(tilt), None
     # the world's up axis in the chassis frame is R's third ROW; the top
     # leans away from it
     ux, uy = 2.0 * (x * z - w * y), 2.0 * (y * z + w * x)
-    return (math.degrees(self._chassis_tilt()),
-            math.degrees(math.atan2(-uy, -ux)) if math.hypot(ux, uy) > 1e-9
-            else 0.0)
+    return math.degrees(tilt), math.degrees(math.atan2(-uy, -ux))
 
   def _moment(self) -> dict:
     """Where the robot is and what it is doing, for a death to carry (issue
@@ -1250,8 +1256,9 @@ class HubLifecycle:
       "believed": {"x": round(bx, 3), "y": round(by, 3),
                    "yawDeg": round(math.degrees(math.atan2(math.sin(byaw),
                                                            math.cos(byaw))), 1)},
-      "tilt": {"deg": round(tilt, 1), "towardDeg": round(toward, 1),
-               "toward": lean_word(toward)},
+      "tilt": {"deg": round(tilt, 1),
+               "towardDeg": None if toward is None else round(toward, 1),
+               "toward": None if toward is None else lean_word(toward)},
       "state": self.state, "status": self.status[:200],
       "carrying": carried, "setpoints": setpoints(self, carried),
       "errand": None if errand is None else
@@ -1266,8 +1273,13 @@ class HubLifecycle:
         oq = o.mission.swap.root_qadr
         return float(math.hypot(*(o.data.qpos[oq:oq + 2] - me)))
       near = min(self.peers, key=apart)
+      # ...and whether it is DEAD, which its state alone does not say: a
+      # robot knocked over mid-errand keeps the errand's state until that
+      # errand is closed, and a robot driving into one lying on its side
+      # is #365's collision
       at["peer"] = {"name": near.robot_name or near.root, "robot": near.root,
-                    "distanceM": round(apart(near), 3), "state": near.state}
+                    "distanceM": round(apart(near), 3), "state": near.state,
+                    "dead": near.dead["cause"] if near.dead else None}
     return at
 
   def _bay_name(self, station_y: float | None) -> str | None:

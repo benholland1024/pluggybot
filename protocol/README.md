@@ -77,7 +77,7 @@ explained, because a `death` carried only its cause. It now carries `at`:
         "errand": {"name": "census", "task": "tk_0042", "module": "module_lcd"},
         "step": null, "swapping": "module_lcd",
         "peer": {"name": "Luca", "robot": "pluggybot", "distanceM": 1.512,
-                 "state": "CHARGE"}}}
+                 "state": "CHARGE", "dead": null}}}
 ```
 
 - **`at.t` is when these were read**: as the chassis passed 60° for a
@@ -89,7 +89,9 @@ explained, because a `death` carried only its cause. It now carries `at`:
   the drift.
 - `tilt`: degrees from upright, and the direction the robot's top leaned
   toward in its OWN frame (0 forward, 90 its left, -90 its right, 180
-  back), with `toward` the nearest of those four words.
+  back), with `toward` the nearest of those four words. Both are null
+  while the chassis is level (under 1.5°, the map's own rule): a healthy
+  robot reads 0.02° standing, and the direction of that is noise.
 - `state` is the lifecycle state, `status` the last narration line (≤ 200
   chars).
 - `carrying` is the module on the fork, or null. `setpoints` is what each
@@ -101,7 +103,9 @@ explained, because a `death` carried only its cause. It now carries `at`:
   procedure in the language, `of` for a step program; null between steps.
 - `swapping` names the module whose bay a swap is working, or null.
 - `peer`, on a pair only, is the nearest other robot, measured between the
-  two chassis as the `encounter` rows are, with its state.
+  two chassis as the `encounter` rows are, with its state and `dead` (its
+  death cause, or null). The state alone does not say a peer is down: one
+  knocked over mid-errand keeps its errand's state until that errand ends.
 - A robot that could not read its moment sends `at: {t, error}`; the death
   itself is never lost to it.
 

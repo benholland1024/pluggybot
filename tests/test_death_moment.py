@@ -100,7 +100,10 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
   assert at["pose"]["yawDeg"] == pytest.approx(math.degrees(syaw), abs=1.0)
   assert at["believed"]["x"] - at["pose"]["x"] == pytest.approx(0.25, abs=0.02)
   assert at["believed"]["yawDeg"] == pytest.approx(at["pose"]["yawDeg"], abs=1.0)
-  assert at["tilt"]["deg"] < 2.0
+  # ...and an upright robot has no lean to name: the direction of 0.02 deg
+  # is noise, and "back" would count it among the falls
+  assert at["tilt"]["deg"] < 1.0
+  assert at["tilt"]["towardDeg"] is None and at["tilt"]["toward"] is None
   assert at["swapping"] is None and "peer" not in at
   # ...and the step is let go when it ends, however it ended
   assert life.step_now is None
@@ -162,7 +165,8 @@ def test_the_lean_word_is_the_nearest_of_four():
 
 def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
   """Measured between the two chassis off the root joints -- what the
-  encounter rows measure -- and each robot names the other."""
+  encounter rows measure -- and each robot names the other, with whether
+  it is dead: a peer knocked over mid-errand keeps its errand's state."""
   from pluggybot.pair import build_pair
   from pluggybot.robot import SECOND
   me, peer = build_pair("room_hub", errands=("none", "none"), mortal=True)
@@ -174,8 +178,9 @@ def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
   me._die("flat", "the pack reached zero")
   assert seen[-1]["at"]["peer"] == {"name": peer.robot_name or peer.root,
                                     "robot": peer.root, "distanceM": 1.0,
-                                    "state": peer.state}
+                                    "state": peer.state, "dead": None}
   assert peer._moment()["peer"]["robot"] == me.root
+  assert peer._moment()["peer"]["dead"] == "flat"
 
 
 def test_setpoints_are_the_body_and_the_carried_tool_and_skip_what_is_gone(
