@@ -47,8 +47,8 @@ from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
-  MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
-  charge_trace, swap_trace,
+  MAP_TILT_RAD, MissionAborted, HubMission, RackPose, bay_standoff,
+  charge_standoff, charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -584,6 +584,9 @@ class HubLifecycle:
     self.restart_note = ""
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
+    #: The procedure step running right now (`steps.run_verb` sets it), for
+    #: a death to name (issue #362).
+    self.step_now: dict | None = None
     #: Called at the top of every pass of the day loop, where nothing is in
     #: flight -- the one moment a saved world is the same with or without a
     #: restart after it (the parity check, `scripts/determinism_spike.py`).
@@ -1063,6 +1066,9 @@ class HubLifecycle:
     self.home_pose: tuple[float, float, float] | None = None
     self.on_event: list = []
     self._tilted_since: float | None = None
+    #: What was true when the chassis passed TOPPLE_TILT_RAD (`_moment`),
+    #: for the `stuck` death TOPPLE_HOLD_S later to carry (issue #362).
+    self._fall: dict | None = None
     self._next_death_check = 0.0
     #: ⚠ A STAND-UP STEPS THE SIM, AND THE RESTART SEAM IS ON EVERY STEP
     #: (issue #143). `MissionRunner.start_at` ends with a one-second settle
@@ -1179,13 +1185,17 @@ class HubLifecycle:
       return
     tilt = self._chassis_tilt()
     if tilt < TOPPLE_TILT_RAD:
-      self._tilted_since = None
+      self._tilted_since = self._fall = None
       return
     if self._tilted_since is None:
       self._tilted_since = float(self.data.time)
+      # ...AND WHAT IT WAS DOING, READ AS IT FELL (issue #362): the death is
+      # TOPPLE_HOLD_S later, by which time the errand has had two seconds
+      # to react to the fall -- a failed pick lowers the lift and moves on.
+      self._fall = self._moment()
     elif self.data.time - self._tilted_since >= TOPPLE_HOLD_S:
       self._die("stuck", f"knocked over ({math.degrees(tilt):.0f} deg from "
-                         "upright)")
+                         "upright)", at=self._fall)
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and the world's."""
@@ -1194,14 +1204,103 @@ class HubLifecycle:
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
 
-  def _die(self, cause: str, why: str) -> None:
+  def _lean(self) -> tuple[float, float | None]:
+    """Which way the chassis leans: (degrees from upright, the direction
+    its top leans toward in its OWN frame -- 0 forward, 90 its left, -90
+    its right, 180 back). The robot's frame, because that is what
+    classifies a fall: onto the fork, back over the caster, over a wheel.
+
+    ⚠ NO DIRECTION WHILE LEVEL (the map's own rule, `MAP_TILT_RAD`):
+    MEASURED, a healthy robot reads 0.02 deg standing and at most 0.25
+    driving, and the direction of that is noise -- a flat death read it as
+    "back", which a count of falls by direction would have counted."""
+    q = self.mission.swap.root_qadr
+    w, x, y, z = (float(v) for v in self.data.qpos[q + 3:q + 7])
+    tilt = self._chassis_tilt()
+    if tilt < MAP_TILT_RAD:
+      return math.degrees(tilt), None
+    # the world's up axis in the chassis frame is R's third ROW; the top
+    # leans away from it
+    ux, uy = 2.0 * (x * z - w * y), 2.0 * (y * z + w * x)
+    return math.degrees(tilt), math.degrees(math.atan2(-uy, -ux))
+
+  def _moment(self) -> dict:
+    """Where the robot is and what it is doing, for a death to carry (issue
+    #362): seven topples in a week could not be read because the event said
+    only the cause. The TRUE pose beside the believed one (drift is a
+    suspect), the lean, the state, what is on the fork and what every axis
+    is commanded to, the errand and the procedure step running, the swap's
+    bay, and the nearest peer -- measured between the chassis, as the
+    encounters measure it. Nothing here decides anything.
+
+    ⚠ IT NEVER RAISES: it runs on the physics seam inside `_die`, and a
+    diagnostic that threw there would lose the death it describes."""
+    try:
+      return self._read_moment()
+    except Exception as e:                        # noqa: BLE001
+      return {"t": round(float(self.data.time), 3),
+              "error": f"{type(e).__name__}: {e}"[:200]}
+
+  def _read_moment(self) -> dict:
+    from pluggybot.procedure.axes import setpoints
+    tx, ty, tyaw = self.mission.true_pose()
+    bx, by, byaw = self.mission.pose
+    tilt, toward = self._lean()
+    carried = carrying(self) or None
+    errand = self._errand_now
+    at: dict = {
+      "t": round(float(self.data.time), 3),
+      "pose": {"x": round(tx, 3), "y": round(ty, 3),
+               "yawDeg": round(math.degrees(tyaw), 1)},
+      # the reckoner's heading is never wrapped; this is, to compare
+      "believed": {"x": round(bx, 3), "y": round(by, 3),
+                   "yawDeg": round(math.degrees(math.atan2(math.sin(byaw),
+                                                           math.cos(byaw))), 1)},
+      "tilt": {"deg": round(tilt, 1),
+               "towardDeg": None if toward is None else round(toward, 1),
+               "toward": None if toward is None else lean_word(toward)},
+      "state": self.state, "status": self.status[:200],
+      "carrying": carried, "setpoints": setpoints(self, carried),
+      "errand": None if errand is None else
+        {"name": errand.name, "task": errand.task_id, "module": errand.module},
+      "step": None if self.step_now is None else dict(self.step_now),
+      "swapping": self._bay_name(self.mission.swapping_at),
+    }
+    if self.peers:
+      q = self.mission.swap.root_qadr
+      me = self.data.qpos[q:q + 2]
+      def apart(o) -> float:
+        oq = o.mission.swap.root_qadr
+        return float(math.hypot(*(o.data.qpos[oq:oq + 2] - me)))
+      near = min(self.peers, key=apart)
+      # ...and whether it is DEAD, which its state alone does not say: a
+      # robot knocked over mid-errand keeps the errand's state until that
+      # errand is closed, and a robot driving into one lying on its side
+      # is #365's collision
+      at["peer"] = {"name": near.robot_name or near.root, "robot": near.root,
+                    "distanceM": round(apart(near), 3), "state": near.state,
+                    "dead": near.dead["cause"] if near.dead else None}
+    return at
+
+  def _bay_name(self, station_y: float | None) -> str | None:
+    """A bay by the module it is for (`rack_inventory`)."""
+    if station_y is None:
+      return None
+    return next((m for m, i in self.rack_inventory.items()
+                 if abs(STATION_YS[i] - station_y) < 1e-6), f"y={station_y:.3f}")
+
+  def _die(self, cause: str, why: str, at: dict | None = None) -> None:
     """Record a death: narrated, remembered in the file the robot cannot
     edit (Evaluation.md §6 -- the cheapest real cost there is), and put on
-    the wire as a `death` event. Idempotent: the first cause stands."""
+    the wire as a `death` event. Idempotent: the first cause stands.
+
+    `at` is where it was and what it was doing (`_moment`), read now unless
+    the caller read it earlier -- a topple reads it as the robot fell."""
     if self.dead is not None:
       return
     assert cause in DEATH_CAUSES, cause
     t = float(self.data.time)
+    at = at if at is not None else self._moment()
     self.dead = {"t": round(t, 3), "cause": cause, "why": why,
                  "survivalS": round(self.survival_s, 3)}
     # ⚠ A DEATH COSTS A HEART, FLATLY (issue #136). One, at five hearts and
@@ -1227,7 +1326,8 @@ class HubLifecycle:
                 "cause": cause, "why": why,
                 "survivalS": round(self.survival_s, 3),
                 "deaths": len(self.deaths),
-                **({"hearts": hearts} if hearts is not None else {})})
+                **({"hearts": hearts} if hearts is not None else {}),
+                "at": at})
     if hearts == 0:
       self._true_death(t)
     elif cause == "unminded":
@@ -3404,7 +3504,7 @@ class HubLifecycle:
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
-    self._tilted_since = None
+    self._tilted_since = self._fall = None
     self.survival_since = float(self.data.time)
     # ...and the unminded clock (issue #127). ⚠ A ROBOT STOOD BACK UP MUST
     # NOT DIE AGAIN INSTANTLY: without this, a robot that died `unminded`
@@ -5571,6 +5671,7 @@ class HubLifecycle:
       "survivalSince": self.survival_since, "lastAskT": self._last_ask_t,
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
       "minded": self._minded, "tiltedSince": self._tilted_since,
+      "fall": self._fall,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
                  "screen": self._next_screen_sense,
                  "events": self._next_events_check,
@@ -5625,6 +5726,7 @@ class HubLifecycle:
       self.blacklist = ({tuple(c) for c in state.get("blacklist", ())}
                         if mapped else set())
       self._tilted_since = state.get("tiltedSince")
+      self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
@@ -6961,6 +7063,13 @@ def load_program(path: str, world: str):
     return compile_program(Program.from_json(text), world_facts(world))
   from pluggybot.procedure.lang import compile_procedure
   return compile_procedure(text, world_facts(world))
+
+
+def lean_word(toward_deg: float) -> str:
+  """`HubLifecycle._lean`'s direction as the nearest of four words."""
+  a = abs(toward_deg)
+  return ("forward" if a <= 45.0 else "back" if a >= 135.0
+          else "left" if toward_deg > 0 else "right")
 
 
 def carrying(other) -> str:
