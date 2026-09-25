@@ -1071,18 +1071,19 @@ save a filmstrip PNG named after the script.
 - **The served process watches its own memory and says why it ended**
   (issue #349; `telemetry/vitals.py`, Webserver.md "When the process
   dies"). `serve.py`'s `main()` runs a watchdog thread. It prints a
-  `vitals: rss` line every wall minute. At a RUNAWAY it prints every
-  thread's stack and starts `tracemalloc`, then 20 s later (`TRACE_S`)
-  prints the largest allocations since, once per episode. A runaway is
-  over `RUNAWAY_MB_PER_MIN` (50) for two samples, after a three-sample
-  warm-up; MEASURED, a resting minute peaks at +23 and a runaway runs at
-  115. `faulthandler` is on, and `vitals: exiting -- <why>` is the last
-  line of every end Python sees, so a log that ends without it was a
-  kill. `RunawayRule` is pure and pinned with made-up series
-  (`tests/test_vitals.py`). ⚠ `tracemalloc` starts at the ONSET, never at
-  boot (MEASURED: traced from boot, the pair ran 5.8x slower). ⚠ The
-  snapshot is never filtered: `filter_traces` cost 11 s per million
-  traces, taken from the physics thread's share of the GIL.
+  `vitals: rss` line every wall minute. At a RUNAWAY it starts
+  `tracemalloc` and prints every thread's stack, then 20 s later
+  (`TRACE_S`) prints the largest allocations since, once per episode. A
+  runaway is over `RUNAWAY_MB_PER_MIN` (50) for two samples, after a
+  three-sample warm-up; MEASURED, a resting minute peaks at +23 and a
+  runaway runs at 115. `faulthandler` is on, and every end Python sees
+  prints `vitals: exiting -- <why>` (`stopped by SIGTERM` for a deploy),
+  so a process with no such line was killed. `RunawayRule` is pure and
+  pinned with made-up series (`tests/test_vitals.py`). ⚠ `tracemalloc`
+  starts at the ONSET, never at boot (MEASURED: traced from boot, the pair
+  ran 5.8x slower), and it STOPS at the snapshot, in a `finally`: built
+  traced, the report traced itself at ~20x the cost, and tracing left on
+  keeps the pair ~6x slower.
 - **Protocol fixtures are GENERATED, one scene and one recording per world**
   (`protocol/`, issue #4; a replayer picks its scene off the recording's
   `model` header). Scene JSON + tag textures: `uv run python -m

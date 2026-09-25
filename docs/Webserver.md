@@ -313,21 +313,25 @@ log carries:
 - **`vitals: RUNAWAY -- ...`** when the rate has run over 50 MiB a minute
   for two samples in a row. The first three samples are a warm-up (the
   build and the carry-on take the process from 212 to 788 MiB in its first
-  minute). Every thread's stack follows (`faulthandler`, with thread
-  names), and `tracemalloc` starts. 20 s later come the allocations made
-  since and still held: the twelve largest, eight frames each, newest
-  frame first. Then the stacks again. This happens **once per episode**:
-  another report needs two calm minutes first.
+  minute). `tracemalloc` starts, and every thread's stack follows
+  (`faulthandler`; Python 3.13+ names the threads, and the image's 3.12
+  prints their ids). 20 s later tracing stops and the allocations made
+  since and still held are listed: the twelve largest, eight frames each,
+  newest frame first. Then the stacks again. This happens **once per
+  episode**: another report needs two calm minutes first. A process that
+  ends inside those 20 s builds the report on its way out.
 - **`Fatal Python error: ...`** and every thread's stack on a segfault or
   an abort.
 - **`vitals: exiting -- <why>`** when the process ends by any path Python
-  sees: the run ended, an exception (named), a second signal. **A log that
-  ends without it was a kill.** If the last `vitals: rss` lines were
+  sees: the run ended, `stopped by SIGTERM` (a deploy), an exception
+  (named, with its traceback after the line), a second signal. **A process
+  with no such line was killed.** If its last `vitals: rss` lines were
   climbing, the kill was at the memory cap.
 
 Read it off the box: `ssh netcup docker logs rooftop-prod-sim-1 2>&1 | grep
--A250 'vitals: RUNAWAY'`. The log covers the current container only, so a
-deploy loses it: read it before rebuilding.
+-A250 'vitals: RUNAWAY'`. The log covers the current container only, and
+a deploy (a push to pluggybot's `main`) replaces the container: read it
+before the next one.
 
 Why the numbers are what they are:
 
@@ -336,17 +340,23 @@ Why the numbers are what they are:
   clears them by 1.3×. 50 sits about 2× from them and 2× from the
   runaway's 115.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
-  with the pair free-running on the dev machine (EGL), four interleaved
-  runs, per wall minute after start-up: 45 sim-seconds untraced, and 7.8
-  traced from boot with eight frames. That is 5.8× slower. On a box where
-  the pair only just holds 1×, tracing from boot would leave no served
-  world. A runaway that is still growing grows in whatever it traces from
-  the onset on.
-- **20 s of tracing, and no filter.** The pair runs ~6× slower while it
-  traces, and the pacer catches up afterwards. Building the report is ~3 s
-  of Python per million live traces, taken from the physics thread's share
-  of the GIL. `Snapshot.filter_traces` cost another 11 s per million. At
-  the measured runaway, 20 s is at most ~38 MiB.
+  with the pair free-running on the dev machine (EGL, Python 3.14; the
+  image runs 3.12), four interleaved runs, per wall minute after start-up:
+  45 sim-seconds untraced, and 7.8 traced from boot with eight frames.
+  That is 5.8× slower. On a box where the pair only just holds 1×, tracing
+  from boot would leave no served world. A runaway that is still growing
+  grows in whatever it traces from the onset on.
+- **20 s of tracing, stopped before the report is built.** The pair runs
+  ~6× slower while anything is traced, and the pacer catches up
+  afterwards. Built with tracing still on, the report traced itself: 3 s
+  per million live traces against 0.14–0.22 s off (3.14 and 3.12,
+  MEASURED). A small-object leak's report took 3.9 s the first way and
+  0.3 s the second.
+- **The meter.** The thresholds were read off `docker stats` (the
+  container's cgroup) and the watchdog reads the process's resident
+  memory. In a local flight of the served image they rose together, +60
+  and +61 MiB over five minutes, a constant ~100 MiB apart (shared
+  libraries count in one and not the other).
 
 What it cannot see: memory that C allocates for itself (MuJoCo, osmesa, a
 C extension's own `malloc`) is not traced; numpy's arrays are. A report
