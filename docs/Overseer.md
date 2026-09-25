@@ -356,8 +356,11 @@ cannot plan to -- past the LIDAR's 8 m, or on a cell never seen
 along the goal's, the legs behind it dropped), then the goal; a leg that
 gives up ends the verb with #350's clause, naming the leg. A goal in sight
 is one drive, as before, and the house's own legs driven one at a time
-route to nothing, so the cage programs and `solutions.WEIGH` drive as they
-did. And `pick` on an empty fork fetches the claw as `fetch` would; with
+route to nothing, so a cage program's legs and `solutions.WEIGH`'s drive
+leg to leg as they did (a program whose FIRST leg is out of sight, started
+in the workshop, now walks the route to it). Each end of a route is
+trimmed only among the legs in its own zone: by straight line, the zone
+chain's doors were dropped for legs behind a wall. And `pick` on an empty fork fetches the claw as `fetch` would; with
 another tool aboard, `pick` and `place` say stow it first. `place` never
 fetches: a claw off its bay holds nothing to place.
 

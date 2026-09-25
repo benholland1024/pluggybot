@@ -7182,14 +7182,38 @@ def _way_of(world: str, ways: tuple, xy: tuple[float, float]) -> tuple[int | Non
   return None, -1
 
 
+def _zones_at(world: str, xy: tuple[float, float]) -> set[str]:
+  """Every zone a point is in: a door's leg lies on the line between two."""
+  x, y = xy
+  return {z["name"] for z in world_config(world)["zones"]
+          if z["min"][0] <= x <= z["max"][0] and z["min"][1] <= y <= z["max"][1]}
+
+
+def _trim_end(world: str, legs: list, xy: tuple[float, float]) -> list:
+  """The legs from `xy`'s end of a route on: from the nearest leg IN A
+  ZONE `xy` is in, or the one after it if `xy` stands there (`LEG_DONE_M`);
+  with none in its zone, all of them. The zone chain chose the doors
+  between, so only a leg in the same zone can be behind -- trimmed by
+  straight line instead (review of #353), a route from the south garden
+  dropped the garden door and aimed through the house wall, and a goal by
+  the workshop door kept the leg past the table and came back."""
+  here = _zones_at(world, xy)
+  near = [i for i, leg in enumerate(legs) if _zones_at(world, leg) & here]
+  if not near:
+    return list(legs)
+  i = min(near, key=lambda k: math.hypot(legs[k][0] - xy[0], legs[k][1] - xy[1]))
+  reached = math.hypot(legs[i][0] - xy[0], legs[i][1] - xy[1]) <= LEG_DONE_M
+  return list(legs[i + 1 if reached else i:])
+
+
 def route_to(world: str, from_xy: tuple[float, float],
              to_xy: tuple[float, float]) -> list[tuple[float, float]]:
   """The house's legs from `from_xy` toward `to_xy` (issue #353), for a
   `drive_to` whose goal one drive cannot plan to: back along the way out
   the robot is on, then out along the goal's -- `home_route` and
   `zone_route` joined at the house, or only the stretch between them on
-  one way. Legs behind the robot are dropped (`legs_ahead`), and so is a
-  last leg the goal stands in. Empty on one stretch, or with no way written."""
+  one way -- each end trimmed to the legs still between (`_trim_end`).
+  Empty on one stretch, or with no way written."""
   ways = _ways_out(world)
   (a_way, a), (b_way, b) = _way_of(world, ways, from_xy), _way_of(world, ways, to_xy)
   if a_way is not None and a_way == b_way:
@@ -7198,10 +7222,8 @@ def route_to(world: str, from_xy: tuple[float, float],
   else:
     legs = ((ways[a_way][0][:a + 1][::-1] if a_way is not None else [])
             + (ways[b_way][0][:b + 1] if b_way is not None else []))
-  legs = legs_ahead(legs, from_xy)
-  while legs and math.hypot(legs[-1][0] - to_xy[0], legs[-1][1] - to_xy[1]) <= LEG_DONE_M:
-    legs.pop()
-  return legs
+  legs = _trim_end(world, legs, from_xy)
+  return _trim_end(world, legs[::-1], to_xy)[::-1]
 
 
 def cage_program(world: str, act: str,

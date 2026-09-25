@@ -1476,10 +1476,11 @@ unknown space, since driving there is what grows the map toward the goal;
 for an INFLATED one, today's rule -- changes every drive whose goal is
 unmapped and wants its own flights. The flown lap keeps every leg inside
 what the leg before mapped (6.6 m against the LIDAR's 8 m;
-`test_home_world.loop_legs`), and so does a PROCEDURE's `drive_to` for any
-goal the house has a route to (issue #353): past the LIDAR's reach or off
-the map it walks `lifecycle.route_to`'s doorways first. Expect the same
-stall from an
+`test_home_world.loop_legs`). A PROCEDURE's `drive_to` past the LIDAR's
+reach or off the map walks `lifecycle.route_to`'s doorways first (issue
+#353); its hops are the house's legs (up to 7.9 m, where the lab's way
+meets the workshop's), and the first is as far as the robot stands from
+it. Expect the same stall from an
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
 

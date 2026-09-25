@@ -16,8 +16,8 @@ The rules, each pinned without a mission (docs/Testing.md):
      reached on arrival or within `LEG_DONE_M`, passed by when another
      robot stands on it; one it cannot get near ends the verb, and the
      reason names the leg and why (#350's clause), asked of the leg.
-  3. `route_to` joins the ways out at the house, drops the legs behind the
-     robot and a last leg the goal stands in -- so the house's own legs,
+  3. `route_to` joins the ways out at the house and trims each end only
+     among the legs in that end's own zone -- so the house's own legs,
      driven one `drive_to` at a time (the cage programs, `solutions.WEIGH`'s
      way home), compose to nothing and those programs are unchanged.
 """
@@ -173,6 +173,20 @@ def test_the_ways_out_join_at_the_house():
   # in the house, or a world with no route written: nothing
   assert route_to("home", (1.5, 0.5), (3.0, 4.0)) == []
   assert route_to("room_hub", (0.0, 0.0), (5.0, 5.0)) == []
+
+
+def test_each_end_is_trimmed_only_within_its_own_zone():
+  """Review of #353: trimmed by straight line, a goal by the workshop door
+  kept the leg past the table (drive past the goal 4.9 m, then back), and
+  the south garden's route dropped the garden door for the hall's leg
+  through the house wall. Only a leg in the same zone can be behind."""
+  lab, shop = lab_route("home"), list(WORKSHOP_ROUTE)
+  assert route_to("home", (1.5, 4.25), (-6.0, 1.0)) == [shop[0]]
+  assert route_to("home", (1.5, 4.25), (-6.3, 0.5)) == [shop[0]]
+  assert route_to("home", (-1.0, -5.0), (-8.5, 0.5)) == [lab[0], *shop[:2]]
+  # ...and with no leg in its zone, none is behind: the kitchen goes by the
+  # hall, never at the workshop door through the dividing wall
+  assert route_to("home", (-8.0, 4.0), (-9.7, -4.75)) == shop
 
 
 def test_the_houses_own_legs_compose_to_nothing():
