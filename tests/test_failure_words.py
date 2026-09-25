@@ -129,6 +129,7 @@ class _Drive:
   _drove = HubMission._drove
   _at_stand_in = HubMission._at_stand_in
   _other_in_the_way = HubMission._other_in_the_way
+  _bodies = HubMission._bodies
 
   def __init__(self, plan, step=0.0, others=(), sighting=None):
     self.data = SimpleNamespace(time=0.0)
@@ -144,9 +145,6 @@ class _Drive:
 
   def peer_sighting(self):
     return self._sighting
-
-  def _bodies(self):
-    return [(*where()[:2], 12) for where in self.others]
 
   def _nav_routine(self, v, w):
     self.data.time += 0.1

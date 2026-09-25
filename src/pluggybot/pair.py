@@ -11,13 +11,14 @@ robots' bookkeeping. No robot ever blocks the other.
 Mutual awareness, the honest half: each mission is handed the other's
 REPORTED pose (`HubMission.others`) -- what a robot may know of another over
 the network -- so A* keeps clear of where it is now and a blocked drive waits
-for it to move; and each lidar DROPS the other's body from its scans
-(`Lidar.exclude_robot`), the way a fleet subtracts a broadcast footprint,
-because a robot that drives past otherwise paints a wake of inflated
-obstacle into the map and walls in the robot it passed (measured, and the
-reason the first attempt at a contested bay ended in "no route"). What is
-NOT here: the other robot as a mind -- that is the minds' slice (C) and the
-context they are shown.
+for it to move (or, while it lies on the floor, of where its BODY is: issue
+#365, `HubLifecycle.keep_clear`); and each lidar DROPS the other's body from
+its scans (`Lidar.exclude_robot`), the way a fleet subtracts a broadcast
+footprint, because a robot that drives past otherwise paints a wake of
+inflated obstacle into the map and walls in the robot it passed (measured,
+and the reason the first attempt at a contested bay ended in "no route").
+What is NOT here: the other robot as a mind -- that is the minds' slice (C)
+and the context they are shown.
 
 The rack is one rack: one charge bay, five tool bays, contended. Tool
 contention is the minds' to negotiate and this module arbitrates nothing; a
@@ -205,13 +206,16 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     # ...and the lost-tool clock is the world's (issue #347): one hand, on
     # the first robot's seam, or a tool would be put back twice
     life.lost_tool_after_s = None
-  # Each mission is told where the OTHERS say they are, its lidar drops
-  # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
-  # and its mind is shown what they broadcast (`peers`).
+  # Each mission is told where the OTHERS say they are (where they lie, once
+  # knocked over), its lidar drops their bodies from the scan (see the module
+  # doc and `Lidar.exclude_robot`), and its mind is shown what they broadcast
+  # (`peers`).
   for life in lives:
     others = [other for other in lives if other is not life]
     life.peers = others
-    life.mission.others = [other.mission.pose_xy for other in others]
+    life.mission.others = [
+      (lambda other=other, me=life.mission: other.keep_clear(seen_by=me))
+      for other in others]
     for other in others:
       life.mission.lidar.exclude_robot(other.mission.handle.root)
       if life.depth_camera is not None:
