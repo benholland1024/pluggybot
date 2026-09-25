@@ -96,9 +96,9 @@ FACING_TOLERANCE = math.radians(0.5)
 #: it lies there. MEASURED: draw, census and dance peak at 0.66 deg on the
 #: home world (median 0.018); the charge creep's bumper contact spikes to
 #: 1.4-1.7 for ~20 ms, home and room_hub (a scan skipped per dock; the held
-#: press < 0.1); a 21 mm plate pad tilts it 4.3-8.1 deg for ~2 s, and those
-#: scans are skipped -- at that tilt they painted floor-hit arcs 1.6-3 m
-#: out. A skipped scan costs a tenth of a second of map; a wrong one costs
+#: press < 0.1); a plate crossed, 1.1 (#354; the 21 mm pad before it
+#: tilted it 4.3-8.1 for ~2 s, and those scans painted floor-hit arcs 1.6-3
+#: m out). A skipped scan costs a tenth of a second of map; a wrong one costs
 #: the map. The reflex still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
@@ -165,7 +165,10 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
   robot a `peer` cause was about -- the lifecycle knows names, the mission
   only poses."""
   why = rec["why"]
-  if why == "no_route":
+  if why == "no_route" and rec.get("noGo"):
+    cause = (f"no route: it is beside the {rec['noGo']} plate, and a drive "
+             "keeps off a plate unless it starts or ends on one")
+  elif why == "no_route":
     cause = "no route over the floor mapped so far"
   elif why == "stalled":
     cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
@@ -431,6 +434,29 @@ class KeepClear(NamedTuple):
     return DOWN_ROBOT_CELLS if self.down else OTHER_ROBOT_CELLS
 
 
+class NoGo(NamedTuple):
+  """A patch of floor a drive keeps its wheels off (issue #354): a sprung
+  plate whose press is an ACT on something (the lab's three). `half` is the
+  pad's own half-width; A* keeps the axle `NO_GO_MARGIN_M` further out."""
+  name: str
+  x: float
+  y: float
+  half: float
+
+  def on(self, wx: float, wy: float) -> bool:
+    return abs(wx - self.x) <= self.half and abs(wy - self.y) <= self.half
+
+
+#: How far outside a no-go pad A* keeps the axle midpoint it plans. What
+#: touches a 10 mm pad is the caster, 0.20 m ahead of the axle at the most
+#: (the tyres reach 0.15 m at that height, the chassis rides over it); the
+#: other 0.10 m is the drift and the corner-cutting. MEASURED (issue #354):
+#: once the caster could climb a pad, any route across the lab drove over
+#: one, and a feed job begun at the mouse's side went over the shock plate
+#: on its way to the feed plate -- in four flights of four.
+NO_GO_MARGIN_M = 0.30
+
+
 class MissionAborted(RuntimeError):
   """The viewer window was closed mid-mission."""
 
@@ -553,6 +579,12 @@ class HubMission:
     #: avoided round its body (issue #365, `HubLifecycle.keep_clear`).
     #: `_bodies` reads both.
     self.others: list = []
+    #: THE FLOOR NOT TO DRIVE OVER (issue #354): `NoGo` pads, set by the
+    #: lifecycle for a world that has them. A drive crosses one only when it
+    #: starts or ends ON it -- naming a point on a plate is how one is pressed.
+    self.no_go: tuple[NoGo, ...] = ()
+    #: the pad whose margin held the last plan's goal, for the failure words
+    self._goal_no_go = ""
 
   def _resolve(self, model) -> None:
     """Every id this mission caches, by name. Shared by `__init__` and
@@ -872,8 +904,9 @@ class HubMission:
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     """A* to the goal, or to its stand-in (below). The floor before the
     other robots are masked out is kept (`_floor`) for
-    `_route_cut_by_others`."""
+    `_route_cut_by_others`; the no-go pads are part of it."""
     self._floor = traversable_mask(self.grid.grid)
+    self._goal_no_go = self._mask_no_go(self._floor, (wx, wy))
     trav = self._floor.copy()
     self._mask_others(trav)
     self._stand_in = None
@@ -953,6 +986,7 @@ class HubMission:
     waiting = False                    # ...or waiting on one it stagnated by
     downs, next_downs = (), 0.0        # who lies down, `DOWN_CHECK_S`
     self._stand_in = None
+    self._goal_no_go = ""
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
@@ -1057,6 +1091,8 @@ class HubMission:
     rec = {"why": why, "goal": (float(wx), float(wy)),
            "seconds": round(float(self.data.time - t0), 1),
            "shortM": round(math.hypot(wx - px, wy - py), 3)}
+    if why == "no_route" and self._goal_no_go:
+      rec["noGo"] = self._goal_no_go
     bodies = self._bodies() if why == "peer" else []
     if bodies:
       # the ONE body the cause is about: the nearest to the goal where that
@@ -1195,8 +1231,10 @@ class HubMission:
     """Which world points this robot could plan to right now (issue #346):
     traversable after the other robots are masked out, and in the SAME
     4-connected component as its own start cell -- `_plan_to`'s own two
-    tests, asked of candidates rather than of one goal."""
+    tests, asked of candidates rather than of one goal. The no-go pads are
+    masked as for a goal on none of them."""
     trav = traversable_mask(self.grid.grid)
+    self._mask_no_go(trav, None)
     self._mask_others(trav)
     start = nearest_traversable(
       trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
@@ -1233,6 +1271,26 @@ class HubMission:
         continue
       ys, xs = np.ogrid[y0:y1, x0:x1]
       trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
+
+  def _mask_no_go(self, trav, goal) -> str:
+    """Take every no-go pad and its margin out of the traversable mask
+    (issue #354), except a pad the robot stands on or the goal is on: a
+    drive that starts or ends on a plate is the one that presses it, and a
+    drive that does neither never touches one. Returns the name of a pad
+    whose masked margin holds the goal, or ""."""
+    rows, cols = trav.shape
+    px, py, _ = self.pose
+    held = ""
+    for z in self.no_go:
+      if z.on(px, py) or (goal is not None and z.on(*goal)):
+        continue
+      r = z.half + NO_GO_MARGIN_M
+      (x0, y0), (x1, y1) = (self.grid.world_to_cell(z.x - r, z.y - r),
+                            self.grid.world_to_cell(z.x + r, z.y + r))
+      trav[max(y0, 0):min(y1 + 1, rows), max(x0, 0):min(x1 + 1, cols)] = False
+      if goal is not None and abs(goal[0] - z.x) <= r and abs(goal[1] - z.y) <= r:
+        held = z.name
+    return held
 
   def steer_fn(self, tag_id: int, target: float = 0.0):
     """Terminal-servo callback for HubSwap: steer on ONE named bay marker,

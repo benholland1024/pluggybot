@@ -1584,12 +1584,9 @@ save a filmstrip PNG named after the script.
   freezes it, `Menu.validate` refuses without it, the rotation and orders
   never take it), the errand is a PROGRAM (`lifecycle.cage_program`: the
   route in legs ≤ 6.7 m, `cage_route` drops the legs behind the robot, a
-  pass THROUGH the pad from 0.8 m south to `PLATE_PASS_M` 0.3 m north
-  and back, never parked on it (#287: parked on the believed centre the
-  press was the reckoning's, 2 of 11 deployed shocks landed); ends IN
-  THE LAB — the
-  return is the reserve's and `go_charge` docks from there through
-  0.55 m of drift, measured), `eval_shock` pays for the PRESS off the
+  run from 0.8 m south ONTO the pad (`PLATE_PASS_M`) and back; ends IN
+  THE LAB — the return is the reserve's and `go_charge` docks from
+  there), `eval_shock` pays for the PRESS off the
   cage's count (`cage_before` → `sample_shock`), the prediction is a
   `prediction` act with `field: mouse_will` scored APART (none for a
   shock that never landed). `care` is a new `ACT_EVENT_TYPES` entry; the
@@ -1612,10 +1609,19 @@ save a filmstrip PNG named after the script.
   recommends neither; the `care` line says the paid feed is the board's;
   `guarded` unchanged. ⚠ The three lab kinds share ONE open slot
   (`cadence.json`: booking and cooldown are per target NAME, all three
-  name `lab`). ⚠ The press is the weak link on BOTH jobs: parked on the
-  believed plate centre after ~0.24 m of trip drift, the shock landed
-  on 2 of 11 deployed jobs (2026-09-22) — see SimNotes, "A trip across
-  the street".
+  name `lab`). ⚠ **A PAD SITS BELOW THE CASTER, AND EVERY DRIVE BUT
+  THE ONE ONTO IT KEEPS OFF IT** (issue #354; SimNotes "The pad's edge
+  stopped the caster"). At 21 mm the frictionless 20 mm caster could not
+  climb a pad, the wheels turned against its edge, and the reckoning ran
+  0.2–0.6 m ahead a pass: the lab's first act landed, the next missed,
+  and the street (31–48 mm from four starts) took the blame. The pad
+  stands 10 mm up and sinks into a well (`plate.well_xml`). Once it could
+  be climbed, a feed begun at the mouse's side drove over the shock
+  plate (four flights of four), so the lab's three are no-go floor for
+  A* (`lifecycle.lab_no_go` → `HubMission.no_go`, the pad plus
+  `NO_GO_MARGIN_M` 0.30) except for a drive that starts or ends ON the
+  pad — the run onto one. A goal in a margin is `no_route` and names the
+  plate. No landmark: 3–5 cm of drift leaves nothing to correct.
 - **The bench is the second challenge, and it is open in method** (issue
   #227; Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`).
   `find_mass`, `discharge="procedure"`, target `bench` on the tower's gate
@@ -1891,8 +1897,8 @@ save a filmstrip PNG named after the script.
   with a free fan through the walls (SimNotes, "A robot on its side maps
   the sky"). Past 1.6° the scan plane meets the floor inside the 8 m range;
   errands peak at 0.66°, the charge creep's bumper contact 1.4-1.7° for
-  ~20 ms (one scan skipped per dock), and a 21 mm plate pad
-  crossing (4.3-8.1° for ~2 s) is skipped -- it painted floor arcs. The rack
+  ~20 ms (one scan skipped per dock), a plate crossed 1.1° (#354; the
+  21 mm pad before it, 4.3-8.1° for ~2 s, painted floor arcs). The rack
   finder and the height map take the same gate; the front-stop reflex
   still reads every scan.
 - **The robot can die, and a person or a timer stands it up** (issue #107,

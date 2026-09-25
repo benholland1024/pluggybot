@@ -280,13 +280,15 @@ deltas and each shipped a random half of the state changes. Guarded by
    `_advance(now, presses, company)` a test drives with a fake press and a
    fake clock (docs/Testing.md), and a `context()` that answers only from
    inside the room. A plate is still how the robot ACTS on it, through a
-   program of `drive_to` legs THROUGH the pad (`lifecycle.cage_program`):
-   from 0.8 m south to 0.3 m north and back, never parked on it. ⚠ A pad
-   25 m from the anchor is not the garden's (#287): the trip drifts the
-   reckoning 0.1–0.4 m, the pad is 0.2 m to its edge, and a run that
-   stopped on the believed centre pressed it 2 times in 11 on the
-   deployed world -- a crossing is a rising edge whatever the drift
-   (`cage.PLATE_PASS_M`, SimNotes "A trip across the street").
+   program of `drive_to` legs (`lifecycle.cage_program`): from 0.8 m south
+   onto the pad and back. ⚠ Two rules came with the third plate (#354).
+   Anything the robot drives onto sits BELOW THE CASTER'S RADIUS (20 mm):
+   at 21 mm the caster could not climb the pad and the stalled wheels
+   pumped the reckoning 0.2–0.6 m a pass, so the pad stands 10 mm proud
+   and sinks into a well (`plate.well_xml`). And a pad whose press is an
+   ACT is floor every other drive keeps off (`lifecycle.lab_no_go`): once
+   the caster could climb, a route across the lab drove over whichever
+   plate lay on it. SimNotes, "The pad's edge stopped the caster".
 
 ---
 

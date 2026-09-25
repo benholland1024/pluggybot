@@ -105,7 +105,7 @@ from pluggybot.rack.coupling import (
   claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
 )
 from pluggybot.activity.plate import (
-  plate_light_xml,
+  plate_light_xml, well_xml,
 )
 from pluggybot.activity.cage import PLATE_NAMES, cage_xml
 from pluggybot.challenge.bench import bench_xml
@@ -898,6 +898,7 @@ def build_home_world() -> tuple[str, dict]:
     {act_sensor}
     {cage_sensors}
   </sensor>
+  {well_xml(plates)}
   <actuator>
     {pen_actuator_xml()}
     {claw_actuator_xml()}

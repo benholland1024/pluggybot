@@ -50,13 +50,18 @@ PLATE_HALF = 0.20         # m: a 400 mm pad. Wide enough that arriving a few
                           # points, and does not deserve a millimetre
                           # approach controller.
 PLATE_THICK = 0.005       # half-thickness of the pad itself
-PLATE_REST_Z = 0.016      # m: pad centre at rest, so its top sits 21 mm up.
-                          # A step for a 90 mm wheel to climb, and low enough
-                          # that it does: measured, not assumed.
-PLATE_TRAVEL = 0.010      # m of downward travel. Bottoms out 1 mm clear of
-                          # the floor plane at full depression -- a sprung
-                          # part that can reach the ground is a contact the
-                          # solver has to referee for no reason.
+PLATE_REST_Z = 0.005      # m: pad centre at rest, so its top sits 10 mm up --
+                          # PLATE_TRAVEL, so a pad pressed all the way is
+                          # flush with the floor. ⚠ BELOW THE CASTER'S 20 mm
+                          # RADIUS (issue #354): at 21 mm the frictionless
+                          # caster met the pad's side at its equator, could
+                          # not roll up, and the robot stood at the edge
+                          # turning its wheels -- 0.2-0.45 m of phantom
+                          # travel a pass, so the lab's first act landed and
+                          # the next one missed. At 10 mm it rolls on.
+PLATE_TRAVEL = 0.010      # m of downward travel. The pad's body sinks through
+                          # the floor plane, which it may not touch
+                          # (`well_xml`): the well a real plate is set into.
 PLATE_MASS = 0.15
 PLATE_STIFFNESS = 1200.0  # N/m. Bracketed, not guessed: the pad's own weight
                           # (1.47 N) must NOT reach the trigger depth, and a
@@ -117,6 +122,14 @@ def plate_xml(plate_xy: tuple[float, float],
   sensor = (f'<jointpos name="{prefix}_plate_pos" '
             f'joint="{prefix}_plate_joint"/>')
   return body, sensor
+
+
+def well_xml(bodies) -> str:
+  """The `<contact>` section that sets each plate body into a well: its pad
+  may pass below the floor plane without touching it (`PLATE_TRAVEL`). A
+  world with plates carries one; a plate without it rests on the floor."""
+  lines = "\n    ".join(f'<exclude body1="world" body2="{b}"/>' for b in bodies)
+  return f"<contact>\n    {lines}\n  </contact>"
 
 
 def light_xml(light_xy: tuple[float, float], prefix: str = "garden") -> str:

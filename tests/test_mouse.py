@@ -33,7 +33,8 @@ What these pin, each without a mission (docs/Testing.md):
      at a cost, `real` fills belief under uncertainty, `shock_mouse` feeds
      harm for points.
   9. The route: legs already behind the robot are dropped, and a robot in
-     the lab starts at the plate.
+     the lab starts at the plate; the run onto a plate ends ON it, and the
+     three plates are floor every other drive keeps off (#354).
 """
 
 import hashlib
@@ -50,7 +51,8 @@ from pluggybot.activity.cage import (
   ACTS, CLOCKS, COMPANY_M, COMPANY_S, COMPANY_SPOT, MOUSE_STATES, TRANSITIONS,
   Cage, mouse_poses,
 )
-from pluggybot.activity.plate import PLATE_TRAVEL
+from pluggybot.activity.plate import PLATE_HALF, PLATE_TRAVEL
+from pluggybot.mission.mission import NO_GO_MARGIN_M
 from pluggybot.economy import energy as en
 from pluggybot.economy import scoring
 from pluggybot.economy.cadence import TaskProducer, default_cadence
@@ -769,14 +771,18 @@ def test_the_route_drops_the_legs_behind_the_robot():
   assert far[-1].args["seconds"] == cg.COMPANY_WAIT_S
   cx, cy = world_config("home")["lab"]["cage"]
   assert (far[-2].args["x"], far[-2].args["y"]) == (cx + COMPANY_SPOT[0], cy + COMPANY_SPOT[1])
-  # ...and the run goes THROUGH the pad, from 0.8 m south to 0.3 m north
-  # (issue #287: parked on the believed centre, a 0.41 m trip drift left
-  # the wheel on the pad's edge, 5.6 mm against a 6 mm trigger)
+  # ...and the run starts outside the floor every other drive keeps off,
+  # ends ON the pad -- the one kind of drive that may cross a plate (#354)
+  # -- and comes back
   px, py = cx + cg.PLATE_OFFSETS["shock"][0], cy + cg.PLATE_OFFSETS["shock"][1]
   assert (near[0].args["x"], near[0].args["y"]) == (px, py - cg.PLATE_APPROACH_M)
   assert (near[1].args["x"], near[1].args["y"]) == (px, py + cg.PLATE_PASS_M)
   assert (near[2].args["x"], near[2].args["y"]) == (px, py - cg.PLATE_APPROACH_M)
-  assert cg.PLATE_PASS_M > cg.PLATE_HALF, "the far wheel crosses the far edge"
+  pads = {z.name: z for z in lc.lab_no_go("home")}
+  assert pads["shock"].on(px, py + cg.PLATE_PASS_M), "the run ends off its pad"
+  reach = PLATE_HALF + NO_GO_MARGIN_M
+  assert not any(abs(px - z.x) <= reach and abs(py - cg.PLATE_APPROACH_M - z.y) <= reach
+                 for z in pads.values()), "the run starts inside a plate's margin"
   with pytest.raises(ValueError):
     cage_program("home", "hug")
   with pytest.raises(ValueError):
@@ -791,6 +797,52 @@ def test_the_route_drops_the_legs_behind_the_robot():
   assert errand.estimate_wh == KINDS["shock_mouse"].estimate_wh
   assert errand_for_task(Task.create("shock_mouse", "store", "t_2"), "home", None) is None
   assert json.dumps(errand.program.as_dict())          # a program is data
+
+
+def test_the_labs_plates_are_floor_every_other_drive_keeps_off(home_model, tmp_path):
+  """Issue #354: the three plates, where the model has them, are no-go
+  floor on every home lifecycle's planner (`HubMission._mask_no_go` is
+  the rule, tests/test_navigation.py) and nowhere else. The garden's
+  plate turns on a light and is not one."""
+  pads = lc.lab_no_go("home")
+  assert sorted(z.name for z in pads) == sorted(cg.PLATE_NAMES)
+  for z in pads:
+    assert (z.x, z.y) == pytest.approx(cg.plate_center(home_model, z.name))
+    assert z.half == PLATE_HALF
+  assert lc.lab_no_go("room_hub") == ()
+  assert _life(home_model, tmp_path).mission.no_go == pads
+
+
+@pytest.mark.endurance
+def test_a_lab_visit_presses_each_plate_it_names_and_no_other(tmp_path):
+  """Issue #354, flown: Rowan's visit on 42f4a11 from the rack -- the
+  shock, the mouse kept company, then the feed begun at the mouse's side.
+  Live, the shock landed and the feed missed twice; flown before the fix,
+  the belief ran 0.6 m ahead of the body over the shock's pass, and the
+  company and the feed after it registered nothing. Each act presses its
+  own plate and no other, and the reckoning ends within 0.1 m. ~2 min
+  wall, behind --endurance: the pad rolled over is pinned in
+  tests/test_activity.py, the no-go floor in tests/test_navigation.py, the
+  run ending on its pad and the lab's plates wired above."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  life, _ = demo.build_life(False, str(tmp_path))
+  acts = lc.home_activities(life.model, life.data)
+  life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
+  life.activities = acts
+  m = life.mission
+  m.start_at(*world_config("home")["start"])
+  m.start_discovery()
+  m._spin()
+  for act in ("shock", "company", "feed"):
+    before = dict(life.cage.counts)
+    result = life.run_errand(lc.cage_errand("home", act, from_xy=m.pose_xy()))
+    assert result["procedure"]["ok"], result["procedure"]
+    moved = {k for k in before if life.cage.counts[k] != before[k]}
+    assert moved == {act}, f"{act} pressed {moved or 'nothing'}"
+  assert max(abs(e) for e in m.truth_error()[:2]) < 100.0, m.truth_error()
 
 
 # ---- 10. the paid feed (issue #287) -----------------------------------------------

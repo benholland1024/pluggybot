@@ -623,10 +623,10 @@ claim freezes it into `Task.answer` (`Task.commitment`), so the scripted
 rotation, a standing order and an event-map row never take it — nobody
 makes it take the job, and an offer lapses. Then the act: the errand is a
 PROGRAM over #58's verbs (`lifecycle.cage_program`: the route to the lab
-in legs under the LIDAR's reach, a pass over the plate from 0.8 m south
-to 0.3 m north and back — through the pad, never parked on it, because
-the trip drifts the reckoning 0.1–0.4 m and the pad is 0.2 m to its
-edge; `cage.PLATE_PASS_M`, #287), ending IN THE LAB, where the robot is
+in legs under the LIDAR's reach, then a run from 0.8 m south of the
+plate onto the pad and back — the one kind of drive that may cross a
+plate, since every other keeps off the three; `cage.PLATE_PASS_M`,
+#287, #354), ending IN THE LAB, where the robot is
 asked what next and can see what it did. Then the recorded result: the verdict
 (`scoring.eval_shock`) pays for the PRESS, measured off the cage's own
 count before against after, whatever the mouse then does; the prediction

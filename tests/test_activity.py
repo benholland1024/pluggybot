@@ -218,6 +218,42 @@ def test_the_robot_can_actually_drive_onto_the_plate(home_model):
   assert light.flags["state"] == "on"
 
 
+def test_a_plate_is_driven_across_and_the_wheels_travel_with_the_body(home_model):
+  """Issue #354: the pad stood 21 mm up and the caster is a frictionless
+  20 mm sphere, so the caster met the pad's side at its equator and could
+  not climb it. The robot stood at the edge turning its wheels, and dead
+  reckoning -- wheel travel -- ran 0.2-0.45 m ahead of the body on every
+  pass, so the lab's first act landed and the next one missed. The claim
+  is that: a straight run across a lab plate, the wheels' travel against
+  the body's, and the plate pressed on the way."""
+  from pluggybot.activity.cage import Cage, plate_center as lab_plate
+  from pluggybot.control import WHEEL_RADIUS
+  data = mujoco.MjData(home_model)
+  cage = Cage(home_model, data)
+  px, py = lab_plate(home_model, "feed")
+  yaw = math.pi / 2                    # north, onto the pad from its south
+  ax, ay = px, py - 0.8                # the axle, where the run starts
+  data.qpos[0], data.qpos[1], data.qpos[2] = ax, ay + 0.08, 0.045
+  data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+  mujoco.mj_forward(home_model, data)
+  wheels = [home_model.joint(f"{s}_wheel_joint").qposadr[0] for s in ("left", "right")]
+  spun0 = [float(data.qpos[a]) for a in wheels]
+  left = home_model.actuator("left_motor").id
+  right = home_model.actuator("right_motor").id
+  tl, tr = wheel_targets(0.25, 0.0)
+  for _ in range(int(5.0 / home_model.opt.timestep)):
+    data.ctrl[left] = slew(data.ctrl[left], tl, home_model.opt.timestep)
+    data.ctrl[right] = slew(data.ctrl[right], tr, home_model.opt.timestep)
+    mujoco.mj_step(home_model, data)
+    cage.sense(home_model, data)
+  rolled = WHEEL_RADIUS * sum(float(data.qpos[a]) - s for a, s in zip(wheels, spun0)) / 2
+  moved = math.hypot(float(data.qpos[0]) - ax, float(data.qpos[1]) - 0.08 - ay)
+  assert data.qpos[1] - 0.08 > py + 0.2, "the axle never got past the pad"
+  assert abs(rolled - moved) < 0.02, (
+    f"the wheels turned {rolled:.3f} m and the body moved {moved:.3f} m")
+  assert cage.counts["feed"] >= 1
+
+
 # ---- telemetry --------------------------------------------------------------
 
 class _Fake(Activity):

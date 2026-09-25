@@ -1615,38 +1615,40 @@ and the pair's physics thread is mostly physics. What is left and
 deliberate: the depth camera's 8 400 rays at 10 Hz per robot (a sensor's
 honest rate, Parts.md), the lidar, and the decode.
 
-## A trip across the street drifts the reckoning a quarter of a metre, and the dock absorbs it (issue #226)
+## The pad's edge stopped the caster, and the street was blamed (issues #226, #287, #354)
 
-The mouse's acts are the first errands that end 25 m from the rack. Flown
-from the rack after the world's explore, with belief logged against truth
-at every leg: the error grew ~3 cm a leg on the way out -- 0.06 m at the
-garden doorway, 0.24 m in the lab -- a heading bias of about half a
-degree over 25 m of mostly straight driving, and the plate itself added
-nothing measurable (0.19 -> 0.24 m across the run onto it and off). On the
-way back it kept growing in the same direction, to 0.45 m in the living
-room and 0.55 m at the pins. `go_charge` from the lab docked through it:
-one `drive_to` to the standoff (121 s), the measured approach off the
-charge tag, pins connected. A `drive_to` to the spawn pose first and
-`go_charge` from there once answered "no route to the charge bay"
-(twice, with a spin between) -- the same drift from a different heading,
-and the one flight where the standoff was unplannable; not reproduced
-after the spike went home by the dock instead.
+The mouse's acts are the first errands that end 25 m from the rack, and
+every reading of their drift put it at a quarter to half a metre in the
+lab -- 0.24 m at #226, 0.10 and 0.41 m on one route at #287, 0.55 m at the
+pins on the way home -- and put it down to the street. On 42f4a11 Rowan's
+shock landed and the feed after it missed twice, and #354 asked for a
+landmark in the lab. Logged against truth at every step first, the street
+is 31-48 mm from four starts (the rack, the garden, the hall, the
+kitchen), and the jump is on the plate. The pad stood 21 mm up; the caster
+is a frictionless 20 mm sphere 0.18 m ahead of the axle, so it met the
+pad's side at its equator and could not roll up. The robot stood at the
+edge turning its wheels -- dead reckoning is wheel travel -- slid along
+the face until a tyre found a corner, and pumped the same way turning on
+the pad: 0.2 m over one pass from the approach point, 0.6 m by the end of
+the shock's. That shock landed, by the corner; the company visit and the
+feed after it were driven to places the robot was not.
 
-**What is true now:** a far errand ends where its act is and the return is
-`go_charge`'s (`cage_program`; `energy_spike.py` docks between cage rows),
-because the dock is the anchor and one long approach through the drift
-has measured better than a stop on the way. Nothing corrects the heading
-mid-trip; a day of trips is what the observatory period reads for
-(Observatory.md, "The mouse"). The plate is driven THROUGH, not parked
-on (#287): parked on the believed centre, the press was the reckoning's
--- the same route flown twice drifted 0.10 m (pad pressed 11 mm, three
-rising edges) and 0.41 m (a wheel on the pad's edge, 5.6 mm against the
-6 mm trigger, nothing registered), and the deployed world's shock landed
-on 2 of 11 jobs. A pass from 0.8 m south to 0.3 m north and back crosses
-the pad for any longitudinal drift in (-0.6, +0.5) m, and the map, built
-in the same drifted frame, keeps the chassis its inflation off the cage.
-A wheel on a 400 mm pad still needs no controller of its own; it needs
-not to be asked to stop on it.
+**What is true now:** the pad's top sits 10 mm up -- its travel, so a pad
+pressed all the way is flush -- and its body sinks through a floor plane
+it is excluded from touching (`plate.well_xml`, the well a real one is
+set into). The caster rolls on and presses it alone (7 mm of the 6 mm
+trigger), and across a pad the wheels' travel is the body's within 2 cm.
+That made the pads floor any drive rolls over, and the next flight's feed,
+begun at the mouse's side, went over the shock plate on its way to the
+feed plate -- four flights of four. So the lab's three plates are NO-GO
+for the planner (`lifecycle.lab_no_go`, `HubMission._mask_no_go`: the pad
+and `NO_GO_MARGIN_M` round it) unless a drive starts or ends ON the pad,
+and the run onto a plate ends on it (`cage.PLATE_PASS_M`). A visit from
+the rack -- shock, company, feed, feed, toy, company, shock -- pressed each
+plate it named once and no other, the reckoning within 28 mm throughout.
+No landmark: 3-5 cm of drift leaves a pass's 0.3 m and company's 0.14 m
+nothing to correct. A far errand still ends where its act is and the
+return is `go_charge`'s, the dock being the anchor.
 
 ## The lift is a scale (issue #227)
 
@@ -1764,9 +1766,9 @@ goes into the map only while `HubMission.level()`, within `MAP_TILT_RAD`
 range (the LIDAR sits 0.223 m up); draw, census and dance tilt the chassis
 0.66° at most and the charge creep's bumper contact spikes to 1.4-1.7° for
 about 20 ms (one scan skipped per dock; the held press is under 0.1°),
-measured, while crossing a 21 mm
-plate pad tilts it 4.3-8.1° for about 2 s -- those scans are skipped, and
-at that tilt they had been painting floor-hit arcs 1.6-3 m out on every
+measured, and crossing a plate 1.1° at most since #354 lowered the pad.
+The 21 mm pad before it tilted the chassis 4.3-8.1° for about 2 s, and at
+that tilt the scans had painted floor-hit arcs 1.6-3 m out on every
 crossing. The rack finder's sightings and the near-field height map take
 the same gate: on its side 1-2 m from the rack, a robot's camera had moved
 the rack belief 0.1-1.4 m. The reflex still reads

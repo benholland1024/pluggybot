@@ -280,7 +280,7 @@
 
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
-    <body name="garden_plate" pos="5.7000 0.7000 0.0160">
+    <body name="garden_plate" pos="5.7000 0.7000 0.0050">
       <joint name="garden_plate_joint" type="slide" axis="0 0 1"
              range="-0.0100 0" stiffness="1200.0"
              damping="12.0" armature="1e-5"/>
@@ -346,7 +346,7 @@
     </body>
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
-    <body name="lab_shock_plate" pos="24.0000 4.3800 0.0160">
+    <body name="lab_shock_plate" pos="24.0000 4.3800 0.0050">
       <joint name="lab_shock_plate_joint" type="slide" axis="0 0 1"
              range="-0.0100 0" stiffness="1200.0"
              damping="12.0" armature="1e-5"/>
@@ -356,7 +356,7 @@
     </body>
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
-    <body name="lab_feed_plate" pos="25.0000 4.3800 0.0160">
+    <body name="lab_feed_plate" pos="25.0000 4.3800 0.0050">
       <joint name="lab_feed_plate_joint" type="slide" axis="0 0 1"
              range="-0.0100 0" stiffness="1200.0"
              damping="12.0" armature="1e-5"/>
@@ -366,7 +366,7 @@
     </body>
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
-    <body name="lab_toy_plate" pos="26.0000 4.3800 0.0160">
+    <body name="lab_toy_plate" pos="26.0000 4.3800 0.0050">
       <joint name="lab_toy_plate_joint" type="slide" axis="0 0 1"
              range="-0.0100 0" stiffness="1200.0"
              damping="12.0" armature="1e-5"/>
@@ -678,6 +678,12 @@
     <jointpos name="lab_feed_plate_pos" joint="lab_feed_plate_joint"/>
     <jointpos name="lab_toy_plate_pos" joint="lab_toy_plate_joint"/>
   </sensor>
+  <contact>
+    <exclude body1="world" body2="garden_plate"/>
+    <exclude body1="world" body2="lab_shock_plate"/>
+    <exclude body1="world" body2="lab_feed_plate"/>
+    <exclude body1="world" body2="lab_toy_plate"/>
+  </contact>
   <actuator>
     <position name="pen_carriage" joint="pen_carriage_joint" kp="2000" kv="80" ctrlrange="-0.0550 0.0550" forcerange="-15 15"/>
     <position name="claw_l" joint="claw_l" kp="600.0" kv="6" ctrlrange="-0.0270 0" forcerange="-20 20"/>

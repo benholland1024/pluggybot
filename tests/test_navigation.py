@@ -181,6 +181,43 @@ def test_an_unmapped_goal_is_aimed_at_through_the_robots_own_component():
   assert m._plan_to(3.9, 1.0) is None
 
 
+def test_a_no_go_plate_is_crossed_only_by_a_drive_that_starts_or_ends_on_it():
+  """Issue #354: once the caster could climb a pad, a visit to the mouse
+  from the plates' row drove over the shock plate on its way -- a feed job
+  that shocked the mouse. A plate's press is an ACT, so the planner keeps
+  every drive off a no-go pad (and `NO_GO_MARGIN_M` round it) unless the
+  drive starts or ends ON that pad: naming a point on a plate is how it is
+  pressed. On an all-free floor, the pad square across the straight line."""
+  import mujoco
+  from pluggybot.mission.mission import NO_GO_MARGIN_M, HubMission, NoGo, gave_up
+  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+  m = HubMission(model, mujoco.MjData(model), viewer=None, realtime=False)
+  m.grid.grid[:] = -5.0                                 # everything known free
+  pad = NoGo("shock", 2.5, 1.0, 0.2)
+  reach = pad.half + NO_GO_MARGIN_M - m.grid.resolution  # a cell of rounding
+
+  def inside(path):
+    return [p for p in path if abs(p[0] - pad.x) < reach and abs(p[1] - pad.y) < reach]
+
+  m.start_at(1.0, 1.0, 0.0)
+  assert inside(m._plan_to(4.0, 1.0)), "the premise: the straight line crosses the pad"
+  m.no_go = (pad,)
+  around = m._plan_to(4.0, 1.0)
+  assert around and not inside(around), "a drive past the plate went over it"
+  # ...ending on the pad, it may cross it: that is the pass that presses it
+  onto = m._plan_to(2.5, 1.1)
+  assert onto and pad.on(*onto[-1])
+  # ...and starting on it, it leaves straight
+  m.start_at(2.5, 1.1, 0.0)
+  assert inside(m._plan_to(4.0, 1.0))
+  # a goal in the margin but not on the pad is not reachable, and says why
+  m.start_at(1.0, 1.0, 0.0)
+  short = m._plan_to(2.5, 0.65)
+  assert short and not inside(short) and m._goal_no_go == "shock"
+  assert "beside the shock plate" in gave_up(
+    {"why": "no_route", "noGo": "shock", "shortM": 0.4, "seconds": 10.0})
+
+
 def test_a_sealed_in_robot_can_still_plan_to_a_frontier():
   """THE EXPLORE TRAP (issue #92), minimised and pinned.
 

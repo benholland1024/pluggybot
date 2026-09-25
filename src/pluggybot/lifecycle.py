@@ -756,6 +756,7 @@ class HubLifecycle:
     # it. `FIRST` is the bare names, so a single-robot world is unchanged.
     self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
                               rack=rack, grid_bounds=grid_bounds, handle=handle)
+    self.mission.no_go = lab_no_go(world)
     self.battery = Battery(model, capacity_wh=battery_wh,
                            charge_scale=(charge_scale if charge_scale is not None
                                          else charge_scale_from_env()),
@@ -7083,6 +7084,21 @@ def lab_route(world: str) -> list[tuple[float, float]]:
 WORKSHOP_ROUTE = ((-3.5, 1.0), (-6.0, 1.0), (-8.0, -3.5))
 
 
+def lab_no_go(world: str) -> tuple:
+  """The lab's three plates as floor a drive keeps off (issue #354): each
+  press is an act on the mouse, so only a drive that starts or ends on a
+  plate may cross it (`HubMission._mask_no_go`). Surveyed infrastructure,
+  like the route. The garden's plate is not one: it turns on a light."""
+  if world != "home":
+    return ()
+  from pluggybot.activity import cage as cg
+  from pluggybot.activity.plate import PLATE_HALF
+  from pluggybot.mission.mission import NoGo
+  cx, cy = world_config(world)["lab"]["cage"]
+  return tuple(NoGo(act, cx + dx, cy + dy, PLATE_HALF)
+               for act, (dx, dy) in cg.PLATE_OFFSETS.items())
+
+
 def zone_route(world: str, zone: str) -> list[tuple[float, float]]:
   """The legs from the house to a zone's threshold, in order: the house's
   own map, what `cage_program` drives by and what a verb that has to reach
@@ -7157,9 +7173,9 @@ def home_route(world: str, from_xy: tuple[float, float]) -> list[tuple[float, fl
 def cage_program(world: str, act: str,
                  from_xy: tuple[float, float] | None = None):
   """One act on the mouse as a program over #58's verbs (issue #226): the
-  route to the lab, then -- for a plate -- a pass over it from
-  `PLATE_APPROACH_M` south to `PLATE_PASS_M` north and back (through the
-  pad, never parked on it: `cage.PLATE_PASS_M` has the measurement, #287);
+  route to the lab, then -- for a plate -- a run from `PLATE_APPROACH_M`
+  south of it onto the pad and back (the one drive that may cross a plate,
+  `lab_no_go`; `cage.PLATE_PASS_M` has the measurement, #287, #354);
   for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`. No
   tool: nothing here fetches or stows, and the errand ends IN THE LAB,
   where the robot is asked what next and can see what it did (the mouse's

@@ -10,6 +10,39 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A plate can be driven onto, and nothing else drives over one (#354) — opens when this PR is deployed
+
+**What changed in the world.** The four pressure plates (the lab's three,
+the garden's light) stand 10 mm up instead of 21 mm and sink into a well
+when pressed. At 21 mm the caster could not climb a pad: the robot stood
+at its edge turning its wheels, and its reckoning ran 0.2–0.6 m ahead of
+its body on every run onto a plate. The first act of a lab visit landed
+(the caster slid round a corner of the pad), and everything after it was
+driven from somewhere the robot was not. The street itself drifts
+31–48 mm, so the landmark #354 asked for is not built. And the lab's three
+plates are floor the planner keeps off: a drive crosses one only when it
+starts or ends on it, as the run onto a plate does (it now ends on the
+pad, 0.1 m north of its centre). The old pad had kept routes off the
+plates by stopping the caster. The first flight with a pad it could climb
+ran a feed begun at the mouse's side over the shock plate. A `drive_to`
+to within 0.3 m of a plate, but not onto it, now gives up as `no route`
+and names the plate. The prompts, the schema and the wire are unchanged;
+the site's scene moved by the four pads' height. SimNotes, "The pad's
+edge stopped the caster".
+
+**What the period is for.** Whether the second act of a lab visit lands.
+On 42f4a11 Rowan's shock landed and the two feeds after it did not, and
+Rowan filed tk_0002 ("the feed plate itself is dead"). The rows are
+`?kind=care` and `?kind=harm` for acts that follow another lab act in the
+same visit: `landed` should be above 0 for every one whose route arrived.
+A shock counted during an errand that named another plate or the company
+spot (the cage's `shocks` moving under a `care` or `feed_mouse` row) is a
+defect to file, not a reading.
+
+**Not yet known.** Whether an agent-written procedure ever names a point
+beside a plate and meets the new `no route`: the bench is 3 m from the
+row, and nothing on 42f4a11 drove there.
+
 ### The rack says where each tool is (#351) — opens when this PR is deployed
 
 **What changed in the context.** `rack` used to say which bay each module

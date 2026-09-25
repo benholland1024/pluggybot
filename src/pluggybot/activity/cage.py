@@ -216,22 +216,18 @@ COMPANY_S = 10.0
 #: west of the enclosure, clear of the plates' row and of the north wall's
 #: inflation (0.35 m), inside `COMPANY_M` with the chassis-origin offset.
 COMPANY_SPOT = (-0.85, -0.15)
-#: How far south of a plate a run onto it starts (`plate.approach_pose`'s
-#: 0.9 m, less a little: the approach point must not sit on the next row's
-#: inflation), and how far NORTH of the plate's centre the run ends --
-#: THROUGH the pad, never parked on it (issue #287). Parked on the
-#: believed centre, the press was the reckoning's: the trip from the rack
-#: drifts 0.1-0.4 m (measured twice on one route, 0.10 and 0.41), the pad
-#: is 0.20 m to its edge, and at 0.41 a wheel caught the edge and pushed
-#: it 5.6 mm against a 6 mm trigger -- the shock landed on 2 of 11
-#: deployed jobs (2026-09-22). A pass from 0.8 m south to 0.3 m north
-#: crosses the whole pad for any longitudinal drift in (-0.6, +0.5) m,
-#: one wheel stays on it for lateral drift under 0.3 m, and the map
-#: (built in the same drifted frame) keeps the chassis its inflation off
-#: the cage whatever the drift. The way back crosses it again: a press is
-#: a rising edge, so a trip is two acts or more, never none.
+#: The run onto a plate (issues #287, #354): from `PLATE_APPROACH_M` south
+#: of its centre, outside the floor every other drive keeps off (0.2 m of
+#: pad + `mission.NO_GO_MARGIN_M`), to `PLATE_PASS_M` north of it -- ON the
+#: pad, because a drive crosses a plate only to or from a point on one
+#: (`lifecycle.lab_no_go`) -- and back. The caster, 0.18 m ahead of the
+#: axle, presses the pad before the wheels reach it (7 mm against a 6 mm
+#: trigger), and a wheel is on it for a lateral error under 0.3 m.
+#: MEASURED: a lab visit drifts 31-48 mm from four starts in the house.
+#: The 0.1-0.55 m read here before was the pad's edge stopping the caster
+#: while the wheels turned (`plate.PLATE_REST_Z`).
 PLATE_APPROACH_M = 0.8
-PLATE_PASS_M = 0.3
+PLATE_PASS_M = 0.1
 #: How long a company visit stands there. Over `COMPANY_S`, so the visit
 #: registers, and under `steps.MAX_WAIT_S`, so it is one step.
 COMPANY_WAIT_S = 30.0
