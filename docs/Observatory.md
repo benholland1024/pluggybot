@@ -10,6 +10,43 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A stand-up ends the errand it lands in (#348) — opens when this PR is deployed
+
+**What changed in the world.** A dead robot's timer stood it up at the start
+pose, but the errand it died in ran on under the new life: Rowan,
+knocked over mid-pick on 2026-09-23, drove into a wall until flat after
+every stand-up, thirteen lives (#339). Now a stand-up closes what the robot
+was doing — the errand, a charge trip, a stow retry (the one after a
+restart too), exploring, a decision's action — and the loop starts again
+from the top. The errand's
+job fails "interrupted by a death" rather than being queued again. The
+timer no longer waits for a dead robot to put a seated tool down, which
+was the same wait by another name; the tool goes home with the robot, as
+it did for a robot parked dead (#311). A `battery_below` row the map
+queued as the pack ran out is dropped at the stand-up, which refilled it.
+A tool build the stand-up interrupts is recorded as paid for and hangs
+at the next start, like a build that found the rack busy.
+
+**What changed in the mind.** `stood_up` is the eleventh event type, with
+an optional kind saying who: `timer` or `admin`. The `autonomous` prefix
+moved by one line of `EVENT_MAP_RULE`, and the schema's `event` and `kind`
+enums grew by those three tokens. `guarded`'s prefix and schema did not.
+
+**What the period is for.** Deaths by cause, with #339's signature in view:
+a run of deaths of one cause, each a few minutes after a stand-up, should
+not recur, so a topple costs one life. New rows to read:
+
+- `STOOD UP mid-errand: <errand> ended there` in the narration, and
+  `task_resolved` with the reason `interrupted by a death`: how often a
+  stand-up lands inside an errand at all. That takes a robot still in one
+  routine five minutes after dying.
+- A `procedure` row `aborted` with `stopped: stood_up`, and no step count.
+- `event_map` rows on `stood_up`: whether a robot writes one, and what it
+  does then.
+
+**Not yet known.** Whether any robot writes itself a `stood_up` rule, and
+whether losing the job it died doing changes what it takes on next.
+
 ### Tools on the floor (#347) — opens when this PR is deployed
 
 **What changed in the world.** A tool that lies on no bay and on no robot's

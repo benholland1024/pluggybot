@@ -1177,13 +1177,20 @@ otherwise).
   names which of the three silences it was (`events.silence`: an empty list,
   a list with no `ask`, an `ask` on an event that never came round), because
   History is where a later life reads what happened to this one.
-- **Ten event types** (`events.EVENT_TYPES`): `nothing_to_do`,
-  `task_complete`, `task_failed`, `decision_failed` (these four take a
-  `kind` filter, `events.kind_vocabulary`), `battery_below`, `battery_above`, `points_below` (level
+- **Eleven event types** (`events.EVENT_TYPES`): `nothing_to_do`,
+  `task_complete`, `task_failed`, `decision_failed`, `stood_up` (these five
+  take a `kind` filter, `events.kind_vocabulary`), `battery_below`, `battery_above`, `points_below` (level
   events, edge-triggered and re-armed — the hysteresis rule from
   ActivityPattern.md), `message_received`, `every` (a period, floor
   `MIN_PERIOD_S` 1 s), `ticket_replied` (an operator answered or closed a
-  support ticket, §2g). ⚠ `message_received` takes **no configuration**: a row
+  support ticket, §2g). `stood_up` (issue #348) is the robot put back at the
+  start with a full pack; its kind says who — `timer` (the world, after a
+  death) or `admin` (`reset_robot`) — and whatever it landed in has already
+  ended (the errand's job failed "interrupted by a death", with a
+  `task_failed` beside it), so it is news, never an interrupt. The stand-up
+  drops a queued `battery_below` row, which fired on the pack it has just
+  refilled; any other queued row is still news and waits its turn. After a
+  true death the new robot hears nothing of its predecessor's errand. ⚠ `message_received` takes **no configuration**: a row
   keyed on a sender or a keyword would be a free-text path from a visitor to
   the robot's body, which is the invariant §10 rests on; `ticket_replied`
   takes none either. `nothing_to_do` is
