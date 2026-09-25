@@ -58,6 +58,24 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a stand-up ends the errand, and a map may say `stood_up`
+
+pluggybot #348. No new message and no bump. An `event_map` row may now
+carry `"event": "stood_up"` (the eleventh event type), with an optional
+`kind` saying who stood the robot up: `timer` (the world's restart timer,
+the `reset` event's `auto: true`) or `admin` (`reset_robot`). A consumer
+that renders an event it does not know as its token keeps working.
+
+A stand-up now ENDS the errand it lands in, where the errand used to run
+on under it. What a consumer sees is what it already renders: the
+errand's job resolves `failed` with the reason `"interrupted by a death"`
+(a `task_resolved`, as a restart's `"interrupted by a restart"` does), and
+the narration says `STOOD UP mid-errand: <errand> ended there`. A voided
+procedure run closes with `outcome: "aborted"` and `stopped: "stood_up"`
+(a new `stopped` token) and NO `completed` / `total`: the count died with
+the runner, and a consumer shows a missing count as unknown, never as
+zero. The `reset` event is unchanged.
+
 ### 0.21.0, additive: the world puts a lost tool back (`reset_tool`, upstream)
 
 pluggybot #347. A module on no bay and on no robot's fork, and at no bay a
@@ -1071,8 +1089,9 @@ beside them until the site has moved off them.
   EDIT: `rows` in order, each `{event, action, kind?, value?}` exactly as
   the run record keeps them (`kind` and `value` absent where they do not
   apply; `kind` is a menu action on `task_complete` / `task_failed`, a
-  reason or class on `decision_failed`, and `offers` / `none` on
-  `nothing_to_do` since pluggybot #333 -- additive, no bump); `origin`
+  reason or class on `decision_failed`, `offers` / `none` on
+  `nothing_to_do` since pluggybot #333, and `timer` / `admin` on
+  `stood_up` since #348 -- additive, no bump); `origin`
   (`seeded` / `unseeded`: what a NEW robot starts with); `why` (`origin`
   when a stream opens, `edit` after an answer changed it, `true_death`
   when a new robot's map replaced a dead one's); `source` (the decision

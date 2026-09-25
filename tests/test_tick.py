@@ -150,7 +150,9 @@ def test_swap_manoeuvres_are_the_same_ticked(hub_model):
 # ---- the fence: a routine call is nothing until it is driven ---------------
 
 
-ROUTINE_DRIVERS = {"run", "Step"}
+#: ...and `_until_stood_up_routine` (issue #348), which drives its argument
+#: as `yield from` would and is itself a routine the fence checks.
+ROUTINE_DRIVERS = {"run", "Step", "_until_stood_up_routine"}
 
 
 def _routine_calls(tree):

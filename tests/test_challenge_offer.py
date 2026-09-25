@@ -273,7 +273,7 @@ def test_the_grade_waits_for_the_queue_and_runs_before_the_mind(tmp_path):
   flown, on `test_tick`'s terms: the rule is one line of ordering."""
   import inspect
   src = inspect.getsource(HubLifecycle._day_routine)
-  queue = src.index("yield from self.run_errand_routine(self.errands.pop(0))")
+  queue = src.index("self.run_errand_routine(self.errands.pop(0))")
   grade = src.index("elif self._grade_pending:")
   mind = src.index("yield from self._arbitrate_routine()")
   assert queue < grade < mind

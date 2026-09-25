@@ -1193,7 +1193,8 @@ save a filmstrip PNG named after the script.
   usually occupied again by the time the parts are ready: the finished
   build WAITS for room (`seam_busy()` — the one refusal that can change
   while the robot stands still, polled by `_await_seam_routine`;
-  `HANG_WAIT_S` 600 s), and if the rack never frees the tool is RECORDED
+  `HANG_WAIT_S` 600 s), and if the rack never frees -- or a stand-up ends
+  the wait (#348) -- the tool is RECORDED
   and hangs at the next mission start, paid once. Without both, a build on
   a pair was paid for and LOST (issue #315). Every step a `tool` event
   (`TOOL_OUTCOMES`: specified / refused / built / hung / retired). ⚠
@@ -1782,7 +1783,7 @@ save a filmstrip PNG named after the script.
   not a recovery — that is #107's death. `refine_standoff`'s drive back in
   is `REFINE_BUDGET_S` 10 s (issue #339): unbounded, a robot knocked over
   mid-pick drove at the standoff through its death AND every stand-up after
-  it (the timer stands up a robot mid-errand when nothing is seated), into
+  it (the errand ran on under the stand-up until #348), into
   a wall until flat -- thirteen lives on the deployed pair. A give-up is
   `refine_blocked`, and the swap and the charge approach then take NO
   attempt from there (`blocked`): a fork deployed off the line pushes a
@@ -1864,17 +1865,44 @@ save a filmstrip PNG named after the script.
   death (it keeps the volume, so the next life reads its predecessor's death
   line). ⚠ A stand-up STEPS the sim and the restart seam is on every step:
   `_standing_up` guards the recursion, on the admin path too.
-  ⚠ **A SEATED MODULE STOPS A STAND-UP ONLY WHILE SOMETHING CAN STILL PUT
-  IT DOWN** (issue #311; `parked_dead` = dead AND out of the errand that
-  killed it, which is what `_wait_dead_routine` sets). The day loop parks a
-  dead robot only once its errand has returned, and no errand runs after
-  that — so a tool the errand failed to stow (a robot toppled carrying it
-  cannot reach the rack) shut EVERY door: this reset, `set_battery`, and
-  `reset_tool` refusing a tool on a fork. The robot stayed down until the
-  container restarted, and the caller that matters here has no operator
-  behind it. The rescue takes the tool home with it (`_return_module`,
-  shared with `reset_tool`), because the timer has nobody to notice a
-  module left on the floor and that is a bay empty for good.
+  ⚠ **A SEATED MODULE STOPS AN ADMIN'S DOOR ONLY WHILE SOMETHING CAN STILL
+  PUT IT DOWN** (issue #311; `parked_dead` = dead AND out of the errand that
+  killed it, which is what `_wait_dead_routine` sets): `reset_robot`,
+  `set_battery` and `reset_tool` open on it. The TIMER no longer asks
+  (#348, below). The rescue takes the tool home with it, seated or only
+  resting on the fork (`_return_module`, shared with `reset_tool`; never
+  into a taken bay nor one another robot's swap is working, #347's rules),
+  because the timer has nobody to notice a module left
+  on the floor and that is a bay empty for good.
+  ⚠ **A STAND-UP ENDS WHAT IT LANDS IN** (issue #348, Ben 2026-09-24;
+  `tests/test_stand_up.py`). The day loop drives every routine that moves
+  the body for long — the errand, the charge trip, both stows (the retry
+  and the one after a restart), exploring, and a decision's ACTION
+  (`LONG` in the test, read off the syntax tree) — through
+  `_until_stood_up_routine`
+  (a driver `test_tick.py`'s fence knows), which CLOSES it (every `finally`
+  runs, no other line) the step a stand-up lands and returns the falsy
+  `STOOD_UP`: ask `is STOOD_UP` before treating it as
+  a no (a voided charge trip read as a failed dock is a `stuck` death). ⚠
+  Never around a question in flight (a call's worker thread is out), and
+  never an exception through `tick.run_many` (it throws into EVERY robot).
+  ⚠ No routine may yield inside a `finally` or a `GeneratorExit` handler:
+  `close()` would raise (a test walks the tree). ⚠ The job the errand was
+  for is FAILED, `DEATH_ENDED` ("interrupted by a death",
+  `TaskBoard.abandon`) — NOT taken up as a restart's is (#345): a kept
+  errand runs before the mind is asked, so the robot would walk straight
+  back into what killed it; a procedure's job stays the robot's, a game's
+  its referee's. The map hears `stood_up` (the eleventh event, kind
+  `timer`/`admin` = the `reset` event's `auto`) beside `task_failed`, and
+  the stand-up drops a queued `battery_below` row, the one row about what
+  it undid (it held the slot and failed `stood_up`'s own row `busy`);
+  every other queued row is still news and waits. ⚠ After a TRUE death
+  the errand was the robot before's: its job fails, but the new robot's
+  History and map hear nothing (its one inheritance is `_true_death`'s
+  line). ⚠ A stand-up inside a stretch the routine steps itself (an
+  interrupt's ask) runs it on to its next yield; the void puts the state
+  back. ⚠ A build is closed mid-print too: the paid tool is recorded on
+  `GeneratorExit` (`_workshop_routine`), never lost with the points.
 - **A tool on the floor goes home by itself, and a drive carries the tool
   posed** (issue #347; `tests/test_tools_on_the_floor.py`). A module
   `lost` (`HubLifecycle.tool_whereabouts`: on no robot's fork, alive or

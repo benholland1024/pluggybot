@@ -690,6 +690,38 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   assert shown["hung"] is True and "reasons" not in shown
 
 
+def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
+  """⚠ ISSUE #348: a stand-up closes the decision's action, and a build is
+  one. The points are spent before the ~15-minute print and the tool was
+  recorded only after it, so a robot that died `unpaid` two minutes into
+  the print -- the balance spent on the build -- paid and got nothing,
+  #315's "paid, refused build" by another door. Recorded like a rack that
+  never freed. Shown to fail without the `GeneratorExit` branch."""
+  from pluggybot.lifecycle import STOOD_UP
+  life = _life(tmp_path, points=100)
+  life.home_pose = tuple(world_config("room_hub")["start"])
+  real = life.mission._drive_routine
+
+  def fabricate(seconds):
+    yield from real(0.2, 0.0, 0.0)
+    life.stand_up("ben", auto=False)              # lands mid-print
+    while True:
+      yield from real(0.2, 0.0, 0.0)
+  life._fabricate_routine = fabricate
+
+  events: list = []
+  life.on_event.append(events.append)
+  build = _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP})
+  out = tick.run(life.mission.swap,
+                 life._until_stood_up_routine(life._workshop_routine(build)))
+  assert out is STOOD_UP
+  assert life.ledger.balance() == 97                  # paid, once
+  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
+  assert "module_scoop" not in life.rack_inventory
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  assert any("a stand-up ended the wait" in r for r in events[-1]["reasons"])
+
+
 def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
   """Standing still is 10.5 W: the print alone is 2.6 Wh, a third of
   home's hosting pack, and a full 600 s wait on top would take it to 55 %

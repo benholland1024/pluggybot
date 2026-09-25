@@ -316,7 +316,7 @@ of the actions.** The hard-coded "after every action, ask what to do next"
 stops sitting *outside* the system and becomes a row like any other, which the
 agent may reorder, condition, or delete.
 
-An **ordered list** of `(event + its configuration) → action`. Ten event types,
+An **ordered list** of `(event + its configuration) → action`. Eleven event types,
 and the actions are the existing menu plus `ask`.
 
 ⚠ **FIRST MATCH WINS, AND THE AGENT CONTROLS THE ORDER.** Several rows can be

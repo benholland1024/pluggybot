@@ -99,6 +99,8 @@ EVENT_TYPES = (
                        # support tickets (issue #284). NO configuration --
                        # a reply and a close both fire it; which ticket, and
                        # what was said, is the `tickets` block's to show
+  "stood_up",          # the robot was stood back up (issue #348); optional
+                       # kind: who did it (`STOOD_UP_KINDS`)
 )
 
 #: The events whose configuration is a LEVEL, and which are therefore
@@ -153,13 +155,19 @@ INTERRUPTING_EVENTS = ("battery_below", "points_below")
 #: about its own failure modes, and the two genuinely warrant different
 #: answers. `kind_vocabulary` is the one place that knows which is which.
 FILTERED_EVENTS = ("task_complete", "task_failed", "decision_failed",
-                   "nothing_to_do")
+                   "nothing_to_do", "stood_up")
 
 #: What a `nothing_to_do` says about the board (issue #333): `offers` when it
 #: is SHOWING this robot a job (`lifecycle.shown_offers`, the list its context
 #: carries), `none` when it is not. What is shown, never what the pack can
 #: fund -- that would put a claim rail on `autonomous` through the map.
 NOTHING_TO_DO_KINDS = ("offers", "none")
+
+#: Who stood the robot up (issue #348): the world's restart `timer` after a
+#: death, or an `admin` through `reset_robot` -- the `reset` event's `auto`,
+#: as a word. A filter on the admin is no path from a stranger to the body:
+#: `reset_robot` is admin-only at the website's door.
+STOOD_UP_KINDS = ("timer", "admin")
 
 #: ...and the two CLASSES a failure reason falls into, offered alongside the
 #: reasons themselves so a rule can be coarse without enumerating five
@@ -230,10 +238,9 @@ ACTION_FAILURES = (
 
 #: How many rows a map may hold. A GRAMMAR BOUND, not a policy: it caps the
 #: array in the structured-output schema and the bytes on every call, and it
-#: is deliberately larger than any coherent map needs (there are ten event
-#: types and three of them are unconfigurable, so a map that says one thing
-#: about each hazard fits in half of it). Nothing about which rows they are
-#: is limited.
+#: is deliberately larger than any coherent map needs (a map that says one
+#: thing about each hazard fits in half of it). Nothing about which rows
+#: they are is limited.
 MAX_ROWS = 12
 
 #: The floor for a `battery_*` fraction and the ceiling. CLAMPED rather than
@@ -380,6 +387,8 @@ def kind_vocabulary(event: str, menu: "Menu") -> tuple[str, ...]:
     return FALLBACK_REASONS + FAILURE_CLASSES
   if event == "nothing_to_do":
     return NOTHING_TO_DO_KINDS
+  if event == "stood_up":
+    return STOOD_UP_KINDS
   if event in FILTERED_EVENTS:
     return menu.available()
   return ()
@@ -1010,7 +1019,8 @@ __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
            "Kept", "LEVEL_EVENTS", "Live", "MAP_FILE", "MAX_ROWS",
            "NOTHING_TO_DO_KINDS", "ORIGINS", "PERIODIC_EVENTS",
-           "Row", "UNCONFIGURABLE_EVENTS", "asks_on", "diff", "kind_tokens",
+           "Row", "STOOD_UP_KINDS", "UNCONFIGURABLE_EVENTS", "asks_on", "diff",
+           "kind_tokens",
            "shadowed",
            "kind_vocabulary", "load", "matches_kind", "origin_map", "parse",
            "row", "row_action", "save", "score", "seeded", "silence",
