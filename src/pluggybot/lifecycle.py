@@ -3203,7 +3203,9 @@ class HubLifecycle:
     nothing fetches it from there."""
     index = self.rack_inventory[module]
     lives = (self, *self.peers)
-    if any(life.mission.swapping_at == STATION_YS[index] for life in lives):
+    if any(life.mission.swapping_at is not None
+           and abs(life.mission.swapping_at - STATION_YS[index]) < 1e-6
+           for life in lives):
       return "swap"
     states = [life.mission.swap.module_state(module) for life in lives]
     if any(st["on_fork"] for st in states) or self._fork_holding(module):
@@ -3218,6 +3220,9 @@ class HubLifecycle:
       return
     t = float(self.data.time)
     self._next_lost_check = t + LOST_TOOL_CHECK_S
+    for module in list(self._lost_since):
+      if module not in self.rack_inventory:           # retired while lost
+        del self._lost_since[module]
     for module in list(self.rack_inventory):
       try:
         self.model.body(module)
@@ -3227,8 +3232,26 @@ class HubLifecycle:
         self._lost_since.pop(module, None)
         continue
       since = self._lost_since.setdefault(module, t)
-      if t - since >= self.lost_tool_after_s:
+      # ⚠ NEVER INTO A TAKEN BAY: `_return_module` writes the pose, and a
+      # module one bay over (itself `lost`, and put back on its own clock)
+      # would be interpenetrated. The clock runs on and it goes home once
+      # the bay is empty.
+      if t - since >= self.lost_tool_after_s and not self._bay_taken(module):
         self._return_lost_tool(module, t - since)
+
+  def _bay_taken(self, module: str) -> bool:
+    """Is another module hanging in `module`'s own bay?"""
+    index = self.rack_inventory[module]
+    for other in self.rack_inventory:
+      if other == module:
+        continue
+      try:
+        st = self.mission.swap.module_state(other)
+      except KeyError:
+        continue
+      if st["hung"] and st["bay"] == index:
+        return True
+    return False
 
   def _return_lost_tool(self, module: str, lost_s: float) -> None:
     """Put a lost module back on its bay, on the auto stand-up's terms: a

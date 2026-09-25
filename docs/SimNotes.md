@@ -1909,11 +1909,17 @@ procedure's `draw` ran the drawing errand's use-phase, whose
 planner, meant to settle from `use_at` after the native errand's A* carry
 drive; from the rack it drove at whiteboard_b through the house. With the
 carry drive first both versions draw at 98 % and stow, with the carrying
-pose switched off as well. **What is true now:** `draw` takes the planner
-to its board's `use_at` first and says "never reached" if it cannot; every
-verb that moves the base puts the fork into its carrying pose first
-(`steps.run_verb`), which is a rule of its own and was not what toppled
-Rowan; and a module lost for `LOST_TOOL_S` goes back to its bay by itself.
+pose switched off as well. Measured on the way, in the pose itself: a claw
+that let go of a cube at a 0.033 m lift and then drew its arm in came off
+its seat, the module 114 mm down the fork and unpowered, and a stow drove
+that to the rack; lifting first keeps it seated (the cube, between open
+jaws, moved 0 mm either way). **What is true now:** `draw` takes the
+planner to its board's `use_at` first and says "never reached" if it
+cannot; every verb that moves the base puts the fork into its carrying pose
+first (`steps.run_verb`), which is a rule of its own and was not what
+toppled Rowan; that pose and the return's (`carry_configuration_routine`)
+move the lift up before the arm comes in and down after it; and a module
+lost for `LOST_TOOL_S` goes back to its bay by itself.
 
 ## Debugging workflow that worked
 

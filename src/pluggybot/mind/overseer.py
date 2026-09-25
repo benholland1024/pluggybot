@@ -2731,9 +2731,10 @@ imports. A procedure runs until it finishes, a step fails, or a budget runs
 out; whatever it fetched is hung back up either way. A step fails when the
 world says so -- a tool not seated, a drive that did not arrive, a target
 outside an axis's range. A verb that moves the robot (%(drivers)s) first
-puts the tool on the fork back in its carrying pose -- its own axes at rest,
-the arm in, the lift where a fetch leaves it, a cube in the claw still held
--- so a pose set with `move` or `set_lift` lasts until the next of them.
+draws the arm in and puts a tool on the fork back in its carrying pose: the
+lift where a fetch leaves it and the tool's own axes at rest, except that a
+cube in the claw stays held, out in front at carrying height. So a pose set
+with `move` or `set_lift` lasts until the next of them.
 When a run ends, one line in your History says how
 far it got, and if it stopped short, the line and the reason; the values of
 its variables follow, on that line or the next: that is how a number you

@@ -20,7 +20,9 @@ planner's route to its board. It used to drive straight at the board from
 wherever the robot stood, and every live `pen_check` that reached `draw`
 knocked Rowan over (6 of 6). Every procedure verb that moves the robot now
 puts the tool into its carrying pose first, and the procedure rule in the
-`autonomous` prompt says so in one sentence, which names those verbs.
+`autonomous` prompt says so in one sentence, which names those verbs. That
+pose, and the one every stow starts from, raise the lift before the arm
+comes in: drawn in low, the claw came off its seat.
 SimNotes, "A drawing that set off from the rack", has the measurements.
 
 **What the period is for.** Phase 1's gate (#344) includes "no manual tool

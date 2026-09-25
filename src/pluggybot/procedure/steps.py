@@ -274,7 +274,8 @@ def _carried(life) -> str | None:
 def carry_configuration_routine(life, tool: str) -> Routine:
   """The tool as a pick left it, before any RETURN (issue #264): a cube in
   the claw's jaws set down first, the arm in, the lift where a pick leaves
-  a module (`MODULE_DRIVE_LIFT`). A return computes its release heights from
+  a module (`MODULE_DRIVE_LIFT`) -- raised before the arm comes in, lowered
+  after it (`travel_pose`). A return computes its release heights from
   the lift it STARTS at, and a procedure may have moved it: MEASURED, a
   claw stowed from 0.03 m -- where a weighing procedure had lowered it --
   was driven into the rack and knocked to the floor, while the same stow
@@ -287,16 +288,24 @@ def carry_configuration_routine(life, tool: str) -> Routine:
     if held is not None:
       yield from claw.set_down_routine()
       set_down = held
+  # ⚠ UP BEFORE IN (issue #347, `travel_pose`): MEASURED, a claw that let
+  # go of a cube at 0.033 m and drew its arm in there came off its seat --
+  # 114 mm down the fork, unpowered -- and a stow drives that to the rack.
+  swap = life.mission.swap
+  up = MODULE_DRIVE_LIFT > float(life.data.ctrl[swap.lift_act])
+  if up:
+    yield from swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
   from pluggybot.tools.drawing import PEN_MODULE, PenPlotter
   if tool == PEN_MODULE:
     # ...and the pen's CARRIAGE centred: parked where the last stroke left
     # it, it jams on the bay's bracket feet and the stow fails (drawing.py,
     # `carry_config_routine`). A restart mid-drawing leaves it anywhere in
     # +-55 mm (issue #345, found in review: 37 mm off, never hung).
-    plotter = PenPlotter(life.model, life.data, life.mission.swap)
+    plotter = PenPlotter(life.model, life.data, swap)
     yield from plotter.ramp_routine(plotter.pen_act, 0.0, settle=0.5)
   yield from life.mission.set_arm_routine(0.0)
-  yield from life.mission.swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
+  if not up:
+    yield from swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
   return {"setDown": set_down}
 
 
@@ -316,14 +325,22 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   carriage centred, the gate shut). The claw's jaws are left as they are,
   and a claw holding a cube keeps it where `pick` leaves it -- `CARRY_LIFT`,
   arm out -- because tucked, the cube swings into the chassis. An empty
-  fork has no carrying pose: nothing is moved."""
+  fork only draws its arm in: extended, it sweeps a rack (`set_arm_routine`).
+
+  ⚠ UP BEFORE IN, IN BEFORE DOWN. A lift that has to rise goes first, so a
+  claw that released a cube at 0.03 m lifts its open jaws off it before the
+  arm pulls them back through it; a lift that has to fall goes last, so a
+  tool held out over a bench comes in before it comes down."""
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
+  swap = life.mission.swap
   if tool is None:
-    return []
-  model, swap = life.model, life.mission.swap
-  out = []
+    return [(swap.arm_act, 0.0, axes.ARM_SPEED)]
+  model = life.model
+  claw = _claw(life) if tool == CLAW_MODULE else None
+  holding = claw is not None and claw.held() is not None
+  own = []
   for axis in axes.AXES.values():
     if axis.requires != tool or not axis.actuator:
       continue
@@ -332,12 +349,12 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
     except KeyError:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
-    out.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  claw = _claw(life) if tool == CLAW_MODULE else None
-  holding = claw is not None and claw.held() is not None
-  out.append((swap.arm_act, ARM_EXT if holding else 0.0, axes.ARM_SPEED))
-  out.append((swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED))
-  return out
+    own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
+  lift = (swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED)
+  arm = (swap.arm_act, ARM_EXT if holding else 0.0, axes.ARM_SPEED)
+  if lift[1] > float(life.data.ctrl[swap.lift_act]):
+    return [lift, arm, *own]
+  return [arm, *own, lift]
 
 
 def travel_pose_routine(life) -> Routine:
