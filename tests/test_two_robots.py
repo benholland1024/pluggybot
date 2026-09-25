@@ -904,33 +904,9 @@ def test_a_pick_lost_to_a_peer_names_it_in_history():
   assert "the pick missed" not in history, "blamed the tool for a blocked bay"
 
 
-def test_a_charge_bay_blocked_by_a_peer_is_named_but_not_given_up_on():
-  """The asymmetry (issue #313): the SAME arithmetic covers the charge
-  bay -- and the neighbouring tool bay's standoff is 0.200 m from it on
-  the rack prior, so a robot swapping there blocks the approach outright
-  -- but a tool bay given up is a lost errand and a charge given up is a
-  death. So `go_charge_routine` says whose robot it was and still spends
-  both of its attempts."""
-  from test_overseer import _lifecycle
-  from pluggybot import tick
-  from pluggybot.mission.mission import charge_standoff
-  life = _lifecycle("room_hub", errand=False)
-  sx, sy, _ = charge_standoff(life.mission.rack)
-
-  class Peer:
-    robot_name, root = "Rowan", SECOND.root
-
-    class mission:
-      pose_xy = staticmethod(lambda: (sx + 0.2, sy))
-
-  life.peers = [Peer()]
-  life.mission.others = [Peer.mission.pose_xy]
-  spins = []
-  life.mission._spin_routine = lambda *a, **kw: (spins.append(1), tick.result(None))[1]
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
-  assert life.mission.run(life.go_charge_routine()) is False
-  assert len(spins) == 2, "the charge approach gave up an attempt early"
-  assert any("Rowan is standing 0.20 m from it" in line for line in life.log), life.log[-3:]
+# The charge bay blocked by a peer (issue #313's asymmetry) is WAITED FOR
+# since issue #346: test_rack_contention.py::test_a_taken_charge_bay_is_waited_
+# for_before_and_during_the_approach.
 
 
 # ---- the pair's BODIES (issue #328) ------------------------------------------
