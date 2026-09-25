@@ -37,6 +37,11 @@ def test_the_resting_rate_and_the_startup_never_fire():
   rule = RunawayRule()
   answers = _feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], RESTING))
   assert set(answers) == {None}
+  # ...and a slower box, whose build and carry-on straddle two samples: two
+  # fast minutes in a row, which is what the warm-up is for.
+  rule = RunawayRule()
+  answers = _feed(rule, [212.6, 500.0] + _cumulative(STARTUP[1], RESTING))
+  assert set(answers) == {None}
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():
