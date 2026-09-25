@@ -226,6 +226,16 @@ class TaskProducer:
     self.made = 0
     self.deferred = 0
 
+  def kept_state(self) -> dict:
+    """The schedule a restart carries (issue #345). The rotation already
+    rides the board's file; this is its clock, on a sim time that goes on."""
+    return {"nextAt": self.next_at, "lastOffered": dict(self.last_offered)}
+
+  def restore_kept(self, state: dict) -> None:
+    self.next_at = float(state.get("nextAt", self.next_at))
+    self.last_offered = {str(k): float(v)
+                         for k, v in (state.get("lastOffered") or {}).items()}
+
   # ---- the two ways a job gets made ----------------------------------------
 
   def seed(self, t: float = 0.0, pack_wh: float | None = None) -> list:

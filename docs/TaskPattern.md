@@ -111,17 +111,19 @@ Rules the states carry, each decided explicitly:
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
   only one of them has an honest name on the wire.
-- **A restart fails what it interrupts, and re-offers what it had only
-  promised.** A task that was `active` when the process died comes back
-  `failed` ("interrupted by a restart"), not `active` — the robot that was
-  doing it no longer exists — and not `expired`, which would lie in the
-  other direction: the offer *was* taken. One that was `claimed` but never
-  started comes back `offered`, claim and answer cleared, deadline kept:
-  nothing re-queues an errand across a restart, so the claim would stand
-  forever with nobody behind it (the served pair held one all day,
-  2026-09-17), and nothing was done, so nothing failed. A job with roles
-  drops the roles held. Follow-through across the hourly restart is the
-  agent's to show by claiming again, not the loop's to credit silently.
+- **A restart keeps a claim with the robot that made it** (issue #345). The
+  robot is still that robot. A job `claimed` or `active` comes back claimed
+  by it. An errand job's errand is rebuilt from the task, with its committed
+  answer, and queued again (`HubLifecycle._resume_jobs`); a procedure job
+  stays `active` for its robot to finish and say `done`. A claim held by a
+  robot that is not in the new world goes back on offer (`release_absent`)
+  — before #345 nothing re-queued an errand, and the served pair held a
+  claim with nobody behind it all day (2026-09-17). A job with ROLES, or one
+  whose claim IS the act, is not kept: an active one comes back `failed`
+  ("interrupted by a restart") and is announced once, a claimed one is
+  offered again with its claims cleared — a game's referee lived in the
+  process. And an offer is re-priced by the world's energy table on load,
+  never by the kind's generic figure.
 
 ---
 

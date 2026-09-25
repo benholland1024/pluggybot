@@ -1526,7 +1526,7 @@ inflation, so `_plan_to` aimed at the known-free cell nearest it by
 straight line: a one-cell island at the wedge's edge, one cell nearer
 than the wedge itself and joined to nothing. `astar` answered None and
 the drive gave up in 0 s; every replan found the same island. On the
-deployed world the map is empty at every hourly restart and the mind
+deployed world the map was empty at every hourly restart (until #345) and the mind
 takes a job before it explores, so the bedroom was never mapped and the
 board never reached. Aimed at the nearest cell of the robot's own
 component instead, the same flight arrives at 80 s and draws 7 of 7

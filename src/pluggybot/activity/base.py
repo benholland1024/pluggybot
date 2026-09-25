@@ -186,6 +186,17 @@ class Activity:
     """Read the physics and update `self.flags`. Called every step."""
     raise NotImplementedError
 
+  def kept_state(self) -> dict:
+    """What a restart carries (issue #345): JSON-ready. The flags, and a
+    subclass adds whatever else it remembers between steps."""
+    return {"flags": dict(self.flags)}
+
+  def restore_kept(self, state: dict) -> None:
+    """Put `kept_state` back. Written straight into `flags`, not through
+    `set`: nothing CHANGED, and a sink opened after a restart starts from
+    the whole snapshot anyway."""
+    self.flags = dict(state.get("flags") or {})
+
   # ---- plumbing ------------------------------------------------------------
 
   def set(self, **flags) -> None:

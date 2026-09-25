@@ -197,14 +197,96 @@ compose up` still works for someone who only has the website. What it
 encodes that matters from this side: `/var/lib/pluggybot` is a named volume
 because boards, the ledger, the task board, the journal and the thought
 files are **world** state, and `restart: unless-stopped` starts the next
-mission when one ends — each restart is a fresh mission from the start pose
-("woke up at home"): the volume persists, the map, the battery level and the
-pose do not. It serves `--pack hosting` (8 Wh on home) rather than the demo
+process when one ends — which since #345 carries on from where the last one
+stopped (below) rather than from the start pose. It serves `--pack hosting` (8 Wh on home) rather than the demo
 cell, which flattens in minutes; the low-battery reserve is deliberately
 *not* scaled with the pack — it is the absolute energy needed to reach the
 dock, a property of the floor plan. Which arm the served world flies is
 `$PLUGGY_ARM` / `$PLUGGY_ORIGIN`: `autonomous`, both robots, `unseeded`
 (issue #206; the argument is Evaluation.md §2).
+
+## A restart is a continuation (issue #345)
+
+The served process ends for four reasons: a deploy, a crash, an out-of-memory
+kill, and the `PLUGGY_MAX_SIM_TIME` ceiling (3600 sim s in compose, so every
+hour). Until #345 each new process built the world from its XML: both robots
+at their spawn poses on a full pack, both maps empty, every module back on
+its bay, and the job in hand failed. The volume kept what the robots had
+WRITTEN and nothing they had done, so the sixth quality's buffer was refilled
+for free every hour, and the robots planned round it ("woke up in home with
+the pack at 100%").
+
+`$PLUGGY_WORLD_STATE` (`/var/lib/pluggybot/world.npz` in the image) holds the
+rest, and `src/pluggybot/continuation.py` keeps it:
+
+- **What is saved.** For the physics: every joint's position and velocity,
+  the solver's warm start and every actuator's control, matched by NAME, plus
+  the mocap mouse and the sim clock. Per robot: its pack, its believed pose,
+  the rack belief with its sightings, the occupancy grid and the height map,
+  and the lidar's and depth camera's noise generators. Also whether it is
+  dead and since when, its survival and unminded clocks, its explore state,
+  the errand it was in, and what it had queued. For the world: its
+  activities (the mouse, the plates, the pair's encounters) and the
+  producer's schedule. The ledger, boards, task board, thoughts and tickets
+  were already files and are not saved twice.
+- **When.** Every `SAVE_EVERY_S` (60 sim s) on the last robot's step
+  hooks, so a pair is saved after both robots' step, and once more when the
+  run ends. A run ends at its budget or on
+  SIGTERM/SIGINT; a signal only asks, and the next step boundary ends the
+  day before the save. A crash is never saved: the next process carries on
+  from the last minute's save. The ledger, the boards and the task board
+  are written on every event and are not rewound, so a job paid in that
+  minute stays paid.
+- **Put back.** `continuation.load` finds the save before the task board is
+  built. Each lifecycle's `begin()` re-hangs its built tools, then
+  `continuation.restore` puts the bodies back. The day routine opens without
+  moving: no start pose, no spin. History says "the world restarted; I
+  carried on from (x, y) with the pack at N%".
+- **Sim time continues.** Every absolute stamp keeps its meaning: the
+  survival clock, the unminded clock, a dead robot's stand-up timer, an
+  offer's deadline (the board loads without rebasing). `max_sim_time` is
+  the RUN's budget from where it starts. The wire's `t` grows past 3600,
+  which the site handles, since every new header resets its view.
+- **The errand in flight ends**, because it was a generator. Its job stays
+  the robot's: an errand job is queued again (rebuilt off the task, with its
+  committed answer), and a procedure job stays claimed. A module the restart
+  left on the fork is stowed first. A claim held by a robot not in the new
+  world goes back on offer. A game still fails, because its referee lived in
+  the process. A job taken up through `MAX_TAKE_UPS` (3) restarts without
+  finishing is failed: the world's crash-loop guard counts saves, and a job
+  whose errand crashes the process would otherwise crash every process after
+  it.
+- **An offer sets its props out.** The tower's blocks and the bench's cubes
+  go back where the world compiled them when their challenge is offered,
+  except one touching a robot. The hourly reset used to be what made "set
+  out in a row at …" true; with the world carried on, a failed attempt would
+  otherwise leave them wherever it dropped them, for good.
+- **Two refusals.** A world whose geometry changed (the `fingerprint` over
+  bodies, joints and geoms, taken before any built tool is hung) gets its
+  clock, packs, deaths and jobs, but not its bodies or maps: the robots
+  start from their start poses and are told why. And a save restored
+  `MAX_RESUMES` (3) times with no new save in between is not trusted again:
+  the next start is fresh, and History says why. A file that cannot be read
+  at all (empty, torn) is a fresh start too, never a crash. A grid that does
+  not fit the build's is left empty and the robot explores again, where it
+  stands.
+- **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
+  day straight through, then the same day saved at the first idle pass of
+  the loop past T and carried on in a new process. After the restore the two
+  are IDENTICAL: 761 state samples on room_hub, and 2404 over 1202 s of the
+  home world's day (four jobs, two drawings, two censuses, the cage and the
+  plates, a 503 s charge). The first check caught two
+  defects. The sensors' noise generators were re-seeded, so the first scan
+  painted a different map and the route parted 3 s later. And
+  `Task.from_json` re-priced an open offer at its kind's generic figure: a
+  room_hub carry went from 0.817 to 0.93 Wh after every restart, too dear
+  for a pack at 88 %.
+- **Cost.** About 50 ms of the physics thread per save on the home pair with
+  both maps built, 1.3 MB on disk (zlib level 1; the default level 6 cost
+  175 ms).
+
+Not kept: a decision in flight, the mind's in-process context (it reads
+History), a visitor message still in the inbox, and an open `look`.
 
 ## Measured
 

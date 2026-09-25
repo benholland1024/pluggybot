@@ -1020,11 +1020,14 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
       "the bootstrap, an `ask` row firing and the consult a heart lost to " \
       "silence is owed, and nothing else in this branch"
   # ...and every OTHER write is a moment a life starts, never an answer
-  # arriving. Four: the constructor's zero, mission start, a stand-up, and
-  # `_stamp_ask` itself. Counted so a fifth has to be argued for -- the one
-  # that would break this is a write next to a RESULT.
+  # arriving. Five: the constructor's zero, mission start, a stand-up,
+  # `_stamp_ask` itself, and a restart putting back the clock the save held
+  # (issue #345 -- the silence goes on across it). Counted so a sixth has
+  # to be argued for -- the one that would break this is a write next to a
+  # RESULT.
   whole = inspect.getsource(HubLifecycle)
-  assert whole.count("self._last_ask_t = ") == 4
+  assert whole.count("self._last_ask_t = ") == 5
+  assert "self._last_ask_t = " in inspect.getsource(HubLifecycle.restore_kept)
   assert "_last_ask_t" not in inspect.getsource(
     HubLifecycle._after_decision_routine)
   assert "_stamp_ask" not in inspect.getsource(

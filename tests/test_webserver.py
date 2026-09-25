@@ -755,6 +755,11 @@ class _FakeLife:
     # ...and the ticket desk (issue #284), which the real lifecycle always
     # has and the stream opens with.
     self.tickets = None
+    # ...and what a kept world reads (issue #345): the world's hash and
+    # the flags the keeper sets and reads.
+    self.world_fingerprint = "fake"
+    self.continuing = False
+    self._standing_up = False
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
 
@@ -1504,3 +1509,29 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
   assert b.thoughts.root == root / SECOND.root
   assert a.thoughts.records.path != b.thoughts.records.path, "two stores"
   assert a.thoughts.store.path("Goals.md") != b.thoughts.store.path("Goals.md")
+
+
+def test_serve_keeps_the_world_and_a_signal_only_asks_it_to_stop(monkeypatch, tmp_path):
+  """Issue #345. `--world-state` attaches a keeper to the seam and hands
+  the run what there is to carry on from (nothing, the first time). A
+  SIGTERM -- a deploy, `docker stop` -- only ASKS: the next step boundary
+  ends the day, which then saves; a second signal stops at once."""
+  import signal
+
+  from pluggybot.mission.mission import MissionAborted
+  before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+  try:
+    life, _, _ = _serve_wiring(monkeypatch, ["--world", "room_hub",
+                                             "--world-state", str(tmp_path / "w.npz")])
+    assert life.continuing and life.run_kwargs["resume"] is None
+    keeper = life.mission.step_hooks[-1].__self__
+    handler = signal.getsignal(signal.SIGTERM)
+    handler(signal.SIGTERM, None)
+    assert keeper.stop_requested == "SIGTERM"
+    with pytest.raises(MissionAborted):
+      keeper.step_hook()
+    with pytest.raises(KeyboardInterrupt):
+      handler(signal.SIGINT, None)
+  finally:
+    for sig, h in before.items():
+      signal.signal(sig, h)

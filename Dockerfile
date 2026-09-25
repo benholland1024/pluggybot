@@ -59,6 +59,9 @@ COPY deploy/entrypoint.sh deploy/
 # names (issue #263; `src/pluggybot/mind/constitutions/`) -- who the robot
 # is changes by naming another, per robot, and an edit on the volume is set
 # aside; the sim refuses a write to any document by anyone but its owner.
+# And the WORLD itself, `world.npz` (issue #345): the bodies, each robot's
+# pack, pose and maps, saved every sim minute and at shutdown, so the next
+# process carries on from where this one stopped instead of from the XML.
 #
 # The user gets a real home directory: mesa writes its shader cache there,
 # and without one every osmesa context logs "Failed to create /home/pluggy
@@ -71,7 +74,8 @@ ENV HOME=/home/pluggy \
     PLUGGY_BOARDS=/var/lib/pluggybot/boards.json \
     PLUGGY_LEDGER=/var/lib/pluggybot/ledger.json \
     PLUGGY_TASKS=/var/lib/pluggybot/tasks.json \
-    PLUGGY_THOUGHTS=/var/lib/pluggybot/thoughts
+    PLUGGY_THOUGHTS=/var/lib/pluggybot/thoughts \
+    PLUGGY_WORLD_STATE=/var/lib/pluggybot/world.npz
 
 # WHICH BUILD THIS IS (issue #132; docs/Evaluation.md §5). The deployed sim
 # runs the full lifecycle 24 hours a day, and until this existed nothing in

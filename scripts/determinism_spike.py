@@ -21,11 +21,18 @@ is the physics itself.
     ... --sequential            # one at a time, the contention hypothesis
     ... --nthreads 1            # the AprilTag detector single-threaded
     ... --compare DIR           # re-read traces without flying
+    ... --resume-at 400         # issue #345: the day flown straight through,
+                                # against the same day saved at the first
+                                # idle moment past t=400 and carried on from
+                                # the save in a new process -- identical
+                                # after the restore point, or a restart
+                                # changes the world
 """
 
 import argparse
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
@@ -113,23 +120,45 @@ def child(cfg: dict, trace_path: Path) -> None:
 
     def step():
       if d.time >= state["next"]:
-        state["next"] = d.time + TRACE_EVERY_S
+        # on a FIXED grid of sim time, so a run that started from a save
+        # samples the same instants as one that flew straight through
+        state["next"] = (math.floor(d.time / TRACE_EVERY_S) + 1) * TRACE_EVERY_S
         log(k="step", t=round(float(d.time), 4),
             q=_h(np.concatenate([d.qpos[qmask], d.qvel[vmask]])),
             c=_h(d.ctrl[cmask]),
             wh=round(life.battery.energy_wh, 6), s=life.state)
     life.mission.step_hooks.append(step)
     life.say_hooks.append(lambda t, msg: log(k="say", t=round(float(t), 3), msg=msg))
+    if cfg.get("saveAt") is not None:
+      # the SAVING arm of --resume-at: the world written at the first pass
+      # of the day loop past the mark -- where nothing is in flight -- and
+      # the day ended there
+      from pluggybot import continuation
+      from pluggybot.mission.mission import MissionAborted
 
-  st = Path(tempfile.mkdtemp(prefix="pluggy-det-"))
+      def save_here():
+        if d.time >= float(cfg["saveAt"]):
+          continuation.write(continuation.capture([life], life.world_fingerprint),
+                             cfg["worldState"])
+          log(k="saved", t=round(float(d.time), 4))
+          raise MissionAborted("saved")
+      life.at_loop_top.append(save_here)
+
+  st = Path(cfg.get("stateDir") or tempfile.mkdtemp(prefix="pluggy-det-"))
+  sim_s = float(cfg["simS"])
+  if cfg.get("resume"):
+    # the RESUMING arm: carries on from the save, to the same end
+    from pluggybot import continuation
+    sim_s -= continuation.read(cfg["worldState"]).t
   t0 = time.time()
   r = run_demo(view=False, realtime=False, world=cfg["world"], pack=cfg["pack"],
-               errand=cfg.get("errand", "draw"), max_sim_time=float(cfg["simS"]),
+               errand=cfg.get("errand", "draw"), max_sim_time=sim_s,
                tasks=True, metabolism=True, overseer=False,
                thoughts_root=str(st / "thoughts"), ledger_state=str(st / "ledger.json"),
                board_state=str(st / "boards.json"), tasks_state=str(st / "tasks.json"),
                spend_state=str(st / "spend.json"),
-               second_robot=cfg.get("secondRobot"), on_ready=on_ready)
+               second_robot=cfg.get("secondRobot"), on_ready=on_ready,
+               world_state=cfg["worldState"] if cfg.get("resume") else None)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
   out.close()
@@ -144,9 +173,12 @@ def load(path: Path) -> list[dict]:
 
 
 def first_divergence(a: list[dict], b: list[dict]) -> dict:
-  """Where two traces part, and what moved first."""
-  sa = [r for r in a if r["k"] == "step"]
-  sb = [r for r in b if r["k"] == "step"]
+  """Where two traces part, and what moved first. Compared over the sim
+  times BOTH sampled: a run carried on from a save starts part way."""
+  common = ({r["t"] for r in a if r["k"] == "step"}
+            & {r["t"] for r in b if r["k"] == "step"})
+  sa = [r for r in a if r["k"] == "step" and r["t"] in common]
+  sb = [r for r in b if r["k"] == "step" and r["t"] in common]
   n = min(len(sa), len(sb))
   div = next((i for i in range(n) if (sa[i]["t"], sa[i]["q"], sa[i]["c"])
               != (sb[i]["t"], sb[i]["q"], sb[i]["c"])), None)
@@ -218,6 +250,37 @@ def compare(traces: list[Path]) -> None:
 # ---- the parent --------------------------------------------------------------
 
 
+def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
+  """Issue #345's parity check: straight through, against saved at `at` and
+  carried on from the save. Three processes, one after another -- the
+  resuming one needs the saving one's files."""
+  state = out / "resumed-state"
+  arms = {"straight": {}, "saving": {"saveAt": at}, "resumed": {"resume": True}}
+  for name, extra in arms.items():
+    arm = {**cfg, **extra, "stateDir": str(out / f"{name}-state"),
+           "worldState": str(state / "world.npz")}
+    if name != "straight":
+      arm["stateDir"] = str(state)
+    path = out / f"{name}.config.json"
+    path.write_text(json.dumps(arm))
+    print(f"flying {name}", flush=True)
+    subprocess.run([sys.executable, __file__, "--child", str(path),
+                    str(out / f"{name}.trace.jsonl")],
+                   env=env, stdout=open(out / f"{name}.log", "w"),
+                   stderr=subprocess.STDOUT, check=True)
+  saved = next(r["t"] for r in load(out / "saving.trace.jsonl") if r["k"] == "saved")
+  a = [r for r in load(out / "straight.trace.jsonl") if r["t"] > saved]
+  b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
+  rep = first_divergence(a, b)
+  print(f"saved at the day loop's pass at t={saved}; traces in {out}")
+  if not rep["diverged"]:
+    print(f"IDENTICAL after the restore over {rep['stepsCompared']} state samples")
+    return 0
+  print(f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
+        f"(states {rep['stateA']} / {rep['stateB']})")
+  return 1
+
+
 def main() -> int:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -236,6 +299,10 @@ def main() -> int:
                        "hash identical to one flown alone")
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", default=None, metavar="DIR")
+  ap.add_argument("--resume-at", type=float, default=None, metavar="T",
+                  help="issue #345: fly the day straight through AND saved at "
+                       "the first idle moment past T then carried on from the "
+                       "save in a new process; the two must be identical after")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
@@ -252,6 +319,8 @@ def main() -> int:
   cfg_path = out / "config.json"
   cfg_path.write_text(json.dumps(cfg))
   env = {**os.environ, "MUJOCO_GL": os.environ.get("MUJOCO_GL", "egl")}
+  if args.resume_at is not None:
+    return resume_check(out, cfg, args.resume_at, env)
   procs = []
   for i in range(args.runs):
     trace = out / f"run{i}.trace.jsonl"

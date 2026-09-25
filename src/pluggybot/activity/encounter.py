@@ -97,6 +97,23 @@ class Encounters(Activity):
       for g in robot_geoms(model, handle.root):
         self._owner[g] = mark
 
+  def kept_state(self) -> dict:
+    return {**super().kept_state(), "count": self.count,
+            "atBay": dict(self._at_bay), "open": [list(o) for o in self._open],
+            "yields": self.yields, "bumps": self.bumps,
+            "touching": self._touching, "touchUntil": self._touch_until}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.count = int(state.get("count", 0))
+    self._at_bay.update({k: bool(v) for k, v in (state.get("atBay") or {}).items()
+                         if k in self._at_bay})
+    self._open = [tuple(o) for o in state.get("open") or ()]
+    self.yields = int(state.get("yields", 0))
+    self.bumps = int(state.get("bumps", 0))
+    self._touching = bool(state.get("touching"))
+    self._touch_until = float(state.get("touchUntil", 0.0))
+
   def sense(self, model, data) -> None:
     pa, pb = data.xpos[self.a_bid], data.xpos[self.b_bid]
     dist = float(math.hypot(pa[0] - pb[0], pa[1] - pb[1]))

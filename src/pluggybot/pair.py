@@ -65,7 +65,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
                inboxes: tuple | None = None, mode=None,
                overseer_kw: dict | None = None, battery_wh: float | None = None,
                reserve_wh: float | None = None,
-               constitutions_named: tuple | None = None, **life_kw) -> list:
+               constitutions_named: tuple | None = None,
+               resume=None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -97,7 +98,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   to the FIRST robot only -- pausing blocks inside its step hook, and one
   loop steps both, so one pause stops the world; `overseer_kw` reaches
   every mind's `overseer.build` (backend, model, spend book...);
-  `battery_wh` / `reserve_wh` override the pack's figures.
+  `battery_wh` / `reserve_wh` override the pack's figures. `resume` is the
+  saved world the pair will carry on from (issue #345; `run_pair` puts it
+  back), which keeps the board's deadlines on the clock it goes on with.
 
   ⚠ THE DOCUMENTS AND THE STORE ARE PER ROBOT. The first robot's live at
   the thoughts root, as a single robot's did; the second's under ITS root
@@ -130,7 +133,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # The world's task board, once, and its producer on the FIRST robot only.
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
-  board = task_board(task_state, cadence=beat, world=world) if tasks else None
+  board = (task_board(task_state, cadence=beat, world=world, rebase=resume is None)
+           if tasks else None)
   # ...told both names, so a job done TO a robot (issue #228) can name
   # one; the target exists on the `autonomous` arm alone.
   maker = (task_producer(board, world, book, beat, procedures=autonomous,
@@ -342,16 +346,23 @@ def record_pair(lives: list, path: str):
 def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              stop_when: Callable | None = None,
-             record: str | None = None) -> list[dict]:
-  """Both days from one loop; each robot's summary in order."""
+             record: str | None = None, resume=None) -> list[dict]:
+  """Both days from one loop; each robot's summary in order. `resume` is a
+  saved world (issue #345), put back once both robots' `begin` has hung
+  what they built and before either day moves."""
   cfg = world_config(lives[0].world)
   starts = starts or (cfg["start"], cfg["start2"])
   budget = explore_budget if explore_budget is not None else cfg["explore_budget"]
   if stop_when is not None:
     lives[0].stop_when(lambda: stop_when(lives))
   recorder = record_pair(lives, record) if record is not None else None
+  if resume is not None:
+    lives[0].data.time = resume.t        # what `begin` says, on the clock
   days = [life.begin(start, max_sim_time=max_sim_time, explore_budget=budget)
           for life, start in zip(lives, starts)]
+  if resume is not None:
+    from pluggybot import continuation
+    continuation.restore(lives, resume)
   aborted = False
   try:
     tick.run_many([(life.mission.swap, day) for life, day in zip(lives, days)],

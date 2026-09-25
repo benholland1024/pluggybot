@@ -212,6 +212,17 @@ def _entrypoint_argv(tmp_path, **env) -> list[str]:
   return proc.stdout.split()
 
 
+def test_the_image_keeps_the_world_itself_on_its_volume(tmp_path):
+  """Issue #345: a restart carries on from `$PLUGGY_WORLD_STATE`, which the
+  Dockerfile points at the volume and the entrypoint hands `serve.py`.
+  Unset, nothing is kept and every start builds the world from its XML."""
+  path = "/var/lib/pluggybot/world.npz"
+  argv = _entrypoint_argv(tmp_path, PLUGGY_WORLD_STATE=path)
+  assert argv[argv.index("--world-state") + 1] == path
+  assert "--world-state" not in _entrypoint_argv(tmp_path / "unset")
+  assert f"PLUGGY_WORLD_STATE={path}" in (ROOT / "Dockerfile").read_text()
+
+
 def test_the_image_can_be_told_which_arm_to_fly(tmp_path):
   """Issue #142. The image takes ENVIRONMENT, never flags, so `$PLUGGY_ARM`
   has to reach `serve.py` through the entrypoint or the capability does not

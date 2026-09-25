@@ -22,6 +22,10 @@ Usage:
                         # strokes stream as `draw` events for the browser to
                         # paint -- they are never MuJoCo geometry.
   ... --boards state.json     # whiteboard contents that survive a restart
+  ... --world-state world.npz # the WORLD itself (issue #345): bodies, packs,
+                              # poses, maps, clocks -- saved every minute and
+                              # at shutdown, and carried on from at the next
+                              # start, so a restart ends nothing
   ... --ledger points.json    # the points ledger, likewise (issue #14): the
                               # balance and the earnings log the site shows
   ... --arm autonomous  # WHICH ARM this world flies (issue #142;
@@ -55,11 +59,13 @@ visible in `ps` to every user on the box.
 
 import argparse
 import os
+import signal
 import sys
 import time
 
 import mujoco
 
+from pluggybot import continuation
 from pluggybot.mind import llm, overseer
 from pluggybot.mind.mode import open_switch
 from pluggybot.mind.overseer import ESCALATE_MODEL
@@ -171,6 +177,12 @@ def main() -> None:
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
+  parser.add_argument("--world-state", default=None, metavar="PATH",
+                      help="file the WORLD is kept in (issue #345): every "
+                           "body, each robot's pack, pose, maps and clocks, "
+                           "saved every minute and at shutdown and carried "
+                           "on from at the next start (default: every start "
+                           "builds the world from its XML)")
   parser.add_argument("--ledger", default=None, metavar="PATH",
                       help="JSON file the points ledger lives in between runs "
                            "(issue #14; default: the robot starts at zero)")
@@ -332,6 +344,11 @@ def main() -> None:
     return
 
   cfg = world_config(args.world)
+  # A RESTART IS A CONTINUATION (issue #345): the saved world, if there is
+  # one to carry on from, found before the board is built -- whether the
+  # clock goes on decides what an offer's deadline means.
+  opened = open_world(args.world_state, args.world)
+  snap = opened.snapshot
   # Compiled FROM ITS SPEC and the spec kept (issue #168 slice C), so a
   # tool the agent builds can be hung mid-run; measured identical to
   # `from_xml_path` (tests/test_recompile.py).
@@ -365,7 +382,8 @@ def main() -> None:
   # a target rests. Configuration rather than constants, and $PLUGGY_CADENCE
   # re-tunes how busy a deployed world is without a rebuild.
   beat = default_cadence(args.world) if (args.tasks or args.task_state) else None
-  tasks = (task_board(args.task_state, cadence=beat, world=args.world)
+  tasks = (task_board(args.task_state, cadence=beat, world=args.world,
+                      rebase=snap is None)
            if (args.tasks or args.task_state) else None)
   # ...and the thing that keeps putting work up, rather than a starter set
   # that never grows back.
@@ -533,6 +551,11 @@ def main() -> None:
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.mission.step_hooks.append(activities.step_hook(model, data))
+    # ...and the lifecycle holds them, as `run_demo` and a pair's does: a
+    # recompile rebinds them through it, the mouse's context reads them,
+    # and a restart keeps them (issue #345).
+    life.activities = activities
+  life.restart_note = opened.why
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
@@ -644,18 +667,25 @@ def main() -> None:
                      + ([recorder.emit] if recorder is not None else []),
                      pacer=pacer)
 
+  # The world kept, on the seam after every other hook (issue #345).
+  keeper = keep_world([life], args.world_state)
   # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
   # `task_offered` immediately, so seeding earlier drops those lines on the
   # floor -- see the note in `lifecycle.run_demo`. Only when nothing is
-  # outstanding, so a restart resumes the jobs the last mission left.
-  if maker is not None and not tasks.open_tasks():
+  # outstanding, so a restart resumes the jobs the last mission left -- and
+  # never into a world carried on from, whose producer keeps its own time.
+  if maker is not None and snap is None and not tasks.open_tasks():
     maker.seed(pack_wh=life.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     r = life.run(cfg["start"], use_at=cfg["use_at"],
                  max_sim_time=args.max_sim_time,
-                 explore_budget=cfg["explore_budget"])
+                 explore_budget=cfg["explore_budget"], resume=snap)
+    # ...and at the end, which a crash never reaches: the last minute's save
+    # is what a crash carries on from, never the state that crashed.
+    if keeper is not None:
+      keeper.save()
   except Exception as e:
     # ⚠ `life.data`, never the local bound at setup: a recompiled world is
     # NEW MjData (issue #315) and a crash message off the old one reports a
@@ -693,6 +723,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   from pluggybot.telemetry.recorder import StreamRobot
 
   cfg = world_config(args.world)
+  opened = open_world(args.world_state, args.world)
+  snap = opened.snapshot
   appetite_on = bool(args.metabolism or os.environ.get(METABOLISM_ENV))
   purse = open_book(args.spend_state, weekly_usd=args.weekly_usd)
   switch = open_switch(args.mode_file)
@@ -725,8 +757,11 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
                      near_field=args.near_field,
                      restart_after_s=(args.restart_after
                                       if args.restart_after > 0 else None),
-                     constitutions_named=(args.constitution, args.constitution_2))
+                     constitutions_named=(args.constitution, args.constitution_2),
+                     resume=snap)
   first, second = lives
+  for life in lives:
+    life.restart_note = opened.why
   model, data = first.model, first.data
   screens = world_screens(model, data)
   for life in lives:
@@ -832,14 +867,17 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
     first.mission.step_hooks.append(pacer.step_hook)
     first.on_rebind.append(pacer.rebind)
   attach_mode_stream(first, sinks, pacer=pacer)
+  keeper = keep_world(lives, args.world_state)
   maker = first.producer
-  if maker is not None and not tasks.open_tasks():
+  if maker is not None and snap is None and not tasks.open_tasks():
     maker.seed(pack_wh=first.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     results = run_pair(lives, max_sim_time=args.max_sim_time,
-                       explore_budget=cfg["explore_budget"])
+                       explore_budget=cfg["explore_budget"], resume=snap)
+    if keeper is not None:
+      keeper.save()
   except Exception as e:
     # `first.data`, for the reason the single-robot path gives above.
     say_crash(e, first.data, publisher, recorder)
@@ -851,6 +889,39 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
     report(r, wall, life, publisher, pacer, label=name)
+
+
+def open_world(path, world: str) -> "continuation.Loaded":
+  """The saved world to carry on from (issue #345), said on the console."""
+  opened = continuation.load(path, world)
+  if opened.snapshot is not None:
+    print(f"world state: carrying on from t={opened.snapshot.t:.1f} s ({path})")
+  elif opened.why:
+    print(f"world state: starting from the start -- {opened.why}")
+  return opened
+
+
+def keep_world(lives, path):
+  """The world saved on the seam and at the end (issue #345), or None.
+
+  SIGTERM (a deploy, `docker stop`) and SIGINT only ASK: the next step
+  boundary ends the day, which then saves -- a handler that raised would
+  land between any two bytecodes, a ledger write or a death half done. A
+  second signal stops at once, unsaved; the minute-old save stands.
+  """
+  if path is None:
+    return None
+  keeper = continuation.Keeper(lives, path)
+
+  def stop(signum, frame) -> None:
+    if keeper.stop_requested:
+      raise KeyboardInterrupt
+    keeper.request_stop(signal.Signals(signum).name)
+    print(f"world state: {keeper.stop_requested} -- stopping at the next step")
+
+  signal.signal(signal.SIGTERM, stop)
+  signal.signal(signal.SIGINT, stop)
+  return keeper
 
 
 def say_crash(exc: Exception, data, publisher, recorder) -> dict:

@@ -377,6 +377,7 @@ class HubMission:
     #: four sim-hours with the anchor tracking it exactly.
     self.rack_prior = self.rack
     self.finder: RackFinder | None = None
+    self._closed_finder: RackFinder | None = None
     self.rack_discovered = False
     #: which range source answered the last terminal creep --
     #: "bay", "rack", "odometry", or "nominal" for a creep that
@@ -460,6 +461,71 @@ class HubMission:
     if self.finder is not None:
       self.finder.rebind(model)
     self._resolve(model)
+
+  def kept_state(self) -> tuple[dict, dict]:
+    """What this robot BELIEVES, for a restart (issue #345): where it is,
+    where the rack is and what it has seen of it, the map, and the clocks
+    its sensors run on. JSON, and the grid as an array."""
+    r, sw = self.swap.reckoner, self.swap
+    finder = self.finder or self._closed_finder
+    marks = ([] if finder is None else
+             [[lm.x, lm.y, lm.z, lm.n_sightings, lm.seen_from_x,
+               lm.seen_from_y, lm.recency] for lm in finder.landmarks.landmarks])
+    return ({"reckoner": [r.x, r.y, r.theta, r._prev_left, r._prev_right],
+             "rack": [self.rack.x, self.rack.y, self.rack.yaw],
+             "rackDiscovered": self.rack_discovered,
+             "finder": (None if finder is None else
+                        {"facing": finder.facing, "landmarks": marks}),
+             "clocks": {"look": self._next_look, "scan": self._next_scan,
+                        "backoff": self.backoff_until},
+             "peerSeen": [self.peer_seen_m, self.peer_seen_t],
+             # ...and where the scan's NOISE had got to: MEASURED, re-seeded
+             # at a restart the first scan painted a different map, and the
+             # route off it parted 3 s later
+             "lidarRng": [self.lidar.rng.bit_generator.state,
+                          self.lidar.peer_rng.bit_generator.state],
+             "press": {"pressing": sw.pressing, "side": sw._press_side,
+                       "until": sw._press_until}},
+            {"grid": self.grid.grid})
+
+  def restore_kept(self, state: dict, arrays: dict) -> bool:
+    """Put `kept_state` back, into a world whose bodies are where it was
+    saved -- the caller's to know. True if the grid came back too; one that
+    does not fit this build's is left empty, and the caller says so."""
+    from pluggybot.mapping.landmarks import Landmark
+    r = self.swap.reckoner
+    r.x, r.y, r.theta, r._prev_left, r._prev_right = state["reckoner"]
+    self.rack = RackPose(*state["rack"])
+    self.rack_discovered = bool(state["rackDiscovered"])
+    if state.get("finder") is not None:
+      self.start_discovery()
+      self.finder.facing = state["finder"]["facing"]
+      marks = []
+      for x, y, z, n, sx, sy, recency in state["finder"]["landmarks"]:
+        lm = Landmark(x, y, z, (sx, sy), recency=recency)
+        lm.n_sightings = int(n)
+        marks.append(lm)
+      self.finder.landmarks.landmarks = marks
+    grid = arrays.get("grid")
+    mapped = grid is not None and grid.shape == self.grid.grid.shape
+    if mapped:
+      self.grid.grid[...] = grid
+    clocks = state.get("clocks", {})
+    self._next_look = float(clocks.get("look", 0.0))
+    self._next_scan = float(clocks.get("scan", 0.0))
+    self.backoff_until = float(clocks.get("backoff", 0.0))
+    self.peer_seen_m, self.peer_seen_t = state.get("peerSeen", [None, 0.0])
+    if state.get("lidarRng"):
+      self.lidar.rng.bit_generator.state = state["lidarRng"][0]
+      self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
+    # ...but never `pinned`: the charge routine's flag, cleared in its
+    # `finally`, and that routine is gone -- restored, dead reckoning
+    # would count no travel again
+    press = state.get("press", {})
+    self.swap.pressing = bool(press.get("pressing", False))
+    self.swap._press_side = float(press.get("side", 0.0))
+    self.swap._press_until = float(press.get("until", -1.0))
+    return mapped
 
   def _on_step(self) -> None:
     for hook in self.step_hooks:
@@ -1474,7 +1540,9 @@ class HubMission:
     self.tags.close()
     if self.finder is not None:
       self.finder.close()
-      self.finder = None
+      # ...its sightings stay readable: the save a restart carries on from
+      # is taken after the day has ended (issue #345)
+      self._closed_finder, self.finder = self.finder, None
 
 
 def run_demo(start=(0.5, 3.0, math.pi / 2), station_y=HUB_STATION_YS[0],

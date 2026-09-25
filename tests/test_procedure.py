@@ -432,6 +432,9 @@ CTRL_WRITERS = {
   # to answer hang / pick / conduct / work / stow. Not a runtime path: a
   # built tool's verbs run through `axes.ramped` (swap.ramp_routine).
   "workshop/build.py",
+  # issue #345: a restart PUTS BACK the controls the saved world held, by
+  # actuator name -- the state the controllers above wrote, never a choice.
+  "continuation.py",
 }
 
 
