@@ -90,8 +90,8 @@ def _pair(tmp_path, autonomous=True):
 
 
 def _onto_fork(life, module: str, holder) -> None:
-  """`module` riding `holder`'s fork -- at its vertex, where `carrying` reads
-  it, just as a pick leaves it."""
+  """`module` on `holder`'s fork: over its vertex, which is where `carrying`
+  looks (a horizontal box, so the height does not matter to it)."""
   vx = life.data.site_xpos[holder.mission.swap.vertex_sid]
   _put(life.model, life.data, module, (vx[0], vx[1], vx[2] - 0.02))
 
@@ -176,9 +176,12 @@ def test_the_context_knows_nothing_a_sensor_would_not(tmp_path):
   position, rounded or otherwise, anywhere in it -- and says nothing of
   which module fills a bay, which the switch cannot know."""
   a, _ = _pair(tmp_path)
-  _put(a.model, a.data, "module_claw", (1.5, 3.0, 0.05))
+  # Both spots on the floor behind this robot and out of the other's room:
+  # out of reach of every sensor either has, so a block that reports what
+  # a robot SEES could not tell them apart either.
+  _put(a.model, a.data, "module_claw", (-1.2, 1.0, 0.05))
   here = overseer_context(a)
-  _put(a.model, a.data, "module_claw", (2.9, 1.2, 0.05))
+  _put(a.model, a.data, "module_claw", (-0.6, -1.0, 0.05))
   assert overseer_context(a) == here
   assert here["rack"]["original"]["module_claw"] == NO_PLACE
   # the pen hung in the claw's bay: the claw reads as home, the pen as lost

@@ -7486,9 +7486,10 @@ def overseer_context(life) -> dict:
   # an empty bay shown as null so the slot is learnable; `tools` is what
   # the robot built, and the names `retire_tool` takes.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
+  built = shop is not None
   state["rack"] = rack_context(life.rack_inventory, tool_places(life),
-                               life.built_by(), built=shop is not None)
-  if shop is not None:
+                               life.built_by() if built else None, built=built)
+  if built:
     state["tools"] = shop.as_context()
   return state
 

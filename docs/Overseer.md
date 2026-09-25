@@ -898,8 +898,9 @@ fork`, `on Rowan's fork`, or `not on its bay and on no fork`. A built tool
 on the rail is `on its bay`, because the rail's letters are the first
 rack's too. `rack` used to be the INVENTORY, which bay a module belongs to.
 So it listed the claw on the rack while the claw lay in the garden, and the
-pen on its bay while the pen rode the other robot's fork. Three of
-42f4a11's failed picks were jobs lost that way (Rowan, tk_0004).
+pen on its bay while the pen rode the other robot's fork. On 42f4a11 three
+claimed jobs were lost at the rack that way, and Rowan asked for this view
+in a ticket (tk_0004).
 
 The view has three sources and nothing else (`lifecycle.tool_places`):
 
@@ -910,9 +911,9 @@ The view has three sources and nothing else (`lifecycle.tool_places`):
 - **what the other robot says it carries** (`carrying`, the `others`
   surface).
 
-A named fork outranks the switch, which cannot say what presses it. So a
-module hung in another module's bay reads as that module, as it would on a
-real rack. A lost tool is given no place, because nothing on the network
+The switch cannot say what presses it. So a named fork outranks it, and
+a module hung in another module's bay reads as that module, as it would on
+a real rack. A lost tool is given no place, because nothing on the network
 knows where it lies. `tests/test_rack_view.py` walks the context for
 anything a sensor would not know.
 
