@@ -207,7 +207,8 @@ def test_draw_takes_the_route_to_its_board_before_its_own_approach(monkeypatch):
     return tick.result(arrive["ok"])
   life = SimpleNamespace(world="home", boards=lc.board_book("home"),
                          mission=SimpleNamespace(drive_to_routine=drive_to_routine,
-                                                 pose=(0.5, -1.4, 1.57)))
+                                                 pose=(0.5, -1.4, 1.57)),
+                         drive_why=lambda x, y: "the drive gave up (why)")
   stepper = SimpleNamespace(_step_once=lambda *a: None)
   verdict = tick.run(stepper, st._draw(life, {"figure": "circle", "board": "whiteboard_b"}))
   sx, sy = use_at[0]            # where the native errand's carry drive goes

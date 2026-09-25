@@ -556,7 +556,7 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
                                {"module": ["module_lcd"]})
   # Nothing physical: the branch under test is the last one in `run()`, and
   # mapping a room to reach it would make this a mission test.
-  life.explore_routine = lambda *a, **kw: tick.result(setattr(life, "map_done", True))
+  life.explore_routine = lambda *a, **kw: tick.result(setattr(life, "floor_explored", True))
   life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
 
   # Two stand-by slices is the whole claim; 30 s of real physics for it was
@@ -579,7 +579,7 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
                            low_battery_wh=cfg["low_battery_wh"])
   assert shared.producer is None and not shared.expects_work
   shared.expects_work = True
-  shared.explore_routine = lambda *a, **kw: tick.result(setattr(shared, "map_done", True))
+  shared.explore_routine = lambda *a, **kw: tick.result(setattr(shared, "floor_explored", True))
   shared.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   shared.mission._spin_routine = lambda *a, **kw: tick.result(None)   # 7 s of physics, off-topic
   monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)                      # nor is the slice length
@@ -593,7 +593,7 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                           grid_bounds=cfg["grid_bounds"],
                           low_battery_wh=cfg["low_battery_wh"])
-  quiet.explore_routine = lambda *a, **kw: tick.result(setattr(quiet, "map_done", True))
+  quiet.explore_routine = lambda *a, **kw: tick.result(setattr(quiet, "floor_explored", True))
   quiet.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   quiet.run(cfg["start"], max_sim_time=budget)
   assert quiet.data.time < budget, "a preset-errand mission stopped ending"

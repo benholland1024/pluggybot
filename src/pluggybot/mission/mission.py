@@ -156,6 +156,30 @@ def charge_trace(rec: dict | None) -> str:
   return "; ".join(parts)
 
 
+def gave_up(rec: dict, peer: str = "the other robot") -> str:
+  """Why a drive gave up (`HubMission.last_drive`), as the clause every
+  failure line that follows one ends with (issue #350). `peer` names the
+  robot a `peer` cause was about -- the lifecycle knows names, the mission
+  only poses."""
+  why = rec["why"]
+  if why == "no_route":
+    cause = "no route over the floor mapped so far"
+  elif why == "stalled":
+    cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
+  elif why == "peer":
+    from_goal, from_me = rec.get("peerGoalM"), rec.get("peerM")
+    if from_goal is not None and (from_me is None or from_goal < from_me):
+      cause = f"{peer} standing {from_goal:.1f} m from where it was going"
+    elif from_me is not None:
+      cause = f"{peer} in the way, {from_me:.1f} m off"
+    else:
+      cause = f"{peer} in the way"
+  else:
+    cause = "out of time"
+  return (f"the drive gave up {rec['shortM']:.1f} m short after "
+          f"{rec['seconds']:.0f} s ({cause})")
+
+
 def fine_step_begin(model) -> None:
   """A swap enters the fine step; counted, because the step is the model's."""
   _FINE_STEP[id(model)] = _FINE_STEP.get(id(model), 0) + 1
@@ -313,6 +337,19 @@ OTHER_WAIT_S = 2.0
 #: How close to the goal a stagnated drive counts as having arrived after
 #: all -- the tolerance the bay approach then measures its way out of.
 CLOSE_ENOUGH_M = 0.15
+#: A drive with no progress toward its goal for this long has stagnated.
+STAGNATION_S = 10.0
+#: WHY A DRIVE GAVE UP (issue #350), `HubMission.last_drive["why"]`, one of
+#: four: the planner could not route to the goal over the floor mapped so
+#: far (no plan at all, or only to a stand-in the robot then stood at); no
+#: progress for `STAGNATION_S` toward a goal the plan did reach; another
+#: robot in the way or on the goal when it stopped; the time budget ran
+#: out. The robot reads the cause back: "stopped 9.1 m short", with none,
+#: was read as the pack running short, and both robots declined the lab.
+DRIVE_GAVE_UP = ("no_route", "stalled", "peer", "timeout")
+#: A stand-in plan's end this close means the drive reached all the floor
+#: it could plan over -- a stagnation there is "no route", not a stall.
+STAND_IN_REACHED_M = 0.5
 #: ANOTHER ROBOT'S BODY IN THE WAY (issue #328), off the near-field depth
 #: camera's peer channel (`DepthFrame.peers`): a peer point nearer than
 #: this, inside the corridor this robot is about to drive through, holds
@@ -440,6 +477,14 @@ class HubMission:
     self.peer_at_bay_m: float | None = None
     self.last_swap: dict | None = None        # `swap_trace`'s source, issue #264
     self.last_charge: dict | None = None      # `charge_trace`'s, issue #346
+    #: How the last `drive_to` ended (issue #350): `why` ("" arrived, else
+    #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
+    #: it stopped, and for a peer how far that robot was from it and from
+    #: the goal. `gave_up` is its sentence.
+    self.last_drive: dict | None = None
+    #: Where the last plan aimed INSTEAD of the goal -- the nearest cell of
+    #: this robot's own component, when the goal was off it -- or None.
+    self._stand_in: tuple[float, float] | None = None
     #: WHO WAITS FOR A TAKEN BAY (issue #346): `(sx, sy, kind, since)` ->
     #: (`kind` is the swap's verb, `pick` or `return`, or `charge`)
     #: a routine answering True once the standoff is free, False once it
@@ -754,9 +799,15 @@ class HubMission:
       self.rack_discovered = True
     return found
 
-  def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
+  def _plan_to(self, wx: float, wy: float,
+               others: bool = True) -> list[tuple[float, float]] | None:
+    """A* to the goal, or to its stand-in (below). `others=False` plans as
+    if no other robot were there: how a failed drive tells "no route" from
+    "the other robot's disc cut the route" (issue #350)."""
     trav = traversable_mask(self.grid.grid)
-    self._mask_others(trav)
+    if others:
+      self._mask_others(trav)
+    self._stand_in = None
     rows, cols = trav.shape
     # The halo escape, shared with `navigation.plan` since issue #92 -- this
     # inline version is where the idea was born, and exploration's planner
@@ -792,6 +843,7 @@ class HubMission:
       d2 = (xs - goal[0]) ** 2 + (ys - goal[1]) ** 2
       k = int(np.argmin(d2))
       goal = (int(xs[k]), int(ys[k]))
+      self._stand_in = self.grid.cell_to_world(*goal)
     path = astar(trav, start, goal)
     return None if path is None else path_to_waypoints(self.grid, path)
 
@@ -803,20 +855,22 @@ class HubMission:
     """A*-navigate to a world point, arriving within 8 cm. Plans through
     known space only, targeting the reachable cell nearest the goal until
     the goal itself becomes reachable. Gives up on stagnation (no progress
-    toward the goal for 10 sim-seconds)."""
+    toward the goal for `STAGNATION_S`). Why it gave up is `last_drive`."""
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
     holding = False                    # is this drive standing for a peer
+    waiting = False                    # ...or waiting on one it stagnated by
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
     while self.data.time - t0 < timeout:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
-        return True
+        return self._drove(wx, wy, t0, "")
       if dist < best_dist - 0.02:
         best_dist, last_improve = dist, self.data.time
-      elif self.data.time - last_improve > 10.0:
+        waiting = False
+      elif self.data.time - last_improve > STAGNATION_S:
         if self._other_in_the_way(wx, wy):
           # ANOTHER ROBOT IS WHERE THIS ONE NEEDS TO BE (issue #167). A
           # blocked route is a wait, not a failure: stand still, let it
@@ -827,8 +881,12 @@ class HubMission:
           yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
           last_improve = self.data.time
           waypoints = []
+          waiting = True
           continue
-        return dist < CLOSE_ENOUGH_M     # stagnated: close enough or fail
+        # stagnated: close enough, or fail -- and say which failure
+        return self._drove(wx, wy, t0, (
+          "" if dist < CLOSE_ENOUGH_M else "peer" if holding
+          else "no_route" if self._at_stand_in() else "stalled"))
       peer_m = self.peer_sighting()
       if peer_m is not None and peer_m < dist + PEER_CLEARANCE_M:
         # ⚠ A ROBOT IS HELD FOR, NOT BACKED AWAY FROM (issue #328), and the
@@ -858,7 +916,13 @@ class HubMission:
         next_replan = self.data.time + 2.0
         planned = self._plan_to(wx, wy)
         if planned is None:
-          return dist < CLOSE_ENOUGH_M   # no known space at all
+          # no known space at all -- unless it is the other robot's disc
+          # that cut the route, which a plan without it tells apart
+          return self._drove(wx, wy, t0, (
+            "" if dist < CLOSE_ENOUGH_M
+            else "peer" if (self.others and
+                            self._plan_to(wx, wy, others=False) is not None)
+            else "no_route"))
         waypoints = planned
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < 0.08:
@@ -881,7 +945,28 @@ class HubMission:
         # stagnates honestly above -- where before it "arrived" at a point
         # it never reached, 4 m of imaginary travel later.
         self.backoff_until = self.data.time + BACKOFF_TIME
-    return False
+    return self._drove(wx, wy, t0, "peer" if waiting or holding else "timeout")
+
+  def _drove(self, wx: float, wy: float, t0: float, why: str) -> bool:
+    """Record how a drive ended in `last_drive` (issue #350) and answer it:
+    True for `why == ""`, arrived."""
+    px, py, _ = self.pose
+    rec = {"why": why, "goal": (float(wx), float(wy)),
+           "seconds": round(float(self.data.time - t0), 1),
+           "shortM": round(math.hypot(wx - px, wy - py), 3)}
+    near = [where()[:2] for where in self.others]
+    if why == "peer" and near:
+      rec["peerM"] = round(min(math.hypot(ox - px, oy - py) for ox, oy in near), 3)
+      rec["peerGoalM"] = round(min(math.hypot(ox - wx, oy - wy) for ox, oy in near), 3)
+    self.last_drive = rec
+    return not why
+
+  def _at_stand_in(self) -> bool:
+    """Did the last plan aim at a stand-in for the goal, and is the robot
+    at its end -- every metre of floor it could plan over, driven?"""
+    return (self._stand_in is not None
+            and math.hypot(self._stand_in[0] - self.pose[0],
+                           self._stand_in[1] - self.pose[1]) < STAND_IN_REACHED_M)
 
   def face(self, heading: float) -> bool:
     return self.run(self.face_routine(heading))

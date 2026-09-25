@@ -143,7 +143,7 @@ def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   life.mission.start_discovery()
   life.mission._drive(1.5, 0.15, 0.6)             # scans, a look, travel
   life.battery.energy_wh = 0.37
-  life.map_done = True
+  life.floor_explored = True
   life.explore_deadline = 12.5
   snap = _saved(life, tmp_path)
 
@@ -158,7 +158,7 @@ def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   assert back.mission.rack == life.mission.rack
   assert ([lm.x for lm in back.mission.finder.landmarks.landmarks]
           == [lm.x for lm in life.mission.finder.landmarks.landmarks])
-  assert back.map_done and back.explore_deadline == 12.5
+  assert back.floor_explored and back.explore_deadline == 12.5
   # ...and it never went back to the start pose or spun: nothing moved
   assert back.data.time == life.data.time
 
@@ -569,14 +569,14 @@ def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
   it has (found in review). Where it IS stays put."""
   life = _life(tmp_path)
   life.mission.start_at(*world_config("room_hub")["start"])
-  life.map_done = True
+  life.floor_explored = True
   life.blacklist = {(1, 2)}
   snap = _saved(life, tmp_path)
   snap.arrays["pluggybot/grid"] = np.zeros((4, 4))
   back = _life(tmp_path)
   _prelude(back, snap)
   assert back.resumed["inPlace"] and back.mission.pose == life.mission.pose
-  assert not back.map_done and back.blacklist == set()
+  assert not back.floor_explored and back.blacklist == set()
 
 
 def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp_path):

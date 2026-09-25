@@ -437,7 +437,7 @@ def test_the_scripted_policy_never_rotates_onto_what_the_world_cannot_do():
   loop does -- otherwise the API going down means the robot proposing an
   errand this world refuses, over and over, until the budget runs out."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  state = {"decisions": 0, "mapDone": True,
+  state = {"decisions": 0, "floorExplored": True,
            "possibleActions": ["carry", "explore", "idle", "charge"]}
   for _ in range(4):
     d = ov.scripted(menu, state, "test")
@@ -452,7 +452,7 @@ def test_the_scripted_policy_still_picks_what_a_charge_would_afford():
   `explore` for the whole minute before every charge, which is not the
   fallback doing a day's work."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  d = ov.scripted(menu, {"decisions": 0, "mapDone": True,
+  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True,
                          "affordableActions": [],
                          "possibleActions": ["draw", "carry"]}, "test")
   assert d.action == "draw"
@@ -462,7 +462,7 @@ def test_an_empty_possible_list_filters_nothing():
   """A caller that supplies none -- a unit test, an older context dict --
   must not be read as "this robot can do nothing"."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  d = ov.scripted(menu, {"decisions": 0, "mapDone": True}, "test")
+  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True}, "test")
   assert d.action == "draw"
 
 
@@ -746,7 +746,7 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
   life.max_sim_time = 3000.0
-  life.blacklist, life.map_done = set(), False
+  life.blacklist, life.floor_explored = set(), False
   life.explore_deadline = 1e9
   life.mission.start_at(*lc.world_config("home")["start"])
   life.mission.start_discovery()
@@ -784,7 +784,7 @@ def test_a_scaled_charge_still_completes_inside_its_own_cap():
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
   life.max_sim_time = 3000.0
-  life.blacklist, life.map_done = set(), False
+  life.blacklist, life.floor_explored = set(), False
   life.explore_deadline = 1e9
   life.mission.start_at(*lc.world_config("home")["start"])
   life.mission.start_discovery()
