@@ -10,6 +10,47 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The verbs get there (#353) and the challenges pay double (#355) — opens when this PR is deployed
+
+**Two changes in one period, on purpose: the first makes both challenges
+reachable, the second makes them worth it.** On `42f4a11` `stack_tower` was
+offered 94 times and `find_mass` 30 times, done 0 times, and pay was not
+what stopped them: Rowan claimed the tower 6 times in a day. What stopped
+them was bookkeeping the house's own verbs already did:
+
+- a procedure's `drive_to` past the LIDAR's 8 m, or to a cell never seen,
+  now walks the house's route first (`lifecycle.route_to`, the doorways
+  `pick` and the cage programs drive by). Every live `drive_to(22, 3)`
+  from the house stopped 6.6-9.1 m short, which Rowan then read as the
+  pack. A route leg is a waypoint: reached within 2 m, passed by when the
+  other robot stands on it -- Rowan stands by ON the workshop route's first
+  leg, which stopped Luca's tower on the pair before this;
+- `pick` on an empty fork fetches the claw (Rowan's `build_tower` never
+  did); with another tool aboard, `pick` and `place` say stow it first;
+- the tower pays 100 (90 + the neatness bonus; it was 50) and the bench
+  120 (it was 60): per watt-hour both paid less than a whiteboard answer.
+  `guarded`'s table and prefix do not move -- the rows are `challenges.json`'s.
+
+The prompt moved by two verb docs (`drive_to`, `pick`) and the two
+payouts in the `autonomous` table.
+
+**What the period is for.**
+
+- **Is either challenge EVER done live.** Rowan's own `build_tower`,
+  verbatim, stacks the tower from the hall on the pair locally, and its
+  `mass_check` crosses the street and takes the cube (it records no
+  finding, so it is not paid). The first `SCORE stack` / `SCORE mass` that
+  passes is the reading.
+- **The drive causes.** #350's baseline split `no route` against
+  `stalled`; long procedure drives should now fail, when they fail, on a
+  named leg (`on the house's route there, the leg to …`).
+- **The lab belief.** Whether a robot that reaches the lab keeps declining
+  it over a round trip it believed was ~7.5 Wh.
+
+**Not yet known.** Whether double the pay moves claims at all, with
+reachability changing in the same period -- the two cannot be told apart
+here, which was the price of one period.
+
 ### The rack says where each tool is (#351) — opens when this PR is deployed
 
 **What changed in the context.** `rack` used to say which bay each module

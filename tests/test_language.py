@@ -157,7 +157,7 @@ def _stub_life():
   mission = SimpleNamespace(
     swap=swap, swap_at_bay_routine=routine("swap", "arrived"),
     drive_to_routine=routine("drive_to", True), face_routine=routine("face", True),
-    _drive_routine=routine("drive"), pose=(0.0, 0.0, 0.0),
+    in_sight=lambda x, y: True, _drive_routine=routine("drive"), pose=(0.0, 0.0, 0.0),
     tags=SimpleNamespace(detect=lambda d: {}))
   return SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,

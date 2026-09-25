@@ -334,7 +334,7 @@ save a filmstrip PNG named after the script.
 | `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
 | `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
-| `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown from the rack the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row` skips the drive; filmstrip `solve.png` |
+| `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown from the rack the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row` skips the drive; `--pair [--robot 2]` flies it on the home pair as deployed, the other robot standing where it started; `--source FILE` flies a robot's own procedure instead; filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording — how a drawing gets hung on the website, by hand and on purpose. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/teleop.py`, `map_teleop.py`, `explore.py`, `lifecycle.py`, `spot_outlets.py` | plug-era: teleop, mapping, the milestone-4 exploration demo, the wall-socket lifecycle, the outlet detector. `--views` saves the camera panel |
 | `scripts/train_docking.py`, `eval_docking.py`, `generate_outlet_dataset.py`, `eval_detector.py` | RL docking (SAC over `envs.DockEnv`, parked with the plug era) and the outlet detector. The dataset generator WIPES `datasets/` first (regenerating into a dirty dir once contaminated 195 labels); `eval_detector.py --poses 1000` is the eval that matters — the val split shares the generator and scored 0.99 mAP while calling a light switch an outlet. `torch` is pinned to the cu128 index: the driver is CUDA 12.8 and PyPI's cu130 build silently falls back to CPU |
@@ -1320,7 +1320,11 @@ save a filmstrip PNG named after the script.
   along the north street set off on a 463-waypoint detour and stalled.
   That half is unfixed on purpose (the same fallback carries every bay
   and board approach into a wall's inflation); a flown test keeps its
-  legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
+  legs inside the LIDAR's 8 m (SimNotes, "A goal out of sight"), and a
+  PROCEDURE's `drive_to` past that reach or off the map walks
+  `lifecycle.route_to`'s doorways first (#353) -- ⚠ the house's own legs
+  must route to nothing, or every cage program and `solutions.WEIGH`
+  changes route (`tests/test_house_route.py`). Hub worlds: `uv run python -m pluggybot.rack.coupling` after
   any rack geometry change; five tool bays (A–E) plus the charge bay on
   the rack, and THREE MORE ON THE BUILT-TOOL RAIL beside it (`rack_built`,
   a second free body continuing the pitch past E in the rack's frame,
@@ -1620,9 +1624,9 @@ save a filmstrip PNG named after the script.
   #227; Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`).
   `find_mass`, `discharge="procedure"`, target `bench` on the tower's gate
   (`autonomous` with a lab; `guarded`'s offered set, schema and prefix
-  unchanged, `GUARDED_RULES_SHA`), 60 points in `challenges.json` (25
-  until #287, +10 in #321; Ben: a procedure and a measurement are worth
-  well over a trip to a plate), tier
+  unchanged, `GUARDED_RULES_SHA`), 120 points in `challenges.json` (25
+  until #287, +10 in #321, doubled in #355 with the tower's 50 -> 100;
+  Ben: per watt-hour both paid less than a whiteboard answer), tier
   `hidden`. The offer tells which cube is which (tags 23/24) and the known
   mass (100 g); the unknown is drawn from `challenge/masses.json`
   (`$PLUGGY_MASSES`; `questions.json`'s rotation on the board's `seq`,

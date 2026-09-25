@@ -159,7 +159,8 @@ class Library:
     An axis that does not exist is REFUSED at `define` (`move`'s `axis`
     arg reads `facts.axes`), and re-refused whenever the rail changes
     (`revalidate`), so `needs` names modules a procedure can actually ask
-    for -- it is a statement of what to FETCH, not a warning.
+    for -- it is a statement of what to FETCH (or what a `pick` fetches
+    for itself, issue #353), not a warning.
     """
     from pluggybot.procedure import axes
     out = []

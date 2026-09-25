@@ -120,7 +120,8 @@ class Procedure:
     So a procedure of `fetch("module_pen"); draw(...); stow()` names no axis
     at all, and reading its needs off axes alone answered "none", which is
     worse than saying nothing. A `fetch` target is the procedure declaring
-    which tool it is about, and it is right there in the source.
+    which tool it is about, and it is right there in the source -- and so
+    is a `pick`, which fetches the claw onto an empty fork (issue #353).
 
     PURE: the tree only, no world. Which MODULE an axis needs is
     `axes.AXES[...].requires`, and resolving that is the caller's job
@@ -145,6 +146,9 @@ class Procedure:
     def walk(block):
       for st_ in block:
         if st_[0] == "verb":
+          if st_[1] == "pick":
+            from pluggybot.tools.gripper import CLAW_MODULE
+            tools.append(CLAW_MODULE)
           for name, value in st_[2].items():
             if value[0] == "str":
               if st_[1] == "move" and name == "axis":
