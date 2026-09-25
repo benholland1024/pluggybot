@@ -1436,7 +1436,19 @@ save a filmstrip PNG named after the script.
   makes that bay unreachable however many attempts are spent on it —
   MEASURED 0/3 picks with a robot at the neighbouring standoff (0.26 m)
   against 3/3 at 0.56 m. `HubMission.peer_on_the_goal` is that arithmetic
-  and has one home. ⚠ **A TAKEN BAY IS WAITED FOR, AND DONE AT THE RACK
+  and has one home. ⚠ **A ROBOT LYING DOWN IS AVOIDED WHERE IT LIES**
+  (issue #365; SimNotes "A robot lying down was avoided where it said it
+  was"): the errand a robot falls in keeps turning its wheels, MEASURED
+  0.5–2.2 m of reported pose off the body in 10 s, and on 2026-09-23 the
+  other robot drove into it and fell too. While a chassis is past
+  `TOPPLE_TILT_RAD` (dead or not), `HubLifecycle.keep_clear` answers
+  `(x, y, DOWN_ROBOT_CELLS)` — the middle of its BODY
+  (`footprint_centre`), 14 cells = 0.7 m because the mast lies along the
+  floor (0.55 m for `peer_on_the_goal`), placed through the DRIVER's own
+  pose error (`as_seen`, so its drift cancels) — and the depth camera does
+  NOT hold for it: it will not move, and a detour turning at its disc's
+  edge was held there until the drive gave up. The stand-up hands it back
+  to the reported pose. ⚠ **A TAKEN BAY IS WAITED FOR, AND DONE AT THE RACK
   MEANS GONE** (issue #346; SimNotes "Two robots at one rack"): the swap
   and both halves of the charge approach ask `HubMission.bay_wait`
   (`HubLifecycle._await_bay_routine`) and wait beside the holder's lane

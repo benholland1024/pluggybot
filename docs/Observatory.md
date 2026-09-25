@@ -10,6 +10,36 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A robot lying down is avoided where it lies (#365) — opens when this PR is deployed
+
+**What changed in the world.** On the pair, a robot that has fallen over
+(tilted past 60°, from the moment it falls, dead or not) is now avoided
+where its body lies, not where it says it is. What it says had come loose
+from the body: the errand it fell in went on turning its wheels, and that
+moved its reported pose 0.5–2.2 m in 10 s. So the other robot's planner
+steered round an empty spot and drove at the body. On 2026-09-23 Rowan
+drove into Luca where Luca lay, and fell over too. The space kept round a
+fallen robot is also wider (0.70 m against 0.60), because its mast lies
+along the floor. The depth camera no longer stops the other robot for a
+fallen one, because a fallen robot does not move out of the way until it
+is stood up. The planner routes round it instead, and the lidar's front
+stop and the bumper still see it. Nothing changes while both robots
+stand, or for a robot alone. The prompts, the schema and the wire are
+unchanged. SimNotes, "A robot lying down was avoided where it said it
+was", has the measurements.
+
+**What the period is for.** Whether one fall still becomes two. The
+previous period had one such pair of deaths in 7 days (09-23 18:02), too
+few to read a rate off. So the reading is a check, not a rate: any
+`?kind=encounter` `touched` row while one of the pair is down is a defect
+to file. So is a `stuck` death whose `data.at.peer` (#362) is within about
+1 m of a robot already dead.
+
+**Not yet known.** Whether a robot lying in a doorway or at the rack now
+stops the other robot's work until the stand-up (up to 5 minutes). Before,
+the planner did not know the body was there, and the camera stopped the
+drive in front of it anyway.
+
 ### A stand-up ends the errand it lands in (#348) — opens when this PR is deployed
 
 **What changed in the world.** A dead robot's timer stood it up at the start
