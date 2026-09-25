@@ -5,6 +5,7 @@ child process. Nothing here flies a robot."""
 import os
 import subprocess
 import sys
+import time
 import tracemalloc
 from pathlib import Path
 
@@ -15,8 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _feed(rule, series, minute=60.0):
-  """One sample a minute; the rule's answer for each."""
-  return [rule.sample(i * minute, mib) for i, mib in enumerate(series)]
+  """One sample a minute; the indices at which the rule saw an onset."""
+  return [i for i, mib in enumerate(series) if rule.sample(i * minute, mib)]
 
 
 def _cumulative(start, steps):
@@ -33,15 +34,15 @@ STARTUP = [212.6, 788.5]
 RESTING = [0.5, 0.5, 3.7, 1.0, 4.0, 1.9, 22.9, 19.6, 0.3, 0.1, 2.7, 2.7] * 5
 
 
+def _day(steps, startup=STARTUP):
+  return startup[:-1] + _cumulative(startup[-1], steps)
+
+
 def test_the_resting_rate_and_the_startup_never_fire():
-  rule = RunawayRule()
-  answers = _feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], RESTING))
-  assert set(answers) == {None}
+  assert _feed(RunawayRule(), _day(RESTING)) == []
   # ...and a slower box, whose build and carry-on straddle two samples: two
   # fast minutes in a row, which is what the warm-up is for.
-  rule = RunawayRule()
-  answers = _feed(rule, [212.6, 500.0] + _cumulative(STARTUP[1], RESTING))
-  assert set(answers) == {None}
+  assert _feed(RunawayRule(), _day(RESTING, [212.6, 500.0, 788.5])) == []
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():
@@ -51,83 +52,91 @@ def test_the_threshold_keeps_its_margin_on_both_sides():
   pair and ~2x from the measured runaway; moving it is a decision."""
   assert vitals.RUNAWAY_MB_PER_MIN > 22.9 * 2
   assert 115.0 > vitals.RUNAWAY_MB_PER_MIN * 2
-  low = RunawayRule(mb_per_min=19.0)
-  assert "onset" in _feed(low, STARTUP[:1] + _cumulative(STARTUP[1], RESTING))
+  assert _feed(RunawayRule(mb_per_min=19.0), _day(RESTING)) != []
 
 
-def test_a_runaway_fires_once_and_reports_a_minute_later():
+def test_a_runaway_fires_once_at_its_second_minute():
   """The a803c83 deaths: ~115 MiB a minute for eight minutes to the cap."""
-  rule = RunawayRule()
-  steps = RESTING[:10] + [115.0] * 8
-  answers = _feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], steps))
-  fired = [(i, a) for i, a in enumerate(answers) if a]
-  first_fast = 1 + 10 + 1                   # the sample that closes minute one
-  assert fired == [(first_fast + 1, "onset"), (first_fast + 2, "report")]
+  series = _day(RESTING[:10] + [115.0] * 8)
+  first_fast = len(STARTUP) + 10             # the sample closing minute one
+  assert _feed(RunawayRule(), series) == [first_fast + 1]
 
 
 def test_one_fast_minute_is_not_a_runaway():
-  rule = RunawayRule()
-  steps = RESTING[:10] + [300.0] + RESTING[:10]
-  assert set(_feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], steps))) == {None}
+  assert _feed(RunawayRule(), _day(RESTING[:10] + [300.0] + RESTING[:10])) == []
 
 
 def test_an_episode_ends_only_after_it_has_been_calm_as_long_as_it_ran():
-  rule = RunawayRule()
   one_calm = [115.0] * 3 + [2.0] + [115.0] * 3
-  answers = _feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], RESTING[:6] + one_calm))
-  assert answers.count("onset") == 1, "a dip of one minute is the same runaway"
-  rule = RunawayRule()
+  assert len(_feed(RunawayRule(), _day(RESTING[:6] + one_calm))) == 1, \
+    "a dip of one minute is the same runaway"
   two_calm = [115.0] * 3 + [2.0, 2.0] + [115.0] * 3
-  answers = _feed(rule, STARTUP[:1] + _cumulative(STARTUP[1], RESTING[:6] + two_calm))
-  assert answers.count("onset") == 2 and answers.count("report") == 2
+  assert len(_feed(RunawayRule(), _day(RESTING[:6] + two_calm))) == 2
 
 
 def test_the_rate_is_per_minute_of_wall_clock_not_per_sample():
   """A sample that came late (the GIL held by a long render) is not a spike."""
   rule = RunawayRule(warmup=0)
-  assert rule.sample(0.0, 800.0) is None
+  rule.sample(0.0, 800.0)
   rule.sample(180.0, 900.0)                  # 100 MiB over three minutes
   assert abs(rule.rate - 100.0 / 3) < 1e-9
 
 
-_LEAK: list = []
-
-
-def _leaky_reader(series):
-  """A memory reader that also allocates, so the report has a site to name."""
+def _runaway_dog(out, series):
+  clock = iter(i * 60.0 for i in range(10_000))
   values = iter(series)
+  last = [series[-1]]
 
   def read():
-    _LEAK.append(bytearray(256 * 1024))
-    return next(values)
-  return read
+    last[0] = next(values, last[0])          # flat once the series runs out
+    return last[0]
+  return Watchdog(out=out, read_rss=read, clock=lambda: next(clock))
 
 
-def test_the_watchdog_dumps_the_stacks_and_the_allocations_once_per_episode(tmp_path):
+def test_the_onset_dumps_the_stacks_and_the_report_names_the_allocation(tmp_path):
   was_tracing = tracemalloc.is_tracing()
   series = _cumulative(800.0, [2.0] * 4 + [115.0] * 6)
-  clock = iter(i * 60.0 for i in range(100))
   out = open(tmp_path / "log.txt", "w")
-  dog = Watchdog(out=out, read_rss=_leaky_reader(series),
-                 clock=lambda: next(clock))
+  dog = _runaway_dog(out, series)
   dog.sim_time = lambda: 1234.5
+  held = []
   try:
-    answers = [dog.tick() for _ in series]
+    onsets = [i for i in range(len(series)) if dog.tick()]
+    assert onsets == [6] and tracemalloc.is_tracing()
+    held.append(bytearray(4 << 20))          # what the runaway allocates
+    dog.report()
   finally:
     out.close()
-    _LEAK.clear()
   text = (tmp_path / "log.txt").read_text()
-  assert answers.count("onset") == 1 and answers.count("report") == 1
   assert text.count("vitals: RUNAWAY") == 1
-  # faulthandler's own header, once at the onset and once a minute on
-  assert text.count("(most recent call first)") >= 2
-  assert text.count("every thread's stack, a minute on") == 1
-  assert text.count("allocated since the runaway began") == 1
-  assert "test_vitals.py" in text and "bytearray(256 * 1024)" in text, \
+  assert text.count("(most recent call first)") >= 2, "faulthandler, twice"
+  assert text.count("allocated since the onset is still held") == 1
+  assert "test_vitals.py" in text and "bytearray(4 << 20)" in text, \
     "the report names where the growth was allocated"
   assert text.count("vitals: rss") == len(series)
   assert "t=1234.5 s" in text
   assert tracemalloc.is_tracing() == was_tracing, "tracing is the episode's only"
+
+
+def test_the_loop_reports_once_per_episode(tmp_path):
+  """The thread itself: an onset, the report `trace_s` later, and nothing
+  more while the same runaway goes on."""
+  series = _cumulative(800.0, [2.0] * 4 + [115.0] * 12)
+  out = open(tmp_path / "log.txt", "w")
+  dog = _runaway_dog(out, series)
+  dog.sample_s = dog.trace_s = 0.001
+  dog.start()
+  deadline = time.monotonic() + 30.0
+  while dog.ticks < len(series) + 3 and time.monotonic() < deadline:
+    time.sleep(0.01)
+  dog.close("the test ended")
+  out.close()
+  text = (tmp_path / "log.txt").read_text()
+  assert dog.ticks >= len(series) + 3
+  assert text.count("vitals: RUNAWAY") == 1
+  assert text.count("allocated since the onset is still held") == 1
+  assert text.count("every thread's stack, 0 s on") == 1
+  assert "the watchdog failed" not in text
 
 
 def test_the_exit_line_says_why(tmp_path):
@@ -143,7 +152,7 @@ def test_the_exit_line_says_why(tmp_path):
   assert vitals.why_of(SystemExit(2)) == "exit 2"
 
 
-def test_a_segfault_prints_every_threads_stack(tmp_path):
+def test_a_segfault_prints_every_threads_stack():
   """A crash in MuJoCo or osmesa ends the process with nothing said unless
   faulthandler is on -- which `Watchdog.start` turns on."""
   code = ("import ctypes\n"
