@@ -16,17 +16,20 @@ observatory is NOT a result and never enters `results/`.
 (tilted past 60°, from the moment it falls, dead or not) is now avoided
 where its body lies, not where it says it is. What it says had come loose
 from the body: the errand it fell in went on turning its wheels, and that
-moved its reported pose 0.5–2.2 m in 10 s. So the other robot's planner
+moved its reported pose by up to 2.2 m in 10 s. So the other robot's planner
 steered round an empty spot and drove at the body. On 2026-09-23 Rowan
 drove into Luca where Luca lay, and fell over too. The space kept round a
 fallen robot is also wider (0.70 m against 0.60), because its mast lies
 along the floor. The depth camera no longer stops the other robot for a
-fallen one, because a fallen robot does not move out of the way until it
-is stood up. The planner routes round it instead, and the lidar's front
-stop and the bumper still see it. Nothing changes while both robots
-stand, or for a robot alone. The prompts, the schema and the wire are
-unchanged. SimNotes, "A robot lying down was avoided where it said it
-was", has the measurements.
+fallen one, and a drive that cannot get past one no longer waits for it,
+because a fallen robot does not move out of the way until it is stood up.
+The planner routes round it instead, and hears of a fall or a stand-up
+within a tenth of a second; the lidar's front stop and the bumper still
+see it. The `WAIT:` line and the History line about a bay it blocks say
+the other robot is "lying knocked over", not "standing". Nothing changes
+while both robots stand, or for a robot alone. The prompts, the schema and
+the wire are unchanged. SimNotes, "A robot lying down was avoided where it
+said it was", has the measurements.
 
 **What the period is for.** Whether one fall still becomes two. The
 previous period had one such pair of deaths in 7 days (09-23 18:02), too

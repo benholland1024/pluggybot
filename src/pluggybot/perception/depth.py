@@ -220,7 +220,8 @@ class DepthCamera:
       theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
       if theirs.any():
         pz, peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng)
-        peer_geoms = self._geomid[~np.isnan(pz)].copy()   # `peers`' rows
+        # `peers`' rows, in order; a mask index copies the reused ray buffer
+        peer_geoms = self._geomid[~np.isnan(pz)]
     z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
                       self_fraction=float(robot.mean()), peers=peers,

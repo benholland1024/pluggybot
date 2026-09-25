@@ -47,8 +47,8 @@ from pluggybot.mission.errand import (
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
 from pluggybot.mission.mission import (
-  DOWN_ROBOT_CELLS, MAP_TILT_RAD, MissionAborted, HubMission, RackPose,
-  bay_standoff, charge_standoff, charge_trace, swap_trace,
+  MAP_TILT_RAD, MissionAborted, HubMission, KeepClear, RackPose, bay_standoff,
+  charge_standoff, charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -1223,26 +1223,26 @@ class HubLifecycle:
 
   def keep_clear(self, seen_by: HubMission | None = None) -> tuple:
     """Where the OTHER robots keep clear of this one (`HubMission.others`):
-    its reported pose, or -- lying down -- `(x, y, DOWN_ROBOT_CELLS)` round
-    the middle of its body, placed where `seen_by`'s own sensors would put
-    it (`HubMission.as_seen`).
+    its reported pose, or -- lying down -- a `KeepClear` round the middle of
+    its body, placed where `seen_by`'s own sensors would put it
+    (`HubMission.as_seen`).
 
     ⚠ A ROBOT ON THE FLOOR IS AVOIDED WHERE IT LIES, NOT WHERE IT SAYS IT IS
     (issue #365; SimNotes, "A robot lying down was avoided where it said it
     was"). The errand it fell in runs on until it returns, and a wheel
-    turning in the air is travel to the reckoner: MEASURED 0.5-2.2 m of
-    reported pose off the body in 10 s on its side, front or back. A fallen
-    robot is not a network fact that moves -- it cannot report itself, and
-    a real robot would see a robot-shaped lump -- so the TRUE body is fair
-    to use, placed as a lump in a depth image would be. Standing up
-    (`start_at`, a warp that resets the reckoner) hands it back to the
-    reported pose."""
+    turning in the air is travel to the reckoner: MEASURED up to 2.2 m of
+    reported pose off the body in 10 s, by how it lies and which way the
+    wheels were told to turn. A fallen robot is not a network fact that
+    moves -- it cannot report itself, and a real robot would see a
+    robot-shaped lump -- so the TRUE body is fair to use, placed as a lump
+    in a depth image would be. Standing up (`start_at`, a warp that resets
+    the reckoner) hands it back to the reported pose."""
     if not self.down():
       return self.mission.pose_xy()
     x, y = self.mission.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
-    return x, y, DOWN_ROBOT_CELLS
+    return KeepClear(x, y, down=True)
 
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
@@ -1565,8 +1565,9 @@ class HubLifecycle:
     """Who held a bay this robot gave up on, and for how long it was
     waited for (issue #346) -- one clause, for a pick, a stow or a charge."""
     w = self.last_bay_wait
-    said = (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
-            "nearer than the planner may route")
+    said = (f"{blocked[0]} was {posture(self.peers, blocked[0])} "
+            f"{blocked[1]:.2f} m from the bay, nearer than the planner may "
+            "route")
     # ...only the wait that ended THIS failure, at this sim instant: an
     # older one would claim a wait that never happened for this bay
     if (w is None or w.get("who") != blocked[0] or not w.get("why")
@@ -1775,8 +1776,8 @@ class HubLifecycle:
     # stops at the edge of the holder's disc, which is its way out.
     spot = self._waiting_spot(sx, sy)
     if first:
-      self._say(f"WAIT: {who} is standing {near:.2f} m from {what} -- "
-                f"waiting up to {bound:.0f} s"
+      self._say(f"WAIT: {who} is {posture(self.peers, who)} {near:.2f} m from "
+                f"{what} -- waiting up to {bound:.0f} s"
                 + ("" if spot is None else
                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
       self._remember(f"{who} was at {what} I needed; I waited for it "
@@ -7122,6 +7123,18 @@ def carrying(other) -> str:
   if getattr(getattr(other, "mission", None), "swap", None) is None:
     return ""                    # a robot that shows no fork shows nothing on it
   return _carried(other) or ""
+
+
+def posture(peers, name: str) -> str:
+  """The posture of the robot NAMED, as a narration or History line puts
+  it: "lying knocked over" for one on the floor (issue #365), else
+  "standing".
+  A line saying a robot on the floor STOOD at the bay reads as a robot in
+  the way on purpose, and History is what the mind reads back."""
+  for p in peers:
+    if (p.robot_name or p.root) == name:
+      return "lying knocked over" if p.down() else "standing"
+  return "standing"
 
 
 def others_context(life) -> list[dict]:

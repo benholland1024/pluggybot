@@ -26,6 +26,7 @@ what the hardware will actually have.
 
 import math
 import time
+from typing import NamedTuple
 
 import mujoco
 import numpy as np
@@ -316,9 +317,19 @@ OTHER_ROBOT_CELLS = 12
 #: standing robot's 0.27 m armed -- plus the same 0.35 m swing, 0.68 m.
 DOWN_ROBOT_CELLS = 14
 #: A stagnated drive with another robot this close to us or to the goal is
-#: a robot in the way, and the drive WAITS this long before looking again.
+#: a robot in the way, and the drive WAITS this long before looking again --
+#: unless it is lying down, which it will not stop doing for being waited
+#: for (issue #365).
 OTHER_NEAR_M = 1.2
 OTHER_WAIT_S = 2.0
+#: How often a drive looks at which other robots are lying down (issue
+#: #365). A fall or a stand-up moves that robot's disc, and the plan is
+#: made again at once rather than at the next 2 s replan: the depth camera
+#: does not hold for a robot on the floor, so nothing else covers that
+#: window. MEASURED without it, a robot knocked flat 0.5 m ahead just after
+#: a replan was met by the LIDAR's 0.25 m stop, the driver's axle 0.18 m
+#: from its body; with it the replan comes 0.04-0.1 s after the fall.
+DOWN_CHECK_S = 0.1
 #: How close to the goal a stagnated drive counts as having arrived after
 #: all -- the tolerance the bay approach then measures its way out of.
 CLOSE_ENOUGH_M = 0.15
@@ -367,6 +378,19 @@ PEER_CLEARANCE_M = 0.30
 #: tossed, and the built-tool rail beside bay E turned it over. The
 #: dispenser's own hops use the same 0.25 (`tools/dispenser.py`).
 ARRIVAL_SLOW_RADIUS = 0.25
+
+
+class KeepClear(NamedTuple):
+  """One other robot as `HubMission.others` answers it: where to keep clear
+  of, and whether it is LYING DOWN (issue #365), which widens the disc and
+  makes it nothing to wait for. A bare `(x, y)` is a robot standing."""
+  x: float
+  y: float
+  down: bool = False
+
+  @property
+  def cells(self) -> int:
+    return DOWN_ROBOT_CELLS if self.down else OTHER_ROBOT_CELLS
 
 
 class MissionAborted(RuntimeError):
@@ -477,9 +501,9 @@ class HubMission:
     #: may not have marked yet. What a robot may know of another over the
     #: network is its reported pose -- odometry is a work order's kind of
     #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
-    #: A callable may answer (x, y, cells) instead, for a robot that needs
-    #: more floor than a standing one: a robot lying down, avoided round its
-    #: body (issue #365, `HubLifecycle.keep_clear`). `_bodies` reads both.
+    #: A callable may answer a `KeepClear` instead: a robot lying down,
+    #: avoided round its body (issue #365, `HubLifecycle.keep_clear`).
+    #: `_bodies` reads both.
     self.others: list = []
 
   def _resolve(self, model) -> None:
@@ -627,8 +651,8 @@ class HubMission:
 
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor this robot's body covers, off the TRUE
-    geometry: its geoms' bounding circles, boxed. Upright that is within a
-    few cm of the chassis; lying down it is 0.2 m or more along the mast.
+    geometry: its geoms' bounding circles, boxed. MEASURED 0.08 m from the
+    chassis origin upright, and 0.20-0.21 m along the mast lying down.
     ⚠ Read to ACT, unlike `true_pose`, and only for a robot lying on the
     floor (issue #365): what another robot keeps clear of, because a real
     one would see a robot-shaped lump there, and the one thing about a
@@ -850,6 +874,7 @@ class HubMission:
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
     holding = False                    # is this drive standing for a peer
+    downs, next_downs = (), 0.0        # who lies down, `DOWN_CHECK_S`
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
@@ -897,6 +922,11 @@ class HubMission:
         yield from self._nav_routine(-0.15, 0.0)
         waypoints = []
         continue
+      if self.others and self.data.time >= next_downs:
+        next_downs = self.data.time + DOWN_CHECK_S
+        now_down = tuple(b.down for b in self._bodies())
+        if now_down != downs:          # one fell, or got up: plan round it now
+          downs, waypoints = now_down, []
       if self.data.time >= next_replan or not waypoints:
         next_replan = self.data.time + 2.0
         planned = self._plan_to(wx, wy)
@@ -943,22 +973,21 @@ class HubMission:
 
   # ---- the mission ---------------------------------------------------------
 
-  def _bodies(self) -> list[tuple[float, float, int]]:
-    """Every other robot as `(x, y, cells)`: where `others` says to keep
-    clear of it, and the disc's radius -- a standing robot's where the
-    callable names none."""
-    out = []
-    for where in self.others:
-      p = where()
-      out.append((p[0], p[1], p[2] if len(p) > 2 else OTHER_ROBOT_CELLS))
-    return out
+  def _bodies(self) -> list[KeepClear]:
+    """Every other robot as a `KeepClear`: what `others` answers, a robot
+    standing where the callable says no more than `(x, y)`."""
+    return [KeepClear(*where()) for where in self.others]
 
   def _other_in_the_way(self, wx: float, wy: float) -> bool:
-    """Is another robot within reach of this one, or of its goal?"""
+    """Is another robot within reach of this one, or of its goal, that
+    waiting could move? Not one lying down (issue #365): it stays where it
+    is until the world stands it up, and a drive that waited on it stood
+    beside it for its whole timeout -- it plans round the body instead, or
+    ends as any drive with nowhere to go does."""
     px, py, _ = self.pose
-    for ox, oy, _ in self._bodies():
-      if (math.hypot(ox - px, oy - py) < OTHER_NEAR_M
-          or math.hypot(ox - wx, oy - wy) < OTHER_NEAR_M):
+    for b in self._bodies():
+      if not b.down and (math.hypot(b.x - px, b.y - py) < OTHER_NEAR_M
+                         or math.hypot(b.x - wx, b.y - wy) < OTHER_NEAR_M):
         return True
     return False
 
@@ -1029,10 +1058,12 @@ class HubMission:
     #365), for the same reason.
     """
     res = self.grid.resolution
-    near = [d for d, cells in ((math.hypot(ox - wx, oy - wy), cells)
-                               for ox, oy, cells in self._bodies())
-            if d < cells * res - CLOSE_ENOUGH_M]
-    return min(near, default=None)
+    near = None
+    for b in self._bodies():
+      d = math.hypot(b.x - wx, b.y - wy)
+      if d < b.cells * res - CLOSE_ENOUGH_M and (near is None or d < near):
+        near = d
+    return near
 
   def reachable(self, points) -> list[bool]:
     """Which world points this robot could plan to right now (issue #346):
@@ -1067,8 +1098,9 @@ class HubMission:
     `peer_on_the_goal` is that arithmetic, and callers ask it before
     spending another attempt on a drive that has nowhere to arrive."""
     rows, cols = trav.shape
-    for ox, oy, r in self._bodies():
-      cx, cy = self.grid.world_to_cell(ox, oy)
+    for b in self._bodies():
+      r = b.cells
+      cx, cy = self.grid.world_to_cell(b.x, b.y)
       x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
       y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
       if x0 >= x1 or y0 >= y1:
@@ -1362,8 +1394,7 @@ class HubMission:
     """One look of the charge approach, into `last_charge` (issue #346)."""
     px, py, _ = self.pose
     sx, sy, _ = charge_standoff(self.rack_prior)
-    peers = [math.hypot(ox - sx, oy - sy)
-             for ox, oy, _ in self._bodies()]
+    peers = [math.hypot(b.x - sx, b.y - sy) for b in self._bodies()]
     self.last_charge["attempts"].append({
       "fix": fix is not None, "err": self.truth_error(),
       "fromStandoffM": round(math.hypot(px - sx, py - sy), 3),
