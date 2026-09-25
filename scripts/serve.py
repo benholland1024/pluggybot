@@ -89,9 +89,23 @@ from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
                                           crash_message)
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
+from pluggybot.telemetry import vitals
 
 
 def main() -> None:
+  """`serve`, watched (issue #349): a memory line a minute, a runaway's
+  stacks and allocations, and one line saying why the process ended -- so
+  a death with no such line was a kill."""
+  watchdog = vitals.Watchdog().start()
+  try:
+    serve(watchdog)
+  except BaseException as e:
+    watchdog.close(vitals.why_of(e))
+    raise
+  watchdog.close(vitals.why_of(None))
+
+
+def serve(watchdog: "vitals.Watchdog") -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
@@ -346,7 +360,7 @@ def main() -> None:
                  "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
 
   if args.pair:
-    serve_pair(args, flags, rung, origin)
+    serve_pair(args, flags, rung, origin, watchdog)
     return
 
   cfg = world_config(args.world)
@@ -565,6 +579,8 @@ def main() -> None:
     # and a restart keeps them (issue #345).
     life.activities = activities
   life.restart_note = opened.why
+  # Read through `life`: a recompile replaces its MjData (issue #315).
+  watchdog.sim_time = lambda: life.data.time
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
@@ -707,10 +723,10 @@ def main() -> None:
       recorder.close()
   wall = time.monotonic() - wall0
 
-  report(r, wall, life, publisher, pacer)
+  report(r, wall, life, publisher, pacer, t0=snap.t if snap is not None else 0.0)
 
 
-def serve_pair(args, flags: dict, rung, origin) -> None:
+def serve_pair(args, flags: dict, rung, origin, watchdog) -> None:
   """Two robots from one loop on the wire (issue #181): `build_pair` makes
   the world and the two lifecycles exactly as the pair demo and the pair
   fixture do, and this wires ONE publisher with a `StreamRobot` for the
@@ -773,6 +789,7 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
   first, second = lives
   for life in lives:
     life.restart_note = opened.why
+  watchdog.sim_time = lambda: first.data.time
   model, data = first.model, first.data
   screens = world_screens(model, data)
   for life in lives:
@@ -899,7 +916,8 @@ def serve_pair(args, flags: dict, rung, origin) -> None:
       recorder.close()
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
-    report(r, wall, life, publisher, pacer, label=name)
+    report(r, wall, life, publisher, pacer, label=name,
+           t0=snap.t if snap is not None else 0.0)
 
 
 def open_world(path, world: str) -> "continuation.Loaded":
@@ -956,9 +974,12 @@ def say_crash(exc: Exception, data, publisher, recorder) -> dict:
   return msg
 
 
-def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> None:
+def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
+           t0: float = 0.0) -> None:
   """The close-of-mission summary, one robot at a time; `label` prefixes a
-  pair's second robot so the two do not read as one."""
+  pair's second robot so the two do not read as one. `t0` is the sim clock
+  the run started from: a carried-on world's clock does not start at zero
+  (issue #345)."""
   if label:
     print(f"\n---- {label} ----")
   print()
@@ -966,7 +987,10 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> Non
         f" (swaps={r['swaps_done']}, charges={r['charge_cycles']},"
         f" stowed={r['module_stowed']})")
   for e in r["errands"]:
-    extra = (f"  {e['figure']} on {e['board']}, board {e['fill']:.0%} full"
+    # A draw that never squared up to its board has no `fill` (issue #349).
+    extra = (f"  {e.get('figure')} on {e['board']}, "
+             + (f"board {e['fill']:.0%} full" if e.get("fill") is not None
+                else e.get("error") or "no fill measured")
              if e.get("board") else "")
     print(f"errand {e['errand']:<20s}: picked={e['picked']}"
           f" stowed={e['stowed']}{extra}")
@@ -1038,8 +1062,10 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "") -> Non
             f"{v['droppedFull']} overflowed the queue")
     for reply in r.get("replies", ()):
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
-  print(f"sim / wall             : {r['sim_time']:.1f} s / {wall:.1f} s"
-        f"  ({r['sim_time'] / wall:.2f}x real time)")
+  ran = r["sim_time"] - t0
+  print(f"sim / wall             : {ran:.1f} s / {wall:.1f} s"
+        f"  ({ran / wall:.2f}x real time)"
+        + (f", the clock carried on from {t0:.1f} s" if t0 else ""))
   if life.mode is not None and (life.paused_s or life.mode.mode != "llm"):
     # Said only when it is not the default: a run nobody touched should not
     # print a line about a switch nobody flipped.

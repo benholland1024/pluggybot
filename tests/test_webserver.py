@@ -1021,6 +1021,65 @@ def test_a_pair_that_crashes_says_so_too(monkeypatch, tmp_path):
   assert pub.flushed == len(pub.messages)
 
 
+def test_a_served_process_says_why_it_ended(monkeypatch, capsys):
+  """Issue #349: the watchdog's exit line, so a process that ended with no
+  such line was killed. Said on a clean end and on a crash alike."""
+  _serve_wiring(monkeypatch, ["--free-run"])
+  assert "vitals: exiting -- the run ended" in capsys.readouterr().out
+  serve = _load_serve()
+
+  class _Dying(_FakeLife):
+    def run(self, *a, **kw):
+      raise RuntimeError("the day loop broke")
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _Dying(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run"])
+  with pytest.raises(RuntimeError):
+    serve.main()
+  assert ("vitals: exiting -- RuntimeError: the day loop broke"
+          in capsys.readouterr().out)
+
+
+def _report(r, capsys, **kw):
+  serve = _load_serve()
+  life = types.SimpleNamespace(mode=None, paused_s=0.0)
+  pub = types.SimpleNamespace(frames_sent=1, frames_dropped=0, connections=1,
+                              last_error=None)
+  serve.report(r, kw.pop("wall", 100.0), life, pub, None, **kw)
+  return capsys.readouterr().out
+
+
+_RESULT = {"state": "DONE", "swaps_done": 1, "charge_cycles": 0,
+           "module_stowed": True, "sim_time": 100.0, "verdicts": [],
+           "points": 0, "earned": 0}
+
+
+def test_the_report_builds_from_a_draw_that_never_reached_its_board(capsys):
+  """Issue #349: a draw that never squares up returns its board and figure
+  but no `fill`, and the end-of-run summary died on `e['fill']`."""
+  never = {"errand": "draw:whiteboard_a", "picked": True, "stowed": True,
+           "board": "whiteboard_a", "figure": "house", "squared": False,
+           "error": "never squared up to the board"}
+  drew = dict(never, error=None, squared=True, fill=0.25)
+  out = _report(dict(_RESULT, errands=[never, drew]), capsys)
+  assert "house on whiteboard_a, never squared up to the board" in out
+  assert "house on whiteboard_a, board 25% full" in out
+
+
+def test_a_carried_on_run_reports_its_own_real_time_multiple(capsys):
+  """Since #345 the clock carries on across a restart, and the summary
+  divided the WHOLE clock by one process's wall time: the deployed log read
+  "7287.6 s / 3840.0 s (1.90x real time)" for a run that fell behind."""
+  out = _report(dict(_RESULT, errands=[], sim_time=7287.6), capsys,
+                wall=3840.0, t0=3674.7)
+  assert "3612.9 s / 3840.0 s  (0.94x real time)" in out
+  assert "carried on from 3674.7 s" in out
+  fresh = _report(dict(_RESULT, errands=[]), capsys)
+  assert "100.0 s / 100.0 s  (1.00x real time)\n" in fresh
+
+
 def test_flush_waits_for_the_queue_to_leave_and_gives_up_on_the_bound(mini_model):
   """`flush()` is what a crash message rides out on: True once the sink
   has it, False -- inside the bound, not never -- when nobody is listening."""
