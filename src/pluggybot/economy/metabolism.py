@@ -29,9 +29,12 @@ FOUR RULES, AND EACH ONE IS A FAILURE MODE THIS MODULE IS SHAPED AROUND.
   faster and a paused one does not get hungry at all, which is what a viewer
   would expect of both.
 
-  ...AND A RESTART IS NOT A MEAL, NOR A MISSED ONE. Every mission end is a
-  restart and sim time starts again at 0, so the anchor is re-taken on the
-  first tick of a run and NOTHING is charged for the gap. What survives is
+  ...AND A RESTART IS NOT A MEAL, NOR A MISSED ONE. A world built from its
+  XML starts sim time at 0, so the anchor is re-taken on the first tick of
+  a run and NOTHING is charged for the gap; one that carries on from a save
+  (issue #345) keeps its clock and its anchor (`restore_kept`), so nothing
+  is charged for the gap there either -- the process was down, the world
+  was not running. What survives is
   the BALANCE -- the ledger's file, which is where hunger actually lives --
   plus the fraction of a point owed at the last carry. A robot that came back
   from a restart with a full stomach, or with an hour of appetite charged in
@@ -298,6 +301,22 @@ class Metabolism:
       self._armed = True
     self._latch()
     return eaten
+
+  def kept_state(self) -> dict:
+    """For a restart that carries on (issue #345): the clock, the latch and
+    the fraction owed. The fraction is here as well as in the ledger's file
+    because `carry` only reaches the file with the ledger's next write."""
+    return {"lastT": self._last_t, "owed": self.owed,
+            "satisfied": self.satisfied, "lastState": self._last_state,
+            "armed": self._armed}
+
+  def restore_kept(self, state: dict) -> None:
+    self._last_t = state.get("lastT")
+    self.owed = float(state.get("owed", self.owed))
+    self.satisfied = bool(state.get("satisfied", self.satisfied))
+    self._last_state = state.get("lastState", self._last_state)
+    self._armed = bool(state.get("armed", self._armed))
+    self.ledger.carry(self.owed, self.robot)
 
   def disarm(self) -> None:
     """Called after an upkeep death: do not kill again until the robot has

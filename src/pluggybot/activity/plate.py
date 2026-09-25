@@ -182,6 +182,18 @@ class PlateLight(Activity):
     self.sensor_adr = int(model.sensor(f"{self.prefix}_plate_pos").adr[0])
     self.lamp.rebind(model)
 
+  def kept_state(self) -> dict:
+    return {**super().kept_state(), "pressed": self.press.value,
+            "latched": self.latch.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.press.value = bool(state.get("pressed"))
+    self.latch.value = bool(state.get("latched"))
+    # the lamp is a geom's colour, which the new process compiled unlit
+    self.lamp.current = None
+    self.lamp.select("on" if self.latch.value else "off")
+
   def depth(self, data) -> float:
     """How far the plate is pushed down, in metres (positive = down).
 

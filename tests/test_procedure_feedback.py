@@ -45,10 +45,12 @@ def _self(on_forks=(), blocked=None, hung=True):
                            mission=SimpleNamespace(swap=SimpleNamespace(
                              module_state=lambda t, held=held: {"on_fork": t == held})))
            for name, held in on_forks]
-  return SimpleNamespace(
-    peers=peers, peer_at_the_bay=lambda station_y: blocked,
+  me = SimpleNamespace(
+    peers=peers, peer_at_the_bay=lambda station_y: blocked, last_bay_wait=None,
     mission=SimpleNamespace(swap=SimpleNamespace(
       module_state=lambda t: {"on_fork": False, "hung": hung})))
+  me.held_for = lambda b: HubLifecycle.held_for(me, b)
+  return me
 
 
 def test_a_failed_pick_names_who_holds_the_tool_before_anything_else():

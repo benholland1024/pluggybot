@@ -246,8 +246,10 @@ def test_the_announcement_is_at_mission_start_beside_the_mind_line():
   import inspect
   src = inspect.getsource(HubLifecycle._day_routine)
   tree = ast.parse(src.lstrip() if not src.startswith(" ") else "if 1:\n" + src)
-  calls = [n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
-           and isinstance(n.func, ast.Attribute)]
+  calls = [n.func.attr for n in sorted(
+    (n for n in ast.walk(tree) if isinstance(n, ast.Call)
+     and isinstance(n.func, ast.Attribute)),
+    key=lambda n: (n.lineno, n.col_offset))]              # in SOURCE order
   assert calls.count("_announce_constitution") == 1
   assert calls.index("_announce_constitution") > calls.index("_remember")
 

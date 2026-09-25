@@ -304,6 +304,27 @@ class Cage(Activity):
       self.mouse.current = None           # a fresh MjData starts at rest
       self.mouse.select(self.state)
 
+  def kept_state(self) -> dict:
+    return {**super().kept_state(), "state": self.state, "until": self.until,
+            "counts": dict(self.counts), "lastChange": dict(self.last_change),
+            "companySince": self._company_since,
+            "companyDone": self._company_done,
+            "pressed": {act: th.value for act, th in self.press.items()}}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.state = state.get("state", self.state)
+    self.until = state.get("until")
+    self.counts.update(state.get("counts") or {})
+    self.last_change = dict(state.get("lastChange") or self.last_change)
+    self._company_since = state.get("companySince")
+    self._company_done = bool(state.get("companyDone"))
+    for act, value in (state.get("pressed") or {}).items():
+      if act in self.press:
+        self.press[act].value = bool(value)
+    self.mouse.current = None
+    self.mouse.select(self.state)
+
   # ---- the sensed half -------------------------------------------------------
 
   def depth(self, data, act: str) -> float:

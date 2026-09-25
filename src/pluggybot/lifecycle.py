@@ -33,7 +33,9 @@ from pathlib import Path
 from typing import Callable, Literal
 
 import mujoco
+import numpy as np
 
+from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS,
@@ -46,7 +48,7 @@ from pluggybot.mission.errand import (
 )
 from pluggybot.mission.mission import (
   MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
-  swap_trace,
+  charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -70,6 +72,7 @@ from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
 from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
+from pluggybot.perception.lidar import robot_geoms
 from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
                              charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
@@ -279,6 +282,56 @@ WAIT_FOR_WORK_S = 5.0
 #: The bay standoff is ~1.2 m and `OTHER_NEAR_M` (what a planner routes
 #: round) is 1.2 m.
 RACK_CLEAR_M = 2.0
+#: ...and DONE AT THE RACK MEANS GONE (issue #346): a clear that did not
+#: arrive is read, and the robot tries these many other spots before it
+#: says out loud that it could not get away. Each drive is short -- the
+#: clear is a couple of metres -- so a blocked one costs little.
+CLEAR_SPOTS = 3
+CLEAR_DRIVE_S = 30.0
+#: A clear that failed is not tried again from the same place (within this
+#: far of where it gave up): the loop would otherwise re-drive every spot and
+#: write another History line before every decision.
+CLEAR_MOVED_M = 0.3
+#: How long a robot may stand within `RACK_CLEAR_M` doing nothing at the
+#: rack before the log says so (issue #346): past the longest honest
+#: in-between (a decision's think, median 5 s, p95 25 s, deployed max 43 s,
+#: plus the clear drive itself). What it logs is a robot the loop left
+#: standing where the other one needs to be -- the defect, seen live.
+RACK_LINGER_S = 90.0
+#: A TAKEN BAY IS WAITED FOR (issue #346), for 3x the TYPICAL time one
+#: interaction holds it (Ben, 2026-09-24) -- long enough to outlast an
+#: ordinary one, short enough that a robot that never leaves is reported
+#: rather than waited on for ever. MEASURED, the time a robot's believed
+#: pose stays within `peer_on_the_goal`'s 0.45 m of a standoff:
+#:   * a SWAP (one flight each world, `--pack hosting`): room_hub carry
+#:     pick 26.9 s, stow 34.2 s; home showcase pen pick 30.6 s, and a stow
+#:     run straight into the next pick 55.6 s -- typical 30 s for one;
+#:   * a CHARGE (the deployed pair on 42f4a11, 2026-09-24, 11 connected):
+#:     278-542 s, median 462 s.
+#: The bound is 3x the occupancy of whatever HOLDS the bay, not only of the
+#: bay asked for: the charge standoff is 0.200 m from bay B's and the bay
+#: pitch is 0.25 m, so a robot charging holds its neighbour's tool bay for
+#: the whole charge -- and the holder's state is its public surface.
+SWAP_OCCUPANCY_S = 30.0
+CHARGE_OCCUPANCY_S = 462.0
+WAIT_OCCUPANCIES = 3.0
+#: What a robot does AT the rack: not lingering, whatever the clock says.
+RACK_STATES = ("SWAP_PICK", "SWAP_RETURN", "GO_CHARGE", "CHARGE")
+#: How often a waiting robot looks again, sim seconds.
+BAY_POLL_S = 1.0
+#: The WAITING SPOT, in the rack's own frame, relative to the standoff
+#: waited for: this far further out from the rack face and this far along
+#: it -- out of the other robot's approach lane (it backs straight out
+#: along the bay's normal) and outside its planner disc (`OTHER_ROBOT_CELLS`,
+#: 0.60 m) on either side. The nearest reachable candidate wins; none
+#: reachable means waiting where it stands.
+WAIT_BACK_M = (0.8, 1.2)
+WAIT_SIDE_M = (0.9, 1.3)
+#: A RETURN THAT FAILED IS TRIED AGAIN before anything else starts (issue
+#: #346), this many times per tool left on the fork. Bounded, because a
+#: stow that misses for a mechanical reason misses again; the waits inside
+#: each try are what cover a bay that was taken.
+STOW_RETRIES = 2
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
 #: moving -- this is the cadence of the heartbeat that tells the site it is
@@ -476,6 +529,28 @@ class HubLifecycle:
     #: simulations quietly diverging; tests/test_recompile.py's fence lists
     #: every class that assigns `self.model` and requires a `rebind`.
     self.on_rebind: list = []
+    #: A RESTART IS A CONTINUATION (issue #345): the world as compiled,
+    #: before any built tool is hung, hashed -- a saved world is put back
+    #: body for body only into the world it was saved from.
+    self.world_fingerprint = continuation.fingerprint(model)
+    #: Set by a `continuation.Keeper`: the world is saved, so the end of a
+    #: run ends nothing and History does not say it did.
+    self.continuing = False
+    #: What `continuation.restore` put back, for the day routine's first
+    #: lines; None on a world that started from its XML.
+    self.resumed: dict | None = None
+    #: Why a saved world was NOT carried on from, for History ("" = there
+    #: was none, or it was).
+    self.restart_note = ""
+    #: The errand being run right now, for a restart to name.
+    self._errand_now = None
+    #: Called at the top of every pass of the day loop, where nothing is in
+    #: flight -- the one moment a saved world is the same with or without a
+    #: restart after it (the parity check, `scripts/determinism_spike.py`).
+    self.at_loop_top: list = []
+    #: The errands the run was STARTED with (`--errand`), so a restart can
+    #: tell the ones still waiting from ones it would be starting over.
+    self._preset: list = []
     #: WHICH MODULE HANGS IN WHICH BAY, as data the seam edits (module ->
     #: bay index into `coupling.STATION_YS`: 0-4 the first rack's, then
     #: the built-tool rail's). Starts as the five hand-built modules, which
@@ -595,6 +670,17 @@ class HubLifecycle:
     self.producer = producer
     self._expects_work: bool | None = None
     self._cleared_rack = False
+    # RACK CONTENTION (issue #346): a taken bay is waited for -- the swap
+    # asks through `mission.bay_wait` -- and the waits and the last one's
+    # outcome are counted; a robot left standing at the rack is logged.
+    self.bay_waits = 0
+    self.last_bay_wait: dict | None = None
+    self.stow_retries = 0
+    self._stow_tries = 0
+    self._clear_failed_at: tuple | None = None
+    self._linger_since: float | None = None
+    self._linger_said = False
+    self._next_linger_check = 0.0
     # THE APPETITE (issue #36). Optional, like the ledger it eats out of and
     # for a stricter version of the same reason: hunger reshuffles nothing on
     # its own but it does change what the robot is TOLD, and every existing
@@ -671,6 +757,8 @@ class HubLifecycle:
     # seam only QUEUES an action, and the loop runs it on its next pass
     # through the one branch the overseer already owned.
     self.mission.step_hooks.append(self._events_step)
+    self.mission.step_hooks.append(self._rack_linger_step)
+    self.mission.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
     #: on this same seam, because the map is a running belief like the
@@ -1270,8 +1358,7 @@ class HubLifecycle:
       return f"{tool} is on {holder.robot_name or holder.root}'s fork"
     blocked = self.peer_at_the_bay(station_y)
     if blocked is not None:
-      return (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
-              "nearer than the planner may route")
+      return self.held_for(blocked)
     if self.mission.swap.module_state(tool)["hung"]:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
@@ -1283,6 +1370,25 @@ class HubLifecycle:
       return ("the pick missed and it is still on its bay"
               + (f" ({how})" if how else ""))
     return "it was not on its bay, and no robot is carrying it"
+
+  def held_for(self, blocked: tuple[str, float]) -> str:
+    """Who held a bay this robot gave up on, and for how long it was
+    waited for (issue #346) -- one clause, for a pick, a stow or a charge."""
+    w = self.last_bay_wait
+    said = (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
+            "nearer than the planner may route")
+    # ...only the wait that ended THIS failure, at this sim instant: an
+    # older one would claim a wait that never happened for this bay
+    if (w is None or w.get("who") != blocked[0] or not w.get("why")
+        or w.get("end") != float(self.data.time)):
+      return said
+    return said + {
+      "bound": f"; I waited {w['s']:.0f} s for it to leave, 3x how long one "
+               f"{w['of']} usually takes",
+      "interrupted": f"; I waited {w['s']:.0f} s, until my own rule "
+                     "interrupted the wait",
+      "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
+              "reserve"}[w["why"]]
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
@@ -1305,14 +1411,217 @@ class HubLifecycle:
 
   def _clear_rack_routine(self) -> Routine:
     """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
-    back to the start pose; anywhere else, stay put."""
+    back to the start pose; anywhere else, stay put. True if the robot ends
+    clear of the rack.
+
+    ⚠ DONE AT THE RACK MEANS GONE (issue #346), so the drive's answer is
+    READ. It used to be thrown away: Rowan narrated "clearing the rack"
+    and stood 0.08 m from the charge bay for 23 minutes, through all four
+    of Luca's charge attempts, and Luca died flat for good. A clear that
+    did not arrive tries the nearest other spots outside the radius
+    (`CLEAR_SPOTS`) and says in History where it ended if none worked.
+    What counts is being OUT OF REACH, not reaching a point: a drive that
+    stagnated 0.3 m short but outside the radius has done the job.
+    """
     px, py, _ = self.mission.pose
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
-      return
+      return True
     hx, hy = self.home_pose[0], self.home_pose[1]
     self._say(f"standing by: clearing the rack for the others -- back to "
               f"({hx:.1f}, {hy:.1f})")
     yield from self.mission.drive_to_routine(hx, hy)
+    tried = [(hx, hy)]
+    for spot in self._clear_spots()[:CLEAR_SPOTS]:
+      px, py, _ = self.mission.pose
+      if self.rack_distance(px, py) >= RACK_CLEAR_M:
+        break
+      self._say(f"RACK: still {self.rack_distance(px, py):.1f} m from the "
+                f"rack after heading for ({tried[-1][0]:.1f}, "
+                f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})")
+      tried.append(spot)
+      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+    px, py, _ = self.mission.pose
+    d = self.rack_distance(px, py)
+    if len(tried) > 1 or d < RACK_CLEAR_M:
+      self._remember(
+        f"cleared the rack for the others after {len(tried)} tries, at "
+        f"({px:.1f}, {py:.1f})" if d >= RACK_CLEAR_M else
+        f"could not get clear of the rack: tried {len(tried)} spots and "
+        f"ended {d:.1f} m from it at ({px:.1f}, {py:.1f}), where I am in "
+        "the way of anyone swapping or charging there")
+    return d >= RACK_CLEAR_M
+
+  def _clear_spots(self) -> list[tuple[float, float]]:
+    """Other places to stand clear of the rack, nearest first: a ring just
+    outside `RACK_CLEAR_M` round the rack prior, in front of the rack face
+    (behind it is the wall it stands on), kept only where this robot could
+    plan to right now (`HubMission.reachable`)."""
+    r = self.mission.rack_prior
+    ring = RACK_CLEAR_M + 0.5
+    cands = [r.to_world(ring * math.cos(a), ring * math.sin(a))
+             for a in (math.radians(d) for d in range(-75, 90, 15))]
+    ok = self.mission.reachable(cands)
+    px, py, _ = self.mission.pose
+    return sorted((c for c, k in zip(cands, ok)
+                   if k and self.rack_distance(*c) >= RACK_CLEAR_M),
+                  key=lambda c: math.hypot(c[0] - px, c[1] - py))
+
+  def _leave_rack_routine(self) -> Routine:
+    """After an interaction at the rack, get out of it -- when there is
+    somebody to get out of the way FOR (issue #346). The loop calls this
+    before any branch that does not itself go to the rack, so a robot that
+    swapped, charged or failed there does not stand in the other one's
+    approach while it thinks. Alone in the world, nothing is blocked and
+    nothing moves: a single robot's day is the trajectory it always was."""
+    if not self.peers:
+      return
+    px, py, _ = self.mission.pose
+    stuck = self._clear_failed_at
+    if stuck is not None and math.hypot(px - stuck[0], py - stuck[1]) < CLEAR_MOVED_M:
+      # ...tried from here already and could not get away (said in History
+      # then): not again before every decision, which would spend minutes
+      # of driving and a History line per pass on the same answer
+      return
+    cleared = yield from self._clear_rack_routine()
+    self._clear_failed_at = None if cleared else self.mission.pose[:2]
+
+  def _rack_linger_step(self) -> None:
+    """Log a robot that stays at the rack longer than what it came for
+    (issue #346): within `RACK_CLEAR_M`, doing nothing AT the rack, for
+    `RACK_LINGER_S`. Once per stretch; the physics seam's, once a second.
+    Evidence only -- the fix is `_leave_rack_routine`, and this is what
+    says whether anything still escapes it."""
+    t = float(self.data.time)
+    if not self.peers or t < self._next_linger_check:
+      return
+    self._next_linger_check = t + 1.0
+    px, py, _ = self.mission.pose
+    if (self.state in RACK_STATES or self.dead is not None
+        or self.rack_distance(px, py) >= RACK_CLEAR_M):
+      self._linger_since = None
+      return
+    if self._linger_since is None:
+      self._linger_since, self._linger_said = t, False
+    elif not self._linger_said and t - self._linger_since >= RACK_LINGER_S:
+      self._linger_said = True
+      self._say(f"RACK: lingering {t - self._linger_since:.0f} s within "
+                f"{self.rack_distance(px, py):.2f} m of the rack while "
+                f"{self.state} -- in the way of the others",
+                detail=f"pose ({px:.2f}, {py:.2f})")
+
+  def _waiting_spot(self, sx: float,
+                    sy: float) -> tuple[float, float] | None:
+    """Where to wait for a taken standoff (issue #346): beside and behind
+    it in the rack's frame (`WAIT_BACK_M`, `WAIT_SIDE_M`), out of the
+    holder's lane and planner disc, nearest reachable first. With none of
+    those on known floor (a map still thin round the rack), the start pose
+    -- reached once already, and clear of the rack by construction; where
+    the robot happens to stand is usually the holder's way out (MEASURED:
+    a robot standing at the neighbouring bay stops the other's drive away
+    for the errand's whole 60 s). None only with no start pose at all."""
+    r = self.mission.rack
+    c, s_ = math.cos(r.yaw), math.sin(r.yaw)
+    lx = (sx - r.x) * c + (sy - r.y) * s_
+    ly = -(sx - r.x) * s_ + (sy - r.y) * c
+    cands = [r.to_world(lx + back, ly + side)
+             for back in WAIT_BACK_M for side in WAIT_SIDE_M + tuple(
+               -v for v in WAIT_SIDE_M)]
+    ok = self.mission.reachable(cands)
+    px, py, _ = self.mission.pose
+    keep = [p for p, k in zip(cands, ok) if k]
+    home = None if self.home_pose is None else tuple(self.home_pose[:2])
+    return min(keep, key=lambda p: math.hypot(p[0] - px, p[1] - py),
+               default=home)
+
+  def wait_bound(self, kind: str, sx: float, sy: float) -> tuple[float, str]:
+    """How long a taken bay is waited for, and what it is `WAIT_OCCUPANCIES`
+    times the typical occupancy of: a charge if the bay asked for is the
+    charge bay OR the robot nearest it is charging (its state is its public
+    surface), else a swap."""
+    holder = min(self.peers, default=None,
+                 key=lambda o: math.hypot(o.mission.pose_xy()[0] - sx,
+                                          o.mission.pose_xy()[1] - sy))
+    charging = kind == "charge" or (
+      holder is not None and holder.state in ("GO_CHARGE", "CHARGE"))
+    return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
+            else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
+
+  def _await_bay_routine(self, sx: float, sy: float, kind: str,
+                         since: float) -> Routine:
+    """Wait for another robot to leave a standoff this one needs (issue
+    #346). True once it is free; False once the robot gave up, with why in
+    `self.last_bay_wait` (who held it, for how long, and what ended the wait).
+
+    Before this a bay somebody stood on was given up at once (#313's early
+    return) and the job failed with 0 points -- 6 of 47 picks and 7 of 38
+    stows on the deployed pair in one afternoon, and 11 of 30 charge
+    approaches, after all four of which a robot died flat. So: back off to
+    a spot out of the holder's way, say so in History, and look again every
+    `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
+    from `since`, the first time THIS interaction found it taken) runs out.
+    Two more things end a PICK's wait early, inside an errand: the robot's
+    own event map (a `battery_below` row interrupts, as it would the errand
+    -- `interrupted()`), and the pack reaching the reserve (#315's rule: the
+    waiting is code's, and code does not spend the return trip on it). A
+    RETURN's wait has neither -- abort means stow, and a return given up
+    leaves the tool on the fork, a procedure's `stow()` included (it runs
+    inside its errand) -- and nor does a CHARGE's: charging is what either
+    would ask for, and giving up on it is how the robot dies.
+
+    `kind` is the swap's verb (`pick`, `return`) or `charge`.
+    """
+    near = self.mission.peer_on_the_goal(sx, sy)
+    if near is None:
+      return True
+    # ...keyed on the RULE, never on the name: a peer the planner routes
+    # round but the lifecycle has no name for is still waited for, or the
+    # swap's loop would go round at no sim time at all
+    held = self.peer_at(sx, sy)
+    who = held[0] if held is not None else "another robot"
+    bound, of = self.wait_bound(kind, sx, sy)
+    what = "the charge bay" if kind == "charge" else "the bay"
+    first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
+    # EVERY time, not only the first: a drive that found the bay taken again
+    # stops at the edge of the holder's disc, which is its way out.
+    spot = self._waiting_spot(sx, sy)
+    if first:
+      self._say(f"WAIT: {who} is standing {near:.2f} m from {what} -- "
+                f"waiting up to {bound:.0f} s"
+                + ("" if spot is None else
+                   f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
+      self._remember(f"{who} was at {what} I needed; I waited for it "
+                     f"(up to {bound:.0f} s)")
+      self.bay_waits += 1
+      self.last_bay_wait = {"since": since, "who": who, "kind": kind,
+                       "bound": bound, "of": of, "why": ""}
+    if spot is not None:
+      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+    ended = ""
+    while self.mission.peer_on_the_goal(sx, sy) is not None:
+      now = float(self.data.time)
+      bound, of = self.wait_bound(kind, sx, sy)
+      if now - since >= bound:
+        ended = "bound"
+      elif kind == "pick" and self._in_errand and self.interrupted():
+        ended = "interrupted"
+      elif (kind == "pick" and self._in_errand
+            and self.battery.energy_wh <= self.low_battery_wh):
+        ended = "pack"
+      if ended:
+        break
+      yield from self.mission._drive_routine(BAY_POLL_S, 0.0, 0.0)
+    waited = float(self.data.time) - since
+    self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
+                               "bound": bound, "of": of,
+                               "end": float(self.data.time)})
+    if ended:
+      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} "
+                "was still there" + {"bound": f" (the bound is {bound:.0f} s)",
+                                     "interrupted": " (my own interrupt)",
+                                     "pack": " (the pack is at the reserve)"}[ended])
+      return False
+    self._say(f"WAIT: {what} is free after {waited:.0f} s")
+    return True
 
   def _wait_dead_routine(self) -> Routine:
     """A dead robot with somebody who can reset it stands still and keeps
@@ -1654,33 +1963,46 @@ class HubLifecycle:
     sx, sy, hd = charge_standoff(self.mission.rack)
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
     # spin to buy map (and possibly the rack tag) and try again.
-    for _ in range(2):
-      if (yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)):
+    # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
+    # asymmetry (issue #313). The same arithmetic applies -- a peer within
+    # 0.45 m of this standoff puts it outside anything the planner may
+    # route to, and MEASURED on the rack prior the neighbouring tool bay is
+    # 0.200 m from it, so a robot swapping there blocks this approach
+    # outright -- but a bay given up is a lost errand and a charge given up
+    # is a death. So a taken charge bay is WAITED FOR (issue #346), for 3x
+    # a charge's typical occupancy, and neither the pack nor an interrupt
+    # ends that wait: charging is what either would ask for.
+    spins, since, arrived = 0, None, False
+    while True:
+      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+        since = float(self.data.time) if since is None else since
+        if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
+          break
+      arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
+      if arrived:
         break
+      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+        continue                          # taken again: wait again, above
       yield from self.mission._spin_routine()
       self.mission.refresh_rack()
       sx, sy, hd = charge_standoff(self.mission.rack)
-    else:
-      # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
-      # asymmetry (issue #313). The same arithmetic applies -- a peer
-      # within 0.45 m of this standoff puts it outside anything the planner
-      # may route to, and MEASURED on the rack prior the neighbouring tool
-      # bay is 0.200 m from it, so a robot swapping there blocks this
-      # approach outright -- but a bay given up is a lost errand and a
-      # charge given up is a death. So this one keeps BOTH attempts and
-      # only says whose robot it was; the swap's early return does not
-      # belong here.
+      spins += 1
+      if spins == 2:
+        break
+    if not arrived:
       blocked = self.peer_at(sx, sy)
       self._say("GO_CHARGE: no route to the charge bay"
                 + ("" if blocked is None else
-                   f" -- {blocked[0]} is standing {blocked[1]:.2f} m from it"))
+                   f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
     why = yield from self.mission.charge_approach_routine(CHARGE_APPROACH_MAX,
                                                           CHARGE_CREEP)
     if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
-      self._say(f"GO_CHARGE: no charge contact ({why})")
+      # the approach's trace is EVIDENCE (issue #346), the log's alone
+      self._say(f"GO_CHARGE: no charge contact ({why})",
+                detail=charge_trace(self.mission.last_charge))
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
     return True
@@ -2208,6 +2530,7 @@ class HubLifecycle:
     # can raise.
     self._in_errand = True
     self._errand_name = errand.name
+    self._errand_now = errand
     self._interrupt_pending = None
     self._aborting = False
     # The job this errand discharges is now genuinely under way (issue #21) --
@@ -2253,6 +2576,7 @@ class HubLifecycle:
       self._occur("task_complete" if used["stowed"] and "error" not in used
                   else "task_failed", errand.name)
       self._errand_name = ""
+      self._errand_now = None
       return result
     why = yield from self.mission.swap_at_bay_routine(
       errand.station_y, "pick", module=self.module)
@@ -2265,7 +2589,7 @@ class HubLifecycle:
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
               f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
               detail="" if carried else swap_trace(self.mission.last_swap))
-    if not carried:
+    if not carried and not self._aborting:
       # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
       # go on: drive to the use pose with nothing on the fork, skip the
       # use, drive back and attempt a RETURN of a module it never had --
@@ -2323,7 +2647,13 @@ class HubLifecycle:
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if not carried:
+    if not carried and self._aborting:
+      # ...the robot's own rule ended the WAIT for the bay (issue #346):
+      # an act of caution, on SAFE POINT TWO's terms below.
+      used = {"interrupted": True, "stopped": "interrupted",
+              "reason": "gave up waiting for the bay on the agent's own "
+                        "interrupt"}
+    elif not carried:
       used = {"error": f"never picked up {self.module}", "pickWhy": why,
               **({} if blocked is None else {"peerAtBayM": round(blocked[1], 3)})}
     # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
@@ -2381,8 +2711,7 @@ class HubLifecycle:
     # one's.
     blocked = self.peer_at_the_bay(errand.station_y) if carried else None
     self._say((f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
-               + ("" if blocked is None else
-                  f" -- {blocked[0]} was standing {blocked[1]:.2f} m from the bay"))
+               + ("" if blocked is None else f" -- {self.held_for(blocked)}"))
               if carried else
               "SWAP_RETURN skipped -- nothing to return"
               + (" (the module hangs on its bay)" if stowed else ""))
@@ -2449,6 +2778,7 @@ class HubLifecycle:
     if self._aborting and self.interrupts:
       self.interrupts[-1]["abortCostWh"] = result["abortCostWh"]
     self._errand_name = ""
+    self._errand_now = None
     return result
 
   # ---- the energy gate (issue #15) -----------------------------------------
@@ -4154,7 +4484,48 @@ class HubLifecycle:
     unknown to what the offer drew. Any other event is not ours."""
     if msg.get("type") != "task_offered" or self.tasks is None:
       return
-    self._set_bench(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+    task = self.tasks.get(str((msg.get("task") or {}).get("id", "")))
+    self._set_out_props(task)
+    self._set_bench(task)
+
+  def _set_out_props(self, task) -> None:
+    """The house SETS OUT a challenge's props as it offers it (issue #345):
+    the offer says where they stand ("set out in a row at ..."), and until a
+    restart carried the world on, the hourly reset was what made that true
+    -- a block dropped behind the couch was back by the next hour. Each
+    goes back to where the world compiled it; one touching a robot is left
+    where it is, being somebody's, mid-job. Idempotent: a pair hooks one
+    board twice."""
+    from pluggybot.challenge import bench, stack
+    from pluggybot.economy.tasks import KINDS
+    if task is None or task.kind not in KINDS:
+      return
+    props = {"stack": stack.BLOCKS, "mass": bench.MASSES}.get(KINDS[task.kind].task, ())
+    robots = set()
+    for root in robot_roots(self.model):
+      robots |= robot_geoms(self.model, root)
+    g = self.data.contact.geom[:self.data.ncon]
+    moved = []
+    for name in props:
+      bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
+      if (bid < 0 or int(self.model.body_jntnum[bid]) != 1
+          or self.model.jnt_type[int(self.model.body_jntadr[bid])]
+          != mujoco.mjtJoint.mjJNT_FREE):
+        continue
+      qadr = int(self.model.jnt_qposadr[int(self.model.body_jntadr[bid])])
+      if np.allclose(self.data.qpos[qadr:qadr + 7], self.model.qpos0[qadr:qadr + 7],
+                     atol=1e-3):
+        continue
+      mine = np.flatnonzero(self.model.geom_bodyid == bid)
+      touching = np.isin(g, mine)
+      if (touching[:, 0] & np.isin(g[:, 1], list(robots))).any() or \
+         (touching[:, 1] & np.isin(g[:, 0], list(robots))).any():
+        continue
+      self._return_module(name)
+      moved.append(name)
+    if moved:
+      self._say(f"TASK {task.id}: the house set out {', '.join(moved)} "
+                "where the offer says")
 
   def _set_bench(self, task) -> None:
     """Make the world match a bench offer (issue #227; challenge/bench.py):
@@ -5004,6 +5375,241 @@ class HubLifecycle:
     self.errands.append(errand)
     return ""
 
+  # ---- a restart is a continuation (issue #345) ----------------------------
+
+  def kept_state(self) -> tuple[dict, dict]:
+    """What this robot carries across a restart that no file on the volume
+    already does: JSON, and the maps as arrays (`continuation.capture`)."""
+    mission, arrays = self.mission.kept_state()
+    if self.near_field is not None:
+      arrays["heightmap"] = self.near_field.height
+      arrays["heightcount"] = self.near_field.count
+    errand = self._errand_now
+    state = {
+      "energyWh": self.battery.energy_wh, "module": self.module,
+      "state": self.state, "mission": mission,
+      "nearField": (None if self.near_field is None or self.near_field.origin is None
+                    else list(self.near_field.origin)),
+      "depthRng": (None if self.depth_camera is None else
+                   [self.depth_camera.rng.bit_generator.state,
+                    self.depth_camera.peer_rng.bit_generator.state]),
+      "mapDone": getattr(self, "map_done", False),
+      "blacklist": sorted([list(c) for c in getattr(self, "blacklist", ())]),
+      "exploreDeadline": getattr(self, "explore_deadline", None),
+      "dead": dict(self.dead) if self.dead is not None else None,
+      "survivalSince": self.survival_since, "lastAskT": self._last_ask_t,
+      "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
+      "minded": self._minded, "tiltedSince": self._tilted_since,
+      "clocks": {"death": self._next_death_check, "task": self._next_task_check,
+                 "screen": self._next_screen_sense,
+                 "events": self._next_events_check,
+                 "nearField": self._next_near_field},
+      "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
+      "gradePending": self._grade_pending,
+      # The errand the world stopped in the middle of, and what it was for.
+      "errand": (None if errand is None else
+                 {"name": errand.name, "taskId": errand.task_id,
+                  "module": errand.module,
+                  "real": errand.detail.get("real", "")}),
+      # ...and the queue: the run's own errands still waiting, by place and
+      # name, and the names of anything else (a decision's) -- which a
+      # restart drops, and says so.
+      "preset": [[i, e.name] for i, e in enumerate(self._preset)
+                 if any(e is q for q in self.errands)],
+      "queued": [e.name for e in self.errands
+                 if not e.task_id and not any(e is p for p in self._preset)],
+      "eventClock": self.event_clock.kept_state(),
+      "metabolism": (self.metabolism.kept_state()
+                     if self.metabolism is not None else None),
+    }
+    return state, arrays
+
+  def restore_kept(self, state: dict, arrays: dict, in_place: bool,
+                   why: str = "") -> None:
+    """Put `kept_state` back. What says WHERE -- the belief, the maps, the
+    exploration -- only `in_place`, into the world it was saved from; the
+    pack, the clocks and whether it is dead whatever the world looks like."""
+    self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
+    # ...a module this world still HAS: a retired built tool's name saved
+    # here would fail the next `module_state` read (found in review)
+    module = state.get("module") or ""
+    if module and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
+      self.module = module
+    mapped = in_place and self.mission.restore_kept(state["mission"], arrays)
+    if in_place:
+      if (self.near_field is not None and state.get("nearField") is not None
+          and "heightmap" in arrays
+          and arrays["heightmap"].shape == self.near_field.height.shape):
+        self.near_field.height[...] = arrays["heightmap"]
+        self.near_field.count[...] = arrays["heightcount"]
+        self.near_field.origin = tuple(int(v) for v in state["nearField"])
+      if self.depth_camera is not None and state.get("depthRng"):
+        self.depth_camera.rng.bit_generator.state = state["depthRng"][0]
+        self.depth_camera.peer_rng.bit_generator.state = state["depthRng"][1]
+      # ...and what the MAP says only with the map: a grid that does not fit
+      # this build's (a new extent or resolution) is not restored, and a
+      # robot that believed it complete would never explore the empty one
+      # it has (found in review)
+      self.map_done = mapped and bool(state.get("mapDone"))
+      self.blacklist = ({tuple(c) for c in state.get("blacklist", ())}
+                        if mapped else set())
+      self._tilted_since = state.get("tiltedSince")
+      self._cleared_rack = bool(state.get("clearedRack"))
+    self.dead = dict(state["dead"]) if state.get("dead") else None
+    self.survival_since = float(state.get("survivalSince", self.survival_since))
+    self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
+    self._asked_t = state.get("askedT")
+    self._asked_after_s = state.get("askedAfterS")
+    if state.get("minded") is not None:
+      self._minded = bool(state["minded"])
+    clocks = state.get("clocks", {})
+    self._next_death_check = float(clocks.get("death", 0.0))
+    self._next_task_check = float(clocks.get("task", 0.0))
+    self._next_screen_sense = float(clocks.get("screen", 0.0))
+    self._next_events_check = float(clocks.get("events", 0.0))
+    self._next_near_field = float(clocks.get("nearField", 0.0))
+    self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
+    self._grade_pending = str(state.get("gradePending") or "")
+    if state.get("eventClock"):
+      self.event_clock.restore_kept(state["eventClock"])
+    if self.metabolism is not None and state.get("metabolism"):
+      self.metabolism.restore_kept(state["metabolism"])
+    self.resumed = {"inPlace": bool(in_place), "why": why,
+                    "exploreDeadline": state.get("exploreDeadline") if mapped else None,
+                    "errand": state.get("errand"), "preset": state.get("preset", []),
+                    "queued": state.get("queued", []),
+                    "wasState": state.get("state", "")}
+
+  def _resumed_line(self, r: dict) -> str:
+    """History's first line after a restart (issue #345)."""
+    line = continuation.resumed_line(
+      self.mission.pose_xy() if r["inPlace"] else None,
+      self.battery.fraction, r["why"])
+    if self.dead is not None:
+      left = self.reset_in_s
+      line += (f" -- still down ({self.dead['cause']})"
+               + (f", {left:.0f} s from standing up" if left is not None else ""))
+    if r["wasState"] in ("GO_CHARGE", "CHARGE") and self.dead is None:
+      line += "; it cut my charge short"
+    if r["queued"]:
+      line += f"; what I had queued ({', '.join(r['queued'])}) is gone"
+    return line
+
+  def _preset_left(self, r: dict) -> list:
+    """The run's own errands that were still waiting when it stopped."""
+    return [self._preset[i] for i, name in r["preset"]
+            if i < len(self._preset) and self._preset[i].name == name]
+
+  def _resume_jobs(self, cut: dict | None) -> list:
+    """The jobs this robot holds on the board, taken up again (issue #345):
+    an errand job's errand, rebuilt off the task, to queue; a procedure job
+    left claimed, the procedure being the robot's to run. A claim held by a
+    robot not in this world goes back on offer. `cut` is the errand the
+    world stopped in the middle of, which History names."""
+    from pluggybot.economy.tasks import KINDS
+    queued: list = []
+    held: set[str] = set()
+    cut_task = cut.get("taskId", "") if cut is not None else ""
+    for task in (self._held_jobs() if self.tasks is not None else ()):
+      held.add(task.id)
+      if any(e.task_id == task.id for e in self.errands):
+        continue                          # claimed in this process: queued
+      prefix = (f"the restart cut short {cut['name']}; "
+                if task.id == cut_task else "")
+      if KINDS[task.kind].discharge == "procedure":
+        self._say(f"TASK {task.id}: still mine after the restart")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
+                       "mine -- the procedure is mine to run, and to say done")
+        continue
+      taken = self.tasks.take_up(task.id, t=float(self.data.time))
+      if taken is not None and taken.state == "failed":
+        self._say(f"TASK {task.id} failed: {taken.verdict['reason']}")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is failed: "
+                       f"{taken.verdict['reason']}")
+        continue
+      errand = errand_for_task(
+        task, self.world, self.boards, answer=task.answer,
+        role=task.role_of(self.root), from_xy=self.mission.pose_xy(),
+        real=(cut.get("real", "") if task.id == cut_task else ""))
+      if errand is None:
+        self.tasks.release(task.id)
+        self._say(f"TASK {task.id}: offered again -- nothing here builds it")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is back on "
+                       "offer: nothing in this world can do it")
+        continue
+      queued.append(errand)
+      self._say(f"TASK {task.id}: still mine after the restart -- queued again")
+      self._remember(f"{prefix}the job {task.id} ({task.kind}) is still mine, "
+                     "and is queued again")
+    if cut is not None and cut_task not in held:
+      self._remember(f"the restart cut short {cut['name']}"
+                     + ("; it is not queued again" if not cut_task else
+                        f"; the job {cut_task} is no longer mine"))
+    return queued
+
+  def _held_jobs(self) -> list:
+    """This robot's open claims, after giving back any held by a robot
+    that is not in this world: a claim with nobody behind it stands for
+    ever (the served pair held one all day, 2026-09-17)."""
+    present = {self.root, *(p.root for p in self.peers)}
+    for task in self.tasks.release_absent(present):
+      self._say(f"TASK {task.id}: offered again -- whoever held it is not "
+                "in this world")
+    return self.tasks.held_by(self.root)
+
+  def _stow_after_restart_routine(self) -> Routine:
+    """A module the restart left on the fork goes home first (issue #345):
+    abort means stow (#116), and a restart ended the errand holding it."""
+    from pluggybot.procedure import steps as procedure
+    held = procedure._carried(self)
+    if held is None:
+      return
+    self.module = held
+    self.state = "SWAP_RETURN"
+    # MID-SWAP the fork is under a module still hanging on its bay (found
+    # in review): the return is what backs the fork out, and what it did is
+    # said as that, not as a tool carried off
+    at_bay = bool(self.mission.swap.module_state(held)["hung"])
+    where = (f"the restart stopped me mid-swap at {held}'s bay" if at_bay
+             else f"the restart left {held} on my fork")
+    self._say(f"{where} -- " + ("backing out" if at_bay else
+                                 "taking it back to its bay"))
+    verdict = yield from procedure._stow(self, {})
+    self._remember(f"{where}; "
+                   + ("I backed out and it hangs there" if at_bay and verdict["ok"]
+                      else "I hung it back on its bay" if verdict["ok"]
+                      else f"I could not hang it back: {verdict['reason']}"))
+
+  def _stow_owed(self) -> bool:
+    """Is a tool this robot failed to hang still on its fork, with a retry
+    left (`STOW_RETRIES`)? The count is per tool left on the fork: an empty
+    fork resets it."""
+    from pluggybot.procedure import steps as procedure
+    if procedure._carried(self) is None:
+      self._stow_tries = 0
+      return False
+    return self._stow_tries < STOW_RETRIES
+
+  def _stow_retry_routine(self) -> Routine:
+    """Take the tool on the fork back to its bay (issue #346), through the
+    same stow a procedure's `stow()` runs -- the carry configuration, the
+    way home, and the bay wait inside the swap -- and say how it went."""
+    from pluggybot.procedure import steps as procedure
+    held = procedure._carried(self)
+    self._stow_tries += 1
+    self.stow_retries += 1
+    self.module = held
+    self.state = "SWAP_RETURN"
+    self._say(f"SWAP_RETURN again ({self._stow_tries}/{STOW_RETRIES}): "
+              f"{held} is still on my fork -- hanging it back before "
+              "anything else")
+    verdict = yield from procedure._stow(self, {})
+    self._remember(f"{held} was still on my fork after a failed return; "
+                   + ("I hung it back on its bay" if verdict["ok"] else
+                      f"I tried again and could not: {verdict['reason']}"
+                      + ("" if self._stow_tries < STOW_RETRIES else
+                         " -- I have stopped trying; it rides my fork")))
+
   # ---- the loop ------------------------------------------------------------
 
   def _strand(self) -> None:
@@ -5057,11 +5663,17 @@ class HubLifecycle:
           station_y: float = HUB_STATION_YS[0],
           use_at: tuple[float, float] = (-1.2, 2.5),
           max_sim_time: float = 600.0,
-          explore_budget: float = 90.0) -> dict:
+          explore_budget: float = 90.0,
+          resume: "continuation.Snapshot | None" = None) -> dict:
     """One robot's day, driven from its own loop. `begin` and `end` are the
     two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
-    issue #167): the setup, then the routine, then the summary."""
+    issue #167): the setup, then the routine, then the summary. `resume` is
+    a saved world to carry on from (issue #345), put back between the two."""
+    if resume is not None:
+      self.data.time = resume.t           # what `begin` says, on the clock
     day = self.begin(start, station_y, use_at, max_sim_time, explore_budget)
+    if resume is not None:
+      continuation.restore([self], resume)
     aborted = False
     try:
       # THE DAY IS A ROUTINE (issue #58): every branch of `_day_routine` yields its drive
@@ -5082,12 +5694,14 @@ class HubLifecycle:
             explore_budget: float = 90.0) -> Routine:
     """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
+    self.resumed = None                   # `continuation.restore` sets it
     self.blacklist: set = set()
     self.map_done = False
     self.stranded = False
     self._end_run = False
     if self.want_default_errand:
       self.errands = [carry_errand(self.module, station_y, use_at)]
+    self._preset = list(self.errands)
     # ⚠ THE KINEMATICS HAVE TO BE VALID FIRST (issue #315). `MjData` starts
     # with `xpos` all zeros and nothing here has stepped yet, so every
     # module read as sitting on the fork -- `_carried` said `module_lcd`,
@@ -5104,7 +5718,8 @@ class HubLifecycle:
     self.restore_tools()
     self.restore_bench()
     # ...and the jobs the last restart failed are said out loud, here,
-    # because the board loaded them before any hook existed to hear it.
+    # because the board loaded them before any hook existed to hear it --
+    # a game's, whose referee lived in the process (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
         self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
@@ -5219,21 +5834,38 @@ class HubLifecycle:
                    explore_budget: float) -> Routine:
     """One life, from mission start to the end of the day, as a routine:
     the arbitration loop `run()` documents, yielding every drive command."""
-    self.mission.start_at(*start)
-    self.mission.start_discovery()
-    yield from self.mission._spin_routine()   # seed the map before deciding anything
-    self.explore_deadline = self.data.time + explore_budget
-    self._say("mission start")
+    resumed = self.resumed
+    if resumed is not None and resumed["inPlace"]:
+      # A RESTART IS A CONTINUATION (issue #345): the bodies are where they
+      # were saved and the robot believes what it believed, so nothing
+      # moves before the loop.
+      self.mission.start_discovery()
+      self.explore_deadline = (resumed["exploreDeadline"]
+                               if resumed["exploreDeadline"] is not None
+                               else self.data.time + explore_budget)
+    else:
+      self.mission.start_at(*start)
+      self.mission.start_discovery()
+      yield from self.mission._spin_routine()   # seed the map before deciding anything
+      self.explore_deadline = self.data.time + explore_budget
     self.home_pose = tuple(float(v) for v in start)
-    self.survival_since = float(self.data.time)
-    # ...and the unminded clock, on the survival clock's terms exactly
-    # (issue #127): both count from the moment this life started.
-    self._last_ask_t = float(self.data.time)
-    # A restart is a new day, and History is the file that says so
-    # (issue #38): without this line a reader cannot tell one mission's
-    # record from the four before it that share the volume.
-    self._remember(f"woke up in {self.world} with the pack at "
-                   f"{self.battery.fraction:.0%}")
+    if resumed is None:
+      self._say("mission start")
+      self.survival_since = float(self.data.time)
+      # ...and the unminded clock, on the survival clock's terms exactly
+      # (issue #127): both count from the moment this life started.
+      self._last_ask_t = float(self.data.time)
+      # History says the process started (issue #38), so one run's record
+      # is not read as the one before it.
+      self._remember(f"woke up in {self.world} with the pack at "
+                     f"{self.battery.fraction:.0%}")
+      if self.restart_note:
+        self._remember(f"the world could not carry on from where it stopped: "
+                       f"{self.restart_note}")
+    else:
+      # ...and a restart says it was one, never a new day (issue #345).
+      self._say(f"mission resumed at t={self.data.time:.0f} s")
+      self._remember(self._resumed_line(resumed))
     # ...and WHO is doing the thinking today (issue #19). In History
     # because History is the system's file and this is a fact about the
     # run rather than something the robot decided -- and because History
@@ -5257,6 +5889,14 @@ class HubLifecycle:
     self._announce_constitution()
     # ...and what came back of its list of rules (issue #337).
     self._announce_map()
+    # ...and its jobs (issue #345): a job it had claimed is still its own.
+    held = self._resume_jobs(resumed["errand"] if resumed is not None else None)
+    if resumed is not None:
+      self.errands = self._preset_left(resumed) + held
+      if resumed["inPlace"] and self.dead is None:
+        yield from self._stow_after_restart_routine()
+    else:
+      self.errands.extend(held)
 
     # A real arbitration loop, not a fixed script. Priority order, and the
     # reasons: charging outranks everything (a flat robot does nothing at
@@ -5265,7 +5905,9 @@ class HubLifecycle:
     # robot mapped, ran flat, charged, mapped again, and never got round
     # to the task it existed for. Whatever the battery does mid-errand,
     # the next pass through here reacts to it.
-    while self.data.time < max_sim_time:
+    while self.data.time < self.max_sim_time:
+      for hook in list(self.at_loop_top):
+        hook()
       # ⚠ THE IMMORTAL LOOP IS THE OLD LOOP, to the character: a pack that
       # reaches zero ends the day, and one that reached zero mid-errand
       # and recovered does not, because this is checked between errands.
@@ -5321,6 +5963,15 @@ class HubLifecycle:
           continue
         self.state = "CHARGE"
         yield from self.charge_routine()
+      elif self._stow_owed():
+        # A RETURN THAT FAILED IS TRIED AGAIN FIRST (issue #346): a robot
+        # never starts a job with a tool it failed to hang still on its
+        # fork. Luca, three times in one afternoon: a stow refused, the
+        # next drawing "picked" the pen already on its fork, the drive to
+        # the board gave up, the stow was refused again -- graded "no ink
+        # reached". Below charging, which works whatever the fork carries.
+        self._cleared_rack = False
+        yield from self._stow_retry_routine()
       elif self.errands:
         # Pop BEFORE running: an errand that raises must not be retried
         # forever, and a queue that only shortens on success is an infinite
@@ -5332,6 +5983,7 @@ class HubLifecycle:
         # the queue it may have filled on the same answer has drained --
         # and BEFORE the mind is asked again, so the verdict is in front
         # of it when it next decides.
+        yield from self._leave_rack_routine()
         yield from self._grade_routine()
       elif self.overseer is not None:
         # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
@@ -5341,6 +5993,10 @@ class HubLifecycle:
         # a chosen one. `_arbitrate` is `_decide` exactly where there is
         # no map -- the loop's SHAPE is what this issue promised not to
         # touch, and this is the whole of what it touched.
+        # ...and never AT the rack (issue #346): a swap, a charge or a
+        # failed pick ends there, and a robot thinking where it stands
+        # holds the other robot's bay for as long as the call flies.
+        yield from self._leave_rack_routine()
         yield from self._arbitrate_routine()
       elif self._claim_next_task():
         # An offered job, taken by the loop itself (issue #21). Unreachable
@@ -5378,6 +6034,13 @@ class HubLifecycle:
         break
 
     self.state = "DONE"
+    if self.continuing:
+      # NOTHING ENDED (issue #345): the world is saved and the next run
+      # carries on from this moment, so History says nothing here -- the
+      # next run's first line says the world restarted.
+      self._say(f"stopping at t={self.data.time:.0f} s -- the world is kept "
+                "and the next run carries on from here")
+      return
     # A robot that could not reach its charger has not completed anything
     # (issue #32): the old line said "mission complete" here because the
     # battery was not yet empty, which dressed the day's actual ending --
@@ -5457,7 +6120,7 @@ def points_ledger(state: str | None = None, table=None,
 
 
 def task_board(state: str | None = None, table=None, cadence=None,
-               world: str = ""):
+               world: str = "", rebase: bool = True):
   """The world's job offers as persistent state (issue #21).
 
   `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
@@ -5468,7 +6131,9 @@ def task_board(state: str | None = None, table=None, cadence=None,
   The two CAPS come from `cadence` (issue #23) rather than from `economy/tasks.py`
   defaults, so how much work may stand at once is configuration like the rest
   of the timing policy. Without one the board keeps its own conservative
-  defaults, which is what a unit test wants.
+  defaults, which is what a unit test wants. `rebase=False` keeps the
+  deadlines on the clock they were written on, for a world that carries on
+  from a saved one (issue #345; `TaskBoard.load`).
   """
   from pluggybot.economy.tasks import TaskBoard
   # ...and what a job COSTS here (issue #15), for the same reason: a board
@@ -5476,9 +6141,9 @@ def task_board(state: str | None = None, table=None, cadence=None,
   # floor plan or refuses the small one work it does perfectly well.
   costs = energy_model.load(world) if world else None
   if cadence is None:
-    return TaskBoard(path=state, table=table, energy=costs)
+    return TaskBoard(path=state, table=table, energy=costs, rebase=rebase)
   return TaskBoard(path=state, table=table, max_tasks=cadence.max_tasks,
-                   max_offered=cadence.max_offered, energy=costs)
+                   max_offered=cadence.max_offered, energy=costs, rebase=rebase)
 
 
 def world_targets(world: str, book=None, procedures: bool = False,
@@ -6425,8 +7090,12 @@ def run_demo(start=None, view: bool = False,
              autonomous: bool = False,
              show_survival: bool = True,
              origin: str = ev.DEFAULT_ORIGIN,
-             second_robot=None, near_field: bool = False) -> dict:
+             second_robot=None, near_field: bool = False,
+             world_state: str | None = None) -> dict:
   """Run a whole mission. `errand` names a queue off the menu (errands_for).
+
+  `world_state` keeps the world in a file and carries on from it when the
+  file is there (issue #345; `continuation`), as the served world does.
 
   `on_ready` is handed the built lifecycle once every hook is attached and
   before it runs -- the measurement harness (issue #106) attaches its probe
@@ -6441,6 +7110,7 @@ def run_demo(start=None, view: bool = False,
   book while telemetry reported the other.
   """
   cfg = world_config(world)
+  loaded = continuation.load(world_state, world)
   # Which CELL this run flies on (issue #15). `demo` flattens in minutes,
   # which is what every mission test and both committed recordings were made
   # against; `hosting` is the pack a watched world runs on, where one charge
@@ -6490,7 +7160,8 @@ def run_demo(start=None, view: bool = False,
   # may stand at once (issue #23): economy/cadence.json, per world.
   from pluggybot.economy.cadence import default_cadence
   beat = default_cadence(world) if (tasks or tasks_state) else None
-  board = (task_board(tasks_state, cadence=beat, world=world)
+  board = (task_board(tasks_state, cadence=beat, world=world,
+                      rebase=loaded.snapshot is None)
            if (tasks or tasks_state) else None)
   # The tower is offered only where a procedure can be written (issue
   # #207): the `autonomous` arm's library is what discharges a challenge.
@@ -6649,6 +7320,8 @@ def run_demo(start=None, view: bool = False,
   # whether or not anything is recording: the resync half is what stops a
   # pause becoming a sprint, and that is true of a viewer run too.
   attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
+  life.restart_note = loaded.why
+  keeper = continuation.Keeper([life], world_state) if world_state else None
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
   # put the offers on the floor before the recorder existed -- a recording
@@ -6656,14 +7329,18 @@ def run_demo(start=None, view: bool = False,
   # `board_snapshot` lesson, arriving through a different door. Seeded only
   # when nothing is already outstanding, so a restart against a persisted
   # board resumes the jobs it left rather than re-offering them all.
-  if maker is not None and not board.open_tasks():
+  if maker is not None and loaded.snapshot is None and not board.open_tasks():
     maker.seed(pack_wh=life.fundable_wh)
   if on_ready is not None:
     on_ready(life)
   try:
-    return life.run(start or cfg["start"], use_at=cfg["use_at"],
-                    max_sim_time=max_sim_time,
-                    explore_budget=explore_budget or cfg["explore_budget"])
+    r = life.run(start or cfg["start"], use_at=cfg["use_at"],
+                 max_sim_time=max_sim_time,
+                 explore_budget=explore_budget or cfg["explore_budget"],
+                 resume=loaded.snapshot)
+    if keeper is not None:
+      keeper.save()
+    return r
   finally:
     if recorder is not None:
       recorder.close()

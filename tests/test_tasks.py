@@ -308,16 +308,29 @@ def test_a_task_outlives_a_restart(tmp_path):
   assert back.next_id() != standing.id
 
 
-def test_a_task_interrupted_by_a_restart_comes_back_failed(tmp_path):
-  """`active` on disk means the robot doing it no longer exists. Coming back
-  `active` would be a marker that never resolves; coming back `expired` would
-  claim nobody took the offer, and somebody did."""
+def _game_under_way(b: TaskBoard, t: float = 1.0) -> Task:
+  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  b.claim(game.id, robot="pluggybot", t=t, role="hider")
+  b.claim(game.id, robot="r2_pluggybot", t=t, role="seeker")
+  b.start(game.id, t=t + 1.0)
+  return game
+
+
+def test_a_job_under_way_at_a_restart_is_still_its_robots(tmp_path):
+  """The robot that took it is still that robot (issue #345): an errand job
+  `active` on disk comes back CLAIMED by it -- its errand is queued again
+  and marks it active when it starts (`HubLifecycle._resume_jobs`). Before
+  #345 it came back `failed`, a job lost to the restart rather than to the
+  work. A GAME still fails: its referee lived in the process."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
   task = offered(b)
-  b.claim(task.id, t=1.0)
+  b.claim(task.id, robot="r2_pluggybot", t=1.0)
   b.start(task.id, t=2.0)
-  assert board(path=path)[task.id].state == "failed"
+  game = _game_under_way(b)
+  back = board(path=path)
+  assert (back[task.id].state, back[task.id].claimed_by) == ("claimed", "r2_pluggybot")
+  assert back[game.id].state == "failed"
 
 
 def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
@@ -357,9 +370,7 @@ def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   each would have been, after the hooks are attached, and once."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
-  task = offered(b)
-  b.claim(task.id, t=1.0)
-  b.start(task.id, t=2.0)
+  task = _game_under_way(b)
   back = board(path=path)
   assert [t.id for t in back.interrupted] == [task.id]
   heard = []
@@ -375,12 +386,13 @@ def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   assert board(path=path).interrupted == []                 # failed on disk now
 
 
-def test_a_task_claimed_but_not_started_at_a_restart_is_offered_again(tmp_path):
-  """A claim with no work behind it is an offer nobody is working on: the
-  claimant no longer exists and nothing re-queues its errand, so `claimed`
-  on disk would stand forever (the served pair held one all day,
-  2026-09-17). Back to `offered`, claim and answer cleared, deadline kept;
-  a roles job drops the roles held; a resolved job keeps its claims."""
+def test_a_claim_survives_a_restart_and_a_games_roles_do_not(tmp_path):
+  """A claim is still its robot's (issue #345): the lifecycle queues its
+  errand again (`_resume_jobs`), and gives it back only if that robot is
+  not in the new world (`release_absent`) -- which is what closed the day
+  the served pair held a claim with nobody behind it (2026-09-17). A
+  committed answer stays with the claim. A game's roles are dropped, its
+  referee having lived in the process; a resolved job keeps its claims."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
   task = offered(b, ttl=100.0)
@@ -395,14 +407,19 @@ def test_a_task_claimed_but_not_started_at_a_restart_is_offered_again(tmp_path):
   b.resolve(done.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE), t=2.0)
 
   back = board(path=path)
-  for tid in (task.id, asked.id, game.id):
-    t = back[tid]
-    assert t.state == "offered" and t.claimed_by == "" and t.claimed_t is None
-    assert t.claimable(50.0), tid
-  assert back[task.id].deadline == task.deadline - 2.0      # rebased, see above
-  assert back[asked.id].answer == "" and back[asked.id].secret == {"answer": "12"}
+  for tid in (task.id, asked.id):
+    assert (back[tid].state, back[tid].claimed_by) == ("claimed", "r2_pluggybot")
+  assert back[asked.id].answer == "12" and back[asked.id].secret == {"answer": "12"}
+  t = back[game.id]
+  assert t.state == "offered" and t.claimed_by == "" and t.claimed_t is None
+  assert t.claimable(50.0)
   assert back[game.id].claims == {} and back[game.id].open_roles() == game.roles
   assert back[done.id].state == "done"
+  # ...and one whose robot is not in this world goes back on offer
+  gone = back.release_absent({"pluggybot"})
+  assert {g.id for g in gone} == {task.id, asked.id}
+  assert back[task.id].claimable(50.0) and back[asked.id].answer == ""
+  assert back[task.id].deadline == task.deadline - 2.0      # rebased, see above
 
 
 def test_a_hand_edited_state_file_cannot_re_point_a_task_at_a_richer_row(tmp_path):

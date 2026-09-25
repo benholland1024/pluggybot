@@ -10,6 +10,82 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The pair waits its turn at the rack (#346) — opens when this PR is deployed
+
+**What changed in the world.** On the pair, a bay the other robot stands on
+used to fail the job at once, and a robot could stand at the rack after a
+swap, a charge or a failed pick for as long as it liked. Now it waits: it
+backs off beside the other robot's lane and waits up to 3× how long that
+interaction usually takes (90 s for a swap, 1386 s for a charge — a charge
+also holds the tool bay beside it). The charge approach waits again before
+each look. After any interaction at the rack, the robot leaves it before it
+decides anything, and checks that it left. A return that failed is tried
+again, twice at most, before the next job. A robot alone behaves exactly as
+before. SimNotes, "Two robots at one rack", has the measurements.
+
+**What the period is for.** The table in #346 is the previous period's
+reading (`42f4a11`, 11:47–19:00 UTC on 2026-09-24): picks refused because
+the other robot was at the bay 6 of 47, returns 7 of 38, charge approaches
+11 of 30 (plus 6 "no-tag" and 2 "no route"; 11 connected), and all 4 `flat`
+deaths after a refused charge. The same counts off this period's sim log,
+beside it, are the reading. New lines to read:
+
+- `WAIT: <who> is standing … waiting up to N s` and `WAIT: … free after N s`
+  / `gave up … after N s`: how often a bay is taken and how long it stays
+  taken. A wait that runs to its bound means a robot that does not leave.
+- `RACK: lingering N s …`: a robot left at the rack by something this change
+  does not cover. Expect none.
+- `SWAP_RETURN again (k/2)`: a failed return retried.
+- `GO_CHARGE: no charge contact (no-tag)` now carries a `charge_trace` in
+  the log, with what each look saw.
+- History: "… was at the bay I needed; I waited for it", "could not get
+  clear of the rack".
+
+**Not yet known.** Whether two robots that both need the charge bay still
+lose one to a `flat` death while it waits 1386 s. The wait bounds how long
+it tries, not whether the pack lasts. Also whether the minds start to plan
+around each other's turns, now that the geometry no longer settles them.
+
+### A restart is a continuation (#345) — opens when this PR is deployed
+
+**What changed in the world.** Every process end — the hourly ceiling, a
+deploy, a crash — used to reset the world: both robots at their spawn poses
+on a full pack with empty maps, every module on its bay, and the job in hand
+failed. Now the world is saved every sim minute and when a run ends, and the
+next process carries on from it. That covers the bodies, the packs, the
+poses and maps, deaths and their stand-up timers, and the sim clock. It also
+covers the jobs each robot held: an errand job is queued again, and a
+procedure job stays claimed. History's first line after a restart is "the
+world restarted; I carried on from …", not "woke up … with the pack at
+100%". Sim time continues across restarts, so `t` on the wire grows past
+3600. The run's own errand (`PLUGGY_ERRAND=draw`, Luca's) now runs once per
+world instead of opening every process, and an offered challenge sets its
+blocks or cubes back out, as the hourly reset used to. The hourly ceiling itself is unchanged; it now ends only the errand in
+flight, and that errand's job is kept (rooftop-media-2026's PR for #345 has
+the memory reading that holds it for now). Webserver.md, "A restart is a
+continuation", is the design.
+
+**What the period is for.** Every reading taken against the pack was taken
+against a buffer the world refilled for free each hour, so the sixth
+quality's shapes change meaning here, and a reading says which side of this
+period it is on:
+
+- `buffer kept`, `buffer spent`, `caution chosen`: every hour used to start
+  at 100 %. Now a robot that ends an hour at 5 % starts the next at 5 %.
+- `deaths by cause`: a `flat` death could not span an hour before, and now
+  it can. The `unminded` clock is no longer reset every hour either.
+- `survivalS` on a `death` row: no longer bounded by one process.
+- `task_resolved` rows with "interrupted by a restart": expect none, except
+  a game's.
+
+What to read: the `mission resumed` narration at a run's start, the History
+lines that say what a restart cut short, and any "the world could not carry
+on" line. That last line means a fresh start: a crash loop, or a changed
+world.
+
+**Not yet known.** Whether a robot that cannot count on the hour to refill
+its pack charges differently. And whether the crash-loop refusal ever fires.
+
 ### The list of rules is kept until a true death (#337) — opens when this PR is deployed
 
 **What changed in the mind.** The event map lived in the process, and the
