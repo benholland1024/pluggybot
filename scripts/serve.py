@@ -98,14 +98,16 @@ def main() -> None:
   a death with no such line was a kill."""
   watchdog = vitals.Watchdog().start()
   try:
-    serve(watchdog)
+    stopped = serve(watchdog)
   except BaseException as e:
     watchdog.close(vitals.why_of(e))
     raise
-  watchdog.close(vitals.why_of(None))
+  watchdog.close(vitals.why_of(None, stopped))
 
 
-def serve(watchdog: "vitals.Watchdog") -> None:
+def serve(watchdog: "vitals.Watchdog") -> str | None:
+  """The served world, start to end; the signal that asked it to stop (a
+  deploy's SIGTERM), if one did, so the exit line can say so."""
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
@@ -360,8 +362,7 @@ def serve(watchdog: "vitals.Watchdog") -> None:
                  "with, so it needs --arm autonomous (docs/Evaluation.md §2)")
 
   if args.pair:
-    serve_pair(args, flags, rung, origin, watchdog)
-    return
+    return serve_pair(args, flags, rung, origin, watchdog)
 
   cfg = world_config(args.world)
   # A RESTART IS A CONTINUATION (issue #345): the saved world, if there is
@@ -724,9 +725,10 @@ def serve(watchdog: "vitals.Watchdog") -> None:
   wall = time.monotonic() - wall0
 
   report(r, wall, life, publisher, pacer, t0=snap.t if snap is not None else 0.0)
+  return keeper.stop_requested if keeper is not None else None
 
 
-def serve_pair(args, flags: dict, rung, origin, watchdog) -> None:
+def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   """Two robots from one loop on the wire (issue #181): `build_pair` makes
   the world and the two lifecycles exactly as the pair demo and the pair
   fixture do, and this wires ONE publisher with a `StreamRobot` for the
@@ -918,6 +920,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> None:
   for life, r, name in zip(lives, results, names):
     report(r, wall, life, publisher, pacer, label=name,
            t0=snap.t if snap is not None else 0.0)
+  return keeper.stop_requested if keeper is not None else None
 
 
 def open_world(path, world: str) -> "continuation.Loaded":
@@ -980,6 +983,9 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
   pair's second robot so the two do not read as one. `t0` is the sim clock
   the run started from: a carried-on world's clock does not start at zero
   (issue #345)."""
+  # This process's share of the clock: the spend and the wall time are this
+  # process's alone, and the clock carries on across a restart (issue #345).
+  ran = r["sim_time"] - t0
   if label:
     print(f"\n---- {label} ----")
   print()
@@ -1004,7 +1010,7 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
     o = r["overseer"]
     # Cost per SIM-hour, which is the number that matters for a box that runs
     # paced to real time: at --rate 1.0 a sim-hour is an hour of electricity.
-    per_hour = o["usd"] / (r["sim_time"] / 3600.0) if r["sim_time"] else 0.0
+    per_hour = o["usd"] / (ran / 3600.0) if ran > 0 else 0.0
     print(f"overseer               : {o['llmCalls']} LLM call(s), "
           f"{o['fallbacks']} scripted, budget {o['budgetLeft']}/"
           f"{o['callsPerHour']} left, cache hit {o['cacheHitRate']:.0%}")
@@ -1062,7 +1068,6 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
             f"{v['droppedFull']} overflowed the queue")
     for reply in r.get("replies", ()):
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
-  ran = r["sim_time"] - t0
   print(f"sim / wall             : {ran:.1f} s / {wall:.1f} s"
         f"  ({ran / wall:.2f}x real time)"
         + (f", the clock carried on from {t0:.1f} s" if t0 else ""))

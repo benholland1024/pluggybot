@@ -2,6 +2,7 @@
 made-up series, the dumps with a fake memory reader, the crash stack in a
 child process. Nothing here flies a robot."""
 
+import io
 import os
 import subprocess
 import sys
@@ -9,10 +10,22 @@ import time
 import tracemalloc
 from pathlib import Path
 
+import pytest
+
 from pluggybot.telemetry import vitals
 from pluggybot.telemetry.vitals import RunawayRule, Watchdog
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _tracing_is_left_as_found():
+  """A test that fails between an onset and its report would leave
+  tracemalloc on for every later test in the worker, ~6x slower."""
+  was = tracemalloc.is_tracing()
+  yield
+  if tracemalloc.is_tracing() and not was:
+    tracemalloc.stop()
 
 
 def _feed(rule, series, minute=60.0):
@@ -40,9 +53,11 @@ def _day(steps, startup=STARTUP):
 
 def test_the_resting_rate_and_the_startup_never_fire():
   assert _feed(RunawayRule(), _day(RESTING)) == []
-  # ...and a slower box, whose build and carry-on straddle two samples: two
-  # fast minutes in a row, which is what the warm-up is for.
-  assert _feed(RunawayRule(), _day(RESTING, [212.6, 500.0, 788.5])) == []
+  # ...and a slower box, whose build and carry-on are spread over three
+  # minutes -- which a warm-up of two would fire on (shown).
+  slow = _day(RESTING, [212.6, 400.0, 600.0, 788.5])
+  assert _feed(RunawayRule(), slow) == []
+  assert _feed(RunawayRule(warmup=2), slow) != []
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():
@@ -66,7 +81,7 @@ def test_one_fast_minute_is_not_a_runaway():
   assert _feed(RunawayRule(), _day(RESTING[:10] + [300.0] + RESTING[:10])) == []
 
 
-def test_an_episode_ends_only_after_it_has_been_calm_as_long_as_it_ran():
+def test_an_episode_ends_after_two_calm_minutes_and_not_one():
   one_calm = [115.0] * 3 + [2.0] + [115.0] * 3
   assert len(_feed(RunawayRule(), _day(RESTING[:6] + one_calm))) == 1, \
     "a dip of one minute is the same runaway"
@@ -101,8 +116,13 @@ def test_the_onset_dumps_the_stacks_and_the_report_names_the_allocation(tmp_path
   dog.sim_time = lambda: 1234.5
   held = []
   try:
-    onsets = [i for i in range(len(series)) if dog.tick()]
-    assert onsets == [6] and tracemalloc.is_tracing()
+    for i in range(len(series)):
+      if dog.tick():
+        break
+      assert tracemalloc.is_tracing() == was_tracing, "never before the onset"
+    assert i == 6 and tracemalloc.is_tracing()
+    for _ in range(i + 1, len(series)):
+      assert not dog.tick(), "once per episode"
     held.append(bytearray(4 << 20))          # what the runaway allocates
     dog.report()
   finally:
@@ -139,9 +159,80 @@ def test_the_loop_reports_once_per_episode(tmp_path):
   assert "the watchdog failed" not in text
 
 
+def test_tracing_is_off_before_the_report_is_built(tmp_path, monkeypatch):
+  """Traced, the statistics trace themselves: ~20x the cost (MEASURED, 3 s
+  against 0.2 s per million traces), with the pair ~6x slower throughout."""
+  seen = []
+  real = tracemalloc.Snapshot.statistics
+  monkeypatch.setattr(tracemalloc.Snapshot, "statistics", lambda self, *a, **kw:
+                      seen.append(tracemalloc.is_tracing()) or real(self, *a, **kw))
+  out = open(tmp_path / "log.txt", "w")
+  dog = _runaway_dog(out, _cumulative(800.0, [2.0] * 4 + [115.0] * 3))
+  while not dog.tick():
+    pass
+  dog.report()
+  out.close()
+  assert seen == [False]
+
+
+def test_a_report_that_fails_still_stops_the_tracing(tmp_path, monkeypatch):
+  """Left on, the pair would run ~6x slower until the process ended."""
+  def broken(self, *a, **kw):
+    raise RuntimeError("the report broke")
+  monkeypatch.setattr(tracemalloc.Snapshot, "statistics", broken)
+  out = open(tmp_path / "log.txt", "w")
+  dog = _runaway_dog(out, _cumulative(800.0, [2.0] * 4 + [115.0] * 3))
+  while not dog.tick():
+    pass
+  assert tracemalloc.is_tracing()
+  try:
+    dog.report()
+  except RuntimeError:
+    pass
+  out.close()
+  assert not tracemalloc.is_tracing() and not dog._tracing
+
+
+def test_a_stream_without_a_descriptor_sends_the_stacks_to_stderr(capfd):
+  """faulthandler writes to a file descriptor; without one the onset used
+  to fail after latching the episode, and no report ever came."""
+  out = io.StringIO()
+  dog = _runaway_dog(out, _cumulative(800.0, [2.0] * 4 + [115.0] * 3))
+  while not dog.tick():
+    pass
+  assert tracemalloc.is_tracing()
+  dog.report()
+  text = out.getvalue()
+  assert text.count("the stacks went to stderr") == 2
+  assert "allocated since the onset is still held" in text
+  assert "most recent call first" in capfd.readouterr().err
+
+
+def test_closing_inside_a_trace_window_reports_before_the_exit_line(tmp_path):
+  """A crash while the runaway is being traced is the moment the report is
+  for, and the exit line comes after it."""
+  out = open(tmp_path / "log.txt", "w")
+  dog = _runaway_dog(out, _cumulative(800.0, [2.0] * 4 + [115.0] * 3))
+  while not dog.tick():
+    pass
+  dog.close(vitals.why_of(MemoryError()))
+  out.close()
+  text = (tmp_path / "log.txt").read_text()
+  assert text.count("allocated since the onset is still held") == 1
+  assert text.rstrip().splitlines()[-1].startswith(
+    "vitals: exiting -- MemoryError; rss")
+  assert not tracemalloc.is_tracing()
+
+
 def test_the_exit_line_says_why(tmp_path):
   out = open(tmp_path / "log.txt", "w")
+  was_tracing = tracemalloc.is_tracing()
   dog = Watchdog(out=out, sample_s=3600.0, read_rss=lambda: 812.0).start()
+  deadline = time.monotonic() + 10.0
+  while dog.ticks < 1 and time.monotonic() < deadline:
+    time.sleep(0.005)
+  assert tracemalloc.is_tracing() == was_tracing, \
+    "tracing starts at an onset, never at boot: from boot the pair ran 5.8x slower"
   dog.close(vitals.why_of(KeyError("fill")))
   out.close()
   text = (tmp_path / "log.txt").read_text()
@@ -151,6 +242,7 @@ def test_the_exit_line_says_why(tmp_path):
   assert vitals.why_of(None) == "the run ended"
   assert vitals.why_of(SystemExit(2)) == "exit 2"
   assert vitals.why_of(KeyboardInterrupt()) == "KeyboardInterrupt"
+  assert vitals.why_of(None, "SIGTERM") == "stopped by SIGTERM"
 
 
 def test_a_segfault_prints_every_threads_stack():

@@ -1080,6 +1080,44 @@ def test_a_carried_on_run_reports_its_own_real_time_multiple(capsys):
   assert "100.0 s / 100.0 s  (1.00x real time)\n" in fresh
 
 
+def test_a_carried_on_run_prices_its_own_sim_hours(capsys):
+  """The same mistake one line up: the spend is this process's and the
+  clock is the world's, so the deployed log read "$0.0142 per sim-hour" for
+  a run that spent $0.0287 in one sim-hour of its own."""
+  o = {"llmCalls": 40, "fallbacks": 0, "budgetLeft": 1, "callsPerHour": 60,
+       "cacheHitRate": 0.5, "model": "m", "backend": "huggingface",
+       "usd": 0.02873, "errors": []}
+  out = _report(dict(_RESULT, errands=[], sim_time=7287.6, overseer=o),
+                capsys, wall=3840.0, t0=3674.7)
+  assert "$0.0286 per sim-hour" in out
+
+
+def test_a_deploys_signal_is_the_exit_lines_reason(monkeypatch, tmp_path, capsys):
+  """Issue #349: a deploy's SIGTERM ends the run the way the hourly
+  ceiling does, and the exit line is what tells the two apart."""
+  import signal
+
+  serve = _load_serve()
+  before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+
+  class _Deployed(_FakeLife):
+    def run(self, *a, **kw):
+      signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+      return super().run(*a, **kw)
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _Deployed(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run", "--world-state",
+                                    str(tmp_path / "w.npz")])
+  try:
+    serve.main()
+  finally:
+    for sig, h in before.items():
+      signal.signal(sig, h)
+  assert "vitals: exiting -- stopped by SIGTERM" in capsys.readouterr().out
+
+
 def test_flush_waits_for_the_queue_to_leave_and_gives_up_on_the_bound(mini_model):
   """`flush()` is what a crash message rides out on: True once the sink
   has it, False -- inside the bound, not never -- when nobody is listening."""

@@ -35,16 +35,13 @@ RUNAWAY_MB_PER_MIN = 50.0
 RUNAWAY_MINUTES = 2
 #: Samples after start that judge nothing: the world is built and carried on
 #: from then (212 -> 788 MiB in the deployed process's first minute), and a
-#: slower box straddles two samples doing it.
+#: slower box spreads that over three.
 WARMUP_MINUTES = 3
 #: Wall seconds of tracemalloc between the onset and the allocation report.
 #: It starts AT the onset, never at boot: MEASURED, traced from boot the pair
 #: ran 5.8x slower (7.8 sim-s a wall minute against 45, free-running), and a
-#: runaway still growing is growing in what it traces. Short, because the pair
-#: runs that slowly while it traces, and the report is ~3 s of Python per
-#: million live traces, taken from the physics thread's share of the GIL
-#: (filtering the snapshot cost 11 s more per million, so it is not
-#: filtered): 20 s of the measured runaway is at most ~38 MiB.
+#: runaway still growing is growing in what it traces. Short for the same
+#: reason: the pair runs that slowly for as long as it traces.
 TRACE_S = 20.0
 #: Frames kept per traced allocation, and how many of the largest are shown.
 TRACE_FRAMES = 8
@@ -127,7 +124,12 @@ class Watchdog:
     self.peak: float | None = None
     self.ticks = 0
     self._t0 = clock()
+    # `_tracing`: tracemalloc is on because WE started it (an operator's
+    # PYTHONTRACEMALLOC is reported off and left alone). `_due`: an onset's
+    # report is owed -- by the thread, or by `close` inside a trace window.
     self._tracing = False
+    self._due = False
+    self._lock = threading.Lock()
     self._stop = threading.Event()
     self._thread: threading.Thread | None = None
 
@@ -140,16 +142,19 @@ class Watchdog:
     return self
 
   def close(self, why: str) -> None:
+    """The exit line, after the report a trace window still owes (a crash
+    inside the window is the moment it was for) and BEFORE the join: a line
+    the stop's grace ran out on reads as a kill."""
     self._stop.set()
-    if self._thread is not None:
-      self._thread.join(timeout=5.0)
-    if self._tracing:
-      tracemalloc.stop()
-      self._tracing = False
+    self.report()
     mib = self.read_rss()
     self._say(f"vitals: exiting -- {why}; rss {_mb(mib)}, peak "
               f"{_mb(_max(self.peak, mib))}, up "
               f"{(self.clock() - self._t0) / 60.0:.0f} min")
+    if self._thread is not None:
+      self._thread.join(timeout=1.0)
+    with self._lock:
+      self._stop_tracing()
 
   def _run(self) -> None:
     while True:
@@ -163,7 +168,7 @@ class Watchdog:
         return
 
   def tick(self) -> bool:
-    """One sample and its line; at an onset, the stacks and the tracing."""
+    """One sample and its line; at an onset, the tracing and the stacks."""
     mib = self.read_rss()
     onset = self.rule.sample(self.clock(), mib)
     self.ticks += 1
@@ -177,16 +182,34 @@ class Watchdog:
                 f"{self.rule.mb_per_min:.0f} MiB/min for {self.rule.minutes} "
                 f"minutes (now {rate:+.0f}); every thread's stack follows, and "
                 f"in {self.trace_s:.0f} s what was allocated in between")
-      faulthandler.dump_traceback(file=self._stream(), all_threads=True)
-      if not tracemalloc.is_tracing():
-        tracemalloc.start(TRACE_FRAMES)
-        self._tracing = True
+      # Tracing first: the onset latches the episode, so a dump that failed
+      # before it would cost the report too.
+      with self._lock:
+        if not tracemalloc.is_tracing():
+          tracemalloc.start(TRACE_FRAMES)
+          self._tracing = True
+        self._due = True
+      self._dump()
     return onset
 
   def report(self) -> None:
-    """The largest allocations since the onset, and the stacks again."""
-    if tracemalloc.is_tracing():
-      stats = tracemalloc.take_snapshot().statistics("traceback")
+    """The largest allocations since the onset, and the stacks again. Once
+    per onset, whoever gets here first."""
+    with self._lock:
+      if not self._due:
+        return
+      self._due = False
+      try:
+        snap = tracemalloc.take_snapshot() if tracemalloc.is_tracing() else None
+      finally:
+        # Off BEFORE the statistics: traced, they traced themselves and cost
+        # ~20x (MEASURED, 3 s against 0.2 s per million traces), and the pair
+        # runs ~6x slower for as long as anything is traced.
+        self._stop_tracing()
+    if snap is None:
+      self._say("vitals: tracemalloc was not running at the report")
+    else:
+      stats = snap.statistics("traceback")
       held = sum(s.size for s in stats)
       self._say(f"vitals: {held / _MIB:.1f} MiB allocated since the onset is "
                 f"still held; the {TOP_ALLOCATIONS} largest, newest frame "
@@ -195,13 +218,26 @@ class Watchdog:
         self._say(f"  {s.size / _MIB:.1f} MiB in {s.count} block(s)")
         for line in s.traceback.format(most_recent_first=True):
           self._say(f"    {line.strip()}")
-    else:
-      self._say("vitals: tracemalloc was stopped before the report")
     self._say(f"vitals: every thread's stack, {self.trace_s:.0f} s on:")
-    faulthandler.dump_traceback(file=self._stream(), all_threads=True)
+    self._dump()
+
+  def _stop_tracing(self) -> None:
     if self._tracing:
       tracemalloc.stop()
       self._tracing = False
+
+  def _dump(self) -> None:
+    """Every thread's stack. faulthandler writes to a file descriptor, so a
+    stream without one sends them to stderr instead of losing them."""
+    stream = self._stream()
+    try:
+      stream.flush()
+      faulthandler.dump_traceback(file=stream, all_threads=True)
+    except (AttributeError, ValueError, OSError):
+      if sys.__stderr__ is None:
+        return
+      self._say("vitals: (the stacks went to stderr)")
+      faulthandler.dump_traceback(file=sys.__stderr__, all_threads=True)
 
   def _clock_note(self) -> str:
     try:
@@ -220,13 +256,14 @@ class Watchdog:
     stream.flush()
 
 
-def why_of(exc: BaseException | None) -> str:
-  """What `close` says ended the process."""
-  if exc is None:
-    return "the run ended"
-  if isinstance(exc, SystemExit):
-    return f"exit {exc.code}"
-  return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+def why_of(exc: BaseException | None, stopped: str | None = None) -> str:
+  """What `close` says ended the process: the exception, the signal that
+  asked the run to stop (a deploy's SIGTERM), or the run's own end."""
+  if exc is not None:
+    if isinstance(exc, SystemExit):
+      return f"exit {exc.code}"
+    return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+  return f"stopped by {stopped}" if stopped else "the run ended"
 
 
 def _max(a: float | None, b: float | None) -> float | None:
