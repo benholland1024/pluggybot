@@ -93,6 +93,17 @@ def test_a_verb_that_does_not_drive_leaves_the_pose_alone(hub_model, monkeypatch
     "fetch", "stow", "drive_to", "drive", "face", "pick", "place", "draw"}
 
 
+def test_the_mind_is_told_which_verbs_re_pose_the_tool():
+  """A pose set with `move` is undone by the next verb that drives, and a
+  procedure written without knowing it would read its own tool wrong: the
+  rule names every driving verb, off the flags themselves."""
+  from pluggybot.mind.overseer import procedure_rule
+  drivers = [name for name, v in st.VERBS.items() if v.drives]
+  rule = procedure_rule()
+  assert f"moves the robot ({', '.join(f'`{d}`' for d in drivers)}) first" in rule
+  assert "carrying pose" in rule
+
+
 def test_a_tool_already_posed_costs_no_physics_step(hub_model, monkeypatch):
   """Only what a procedure moved is moved back: a verb that finds the pose
   already right steps nothing before its drive."""

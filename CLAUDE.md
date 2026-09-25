@@ -1889,7 +1889,8 @@ save a filmstrip PNG named after the script.
   `Verb.drives` and goes through `steps.run_verb`, which puts the fork into
   its carrying pose first (`travel_pose`: a tool's axes to their compiled
   rest, the arm in, `MODULE_DRIVE_LIFT`; a claw holding a cube keeps it at
-  `CARRY_LIFT`, arm out); a new driving verb sets the flag. ⚠ A procedure's
+  `CARRY_LIFT`, arm out); a new driving verb sets the flag, and
+  `procedure_rule` names the flagged verbs to the mind. ⚠ A procedure's
   `draw` takes the planner to `use_at` before the use-phase:
   `drive_to_board_routine` is a straight line with no planner, and from the
   rack it knocked Rowan over six times of six (SimNotes, "A drawing that

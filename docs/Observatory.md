@@ -19,8 +19,9 @@ the floor until a person reset it, which Ben did 9 times in the 7 days to
 planner's route to its board. It used to drive straight at the board from
 wherever the robot stood, and every live `pen_check` that reached `draw`
 knocked Rowan over (6 of 6). Every procedure verb that moves the robot now
-puts the tool into its carrying pose first. SimNotes, "A drawing that set
-off from the rack", has the measurements.
+puts the tool into its carrying pose first, and the procedure rule in the
+`autonomous` prompt says so in one sentence, which names those verbs.
+SimNotes, "A drawing that set off from the rack", has the measurements.
 
 **What the period is for.** Phase 1's gate (#344) includes "no manual tool
 reset over 24 hours". The rows to read are `?kind=intervention` with
