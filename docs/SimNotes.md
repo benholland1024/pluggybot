@@ -1314,8 +1314,9 @@ arrived inside 0.15 m — so a robot standing within 0.45 m of a bay standoff
 makes that bay unpickable, measured 0/3 picks at 0.26 m against 3/3 at
 0.56 m (issue #313, which spent a week looking like a pen fault, a planner
 fault and a contention fault in turn). `HubMission.peer_on_the_goal` is
-the arithmetic; the swap gives the bay up by name rather than spending a
-second attempt on a point it cannot reach. The pick lands at 50 s with the
+the arithmetic; since issue #346 the swap WAITS for the bay rather than
+spending attempts on a point it cannot reach ("Two robots at one rack",
+below). The pick lands at 50 s with the
 other robot crossing its path, and the second robot's pick fails honestly
 at the empty bay.
 
@@ -1828,6 +1829,68 @@ it died in, in bounded passes: in the reproduction, about 70 s of it, and
 swap and the charge approach take no attempt from where it stopped: out of
 line, a deployed fork or a creep is the knocked-off module the refine
 exists to prevent (second review).
+
+## Two robots at one rack (issue #346)
+
+On build `42f4a11` the pair's rack was the biggest single cause of failed
+jobs and of every `flat` death: 6 of 47 picks, 7 of 38 stows and 11 of 30
+charge approaches were refused because the other robot stood on the
+standoff, and a further 6 charges failed "no-tag". Three things combined:
+a robot said it was clearing the rack and never checked it had left
+(`_clear_rack_routine` threw the drive's answer away); a bay somebody stood
+on was given up at once (#313's early return); and nothing moved a robot
+from the rack between a swap or a charge and its next decision.
+
+Two explanations were measured, not guessed:
+
+- **"no-tag" is a look from BESIDE the standoff.** With the other robot at
+  every tool bay's standoff and 0.5 m out in the charge lane, the charge
+  tag decoded from the charge standoff every time: the other robot never
+  hides it (at camera height the line is clear even at bay B, 0.200 m
+  off). Held 0.3-0.6 m off the standoff and facing the rack, the tag
+  decodes only within ±30° of the bay's axis (room_hub; ±30-60° in the
+  home world). 60-90° along the rack face is out of the camera's 41°, and
+  that is exactly where the other robot's 0.60 m planner disc leaves a
+  robot when the other stands at the neighbouring bay. The live case
+  (2026-09-25, `a803c83`, Rowan at t=2198) started its approach while Luca
+  picked the LCD one bay over.
+- **The 60 s "never got there" is the other robot standing at the
+  neighbouring bay.** A robot at bay A's standoff after a pick, driving to
+  the world's use pose with near-field on, as deployed:
+
+  | the other robot | room_hub | home |
+  |---|---|---|
+  | far away | arrived, 13.2 s | arrived, 15.2 s |
+  | at the charge standoff, or 0.7 m out in bay A's lane | arrived, 14.1 / 16.7 s | — |
+  | at bay B's standoff (0.25 m off) | **60.0 s, 2.96 m short** | **60.0 s, 3.41 m short** |
+  | at the new waiting spot | arrived, 13.2 s | arrived, 15.2 s |
+
+  Each failure is one peer HOLD (#328's corridor) and then the stagnation
+  wait (`OTHER_WAIT_S`) until the errand's 60 s ran out.
+
+How long a swap holds a bay, off the believed pose within the 0.45 m of
+`peer_on_the_goal`, one flight each world on the hosting pack: room_hub
+carry pick 26.9 s and stow 34.2 s; home pen pick 30.6 s, and a stow run
+straight into the next pick 55.6 s. A charge is the deployed figure: 278-542
+s, median 462 s.
+
+**What is true now:** after a swap, a charge or a failed pick, a robot with
+somebody else in the world leaves the rack before it decides
+(`_leave_rack_routine`), and checks that it got there: a clear that ended
+inside `RACK_CLEAR_M` tries `CLEAR_SPOTS` other places and says in History
+where it ended. A robot that stays within the rack's reach for
+`RACK_LINGER_S` doing nothing there is logged `RACK: lingering`. A taken
+bay, the charge bay included, is waited for (`HubMission.bay_wait` ->
+`HubLifecycle._await_bay_routine`) from a spot beside and behind the
+holder's lane, or from the start pose when the map is too thin there, for
+3× the typical occupancy of what holds it (`SWAP_OCCUPANCY_S` 30,
+`CHARGE_OCCUPANCY_S` 462; a charge holds the neighbouring tool bay too).
+The charge approach waits again before each look. Inside an errand the
+robot's own interrupt and the reserve end a wait; a charge's wait has
+neither. A return that failed is tried again, `STOW_RETRIES` times, before
+anything but a charge. A failed charge approach logs `charge_trace`: per
+look, fix or none, the belief's drift, the distance from the standoff, the
+other robot's distance and what the camera's line to the tag meets first.
 
 ## Debugging workflow that worked
 

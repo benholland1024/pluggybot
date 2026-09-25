@@ -1419,15 +1419,26 @@ save a filmstrip PNG named after the script.
   makes that bay unreachable however many attempts are spent on it —
   MEASURED 0/3 picks with a robot at the neighbouring standoff (0.26 m)
   against 3/3 at 0.56 m. `HubMission.peer_on_the_goal` is that arithmetic
-  and has one home; `swap_at_bay_routine` answers `peer-at-bay` and the
-  lifecycle names the robot and the distance (`peer_at_the_bay`), because
-  "no route" sent one robot looking for a fault in its own pen.
-  `RACK_CLEAR_M` does not cover it: that moves a robot STANDING BY, and
-  the one in the way is charging or swapping. ⚠ One rack, one charge
-  bay, contended and unarbitrated: a scripted pair sent for the same tool
-  ends with the second's pick failing honestly at an empty bay; two robots
-  needing to charge at once is a death the second bay (later slice)
-  removes. The world's activities are on the FIRST robot's hooks only.
+  and has one home. ⚠ **A TAKEN BAY IS WAITED FOR, AND DONE AT THE RACK
+  MEANS GONE** (issue #346; SimNotes "Two robots at one rack"): the swap
+  and both halves of the charge approach ask `HubMission.bay_wait`
+  (`HubLifecycle._await_bay_routine`) and wait beside the holder's lane
+  for `WAIT_OCCUPANCIES` (3, Ben's) × the MEASURED occupancy of what holds
+  the bay — `SWAP_OCCUPANCY_S` 30, `CHARGE_OCCUPANCY_S` 462, and a charge
+  holds its neighbouring tool bay (0.200 m) too — before `peer-at-bay`,
+  whose line says who held it and for how long. Inside an errand the
+  robot's own interrupt and the reserve end the wait; a charge's wait has
+  neither (giving up on it is the death). With a peer in the world the
+  loop leaves the rack before deciding or grading (`_leave_rack_routine`),
+  `_clear_rack_routine` READS its drive and tries `CLEAR_SPOTS` more,
+  `RACK: lingering` logs what still escapes, and a failed return is
+  retried `STOW_RETRIES` times before anything but a charge. ⚠ Alone,
+  none of it moves the robot: a single robot's day is unchanged. ⚠ Every
+  "no-tag" charge measured was a look from BESIDE the standoff (±30° of
+  the axis decodes, 60–90° cannot), never the other robot hiding the tag;
+  `charge_trace` logs what each look saw. ⚠ One rack, one charge bay:
+  contention is the minds' opportunity (#208) and the geometry must not
+  settle it. The world's activities are on the FIRST robot's hooks only.
   `scripts/two_robots.py [--view] --errands carry,carry` is the demo.
 - **Two minds, two memories, one board** (issue #167 slice C; `pair.
   build_pair(overseer=True)`, Overseer.md §2c). Per robot: overseer, event
