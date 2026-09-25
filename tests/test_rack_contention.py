@@ -238,11 +238,13 @@ def test_the_wait_is_bounded_at_three_typical_occupancies_of_what_holds_it():
     assert ("charge" if state == "CHARGE" else "swap") + " usually takes" in said
 
 
-def test_the_robots_own_battery_row_interrupts_a_wait_inside_an_errand():
-  """The wait is the errand's, so the errand's interrupt reaches it -- a
-  `battery_below` row that names an action ends it without a call. A
-  CHARGE's wait is not interrupted: charging is what the row asks for."""
-  for kind, stops in (("bay", True), ("charge", False)):
+def test_the_robots_own_battery_row_interrupts_a_picks_wait_and_nothing_else():
+  """A pick's wait is the errand's, so the errand's interrupt reaches it --
+  a `battery_below` row that names an action ends it without a call. A
+  CHARGE's wait is not interrupted (charging is what the row asks for),
+  and nor is a RETURN's: abort means stow, and a procedure's `stow()` runs
+  inside its errand -- ended early it left the tool riding the fork."""
+  for kind, stops in (("pick", True), ("return", False), ("charge", False)):
     life = _life()
     sx, sy, _ = bay_standoff(STATION, life.mission.rack)
     peer = _peer(sx + 0.2, sy, "CHARGE")
@@ -388,3 +390,82 @@ def test_the_charge_trace_names_what_stands_between_the_camera_and_the_tag():
   line = charge_trace(me.mission.last_charge)
   assert line.startswith("#1 no tag") and "peer 0.0 m from it" in line
   assert f"sight {SECOND.prefix}" in line
+
+
+# ---- found reviewing the PR ---------------------------------------------------
+
+
+def test_a_clear_that_failed_is_not_driven_again_from_the_same_place():
+  """`_leave_rack_routine` runs before EVERY decision: a robot that could
+  not get away re-drove every spot (minutes) and wrote a History line per
+  pass. From where it gave up, it does not try again until it has moved."""
+  life = _life(_peer(9.0, 9.0))
+  sx, sy, _ = bay_standoff(STATION, life.mission.rack)
+  _at(life, sx, sy)
+  life.mission.grid.grid[:] = -5.0
+  drives = []
+  life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a[:2]),
+                                                    tick.result(False))[1]
+  life.mission.run(life._leave_rack_routine())
+  tried = len(drives)
+  assert tried == 1 + lc.CLEAR_SPOTS
+  life.mission.run(life._leave_rack_routine())
+  assert len(drives) == tried, "drove the same failed clear again"
+  _at(life, sx + 0.5, sy)                      # it went somewhere, and came back
+  life.mission.run(life._leave_rack_routine())
+  assert len(drives) == 2 * tried
+
+
+def test_an_old_wait_is_not_told_as_this_failures_story():
+  """`held_for` adds "I waited N s" only for the wait that ended THIS
+  failure: a charge refused after a spin, hours after a wait for the same
+  robot, claimed a 1386 s wait that never happened."""
+  life = _life(_peer(0.0, 0.0))
+  life.last_bay_wait = {"who": "Rowan", "why": "bound", "s": 1386.0,
+                        "bound": 1386.0, "of": "charge", "end": 10.0}
+  life.data.time = 10.0
+  assert "I waited 1386 s" in life.held_for(("Rowan", 0.2))
+  life.data.time = 4000.0
+  assert life.held_for(("Rowan", 0.2)) == ("Rowan was standing 0.20 m from "
+                                           "the bay, nearer than the planner may route")
+
+
+def test_a_peer_the_lifecycle_cannot_name_is_still_waited_for():
+  """The wait is keyed on the RULE (`peer_on_the_goal`), never on having a
+  name for the robot: answering "free" for a peer the planner routes round
+  sent the swap round its loop at no sim time at all."""
+  life = _life()
+  sx, sy, _ = bay_standoff(STATION, life.mission.rack)
+  life.mission.others = [lambda: (sx + 0.2, sy)]    # routed round, unnamed
+  _clock(life)
+  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  assert life.mission.run(life._await_bay_routine(sx, sy, "pick", 0.0)) is False
+  assert life.data.time == pytest.approx(3 * lc.SWAP_OCCUPANCY_S,
+                                         abs=lc.BAY_POLL_S)
+  assert "another robot" in life.thoughts.read("History.md")
+
+
+def test_the_charge_approach_faces_the_rack_before_it_looks_after_a_wait():
+  """Back from the waiting spot the robot arrives at whatever heading the
+  drive left it, and a look from there is the "no-tag" this exists to end."""
+  life = _life()
+  m = life.mission
+  sx, sy, hd = charge_standoff(m.rack)
+  m.others = [lambda: (sx + 0.2, sy)]
+  calls = []
+  m.bay_wait = lambda *a: (calls.append("wait"), tick.result(True))[1]
+  m.drive_to_routine = lambda *a, **kw: (calls.append("drive"), tick.result(True))[1]
+  m.face_routine = lambda h: (calls.append(("face", round(h, 3))), tick.result(True))[1]
+  m.swap._run_routine = lambda *a, **kw: tick.result(None)
+
+  class Looked(Exception):
+    pass
+
+  def look():
+    calls.append("look")
+    raise Looked
+
+  m.charge_bay_fix = look
+  with pytest.raises(Looked):
+    m.run(m.charge_approach_routine(0.5, 0.05))
+  assert calls == ["wait", "drive", ("face", round(hd, 3)), "look"], calls

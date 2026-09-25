@@ -441,6 +441,7 @@ class HubMission:
     self.last_swap: dict | None = None        # `swap_trace`'s source, issue #264
     self.last_charge: dict | None = None      # `charge_trace`'s, issue #346
     #: WHO WAITS FOR A TAKEN BAY (issue #346): `(sx, sy, kind, since)` ->
+    #: (`kind` is the swap's verb, `pick` or `return`, or `charge`)
     #: a routine answering True once the standoff is free, False once it
     #: gave up. The lifecycle's (it owns the bound, the waiting spot, the
     #: interrupt and History); None gives a bay up at once, as #313 did.
@@ -1444,6 +1445,7 @@ class HubMission:
         if not (yield from self.bay_wait(sx, sy, "charge", since)):
           return "peer-at-bay"
         yield from self.drive_to_routine(sx, sy, timeout=45.0)
+        yield from self.face_routine(charge_standoff(self.rack)[2])
       fix = self.charge_bay_fix()
       self._charge_look(fix)
       if fix is None:
@@ -1527,7 +1529,7 @@ class HubMission:
       near = self.peer_on_the_goal(sx, sy)
       if near is not None and self.bay_wait is not None:
         since = float(self.data.time) if since is None else since
-        if not (yield from self.bay_wait(sx, sy, "bay", since)):
+        if not (yield from self.bay_wait(sx, sy, verb, since)):
           self.peer_at_bay_m = self.peer_on_the_goal(sx, sy) or near
           self.last_swap["route"] = "peer-at-bay"
           return "peer-at-bay"

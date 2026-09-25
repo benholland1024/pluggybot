@@ -288,6 +288,10 @@ RACK_CLEAR_M = 2.0
 #: clear is a couple of metres -- so a blocked one costs little.
 CLEAR_SPOTS = 3
 CLEAR_DRIVE_S = 30.0
+#: A clear that failed is not tried again from the same place (within this
+#: far of where it gave up): the loop would otherwise re-drive every spot and
+#: write another History line before every decision.
+CLEAR_MOVED_M = 0.3
 #: How long a robot may stand within `RACK_CLEAR_M` doing nothing at the
 #: rack before the log says so (issue #346): past the longest honest
 #: in-between (a decision's think, median 5 s, p95 25 s, deployed max 43 s,
@@ -673,6 +677,7 @@ class HubLifecycle:
     self.last_bay_wait: dict | None = None
     self.stow_retries = 0
     self._stow_tries = 0
+    self._clear_failed_at: tuple | None = None
     self._linger_since: float | None = None
     self._linger_said = False
     self._next_linger_check = 0.0
@@ -1372,12 +1377,14 @@ class HubLifecycle:
     w = self.last_bay_wait
     said = (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
             "nearer than the planner may route")
-    if w is None or w.get("who") != blocked[0] or not w.get("why"):
+    # ...only the wait that ended THIS failure, at this sim instant: an
+    # older one would claim a wait that never happened for this bay
+    if (w is None or w.get("who") != blocked[0] or not w.get("why")
+        or w.get("end") != float(self.data.time)):
       return said
     return said + {
       "bound": f"; I waited {w['s']:.0f} s for it to leave, 3x how long one "
-               f"{'charge' if w['bound'] > WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S else 'swap'}"
-               " usually takes",
+               f"{w['of']} usually takes",
       "interrupted": f"; I waited {w['s']:.0f} s, until my own rule "
                      "interrupted the wait",
       "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
@@ -1466,8 +1473,17 @@ class HubLifecycle:
     swapped, charged or failed there does not stand in the other one's
     approach while it thinks. Alone in the world, nothing is blocked and
     nothing moves: a single robot's day is the trajectory it always was."""
-    if self.peers:
-      yield from self._clear_rack_routine()
+    if not self.peers:
+      return
+    px, py, _ = self.mission.pose
+    stuck = self._clear_failed_at
+    if stuck is not None and math.hypot(px - stuck[0], py - stuck[1]) < CLEAR_MOVED_M:
+      # ...tried from here already and could not get away (said in History
+      # then): not again before every decision, which would spend minutes
+      # of driving and a History line per pass on the same answer
+      return
+    cleared = yield from self._clear_rack_routine()
+    self._clear_failed_at = None if cleared else self.mission.pose[:2]
 
   def _rack_linger_step(self) -> None:
     """Log a robot that stays at the rack longer than what it came for
@@ -1517,18 +1533,18 @@ class HubLifecycle:
     return min(keep, key=lambda p: math.hypot(p[0] - px, p[1] - py),
                default=home)
 
-  def wait_bound(self, kind: str, sx: float, sy: float) -> float:
-    """How long a taken bay is waited for: `WAIT_OCCUPANCIES` times the
-    typical occupancy of what holds it -- a charge if the bay asked for is
-    the charge bay OR the robot nearest it is charging (its state is its
-    public surface), else a swap."""
+  def wait_bound(self, kind: str, sx: float, sy: float) -> tuple[float, str]:
+    """How long a taken bay is waited for, and what it is `WAIT_OCCUPANCIES`
+    times the typical occupancy of: a charge if the bay asked for is the
+    charge bay OR the robot nearest it is charging (its state is its public
+    surface), else a swap."""
     holder = min(self.peers, default=None,
                  key=lambda o: math.hypot(o.mission.pose_xy()[0] - sx,
                                           o.mission.pose_xy()[1] - sy))
     charging = kind == "charge" or (
       holder is not None and holder.state in ("GO_CHARGE", "CHARGE"))
-    return WAIT_OCCUPANCIES * (CHARGE_OCCUPANCY_S if charging
-                               else SWAP_OCCUPANCY_S)
+    return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
+            else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
                          since: float) -> Routine:
@@ -1543,25 +1559,33 @@ class HubLifecycle:
     a spot out of the holder's way, say so in History, and look again every
     `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
     from `since`, the first time THIS interaction found it taken) runs out.
-    Two more things end it early, both only inside an errand: the robot's
+    Two more things end a PICK's wait early, inside an errand: the robot's
     own event map (a `battery_below` row interrupts, as it would the errand
     -- `interrupted()`), and the pack reaching the reserve (#315's rule: the
     waiting is code's, and code does not spend the return trip on it). A
-    charge's wait has neither: charging is what either would ask for, and
-    giving up on it is how the robot dies.
+    RETURN's wait has neither -- abort means stow, and a return given up
+    leaves the tool on the fork, a procedure's `stow()` included (it runs
+    inside its errand) -- and nor does a CHARGE's: charging is what either
+    would ask for, and giving up on it is how the robot dies.
+
+    `kind` is the swap's verb (`pick`, `return`) or `charge`.
     """
-    held = self.peer_at(sx, sy)
-    if held is None:
+    near = self.mission.peer_on_the_goal(sx, sy)
+    if near is None:
       return True
-    who = held[0]
-    bound = self.wait_bound(kind, sx, sy)
+    # ...keyed on the RULE, never on the name: a peer the planner routes
+    # round but the lifecycle has no name for is still waited for, or the
+    # swap's loop would go round at no sim time at all
+    held = self.peer_at(sx, sy)
+    who = held[0] if held is not None else "another robot"
+    bound, of = self.wait_bound(kind, sx, sy)
     what = "the charge bay" if kind == "charge" else "the bay"
     first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
     # EVERY time, not only the first: a drive that found the bay taken again
     # stops at the edge of the holder's disc, which is its way out.
     spot = self._waiting_spot(sx, sy)
     if first:
-      self._say(f"WAIT: {who} is standing {held[1]:.2f} m from {what} -- "
+      self._say(f"WAIT: {who} is standing {near:.2f} m from {what} -- "
                 f"waiting up to {bound:.0f} s"
                 + ("" if spot is None else
                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
@@ -1569,18 +1593,18 @@ class HubLifecycle:
                      f"(up to {bound:.0f} s)")
       self.bay_waits += 1
       self.last_bay_wait = {"since": since, "who": who, "kind": kind,
-                       "bound": bound, "why": ""}
+                       "bound": bound, "of": of, "why": ""}
     if spot is not None:
       yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     ended = ""
     while self.mission.peer_on_the_goal(sx, sy) is not None:
       now = float(self.data.time)
-      bound = self.wait_bound(kind, sx, sy)
+      bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
         ended = "bound"
-      elif kind != "charge" and self._in_errand and self.interrupted():
+      elif kind == "pick" and self._in_errand and self.interrupted():
         ended = "interrupted"
-      elif (kind != "charge" and self._in_errand
+      elif (kind == "pick" and self._in_errand
             and self.battery.energy_wh <= self.low_battery_wh):
         ended = "pack"
       if ended:
@@ -1588,7 +1612,8 @@ class HubLifecycle:
       yield from self.mission._drive_routine(BAY_POLL_S, 0.0, 0.0)
     waited = float(self.data.time) - since
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
-                          "bound": bound})
+                               "bound": bound, "of": of,
+                               "end": float(self.data.time)})
     if ended:
       self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} "
                 "was still there" + {"bound": f" (the bound is {bound:.0f} s)",
