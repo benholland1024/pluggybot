@@ -10,6 +10,42 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The pair waits its turn at the rack (#346) — opens when this PR is deployed
+
+**What changed in the world.** On the pair, a bay the other robot stands on
+used to fail the job at once, and a robot could stand at the rack after a
+swap, a charge or a failed pick for as long as it liked. Now it waits: it
+backs off beside the other robot's lane and waits up to 3× how long that
+interaction usually takes (90 s for a swap, 1386 s for a charge — a charge
+also holds the tool bay beside it). The charge approach waits again before
+each look. After any interaction at the rack, the robot leaves it before it
+decides anything, and checks that it left. A return that failed is tried
+again, twice at most, before the next job. A robot alone behaves exactly as
+before. SimNotes, "Two robots at one rack", has the measurements.
+
+**What the period is for.** The table in #346 is the previous period's
+reading (`42f4a11`, 11:47–19:00 UTC on 2026-09-24): picks refused because
+the other robot was at the bay 6 of 47, returns 7 of 38, charge approaches
+11 of 30 (plus 6 "no-tag" and 2 "no route"; 11 connected), and all 4 `flat`
+deaths after a refused charge. The same counts off this period's sim log,
+beside it, are the reading. New lines to read:
+
+- `WAIT: <who> is standing … waiting up to N s` and `WAIT: … free after N s`
+  / `gave up … after N s`: how often a bay is taken and how long it stays
+  taken. A wait that runs to its bound means a robot that does not leave.
+- `RACK: lingering N s …`: a robot left at the rack by something this change
+  does not cover. Expect none.
+- `SWAP_RETURN again (k/2)`: a failed return retried.
+- `GO_CHARGE: no charge contact (no-tag)` now carries a `charge_trace` in
+  the log, with what each look saw.
+- History: "… was at the bay I needed; I waited for it", "could not get
+  clear of the rack".
+
+**Not yet known.** Whether two robots that both need the charge bay still
+lose one to a `flat` death while it waits 1386 s. The wait bounds how long
+it tries, not whether the pack lasts. Also whether the minds start to plan
+around each other's turns, now that the geometry no longer settles them.
+
 ### A restart is a continuation (#345) — opens when this PR is deployed
 
 **What changed in the world.** Every process end — the hourly ceiling, a

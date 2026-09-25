@@ -136,6 +136,26 @@ def swap_trace(rec: dict | None) -> str:
   return "; ".join(parts)
 
 
+def charge_trace(rec: dict | None) -> str:
+  """One line of what a charge approach saw (`HubMission.last_charge`), for
+  the log of a failed one (issue #346): per look, whether the tag gave a
+  fix, the belief's drift, how far from the standoff the robot stood, the
+  nearest other robot's distance from it, and what the camera's line to
+  the tag met first."""
+  if not rec or not rec.get("attempts"):
+    return "no charge approach recorded"
+  parts = []
+  for i, a in enumerate(rec["attempts"], 1):
+    e = a.get("err") or [0.0, 0.0, 0.0]
+    peer = a.get("peerM")
+    parts.append(f"#{i} {'fix' if a.get('fix') else 'no tag'}, belief off "
+                 f"{e[0]:+.0f},{e[1]:+.0f} mm {e[2]:+.1f} deg, "
+                 f"{a.get('fromStandoffM')} m from the standoff, "
+                 + ("" if peer is None else f"peer {peer} m from it, ")
+                 + f"sight {a.get('sight')}")
+  return "; ".join(parts)
+
+
 def fine_step_begin(model) -> None:
   """A swap enters the fine step; counted, because the step is the model's."""
   _FINE_STEP[id(model)] = _FINE_STEP.get(id(model), 0) + 1
@@ -419,6 +439,13 @@ class HubMission:
     #: knows whose it is.
     self.peer_at_bay_m: float | None = None
     self.last_swap: dict | None = None        # `swap_trace`'s source, issue #264
+    self.last_charge: dict | None = None      # `charge_trace`'s, issue #346
+    #: WHO WAITS FOR A TAKEN BAY (issue #346): `(sx, sy, kind, since)` ->
+    #: (`kind` is the swap's verb, `pick` or `return`, or `charge`)
+    #: a routine answering True once the standoff is free, False once it
+    #: gave up. The lifecycle's (it owns the bound, the waiting spot, the
+    #: interrupt and History); None gives a bay up at once, as #313 did.
+    self.bay_wait = None
     #: The peer stop (issue #328): the last sighting in the corridor ahead
     #: -- how far off it was and when -- and how many times a drive has
     #: actually HELD for one. Episodes, not frames, and counted where the
@@ -940,6 +967,27 @@ class HubMission:
                 for ox, oy in (where() for where in self.others)), default=None)
     return near if near is not None and near < radius else None
 
+  def reachable(self, points) -> list[bool]:
+    """Which world points this robot could plan to right now (issue #346):
+    traversable after the other robots are masked out, and in the SAME
+    4-connected component as its own start cell -- `_plan_to`'s own two
+    tests, asked of candidates rather than of one goal."""
+    trav = traversable_mask(self.grid.grid)
+    self._mask_others(trav)
+    start = nearest_traversable(
+      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+    if start is None:
+      return [False] * len(points)
+    labels, _ = ndimage.label(trav)
+    own = labels[start[1], start[0]]
+    rows, cols = trav.shape
+    out = []
+    for wx, wy in points:
+      cx, cy = self.grid.world_to_cell(wx, wy)
+      out.append(0 <= cx < cols and 0 <= cy < rows
+                 and bool(trav[cy, cx]) and labels[cy, cx] == own)
+    return out
+
   def _mask_others(self, trav) -> None:
     """Take every other robot's footprint out of the traversable mask,
     inflated as the map's obstacles are (issue #167). This is where the
@@ -1246,6 +1294,41 @@ class HubMission:
       sx, sy = sx - lateral * right[0], sy - lateral * right[1]
     return sx, sy, hd
 
+  def _charge_look(self, fix) -> None:
+    """One look of the charge approach, into `last_charge` (issue #346)."""
+    px, py, _ = self.pose
+    sx, sy, _ = charge_standoff(self.rack_prior)
+    peers = [math.hypot(ox - sx, oy - sy)
+             for ox, oy in (where() for where in self.others)]
+    self.last_charge["attempts"].append({
+      "fix": fix is not None, "err": self.truth_error(),
+      "fromStandoffM": round(math.hypot(px - sx, py - sy), 3),
+      "peerM": round(min(peers), 3) if peers else None,
+      "sight": self.line_of_sight("dock_eye", "rack_charge_tag")})
+
+  def line_of_sight(self, camera: str, geom: str) -> str:
+    """What the straight line from this robot's `camera` to the centre of
+    world geom `geom` meets first: "clear" when it is the geom itself, else
+    the body in the way -- another robot, a module on the floor, the rack
+    edge. A diagnostic the sim can afford (`truth_error`'s kind): the ray
+    reads the TRUE world, and nothing acts on it."""
+    try:
+      cam = self.model.camera(self.handle.el(camera)).id
+      gid = self.model.geom(geom).id
+    except KeyError:
+      return "unknown"
+    p = self.data.cam_xpos[cam].copy()
+    v = self.data.geom_xpos[gid] - p
+    hit = np.array([-1], dtype=np.int32)
+    d = mujoco.mj_ray(self.model, self.data, p, v, None, 1,
+                      int(self.model.cam_bodyid[cam]), hit)
+    if hit[0] < 0 or d < 0 or d > 1.0:
+      return "nothing"                     # the tag itself is not in reach
+    if hit[0] == gid:
+      return "clear"
+    body = self.model.body(int(self.model.geom_bodyid[hit[0]])).name
+    return f"{body} ({self.model.geom(int(hit[0])).name or hit[0]}) at {d:.2f}"
+
   def charge_bay_fix(self, distance: float = CHARGE_STANDOFF,
                      ) -> tuple[float, float, float] | None:
     """The charge bay's measured standoff (issue #32): pin line as the
@@ -1337,13 +1420,34 @@ class HubMission:
     # align preset the charge tag is below the camera's view entirely.
     yield from self.swap._run_routine(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
     why = "no-attempt"
+    #: What this approach SAW, for the log of a failed one (issue #346,
+    #: `charge_trace`): per look, the fix or its absence, the belief's
+    #: drift, the nearest other robot's reported distance from the pins,
+    #: and what the camera's line to the tag hits first. Read, never acted
+    #: on: six "no tag" charges on the deployed pair left nothing to read.
+    self.last_charge = {"attempts": []}
+    since = None
     for attempt in range(max(tries, 1)):
       if attempt:
         # back out past the standoff radius, so the retry's look is a fresh
         # measurement from a usable range rather than a re-read of the miss
         yield from self.swap._drive_until_routine(CHARGE_RETRY_BACKOFF, -0.15,
                                                   stall_stop=False)
+      # ⚠ A LOOK FROM BESIDE THE STANDOFF SEES NO TAG (issue #346): the
+      # camera's 41 deg cannot reach it from 60-90 deg off the bay's axis,
+      # and that is exactly where another robot's 0.60 m planner disc leaves
+      # this one when it stands at the neighbouring bay (0.200 m off) --
+      # the six "no-tag" charges on the deployed pair. So a peer that
+      # arrived DURING the approach is waited for too, as the drive in was.
+      sx, sy, _ = charge_standoff(self.rack)
+      if self.bay_wait is not None and self.peer_on_the_goal(sx, sy) is not None:
+        since = float(self.data.time) if since is None else since
+        if not (yield from self.bay_wait(sx, sy, "charge", since)):
+          return "peer-at-bay"
+        yield from self.drive_to_routine(sx, sy, timeout=45.0)
+        yield from self.face_routine(charge_standoff(self.rack)[2])
       fix = self.charge_bay_fix()
+      self._charge_look(fix)
       if fix is None:
         # the tag is not in view from here: spin to buy sight lines (and
         # map), re-adopt whatever the finder now believes, and look again
@@ -1354,6 +1458,7 @@ class HubMission:
         yield from self.drive_to_routine(sx, sy, timeout=45.0)
         yield from self.face_routine(hd)
         fix = self.charge_bay_fix()
+        self._charge_look(fix)
         if fix is None:
           why = "no-tag"
           continue
@@ -1415,19 +1520,32 @@ class HubMission:
     # coverage is pose-dependent and marginal from some starts. The
     # milestone-4 doctrine applies verbatim: when nothing is reachable, spin
     # to buy map (and possibly the rack tag) and try again.
-    for _ in range(2):
+    spins = 0
+    since = None                       # when this swap first found it taken
+    while True:
+      # ⚠ A TAKEN BAY IS WAITED FOR, NOT FAILED (issue #346): asked BEFORE
+      # the drive as well as after it, because a drive at a standoff the
+      # other robot stands on spends its whole patience arriving nowhere.
+      near = self.peer_on_the_goal(sx, sy)
+      if near is not None and self.bay_wait is not None:
+        since = float(self.data.time) if since is None else since
+        if not (yield from self.bay_wait(sx, sy, verb, since)):
+          self.peer_at_bay_m = self.peer_on_the_goal(sx, sy) or near
+          self.last_swap["route"] = "peer-at-bay"
+          return "peer-at-bay"
+        self.last_swap["route"] = "waited"
       if (yield from self.drive_to_routine(sx, sy)):
         break
       # ...unless ANOTHER ROBOT IS STANDING ON THE STANDOFF (issue #313),
       # which no amount of spinning or re-ranging can plan around: the
-      # goal is inside the disc the planner has been told to avoid, and
-      # the drive above has already spent its whole patience waiting for
-      # it to move. Say which it was and stop -- the second attempt costs
-      # another timeout and a spin to arrive at the same place, and the
-      # failure it eventually reported ("no route") sent a robot looking
-      # for a fault in its own pen.
+      # goal is inside the disc the planner has been told to avoid. With a
+      # wait (above) the loop goes round and waits for it; without one it
+      # says which it was and stops -- the failure it used to report ("no
+      # route") sent a robot looking for a fault in its own pen.
       near = self.peer_on_the_goal(sx, sy)
       if near is not None:
+        if self.bay_wait is not None:
+          continue
         self.peer_at_bay_m = near
         self.last_swap["route"] = "peer-at-bay"
         return "peer-at-bay"
@@ -1435,9 +1553,10 @@ class HubMission:
       yield from self._spin_routine()
       self.refresh_rack()
       sx, sy, hd = bay_standoff(station_y, self.rack)
-    else:
-      self.last_swap["route"] = "no-route"
-      return "no-route"
+      spins += 1
+      if spins == 2:
+        self.last_swap["route"] = "no-route"
+        return "no-route"
     if self.refresh_rack() is not None:
       sx, sy, hd = bay_standoff(station_y, self.rack)
       yield from self.drive_to_routine(sx, sy, timeout=25.0)

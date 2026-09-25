@@ -48,7 +48,7 @@ from pluggybot.mission.errand import (
 )
 from pluggybot.mission.mission import (
   MissionAborted, HubMission, RackPose, bay_standoff, charge_standoff,
-  swap_trace,
+  charge_trace, swap_trace,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -282,6 +282,56 @@ WAIT_FOR_WORK_S = 5.0
 #: The bay standoff is ~1.2 m and `OTHER_NEAR_M` (what a planner routes
 #: round) is 1.2 m.
 RACK_CLEAR_M = 2.0
+#: ...and DONE AT THE RACK MEANS GONE (issue #346): a clear that did not
+#: arrive is read, and the robot tries these many other spots before it
+#: says out loud that it could not get away. Each drive is short -- the
+#: clear is a couple of metres -- so a blocked one costs little.
+CLEAR_SPOTS = 3
+CLEAR_DRIVE_S = 30.0
+#: A clear that failed is not tried again from the same place (within this
+#: far of where it gave up): the loop would otherwise re-drive every spot and
+#: write another History line before every decision.
+CLEAR_MOVED_M = 0.3
+#: How long a robot may stand within `RACK_CLEAR_M` doing nothing at the
+#: rack before the log says so (issue #346): past the longest honest
+#: in-between (a decision's think, median 5 s, p95 25 s, deployed max 43 s,
+#: plus the clear drive itself). What it logs is a robot the loop left
+#: standing where the other one needs to be -- the defect, seen live.
+RACK_LINGER_S = 90.0
+#: A TAKEN BAY IS WAITED FOR (issue #346), for 3x the TYPICAL time one
+#: interaction holds it (Ben, 2026-09-24) -- long enough to outlast an
+#: ordinary one, short enough that a robot that never leaves is reported
+#: rather than waited on for ever. MEASURED, the time a robot's believed
+#: pose stays within `peer_on_the_goal`'s 0.45 m of a standoff:
+#:   * a SWAP (one flight each world, `--pack hosting`): room_hub carry
+#:     pick 26.9 s, stow 34.2 s; home showcase pen pick 30.6 s, and a stow
+#:     run straight into the next pick 55.6 s -- typical 30 s for one;
+#:   * a CHARGE (the deployed pair on 42f4a11, 2026-09-24, 11 connected):
+#:     278-542 s, median 462 s.
+#: The bound is 3x the occupancy of whatever HOLDS the bay, not only of the
+#: bay asked for: the charge standoff is 0.200 m from bay B's and the bay
+#: pitch is 0.25 m, so a robot charging holds its neighbour's tool bay for
+#: the whole charge -- and the holder's state is its public surface.
+SWAP_OCCUPANCY_S = 30.0
+CHARGE_OCCUPANCY_S = 462.0
+WAIT_OCCUPANCIES = 3.0
+#: What a robot does AT the rack: not lingering, whatever the clock says.
+RACK_STATES = ("SWAP_PICK", "SWAP_RETURN", "GO_CHARGE", "CHARGE")
+#: How often a waiting robot looks again, sim seconds.
+BAY_POLL_S = 1.0
+#: The WAITING SPOT, in the rack's own frame, relative to the standoff
+#: waited for: this far further out from the rack face and this far along
+#: it -- out of the other robot's approach lane (it backs straight out
+#: along the bay's normal) and outside its planner disc (`OTHER_ROBOT_CELLS`,
+#: 0.60 m) on either side. The nearest reachable candidate wins; none
+#: reachable means waiting where it stands.
+WAIT_BACK_M = (0.8, 1.2)
+WAIT_SIDE_M = (0.9, 1.3)
+#: A RETURN THAT FAILED IS TRIED AGAIN before anything else starts (issue
+#: #346), this many times per tool left on the fork. Bounded, because a
+#: stow that misses for a mechanical reason misses again; the waits inside
+#: each try are what cover a bay that was taken.
+STOW_RETRIES = 2
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
 #: moving -- this is the cadence of the heartbeat that tells the site it is
@@ -620,6 +670,17 @@ class HubLifecycle:
     self.producer = producer
     self._expects_work: bool | None = None
     self._cleared_rack = False
+    # RACK CONTENTION (issue #346): a taken bay is waited for -- the swap
+    # asks through `mission.bay_wait` -- and the waits and the last one's
+    # outcome are counted; a robot left standing at the rack is logged.
+    self.bay_waits = 0
+    self.last_bay_wait: dict | None = None
+    self.stow_retries = 0
+    self._stow_tries = 0
+    self._clear_failed_at: tuple | None = None
+    self._linger_since: float | None = None
+    self._linger_said = False
+    self._next_linger_check = 0.0
     # THE APPETITE (issue #36). Optional, like the ledger it eats out of and
     # for a stricter version of the same reason: hunger reshuffles nothing on
     # its own but it does change what the robot is TOLD, and every existing
@@ -696,6 +757,8 @@ class HubLifecycle:
     # seam only QUEUES an action, and the loop runs it on its next pass
     # through the one branch the overseer already owned.
     self.mission.step_hooks.append(self._events_step)
+    self.mission.step_hooks.append(self._rack_linger_step)
+    self.mission.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
     #: on this same seam, because the map is a running belief like the
@@ -1295,8 +1358,7 @@ class HubLifecycle:
       return f"{tool} is on {holder.robot_name or holder.root}'s fork"
     blocked = self.peer_at_the_bay(station_y)
     if blocked is not None:
-      return (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
-              "nearer than the planner may route")
+      return self.held_for(blocked)
     if self.mission.swap.module_state(tool)["hung"]:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
@@ -1308,6 +1370,25 @@ class HubLifecycle:
       return ("the pick missed and it is still on its bay"
               + (f" ({how})" if how else ""))
     return "it was not on its bay, and no robot is carrying it"
+
+  def held_for(self, blocked: tuple[str, float]) -> str:
+    """Who held a bay this robot gave up on, and for how long it was
+    waited for (issue #346) -- one clause, for a pick, a stow or a charge."""
+    w = self.last_bay_wait
+    said = (f"{blocked[0]} was standing {blocked[1]:.2f} m from the bay, "
+            "nearer than the planner may route")
+    # ...only the wait that ended THIS failure, at this sim instant: an
+    # older one would claim a wait that never happened for this bay
+    if (w is None or w.get("who") != blocked[0] or not w.get("why")
+        or w.get("end") != float(self.data.time)):
+      return said
+    return said + {
+      "bound": f"; I waited {w['s']:.0f} s for it to leave, 3x how long one "
+               f"{w['of']} usually takes",
+      "interrupted": f"; I waited {w['s']:.0f} s, until my own rule "
+                     "interrupted the wait",
+      "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
+              "reserve"}[w["why"]]
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
@@ -1330,14 +1411,217 @@ class HubLifecycle:
 
   def _clear_rack_routine(self) -> Routine:
     """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
-    back to the start pose; anywhere else, stay put."""
+    back to the start pose; anywhere else, stay put. True if the robot ends
+    clear of the rack.
+
+    ⚠ DONE AT THE RACK MEANS GONE (issue #346), so the drive's answer is
+    READ. It used to be thrown away: Rowan narrated "clearing the rack"
+    and stood 0.08 m from the charge bay for 23 minutes, through all four
+    of Luca's charge attempts, and Luca died flat for good. A clear that
+    did not arrive tries the nearest other spots outside the radius
+    (`CLEAR_SPOTS`) and says in History where it ended if none worked.
+    What counts is being OUT OF REACH, not reaching a point: a drive that
+    stagnated 0.3 m short but outside the radius has done the job.
+    """
     px, py, _ = self.mission.pose
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
-      return
+      return True
     hx, hy = self.home_pose[0], self.home_pose[1]
     self._say(f"standing by: clearing the rack for the others -- back to "
               f"({hx:.1f}, {hy:.1f})")
     yield from self.mission.drive_to_routine(hx, hy)
+    tried = [(hx, hy)]
+    for spot in self._clear_spots()[:CLEAR_SPOTS]:
+      px, py, _ = self.mission.pose
+      if self.rack_distance(px, py) >= RACK_CLEAR_M:
+        break
+      self._say(f"RACK: still {self.rack_distance(px, py):.1f} m from the "
+                f"rack after heading for ({tried[-1][0]:.1f}, "
+                f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})")
+      tried.append(spot)
+      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+    px, py, _ = self.mission.pose
+    d = self.rack_distance(px, py)
+    if len(tried) > 1 or d < RACK_CLEAR_M:
+      self._remember(
+        f"cleared the rack for the others after {len(tried)} tries, at "
+        f"({px:.1f}, {py:.1f})" if d >= RACK_CLEAR_M else
+        f"could not get clear of the rack: tried {len(tried)} spots and "
+        f"ended {d:.1f} m from it at ({px:.1f}, {py:.1f}), where I am in "
+        "the way of anyone swapping or charging there")
+    return d >= RACK_CLEAR_M
+
+  def _clear_spots(self) -> list[tuple[float, float]]:
+    """Other places to stand clear of the rack, nearest first: a ring just
+    outside `RACK_CLEAR_M` round the rack prior, in front of the rack face
+    (behind it is the wall it stands on), kept only where this robot could
+    plan to right now (`HubMission.reachable`)."""
+    r = self.mission.rack_prior
+    ring = RACK_CLEAR_M + 0.5
+    cands = [r.to_world(ring * math.cos(a), ring * math.sin(a))
+             for a in (math.radians(d) for d in range(-75, 90, 15))]
+    ok = self.mission.reachable(cands)
+    px, py, _ = self.mission.pose
+    return sorted((c for c, k in zip(cands, ok)
+                   if k and self.rack_distance(*c) >= RACK_CLEAR_M),
+                  key=lambda c: math.hypot(c[0] - px, c[1] - py))
+
+  def _leave_rack_routine(self) -> Routine:
+    """After an interaction at the rack, get out of it -- when there is
+    somebody to get out of the way FOR (issue #346). The loop calls this
+    before any branch that does not itself go to the rack, so a robot that
+    swapped, charged or failed there does not stand in the other one's
+    approach while it thinks. Alone in the world, nothing is blocked and
+    nothing moves: a single robot's day is the trajectory it always was."""
+    if not self.peers:
+      return
+    px, py, _ = self.mission.pose
+    stuck = self._clear_failed_at
+    if stuck is not None and math.hypot(px - stuck[0], py - stuck[1]) < CLEAR_MOVED_M:
+      # ...tried from here already and could not get away (said in History
+      # then): not again before every decision, which would spend minutes
+      # of driving and a History line per pass on the same answer
+      return
+    cleared = yield from self._clear_rack_routine()
+    self._clear_failed_at = None if cleared else self.mission.pose[:2]
+
+  def _rack_linger_step(self) -> None:
+    """Log a robot that stays at the rack longer than what it came for
+    (issue #346): within `RACK_CLEAR_M`, doing nothing AT the rack, for
+    `RACK_LINGER_S`. Once per stretch; the physics seam's, once a second.
+    Evidence only -- the fix is `_leave_rack_routine`, and this is what
+    says whether anything still escapes it."""
+    t = float(self.data.time)
+    if not self.peers or t < self._next_linger_check:
+      return
+    self._next_linger_check = t + 1.0
+    px, py, _ = self.mission.pose
+    if (self.state in RACK_STATES or self.dead is not None
+        or self.rack_distance(px, py) >= RACK_CLEAR_M):
+      self._linger_since = None
+      return
+    if self._linger_since is None:
+      self._linger_since, self._linger_said = t, False
+    elif not self._linger_said and t - self._linger_since >= RACK_LINGER_S:
+      self._linger_said = True
+      self._say(f"RACK: lingering {t - self._linger_since:.0f} s within "
+                f"{self.rack_distance(px, py):.2f} m of the rack while "
+                f"{self.state} -- in the way of the others",
+                detail=f"pose ({px:.2f}, {py:.2f})")
+
+  def _waiting_spot(self, sx: float,
+                    sy: float) -> tuple[float, float] | None:
+    """Where to wait for a taken standoff (issue #346): beside and behind
+    it in the rack's frame (`WAIT_BACK_M`, `WAIT_SIDE_M`), out of the
+    holder's lane and planner disc, nearest reachable first. With none of
+    those on known floor (a map still thin round the rack), the start pose
+    -- reached once already, and clear of the rack by construction; where
+    the robot happens to stand is usually the holder's way out (MEASURED:
+    a robot standing at the neighbouring bay stops the other's drive away
+    for the errand's whole 60 s). None only with no start pose at all."""
+    r = self.mission.rack
+    c, s_ = math.cos(r.yaw), math.sin(r.yaw)
+    lx = (sx - r.x) * c + (sy - r.y) * s_
+    ly = -(sx - r.x) * s_ + (sy - r.y) * c
+    cands = [r.to_world(lx + back, ly + side)
+             for back in WAIT_BACK_M for side in WAIT_SIDE_M + tuple(
+               -v for v in WAIT_SIDE_M)]
+    ok = self.mission.reachable(cands)
+    px, py, _ = self.mission.pose
+    keep = [p for p, k in zip(cands, ok) if k]
+    home = None if self.home_pose is None else tuple(self.home_pose[:2])
+    return min(keep, key=lambda p: math.hypot(p[0] - px, p[1] - py),
+               default=home)
+
+  def wait_bound(self, kind: str, sx: float, sy: float) -> tuple[float, str]:
+    """How long a taken bay is waited for, and what it is `WAIT_OCCUPANCIES`
+    times the typical occupancy of: a charge if the bay asked for is the
+    charge bay OR the robot nearest it is charging (its state is its public
+    surface), else a swap."""
+    holder = min(self.peers, default=None,
+                 key=lambda o: math.hypot(o.mission.pose_xy()[0] - sx,
+                                          o.mission.pose_xy()[1] - sy))
+    charging = kind == "charge" or (
+      holder is not None and holder.state in ("GO_CHARGE", "CHARGE"))
+    return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
+            else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
+
+  def _await_bay_routine(self, sx: float, sy: float, kind: str,
+                         since: float) -> Routine:
+    """Wait for another robot to leave a standoff this one needs (issue
+    #346). True once it is free; False once the robot gave up, with why in
+    `self.last_bay_wait` (who held it, for how long, and what ended the wait).
+
+    Before this a bay somebody stood on was given up at once (#313's early
+    return) and the job failed with 0 points -- 6 of 47 picks and 7 of 38
+    stows on the deployed pair in one afternoon, and 11 of 30 charge
+    approaches, after all four of which a robot died flat. So: back off to
+    a spot out of the holder's way, say so in History, and look again every
+    `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
+    from `since`, the first time THIS interaction found it taken) runs out.
+    Two more things end a PICK's wait early, inside an errand: the robot's
+    own event map (a `battery_below` row interrupts, as it would the errand
+    -- `interrupted()`), and the pack reaching the reserve (#315's rule: the
+    waiting is code's, and code does not spend the return trip on it). A
+    RETURN's wait has neither -- abort means stow, and a return given up
+    leaves the tool on the fork, a procedure's `stow()` included (it runs
+    inside its errand) -- and nor does a CHARGE's: charging is what either
+    would ask for, and giving up on it is how the robot dies.
+
+    `kind` is the swap's verb (`pick`, `return`) or `charge`.
+    """
+    near = self.mission.peer_on_the_goal(sx, sy)
+    if near is None:
+      return True
+    # ...keyed on the RULE, never on the name: a peer the planner routes
+    # round but the lifecycle has no name for is still waited for, or the
+    # swap's loop would go round at no sim time at all
+    held = self.peer_at(sx, sy)
+    who = held[0] if held is not None else "another robot"
+    bound, of = self.wait_bound(kind, sx, sy)
+    what = "the charge bay" if kind == "charge" else "the bay"
+    first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
+    # EVERY time, not only the first: a drive that found the bay taken again
+    # stops at the edge of the holder's disc, which is its way out.
+    spot = self._waiting_spot(sx, sy)
+    if first:
+      self._say(f"WAIT: {who} is standing {near:.2f} m from {what} -- "
+                f"waiting up to {bound:.0f} s"
+                + ("" if spot is None else
+                   f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
+      self._remember(f"{who} was at {what} I needed; I waited for it "
+                     f"(up to {bound:.0f} s)")
+      self.bay_waits += 1
+      self.last_bay_wait = {"since": since, "who": who, "kind": kind,
+                       "bound": bound, "of": of, "why": ""}
+    if spot is not None:
+      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+    ended = ""
+    while self.mission.peer_on_the_goal(sx, sy) is not None:
+      now = float(self.data.time)
+      bound, of = self.wait_bound(kind, sx, sy)
+      if now - since >= bound:
+        ended = "bound"
+      elif kind == "pick" and self._in_errand and self.interrupted():
+        ended = "interrupted"
+      elif (kind == "pick" and self._in_errand
+            and self.battery.energy_wh <= self.low_battery_wh):
+        ended = "pack"
+      if ended:
+        break
+      yield from self.mission._drive_routine(BAY_POLL_S, 0.0, 0.0)
+    waited = float(self.data.time) - since
+    self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
+                               "bound": bound, "of": of,
+                               "end": float(self.data.time)})
+    if ended:
+      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} "
+                "was still there" + {"bound": f" (the bound is {bound:.0f} s)",
+                                     "interrupted": " (my own interrupt)",
+                                     "pack": " (the pack is at the reserve)"}[ended])
+      return False
+    self._say(f"WAIT: {what} is free after {waited:.0f} s")
+    return True
 
   def _wait_dead_routine(self) -> Routine:
     """A dead robot with somebody who can reset it stands still and keeps
@@ -1679,33 +1963,46 @@ class HubLifecycle:
     sx, sy, hd = charge_standoff(self.mission.rack)
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
     # spin to buy map (and possibly the rack tag) and try again.
-    for _ in range(2):
-      if (yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)):
+    # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
+    # asymmetry (issue #313). The same arithmetic applies -- a peer within
+    # 0.45 m of this standoff puts it outside anything the planner may
+    # route to, and MEASURED on the rack prior the neighbouring tool bay is
+    # 0.200 m from it, so a robot swapping there blocks this approach
+    # outright -- but a bay given up is a lost errand and a charge given up
+    # is a death. So a taken charge bay is WAITED FOR (issue #346), for 3x
+    # a charge's typical occupancy, and neither the pack nor an interrupt
+    # ends that wait: charging is what either would ask for.
+    spins, since, arrived = 0, None, False
+    while True:
+      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+        since = float(self.data.time) if since is None else since
+        if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
+          break
+      arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
+      if arrived:
         break
+      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+        continue                          # taken again: wait again, above
       yield from self.mission._spin_routine()
       self.mission.refresh_rack()
       sx, sy, hd = charge_standoff(self.mission.rack)
-    else:
-      # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
-      # asymmetry (issue #313). The same arithmetic applies -- a peer
-      # within 0.45 m of this standoff puts it outside anything the planner
-      # may route to, and MEASURED on the rack prior the neighbouring tool
-      # bay is 0.200 m from it, so a robot swapping there blocks this
-      # approach outright -- but a bay given up is a lost errand and a
-      # charge given up is a death. So this one keeps BOTH attempts and
-      # only says whose robot it was; the swap's early return does not
-      # belong here.
+      spins += 1
+      if spins == 2:
+        break
+    if not arrived:
       blocked = self.peer_at(sx, sy)
       self._say("GO_CHARGE: no route to the charge bay"
                 + ("" if blocked is None else
-                   f" -- {blocked[0]} is standing {blocked[1]:.2f} m from it"))
+                   f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
     why = yield from self.mission.charge_approach_routine(CHARGE_APPROACH_MAX,
                                                           CHARGE_CREEP)
     if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
-      self._say(f"GO_CHARGE: no charge contact ({why})")
+      # the approach's trace is EVIDENCE (issue #346), the log's alone
+      self._say(f"GO_CHARGE: no charge contact ({why})",
+                detail=charge_trace(self.mission.last_charge))
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
     return True
@@ -2292,7 +2589,7 @@ class HubLifecycle:
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
               f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
               detail="" if carried else swap_trace(self.mission.last_swap))
-    if not carried:
+    if not carried and not self._aborting:
       # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to
       # go on: drive to the use pose with nothing on the fork, skip the
       # use, drive back and attempt a RETURN of a module it never had --
@@ -2350,7 +2647,13 @@ class HubLifecycle:
     # on an un-erased board is not scored on the first one's ink.
     before = scoring.board_before(self, errand)
     used: dict = {}
-    if not carried:
+    if not carried and self._aborting:
+      # ...the robot's own rule ended the WAIT for the bay (issue #346):
+      # an act of caution, on SAFE POINT TWO's terms below.
+      used = {"interrupted": True, "stopped": "interrupted",
+              "reason": "gave up waiting for the bay on the agent's own "
+                        "interrupt"}
+    elif not carried:
       used = {"error": f"never picked up {self.module}", "pickWhy": why,
               **({} if blocked is None else {"peerAtBayM": round(blocked[1], 3)})}
     # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
@@ -2408,8 +2711,7 @@ class HubLifecycle:
     # one's.
     blocked = self.peer_at_the_bay(errand.station_y) if carried else None
     self._say((f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
-               + ("" if blocked is None else
-                  f" -- {blocked[0]} was standing {blocked[1]:.2f} m from the bay"))
+               + ("" if blocked is None else f" -- {self.held_for(blocked)}"))
               if carried else
               "SWAP_RETURN skipped -- nothing to return"
               + (" (the module hangs on its bay)" if stowed else ""))
@@ -5278,6 +5580,36 @@ class HubLifecycle:
                       else "I hung it back on its bay" if verdict["ok"]
                       else f"I could not hang it back: {verdict['reason']}"))
 
+  def _stow_owed(self) -> bool:
+    """Is a tool this robot failed to hang still on its fork, with a retry
+    left (`STOW_RETRIES`)? The count is per tool left on the fork: an empty
+    fork resets it."""
+    from pluggybot.procedure import steps as procedure
+    if procedure._carried(self) is None:
+      self._stow_tries = 0
+      return False
+    return self._stow_tries < STOW_RETRIES
+
+  def _stow_retry_routine(self) -> Routine:
+    """Take the tool on the fork back to its bay (issue #346), through the
+    same stow a procedure's `stow()` runs -- the carry configuration, the
+    way home, and the bay wait inside the swap -- and say how it went."""
+    from pluggybot.procedure import steps as procedure
+    held = procedure._carried(self)
+    self._stow_tries += 1
+    self.stow_retries += 1
+    self.module = held
+    self.state = "SWAP_RETURN"
+    self._say(f"SWAP_RETURN again ({self._stow_tries}/{STOW_RETRIES}): "
+              f"{held} is still on my fork -- hanging it back before "
+              "anything else")
+    verdict = yield from procedure._stow(self, {})
+    self._remember(f"{held} was still on my fork after a failed return; "
+                   + ("I hung it back on its bay" if verdict["ok"] else
+                      f"I tried again and could not: {verdict['reason']}"
+                      + ("" if self._stow_tries < STOW_RETRIES else
+                         " -- I have stopped trying; it rides my fork")))
+
   # ---- the loop ------------------------------------------------------------
 
   def _strand(self) -> None:
@@ -5631,6 +5963,15 @@ class HubLifecycle:
           continue
         self.state = "CHARGE"
         yield from self.charge_routine()
+      elif self._stow_owed():
+        # A RETURN THAT FAILED IS TRIED AGAIN FIRST (issue #346): a robot
+        # never starts a job with a tool it failed to hang still on its
+        # fork. Luca, three times in one afternoon: a stow refused, the
+        # next drawing "picked" the pen already on its fork, the drive to
+        # the board gave up, the stow was refused again -- graded "no ink
+        # reached". Below charging, which works whatever the fork carries.
+        self._cleared_rack = False
+        yield from self._stow_retry_routine()
       elif self.errands:
         # Pop BEFORE running: an errand that raises must not be retried
         # forever, and a queue that only shortens on success is an infinite
@@ -5642,6 +5983,7 @@ class HubLifecycle:
         # the queue it may have filled on the same answer has drained --
         # and BEFORE the mind is asked again, so the verdict is in front
         # of it when it next decides.
+        yield from self._leave_rack_routine()
         yield from self._grade_routine()
       elif self.overseer is not None:
         # THE ONE BRANCH THE LLM REPLACES (issue #15), and the one the
@@ -5651,6 +5993,10 @@ class HubLifecycle:
         # a chosen one. `_arbitrate` is `_decide` exactly where there is
         # no map -- the loop's SHAPE is what this issue promised not to
         # touch, and this is the whole of what it touched.
+        # ...and never AT the rack (issue #346): a swap, a charge or a
+        # failed pick ends there, and a robot thinking where it stands
+        # holds the other robot's bay for as long as the call flies.
+        yield from self._leave_rack_routine()
         yield from self._arbitrate_routine()
       elif self._claim_next_task():
         # An offered job, taken by the loop itself (issue #21). Unreachable
