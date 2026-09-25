@@ -150,6 +150,7 @@ def test_the_exit_line_says_why(tmp_path):
   assert not dog._thread.is_alive()
   assert vitals.why_of(None) == "the run ended"
   assert vitals.why_of(SystemExit(2)) == "exit 2"
+  assert vitals.why_of(KeyboardInterrupt()) == "KeyboardInterrupt"
 
 
 def test_a_segfault_prints_every_threads_stack():

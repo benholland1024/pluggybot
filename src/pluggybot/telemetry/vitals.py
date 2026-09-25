@@ -212,7 +212,11 @@ class Watchdog:
     return self.out if self.out is not None else sys.stdout
 
   def _say(self, line: str) -> None:
-    print(line, file=self._stream(), flush=True)
+    # One write, newline included: `print` writes the two apart, and this
+    # thread's line would land inside a narration line between them.
+    stream = self._stream()
+    stream.write(line + "\n")
+    stream.flush()
 
 
 def why_of(exc: BaseException | None) -> str:
@@ -221,7 +225,7 @@ def why_of(exc: BaseException | None) -> str:
     return "the run ended"
   if isinstance(exc, SystemExit):
     return f"exit {exc.code}"
-  return f"{type(exc).__name__}: {exc}"
+  return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
 
 
 def _max(a: float | None, b: float | None) -> float | None:
