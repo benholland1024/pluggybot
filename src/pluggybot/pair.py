@@ -356,6 +356,8 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   if stop_when is not None:
     lives[0].stop_when(lambda: stop_when(lives))
   recorder = record_pair(lives, record) if record is not None else None
+  if resume is not None:
+    lives[0].data.time = resume.t        # what `begin` says, on the clock
   days = [life.begin(start, max_sim_time=max_sim_time, explore_budget=budget)
           for life, start in zip(lives, starts)]
   if resume is not None:

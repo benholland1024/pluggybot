@@ -488,9 +488,10 @@ class HubMission:
                        "until": sw._press_until}},
             {"grid": self.grid.grid})
 
-  def restore_kept(self, state: dict, arrays: dict) -> None:
+  def restore_kept(self, state: dict, arrays: dict) -> bool:
     """Put `kept_state` back, into a world whose bodies are where it was
-    saved -- the caller's to know."""
+    saved -- the caller's to know. True if the grid came back too; one that
+    does not fit this build's is left empty, and the caller says so."""
     from pluggybot.mapping.landmarks import Landmark
     r = self.swap.reckoner
     r.x, r.y, r.theta, r._prev_left, r._prev_right = state["reckoner"]
@@ -506,7 +507,8 @@ class HubMission:
         marks.append(lm)
       self.finder.landmarks.landmarks = marks
     grid = arrays.get("grid")
-    if grid is not None and grid.shape == self.grid.grid.shape:
+    mapped = grid is not None and grid.shape == self.grid.grid.shape
+    if mapped:
       self.grid.grid[...] = grid
     clocks = state.get("clocks", {})
     self._next_look = float(clocks.get("look", 0.0))
@@ -523,6 +525,7 @@ class HubMission:
     self.swap.pressing = bool(press.get("pressing", False))
     self.swap._press_side = float(press.get("side", 0.0))
     self.swap._press_until = float(press.get("until", -1.0))
+    return mapped
 
   def _on_step(self) -> None:
     for hook in self.step_hooks:

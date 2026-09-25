@@ -285,6 +285,14 @@ def carry_configuration_routine(life, tool: str) -> Routine:
     if held is not None:
       yield from claw.set_down_routine()
       set_down = held
+  from pluggybot.tools.drawing import PEN_MODULE, PenPlotter
+  if tool == PEN_MODULE:
+    # ...and the pen's CARRIAGE centred: parked where the last stroke left
+    # it, it jams on the bay's bracket feet and the stow fails (drawing.py,
+    # `carry_config_routine`). A restart mid-drawing leaves it anywhere in
+    # +-55 mm (issue #345, found in review: 37 mm off, never hung).
+    plotter = PenPlotter(life.model, life.data, life.mission.swap)
+    yield from plotter.ramp_routine(plotter.pen_act, 0.0, settle=0.5)
   yield from life.mission.set_arm_routine(0.0)
   yield from life.mission.swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
   return {"setDown": set_down}

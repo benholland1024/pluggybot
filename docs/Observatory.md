@@ -23,7 +23,8 @@ procedure job stays claimed. History's first line after a restart is "the
 world restarted; I carried on from …", not "woke up … with the pack at
 100%". Sim time continues across restarts, so `t` on the wire grows past
 3600. The run's own errand (`PLUGGY_ERRAND=draw`, Luca's) now runs once per
-world instead of opening every process. The hourly ceiling itself is unchanged; it now ends only the errand in
+world instead of opening every process, and an offered challenge sets its
+blocks or cubes back out, as the hourly reset used to. The hourly ceiling itself is unchanged; it now ends only the errand in
 flight, and that errand's job is kept (rooftop-media-2026's PR for #345 has
 the memory reading that holds it for now). Webserver.md, "A restart is a
 continuation", is the design.

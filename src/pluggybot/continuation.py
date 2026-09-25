@@ -249,6 +249,10 @@ def write(snap: Snapshot, path: str | os.PathLike) -> Path:
     for name, arr in members.items():
       with zf.open(name + ".npy", "w", force_zip64=True) as fh:
         np.lib.format.write_array(fh, np.asanyarray(arr), allow_pickle=False)
+  # on the disk before it replaces the last good one, or a host crash can
+  # leave a renamed file with nothing in it
+  with open(tmp, "rb") as fh:
+    os.fsync(fh.fileno())
   os.replace(tmp, target)
   snap.path = target
   return target
@@ -285,8 +289,13 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
     return Loaded(None)
   try:
     snap = read(path)
-  except (OSError, ValueError, KeyError) as e:
-    return Loaded(None, f"the saved world could not be read ({e})")
+  except Exception as e:                    # noqa: BLE001 -- see below
+    # ANY failure to read is a fresh start, never a crash: raised here it
+    # kills the process before `MAX_RESUMES` can count, and `restart:
+    # unless-stopped` loops on it (an empty or torn zip raises EOFError or
+    # BadZipFile -- found in review). The next save replaces the file.
+    return Loaded(None, f"the saved world could not be read "
+                        f"({type(e).__name__}: {e})")
   if snap.meta.get("world") != world:
     return Loaded(None, f"the saved world is {snap.meta.get('world')!r}, "
                         f"not {world!r}")
@@ -295,7 +304,10 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
     return Loaded(None, f"the world was put back {resumes} times from the "
                         "same saved moment and never got past it")
   snap.meta["resumes"] = resumes + 1
-  write(snap, path)
+  try:
+    write(snap, path)
+  except OSError as e:
+    print(f"world state: could not count this restart ({e})")
   return Loaded(snap)
 
 

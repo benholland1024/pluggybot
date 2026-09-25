@@ -488,3 +488,154 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
     assert np.array_equal(now.mission.grid.grid, was.mission.grid.grid)
     assert np.array_equal(now.near_field.height, was.near_field.height,
                           equal_nan=True)
+
+
+# ---- what the review found -----------------------------------------------------
+
+
+def test_a_pen_stowed_after_a_restart_has_its_carriage_centred_first(tmp_path):
+  """A restart mid-drawing leaves the carriage where the last stroke did,
+  and off-centre it jams on the bay's bracket feet: MEASURED in review, a
+  pen stowed from 37 mm never hung and stayed on the fork for good. The
+  carry configuration every stow goes through centres it, as the drawing
+  errand's own does."""
+  from pluggybot.procedure import steps
+  life = _life(tmp_path)
+  life.mission.start_at(*world_config("room_hub")["start"])
+  act = life.model.actuator("pen_carriage")
+  qadr = int(life.model.joint("pen_carriage_joint").qposadr[0])
+  life.data.ctrl[act.id] = 0.037
+  life.mission._drive(1.0, 0.0, 0.0)
+  assert life.data.qpos[qadr] > 0.03
+  life.mission.run(steps.carry_configuration_routine(life, "module_pen"))
+  assert abs(life.data.qpos[qadr]) < 0.002
+
+
+@pytest.mark.parametrize("content", [b"", b"PK\x03\x04 torn", None])
+def test_a_save_that_cannot_be_read_is_a_fresh_start_never_a_crash(tmp_path, content):
+  """Raised out of `load`, an empty or torn file killed the process before
+  `MAX_RESUMES` could count, and `restart: unless-stopped` looped on it
+  (found in review: EOFError, BadZipFile)."""
+  life = _life(tmp_path)
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  data = path.read_bytes()
+  path.write_bytes(content if content is not None else data[: len(data) // 2])
+  got = continuation.load(path, "room_hub")
+  assert got.snapshot is None and "could not be read" in got.why
+
+
+def test_a_kept_errand_claim_that_never_finishes_is_failed_after_three_restarts(tmp_path):
+  """The world's crash-loop guard counts saves, and a claim lives on the
+  board: a job whose errand crashes the process was re-queued by every
+  process after it (found in review, six in a row). Each restart that
+  takes the claim up counts; the fourth fails it, on the wire."""
+  from pluggybot.economy.tasks import MAX_TAKE_UPS
+  path = tmp_path / "tasks.json"
+  b = TaskBoard(path)
+  task = b.offer("fetch_module", "module_lcd", t=0.0)
+  b.claim(task.id, robot="pluggybot", t=1.0)
+  for n in range(1, MAX_TAKE_UPS + 1):
+    b = TaskBoard(path, rebase=False)
+    assert b.take_up(task.id, t=float(n)).state == "claimed"
+  b = TaskBoard(path, rebase=False)
+  heard = []
+  b.on_event.append(heard.append)
+  gone = b.take_up(task.id, t=9.0)
+  assert gone.state == "failed" and "3 restarts" in gone.verdict["reason"]
+  assert heard[0]["type"] == "task_resolved"
+  assert "restarts" not in b[task.id].as_dict()   # the file's, not the wire's
+
+
+def test_a_restart_mid_swap_backs_out_and_says_so(tmp_path, monkeypatch):
+  """Mid-pick the fork is under a module still HANGING on its bay; the
+  return backs it out, and History must not say a tool was carried off
+  (found in review: "the restart left module_pen on my fork")."""
+  from pluggybot.procedure import steps
+  life = _life(tmp_path)
+  snap = _saved(life, tmp_path)
+  monkeypatch.setattr(steps, "_carried", lambda life: "module_lcd")
+  monkeypatch.setattr(steps, "_stow", lambda life, args: tick.result({"ok": True}))
+  back = _life(tmp_path)
+  _prelude(back, snap)
+  assert any("the restart stopped me mid-swap at module_lcd's bay; I backed "
+             "out and it hangs there" in ln for ln in _history(back))
+
+
+def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
+  """The fingerprint is the geometry's; a new grid extent or resolution is
+  not. The grid is then left empty -- and the map's verdicts with it, or a
+  robot that believed its map complete would never explore the empty one
+  it has (found in review). Where it IS stays put."""
+  life = _life(tmp_path)
+  life.mission.start_at(*world_config("room_hub")["start"])
+  life.map_done = True
+  life.blacklist = {(1, 2)}
+  snap = _saved(life, tmp_path)
+  snap.arrays["pluggybot/grid"] = np.zeros((4, 4))
+  back = _life(tmp_path)
+  _prelude(back, snap)
+  assert back.resumed["inPlace"] and back.mission.pose == life.mission.pose
+  assert not back.map_done and back.blacklist == set()
+
+
+def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp_path):
+  """`module` names what the power model watches; a retired built tool's
+  name restored there fails the next `module_state` read (found in
+  review)."""
+  life = _life(tmp_path)
+  snap = _saved(life, tmp_path)
+  snap.meta["robots"]["pluggybot"]["module"] = "module_retired_long_ago"
+  back = _life(tmp_path)
+  _prelude(back, snap)
+  assert back.module == "module_lcd"
+  back.mission.swap.module_state(back.module)
+
+
+def test_what_begin_says_is_stamped_on_the_restored_clock(tmp_path):
+  """`begin` announces what a restart failed (a game) before `restore`;
+  with the clock set first, the line and its event carry the world's time,
+  not 0 -- rows on the observatory in the order they happened."""
+  path = tmp_path / "tasks.json"
+  b = TaskBoard(path)
+  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  b.claim(game.id, robot="pluggybot", t=1.0, role="hider")
+  b.claim(game.id, robot="r2_pluggybot", t=1.0, role="seeker")
+  b.start(game.id, t=2.0)
+  life = _life(tmp_path / "saved")
+  life.data.time = 500.0
+  snap = _saved(life, tmp_path)
+  back = _life(tmp_path, tasks=True, rebase=False)
+  heard = []
+  back.say_hooks.append(lambda t, line: heard.append((t, line)))
+  back.run(world_config("room_hub")["start"], max_sim_time=0.0, resume=snap)
+  [(t, _)] = [h for h in heard if "interrupted by a restart" in h[1]]
+  assert t == 500.0
+
+
+def test_an_offered_challenge_finds_its_props_where_the_offer_says(tmp_path):
+  """The offer says where the blocks stand, and the hourly reset was what
+  made that true: with the world carried on, a failed attempt would leave
+  them wherever it dropped them, for good. The house sets them out as it
+  offers the job (issue #345)."""
+  from pluggybot.challenge import stack
+  life = _life(tmp_path, world="home", tasks=True)
+  qadr = int(life.model.joint(int(life.model.body("block_1").jntadr[0])).qposadr[0])
+  home = life.model.qpos0[qadr:qadr + 3]
+  life.data.qpos[qadr:qadr + 3] = home + [0.6, -0.4, 0.0]  # knocked aside
+  # ...and one against a robot's chassis, which is somebody's mid-job
+  held = int(life.model.joint(int(life.model.body("block_2").jntadr[0])).qposadr[0])
+  mujoco.mj_forward(life.model, life.data)            # the chassis box's centre
+  life.data.qpos[held:held + 3] = life.data.geom_xpos[life.mission.chassis_gid]
+  mujoco.mj_forward(life.model, life.data)
+  against = life.data.qpos[held:held + 3].copy()
+  block = life.model.body("block_2").id
+  g = life.data.contact.geom[:life.data.ncon]
+  assert (life.model.geom_bodyid[g] == block).any()   # it IS touching
+  said = []
+  life.say_hooks.append(lambda t, line: said.append(line))
+  life.tasks.offer("stack_tower", "tower", t=0.0)
+  assert np.allclose(life.data.qpos[qadr:qadr + 7], life.model.qpos0[qadr:qadr + 7])
+  assert np.array_equal(life.data.qpos[held:held + 3], against)
+  assert any("set out block_1" in ln for ln in said)
+  assert stack.BLOCKS[1] == "block_1"

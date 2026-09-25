@@ -934,8 +934,12 @@ save a filmstrip PNG named after the script.
     for ever.
   - **The errand in flight ends; its job does not** (`_resume_jobs`): an
     errand job is queued again, a procedure job stays claimed, a module
-    left on the fork is stowed first, a claim of a robot not in the world
-    is given back. History says "the world restarted; I carried on from
+    left on the fork is stowed first (the pen's carriage centred, or it
+    jams on the bracket feet), a claim of a robot not in the world is
+    given back, and one taken up `MAX_TAKE_UPS` (3) restarts unfinished is
+    failed -- the world's guard never sees a claim. An offered challenge
+    SETS OUT its props (`_set_out_props`): the hourly reset used to be
+    what made the offer's "set out in a row at ..." true. History says "the world restarted; I carried on from
     ...", and a run that keeps its world writes no "finished the day".
   - The hourly ceiling is still set in rooftop's `compose.yaml`; lifting
     it waits on #349 (see the #345 PRs for the memory reading).

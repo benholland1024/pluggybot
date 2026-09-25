@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable, Literal
 
 import mujoco
+import numpy as np
 
 from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
@@ -71,6 +72,7 @@ from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
 from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
+from pluggybot.perception.lidar import robot_geoms
 from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
                              charge_scale_from_env)
 from pluggybot.telemetry.protocol import (
@@ -4180,7 +4182,46 @@ class HubLifecycle:
     unknown to what the offer drew. Any other event is not ours."""
     if msg.get("type") != "task_offered" or self.tasks is None:
       return
-    self._set_bench(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+    task = self.tasks.get(str((msg.get("task") or {}).get("id", "")))
+    self._set_out_props(task)
+    self._set_bench(task)
+
+  def _set_out_props(self, task) -> None:
+    """The house SETS OUT a challenge's props as it offers it (issue #345):
+    the offer says where they stand ("set out in a row at ..."), and until a
+    restart carried the world on, the hourly reset was what made that true
+    -- a block dropped behind the couch was back by the next hour. Each
+    goes back to where the world compiled it; one touching a robot is left
+    where it is, being somebody's, mid-job. Idempotent: a pair hooks one
+    board twice."""
+    from pluggybot.challenge import bench, stack
+    from pluggybot.economy.tasks import KINDS
+    if task is None or task.kind not in KINDS:
+      return
+    props = {"stack": stack.BLOCKS, "mass": bench.MASSES}.get(KINDS[task.kind].task, ())
+    robots = set()
+    for root in robot_roots(self.model):
+      robots |= robot_geoms(self.model, root)
+    g = self.data.contact.geom[:self.data.ncon]
+    moved = []
+    for name in props:
+      bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
+      if bid < 0 or int(self.model.body_jntnum[bid]) != 1:
+        continue
+      qadr = int(self.model.jnt_qposadr[int(self.model.body_jntadr[bid])])
+      if np.allclose(self.data.qpos[qadr:qadr + 7], self.model.qpos0[qadr:qadr + 7],
+                     atol=1e-3):
+        continue
+      mine = np.flatnonzero(self.model.geom_bodyid == bid)
+      touching = np.isin(g, mine)
+      if (touching[:, 0] & np.isin(g[:, 1], list(robots))).any() or \
+         (touching[:, 1] & np.isin(g[:, 0], list(robots))).any():
+        continue
+      self._return_module(name)
+      moved.append(name)
+    if moved:
+      self._say(f"TASK {task.id}: the house set out {', '.join(moved)} "
+                "where the offer says")
 
   def _set_bench(self, task) -> None:
     """Make the world match a bench offer (issue #227; challenge/bench.py):
@@ -5085,9 +5126,13 @@ class HubLifecycle:
     exploration -- only `in_place`, into the world it was saved from; the
     pack, the clocks and whether it is dead whatever the world looks like."""
     self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
-    self.module = state.get("module") or self.module
+    # ...a module this world still HAS: a retired built tool's name saved
+    # here would fail the next `module_state` read (found in review)
+    module = state.get("module") or ""
+    if module and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
+      self.module = module
+    mapped = in_place and self.mission.restore_kept(state["mission"], arrays)
     if in_place:
-      self.mission.restore_kept(state["mission"], arrays)
       if (self.near_field is not None and state.get("nearField") is not None
           and "heightmap" in arrays
           and arrays["heightmap"].shape == self.near_field.height.shape):
@@ -5097,8 +5142,13 @@ class HubLifecycle:
       if self.depth_camera is not None and state.get("depthRng"):
         self.depth_camera.rng.bit_generator.state = state["depthRng"][0]
         self.depth_camera.peer_rng.bit_generator.state = state["depthRng"][1]
-      self.map_done = bool(state.get("mapDone"))
-      self.blacklist = {tuple(c) for c in state.get("blacklist", ())}
+      # ...and what the MAP says only with the map: a grid that does not fit
+      # this build's (a new extent or resolution) is not restored, and a
+      # robot that believed it complete would never explore the empty one
+      # it has (found in review)
+      self.map_done = mapped and bool(state.get("mapDone"))
+      self.blacklist = ({tuple(c) for c in state.get("blacklist", ())}
+                        if mapped else set())
       self._tilted_since = state.get("tiltedSince")
       self._cleared_rack = bool(state.get("clearedRack"))
     self.dead = dict(state["dead"]) if state.get("dead") else None
@@ -5121,7 +5171,7 @@ class HubLifecycle:
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
     self.resumed = {"inPlace": bool(in_place), "why": why,
-                    "exploreDeadline": state.get("exploreDeadline") if in_place else None,
+                    "exploreDeadline": state.get("exploreDeadline") if mapped else None,
                     "errand": state.get("errand"), "preset": state.get("preset", []),
                     "queued": state.get("queued", []),
                     "wasState": state.get("state", "")}
@@ -5167,6 +5217,12 @@ class HubLifecycle:
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
         continue
+      taken = self.tasks.take_up(task.id, t=float(self.data.time))
+      if taken is not None and taken.state == "failed":
+        self._say(f"TASK {task.id} failed: {taken.verdict['reason']}")
+        self._remember(f"{prefix}the job {task.id} ({task.kind}) is failed: "
+                       f"{taken.verdict['reason']}")
+        continue
       errand = errand_for_task(
         task, self.world, self.boards, answer=task.answer,
         role=task.role_of(self.root), from_xy=self.mission.pose_xy(),
@@ -5207,10 +5263,18 @@ class HubLifecycle:
       return
     self.module = held
     self.state = "SWAP_RETURN"
-    self._say(f"the restart left {held} on my fork -- taking it back to its bay")
+    # MID-SWAP the fork is under a module still hanging on its bay (found
+    # in review): the return is what backs the fork out, and what it did is
+    # said as that, not as a tool carried off
+    at_bay = bool(self.mission.swap.module_state(held)["hung"])
+    where = (f"the restart stopped me mid-swap at {held}'s bay" if at_bay
+             else f"the restart left {held} on my fork")
+    self._say(f"{where} -- " + ("backing out" if at_bay else
+                                 "taking it back to its bay"))
     verdict = yield from procedure._stow(self, {})
-    self._remember(f"the restart left {held} on my fork; "
-                   + ("I hung it back on its bay" if verdict["ok"]
+    self._remember(f"{where}; "
+                   + ("I backed out and it hangs there" if at_bay and verdict["ok"]
+                      else "I hung it back on its bay" if verdict["ok"]
                       else f"I could not hang it back: {verdict['reason']}"))
 
   # ---- the loop ------------------------------------------------------------
@@ -5272,6 +5336,8 @@ class HubLifecycle:
     two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
     issue #167): the setup, then the routine, then the summary. `resume` is
     a saved world to carry on from (issue #345), put back between the two."""
+    if resume is not None:
+      self.data.time = resume.t           # what `begin` says, on the clock
     day = self.begin(start, station_y, use_at, max_sim_time, explore_budget)
     if resume is not None:
       continuation.restore([self], resume)

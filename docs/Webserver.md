@@ -251,13 +251,24 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   committed answer), and a procedure job stays claimed. A module the restart
   left on the fork is stowed first. A claim held by a robot not in the new
   world goes back on offer. A game still fails, because its referee lived in
-  the process.
+  the process. A job taken up through `MAX_TAKE_UPS` (3) restarts without
+  finishing is failed: the world's crash-loop guard counts saves, and a job
+  whose errand crashes the process would otherwise crash every process after
+  it.
+- **An offer sets its props out.** The tower's blocks and the bench's cubes
+  go back where the world compiled them when their challenge is offered,
+  except one touching a robot. The hourly reset used to be what made "set
+  out in a row at …" true; with the world carried on, a failed attempt would
+  otherwise leave them wherever it dropped them, for good.
 - **Two refusals.** A world whose geometry changed (the `fingerprint` over
   bodies, joints and geoms, taken before any built tool is hung) gets its
   clock, packs, deaths and jobs, but not its bodies or maps: the robots
   start from their start poses and are told why. And a save restored
   `MAX_RESUMES` (3) times with no new save in between is not trusted again:
-  the next start is fresh, and History says why.
+  the next start is fresh, and History says why. A file that cannot be read
+  at all (empty, torn) is a fresh start too, never a crash. A grid that does
+  not fit the build's is left empty and the robot explores again, where it
+  stands.
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two

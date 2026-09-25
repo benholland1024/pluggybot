@@ -86,6 +86,11 @@ MAX_TASKS = 40
 #: ...and how many may stand OFFERED at once. A cap, not a cadence: issue #23
 #: owns how fast they arrive.
 MAX_OFFERED = 6
+#: Restarts a kept errand claim is taken up through unfinished before it is
+#: failed instead (issue #345): a job whose errand crashes the process would
+#: otherwise crash every process after it -- the world's own crash-loop
+#: guard (`continuation.MAX_RESUMES`) never sees a claim, which lives here.
+MAX_TAKE_UPS = 3
 
 #: The states a task moves through, in order. `offered` is a job nobody has
 #: taken; `claimed` is one a robot has accepted but not started (it is queued
@@ -416,6 +421,9 @@ class Task:
   secret: dict = field(default_factory=dict, repr=False)
   #: role -> robot, for a job with roles (issue #167); {} for one robot's.
   claims: dict = field(default_factory=dict)
+  #: How many restarts have handed this claim back to its robot (issue
+  #: #345; `TaskBoard.take_up`). The state file's, never the wire's.
+  restarts: int = 0
 
   @property
   def roles(self) -> tuple:
@@ -570,7 +578,8 @@ class Task:
     a job standing on the board with no right answer behind it, which is a
     worse kind of secret-keeping than writing it down.
     """
-    return {**self.as_dict(), "answer": self.answer, "secret": dict(self.secret)}
+    return {**self.as_dict(), "answer": self.answer, "secret": dict(self.secret),
+            "restarts": self.restarts}
 
   def snapshot(self, table: RewardTable | None = None) -> dict:
     """The task as a telemetry frame carries it: `as_dict` plus the payout
@@ -634,6 +643,7 @@ class Task:
       # Absent from anything that came off the wire, and that is fine: only
       # `as_state` writes it, and only the state file is ever read back.
       secret=dict(spec.get("secret") or {}),
+      restarts=int(spec.get("restarts") or 0),
     )
 
 
@@ -890,6 +900,24 @@ class TaskBoard:
       return None
     task = replace(task, state="offered", claimed_by="", claimed_t=None,
                    answer="", claims={})
+    self.tasks[task.id] = task
+    self.save()
+    return task
+
+  def take_up(self, task_id: str, t: float = 0.0) -> Task | None:
+    """Hand a kept errand claim back to its robot after a restart, counted
+    (issue #345): at `MAX_TAKE_UPS` restarts unfinished it is failed and
+    said on the wire instead -- the returned task's state says which."""
+    task = self.tasks.get(task_id)
+    if task is None or task.state not in ("claimed", "active"):
+      return None
+    if task.restarts >= MAX_TAKE_UPS:
+      return self._move(replace(task, state="failed", resolved_t=round(float(t), 3),
+                                verdict={"task": task.task, "ok": False, "points": 0,
+                                         "reason": f"taken up through {task.restarts} "
+                                                   "restarts and never finished"}),
+                        "task_resolved", t)
+    task = replace(task, restarts=task.restarts + 1)
     self.tasks[task.id] = task
     self.save()
     return task
