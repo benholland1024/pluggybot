@@ -93,8 +93,10 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
   """The first checkable statement in `text`, and its truth -- or None.
 
   Four shapes are checked, each against the world and nothing else:
-    "bay C is empty"            -- `rack` (module -> bay index), a bay with
-                                   no module on it is empty
+    "bay C is empty"            -- `rack` (module -> the bay it HANGS in,
+                                   `HubLifecycle.racked` -- never the
+                                   inventory), a bay nothing hangs in is
+                                   empty
     "module_pen is on the rack" -- `rack` again: hung on some bay
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charge bay is free"    -- `charging`: is any robot charging now

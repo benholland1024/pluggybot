@@ -19,6 +19,8 @@ What these hold down:
   6. ON EVERY ARM -- it is a fact, not a rail. `guarded` is shown the
      originals and no rail, and its prefix does not move.
   7. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the compiled world.
+  8. A CLAIM ABOUT THE RACK IS GRADED AGAINST THE WORLD, never the inventory
+     (`HubLifecycle.racked`).
 
 Cheap: a model and `mj_forward` where the claim is the switch, stubbed
 sources where it is the rule, one pair where it is the wiring.
@@ -214,3 +216,21 @@ def test_one_switch_is_bought_for_every_bay_the_world_has():
                if g.name == coupling.bay_prefix(2) + coupling.BAY_SWITCH_PLATES[0])
   plate.name = "unswitched"
   assert feed.read(spec) == part.quantity - 1
+
+
+# ---- 7. a claim about the rack is graded against the world --------------------
+
+def test_a_claim_about_the_rack_is_graded_against_where_the_tools_are(tmp_path):
+  """`tell` claims were graded against the INVENTORY, so a robot that read
+  "on Rowan's fork" here and said "bay C is empty" was recorded as saying
+  something FALSE -- and "module_pen is on the rack" as true."""
+  a, b = _pair(tmp_path)
+  _onto_fork(a, "module_pen", b)
+  events = []
+  a.on_event.append(events.append)
+  for text in ("bay C is empty", "module_pen is on the rack", "bay B is empty"):
+    a._acts(ov.Decision(action="idle", reason="",
+                        tell={"to": b.robot_name, "text": text}))
+  assert [(e["claim"], e["claimTrue"]) for e in events if e["type"] == "message"] \
+      == [("bay c is empty", True), ("module_pen is on the rack", False),
+          ("bay b is empty", False)]

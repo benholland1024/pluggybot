@@ -3365,6 +3365,22 @@ class HubLifecycle:
         return root
     return None
 
+  def racked(self) -> dict[str, int]:
+    """Which modules hang on a bay, and which bay, off the WORLD -- what a
+    robot's claim about the rack is graded against (`acts.check_claim`,
+    issue #351). Not `rack_inventory`, which is where a module BELONGS:
+    graded against it, "bay C is empty" was false while the pen rode the
+    other robot's fork. The robot itself is shown `tool_places`."""
+    hung = {}
+    for module in self.rack_inventory:
+      try:
+        st = self.mission.swap.module_state(module)
+      except KeyError:
+        continue
+      if st["hung"]:
+        hung[module] = st["bay"]
+    return hung
+
   # ---- a tool on the floor (issue #347) -------------------------------------
 
   def tool_whereabouts(self, module: str) -> str:
@@ -4154,7 +4170,7 @@ class HubLifecycle:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
         checked = rules.check_claim(
-          decision.tell["text"], rack=self.rack_inventory, boards=self.boards,
+          decision.tell["text"], rack=self.racked(), boards=self.boards,
           charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
