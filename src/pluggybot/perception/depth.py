@@ -90,6 +90,7 @@ FLOOR_TOL = 0.02          # m: a point under this is floor, for the mount metric
 
 #: One empty cloud, shared: a frame with no peer in it allocates nothing.
 _NO_POINTS = np.zeros((0, 3))
+_NO_GEOMS = np.zeros(0, dtype=np.int32)
 
 
 @dataclass
@@ -107,11 +108,15 @@ class DepthFrame:
   the height map must not contain a robot that will have driven off by the
   time anything reads the map, and the thing that must not drive into it
   must. Nothing is inferred here -- these are the same casts, sorted by
-  what they hit."""
+  what they hit. `peer_geoms` is the geom each of those rows hit, so a
+  consumer can say WHICH robot it saw (issue #365: one lying on the floor
+  is not held for, `HubLifecycle._near_field_step`)."""
   z: np.ndarray
   points: np.ndarray
   self_fraction: float
   peers: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
+  peer_geoms: np.ndarray = field(
+    default_factory=lambda: np.zeros(0, dtype=np.int32))
 
 
 class DepthCamera:
@@ -210,15 +215,17 @@ class DepthCamera:
     # the same trade `Lidar.scan_split` makes one sensor along: the map must
     # not hold a body that moves, and the reflex must see it. Skipped
     # entirely when no peer is in frame, so a single robot pays nothing.
-    peers = _NO_POINTS
+    peers, peer_geoms = _NO_POINTS, _NO_GEOMS
     if self._theirs.size:
       theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
       if theirs.any():
-        peers = self._cloud(np.where(theirs, z, np.nan),
-                             self.peer_rng)[1]
+        pz, peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng)
+        # `peers`' rows, in order; a mask index copies the reused ray buffer
+        peer_geoms = self._geomid[~np.isnan(pz)]
     z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
-                      self_fraction=float(robot.mean()), peers=peers)
+                      self_fraction=float(robot.mean()), peers=peers,
+                      peer_geoms=peer_geoms)
 
   def _cloud(self, z: np.ndarray, rng) -> tuple[np.ndarray, np.ndarray]:
     """Range gate, noise, dropout and the pinhole reconstruction: `(z,

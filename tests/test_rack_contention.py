@@ -27,11 +27,12 @@ STATION = HUB_STATION_YS[0]
 
 
 def _peer(x: float, y: float, state: str = "IDLE"):
-  """The other robot's PUBLIC surface and no more: a name, a state and a
-  reported pose -- mutable, so a test can walk it away."""
+  """The other robot's PUBLIC surface and no more: a name, a state, a
+  reported pose -- mutable, so a test can walk it away -- and whether it is
+  lying down (issue #365; it is not)."""
   pos = [x, y]
   return SimpleNamespace(robot_name="Rowan", root=SECOND.root, state=state,
-                         pos=pos, mission=SimpleNamespace(
+                         pos=pos, down=lambda: False, mission=SimpleNamespace(
                            pose_xy=lambda: (pos[0], pos[1])))
 
 

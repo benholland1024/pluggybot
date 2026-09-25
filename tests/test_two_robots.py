@@ -881,6 +881,7 @@ def test_a_pick_lost_to_a_peer_names_it_in_history():
 
   class Peer:                                # the public surface, no more
     robot_name, root = "Rowan", SECOND.root
+    down = staticmethod(lambda: False)       # standing (issue #365)
 
     class mission:
       pose_xy = staticmethod(lambda: (sx + 0.26, sy))

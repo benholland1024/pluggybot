@@ -1271,7 +1271,9 @@ had touched. `Lidar.scan_split` answers the two consumers separately
 (issue #316), and contact is an `encounter` phase.
 
 **What is true now:** another robot is never in the map, always in the
-SENSORS, and in the mask as its reported pose. Both sensors sort the same
+SENSORS, and in the mask as its reported pose -- or, lying on the floor,
+as its body ("A robot lying down was avoided where it said it was",
+below). Both sensors sort the same
 casts by what they hit -- `Lidar.scan_split` (#316) and `DepthFrame.peers`
 (#328) -- and neither hands the map a body that will have driven off by
 the time anything reads it.
@@ -1920,6 +1922,71 @@ first (`steps.run_verb`), which is a rule of its own and was not what
 toppled Rowan; that pose and the return's (`carry_configuration_routine`)
 move the lift up before the arm comes in and down after it; and a module
 lost for `LOST_TOOL_S` goes back to its bay by itself.
+
+## A robot lying down was avoided where it said it was (issue #365)
+
+On 2026-09-23 at 18:02 UTC Rowan drove into Luca, who had lain on its side
+for three minutes after toppling mid-fetch at the rack. It bumped Luca for
+about a minute (the encounter rows close from 0.51 m to 0.06 m) and fell
+over too. The build was `e77704c`: the lidar saw the other robot (#316),
+and the depth camera's peer channel (#328) had merged 13 minutes earlier
+and was not deployed. Each guard, measured on room_hub with one robot
+toppled at a fixed pose and the other sent past it:
+
+- **The planner's disc followed the belief, and the belief had left the
+  body.** The errand a robot falls in keeps commanding its wheels until it
+  returns, and a wheel turning in the air is travel to the reckoner: up
+  to 2.2 m in 10 s, by how it lies and which way the wheels are told to
+  turn. On its side, 10 s of cruise put the reported pose 1.5-2.2 m off
+  the body; face-down, cruising moved it not at all and reversing 1.3 m.
+  A dead peer stayed in `others`; nothing filtered it. It was just in the
+  wrong place.
+- **A lying robot reaches further.** Its geoms' bounding circles reach
+  0.51-0.52 m from the chassis origin (the mast lies along the floor),
+  against 0.30 m upright. From the middle of its footprint they reach
+  0.32-0.33 m, against a standing robot's 0.27 m armed.
+- **The lidar sees it in most poses**: 1-27 returns off the body, but on
+  its left side none beyond 0.7 m.
+- **The depth camera's peer channel sees it well**: 120-590 points at
+  0.5-1.2 m in every pose, and the corridor catches it inside 0.60 m.
+
+Flown from (-1.6, 0) to (1.3, 0) past a robot lying at (-0.3, 0) or 0.25 m
+off that line, its reckoner 1.8 m off its body; four falls x two offsets:
+
+| guards | arrived | touched it |
+|---|---|---|
+| 09-23's (no peer channel), disc on the belief | 3/8 | 4/8, up to 1313 contact steps; one driver tilted 9°; the five that failed backed off 8-16 times |
+| today's (peer channel), disc on the belief | 0/8 | 0/8 -- held ~0.6 m short until the drive gave up |
+| disc on the body, no peer channel | 8/8 | 0/8 |
+| disc on the body, peer channel holding for it | 6/8 | 0/8 -- face-down, both offsets, held 0.52 m short |
+| disc on the body, not held for | 8/8 | 0/8 |
+
+The face-down hold is geometry, not noise. The detour runs straight at the
+body and turns at the disc's edge, and the corridor looks 0.60 m ahead, so
+it sees the body just before the turn. A hold waits for the other robot to
+move, and a robot on the floor will not move until it is stood up.
+
+**What is true now:** a robot lying down is avoided where its body lies.
+"Lying down" means the chassis past `TOPPLE_TILT_RAD`, from the moment it
+falls, dead or not. `HubLifecycle.keep_clear` answers the middle of its
+footprint with `DOWN_ROBOT_CELLS` (0.70 m), placed where the DRIVER's own
+sensors would put it (`HubMission.as_seen`), so the driver's own drift
+cancels. That matters: 0.37 m of floor is all there is between the detour
+and the body, and the pair's drifts ran 0.24-0.55 m. A fallen robot cannot
+report itself, and a real robot would see it as a lump in a depth image.
+The depth camera does not hold for a robot lying down, and a stagnated
+drive does not wait on one (`_other_in_the_way`); the lidar's front stop
+and the bumper still see it. Because the hold no longer covers the moment
+of a fall, a drive looks at who is lying down every `DOWN_CHECK_S` (0.1 s)
+and replans at once when that changes. Measured without it, a robot
+knocked flat 0.5 m ahead just after a replan was met only by the lidar's
+0.25 m stop, the driver's axle 0.18 m from the body; with it, the replan
+comes 0.04-0.1 s after the fall and the axle keeps 0.31 m or more. Once
+stood up (a warp that resets the reckoner), it is avoided where it says it
+is again, and the plan hears that at once too. A line about a robot on the
+floor says it is "lying knocked over" (`posture`), never "standing". Not
+changed: the mind is still shown the reported pose (`others_context`), and
+a fallen robot's reckoner still counts its wheels.
 
 ## Debugging workflow that worked
 
