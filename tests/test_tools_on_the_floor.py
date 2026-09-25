@@ -226,7 +226,7 @@ def test_a_return_is_the_world_s_hand_and_never_an_intervention(clocked):
   [event] = c.events
   assert event == {"type": "reset_tool", "t": 300.0, "robot": "pluggybot",
                    "module": "module_pen", "by": AUTO_RESTART_BY, "auto": True,
-                   "intervention": False, "lostS": 300.0}
+                   "intervention": False, "lostS": 300.0, "detail": line}
   assert c.life.tools_returned == [event]
   assert c.life.interventions == []
 

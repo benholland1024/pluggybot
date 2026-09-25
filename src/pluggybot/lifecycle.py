@@ -3238,15 +3238,16 @@ class HubLifecycle:
     either may have been failing jobs for want of it."""
     self._return_module(module)
     self._lost_since.pop(module, None)
+    line = f"{module} lay on the floor for {_minutes(lost_s)} and was put back on its bay"
     event = {"type": "reset_tool", "t": round(float(self.data.time), 3),
              "robot": self.root, "module": module, "by": AUTO_RESTART_BY,
-             "auto": True, "intervention": False, "lostS": round(lost_s, 1)}
+             "auto": True, "intervention": False, "lostS": round(lost_s, 1),
+             "detail": line}
     self.tools_returned.append(dict(event))
     self._say(f"WORLD put {module} back on its bay -- it lay on no bay and on "
               f"no fork for {lost_s:.0f} s")
     for life in (self, *self.peers):
-      life._remember(f"{module} lay on the floor for {_minutes(lost_s)} and "
-                     "was put back on its bay")
+      life._remember(line)
     self._emit(event)
 
   def _reset_robot(self, msg) -> None:

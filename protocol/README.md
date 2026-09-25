@@ -67,11 +67,13 @@ its bay by itself on a served world, and says so between the frames:
 ```jsonc
 {"type": "reset_tool", "t": 2411.0, "robot": "pluggybot",
  "module": "module_pen", "by": "auto-restart", "auto": true,
- "intervention": false, "lostS": 300.0}
+ "intervention": false, "lostS": 300.0,
+ "detail": "module_pen lay on the floor for 5 minutes and was put back on its bay"}
 ```
 
 `reset`'s shape one object down: `by` is the label (`auto-restart`, as the
-auto stand-up's), `auto` the fact, `lostS` how long it lay there. ⚠ **NEVER
+auto stand-up's), `auto` the fact, `lostS` how long it lay there, and
+`detail` the sentence both robots' History got, for an operator log. ⚠ **NEVER
 AN INTERVENTION**, and `intervention` is always `false`: a timer is not a
 hand, so no `intervention` event follows and nothing may count one. `robot`
 is the root whose seam ticks the clock (the primary on a pair); the tool is

@@ -316,14 +316,16 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   carriage centred, the gate shut). The claw's jaws are left as they are,
   and a claw holding a cube keeps it where `pick` leaves it -- `CARRY_LIFT`,
   arm out -- because tucked, the cube swings into the chassis. An empty
-  fork only tucks its arm: extended, it sweeps a rack."""
+  fork has no carrying pose: nothing is moved."""
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
+  if tool is None:
+    return []
   model, swap = life.model, life.mission.swap
   out = []
   for axis in axes.AXES.values():
-    if tool is None or axis.requires != tool or not axis.actuator:
+    if axis.requires != tool or not axis.actuator:
       continue
     try:
       act = model.actuator(axis.actuator)
@@ -334,8 +336,7 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   claw = _claw(life) if tool == CLAW_MODULE else None
   holding = claw is not None and claw.held() is not None
   out.append((swap.arm_act, ARM_EXT if holding else 0.0, axes.ARM_SPEED))
-  if tool is not None:
-    out.append((swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED))
+  out.append((swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED))
   return out
 
 
