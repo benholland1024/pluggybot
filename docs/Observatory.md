@@ -27,8 +27,9 @@ failed read "from None", and a `drive_to` the planner could not route read
   `dropped … on the way`, `never squared up to …: …`), and the measured
   grade follows it. History says it once;
 - a drive that gives up says which of four it was: `no route over the floor
-  mapped so far`, `stalled`, the other robot by name (in the way, or
-  standing at the goal), or `out of time`. The same clause ends
+  mapped so far`, `stalled`, the other robot by name (in the way, or at
+  the goal, and whether it is standing or lying there, #365), or `out of
+  time`. The same clause ends
   `USE_TOOL: never got there`, a procedure's `drive_to` and `draw`, the
   travel to a prop, `GO_CHARGE` and the `stuck` death after it, and a leg
   of a care/feed/shock route (`never reached the cage: …, on leg 1 of 5`);
