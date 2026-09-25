@@ -2146,11 +2146,13 @@ class HubLifecycle:
     # a charge's typical occupancy, and neither the pack nor an interrupt
     # ends that wait: charging is what either would ask for.
     spins, since, arrived = 0, None, False
+    driven = None                 # the goal the last drive was sent to
     while True:
       if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
           break
+      driven = (sx, sy)
       arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
       if arrived:
         break
@@ -2164,10 +2166,12 @@ class HubLifecycle:
         break
     if not arrived:
       # WHY, and not always "no route" (issue #350): a stall, the other
-      # robot and the clock read the same until the drive said which.
+      # robot and the clock read the same until the drive said which. Of
+      # the goal last DRIVEN to -- a spin moves the standoff after it, and
+      # a wait that gave up drove nowhere
       blocked = self.peer_at(sx, sy)
-      self.charge_failure = (f"never reached the charge bay: "
-                             f"{self.drive_why(sx, sy)}")
+      self.charge_failure = "never reached the charge bay" + (
+        "" if driven is None else f": {self.drive_why(*driven)}")
       self._say(f"GO_CHARGE: {self.charge_failure}"
                 + ("" if blocked is None else
                    f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))

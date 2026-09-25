@@ -145,6 +145,9 @@ class _Drive:
   def peer_sighting(self):
     return self._sighting
 
+  def _bodies(self):
+    return [(*where()[:2], 12) for where in self.others]
+
   def _nav_routine(self, v, w):
     self.data.time += 0.1
     self.pose = (self.pose[0] + self._step, self.pose[1], 0.0)
@@ -236,6 +239,25 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
              for ln in life.log), life.log[-3:]
   life._strand()
   assert life.dead["why"].endswith(f": never reached the charge bay: {why}")
+
+
+def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
+  """A wait that gave up drove nowhere: the record of an earlier drive to
+  the same standoff is not this trip's reason."""
+  from test_rack_contention import _clock, _peer
+  from pluggybot.mission.mission import charge_standoff
+  life = _lifecycle("room_hub", errand=False)
+  sx, sy, _ = charge_standoff(life.mission.rack)
+  life.mission.last_drive = {"why": "stalled", "goal": (sx, sy), "seconds": 90.0,
+                             "shortM": 2.0}                      # a drive long ago
+  peer = _peer(sx + 0.2, sy, "CHARGE")
+  life.peers, life.mission.others = [peer], [peer.mission.pose_xy]
+  _clock(life)
+  life.mission.drive_to_routine = lambda *a, **kw: pytest.fail("the wait drove")
+  assert life.mission.run(life.go_charge_routine()) is False
+  assert life.charge_failure == "never reached the charge bay"
+  assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
+             for ln in life.log), life.log[-2:]
 
 
 # ---- 3. narration names only what happened -------------------------------------
