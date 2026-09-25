@@ -593,16 +593,26 @@ class HubMission:
     r = self.swap.reckoner
     return r.x, r.y, r.theta
 
-  def truth_error(self) -> list[float]:
-    """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
-    dead reckoning has drifted by, for a failed swap's trace (issue #264).
+  def true_pose(self) -> tuple[float, float, float]:
+    """Where the robot IS, in `pose`'s terms: the axle midpoint and the
+    heading, off the root joint. The heading is the chassis's forward axis
+    projected onto the floor, so it holds on a tilted chassis, which is
+    where a death reads it (issue #362); level, it is the quaternion's yaw.
     A diagnostic the sim can afford and a robot could not -- nothing reads
     it to act."""
     q = self.swap.root_qadr
     d = self.data
-    yaw = 2.0 * math.atan2(float(d.qpos[q + 6]), float(d.qpos[q + 3]))
-    ax = float(d.qpos[q]) - 0.08 * math.cos(yaw)
-    ay = float(d.qpos[q + 1]) - 0.08 * math.sin(yaw)
+    w, x, y, z = (float(v) for v in d.qpos[q + 3:q + 7])
+    fx = 1.0 - 2.0 * (y * y + z * z)         # R[0][0] and R[1][0]: the
+    fy = 2.0 * (x * y + w * z)               # forward axis, world frame
+    # the chassis body origin rides 0.08 m ahead of the axle midpoint
+    return (float(d.qpos[q]) - 0.08 * fx, float(d.qpos[q + 1]) - 0.08 * fy,
+            math.atan2(fy, fx))
+
+  def truth_error(self) -> list[float]:
+    """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
+    dead reckoning has drifted by, for a failed swap's trace (issue #264)."""
+    ax, ay, yaw = self.true_pose()
     bx, by, bth = self.pose
     dyaw = (bth - yaw + math.pi) % (2 * math.pi) - math.pi
     return [round(1000 * (bx - ax), 1), round(1000 * (by - ay), 1),

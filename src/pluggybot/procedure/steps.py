@@ -920,14 +920,22 @@ VERBS: dict[str, Verb] = {
 }
 
 
-def run_verb(life, verb: Verb, args: dict) -> Routine:
+def run_verb(life, verb: Verb, args: dict, where: dict | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
   A verb that drives puts the fork into its carrying pose first (issue
   #347) -- here, once, so a verb added later cannot forget it -- and the
-  verb's own use-phase sets its working pose again on arrival."""
-  if verb.drives:
-    yield from travel_pose_routine(life)
-  return (yield from verb.run(life, args))
+  verb's own use-phase sets its working pose again on arrival.
+
+  While it runs, `life.step_now` says which step this is (`where`: the
+  procedure, the count, a line), for a death to name (issue #362)."""
+  before = getattr(life, "step_now", None)
+  life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
+  try:
+    if verb.drives:
+      yield from travel_pose_routine(life)
+    return (yield from verb.run(life, args))
+  finally:
+    life.step_now = before
 
 
 def describe_vocabulary() -> list[dict]:
@@ -1066,7 +1074,9 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["stopped"] = "budget"
       break
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from run_verb(life, VERBS[step.verb], step.args)
+    verdict = yield from run_verb(life, VERBS[step.verb], step.args,
+                                  {"procedure": program.name, "n": i + 1,
+                                   "of": len(steps)})
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
     if not verdict.get("ok"):

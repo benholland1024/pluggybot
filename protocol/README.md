@@ -58,6 +58,60 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a death says where the robot was and what it was doing (`death.at`)
+
+pluggybot #362. Seven topples in the week to 2026-09-24 could not be
+explained, because a `death` carried only its cause. It now carries `at`:
+
+```jsonc
+{"type": "death", "t": 4411.3, "robot": "r2_pluggybot", "cause": "stuck",
+ "why": "knocked over (88 deg from upright)", "survivalS": 1204.3,
+ "deaths": 3, "hearts": 2,
+ "at": {"t": 4409.2,
+        "pose":     {"x": 3.121, "y": -4.052, "yawDeg": 88.1},
+        "believed": {"x": 3.301, "y": -4.013, "yawDeg": 91.0},
+        "tilt": {"deg": 61.3, "towardDeg": -84.0, "toward": "right"},
+        "state": "SWAP_PICK", "status": "SWAP_PICK: approaching bay ...",
+        "carrying": "module_lcd",
+        "setpoints": {"lift": 0.164, "arm": 0.0},
+        "errand": {"name": "census", "task": "tk_0042", "module": "module_lcd"},
+        "step": null, "swapping": "module_lcd",
+        "peer": {"name": "Luca", "robot": "pluggybot", "distanceM": 1.512,
+                 "state": "CHARGE", "dead": null}}}
+```
+
+- **`at.t` is when these were read**: as the chassis passed 60° for a
+  topple, which is `TOPPLE_HOLD_S` (2 s) BEFORE the death's own `t` (the
+  errand has had two seconds to react by then); the death's `t` for every
+  other cause.
+- `pose` is the TRUE axle pose and `believed` the dead reckoning, in the
+  same terms (axle midpoint, heading in degrees), so their difference is
+  the drift.
+- `tilt`: degrees from upright, and the direction the robot's top leaned
+  toward in its OWN frame (0 forward, 90 its left, -90 its right, 180
+  back), with `toward` the nearest of those four words. Both are null
+  while the chassis is level (under 1.5°, the map's own rule): a healthy
+  robot reads 0.02° standing, and the direction of that is noise.
+- `state` is the lifecycle state, `status` the last narration line (≤ 200
+  chars).
+- `carrying` is the module on the fork, or null. `setpoints` is what each
+  axis present is COMMANDED to: the body's `lift` and `arm`, and those of
+  the carried tool, under the procedure language's axis names. A setpoint
+  is not a position.
+- `errand` is the errand running (null outside one), and `step` the
+  procedure step: `{procedure, n, verb, args}` with `line` for a
+  procedure in the language, `of` for a step program; null between steps.
+- `swapping` names the module whose bay a swap is working, or null.
+- `peer`, on a pair only, is the nearest other robot, measured between the
+  two chassis as the `encounter` rows are, with its state and `dead` (its
+  death cause, or null). The state alone does not say a peer is down: one
+  knocked over mid-errand keeps its errand's state until that errand ends.
+- A robot that could not read its moment sends `at: {t, error}`; the death
+  itself is never lost to it.
+
+**No bump**: one field added to an existing event, and no fixture carries
+a death.
+
 ### 0.21.0, additive: a stand-up ends the errand, and a map may say `stood_up`
 
 pluggybot #348. No new message and no bump. An `event_map` row may now

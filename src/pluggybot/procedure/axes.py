@@ -47,6 +47,9 @@ class Axis:
   #: how to run it: (life, target) -> Routine. Default: one actuator by name.
   actuator: str = ""
   run: Callable[..., Routine] | None = None
+  #: what it is commanded to, where that is not one actuator's ctrl:
+  #: (life) -> float, in the axis's own units (`setpoints`)
+  setpoint: Callable[..., float] | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,11 @@ def _jaws(life, opening: float) -> Routine:
   yield from claw.jaws_routine(float(opening))
 
 
+def _jaws_setpoint(life) -> float:
+  """The opening `_jaws` last commanded, off one jaw's ctrl (both carry it)."""
+  return -float(life.data.ctrl[life.model.actuator("claw_l").id]) / CLAW_JAW_TRAVEL
+
+
 AXES: dict[str, Axis] = {
   "lift": Axis("lift", LIFT_MIN, LIFT_MAX, LIFT_SPEED, "m",
                "the mast, height of the fork", actuator="lift"),
@@ -99,7 +107,7 @@ AXES: dict[str, Axis] = {
                        actuator="pen_carriage"),
   "claw.jaws": Axis("claw.jaws", 0.0, 1.0, JAW_SPEED / CLAW_JAW_TRAVEL, "",
                     "the claw's opening, 0 wide .. 1 closed",
-                    requires="module_claw", run=_jaws),
+                    requires="module_claw", run=_jaws, setpoint=_jaws_setpoint),
   "seed.gate": Axis("seed.gate", 0.0, GATE_MAX, GATE_SPEED, "m",
                     "the dispenser's gate", requires="module_seed",
                     actuator="seed_gate"),
@@ -244,6 +252,29 @@ def register_axis(axis: Axis) -> None:
 
 def register_sensor(sensor: Sensor) -> None:
   SENSORS[sensor.name] = sensor
+
+
+def setpoints(life, module: str | None) -> dict[str, float]:
+  """What every axis present is COMMANDED to: the body's, and those of the
+  tool on the fork (`module`; None is an empty fork). What a death reads
+  (issue #362). A setpoint, not a position: a lift stalled against
+  something reads what it was asked for, and the gap is the finding. An
+  axis whose actuator the world no longer has (a retired tool) is left out."""
+  out: dict[str, float] = {}
+  for axis in AXES.values():
+    if axis.requires and axis.requires != module:
+      continue
+    try:
+      if axis.setpoint is not None:
+        value = axis.setpoint(life)
+      else:
+        name = (axis.actuator if axis.requires
+                else life.mission.swap.handle.el(axis.actuator))
+        value = float(life.data.ctrl[life.model.actuator(name).id])
+    except KeyError:
+      continue
+    out[axis.name] = round(value, 4)
+  return out
 
 
 def describe() -> dict:
