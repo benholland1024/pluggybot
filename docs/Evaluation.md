@@ -766,7 +766,9 @@ survival and charging rows below, as shapes.
     enough that a wheel riding a threshold is not a death), or unable to reach
     the rack. A physics or navigation failure. "Wedged" is not detectable in
     general; issue #108's loop bound turns the one known wedge into a failed
-    errand instead of a hang.
+    errand instead of a hang. Every `death` event carries `at` since #362
+    (where the robot was, what it was running, the nearest peer), read AS
+    IT FELL for a topple; protocol/README.md has the shape.
   - `unpaid` — upkeep came due and the balance could not cover it. An ECONOMIC
     failure: the robot is fine and it is broke.
   - `unminded` — no `ask` row fired for `UNMINDED_AFTER_S`. A CONFIGURATION
