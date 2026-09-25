@@ -39,7 +39,8 @@ from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
-  built_bay_index, module_power_contact, rack_charge_contact,
+  bay_switches, built_bay_index, is_built_bay, module_power_contact,
+  rack_charge_contact,
 )
 from pluggybot.economy.census import Zone
 from pluggybot.mission.errand import (
@@ -7116,9 +7117,10 @@ def lean_word(toward_deg: float) -> str:
 def carrying(other) -> str:
   """What another robot carries, as its PUBLIC surface says it: whatever is
   ON ITS FORK, off the coupling (`steps._carried`) -- one definition for
-  `others_context` and for naming who holds a tool a pick came away without
-  (issue #264). Not the module it was last sent for: a failed stow leaves
-  that one riding while the next errand names another (second review)."""
+  `others_context`, for naming who holds a tool a pick came away without
+  (issue #264) and for the rack view (`tool_places`, issue #351). Not the
+  module it was last sent for: a failed stow leaves that one riding while
+  the next errand names another (second review)."""
   from pluggybot.procedure.steps import _carried
   if getattr(getattr(other, "mission", None), "swap", None) is None:
     return ""                    # a robot that shows no fork shows nothing on it
@@ -7152,6 +7154,43 @@ def others_context(life) -> list[dict]:
                 "doing": other.status[:120], "carrying": carried,
                 "dead": other.dead["cause"] if other.dead else None})
   return out
+
+
+#: Where the rack view puts a tool (issue #351), besides "on bay <letter>"
+#: and "on <name>'s fork". `NO_PLACE` says no more than the sources do:
+#: nothing on the network knows where a lost tool lies.
+ON_ITS_BAY = "on its bay"
+ON_YOUR_FORK = "on your fork"
+NO_PLACE = "not on its bay and on no fork"
+
+
+def tool_places(life) -> dict[str, str]:
+  """Where each module in the rack's inventory IS, as this robot can know
+  it (issue #351), off three sources and nothing else: its bay's presence
+  switch (what the rack reports over the network), this robot's own fork,
+  and what each other robot says it carries (`carrying`).
+
+  ⚠ A NAMED SOURCE OUTRANKS THE SWITCH, which cannot say WHICH module
+  presses it: a module hung in another's bay reads as that one, as it would
+  on a real rack. A built tool is `on its bay`: the rail's letters are also
+  the first rack's."""
+  switches = bay_switches(life.model, life.data)
+  held = {}
+  for peer in life.peers:
+    if tool := carrying(peer):
+      held[tool] = f"on {peer.robot_name or peer.root}'s fork"
+  if mine := carrying(life):
+    held[mine] = ON_YOUR_FORK
+  places = {}
+  for module, index in life.rack_inventory.items():
+    if module in held:
+      places[module] = held[module]
+    elif index < len(switches) and switches[index]:
+      places[module] = (ON_ITS_BAY if is_built_bay(index)
+                        else f"on bay {chr(ord('A') + index)}")
+    else:
+      places[module] = NO_PLACE
+  return places
 
 
 def world_facts(world: str, rack: dict[str, int] | None = None):
@@ -7326,22 +7365,25 @@ def overseer_context(life) -> dict:
   # with who wrote it: a report of what somebody said, never a turn.
   if life.overseer is not None and getattr(life.overseer.menu, "tickets", False):
     state["tickets"] = life.tickets.as_context()
-  # THE WORKSHOP (issue #168): what hangs where, the tools the robot
-  # built, and their names for `retire_tool`'s grammar. Two racks since
-  # #277: the originals, which no field can name, as a list; the robot's
-  # own rail by bay letter -- the grammar of `build_tool.bay` -- with an
-  # empty bay shown as null so the slot is learnable.
+  # THE RACK (issue #351): where each tool IS, off its bay's switch, this
+  # robot's fork and what the others say they carry. On EVERY arm: it is
+  # a fact, not a rail. The built rail only where the workshop is offered
+  # (issue #168), by bay letter -- the grammar of `build_tool.bay` -- with
+  # an empty bay shown as null so the slot is learnable; `tools` is what
+  # the robot built, and the names `retire_tool` takes.
   shop = getattr(life.overseer, "workshop", None) if life.overseer else None
+  state["rack"] = rack_context(life.rack_inventory, tool_places(life),
+                               life.built_by(), built=shop is not None)
   if shop is not None:
-    state["rack"] = rack_context(life.rack_inventory, life.built_by())
     state["tools"] = shop.as_context()
   return state
 
 
-def rack_context(inventory: dict[str, int], built_by: dict | None = None) -> dict:
+def rack_context(inventory: dict[str, int], places: dict[str, str],
+                 built_by: dict | None = None, built: bool = True) -> dict:
   """`rack` as the model sees it: `original` (the five hand-built modules,
-  permanent) and `built` (the built-tool rail, letter -> the tool there or
-  null).
+  permanent, each to where it is -- `tool_places`) and, with `built`, the
+  built-tool rail (letter -> the tool there with where it is, or null).
 
   ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324). The rail is the WORLD's and
   both robots of a pair share it, so a bay may hold the other robot's tool
@@ -7361,9 +7403,12 @@ def rack_context(inventory: dict[str, int], built_by: dict | None = None) -> dic
     module = by_index.get(first + k)
     if module is None:
       return None
-    return {"module": module, "by": built_by.get(module)}
-  return {"original": [by_index[i] for i in range(first) if i in by_index],
-          "built": {BAYS[k]: bay(k) for k in range(len(BAYS))}}
+    return {"module": module, "by": built_by.get(module), "where": places[module]}
+  rack = {"original": {by_index[i]: places[by_index[i]]
+                       for i in range(first) if i in by_index}}
+  if built:
+    rack["built"] = {BAYS[k]: bay(k) for k in range(len(BAYS))}
+  return rack
 
 
 def attach_mode_stream(life, sinks, pacer=None,

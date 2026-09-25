@@ -2820,7 +2820,7 @@ bay of theirs can be named and none of them can be retired -- and a rail
 beside it with %(count)s bays, %(bays)s, is yours. The bay you name is taken:
 a tool of yours already hanging there is retired for good. `retire_tool:
 "<name>"` takes a tool of yours off your rail and leaves its bay empty. There
-is no replace. `rack` in your context says what hangs where -- `original`
+is no replace. `rack` in your context says where each tool is -- `original`
 the five, `built` your bays -- and `tools` lists what you built, with its spec.
 
 A built tool's axes appear in the procedure language as `<name>.<verb>`,
