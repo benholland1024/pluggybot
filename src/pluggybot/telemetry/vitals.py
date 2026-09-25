@@ -38,9 +38,10 @@ RUNAWAY_MINUTES = 2
 #: slower box straddles two samples doing it.
 WARMUP_MINUTES = 3
 #: Wall seconds of tracemalloc between the onset and the allocation report.
-#: It starts AT the onset, never at boot: MEASURED, tracing from boot ran the
-#: pair at ~0.2x real time against ~0.9x, and a runaway still growing is
-#: growing in what it traces. Short, because the report is ~3 s of Python per
+#: It starts AT the onset, never at boot: MEASURED, traced from boot the pair
+#: ran 5.8x slower (7.8 sim-s a wall minute against 45, free-running), and a
+#: runaway still growing is growing in what it traces. Short, because the pair
+#: runs that slowly while it traces, and the report is ~3 s of Python per
 #: million live traces, taken from the physics thread's share of the GIL
 #: (filtering the snapshot cost 11 s more per million, so it is not
 #: filtered): 20 s of the measured runaway is at most ~38 MiB.
