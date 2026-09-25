@@ -704,6 +704,12 @@ def _stow_first(held: str) -> str:
   return f"the fork holds {held}, not the claw; stow it first"
 
 
+def _no_claw(life) -> str:
+  """Why `grip`/`release` have no claw to work: another tool, or none."""
+  held = _carried(life)
+  return _stow_first(held) if held is not None else "the claw is not on the fork"
+
+
 def _fetch_claw(life) -> Routine:
   """The claw onto an EMPTY fork, for `pick` (issue #353), exactly as
   `fetch` takes it; a fork holding another tool is refused, never driven
@@ -736,7 +742,7 @@ def _pick(life, args: dict) -> Routine:
     claw, fetched = _claw(life), {"fetched": got["tool"]}
   held = claw.held()
   if held is not None:
-    return {"ok": False, "reason": f"already holding {held}"}
+    return {"ok": False, "reason": f"already holding {held}", **fetched}
   tag = int(args["tag"])
   seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=False)
   if seen is None:
@@ -835,7 +841,7 @@ def _cube_geom(model, tag: int) -> str | None:
 def _grip(life, args: dict) -> Routine:
   claw = _claw(life)
   if claw is None:
-    return {"ok": False, "reason": "the claw is not on the fork"}
+    return {"ok": False, "reason": _no_claw(life)}
   yield from claw.jaws_routine(1.0, settle=1.2)
   held = _holding_anything(claw)
   return {"ok": held is not None, "holding": held}
@@ -844,7 +850,7 @@ def _grip(life, args: dict) -> Routine:
 def _release(life, args: dict) -> Routine:
   claw = _claw(life)
   if claw is None:
-    return {"ok": False, "reason": "the claw is not on the fork"}
+    return {"ok": False, "reason": _no_claw(life)}
   yield from claw.jaws_routine(0.0, settle=1.0)
   return {"ok": _holding_anything(claw) is None}
 

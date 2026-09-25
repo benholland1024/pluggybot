@@ -174,6 +174,9 @@ def build_pair_lives(robot: int, state_dir: str):
   life = lives[robot - 1]
   life.overseer = _Mind()
   life.tasks = TaskBoard(path=str(Path(state_dir) / "tasks.json"))
+  # ...hooked as `HubLifecycle.__init__` hooks a board it is handed, or an
+  # offer never sets the bench's mass or the props out (review of #353)
+  life.tasks.on_event.append(life._bench_offered)
   return lives, life
 
 
@@ -272,6 +275,8 @@ def main() -> None:
   args = parser.parse_args()
   if args.pair and (args.view or args.at_the_row):
     parser.error("--pair takes neither --view nor --at-the-row")
+  if args.source and (args.at_the_row or args.feature == "mouse"):
+    parser.error("--source flies a procedure: not with --at-the-row or the mouse")
 
   frames: list = []
   source = (Path(args.source).read_text() if args.source else

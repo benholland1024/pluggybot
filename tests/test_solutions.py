@@ -118,6 +118,12 @@ def test_pick_fetches_the_claw_onto_an_empty_fork_first(monkeypatch):
   # ...and a claw already aboard is not fetched again
   r = _run(st._pick, life, {"tag": 21})
   assert fetches == ["module_claw"] and "fetched" not in r
+  # a fetched claw that comes off its bay holding something is still one
+  # the run took off the rack (review of #353: `toolsHung` lost it)
+  aboard[0] = None
+  _fork(monkeypatch, aboard, _fake_claw(held="block_1_box"))
+  r = _run(st._pick, life, {"tag": 21})
+  assert r["reason"] == "already holding block_1_box" and r["fetched"] == "module_claw"
 
 
 def test_pick_with_another_tool_aboard_says_stow_it_first(monkeypatch):
@@ -128,6 +134,10 @@ def test_pick_with_another_tool_aboard_says_stow_it_first(monkeypatch):
   r = _run(st._pick, SimpleNamespace(), {"tag": 21})
   assert r == {"ok": False, "reason": "the fork holds module_pen, not the claw; stow it first"}
   assert fetches == []
+  # ...the jaws' verbs say the same (review of #353)
+  for verb in (st._grip, st._release):
+    assert _run(verb, SimpleNamespace(), {})["reason"] == (
+      "the fork holds module_pen, not the claw; stow it first")
   aboard[0] = None
   monkeypatch.setattr(st, "_fetch", lambda life, args: tick.result(
     {"ok": False, "tool": args["tool"], "why": "blocked",
@@ -611,6 +621,22 @@ ROWAN_WEIGHING = '''def mass_check():
     f1c = read("lift.force")
     stow()
 '''
+
+
+def test_the_pair_harness_hooks_its_board_as_the_constructor_does(tmp_path):
+  """Review of #353: `solve.build_pair_lives` hands the flying robot a task
+  board after it is built, so `HubLifecycle.__init__` never hooked it -- an
+  offer set no bench mass and no props, and a pair bench flight would be
+  graded against a cube the world never changed."""
+  import sys
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  lives, life = demo.build_pair_lives(2, str(tmp_path))
+  try:
+    assert life._bench_offered in life.tasks.on_event
+  finally:
+    for each in lives:
+      each.mission.close()
 
 
 def _rowan_on_the_pair(tmp_path, feature: str, source: str):
