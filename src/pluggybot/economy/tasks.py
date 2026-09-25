@@ -886,7 +886,8 @@ class TaskBoard:
                                            else task.claimed_t)),
                         "task_claimed", t)
     return self._move(replace(task, state="claimed", claimed_by=robot,
-                              claimed_t=round(float(t), 3), answer=said),
+                              claimed_t=round(float(t), 3), answer=said,
+                              restarts=0),                  # a new claim's
                       "task_claimed", t)
 
   def release(self, task_id: str) -> Task | None:

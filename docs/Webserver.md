@@ -229,8 +229,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   activities (the mouse, the plates, the pair's encounters) and the
   producer's schedule. The ledger, boards, task board, thoughts and tickets
   were already files and are not saved twice.
-- **When.** Every `SAVE_EVERY_S` (60 sim s) on the first robot's step
-  hooks, and once more when the run ends. A run ends at its budget or on
+- **When.** Every `SAVE_EVERY_S` (60 sim s) on the last robot's step
+  hooks, so a pair is saved after both robots' step, and once more when the
+  run ends. A run ends at its budget or on
   SIGTERM/SIGINT; a signal only asks, and the next step boundary ends the
   day before the save. A crash is never saved: the next process carries on
   from the last minute's save. The ledger, the boards and the task board

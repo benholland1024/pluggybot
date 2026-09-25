@@ -4206,7 +4206,9 @@ class HubLifecycle:
     moved = []
     for name in props:
       bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
-      if bid < 0 or int(self.model.body_jntnum[bid]) != 1:
+      if (bid < 0 or int(self.model.body_jntnum[bid]) != 1
+          or self.model.jnt_type[int(self.model.body_jntadr[bid])]
+          != mujoco.mjtJoint.mjJNT_FREE):
         continue
       qadr = int(self.model.jnt_qposadr[int(self.model.body_jntadr[bid])])
       if np.allclose(self.data.qpos[qadr:qadr + 7], self.model.qpos0[qadr:qadr + 7],
@@ -5239,8 +5241,7 @@ class HubLifecycle:
                      "and is queued again")
     if cut is not None and cut_task not in held:
       self._remember(f"the restart cut short {cut['name']}"
-                     + ("; nothing asked for it, so it is not queued again"
-                        if not cut_task else
+                     + ("; it is not queued again" if not cut_task else
                         f"; the job {cut_task} is no longer mine"))
     return queued
 
@@ -5361,6 +5362,7 @@ class HubLifecycle:
             explore_budget: float = 90.0) -> Routine:
     """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
+    self.resumed = None                   # `continuation.restore` sets it
     self.blacklist: set = set()
     self.map_done = False
     self.stranded = False

@@ -358,8 +358,11 @@ def restore(lives, snap: Snapshot) -> dict:
 class Keeper:
   """Saves the world on the physics seam every `every_s`, and on request.
 
-  On the FIRST robot's hooks, where the world's activities are: one world,
-  one save. ⚠ A STOP IS RAISED ON THE SEAM, never from a signal handler:
+  On the LAST robot's hooks: one world, one save, and a pair's step runs
+  every robot's bookkeeping in order (`tick.run_many`), the world's
+  activities with the first -- hooked on the first, the second robot was
+  saved a step behind its own body. ⚠ A STOP IS RAISED ON THE SEAM, never
+  from a signal handler:
   a SIGTERM lands between any two bytecodes -- inside a ledger write, half
   way through a death -- and a state saved from there is half one thing.
   `request_stop` only sets a flag; the next step boundary raises
@@ -379,7 +382,7 @@ class Keeper:
     self._next: float | None = None
     for life in self.lives:
       life.continuing = True
-    self.lives[0].mission.step_hooks.append(self.step_hook)
+    self.lives[-1].mission.step_hooks.append(self.step_hook)
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the

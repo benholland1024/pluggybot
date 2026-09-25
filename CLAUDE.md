@@ -903,7 +903,7 @@ save a filmstrip PNG named after the script.
   Webserver.md "A restart is a continuation" is the design,
   `tests/test_continuation.py` pins each rule and shows it fail). The
   world is saved to `$PLUGGY_WORLD_STATE` every `SAVE_EVERY_S` (60 sim s)
-  on the first robot's seam and when a run ends, and the next process
+  on the LAST robot's seam (after every robot's step) and when a run ends, and the next process
   carries on from it after every `begin()` and before any day moves.
   Constraints:
   - **SIM TIME CONTINUES** (`data.time` comes back with the bodies), so

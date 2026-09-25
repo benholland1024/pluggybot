@@ -639,3 +639,52 @@ def test_an_offered_challenge_finds_its_props_where_the_offer_says(tmp_path):
   assert np.array_equal(life.data.qpos[held:held + 3], against)
   assert any("set out block_1" in ln for ln in said)
   assert stack.BLOCKS[1] == "block_1"
+
+
+# ---- the second look ------------------------------------------------------------
+
+
+def test_a_pair_is_saved_after_every_robots_step_not_between_them(tmp_path):
+  """A pair's step runs each robot's bookkeeping in turn (`tick.run_many`):
+  hooked on the FIRST robot, the save caught the second one's pack and
+  reckoner a step behind its body. Hooked on the last, everything the step
+  does has been done."""
+  from pluggybot.pair import build_pair
+  lives = build_pair("room_hub")
+  keeper = continuation.Keeper(lives, tmp_path / "world.npz")
+  assert keeper.step_hook in lives[-1].mission.step_hooks
+  assert keeper.step_hook not in lives[0].mission.step_hooks
+  assert all(life.continuing for life in lives)
+
+
+def test_a_new_claim_starts_its_restart_count_at_nothing(tmp_path):
+  """The count is a CLAIM's: a job given back and taken by another robot
+  must not arrive already most of the way to being failed."""
+  path = tmp_path / "tasks.json"
+  b = TaskBoard(path)
+  task = b.offer("fetch_module", "module_lcd", t=0.0)
+  b.claim(task.id, robot="r2_pluggybot", t=1.0)
+  b.take_up(task.id)
+  b.take_up(task.id)
+  assert b[task.id].restarts == 2
+  b.release(task.id)
+  b.claim(task.id, robot="pluggybot", t=2.0)
+  assert b[task.id].restarts == 0
+
+
+def test_an_errand_cut_short_with_no_job_behind_it_is_named_and_left(tmp_path):
+  """What a restart ended that no job asked for -- the run's own errand, a
+  procedure the robot started -- is named in History and not queued again,
+  and the line does not pretend nobody wanted it. And a second run on the
+  same lifecycle does not carry the first one's restart into its own."""
+  from pluggybot.mission.errand import carry_errand
+  life = _life(tmp_path)
+  life._errand_now = carry_errand("module_lcd")
+  snap = _saved(life, tmp_path)
+  back = _life(tmp_path)
+  _prelude(back, snap)
+  assert back.errands == []
+  assert any(f"the restart cut short {life._errand_now.name}; it is not "
+             "queued again" in ln for ln in _history(back))
+  back.begin(world_config("room_hub")["start"])
+  assert back.resumed is None
