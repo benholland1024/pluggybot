@@ -1885,9 +1885,9 @@ bay, the charge bay included, is waited for (`HubMission.bay_wait` ->
 holder's lane, or from the start pose when the map is too thin there, for
 3× the typical occupancy of what holds it (`SWAP_OCCUPANCY_S` 30,
 `CHARGE_OCCUPANCY_S` 462; a charge holds the neighbouring tool bay too).
-The charge approach waits again before each look. Inside an errand the
-robot's own interrupt and the reserve end a wait; a charge's wait has
-neither. A return that failed is tried again, `STOW_RETRIES` times, before
+The charge approach waits again before each look, and faces the rack
+before it looks. Only a pick's wait ends early, on the robot's own
+interrupt or at the reserve; a return's and a charge's run to the bound. A return that failed is tried again, `STOW_RETRIES` times, before
 anything but a charge. A failed charge approach logs `charge_trace`: per
 look, fix or none, the belief's drift, the distance from the standoff, the
 other robot's distance and what the camera's line to the tag meets first.

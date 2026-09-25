@@ -1426,10 +1426,13 @@ save a filmstrip PNG named after the script.
   for `WAIT_OCCUPANCIES` (3, Ben's) × the MEASURED occupancy of what holds
   the bay — `SWAP_OCCUPANCY_S` 30, `CHARGE_OCCUPANCY_S` 462, and a charge
   holds its neighbouring tool bay (0.200 m) too — before `peer-at-bay`,
-  whose line says who held it and for how long. Inside an errand the
-  robot's own interrupt and the reserve end the wait; a charge's wait has
-  neither (giving up on it is the death). With a peer in the world the
-  loop leaves the rack before deciding or grading (`_leave_rack_routine`),
+  whose line says who held it and for how long. Only a PICK's wait ends
+  early (the robot's own interrupt, the reserve): a return's never does —
+  abort means stow, and a procedure's `stow()` runs inside its errand —
+  and a charge's never does (giving up on it is the death). The wait is
+  keyed on `peer_on_the_goal`, never on having a name for the peer. With
+  a peer in the world the loop leaves the rack before deciding or grading
+  (`_leave_rack_routine`, not re-driven from where a clear already failed),
   `_clear_rack_routine` READS its drive and tries `CLEAR_SPOTS` more,
   `RACK: lingering` logs what still escapes, and a failed return is
   retried `STOW_RETRIES` times before anything but a charge. ⚠ Alone,
