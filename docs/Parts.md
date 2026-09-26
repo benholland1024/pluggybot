@@ -5,6 +5,11 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
+> **These are the wheeled rover's parts and its rack's.** The quadruped's are
+> chosen by #377 (the body) and #378 (the arm, coupling and dock) and planned
+> against the order gate in #379; the rover's sections go with the rover
+> (#376, stage C).
+
 > **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
 > pluggybot.rack.catalog` (issue #185) — every part below with its number,
 > source, mass, price and the sim constant it feeds, the constant's value
@@ -46,7 +51,8 @@ that touch the peg need print accuracy.
 
 **Electronics volume.** A Pi 5 is 85 × 56 mm; the 24 × 18 cm chassis has room
 for Pi + motor driver + battery without growing. No accelerator HAT is
-needed (PluggyPlan.md "Road to hardware", item 1).
+needed (PluggyPlan.md "Hardware: a plan, and a gate before anything is
+ordered", the compute budget).
 
 ## Drive system
 
@@ -371,8 +377,8 @@ the chassis plate.** Also needed: a 3S balance charger, and a **12 V → 5 V
 
 ⚠ The models already carry the pack as a 400 g placeholder box at that
 position. A real pack of a different mass or footprint moves every physics
-threshold derived from the model — the mass re-budget in PluggyPlan.md
-"Road to hardware" (item 5), to be done last.
+threshold derived from the model — which is why mass is budgeted last
+(PluggyPlan.md "Hardware: a plan, and a gate before anything is ordered").
 
 ## Electronics — later (low priority)
 

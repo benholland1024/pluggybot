@@ -9,10 +9,11 @@ first run. Every gap a build exposes is folded back in here; that is what
 makes the next tool cheaper than the last. Five modules hang on the rack
 today (LCD, plug, pen, claw, seed dispenser) and every bay is taken (§6).
 
-The next builder may not be a person: PluggyPlan's "The next batch" (item 5)
-uses `rack/coupling.py`'s generator as the emitter for agent-built tools and
-§2's envelope as their validator, so keep §2 in a form a validator can read —
-numbers, not stories.
+The next builder may not be a person: the agent-built tools (Overseer.md
+§2d) use `rack/coupling.py`'s generator as the emitter and §2's envelope as
+their validator, so keep §2 in a form a validator can read — numbers, not
+stories. (This doc describes the rover's fork coupling; #375 step 4 rewrites
+it for the quadruped's arm.)
 
 Read this alongside, not instead of:
 - `docs/SimNotes.md` — how each number here was found. This doc says *what
@@ -725,8 +726,8 @@ your tool makes them worse.
    memorised pose; marked delivery zones are the honest workaround. This is
    also why a floor-dropped MODULE is unrecoverable by the robot itself and
    the recovery is the world's (`LOST_TOOL_S`, issue #347) or the
-   `reset_tool` admin message rather than a pickup behaviour. PluggyPlan's "The next batch" item 6 (near-field 3D) is where
-   this closes.
+   `reset_tool` admin message rather than a pickup behaviour. Near-field 3D
+   (#34) is where this closes.
 3. **Yaw at the coupling has ~2° of margin** against navigation's ~0.5°
    settle. Known v2 levers: y-chamfered trays, a squaring press against the
    rack's back wall, softer yaw compliance.

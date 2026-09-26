@@ -2,11 +2,15 @@
 
 **A simulated, hardware-honest robot, and the autonomous agent that lives in it.**
 
-PluggyBot is a small wheeled robot in [MuJoCo](https://mujoco.org/) whose parts
-are real, purchasable parts, and whose day is decided by an LLM: it explores,
-swaps tools at a rack, earns its keep at jobs the world offers, charges itself,
-and can die. The website side (`rooftop-media-2026`, "PluggyWorld") streams
-that world live and lets a visitor talk to the robot.
+PluggyBot is a robot in [MuJoCo](https://mujoco.org/) whose parts are real,
+purchasable parts, and whose day is decided by an LLM: it explores, swaps
+tools at a rack, earns its keep at jobs the world offers, charges itself, and
+can die. **It is becoming a quadruped** — about 10 kg on four legs, with a
+two-joint arm and a redesigned tool coupling, in a world with a second floor,
+a curb and garden rocks (#375, decided 2026-09-26). Until the quadruped
+replaces it on the deployed world the body is the wheeled rover, whose
+constraints are `docs/Rover.md`. The website side (`rooftop-media-2026`,
+"PluggyWorld") streams that world live and lets a visitor talk to the robot.
 
 ## What this project is for
 
@@ -102,62 +106,37 @@ against a world the next batch replaces. So each quality gets an instrument
 only after that batch has landed, and data is collected before then only to
 make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
 
-## The next batch
+## The order of work
 
-The order, agreed 2026-09-11; not yet issues except where numbered.
+The quadruped pivot sets it (#375: the steps, Ben's decisions and what
+carries over; each step's issues are filed when it begins):
 
-1. Docs and prompts aligned to this section, and a per-doc slimming pass
-   (#153); the constitution / robot-owned goals split (#154).
-2. ✅ #120 as a written decision, with one predicate-graded challenge: criteria
-   first, a passing run, a failing run — `Challenges.md`, the three-block
-   tower (`challenge/stack.py`).
-3. ✅ **Agent-written procedures.** Rung one, #58: composable errands over
-   the guarded primitives — the tick refactor (`pluggybot/tick.py`,
-   parity-exact) and the vocabulary (`procedure/steps.py`: the verbs, total
-   validation, one verdict per step, the `roles` slot, the `data.ctrl`
-   fence). Rung two, #166: the procedure language (`procedure/lang.py`) —
-   Python-shaped, parsed never executed, conditionals and bounded loops over
-   sensed scalars, arithmetic, budgets capped by code, `move`/`read` as the
-   motor-and-sensor level (`procedure/axes.py`, the floor #168's tools stand
-   on), a library the robot owns, callable from a decision, a standing order
-   or an event-map row. `autonomous` only. Overseer.md §2b.
-4. **Novel tasks.** A curated challenge set with no scripted solution, chosen
-   to need no new sensing, rewarded generously; one two-tool job resolving to
-   one verdict.
-5. **Agent-built tools, modules first.** A catalog of real parts as data, the
-   generator in `rack/coupling.py` as the emitter, ToolPattern.md's envelope as
-   the validator, an `MjSpec` recompile spike, one agent-built tool in the
-   rig, then a fabrication cost model. Body redesign waits.
-6. **Near-field 3D.** ✅ Stage 1, #34: the sensor decision (a RealSense
-   D435 on the mast top, `perception/depth.py`, honest in its limits, noise,
-   shadow and self-view), the robot-centric 2.5D height map
-   (`perception/heightmap.py`) with the voxel alternative MEASURED and the
-   cost budgeted (Parts.md "near-field depth camera"). Stage 2: the map is
-   built on the physics seam (opt-in; on where served), its draw is on the
-   pack and in the energy table, and it streams beside the occupancy grid
-   (`heightmap`; the site draws it as a heat map) — so a day of it can be
-   watched on the observatory before anything decides on it. Next: the
-   first thing that reads it, floor-object challenges and the ramp.
-7. ✅ **The six qualities have metrics** (#155, the sixth #265;
-   Evaluation.md §3, "The six qualities"): one shape per metric over the
-   observatory's rows (`evaluation/qualities.py`), read by
-   `scripts/qualities.py --observe`, flown by nobody. A new baseline reads
-   them once the deployed pair has run on `autonomous` long enough for the
-   rows to exist.
-8. ✅ **The world for the next experiments** (#215): a second house across
-   the street with the experiment zone (the `lab`: the cage with its mouse
-   and plates, the bench with its masses -- scenery until #226 and #227),
-   the street a loop round both houses, a fence round the loop; one regime
-   break for everything the zone needs (`home/world.py`, Observatory.md).
-   ✅ #226 the mouse: the cage's state machine, the shock task with its
-   prediction, the care acts, `real` on every act in the zone, the
-   disclosure line (Overseer.md §2f). ✅ #227 the bench: the second
-   challenge, open in method -- an unknown mass from a rotating bank, the
-   lift's own load as the honest sensor, graded off the science record
-   (Challenges.md §8).
+0. **Housekeeping** — #376: the plug era retired, the rover's lore moved into
+   `docs/Rover.md`, and the rover deleted once the quadruped replaces it.
+1. **Measure before building, in sim only** — the body: size it, teach it to
+   walk, measure its torques, energy and the served loop's speed (#377); the
+   rack for legs: a two-joint arm, a coupling that survives a trot, a dock
+   the robot lies down on (#378); the hardware plan and the gate before
+   anything is ordered (#379); a body interface through the lifecycle,
+   proven parity-identical on the rover (#380).
+2. **The quadruped lives in the served world** — it walks, explores, maps,
+   charges, falls, gets up and dies; the rover leaves the deployed world.
+3. **Mapping and navigation for legs** — #381: SLAM, an unbounded
+   multi-floor map, places instead of coordinates.
+4. **The arm and the tools** — the rack and tools rebuilt for #378's
+   coupling; every challenge re-solved by ladder A on the quadruped pair.
+5. **Terrain and the second floor** — #280: the staircase, the curb, the
+   rocks and terrain challenges.
+6. **The rover is deleted** — #376's last stage, after tagging `rover-final`.
 
-Deferred behind it: M11 (hands: tier-1 tagged objects) and M12 (two robots —
-which quality 2 needs, so it is deferred, not dropped).
+What the 2026-09-11 batch built carries over to the new body: the
+challenges (`Challenges.md`), agent-written procedures (Overseer.md §2b),
+agent-built tools (§2d), near-field 3D (#34), the six qualities' metrics
+(Evaluation.md §3) and the second house with its lab (#215, #226, #227).
+M11 (hands: tier-1 tagged objects) waits for the arm (step 4); M12, two
+robots, landed as #167. Postponed, unchanged in direction: #274 (the
+qualification bar), #279 (body as a spec), #281 (training as a tool, which
+builds on #377's training pipeline) and #222–#224 (memory and measurement).
 
 ## Design philosophy
 
@@ -166,10 +145,11 @@ which quality 2 needs, so it is deferred, not dropped).
   noise and blind spots) are modelled on real, purchasable parts, keeping an
   eventual sim-to-real transfer plausible.
 - **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
-  of the hardest problems in robotics; PluggyBot never does. The wall plug is
-  a rigid module on the arm, and the hub's tool and charge couplings are a
-  gravity latch and pogo pins the base drives into — contact-rich alignment,
-  but tractable.
+  of the hardest problems in robotics; PluggyBot never does. Its tool and
+  charge couplings are rigid — on the rover a gravity latch and pogo pins
+  the base drives into; for the quadruped, a coupling redesigned with the
+  arm and a dock it lies down on (#378) — contact-rich alignment, but
+  tractable.
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
   where the problem is solved, RL where it earns its keep, and an LLM for the
@@ -177,14 +157,20 @@ which quality 2 needs, so it is deferred, not dropped).
 
 ## Architecture
 
+The body changes under this table (#375): rows marked † are the rover's, and
+the quadruped replaces them — legs and a two-joint arm sized by #377 and
+#378, legged odometry and SLAM (#381), a body interface through the
+lifecycle (#380). The rest carries over unchanged.
+
 | Capability | Approach |
 |---|---|
-| Ranging | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
-| Near field | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
+| Body † | the wheeled rover (`docs/Rover.md`) until a ~10 kg quadruped with a two-joint arm replaces it on the deployed world (#375) |
+| Ranging † | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
+| Near field † | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
 | Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`) |
-| Odometry | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
+| Odometry † | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
 | Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`) |
-| Tools | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
+| Tools † | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
 | Behaviour arbitration | `HubLifecycle.run()`: charge > queued errand > the mind > explore on `guarded`; on `autonomous` the rails are off and the agent's event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
 | Measurement | three arms, an experiment harness, committed results (Evaluation.md) |
@@ -210,115 +196,54 @@ that settled something; the docs named hold the rest.
 | 14 | Measurement | Sep 2026 | three arms, the harness, committed results, deaths and reset, a measured decision deadline, standing orders; A0 flown: 4 of 5 days dead flat, the agent never treating energy as a constraint. Evaluation.md |
 | 15 | The economy, and the agent that configures itself | Sep 2026 | points as a currency (charge pays nothing, upkeep, five hearts, true death), event maps, the served world can fly an arm, auto-restart. Overseer.md §2 and §8b |
 
-M11 (hands) and M12 (two robots) are deferred, not dropped — see "The next
-batch". The per-issue changelog that used to sit here (~400 lines on
+M11 (hands) waits for the arm and M12 (two robots) landed as #167 — see "The
+order of work". The per-issue changelog that used to sit here (~400 lines on
 milestones 8–15) is gone: the issues, `git log` and the docs above are the
 record, and CLAUDE.md carries the constraints that still bind.
 
-## Road to hardware (open items, Aug 2026)
+## Hardware: a plan, and a gate before anything is ordered
 
-*Kept as the build plan. It is no longer the milestone that orders the
-work — see "What this project is for" — but hardware-honesty is, and this
-is where its open decisions live.*
+The rover's road to hardware (Aug 2026) is retired with the rover. The
+quadruped's hardware plan — the bill of materials against a budget of up to
+$20,000, the build order, safety, the robot's computer — is #379, and
+**nothing is ordered until the simulated machine, watched on the site, has
+shown a capable machine**: walking the property, the curb and the rocks, the
+stairs, a tool swap with the arm, charging, and getting up after a fall, all
+with torque, thermal and energy margin. Parts are datasheet-only until then,
+with what no datasheet gives randomised across a plausible range. The first
+order is one leg on a bench; the hardware milestone is a real quadruped that
+walks to a real rack, takes a tool, carries it and hangs it back.
 
-The hardware MVP bar is **a physical robot swapping plug ↔ LCD at a real
-hub**. What stands between here and ordering parts:
+What the rover's plan measured that carries over:
 
-**Blocking**
-
-1. ✅ **Compute budget on the Pi 5 — measured, and the hub pivot's bet pays
-   off.** Desktop timings for the stages that TRANSFER to hardware (rendering
-   is a sim artefact — a real robot is handed images by its cameras), scaled
-   by a deliberately pessimistic 5× for a Cortex-A76, came to **~138 ms per
-   perception cycle → 7.3 Hz**, against a loop that looks for a tag every
-   0.3 s and drives at ≤ 0.25 m/s. So **the hub MVP needs no accelerator** —
-   the learned detector was only on the plug-anywhere path, exactly what the
-   pivot predicted, and that is ~€150 of Hailo HAT not spent. The 5× is an estimate, not a
-   measurement on silicon. Two things fell out: the occupancy grid update
-   cost as much as the tag decode until it was vectorized to 1.3 ms per scan
-   (issue #2, SimNotes), and dropping stereo (item 3) took the budget to
-   ~78 ms.
-2. ✅ **Third camera routing — closed by the LIDAR swap.** Nav camera and dock
-   camera on the Pi's two CSI ports, no multiplexer, LIDAR on USB/UART. A
-   *blocking* item resolved as a side effect of a decision taken for entirely
-   different reasons.
-3. 🟡 **Sensor-realism pass — the ranging half is done.** Stereo is gone,
-   replaced by a 2D LIDAR plus one camera, and measuring it is what killed it
-   (Parts.md "Vision & ranging", SimNotes); `ELECTRONICS_W` rose 6.0 → 8.5 W
-   to pay for the unit's 2.5 W.
-   **Still open on this item:** gyro bias/drift and encoder quantization
-   (odometry is currently perfect-encoder), and camera realism for the tag
-   path — rendered tag images are noise-free, perfectly focused and perfectly
-   exposed, so the measured 4.5 m decode range will shrink under motion blur
-   and real optics.
-4. **The plotter's calibration has no hardware equivalent** *(found Aug 2026)*.
-   `drawing.calibrate()` reads the pen tip from `site_xpos` — ground truth.
-   A real robot has no pen-tip sensor, so the same two-point procedure needs
-   either a physical calibration jig or the dock camera watching the pen
-   against a fiducial. This is a *design* decision that changes what the pen
-   module needs, so it should be settled before the module is printed.
-5. **Mass re-budget** once the pack is chosen (~1.14 → ~1.54 kg invalidates
-   every physics threshold derived from the current model). Do this LAST,
-   after the other hardware choices settle.
-6. ✅ **Veer with a tool aboard — re-measured, no re-tune needed.** Open-loop
-   straight runs over 2.69 m: bare −9.7 mm, LCD −13.6 mm, and the heaviest
-   module (the 182 g pen) −15.2 mm — **5.5 mm more than bare**, two orders
-   off the measured 26 cm veer over 4 m that motivated the y=+0.06
-   counterweight. Tool mass is bounded by the coupling and the tip-load
-   budget, not by veer.
-
-**Hub-specific (cheap, physical)**
-
-7. **Print-tolerance trial**: print the fork + one V-tray, measure the real
-   capture envelope by hand against the sim's ±4 mm / <2°. PLA is fine for
-   this (stiffer and more dimensionally accurate than PETG; the 150 g load
-   is nowhere near creep). PETG only matters if the rack lives somewhere hot.
-8. **Pogo-pin geometry trial**: contacts that engage on the same nose-in
-   motion, recessed, dead-by-default with a hub-side handshake.
-9. ✅ **Lean-pad — built in sim** on `pluggybot_fork.xml`, and re-scoped by
-   measurement: its job is not damping sway, it is letting the tool exert
-   force *at all*. A peg-hung module gave out at **0.1 N**; with the pad, 2 N
-   holds the pen tip inside **0.26 mm**, linearly. ⚠ The power contacts do
-   NOT belong on it — its gravity preload caps at 0.56 N, under what a pogo
-   pin needs. ToolPattern.md ("the force budget"), SimNotes.
-10. ✅ **Module electrical interface — the peg IS the connector.** Split into
-    two conductors around an insulated centre, the fork's left and right
-    V-notch pairs become the two poles of a power-only coupling: no extra
-    parts and no extra alignment, because the alignment is the gravity latch
-    that was already there. `module_power_state` reports each pole separately,
-    since a half-seated coupling is a real failure mode. There are no
-    brown-outs while carrying — every interruption is a mating or release
-    transition, worst measured **178 ms** under hard driving, which is what
-    sizes the module's holding capacitor at ~200 ms (Parts.md, SimNotes).
-    Demo: `scripts/module_power.py`.
-11. ✅ **Drawing tool (pen carriage)** — built, and it draws. The module
-    supplies the lateral DoF nothing else owns (a carriage on its own
-    actuated slide joint along the peg axis, ±55 mm) and pairs with the lift
-    to make an X-Y plotter against a vertical board, base parked so nothing
-    in a drawing is integrated from wheel odometry. **0.57 mm form error** on
-    the square. ToolPattern.md; demo `scripts/draw.py`.
-12. ✅ **Claw module** — full pick-carry-place verified. A pendant straight
-    down the peg axis, because the coupling takes ~0.45 N·m of pitch moment
-    and reach costs `W × L`; the arm angles 55 mm forward so `claw_eye` — the
-    first camera on a TOOL rather than the chassis — can see its grip point.
-    ToolPattern.md; demo `scripts/pickup.py`. **Open:** nothing can yet
-    *find* a floor object autonomously, so a grasp still runs from a
-    memorised pose — the perception ladder, TaskPattern.md §3.
-
-**Then**: the Parts.md open decisions (plug body diameter, specific 3S pack,
-igus stroke quote, chassis material, motor brackets).
+- **Compute**: desktop timings for the stages that transfer to hardware,
+  scaled by a pessimistic 5× for a Cortex-A76, came to ~138 ms per
+  perception cycle (7.3 Hz) and ~78 ms once stereo was dropped — tag-based
+  perception needs no accelerator. The walking policy's cost is #377's to
+  measure.
+- **A tool calibrated off ground truth has no hardware equivalent** until it
+  gets one: the plotter's `drawing.calibrate()` reads the pen tip from
+  `site_xpos`, which a real robot needs a jig or a camera to replace.
+- **Sensor realism is still open where the rover left it**: gyro bias and
+  encoder quantisation are unmodelled, and rendered tag images are
+  noise-free, so the measured 4.5 m decode range will shrink under motion
+  blur and real optics.
+- **Mass is budgeted last**, once the other choices settle, because every
+  physics threshold derives from it; and a coupling is trusted only after a
+  physical trial of its print tolerance.
 
 ## Tooling
 
 - **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
-- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image
+- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image. ⚠ This box's NVIDIA driver is CUDA 12.8: PyPI's default torch wheel (cu130) silently falls back to CPU, so a torch that returns comes from PyTorch's cu128 index (`[tool.uv.index]` with `explicit = true`, as the plug era had it)
 - **Classical vision & robotics:** OpenCV, NumPy
 
 ## Where things are written down
 
 - `CLAUDE.md` — every constraint that still binds, per subsystem, with the
   measurement behind it. The first thing an agent session reads.
+- `Rover.md` — the wheeled body's constraints, deleted with the rover.
 - `SimNotes.md` — simulation lessons, in the order they were paid for.
 - `Parts.md` — the real parts, and the sim parameters they feed.
 - `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md`, `Challenges.md`
