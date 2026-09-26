@@ -19,11 +19,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import mujoco
 import pytest
 
 from pluggybot.evaluation import record as rec
-from pluggybot.lifecycle import HubLifecycle, world_config
 
 REPO = Path(__file__).parent.parent
 
@@ -58,10 +56,8 @@ def test_a_reply_row_keeps_the_row_kind_and_is_matched_to_the_probe():
 
 
 def test_the_phrase_is_in_the_inbox_from_the_named_sender_when_the_probe_attaches():
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world="room_hub",
-                      errand=False, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  from test_body import stub_life
+  life = stub_life("room_hub")
   assert life.inbox is None
   probe = rec.Probe(probe={"feature": "library", "phrase": rec.PROBES["library"],
                            "from": "Ben"})

@@ -1455,7 +1455,7 @@ do rather than promises not to, each pinned by a test — and one is the arm.
   ```python
   self.overseer.start(state)
   while self.overseer.pending:
-      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)   # the world keeps running
+      yield from self.body.hold_routine(THINK_SLICE_S)   # the world keeps running
   decision = self.overseer.result(state)
   ```
 

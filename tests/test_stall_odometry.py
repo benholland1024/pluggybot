@@ -21,8 +21,9 @@ import pytest
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.home import world as home
-from pluggybot.lifecycle import CHARGE_APPROACH_MAX, CHARGE_CREEP, CHARGE_PRESS
-from pluggybot.mission.mission import HubMission, charge_standoff
+from pluggybot.mission.mission import (
+  CHARGE_APPROACH_MAX, CHARGE_CREEP, CHARGE_PRESS, HubMission, charge_standoff,
+)
 from pluggybot.rack.coupling import HUB_STATION_YS, rack_charge_contact
 from pluggybot.rack.localize import RackPose
 from pluggybot.rack.swap import press_opposes_drive

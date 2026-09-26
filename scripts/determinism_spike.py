@@ -127,7 +127,7 @@ def child(cfg: dict, trace_path: Path) -> None:
             q=_h(np.concatenate([d.qpos[qmask], d.qvel[vmask]])),
             c=_h(d.ctrl[cmask]),
             wh=round(life.battery.energy_wh, 6), s=life.state)
-    life.mission.step_hooks.append(step)
+    life.body.step_hooks.append(step)
     life.say_hooks.append(lambda t, msg: log(k="say", t=round(float(t), 3), msg=msg))
     if cfg.get("saveAt") is not None:
       # the SAVING arm of --resume-at: the world written at the first pass

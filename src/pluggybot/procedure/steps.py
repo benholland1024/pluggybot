@@ -12,19 +12,20 @@ tests/test_procedure.py enumerates the modules that may).
 
 The verbs, in the words the issue used:
 
-  fetch(tool)          pick a module off its bay        `swap_at_bay_routine`
-  stow()               hang the carried module back     `swap_at_bay_routine`
-  drive_to(x, y)       A* to a world point              `drive_to_routine`
-  face(heading)        turn in place                    `face_routine`
-  set_lift(height)     the mast, ramped                 `HubSwap.set_lift_routine`
+  fetch(tool)          pick a module off its bay        `Body.fetch_tool_routine`
+  stow()               hang the carried module back     `Body.stow_tool_routine`
+  drive_to(x, y)       A* to a world point              `Body.go_to_routine`
+  face(heading)        turn in place                    `Body.face_routine`
+  set_lift(height)     the mast, ramped                 `Body.ramp_routine`
   grip() / release()   the claw's jaws, ramped          `ClawTool.jaws_routine`
   pick(tag)            a tagged cube, spotted and taken  `ClawTool.drive_over_routine`
   place(tag)           the held cube onto a tagged one   `ClawTool.place_on_routine`
   draw(program, board) the pen's whole use-phase        `drawing_errand`
-  look()               one tag decode, no motion        `TagSpotter.detect`
+  look()               one tag decode, no motion        `Body.detect_tags`
   wait(seconds)        stand still
 
-Each returns a verdict dict with `ok`, measured off the world (the module
+Every verb reaches the body through `Body` (issue #380, `body.py`) and
+nothing else. Each returns a verdict dict with `ok`, measured off the world (the module
 seated and powered, the jaws in contact, the ink in the board book), never
 off the command. The runner stops at the first failed step: later steps
 assume earlier ones, and running `draw` with no pen on the fork is a pen
@@ -60,7 +61,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.rack.coupling import STATION_YS, module_power_contact
+from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
 
 #: Which bay each hand-built module hangs in (`STATION_YS` is indexed by
@@ -86,6 +87,7 @@ STAND_SHORT_M = 0.5
 #: The lift's travel, as the plotter clips it.
 LIFT_RANGE_M = (0.02, 0.30)
 LIFT_SPEED = 0.05       # m/s, the lead-screw class ceiling (tools/gripper.py)
+LIFT_SETTLE_S = 1.2     # s the mast settles after a ramp (`set_lift`'s own)
 
 
 class Refused(ValueError):
@@ -214,9 +216,8 @@ def _tool_station(life, tool: str) -> float:
 
 
 def _seated(life, tool: str) -> bool:
-  return bool(life.mission.swap.module_state(tool)["on_fork"]) and \
-    module_power_contact(life.model, life.data, tool,
-                         life.mission.swap.handle.prefix)
+  return bool(life.body.module_state(tool)["on_fork"]) and \
+    life.body.tool_powered(tool)
 
 
 def _fetch(life, args: dict) -> Routine:
@@ -237,7 +238,7 @@ def _fetch(life, args: dict) -> Routine:
     return {"ok": False, "tool": tool, "why": "loaded",
             "reason": f"the fork already holds {held}; stow it first"}
   life.module = tool
-  why = yield from life.mission.swap_at_bay_routine(station, "pick", module=tool)
+  why = yield from life.body.fetch_tool_routine(station, tool)
   ok = _seated(life, tool)
   life.swaps_done += 1
   verdict = {"ok": ok, "tool": tool, "why": why, "powered": ok}
@@ -253,18 +254,17 @@ def _fetch(life, args: dict) -> Routine:
 
 
 def _trace(life, verdict: dict, what: str) -> None:
-  """A failed swap's trace (issue #264, `mission.swap_trace`) on the step's
+  """A failed swap's trace (issue #264, `Body.swap_trace`) on the step's
   verdict, which the runner narrates as `detail` -- the log's, never the
   status line or History, which are the robot's."""
-  from pluggybot.mission.mission import swap_trace
-  verdict["trace"] = f"{what}: {swap_trace(getattr(life.mission, 'last_swap', None))}"
+  verdict["trace"] = f"{what}: {life.body.swap_trace()}"
 
 
 def _carried(life) -> str | None:
   """Which module is on the fork right now, off the coupling itself."""
   for tool in _rack(life):
     try:
-      if life.mission.swap.module_state(tool)["on_fork"]:
+      if life.body.module_state(tool)["on_fork"]:
         return tool
     except (KeyError, ValueError):
       continue
@@ -291,21 +291,24 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   # ⚠ UP BEFORE IN (issue #347, `travel_pose`): MEASURED, a claw that let
   # go of a cube at 0.033 m and drew its arm in there came off its seat --
   # 114 mm down the fork, unpowered -- and a stow drives that to the rack.
-  swap = life.mission.swap
-  up = MODULE_DRIVE_LIFT > float(life.data.ctrl[swap.lift_act])
+  body = life.body
+  lift = body.actuator("lift")
+  up = MODULE_DRIVE_LIFT > float(life.data.ctrl[lift])
   if up:
-    yield from swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
-  from pluggybot.tools.drawing import PEN_MODULE, PenPlotter
+    yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
+                                 settle=LIFT_SETTLE_S)
+  from pluggybot.tools.drawing import PEN_MODULE
   if tool == PEN_MODULE:
     # ...and the pen's CARRIAGE centred: parked where the last stroke left
     # it, it jams on the bay's bracket feet and the stow fails (drawing.py,
     # `carry_config_routine`). A restart mid-drawing leaves it anywhere in
     # +-55 mm (issue #345, found in review: 37 mm off, never hung).
-    plotter = PenPlotter(life.model, life.data, swap)
+    plotter = body.tool(PEN_MODULE)
     yield from plotter.ramp_routine(plotter.pen_act, 0.0, settle=0.5)
-  yield from life.mission.set_arm_routine(0.0)
+  yield from body.retract_arm_routine()
   if not up:
-    yield from swap.set_lift_routine(MODULE_DRIVE_LIFT, speed=LIFT_SPEED)
+    yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
+                                 settle=LIFT_SETTLE_S)
   return {"setDown": set_down}
 
 
@@ -335,9 +338,9 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
-  swap = life.mission.swap
+  body = life.body
   if tool is None:
-    return [(swap.arm_act, 0.0, axes.ARM_SPEED)]
+    return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
   model = life.model
   claw = _claw(life) if tool == CLAW_MODULE else None
   holding = claw is not None and claw.held() is not None
@@ -351,9 +354,10 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  lift = (swap.lift_act, CARRY_LIFT if holding else MODULE_DRIVE_LIFT, LIFT_SPEED)
-  arm = (swap.arm_act, ARM_EXT if holding else 0.0, axes.ARM_SPEED)
-  if lift[1] > float(life.data.ctrl[swap.lift_act]):
+  lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
+          LIFT_SPEED)
+  arm = (body.actuator("arm"), ARM_EXT if holding else 0.0, axes.ARM_SPEED)
+  if lift[1] > float(life.data.ctrl[lift[0]]):
     return [lift, arm, *own]
   return [arm, *own, lift]
 
@@ -368,10 +372,10 @@ def travel_pose_routine(life) -> Routine:
   moved = False
   for act, target, speed in travel_pose(life, _carried(life)):
     if abs(float(life.data.ctrl[act]) - target) > POSE_TOL:
-      yield from life.mission.swap.ramp_routine(act, target, speed)
+      yield from life.body.ramp_routine(act, target, speed)
       moved = True
   if moved:
-    yield from life.mission.swap._run_routine(0.5, 0.0)
+    yield from life.body.settle_routine(0.5)
 
 
 def home_legs_routine(life) -> Routine:
@@ -380,8 +384,8 @@ def home_legs_routine(life) -> Routine:
   and from the lab that is 30 m of street. Best effort, leg by leg -- the
   swap's route is still what ends at the bay."""
   from pluggybot.lifecycle import home_route
-  for x, y in home_route(life.world, life.mission.pose_xy()):
-    yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+  for x, y in home_route(life.world, life.body.pose_xy()):
+    yield from life.body.go_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
 
 
 def _stow(life, args: dict) -> Routine:
@@ -390,9 +394,8 @@ def _stow(life, args: dict) -> Routine:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   yield from carry_configuration_routine(life, tool)
   yield from home_legs_routine(life)
-  why = yield from life.mission.swap_at_bay_routine(_tool_station(life, tool),
-                                                    "return", module=tool)
-  st = life.mission.swap.module_state(tool)
+  why = yield from life.body.stow_tool_routine(_tool_station(life, tool), tool)
+  st = life.body.module_state(tool)
   hung = bool(st["hung"])
   life.swaps_done += 1
   verdict = {"ok": hung, "tool": tool, "why": why,
@@ -415,10 +418,10 @@ def legs_routine(life, legs) -> Routine:
   the leg it could not get near, or None."""
   from pluggybot.lifecycle import LEG_DONE_M
   for lx, ly in legs:
-    if life.mission.peer_on_the_goal(lx, ly) is not None:
+    if life.body.peer_on_the_goal(lx, ly) is not None:
       continue
-    arrived = yield from life.mission.drive_to_routine(lx, ly, timeout=DRIVE_TIMEOUT_S)
-    px, py = life.mission.pose_xy()
+    arrived = yield from life.body.go_to_routine(lx, ly, timeout=DRIVE_TIMEOUT_S)
+    px, py = life.body.pose_xy()
     if not arrived and math.hypot(lx - px, ly - py) > LEG_DONE_M:
       return (lx, ly)
   return None
@@ -431,19 +434,19 @@ def _drive_to(life, args: dict) -> Routine:
   # #353), as `pick` and the cage programs already did: the planner sees
   # only the map and the LIDAR reaches 8 m, and every robot-written
   # `drive_to(22, 3)` from the house stopped 6.6-9.1 m short.
-  legs = ([] if life.mission.in_sight(x, y)
-          else route_to(life.world, life.mission.pose_xy(), (x, y)))
+  legs = ([] if life.body.in_sight(x, y)
+          else route_to(life.world, life.body.pose_xy(), (x, y)))
   route = {"route": [[round(lx, 2), round(ly, 2)] for lx, ly in legs]} if legs else {}
   stopped = yield from legs_routine(life, legs)
   if stopped is not None:
-    (lx, ly), (px, py, _) = stopped, life.mission.pose
+    (lx, ly), (px, py, _) = stopped, life.body.pose
     why = life.drive_why(lx, ly)
     return {"ok": False, "shortM": round(math.hypot(x - px, y - py), 3), "why": why,
             **route, "reason": f"did not arrive at ({x:g}, {y:g}): on the house's "
                                f"route there, the leg to ({lx:g}, {ly:g}) -- {why}, "
                                f"at ({px:.1f}, {py:.1f})"}
-  arrived = yield from life.mission.drive_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
-  px, py, _ = life.mission.pose
+  arrived = yield from life.body.go_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+  px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
     return {"ok": True, "shortM": short, **route}
@@ -456,7 +459,7 @@ def _drive_to(life, args: dict) -> Routine:
 
 
 def _face(life, args: dict) -> Routine:
-  squared = yield from life.mission.face_routine(float(args["heading"]))
+  squared = yield from life.body.face_routine(float(args["heading"]))
   return {"ok": bool(squared),
           **({} if squared else {"reason": (
             f"did not square up to heading {float(args['heading']):.2f} rad "
@@ -464,16 +467,17 @@ def _face(life, args: dict) -> Routine:
 
 
 def _set_lift(life, args: dict) -> Routine:
-  yield from life.mission.swap.set_lift_routine(float(args["height"]),
-                                                speed=LIFT_SPEED)
+  yield from life.body.ramp_routine(life.body.actuator("lift"),
+                                    float(args["height"]), LIFT_SPEED,
+                                    settle=LIFT_SETTLE_S)
   return {"ok": True, "height": float(args["height"])}
 
 
 def _claw(life):
-  from pluggybot.tools.gripper import CLAW_MODULE, ClawTool
+  from pluggybot.tools.gripper import CLAW_MODULE
   if _carried(life) != CLAW_MODULE:
     return None
-  return ClawTool(life.model, life.data, life.mission.swap)
+  return life.body.tool(CLAW_MODULE)
 
 
 def _holding_anything(claw) -> str | None:
@@ -535,21 +539,22 @@ def _spot_routine(life, tag: int) -> Routine:
   half = _cube_half(tag)
   if half is None:
     return None
-  swap = life.mission.swap
+  body = life.body
   for attempt in range(SPOT_BACK_OFFS + 1):
     if attempt:
-      yield from swap._drive_until_routine(SPOT_BACK_OFF_M, -0.10, stall_stop=False)
-      yield from swap._run_routine(0.5, 0.0)
+      yield from body.travel_routine(SPOT_BACK_OFF_M, -0.10)
+      yield from body.settle_routine(0.5)
     for lift in SPOT_LIFTS:
-      yield from swap.ramp_routine(swap.lift_act, lift, LIFT_SPEED, settle=0.3)
-      seen = life.mission.spot(tag)
+      yield from body.ramp_routine(body.actuator("lift"), lift, LIFT_SPEED,
+                                   settle=0.3)
+      seen = body.spot(tag)
       if seen is not None:
         # which LAYER the cube stands in, off PnP's height (good to a few
         # mm, and a layer is 26), then the position off the tag's centre
         # pixel at that layer's known height (`HubMission.spot`'s two
         # ranges) -- the same decode, read the precise way
         layer = max(0, int(round((seen["xyz"][2] - half) / (2 * half))))
-        precise = life.mission.spot(tag, at_height=half + 2 * half * layer)
+        precise = body.spot(tag, at_height=half + 2 * half * layer)
         if precise is not None:
           seen = precise
         x, y, z = seen["xyz"]
@@ -610,7 +615,7 @@ def _travel_routine(life, tag: int) -> Routine:
     return False, "and it is not one the house set out"
   zone, _, stand, heading = where
   legs = zone_route(life.world, zone)
-  px, py = life.mission.pose_xy()
+  px, py = life.body.pose_xy()
   # drop the legs behind (`legs_ahead`); inside the zone, all of them
   if legs:
     inside = math.hypot(stand[0] - px, stand[1] - py) < math.hypot(
@@ -618,18 +623,18 @@ def _travel_routine(life, tag: int) -> Routine:
     legs = [] if inside else legs_ahead(legs, (px, py))
   stopped = yield from legs_routine(life, legs)
   if stopped is not None:
-    px, py = life.mission.pose_xy()
+    px, py = life.body.pose_xy()
     return False, (f"and the route to where the house set it out stopped at "
                    f"({px:.1f}, {py:.1f}): {life.drive_why(*stopped)}")
-  if not (yield from life.mission.drive_to_routine(*stand, timeout=DRIVE_TIMEOUT_S)):
-    px, py = life.mission.pose_xy()
+  if not (yield from life.body.go_to_routine(*stand, timeout=DRIVE_TIMEOUT_S)):
+    px, py = life.body.pose_xy()
     if math.hypot(stand[0] - px, stand[1] - py) > STAND_SHORT_M:
       # ...and it LOOKS from there anyway: the cube may well be in view, as
       # it always was before this sentence existed. Only the words change.
-      yield from life.mission.face_routine(heading)
+      yield from life.body.face_routine(heading)
       return True, (f"and {life.drive_why(*stand)} on the way to where the house "
                     f"set it out, at ({px:.1f}, {py:.1f})")
-  yield from life.mission.face_routine(heading)
+  yield from life.body.face_routine(heading)
   return True, ""
 
 
@@ -674,7 +679,7 @@ def _approach_routine(life, claw, tag: int, carrying: bool,
       unseen = f"{unseen}, {why}"
   if seen is None:
     return None, False, unseen
-  heading = life.mission.pose[2]
+  heading = life.body.pose[2]
   if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
     # stage along the heading the procedure chose (it faced the row), so
     # the cube ends up straight ahead of the fork line -- the camera's line
@@ -790,9 +795,8 @@ def _place(life, args: dict) -> Routine:
   after = claw.held_hang(held)
   slip = hang[0] - after[0]
   if abs(slip) > 0.002:
-    yield from life.mission.swap._drive_until_routine(abs(slip), 0.03 if slip > 0 else -0.03,
-                                                      stall_stop=False)
-    yield from life.mission.swap._run_routine(0.5, 0.0)
+    yield from life.body.travel_routine(abs(slip), 0.03 if slip > 0 else -0.03)
+    yield from life.body.settle_routine(0.5)
   # The top of the cube off its LAYER and the cube's known edge -- geometry,
   # not the raw z (8 mm low off-axis), because a release aimed below the
   # surface presses the held block into it and rides the module up its fork.
@@ -867,9 +871,9 @@ def _draw(life, args: dict) -> Routine:
   # through the house. Every live `pen_check` that reached `draw` knocked
   # Rowan over, six of six, in the carrying pose or out of it; MEASURED
   # locally, 94 deg 14 s in and the pen 3.7 m from its bay, as live.
-  if not (yield from life.mission.drive_to_routine(*errand.use_at,
-                                                   timeout=DRIVE_TIMEOUT_S)):
-    px, py, _ = life.mission.pose
+  if not (yield from life.body.go_to_routine(*errand.use_at,
+                                            timeout=DRIVE_TIMEOUT_S)):
+    px, py, _ = life.body.pose
     return {"ok": False, "board": args["board"], "figure": args["figure"],
             "reason": f"never reached {args['board']}: "
                       f"{life.drive_why(*errand.use_at)}, at ({px:.1f}, {py:.1f})",
@@ -890,7 +894,7 @@ def _look(life, args: dict) -> Routine:
   program branches on through `read("look.tag")` / `look.range` /
   `look.lateral` (procedure/axes.py), which read the NEAREST decode of the
   last look. Camera-frame `t` is (lateral, vertical, forward)."""
-  found = life.mission.tags.detect(life.data)
+  found = life.body.detect_tags()
   tags = [{"id": int(tid), "lateralM": round(float(d["t"][0]), 3),
            "forwardM": round(float(d["t"][2]), 3)}
           for tid, d in sorted(found.items())]
@@ -902,21 +906,21 @@ def _look(life, args: dict) -> Routine:
 
 
 def _wait(life, args: dict) -> Routine:
-  yield from life.mission._drive_routine(float(args["seconds"]), 0.0, 0.0)
+  yield from life.body.hold_routine(float(args["seconds"]))
   return {"ok": True}
 
 
 #: The base's command envelope for `drive`: the cruise the navigation law
-#: uses, and the spin rate `_spin` turns at (mission/mission.py).
+#: uses, and the spin rate the rover's look-around turns at (mission.py).
 DRIVE_V_MAX = 0.25
 DRIVE_W_MAX = 1.5
 
 
 def _drive(life, args: dict) -> Routine:
   """The base at the motor level: (v, w) for a bounded time, through the
-  same `_drive_routine` every errand's holds and creeps go through."""
-  yield from life.mission._drive_routine(float(args["seconds"]),
-                                         float(args["v"]), float(args["w"]))
+  same velocity every errand's holds and creeps go through."""
+  yield from life.body.velocity_routine(float(args["seconds"]),
+                                        float(args["v"]), float(args["w"]))
   return {"ok": True}
 
 

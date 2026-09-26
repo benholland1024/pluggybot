@@ -23,7 +23,6 @@ What these pin, each without a mission (docs/Testing.md):
 import mujoco
 
 from pluggybot import lifecycle as lc
-from pluggybot import tick
 from pluggybot.challenge import stack
 from pluggybot.economy.cadence import Cadence, TaskProducer, default_cadence
 from pluggybot.economy.ledger import Ledger
@@ -71,6 +70,16 @@ def _life(tmp_path, mind=None):
   return life
 
 
+def _claiming_life(tmp_path, mind=None):
+  """The same robot for a CLAIM, which is the board's and the ledger's
+  bookkeeping: on a stub body, with no blocks to grade (issue #380)."""
+  from test_body import stub_life
+  return stub_life("room_hub", ledger=Ledger(path=str(tmp_path / "ledger.json")),
+                   tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
+                   autonomous=True,
+                   overseer=mind if mind is not None else _Mind())
+
+
 def _claimed_tower(life):
   """An offered tower, taken by this robot: the state `done` is judged
   against."""
@@ -94,7 +103,7 @@ def _grade(life, task_id):
   life.tasks.on_event.append(events.append)
   life._done(ov.Decision(action="idle", reason="", done=task_id))
   assert life._grade_pending == task_id
-  tick.run(life.mission.swap, life._grade_routine())
+  life.body.run(life._grade_routine())
   return events
 
 
@@ -152,7 +161,7 @@ def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
 
 
 def test_claiming_the_tower_queues_no_errand(tmp_path):
-  life = _life(tmp_path)
+  life = _claiming_life(tmp_path)
   task = _claimed_tower(life)
   assert task.state == "active" and task.claimed_by == life.root
   assert life.errands == []
@@ -160,7 +169,7 @@ def test_claiming_the_tower_queues_no_errand(tmp_path):
 
 
 def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
-  life = _life(tmp_path, mind=_Mind(library=None))
+  life = _claiming_life(tmp_path, mind=_Mind(library=None))
   task = life.tasks.offer("stack_tower", "workshop")
   assert not life._claim_task(task.id)
   assert life.tasks.get(task.id).state == "offered"
@@ -169,7 +178,7 @@ def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
 def test_the_scripted_claim_skips_a_challenge(tmp_path):
   """Like a question: a job for a mind, left offered rather than attempted
   by something that cannot write the procedure."""
-  life = _life(tmp_path)
+  life = _claiming_life(tmp_path)
   life.tasks.offer("stack_tower", "workshop")
   assert not life._claim_next_task()
   assert [t.state for t in life.tasks.tasks.values()] == ["offered"]
@@ -179,7 +188,7 @@ def test_the_scripted_claim_skips_a_challenge(tmp_path):
 
 
 def test_done_is_refused_for_a_task_this_robot_does_not_hold(tmp_path):
-  life = _life(tmp_path)
+  life = _claiming_life(tmp_path)
   task = life.tasks.offer("stack_tower", "workshop")    # offered, not claimed
   life._done(ov.Decision(action="idle", reason="", done=task.id))
   assert life._grade_pending == ""
@@ -227,9 +236,9 @@ def test_a_block_against_the_chassis_is_read_off_the_contact_list(tmp_path):
   life = _life(tmp_path)
   _tower(life)
   assert stack.foreign_contacts(life.model, life.data) == set()
-  cx, cy = life.data.xpos[life.mission.swap.chassis_bid][:2]
+  cx, cy = life.data.xpos[life.body.mission.swap.chassis_bid][:2]
   half_x = float(life.model.geom_size[life.model.geom(
-    life.mission.swap.handle.el("chassis")).id][0])
+    life.body.mission.swap.handle.el("chassis")).id][0])
   _tower(life, xy=(float(cx) + half_x + stack.BLOCK_HALF - 0.0005, float(cy)))
   for _ in range(50):
     mujoco.mj_step(life.model, life.data)

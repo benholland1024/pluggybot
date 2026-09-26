@@ -40,7 +40,7 @@ def _life(near_field: bool, props=()) -> HubLifecycle:
   life = HubLifecycle(model, data, realtime=False, world="room_hub",
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       spec=spec, errand=False, near_field=near_field)
-  life.mission.start_at(0.0, 0.0, 0.0)
+  life.body.start_at(0.0, 0.0, 0.0)
   for _ in range(300):
     mujoco.mj_step(model, data)
   return life
@@ -52,9 +52,9 @@ def test_the_seam_ticks_the_sensor_at_its_rate_and_only_where_it_is_on():
   nothing for a sensor it did not ask for."""
   off = _life(near_field=False)
   assert off.near_field is None and off.depth_camera is None
-  assert off._near_field_step not in off.mission.step_hooks
+  assert off._near_field_step not in off.body.step_hooks
   on = _life(near_field=True)
-  assert on._near_field_step in on.mission.step_hooks
+  assert on._near_field_step in on.body.step_hooks
   n0 = on.near_field_frames
   assert n0 > 0, "the seam did not tick while the lifecycle settled"
   on.data.time += nf.PERIOD
@@ -73,7 +73,7 @@ def test_the_map_is_placed_by_the_believed_pose_not_the_true_one():
   stands a metre further along puts the cube a metre further along."""
   life = _life(near_field=True, props=((0.9 + 0.025, 0.0, 0.05),))
   life.near_field = HeightMap()                      # forget the settling frames
-  life.mission.swap.reckoner.x += 1.0                # a belief, deliberately wrong
+  life.body.mission.swap.reckoner.x += 1.0                # a belief, deliberately wrong
   life.data.time += nf.PERIOD
   life._near_field_step()
   cubes = [t for t in life.near_field.things()
@@ -115,7 +115,7 @@ def test_a_pair_drops_the_other_robot_from_each_frame():
   from pluggybot.pair import build_pair
   lives = build_pair("room_hub", near_field=True, errands=("none", "none"))
   assert all(life.depth_camera is not None for life in lives)
-  roots = [life.mission.handle.root for life in lives]
+  roots = [life.body.handle.root for life in lives]
   assert lives[0].depth_camera._other_roots == [roots[1]]
   assert lives[1].depth_camera._other_roots == [roots[0]]
   assert lives[1].depth_camera.camera_name == "r2_depth_eye"

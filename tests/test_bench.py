@@ -110,8 +110,7 @@ def _fake_life(force=6.4, t=0.0, prefix="", dt=0.002):
   return SimpleNamespace(
     model=SimpleNamespace(opt=SimpleNamespace(timestep=dt)),
     data=SimpleNamespace(time=t, actuator_force=np.array([0.0, 0.0, force])),
-    mission=SimpleNamespace(swap=SimpleNamespace(lift_act=2,
-                                                 handle=SimpleNamespace(prefix=prefix))))
+    body=SimpleNamespace(actuator=lambda name: 2, handle=SimpleNamespace(prefix=prefix)))
 
 
 def test_the_sensor_reads_a_stubbed_load_with_a_load_cells_noise():
@@ -157,7 +156,9 @@ def test_the_lift_is_a_scale_on_the_real_physics():
   claw.jaws(1.0, settle=1.2)
   assert claw.holding("block_0_box")
   claw.set_lift(float(data.ctrl[swap.lift_act]) + 0.05)
-  life = SimpleNamespace(model=model, data=data, mission=SimpleNamespace(swap=swap))
+  life = SimpleNamespace(model=model, data=data,
+                         body=SimpleNamespace(actuator=lambda name: swap.lift_act,
+                                              handle=swap.handle))
   read = axes.SENSORS["lift.force"].read
 
   def weigh(kg):
@@ -267,9 +268,9 @@ def _life(home_model, tmp_path, spec=None, model=None):
                       autonomous=True, boards=board_book("home"), spec=spec,
                       overseer=_Mind())
   acts = lc.home_activities(model, data)
-  life.mission.step_hooks.append(acts.step_hook(model, data))
+  life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   return life
 
 
@@ -393,11 +394,11 @@ def test_the_dock_camera_still_reads_a_bay_tag_after_a_bench_offer(tmp_path):
     _offer(life, kg=0.25)
     assert bench.unknown_mass(life.model) == pytest.approx(0.25)
     station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
-    life.mission.start_at(*bay_standoff(station_y, cfg["rack"]))
-    assert life.mission.bay_fix(station_y) is not None, \
+    life.body.start_at(*bay_standoff(station_y, cfg["rack"]))
+    assert life.body.mission.bay_fix(station_y) is not None, \
         "the dock camera is blind at the pen bay after the bench's set-out"
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- 4. the record and the grade -----------------------------------------------------
@@ -462,7 +463,7 @@ def _done(life, task_id):
   life.on_event.append(events.append)
   life._done(ov.Decision(action="idle", reason="", done=task_id))
   assert life._grade_pending == task_id
-  tick.run(life.mission.swap, life._grade_routine())
+  tick.run(life.body.mission.swap, life._grade_routine())
   return events
 
 
@@ -559,7 +560,7 @@ def test_a_procedures_locals_reach_the_run_history_and_the_wire(monkeypatch):
   from test_language import HOME, _stub_life
   life = _stub_life()
   proc = lang.compile_procedure("def weigh():\n  f = read('time') + 2.5\n  n = 3\n  wait(0.1)\n", HOME)
-  r = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  r = tick.run(SimpleNamespace(step=lambda *a: None),
                lang.run_procedure_routine(life, proc, HOME))
   assert r["ok"] and r["locals"] == {"f": 2.5, "n": 3.0}
   # ...and through the lifecycle: one History line and the `procedure` event

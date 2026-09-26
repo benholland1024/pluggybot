@@ -43,7 +43,8 @@ from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Overseer
 
-from test_overseer import FakeClient, _lifecycle, full
+from test_body import stub_life
+from test_overseer import FakeClient, full
 
 
 #: What a Python exception looks like when it reaches prose. Deliberately a
@@ -133,7 +134,7 @@ def test_an_api_outage_is_not_what_the_robot_remembers():
   both assertions then read `... [fallback:RuntimeError: Connection reset by
   peer]`.
   """
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.overseer = Overseer(_menu(), client=FakeClient(
     RuntimeError("Connection reset by peer")))
   said = narration(life)
@@ -190,18 +191,14 @@ def test_a_use_phase_that_raises_is_narrated_as_a_sentence():
   """
   from pluggybot.mission.errand import Errand
 
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
 
   def explodes(_life):
     raise IndexError("list index out of range")
 
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=explodes, needs_use_pose=False)
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
-                                                     "hung": True}
-  said = narration(life)
+  said = narration(life)             # the stub body picks, carries and stows
   result = life.run_errand(errand)
 
   spoken = [ln for ln in said if "USE_TOOL FAILED" in ln]
@@ -224,15 +221,14 @@ def test_the_neighbouring_lines_stopped_shouting():
   is being shouted at about a recovery."""
   from pluggybot.mission.errand import Errand
 
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=None, needs_use_pose=False)
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)        # never got there
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)        # never got there
   # Picked, then lost on the way (issue #298: a pick that FAILED ends the
   # errand at the rack and says so in other words).
   states = iter([{"on_fork": True, "hung": False}])
-  life.mission.swap.module_state = lambda *a, **kw: next(
+  life.body.module_state = lambda *a, **kw: next(
     states, {"on_fork": False, "hung": False})
   said = narration(life)
   life.run_errand(errand)
@@ -260,7 +256,7 @@ def test_a_rating_for_a_job_that_is_not_there_reads_as_a_sentence():
   done something on the site. Shown to fail before the fix by restoring the
   single `except (KeyError, ValueError) as e: self._say(f"... {e}")`.
   """
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.ledger = Ledger()
   said = _rating(life, seq=7)
 
@@ -279,7 +275,7 @@ def test_a_rating_for_a_job_that_is_not_pending_says_so_differently():
   """The two misses are caught apart so the robot can say WHICH happened --
   'I have no job 7' and 'job 1 is not waiting on a rating' are different
   facts, and the website is holding a stale row in only one of them."""
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.ledger = Ledger()
   entry = life.ledger.award(evaluate("carry", {"picked": True, "stowed": True,
                                                "module": "module_lcd"}), t=1.0)

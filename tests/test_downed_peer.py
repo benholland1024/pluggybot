@@ -20,9 +20,10 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.body import KeepClear
 from pluggybot.mission.mission import (
   CLOSE_ENOUGH_M, DOWN_CHECK_S, DOWN_ROBOT_CELLS, OTHER_ROBOT_CELLS,
-  HubMission, KeepClear,
+  HubMission, _cells,
 )
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, SECOND
@@ -45,14 +46,14 @@ def _downed_pair(lie: str = "left", near_field: bool = False):
   from pluggybot.pair import build_pair
   me, peer = build_pair("room_hub", near_field=near_field,
                         errands=("none", "none"))
-  me.mission.start_at(-1.6, 0.0, 0.0)
+  me.body.start_at(-1.6, 0.0, 0.0)
   peer.home_pose = (3.0, 3.0, math.pi / 2)             # room_hub's start2
   adr = SECOND.qpos_adr(me.model)
   me.data.qpos[adr:adr + 3] = [AT[0], AT[1], 0.1]
   me.data.qpos[adr + 3:adr + 7] = LYING[lie]
   mujoco.mj_forward(me.model, me.data)
-  peer.mission.swap.reckoner.y += 1.8
-  me.mission.grid.grid[:] = -5.0                     # a mapped, empty room
+  peer.body.mission.swap.reckoner.y += 1.8
+  me.body.grid.grid[:] = -5.0                     # a mapped, empty room
   return me, peer
 
 
@@ -72,25 +73,25 @@ def test_a_robot_lying_down_is_avoided_where_it_lies_not_where_it_says(lie):
   at the reckoner's answer and the plan runs straight through the body."""
   me, peer = _downed_pair(lie)
   assert peer.down()
-  body = peer.mission.footprint_centre()
-  said = peer.mission.pose_xy()
+  body = peer.body.footprint_centre()
+  said = peer.body.pose_xy()
   assert math.dist(body, said) > 1.5, "the premise: the reckoner left the body"
-  keep = me.mission.others[0]()
-  assert keep.down and keep.cells == DOWN_ROBOT_CELLS
+  keep = me.body.others[0]()
+  assert keep.down and _cells(keep) == DOWN_ROBOT_CELLS
   x, y = keep.x, keep.y
-  assert (x, y) == pytest.approx(me.mission.as_seen(*body), abs=1e-9)
+  assert (x, y) == pytest.approx(me.body.as_seen(*body), abs=1e-9)
   assert math.dist((x, y), body) < 1e-3       # a driver that knows where it is
-  path = me.mission._plan_to(*GOAL)
+  path = me.body.mission._plan_to(*GOAL)
   assert path is not None and math.dist(path[-1], GOAL) < 0.1
   # The plan keeps this robot's centre a swing (0.35 m, the map's own
   # inflation) off every part of the body, less one cell of rasterising.
   near = min(_clearance(p, peer) for p in path)
-  assert near > 0.35 - me.mission.grid.resolution, \
+  assert near > 0.35 - me.body.grid.resolution, \
     f"on its {lie}: a waypoint {near:.3f} m from the body"
   # ...where the wiring before #365 -- the reported pose, a standing
   # robot's disc -- planned the straight line, through the robot.
-  me.mission.others = [peer.mission.pose_xy]
-  straight = me.mission._plan_to(*GOAL)
+  me.body.mission.others = [peer.body.pose_xy]
+  straight = me.body.mission._plan_to(*GOAL)
   assert min(_clearance(p, peer) for p in straight) < 0.0
 
 
@@ -102,13 +103,13 @@ def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
   0.4 m nearer the robot than it thinks, and the deployed pair's drifts ran
   0.24-0.55 m against 0.37 m of floor between the detour and the body."""
   me, peer = _downed_pair()
-  body = peer.mission.footprint_centre()
-  r = me.mission.swap.reckoner
+  body = peer.body.footprint_centre()
+  r = me.body.mission.swap.reckoner
   r.x, r.y, r.theta = r.x + 0.4, r.y - 0.1, r.theta + 0.2
-  x, y, _ = me.mission.others[0]()
+  x, y, _ = me.body.others[0]()
   # as far ahead, and as far round from its heading, as it truly is
-  tx, ty, tth = me.mission.true_pose()
-  bx, by, bth = me.mission.pose
+  tx, ty, tth = me.body.true_pose()
+  bx, by, bth = me.body.pose
   assert math.dist((x, y), (bx, by)) == pytest.approx(
     math.dist(body, (tx, ty)), abs=1e-9)
   assert math.atan2(y - by, x - bx) - bth == pytest.approx(
@@ -116,7 +117,7 @@ def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
   assert math.dist((x, y), body) > 0.3, "the premise: the driver has drifted"
   # ...and a standing robot is where it SAYS it is, for everyone
   peer.stand_up("a test", auto=False)
-  assert me.mission.others[0]() == peer.mission.pose_xy()
+  assert me.body.others[0]() == peer.body.pose_xy()
 
 
 def test_a_robot_lying_down_is_not_held_for():
@@ -127,13 +128,13 @@ def test_a_robot_lying_down_is_not_held_for():
   and turns at its disc's edge was held 0.52 m short until the drive timed
   out."""
   me, peer = _downed_pair("front", near_field=True)
-  me.mission.start_at(-0.9, 0.0, 0.0)            # its body 0.5 m ahead
+  me.body.start_at(-0.9, 0.0, 0.0)            # its body 0.5 m ahead
   frame = me.depth_camera.frame(me.data)
-  assert me.mission.peer_ahead(frame.peers) is not None, \
+  assert me.body.mission.peer_ahead(frame.peers) is not None, \
     "the premise: the camera sees the robot on the floor in the corridor"
   me._next_near_field = 0.0
   me._near_field_step()
-  assert me.mission.peer_sighting() is None, "held for a robot lying down"
+  assert me.body.mission.peer_sighting() is None, "held for a robot lying down"
   # ...stood up where it lay, it is a robot that moves again, and held for
   adr = SECOND.qpos_adr(me.model)
   me.data.qpos[adr + 2] = 0.045
@@ -142,7 +143,7 @@ def test_a_robot_lying_down_is_not_held_for():
   assert not peer.down()
   me._next_near_field = 0.0
   me._near_field_step()
-  assert me.mission.peer_sighting() is not None
+  assert me.body.mission.peer_sighting() is not None
 
 
 def test_standing_up_lets_go_of_where_it_lay():
@@ -152,9 +153,9 @@ def test_standing_up_lets_go_of_where_it_lay():
   me, peer = _downed_pair()
   peer.stand_up("a test", auto=False)
   assert not peer.down()
-  assert me.mission.others[0]() == peer.mission.pose_xy()
-  assert math.dist(peer.mission.pose_xy(), peer.home_pose[:2]) < 0.01
-  path = me.mission._plan_to(*GOAL)
+  assert me.body.others[0]() == peer.body.pose_xy()
+  assert math.dist(peer.body.pose_xy(), peer.home_pose[:2]) < 0.01
+  path = me.body.mission._plan_to(*GOAL)
   assert max(abs(y) for _, y in path) < 0.1, "still routing round the old spot"
 
 
@@ -266,6 +267,6 @@ def test_a_driving_robot_goes_round_a_robot_lying_face_down():
         | np.isin(g[:, 1], mine) & np.isin(g[:, 0], theirs)).any():
       touched.append(float(me.data.time))
 
-  me.mission.step_hooks.append(watch)
-  assert me.mission.drive_to(*GOAL, timeout=40.0), "never got past it"
+  me.body.step_hooks.append(watch)
+  assert me.body.mission.drive_to(*GOAL, timeout=40.0), "never got past it"
   assert not touched, f"touched the robot on the floor at t={touched[0]:.2f}"

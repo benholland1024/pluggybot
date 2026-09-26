@@ -92,12 +92,15 @@ def charge_scale_from_env(default: float = 1.0) -> float:
   return value
 
 
-class Battery:
-  """Tracks stored energy against the robot's actual actuator effort."""
+class Pack:
+  """A pack's energy book (issue #380): what it holds, and what one step of
+  drawing -- or charging -- does to it. Every body's; what a body DRAWS is
+  its own (`power_draw`): `Battery` below is the rover's, and a body with
+  no electrical model of its own draws a steady `draw_w`."""
 
-  def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
+  def __init__(self, capacity_wh: float = DEMO_CAPACITY_WH,
                fraction: float = 1.0, charge_scale: float = 1.0,
-               prefix: str = "") -> None:
+               draw_w: float = 0.0) -> None:
     if charge_scale <= 0.0:
       raise ValueError(f"charge_scale must be > 0, got {charge_scale}")
     self.capacity_wh = capacity_wh
@@ -109,26 +112,12 @@ class Battery:
     #: faster charge means more cycles an hour, more points, and a
     #: metabolism calibrated against a throughput that is not the real one.
     self.charge_scale = float(charge_scale)
-    # WHOSE motors (issue #167): the second robot's carry its prefix.
-    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
-                        model.actuator(prefix + "right_motor").id]
-    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
-                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
-    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
-                        model.joint(prefix + "arm_joint").dofadr[0]]
+    self.draw_w = float(draw_w)
     self.last_power_w = 0.0
 
   def power_draw(self, data) -> float:
     """Instantaneous electrical load in watts (excluding charging)."""
-    p = ELECTRONICS_W
-    for act, dof in zip(self._wheel_acts, self._wheel_dofs):
-      tau = abs(float(data.actuator_force[act]))
-      speed = min(abs(float(data.qvel[dof])) / NOLOAD_SPEED, 1.0)
-      p += NOMINAL_V * (NOLOAD_A * speed + STALL_A * min(tau / STALL_TORQUE, 1.0))
-    for dof in self._screw_dofs:
-      if abs(float(data.qvel[dof])) > ACTUATOR_MOVING:
-        p += ACTUATOR_W
-    return p
+    return self.draw_w
 
   def update(self, data, dt: float, charging: bool = False,
              tool_w: float = 0.0) -> None:
@@ -162,3 +151,33 @@ class Battery:
   @property
   def empty(self) -> bool:
     return self.energy_wh <= 0.0
+
+
+class Battery(Pack):
+  """The rover's pack: stored energy against the robot's actual actuator
+  effort -- its wheel motors and lead screws."""
+
+  def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
+               fraction: float = 1.0, charge_scale: float = 1.0,
+               prefix: str = "") -> None:
+    super().__init__(capacity_wh, fraction, charge_scale)
+    # WHOSE motors (issue #167): the second robot's carry its prefix.
+    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
+                        model.actuator(prefix + "right_motor").id]
+    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
+                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
+    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
+                        model.joint(prefix + "arm_joint").dofadr[0]]
+
+  def power_draw(self, data) -> float:
+    """Instantaneous electrical load in watts (excluding charging)."""
+    p = ELECTRONICS_W
+    for act, dof in zip(self._wheel_acts, self._wheel_dofs):
+      tau = abs(float(data.actuator_force[act]))
+      speed = min(abs(float(data.qvel[dof])) / NOLOAD_SPEED, 1.0)
+      p += NOMINAL_V * (NOLOAD_A * speed + STALL_A * min(tau / STALL_TORQUE, 1.0))
+    for dof in self._screw_dofs:
+      if abs(float(data.qvel[dof])) > ACTUATOR_MOVING:
+        p += ACTUATOR_W
+    return p
+

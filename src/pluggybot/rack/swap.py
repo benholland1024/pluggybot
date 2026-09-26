@@ -15,7 +15,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import tick
-from pluggybot.control import slew
+from pluggybot.control import slew, wheel_targets
 from pluggybot.rack.coupling import (
   HUB_PEG_Z, LIFT_STEP, PEG_R, RACK_HANG_X, STATION_YS, TRAY_VERTEX_DROP,
 )
@@ -105,7 +105,12 @@ def press_opposes_drive(contact_x_body: float, v_wheels: float) -> bool:
 
 
 class HubSwap:
-  """Scripted pick/return cycles for one robot in hub_world.xml."""
+  """Scripted pick/return cycles for one robot in hub_world.xml -- and the
+  rover's STEPPER (`tick.py`, issue #380): the one place its `(v, w)`
+  command is read, turned into wheel setpoints."""
+
+  #: The rover's command that holds it where it is.
+  STILL = (0.0, 0.0)
 
   def __init__(self, model, data, handle: RobotHandle = FIRST) -> None:
     #: WHICH ROBOT (issue #167): every element below resolves through it,
@@ -235,6 +240,17 @@ class HubSwap:
     single robot's day byte-identical."""
     self._before_step(tl, tr)
     mujoco.mj_step(self.model, self.data)
+    self._after_step()
+
+  def step(self, command) -> None:
+    """One physics step at a `(v, w)` command, for this robot alone."""
+    self._step_once(*wheel_targets(*command))
+
+  def apply(self, command) -> None:
+    """A `(v, w)` command's wheel setpoints, before a shared world steps."""
+    self._before_step(*wheel_targets(*command))
+
+  def after_step(self) -> None:
     self._after_step()
 
   def _before_step(self, tl: float, tr: float) -> None:

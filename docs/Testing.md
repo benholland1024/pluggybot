@@ -32,35 +32,48 @@ the path that found `test_rack_belief`'s defect.
 Sim-seconds are the only cost that matters; model compilation is 12–28 ms
 and wall clock tracks the machine. So:
 
-1. **Stub the routine, not the twin.** Every manoeuvre is a generator
+1. **Build it on a stub body.** A claim about the loop's BOOKKEEPING — the
+   mind, the economy, the record, the wire — needs no rover:
+   `stub_life(world, **kw)` (`tests/test_body.py`) builds the lifecycle on a
+   `StubBody` (issue #380), a floor and no robot, ~25 ms against ~350 ms. Its
+   manoeuvres arrive at once, its senses answer what the test set
+   (`holding`, `on_charger`, `attitude`), time passes only where it holds, and
+   it outlives the rover. A claim about the body, the world's geometry (a
+   camera's pose, a module on the floor, the built rail) or two robots in one
+   world stays on the rover.
+2. **Stub the routine, not the twin.** Every manoeuvre is a generator
    (`pluggybot/tick.py`); a test stubs it with `tick.result(value)` —
-   `life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)` —
-   and records the call if the claim is "it drove home". Stubbing the
-   blocking twin does nothing (the loop calls the routine), and the fence in
-   `tests/test_tick.py` catches an undriven call.
-2. **Stub the opening spin.** `_day_routine` begins with
-   `mission._spin_routine()`, ~7 s of real physics that seeds the map and
-   says nothing about any branch below it: `life.mission._spin_routine =
-   lambda *a, **kw: tick.result(None)`.
-3. **Shrink the slice.** A loop that idles in `WAIT_FOR_WORK_S` (5 s) slices
+   `life.body.go_to_routine = lambda *a, **kw: tick.result(True)` — and
+   records the call if the claim is "it drove home". On the rover,
+   `life.body.mission.drive_to_routine` stubs its own drives too (inside a
+   swap or a dock approach). Stubbing the blocking twin does nothing (the
+   loop calls the routine), and the fence in `tests/test_tick.py` catches an
+   undriven call.
+3. **Stub the opening look.** `_day_routine` begins with
+   `body.look_around_routine()`, the rover's ~7 s spin that seeds the map and
+   says nothing about any branch below it: `life.body.look_around_routine =
+   lambda *a, **kw: tick.result(None)` (`life.body.mission._spin_routine` for
+   the rover's own retries too).
+4. **Shrink the slice.** A loop that idles in `WAIT_FOR_WORK_S` (5 s) slices
    costs 5 s per iteration however small the budget: `monkeypatch.setattr(lc,
    "WAIT_FOR_WORK_S", 0.2)`. The slice length is never the claim.
-4. **Place the belief, not the body.** Where the robot THINKS it is is the
-   reckoner (`life.mission.swap.reckoner.x/.y`); where it IS is `qpos` at
+5. **Place the belief, not the body.** Where the robot THINKS it is is its
+   estimate (the rover's reckoner, `life.body.mission.swap.reckoner.x/.y`; a
+   stub's `x`/`y`); where it IS is `qpos` at
    `handle.qpos_adr(model)` followed by `mj_forward`. Set whichever the branch
    reads and skip the drive that would have got it there.
-5. **Ask the world's data, not a flight.** An `Activity` is sensed off
+6. **Ask the world's data, not a flight.** An `Activity` is sensed off
    `data` — write both robots' poses in and call `sense()` (the encounter and
    referee tests). An evaluator reads a dict of measurements — hand it one.
-6. **Let a vendored fixture be the integration proof.** `protocol/*.jsonl.gz`
+7. **Let a vendored fixture be the integration proof.** `protocol/*.jsonl.gz`
    are real flown missions, read in a second; a test over one of them proves
    the wire shape for free. That is what let the live pair recording
    (226 s) move behind `--endurance`.
-7. **Stop on the claim.** `HubLifecycle.stop_when` / `MissionAborted` from a
+8. **Stop on the claim.** `HubLifecycle.stop_when` / `MissionAborted` from a
    step hook the moment the assertion is decidable; make the predicate the
    SUCCESS condition so a regression still runs the long path and fails on
    the same line.
-8. **One flight, both halves.** Two tests that fly the same mission with the
+9. **One flight, both halves.** Two tests that fly the same mission with the
    same row and differ only in the client are one test with the stronger
    client (the two interrupt flights, #182).
 

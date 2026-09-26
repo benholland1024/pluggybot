@@ -951,7 +951,7 @@ def sample_carry(life, errand, result: dict, before: dict) -> dict:
   `module_state` is the coupling's own answer -- hung on its bracket, or not
   -- so a carry errand cannot pass by saying it stowed the module.
   """
-  state = life.mission.swap.module_state(errand.module)
+  state = life.body.module_state(errand.module)
   return {"picked": bool(result.get("picked")), "stowed": bool(state["hung"]),
           "module": errand.module}
 
@@ -969,7 +969,7 @@ def sample_program(life, errand, result: dict, before: dict) -> dict:
   the world, one per step) and whether every fetched tool is hung -- read
   off the swap again here, not off the runner's word."""
   run = result.get("procedure") or {}
-  hung = all(life.mission.swap.module_state(t)["hung"] for t in fetched_tools(run))
+  hung = all(life.body.module_state(t)["hung"] for t in fetched_tools(run))
   return {**{k: run.get(k) for k in ("program", "total", "completed",
                                      "failedAt", "stopped", "seconds",
                                      "refused")},
@@ -986,7 +986,7 @@ def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
 def wallet_before(other) -> dict:
   """The reading a take is measured against (issue #228): the other's
   balance off ITS ledger, before anything moves, keyed by its root."""
-  return {"to": other.mission.handle.root,
+  return {"to": other.root,
           "balance": other.ledger.balance() if other.ledger is not None else None}
 
 

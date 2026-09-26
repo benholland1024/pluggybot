@@ -17,14 +17,15 @@ SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
 
 class FakeSwap:
-  """Records what it was asked to step with; raises when told to."""
+  """A stepper (tick.py): records the command it was asked to step with;
+  raises when told to."""
 
   def __init__(self, raise_on: int | None = None):
     self.steps: list = []
     self.raise_on = raise_on
 
-  def _step_once(self, tl, tr):
-    self.steps.append((tl, tr))
+  def step(self, command):
+    self.steps.append(command)
     if self.raise_on is not None and len(self.steps) == self.raise_on:
       raise RuntimeError("hook")
 
@@ -42,6 +43,8 @@ def test_a_step_hands_back_commands_then_the_result():
 
 
 def test_run_steps_the_swap_with_each_command_and_returns_the_value():
+  """THE COMMAND IS THE BODY'S (issue #380): the driver hands each one to
+  the stepper as it was yielded and reads nothing in it."""
   swap = FakeSwap()
 
   def routine():
@@ -49,7 +52,21 @@ def test_run_steps_the_swap_with_each_command_and_returns_the_value():
     yield 0.0, 0.0
     return 7
   assert tick.run(swap, routine()) == 7
-  assert swap.steps == [wheel_targets(0.2, 0.0), wheel_targets(0.0, 0.0)]
+  assert swap.steps == [(0.2, 0.0), (0.0, 0.0)]
+
+
+def test_the_rovers_stepper_reads_its_command_as_forward_speed_and_yaw_rate(hub_model):
+  """...and the rover's stepper is where `(v, w)` becomes wheel setpoints:
+  one robot alone (`step`) and a shared world (`apply`) alike."""
+  swap = HubSwap(hub_model, mujoco.MjData(hub_model))
+  seen: list = []
+  swap._step_once = lambda tl, tr: seen.append(("step", tl, tr))
+  swap._before_step = lambda tl, tr: seen.append(("apply", tl, tr))
+  swap.step((0.2, 0.5))
+  swap.apply((0.2, 0.5))
+  swap.apply(swap.STILL)
+  assert seen == [("step", *wheel_targets(0.2, 0.5)), ("apply", *wheel_targets(0.2, 0.5)),
+                  ("apply", *wheel_targets(0.0, 0.0))]
 
 
 def test_hold_and_result_are_the_two_shapes_a_test_stubs_with():
@@ -125,7 +142,7 @@ def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory(hub_model):
     step = tick.Step(routine)
     cmd = step.tick()
     while cmd is not None:
-      mb.swap._step_once(*wheel_targets(*cmd))
+      mb.swap.step(cmd)
       cmd = step.tick()
   assert _hash(a) == _hash(b)
   assert ma.step_count == mb.step_count and ma.pose == mb.pose
@@ -142,7 +159,7 @@ def test_swap_manoeuvres_are_the_same_ticked(hub_model):
   step = tick.Step(sb.pick_routine())
   cmd = step.tick()
   while cmd is not None:
-    sb._step_once(*wheel_targets(*cmd))
+    sb.step(cmd)
     cmd = step.tick()
   assert _hash(a) == _hash(b)
 
