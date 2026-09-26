@@ -1996,11 +1996,25 @@ grid from the body's own height, so a ray a metre ahead on a flight starts
 INSIDE a step above the body and reports the floor under it; the grid is
 cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
 `legs/policy.py` casts the same grid in our physics (its layout is pinned).
-After 3000 iterations it clears what the blind policy clears (one 0.15 m
-step; flights to 0.08 m): the curriculum had only reached terrain level ~3
-of 10, where the stairs' risers are ~0.10 m, so it had hardly met a
-house's. The scan does reach it — flattened, the 0.15 m step goes from 3 of
-3 to 0 of 3 — so what it lacks is practice, not sight.
+At 3000 iterations it cleared what the blind policy cleared; resumed to
+6000 (`models/quadruped_rough_seeing.npz`), three trials a case in our
+physics (`--climb`), against the blind policy's:
+
+| | blind (2600 it.) | seeing (6000 it.) |
+|---|---|---|
+| one step 0.15 / 0.18 m | 3/3 / 1/3 | 3/3 / **2/3** |
+| four-step flight 0.10 / 0.12 m | 2/3 / 1/3 | 2/3 / 0/3 |
+| step down 0.15 m | 3/3 | 3/3 |
+| odometry drift on the climbs | 0.9-7.2 % | **1.1-2.1 %** |
+
+The scan does reach it — flattened, the 0.15 m step goes from 3 of 3 to 0
+of 3. **Neither climbs a house's flight of 0.18 m risers**, and the limit is
+the curriculum, not the body: the terrain levels stalled near 3 of 10
+(risers ~0.10 m) across 6000 iterations, while the push up a 0.18 m riser
+needs 5.1 N·m of the knee's 22. What to change is the next stairs issue's:
+more forward commands on the stairs (a robot is promoted for walking half
+a tile, which a slow command never does), more stairs in the mix, a foot
+clearance reward for the 0.28 m tread.
 
 **Posture** (`models/quadruped_posture.npz`, `Pluggy-Quad-Posture`: walking
 with the torso's height offset, pitch and roll commanded; 2500 iterations on
