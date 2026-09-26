@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _compiled(spec=qm.CHOSEN, **kw):
-  model = mujoco.MjModel.from_xml_string(qm.body_xml(spec, **kw))
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(spec, **kw))  # scenery=
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
@@ -215,3 +215,40 @@ def test_odometry_survives_a_contact_estimate_31_ms_late(monkeypatch):
   # For 31 ms after each footfall only the lifting pair is flagged planted;
   # averaged in, it made the estimate 27 % of distance wrong.
   assert _trot_odometry(monkeypatch, lag_s=0.031) < 0.04
+
+
+def test_the_height_scan_is_mjlabs_grid_turned_with_the_heading(tmp_path):
+  # The perceptive policy was trained on mjlab's grid (x fastest, 17 x 11
+  # points over 1.6 x 1.0 m) scaled by 1/5: a scrambled or unscaled scan
+  # shows it a different world. A 10 cm block front-left of the robot must
+  # read at exactly the grid points under it.
+  import json
+  from pluggybot.legs.policy import (SCAN_SIZE_M, PolicyDriver, WalkingPolicy,
+                                     scan_offsets)
+  a = _tiny_policy(tmp_path / "p.npz", obs=45 + 187)
+  meta = json.loads(str(a["meta"]))
+  meta["observation_names"] += ",height_scan"
+  meta["observation_terms_scale"] = "1,1,1,1,1,1,0.2"
+  a["meta"] = np.array(json.dumps(meta))
+  np.savez(tmp_path / "p.npz", **a)
+  # Its edges between grid lines (x 0.32-0.78, y 0.12-0.48), so which
+  # points it covers is geometry, not rounding at an edge.
+  block = ('\n    <geom name="block" type="box" size="0.23 0.18 0.05" '
+           'pos="0.55 0.3 0.05"/>')
+  model, data = _compiled(scenery=block)
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"),
+                     JointLimits.of(qm.CHOSEN.motor))
+  scan = drv.observation(Twist_())[45:] / 0.2
+  xy = scan_offsets()
+  under = (np.abs(xy[:, 0] - 0.55) < 0.23) & (np.abs(xy[:, 1] - 0.3) < 0.18)
+  h0 = data.qpos[2]
+  assert len(scan) == 187 and xy.shape == (187, 2)
+  assert np.allclose(scan[~under], h0, atol=1e-6)
+  assert np.allclose(scan[under], h0 - 0.1, atol=1e-6)
+  assert xy[1, 0] - xy[0, 0] > 0 and xy[1, 1] == xy[0, 1]   # x fastest
+  assert math.isclose(xy[:, 0].max(), SCAN_SIZE_M[0] / 2, abs_tol=1e-9)
+
+
+def Twist_():
+  from pluggybot.legs.policy import Twist
+  return Twist()

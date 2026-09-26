@@ -34,6 +34,21 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 POLICY_NPZ = Path(__file__).resolve().parents[3] / "models" / "quadruped_policy.npz"
 
+#: The perceptive policy's height scan (`training/quad_train/task.py` SCAN):
+#: the body's height over the terrain under a grid 1.6 m long and 1.0 m wide
+#: at 0.1 m, turned with the heading, the rays cast down from 1 m above the
+#: body, a miss reading `SCAN_MAX_M`. Ordered as mjlab's grid: x fastest.
+#: On the robot it is the D435's height map sampled at these points; here it
+#: is the terrain itself (ray casts), the ideal that map approximates.
+SCAN_SIZE_M, SCAN_RES_M, SCAN_RAISE_M, SCAN_MAX_M = (1.6, 1.0), 0.1, 1.0, 5.0
+
+
+def scan_offsets() -> np.ndarray:
+  xs = np.arange(-SCAN_SIZE_M[0] / 2, SCAN_SIZE_M[0] / 2 + SCAN_RES_M / 2, SCAN_RES_M)
+  ys = np.arange(-SCAN_SIZE_M[1] / 2, SCAN_SIZE_M[1] / 2 + SCAN_RES_M / 2, SCAN_RES_M)
+  gx, gy = np.meshgrid(xs, ys, indexing="xy")
+  return np.stack([gx.ravel(), gy.ravel()], axis=1)
+
 
 def _elu(x: np.ndarray) -> np.ndarray:
   return np.where(x > 0.0, x, np.expm1(np.minimum(x, 0.0)))
@@ -59,8 +74,12 @@ class WalkingPolicy:
     assert tuple(names) == JOINT_NAMES, names
     self.default_q = np.array([float(v) for v in self.meta["default_joint_pos"].split(",")])
     self.action_scale = np.array([float(v) for v in self.meta["action_scale"].split(",")])
-    #: The observation's terms, in order (the exported file's metadata).
+    #: The observation's terms, in order, and the scale each is multiplied
+    #: by (the exported file's metadata; the height scan's is 1/5).
     self.observation_names = tuple(self.meta["observation_names"].split(","))
+    self.observation_scales = tuple(
+      float(v) for v in self.meta.get("observation_terms_scale", "").split(",") if v
+    ) or (1.0,) * len(self.observation_names)
     self.stiffness = float(self.training["stiffness"])
     self.damping = float(self.training["damping"])
     #: Seconds between two policy steps (the trainer's physics step x its
@@ -112,6 +131,9 @@ class PolicyDriver:
     self.gyro = model.sensor(f"{prefix}imu_ang_vel").id
     self.gyro_adr = model.sensor_adr[self.gyro]
     self.every = max(1, round(policy.period / model.opt.timestep))
+    self.scan_xy = scan_offsets()
+    #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray.
+    self.scan_groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
     self.last_action = np.zeros(len(JOINT_NAMES))
     self.target = policy.default_q.copy()
     self.steps = 0
@@ -130,8 +152,33 @@ class PolicyDriver:
       "actions": lambda: self.last_action,
       "command": twist.array,
       "posture": twist.posture,
+      "height_scan": self.height_scan,
     }
-    return np.concatenate([terms[name]() for name in self.policy.observation_names])
+    return np.concatenate([
+      np.asarray(terms[name](), dtype=float) * scale
+      for name, scale in zip(self.policy.observation_names,
+                             self.policy.observation_scales)])
+
+  def height_scan(self) -> np.ndarray:
+    """The body's height over the terrain under each scan point."""
+    d = self.d
+    body = d.xpos[self.root]
+    rot = d.xmat[self.root].reshape(3, 3)
+    yaw = np.arctan2(rot[1, 0], rot[0, 0])
+    c, s = np.cos(yaw), np.sin(yaw)
+    xy = self.scan_xy @ np.array([[c, s], [-s, c]])
+    top = body[2] + SCAN_RAISE_M
+    down = np.array([0.0, 0.0, -1.0])
+    geomid = np.zeros(1, dtype=np.int32)
+    out = np.full(len(xy), SCAN_MAX_M)
+    # One ray per point: parallel rays from separate origins, which
+    # `mj_multiRay` (one origin, many directions) cannot cast.
+    for i, (x, y) in enumerate(xy):
+      dist = mujoco.mj_ray(self.m, d, np.array([body[0] + x, body[1] + y, top]),
+                           down, self.scan_groups, 1, -1, geomid)
+      if 0 <= dist <= SCAN_MAX_M + SCAN_RAISE_M:
+        out[i] = body[2] - (top - dist)
+    return out
 
   def torque(self, twist: Twist) -> np.ndarray:
     if self.steps % self.every == 0:
