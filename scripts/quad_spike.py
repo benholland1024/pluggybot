@@ -766,8 +766,10 @@ def staircase_scenery(rise: float, steps: int, edge: float = 0.6) -> str:
                  f'pos="{x0 + TREAD_M / 2} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
   x0 = edge + steps * TREAD_M
   h = steps * rise
-  geoms.append(f'\n    <geom name="landing" type="box" size="1.5 1.0 {h / 2}" '
-               f'pos="{x0 + 1.5} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
+  # A long landing: a flight is flown for a fixed time, and a policy that
+  # climbed quickly must not "fail" by walking off the far end of it.
+  geoms.append(f'\n    <geom name="landing" type="box" size="5.0 1.0 {h / 2}" '
+               f'pos="{x0 + 5.0} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
   return "".join(geoms)
 
 
@@ -782,40 +784,46 @@ def _policy_world(path, scenery: str = "", key: int = 0):
 
 
 def climb(path=POLICY_NPZ, risers=(0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20, 0.22),
-          speed: float = 0.4) -> None:
-  """The tallest riser the policy clears BLIND: one step up, a flight of four
-  on a house's tread, and walking off a step down; each flown in our physics
-  from standing 0.6 m short, commanded straight at it."""
-  print(f"{'riser m':>7s} {'one step up':>12s} {'4-step flight up':>17s} "
-        f"{'step down':>10s} {'odometry % (flight)':>20s}")
+          speed: float = 0.4, trials: int = 3) -> None:
+  """The tallest riser a policy clears: one step up (a curb), a flight of
+  four on a house's tread, and a step down, each flown in our physics
+  `trials` times from 0.6-0.8 m short, commanded straight at it. Legged
+  odometry's drift is over the climbs that succeeded."""
+  print(f"{'riser m':>7s} {'step up':>8s} {'4-step flight':>14s} {'step down':>10s} "
+        f"{'odometry % on the climbs':>25s}")
   for rise in risers:
-    cells = []
-    # One step up: the landing of a one-riser flight.
-    for steps in (1, 4):
-      model, data, drv = _policy_world(path, staircase_scenery(rise, steps))
-      odo = LegOdometry(model, data)
-      top = steps * rise
-      for _ in range(int((4.0 + 2.5 * steps) / model.opt.timestep)):
+    wins, drifts = {"step": 0, "flight": 0, "down": 0}, []
+    for trial in range(trials):
+      back = 0.1 * trial
+      for case, steps in (("step", 1), ("flight", 4)):
+        model, data, drv = _policy_world(path, staircase_scenery(rise, steps))
+        data.qpos[0] -= back
+        mujoco.mj_forward(model, data)
+        odo = LegOdometry(model, data, seed=trial)
+        top = steps * rise
+        for _ in range(int((4.0 + 2.5 * steps) / model.opt.timestep)):
+          drv.step(Twist(vx=speed))
+          odo.step()
+          if data.qpos[2] < 0.12:
+            break
+        if data.qpos[2] > top + 0.8 * CHOSEN.stand_height:
+          wins[case] += 1
+          drifts.append(odo.error()[0] / max(odo.distance, 1e-6) * 100)
+      scenery = (f'\n    <geom name="ledge" type="box" size="1.0 1.0 {rise / 2}" '
+                 f'pos="-0.4 0 {rise / 2}" rgba="0.6 0.5 0.4 1"/>')
+      model, data, drv = _policy_world(path, scenery)
+      data.qpos[0] -= back
+      data.qpos[2] += rise
+      mujoco.mj_forward(model, data)
+      for _ in range(int(6.0 / model.opt.timestep)):
         drv.step(Twist(vx=speed))
-        odo.step()
         if data.qpos[2] < 0.12:
           break
-      up = data.qpos[2] > top + 0.8 * CHOSEN.stand_height
-      cells.append("yes" if up else "no")
-      drift = odo.error()[0] / max(odo.distance, 1e-6) * 100
-    # Down: start on a landing, walk off its edge.
-    scenery = (f'\n    <geom name="ledge" type="box" size="1.0 1.0 {rise / 2}" '
-               f'pos="-0.4 0 {rise / 2}" rgba="0.6 0.5 0.4 1"/>')
-    model, data, drv = _policy_world(path, scenery)
-    data.qpos[2] += rise
-    mujoco.mj_forward(model, data)
-    for _ in range(int(6.0 / model.opt.timestep)):
-      drv.step(Twist(vx=speed))
-      if data.qpos[2] < 0.12:
-        break
-    down = data.qpos[0] > 1.2 and abs(data.qpos[2] - CHOSEN.stand_height) < 0.08
-    cells.append("yes" if down else "no")
-    print(f"{rise:7.2f} {cells[0]:>12s} {cells[1]:>17s} {cells[2]:>10s} {drift:19.1f}%")
+      if data.qpos[0] > 1.2 and abs(data.qpos[2] - CHOSEN.stand_height) < 0.08:
+        wins["down"] += 1
+    drift = f"{np.mean(drifts):.1f}" if drifts else "-"
+    print(f"{rise:7.2f} {wins['step']:>6d}/{trials} {wins['flight']:>12d}/{trials} "
+          f"{wins['down']:>8d}/{trials} {drift:>25s}")
 
 
 def getup(path, trials: int = 20, seconds: float = 6.0) -> None:

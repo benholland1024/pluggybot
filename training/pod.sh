@@ -107,7 +107,12 @@ set -e
 task=$1 envs=$2 iters=$3 run=$4; shift 4
 cd /root/pluggybot/training
 export WARP_CACHE_PATH=/root/.warp-cache
-nohup .venv/bin/python -m quad_train.train "$task" --env.scene.num-envs "$envs" \
+# MuJoCo Warp warns on every step a box lies on a height field with more than
+# 50 contacts (a fallen body on rough ground): a stairs run wrote 1.5 M such
+# lines, 258 MB to the network volume, and slowed to a third of its speed.
+PYTHONUNBUFFERED=1 nohup bash -c '"$@" 2>&1 | grep --line-buffered -v \
+  -e "height field collision overflow" -e "decrease the number of hfield"' _ \
+  .venv/bin/python -m quad_train.train "$task" --env.scene.num-envs "$envs" \
   --agent.max-iterations "$iters" --agent.logger tensorboard --agent.run-name "$run" \
   --log-root /workspace/runs "$@" > "/workspace/runs/$run.log" 2>&1 &
 echo "started $run: pid $!"
