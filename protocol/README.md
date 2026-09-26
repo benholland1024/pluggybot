@@ -2586,7 +2586,7 @@ the marker entirely, since a keyframe is just a frame that happens to
 mention everything. At 20 Hz they are 1 frame in 100.
 
 The producer seam: `TelemetryRecorder` (`src/pluggybot/telemetry/recorder.py`)
-is a callback on `HubMission.step_hooks` — the same per-physics-step seam
+is a callback on `Body.step_hooks` — the same per-physics-step seam
 the battery drains through. It decimates 500 Hz of steps to `hz` of frames
 and hands them to a writer thread; no serialization or file I/O ever runs
 inside a physics step.

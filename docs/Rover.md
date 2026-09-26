@@ -7,14 +7,18 @@ rover**: the drive and dead reckoning (`control.py`, `odometry/`,
 `behavior/`), the swap, dock and bays (`rack/`, `mission/`), the tools on
 the lift (`tools/`), its sensors' mounts, its energy numbers and its routes.
 Each bullet is a constraint, its number and where its story lives (SimNotes,
-mostly); what outlives the body is in CLAUDE.md. Stage C of #376 deletes this
-file, after tagging the last commit that runs the rover `rover-final`.
+mostly); what outlives the body is in CLAUDE.md. To the loop the rover is a
+`Body` (`mission/rover.py`, #380): it is reached through `body.py`'s
+interface and nothing else, and every member hands the call to `HubMission`
+/ `HubSwap` at call time. Stage C of #376 deletes this file, after tagging
+the last commit that runs the rover `rover-final`.
 
 ## Drive, turn and square up
 
 - **Odometry tracks the axle midpoint; `qpos` tracks the body origin 8 cm
-  ahead.** A routine yields one `(v, w)` drive command per physics step
-  (CLAUDE.md, "Every manoeuvre is a ROUTINE").
+  ahead.** A rover routine yields one `(v, w)` drive command per physics
+  step (CLAUDE.md, "Every manoeuvre is a ROUTINE"), and the rover's stepper
+  (`HubSwap.step` / `apply`) is the one place it becomes wheel setpoints.
 - **A final approach uses `drive_toward(..., slow_radius=R)`; a path waypoint
   does not.** The default pure-pursuit law cannot converge on a destination
   closer than its own overshoot and ORBITS it (~900° of turning per 200 mm

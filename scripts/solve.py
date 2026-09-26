@@ -100,7 +100,7 @@ def build_life(view: bool, state_dir: str):
 def claw_in_hand_at_the_row(life, stand=(-10.2, -4.75, math.pi)) -> None:
   """Pick the claw at its bay, then carry robot AND module to a stand in
   the workshop by one rigid transform (docs/Testing.md, lever 4)."""
-  m, swap, model, data = life.mission, life.mission.swap, life.model, life.data
+  m, swap, model, data = life.body.mission, life.body.mission.swap, life.model, life.data
   sx, sy, hd = bay_standoff(HUB_STATION_YS[3], m.rack)
   m.start_at(sx, sy, hd)
   lift0 = align_lift()
@@ -161,7 +161,7 @@ def _camera(life, frames: list, track: str):
     state["next"] = data.time + FRAME_EVERY_S
     renderer.update_scene(data, cam)
     frames.append((label or f"t={data.time:.0f}s {life.state}", renderer.render().copy()))
-  life.mission.step_hooks.append(grab)
+  life.body.step_hooks.append(grab)
   return grab
 
 
@@ -194,13 +194,13 @@ def fly_beside(lives: list, life, routine):
   def standing():
     while not done[0]:
       yield 0.0, 0.0
-  return tick.run_many([(life.mission.swap, flying())]
-                       + [(other.mission.swap, standing()) for other in lives
+  return tick.run_many([(life.body.mission.swap, flying())]
+                       + [(other.body.mission.swap, standing()) for other in lives
                           if other is not life], name="solve")[0]
 
 
 def run(life, feature: str, source: str | None = None, frames: list | None = None) -> dict:
-  return life.mission.run(run_routine(life, feature, source, frames))
+  return life.body.run(run_routine(life, feature, source, frames))
 
 
 def run_routine(life, feature: str, source: str | None = None, frames: list | None = None):
@@ -209,7 +209,7 @@ def run_routine(life, feature: str, source: str | None = None, frames: list | No
   `done`, the grade on the seam."""
   from pluggybot import lifecycle as lc
   from pluggybot.procedure import lang
-  m, data = life.mission, life.data
+  m, data = life.body.mission, life.data
   track = {"tower": stack.BLOCKS[0], "bench": "mass_unknown", "mouse": "lab_mouse"}[feature]
   grab = _camera(life, frames, track) if frames is not None else None
   events: list = []
@@ -288,17 +288,17 @@ def main() -> None:
       others = [other for other in lives if other is not life]
       cfg = world_config("home")
       for each, start in zip(lives, (cfg["start"], cfg["start2"])):
-        each.mission.start_at(*start)
-        each.mission.start_discovery()
-        each.mission._spin()
+        each.body.start_at(*start)
+        each.body.start_discovery()
+        each.body.mission._spin()
     else:
       life, viewer = build_life(args.view, state_dir)
       if args.feature == "mouse":
         from pluggybot import lifecycle as lc
         acts = lc.home_activities(life.model, life.data)
-        life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
+        life.body.step_hooks.append(acts.step_hook(life.model, life.data))
         life.activities = acts
-    m = life.mission
+    m = life.body.mission
     t0 = time.time()
     try:
       if args.pair:
@@ -316,7 +316,7 @@ def main() -> None:
       return
     finally:
       for each in (life, *others):
-        each.mission.close()
+        each.body.close()
       if viewer is not None:
         viewer.close()
   proc = out["errand"]["procedure"]
@@ -338,10 +338,10 @@ def main() -> None:
     print(f"GRADE: {'PASSED' if grade and grade['ok'] else 'FAILED'} -- "
           f"{grade['reason'] if grade else 'never graded'}"
           f"{f' (+{grade['points']} points)' if grade else ''}")
-  st = life.mission.swap.module_state("module_claw")
+  st = life.body.mission.swap.module_state("module_claw")
   print(f"claw: {'hung in its bay' if st['hung'] else 'NOT on the rack'}")
   for other in others:
-    x, y, _ = other.mission.true_pose()
+    x, y, _ = other.body.true_pose()
     print(f"{other.robot_name}: stood at ({x:.2f}, {y:.2f})"
           + (f", DEAD ({other.dead['cause']})" if other.dead else ""))
   print(f"sim {life.data.time:.0f} s, wall {time.time() - t0:.0f} s, "

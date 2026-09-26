@@ -493,13 +493,10 @@ def test_a_decision_carries_its_reply_to_the_wire():
 
 
 def _lifecycle(**kw):
-  import mujoco
-  from pluggybot.lifecycle import HubLifecycle, world_config
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                      world="room_hub", errand=False, rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"], **kw)
+  """The visitor channel is the lifecycle's bookkeeping: a stub body carries
+  it (issue #380)."""
+  from test_body import stub_life
+  return stub_life("room_hub", **kw)
 
 
 @pytest.mark.parametrize("outcome, reply", [

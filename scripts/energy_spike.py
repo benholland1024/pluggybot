@@ -84,7 +84,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
                       near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
     life.activities = activities
 
   # `explore` reads these two off the running mission (`run()` sets them);
@@ -96,9 +96,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
 
   out: dict = {"world": world, "batteryWh": battery_wh, "actions": {}}
   try:
-    life.mission.start_at(*cfg["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*cfg["start"])
+    life.body.start_discovery()
+    life.body.mission._spin()
 
     # ---- explore, which is also how the rack gets found -------------------
     t0, e0 = float(data.time), life.battery.energy_wh
@@ -183,9 +183,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       t0, e0 = float(data.time), life.battery.energy_wh
       end = t0 + charge_s
       while float(data.time) < end:
-        life.mission._drive(0.25, 0.012, 0.0)
+        life.body.mission._drive(0.25, 0.012, 0.0)
         if not life.charging_now:
-          life.mission._drive(1.0, 0.04, 0.0)
+          life.body.mission._drive(1.0, 0.04, 0.0)
           if not life.charging_now:
             print("  charge    lost the pins")
             break
@@ -197,7 +197,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     else:
       print("  charge    could not reach the rack -- no chargeW measured")
   finally:
-    life.mission.close()
+    life.body.close()
   return out
 
 
@@ -242,7 +242,7 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
                       near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
   life.max_sim_time = 1e9
   life.blacklist = set()
   life.floor_explored = False
@@ -250,16 +250,16 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
 
   out: dict = {"world": world}
   try:
-    life.mission.start_at(*cfg["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*cfg["start"])
+    life.body.start_discovery()
+    life.body.mission._spin()
     life.explore(budget=explore_s, mark_done=False)
 
     path = list(home.HOME_WORST_RETURN_PATH)
     # Start AT the worst point, odometry seeded from truth: this measures the
     # route's energy, not the robot's confusion about where it is.
     hd = math.atan2(path[1][1] - path[0][1], path[1][0] - path[0][0])
-    life.mission.start_at(path[0][0], path[0][1], hd)
+    life.body.start_at(path[0][0], path[0][1], hd)
     life.battery.energy_wh = battery_wh
 
     t0, e0 = float(data.time), life.battery.energy_wh
@@ -270,15 +270,15 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
     # STANDOFF and then creeps on the tag. That split is also the honest one:
     # travel is what a distance model can predict, docking is what it cannot.
     for wx, wy in path[1:-1]:
-      metres += math.hypot(wx - life.mission.pose[0],
-                           wy - life.mission.pose[1])
+      metres += math.hypot(wx - life.body.pose[0],
+                           wy - life.body.pose[1])
       deadline = float(data.time) + 120.0
       while float(data.time) < deadline:
-        px, py, _ = life.mission.pose
+        px, py, _ = life.body.pose
         if math.hypot(wx - px, wy - py) < 0.15:
           break
-        v, w = drive_toward(life.mission.pose, (wx, wy), slow_radius=0.5)
-        life.mission._drive(0.05, v, w)
+        v, w = drive_toward(life.body.pose, (wx, wy), slow_radius=0.5)
+        life.body.mission._drive(0.05, v, w)
     travel = e0 - life.battery.energy_wh
     out["travelWh"] = travel
     out["travelS"] = float(data.time) - t0
@@ -297,7 +297,7 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
     print(f"  RESERVE   {out['reserveWh']:.4f} Wh floor "
           f"(travel + dock, before the retry margin)")
   finally:
-    life.mission.close()
+    life.body.close()
   return out
 
 

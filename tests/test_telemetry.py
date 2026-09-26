@@ -1586,12 +1586,12 @@ def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path
   path = str(tmp_path / "census.jsonl")
   rec = TelemetryRecorder(model, life.data, path, model_name="home_world",
                           status_fn=life.telemetry_status)
-  life.mission.step_hooks.append(rec.step_hook)
+  life.body.step_hooks.append(rec.step_hook)
   errand, = [e for e in lc.errands_for("census", "home", None)
              if e.task == "census"]
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
   try:
-    result = life.mission.run(errand.use(life))
+    result = life.body.run(errand.use(life))
   finally:
     rec.close()
 

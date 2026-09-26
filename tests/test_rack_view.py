@@ -84,15 +84,15 @@ def _pair(tmp_path, autonomous=True):
                     inboxes=(Inbox(), Inbox()),
                     thoughts_root=str(tmp_path / "t"),
                     ledger_state=str(tmp_path / "ledger.json"))
-  a.mission.start_at(0.5, 3.0, 0.0)
-  b.mission.start_at(3.0, 3.0, 0.0)
+  a.body.start_at(0.5, 3.0, 0.0)
+  b.body.start_at(3.0, 3.0, 0.0)
   return a, b
 
 
 def _onto_fork(life, module: str, holder) -> None:
   """`module` on `holder`'s fork: over its vertex, which is where `carrying`
   looks (a horizontal box, so the height does not matter to it)."""
-  vx = life.data.site_xpos[holder.mission.swap.vertex_sid]
+  vx = life.data.site_xpos[holder.body.mission.swap.vertex_sid]
   _put(life.model, life.data, module, (vx[0], vx[1], vx[2] - 0.02))
 
 

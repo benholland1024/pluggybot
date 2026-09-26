@@ -38,10 +38,10 @@ def fake_life(boards=None, module_hung=True, time=10.0, battery=None):
   a measurement comes from -- and that is a question about ten lines of
   dispatch, not about physics.
   """
-  swap = SimpleNamespace(
+  body = SimpleNamespace(
     module_state=lambda name: {"hung": module_hung, "on_fork": not module_hung})
   return SimpleNamespace(boards=boards, data=SimpleNamespace(time=time),
-                         mission=SimpleNamespace(swap=swap), battery=battery)
+                         body=body, battery=battery)
 
 
 # ---- the reward table is DATA ----------------------------------------------

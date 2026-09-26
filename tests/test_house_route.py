@@ -40,27 +40,27 @@ def _life(start, reach=REACH, fails_at=None):
   where it stands, so a drive inside arrives and one beyond gives up where
   it is. `fails_at` is a goal that gives up however near it is."""
   drives, asked = [], []
-  mission = SimpleNamespace(pose=(*start, 0.0))
+  body = SimpleNamespace(pose=(*start, 0.0))
 
-  def drive_to_routine(x, y, timeout):
+  def go_to_routine(x, y, timeout):
     drives.append((x, y))
-    px, py, _ = mission.pose
+    px, py, _ = body.pose
     if (x, y) == fails_at or math.hypot(x - px, y - py) > reach:
       return tick.result(False)
-    mission.pose = (x, y, 0.0)
+    body.pose = (x, y, 0.0)
     return tick.result(True)
-  mission.drive_to_routine = drive_to_routine
-  mission.pose_xy = lambda: mission.pose[:2]
-  mission.peer_on_the_goal = lambda x, y: None
-  mission.in_sight = lambda x, y: math.hypot(x - mission.pose[0], y - mission.pose[1]) <= reach
-  life = SimpleNamespace(mission=mission, world="home",
+  body.go_to_routine = go_to_routine
+  body.pose_xy = lambda: body.pose[:2]
+  body.peer_on_the_goal = lambda x, y: None
+  body.in_sight = lambda x, y: math.hypot(x - body.pose[0], y - body.pose[1]) <= reach
+  life = SimpleNamespace(body=body, world="home",
                          drive_why=lambda x, y: (asked.append((x, y)),
                                                  "the drive gave up (why)")[1])
   return life, drives, asked
 
 
 def _drive_to(life, x, y):
-  return tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  return tick.run(SimpleNamespace(step=lambda *a: None),
                   st._drive_to(life, {"x": x, "y": y}))
 
 
@@ -136,15 +136,15 @@ def test_a_leg_is_a_waypoint_near_is_reached_and_a_robot_on_it_is_passed_by():
 
   def stops_short_of_the_gate(by):
     life, drives, _ = _life((-3.5, 1.0))
-    inner = life.mission.drive_to_routine
+    inner = life.body.go_to_routine
 
     def drive(x, y, timeout):
       if (x, y) != gate:
         return inner(x, y, timeout)
       drives.append((x, y))
-      life.mission.pose = (x - by, y, 0.0)         # the stand-in, and "no route"
+      life.body.pose = (x - by, y, 0.0)         # the stand-in, and "no route"
       return tick.result(False)
-    life.mission.drive_to_routine = drive
+    life.body.go_to_routine = drive
     return _drive_to(life, 22.0, 3.0), drives
   r, drives = stops_short_of_the_gate(0.2)
   assert r["ok"] and drives == [*lab_route("home")[:4], (22.0, 3.0)]
@@ -153,7 +153,7 @@ def test_a_leg_is_a_waypoint_near_is_reached_and_a_robot_on_it_is_passed_by():
   assert not r["ok"] and drives[-1] == gate
   # a leg the other robot stands on is not driven to: the next one is
   life, drives, _ = _life((0.5, -1.6))
-  life.mission.peer_on_the_goal = lambda x, y: 0.0 if (x, y) == WORKSHOP_ROUTE[0] else None
+  life.body.peer_on_the_goal = lambda x, y: 0.0 if (x, y) == WORKSHOP_ROUTE[0] else None
   assert _drive_to(life, -9.7, -4.75)["ok"]
   assert drives == [*WORKSHOP_ROUTE[1:], (-9.7, -4.75)]
 

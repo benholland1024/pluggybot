@@ -16,7 +16,8 @@ from pluggybot.mind.thoughts import (
   HISTORY_RECALLED, RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
 )
 
-from test_overseer import FakeClient, _lifecycle, full
+from test_body import stub_life
+from test_overseer import FakeClient, full
 
 
 # ---- the lookup ----------------------------------------------------------------
@@ -115,9 +116,9 @@ def test_a_recall_names_what_it_looks_up_or_is_malformed():
 
 def _chain(*answers):
   boss = Overseer(Menu.for_world("room_hub", None), client=FakeClient(*answers))
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
+  life = stub_life("room_hub", overseer=boss, errand=False)
   life.thoughts.remember("draw on whiteboard_b failed", t=1.0)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("room_hub")["start"])
   return boss, life
 
 
@@ -128,13 +129,20 @@ def test_the_chain_accumulates_and_an_external_action_clears_it():
                       full(action="idle"))
   seen = []
   life.on_event.append(seen.append)
+  # ...and how many think slices each call in flight was stood out in: as
+  # many as its worker thread took, which is the box's, not the recall's
+  thinks = []
+  real = life.body.hold_routine
+  life.body.hold_routine = lambda s: (thinks.append(s == ov.THINK_SLICE_S), real(s))[1]
   try:
     life._decide()
     assert life.state == "RECALL" and life._recall_run == 1
     t_after_first = float(life.data.time)
+    thinks.clear()
     life._decide()
     assert life._recall_run == 2 and [b["hits"] for b in life._recalled] == [1, 1]
-    assert float(life.data.time) - t_after_first == pytest.approx(ov.RECALL_S, abs=0.2)
+    stood = float(life.data.time) - t_after_first - sum(thinks) * ov.THINK_SLICE_S
+    assert stood == pytest.approx(ov.RECALL_S, abs=0.01)
     # The context the third call would see carries the whole chain...
     from pluggybot.lifecycle import overseer_context
     state = overseer_context(life)
@@ -145,7 +153,7 @@ def test_the_chain_accumulates_and_an_external_action_clears_it():
     assert life._recalled == [] and life._recall_run == 0
     assert overseer_context(life)["recalled"] == []
   finally:
-    life.mission.close()
+    life.body.close()
   assert [d["action"] for d in life.decisions][:3] == ["recall", "recall", "idle"]
   assert [(r["run"], r["hits"], r["shown"]) for r in life.recalls] == [(1, 1, 1), (2, 1, 1)]
   wire = [m for m in seen if m["type"] == "recall"]
@@ -168,7 +176,7 @@ def test_the_fourth_recall_in_a_row_is_refused_and_the_chain_ends():
     assert overseer_context(life)["recallsLeft"] == 0
     life._decide()                            # the fourth: malformed
   finally:
-    life.mission.close()
+    life.body.close()
   assert boss.decisions[-1].source == "fallback:garbled"
   assert life._recall_run == 0 and life._recalled == []
 
@@ -188,9 +196,9 @@ def test_a_map_row_that_asks_says_what_asked(monkeypatch):
 
   monkeypatch.setattr("pluggybot.lifecycle.overseer_context", spy)
   try:
-    life.mission.run(life._decide_routine({"event": "battery_below", "kind": "", "value": 0.3}))
+    life.body.run(life._decide_routine({"event": "battery_below", "kind": "", "value": 0.3}))
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
   assert seen[0] == {"event": "battery_below", "kind": "", "value": 0.3}
   assert seen[1] == {"event": "loop"}

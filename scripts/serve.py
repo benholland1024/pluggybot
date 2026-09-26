@@ -574,7 +574,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # everything else hangs off (issue #8). Their flags ride in the frames.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
     # ...and the lifecycle holds them, as `run_demo` and a pair's does: a
     # recompile rebinds them through it, the mouse's context reads them,
     # and a restart keeps them (issue #345).
@@ -585,7 +585,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
-                          grid=life.mission.grid, token=args.token,
+                          grid=life.body.grid, token=args.token,
                           heightmap=life.near_field,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
@@ -618,7 +618,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                           tickets=life.tickets,
                           robot_name=args.robot_name,
                           build=identity)
-  life.mission.step_hooks.append(publisher.step_hook)
+  life.body.step_hooks.append(publisher.step_hook)
   # A recompiled world (issue #168): the publisher's census and the pacer's
   # clock follow it, or they would describe a world that no longer exists.
   life.on_rebind.append(publisher.rebind)
@@ -654,7 +654,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
-    life.mission.step_hooks.append(pacer.step_hook)
+    life.body.step_hooks.append(pacer.step_hook)
     life.on_rebind.append(pacer.rebind)
   recorder = None
   if args.record is not None:
@@ -672,9 +672,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                  tickets=life.tickets,
                                  robot_name=args.robot_name,
                                  build=identity,
-                                 grid=life.mission.grid,
+                                 grid=life.body.grid,
                                  heightmap=life.near_field)
-    life.mission.step_hooks.append(recorder.step_hook)
+    life.body.step_hooks.append(recorder.step_hook)
     life.on_rebind.append(recorder.rebind)
     if book is not None:
       book.on_event.append(recorder.emit)
@@ -820,13 +820,13 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
           life.thoughts.constitution.short for life in lives))
   book, tasks, ledger = first.boards, first.tasks, first.ledger._ledger
   can_spend = boss is not None and boss.spend is not None
-  others = [StreamRobot(second.mission.handle.root, second.robot_name,
+  others = [StreamRobot(second.body.handle.root, second.robot_name,
                         second.telemetry_status,
                         spend=purse if can_spend else None,
                         metabolism=second.metabolism, thoughts=second.thoughts,
                         goals=overseer.goals_text(thoughts=second.thoughts),
                         steering=second.overseer is not None,
-                        grid=second.mission.grid,
+                        grid=second.body.grid,
                         heightmap=second.near_field,
                         overseer=second.overseer,
                         tickets=second.tickets)]
@@ -840,7 +840,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                  steering=boss is not None, overseer=boss,
                  tickets=first.tickets,
                  robot_name=names[0],
-                 build=identity, grid=first.mission.grid, others=others,
+                 build=identity, grid=first.body.grid, others=others,
                  heightmap=first.near_field)
   publisher = WsPublisher(model, data, args.endpoint, token=args.token,
                           accepts=(INBOUND_TYPES if boss is not None
@@ -848,17 +848,17 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   recorder = (TelemetryRecorder(model, data, args.record, **sink_kw)
               if args.record is not None else None)
   sinks = [publisher.message] + ([recorder.emit] if recorder else [])
-  first.mission.step_hooks.append(publisher.step_hook)
+  first.body.step_hooks.append(publisher.step_hook)
   # A recompiled world (issues #168, #315): the publisher's census follows
   # it, or it describes a world that no longer exists. Registered on the
   # FIRST robot, where its step hook is -- `_recompile` rebinds every
   # lifecycle, so a tool the SECOND robot builds arrives here too.
   first.on_rebind.append(publisher.rebind)
   if recorder is not None:
-    first.mission.step_hooks.append(recorder.step_hook)
+    first.body.step_hooks.append(recorder.step_hook)
     first.on_rebind.append(recorder.rebind)
   for life in lives:
-    root = life.mission.handle.root
+    root = life.body.handle.root
     # A narration line says WHOSE it is, so the observatory files it under
     # the right history (protocol 0.20.0).
     life.say_hooks.append(lambda t, line, root=root: publisher.event(t, line, root))
@@ -894,7 +894,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
-    first.mission.step_hooks.append(pacer.step_hook)
+    first.body.step_hooks.append(pacer.step_hook)
     first.on_rebind.append(pacer.rebind)
   attach_mode_stream(first, sinks, pacer=pacer)
   keeper = keep_world(lives, args.world_state)

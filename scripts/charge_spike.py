@@ -28,9 +28,10 @@ import mujoco
 
 from pluggybot.home import world as home
 from pluggybot.rack.coupling import rack_charge_contact
-from pluggybot.lifecycle import CHARGE_APPROACH_MAX, CHARGE_CREEP
 from pluggybot.rack.localize import RackPose
-from pluggybot.mission.mission import HubMission, charge_standoff
+from pluggybot.mission.mission import (
+  CHARGE_APPROACH_MAX, CHARGE_CREEP, HubMission, charge_standoff,
+)
 from pluggybot.rack.swap import align_lift
 
 TRUE_RACK = RackPose(home.HOME_RACK_POS[0], home.HOME_RACK_POS[1],

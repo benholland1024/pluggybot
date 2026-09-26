@@ -23,7 +23,7 @@ from pluggybot.robot import SECOND
 from test_overseer import _lifecycle  # noqa: I001 -- tests/ is on sys.path
 
 STATION = HUB_STATION_YS[2]
-STEPPER = SimpleNamespace(_step_once=lambda *a: None)
+STEPPER = SimpleNamespace(step=lambda *a: None)
 
 
 def _history(life) -> list[str]:
@@ -33,7 +33,7 @@ def _history(life) -> list[str]:
 def _stalled_at(life, seconds=60.0, short=3.0):
   """A drive stub that gives up the way the real one records it."""
   def drive(x, y, timeout=90.0):
-    life.mission.last_drive = {"why": "stalled", "goal": (x, y),
+    life.body.mission.last_drive = {"why": "stalled", "goal": (x, y),
                                "seconds": seconds, "shortM": short}
     return tick.result(False)
   return drive
@@ -53,8 +53,8 @@ def test_a_refused_pick_leads_the_verdict_and_is_said_once():
   at the rack. The verdict leads with the pick; the grade is still the
   board's (no ink, 0 points), and History says it once, not twice."""
   life = _lifecycle("room_hub", errand=False)
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
   result = life.run_errand(_pen_errand())
   reason = result["verdict"]["reason"]
   assert reason.startswith("could not pick up module_pen: it was not on its bay"), reason
@@ -68,9 +68,9 @@ def test_a_drive_that_never_arrived_leads_the_verdict_with_why():
   """Six of the fourteen were "USE_TOOL: never got there" -- no History line
   and no reason. The narration and the verdict now carry both."""
   life = _lifecycle("room_hub", errand=False)
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.mission.drive_to_routine = _stalled_at(life)
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
+  life.body.mission.drive_to_routine = _stalled_at(life)
   result = life.run_errand(_pen_errand())
   why = "the drive gave up 3.0 m short after 60 s (stalled, no progress for 10 s)"
   assert result["verdict"]["reason"] == (f"never reached whiteboard_a: {why} -- "
@@ -83,9 +83,9 @@ def test_a_failure_a_passed_verdict_does_not_carry_is_still_in_history():
   """A carry whose drive fell short and whose tool went home was done, and
   its verdict is left alone -- so History says what failed on its own."""
   life = _lifecycle("room_hub", errand=False)
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.mission.drive_to_routine = _stalled_at(life)
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
+  life.body.mission.drive_to_routine = _stalled_at(life)
   errand = Errand(name="carry", module="module_lcd", station_y=HUB_STATION_YS[0],
                   use_at=(1.0, 1.0), use=lambda _l: {}, task="carry")
   result = life.run_errand(errand)
@@ -107,9 +107,9 @@ def test_the_lead_moves_no_point_and_leaves_a_pass_alone():
 def test_a_board_it_never_squared_up_to_leads_with_which_of_the_two():
   """The use-phase's own word that its work never began leads the same way."""
   life = _lifecycle("room_hub", errand=False)
-  life.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   errand = _pen_errand()
   errand.use = lambda _l: {"error": "never squared up to the board",
                            "failedBefore": "never squared up to whiteboard_a: the "
@@ -240,7 +240,7 @@ def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
   wall with a door the other robot stands in, and one with no door."""
   from pluggybot.lifecycle import world_config
   life = _lifecycle("room_hub", errand=False)
-  m = life.mission
+  m = life.body.mission
   m.start_at(*world_config("room_hub")["start"])          # (0.5, 3.0)
   door = KeepClear(2.0, 3.0)
   for gap in (True, False):
@@ -265,8 +265,8 @@ def test_the_lifecycle_names_the_other_robot_and_reads_no_stale_record():
   rec = {"why": "peer", "goal": (5.0, 0.0), "seconds": 60.0, "shortM": 4.2,
          "peerAt": "goal", "peerM": 0.3, "peerXY": (5.0, 0.3), "peerDown": False}
   rowan = SimpleNamespace(robot_name="Rowan", root=SECOND.root,
-                          mission=SimpleNamespace(pose_xy=lambda: (5.0, 0.3)))
-  me = SimpleNamespace(peers=[rowan], mission=SimpleNamespace(last_drive=rec))
+                          body=SimpleNamespace(pose_xy=lambda: (5.0, 0.3)))
+  me = SimpleNamespace(peers=[rowan], body=SimpleNamespace(last_drive=rec, gave_up=gave_up))
   me._nearest_peer = lambda *a: HubLifecycle._nearest_peer(me, *a)
   assert HubLifecycle.drive_why(me, 5.0, 0.0) == (
     "the drive gave up 4.2 m short after 60 s (Rowan standing 0.3 m from where it "
@@ -279,9 +279,9 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
   """ "GO_CHARGE: no route to the charge bay" was said for every failed
   drive, and the `stuck` death that followed carried nothing."""
   life = _lifecycle("room_hub", errand=False)
-  life.mission.drive_to_routine = _stalled_at(life, seconds=90.0, short=2.0)
-  life.mission._spin_routine = lambda *a, **kw: tick.result(None)
-  assert life.mission.run(life.go_charge_routine()) is False
+  life.body.mission.drive_to_routine = _stalled_at(life, seconds=90.0, short=2.0)
+  life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
+  assert life.body.run(life.go_charge_routine()) is False
   why = "the drive gave up 2.0 m short after 90 s (stalled, no progress for 10 s)"
   assert any(f"GO_CHARGE: never reached the charge bay: {why}" in ln
              for ln in life.log), life.log[-3:]
@@ -295,14 +295,14 @@ def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
   from test_rack_contention import _clock, _peer
   from pluggybot.mission.mission import charge_standoff
   life = _lifecycle("room_hub", errand=False)
-  sx, sy, _ = charge_standoff(life.mission.rack)
-  life.mission.last_drive = {"why": "stalled", "goal": (sx, sy), "seconds": 90.0,
+  sx, sy, _ = charge_standoff(life.body.rack)
+  life.body.mission.last_drive = {"why": "stalled", "goal": (sx, sy), "seconds": 90.0,
                              "shortM": 2.0}                      # a drive long ago
   peer = _peer(sx + 0.2, sy, "CHARGE")
-  life.peers, life.mission.others = [peer], [peer.mission.pose_xy]
+  life.peers, life.body.mission.others = [peer], [peer.body.pose_xy]
   _clock(life)
-  life.mission.drive_to_routine = lambda *a, **kw: pytest.fail("the wait drove")
-  assert life.mission.run(life.go_charge_routine()) is False
+  life.body.mission.drive_to_routine = lambda *a, **kw: pytest.fail("the wait drove")
+  assert life.body.run(life.go_charge_routine()) is False
   assert life.charge_failure == "never reached the charge bay"
   assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
              for ln in life.log), life.log[-2:]
@@ -314,18 +314,18 @@ def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
   from test_rack_contention import _clock, _peer
   from pluggybot.mission.mission import charge_standoff
   life = _lifecycle("room_hub", errand=False)
-  sx, sy, _ = charge_standoff(life.mission.rack)
+  sx, sy, _ = charge_standoff(life.body.rack)
   peer = _peer(sx + 3.0, sy, "CHARGE")
-  life.peers, life.mission.others = [peer], [peer.mission.pose_xy]
+  life.peers, life.body.mission.others = [peer], [peer.body.pose_xy]
   _clock(life)
   stalled = _stalled_at(life, seconds=90.0, short=2.0)
 
   def drive(x, y, timeout=90.0):
     peer.pos[:] = [x + 0.2, y]                 # ...and it takes the bay meanwhile
     return stalled(x, y, timeout)
-  life.mission.drive_to_routine = drive
-  life.mission._spin_routine = lambda *a, **kw: tick.result(None)
-  assert life.mission.run(life.go_charge_routine()) is False
+  life.body.mission.drive_to_routine = drive
+  life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
+  assert life.body.run(life.go_charge_routine()) is False
   assert life.charge_failure == "never reached the charge bay"
   assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
              for ln in life.log), life.log[-2:]
@@ -364,7 +364,7 @@ def test_the_care_line_says_the_route_and_not_the_mouse(tmp_path):
   model = mujoco.MjModel.from_xml_path("models/home_world.xml")
   life = _lab_life(model, tmp_path)
   errand = errand_from(ov.Decision(action="care", care="company", reason=""), "home",
-                       from_xy=life.mission.pose_xy())
+                       from_xy=life.body.pose_xy())
   assert errand.detail["routeLegs"] == 5, "from the rack, the whole route"
   failed = "never reached the cage: the drive gave up (why), on leg 1 of 5 of the way there"
   life._cage_record(errand, {"procedure": {"ok": False}}, None,

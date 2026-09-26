@@ -13,7 +13,7 @@ import math
 
 import mujoco
 
-from pluggybot import lifecycle as lc
+from pluggybot.mission import rover
 from pluggybot.mind.inbox import Inbox
 from pluggybot.lifecycle import HubLifecycle
 from pluggybot.robot import SECOND, world_with_robots
@@ -68,7 +68,7 @@ def test_a_reset_puts_a_floored_module_back_on_its_bay():
     assert all(v == 0.0 for v in life.data.qvel[dadr:dadr + 6])
     assert "back on its bay" in life.log[-1]
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_tool_in_use_is_not_lost(monkeypatch):
@@ -78,13 +78,13 @@ def test_a_tool_in_use_is_not_lost(monkeypatch):
   try:
     adr, _ = module_qpos(life)
     before = list(life.data.qpos[adr:adr + 7])
-    monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
+    monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
     life.inbox.offer({"type": "reset_tool", "id": "a_01", "module": MODULE})
     life._visitor_step()
     assert "refused" in life.log[-1] and "seated on the fork" in life.log[-1]
     assert list(life.data.qpos[adr:adr + 7]) == before
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_reset_cannot_teleport_things_that_are_not_modules():
@@ -98,7 +98,7 @@ def test_a_reset_cannot_teleport_things_that_are_not_modules():
       life._visitor_step()
       assert "refused" in life.log[-1], name
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_code_handled_kinds_are_a_subset_of_the_inbound_vocabulary():
@@ -124,11 +124,11 @@ def test_a_tool_the_other_robot_is_holding_is_not_lost_either(monkeypatch):
     before = list(life.data.qpos[adr:adr + 7])
     #  Seated on the SECOND robot's fork and nobody else's: the first
     #  robot's own fork reads empty, which is what the old check read.
-    monkeypatch.setattr(lc, "module_power_contact",
+    monkeypatch.setattr(rover, "module_power_contact",
                         lambda m, d, name, prefix="": prefix == SECOND.prefix)
     life.inbox.offer({"type": "reset_tool", "id": "a_01", "module": MODULE})
     life._visitor_step()
     assert f"seated on {SECOND.root}'s fork" in life.log[-1]
     assert list(life.data.qpos[adr:adr + 7]) == before
   finally:
-    life.mission.close()
+    life.body.close()

@@ -26,7 +26,6 @@ what the hardware will actually have.
 
 import math
 import time
-from typing import NamedTuple
 
 import mujoco
 import numpy as np
@@ -56,8 +55,9 @@ from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception.lidar import (
   LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, robot_geoms,
 )
+from pluggybot.body import KeepClear
 from pluggybot.robot import FIRST, RobotHandle
-from pluggybot.tick import Routine
+from pluggybot.tick import MissionAborted, Routine  # noqa: F401 -- its old home
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
 CHARGE_STANDOFF = 0.42    # m out from the pin faces the creep starts at
@@ -88,6 +88,12 @@ CHARGE_PRESS_STALL_S = 4.0
 #: the lift is free to serve the camera; a mission arrives here with
 #: whatever height the last stow left, which is exactly the trap.
 CHARGE_LOOK_LIFT = 0.0
+CHARGE_CREEP = 0.04         # m/s nosing into the pins
+CHARGE_PRESS = 0.012        # m/s held press while charging: the milestone-7
+                            # lesson -- contacts need sustained press, or the
+                            # suspension relaxes and the circuit opens
+CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
+UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
 FACING_TOLERANCE = math.radians(0.5)
 #: A scan goes into the MAP only while the chassis is this close to level
 #: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
@@ -418,21 +424,10 @@ PEER_CLEARANCE_M = 0.30
 ARRIVAL_SLOW_RADIUS = 0.25
 
 
-class KeepClear(NamedTuple):
-  """One other robot as `HubMission.others` answers it: where to keep clear
-  of, and whether it is LYING DOWN (issue #365), which widens the disc and
-  makes it nothing to wait for. A bare `(x, y)` is a robot standing."""
-  x: float
-  y: float
-  down: bool = False
-
-  @property
-  def cells(self) -> int:
-    return DOWN_ROBOT_CELLS if self.down else OTHER_ROBOT_CELLS
-
-
-class MissionAborted(RuntimeError):
-  """The viewer window was closed mid-mission."""
+def _cells(b: KeepClear) -> int:
+  """The planner's disc round another robot, in cells: wider for one lying
+  down (issue #365)."""
+  return DOWN_ROBOT_CELLS if b.down else OTHER_ROBOT_CELLS
 
 
 class HubMission:
@@ -1201,7 +1196,7 @@ class HubMission:
     near = None
     for b in self._bodies():
       d = math.hypot(b.x - wx, b.y - wy)
-      if d < b.cells * res - CLOSE_ENOUGH_M and (near is None or d < near):
+      if d < _cells(b) * res - CLOSE_ENOUGH_M and (near is None or d < near):
         near = d
     return near
 
@@ -1239,7 +1234,7 @@ class HubMission:
     spending another attempt on a drive that has nowhere to arrive."""
     rows, cols = trav.shape
     for b in self._bodies():
-      r = b.cells
+      r = _cells(b)
       cx, cy = self.grid.world_to_cell(b.x, b.y)
       x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
       y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)

@@ -749,8 +749,9 @@ tolerance spikes are listed in `docs/Rover.md`.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy,
   ix]`.
 - **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue #58;
-  `pluggybot/tick.py`): a routine is a generator yielding one drive command
-  per physics step and returning its result; `HubLifecycle.run()` drives
+  `pluggybot/tick.py`): a routine is a generator yielding one command per
+  physics step (the BODY's: the rover's `(v, w)`) and returning its result;
+  `HubLifecycle.run()` drives
   `_day_routine`, and everything beneath it is composed with `yield from`,
   each with a ONE-LINE blocking twin (`drive_to` =
   `run(drive_to_routine(...))`) for scripts and tests. ⚠ A ROUTINE CALL IS
@@ -758,10 +759,33 @@ tolerance spikes are listed in `docs/Rover.md`.
   from` is a truthy object that moved nothing (`tests/test_tick.py` walks the
   syntax tree for it). ⚠ An exception from the step (`MissionAborted`) is
   THROWN INTO the routine so `finally` blocks run. ⚠ A test that stubs a drive
-  stubs the ROUTINE (`life.mission.drive_to_routine = lambda *a, **kw:
-  tick.result(False)`), never the twin. Parity is the trajectory hash
-  (`scripts/determinism_spike.py --compare` before and after).
-  `_ask_interrupt` and the dispenser are still blocking.
+  stubs the ROUTINE (`life.body.go_to_routine = lambda *a, **kw:
+  tick.result(False)`; the rover's own drives too:
+  `life.body.mission.drive_to_routine`), never the twin. Parity is the
+  trajectory hash (`scripts/determinism_spike.py --compare` before and
+  after). `_ask_interrupt` and the dispenser are still blocking.
+- **The loop reaches the machine only through `Body`** (issue #380;
+  `pluggybot/body.py`, documented at each member): every module in `src/`
+  but the rover's own (`tests/test_body.py::ROVER_SIDE`) reaches a robot's
+  body only as `<life>.body.<member>`, a member being a name `Body`
+  declares — the test walks the syntax tree and fails on anything else, and on
+  the rover's objects (`.mission`, `.swap`), classes and coupling criteria (a
+  constant may be imported). A new member is declared on `Body` with its
+  docstring or `#:` (a test reads every one) and implemented by the rover and
+  the stub. ⚠ THE COMMAND IS THE BODY'S: only its stepper reads it
+  (`Body.stepper.apply`; the rover's `HubSwap` turns `(v, w)` into wheel
+  setpoints), and the loop's side never builds one — it composes the body's
+  routines and holds a step with `body.STILL`. The rover is `RoverBody`
+  (`mission/rover.py`): every member hands the call to `HubMission` /
+  `HubSwap` by name at CALL time, so a stub on `life.body.mission.<routine>`
+  stubs what the body runs; parity IDENTICAL over a scripted home day.
+  `HubLifecycle(body=)`: none means the world's own (`body.body_for`, the one
+  place a body is chosen). ⚠ A test that needs only the loop's BOOKKEEPING
+  builds it on a `StubBody` (`stub_life` in `tests/test_body.py`: a floor and
+  no robot, ~25 ms against ~350 ms for the rover, and it outlives the rover);
+  the stub arrives at once and its senses answer what the test set
+  (`holding`, `on_charger`, `attitude`), but time passes only where it holds,
+  so a test timing a stand-still subtracts the think slices it stood.
 - **A robot's elements are reached through its `RobotHandle`, never by bare
   name** (issue #167; `pluggybot/robot.py`): a second robot is
   `models/pluggybot_fork.xml` ATTACHED with a prefix (`r2_`) in its own LIVERY
@@ -780,9 +804,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   `test_mission_code_resolves_every_robot_element_through_the_handle` is the
   fence.
 - **Two robots run from ONE physics loop** (issue #167; `pluggybot/pair.py`,
-  `tick.run_many`): every robot's `_before_step`, ONE `mj_step`, every robot's
-  `_after_step` — the same three things in the same order, so a robot alone is
-  unchanged. `HubLifecycle.run()` is `begin()` + `end()`, which `run_pair`
+  `tick.run_many`): every robot's stepper `apply`s its command, ONE `mj_step`,
+  every robot's `after_step` — the same three things in the same order, so a
+  robot alone is unchanged. `HubLifecycle.run()` is `begin()` + `end()`, which `run_pair`
   shares one loop between. ⚠ A hook's `MissionAborted` is thrown into EVERY
   live routine, then re-raised: one robot's stop is the day's stop. ⚠ A fine
   timestep is the MODEL's, so it is counted per model
@@ -984,7 +1008,7 @@ tolerance spikes are listed in `docs/Rover.md`.
 - **A tool on the floor goes home by itself** (issue #347;
   `tests/test_tools_on_the_floor.py`): a module `lost`
   (`HubLifecycle.tool_whereabouts`: on no robot's fork, alive or dead; not at
-  a bay a swap is working, `HubMission.swapping_at`; not hung on its OWN bay —
+  a bay a swap is working, `Body.swapping_at`; not hung on its OWN bay —
   one bay over is lost) for `LOST_TOOL_S` (300 sim s) goes back through
   `_return_module` — a `reset_tool` event by `auto-restart`, NEVER an
   intervention, and a History line in every robot's. A parameter on

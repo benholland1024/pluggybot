@@ -136,7 +136,7 @@ def test_the_pair_arranges_the_game_and_pays_the_winner_only(monkeypatch):
   assert a._claim_task(task.id) and state["game"] is None
   assert b._claim_task(task.id) and state["game"] is not None
   game = state["game"]
-  assert game.assigned and game.hider is a.mission.handle and game.seeker is b.mission.handle
+  assert game.assigned and game.hider is a.body.handle and game.seeker is b.body.handle
   assert a.game is game and b.game is game
   assert a.role_in(task.id) == "hider" and b.role_in(task.id) == "seeker"
   assert a.tasks.get(task.id).state == "claimed"

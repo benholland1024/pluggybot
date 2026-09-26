@@ -8,7 +8,6 @@ world runs it, and every assertion below has a half that says so.
 
 import hashlib
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
@@ -16,16 +15,14 @@ from pluggybot.economy.tasks import Task
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
 
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+
 MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
 
 
 def _life(world: str = "home", **kw):
-  cfg = lc.world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world=world, battery_wh=cfg["battery_wh"],
-                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"], **kw)
+  """The rails are the lifecycle's bookkeeping: a stub body carries them."""
+  return stub_life(world, **kw)
 
 
 # ---- the prompt ---------------------------------------------------------------

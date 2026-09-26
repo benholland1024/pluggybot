@@ -13,15 +13,22 @@ effect around the step is unchanged -- which is what makes the scripted day
 the same trajectory before and after (`scripts/determinism_spike.py
 --compare`).
 
-  Command   (v, w): forward speed m/s and yaw rate rad/s, the body command
-            every controller here already produces; `control.wheel_targets`
-            turns it into wheel setpoints and `_step_once` ramps those.
+  Command   the BODY's, and read by nothing else (issue #380, `body.py`):
+            the rover's is (v, w), forward speed m/s and yaw rate rad/s,
+            which its stepper turns into wheel setpoints
+            (`control.wheel_targets`) and `HubSwap._before_step` ramps.
   Routine   a generator of Commands whose RETURN value is the manoeuvre's
             result (`drive_to` returns whether it arrived, `pick` returns why
             it stopped). Composed with `yield from`, exactly as the blocking
             calls were composed with `return`.
   Step      one routine, ticked from outside: `tick()` hands back the next
             command or None when the routine has returned.
+  Stepper   what drives one body's physics: `apply(command)` writes its
+            setpoints before the world steps, `after_step()` is its
+            bookkeeping after, `step(command)` is the three for a robot
+            alone, `STILL` the command that holds it where it is, and
+            `model` / `data` the world it steps (`Body.stepper`; the
+            rover's is `rack/swap.HubSwap`).
   run       the blocking driver, for scripts, tests and every caller that
             wants the old shape: step until the routine returns.
 
@@ -41,10 +48,14 @@ Two rules the seam carries:
 
 from typing import Any, Generator
 
-from pluggybot.control import wheel_targets
-
-Command = tuple[float, float]
+#: A body's own command (`body.py`): the rover's is (v, w).
+Command = tuple
 Routine = Generator[Command, None, Any]
+
+
+class MissionAborted(RuntimeError):
+  """Stop the run: raised from a step hook (`HubLifecycle.stop_when`, a
+  closed viewer) and thrown into every routine in flight."""
 
 
 def hold(seconds: float, timestep: float, v: float = 0.0,
@@ -61,7 +72,7 @@ def once(v: float = 0.0, w: float = 0.0) -> Routine:
 
 def result(value: Any) -> Routine:
   """A routine that steps nothing and returns `value` -- what a test stubs a
-  drive with (`life.mission.drive_to_routine = lambda *a, **kw:
+  drive with (`life.body.go_to_routine = lambda *a, **kw:
   tick.result(True)`)."""
   return value
   yield  # unreachable; it is what makes this a generator
@@ -97,12 +108,12 @@ class Step:
 def run_many(pairs, name: str = "", step=None) -> list:
   """Drive several robots' routines from ONE physics loop (issue #167).
 
-  `pairs` is `[(swap, routine), ...]`, one per robot. Each step: every
-  robot's command is applied (`_before_step`), the world steps ONCE, every
-  robot's bookkeeping runs (`_after_step`) -- the three things `_step_once`
-  does for one robot, in the same order, so a robot alone here is the robot
-  alone there. A robot whose routine has returned keeps its last command
-  at zero and waits for the others; the loop ends when all have returned.
+  `pairs` is `[(stepper, routine), ...]`, one per robot. Each step: every
+  robot's command is applied (`apply`), the world steps ONCE, every robot's
+  bookkeeping runs (`after_step`) -- the three things `step` does for one
+  robot, in the same order, so a robot alone here is the robot alone
+  there. A robot whose routine has returned holds `STILL` and waits for
+  the others; the loop ends when all have returned.
 
   An exception from the step -- a hook's `MissionAborted` -- is thrown into
   EVERY live routine, so each one's cleanup runs (the swap timestep, the
@@ -110,27 +121,27 @@ def run_many(pairs, name: str = "", step=None) -> list:
   Returns each routine's result, in order.
   """
   steps = [Step(r, f"{name}:{i}") for i, (_, r) in enumerate(pairs)]
-  swaps = [sw for sw, _ in pairs]
+  steppers = [sw for sw, _ in pairs]
   if step is None:
     import mujoco
 
     def step():
-      # ⚠ READ OFF THE SWAP EVERY STEP, never captured once (issue #315).
-      # A tool built mid-run recompiles the world, and `spec.recompile`
-      # returns NEW MjModel / MjData objects: a closure that bound them at
-      # loop start would go on stepping the world the robots left, while
-      # every rebound holder read the new one. The swap is rebound, so it
-      # is the one place that always knows which world this is.
-      mujoco.mj_step(swaps[0].model, swaps[0].data)
+      # ⚠ READ OFF THE STEPPER EVERY STEP, never captured once (issue
+      # #315). A tool built mid-run recompiles the world, and
+      # `spec.recompile` returns NEW MjModel / MjData objects: a closure
+      # that bound them at loop start would go on stepping the world the
+      # robots left, while every rebound holder read the new one. The
+      # stepper is rebound, so it always knows which world this is.
+      mujoco.mj_step(steppers[0].model, steppers[0].data)
   cmds = [st.tick() for st in steps]
   while any(c is not None for c in cmds):
     exc = None
     try:
-      for sw, c in zip(swaps, cmds):
-        sw._before_step(*wheel_targets(*(c if c is not None else (0.0, 0.0))))
+      for sw, c in zip(steppers, cmds):
+        sw.apply(c if c is not None else sw.STILL)
       step()
-      for sw in swaps:
-        sw._after_step()
+      for sw in steppers:
+        sw.after_step()
     except BaseException as e:  # noqa: BLE001 -- re-raised inside every routine
       exc = e
     if exc is not None:
@@ -150,14 +161,14 @@ def run_many(pairs, name: str = "", step=None) -> list:
   return [st.result for st in steps]
 
 
-def run(swap, routine: Routine, name: str = "") -> Any:
-  """Drive a routine to completion, stepping `swap` with every command, and
-  return what it returned. The blocking twin of `yield from`."""
+def run(stepper, routine: Routine, name: str = "") -> Any:
+  """Drive a routine to completion, stepping `stepper` with every command,
+  and return what it returned. The blocking twin of `yield from`."""
   step = Step(routine, name)
   cmd = step.tick()
   while cmd is not None:
     try:
-      swap._step_once(*wheel_targets(*cmd))
+      stepper.step(cmd)
     except BaseException as e:  # noqa: BLE001 -- re-raised inside the routine
       cmd = step.tick(e)
     else:

@@ -51,8 +51,8 @@ def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30,
     metabolism=SimpleNamespace(state=hunger),
     ledger=SimpleNamespace(balance=lambda: points),
     tasks=SimpleNamespace(tasks={"t_1": task} if holds else {}),
-    mission=SimpleNamespace(handle=SimpleNamespace(root="r2_pluggybot"),
-                            swap=SimpleNamespace(module_state=lambda m: {"on_fork": carrying})),
+    root="r2_pluggybot",
+    body=SimpleNamespace(module_state=lambda m: {"on_fork": carrying}),
     module="module_claw" if (holds or carrying) else "")
 
 
@@ -188,8 +188,8 @@ def pair(tmp_path):
                      thoughts_root=str(tmp_path / "t"),
                      ledger_state=str(tmp_path / "ledger.json"))
   a, b = lives
-  a.mission.start_at(0.5, 3.0, 0.0)
-  b.mission.start_at(3.0, 3.0, 0.0)
+  a.body.start_at(0.5, 3.0, 0.0)
+  b.body.start_at(3.0, 3.0, 0.0)
   return a, b
 
 
@@ -321,8 +321,7 @@ def _bay_pair():
   def life(root, frac, wh, reserve, state):
     return SimpleNamespace(
       state=state, low_battery_wh=reserve,
-      battery=SimpleNamespace(fraction=frac, energy_wh=wh),
-      mission=SimpleNamespace(handle=SimpleNamespace(root=root)))
+      battery=SimpleNamespace(fraction=frac, energy_wh=wh), root=root)
   return (life("pluggybot", 0.5, 4.0, 0.95, "CHARGE"),
           life("r2_pluggybot", 0.1, 0.4, 0.95, "EXPLORE"))
 

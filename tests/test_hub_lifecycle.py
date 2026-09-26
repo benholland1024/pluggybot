@@ -118,7 +118,7 @@ def test_full_hub_lifecycle(world):
   # on the same assertion it always did.
   def settled(life):
     return (life.swaps_done >= 2 and life.charge_cycles >= 1
-            and life.mission.swap.module_state(life.module)["hung"])
+            and life.body.mission.swap.module_state(life.module)["hung"])
 
   # ⚠ THE HOME ARM STARTS HALF-CHARGED (issue #84). On the old 1.1 Wh cell
   # one carry errand demanded a charge; the grown cell (3.0 Wh then, 4.5

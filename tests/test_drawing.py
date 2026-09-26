@@ -75,7 +75,7 @@ class _StuckSwap:
     self.data = self._Data()
     self.steps = 0
 
-  def _step_once(self, tl, tr):
+  def step(self, command):
     self.steps += 1
     self.data.time += 0.002
     if self.data.time > 2 * FACE_BUDGET_S:

@@ -92,7 +92,7 @@ def _life(tmp_path, world="room_hub", points=100, workshop=None, step=True):
 
   def fabricate(seconds):
     life.waited.append(seconds)
-    yield from life.mission._drive_routine(0.2, 0.0, 0.0)
+    yield from life.body.mission._drive_routine(0.2, 0.0, 0.0)
   life._fabricate_routine = fabricate
   return life
 
@@ -111,7 +111,7 @@ def _decision(**fields):
 def _run(life, decision):
   events = []
   life.on_event.append(events.append)
-  tick.run(life.mission.swap, life._workshop_routine(decision))
+  tick.run(life.body.mission.swap, life._workshop_routine(decision))
   return events
 
 
@@ -621,7 +621,7 @@ def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
   # the moment it starts printing, as a peer taking an errand would.
   busy = {"why": ""}
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)
@@ -634,7 +634,7 @@ def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
     if life.waited and float(life.data.time) > 1.0:
       busy["why"] = ""
     yield from real(sec, v, w)
-  life.mission._drive_routine = freeing
+  life.body.mission._drive_routine = freeing
 
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
                                             "spec": SCOOP}))
@@ -661,7 +661,7 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   life = _life(tmp_path, points=100)
   busy = {"why": ""}                                 # free until it prints
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)
@@ -708,7 +708,7 @@ def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
   from pluggybot.lifecycle import STOOD_UP
   life = _life(tmp_path, points=100)
   life.home_pose = tuple(world_config("room_hub")["start"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     yield from real(0.2, 0.0, 0.0)
@@ -720,7 +720,7 @@ def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
   events: list = []
   life.on_event.append(events.append)
   build = _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP})
-  out = tick.run(life.mission.swap,
+  out = tick.run(life.body.mission.swap,
                  life._until_stood_up_routine(life._workshop_routine(build)))
   assert out is STOOD_UP
   assert life.ledger.balance() == 97                  # paid, once
@@ -740,7 +740,7 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
   life = _life(tmp_path, points=100)
   busy = {"why": ""}
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)

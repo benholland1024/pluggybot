@@ -10,9 +10,9 @@ robot (PluggyPlan.md "What this project is for"; Evaluation.md §5).
 
 ## The one seam, and the one rule
 
-Every physics step in the hub stack bottoms out in `HubSwap._step_once`,
-which fires `HubMission.step_hooks` — the same per-step callback list the
-battery drains through. Everything here is another hook on that list, so it
+Every physics step bottoms out in the body's stepper (the rover's
+`HubSwap._step_once`), which fires `Body.step_hooks` — the same per-step
+callback list the battery drains through. Everything here is another hook on that list, so it
 works regardless of who owns the loop.
 
 The rule all hooks obey: **no I/O inside the physics step**. A hook may

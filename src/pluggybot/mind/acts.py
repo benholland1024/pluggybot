@@ -61,11 +61,11 @@ def need_of(other) -> tuple[str, dict]:
     "holdsJob": False, "carrying": "",
   }
   if other.tasks is not None:
-    root = other.mission.handle.root
+    root = other.root
     state["holdsJob"] = any(t.claimed_by == root and t.state in ("claimed", "active")
                             for t in other.tasks.tasks.values())
   if other.module:
-    on_fork = other.mission.swap.module_state(other.module)["on_fork"]
+    on_fork = other.body.module_state(other.module)["on_fork"]
     state["carrying"] = other.module if on_fork else ""
   if battery.energy_wh < other.low_battery_wh:
     return "charge", state
