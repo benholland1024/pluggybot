@@ -9,9 +9,9 @@ import pytest
 from pluggybot.rack.coupling import HUB_STATION_YS, TOOL_HALF_X
 from pluggybot.rack.swap import HubSwap
 
-# Adjacent-link clearance for the FORK, the same geometric discipline as
-# test_arm.py: weld/parent filtering silences these contacts, so overlap is
-# asserted from geometry through the whole lift+arm envelope.
+# Adjacent-link clearance for the FORK: weld/parent filtering silences these
+# contacts, so overlap is asserted from geometry through the whole lift+arm
+# envelope.
 FORK_GEOMS = ("fork_bridge", "fork_prong_l", "fork_prong_r",
               "fork_vl_a", "fork_vl_b", "fork_vr_a", "fork_vr_b",
               # The lean-pad hangs lower than any of the above, so it is the

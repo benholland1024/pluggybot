@@ -209,7 +209,7 @@ class EnergyModel:
     ⚠ PER TARGET FIRST, and the far whiteboard is why. A `draw` measures
     0.929 Wh on `whiteboard_a` and 1.065 on `whiteboard_b` -- 7 m away
     through a doorway -- so one number for "draw" is either under-pricing the
-    far board (the robot dies on the way back, which CLAUDE.md records
+    far board (the robot dies on the way back, which docs/Rover.md records
     happening) or over-pricing the near one badly enough to delete it from a
     demo cell. A row keyed `draw:whiteboard_b` wins over the row keyed
     `draw`, and a world that has not measured its targets separately simply

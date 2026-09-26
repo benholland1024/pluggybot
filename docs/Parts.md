@@ -5,6 +5,8 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
+> **These are the wheeled rover's parts**; the quadruped's are #377–#379's.
+
 > **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
 > pluggybot.rack.catalog` (issue #185) — every part below with its number,
 > source, mass, price and the sim constant it feeds, the constant's value
@@ -46,7 +48,8 @@ that touch the peg need print accuracy.
 
 **Electronics volume.** A Pi 5 is 85 × 56 mm; the 24 × 18 cm chassis has room
 for Pi + motor driver + battery without growing. No accelerator HAT is
-needed (PluggyPlan.md "Road to hardware", item 1).
+needed: desktop timings for the stages that transfer to hardware, scaled a
+pessimistic 5× for a Cortex-A76, came to ~78 ms per perception cycle.
 
 ## Drive system
 
@@ -231,35 +234,30 @@ integrates over motion and `HeightMap.things` bridges one unmeasured cell.
 
 ---
 
-## Arm & docking (milestone 6)
+## Arm (milestone 6)
 
 ### Naming
 
 **Mast** = the fixed vertical column. **Lift** = the carriage that travels up
 it (and the actuator driving that). **Telescoping arm** = the horizontal
-extension carrying the plug, and now the fork. Hello Robot Stretch's
+extension carrying the fork. Hello Robot Stretch's
 vocabulary and architecture: base owns x/yaw, lift owns z, arm owns reach.
 
 ### ⚠ The mass budget is the binding constraint
 
-Measured in sim (`models/world.xml`, headless force probe, ramped loads on
-the armed robot): pushing at outlet height (0.30 m), forward docking holds
-**~3 N then slides**; backward holds ~4 N then goes caster-light. Schuko
-insertion forces measured by the spike: **0.7 N** perfectly aligned,
-**6.1 N** at 2 mm lateral, **7.8 N** at 2° yaw. So insertion must stay
-≲3 N → terminal alignment ≲1 mm, a compliant wrist, and forward docking
-(mapping and cameras face forward; the failure mode is a benign slide).
+Measured in sim (headless force probe, ramped loads on the armed robot at
+0.30 m): pushing forward holds **~3 N then slides**; backward holds ~4 N
+then goes caster-light. So the arm's working forces stay small — a
+compliant wrist, and forward docking (mapping and cameras face forward; the
+failure mode is a benign slide) — and a tool that must press gets the
+lean-pad (ToolPattern.md, "the force budget").
 
-Two things that came out of it and still bind:
-- **Battery position is a design variable, not packaging** — x = +0.05
-  (ahead of centre) for tipping margin, **y = +0.06 as a counterweight** for
-  the arm assembly hanging at y = −0.05, without which the robot veers 26 cm
-  right over 4 m open-loop. `test_arm_mass_is_counterbalanced` pins it;
-  carrying the heaviest module adds 5.5 mm over 2.7 m and needs no re-tune
-  (SimNotes "Asymmetric mass makes a diff-drive veer open-loop").
-- **A wall cannot brace you.** A wall contact is one-way — it pushes the
-  robot the same way the insertion reaction does — so bracing pads were
-  falsified in sim (SimNotes "A wall cannot brace you").
+What came out of it and still binds: **battery position is a design
+variable, not packaging** — x = +0.05 (ahead of centre) for tipping margin,
+**y = +0.06 as a counterweight** for the arm assembly hanging at y = −0.05,
+without which the robot veers 26 cm right over 4 m open-loop (the catalog's
+`battery.pos` feed pins the position); carrying the heaviest module adds
+5.5 mm over 2.7 m and needs no re-tune.
 
 ### Lift and telescoping arm — 2× linear actuator
 
@@ -267,33 +265,16 @@ Two things that came out of it and still bind:
 
 - Source: [igus.com/product/DLE-LA-0001](https://www.igus.com/product/DLE-LA-0001). Price: **TBD** — igus quotes stroke-configured units through their configurator, not a fixed list price. Get a quote for both axes together.
 - Catalog entry `igus_dle_la_0001`: 50 N thrust is both axes' `forcerange`
-  (6× the worst-case 7.8 N insertion); the 0.12 N·m holding torque holds
-  position unpowered, which is why `power.ACTUATOR_W` is drawn only while
+  (6× the plug era's worst-case 7.8 N insertion); the 0.12 N·m holding torque
+  holds position unpowered, which is why `power.ACTUATOR_W` is drawn only while
   moving and a parked module axis is a position servo at its target; the
   dryspin® 6.35 × 5.08 screw feeds 0.0254 mm per 1.8° step, far finer than
   the ±3 mm docking budget. Stroke is configurable — want ~0.25 m lift and
   ~0.20 m reach (the model's lift travels 0.31 m). Mass TBD, and it matters
   (mass budget above).
 
-Stroke rationale: the lift must span outlet heights 0.26–0.38 m in
-`room_1.xml` and carry the docking camera high enough to keep a 0.38 m
-outlet in frame at close range (a fixed 0.18 m eye loses it below 0.40 m —
-measured). Reach is set by parking the base at ~0.25 m; a 0.6 m cantilever
-is unaffordable on this chassis.
-
-### Plug
-
-**Rewireable Schuko CEE 7/7 plug (Type F)** — e.g. [Leads Direct rewireable right-angle](https://leadsdirect.co.uk/shop/schuko-cee77-plug-rewireable-black-right-angle/); equivalents at Reichelt/Conrad. Price ≈ **€3–6**. A right-angle plug puts the cable exit parallel to the wall instead of along the arm axis.
-
-Catalog entry `schuko_plug`: pin length, diameter and pitch are
-`docking/schuko.py`'s `PIN_LEN` / `R_PIN` / `PIN_SEP`, pinned equal; the
-body diameter is not.
-
-⚠ **Open (decision 8):** the real body is 36.7 mm, not the 35.5 mm the spike
-assumed. Against a 37 mm recess that is **0.15 mm clearance per side, not
-0.75 mm** — a 5× tighter fit than the tolerance sweep was run at. Confirm on
-a specific datasheet and re-run `scripts/schuko_spike.py`; the ±3 mm / ±3°
-envelope may shrink.
+Reach is set by parking the base at ~0.25 m; a 0.6 m cantilever is
+unaffordable on this chassis.
 
 ### Compliant wrist (passive)
 
@@ -306,20 +287,6 @@ plate, **≈ €10**. The sim models it as 150 N/m lateral and 1 N·m/rad angula
 (`coupling.LAT_STIFFNESS` / `YAW_STIFFNESS`, and the fork model's wrist
 joints); those were guesses — measure the built part and update, since the
 whole tolerance envelope scales with them.
-
-### Alignment feelers — ❌ removed from the hub robot
-
-`pluggybot_fork.xml` has none (its `fork_prong_l/r` are the fork's tines).
-The plug robot `pluggybot.xml` keeps them as `prong_l`/`prong_r`, frozen for
-milestone 6–7 reproducibility: two prongs on the lift carriage straddling
-the socket at lateral **±0.085 m**, on a bracket **2 cm above the plug
-axis** — both offsets load-bearing (the ±0.07 they replaced landed on the
-socket housing's edge; on the plug axis the left prong swept the battery),
-`test_prongs_clear_the_socket_housing`. What they buy, measured: two-point
-wall contact squares yaw and references insertion depth — not tipping
-resistance. Why removed: they bake in an outlet-housing width real outlets
-do not standardise; the circular well is the only standard geometry, so a
-plug-anywhere module, if it is ever built, is well-centric.
 
 ---
 
@@ -398,8 +365,7 @@ the chassis plate.** Also needed: a 3S balance charger, and a **12 V → 5 V
 
 ⚠ The models already carry the pack as a 400 g placeholder box at that
 position. A real pack of a different mass or footprint moves every physics
-threshold derived from the model — the mass re-budget in PluggyPlan.md
-"Road to hardware" (item 5), to be done last.
+threshold derived from the model, which is why mass is budgeted last.
 
 ## Electronics — later (low priority)
 
@@ -418,9 +384,7 @@ threshold derived from the model — the mass re-budget in PluggyPlan.md
 6. **Battery pack** — specific 3S LiPo (or 4S LiFePO4) from a German retailer, with
    dimensions checked against the chassis plate. Position x = +0.05, y = +0.06, low.
 7. ~~Third camera routing~~ → **Closed (Aug 2026) by the LIDAR swap**: two cameras on two CSI ports, LIDAR on USB/UART.
-8. **Plug body diameter** — 35.5 mm (spike assumption) vs 36.7 mm (spec found for
-   rewireable CEE 7/7). Confirm on a real datasheet, then re-run `schuko_spike.py`;
-   the docking tolerance envelope depends on it.
+8. ~~Plug body diameter~~ → **Moot**: the plug era is retired (#376).
 9. **Lift/arm stroke + price** — get an igus quote for two NEMA11 lead-screw actuators
    (~0.25 m and ~0.20 m stroke) and their masses.
 10. **Depth camera sourcing and draw** — RealSense left Intel in 2025: confirm

@@ -146,7 +146,7 @@ def test_the_margin_flips_on_the_dearest_errand_not_the_mean():
 
 
 def test_the_far_board_is_priced_apart_from_the_near_one():
-  """⚠ THE DEFECT CLAUDE.md RECORDS UNDER ISSUE #21, closed. home's two
+  """⚠ ISSUE #21's DEFECT (docs/Rover.md, "Energy on wheels"), closed. home's two
   whiteboards are not the same job: `whiteboard_b` is 7 m away through a
   doorway and measures 1.113 Wh against `whiteboard_a`'s 0.929. One number
   for both either kills the robot on the way back from the far one -- which
@@ -348,7 +348,7 @@ def test_a_task_errand_is_priced_by_its_own_kind_not_by_the_action():
   """A task's estimate knows which end of the house it is being asked about;
   a per-action figure cannot. The dearer one has to win, or the far
   whiteboard is priced as the near one -- which is exactly the 0.968-against-
-  0.93 death CLAUDE.md records."""
+  0.93 death issue #21 recorded."""
   life = life_with()
   errand = carry_errand(use_at=(1.5, 1.8))
   errand.estimate_wh = 3.0

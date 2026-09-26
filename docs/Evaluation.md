@@ -226,8 +226,8 @@ deaths in `History.md`: does *seeing the stake* change anything?
 
 ⚠ **A1–A3 ARE POSTPONED (2026-09-11) AND MAY BE SCRAPPED.** The ladder was
 designed before the world it measures existed: points-as-currency, hearts,
-event maps and the prompt all moved after A0 flew, and the next batch
-(`PluggyPlan.md`, "The next batch") moves them again. A rung measured against
+event maps and the prompt all moved after A0 flew, and the quadruped pivot
+(`PluggyPlan.md`, "The order of work") moves them again. A rung measured against
 each intermediate world describes a different experiment each time. A0 stands
 as the record of the rails coming off; what is measured next is derived from
 the six qualities, after that batch lands. ⚠ The prompt is part of the arm and
@@ -1826,7 +1826,7 @@ fallback disqualifier, the `autonomous` arm and A0. The capacity sweep was
 **closed without flying** (issue #118) — both its axes are defined by an economy
 the next batch changes again.
 
-**What comes next is in `PluggyPlan.md`, "The next batch"**, and this section
+**What comes next is in `PluggyPlan.md`, "The order of work"**, and this section
 does not keep a second copy of it. Two rules from this tranche outlive it:
 
 ⚠ **MEASUREMENT WAITS FOR THE DESIGN.** A rung measured before the world's

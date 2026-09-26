@@ -2,9 +2,9 @@
 
 The mapper's range source since the sensor-realism pass (Aug 2026), when it
 replaced a stereo pair that measured unable to build the map (docs/Parts.md
-"Vision & ranging" keeps the decision and the numbers). `Scanner.scan()`
-already returned `(angles, ranges)`, a laser scan's interface, so the swap
-changed the sensor and not the mapping.
+"Vision & ranging" keeps the decision and the numbers). The camera scanner
+it replaced already returned `(angles, ranges)`, a laser scan's interface, so
+the swap changed the sensor and not the mapping.
 
 Modelled on an RPLIDAR C1-class unit: 360°, ~10 Hz, 12 m, ±30 mm.
 

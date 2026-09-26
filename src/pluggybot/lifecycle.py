@@ -4882,8 +4882,8 @@ class HubLifecycle:
 
     An errand that carries its own `estimate_wh` is priced by that: a task's
     figure is per KIND and knows which end of the house it is being asked
-    about, which a per-action table cannot (CLAUDE.md, "the far board costs
-    more than the near one").
+    about, which a per-action table cannot (docs/Rover.md, "Energy on
+    wheels": the far board costs more than the near one).
     """
     return self.energy.afford(
       errand.task or errand.name, energy_wh=self.battery.energy_wh,
@@ -5404,8 +5404,7 @@ class HubLifecycle:
     ⚠ The energy gate lives HERE and not in the errand: a task that cannot be
     afforded must not be claimable in the first place, because the reserve is
     only checked BETWEEN errands and a robot that starts a job it cannot
-    finish dies holding the tool (CLAUDE.md, "A chosen errand can cost more
-    than the whole pack").
+    finish dies holding the tool (CLAUDE.md, "What an errand costs").
 
     `answer` is what the MIND says the answer is, for a job that asks a
     question (issue #22). It is frozen into the task by `TaskBoard.claim` and

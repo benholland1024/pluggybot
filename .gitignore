@@ -5,16 +5,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Generated training data — deterministic, regenerate with:
-#   MUJOCO_GL=egl uv run python scripts/generate_outlet_dataset.py --count 1200
+# The plug era's outlet dataset, training runs and detector weights (its code
+# went in #376): still ignored so an older checkout's local copies stay out.
 datasets/
-
-# YOLO training output (weights, curves, val predictions) + downloaded checkpoints
 runs/
+yolo*.pt
+
 # Feature-probe records (scripts/experiment.py --probe, issue #264): a gate
 # reports into the issue it informs, never into results/
 probes/
-yolo*.pt
 
 # Demo footage — derived, and far too big to keep every version of forever
 # (one GIF is ~6 MB against a 7 MB repo history). Regenerate with:

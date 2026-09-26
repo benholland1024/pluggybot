@@ -9,8 +9,8 @@ The chain, measured end to end:
 
   1. The trip to the charge bay drives the robot BEHIND the rack, so the
      mapped free space around it stops being "a wall with open space on one
-     side" and becomes the free-standing partition `wall_normal` has always
-     warned about. The two sides nearly cancel and the direction that
+     side" and becomes the free-standing partition `wall_normal_conf` warns
+     about. The two sides nearly cancel and the direction that
      survives is leftover noise -- ~20 deg of it.
   2. `RackFinder.estimate` adopted that as the rack's FACING. At the 0.63 m
      standoff radius, 20 deg moves the hand-off pose ~0.2 m and swings the
@@ -40,7 +40,7 @@ from pluggybot.rack.localize import MIN_FACING_CONF, RackFinder, RackPose
 from pluggybot.mission.mission import (
   NOMINAL_TRAVEL, TRAVEL_SLACK, bay_standoff, plausible_travel,
 )
-from pluggybot.mapping.landmarks import wall_normal, wall_normal_conf
+from pluggybot.mapping.landmarks import wall_normal_conf
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 
 RACK_X, RACK_Y = 0.5, -1.98
@@ -86,13 +86,6 @@ def test_a_wall_is_well_conditioned_and_a_free_standing_rack_is_not():
   # the whole point: it is not merely less precise, it is not an answer.
   assert abs(math.degrees(math.atan2(ny, nx)) - 90.0) > 5.0
 
-
-def test_wall_normal_still_answers_exactly_what_it_used_to():
-  """The confidence is ADDITIVE. Every existing caller -- the outlet
-  landmarks of milestone 5 -- must get the identical direction back."""
-  g = grid_with(lambda dx, dy: dy > 0.10)
-  assert wall_normal(g, RACK_X, RACK_Y, fallback=(0.0, 1.0)) == \
-    wall_normal_conf(g, RACK_X, RACK_Y, fallback=(0.0, 1.0))[:2]
 
 
 # ---- a facing is kept once it is known ---------------------------------------

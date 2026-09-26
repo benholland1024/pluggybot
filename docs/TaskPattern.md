@@ -248,17 +248,17 @@ way a tool states its tolerance class):
    warehouse robots fiducial their totes — and it makes "find" a genuinely
    *failable* verb: a tag out of view is a search, not a lookup. **This is
    the tier to build first**, and building it against this doc is what
-   validates the doc (see the header). It is M11's, which is deferred rather
-   than dropped (PluggyPlan.md, "The next batch").
+   validates the doc (see the header). It is M11's, which waits for the
+   quadruped's arm (PluggyPlan.md, "The order of work").
 2. **Untagged object on a raised surface.** Within the sensor envelope
    (table height clears both the LIDAR plane and the camera's near blind
-   zone); needs a small detector, on the outlet detector's template — with
-   that project's lesson attached: the val split sharing the training
-   generator scored 0.99 mAP while calling a light switch an outlet, so the
+   zone); needs a small learned detector — with the plug era's lesson
+   attached: its outlet detector scored 0.99 mAP on a val split that shared
+   the training generator while calling a light switch an outlet, so the
    eval that matters is poses the generator never made.
 3. **Untagged object on the floor.** Blocked on real perception work — the
    near-field sensor decision (#34) and a robot-centric height map are what
-   open it (PluggyPlan.md, "The next batch"). Until then, **a research
+   open it (#34, stage 1 done). Until then, **a research
    question, not a task**: do not write a kind at this tier and quietly
    deliver the pose over the wire to make it work, which is the honesty
    rule's ❌ row wearing a feature's clothes.

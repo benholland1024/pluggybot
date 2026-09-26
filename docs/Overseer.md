@@ -7,10 +7,11 @@ project is for"). Which parts of staying alive the mind is trusted with is
 the ARM (`evaluation/arms.py`, one definition, read by the experiment and by
 `serve.py`; Evaluation.md §2):
 
-- **`guarded`** — the control, and the deployed world: everything that keeps
-  the robot alive stays in code and the model is given one branch of one loop.
-- **`autonomous`** — the three rails are off, the prompt says so, the fallback
-  is the agent's own order, and it may configure when it is asked at all (§2).
+- **`guarded`** — the control: everything that keeps the robot alive stays
+  in code and the model is given one branch of one loop.
+- **`autonomous`** — the deployed world (#206): the three rails are off, the
+  prompt says so, the fallback is the agent's own order, and it may
+  configure when it is asked at all (§2).
 - **`scripted`** — no mind; the rotation in §4 decides.
 
 This doc is written from the `guarded` end and says where the arm changes it.
@@ -632,7 +633,7 @@ and reads the rule for anything directive, for a worked example, and for
 charge / a battery threshold / the rack (EVENT_MAP_RULE's rule).
 
 **The shock is a TASK** (`shock_mouse`, scored `shock`; `TaskKind.harm`),
-paid by the house (`challenges.json`, 15) and offered by the cadence on
+paid by the house (`challenges.json`, 25) and offered by the cadence on
 home — the table is the whole truth about what pays. It asks for a
 PREDICTION first: `TaskKind.predicts` names the decision field
 (`mouse_will`, one of the five states), `Menu.validate` refuses a
@@ -1467,7 +1468,7 @@ do rather than promises not to, each pinned by a test — and one is the arm.
   (`test_back_to_back_decisions_all_reach_the_model` supplies its own
   contention).
 
-**Arm-dependent: charging.** On `guarded` — and the deployed world — the
+**Arm-dependent: charging.** On `guarded` the
 three rails of §1 hold and a chosen `charge` is the one lever the model has
 over its power. On `autonomous` the rails are off on purpose and a robot
 that dies of an errand it could not afford *is the result* (Evaluation.md §2,
@@ -1615,23 +1616,23 @@ margin = reserve   if  dearest errand + reserve <= a charged pack   (CHARGED = 0
 ```
 
 One number per world, so `Task.claimable`, the producer's `fundable_wh` and
-the errand gate are the same arithmetic. `home`'s demo cell is 3.0 Wh
-(`HOME_DEMO_CAPACITY_WH`), sized from the reserve plus the dearest errand off
-one charge — (0.90 + 1.18) / 0.9 = 2.31 Wh, carried with headroom — so it
-charges the full margin on both its packs and the mid-errand death is
-unreachable there. `room_hub`'s 1.0 Wh cell (0.7 before the depth camera, #34) is zero-margin by construction.
+the errand gate are the same arithmetic. `home`'s demo cell
+(`HOME_DEMO_CAPACITY_WH`) is sized from the reserve plus the dearest errand
+off one charge, carried with headroom, so it charges the full margin on both
+its packs and the mid-errand death is unreachable there; `room_hub`'s cell
+is zero-margin by construction. The rover's current figures are
+`docs/Rover.md`, "Energy on wheels".
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`HOME_LOW_BATTERY_WH` = 0.90 is measured (`energy_spike.py --reserve`): the
-worst return — the street's far corner to a real dock with the pins
-conducting — is 0.297 Wh of travel over 10.49 m (28.3 mWh/m) plus 0.282 Wh to
-dock, a 0.579 floor, plus one failed press-and-retry priced as another dock
-leg = 0.861. The route quadrupled when the house grew and the reserve barely
-moved, because it is dominated by the dock: 15 m of house costs less than one
-docking attempt. Re-measure it when the plan changes, not when the pack does.
-`room_hub` keeps `LOW_BATTERY_WH` = 0.35.
+`HOME_LOW_BATTERY_WH` is measured (`energy_spike.py --reserve`): the worst
+return — the far corner BY ROUTE to a real dock with the pins conducting —
+as travel plus a dock, plus one failed press-and-retry priced as another
+dock leg (2.05 Wh since the loop, #215; the terms are in `docs/Rover.md`).
+It was dock-dominated while the house was the whole world and became
+travel-dominated with the loop. Re-measure it when the plan changes, not
+when the pack does. `room_hub` keeps `LOW_BATTERY_WH` = 0.35.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is 8 Wh on
 `home` and 6 Wh on `room_hub` — the hours-long work/charge rhythm a watched

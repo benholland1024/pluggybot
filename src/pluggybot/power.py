@@ -12,14 +12,14 @@ The POWER side is anchored to the real parts (docs/Parts.md):
     screw holds position unpowered — Parts.md), ~5 W each in motion.
   - Charging: ~1C on the 5 Ah 3S pack ≈ 55 W into the battery. The battery
     does not know or care WHAT it is plugged into — the charge signal is
-    the electrical contact criterion (docking/contact.py), which is exactly
-    the abstraction milestone 8's hub will reuse.
+    an electrical contact criterion (`rack.coupling.rack_charge_contact`:
+    both pogo pins on the bumper).
 
 The CAPACITY side is deliberately a knob: the real ~55 Wh pack would take
 hours of sim time to drain, so the default is a scaled "demo cell" that runs
-flat in minutes. Scale capacity, never the physics — the same lesson as the
-schuko chamfer (tune the world honestly or not at all): power draw numbers
-stay honest, and `--battery-wh 55.5` runs the real pack.
+flat in minutes. Scale capacity, never the physics (tune the world honestly
+or not at all): power draw numbers stay honest, and `--battery-wh 55.5` runs
+the real pack.
 """
 
 import numpy as np

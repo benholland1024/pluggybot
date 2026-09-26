@@ -587,15 +587,15 @@ PARTS: tuple[Part, ...] = (
                   "pinPitch": 19}, quantity=1,
     capabilities={"ratingA": 16, "ratingV": 250},
     feeds=(
-      code("docking.schuko.PIN_LEN", "m", expect=0.019),
-      code("docking.schuko.R_PIN", "m", "half the 4.8 mm pin", expect=0.0024),
-      code("docking.schuko.PIN_SEP", "m", "half the 19 mm pin pitch",
-           expect=0.0095),
-      code("docking.schuko.R_BODY", "m",
-           "⚠ 35.5 mm across, against the real 36.7: 0.15 mm of clearance "
-           "per side in a 37 mm recess, not 0.75 -- open decision 8"),
+      Feed("module_plug_pin_l.size[0]",
+           same(geom("module_plug_pin_l", "size", 0),
+                geom("module_plug_pin_r", "size", 0)),
+           "m", "half the 4.8 mm pin", expect=0.0024),
+      Feed("module_plug_pin_l.fromto[1]", geom("module_plug_pin_l", "fromto", 1),
+           "m", "half the 19 mm pin pitch", expect=0.0095),
       Feed("module_plug_barrel.size[0]", geom("module_plug_barrel", "size", 0),
-           "m", "the module's barrel, the spike's radius"),
+           "m", "the module's barrel: ⚠ 35.5 mm across, against the real "
+           "36.7"),
     ),
     why={"partNumber": "a class of part (any rewireable CEE 7/7); Parts.md "
          "links one example", "massG": "not recorded",

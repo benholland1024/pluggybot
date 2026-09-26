@@ -14,18 +14,6 @@ def room_model():
   return mujoco.MjModel.from_xml_path("models/room_hub.xml")
 
 
-def test_room_hub_shares_room_1_scenery(room_model):
-  """room_hub must be room_1's floor plan plus the rack -- not a fork of it.
-  If these drift apart, mapping/navigation results stop being comparable."""
-  room_1 = mujoco.MjModel.from_xml_path("models/room_1.xml")
-  for name in ("wall-north", "wall-east", "corner-box", "floor-box",
-               "L-box-north", "outlet_a", "decoy_switch_w"):
-    a = room_1.body(name).pos
-    b = room_model.body(name).pos
-    assert all(abs(float(a[k]) - float(b[k])) < 1e-9 for k in range(3)), \
-      f"{name} moved between room_1 and room_hub"
-
-
 def test_bay_standoff_faces_the_rack(room_model):
   """The hand-off pose must sit in front of its bay, facing the rack, at the
   swap standoff -- the geometry the whole terminal approach assumes."""

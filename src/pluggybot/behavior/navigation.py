@@ -1,9 +1,7 @@
-"""Frontier navigation: shared by exploration and the recharge lifecycle.
+"""Frontier navigation: the planner and the drive law the mission shares.
 
-Extracted from scripts/explore.py so that both explore.py (the milestone-4
-demo, kept as the smallest repro of mapping behavior) and lifecycle.py can
-drive the same planner without duplicating it. Pure functions over the
-occupancy grid + pose; nothing here touches MuJoCo directly.
+Pure functions over the occupancy grid + pose; nothing here touches MuJoCo
+directly.
 """
 
 import math
@@ -19,14 +17,9 @@ Pose = tuple[float, float, float]     # (x, y, theta): axle midpoint + heading
 Cell = tuple[int, int]                # (ix, iy) grid cell, per repo convention
 
 
-SCAN_EVERY = 20          # physics steps between scans (500 Hz sim -> 25 Hz scanning)
-REPLAN_PERIOD = 2.0      # sim seconds between replans (the map changes under us)
-MAP_SAVE_PERIOD = 0.5    # sim seconds between map.png saves
 V_MAX = 0.4              # m/s cruise speed
 W_MAX = 1.5              # rad/s turn-rate clamp
 K_HEADING = 2.5          # P gain: heading error -> turn rate
-WAYPOINT_RADIUS = 0.08   # m: close enough to advance (small: big radii cut corners
-                         # through the inflation ring and clip obstacles)
 FRONT_STOP_RANGE = 0.25  # m: reflex threshold — camera-measured range dead ahead
 BACKOFF_TIME = 0.8       # s of straight reverse after the reflex trips
 MAX_PLAN_ATTEMPTS = 20   # frontiers tried per replan before giving up this round
@@ -149,43 +142,3 @@ def drive_toward(pose: Pose, waypoint: tuple[float, float],
     return 0.0, w                                # pivot in place, cover no ground
   taper = min(1.0, math.hypot(dx, dy) / max(slow_radius, 1e-6))
   return V_MAX * taper * math.cos(heading_err), w
-
-
-PATH_COLOR = (60, 90, 220)          # blue: the planned route
-ROBOT_COLOR = (220, 50, 50)         # red: where the robot believes it is
-OUTLET_CONFIRMED_COLOR = (40, 205, 90)    # green: a landmark trusted enough to drive to
-OUTLET_TENTATIVE_COLOR = (130, 150, 55)   # olive: seen, but not yet confirmed
-
-
-def _stamp(img, grid, wx, wy, color, half=0):
-  """Paint a (2*half+1)-square block at a world point, clipped to the map.
-
-  Landmarks come from projected detections, which can land outside the grid
-  when a sighting is noisy -- unclipped, a negative index silently wraps and
-  paints a marker on the opposite edge of the map.
-  """
-  rows, cols = img.shape[:2]
-  ix, iy = grid.world_to_cell(wx, wy)
-  if not (0 <= ix < cols and 0 <= iy < rows):
-    return
-  img[max(0, iy - half):iy + half + 1, max(0, ix - half):ix + half + 1] = color
-
-
-def render_map(grid: OccupancyGrid, pose: Pose,
-               waypoints: list[tuple[float, float]],
-               landmarks=(), min_sightings: int = 3) -> np.ndarray:
-  """Map image with overlays: blue planned path, red robot, green outlets.
-
-  Outlets are drawn bright green once confirmed (>= min_sightings, matching
-  LandmarkStore.confirmed) and olive while still tentative, so the map shows
-  at a glance which memories the robot would actually act on.
-  """
-  img = np.stack([grid.to_image()] * 3, axis=-1)
-  for wx, wy in waypoints:
-    _stamp(img, grid, wx, wy, PATH_COLOR)
-  for lm in landmarks:
-    color = (OUTLET_CONFIRMED_COLOR if lm.n_sightings >= min_sightings
-             else OUTLET_TENTATIVE_COLOR)
-    _stamp(img, grid, lm.x, lm.y, color, half=1)
-  _stamp(img, grid, pose[0], pose[1], ROBOT_COLOR, half=1)
-  return np.flipud(img)
