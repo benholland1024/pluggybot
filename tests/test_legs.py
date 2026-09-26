@@ -179,3 +179,37 @@ def test_running_the_policy_imports_no_training_stack():
   out = subprocess.run([sys.executable, "-c", code], capture_output=True,
                        text=True)
   assert out.returncode == 0, out.stdout
+
+
+# Legged odometry (#377 item 8): the two corrections a ball foot and a
+# lagging contact estimate need, pinned on the scripted trot (no policy).
+
+def _trot_odometry(monkeypatch, lag_s):
+  from pluggybot.legs import odometry as od
+  monkeypatch.setattr(od, "CONTACT_LAG_S", lag_s)
+  monkeypatch.setattr(od, "GYRO_NOISE", 0.0)
+  monkeypatch.setattr(od, "GYRO_BIAS_DPS", 0.0)
+  monkeypatch.setattr(od, "BACKLASH_RAD", 0.0)
+  model, data = _compiled()
+  vm = VirtualModel(model, data, qm.CHOSEN)
+  lim = JointLimits.of(qm.CHOSEN.motor)
+  odo = od.LegOdometry(model, data)
+  for _ in range(int(4.0 / model.opt.timestep)):
+    cmd = Command(gait="trot", vx=0.5 * min(data.time / 0.5, 1.0), period=0.35)
+    data.ctrl[:] = lim.clip(vm.torque(cmd), data.qvel[vm.vadr])
+    mujoco.mj_step(model, data)
+    odo.step()
+  err, _ = odo.error()
+  return err / odo.distance
+
+
+def test_odometry_corrects_for_a_rolling_ball_foot(monkeypatch):
+  # A ball foot's centre moves while its contact point does not: assumed
+  # still, the estimate ran 6.6 % long with perfect contact and no noise.
+  assert _trot_odometry(monkeypatch, lag_s=0.0) < 0.015
+
+
+def test_odometry_survives_a_contact_estimate_31_ms_late(monkeypatch):
+  # For 31 ms after each footfall only the lifting pair is flagged planted;
+  # averaged in, it made the estimate 27 % of distance wrong.
+  assert _trot_odometry(monkeypatch, lag_s=0.031) < 0.04

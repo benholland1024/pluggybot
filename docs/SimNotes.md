@@ -1842,6 +1842,105 @@ floor says it is "lying knocked over" (`posture`), never "standing". Not
 changed: the mind is still shown the reported pose (`others_context`), and
 a fallen robot's reckoner still counts its wheels.
 
+## The quadruped body (issue #377)
+
+The body was sized before anything was trained, on a scripted gait
+(`legs/scripted.py`: stance feet push, tau = -J^T f, for the torso's height,
+attitude and velocity; swing feet follow a Raibert placement under a
+Cartesian PD). It is a measuring instrument, never the robot's gait, and it
+can under-read a policy that stamps harder, so the tables state margins.
+`scripts/quad_spike.py` flies every table below (`--torque`, `--sweep`,
+`--thermal`, `--energy`, `--pupper`); Parts.md, "The quadruped body", has
+the parts and the sources.
+
+**The torque table** (the chosen body, 9.34 kg, a 43.2 V pack; "p99.5" is the
+99.5th percentile of a joint's |torque| over every sample of all four legs,
+because a touchdown spike lasts a step and says more about the footfall
+than the load; the peak is 22 N·m, the continuous rating 6.71):
+
+| activity | knee p99.5 | knee RMS | fastest joint, % of no-load |
+|---|---|---|---|
+| stand | 3.3 | 3.2 | 0 |
+| stand, #378's arm at full reach | 4.1 | 4.1 | 0 |
+| deep crouch (0.15 m) | 4.8 | 4.8 | 0 |
+| walk (a trot at 0.3 m/s) | 7.1 | 4.7 | 43 |
+| trot 1.0 m/s | 8.4 | 4.8 | 69 |
+| trot 1.5 m/s | 10.2 | 5.2 | 90 |
+| push up a 0.18 m riser | 5.1 | 3.8 | 7 |
+
+The knee is always the worst joint. **Speed binds before torque**: a 1.5
+m/s trot takes a joint to 90 % of its no-load speed on a nominal pack and to
+100 % on an empty one (`--bus 36`), so the body's top speed is ~1.0–1.2 m/s.
+
+**What the instrument got wrong first, each found by filming it:**
+- *The attitude loop ran about the world's axes.* Roll and pitch are the
+  HEADING's, and past 90° of heading the correction reverses: a turn on the
+  spot flipped the body at 140°. The loop now runs in the heading frame.
+- *A foot placed for the torso's velocity lands behind a turning hip.* The
+  Raibert target uses the hip's own velocity (w × r).
+- *Height and pitch referenced to the ground under the hips* jump a whole
+  riser in one step as a hip crosses an edge, and the body flipped
+  backwards; they follow the ground the FEET stand on, low-passed.
+- *A scripted climb is chaotic*: 4 of 18 climbs across six riser heights,
+  the failures landing a foot on an edge or trailing the hind legs. So the
+  table measures a climb's LOAD by a repeatable push up a riser (the front
+  feet on the step, the hind on the floor, the torso crouched and pitched,
+  risen to the stand in 0.6 s); the policy's own climbs are its measurement.
+- *A four-beat walk falls* without a body sway to keep the CoM inside three
+  feet; "walk" in the tables is a trot at 0.3 m/s, as a learned policy's is.
+
+**The sweep that chose it** (`--sweep`: knee belt 1.0/1.5 × legs 0.19/0.21/
+0.23 m × the unpublished rotor inertia at both ends of its range): a direct
+knee on 0.21 m links. A 1.5:1 belt buys torque the knee does not need (its
+p99.5 is 54–55 % of the peak at 1:1 across the inertia range, and its RMS at
+most 86 % of the continuous rating at the heaviest rotor) and costs the one
+thing that binds, knee speed, while multiplying the knee's reflected inertia
+by 2.25. The 0.19 m legs fell once at the heavy rotor; 0.23 m buys nothing.
+
+**The belly.** With a 0.21 m leg and the knee at its −2.75 rad stop, a
+folded leg holds the hips 0.10 m up, so a torso whose underside is 0.055 m
+below the hips cannot rest on it: the legs carry the robot "lying down".
+The battery hangs below the torso as a belly pack, 0.105 m under the hip
+axis; the robot lies on it with its shanks flat and its drivers holding
+nothing (`model.lie_qpos`), and #378's dock contacts can go on its
+underside. Lying down and standing up take 2.2 s each (`--energy`).
+
+**Heat** (`--thermal`; the Mini Cheetah actuator's measured 1.23 K/W and
+32 J/K, a 39 s time constant): a first-order winding driven by non-negative
+heat never passes the highest steady state among the activities it runs
+through, so each activity SUSTAINED bounds any day. The hottest winding is
+a knee's: 66 °C on a 40 °C day at a sustained 1.5 m/s trot, 24 K under the
+GDS68's 90 °C alarm; standing, 50 °C.
+
+**Energy** (`--energy`; windings 1.5·R·I², shaft work counted only when
+positive, no credit for regeneration):
+
+| state | W | of which windings |
+|---|---|---|
+| lying (drivers powered, holding nothing) | 14.9 | 0 |
+| standing | 53.9 | 38.9 |
+| walking (0.3 m/s) | 116 | 85 |
+| trotting 1.0 m/s | 180 | 110 |
+
+The windings dominate everything below a trot: standing costs 39 W more
+than lying, and a stand-up plus a lie-down cost 93 mWh together, so **any
+wait longer than 8.6 s is cheaper lying down**. The mind takes 5–40 s a
+decision (Overseer.md §6), so a body that stands through its waits spends
+most of its idle power on holding itself up. The 194 Wh pack is ~13 h
+lying, ~3.6 h standing, ~1.7 h walking.
+
+**The small body** (`--pupper`): a Pupper-v3-class body (its published
+geometry and actuator, 3.0 kg) stands with a 55 % RMS margin and walks at
+0.3 m/s. Carrying the suite (4.4 kg) it spends 92 % of its continuous
+torque standing, 123 % holding the arm out, and cannot stand up from its
+belly or push up the 0.12 m curb; its whole leg is shorter than the riser.
+
+**What is true now:** the body is `legs.model.CHOSEN` and
+`models/quadruped.xml` is its generated MJCF; the numbers are a
+datasheet's where one exists and a range where none does (Parts.md); the
+scripted gait's rules above are pinned in `tests/test_legs.py` only as far
+as "it trots"; the tables are the script's to re-fly.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

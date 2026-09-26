@@ -41,6 +41,7 @@ import numpy as np  # noqa: E402
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
 from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE,  # noqa: E402
                                   BodySpec, body_xml, lie_qpos, pose_qpos)
+from pluggybot.legs.odometry import LegOdometry  # noqa: E402
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
 from pluggybot.legs.scripted import Command, VirtualModel, _quat_rpy  # noqa: E402
 
@@ -455,6 +456,50 @@ def thermal_table(spec: BodySpec = CHOSEN) -> None:
           f"{t[1]:9.1f} {m.max_winding_c - t[1]:8.1f}")
 
 
+#: A Livox Mid-360 frame: 360 deg by -7..52 deg, 200 000 points a second at
+#: 10 Hz (maker). The sim casts a fraction of them; the table prices each.
+MID360_VFOV = (-7.0, 52.0)
+
+
+def ray_cost(world: str = "models/home_world.xml") -> None:
+  """What a scan costs the physics thread, in the home world: the 2D LIDAR
+  (360 rays, one `mj_ray` each, as `perception/lidar.py` casts) against a
+  3D LIDAR frame of N rays through one `mj_multiRay`."""
+  from pluggybot.perception.lidar import Lidar
+  model = mujoco.MjModel.from_xml_path(world)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  lidar = Lidar(model)
+  t = time.perf_counter()
+  for _ in range(50):
+    lidar.scan(data)
+  two_d = (time.perf_counter() - t) / 50
+  print(f"{'scan':34s} {'rays':>7s} {'ms a scan':>9s} {'ms per sim s at 10 Hz':>22s}")
+  print(f"{'2D LIDAR (lidar.py, mj_ray each)':34s} {360:7d} {two_d * 1e3:9.2f} "
+        f"{two_d * 1e4:22.1f}")
+  pos = data.site("lidar").xpos.copy() if model.nsite and any(
+    model.site(i).name == "lidar" for i in range(model.nsite)) else data.qpos[:3] + [0, 0, 0.45]
+  for n in (4000, 10000, 20000):
+    rows = max(8, round(math.sqrt(n * (MID360_VFOV[1] - MID360_VFOV[0]) / 360)))
+    cols = n // rows
+    az = np.linspace(-math.pi, math.pi, cols, endpoint=False)
+    el = np.radians(np.linspace(*MID360_VFOV, rows))
+    a, e = np.meshgrid(az, el)
+    dirs = np.stack([np.cos(e) * np.cos(a), np.cos(e) * np.sin(a),
+                     np.sin(e)], axis=-1).reshape(-1, 3)
+    dist = np.zeros(len(dirs))
+    geomid = np.zeros(len(dirs), dtype=np.int32)
+    body = model.body("pluggybot").id
+    reps = 20
+    t = time.perf_counter()
+    for _ in range(reps):
+      mujoco.mj_multiRay(model, data, pos, dirs.reshape(-1), None, 1, body,
+                         geomid, dist, None, len(dirs), 40.0)
+    ms = (time.perf_counter() - t) / reps * 1e3
+    print(f"{'3D LIDAR frame (mj_multiRay)':34s} {len(dirs):7d} {ms:9.2f} "
+          f"{ms * 10:22.1f}")
+
+
 def sweep() -> None:
   """Knee belt ratio x leg length x the unpublished rotor inertia: each
   candidate's worst row per column."""
@@ -607,6 +652,41 @@ POLICY_SCHEDULE = [
 ]
 
 
+#: The odometry course: ~20 m of straight, arc, turn and sidestep, then back.
+ODOMETRY_COURSE = [
+  (2.0, Twist()),
+  (10.0, Twist(vx=0.6)),
+  (8.0, Twist(vx=0.5, yaw_rate=0.4)),
+  (4.0, Twist(yaw_rate=0.8)),
+  (6.0, Twist(vy=0.3)),
+  (10.0, Twist(vx=0.8)),
+  (2.0, Twist()),
+]
+
+
+def odometry(path=POLICY_NPZ, seeds: int = 5) -> None:
+  """The policy walks the course; the legs and the IMU reckon it. Drift is
+  per metre WALKED (the SimNotes rule: a denominator that cannot vanish)."""
+  policy = WalkingPolicy(path)
+  print(f"{'seed':>4s} {'walked m':>8s} {'position error m':>16s} {'% of distance':>13s} "
+        f"{'heading error deg':>17s}")
+  for seed in range(seeds):
+    model = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
+    data = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, data, 0)
+    mujoco.mj_forward(model, data)
+    drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+    odo = LegOdometry(model, data, seed=seed)
+    for seconds, twist in ODOMETRY_COURSE:
+      t0 = data.time
+      while data.time - t0 < seconds:
+        drv.step(twist)
+        odo.step()
+    err, dyaw = odo.error()
+    print(f"{seed:4d} {odo.distance:8.1f} {err:16.3f} "
+          f"{err / odo.distance * 100:12.1f}% {math.degrees(dyaw):17.2f}")
+
+
 def trace_policy(path, every_s: float = 0.2) -> list[str]:
   """The policy's flight hashed: qpos + qvel + ctrl every `every_s` sim s."""
   import hashlib
@@ -720,6 +800,8 @@ def main(argv=None) -> None:
   ap.add_argument("--sweep", action="store_true")
   ap.add_argument("--energy", action="store_true")
   ap.add_argument("--thermal", action="store_true")
+  ap.add_argument("--rays", action="store_true",
+                  help="what a 2D and a 3D LIDAR scan cost the physics thread")
   ap.add_argument("--policy", nargs="?", const=str(POLICY_NPZ), default=None,
                   help="fly the exported walking policy (default: the committed "
                        "one) in the served sim's physics; with --view, watch it")
@@ -727,6 +809,8 @@ def main(argv=None) -> None:
                   default=None, help="the policy's flight in two processes, "
                                      "hashed: identical or not")
   ap.add_argument("--trace", default=None, help=argparse.SUPPRESS)
+  ap.add_argument("--odometry", nargs="?", const=str(POLICY_NPZ), default=None,
+                  help="legged odometry's drift on the course, the policy walking")
   ap.add_argument("--pupper", action="store_true",
                   help="the Pupper-class body, as built and with the suite")
   ap.add_argument("--bus", type=float, default=BUS_V_NOMINAL,
@@ -738,6 +822,8 @@ def main(argv=None) -> None:
   if args.trace:
     import json
     print(json.dumps(trace_policy(args.trace)))
+  elif args.odometry:
+    odometry(args.odometry)
   elif args.determinism:
     sys.exit(0 if determinism(args.determinism) else 1)
   elif args.policy:
@@ -756,6 +842,8 @@ def main(argv=None) -> None:
     energy_table(CHOSEN)
   elif args.thermal:
     thermal_table(CHOSEN)
+  elif args.rays:
+    ray_cost()
   else:
     filmstrip(args.out)
 
