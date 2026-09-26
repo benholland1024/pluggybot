@@ -1989,6 +1989,27 @@ for every box lying on a height field with more than 50 contacts, and 1.5 M
 such lines through Python to the pod's network volume had slowed it
 threefold (`pod.sh` filters them now).
 
+**Stairs, seeing** (`Pluggy-Quad-Rough-Perceptive`: the same curriculum, the
+actor also shown the terrain's height under a 1.6 × 1.0 m grid at 0.1 m —
+on the robot, the D435's height map sampled there). ⚠ mjlab casts that
+grid from the body's own height, so a ray a metre ahead on a flight starts
+INSIDE a step above the body and reports the floor under it; the grid is
+cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
+`legs/policy.py` casts the same grid in our physics (its layout is pinned).
+After 3000 iterations it clears what the blind policy clears (one 0.15 m
+step; flights to 0.08 m): the curriculum had only reached terrain level ~3
+of 10, where the stairs' risers are ~0.10 m, so it had hardly met a
+house's. The scan does reach it — flattened, the 0.15 m step goes from 3 of
+3 to 0 of 3 — so what it lacks is practice, not sight.
+
+**Posture** (`models/quadruped_posture.npz`, `Pluggy-Quad-Posture`: walking
+with the torso's height offset, pitch and roll commanded; 2500 iterations on
+the 4090): in our physics (`--posture`) it crouches to within 6 mm of 0.224
+and 0.184 m, pitches ±11° and rolls 8.4 of 8.6°, walks crouched at 0.56
+m/s, and walks as the flat policy does (1.06 m/s; turns 0.85 of 0.8 rad/s;
+sidesteps 0.26 of 0.3) without falling. The tilt is tracked as gravity's
+direction in the body frame, replacing the stock "stay level" reward.
+
 **Legged odometry** (`legs/odometry.py`, `--odometry`: the policy walks a
 21 m course of straights, an arc, a turn on the spot and a sidestep): 2.4-
 4.0 % of distance over five noise seeds, heading within 2°. Two corrections
