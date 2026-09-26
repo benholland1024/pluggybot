@@ -14,7 +14,7 @@ What differs from mjlab's Go1 recipe, and why:
     "The quadruped body"), not Go1's 3 m/s.
 """
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import math
 
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -30,6 +30,7 @@ from mjlab.sensor import (
   RingPatternCfg,
   TerrainHeightSensorCfg,
 )
+from mjlab.sensor.raycast_sensor import GridPatternCfg
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
@@ -180,16 +181,44 @@ TERRAINS = TerrainGeneratorCfg(
 )
 
 
-def rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
-  """Stairs, curbs and rocks, BLIND: the actor has no height scan (the
-  critic does). #377 asks for the tallest riser cleared blind first."""
+@dataclass
+class RaisedGridPatternCfg(GridPatternCfg):
+  """mjlab's height-scan grid with its ray origins `height` above the body
+  (still turned with the heading only). Cast from the body itself, a ray a
+  metre ahead on a flight of 0.18 m risers starts INSIDE the step above the
+  body and reports the floor under it; the scan's value is unchanged (the
+  body's height over each hit)."""
+
+  height: float = 1.0
+
+  def generate_rays(self, mj_model, device):
+    offsets, directions = super().generate_rays(mj_model, device)
+    offsets[:, 2] = self.height
+    return offsets, directions
+
+
+#: What the perceptive policy is shown: the terrain's height under a grid
+#: 1.6 m long and 1.0 m wide at 0.1 m (187 points) around the body. On the
+#: robot that is the D435's height map (`perception/heightmap.py`) sampled at
+#: these points: the camera sees ahead, and the map keeps what it saw.
+SCAN = RaisedGridPatternCfg(size=(1.6, 1.0), resolution=0.1)
+
+
+def rough_env_cfg(play: bool = False, perceptive: bool = False) -> ManagerBasedRlEnvCfg:
+  """Stairs, curbs and rocks: BLIND by default (the actor has no height scan,
+  the critic does; #377 asks for the tallest riser cleared blind first), or
+  `perceptive`, the actor shown the height scan."""
   cfg = _common(make_velocity_env_cfg())
+  for sensor in cfg.scene.sensors:
+    if sensor.name == "terrain_scan":
+      sensor.pattern = SCAN
   # Memory on a 6 GB card: the stock 500 CCD iterations wanted a 1.7 GB
   # scratch array at 4096 envs (scratchpad trainer report).
   cfg.sim.mujoco.ccd_iterations = 50
   cfg.sim.contact_sensor_maxmatch = 64
   cfg.scene.terrain.terrain_generator = replace(TERRAINS)
-  del cfg.observations["actor"].terms["height_scan"]
+  if not perceptive:
+    del cfg.observations["actor"].terms["height_scan"]
   cfg.terminations["fell_over"] = TerminationTermCfg(
     func=mdp.bad_orientation, params={"limit_angle": math.radians(70.0)})
   if play:

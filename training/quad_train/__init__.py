@@ -40,3 +40,11 @@ register_mjlab_task(
   rl_cfg=ppo_runner_cfg(),
   runner_cls=VelocityOnPolicyRunner,
 )
+
+register_mjlab_task(
+  task_id="Pluggy-Quad-Rough-Perceptive",
+  env_cfg=rough_env_cfg(perceptive=True),
+  play_env_cfg=rough_env_cfg(play=True, perceptive=True),
+  rl_cfg=ppo_runner_cfg(),
+  runner_cls=VelocityOnPolicyRunner,
+)
