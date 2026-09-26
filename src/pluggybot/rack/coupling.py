@@ -1,7 +1,7 @@
 """Standalone hub tool-coupling spike (milestone-8 prep).
 
-No robot here (schuko_spike's little sibling): a compliant carrier moves a
-two-prong FORK through a scripted pick or return against a fixed hub shelf.
+No robot here: a compliant carrier moves a two-prong FORK through a
+scripted pick or return against a fixed hub shelf.
 The questions this answers before any controller or hub layout depends on
 them:
   - does the fork-and-peg gravity latch actually work in MuJoCo contact?
@@ -22,8 +22,8 @@ Pick: slide the fork in under the peg overhangs, lift 15 mm (pegs seat into
 the fork Vs, tool rises off the trays), back away. Return is the reverse.
 Gravity is the latch; V depth is the retention -- both measured here.
 
-Like the schuko recess, a V-notch is concave, so each one is COMPOSED of two
-45-degree tilted boxes (convex pieces).
+A V-notch is concave, and MuJoCo collides convex pieces only, so each one
+is COMPOSED of two 45-degree tilted boxes.
 """
 
 import math
@@ -132,7 +132,7 @@ FORK_POLE_GEOMS = {"l": ("fork_vl_a", "fork_vl_b"),
 
 # -- carrier ("the robot", simplified) ---------------------------------------
 PUSH_FORCE = 10.0       # N cap on the approach axis
-LAT_STIFFNESS = 150.0   # N/m lateral compliance (same guess as schuko spike)
+LAT_STIFFNESS = 150.0   # N/m lateral compliance (a guess: catalog `rcc_wrist`)
 YAW_STIFFNESS = 1.0     # N*m/rad
 START_X = 0.16          # carrier start: fork tips well clear of the peg
 
@@ -1142,8 +1142,7 @@ def _module_faces() -> tuple[str, str]:
     f'material="tagmat{MODULE_TAG_IDS["module_seed"]}"/>'
     # The magazine: a square tube of four walls, hanging entirely below the
     # plate. Square rather than round because a box is a convex primitive and
-    # a tube is not -- the same decomposition the V-notches and the schuko
-    # recess needed.
+    # a tube is not -- the same decomposition the V-notches needed.
     + "".join(
       f'\n      <geom name="module_seed_tube_{lbl}" type="box" '
       f'size="{sx:.4f} {sy:.4f} {tube_half_h:.4f}" '

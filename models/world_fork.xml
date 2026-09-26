@@ -1,8 +1,7 @@
 <mujoco>
   <!-- world.xml's sibling for the HUB ERA: same bare world (floor + light),
        but carrying the FORK robot (pluggybot_fork.xml) instead of the plug
-       robot. room_hub.xml builds on this the way room_1.xml builds on
-       world.xml. -->
+       robot. room_hub.xml builds on this. -->
   <option integrator="implicitfast"/>
 
   <include file="pluggybot_fork.xml" />

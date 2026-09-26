@@ -11,10 +11,10 @@ budgets and different failure modes:
 
   discovery     where is the rack, roughly? Needs ~10 cm: enough to drive to
                 the neighborhood. Done here, from across the room, by
-                decoding the rack's AprilTag through the head camera --
-                otherwise exactly like outlet landmarks in milestone 5 (same
-                projection, same LandmarkStore, same sighting-count
-                confirmation, because a marker seen once is still a rumor).
+                decoding the rack's AprilTag through the head camera,
+                projecting it into the world (`pixel_to_world`), and
+                confirming it by sighting count in a LandmarkStore, because
+                a marker seen once is still a rumor.
   fine approach the last few millimeters. Needs ~4 mm, which no stored pose
                 can promise. Done by mission/mission.py's servo, looking at the
                 bay's own tag as it closes in.
@@ -36,7 +36,6 @@ from pluggybot.rack.coupling import (
 )
 from pluggybot.rack.tags import RACK_TAG_ID, RACK_TAG_SIZE, TagDetector
 from pluggybot.mapping.landmarks import LandmarkStore, wall_normal_conf
-from pluggybot.perception.outlet_spotter import pixel_to_world
 
 # Where the rack tag sits in the rack's own frame (generator constants).
 TAG_LOCAL_X = RACK_TAG_X
@@ -46,7 +45,7 @@ TAG_Z = RACK_RAIL_Z + 0.075
 # filter. (The stand-in needed "only things above 0.42 m count" to keep the
 # room's pale plates out; that reasoning is simply gone.)
 MAX_RANGE = 5.0
-MIN_SIGHTINGS = 3        # the milestone-5 lesson: one sighting is a rumor
+MIN_SIGHTINGS = 3        # one sighting is a rumor
 #: Weight floor for the rack landmark's merges (issue #42): past the first
 #: few sightings the position becomes an exponential moving average, so a
 #: handful of fresh looks carry the belief most of the way into the CURRENT
@@ -60,8 +59,6 @@ MIN_SIGHTINGS = 3        # the milestone-5 lesson: one sighting is a rumor
 #: (the bay tag enters the dock camera's view within ~0.3 m) for the
 #: MEASURED terminal standoff to do the fine work. The wobble this buys
 #: (EMA std ~0.4x a single sighting's ~5-10 cm) lands in the same place.
-#: The OUTLET landmarks keep the pure average: they are surveyed once on a
-#: short clock, not lived against for hours.
 RACK_RECENCY = 0.25
 #: How well conditioned the free-space sum must be before its direction is
 #: believed as the rack's FACING (landmarks.wall_normal_conf).
@@ -70,13 +67,60 @@ RACK_RECENCY = 0.25
 #: The rack stands against a wall, so early in a mission the free cells round
 #: it all lie on one side and the sum is unambiguous. Drive BEHIND it -- which
 #: the trip to the charge bay does -- and it becomes the free-standing
-#: partition `wall_normal` warns about: the two sides nearly cancel, and the
+#: partition `wall_normal_conf` warns about: the two sides nearly cancel, and the
 #: direction that survives is leftover noise. Measured on the home world, a
 #: charge trip moved the believed yaw by ~20 deg, which at the 0.63 m
 #: standoff radius throws the hand-off pose ~0.2 m and points the approach
 #: heading into the rack's flank.
 MIN_FACING_CONF = 0.35
 
+
+# The head camera relative to the dead-reckoned pose (the axle midpoint): the
+# body origin sits 8 cm ahead of the axle, the head at body-local
+# (-0.08, 0, 0.135) and `left_eye` at head-local (0.03, 0.03, 0)
+# (models/pluggybot_fork.xml) -> 0.03 forward, 0.03 left, 0.18 m up.
+# (occupancy_grid.update's default scan origin is the same 0.03/0.03.)
+CAM_FORWARD = 0.03
+CAM_LEFT = 0.03
+CAM_HEIGHT = 0.18
+
+
+def pixel_to_world(
+  u: float, v: float, depth: float,
+  pose: tuple[float, float, float],
+  *, width: int, height: int, fovy_deg: float,
+) -> tuple[float, float, float]:
+  """Project one pixel with known depth into world coordinates.
+
+  u, v: pixel column/row (origin top-left). depth: the PERPENDICULAR
+  distance along the camera axis, not range along the ray -- a tag's PnP
+  translation z, as `RackSpotter` passes -- so the forward component is
+  simply `depth`. pose: dead-reckoned (x, y, theta) of the axle midpoint.
+  """
+  px, py, theta = pose
+
+  # Pinhole camera: focal length in pixels, from the vertical FOV.
+  f = (height / 2) / math.tan(math.radians(fovy_deg) / 2)
+
+  # Pixel offsets from the optical axis (+0.5 = pixel centers).
+  u_c = u - width / 2 + 0.5
+  v_c = v - height / 2 + 0.5
+
+  # Camera-frame offsets, similar triangles: sideways/vertical distance is
+  # (pixel offset / focal length) x depth. Signs: +u is image-right = robot
+  # right (so negate for left), +v is image-down = world down (negate for up).
+  forward = depth
+  left = -u_c * depth / f
+  up = -v_c * depth / f
+
+  # Camera position in the world, then rotate (forward, left) by heading.
+  sin_t, cos_t = math.sin(theta), math.cos(theta)
+  cam_x = px + CAM_FORWARD * cos_t - CAM_LEFT * sin_t
+  cam_y = py + CAM_FORWARD * sin_t + CAM_LEFT * cos_t
+  wx = cam_x + forward * cos_t - left * sin_t
+  wy = cam_y + forward * sin_t + left * cos_t
+  wz = CAM_HEIGHT + up
+  return wx, wy, wz
 
 @dataclass(frozen=True)
 class RackPose:
@@ -230,8 +274,8 @@ class RackFinder:
     """One look; returns how many tag sightings it added.
 
     ⚠ MERGED BY IDENTITY, NOT BY DISTANCE (issue #42). The store's 0.4 m
-    gate exists for outlets, which are anonymous blobs -- two detections far
-    apart might be two outlets. The rack's sightings carry a DECODED ID, so
+    gate is for anonymous detections -- two far apart might be two things.
+    The rack's sightings carry a DECODED ID, so
     every one of them is the same rack wherever the believed frame puts it.
     Gating them by distance broke the drift recovery in the worst way
     (measured, the issue-30 recovery regression test): after half a metre of
@@ -253,9 +297,8 @@ class RackFinder:
   def estimate(self, grid) -> RackPose | None:
     """Best confirmed rack pose, or None while still unconfirmed.
 
-    Facing comes off the occupancy grid (landmarks.wall_normal) exactly as
-    it does for outlets: the rack stands against a wall, so the free-space
-    sum points out of it. A real AprilTag gives this directly from its pose
+    Facing comes off the occupancy grid (landmarks.wall_normal_conf): the
+    rack stands against a wall, so the free-space sum points out of it. A real AprilTag gives this directly from its pose
     -- and better -- but the grid version needs no new perception.
 
     ⚠ AND A FACING IS KEPT ONCE IT IS KNOWN. The position keeps improving

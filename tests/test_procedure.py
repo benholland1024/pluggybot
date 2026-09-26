@@ -427,7 +427,6 @@ def test_the_example_programs_validate_against_home():
 CTRL_WRITERS = {
   "rack/swap.py", "rack/coupling.py", "mission/mission.py",
   "tools/drawing.py", "tools/gripper.py", "tools/dispenser.py",
-  "envs/dock_env.py", "docking/schuko.py",
   # issue #168 slice B: the workshop's RIG is `coupling.run_pick`'s shape --
   # a spike harness driving the spike's carrier and a built tool's servos
   # to answer hang / pick / conduct / work / stow. Not a runtime path: a

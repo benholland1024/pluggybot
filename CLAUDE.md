@@ -111,8 +111,8 @@ wording, settled direction. Before doing anything, read:
   test, so the lever is shortening the long poles. ⚠ Measured (issue #158):
   reordering the collection longest-first did NOT help and may hurt — the
   mission tests inflate each other's runtimes, so starting six heavy ones at
-  once is the worst case; deleting the plug-era tests saves 8 s; model
-  compilation is 12–28 ms. Only sim-seconds count.
+  once is the worst case; model compilation is 12–28 ms. Only sim-seconds
+  count.
 - **While iterating:** `MUJOCO_GL=egl uv run pytest -q -m "not slow"`.
   Measured 2026-09-13 on this box: **7:10** for the FULL suite (1315 passed
   + 15 skipped) after four flown proofs moved behind `--endurance` and two
@@ -331,13 +331,11 @@ save a filmstrip PNG named after the script.
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends (#225) and reports the ENERGY GATE — the synthetic offer costs more than the pack holds; `--max-tokens N` finds a reasoning model's budget; `--escalate-to X --force-escalate` prices an escalation target; `--tokens-only` counts the stable prefix without billing (the Anthropic path needs a key — `count_tokens` is an endpoint, not a tokenizer, and Haiku 4.5 does not cache a prefix under 4096 tokens) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack (SWAP_PICK to end of SWAP_RETURN); `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin; `--actions care:feed,care:toy,care:company,shock,feed` prices the lab's acts (each ends in the lab; the spike docks between them). Re-run after anything that changes what an errand does |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--resume-at T` flies the day straight through against saved at the first idle pass past T and carried on in a new process (#345) — identical after the restore |
-| `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `schuko_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
+| `scripts/charge_spike.py`, `swap_spike.py`, `stall_spike.py`, `noslip_spike.py`, `hub_spike.py`, `answer_spike.py` | tolerance sweeps behind a constant; each `--blind` (or `--no-brake`) reproduces the before-fix rows so the premise cannot rot. Which constant each guards is in the Conventions below |
 | `scripts/nearfield_spike.py` | the near-field depth camera and height map (issue #34): `--mount` (pitch → self-view and floor band), `--cost` (frame ms per resolution and world, the height map's update, the voxel alternative), `--find` (smallest cube found standing still, by range); default a filmstrip. Re-run `--cost` after touching `perception/depth.py`, `heightmap.py` or the mount |
 | `scripts/draw.py`, `pickup.py`, `dispense.py`, `lcd.py`, `plate.py`, `module_power.py`, `home_draw.py`, `hub_swap.py`, `hub_mission.py` | one tool or mechanism each: the pen (`--program square|text`), the claw, the seed dispenser, the LCD (`--errand census|dance`), the garden pressure plate (the reference ACTIVITY), the module's electrical interface, the home drawing errand (a THIN caller of `HubLifecycle.run_errand`; `--cycles 2` before believing any change to the swap stack), the bay swap, the milestone-8 story. `--record PATH` on draw/pickup renders 720p video |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown from the rack the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row` skips the drive; `--pair [--robot 2]` flies it on the home pair as deployed, the other robot standing where it started; `--source FILE` flies a robot's own procedure instead; filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording — how a drawing gets hung on the website, by hand and on purpose. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
-| `scripts/teleop.py`, `map_teleop.py`, `explore.py`, `lifecycle.py`, `spot_outlets.py` | plug-era: teleop, mapping, the milestone-4 exploration demo, the wall-socket lifecycle, the outlet detector. `--views` saves the camera panel |
-| `scripts/train_docking.py`, `eval_docking.py`, `generate_outlet_dataset.py`, `eval_detector.py` | RL docking (SAC over `envs.DockEnv`, parked with the plug era) and the outlet detector. The dataset generator WIPES `datasets/` first (regenerating into a dirty dir once contaminated 195 labels); `eval_detector.py --poses 1000` is the eval that matters — the val split shares the generator and scored 0.99 mAP while calling a light switch an outlet. `torch` is pinned to the cu128 index: the driver is CUDA 12.8 and PyPI's cu130 build silently falls back to CPU |
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
@@ -1160,8 +1158,7 @@ save a filmstrip PNG named after the script.
   names it) and the STATIC one (every class in `src/` assigning
   `self.model`/`self.data` defines `rebind` or is on `TRANSIENT_HOLDERS`
   with a reason: the three tool controllers are built per errand and never
-  outlive a recompile, `DockEnv` owns its own world, `Overseer.model` is an
-  LLM id). ⚠ BETWEEN ERRANDS ONLY, fork empty, single robot — refused out
+  outlive a recompile, `Overseer.model` is an LLM id). ⚠ BETWEEN ERRANDS ONLY, fork empty, single robot — refused out
   loud otherwise (a pair shares one world and two lifecycles). The wire:
   `scene_changed` (additive, no bump; protocol/README.md) carries the whole
   new `scene_dict`, the next frame is a keyframe, a late joiner's header is
@@ -1333,9 +1330,8 @@ save a filmstrip PNG named after the script.
   APPENDED to, never reordered, because bay↔tag pairing is by index; a
   sixth HAND-BUILT tool needs the rail to grow, a fourth built one the
   rail's.
-  `models/room_1_scenery.xml` is the floor plan behind both `room_1.xml` and
-  `room_hub.xml`. `models/schuko_sockets.xml`: `uv run python -m
-  pluggybot.docking.schuko` after moving an outlet.
+  `models/room_1_scenery.xml` is the floor plan behind `room_hub.xml`; it
+  and the `schuko_sockets.xml` it includes are frozen plug-era scenery.
 - **Demo video** (`--record PATH` on `draw.py`/`pickup.py`, `viz.Recorder`):
   frames are STREAMED to the encoder (a 90 s clip held in memory is ~7 GB);
   recording must never step the sim; the render size sits on the 16-px
@@ -1357,8 +1353,9 @@ save a filmstrip PNG named after the script.
   `lifecycle.py` at top level, because arbitration ties them together. A
   module goes where its CONCERN lives; a module that fits none is a new
   domain, not a reason to widen an old one. `tests/` is flat.
-- `models/world.xml` is the bare world for physics tests; `playground.xml` /
-  `room_1.xml` add scenery. Never put scenery in the test world.
+- `models/world.xml` is the bare world for physics tests (it carries the
+  PLUG robot, `pluggybot.xml`, until #376's stage C); `playground.xml` adds
+  scenery. Never put scenery in the test world.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy, ix]`.
 - Odometry tracks the axle midpoint; `qpos` tracks the body origin 8 cm ahead.
 - **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue
@@ -1881,7 +1878,7 @@ save a filmstrip PNG named after the script.
   COMMISSIONED PRIOR (`rack_prior`), never the believed rack (anchored to the
   belief, the error tracked itself 0.003 → 0.344 m over four sim-hours).
   Two belief rules travel with it: the rack landmark merges BY DECODED
-  IDENTITY (the 0.4 m distance gate is for anonymous outlets) and its
+  IDENTITY (the 0.4 m distance gate is for anonymous landmarks) and its
   position is recency-weighted (`RACK_RECENCY`). The bay recovery
   (`swap_at_bay`'s spin-refresh-retry) depends on both;
   `test_the_recovery_finds_a_bay_the_first_look_lost` pins all three. The
@@ -2207,5 +2204,3 @@ save a filmstrip PNG named after the script.
   once. Each stroke re-presses and each press seats the module differently
   (−4.55 to +2.78 mm across one word), so `draw_program` re-zeros every
   stroke against the FIRST press's bias.
-- `--views` on the plug-era scripts saves `views.png` (stereo pair + map +
-  dock camera) alongside `map.png`.

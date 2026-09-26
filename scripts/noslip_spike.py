@@ -8,8 +8,6 @@ under each candidate policy, in one table:
   coupling   pick-and-return seat rate on the bare rig, across the measured
              misalignment envelope -- the peg seats by SLIDING into its V,
              which is exactly what the noslip pass exists to suppress
-  schuko     plug insertion on the bare rig -- the other slide-to-seat
-             interface in the repo, and the one the issue list forgot
   robot      full robot-driven pick (powered?) and return (hung? bay error)
              in hub_world, with hand-off jitter
   grip       block creep in the claw's jaws over a timed hold (the failure
@@ -44,7 +42,6 @@ import time
 
 import mujoco
 
-from pluggybot.docking.schuko import run_trial
 from pluggybot.rack.coupling import (
   HUB_STATION_YS, module_power_contact, run_cycle,
 )
@@ -85,20 +82,6 @@ def rig_coupling(noslip: int, quick: bool) -> dict:
     ok += res["picked"] and res["returned"]
     worst_force = max(worst_force, res["max_force_n"])
   return {"seat": f"{ok}/{len(offsets)}", "worst_force_n": worst_force}
-
-
-def rig_schuko(noslip: int, quick: bool) -> dict:
-  """Plug insertions at aligned + edge-of-envelope, on the spike rig."""
-  offsets = ([{}, {"yaw_deg": 2.0}] if quick else
-             [{}, {"y_off": -0.002}, {"y_off": 0.002},
-              {"yaw_deg": -2.0}, {"yaw_deg": 2.0}])
-  ok = 0
-  worst_gap = 0.0
-  for kw in offsets:
-    res, _ = run_trial(noslip=noslip, **kw)
-    ok += res["success"]
-    worst_gap = max(worst_gap, res["gap_mm"])
-  return {"seat": f"{ok}/{len(offsets)}", "worst_gap_mm": worst_gap}
 
 
 # ---- robot-level, hub_world -------------------------------------------------
@@ -209,7 +192,6 @@ def main() -> None:
     print(f"\n== policy: noslip_iterations = {n} ==")
     row = {}
     for name, fn in (("coupling", lambda: rig_coupling(n, args.quick)),
-                     ("schuko", lambda: rig_schuko(n, args.quick)),
                      ("robot", lambda: robot_swap(n, args.quick)),
                      ("grip", lambda: grip_hold(n)),
                      ("pen", lambda: pen_square(n)),
@@ -220,13 +202,13 @@ def main() -> None:
     rows[n] = row
 
   print("\n== summary ==")
-  print(f"{'noslip':>6} | {'coupling':>8} | {'schuko':>6} | {'powered':>7} | "
+  print(f"{'noslip':>6} | {'coupling':>8} | {'powered':>7} | "
         f"{'hung':>5} | {'creep mm/s':>10} | {'ink':>5} | {'form mm':>7} | "
         f"{'ms/step':>7}")
   for n, row in rows.items():
     creep = row["grip"].get("creep_mm_per_s")
     ink = row["pen"].get("ink")
-    print(f"{n:>6} | {row['coupling']['seat']:>8} | {row['schuko']['seat']:>6} | "
+    print(f"{n:>6} | {row['coupling']['seat']:>8} | "
           f"{row['robot']['powered']:>7} | {row['robot']['hung']:>5} | "
           f"{creep if creep is None else f'{creep:+.2f}':>10} | "
           f"{ink if ink is None else f'{ink:.0%}':>5} | "

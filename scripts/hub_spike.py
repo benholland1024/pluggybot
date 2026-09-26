@@ -1,4 +1,4 @@
-"""Hub coupling tolerance sweep (milestone-8 prep; schuko_spike's sibling).
+"""Hub coupling tolerance sweep (milestone-8 prep).
 
 Measures what the fork-and-peg gravity latch actually forgives before any
 hub layout or controller depends on it:

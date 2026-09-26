@@ -58,8 +58,6 @@ TRANSIENT_HOLDERS = {
   # recompile is refused mid-errand, so one never outlives its world
   "tools/drawing.py:PenPlotter", "tools/gripper.py:ClawTool",
   "tools/dispenser.py:SeedDispenser",
-  # the plug-era RL environment owns its own world and is never recompiled
-  "envs/dock_env.py:DockEnv",
   # `self.model` is the LLM's id, not a MuJoCo model
   "mind/overseer.py:Overseer",
 }

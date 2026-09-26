@@ -181,7 +181,7 @@ which quality 2 needs, so it is deferred, not dropped).
 |---|---|
 | Ranging | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
 | Near field | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
-| Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`); a YOLO outlet detector on the plug-era path |
+| Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`) |
 | Odometry | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
 | Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`) |
 | Tools | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
@@ -197,12 +197,12 @@ that settled something; the docs named hold the rest.
 | # | Milestone | Closed | What it settled |
 |---|---|---|---|
 | 1 | Teleoperable differential-drive base | Jul 2026 | |
-| 2 | Stereo camera pair | Jul 2026 | later dropped (Aug 2026): real SGBM on the sim's own pair gave disparity on 49.7 % of the scan row at 593 mm median error, against a 50 mm cell |
+| 2 | Stereo camera pair | Jul 2026 | dropped for a LIDAR in Aug 2026 (Parts.md "Vision & ranging") |
 | 3 | Classical odometry | Jul 2026 | < 2 % against ground truth on straights, spins, arcs and S-curves |
 | 4 | Occupancy mapping + frontier exploration | Jul 2026 | maps both rooms collision-free and self-terminates |
-| 5 | Outlet detector on synthetic data | Aug 2026 | YOLO11n on 1200 domain-randomised renders; 3/3 on a room it never saw, no false positive on the decoy switch |
-| 6 | Docking controller, scripted → RL | Aug 2026 | scripted 8/24, RL 6/24, failures complementary (union 13/24); four measured design findings. Parked when the hub superseded wall docking |
-| 7 | Battery model + the closed loop | Aug 2026 | honest electrical draw, charging on the electrical contact criterion, an absolute-energy reserve; the plug era's "repo MVP" |
+| 5 | Outlet detector on synthetic data | Aug 2026 | retired with the plug era (#376); its lessons are in SimNotes |
+| 6 | Docking controller, scripted → RL | Aug 2026 | scripted 8/24 against RL 6/24; parked by the hub, retired (#376) |
+| 7 | Battery model + the closed loop | Aug 2026 | honest electrical draw, charging on the electrical contact criterion, an absolute-energy reserve |
 | 8 | Modular tool system — the hub pivot | Aug 2026 | a gravity-latched fork coupling (±4 mm / < 2°), a rack localised off AprilTags (9 mm / 0.00°), the peg as the electrical interface, five modules (LCD, plug, pen, claw, seed dispenser), the pen drawing on a wall board at 0.57 mm form error. ToolPattern.md |
 | 9 | Tasks | Aug 2026 | a task is an offer with a code evaluator, a reward row, a cadence and a measured energy cost; the honesty rule. TaskPattern.md |
 | 10 | Minds and money | Aug 2026 | swappable backends, per-errand energy, a USD allowance with escalation and operator modes, the four thought files, points as metabolism. Overseer.md |
@@ -232,8 +232,8 @@ hub**. What stands between here and ordering parts:
    by a deliberately pessimistic 5× for a Cortex-A76, came to **~138 ms per
    perception cycle → 7.3 Hz**, against a loop that looks for a tag every
    0.3 s and drives at ≤ 0.25 m/s. So **the hub MVP needs no accelerator** —
-   YOLO is only in the plug-anywhere path, exactly what the pivot predicted,
-   and that is ~€150 of Hailo HAT not spent. The 5× is an estimate, not a
+   the learned detector was only on the plug-anywhere path, exactly what the
+   pivot predicted, and that is ~€150 of Hailo HAT not spent. The 5× is an estimate, not a
    measurement on silicon. Two things fell out: the occupancy grid update
    cost as much as the tag decode until it was vectorized to 1.3 ms per scan
    (issue #2, SimNotes), and dropping stereo (item 3) took the budget to
@@ -312,7 +312,7 @@ igus stroke quote, chassis material, motor brackets).
 
 - **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
-- **Learning:** PyTorch, Gymnasium, Stable-Baselines3 (RL); Ultralytics/torchvision (detection)
+- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image
 - **Classical vision & robotics:** OpenCV, NumPy
 
 ## Where things are written down

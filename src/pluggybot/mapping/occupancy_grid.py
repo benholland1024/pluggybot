@@ -79,9 +79,9 @@ class OccupancyGrid:
     """Update the occupancy map. pose = (x, y, theta) at the AXLE midpoint.
 
     `origin` is where the sensor sits relative to that axle, in robot-frame
-    (forward, left) metres. It defaults to the head camera's offset, which is
-    what the plug-era Scanner uses; the hub robot's LIDAR sits elsewhere and
-    passes its own (perception.lidar.LIDAR_ORIGIN). Getting this wrong slides
+    (forward, left) metres. It defaults to the head camera's offset; the
+    LIDAR sits elsewhere and passes its own (perception.lidar.LIDAR_ORIGIN),
+    which is what the mission maps with. Getting this wrong slides
     the whole map by the difference, which is exactly the class of quiet
     error the rack-frame verdict bug was.
     """

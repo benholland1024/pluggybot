@@ -121,7 +121,7 @@ class OneSpotter:
 
 def test_the_rack_merges_by_identity_however_far_the_frame_drifted():
   """The defect, pinned from the other side: sightings half a metre apart
-  are OUTSIDE the outlet store's 0.4 m gate, and used to spawn a second
+  are OUTSIDE the store's anonymous 0.4 m gate, and used to spawn a second
   landmark the stale one outvoted -- the recovery spin that existed to fix
   the belief could not touch it. A decoded ID is identity; there is exactly
   one rack landmark, wherever the frame puts its sightings."""
@@ -139,14 +139,3 @@ def test_the_rack_merges_by_identity_however_far_the_frame_drifted():
   # ...and the EMA has carried the belief most of the way to the new frame:
   # ten sightings at RACK_RECENCY leave (1 - w)^10 ~ 6 % of the residual.
   assert abs(lm.x - 1.0) < 0.5 * (1 - RACK_RECENCY) ** 10 + 0.01
-
-
-def test_the_outlet_landmarks_keep_the_pure_average():
-  """The outlet map is surveyed once on a short clock and its estimator is
-  the running mean -- the recency floor must not leak into it."""
-  store = LandmarkStore()
-  for _ in range(99):
-    store.add_sighting(1.0, 0.0, 0.4, seen_from=(0.0, 0.0))
-  store.add_sighting(1.3, 0.0, 0.4, seen_from=(0.0, 0.0))
-  assert len(store.landmarks) == 1
-  assert store.landmarks[0].x == (99 * 1.0 + 1.3) / 100

@@ -1,7 +1,6 @@
-<!-- room_1 SCENERY, extracted so the plug-robot world (room_1.xml) and the
-     fork-robot hub world (room_hub.xml) share one floor plan without
-     duplication. Everything that was in room_1.xml worldbody lives here
-     verbatim: walls, obstacles, outlets, decoys, socket include. -->
+<!-- room_1 SCENERY: the floor plan behind room_hub.xml -- walls, obstacles,
+     and the plug era's outlets, decoys and socket include, kept as scenery
+     until the rover's worlds go (#376 stage C). -->
 <mujocoinclude>
   <worldbody>
 
@@ -99,30 +98,10 @@
          visual outlets below (generated file — see header). -->
     <include file="schuko_sockets.xml"/>
 
-    <!--  Outlets (Schuko, from primitives — same construction as
-          perception/outlet_scene.py outlet_xml(), but DELIBERATELY not
-          identical to the training distribution: plate colors and sizes vary,
-          testing that the detector generalizes rather than memorizes.
-          Geom names keep the outlet_ prefix so ground-truth eval can find
-          them. Visual layer only (contype 0) — the matching COLLISION layer
-          is the invisible surface-mount sockets in schuko_sockets.xml, and
-          the housing box is the visible body of that surface mount.
-
-          Placement: body sits wall_face + 0.004 out (plate back flush with
-          the wall). euler: 0 faces +x, 90 faces +y (matches outlet_scene's
-          wall frames).
-
-          Heights 0.26 / 0.30 / 0.38 m, deliberately spread. Three ceilings
-          bound that range, and the tightest one is not the wall:
-            * German domestic sockets sit ~0.30 m in living areas (the 1.05 m
-              worktop height is a different fixture) -- so this is realistic;
-            * the detector was trained on outlet heights 0.22-0.45 m;
-            * the CAMERA is the real limit. It is fixed at z = 0.18 m with a
-              41 deg vertical FOV, so it sees z <= 0.40 m at the 0.6 m
-              standoff but only z <= 0.31 m at 0.35 m range. Outlet C at
-              0.38 m therefore leaves frame during a close approach -- which
-              is exactly the job of the prismatic lift in milestone 6, and a
-              useful case to have in the world before building it.
+    <!--  Outlets (Schuko, from primitives): the plug era's detector targets,
+          scenery now. Visual layer only (contype 0) — the matching
+          COLLISION layer is the invisible surface-mount sockets in
+          schuko_sockets.xml. Heights 0.26 / 0.30 / 0.38 m.
     -->
 
     <!-- Outlet A: west wall, room 1. Bright white, slightly oversized plate. -->
@@ -185,8 +164,8 @@
             pos="0.0062 0 -0.024" rgba="0.58 0.59 0.61 1" contype="0" conaffinity="0"/>
     </body>
 
-    <!--  Wall decoys: hard negatives, same species as training's.
-          The detector must stay silent on all of these.  -->
+    <!--  Wall decoys: the plug era's hard negatives for its outlet
+          detector, scenery now.  -->
 
     <!-- Light switch: west wall, room 1 (plate + rocker) -->
     <body name="decoy_switch_w" pos="-1.986 3.0 0.34" euler="0 0 0">

@@ -163,8 +163,8 @@ things about it are decisions rather than boilerplate:
 
 - **It is not the dev environment.** The serve path imports mujoco, numpy,
   scipy, pillow, websockets, the apriltag detector and the overseer's client
-  — no torch, no ultralytics, no SB3, which would put a ~3 GB CUDA wheel on a
-  machine with no GPU. The image installs `deploy/requirements-serve.txt`,
+  — not the video encoder or the tag GENERATOR, and never a training stack
+  (#375). The image installs `deploy/requirements-serve.txt`,
   pinned to `uv.lock`, and `tests/test_deploy.py` fails if the pins drift
   from the lock or the mission stack grows an import the image omits — it
   blocks the omitted packages and actually flies the robot, because the

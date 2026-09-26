@@ -252,9 +252,9 @@ way a tool states its tolerance class):
    than dropped (PluggyPlan.md, "The next batch").
 2. **Untagged object on a raised surface.** Within the sensor envelope
    (table height clears both the LIDAR plane and the camera's near blind
-   zone); needs a small detector, on the outlet detector's template — with
-   that project's lesson attached: the val split sharing the training
-   generator scored 0.99 mAP while calling a light switch an outlet, so the
+   zone); needs a small learned detector — with the plug era's lesson
+   attached: its outlet detector scored 0.99 mAP on a val split that shared
+   the training generator while calling a light switch an outlet, so the
    eval that matters is poses the generator never made.
 3. **Untagged object on the floor.** Blocked on real perception work — the
    near-field sensor decision (#34) and a robot-centric height map are what

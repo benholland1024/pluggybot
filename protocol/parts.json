@@ -964,42 +964,27 @@
    },
    "feeds": [
     {
-     "constant": "docking.schuko.PIN_LEN",
-     "where": "code",
-     "value": 0.019,
-     "unit": "m",
-     "note": "",
-     "expect": 0.019
-    },
-    {
-     "constant": "docking.schuko.R_PIN",
-     "where": "code",
+     "constant": "module_plug_pin_l.size[0]",
+     "where": "model",
      "value": 0.0024,
      "unit": "m",
      "note": "half the 4.8 mm pin",
      "expect": 0.0024
     },
     {
-     "constant": "docking.schuko.PIN_SEP",
-     "where": "code",
+     "constant": "module_plug_pin_l.fromto[1]",
+     "where": "model",
      "value": 0.0095,
      "unit": "m",
      "note": "half the 19 mm pin pitch",
      "expect": 0.0095
     },
     {
-     "constant": "docking.schuko.R_BODY",
-     "where": "code",
-     "value": 0.01775,
-     "unit": "m",
-     "note": "⚠ 35.5 mm across, against the real 36.7: 0.15 mm of clearance per side in a 37 mm recess, not 0.75 -- open decision 8"
-    },
-    {
      "constant": "module_plug_barrel.size[0]",
      "where": "model",
      "value": 0.01775,
      "unit": "m",
-     "note": "the module's barrel, the spike's radius"
+     "note": "the module's barrel: ⚠ 35.5 mm across, against the real 36.7"
     }
    ],
    "why": {
