@@ -106,7 +106,9 @@ def _tiny_policy(path, obs=45, hidden=8, act=12, seed=0):
   meta = {"joint_names": ",".join(qm.JOINT_NAMES),
           "default_joint_pos": ",".join(str(q) for q in qm.pose_qpos(
             qm.CHOSEN, qm.CHOSEN.stand_height)),
-          "action_scale": ",".join(["0.3"] * act)}
+          "action_scale": ",".join(["0.3"] * act),
+          "observation_names": "base_ang_vel,projected_gravity,joint_pos,"
+                               "joint_vel,actions,command"}
   training = {"train_dt": 0.005, "decimation": 4, "stiffness": 18.0,
               "damping": 1.2, "env_steps": 0, "envs": 1, "gpu": "-",
               "wall": "-"}

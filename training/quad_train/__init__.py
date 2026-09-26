@@ -5,6 +5,7 @@ from mjlab.tasks.registry import register_mjlab_task
 from mjlab.tasks.velocity.rl import VelocityOnPolicyRunner
 
 from quad_train.getup import getup_env_cfg
+from quad_train.posture import posture_env_cfg
 from quad_train.rl import ppo_runner_cfg
 from quad_train.task import flat_env_cfg, rough_env_cfg
 
@@ -28,6 +29,14 @@ register_mjlab_task(
   task_id="Pluggy-Quad-Getup",
   env_cfg=getup_env_cfg(),
   play_env_cfg=getup_env_cfg(play=True),
+  rl_cfg=ppo_runner_cfg(),
+  runner_cls=VelocityOnPolicyRunner,
+)
+
+register_mjlab_task(
+  task_id="Pluggy-Quad-Posture",
+  env_cfg=posture_env_cfg(),
+  play_env_cfg=posture_env_cfg(play=True),
   rl_cfg=ppo_runner_cfg(),
   runner_cls=VelocityOnPolicyRunner,
 )

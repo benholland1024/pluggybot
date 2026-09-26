@@ -59,6 +59,8 @@ class WalkingPolicy:
     assert tuple(names) == JOINT_NAMES, names
     self.default_q = np.array([float(v) for v in self.meta["default_joint_pos"].split(",")])
     self.action_scale = np.array([float(v) for v in self.meta["action_scale"].split(",")])
+    #: The observation's terms, in order (the exported file's metadata).
+    self.observation_names = tuple(self.meta["observation_names"].split(","))
     self.stiffness = float(self.training["stiffness"])
     self.damping = float(self.training["damping"])
     #: Seconds between two policy steps (the trainer's physics step x its
@@ -79,14 +81,22 @@ class WalkingPolicy:
 
 @dataclass
 class Twist:
-  """The command the policy tracks, in the body's heading frame."""
+  """The command the policy tracks: a velocity in the body's heading frame
+  and, for a posture policy, the torso's height offset from the stand, its
+  pitch and its roll."""
 
   vx: float = 0.0
   vy: float = 0.0
   yaw_rate: float = 0.0
+  height: float = 0.0
+  pitch: float = 0.0
+  roll: float = 0.0
 
   def array(self) -> np.ndarray:
     return np.array([self.vx, self.vy, self.yaw_rate])
+
+  def posture(self) -> np.ndarray:
+    return np.array([self.height, self.pitch, self.roll])
 
 
 class PolicyDriver:
@@ -107,17 +117,21 @@ class PolicyDriver:
     self.steps = 0
 
   def observation(self, twist: Twist) -> np.ndarray:
+    """The policy's input, term by term in the order its file names them
+    (`observation_names`): a walking, a posture and a get-up policy share the
+    terms and differ in which they carry."""
     d = self.d
     rot = d.xmat[self.root].reshape(3, 3)
-    gravity = rot.T @ np.array([0.0, 0.0, -1.0])
-    return np.concatenate([
-      d.sensordata[self.gyro_adr:self.gyro_adr + 3],
-      gravity,
-      d.qpos[self.qadr] - self.policy.default_q,
-      d.qvel[self.vadr],
-      self.last_action,
-      twist.array(),
-    ])
+    terms = {
+      "base_ang_vel": lambda: d.sensordata[self.gyro_adr:self.gyro_adr + 3],
+      "projected_gravity": lambda: rot.T @ np.array([0.0, 0.0, -1.0]),
+      "joint_pos": lambda: d.qpos[self.qadr] - self.policy.default_q,
+      "joint_vel": lambda: d.qvel[self.vadr],
+      "actions": lambda: self.last_action,
+      "command": twist.array,
+      "posture": twist.posture,
+    }
+    return np.concatenate([terms[name]() for name in self.policy.observation_names])
 
   def torque(self, twist: Twist) -> np.ndarray:
     if self.steps % self.every == 0:
