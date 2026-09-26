@@ -751,6 +751,120 @@ def odometry(path=POLICY_NPZ, seeds: int = 5) -> None:
           f"{err / odo.distance * 100:12.1f}% {math.degrees(dyaw):17.2f}")
 
 
+#: A house stair's tread, m (#280 builds the stairs to it).
+TREAD_M = 0.28
+
+
+def staircase_scenery(rise: float, steps: int, edge: float = 0.6) -> str:
+  """`steps` risers of `rise` on a `TREAD_M` tread from x = `edge`, then a
+  landing."""
+  geoms = []
+  for i in range(steps):
+    x0 = edge + i * TREAD_M
+    h = (i + 1) * rise
+    geoms.append(f'\n    <geom name="stair{i}" type="box" size="{TREAD_M / 2} 1.0 {h / 2}" '
+                 f'pos="{x0 + TREAD_M / 2} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
+  x0 = edge + steps * TREAD_M
+  h = steps * rise
+  geoms.append(f'\n    <geom name="landing" type="box" size="1.5 1.0 {h / 2}" '
+               f'pos="{x0 + 1.5} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
+  return "".join(geoms)
+
+
+def _policy_world(path, scenery: str = "", key: int = 0):
+  policy = WalkingPolicy(path)
+  model = mujoco.MjModel.from_xml_string(body_xml(CHOSEN, scenery=scenery))
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, key)
+  mujoco.mj_forward(model, data)
+  drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+  return model, data, drv
+
+
+def climb(path=POLICY_NPZ, risers=(0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20, 0.22),
+          speed: float = 0.4) -> None:
+  """The tallest riser the policy clears BLIND: one step up, a flight of four
+  on a house's tread, and walking off a step down; each flown in our physics
+  from standing 0.6 m short, commanded straight at it."""
+  print(f"{'riser m':>7s} {'one step up':>12s} {'4-step flight up':>17s} "
+        f"{'step down':>10s} {'odometry % (flight)':>20s}")
+  for rise in risers:
+    cells = []
+    # One step up: the landing of a one-riser flight.
+    for steps in (1, 4):
+      model, data, drv = _policy_world(path, staircase_scenery(rise, steps))
+      odo = LegOdometry(model, data)
+      top = steps * rise
+      for _ in range(int((4.0 + 2.5 * steps) / model.opt.timestep)):
+        drv.step(Twist(vx=speed))
+        odo.step()
+        if data.qpos[2] < 0.12:
+          break
+      up = data.qpos[2] > top + 0.8 * CHOSEN.stand_height
+      cells.append("yes" if up else "no")
+      drift = odo.error()[0] / max(odo.distance, 1e-6) * 100
+    # Down: start on a landing, walk off its edge.
+    scenery = (f'\n    <geom name="ledge" type="box" size="1.0 1.0 {rise / 2}" '
+               f'pos="-0.4 0 {rise / 2}" rgba="0.6 0.5 0.4 1"/>')
+    model, data, drv = _policy_world(path, scenery)
+    data.qpos[2] += rise
+    mujoco.mj_forward(model, data)
+    for _ in range(int(6.0 / model.opt.timestep)):
+      drv.step(Twist(vx=speed))
+      if data.qpos[2] < 0.12:
+        break
+    down = data.qpos[0] > 1.2 and abs(data.qpos[2] - CHOSEN.stand_height) < 0.08
+    cells.append("yes" if down else "no")
+    print(f"{rise:7.2f} {cells[0]:>12s} {cells[1]:>17s} {cells[2]:>10s} {drift:19.1f}%")
+
+
+def getup(path, trials: int = 20, seconds: float = 6.0) -> None:
+  """The get-up policy in our physics: dropped from 0.45 m in a random
+  orientation with its joints anywhere in range, and from the belly. Stood
+  means right way up, within 4 cm of the standing height, for half a
+  second."""
+  rng = np.random.default_rng(0)
+  results = []
+  for trial in range(trials + 1):
+    lying = trial == trials
+    model, data, drv = _policy_world(path, key=1 if lying else 0)
+    if not lying:
+      r, p, y = rng.uniform(-math.pi, math.pi), rng.uniform(-math.pi / 2, math.pi / 2), \
+        rng.uniform(-math.pi, math.pi)
+      q = _rpy_quat(r, p, y)
+      data.qpos[:7] = [0, 0, 0.45, *q]
+      lo, hi = model.jnt_range[1:13].T
+      data.qpos[7:19] = rng.uniform(lo * 0.9, hi * 0.9)
+      mujoco.mj_forward(model, data)
+    meter = Meter(CHOSEN, model, data)
+    held, stood_at = 0.0, None
+    while data.time < seconds:
+      meter.step(drv.torque(Twist()))
+      up = -(data.xmat[drv.root].reshape(3, 3).T @ [0, 0, 1])[2] < -0.95
+      high = abs(data.qpos[2] - CHOSEN.stand_height) < 0.04
+      held = held + model.opt.timestep if (up and high) else 0.0
+      if held >= 0.5 and stood_at is None:
+        stood_at = data.time - 0.5
+    results.append(("belly" if lying else f"fall {trial}", stood_at, meter.wh,
+                    meter.peak.reshape(4, 3).max(axis=0)))
+  falls = [r for r in results if r[0] != "belly"]
+  ok = [r for r in falls if r[1] is not None]
+  print(f"from a random fall: stood {len(ok)} of {len(falls)}; median "
+        f"{np.median([r[1] for r in ok]) if ok else float('nan'):.1f} s; "
+        f"peak a/f/k {np.max([r[3] for r in falls], axis=0).round(1)} N*m")
+  belly = results[-1]
+  print("from the belly: " + (f"stood in {belly[1]:.1f} s, {belly[2] * 1000:.0f} mWh"
+                                if belly[1] is not None else "DID NOT STAND")
+        + f"; peak a/f/k {belly[3].round(1)} N*m")
+
+
+def _rpy_quat(r: float, p: float, y: float) -> list[float]:
+  cr, sr, cp, sp = math.cos(r / 2), math.sin(r / 2), math.cos(p / 2), math.sin(p / 2)
+  cy, sy = math.cos(y / 2), math.sin(y / 2)
+  return [cr * cp * cy + sr * sp * sy, sr * cp * cy - cr * sp * sy,
+          cr * sp * cy + sr * cp * sy, cr * cp * sy - sr * sp * cy]
+
+
 def trace_policy(path, every_s: float = 0.2) -> list[str]:
   """The policy's flight hashed: qpos + qvel + ctrl every `every_s` sim s."""
   import hashlib
@@ -893,6 +1007,10 @@ def main(argv=None) -> None:
                   default=None, help="the policy's flight in two processes, "
                                      "hashed: identical or not")
   ap.add_argument("--trace", default=None, help=argparse.SUPPRESS)
+  ap.add_argument("--climb", nargs="?", const=str(POLICY_NPZ), default=None,
+                  help="the tallest riser a policy clears blind, up and down")
+  ap.add_argument("--getup", default=None, metavar="NPZ",
+                  help="a get-up policy from random falls and from the belly")
   ap.add_argument("--odometry", nargs="?", const=str(POLICY_NPZ), default=None,
                   help="legged odometry's drift on the course, the policy walking")
   ap.add_argument("--pupper", action="store_true",
@@ -906,6 +1024,10 @@ def main(argv=None) -> None:
   if args.trace:
     import json
     print(json.dumps(trace_policy(args.trace)))
+  elif args.climb:
+    climb(args.climb)
+  elif args.getup:
+    getup(args.getup)
   elif args.odometry:
     odometry(args.odometry)
   elif args.determinism:
