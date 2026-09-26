@@ -195,9 +195,10 @@
 
   <sensor>
     <framequat name="torso_quat" objtype="site" objname="imu"/>
-    <gyro name="gyro" site="imu"/>
-    <accelerometer name="accel" site="imu"/>
-    <velocimeter name="torso_vel" site="imu"/>
+    <gyro name="imu_ang_vel" site="imu"/>
+    <accelerometer name="imu_lin_acc" site="imu"/>
+    <velocimeter name="imu_lin_vel" site="imu"/>
+    <subtreeangmom name="root_angmom" body="pluggybot"/>
     <touch name="FL_touch" site="FL_foot"/>
     <touch name="FR_touch" site="FR_foot"/>
     <touch name="HL_touch" site="HL_foot"/>

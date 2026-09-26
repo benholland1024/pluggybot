@@ -21,19 +21,28 @@ Usage:
   uv run python scripts/quad_spike.py --view
 """
 
-import argparse
-from dataclasses import dataclass, replace
-import math
-import sys
-import time
+import os
 
-import mujoco
-import numpy as np
+# One BLAS thread before numpy loads: the policy's matrix products are small
+# enough that six threads DOUBLED a step (238 against 119 us, measured under
+# load). Not for determinism: a flight hashes identical at 1 and 6 threads.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
-from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE,
+import argparse  # noqa: E402
+from dataclasses import dataclass, replace  # noqa: E402
+import math  # noqa: E402
+from pathlib import Path  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+
+import mujoco  # noqa: E402
+import numpy as np  # noqa: E402
+
+from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
+from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE,  # noqa: E402
                                   BodySpec, body_xml, lie_qpos, pose_qpos)
-from pluggybot.legs.scripted import Command, VirtualModel, _quat_rpy
+from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
+from pluggybot.legs.scripted import Command, VirtualModel, _quat_rpy  # noqa: E402
 
 #: The climbs: a curb and a house stair's riser (#280's world builds both).
 CURB_M, RISER_M = 0.12, 0.18
@@ -586,6 +595,124 @@ def filmstrip(out: str, spec: BodySpec = CHOSEN) -> None:
   print(f"wrote {out}")
 
 
+#: The policy's flight: (seconds, command), flown in the served sim's
+#: physics (2 ms steps), not the trainer's.
+POLICY_SCHEDULE = [
+  (2.0, Twist()),
+  (4.0, Twist(vx=0.5)),
+  (4.0, Twist(vx=1.0)),
+  (3.0, Twist(yaw_rate=0.8)),
+  (3.0, Twist(vy=0.3)),
+  (2.0, Twist()),
+]
+
+
+def trace_policy(path, every_s: float = 0.2) -> list[str]:
+  """The policy's flight hashed: qpos + qvel + ctrl every `every_s` sim s."""
+  import hashlib
+  policy = WalkingPolicy(path)
+  model = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+  every = round(every_s / model.opt.timestep)
+  hashes = []
+  for seconds, twist in POLICY_SCHEDULE:
+    t0 = data.time
+    while data.time - t0 < seconds:
+      drv.step(twist)
+      if drv.steps % every == 0:
+        h = hashlib.sha256()
+        for arr in (data.qpos, data.qvel, data.ctrl):
+          h.update(arr.tobytes())
+        hashes.append(h.hexdigest()[:16])
+  return hashes
+
+
+def determinism(path) -> bool:
+  """The same flight in two fresh processes, BLAS pinned: identical?"""
+  import json
+  import subprocess
+  runs = []
+  for _ in range(2):
+    out = subprocess.run(
+      [sys.executable, __file__, "--trace", str(path)], capture_output=True,
+      text=True, check=True, env={**os.environ, "OPENBLAS_NUM_THREADS": "1"})
+    runs.append(json.loads(out.stdout.strip().splitlines()[-1]))
+  a, b = runs
+  first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), None)
+  same = first is None and len(a) == len(b)
+  print(f"{len(a)} samples over {sum(s for s, _ in POLICY_SCHEDULE):.0f} sim s: "
+        + ("IDENTICAL" if same else f"first differs at sample {first}"))
+  return same
+
+
+def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
+  """The trained policy in OUR sim: each segment's tracking, the falls, the
+  torques and what a policy step costs. Returns the rows."""
+  policy = WalkingPolicy(path)
+  model = mujoco.MjModel.from_xml_string(body_xml(spec))
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  drv = PolicyDriver(model, data, policy, JointLimits.of(spec.motor, spec.knee_ratio, BUS_V))
+  viewer = None
+  if view:
+    from mujoco import viewer as mj_viewer
+    viewer = mj_viewer.launch_passive(model, data)
+    viewer.cam.distance, viewer.cam.elevation = 1.8, -18
+    viewer.cam.trackbodyid = drv.root
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+  rows, fell, wall0 = [], False, time.time()
+  act_s, n_act = 0.0, 0
+  for seconds, twist in POLICY_SCHEDULE:
+    t0, vel, yaw_rate, taus = data.time, [], [], []
+    while data.time - t0 < seconds and not fell:
+      decide = drv.steps % drv.every == 0
+      t = time.perf_counter()
+      data.ctrl[:12] = drv.torque(twist)
+      if decide:
+        act_s += time.perf_counter() - t
+        n_act += 1
+      mujoco.mj_step(model, data)
+      if data.time - t0 > 1.0:  # settled into the new command
+        rot = data.xmat[drv.root].reshape(3, 3)
+        vel.append(rot.T @ data.qvel[0:3])
+        yaw_rate.append(data.qvel[5])
+        taus.append(data.ctrl[:12].copy())
+      if viewer is not None and drv.steps % 10 == 0:
+        if not viewer.is_running():
+          return rows
+        viewer.sync()
+        ahead = data.time - (time.time() - wall0)
+        if ahead > 0:
+          time.sleep(ahead)
+      roll, pitch, _ = _quat_rpy(data.qpos[3:7])
+      fell = data.qpos[2] < 0.15 or abs(roll) > 1.0 or abs(pitch) > 1.0
+    v = np.mean(vel, axis=0) if vel else np.full(3, np.nan)
+    tau = np.abs(np.array(taus)) if taus else np.full((1, 12), np.nan)
+    rows.append({"command": twist, "vx": v[0], "vy": v[1],
+                 "yaw_rate": float(np.mean(yaw_rate)) if yaw_rate else np.nan,
+                 "peak": _by_joint(tau, lambda a: float(np.percentile(a, PEAK_PCT))),
+                 "fell": fell})
+  if viewer is not None:
+    viewer.close()
+  print(f"policy {Path(path).name} sha256 {policy.sha256[:12]}: trained "
+        f"{policy.training['env_steps'] / 1e6:.0f} M steps on {policy.training['envs']} "
+        f"envs, {policy.training['gpu']}, {policy.training['wall']}")
+  print(f"one policy step: {act_s / max(n_act, 1) * 1e6:.0f} us "
+        f"(every {drv.every} physics steps)")
+  print(f"{'command vx/vy/yaw':>18s} {'got vx/vy/yaw':>18s} {'p99.5 tau a/f/k':>16s}")
+  for r in rows:
+    c = r["command"]
+    print(f"{c.vx:5.2f}/{c.vy:5.2f}/{c.yaw_rate:5.2f} "
+          f"{r['vx']:6.2f}/{r['vy']:5.2f}/{r['yaw_rate']:5.2f} "
+          f"{'/'.join(f'{x:4.1f}' for x in r['peak']):>16s}"
+          + ("  FELL" if r["fell"] else ""))
+  return rows
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--view", action="store_true")
@@ -593,6 +720,13 @@ def main(argv=None) -> None:
   ap.add_argument("--sweep", action="store_true")
   ap.add_argument("--energy", action="store_true")
   ap.add_argument("--thermal", action="store_true")
+  ap.add_argument("--policy", nargs="?", const=str(POLICY_NPZ), default=None,
+                  help="fly the exported walking policy (default: the committed "
+                       "one) in the served sim's physics; with --view, watch it")
+  ap.add_argument("--determinism", nargs="?", const=str(POLICY_NPZ),
+                  default=None, help="the policy's flight in two processes, "
+                                     "hashed: identical or not")
+  ap.add_argument("--trace", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--pupper", action="store_true",
                   help="the Pupper-class body, as built and with the suite")
   ap.add_argument("--bus", type=float, default=BUS_V_NOMINAL,
@@ -601,7 +735,14 @@ def main(argv=None) -> None:
   args = ap.parse_args(argv)
   global BUS_V
   BUS_V = args.bus
-  if args.view:
+  if args.trace:
+    import json
+    print(json.dumps(trace_policy(args.trace)))
+  elif args.determinism:
+    sys.exit(0 if determinism(args.determinism) else 1)
+  elif args.policy:
+    fly_policy(args.policy, view=args.view)
+  elif args.view:
     view(PUPPER_WITH_SUITE if args.pupper else CHOSEN)
   elif args.torque and args.pupper:
     print_torque_table(PUPPER_CLASS)

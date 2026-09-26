@@ -93,3 +93,89 @@ def test_the_scripted_gait_trots_forward_without_falling():
     mujoco.mj_step(model, data)
   assert data.qpos[0] > 0.6
   assert abs(data.qpos[2] - qm.CHOSEN.stand_height) < 0.03
+
+
+# The walking policy as numpy (#377 item 4): the arithmetic, the observation
+# mjlab trained on, and what the served process may not import.
+
+def _tiny_policy(path, obs=45, hidden=8, act=12, seed=0):
+  """A two-layer policy in the export's format, small enough to check by
+  hand."""
+  import json
+  rng = np.random.default_rng(seed)
+  meta = {"joint_names": ",".join(qm.JOINT_NAMES),
+          "default_joint_pos": ",".join(str(q) for q in qm.pose_qpos(
+            qm.CHOSEN, qm.CHOSEN.stand_height)),
+          "action_scale": ",".join(["0.3"] * act)}
+  training = {"train_dt": 0.005, "decimation": 4, "stiffness": 18.0,
+              "damping": 1.2, "env_steps": 0, "envs": 1, "gpu": "-",
+              "wall": "-"}
+  arrays = {"obs_mean": rng.normal(size=obs).astype(np.float32),
+            "obs_div": (1 + rng.random(obs)).astype(np.float32),
+            "w0": rng.normal(size=(obs, hidden)).astype(np.float32),
+            "b0": rng.normal(size=hidden).astype(np.float32),
+            "w1": rng.normal(size=(hidden, act)).astype(np.float32),
+            "b1": rng.normal(size=act).astype(np.float32),
+            "layers": np.array(2), "meta": np.array(json.dumps(meta)),
+            "training": np.array(json.dumps(training))}
+  np.savez(path, **arrays)
+  return arrays
+
+
+def test_the_policy_is_a_normaliser_and_an_elu_mlp(tmp_path):
+  from pluggybot.legs.policy import WalkingPolicy
+  a = _tiny_policy(tmp_path / "p.npz")
+  policy = WalkingPolicy(tmp_path / "p.npz")
+  obs = np.linspace(-2, 2, 45)
+  x = (obs - a["obs_mean"].astype(float)) / a["obs_div"].astype(float)
+  h = x @ a["w0"].astype(float) + a["b0"]
+  h = np.where(h > 0, h, np.exp(h) - 1)
+  want = h @ a["w1"].astype(float) + a["b1"]
+  assert np.allclose(policy.act(obs), want, atol=1e-9)
+  assert policy.period == 0.02
+
+
+def test_the_observation_is_the_one_mjlab_trained_on(tmp_path):
+  # base_ang_vel, projected_gravity, joint_pos - default, joint_vel,
+  # last action, command: the order the ONNX metadata names.
+  from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy
+  _tiny_policy(tmp_path / "p.npz")
+  model, data = _compiled()
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"),
+                     JointLimits.of(qm.CHOSEN.motor))
+  obs = drv.observation(Twist(0.4, -0.1, 0.3))
+  assert obs.shape == (45,)
+  assert np.allclose(obs[3:6], [0, 0, -1])        # standing level
+  assert np.allclose(obs[6:18], 0, atol=1e-5)     # the keyframe, to 6 digits
+  assert np.allclose(obs[42:45], [0.4, -0.1, 0.3])
+
+
+def test_the_policy_decides_every_tenth_step_and_the_pd_runs_every_step(tmp_path):
+  from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy
+  _tiny_policy(tmp_path / "p.npz")
+  model, data = _compiled()
+  policy = WalkingPolicy(tmp_path / "p.npz")
+  calls = []
+  act = policy.act
+  policy.act = lambda obs: calls.append(1) or act(obs)
+  drv = PolicyDriver(model, data, policy, JointLimits.of(qm.CHOSEN.motor))
+  assert drv.every == 10                           # 50 Hz on 2 ms steps
+  torques = []
+  for _ in range(25):
+    torques.append(drv.torque(Twist()))
+    mujoco.mj_step(model, data)
+  assert len(calls) == 3                           # steps 0, 10, 20
+  assert not np.allclose(torques[1], torques[2])   # the PD tracks the body
+
+
+def test_running_the_policy_imports_no_training_stack():
+  # The serving image installs deploy/requirements-serve.txt and nothing
+  # else; a policy that needed torch or onnx to run would crash there.
+  import subprocess
+  import sys
+  code = ("import sys, pluggybot.legs.policy, pluggybot.legs.model; "
+          "bad = [m for m in ('torch', 'jax', 'warp', 'onnx', 'mjlab') "
+          "if m in sys.modules]; print(bad); sys.exit(1 if bad else 0)")
+  out = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                       text=True)
+  assert out.returncode == 0, out.stdout

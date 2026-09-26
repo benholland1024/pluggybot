@@ -1,0 +1,82 @@
+{
+ "root": "pluggybot",
+ "joints": [
+  "FL_hip_abd",
+  "FL_hip_flex",
+  "FL_knee",
+  "FR_hip_abd",
+  "FR_hip_flex",
+  "FR_knee",
+  "HL_hip_abd",
+  "HL_hip_flex",
+  "HL_knee",
+  "HR_hip_abd",
+  "HR_hip_flex",
+  "HR_knee"
+ ],
+ "legs": [
+  "FL",
+  "FR",
+  "HL",
+  "HR"
+ ],
+ "stand_height": 0.3244,
+ "stand_qpos": [
+  0.0,
+  0.766994,
+  -1.533988,
+  0.0,
+  0.766994,
+  -1.533988,
+  0.0,
+  0.766994,
+  -1.533988,
+  0.0,
+  0.766994,
+  -1.533988
+ ],
+ "lie_qpos": [
+  0.0,
+  1.164469,
+  -2.735266,
+  0.0,
+  1.164469,
+  -2.735266,
+  0.0,
+  1.164469,
+  -2.735266,
+  0.0,
+  1.164469,
+  -2.735266
+ ],
+ "belly_depth": 0.105,
+ "mass": 9.342,
+ "knee_ratio": 1.0,
+ "motor": {
+  "name": "Steadywin GIM8108-8 + GDS68",
+  "peak_torque": 22.0,
+  "rated_torque": 6.71,
+  "saturation_torque": 45.72,
+  "noload_speed": 28.26,
+  "bus_v": 43.2,
+  "armature": 0.004608,
+  "armature_range": [
+   0.002624,
+   0.00704
+  ]
+ },
+ "friction_nominal": 0.1,
+ "friction_range": [
+  0.05,
+  0.6
+ ],
+ "latency_s": [
+  0.0,
+  0.02
+ ],
+ "bus_v_range": [
+  36.0,
+  50.4
+ ],
+ "backlash_rad": 0.0044
+}
