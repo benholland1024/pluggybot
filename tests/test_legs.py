@@ -252,3 +252,36 @@ def test_the_height_scan_is_mjlabs_grid_turned_with_the_heading(tmp_path):
 def Twist_():
   from pluggybot.legs.policy import Twist
   return Twist()
+
+
+def test_the_scripted_gait_turns_on_the_spot_through_180_degrees():
+  # Its attitude loop once ran about the WORLD's axes: roll and pitch are
+  # the heading's, the correction reversed past 90 deg of heading, and a
+  # turn on the spot flipped the body at 140 deg.
+  model, data = _compiled()
+  vm = VirtualModel(model, data, qm.CHOSEN)
+  lim = JointLimits.of(qm.CHOSEN.motor)
+  lowest = 1.0
+  for _ in range(int(4.5 / model.opt.timestep)):
+    cmd = Command(gait="trot", yaw_rate=0.8 * min(data.time / 0.5, 1.0), period=0.35)
+    data.ctrl[:] = lim.clip(vm.torque(cmd), data.qvel[vm.vadr])
+    mujoco.mj_step(model, data)
+    lowest = min(lowest, data.qpos[2])
+  w, x, y, z = data.qpos[3:7]
+  yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+  assert abs(yaw) > math.radians(150)          # past the old flip, round to -
+  assert lowest > qm.CHOSEN.stand_height - 0.03
+
+
+def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
+  # A folded leg holds the hips 0.10 m up, so the belly pack hangs below
+  # that: lying down, the legs carry nothing (SimNotes, "The belly").
+  model, data = _compiled()
+  mujoco.mj_resetDataKeyframe(model, data, 1)
+  for _ in range(int(1.0 / model.opt.timestep)):
+    data.ctrl[:] = 0.0
+    mujoco.mj_step(model, data)
+  belly = model.geom("belly").id
+  touching = {int(g) for pair in data.contact.geom[:data.ncon] for g in pair}
+  assert belly in touching
+  assert abs(data.qpos[2] - qm.CHOSEN.belly_depth) < 0.005
