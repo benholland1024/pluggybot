@@ -45,7 +45,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from pluggybot.mission.mission import MissionAborted
+from pluggybot.tick import MissionAborted
 
 #: Bumped when a field changes meaning; an older file loads, a newer one
 #: refuses (the task board's rule, for the same volume).
@@ -382,7 +382,7 @@ class Keeper:
     self._next: float | None = None
     for life in self.lives:
       life.continuing = True
-    self.lives[-1].mission.step_hooks.append(self.step_hook)
+    self.lives[-1].body.step_hooks.append(self.step_hook)
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the

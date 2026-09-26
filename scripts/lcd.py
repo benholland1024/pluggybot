@@ -64,7 +64,7 @@ def run(errand: str, view: bool, realtime: bool, world: str,
                       errands=errands_for(errand, world, book))
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
 
   # The timeline IS the deliverable: every state the screen took, with the
   # sim time it took it at. Recorded off the same `on_change` hook telemetry

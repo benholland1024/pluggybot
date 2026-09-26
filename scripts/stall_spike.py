@@ -33,8 +33,7 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.home import world as home
-from pluggybot.lifecycle import CHARGE_PRESS
-from pluggybot.mission.mission import HubMission
+from pluggybot.mission.mission import CHARGE_PRESS, HubMission
 from pluggybot.rack.localize import RackPose
 from pluggybot.rack.swap import APPROACH_V, HubSwap
 

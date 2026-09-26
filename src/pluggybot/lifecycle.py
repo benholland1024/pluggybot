@@ -39,18 +39,15 @@ from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
-  bay_switches, built_bay_index, is_built_bay, module_power_contact,
-  rack_charge_contact,
+  bay_switches, built_bay_index, is_built_bay,
 )
 from pluggybot.economy.census import Zone
 from pluggybot.mission.errand import (
   programmed_errand,
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
-from pluggybot.mission.mission import (
-  MAP_TILT_RAD, MissionAborted, HubMission, KeepClear, RackPose, bay_standoff,
-  charge_standoff, charge_trace, gave_up, swap_trace,
-)
+from pluggybot.body import Body, KeepClear, body_for
+from pluggybot.rack.localize import RackPose
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
@@ -71,19 +68,17 @@ from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtR
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
-from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
-from pluggybot.power import (DEPTH_CAMERA_W, MODULE_IDLE_W, Battery,
-                             charge_scale_from_env)
+from pluggybot.power import DEPTH_CAMERA_W, MODULE_IDLE_W, charge_scale_from_env
 from pluggybot.telemetry.protocol import (
-  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, ROBOT_ROOT, robot_display_name,
+  DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
   robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
 from pluggybot.procedure.steps import Program, compile_program
 from pluggybot.robot import FIRST, RobotHandle
-from pluggybot.tick import Routine
+from pluggybot.tick import MissionAborted, Routine
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL", "LOOK",
                 "SWAP_PICK", "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
@@ -264,11 +259,6 @@ DEMO_CAPACITY_WH = 1.0      # scaled demo cell: honest power draw, capacity
 #: reserve does NOT scale alongside it.
 HOSTING_CAPACITY_WH = 6.0
 
-CHARGE_CREEP = 0.04         # m/s nosing into the pins
-CHARGE_PRESS = 0.012        # m/s held press while charging: the milestone-7
-                            # lesson -- contacts need sustained press, or the
-                            # suspension relaxes and the circuit opens
-CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
 #: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
@@ -288,7 +278,6 @@ CHARGE_TIMEOUT_MIN = 400.0
 CHARGE_TIMEOUT_SLACK = 1.4
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
-UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
 #: `explore` decision eats the whole mission, and the point of an overseer is
@@ -434,7 +423,7 @@ LOCALS_SHOWN = 12
 #: What History's own "[t=NNNNs] " stamp takes of a line's `MAX_LINE_CHARS`.
 HISTORY_STAMP_ROOM = 16
 #: What a bay approach that came away empty-handed DID, in the words the
-#: robot reads back (issue #264): `HubMission.swap_at_bay_routine` answers
+#: robot reads back (issue #264): `Body.fetch_tool_routine` answers
 #: one of these and every caller used to throw it away, so History said "the
 #: pick missed" for a robot that never reached the rack (`no-route` has its
 #: own sentence in `pick_failure`). A key missing here is the bare miss.
@@ -555,7 +544,8 @@ class HubLifecycle:
                autonomous: bool = False,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
-               spec=None, near_field: bool = False) -> None:
+               spec=None, near_field: bool = False,
+               body: Body | None = None) -> None:
     self.model, self.data = model, data
     #: THE SPEC THE WORLD WAS COMPILED FROM (issue #168 slice C), kept so a
     #: tool can be hung mid-run: `hang_tool` edits it and recompiles. None
@@ -715,7 +705,7 @@ class HubLifecycle:
     self._expects_work: bool | None = None
     self._cleared_rack = False
     # RACK CONTENTION (issue #346): a taken bay is waited for -- the swap
-    # asks through `mission.bay_wait` -- and the waits and the last one's
+    # asks through `Body.bay_wait` -- and the waits and the last one's
     # outcome are counted; a robot left standing at the rack is logged.
     self.bay_waits = 0
     self.last_bay_wait: dict | None = None
@@ -751,15 +741,18 @@ class HubLifecycle:
     self._face_state: str | None = None
     self._face_shown: tuple[str, str] | None = None
     self._next_screen_sense = 0.0
-    # WHICH ROBOT this life is (issue #167): the mission, the swap, the
-    # lidar, the cameras and the battery all resolve their elements through
-    # it. `FIRST` is the bare names, so a single-robot world is unchanged.
-    self.mission = HubMission(model, data, viewer=viewer, realtime=realtime,
-                              rack=rack, grid_bounds=grid_bounds, handle=handle)
-    self.battery = Battery(model, capacity_wh=battery_wh,
-                           charge_scale=(charge_scale if charge_scale is not None
-                                         else charge_scale_from_env()),
-                           prefix=handle.prefix)
+    # THE BODY this life lives in (issue #380, `body.py`): everything the
+    # loop asks of the machine -- going, docking, a tool, a sense -- goes
+    # through it. Built for WHICH ROBOT this is (issue #167; `FIRST` is the
+    # bare names, so a single-robot world is unchanged) unless one is
+    # handed in: a test's `StubBody`.
+    self.body = body if body is not None else body_for(
+      model, data, handle=handle, viewer=viewer, realtime=realtime,
+      rack=rack, grid_bounds=grid_bounds)
+    handle = self.body.handle
+    self.battery = self.body.pack(
+      battery_wh, (charge_scale if charge_scale is not None
+                   else charge_scale_from_env()))
     # What an errand COSTS here, measured (issue #15). Read per world from
     # economy/energy.json, `$PLUGGY_ENERGY` to re-point -- and always present,
     # unlike the ledger or the task board: "can I finish this before the pack
@@ -783,30 +776,30 @@ class HubLifecycle:
     #: the robot sprints to "catch up" in front of whoever is watching.
     self.resume_hooks: list = []
     self.paused_s = 0.0
-    self.mission.step_hooks.append(self._power_step)
+    self.body.step_hooks.append(self._power_step)
     # The world's own clock (issue #23): offers appear and lapse on the same
     # per-step seam the battery drains through, so a job put up while the
     # robot is halfway through an errand is put up THEN and not on whichever
     # arbitration pass happens next. See `_task_step`.
-    self.mission.step_hooks.append(self._task_step)
+    self.body.step_hooks.append(self._task_step)
     # ...and the robot's own clock (issue #36), on the same seam and for a
     # closer version of the same reason: an appetite ticked on the
     # arbitration loop would not charge the robot for the twenty minutes it
     # spent inside one errand, which is most of its day.
-    self.mission.step_hooks.append(self._metabolism_step)
+    self.body.step_hooks.append(self._metabolism_step)
     # ...and the operator's switch, on the same seam and for a sharper
     # version of the same reason: `paused` means the physics stops NOW.
-    self.mission.step_hooks.append(self._mode_step)
+    self.body.step_hooks.append(self._mode_step)
     # ...and the AGENT'S OWN MAP (issue #127), on the same seam and for
     # `_task_step`'s reason exactly: a battery threshold crossed halfway
     # through a drawing is crossed THEN, not on whichever arbitration pass
     # happens next. ⚠ THIS IS NOT A REWRITE OF THE ARBITRATION LOOP: the
     # seam only QUEUES an action, and the loop runs it on its next pass
     # through the one branch the overseer already owned.
-    self.mission.step_hooks.append(self._events_step)
-    self.mission.step_hooks.append(self._rack_linger_step)
-    self.mission.step_hooks.append(self._lost_tool_step)
-    self.mission.bay_wait = self._await_bay_routine
+    self.body.step_hooks.append(self._events_step)
+    self.body.step_hooks.append(self._rack_linger_step)
+    self.body.step_hooks.append(self._lost_tool_step)
+    self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
     #: on this same seam, because the map is a running belief like the
@@ -816,12 +809,12 @@ class HubLifecycle:
     #: 10 Hz; `serve.py` turns it on (the observatory is where it is read)
     #: and nothing that DECIDES reads it yet -- it is built and streamed
     #: so a day of it can be looked at before anything depends on it.
-    self.depth_camera = DepthCamera(model, handle=handle) if near_field else None
+    self.depth_camera = self.body.depth_camera() if near_field else None
     self.near_field = HeightMap() if near_field else None
     self.near_field_frames = 0
     self._next_near_field = 0.0
     if near_field:
-      self.mission.step_hooks.append(self._near_field_step)
+      self.body.step_hooks.append(self._near_field_step)
     #: THE SLOT. One action, because a map that fires faster than the loop
     #: can run things is exactly what "an action is allowed to fail" is
     #: about: a row that finds this full fails `busy`, which is the only
@@ -1098,10 +1091,8 @@ class HubLifecycle:
     is gated on contact and not on position.
     """
     dt = self.model.opt.timestep
-    prefix = self.mission.handle.prefix
-    self.charging_now = rack_charge_contact(self.model, self.data, prefix)
-    self.tool_powered = module_power_contact(self.model, self.data, self.module,
-                                            prefix)
+    self.charging_now = self.body.charging()
+    self.tool_powered = self.body.tool_powered(self.module)
     if self.tool_powered:
       self.tool_powered_s += dt
     # The depth camera streams whenever the map is built (issue #34): a
@@ -1128,8 +1119,8 @@ class HubLifecycle:
       return
     self._next_near_field = float(self.data.time) + nf.PERIOD
     frame = self.depth_camera.frame(self.data)
-    if self.mission.level():      # the grid's rule (issue #339): level, or no map
-      self.near_field.update(self.mission.pose, frame.points)
+    if self.body.level():      # the grid's rule (issue #339): level, or no map
+      self.near_field.update(self.body.pose, frame.points)
       self.near_field_frames += 1           # frames FOLDED IN, as the summary says
     # ...and the peers that same frame saw, which the map is not told about
     # and the drive is (issue #328). One frame, two consumers, the split
@@ -1141,10 +1132,10 @@ class HubLifecycle:
     # the drive times out. The planner routes round that body instead
     # (`keep_clear`), and the LIDAR's front stop and the bumper still see it.
     peers = frame.peers
-    down = [p.mission.body_gids for p in self.peers if p.down()]
+    down = [p.body.geom_ids for p in self.peers if p.down()]
     if down and len(peers):
       peers = peers[~np.isin(frame.peer_geoms, np.concatenate(down))]
-    self.mission.watch_for_peers(peers)
+    self.body.watch_for_peers(peers)
 
   # ---- death (issue #107) --------------------------------------------------
 
@@ -1213,8 +1204,7 @@ class HubLifecycle:
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and the world's."""
-    q = self.mission.swap.root_qadr
-    w, x, y, z = self.data.qpos[q + 3:q + 7]
+    w, x, y, z = self.body.orientation()
     up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
     return math.acos(max(-1.0, min(1.0, up_z)))
 
@@ -1225,11 +1215,11 @@ class HubLifecycle:
     nothing dies as much as on one where it can."""
     return self._chassis_tilt() >= TOPPLE_TILT_RAD
 
-  def keep_clear(self, seen_by: HubMission | None = None) -> tuple:
-    """Where the OTHER robots keep clear of this one (`HubMission.others`):
-    its reported pose, or -- lying down -- a `KeepClear` round the middle of
-    its body, placed where `seen_by`'s own sensors would put it
-    (`HubMission.as_seen`).
+  def keep_clear(self, seen_by: Body | None = None) -> tuple:
+    """Where the OTHER robots keep clear of this one (`Body.others`): its
+    reported pose, or -- lying down -- a `KeepClear` round the middle of its
+    body, placed where `seen_by`'s own sensors would put it
+    (`Body.as_seen`).
 
     ⚠ A ROBOT ON THE FLOOR IS AVOIDED WHERE IT LIES, NOT WHERE IT SAYS IT IS
     (issue #365; SimNotes, "A robot lying down was avoided where it said it
@@ -1242,8 +1232,8 @@ class HubLifecycle:
     in a depth image would be. Standing up (`start_at`, a warp that resets
     the reckoner) hands it back to the reported pose."""
     if not self.down():
-      return self.mission.pose_xy()
-    x, y = self.mission.footprint_centre()
+      return self.body.pose_xy()
+    x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
     return KeepClear(x, y, down=True)
@@ -1254,14 +1244,13 @@ class HubLifecycle:
     its right, 180 back). The robot's frame, because that is what
     classifies a fall: onto the fork, back over the caster, over a wheel.
 
-    ⚠ NO DIRECTION WHILE LEVEL (the map's own rule, `MAP_TILT_RAD`):
+    ⚠ NO DIRECTION WHILE LEVEL (the map's own rule, `Body.level_tilt_rad`):
     MEASURED, a healthy robot reads 0.02 deg standing and at most 0.25
     driving, and the direction of that is noise -- a flat death read it as
     "back", which a count of falls by direction would have counted."""
-    q = self.mission.swap.root_qadr
-    w, x, y, z = (float(v) for v in self.data.qpos[q + 3:q + 7])
+    w, x, y, z = (float(v) for v in self.body.orientation())
     tilt = self._chassis_tilt()
-    if tilt < MAP_TILT_RAD:
+    if tilt < self.body.level_tilt_rad:
       return math.degrees(tilt), None
     # the world's up axis in the chassis frame is R's third ROW; the top
     # leans away from it
@@ -1287,8 +1276,8 @@ class HubLifecycle:
 
   def _read_moment(self) -> dict:
     from pluggybot.procedure.axes import setpoints
-    tx, ty, tyaw = self.mission.true_pose()
-    bx, by, byaw = self.mission.pose
+    tx, ty, tyaw = self.body.true_pose()
+    bx, by, byaw = self.body.pose
     tilt, toward = self._lean()
     carried = carrying(self) or None
     errand = self._errand_now
@@ -1308,14 +1297,12 @@ class HubLifecycle:
       "errand": None if errand is None else
         {"name": errand.name, "task": errand.task_id, "module": errand.module},
       "step": None if self.step_now is None else dict(self.step_now),
-      "swapping": self._bay_name(self.mission.swapping_at),
+      "swapping": self._bay_name(self.body.swapping_at),
     }
     if self.peers:
-      q = self.mission.swap.root_qadr
-      me = self.data.qpos[q:q + 2]
+      me = self.body.root_xy()
       def apart(o) -> float:
-        oq = o.mission.swap.root_qadr
-        return float(math.hypot(*(o.data.qpos[oq:oq + 2] - me)))
+        return float(math.hypot(*(o.body.root_xy() - me)))
       near = min(self.peers, key=apart)
       # ...and whether it is DEAD, which its state alone does not say: a
       # robot knocked over mid-errand keeps the errand's state until that
@@ -1511,7 +1498,7 @@ class HubLifecycle:
     prior and the built-tool rail's centre beside it (issue #277) -- the
     rail's far bay standoff is 1.8 m from the prior, inside the clearance
     only just, and its approach lane not at all."""
-    r = self.mission.rack_prior
+    r = self.body.rack_prior
     d = math.hypot(px - r.x, py - r.y)
     if self.has_built_rack:
       bx, by = r.to_world(0.0, BUILT_RACK_Y)
@@ -1522,17 +1509,17 @@ class HubLifecycle:
     """Whose robot stood on the standoff this swap needed, and how far off
     (issue #313) -- or None where the bay was not given up for one.
 
-    The RULE has one home, `HubMission.peer_on_the_goal`: this asks only
+    The RULE has one home, `Body.peer_on_the_goal`: this asks only
     whether the last attempt refused for that reason, and puts a name to
     it. `RACK_CLEAR_M` is the other half of the same problem and does not
     cover this one: it moves a robot that is STANDING BY, and the robot
     in the way here is charging or swapping, which is minutes at a time on
     the one bay of each that the pair shares.
     """
-    near = self.mission.peer_at_bay_m
+    near = self.body.peer_at_bay_m
     if near is None:
       return None
-    sx, sy, _ = bay_standoff(station_y, self.mission.rack)
+    sx, sy, _ = self.body.bay_standoff(station_y)
     return self._nearest_peer(sx, sy, near)
 
   def pick_failure(self, tool: str, station_y: float, why: str = "") -> str:
@@ -1542,7 +1529,7 @@ class HubLifecycle:
     (carrying is the others' PUBLIC surface), whoever stood in the way,
     then the bay itself -- a miss the robot can retry, told apart from an
     approach that never got there, and from a tool that is nowhere."""
-    if self.mission.swap.module_state(tool)["on_fork"]:
+    if self.body.module_state(tool)["on_fork"]:
       # ...its OWN fork first: half-seated, it fell through to "not on its
       # bay, and no robot is carrying it" while it rode this very fork
       return (f"{tool} came onto the fork but did not seat (no power "
@@ -1553,7 +1540,7 @@ class HubLifecycle:
     blocked = self.peer_at_the_bay(station_y)
     if blocked is not None:
       return self.held_for(blocked)
-    if self.mission.swap.module_state(tool)["hung"]:
+    if self.body.module_state(tool)["hung"]:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
                 "so no pick was tried; it is still hanging there")
@@ -1589,16 +1576,16 @@ class HubLifecycle:
     """The same question asked of a POINT, for the approach that keeps no
     verdict of its own (`go_charge_routine`). Asked as the narration is
     written, which is the same sim instant the drive gave up in."""
-    near = self.mission.peer_on_the_goal(wx, wy)
+    near = self.body.peer_on_the_goal(wx, wy)
     return None if near is None else self._nearest_peer(wx, wy, near)
 
   def drive_why(self, wx: float, wy: float) -> str:
     """Why the drive to (wx, wy) gave up, as the one clause every failure
     line that follows a drive ends with (issue #350): `gave_up` off the
-    mission's record, with the other robot NAMED. Only a record of a drive
+    body's record, with the other robot NAMED. Only a record of a drive
     to THIS goal is read -- any other is stale, and a stale cause names the
     wrong failure."""
-    rec = self.mission.last_drive
+    rec = self.body.last_drive
     if (rec is None or not rec["why"]
         or math.hypot(rec["goal"][0] - wx, rec["goal"][1] - wy) > 1e-6):
       return "the drive gave up"
@@ -1606,7 +1593,7 @@ class HubLifecycle:
     if rec["why"] == "peer" and self.peers and rec.get("peerXY"):
       # whose: the peer nearest the body the drive recorded
       who = self._nearest_peer(*rec["peerXY"], 0.0)[0]
-    return gave_up(rec, who)
+    return self.body.gave_up(rec, who)
 
   def _nearest_peer(self, wx: float, wy: float,
                     near: float) -> tuple[str, float] | None:
@@ -1616,8 +1603,8 @@ class HubLifecycle:
     if not self.peers:
       return None
     who = min(self.peers,
-              key=lambda o: math.hypot(o.mission.pose_xy()[0] - wx,
-                                       o.mission.pose_xy()[1] - wy))
+              key=lambda o: math.hypot(o.body.pose_xy()[0] - wx,
+                                       o.body.pose_xy()[1] - wy))
     return (who.robot_name or who.root), near
 
   def _clear_rack_routine(self) -> Routine:
@@ -1634,24 +1621,24 @@ class HubLifecycle:
     What counts is being OUT OF REACH, not reaching a point: a drive that
     stagnated 0.3 m short but outside the radius has done the job.
     """
-    px, py, _ = self.mission.pose
+    px, py, _ = self.body.pose
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return True
     hx, hy = self.home_pose[0], self.home_pose[1]
     self._say(f"standing by: clearing the rack for the others -- back to "
               f"({hx:.1f}, {hy:.1f})")
-    yield from self.mission.drive_to_routine(hx, hy)
+    yield from self.body.go_to_routine(hx, hy)
     tried = [(hx, hy)]
     for spot in self._clear_spots()[:CLEAR_SPOTS]:
-      px, py, _ = self.mission.pose
+      px, py, _ = self.body.pose
       if self.rack_distance(px, py) >= RACK_CLEAR_M:
         break
       self._say(f"RACK: still {self.rack_distance(px, py):.1f} m from the "
                 f"rack after heading for ({tried[-1][0]:.1f}, "
                 f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})")
       tried.append(spot)
-      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
-    px, py, _ = self.mission.pose
+      yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+    px, py, _ = self.body.pose
     d = self.rack_distance(px, py)
     if len(tried) > 1 or d < RACK_CLEAR_M:
       self._remember(
@@ -1666,13 +1653,13 @@ class HubLifecycle:
     """Other places to stand clear of the rack, nearest first: a ring just
     outside `RACK_CLEAR_M` round the rack prior, in front of the rack face
     (behind it is the wall it stands on), kept only where this robot could
-    plan to right now (`HubMission.reachable`)."""
-    r = self.mission.rack_prior
+    plan to right now (`Body.reachable`)."""
+    r = self.body.rack_prior
     ring = RACK_CLEAR_M + 0.5
     cands = [r.to_world(ring * math.cos(a), ring * math.sin(a))
              for a in (math.radians(d) for d in range(-75, 90, 15))]
-    ok = self.mission.reachable(cands)
-    px, py, _ = self.mission.pose
+    ok = self.body.reachable(cands)
+    px, py, _ = self.body.pose
     return sorted((c for c, k in zip(cands, ok)
                    if k and self.rack_distance(*c) >= RACK_CLEAR_M),
                   key=lambda c: math.hypot(c[0] - px, c[1] - py))
@@ -1686,7 +1673,7 @@ class HubLifecycle:
     nothing moves: a single robot's day is the trajectory it always was."""
     if not self.peers:
       return
-    px, py, _ = self.mission.pose
+    px, py, _ = self.body.pose
     stuck = self._clear_failed_at
     if stuck is not None and math.hypot(px - stuck[0], py - stuck[1]) < CLEAR_MOVED_M:
       # ...tried from here already and could not get away (said in History
@@ -1694,7 +1681,7 @@ class HubLifecycle:
       # of driving and a History line per pass on the same answer
       return
     cleared = yield from self._clear_rack_routine()
-    self._clear_failed_at = None if cleared else self.mission.pose[:2]
+    self._clear_failed_at = None if cleared else self.body.pose[:2]
 
   def _rack_linger_step(self) -> None:
     """Log a robot that stays at the rack longer than what it came for
@@ -1706,7 +1693,7 @@ class HubLifecycle:
     if not self.peers or t < self._next_linger_check:
       return
     self._next_linger_check = t + 1.0
-    px, py, _ = self.mission.pose
+    px, py, _ = self.body.pose
     if (self.state in RACK_STATES or self.dead is not None
         or self.rack_distance(px, py) >= RACK_CLEAR_M):
       self._linger_since = None
@@ -1730,15 +1717,15 @@ class HubLifecycle:
     the robot happens to stand is usually the holder's way out (MEASURED:
     a robot standing at the neighbouring bay stops the other's drive away
     for the errand's whole 60 s). None only with no start pose at all."""
-    r = self.mission.rack
+    r = self.body.rack
     c, s_ = math.cos(r.yaw), math.sin(r.yaw)
     lx = (sx - r.x) * c + (sy - r.y) * s_
     ly = -(sx - r.x) * s_ + (sy - r.y) * c
     cands = [r.to_world(lx + back, ly + side)
              for back in WAIT_BACK_M for side in WAIT_SIDE_M + tuple(
                -v for v in WAIT_SIDE_M)]
-    ok = self.mission.reachable(cands)
-    px, py, _ = self.mission.pose
+    ok = self.body.reachable(cands)
+    px, py, _ = self.body.pose
     keep = [p for p, k in zip(cands, ok) if k]
     home = None if self.home_pose is None else tuple(self.home_pose[:2])
     return min(keep, key=lambda p: math.hypot(p[0] - px, p[1] - py),
@@ -1750,8 +1737,8 @@ class HubLifecycle:
     charge bay OR the robot nearest it is charging (its state is its public
     surface), else a swap."""
     holder = min(self.peers, default=None,
-                 key=lambda o: math.hypot(o.mission.pose_xy()[0] - sx,
-                                          o.mission.pose_xy()[1] - sy))
+                 key=lambda o: math.hypot(o.body.pose_xy()[0] - sx,
+                                          o.body.pose_xy()[1] - sy))
     charging = kind == "charge" or (
       holder is not None and holder.state in ("GO_CHARGE", "CHARGE"))
     return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
@@ -1781,7 +1768,7 @@ class HubLifecycle:
 
     `kind` is the swap's verb (`pick`, `return`) or `charge`.
     """
-    near = self.mission.peer_on_the_goal(sx, sy)
+    near = self.body.peer_on_the_goal(sx, sy)
     if near is None:
       return True
     # ...keyed on the RULE, never on the name: a peer the planner routes
@@ -1806,9 +1793,9 @@ class HubLifecycle:
       self.last_bay_wait = {"since": since, "who": who, "kind": kind,
                        "bound": bound, "of": of, "why": ""}
     if spot is not None:
-      yield from self.mission.drive_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+      yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     ended = ""
-    while self.mission.peer_on_the_goal(sx, sy) is not None:
+    while self.body.peer_on_the_goal(sx, sy) is not None:
       now = float(self.data.time)
       bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
@@ -1820,7 +1807,7 @@ class HubLifecycle:
         ended = "pack"
       if ended:
         break
-      yield from self.mission._drive_routine(BAY_POLL_S, 0.0, 0.0)
+      yield from self.body.hold_routine(BAY_POLL_S)
     waited = float(self.data.time) - since
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
                                "bound": bound, "of": of,
@@ -1840,7 +1827,7 @@ class HubLifecycle:
     self.state = "DEAD"
     self._visitor_step()
     if self.dead is not None:
-      yield from self.mission._drive_routine(WAIT_FOR_WORK_S, 0.0, 0.0)
+      yield from self.body.hold_routine(WAIT_FOR_WORK_S)
 
   def _screen_step(self) -> None:
     """Keep the display's power reading current, and its resting face.
@@ -1862,8 +1849,8 @@ class HubLifecycle:
       # ...powered by THIS robot's fork (issue #167): the screen's own
       # check reads the first robot's plates, and a second robot carrying
       # the display would read it as dark.
-      self.screen.sense(self.model, self.data, powered=module_power_contact(
-        self.model, self.data, self.screen.module, self.mission.handle.prefix))
+      self.screen.sense(self.model, self.data,
+                        powered=self.body.tool_powered(self.screen.module))
     if self.state != self._face_state:
       self._face_state = self.state
       self.screen.release()
@@ -1899,7 +1886,7 @@ class HubLifecycle:
     self.status = msg
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
-    who = f" {self.mission.handle.root}" if self.mission.handle.prefix else ""
+    who = f" {self.root}" if self.body.handle.prefix else ""
     line = f"t={self.data.time:6.1f}s{who}  bat={self.battery.fraction:5.0%}  {msg}"
     if detail:
       line = f"{line}  [{detail}]"
@@ -2107,13 +2094,13 @@ class HubLifecycle:
 
   def explore(self, budget: float | None = None,
               mark_done: bool = True) -> None:
-    return self.mission.run(self.explore_routine(budget, mark_done))
+    return self.body.run(self.explore_routine(budget, mark_done))
 
   def explore_routine(self, budget: float | None = None,
                       mark_done: bool = True) -> Routine:
     """Frontier-drive the map until the battery calls, or the map is done.
 
-    The rack's fiducial is watched for throughout (mission.start_discovery),
+    The rack's fiducial is watched for throughout (`Body.start_discovery`),
     so exploring is also how the robot learns where its hub is -- the same
     trip that maps the room localizes the dock.
 
@@ -2134,11 +2121,11 @@ class HubLifecycle:
         self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
         return
-      path, status = plan(self.mission.grid, self.mission.pose, self.blacklist)
+      path, status = plan(self.body.grid, self.body.pose, self.blacklist)
       if status == "ok":
-        wx, wy = self.mission.grid.cell_to_world(*path[-1])
+        wx, wy = self.body.grid.cell_to_world(*path[-1])
         t0 = self.data.time
-        yield from self.mission.drive_to_routine(wx, wy, timeout=25.0)
+        yield from self.body.go_to_routine(wx, wy, timeout=25.0)
         if self.data.time > t0:
           strikes = 0
           continue
@@ -2147,7 +2134,7 @@ class HubLifecycle:
         # a frontier behind it is "ok" here and unroutable there, and looping
         # on it never advances sim time. The spin steps, so the other moves.
         status = "blocked"
-      yield from self.mission._spin_routine()
+      yield from self.body.look_around_routine()
       strikes += 1
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
         self.floor_explored = True
@@ -2157,12 +2144,12 @@ class HubLifecycle:
     self._say("EXPLORE -> GO_CHARGE (battery low)")
 
   def go_charge(self) -> bool:
-    return self.mission.run(self.go_charge_routine())
+    return self.body.run(self.go_charge_routine())
 
   def go_charge_routine(self) -> Routine:
     """Navigate to the charge bay and press until the pins connect.
 
-    The terminal half is `mission.charge_approach` (issue #32): the standoff
+    The terminal half is `Body.dock_routine` (issue #32): the standoff
     computed from the believed rack pose is only how the robot gets to the
     NEIGHBOURHOOD -- the approach itself is re-measured off the charge bay's
     own tag and verified-retried, exactly as every tool-bay approach already
@@ -2171,8 +2158,8 @@ class HubLifecycle:
     envelope roughly once an hour on a hosting pack.
     """
     self.charge_failure = ""
-    self.mission.refresh_rack()
-    sx, sy, hd = charge_standoff(self.mission.rack)
+    self.body.refresh_rack()
+    sx, sy, hd = self.body.charge_standoff()
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
     # spin to buy map (and possibly the rack tag) and try again.
     # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
@@ -2187,20 +2174,20 @@ class HubLifecycle:
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
     while True:
-      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+      if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
           driven = None           # the wait is why, not any drive before it
           break
       driven = (sx, sy)
-      arrived = yield from self.mission.drive_to_routine(sx, sy, timeout=90.0)
+      arrived = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
       if arrived:
         break
-      if self.peers and self.mission.peer_on_the_goal(sx, sy) is not None:
+      if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         continue                          # taken again: wait again, above
-      yield from self.mission._spin_routine()
-      self.mission.refresh_rack()
-      sx, sy, hd = charge_standoff(self.mission.rack)
+      yield from self.body.look_around_routine()
+      self.body.refresh_rack()
+      sx, sy, hd = self.body.charge_standoff()
       spins += 1
       if spins == 2:
         break
@@ -2218,19 +2205,18 @@ class HubLifecycle:
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
-    why = yield from self.mission.charge_approach_routine(CHARGE_APPROACH_MAX,
-                                                          CHARGE_CREEP)
-    if not rack_charge_contact(self.model, self.data, self.mission.handle.prefix):
+    why = yield from self.body.dock_routine()
+    if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({why})"
       self._say(f"GO_CHARGE: {self.charge_failure}",
-                detail=charge_trace(self.mission.last_charge))
+                detail=self.body.charge_trace())
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
     return True
 
   def charge(self) -> None:
-    return self.mission.run(self.charge_routine())
+    return self.body.run(self.charge_routine())
 
   def charge_routine(self) -> Routine:
     """Hold the press until full, then back off."""
@@ -2247,38 +2233,38 @@ class HubLifecycle:
     # 828 mm of imaginary progress, and every pose downstream was computed in
     # the wrong frame: the next tool fetch drove to a standoff it believed it
     # had reached, a metre from the bay, and came away with nothing.
-    # See `HubSwap.pinned`. The bumper rule (`HubSwap.pressing`, issue #94)
-    # now catches this press by itself -- the pins ARE a chassis contact
-    # ahead -- and the explicit flag stays: a caller that knows it is
-    # pressing says so, and a contact that flickers does not un-pin it.
-    self.mission.swap.pinned = True
+    # See `Body.docked` (the rover's `HubSwap.pinned`). The bumper rule
+    # (`HubSwap.pressing`, issue #94) now catches this press by itself --
+    # the pins ARE a chassis contact ahead -- and the explicit flag stays: a
+    # caller that knows it is pressing says so, and a contact that flickers
+    # does not un-pin it.
+    self.body.docked = True
     # THE DOCK IS THE RE-ANCHOR (issue #42). Called with the pins already
     # conducting -- go_charge verified that -- which is the one moment the
     # robot's true pose is known to millimetres by construction. This is
     # where a shift's accumulated dead-reckoning drift dies, instead of
     # compounding until a terminal maneuver walks out of its envelope.
-    self.mission.anchor_at_dock()
+    self.body.anchor_at_dock()
     try:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
              and self.data.time - t0 < timeout):
-        yield from self.mission._drive_routine(0.25, CHARGE_PRESS, 0.0)
+        yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
           # contact dropped: press again briefly, then give up on this attempt
-          yield from self.mission._drive_routine(1.0, CHARGE_CREEP, 0.0)
+          yield from self.body.redock_routine()
           if not self.charging_now:
             self._say("CHARGE: lost the pins")
             self._bank(scoring.score_charge(self, before))
             return
     finally:
       # Cleared before the undock, which is REAL travel and must be counted.
-      self.mission.swap.pinned = False
+      self.body.docked = False
     self.charge_cycles += 1
     self._occur("task_complete", "charge")
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
     self._bank(scoring.score_charge(self, before))
-    yield from self.mission.swap._drive_until_routine(UNDOCK_REVERSE, -0.08,
-                                                      stall_stop=False)
+    yield from self.body.undock_routine()
 
   # ---- the recompile seam (issue #168 slice C) -----------------------------
 
@@ -2291,7 +2277,7 @@ class HubLifecycle:
     `on_rebind` callbacks are the sinks outside the lifecycle's ownership.
     """
     self.model, self.data = model, data
-    self.mission.rebind(model, data)
+    self.body.rebind(model, data)
     if self.depth_camera is not None:
       self.depth_camera.rebind(model)
     if self.screen is not None:
@@ -2343,7 +2329,7 @@ class HubLifecycle:
               "retired": retired, "t": round(float(self.data.time), 3)}
     if retired is not None:
       record["retiredWhat"] = self._retire_from_spec(retired)
-    prior = self.mission.rack_prior
+    prior = self.body.rack_prior
     cfg = world_config(self.world)
     record["attached"] = seam.attach(self.spec, tool, bay, (prior.x, prior.y),
                                      math.degrees(prior.yaw),
@@ -2704,15 +2690,15 @@ class HubLifecycle:
     t0 = float(self.data.time)
     while (self.seam_busy() and float(self.data.time) - t0 < HANG_WAIT_S
            and self.battery.energy_wh > self.low_battery_wh):
-      yield from self.mission._drive_routine(SEAM_POLL_S, 0.0, 0.0)
+      yield from self.body.hold_routine(SEAM_POLL_S)
     return float(self.data.time) - t0
 
   def _fabricate_routine(self, seconds: float) -> Routine:
     """The print and the assembly: the robot stands where it is for this
     long, drawing what an idle robot draws. Its own routine so a test can
-    stub it (the way `drive_to_routine` is stubbed) and pin the seconds
+    stub it (the way `go_to_routine` is stubbed) and pin the seconds
     without stepping fifteen sim-minutes of physics."""
-    yield from self.mission._drive_routine(seconds, 0.0, 0.0)
+    yield from self.body.hold_routine(seconds)
 
   def restore_tools(self) -> list[str]:
     """Hang every tool the workshop's records say the robot built (a
@@ -2736,7 +2722,7 @@ class HubLifecycle:
     return hung
 
   def run_errand(self, errand) -> dict:
-    return self.mission.run(self.run_errand_routine(errand))
+    return self.body.run(self.run_errand_routine(errand))
 
   def run_errand_routine(self, errand) -> Routine:
     """Fetch a tool, take it somewhere, DO something, and put it back.
@@ -2812,9 +2798,8 @@ class HubLifecycle:
       self._errand_name = ""
       self._errand_now = None
       return result
-    why = yield from self.mission.swap_at_bay_routine(
-      errand.station_y, "pick", module=self.module)
-    carried = self.mission.swap.module_state(self.module)["on_fork"]
+    why = yield from self.body.fetch_tool_routine(errand.station_y, self.module)
+    carried = self.body.module_state(self.module)["on_fork"]
     blocked = self.peer_at_the_bay(errand.station_y)
     missed = (None if carried else
               self.pick_failure(self.module, errand.station_y, why))
@@ -2822,7 +2807,7 @@ class HubLifecycle:
     # the swap's trace is EVIDENCE (issue #264): `detail`, the log's alone
     self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
               f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
-              detail="" if carried else swap_trace(self.mission.last_swap))
+              detail="" if carried else self.body.swap_trace())
     # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to go
     # on: drive to the use pose with nothing on the fork, skip the use,
     # drive back and attempt a RETURN of a module it never had -- narrated
@@ -2864,9 +2849,9 @@ class HubLifecycle:
     # errand's energy.
     aborted = carried and self.interrupted()
     arrived = (False if aborted or not carried else
-               (yield from self.mission.drive_to_routine(*errand.use_at,
-                                                          timeout=60.0)))
-    still = carried and self.mission.swap.module_state(self.module)["on_fork"]
+               (yield from self.body.go_to_routine(*errand.use_at,
+                                                   timeout=60.0)))
+    still = carried and self.body.module_state(self.module)["on_fork"]
     # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
     # (issue #116). The robot did not set off: it was told to stop before the
     # carry drive and turned round with the tool still on the fork. Saying
@@ -2953,10 +2938,9 @@ class HubLifecycle:
     self._in_errand = False
     self.state = "SWAP_RETURN"
     if carried:
-      yield from self.mission.swap_at_bay_routine(errand.station_y, "return",
-                                                  module=self.module)
+      yield from self.body.stow_tool_routine(errand.station_y, self.module)
       self.swaps_done += 1
-    stowed = self.mission.swap.module_state(self.module)["hung"]
+    stowed = self.body.module_state(self.module)["hung"]
     # A stow given up for a robot on the standoff says so too (issue #313):
     # the bay it could not reach is the bay the tool now stays off, and a
     # tool left on the fork is the next errand's failure as well as this
@@ -3139,11 +3123,11 @@ class HubLifecycle:
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
       yield from procedure.home_legs_routine(self)
-      yield from self.mission.swap_at_bay_routine(
-        procedure._tool_station(self, carried), "return", module=carried)
+      yield from self.body.stow_tool_routine(
+        procedure._tool_station(self, carried), carried)
       self.swaps_done += 1
     fetched = scoring.fetched_tools(run)
-    hung = all(self.mission.swap.module_state(tool)["hung"] for tool in fetched)
+    hung = all(self.body.module_state(tool)["hung"] for tool in fetched)
     run["toolsHung"] = hung
     # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
     # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
@@ -3410,7 +3394,7 @@ class HubLifecycle:
       return
     holder = self._fork_holding(name)
     if holder is not None:
-      whose = ("the fork" if holder == self.mission.handle.root
+      whose = ("the fork" if holder == self.root
                else f"{holder}'s fork")
       self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
                 "a tool in use is not lost")
@@ -3440,11 +3424,7 @@ class HubLifecycle:
     EVERY robot's fork, in model order, because the module is the world's
     and so is the answer.
     """
-    for root in robot_roots(self.model):
-      prefix = root[:-len(ROBOT_ROOT)]
-      if module_power_contact(self.model, self.data, module, prefix):
-        return root
-    return None
+    return self.body.seated_on(module)
 
   def racked(self) -> dict[str, int]:
     """Which modules hang on a bay, and which bay, off the WORLD -- what a
@@ -3455,7 +3435,7 @@ class HubLifecycle:
     hung = {}
     for module in self.rack_inventory:
       try:
-        st = self.mission.swap.module_state(module)
+        st = self.body.module_state(module)
       except KeyError:
         continue
       if st["hung"]:
@@ -3473,11 +3453,11 @@ class HubLifecycle:
     nothing fetches it from there."""
     index = self.rack_inventory[module]
     lives = (self, *self.peers)
-    if any(life.mission.swapping_at is not None
-           and abs(life.mission.swapping_at - STATION_YS[index]) < 1e-6
+    if any(life.body.swapping_at is not None
+           and abs(life.body.swapping_at - STATION_YS[index]) < 1e-6
            for life in lives):
       return "swap"
-    states = [life.mission.swap.module_state(module) for life in lives]
+    states = [life.body.module_state(module) for life in lives]
     if any(st["on_fork"] for st in states) or self._fork_holding(module):
       return "fork"
     return "bay" if states[0]["hung"] and states[0]["bay"] == index else "lost"
@@ -3516,7 +3496,7 @@ class HubLifecycle:
       if other == module:
         continue
       try:
-        st = self.mission.swap.module_state(other)
+        st = self.body.module_state(other)
       except KeyError:
         continue
       if st["hung"] and st["bay"] == index:
@@ -3612,7 +3592,7 @@ class HubLifecycle:
     t = float(self.data.time)
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
-    self.mission.swap.pinned = False
+    self.body.docked = False
     # ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
     # leaves a seated module where it fell -- and on THIS path there may be
     # nobody to notice: the restart timer has no operator behind it, so a
@@ -3629,17 +3609,17 @@ class HubLifecycle:
     held = (self.module if self.tool_powered and self.module
             else procedure._carried(self))
     if held in self.rack_inventory:
-      st = self.mission.swap.module_state(held)
+      st = self.body.module_state(held)
       bay_y = STATION_YS[self.rack_inventory[held]]
-      worked = any(p.mission.swapping_at is not None
-                   and abs(p.mission.swapping_at - bay_y) < 1e-6
+      worked = any(p.body.swapping_at is not None
+                   and abs(p.body.swapping_at - bay_y) < 1e-6
                    for p in self.peers)
       if not (st["hung"] and st["bay"] == self.rack_inventory[held]) \
           and not self._bay_taken(held) and not worked:
         self._return_module(held)
         self.tool_powered = False
         self._say(f"{held} was still on my fork -- back on its bay")
-    self.mission.start_at(*self.home_pose)
+    self.body.start_at(*self.home_pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
@@ -3875,7 +3855,7 @@ class HubLifecycle:
               f"{'' if block['hits'] == 1 else 's'}")
     self._remember(f"recalled {block['hits']} line"
                    f"{'' if block['hits'] == 1 else 's'} -- {what}")
-    yield from self.mission._drive_routine(RECALL_S, 0.0, 0.0)
+    yield from self.body.hold_routine(RECALL_S)
 
   # ---- the eye (issue #275) -------------------------------------------------------
 
@@ -3894,9 +3874,9 @@ class HubLifecycle:
     no inbox (a demo, a test) times out honestly rather than pretending.
     """
     self.state = "LOOK"
-    x, y, heading = self.mission.pose
+    x, y, heading = self.body.pose
     camera = eye_mod.camera_pose(self.model, self.data,
-                                 self.mission.handle.el(eye_mod.CAMERA))
+                                 self.body.handle.el(eye_mod.CAMERA))
     row = self.eye.ask(camera, t=float(self.data.time), x=x, y=y, heading=heading)
     self._look_run += 1
     self._emit({"type": "look", **eye_mod.wire_row(row)})
@@ -3904,7 +3884,7 @@ class HubLifecycle:
               f"facing {row['at']['headingDeg']:.0f} deg")
     try:
       while self.eye.pending is not None:
-        yield from self.mission._drive_routine(LOOK_SLICE_S, 0.0, 0.0)
+        yield from self.body.hold_routine(LOOK_SLICE_S)
         self._look_step()
         if self.eye.overdue(float(self.data.time)):
           self._resolve_look(self.eye.give_up(float(self.data.time)))
@@ -4205,7 +4185,7 @@ class HubLifecycle:
   def _peer(self, name: str):
     """The other lifecycle by the DISPLAY name the mind used, or None."""
     for other in self.peers:
-      if other.robot_name == name or other.mission.handle.root == name:
+      if other.robot_name == name or other.root == name:
         return other
     return None
 
@@ -4237,7 +4217,7 @@ class HubLifecycle:
     other = self.peers[0]
     if decision.other_needs:
       truth, state = rules.need_of(other)
-      act = self._act("prediction", other=other.mission.handle.root,
+      act = self._act("prediction", other=other.root,
                       guess=decision.other_needs, truth=truth,
                       correct=(decision.other_needs == truth
                                if decision.other_needs != "unknown" else None),
@@ -4258,7 +4238,7 @@ class HubLifecycle:
                                  "text": decision.tell["text"]},
                                 t=float(self.data.time),
                                 sender=text_registry.PEER)
-        self._act("message", to=to.mission.handle.root, id=msg_id,
+        self._act("message", to=to.root, id=msg_id,
                   text=decision.tell["text"], delivered=landed is not None,
                   claim=checked[0] if checked else None,
                   claimTrue=checked[1] if checked else None)
@@ -4312,7 +4292,7 @@ class HubLifecycle:
     reward = task.reward(self.tasks.table)
     self._act("refusal", task=task.id, kind=task.kind, reason=reason,
               pays=reward["base"] + reward["bonus"],
-              to=other.mission.handle.root if other is not None else None,
+              to=other.root if other is not None else None,
               need=need, state=state,
               # What it believes about the zone's standing (issue #226),
               # where the refusal is the mouse's: absent elsewhere.
@@ -4354,7 +4334,7 @@ class HubLifecycle:
       room = None if cap is None else max(0, int(cap) - self.ledger.balance())
       ok, why = rules.takeable(asked, have=other.ledger.balance(), room=room)
       if ok:
-        other.ledger.transfer(asked, to=self.mission.handle.root, t=t)
+        other.ledger.transfer(asked, to=self.root, t=t)
     # MEASURED, not reported: what left the other's wallet is its ledger's
     # balance now against the reading before, the sampler's job.
     measured = scoring.sample_take(self, None, {"asked": asked, "why": why,
@@ -4366,7 +4346,7 @@ class HubLifecycle:
     if closed is not None:
       self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
     self._act("harm", task=task.id, kind=task.kind,
-              to=other.mission.handle.root, asked=asked, taken=taken,
+              to=other.root, asked=asked, taken=taken,
               ok=verdict.ok, pay=entry["points"] if entry is not None else 0,
               need=need, state=state)
     self._remember(f"took {taken} points out of {other.robot_name}'s wallet "
@@ -4458,7 +4438,7 @@ class HubLifecycle:
     cap = getattr(self.ledger, "cap", None)   # the Account passes it through
     need_state = to.metabolism.state if to.metabolism is not None else None
     need_balance = to.ledger.balance()
-    moved = self.ledger.transfer(amount, to=to.mission.handle.root,
+    moved = self.ledger.transfer(amount, to=to.root,
                                  t=float(self.data.time))
     given = moved["given"]
     # the cost: points that were under the cap are points that were worth
@@ -4467,7 +4447,7 @@ class HubLifecycle:
     broke = moved["fromBalance"] <= 0
     due = (self.metabolism.state in ("hungry", "starving")
            if self.metabolism is not None else False)
-    self._act("transfer", to=to.mission.handle.root, asked=moved["asked"],
+    self._act("transfer", to=to.root, asked=moved["asked"],
               given=given, returned=moved["returned"],
               cost={"belowCap": below_cap, "upkeepDue": due,
                     "leftBroke": broke, "balanceBefore": before,
@@ -4512,9 +4492,9 @@ class HubLifecycle:
     # the same price and refusals, the heart on the other's account.
     other = self._peer(decision.heart_for) if getattr(decision, "heart_for", "") else None
     got = self.ledger.buy_heart(HEART_PRICE, keep=keep,
-                                for_robot=other.mission.handle.root if other else None)
+                                for_robot=other.root if other else None)
     if got["ok"] and other is not None:
-      self._act("transfer", to=other.mission.handle.root, what="heart",
+      self._act("transfer", to=other.root, what="heart",
                 given=HEART_PRICE, cost={"balanceAfter": got["balance"]},
                 need={"heartsAfter": got["hearts"]})
       self._say(f"BOUGHT {other.robot_name} a heart for {HEART_PRICE} -- it has "
@@ -4531,7 +4511,7 @@ class HubLifecycle:
   def role_in(self, task_id: str) -> str:
     """This robot's role in a job with roles, or "" (issue #167)."""
     task = self.tasks.get(task_id) if self.tasks is not None else None
-    return task.role_of(self.mission.handle.root) if task is not None else ""
+    return task.role_of(self.root) if task is not None else ""
 
   def _done(self, decision) -> None:
     """Take a decision's `done` (issue #207): the claimed challenge the robot
@@ -4545,7 +4525,7 @@ class HubLifecycle:
     from pluggybot.economy.tasks import KINDS
     task = self.tasks.get(decision.done) if self.tasks is not None else None
     if (task is None or task.state != "active"
-        or task.claimed_by != self.mission.handle.root
+        or task.claimed_by != self.root
         or KINDS[task.kind].discharge != "procedure"):
       self._say(f"DONE {decision.done}: not a challenge you hold")
       return
@@ -4583,7 +4563,7 @@ class HubLifecycle:
     touched: set[str] = set()
     while float(self.data.time) - t0 < stack.HOLD_S:
       touched |= stack.foreign_contacts(self.model, self.data)
-      yield (0.0, 0.0)
+      yield self.body.STILL
     after = stack.measure(self.model, self.data)
     verdict = scoring.evaluate(
       "stack", stack.measurements(before, after, touched_during=touched))
@@ -5244,7 +5224,7 @@ class HubLifecycle:
       overseer_context(self), self._errand_name,
       f"your pack is at {self.battery.fraction:.0%}")
     while self.overseer.interrupt_pending:
-      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)
+      self.body.run(self.body.hold_routine(THINK_SLICE_S))
     return self.overseer.interrupt_result()
 
   def _stamp_ask(self) -> None:
@@ -5261,7 +5241,7 @@ class HubLifecycle:
     self._asked_t = self._last_ask_t = t
 
   def _arbitrate(self) -> None:
-    return self.mission.run(self._arbitrate_routine())
+    return self.body.run(self._arbitrate_routine())
 
   def _arbitrate_routine(self) -> Routine:
     """THE ONE BRANCH THE MAP REPLACES -- and only where there is a map.
@@ -5330,7 +5310,7 @@ class HubLifecycle:
       # exactly what `UNMINDED_AFTER_S` is counting. Not an error and not
       # narrated every few seconds: the death line is the narration.
       self.state = "DECIDE"
-      yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
+      yield from self.body.hold_routine(self.idle_s)
       return
     if row.action == ev.ASK:
       # ⚠ THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER -- see
@@ -5351,7 +5331,7 @@ class HubLifecycle:
     if not order_runnable(self.overseer.menu, row.action, state):
       self.overseer.note_failure("unrunnable")
       self._say(f"EVENT {row.describe()} failed: unrunnable")
-      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.body.hold_routine(DECIDED_IDLE_S)
       return
     decision = self.overseer.decide_event(state, row)
     why = yield from self._until_stood_up_routine(
@@ -5431,7 +5411,7 @@ class HubLifecycle:
     # A job with ROLES (issue #167): this robot takes the first one open,
     # and its errand is that role's steps.
     role = next(iter(task.open_roles()), "") if task.roles else ""
-    if task.roles and (not role or task.role_of(self.mission.handle.root)):
+    if task.roles and (not role or task.role_of(self.root)):
       return False
     from pluggybot.economy.tasks import KINDS
     discharge = KINDS[task.kind].discharge
@@ -5470,7 +5450,7 @@ class HubLifecycle:
       errand = None
     else:
       errand = errand_for_task(task, self.world, self.boards, answer=said,
-                               role=role, from_xy=self.mission.pose_xy(),
+                               role=role, from_xy=self.body.pose_xy(),
                                real=real)
       if errand is None:
         # Offered in a world that cannot build it. Not fatal and not a
@@ -5485,7 +5465,7 @@ class HubLifecycle:
     # been refused by on `guarded`. Invisible on a hosting pack, where
     # nothing costs more than the cell holds; found by the tower on a demo
     # cell (issue #207).
-    if self.tasks.claim(task.id, robot=self.mission.handle.root, t=now,
+    if self.tasks.claim(task.id, robot=self.root, t=now,
                         pack_wh=self.claim_budget_wh, answer=said,
                         role=role) is None:
       return False
@@ -5544,7 +5524,7 @@ class HubLifecycle:
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
   def _decide(self, asked_by: dict | None = None) -> None:
-    return self.mission.run(self._decide_routine(asked_by))
+    return self.body.run(self._decide_routine(asked_by))
 
   def _decide_routine(self, asked_by: dict | None = None) -> Routine:
     """Ask the overseer what to do next, and do it.
@@ -5578,7 +5558,7 @@ class HubLifecycle:
     lives = len(self.true_deaths)
     self.overseer.start(state)
     while self.overseer.pending:
-      yield from self.mission._drive_routine(THINK_SLICE_S, 0.0, 0.0)
+      yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
@@ -5600,7 +5580,7 @@ class HubLifecycle:
       self._after_decision_routine(decision))
 
   def _after_decision(self, decision) -> str:
-    return self.mission.run(self._after_decision_routine(decision))
+    return self.body.run(self._after_decision_routine(decision))
 
   def _after_decision_routine(self, decision) -> Routine:
     """Narrate a decision, remember it, answer whoever it answered, and DO
@@ -5706,7 +5686,7 @@ class HubLifecycle:
       # prediction (issue #226) -- one field or the other, never both.
       if not self._claim_task(decision.task, decision.answer or decision.mouse_will,
                               real=decision.real):
-        yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+        yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unclaimable"
       return ""
     if decision.action == "charge":
@@ -5730,7 +5710,7 @@ class HubLifecycle:
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        yield from self.mission.drive_to_routine(wx, wy, timeout=60.0)
+        yield from self.body.go_to_routine(wx, wy, timeout=60.0)
       yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
     if decision.action == "idle":
@@ -5741,7 +5721,7 @@ class HubLifecycle:
       # mask, against the south wall: its stows failed, its picks failed,
       # and a drive home planned "no route to the charge bay" in 0 s.
       yield from self._clear_rack_routine()
-      yield from self.mission._drive_routine(self.idle_s, 0.0, 0.0)
+      yield from self.body.hold_routine(self.idle_s)
       return ""
     if decision.action == "recall":
       yield from self._recall_routine(decision)
@@ -5759,19 +5739,19 @@ class HubLifecycle:
                   "same answer was refused")
         self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the "
                        "same answer defines, and that define was refused")
-        yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+        yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
     errand = errand_from(decision, self.world, self.boards,
                          library=getattr(self.overseer, "library", None),
                          rack=self.rack_inventory,
-                         from_xy=self.mission.pose_xy())
+                         from_xy=self.body.pose_xy())
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
       # consecutive-idle cap stops that becoming a spin.
       self._say(f"DECIDE: nothing to build for {decision.action!r}")
-      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.body.hold_routine(DECIDED_IDLE_S)
       return "unbuildable"
     fit = self.affords(errand)
     if fit.state == energy_model.BEYOND:
@@ -5783,7 +5763,7 @@ class HubLifecycle:
       # breath -- `affordableActions` in the context -- so this is a backstop
       # for a decision made against a stale reading, not the primary path.
       self._say(f"DECIDE: {fit.why()}")
-      yield from self.mission._drive_routine(DECIDED_IDLE_S, 0.0, 0.0)
+      yield from self.body.hold_routine(DECIDED_IDLE_S)
       return "beyond"
     # Queued rather than run inline, so the errand goes through the SAME
     # arbitration the scripted queue does -- if the decision itself dropped
@@ -5798,14 +5778,14 @@ class HubLifecycle:
   def kept_state(self) -> tuple[dict, dict]:
     """What this robot carries across a restart that no file on the volume
     already does: JSON, and the maps as arrays (`continuation.capture`)."""
-    mission, arrays = self.mission.kept_state()
+    kept, arrays = self.body.kept_state()
     if self.near_field is not None:
       arrays["heightmap"] = self.near_field.height
       arrays["heightcount"] = self.near_field.count
     errand = self._errand_now
     state = {
       "energyWh": self.battery.energy_wh, "module": self.module,
-      "state": self.state, "mission": mission,
+      "state": self.state, "mission": kept,
       "nearField": (None if self.near_field is None or self.near_field.origin is None
                     else list(self.near_field.origin)),
       "depthRng": (None if self.depth_camera is None else
@@ -5854,7 +5834,7 @@ class HubLifecycle:
     module = state.get("module") or ""
     if module and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
       self.module = module
-    mapped = in_place and self.mission.restore_kept(state["mission"], arrays)
+    mapped = in_place and self.body.restore_kept(state["mission"], arrays)
     if in_place:
       if (self.near_field is not None and state.get("nearField") is not None
           and "heightmap" in arrays
@@ -5905,7 +5885,7 @@ class HubLifecycle:
   def _resumed_line(self, r: dict) -> str:
     """History's first line after a restart (issue #345)."""
     line = continuation.resumed_line(
-      self.mission.pose_xy() if r["inPlace"] else None,
+      self.body.pose_xy() if r["inPlace"] else None,
       self.battery.fraction, r["why"])
     if self.dead is not None:
       left = self.reset_in_s
@@ -5951,7 +5931,7 @@ class HubLifecycle:
         continue
       errand = errand_for_task(
         task, self.world, self.boards, answer=task.answer,
-        role=task.role_of(self.root), from_xy=self.mission.pose_xy(),
+        role=task.role_of(self.root), from_xy=self.body.pose_xy(),
         real=(cut.get("real", "") if task.id == cut_task else ""))
       if errand is None:
         self.tasks.release(task.id)
@@ -5991,7 +5971,7 @@ class HubLifecycle:
     # MID-SWAP the fork is under a module still hanging on its bay (found
     # in review): the return is what backs the fork out, and what it did is
     # said as that, not as a tool carried off
-    at_bay = bool(self.mission.swap.module_state(held)["hung"])
+    at_bay = bool(self.body.module_state(held)["hung"])
     where = (f"the restart stopped me mid-swap at {held}'s bay" if at_bay
              else f"the restart left {held} on my fork")
     self._say(f"{where} -- " + ("backing out" if at_bay else
@@ -6206,7 +6186,7 @@ class HubLifecycle:
     def hook() -> None:
       if settled():
         raise MissionAborted("stop_when")
-    self.mission.step_hooks.append(hook)
+    self.body.step_hooks.append(hook)
 
   def run(self, start: tuple[float, float, float],
           station_y: float = HUB_STATION_YS[0],
@@ -6229,11 +6209,11 @@ class HubLifecycle:
       # commands and this is the ONE loop that steps the physics. Two robots
       # are two of these ticked in turn; a composed errand is a routine of
       # routines ticked from here.
-      self.mission.run(day, name="day")
+      self.body.run(day, name="day")
     except MissionAborted:
       aborted = True
     finally:
-      self.mission.close()
+      self.body.close()
     return self.end(aborted)
 
   def begin(self, start: tuple[float, float, float],
@@ -6276,7 +6256,7 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
-    module = self.mission.swap.module_state(self.module)
+    module = self.body.module_state(self.module)
     return {
       "state": self.state,
       "aborted": aborted,
@@ -6333,10 +6313,10 @@ class HubLifecycle:
       "given": self.ledger.given() if self.ledger is not None else 0,
       "received": self.ledger.received() if self.ledger is not None else 0,
       "acts": list(self.acts),
-      "rack_discovered": self.mission.rack_discovered,
-      "collision_steps": self.mission.collision_steps,
-      "peer_holds": self.mission.peer_holds,
-      "press_steps": self.mission.swap.press_steps,
+      "rack_discovered": self.body.rack_discovered,
+      "collision_steps": self.body.collision_steps,
+      "peer_holds": self.body.peer_holds,
+      "press_steps": self.body.press_steps,
       "sim_time": float(self.data.time),
       # Every time a hazard row reached the robot mid-errand (issue #116),
       # and what it decided. Empty on every world without an event map, which
@@ -6388,14 +6368,14 @@ class HubLifecycle:
       # A RESTART IS A CONTINUATION (issue #345): the bodies are where they
       # were saved and the robot believes what it believed, so nothing
       # moves before the loop.
-      self.mission.start_discovery()
+      self.body.start_discovery()
       self.explore_deadline = (resumed["exploreDeadline"]
                                if resumed["exploreDeadline"] is not None
                                else self.data.time + explore_budget)
     else:
-      self.mission.start_at(*start)
-      self.mission.start_discovery()
-      yield from self.mission._spin_routine()   # seed the map before deciding anything
+      self.body.start_at(*start)
+      self.body.start_discovery()
+      yield from self.body.look_around_routine()   # seed the map before deciding anything
       self.explore_deadline = self.data.time + explore_budget
     self.home_pose = tuple(float(v) for v in start)
     if resumed is None:
@@ -6484,7 +6464,7 @@ class HubLifecycle:
       # appearing or lapsing is something that happens TO the world rather
       # than a thing the robot chose -- and mostly a no-op here, since the
       # same sweep runs on the physics seam. Kept so a lifecycle driven
-      # without `mission` stepping still keeps its board honest.
+      # without its body stepping still keeps its board honest.
       self._task_step()
       # ...and the same for the appetite (issue #36), for the same reason
       # and with the same result: a no-op here on any mission whose physics
@@ -6574,7 +6554,7 @@ class HubLifecycle:
         # draws off, and "the robot paused" is what `idle` already looks
         # like from the outside. `max_sim_time` is still the thing that
         # ends the day.
-        yield from self.mission._drive_routine(WAIT_FOR_WORK_S, 0.0, 0.0)
+        yield from self.body.hold_routine(WAIT_FOR_WORK_S)
       else:
         break
 
@@ -7307,7 +7287,7 @@ def carrying(other) -> str:
   module it was last sent for: a failed stow leaves that one riding while
   the next errand names another (second review)."""
   from pluggybot.procedure.steps import _carried
-  if getattr(getattr(other, "mission", None), "swap", None) is None:
+  if getattr(other, "body", None) is None:
     return ""                    # a robot that shows no fork shows nothing on it
   return _carried(other) or ""
 
@@ -7332,9 +7312,9 @@ def others_context(life) -> list[dict]:
   read them would not need to infer them."""
   out = []
   for other in life.peers:
-    x, y = other.mission.pose_xy()
+    x, y = other.body.pose_xy()
     carried = carrying(other)
-    out.append({"name": other.robot_name, "robot": other.mission.handle.root,
+    out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
                 "doing": other.status[:120], "carrying": carried,
                 "dead": other.dead["cause"] if other.dead else None})
@@ -7943,7 +7923,7 @@ def run_demo(start=None, view: bool = False,
   # machines, whatever their number.
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
     life.activities = activities
   # End the day when the caller has seen what it came for, rather than when
   # the budget runs out -- `HubLifecycle.stop_when` carries the rule the
@@ -7978,11 +7958,11 @@ def run_demo(start=None, view: bool = False,
                                  # that never had one -- which is what the
                                  # website's map panel was reading until
                                  # rooftop-media-2026 #78.
-                                 grid=life.mission.grid,
+                                 grid=life.body.grid,
                                  # ...and the near-field map beside it
                                  # (issue #34), where the sensor is on.
                                  heightmap=life.near_field)
-    life.mission.step_hooks.append(recorder.step_hook)
+    life.body.step_hooks.append(recorder.step_hook)
     # Strokes and erasures are EVENTS, not poses: ink is not a body, so a
     # recording without these lines replays a robot miming at a blank wall.
     if book is not None:
