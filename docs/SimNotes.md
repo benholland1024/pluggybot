@@ -1935,11 +1935,67 @@ geometry and actuator, 3.0 kg) stands with a 55 % RMS margin and walks at
 torque standing, 123 % holding the arm out, and cannot stand up from its
 belly or push up the 0.12 m curb; its whole leg is shorter than the riser.
 
+**The walking policy** (`training/`, mjlab 1.5.3 on MuJoCo 3.10; the first
+one is `models/quadruped_policy.npz`, 98 M steps on 2048 envs in 66 min on
+the GTX 1660 Super): trained on mjlab's 5 ms physics with its DC-motor
+actuator, and FLOWN in ours (2 ms, `legs/policy.py`: numpy, the PD and the
+envelope at the physics rate) by `quad_spike.py --policy`. It tracks 0.5
+and 1.0 m/s at 0.54 and 1.07, turns 0.78 of 0.8 rad/s, sidesteps 0.22 of
+0.3, and never falls; its knee's p99.5 is 7.9 N·m and its worst RMS 4.8
+(the scripted trot's were 8.4 and 4.8 at 1.0 m/s), it draws 88 W at 0.5 m/s
+and 109 W at 1.0 m/s against the scripted trot's 116 and 180, and it
+tilts the torso under 0.4°. The exported file is checked against its ONNX
+source before it is written (2e-6), and a flight hashes IDENTICAL in two
+processes, at one BLAS thread or six (`--determinism`). The actor never
+sees the base's linear velocity; what no datasheet gives is randomised
+(rotor inertia, joint friction, a 0-20 ms command delay, effort limits,
+mass and CoM for the arm).
+
+**Legged odometry** (`legs/odometry.py`, `--odometry`: the policy walks a
+21 m course of straights, an arc, a turn on the spot and a sidestep): 2.4-
+4.0 % of distance over five noise seeds, heading within 2°. Two corrections
+made it: the ball foot ROLLS, so its centre moves while its contact point
+does not (without the correction, 6.6 % with perfect contact and no
+noise); and a contact estimate read off current arrives ~31 ms late
+(ODRI's measurement), so for a moment after each footfall only the LIFTING
+pair is flagged planted: gated against the last estimate and tested for a
+foot rising off the floor, the estimate holds through it (averaged in, 27 %,
+and a gate alone ratcheted the estimate down to nothing).
+
+**The served loop** (`--served`, under the exclusive lock; the home world
+with its rover taken out and two quadrupeds in, against two rovers): the
+physics and the body's own controller cost 255 ms of wall per sim second
+for the quadruped pair against 193 for the rover pair (1.32×): ~21 ms is
+the two policies (213 us a step, 50 Hz each) and ~40 ms the numpy PD and
+envelope on every physics step, which MuJoCo's native `dcmotor` actuator
+would run in C. Scaled onto the deploy box (the rover pair's measured
+0.96× over a carry and 0.80× over a day; the box ran ~0.93× this machine's
+speed in #296), the quadruped pair would run ~0.90× and ~0.76× as it
+stands, ~0.94× and ~0.79× with the PD in C. **1.3× over a day needs the
+physics thread ~1.65× faster**: a core ~1.7× an i5-9600KF's single-thread
+speed (the current desktop-class parts are about there), or the sensors and
+the policies moved off the physics thread. Confirm by a `--free-run` of the
+served pair on the candidate before buying.
+
+**The sensors on a moving torso** (`--rays`, quiet box): the policy tilts
+the torso under 0.4°, which moves the 2D scan plane (0.49 m up, on a rear
+mast clear of the stowed arm) ±5 cm at 8 m — IMU compensation removes it,
+and the D435 on the nose carries the ground. A 2D LIDAR stays for the first
+quadruped deploy; a 3D one (Livox Mid-360: 265 g, 6.5 W, €739) is #381's
+question for stairs and a multi-floor map. What the sim would pay: today's
+2D scan costs 4.1 ms (360 `mj_ray` calls from Python), one batched
+`mj_multiRay` of 4 000 rays 4.9 ms, of 10 000 12 ms, and a full Mid-360
+frame of 20 000 rays 24 ms — a quarter of real time per robot at 10 Hz.
+Batching the 2D scan into one `mj_multiRay` would cut ~36 ms per sim second
+per robot for either body.
+
 **What is true now:** the body is `legs.model.CHOSEN` and
 `models/quadruped.xml` is its generated MJCF; the numbers are a
 datasheet's where one exists and a range where none does (Parts.md); the
 scripted gait's rules above are pinned in `tests/test_legs.py` only as far
-as "it trots"; the tables are the script's to re-fly.
+as "it trots"; the policy's arithmetic, its observation, its rate and the
+odometry's two corrections are pinned there too; the tables are the
+script's to re-fly.
 
 ## Debugging workflow that worked
 
