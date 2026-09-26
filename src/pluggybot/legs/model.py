@@ -43,8 +43,10 @@ class MassBudget:
   battery: float = 0.95
   #: Compute, the drivers' CAN adapter, the buck converters, wiring.
   electronics: float = 0.40
-  #: 2D LIDAR (RPLIDAR C1 class, 110 g, Parts.md) + its mast.
-  lidar: float = 0.13
+  #: The 2D laser scanner (RPLIDAR C1 class, 110 g, Parts.md) + its mast.
+  #: (`scanner`, not `lidar`: tests/test_body.py fences `.lidar` as the
+  #: rover's sensor object.)
+  scanner: float = 0.13
   #: RealSense D435 (72 g, Parts.md) + bracket.
   depth_cam: float = 0.09
   #: Two camera modules + mounts.
@@ -59,7 +61,7 @@ class MassBudget:
 
   @property
   def total(self) -> float:
-    return (self.frame + self.battery + self.electronics + self.lidar
+    return (self.frame + self.battery + self.electronics + self.scanner
             + self.depth_cam + self.cameras + self.arm + self.tool)
 
 
@@ -133,7 +135,7 @@ PUPPER_CLASS = BodySpec(
   torso=(0.10, 0.05, 0.03), hip_x=0.075, hip_y=0.035, hip_out=0.043,
   motor=GIM4305_10, thigh_mass=0.036, shank_mass=0.04, foot_mass=0.01,
   belly_depth=0.05, arm_length=0.30,
-  masses=MassBudget(frame=0.90, battery=0.0, electronics=0.0, lidar=0.0,
+  masses=MassBudget(frame=0.90, battery=0.0, electronics=0.0, scanner=0.0,
                     depth_cam=0.0, cameras=0.0, arm=0.0, tool=0.0))
 PUPPER_WITH_SUITE = PUPPER_CLASS.with_(
   name="pupper-class + suite",
@@ -306,9 +308,9 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
            and forward off the torso's nose, under the arm's shoulder. -->
       <body name="lidar_mast" pos="{_v(-tx + 0.06, 0, tz)}">
         <geom name="lidar_mast" class="visual" type="cylinder" size="0.012 0.04"
-              pos="0 0 0.04" mass="{_f(min(0.02, budget.lidar))}" rgba="0.3 0.3 0.3 1"/>
+              pos="0 0 0.04" mass="{_f(min(0.02, budget.scanner))}" rgba="0.3 0.3 0.3 1"/>
         <geom name="lidar" class="visual" type="cylinder" size="0.0378 0.0205"
-              pos="0 0 0.1" mass="{_f(budget.lidar - min(0.02, budget.lidar))}" rgba="0.05 0.05 0.05 1"/>
+              pos="0 0 0.1" mass="{_f(budget.scanner - min(0.02, budget.scanner))}" rgba="0.05 0.05 0.05 1"/>
         <site name="lidar" pos="0 0 0.1" size="0.005"/>
       </body>
       <body name="depth_cam_body" pos="{_v(tx + 0.012, 0, 0.0)}" euler="0 0.5236 0">
