@@ -45,7 +45,7 @@ doc that owns what you are about to touch:
   integration, and then stop it on the claim (`stop_when`). A flown proof
   whose rule is already pinned goes behind `--endurance`.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **7:07** (2026-09-26, #376). Any change to
+  APPROVAL.** The full suite is **6:53** (2026-09-26, #376). Any change to
   testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
   it cannot be cheaper — and approved by Ben personally before it merges.
