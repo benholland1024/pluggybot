@@ -1929,6 +1929,21 @@ decision (Overseer.md §6), so a body that stands through its waits spends
 most of its idle power on holding itself up. The 194 Wh pack is ~13 h
 lying, ~3.6 h standing, ~1.7 h walking.
 
+**The rest posture, proposed** (#377 item 5; the decision is Ben's, at the
+first quadruped deploy): **code lies the robot down, and the mind is not
+asked.** A body left standing through its mind's silences bleeds 39 W, ~20 %
+of the pack an hour of waiting, so if lying down were the agent's to find,
+surviving would require discovering a posture, and valuing survival and
+knowing the body's trick would look the same — the forcing function
+PluggyPlan's principles rule out. The rover's parking brake is the
+precedent: a body reflex that decides nothing the mind decides. The reflex
+lies down after `T_REST` without a motion command (the break-even, ~9 s)
+and stands up before the next one (2.2 s, 44 mWh), and it does NOT choose
+what to do, refuse an act, or hide itself: the posture rides the wire as a
+fact, and the stand-up is part of every errand's measured cost. Open: the
+agent may also be given a way to hold a stand (to watch a door), as a power
+on `autonomous` — that adds a choice without forcing one.
+
 **The small body** (`--pupper`): a Pupper-v3-class body (its published
 geometry and actuator, 3.0 kg) stands with a 55 % RMS margin and walks at
 0.3 m/s. Carrying the suite (4.4 kg) it spends 92 % of its continuous
