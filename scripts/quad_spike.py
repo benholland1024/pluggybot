@@ -500,6 +500,70 @@ def ray_cost(world: str = "models/home_world.xml") -> None:
           f"{ms * 10:22.1f}")
 
 
+def quad_pair_world(policy: WalkingPolicy):
+  """The home world with its rover taken out and two quadrupeds in, 1.5 m
+  apart, each standing; returns (model, data, drivers)."""
+  spec = mujoco.MjSpec.from_file("models/home_world.xml")
+  for el in (list(spec.actuators) + list(spec.sensors) + list(spec.tendons)
+             + list(spec.equalities) + list(spec.excludes)):
+    spec.delete(el)
+  spec.delete(spec.body("pluggybot"))
+  robot = body_xml(CHOSEN, standalone=False).replace(
+    "<mujocoinclude>", "<mujoco>").replace("</mujocoinclude>", "</mujoco>")
+  for prefix, x in (("", 0.0), ("r2_", 1.5)):
+    frame = spec.worldbody.add_frame()
+    frame.pos = [x, 0.0, 0.0]
+    spec.attach(mujoco.MjSpec.from_string(robot), prefix=prefix, frame=frame)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  drivers = []
+  for prefix in ("", "r2_"):
+    root = model.jnt_qposadr[model.joint(f"{prefix}pluggybot_root").id]
+    data.qpos[root + 2] = CHOSEN.stand_height
+    j = model.jnt_qposadr[model.joint(f"{prefix}FL_hip_abd").id]
+    data.qpos[j:j + 12] = pose_qpos(CHOSEN, CHOSEN.stand_height)
+  mujoco.mj_forward(model, data)
+  for prefix in ("", "r2_"):
+    drivers.append(PolicyDriver(model, data, policy,
+                                JointLimits.of(CHOSEN.motor, 1.0, BUS_V),
+                                prefix=prefix))
+  return model, data, drivers
+
+
+def served_cost(path=POLICY_NPZ, sim_s: float = 10.0, rounds: int = 3) -> None:
+  """What a pair's physics thread spends per sim second on what the BODY
+  changes -- the physics and the body's own controller -- for two rovers
+  (their wheel servos are MuJoCo's) against two quadrupeds (the policy and
+  the PD in numpy), interleaved A B A B (CLAUDE.md: wall clock tracks the
+  machine). The sensors' costs are the same rays at the same rates for either
+  body, so the ratio scales the rover pair's measured multiple on the box."""
+  from pluggybot.robot import world_with_robots
+  policy = WalkingPolicy(path)
+  rover = world_with_robots("models/home_world.xml", second_at=(1.5, 0.0))
+  results = {"rover pair": [], "quadruped pair": []}
+  twist = Twist(vx=0.5)
+  for _ in range(rounds):
+    data = mujoco.MjData(rover)
+    mujoco.mj_forward(rover, data)
+    n = int(sim_s / rover.opt.timestep)
+    t = time.perf_counter()
+    for _ in range(n):
+      mujoco.mj_step(rover, data)
+    results["rover pair"].append((time.perf_counter() - t) / sim_s)
+    model, data, drivers = quad_pair_world(policy)
+    t = time.perf_counter()
+    for _ in range(int(sim_s / model.opt.timestep)):
+      for i, drv in enumerate(drivers):
+        data.ctrl[12 * i:12 * i + 12] = drv.torque(twist)
+      mujoco.mj_step(model, data)
+    results["quadruped pair"].append((time.perf_counter() - t) / sim_s)
+  for name, xs in results.items():
+    print(f"{name:16s} {np.median(xs) * 1e3:7.1f} ms of wall per sim second "
+          f"(median of {rounds}: " + ", ".join(f"{x * 1e3:.0f}" for x in xs) + ")")
+  ratio = np.median(results["quadruped pair"]) / np.median(results["rover pair"])
+  print(f"quadruped / rover: {ratio:.2f}")
+
+
 def sweep() -> None:
   """Knee belt ratio x leg length x the unpublished rotor inertia: each
   candidate's worst row per column."""
@@ -746,8 +810,9 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
   rows, fell, wall0 = [], False, time.time()
   act_s, n_act = 0.0, 0
+  lim = drv.limits
   for seconds, twist in POLICY_SCHEDULE:
-    t0, vel, yaw_rate, taus = data.time, [], [], []
+    t0, vel, yaw_rate, taus, tilt, copper, mech = data.time, [], [], [], [], [], []
     while data.time - t0 < seconds and not fell:
       decide = drv.steps % drv.every == 0
       t = time.perf_counter()
@@ -761,6 +826,11 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
         vel.append(rot.T @ data.qvel[0:3])
         yaw_rate.append(data.qvel[5])
         taus.append(data.ctrl[:12].copy())
+        tau, qd = data.ctrl[:12], data.qvel[drv.vadr]
+        copper.append(float(lim.copper_w(tau).sum()))
+        mech.append(float(np.clip(tau * qd, 0, None).sum()))
+        r_, p_, _ = _quat_rpy(data.qpos[3:7])
+        tilt.append((r_, p_))
       if viewer is not None and drv.steps % 10 == 0:
         if not viewer.is_running():
           return rows
@@ -772,9 +842,15 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
       fell = data.qpos[2] < 0.15 or abs(roll) > 1.0 or abs(pitch) > 1.0
     v = np.mean(vel, axis=0) if vel else np.full(3, np.nan)
     tau = np.abs(np.array(taus)) if taus else np.full((1, 12), np.nan)
+    tl = np.degrees(np.array(tilt)) if tilt else np.full((1, 2), np.nan)
     rows.append({"command": twist, "vx": v[0], "vy": v[1],
                  "yaw_rate": float(np.mean(yaw_rate)) if yaw_rate else np.nan,
                  "peak": _by_joint(tau, lambda a: float(np.percentile(a, PEAK_PCT))),
+                 "rms": _by_joint(np.array(taus) if taus else tau,
+                                  lambda a: float(np.sqrt((a ** 2).mean(axis=0)).max())),
+                 "copper_w": float(np.mean(copper)) if copper else np.nan,
+                 "mech_w": float(np.mean(mech)) if mech else np.nan,
+                 "tilt_deg": float(np.abs(tl - tl.mean(axis=0)).max()),
                  "fell": fell})
   if viewer is not None:
     viewer.close()
@@ -783,12 +859,18 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
         f"envs, {policy.training['gpu']}, {policy.training['wall']}")
   print(f"one policy step: {act_s / max(n_act, 1) * 1e6:.0f} us "
         f"(every {drv.every} physics steps)")
-  print(f"{'command vx/vy/yaw':>18s} {'got vx/vy/yaw':>18s} {'p99.5 tau a/f/k':>16s}")
+  base = sum(ELECTRONICS_W.values())
+  print(f"{'command vx/vy/yaw':>18s} {'got vx/vy/yaw':>18s} {'p99.5 tau a/f/k':>16s} "
+        f"{'RMS a/f/k':>15s} {'W (windings+shaft+electronics)':>31s} {'tilt deg':>8s}")
   for r in rows:
     c = r["command"]
+    watts = r["copper_w"] + r["mech_w"] + base
     print(f"{c.vx:5.2f}/{c.vy:5.2f}/{c.yaw_rate:5.2f} "
           f"{r['vx']:6.2f}/{r['vy']:5.2f}/{r['yaw_rate']:5.2f} "
-          f"{'/'.join(f'{x:4.1f}' for x in r['peak']):>16s}"
+          f"{'/'.join(f'{x:4.1f}' for x in r['peak']):>16s} "
+          f"{'/'.join(f'{x:3.1f}' for x in r['rms']):>15s} "
+          f"{watts:7.1f} ({r['copper_w']:5.1f}+{r['mech_w']:5.1f}+{base:4.1f}) "
+          f"{r['tilt_deg']:8.2f}"
           + ("  FELL" if r["fell"] else ""))
   return rows
 
@@ -800,6 +882,8 @@ def main(argv=None) -> None:
   ap.add_argument("--sweep", action="store_true")
   ap.add_argument("--energy", action="store_true")
   ap.add_argument("--thermal", action="store_true")
+  ap.add_argument("--served", nargs="?", const=str(POLICY_NPZ), default=None,
+                  help="a pair's physics + controller cost, quadrupeds vs rovers")
   ap.add_argument("--rays", action="store_true",
                   help="what a 2D and a 3D LIDAR scan cost the physics thread")
   ap.add_argument("--policy", nargs="?", const=str(POLICY_NPZ), default=None,
@@ -844,6 +928,8 @@ def main(argv=None) -> None:
     thermal_table(CHOSEN)
   elif args.rays:
     ray_cost()
+  elif args.served:
+    served_cost(args.served)
   else:
     filmstrip(args.out)
 
