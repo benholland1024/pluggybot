@@ -762,9 +762,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   trajectory hash (`scripts/determinism_spike.py --compare` before and
   after). `_ask_interrupt` and the dispenser are still blocking.
 - **The loop reaches the machine only through `Body`** (issue #380;
-  `pluggybot/body.py`, documented at each member): the lifecycle, the
-  procedure verbs and every module in `tests/test_body.py::LOOP_SIDE` reach a
-  robot's body only as `<life>.body.<member>`, a member being a name `Body`
+  `pluggybot/body.py`, documented at each member): every module in `src/`
+  but the rover's own (`tests/test_body.py::ROVER_SIDE`) reaches a robot's
+  body only as `<life>.body.<member>`, a member being a name `Body`
   declares — the test walks the syntax tree and fails on anything else, and on
   the rover's objects (`.mission`, `.swap`), classes and coupling criteria (a
   constant may be imported). A new member is declared on `Body` with its

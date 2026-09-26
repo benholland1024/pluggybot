@@ -18,12 +18,16 @@ from pluggybot.mission.rover import RoverBody
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
-#: Every module on the loop's side of the seam: each reaches a robot's body
-#: only as `<life>.body.<member>`, and a member is a name `Body` declares.
-LOOP_SIDE = ("lifecycle.py", "procedure/steps.py", "procedure/axes.py",
-             "procedure/lang.py", "procedure/library.py", "pair.py", "tick.py",
-             "continuation.py", "activity/encounter.py", "economy/scoring.py",
-             "mind/acts.py", "mission/errand.py")
+#: The rover's own modules -- deleted with it (#376, stage C) -- and the one
+#: place a body is chosen (`body.body_for`). EVERY OTHER MODULE in `src/` is
+#: on the loop's side of the seam, a new one included: it reaches a robot's
+#: body only as `<life>.body.<member>`, a member being a name `Body` declares.
+ROVER_SIDE = ("mission/mission.py", "mission/rover.py", "rack/", "tools/", "body.py")
+
+
+def loop_side() -> list[str]:
+  return sorted(rel for rel in (str(p.relative_to(SRC)) for p in SRC.rglob("*.py"))
+                if not rel.startswith(ROVER_SIDE))
 #: ...and never the rover itself: its objects, its classes and the criteria
 #: its coupling is read by. Its constants may be imported -- a number is not
 #: a reach -- but nothing that acts on or senses the rover.
@@ -57,8 +61,10 @@ def reaches(source: str) -> list[str]:
 
 
 def test_the_loop_and_the_procedure_verbs_reach_the_body_only_through_it():
-  bad = [f"{rel}:{why}" for rel in LOOP_SIDE
-         for why in reaches((SRC / rel).read_text())]
+  side = loop_side()
+  assert {"lifecycle.py", "procedure/steps.py", "procedure/axes.py",
+          "procedure/lang.py", "pair.py", "tick.py"} <= set(side)
+  bad = [f"{rel}:{why}" for rel in side for why in reaches((SRC / rel).read_text())]
   assert not bad, "reaches past the body interface:\n  " + "\n  ".join(bad)
 
 
