@@ -647,7 +647,7 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   # against -- rather than as a state name, which is what made the first
   # version of this test unfalsifiable.
   legal_at: list[float] = []
-  life.mission.step_hooks.append(
+  life.body.step_hooks.append(
     lambda: legal_at.append(float(life.data.time))
     if not legal_at and life.battery.energy_wh >= life.low_battery_wh else None)
 

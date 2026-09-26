@@ -651,7 +651,7 @@ def test_a_question_is_asked_answered_and_graded_twice_unattended():
     if all(tasks[t.id].state in ("done", "failed") for t in asked):
       raise MissionAborted
 
-  life.mission.step_hooks.append(stop_when_both_are_graded)
+  life.body.step_hooks.append(stop_when_both_are_graded)
   life.run(cfg["start"], max_sim_time=900.0, explore_budget=10.0)
 
   done = [tasks[t.id] for t in asked if tasks[t.id].state != "offered"]

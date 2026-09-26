@@ -144,20 +144,20 @@ life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     overseer=boss,
                     errands=errands_for("draw", "home", book), boards=book)
 activities = cfg["activities"](model, data)
-life.mission.step_hooks.append(activities.step_hook(model, data))
+life.body.step_hooks.append(activities.step_hook(model, data))
 # Port 1 is nothing: the publisher's retry loop is the point, not a peer.
 pub = WsPublisher(model, data, "ws://127.0.0.1:1",
                   model_name=cfg["model_name"],
-                  status_fn=life.telemetry_status, grid=life.mission.grid,
+                  status_fn=life.telemetry_status, grid=life.body.grid,
                   activities=activities, boards=book)
-life.mission.step_hooks.append(pub.step_hook)
+life.body.step_hooks.append(pub.step_hook)
 try:
-  life.mission.start_at(*cfg["start"])
-  life.mission.start_discovery()
-  life.mission._spin()          # lidar, tag detection, grid, frame building
+  life.body.start_at(*cfg["start"])
+  life.body.start_discovery()
+  life.body.mission._spin()          # lidar, tag detection, grid, frame building
 finally:
   pub.close()
-  life.mission.close()
+  life.body.close()
 print("ok")
 """
 

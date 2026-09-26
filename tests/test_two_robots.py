@@ -16,7 +16,6 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.control import wheel_targets
 from pluggybot.mission.mission import HubMission
 from pluggybot.rack.coupling import (
   HUB_STATION_YS, module_power_contact, rack_charge_contact,
@@ -120,14 +119,17 @@ ROBOT_ELEMENTS = ("chassis", "lift", "arm", "left_motor", "right_motor",
                   "fork_vertex", "pluggybot")
 #: The mission stack: what a second robot runs a copy of.
 MISSION_CODE = ("lifecycle.py", "power.py", "rack/swap.py", "mission/mission.py",
-                "mission/errand.py", "tools/drawing.py", "tools/gripper.py",
+                "mission/errand.py", "mission/rover.py", "body.py",
+                "tools/drawing.py", "tools/gripper.py",
                 "tools/dispenser.py", "tools/screen.py", "procedure/steps.py",
                 "procedure/axes.py", "procedure/lang.py", "perception/lidar.py",
                 "rack/localize.py", "rack/tags.py", "economy/census.py")
 
 
 def test_mission_code_resolves_every_robot_element_through_the_handle():
-  bare = re.compile(r'\.(body|geom|joint|actuator|site|camera|sensor)\("('
+  # ...a BODY's `actuator(name)` is itself the handle's resolution (issue
+  # #380, `Body.actuator`): `body.actuator("lift")` is this robot's lift
+  bare = re.compile(r'(?<!body)\.(body|geom|joint|actuator|site|camera|sensor)\("('
                     + "|".join(ROBOT_ELEMENTS) + r')"\)')
   root_index = re.compile(r"qpos\[(0|1|2|3:7|:7|:3)\]")
   bad = []
@@ -143,15 +145,18 @@ def test_mission_code_resolves_every_robot_element_through_the_handle():
 
 
 class _Swap:
-  """Records the order the loop calls it in; raises from a hook on cue."""
+  """A stepper (tick.py): records the order the loop calls it in; raises
+  from a hook on cue."""
+
+  STILL = (0.0, 0.0)
 
   def __init__(self, log, name, raise_at=None):
     self.log, self.name, self.raise_at, self.after = log, name, raise_at, 0
 
-  def _before_step(self, tl, tr):
-    self.log.append((self.name, "before", round(tl, 3)))
+  def apply(self, command):
+    self.log.append((self.name, "before", command))
 
-  def _after_step(self):
+  def after_step(self):
     self.after += 1
     self.log.append((self.name, "after"))
     if self.raise_at is not None and self.after == self.raise_at:
@@ -175,12 +180,10 @@ def test_run_many_applies_every_command_steps_once_then_books_every_robot():
                           step=lambda: log.append(("world", "step")))
   assert results == ["a-done", "b-done"]
   # step 1: both commands, one world step, both bookkeepings -- in order
-  assert log[:5] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
-                     ("b", "before", round(wheel_targets(0.2, 0.0)[0], 3)),
+  assert log[:5] == [("a", "before", (0.1, 0.0)), ("b", "before", (0.2, 0.0)),
                      ("world", "step"), ("a", "after"), ("b", "after")]
-  # step 2: b has returned and holds zero while a finishes
-  assert log[5:10] == [("a", "before", round(wheel_targets(0.1, 0.0)[0], 3)),
-                       ("b", "before", 0.0),
+  # step 2: b has returned and holds STILL while a finishes
+  assert log[5:10] == [("a", "before", (0.1, 0.0)), ("b", "before", (0.0, 0.0)),
                        ("world", "step"), ("a", "after"), ("b", "after")]
   assert len(log) == 10
 
@@ -224,10 +227,10 @@ def test_a_failed_pick_ends_the_errand_at_the_rack():
   from pluggybot.mission.errand import Errand
   life = _lifecycle("room_hub", errand=False)
   drives, swaps = [], []
-  life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
-  life.mission.swap_at_bay_routine = lambda *a, **kw: (swaps.append(a[1]), tick.result(None))[1]
+  life.body.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: (swaps.append(a[1]), tick.result(None))[1]
   # the other robot has the LCD: not on this fork, not on its bay
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
   used = []
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=lambda _l: used.append(1) or {},
@@ -241,7 +244,7 @@ def test_a_failed_pick_ends_the_errand_at_the_rack():
              for ln in life.thoughts.read("History.md").splitlines()), \
       life.thoughts.read("History.md")
   # ...and a pick that MISSED with the module still hanging says that instead
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
   result = life.run_errand(errand)
   assert result["picked"] is False and result["stowed"] is True
   assert any("the pick missed and it is still on its bay" in ln
@@ -303,7 +306,7 @@ def test_explore_does_not_spin_when_the_other_robot_blocks_the_only_route(monkey
                          grid_bounds=cfg["grid_bounds"],
                          low_battery_wh=cfg["low_battery_wh"])
   life.max_sim_time, life.blacklist = 3600.0, set()   # what run() sets up
-  m = life.mission
+  m = life.body.mission
   m.start_at(1.0, 1.0, 0.0)
   g = m.grid
   g.grid[:] = 5.0                                  # walls everywhere...
@@ -365,7 +368,7 @@ def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
   its claim."""
   from pluggybot.pair import build_pair, run_pair
   lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"))
-  assert lives[0].mission.others and lives[1].mission.others
+  assert lives[0].body.others and lives[1].body.others
   results = run_pair(lives, max_sim_time=200.0,
                      stop_when=lambda ls: ls[0].swaps_done >= 1)
   assert results[0]["swaps_done"] >= 1 and results[0]["aborted"]
@@ -555,15 +558,15 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
 
     def explored(*a, **kw):
       # Where the robot BELIEVES it ended up exploring, without driving.
-      life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
+      life.body.mission.swap.reckoner.x, life.body.mission.swap.reckoner.y = x, y
       life.floor_explored = True
       return tick.result(None)
 
     life.explore_routine = explored
-    life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+    life.body.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
     # The opening spin is 7 s of real physics and says nothing about this
     # branch; stubbed, two stand-by slices are the whole day.
-    life.mission._spin_routine = lambda *a, **kw: tick.result(None)
+    life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
     life.run(cfg["start"], max_sim_time=1.5)
     return drives
 
@@ -598,10 +601,10 @@ def test_a_decided_idle_clears_the_rack_first(monkeypatch):
                            grid_bounds=cfg["grid_bounds"],
                            low_battery_wh=cfg["low_battery_wh"])
     life.home_pose = tuple(float(v) for v in cfg["start"])
-    life.mission.swap.reckoner.x, life.mission.swap.reckoner.y = x, y
+    life.body.mission.swap.reckoner.x, life.body.mission.swap.reckoner.y = x, y
     drives = []
-    life.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
-    life.mission._drive_routine = lambda *a, **kw: tick.result(None)   # the idle itself
+    life.body.mission.drive_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
+    life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)   # the idle itself
     life._after_decision(Decision(action="idle", reason="standing by"))
     return drives
 
@@ -877,24 +880,25 @@ def test_a_pick_lost_to_a_peer_names_it_in_history():
   from pluggybot.mission.mission import bay_standoff
   life = _lifecycle("room_hub", errand=False)
   station = HUB_STATION_YS[0]
-  sx, sy, _ = bay_standoff(station, life.mission.rack)
+  sx, sy, _ = bay_standoff(station, life.body.rack)
 
   class Peer:                                # the public surface, no more
     robot_name, root = "Rowan", SECOND.root
     down = staticmethod(lambda: False)       # standing (issue #365)
 
-    class mission:
+    class body:                              # ...and a fork with nothing on it
       pose_xy = staticmethod(lambda: (sx + 0.26, sy))
+      module_state = staticmethod(lambda t: {"on_fork": False, "hung": True})
 
   life.peers = [Peer()]
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
 
   def blocked(*a, **kw):                     # what the real swap just did
-    life.mission.peer_at_bay_m = 0.26
+    life.body.mission.peer_at_bay_m = 0.26
     return tick.result("peer-at-bay")
 
-  life.mission.swap_at_bay_routine = blocked
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  life.body.mission.swap_at_bay_routine = blocked
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
   errand = Errand(name="carry:test", module="module_lcd", station_y=station,
                   use_at=(1.0, 1.0), use=lambda _l: {}, needs_use_pose=False)
   result = life.run_errand(errand)
@@ -922,12 +926,12 @@ def _pair_with_the_peer_across_the_bow(across: float, ahead: float = 1.3):
   lives = build_pair("room_hub", near_field=True, errands=("none", "none"))
   me, peer = lives
   model, data = me.model, me.data
-  px, py, _ = me.mission.pose
+  px, py, _ = me.body.pose
   adr = SECOND.qpos_adr(model)
   data.qpos[adr:adr + 2] = [px + ahead, py + across]
   mujoco.mj_forward(model, data)
-  me.mission.grid.grid[:] = -5.0            # a mapped, empty room
-  me.mission.others = []                    # the broadcast is what we are not using
+  me.body.grid.grid[:] = -5.0            # a mapped, empty room
+  me.body.mission.others = []                    # the broadcast is what we are not using
   return me, peer
 
 
@@ -941,7 +945,7 @@ def _closest_approach(me, peer) -> float:
     pa, pb = me.data.xpos[a], me.data.xpos[b]
     seen.append(math.hypot(pa[0] - pb[0], pa[1] - pb[1]))
 
-  me.mission.step_hooks.append(watch)
+  me.body.step_hooks.append(watch)
   return seen
 
 
@@ -965,12 +969,12 @@ def test_a_peer_across_the_bow_stops_the_drive_with_nothing_broadcast():
   """
   me, peer = _pair_with_the_peer_across_the_bow(across=0.25)
   seen = _closest_approach(me, peer)
-  px, py, _ = me.mission.pose
-  me.mission.drive_to(px + 2.6, py, timeout=25.0)
+  px, py, _ = me.body.pose
+  me.body.mission.drive_to(px + 2.6, py, timeout=25.0)
   assert seen, "the seam never ran"
   assert min(seen) > 0.24, f"the chassis met: closest {min(seen):.3f} m"
-  assert me.mission.collision_steps == 0
-  assert me.mission.peer_holds > 0, "it kept clear without ever holding"
+  assert me.body.collision_steps == 0
+  assert me.body.peer_holds > 0, "it kept clear without ever holding"
 
 
 def test_the_seam_hands_the_frames_peers_to_the_drive():
@@ -983,16 +987,16 @@ def test_the_seam_hands_the_frames_peers_to_the_drive():
   me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
   me._next_near_field = 0.0
   me._near_field_step()
-  assert me.mission.peer_sighting() is not None, "the frame's peers never arrived"
-  assert 0.3 < me.mission.peer_sighting() < 0.6, me.mission.peer_sighting()
+  assert me.body.mission.peer_sighting() is not None, "the frame's peers never arrived"
+  assert 0.3 < me.body.mission.peer_sighting() < 0.6, me.body.mission.peer_sighting()
   # ...and the seam only SEES: what to do about it is the drive's, and
   # nothing has held yet.
-  assert me.mission.peer_holds == 0
+  assert me.body.peer_holds == 0
   # a sighting ages out rather than standing for ever
   me.data.time += 1.0
-  assert me.mission.peer_sighting() is None
+  assert me.body.mission.peer_sighting() is None
   dark = build_pair("room_hub", near_field=False, errands=("none", "none"))[0]
-  assert dark.depth_camera is None and dark.mission.peer_sighting() is None
+  assert dark.depth_camera is None and dark.body.mission.peer_sighting() is None
 
 
 def test_a_peer_the_drive_stops_short_of_is_not_held_for():
@@ -1005,17 +1009,17 @@ def test_a_peer_the_drive_stops_short_of_is_not_held_for():
   me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.6)
   me._next_near_field = 0.0
   me._near_field_step()
-  seen = me.mission.peer_sighting()
+  seen = me.body.mission.peer_sighting()
   assert seen is not None and seen < 0.6
-  px, py, _ = me.mission.pose
+  px, py, _ = me.body.pose
   # a goal it reaches well short of the sighting: no hold, and it arrives
-  me.mission.drive_to(px + 0.1, py, timeout=20.0)
-  assert me.mission.peer_holds == 0, "held for a body it stops short of"
+  me.body.mission.drive_to(px + 0.1, py, timeout=20.0)
+  assert me.body.peer_holds == 0, "held for a body it stops short of"
   # ...and the same sighting with the goal beyond it does hold
-  me.mission.step_hooks.append(lambda: None)
-  px, py, _ = me.mission.pose
-  me.mission.drive_to(px + 2.0, py, timeout=20.0)
-  assert me.mission.peer_holds > 0, "drove on with a body in the way"
+  me.body.step_hooks.append(lambda: None)
+  px, py, _ = me.body.pose
+  me.body.mission.drive_to(px + 2.0, py, timeout=20.0)
+  assert me.body.peer_holds > 0, "drove on with a body in the way"
 
 
 def test_the_fine_step_is_counted_so_the_first_swap_out_cannot_end_the_others():

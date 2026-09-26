@@ -72,7 +72,7 @@ def _fake_claw(held=None, after=_KEEP):
 
 
 def _run(fn, life, args):
-  return tick.run(SimpleNamespace(_step_once=lambda *a: None), fn(life, args))
+  return tick.run(SimpleNamespace(step=lambda *a: None), fn(life, args))
 
 
 def test_pick_and_place_are_verbs_with_a_measured_doc():
@@ -111,7 +111,7 @@ def test_pick_fetches_the_claw_onto_an_empty_fork_first(monkeypatch):
   fetches = _fork(monkeypatch, aboard, _fake_claw(held=None, after="block_1_box"))
   monkeypatch.setattr(st, "_spot_routine",
                       lambda life, tag: (order.append((fetches[:], tag)), tick.result(_SEEN))[1])
-  life = SimpleNamespace(mission=SimpleNamespace(pose=(0.0, 0.0, 0.0)))
+  life = SimpleNamespace(body=SimpleNamespace(pose=(0.0, 0.0, 0.0)))
   r = _run(st._pick, life, {"tag": 21})
   assert fetches == ["module_claw"] and order[0] == (["module_claw"], 21)
   assert r["ok"] and r["fetched"] == "module_claw" and r["holding"] == "block_1_box"
@@ -191,12 +191,12 @@ def test_a_tag_the_eye_never_decodes_fails_out_loud(monkeypatch):
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
   monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result(
     (False, "and it is not one the house set out")))
-  r = _run(st._pick, SimpleNamespace(mission=SimpleNamespace(pose=(0, 0, 0))), {"tag": 21})
+  r = _run(st._pick, SimpleNamespace(body=SimpleNamespace(pose=(0, 0, 0))), {"tag": 21})
   assert not r["ok"] and r["reason"] == ("tag 21 is not a cube this robot can see "
                                          "from here, and it is not one the house set out")
   # ...and a tag that is not a cube at all never even looks (the claw only
   # knows the shape of the blocks and the bench's masses)
-  assert tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  assert tick.run(SimpleNamespace(step=lambda *a: None),
                   st._spot_routine(SimpleNamespace(), 7)) is None
 
 
@@ -204,7 +204,7 @@ def test_pick_is_measured_off_the_jaws_not_the_command(monkeypatch):
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(
     {"centre": (1.0, 0.0, 0.013), "lateral": 0.0, "range": 0.8, "half": 0.013,
      "layer": 0, "toward": (1.0, 0.0), "xyz": (1.0, 0.0, 0.013)}))
-  life = SimpleNamespace(mission=SimpleNamespace(pose=(0.0, 0.0, 0.0)))
+  life = SimpleNamespace(body=SimpleNamespace(pose=(0.0, 0.0, 0.0)))
   monkeypatch.setattr(st, "_claw", lambda life: _fake_claw(held=None, after="block_1_box"))
   assert _run(st._pick, life, {"tag": 21})["ok"]
   monkeypatch.setattr(st, "_claw", lambda life: _fake_claw(held=None, after=None))
@@ -236,10 +236,9 @@ def _place_verdict(model, monkeypatch, stacked: bool, jaws_empty: bool = True):
     {"centre": (1.0, 0.0, 0.013), "lateral": 0.0, "range": 0.8, "half": 0.013,
      "layer": 0, "toward": (-1.0, 0.0), "xyz": (0.987, 0.0, 0.013)}))
   life = SimpleNamespace(model=model, data=data,
-                         mission=SimpleNamespace(pose=(0.0, 0.0, 0.0),
-                                                 swap=SimpleNamespace(
-                                                   _drive_until_routine=lambda *a, **k: tick.result(None),
-                                                   _run_routine=lambda *a, **k: tick.result(None))))
+                         body=SimpleNamespace(pose=(0.0, 0.0, 0.0),
+                                              travel_routine=lambda *a, **k: tick.result(None),
+                                              settle_routine=lambda *a, **k: tick.result(None)))
   return _run(st._place, life, {"tag": 20})
 
 
@@ -427,11 +426,11 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
   assert zone_route("home", "lab")[-1] == (22.0, 3.0) and zone_route("room_hub", "lab") == []
   # the travel: legs behind the robot dropped, every leg driven, then faced
   drives, faced = [], []
-  life = SimpleNamespace(world="home", mission=SimpleNamespace(
+  life = SimpleNamespace(world="home", body=SimpleNamespace(
     pose_xy=lambda: (-6.0, 1.0), peer_on_the_goal=lambda x, y: None,
-    drive_to_routine=lambda x, y, timeout: (drives.append((x, y)), tick.result(True))[1],
+    go_to_routine=lambda x, y, timeout: (drives.append((x, y)), tick.result(True))[1],
     face_routine=lambda h: (faced.append(h), tick.result(True))[1]))
-  went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+  went, why = tick.run(SimpleNamespace(step=lambda *a: None), st._travel_routine(life, 21))
   assert went and why == "" and drives == [(-8.0, -3.5), (-10.2, -4.75)] and faced == [math.pi]
   # ...and a pick that saw nothing the first time travels and looks again
   looks = []
@@ -442,8 +441,8 @@ def test_a_cube_out_of_view_is_looked_for_where_the_house_set_it_out(monkeypatch
                                     "xyz": (-10.987, -4.75, 0.013)}))[1])
   monkeypatch.setattr(st, "_travel_routine", lambda life, tag: tick.result((True, "")))
   claw = _fake_claw(after="block_1_box")
-  life.mission.pose = (-10.2, -4.75, math.pi)
-  seen, arrived, unseen = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  life.body.pose = (-10.2, -4.75, math.pi)
+  seen, arrived, unseen = tick.run(SimpleNamespace(step=lambda *a: None),
                                    st._approach_routine(life, claw, 21, carrying=False))
   assert looks == [21, 21] and seen["travelled"] and arrived and unseen == ""
 
@@ -468,8 +467,8 @@ def test_an_aborted_procedure_sets_a_held_cube_down_before_the_stow(monkeypatch)
   claw.held = lambda: getattr(claw, "_h", "block_2_box")
   monkeypatch.setattr(st, "_claw", lambda life: claw)
   monkeypatch.setattr(st, "_carried", lambda life: "module_claw")
-  swap_at_bay = life.mission.swap_at_bay_routine
-  life.mission.swap_at_bay_routine = lambda *a, **kw: (order.append("stow"), swap_at_bay(*a, **kw))[1]
+  swap_at_bay = life.body.mission.swap_at_bay_routine
+  life.body.mission.swap_at_bay_routine = lambda *a, **kw: (order.append("stow"), swap_at_bay(*a, **kw))[1]
   library = lib.Library(world_facts("room_hub"))
   library.define("short", "def short():\n  budget(steps=1, seconds=1)\n  wait(0.1)\n  wait(0.1)\n")
   result = life.run_errand(errand_from(Decision(action="procedure:short"), "room_hub", library=library))
@@ -497,9 +496,9 @@ def _from_the_rack(tmp_path, feature: str):
   life, _ = demo.build_life(False, str(tmp_path))
   if feature == "mouse":
     acts = lc.home_activities(life.model, life.data)
-    life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
+    life.body.step_hooks.append(acts.step_hook(life.model, life.data))
     life.activities = acts
-  m = life.mission
+  m = life.body.mission
   m.start_at(*world_config("home")["start"])
   m.start_discovery()
   m._spin()
@@ -524,7 +523,7 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   grade = out["grade"]
   assert grade["ok"] and grade["points"] > 0, grade
   assert grade["touchedDuringHold"] == []
-  assert life.mission.swap.module_state("module_claw")["hung"]
+  assert life.body.mission.swap.module_state("module_claw")["hung"]
 
 
 @pytest.mark.endurance
@@ -573,7 +572,7 @@ def test_a_claw_lowered_by_a_procedure_is_stowed_from_the_pick_height(tmp_path):
   import solve as demo
   from pluggybot.lifecycle import world_config
   life, _ = demo.build_life(False, str(tmp_path))
-  m = life.mission
+  m = life.body.mission
   m.start_at(*world_config("home")["start"])
   m.start_discovery()
   m._spin()
@@ -636,7 +635,7 @@ def test_the_pair_harness_hooks_its_board_as_the_constructor_does(tmp_path):
     assert life._bench_offered in life.tasks.on_event
   finally:
     for each in lives:
-      each.mission.close()
+      each.body.close()
 
 
 def _rowan_on_the_pair(tmp_path, feature: str, source: str):
@@ -649,14 +648,14 @@ def _rowan_on_the_pair(tmp_path, feature: str, source: str):
   lives, life = demo.build_pair_lives(2, str(tmp_path))
   cfg = world_config("home")
   for each, start in zip(lives, (cfg["start"], cfg["start2"])):
-    each.mission.start_at(*start)
-    each.mission.start_discovery()
-    each.mission._spin()
+    each.body.start_at(*start)
+    each.body.start_discovery()
+    each.body.mission._spin()
   try:
     return life, demo.fly_beside(lives, life, demo.run_routine(life, feature, source))
   finally:
     for each in lives:
-      each.mission.close()
+      each.body.close()
 
 
 @pytest.mark.endurance
@@ -672,7 +671,7 @@ def test_rowans_own_tower_stands_on_the_pair(tmp_path):
   assert drive["ok"] and drive["route"], drive
   assert picks[0]["fetched"] == "module_claw" and all(p["ok"] for p in picks)
   assert out["grade"]["ok"], out["grade"]
-  assert life.mission.swap.module_state("module_claw")["hung"]
+  assert life.body.mission.swap.module_state("module_claw")["hung"]
 
 
 @pytest.mark.endurance

@@ -327,9 +327,9 @@ def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   """`_reconsider` iterates the registry's verbs: a `record` and a
   `retract` land in `Findings.md` and are narrated `THOUGHT <verb>: <line>`,
   through the same loop as `pin` -- no branch was added for them."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = _lifecycle("room_hub", thoughts=files, errand=False)
+  life = stub_life("room_hub", thoughts=files, errand=False)
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life._reconsider(ov.Decision(action="idle",

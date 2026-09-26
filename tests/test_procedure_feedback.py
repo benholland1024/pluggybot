@@ -42,13 +42,12 @@ def _self(on_forks=(), blocked=None, hung=True):
   """A stand-in `self` for `HubLifecycle.pick_failure`: its peers (each
   holding what `on_forks` names), the peer-at-bay verdict, the bay."""
   peers = [SimpleNamespace(robot_name=name, root=f"r_{name}", module=held,
-                           mission=SimpleNamespace(swap=SimpleNamespace(
-                             module_state=lambda t, held=held: {"on_fork": t == held})))
+                           body=SimpleNamespace(
+                             module_state=lambda t, held=held: {"on_fork": t == held}))
            for name, held in on_forks]
   me = SimpleNamespace(
     peers=peers, peer_at_the_bay=lambda station_y: blocked, last_bay_wait=None,
-    mission=SimpleNamespace(swap=SimpleNamespace(
-      module_state=lambda t: {"on_fork": False, "hung": hung})))
+    body=SimpleNamespace(module_state=lambda t: {"on_fork": False, "hung": hung}))
   me.held_for = lambda b: HubLifecycle.held_for(me, b)
   return me
 
@@ -83,8 +82,8 @@ def test_a_tool_that_came_onto_this_fork_unseated_is_not_called_lost():
   """A half-seated pick: on this robot's own fork, no power contact. It fell
   through every case to "not on its bay, and no robot is carrying it"."""
   me = SimpleNamespace(peers=[], peer_at_the_bay=lambda station_y: None,
-                       mission=SimpleNamespace(swap=SimpleNamespace(
-                         module_state=lambda t: {"on_fork": True, "hung": False})))
+                       body=SimpleNamespace(
+                         module_state=lambda t: {"on_fork": True, "hung": False}))
   said = HubLifecycle.pick_failure(me, "module_claw", 0.1, "arrived")
   assert said.startswith("module_claw came onto the fork but did not seat")
 
@@ -92,11 +91,11 @@ def test_a_tool_that_came_onto_this_fork_unseated_is_not_called_lost():
 # ---- 2. the fork, before a fetch drives anywhere ---------------------------
 
 
-def _fetching_life(carrying: str | None):
+def _fetching_life(carrying: str | None, seated: bool = False):
   drove = []
 
-  def swap_at_bay(station, verb, module=None, tries=2):
-    drove.append((verb, module))
+  def fetch(station, module):
+    drove.append(("pick", module))
     return tick.result("arrived")
 
   def state(tool):
@@ -104,15 +103,15 @@ def _fetching_life(carrying: str | None):
   life = SimpleNamespace(
     rack_inventory=dict(st.TOOL_BAYS), module="", swaps_done=0,
     model=None, data=None,
-    mission=SimpleNamespace(swap_at_bay_routine=swap_at_bay,
-                            swap=SimpleNamespace(module_state=state,
-                                                 handle=SimpleNamespace(prefix=""))),
+    body=SimpleNamespace(fetch_tool_routine=fetch, module_state=state,
+                         tool_powered=lambda tool: seated,
+                         swap_trace=lambda: "no swap recorded"),
     pick_failure=lambda tool, station, why: "the pick missed and it is still on its bay")
   return life, drove
 
 
 def _fetch(life, tool):
-  return tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  return tick.run(SimpleNamespace(step=lambda *a: None),
                   st._fetch(life, {"tool": tool}))
 
 
@@ -123,9 +122,8 @@ def test_a_fetch_with_another_tool_on_the_fork_drives_nowhere_and_says_so():
   assert verdict["reason"] == "the fork already holds module_pen; stow it first"
 
 
-def test_a_fetch_of_the_tool_already_on_the_fork_has_it(monkeypatch):
-  monkeypatch.setattr(st, "module_power_contact", lambda *a, **k: True)
-  life, drove = _fetching_life(carrying="module_claw")
+def test_a_fetch_of_the_tool_already_on_the_fork_has_it():
+  life, drove = _fetching_life(carrying="module_claw", seated=True)
   verdict = _fetch(life, "module_claw")
   assert verdict["ok"] and drove == [] and life.module == "module_claw"
 
@@ -307,7 +305,7 @@ def test_procedure_new_runs_what_the_same_answer_defined_and_not_another(monkeyp
   life, events = _deciding_life(monkeypatch, L)
   decision = Decision(action=PROCEDURE_NEW, reason="weigh it now",
                       define={"name": "weigh", "source": "def weigh():\n  wait(1)\n"})
-  tick.run(life.mission.swap, life._after_decision_routine(decision))
+  tick.run(life.body.mission.swap, life._after_decision_routine(decision))
   queued = [e.program.name for e in life.errands if e.program is not None]
   assert queued == ["weigh"]                 # queued for the loop, and not `old`
 
@@ -317,10 +315,10 @@ def test_procedure_new_runs_nothing_when_the_define_was_refused(monkeypatch):
   L = lib.Library(lc.world_facts("room_hub"))
   L.define("old", "def old():\n  wait(1)\n")
   life, events = _deciding_life(monkeypatch, L)
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)
   decision = Decision(action=PROCEDURE_NEW, reason="try",
                       define={"name": "bad", "source": "def bad():\n  import os\n"})
-  tick.run(life.mission.swap, life._after_decision_routine(decision))
+  tick.run(life.body.mission.swap, life._after_decision_routine(decision))
   assert not [e for e in life.errands if e.program is not None]
   assert "ran nothing: `procedure:new`" in life.thoughts.read("History.md")
 
@@ -375,10 +373,10 @@ def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
   the planner could not make, read by Rowan as the pack running short."""
   asked = []
   life = SimpleNamespace(
-    mission=SimpleNamespace(drive_to_routine=lambda x, y, timeout: tick.result(False),
-                            in_sight=lambda x, y: True, pose=(1.0, 2.0, 0.0)),
+    body=SimpleNamespace(go_to_routine=lambda x, y, timeout: tick.result(False),
+                         in_sight=lambda x, y: True, pose=(1.0, 2.0, 0.0)),
     drive_why=lambda x, y: (asked.append((x, y)), "the drive gave up (why)")[1])
-  verdict = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  verdict = tick.run(SimpleNamespace(step=lambda *a: None),
                      st._drive_to(life, {"x": 4.0, "y": 6.0}))
   assert verdict["reason"] == "did not arrive at (4, 6): the drive gave up (why), at (1.0, 2.0)"
   assert verdict["why"] == "the drive gave up (why)" and asked == [(4.0, 6.0)]
@@ -405,21 +403,25 @@ def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
       return tick.result("arrived")
     return make
   state = {"on_fork": True, "hung": False}
-  swap = SimpleNamespace(module_state=lambda t: dict(state) if t == CLAW_MODULE
+
+  def ramp(act, target, speed, settle=0.0):
+    calls.append(("set_lift", target))
+    return tick.result(None)
+  body = SimpleNamespace(module_state=lambda t: dict(state) if t == CLAW_MODULE
                          else {"on_fork": False, "hung": True},
-                         set_lift_routine=rec("set_lift"), handle=SimpleNamespace(prefix=""),
-                         lift_act=0)
+                         actuator=lambda name: 0, ramp_routine=ramp,
+                         retract_arm_routine=rec("retract_arm"),
+                         stow_tool_routine=rec("return"), pose_xy=lambda: (0.0, 0.0),
+                         swap_trace=lambda: "no swap recorded")
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
                          model=None, world="room_hub",   # no routes home
                          data=SimpleNamespace(ctrl=[APPROACH_LIFT]),   # where a set-down leaves it
-                         mission=SimpleNamespace(swap=swap, set_arm_routine=rec("set_arm"),
-                                                 swap_at_bay_routine=rec("return"),
-                                                 pose_xy=lambda: (0.0, 0.0)))
+                         body=body)
   held = SimpleNamespace(held=lambda: "block_1", set_down_routine=rec("set_down"))
   monkeypatch.setattr(st, "_claw", lambda _life: held)
-  tick.run(SimpleNamespace(_step_once=lambda *a: None), st._stow(life, {}))
-  assert [c[0] for c in calls] == ["set_down", "set_lift", "set_arm", "return"]
-  assert ("set_arm", 0.0) in calls and ("set_lift", MODULE_DRIVE_LIFT) in calls
+  tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
+  assert [c[0] for c in calls] == ["set_down", "set_lift", "retract_arm", "return"]
+  assert ("set_lift", MODULE_DRIVE_LIFT) in calls
 
 
 def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypatch):
@@ -429,18 +431,18 @@ def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypa
   decode -- two different things to fix."""
   claw = SimpleNamespace(calibrate_from_body=lambda: None,
                          tuck_routine=lambda: tick.result(None))
-  life = SimpleNamespace(world="home", mission=SimpleNamespace(
+  life = SimpleNamespace(world="home", body=SimpleNamespace(
     pose_xy=lambda: (-6.0, 1.0), face_routine=lambda h: tick.result(True),
     peer_on_the_goal=lambda x, y: None),
     drive_why=lambda x, y: "the drive gave up (why)")
   monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
-  stepper = SimpleNamespace(_step_once=lambda *a: None)
-  life.mission.drive_to_routine = lambda x, y, timeout: tick.result(False)
+  stepper = SimpleNamespace(step=lambda *a: None)
+  life.body.go_to_routine = lambda x, y, timeout: tick.result(False)
   seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
   assert seen is None
   assert unseen.endswith("the route to where the house set it out stopped at (-6.0, 1.0): "
                          "the drive gave up (why)")
-  life.mission.drive_to_routine = lambda x, y, timeout: tick.result(True)
+  life.body.go_to_routine = lambda x, y, timeout: tick.result(True)
   seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
   assert seen is None and unseen.startswith(
     "tag 22 did not decode even from where the house set it out, by (-11.00, -4.50)")
@@ -467,7 +469,7 @@ def test_the_trace_measures_the_belief_against_the_true_pose():
   """Every live pick missed for a reason no local reproduction showed; the
   trace says how far the belief had drifted from the truth when it tried."""
   life = _room_hub_life()
-  m = life.mission
+  m = life.body.mission
   m.start_at(1.0, 1.0, 0.5)
   assert m.truth_error() == pytest.approx([0.0, 0.0, 0.0], abs=0.2)
   m.swap.reckoner.x += 0.012
@@ -511,11 +513,11 @@ def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
   life = _room_hub_life()
 
   def failed(*a, **kw):
-    life.mission.last_swap = rec
+    life.body.mission.last_swap = rec
     return tick.result("arrived")
-  life.mission.swap_at_bay_routine = failed
-  life.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life.body.mission.swap_at_bay_routine = failed
+  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
   said = []
   life.say_hooks.append(lambda t, msg: said.append(msg))
   life.run_errand(Errand(name="carry:test", module="module_lcd",
@@ -558,7 +560,7 @@ def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
                       grid_bounds=cfg["grid_bounds"], low_battery_wh=cfg["low_battery_wh"])
   _stub_swaps(life, monkeypatch)
   trips = []
-  real_swap = life.mission.swap_at_bay_routine
+  real_swap = life.body.mission.swap_at_bay_routine
 
   def drive(x, y, timeout=None):
     trips.append(("drive", round(x, 2), round(y, 2)))
@@ -567,15 +569,15 @@ def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
   def swap(station, verb, module=None, tries=2):
     trips.append((verb,))
     return real_swap(station, verb, module=module, tries=tries)
-  life.mission.drive_to_routine = drive
-  life.mission.swap_at_bay_routine = swap
+  life.body.mission.drive_to_routine = drive
+  life.body.mission.swap_at_bay_routine = swap
   legs = [("drive", round(x, 2), round(y, 2)) for x, y in lc.lab_route("home")[::-1]]
   L = lib.Library(lc.world_facts("home"))
   L.define("fetch_only", 'def fetch_only():\n  fetch("module_claw")\n')
   L.define("fetch_stow", 'def fetch_stow():\n  fetch("module_claw")\n  stow()\n')
   for name in ("fetch_stow", "fetch_only"):
     trips.clear()
-    life.mission.start_at(27.0, 1.5, 0.0)
+    life.body.start_at(27.0, 1.5, 0.0)
     life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "home", library=L))
     back = trips[trips.index(("pick",)) + 1:]
     assert back[:len(legs)] == legs and back[len(legs)] == ("return",), (name, back)
@@ -591,12 +593,12 @@ def test_a_drive_that_stalled_short_of_the_stand_is_not_a_look_from_it():
 
   def travel(dx):
     faced = []
-    life = SimpleNamespace(world="home", mission=SimpleNamespace(
+    life = SimpleNamespace(world="home", body=SimpleNamespace(
       pose_xy=lambda: (stand[0] + dx, stand[1]), peer_on_the_goal=lambda x, y: None,
-      drive_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
+      go_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
       face_routine=lambda h: (faced.append(h), tick.result(True))[1]),
       drive_why=lambda x, y: "the drive gave up 2.0 m short after 10 s (stalled)")
-    went, why = tick.run(SimpleNamespace(_step_once=lambda *a: None), st._travel_routine(life, 21))
+    went, why = tick.run(SimpleNamespace(step=lambda *a: None), st._travel_routine(life, 21))
     return went, why, faced
   went, why, faced = travel(2.0)
   assert went and faced == [heading]
@@ -631,13 +633,12 @@ def test_a_retired_tool_on_a_peers_record_is_carried_by_nobody():
   guarded it -- now reached from every failed pick's sentence, too."""
   def gone(name):
     raise KeyError(name)
-  peer = SimpleNamespace(module="probe", mission=SimpleNamespace(
-    swap=SimpleNamespace(module_state=gone)))
+  peer = SimpleNamespace(module="probe", body=SimpleNamespace(module_state=gone))
   assert lc.carrying(peer) == ""
   # ...and it is the FORK that is read, not the module a robot was last sent
   # for: a failed stow of the claw, then an errand for the pen
-  riding = SimpleNamespace(module="module_pen", mission=SimpleNamespace(swap=SimpleNamespace(
-    module_state=lambda t: {"on_fork": t == "module_claw"})))
+  riding = SimpleNamespace(module="module_pen", body=SimpleNamespace(
+    module_state=lambda t: {"on_fork": t == "module_claw"}))
   assert lc.carrying(riding) == "module_claw"
 
 

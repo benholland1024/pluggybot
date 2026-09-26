@@ -33,10 +33,10 @@ import mujoco
 
 from pluggybot.home import world as home
 from pluggybot.rack.coupling import CHARGE_BAY_Y, rack_charge_contact
-from pluggybot.lifecycle import CHARGE_APPROACH_MAX, CHARGE_CREEP
 from pluggybot.rack.localize import RACK_RECENCY, RackFinder, RackPose
 from pluggybot.mission.mission import (
-  CHARGE_PIN_X, DOCK_ALONG, HubMission, charge_standoff,
+  CHARGE_APPROACH_MAX, CHARGE_CREEP, CHARGE_PIN_X, DOCK_ALONG, HubMission,
+  charge_standoff,
 )
 from pluggybot.mapping.landmarks import LandmarkStore
 

@@ -158,7 +158,7 @@ def test_the_seam_hangs_a_tool_and_rebinds_every_holder():
   assert "scoop.tilt" in axes.AXES and "scoop.tilt" in axes.SENSORS
   # ...at the rail's station, in the world (the rack frame -> world map
   # the swap and the standoff both use)
-  prior = life.mission.rack_prior
+  prior = life.body.rack_prior
   hx, hy = prior.to_world(RACK_HANG_X, BUILT_STATION_YS[2])
   scoop = life.data.xpos[life.model.body("module_scoop").id]
   assert abs(float(scoop[0]) - hx) < 0.01 and abs(float(scoop[1]) - hy) < 0.01
@@ -172,7 +172,7 @@ def test_the_seam_hangs_a_tool_and_rebinds_every_holder():
   # first rack's; `module_state` knows the rail's stations)
   for _ in range(1000):
     mujoco.mj_step(life.model, life.data)
-  st = life.mission.swap.module_state("module_scoop")
+  st = life.body.mission.swap.module_state("module_scoop")
   assert st["on_fork"] is False and st["hung"] is True, st
   # THE RUNTIME FENCE: nothing reachable from the lifecycle holds the old
   # world. Shown to fail by commenting out one `rebind` call in
@@ -396,7 +396,7 @@ def test_a_tool_built_by_one_robot_rebinds_the_other_and_the_shared_loop():
 
   n = 100
   t0 = float(a.data.time)
-  tick.run_many([(a.mission.swap, builder(n)), (b.mission.swap, driver(n))],
+  tick.run_many([(a.body.mission.swap, builder(n)), (b.body.mission.swap, driver(n))],
                 name="pair-build")
 
   assert builder.rec["module"] == "module_scoop" and builder.rec["retired"] is None
@@ -405,7 +405,7 @@ def test_a_tool_built_by_one_robot_rebinds_the_other_and_the_shared_loop():
   assert float(a.data.time) - t0 == pytest.approx(2 * n * a.model.opt.timestep)
   # ...and the robot that did NOT build followed it, down to its swap
   assert b.model is a.model and b.data is a.data
-  assert b.mission.swap.model is a.model and b.mission.swap.data is a.data
+  assert b.body.mission.swap.model is a.model and b.body.mission.swap.data is a.data
   # ...with its pose carried across by name (its ids moved: a body was added)
   # (it drove ~2 cm in 200 steps at 0.05 m/s: the claim is that the pose
   # CARRIED, not that it held still, and a lost `qpos` reads as the origin)

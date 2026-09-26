@@ -27,6 +27,8 @@ from pluggybot.lifecycle import (
 from pluggybot.mind.overseer import Decision, Menu, Overseer, scripted
 from pluggybot.economy.scoring import default_table
 
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+
 
 # ---- fakes -------------------------------------------------------------------
 
@@ -427,7 +429,7 @@ def test_the_prompt_never_carries_a_hidden_answer(menu):
 def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   """`context_for` reads the running robot rather than a parallel tally, so
   what the overseer is told cannot drift from what the robot is."""
-  life = _lifecycle("room_hub")
+  life = stub_life("room_hub")
   life.verdicts.append({"task": "census", "ok": False, "points": 0,
                         "reason": "reported 3 in garden (wrong)",
                         "metrics": {"counted": 3, "coverage": 0.4}})
@@ -580,7 +582,7 @@ def _lifecycle(world: str, **kw) -> HubLifecycle:
 def test_the_arbitration_loop_is_untouched_without_an_overseer():
   """Every existing demo, mission test and recording must behave exactly as
   it did. The overseer being opt-in is what makes that true."""
-  life = _lifecycle("room_hub")
+  life = stub_life("room_hub")
   assert life.overseer is None
   assert life.decisions == []
   assert "overseer" in life.__dict__
@@ -607,7 +609,7 @@ def test_charge_priority_survives_an_overseer_that_never_charges():
   # direct conflict: the robot needs to charge AND is being told not to bother.
   life.battery.energy_wh = life.low_battery_wh * 0.6
   states: list[str] = []
-  life.mission.step_hooks.append(
+  life.body.step_hooks.append(
     lambda: states.append(life.state)
     if life.state != (states[-1] if states else None) else None)
 
@@ -668,16 +670,16 @@ def test_a_think_reaches_the_store_the_wire_and_the_narration():
   boss = Overseer(Menu.for_world("room_hub", None),
                   client=FakeClient(full(action="carry", reason="tidying up",
                                          think="bay A sticks a little")))
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
+  life = stub_life("room_hub", overseer=boss, errand=False)
   streamed: list[dict] = []
   life.thoughts.on_event.append(streamed.append)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("room_hub")["start"])
   try:
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
 
   assert life.thoughts.last_thoughts(2) == ["bay A sticks a little"]
   journal = [m for m in streamed if m["type"] == "journal"]
@@ -714,8 +716,8 @@ def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
                   client=FakeClient(full(action="charge",
                                          reason="topping up while it is "
                                                 "convenient")))
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life = stub_life("room_hub", overseer=boss, errand=False)
+  life.body.start_at(*world_config("room_hub")["start"])
   life.battery.energy_wh = life.battery.capacity_wh * 0.80
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -723,7 +725,7 @@ def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
     assert life.battery.fraction == pytest.approx(0.80, abs=0.01)
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
 
   # It went. Nothing refuses a chosen charge any more, at any fraction.
   assert life.state in ("GO_CHARGE", "CHARGE"), life.state
@@ -749,18 +751,18 @@ def test_the_sim_keeps_running_while_the_overseer_thinks():
                   client=FakeClient(full(action="carry", reason="."),
                                     delay=0.6),
                   timeout_s=2.0)
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life = stub_life("room_hub", overseer=boss, errand=False)
+  life.body.start_at(*world_config("room_hub")["start"])
   life.max_sim_time = 60.0
   life.explore_deadline = life.data.time + 1.0
   life.blacklist, life.floor_explored = set(), True
   steps = []
-  life.mission.step_hooks.append(lambda: steps.append(life.data.time))
+  life.body.step_hooks.append(lambda: steps.append(life.data.time))
   t0 = life.data.time
   wall0 = time.monotonic()
   life._decide()
   wall = time.monotonic() - wall0
-  life.mission.close()
+  life.body.close()
   assert life.data.time > t0, "the sim did not advance while it was thinking"
   assert len(steps) > 100, f"only {len(steps)} physics steps during the call"
   assert life.decisions[0]["source"] == "llm"

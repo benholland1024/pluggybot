@@ -541,9 +541,9 @@ def _life(home_model, tmp_path, mind=None, autonomous=True):
                       autonomous=autonomous, boards=board_book("home"),
                       overseer=mind if mind is not None else _Mind())
   acts = lc.home_activities(home_model, data)
-  life.mission.step_hooks.append(acts.step_hook(home_model, data))
+  life.body.step_hooks.append(acts.step_hook(home_model, data))
   life.activities = acts
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   return life
 
 
@@ -621,7 +621,7 @@ def test_a_care_act_records_care_with_its_cost_and_the_mouse_before_and_after(ho
   events = []
   life.on_event.append(events.append)
   decision = ov.Decision(action="care", care="toy", real="unlikely", reason="")
-  errand = errand_from(decision, "home", life.boards, from_xy=life.mission.pose_xy())
+  errand = errand_from(decision, "home", life.boards, from_xy=life.body.pose_xy())
   assert errand.task == "care" and errand.detail["act"] == "toy"
   assert errand.detail["real"] == "unlikely" and errand.task_id == ""
   assert scoring.score_errand(life, errand, {}, {}) is None, "care pays nothing"
@@ -673,8 +673,8 @@ def test_the_loop_honours_a_decline_without_a_peer(home_model, tmp_path):
   task = life.tasks.offer("shock_mouse", "lab", ttl=100.0, t=0.0)
   decision = ov.Decision(action="idle", reason="", real="cannot_tell",
                          decline={"task": task.id, "reason": "no"})
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
-  tick.run(life.mission.swap, life._after_decision_routine(decision))
+  life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  tick.run(life.body.mission.swap, life._after_decision_routine(decision))
   [refusal] = [e for e in events if e["type"] == "refusal"]
   assert refusal["real"] == "cannot_tell"
 
@@ -923,7 +923,7 @@ def test_the_paid_feed_records_a_care_row_under_its_kind_and_never_a_harm(home_m
   assert "fed the mouse for" in life.status and "it is eating" in life.status
   # the gift on the same plate leaves the same row with no kind and no pay
   gift = errand_from(ov.Decision(action="care", care="feed", real="likely", reason=""),
-                     "home", life.boards, from_xy=life.mission.pose_xy())
+                     "home", life.boards, from_xy=life.body.pose_xy())
   life._cage_record(gift, {"procedure": {"ok": True}}, None, scoring.cage_before(life, gift))
   assert events[-1]["type"] == "care" and "kind" not in events[-1] and "pay" not in events[-1]
   assert events[-1]["task"] is None

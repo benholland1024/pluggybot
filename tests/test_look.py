@@ -190,7 +190,7 @@ def _looker(*answers, inbox=None):
   boss = ov.build("room_hub", enabled=True, client=FakeClient(*answers),
                   autonomous=True)
   life = _lifecycle("room_hub", overseer=boss, errand=False, inbox=inbox)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("room_hub")["start"])
   return boss, life
 
 
@@ -204,7 +204,7 @@ def _renderer(life, inbox, seen, after_s: float, jpeg: bytes = JPEG):
     if asked and not done and life.data.time >= asked[0]["t"] + after_s:
       done.append(True)
       inbox.offer(image_message(asked[0]["ref"], jpeg))
-  life.mission.step_hooks.append(hook)
+  life.body.step_hooks.append(hook)
   return done
 
 
@@ -259,7 +259,7 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
     assert isinstance(boss.client.calls[-1]["messages"][0]["content"], str)
     assert "a picture came" in life.thoughts.read("History.md")
   finally:
-    life.mission.close()
+    life.body.close()
   assert life.eye.stats() == {"asked": 1, "seen": 1, "none": 0, "dropped": {}}
   # ...and the record's rows are the wire's: never the bytes.
   assert "looks" in inspect.getsource(HubLifecycle.end)
@@ -295,7 +295,7 @@ def test_nobody_answering_is_none_said_so_after_the_deadline():
     assert isinstance(content, str) and '"image": "none"' in content
     assert "no picture came back" in life.thoughts.read("History.md")
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_late_picture_is_dropped_and_a_picture_waits_for_the_models_own_turn():
@@ -314,7 +314,7 @@ def test_a_late_picture_is_dropped_and_a_picture_waits_for_the_models_own_turn()
     assert [m["outcome"] for m in seen if m["type"] == "look"] == ["asked", "none"]
     # The late picture is on the socket now; the next pass drains it.
     for _ in range(3):
-      life.mission.run(life.mission._drive_routine(0.5, 0.0, 0.0))
+      life.body.run(life.body.mission._drive_routine(0.5, 0.0, 0.0))
     life._look_step()
     assert life.eye.dropped == {"stale": 1}
     assert overseer_context(life)["seen"][0]["image"] == "none"
@@ -324,7 +324,7 @@ def test_a_late_picture_is_dropped_and_a_picture_waits_for_the_models_own_turn()
     life._decide()                            # the model's own
     assert overseer_context(life)["seen"] == []
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_run_cap_takes_look_off_the_menu_then_gives_it_back():
@@ -348,7 +348,7 @@ def test_the_run_cap_takes_look_off_the_menu_then_gives_it_back():
     assert "look" in boss.client.calls[-1]["output_config"]["format"]["schema"]["properties"]["action"]["enum"]
     assert overseer_context(life)["looksLeft"] == MAX_LOOK_RUN
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_guarded_world_has_no_seen_block_and_its_turn_is_a_string():
@@ -360,7 +360,7 @@ def test_a_guarded_world_has_no_seen_block_and_its_turn_is_a_string():
     life._decide()
     assert isinstance(boss.client.calls[-1]["messages"][0]["content"], str)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- the request, and the identity -------------------------------------------------
@@ -437,7 +437,7 @@ def test_a_picture_arriving_with_no_look_open_is_dropped_at_the_next_pass():
     assert len(inbox) == 0 and life.eye.dropped == {"stale": 1}
     assert replies == [] and life._seen == []
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_stop_thrown_into_a_look_closes_the_request():
@@ -460,7 +460,7 @@ def test_a_stop_thrown_into_a_look_closes_the_request():
     # A second look can be asked for.
     life.eye.ask({}, t=1.0, x=0.0, y=0.0, heading=0.0)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_eye_can_be_switched_off_for_a_mind_that_takes_no_picture(monkeypatch):

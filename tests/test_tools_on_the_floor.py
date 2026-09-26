@@ -15,7 +15,7 @@ import pytest
 from pluggybot import tick
 from pluggybot.lifecycle import (AUTO_RESTART_BY, LOST_TOOL_S, HubLifecycle,
                                  world_config, world_facts)
-from pluggybot.mission.mission import HubMission
+from pluggybot.mission.rover import RoverBody
 from pluggybot.procedure import lang, steps as st
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.rack.swap import ARM_EXT
@@ -36,8 +36,9 @@ def _pen_life(model, monkeypatch):
   setpoints where Rowan's procedure left them; `drive_to` records the
   setpoints at its first command and arrives."""
   data = mujoco.MjData(model)
-  mission = HubMission(model, data, viewer=None, realtime=False)
-  mission.start_at(0.5, 3.0, 0.0)
+  body = RoverBody(model, data, viewer=None, realtime=False)
+  body.start_at(0.5, 3.0, 0.0)
+  mission = body.mission
   acts = {"lift": mission.swap.lift_act, "arm": mission.swap.arm_act,
           "carriage": model.actuator("pen_carriage").id}
   for name, value in ROWAN.items():
@@ -49,7 +50,7 @@ def _pen_life(model, monkeypatch):
     return tick.result(True)
   mission.drive_to_routine = drive_to_routine
   monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
-  life = SimpleNamespace(mission=mission, model=model, data=data, module="module_pen",
+  life = SimpleNamespace(body=body, model=model, data=data, module="module_pen",
                          swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, world="room_hub", boards=None,
                          ledger=None, battery=SimpleNamespace(fraction=0.5, energy_wh=1.0))
@@ -57,12 +58,12 @@ def _pen_life(model, monkeypatch):
 
 
 def _by_language(life, src):
-  return life.mission.run(lang.run_procedure_routine(
+  return life.body.run(lang.run_procedure_routine(
     life, lang.compile_procedure(src, HUB), HUB))
 
 
 def _by_program(life, steps):
-  return life.mission.run(st.run_program_routine(
+  return life.body.run(st.run_program_routine(
     life, st.Program.single("go", [st.Step(v, a) for v, a in steps]), HUB))
 
 
@@ -112,7 +113,7 @@ def test_a_tool_already_posed_costs_no_physics_step(hub_model, monkeypatch):
   life.data.ctrl[acts["arm"]] = 0.0
   life.data.ctrl[acts["carriage"]] = 0.0
   t0 = float(life.data.time)
-  life.mission.run(st.travel_pose_routine(life))
+  life.body.run(st.travel_pose_routine(life))
   assert float(life.data.time) == t0
 
 
@@ -124,12 +125,12 @@ def test_a_claw_holding_a_cube_keeps_it_and_its_carrying_height(hub_model, monke
   claw = SimpleNamespace(held=lambda: "block_a_box")
   monkeypatch.setattr(st, "_claw", lambda life: claw)
   pose = {a: v for a, v, _ in st.travel_pose(life, "module_claw")}
-  assert pose == {life.mission.swap.arm_act: ARM_EXT,
-                  life.mission.swap.lift_act: CARRY_LIFT}
+  assert pose == {life.body.mission.swap.arm_act: ARM_EXT,
+                  life.body.mission.swap.lift_act: CARRY_LIFT}
   claw.held = lambda: None
   pose = {a: v for a, v, _ in st.travel_pose(life, "module_claw")}
-  assert pose == {life.mission.swap.arm_act: 0.0,
-                  life.mission.swap.lift_act: MODULE_DRIVE_LIFT}
+  assert pose == {life.body.mission.swap.arm_act: 0.0,
+                  life.body.mission.swap.lift_act: MODULE_DRIVE_LIFT}
 
 
 def test_up_before_in_and_in_before_down(hub_model, monkeypatch):
@@ -154,13 +155,13 @@ def test_the_return_s_pose_also_goes_up_before_in(hub_model, monkeypatch, lift0,
   life.data.ctrl[acts["lift"]] = lift0
   life.data.ctrl[acts["arm"]] = 0.08
   seen = []
-  real = life.mission.set_arm_routine
+  real = life.body.mission.set_arm_routine
 
   def set_arm_routine(ext, *a, **kw):
     seen.append(float(life.data.ctrl[acts["lift"]]))
     return real(ext, *a, **kw)
-  monkeypatch.setattr(life.mission, "set_arm_routine", set_arm_routine)
-  life.mission.run(st.carry_configuration_routine(life, "module_pen"))
+  monkeypatch.setattr(life.body.mission, "set_arm_routine", set_arm_routine)
+  life.body.run(st.carry_configuration_routine(life, "module_pen"))
   assert seen == [pytest.approx(arm_at, abs=1e-6)]
   assert float(life.data.ctrl[acts["lift"]]) == pytest.approx(MODULE_DRIVE_LIFT)
 
@@ -206,10 +207,10 @@ def test_draw_takes_the_route_to_its_board_before_its_own_approach(monkeypatch):
     order.append(("drive_to", round(x, 3), round(y, 3)))
     return tick.result(arrive["ok"])
   life = SimpleNamespace(world="home", boards=lc.board_book("home"),
-                         mission=SimpleNamespace(drive_to_routine=drive_to_routine,
-                                                 pose=(0.5, -1.4, 1.57)),
+                         body=SimpleNamespace(go_to_routine=drive_to_routine,
+                                              pose=(0.5, -1.4, 1.57)),
                          drive_why=lambda x, y: "the drive gave up (why)")
-  stepper = SimpleNamespace(_step_once=lambda *a: None)
+  stepper = SimpleNamespace(step=lambda *a: None)
   verdict = tick.run(stepper, st._draw(life, {"figure": "circle", "board": "whiteboard_b"}))
   sx, sy = use_at[0]            # where the native errand's carry drive goes
   assert order == [("drive_to", round(sx, 3), round(sy, 3)), "use"]
@@ -332,7 +333,7 @@ def test_a_pen_on_the_floor_is_back_on_its_bay_after_five_minutes():
   its qpos reads `lost`, and 300 s later it hangs on bay C again."""
   life = _life(lost_tool_after_s=LOST_TOOL_S)
   m, d = life.model, life.data
-  swap = life.mission.swap
+  swap = life.body.mission.swap
   assert life.tool_whereabouts("module_pen") == "bay"
   assert swap.module_state("module_pen")["bay"] == st.TOOL_BAYS["module_pen"]
   qadr = int(m.jnt_qposadr[m.body("module_pen").jntadr[0]])
@@ -359,7 +360,7 @@ def test_a_lost_tool_is_never_put_into_a_taken_bay():
   while the LCD sits in its bay (lost itself, one bay over, from t=100);
   at t=400 the LCD goes home first and the pen follows, both hung."""
   life = _life(lost_tool_after_s=LOST_TOOL_S)
-  m, d, swap = life.model, life.data, life.mission.swap
+  m, d, swap = life.model, life.data, life.body.mission.swap
   pen, lcd = _qadr(m, "module_pen"), _qadr(m, "module_lcd")
   d.qpos[pen:pen + 3] = (d.qpos[pen] + 1.0, d.qpos[pen + 1] + 1.0, 0.03)
   mujoco.mj_forward(m, d)
@@ -404,7 +405,7 @@ def test_a_lost_built_tool_goes_back_to_its_bay_on_the_rail():
   life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world="room_hub",
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"], spec=spec,
                       errand=False, lost_tool_after_s=LOST_TOOL_S)
-  life.mission.start_at(*cfg["start"])     # compiled, the fork is under bay A
+  life.body.start_at(*cfg["start"])     # compiled, the fork is under bay A
   before = set(axes.AXES), set(axes.SENSORS)
   try:
     body = life.hang_tool(validate.check(SCOOP), 1)["module"]
@@ -417,7 +418,7 @@ def test_a_lost_built_tool_goes_back_to_its_bay_on_the_rail():
     for t in (d.time + 1.0, d.time + 301.0):
       d.time = t
       life._lost_tool_step()
-    here = life.mission.swap.module_state(body)
+    here = life.body.mission.swap.module_state(body)
     assert here["hung"] and here["bay"] == life.rack_inventory[body]
     assert [e["module"] for e in life.tools_returned] == [body]
   finally:
@@ -433,22 +434,21 @@ def test_whereabouts_reads_every_robot_and_its_own_bay(monkeypatch):
   there."""
   life = _life()
   pen_bay = STATION_YS[st.TOOL_BAYS["module_pen"]]
-  home = life.mission.swap.module_state("module_pen")
+  home = life.body.mission.swap.module_state("module_pen")
   peer_state = {"on_fork": False}
-  peer = SimpleNamespace(mission=SimpleNamespace(
-    swapping_at=None,
-    swap=SimpleNamespace(module_state=lambda m: {**home, **peer_state})))
+  peer = SimpleNamespace(body=SimpleNamespace(
+    swapping_at=None, module_state=lambda m: {**home, **peer_state}))
   life.peers = [peer]
   assert life.tool_whereabouts("module_pen") == "bay"
-  peer.mission.swapping_at = pen_bay + 1e-9           # a station, however computed
+  peer.body.swapping_at = pen_bay + 1e-9           # a station, however computed
   assert life.tool_whereabouts("module_pen") == "swap"
-  peer.mission.swapping_at = STATION_YS[st.TOOL_BAYS["module_lcd"]]
+  peer.body.swapping_at = STATION_YS[st.TOOL_BAYS["module_lcd"]]
   assert life.tool_whereabouts("module_pen") == "bay", "another bay's swap"
   peer_state["on_fork"] = True
   assert life.tool_whereabouts("module_pen") == "fork"
   peer_state["on_fork"] = False
-  real = life.mission.swap.module_state
-  monkeypatch.setattr(life.mission.swap, "module_state",
+  real = life.body.mission.swap.module_state
+  monkeypatch.setattr(life.body.mission.swap, "module_state",
                       lambda m: {**real(m), "bay": st.TOOL_BAYS["module_claw"]})
   assert life.tool_whereabouts("module_pen") == "lost"
 
@@ -458,7 +458,7 @@ def test_a_swap_holds_its_bay_for_as_long_as_it_runs(monkeypatch):
   cleared however it ends -- a stale one would keep a lost tool's clock
   stopped for ever."""
   life = _life()
-  m = life.mission
+  m = life.body.mission
   seen = []
 
   def body(station_y, verb, module=None, tries=2):

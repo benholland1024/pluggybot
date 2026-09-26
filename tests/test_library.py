@@ -28,7 +28,8 @@ from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.telemetry.protocol import READ_OUTCOMES
 
 from test_autonomous import GUARDED_RULES_SHA
-from test_overseer import FakeClient, _lifecycle, full
+from test_body import stub_life
+from test_overseer import FakeClient, full
 
 DURIAN = {"title": "Durian", "extract": "The durian is the edible fruit of several "
           "tree species belonging to the genus Durio.", "revision": "1234567",
@@ -216,8 +217,8 @@ def _reader(*answers, fetch=FETCH):
   menu = Menu.for_world("room_hub", None)
   menu = replace(menu, wiki=True)
   boss = Overseer(menu, client=FakeClient(*answers), wiki=wiki.Wiki(fetch=fetch))
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life = stub_life("room_hub", overseer=boss, errand=False)
+  life.body.start_at(*world_config("room_hub")["start"])
   return boss, life
 
 
@@ -259,7 +260,7 @@ def test_a_page_arrives_next_turn_as_a_message_from_the_library_and_only_as_text
     assert overseer_context(life)["reading"] == []
     assert "read 'Durian' from the library" in life.thoughts.read("History.md")
   finally:
-    life.mission.close()
+    life.body.close()
   assert [d.get("lookup", "") for d in life.decisions][:2] == ["durian", ""]
   assert boss.stats()["reading"]["reads"] == 1
 
@@ -279,7 +280,7 @@ def test_a_page_waits_for_a_decision_of_the_models_own():
     life._decide()                            # the model's own
     assert overseer_context(life)["reading"] == []
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_miss_and_a_refusal_reach_the_wire_and_the_record_and_shelve_nothing():
@@ -298,7 +299,7 @@ def test_a_miss_and_a_refusal_reach_the_wire_and_the_record_and_shelve_nothing()
     life._decide()
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
   assert [(r["outcome"], r["why"]) for r in life.reads] == [
     ("missing", ""), ("read", ""), ("refused", "too-soon")]
   assert [m["outcome"] for m in seen if m["type"] == "read"] == ["missing", "read", "refused"]
@@ -311,14 +312,14 @@ def test_a_miss_and_a_refusal_reach_the_wire_and_the_record_and_shelve_nothing()
 
 def test_a_lookup_without_a_library_is_nothing():
   boss = Overseer(Menu.for_world("room_hub", None), client=FakeClient())
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
+  life = stub_life("room_hub", overseer=boss, errand=False)
   try:
     d = ov.Decision(action="idle", lookup="durian")   # no `page`: no desk
     life._read(d)
     assert life.reads == [] and life._shelf == []
     assert "reading" not in overseer_context(life)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- the measurement ---------------------------------------------------------------

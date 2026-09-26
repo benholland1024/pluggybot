@@ -20,6 +20,7 @@ import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
+from pluggybot.mission import rover
 from pluggybot import tick
 from pluggybot.economy.tasks import TaskBoard
 from pluggybot.lifecycle import (DEATH_ENDED, STOOD_UP, HubLifecycle, board_book,
@@ -56,7 +57,7 @@ def _life(world: str = "room_hub", **kw) -> HubLifecycle:
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], errand=False,
                       mortal=True, restart_after_s=TIMER_S, **kw)
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
   life.survival_since = float(data.time)
   return life
@@ -103,7 +104,7 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
                     restart_after_s=TIMER_S)
   try:
     for life, start in ((a, cfg["start"]), (b, cfg["start2"])):
-      life.mission.start_at(*start)
+      life.body.start_at(*start)
       life.home_pose = tuple(start)
     closed: list[float] = []
     steps = round((TIMER_S + 2.0) / a.model.opt.timestep)
@@ -115,8 +116,8 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
 
     errand = carry_errand(use_at=cfg["use_at"])
     out = tick.run_many([
-      (a.mission.swap, a._until_stood_up_routine(_forever(a, errand, closed))),
-      (b.mission.swap, steady())])
+      (a.body.mission.swap, a._until_stood_up_routine(_forever(a, errand, closed))),
+      (b.body.mission.swap, steady())])
 
     assert [r["auto"] for r in a.resets] == [True], "the timer stood robot 1 up"
     assert out[0] is STOOD_UP
@@ -130,8 +131,8 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
     assert out[1] == steps
     assert b.resets == [] and b.dead is None
   finally:
-    a.mission.close()
-    b.mission.close()
+    a.body.close()
+    b.body.close()
 
 
 def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
@@ -142,7 +143,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
   after the stand-up (and would have driven on for ever)."""
   life = _life()
   try:
-    life.mission._spin_routine = lambda *a, **kw: tick.result(None)
+    life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
     closed: list[float] = []
     resumed: list[float] = []
 
@@ -165,7 +166,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
     life.errands = [carry_errand(use_at=world_config("room_hub")["use_at"])]
     day = life.begin(world_config("room_hub")["start"], max_sim_time=60.0,
                      explore_budget=0.0)
-    life.mission.run(day)
+    life.body.run(day)
 
     assert resumed == [], "the errand ran on after the stand-up"
     assert len(closed) == 1 and life.resets and life.resets[0]["auto"]
@@ -173,7 +174,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
     assert life.dead is None
     assert any("dying cut short carry" in ln for ln in _history(life))
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 #: Every routine the loop drives that moves the body for long, and so can
@@ -232,13 +233,13 @@ def test_a_charge_trip_a_stand_up_ends_is_not_a_failed_dock():
         closed.append(float(life.data.time))
 
     life.go_charge_routine = go_charge
-    life.mission.run(life._charge_trip_routine())
+    life.body.run(life._charge_trip_routine())
     assert len(closed) == 1 and len(life.resets) == 1
     assert life.dead is None and not life.stranded, \
         "a stand-up is not a failed dock"
     assert [d["cause"] for d in life.deaths] == ["flat"]
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_stand_up_inside_a_blocking_stretch_puts_the_state_back():
@@ -249,20 +250,20 @@ def test_a_stand_up_inside_a_blocking_stretch_puts_the_state_back():
   life = _life()
   try:
     life.battery.energy_wh = 0.0
-    life.mission._drive(0.5, 0.0, 0.0)
+    life.body.mission._drive(0.5, 0.0, 0.0)
     assert life.dead is not None
 
     def blocking():
-      life.mission._drive(PAST_S, 0.0, 0.0)       # the timer fires in here
+      life.body.mission._drive(PAST_S, 0.0, 0.0)       # the timer fires in here
       life.state = "SWAP_RETURN"                  # ...and the errand runs on
       yield 0.0, 0.0
       raise AssertionError("resumed after the stand-up")
 
-    out = life.mission.run(life._until_stood_up_routine(blocking()))
+    out = life.body.run(life._until_stood_up_routine(blocking()))
     assert out is STOOD_UP and life.resets
     assert life.state == "EXPLORE"
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_closing_is_safe_because_no_routine_yields_in_a_finally():
@@ -299,16 +300,16 @@ def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working(monkeypatch
   from pluggybot.rack.coupling import STATION_YS
   life = _life()
   try:
-    monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
+    monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
     adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
     life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # carried, off its bay
     mujoco.mj_forward(life.model, life.data)
     #  one step, so the seam reads the stubbed contact: without it the rescue
     #  never sees a tool on the fork and this passes with the rule deleted
-    life.mission._drive(0.2, 0.0, 0.0)
+    life.body.mission._drive(0.2, 0.0, 0.0)
     assert life.tool_powered, "the seam did not see the seated module"
     bay_y = STATION_YS[life.rack_inventory[life.module]]
-    life.peers = [SimpleNamespace(mission=SimpleNamespace(swapping_at=bay_y))]
+    life.peers = [SimpleNamespace(body=SimpleNamespace(swapping_at=bay_y))]
     life._die("flat", "the pack reached zero")
     life.stand_up(lc.AUTO_RESTART_BY, auto=True)
     assert life.dead is None
@@ -316,7 +317,7 @@ def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working(monkeypatch
     assert math.dist(life.data.qpos[adr:adr + 3], home) > 0.5, \
         "dropped into a bay another robot's swap was working"
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- the job, and what the robot and its map are told ---------------------
@@ -340,7 +341,7 @@ def test_the_job_fails_and_the_map_hears_the_stand_up_and_the_failure(menu):
     errand = lc.errand_for_task(board[task.id], "room_hub")
     assert errand is not None and errand.task_id == task.id
 
-    out = life.mission.run(
+    out = life.body.run(
       life._until_stood_up_routine(_forever(life, errand, [])))
 
     assert out is STOOD_UP
@@ -355,7 +356,7 @@ def test_the_job_fails_and_the_map_hears_the_stand_up_and_the_failure(menu):
     assert any(f"dying cut short {errand.name}; the job {task.id} (fetch_module) "
                f"is failed: {DEATH_ENDED}" in ln for ln in _history(life))
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_voided_procedure_run_closes_as_aborted_with_no_count():
@@ -372,13 +373,13 @@ def test_a_voided_procedure_run_closes_as_aborted_with_no_count():
     life.on_event.append(seen.append)
     errand = programmed_errand(Program.single("lap", [Step("wait", {"seconds": 1.0})]))
     voided = life._until_stood_up_routine(_forever(life, errand, []))
-    assert life.mission.run(voided) is STOOD_UP
+    assert life.body.run(voided) is STOOD_UP
     [end] = [e for e in seen if e["type"] == "procedure"]
     assert (end["name"], end["outcome"], end["stopped"]) == ("lap", "aborted", "stood_up")
     assert end["outcome"] in PROCEDURE_OUTCOMES
     assert "completed" not in end and "total" not in end
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 @pytest.mark.parametrize("who", ["timer", "admin"])
@@ -391,19 +392,19 @@ def test_who_stood_the_robot_up_is_the_kind_a_row_narrows_on(menu, who):
   life = _life(inbox=Inbox(), overseer=_mapped(menu, *rows))
   try:
     life.battery.energy_wh = 0.0
-    life.mission._drive(0.5, 0.0, 0.0)
+    life.body.mission._drive(0.5, 0.0, 0.0)
     assert life.dead is not None
     if who == "admin":
       life.inbox.offer({"type": "reset_robot", "id": "rr_348", "from": "ben"})
       life._visitor_step()
     else:
-      life.mission._drive(PAST_S, 0.0, 0.0)
+      life.body.mission._drive(PAST_S, 0.0, 0.0)
     assert life.dead is None and life.resets[-1]["auto"] is (who == "timer")
     life._next_events_check = 0.0
     life._events_step()
     assert life.queued_row == rows[0 if who == "admin" else 1]
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_stand_up_drops_what_the_map_queued_while_the_robot_lay_dead(menu):
@@ -415,15 +416,15 @@ def test_a_stand_up_drops_what_the_map_queued_while_the_robot_lay_dead(menu):
   life = _life(overseer=_mapped(menu, *rows))
   try:
     life.battery.energy_wh = 0.0
-    life.mission._drive(0.5 + ev.MIN_PERIOD_S, 0.0, 0.0)
+    life.body.mission._drive(0.5 + ev.MIN_PERIOD_S, 0.0, 0.0)
     assert life.dead is not None and life.queued_row == rows[0]
-    life.mission._drive(PAST_S, 0.0, 0.0)
+    life.body.mission._drive(PAST_S, 0.0, 0.0)
     assert life.dead is None
     life._next_events_check = 0.0
     life._events_step()
     assert life.queued_row == rows[1]
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_queued_row_that_is_still_news_waits_its_turn(menu):
@@ -439,7 +440,7 @@ def test_a_queued_row_that_is_still_news_waits_its_turn(menu):
     assert life.resets and life.resets[-1]["auto"] is False
     assert life.queued_row == row
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_after_a_true_death_the_errand_is_not_the_new_robots_to_remember(menu):
@@ -461,7 +462,7 @@ def test_after_a_true_death_the_errand_is_not_the_new_robots_to_remember(menu):
     assert not any("dying cut short" in ln for ln in _history(life))
     assert ("task_failed", errand.name) not in life._occurred
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- the vocabulary ----------------------------------------------------------
