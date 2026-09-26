@@ -17,10 +17,6 @@ import math
 
 from pluggybot.mapping.frontier import FREE_THRESH
 
-GATE_RADIUS = 0.4   # m: anonymous sightings closer than this (in 2D) are the
-                    # same landmark; z is excluded because it is the noisiest
-                    # estimate. The rack merges by decoded identity instead.
-
 
 class Landmark:
   def __init__(self, x: float, y: float, z: float,
@@ -132,9 +128,7 @@ def wall_normal_conf(grid, x: float, y: float,
 
 
 class LandmarkStore:
-  def __init__(self, gate_radius: float = GATE_RADIUS,
-               recency: float | None = None) -> None:
-    self.gate_radius = gate_radius
+  def __init__(self, recency: float | None = None) -> None:
     #: Passed to every Landmark this store creates. None -- the default -- is
     #: the pure running average; the rack finder passes a floor so its one
     #: landmark tracks the current odometry frame (issue #42; the argument
@@ -144,20 +138,9 @@ class LandmarkStore:
 
   def add_sighting(self, x: float, y: float, z: float,
                    seen_from: tuple[float, float]) -> Landmark:
-    """Record one detection: merge into the nearest landmark within the gate
-    (2D distance), or start a new landmark if none is close enough.
-    seen_from: the robot's (x, y) at detection time."""
-    nearest = None
-    min_dist = self.gate_radius
-    for landmark in self.landmarks:
-      dist = math.hypot(landmark.x - x, landmark.y - y)
-      if dist < min_dist:
-        min_dist = dist
-        nearest = landmark
-
-    if nearest is None:
-      nearest = Landmark(x, y, z, seen_from, recency=self.recency)
-      self.landmarks.append(nearest)
-    else:
-      nearest.merge(x, y, z, seen_from)
-    return nearest
+    """Start a landmark from its first sighting. Later sightings are merged
+    into it by whoever knows what they are (the rack's finder merges by
+    decoded tag id, never by distance). seen_from: the robot's (x, y)."""
+    landmark = Landmark(x, y, z, seen_from, recency=self.recency)
+    self.landmarks.append(landmark)
+    return landmark

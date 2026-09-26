@@ -3,12 +3,12 @@
 The wheeled body — a differential-drive base on a caster, a mast, a lift and
 a telescoping arm ending in a fork — is the deployed robot until the
 quadruped replaces it (#375, step 2). **Read this before touching the
-rover**: the drive and the dead reckoning (`control.py`, `odometry/`,
-`behavior/`), the swap, the dock and the bays (`rack/`, `mission/`), the
-tools on the lift (`tools/`), its sensors' mounts, its energy numbers, and
-the routes it drives. Each bullet is a constraint, the number behind it and where its story lives (SimNotes, mostly); what does not depend on the body is in CLAUDE.md, including the principles several of these bullets share with any body (a budget on every terminal loop, the dock as the one anchor, a map written only while level, peers kept out of the map and in the drive). Stage C of #376 deletes this file with the rover, after tagging
-the last commit that runs it `rover-final` (until then the fallback is
-`ed0a219`).
+rover**: the drive and dead reckoning (`control.py`, `odometry/`,
+`behavior/`), the swap, dock and bays (`rack/`, `mission/`), the tools on
+the lift (`tools/`), its sensors' mounts, its energy numbers and its routes.
+Each bullet is a constraint, its number and where its story lives (SimNotes,
+mostly); what outlives the body is in CLAUDE.md. Stage C of #376 deletes this
+file, after tagging the last commit that runs the rover `rover-final`.
 
 ## Drive, turn and square up
 
@@ -73,10 +73,9 @@ the last commit that runs it `rover-final` (until then the fallback is
   pose the robot occupies to millimetres by construction. ⚠ Snapped to the
   COMMISSIONED PRIOR (`rack_prior`), never the believed rack (anchored to the
   belief, the error tracked itself 0.003 → 0.344 m over four sim-hours). Two
-  belief rules travel with it: the rack landmark merges BY DECODED IDENTITY
-  (the 0.4 m distance gate is for anonymous landmarks) and its position is
-  recency-weighted (`RACK_RECENCY`). The bay recovery (`swap_at_bay`'s
-  spin-refresh-retry) depends on both;
+  belief rules travel with it: the rack landmark merges BY DECODED IDENTITY,
+  never by distance, and its position is recency-weighted (`RACK_RECENCY`).
+  The bay recovery (`swap_at_bay`'s spin-refresh-retry) depends on both;
   `test_the_recovery_finds_a_bay_the_first_look_lost` pins all three. The
   pen's ERASE rides the first successful press, never arrival. Map evidence
   decay is DEFERRED on measurement.
@@ -111,10 +110,6 @@ the last commit that runs it `rover-final` (until then the fallback is
   answered), never off one tag's PnP yaw — square-on, a single 30 mm tag's yaw
   is a coin flip between mirrored solutions while its translation holds to a
   millimetre; the fit holds 0.4°. The layout is FACES, consistently.
-- **The dock camera's near plane is the world's extent** (CLAUDE.md,
-  "Generated worlds"): a world that re-derives its extent from a bigger
-  bounding box clips the rack out of `dock_eye` at every bay, and picks and
-  stows run blind.
 
 ## The swap, the errand and the tools on the lift
 

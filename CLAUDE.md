@@ -741,8 +741,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   together. A module goes where its CONCERN lives; a module that fits none is
   a new domain, not a reason to widen an old one. `tests/` is flat.
 - `models/world.xml` is the bare world for physics tests (it carries the PLUG
-  robot, `pluggybot.xml`, until #376's stage C); `playground.xml` adds
-  scenery. Never put scenery in the test world.
+  robot, `pluggybot.xml`, until #376's stage C). Never put scenery in the test
+  world.
 - Grid code: cells are `(ix, iy)` tuples at APIs; numpy arrays index `[iy,
   ix]`.
 - **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue #58;

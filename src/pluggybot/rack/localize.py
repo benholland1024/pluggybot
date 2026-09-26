@@ -273,9 +273,8 @@ class RackFinder:
   def look(self, data, pose: tuple[float, float, float]) -> int:
     """One look; returns how many tag sightings it added.
 
-    ⚠ MERGED BY IDENTITY, NOT BY DISTANCE (issue #42). The store's 0.4 m
-    gate is for anonymous detections -- two far apart might be two things.
-    The rack's sightings carry a DECODED ID, so
+    ⚠ MERGED BY IDENTITY, NEVER BY DISTANCE (issue #42). The rack's
+    sightings carry a DECODED ID, so
     every one of them is the same rack wherever the believed frame puts it.
     Gating them by distance broke the drift recovery in the worst way
     (measured, the issue-30 recovery regression test): after half a metre of

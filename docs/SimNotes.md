@@ -86,7 +86,7 @@ exist in that weight class.
 ## Test & world hygiene
 
 - **`models/world.xml` is bare** (floor + light + robot) and physics tests run
-  there; `playground.xml` / `room_hub.xml` add scenery via `<include>`. Scenery
+  there; `room_hub.xml` adds scenery via `<include>`. Scenery
   once parked a box in the drive-test lane, and the veer re-measurement drove
   straight into a board the author had placed two hours earlier. Copying the
   floor into an including file doubles every wheel contact — a "repeated
@@ -131,9 +131,10 @@ exist in that weight class.
 - **Adjacent-link interpenetration is silent.** Contact filtering treats a
   weld group as one body, so a carriage can sweep straight through its own
   head mount and the pipeline reports nothing. Clearance must be asserted from
-  *geometry* — `tests/test_arm.py`'s AABB transit sweep, which has since
-  caught the parked fork (9 mm into the chassis), a widened prong through the
-  battery, and two 5 mm tube/carriage overlaps that contacts never would.
+  *geometry* — an AABB transit sweep (`tests/test_hub_swap.py` sweeps the
+  fork's), which has caught the parked fork 9 mm into the chassis, a widened
+  prong through the battery, and two 5 mm tube/carriage overlaps that
+  contacts never would.
   Endpoint checks are not envelope checks; contact checks are not clearance
   checks. (A grandchild is not filtered either: the pen quill fought the
   module plate it was modelled inside, jamming the carriage at +21.9 mm while
@@ -183,74 +184,13 @@ exist in that weight class.
   repeated pathless replans. A* plans to the reachable cell NEAREST an
   unreachable goal, never a blind greedy advance into unknown space.
 
-## What the plug era taught that still holds
+## The plug era
 
-The plug-anywhere robot (milestones 5–7: a YOLO outlet detector, a plug arm
-with alignment feelers, a scripted and an RL docking controller, a Schuko
-contact spike) was parked by the hub pivot and its code deleted in #376;
-the git history before that issue holds it and its numbers. Its wall
-sockets survive as frozen scenery (`models/schuko_sockets.xml`, included by
-`room_hub.xml`). What transferred:
-
-- **"Where I saw it from" is not "which way it faces."** An outlet's normal
-  taken from the mean sighting position was 31° off the wall; read off the
-  occupancy grid (sum unit vectors to nearby free cells) it was 0.0°. That
-  is the rack's facing source now (`landmarks.wall_normal_conf`,
-  `RackFinder`), with its free-standing-partition caveat — see "The charge
-  press is an odometry pump".
-- **Decompose an error before fixing it**: that 33° miss was blamed on
-  odometry drift, which measured 0.02°; the estimator owned all of it.
-- **A camera's FOV bounds usable height**: an eye at 0.18 m with a 41° fovy
-  sees a target at 0.38 m from 0.6 m and loses it at 0.35 m — why the claw
-  cannot see its grip point and why the dock camera drops the lift to see
-  the charge tag. A visual servo's axes fail separately (the box centre
-  biased +23 mm vertically while holding +1 mm laterally): measure each.
-- **Recall is recoverable; precision errors compound.** A systematic false
-  positive on a fixed decoy accumulates in one place and graduated into a
-  confirmed phantom the robot parked in front of. Tune a threshold against
-  what the consumer does with the errors, not against F1; one sighting is
-  a rumour (`MIN_SIGHTINGS = 3`, the rack's rule too).
-- **A generator's own val split cannot measure what it generated** (0.99
-  mAP while calling a light switch an outlet): the eval that matters is
-  poses the generator never made, and a handful of poses is a smoke test,
-  not a measurement. A generator deletes its output directory first — a
-  per-image split draw left 195 stale labels alive across a regeneration.
-- **The renderer is not a measurement device by default**: MSAA blended
-  geom ids into segmentation labels (12.3 % of scenes grew a second blob)
-  until `offsamples="0"` — the lesson #110 met again in the robot's own
-  cameras (below).
-- **Budget the tolerance across the whole chain**: a 2° facing settle spent
-  two-thirds of a ±3° docking budget; the 0.5° settle it became is what the
-  hub coupling's < 2° yaw envelope still relies on.
-- **The electrical criterion is the only seat detector that survived.** Four
-  positional verdicts (extension window, base release, odometry advance,
-  floor contact) were each defeated by a real event; "the pins conduct" is
-  the sensor the hardware has, and it carried over verbatim to
-  `rack_charge_contact`, `module_power_state` and every swap verdict.
-- **A one-way contact cannot brace you**: a wall pushes the robot the same
-  way the insertion reaction does. The hub met the mirror image — a gravity
-  hook does not push either (the lean-pad, below).
-- **Asymmetric mass makes a diff-drive veer open-loop**: the arm at
-  y = −0.05 veered 26 cm over 4 m; the battery at y = +0.06 nulls the
-  measured veer, and the heaviest module adds 5.5 mm over 2.7 m, so tool
-  mass is bounded by the coupling and the tip-load budget, not by veer.
-- **Gravity is a docking axis**: the arm sags ~8 mm (`swap.DROOP_COMP`), a
-  feed-forward constant of exactly the shape a real robot needs.
-- **Contact geometry**: MuJoCo collides convex pieces only, so a recess is
-  COMPOSED of boxes (the V-notches since); capture is set by the entry
-  chamfer, not the recess, and widening a chamfer to make a failing
-  controller pass tunes the world, not the robot. Jams stall cleanly at a
-  force cap at `timestep 0.001` + `solref "0.005 1"`, which is the swap's
-  floor too.
-- **Training lessons, for the next policy** (the docking SAC scored 6/24
-  against the scripted controller's 8/24 on the same trials): a synthetic
-  sensor is calibrated against the real one, including the robot's own
-  body in frame — a policy trained without its arm's occlusion learned to
-  approach arm-first; odometry in the loop is part of the sensor model —
-  trained on true pose, 100 % in the env and 1/24 in the room, by grinding
-  the wheels; randomise with a mocap body, not recompilation; the eval runs
-  every controller on the SAME trials; the checkpoint is chosen by eval
-  success, never recency (SAC found the skill early and destabilised late).
+The plug-anywhere robot (milestones 5–7: an outlet detector, a plug arm with
+alignment feelers, scripted and RL docking controllers, a Schuko contact
+spike) was parked by the hub pivot and deleted in #376; git history before
+that issue holds it and its numbers. Its wall sockets survive as frozen
+scenery in `models/schuko_sockets.xml`, which `room_hub.xml` includes.
 
 ## Hub coupling spike (milestone-8 prep)
 
@@ -260,7 +200,7 @@ the peg *outboard* of the trays, gravity is the latch, and the only verbs are
 slide and lift (no wrist). Guarded by `tests/test_hub_coupling.py`:
 
 - **Measured envelope: ±4 mm lateral, −8/+6 mm vertical, < 2° yaw.** Yaw is
-  the tight constraint again: picks survive 2°, returns do not, ±4° jams at
+  the tight constraint: picks survive 2°, returns do not, ±4° jams at
   50–120 N (`test_yaw_4deg_is_outside_the_envelope` pins the limitation — if
   it starts passing, re-measure and update here). Navigation's 0.5° settle is
   what makes v1 usable.
@@ -274,10 +214,10 @@ slide and lift (no wrist). Guarded by `tests/test_hub_coupling.py`:
 - **Depth referencing by gentle press**: the approach drives until the fork
   bridge bottoms against the tool face under the force cap.
 
-### Robot integration: the fork inherits the plug's lessons, item by item
+### Robot integration
 - The bumper reaches the hub before the fork does (retracted vertex 25 mm
   behind the chassis front), so the arm extends 60 mm for hub work.
-- RCC droop is a fork axis too: `DROOP_COMP` 8 mm, feed-forward in the lift
+- RCC droop is a fork axis: `DROOP_COMP` 8 mm, feed-forward in the lift
   preset.
 - The parked fork interpenetrated the chassis (9 mm plus 3 mm of spring
   droop), caught by the geometric clearance sweep; `FORK_MOUNT_RAISE` absorbs
@@ -955,10 +895,10 @@ frame coherent:
   prior is "what a robot that booted docked knows": the map frame is DEFINED
   by the dock, as on hardware. The rack landmark is re-seeded there too, and
   drift is bounded to one shift's worth.
-- **The rack merges by identity, not distance** (`RackFinder.look`). The
-  store's 0.4 m gate is for anonymous landmarks; after 0.5 m of decoherence a
-  recovery spin's sightings spawned a SECOND rack landmark the stale one
-  outvoted, so the spin that existed to fix the belief could not touch it.
+- **The rack merges by identity, not distance** (`RackFinder.look`). Behind
+  a 0.4 m distance gate, 0.5 m of decoherence let a recovery spin's
+  sightings spawn a SECOND rack landmark the stale one outvoted, so the spin
+  that existed to fix the belief could not touch it.
 - **The rack belief is recency-weighted** (`RACK_RECENCY` 0.25, an EMA past
   the first sightings). A mission-long average remembers the MEAN historical
   frame: a 2000-sighting belief moved by nothing when fresh looks arrived.
@@ -1120,7 +1060,7 @@ looks carry it into the robot's beliefs.** `offsamples="0"` makes every
 render byte-identical at no cost to the detector (same tag set, centres and
 translations at every range out to 2 m, nothing at 3), so the robot's
 cameras render without it (`models/pluggybot*.xml`, the coupling spike's
-XML) — the segmentation-label lesson through a different door. Ruled OUT:
+XML). Ruled OUT:
 the lidar, the two-thread decoder (one answer per image, every time), and
 contention (per render, not per machine). ⚠ The committed `scripted` series
 in `results/` predates the fix and is the record of the pre-fix spread;

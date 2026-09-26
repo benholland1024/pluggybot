@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from pluggybot.mapping.landmarks import LandmarkStore, wall_normal_conf
+from pluggybot.mapping.landmarks import Landmark, wall_normal_conf
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 
 SEEN = (0.0, 0.0)   # a default observer position for tests that don't care
@@ -17,51 +17,21 @@ def _grid_with_wall_below_y0():
   return grid
 
 
-def test_drifted_resighting_merges_not_duplicates():
-  """The original worry: PluggyBot sees a landmark, wanders, and re-sees it
-  after dead reckoning has drifted a bit. Within the gate that must merge."""
-  store = LandmarkStore()
-  store.add_sighting(1.0, 2.0, 0.24, SEEN)
-  store.add_sighting(1.15, 2.1, 0.26, SEEN)   # ~0.18 m of drift: same one
-  assert len(store.landmarks) == 1
-  assert store.landmarks[0].n_sightings == 2
-
-
-def test_distant_sighting_creates_new_landmark():
-  store = LandmarkStore()
-  store.add_sighting(1.0, 2.0, 0.24, SEEN)
-  store.add_sighting(2.0, 2.0, 0.24, SEEN)    # 1 m away: a different one
-  assert len(store.landmarks) == 2
-
-
 def test_merged_position_is_the_mean_of_sightings():
   """The running average must converge to the mean, so one bad first
   sighting (typically the farthest, noisiest view) gets corrected."""
-  store = LandmarkStore()
   sightings = [(1.00, 2.00, 0.20), (1.20, 2.10, 0.26), (1.10, 1.90, 0.23)]
-  for s in sightings:
-    store.add_sighting(*s, SEEN)
-  lm = store.landmarks[0]
+  lm = Landmark(*sightings[0], SEEN)
+  for s in sightings[1:]:
+    lm.merge(*s, SEEN)
   assert math.isclose(lm.x, sum(s[0] for s in sightings) / 3, abs_tol=1e-9)
   assert math.isclose(lm.y, sum(s[1] for s in sightings) / 3, abs_tol=1e-9)
   assert math.isclose(lm.z, sum(s[2] for s in sightings) / 3, abs_tol=1e-9)
 
 
-def test_gate_ignores_z():
-  """z is the noisiest coordinate (pixel row + depth), so it must not be able
-  to split one landmark into two. Gate distance is 2D by design."""
-  store = LandmarkStore()
-  store.add_sighting(1.0, 2.0, 0.10, SEEN)
-  store.add_sighting(1.0, 2.0, 0.45, SEEN)    # wild z disagreement, same (x, y)
-  assert len(store.landmarks) == 1
-  assert math.isclose(store.landmarks[0].z, 0.275)   # averaged, not fought over
-
-
 def test_seen_from_averages_across_sightings():
-  store = LandmarkStore()
-  store.add_sighting(0.0, 0.0, 0.24, (1.0, 0.4))
-  store.add_sighting(0.0, 0.0, 0.24, (1.0, -0.4))
-  lm = store.landmarks[0]
+  lm = Landmark(0.0, 0.0, 0.24, (1.0, 0.4))
+  lm.merge(0.0, 0.0, 0.24, (1.0, -0.4))
   assert math.isclose(lm.seen_from_x, 1.0)
   assert math.isclose(lm.seen_from_y, 0.0, abs_tol=1e-9)
 

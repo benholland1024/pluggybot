@@ -14,9 +14,9 @@ the robot navigates in:
   pose it ever occupies to millimetres by construction, so every charge
   zeroes the shift's accumulated drift (`HubMission.anchor_at_dock`).
 
-  MERGE THE RACK BY IDENTITY. Its sightings carry a decoded ID, so gating
-  them by the outlet store's 0.4 m distance gate let a decohered spin spawn
-  a second landmark the stale one outvoted.
+  MERGE THE RACK BY IDENTITY. Its sightings carry a decoded ID; gating them
+  by distance let a decohered spin spawn a second landmark the stale one
+  outvoted.
 
   WEIGHT THE RACK BELIEF FOR RECENCY. A mission-long running average
   remembers the MEAN historical frame; an EMA (`RACK_RECENCY`) follows the
@@ -121,8 +121,8 @@ class OneSpotter:
 
 def test_the_rack_merges_by_identity_however_far_the_frame_drifted():
   """The defect, pinned from the other side: sightings half a metre apart
-  are OUTSIDE the store's anonymous 0.4 m gate, and used to spawn a second
-  landmark the stale one outvoted -- the recovery spin that existed to fix
+  used to fall outside a 0.4 m distance gate and spawn a second landmark the
+  stale one outvoted -- the recovery spin that existed to fix
   the belief could not touch it. A decoded ID is identity; there is exactly
   one rack landmark, wherever the frame puts its sightings."""
   finder = RackFinder.__new__(RackFinder)

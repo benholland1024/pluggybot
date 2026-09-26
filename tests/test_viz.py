@@ -30,16 +30,16 @@ def _step_n(model, data, n, recorder=None):
       recorder.maybe_grab(data)
 
 
-def test_recorder_samples_on_the_sim_clock(playground_model, playground_data,
+def test_recorder_samples_on_the_sim_clock(world_model, world_data,
                                            tmp_path):
   """Frame count follows sim time / speed, not wall time -- that is the whole
   reason to render offscreen instead of screen-recording the viewer."""
   import imageio.v2 as imageio
 
   out = tmp_path / "clip.mp4"
-  rec = Recorder(playground_model, str(out), fps=30, speed=1.0, size=SMALL)
+  rec = Recorder(world_model, str(out), fps=30, speed=1.0, size=SMALL)
   try:
-    _step_for(playground_model, playground_data, 1.0, rec)
+    _step_for(world_model, world_data, 1.0, rec)
   finally:
     rec.close()
 
@@ -53,12 +53,12 @@ def test_recorder_samples_on_the_sim_clock(playground_model, playground_data,
     "encoder resized the rendered frames"
 
 
-def test_recorder_speed_scales_the_sample_interval(playground_model,
-                                                   playground_data, tmp_path):
+def test_recorder_speed_scales_the_sample_interval(world_model,
+                                                   world_data, tmp_path):
   out = tmp_path / "fast.mp4"
-  rec = Recorder(playground_model, str(out), fps=30, speed=3.0, size=SMALL)
+  rec = Recorder(world_model, str(out), fps=30, speed=3.0, size=SMALL)
   try:
-    _step_for(playground_model, playground_data, 1.0, rec)
+    _step_for(world_model, world_data, 1.0, rec)
   finally:
     rec.close()
   # 3 sim seconds per played second -> a third of the frames for the same sim.
@@ -66,7 +66,7 @@ def test_recorder_speed_scales_the_sample_interval(playground_model,
     f"speed=3 should thin 31 frames to ~11, got {rec.frames_written}"
 
 
-def test_recorder_does_not_disturb_the_sim(playground_model, tmp_path):
+def test_recorder_does_not_disturb_the_sim(world_model, tmp_path):
   """Recording must not move the numbers a demo reports.
 
   Fails if anything in the capture path steps the sim -- the way an
@@ -78,17 +78,17 @@ def test_recorder_does_not_disturb_the_sim(playground_model, tmp_path):
   def moving():
     # The scene must actually be EVOLVING or the assertion cannot fail: at
     # rest, extra hidden steps leave qpos bit-identical and the test is decor.
-    d = mujoco.MjData(playground_model)
+    d = mujoco.MjData(world_model)
     d.qvel[:] = 0.5
     return d
 
   plain = moving()
-  _step_n(playground_model, plain, 250)
+  _step_n(world_model, plain, 250)
 
   recorded = moving()
-  rec = Recorder(playground_model, str(tmp_path / "probe.mp4"), size=SMALL)
+  rec = Recorder(world_model, str(tmp_path / "probe.mp4"), size=SMALL)
   try:
-    _step_n(playground_model, recorded, 250, rec)
+    _step_n(world_model, recorded, 250, rec)
   finally:
     rec.close()
 
@@ -97,13 +97,13 @@ def test_recorder_does_not_disturb_the_sim(playground_model, tmp_path):
     recorded.qpos, plain.qpos, err_msg="recording perturbed the physics")
 
 
-def test_recorder_azimuth_takes_the_shortest_arc(playground_model, tmp_path):
+def test_recorder_azimuth_takes_the_shortest_arc(world_model, tmp_path):
   """350 deg -> 10 deg is +20, not -340.
 
   A naive lerp toward the raw target swings the camera the long way round the
   scene -- three-quarters of a circle of scenery whipping past mid-clip.
   """
-  rec = Recorder(playground_model, str(tmp_path / "pan.mp4"),
+  rec = Recorder(world_model, str(tmp_path / "pan.mp4"),
                  azimuth=350.0, size=SMALL)
   try:
     rec.set_camera(azimuth=10.0)
@@ -124,7 +124,7 @@ def test_recorder_azimuth_takes_the_shortest_arc(playground_model, tmp_path):
     f"never settled on the target azimuth (ended {seen[-1]:.1f})"
 
 
-def test_recorder_rejects_unknown_track_body(playground_model, tmp_path):
+def test_recorder_rejects_unknown_track_body(world_model, tmp_path):
   with pytest.raises(KeyError):
-    Recorder(playground_model, str(tmp_path / "x.mp4"),
+    Recorder(world_model, str(tmp_path / "x.mp4"),
              track_body="no_such_body", size=SMALL)

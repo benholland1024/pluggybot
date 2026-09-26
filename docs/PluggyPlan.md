@@ -108,35 +108,13 @@ make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
 
 ## The order of work
 
-The quadruped pivot sets it (#375: the steps, Ben's decisions and what
-carries over; each step's issues are filed when it begins):
-
-0. **Housekeeping** — #376: the plug era retired, the rover's lore moved into
-   `docs/Rover.md`, and the rover deleted once the quadruped replaces it.
-1. **Measure before building, in sim only** — the body: size it, teach it to
-   walk, measure its torques, energy and the served loop's speed (#377); the
-   rack for legs: a two-joint arm, a coupling that survives a trot, a dock
-   the robot lies down on (#378); the hardware plan and the gate before
-   anything is ordered (#379); a body interface through the lifecycle,
-   proven parity-identical on the rover (#380).
-2. **The quadruped lives in the served world** — it walks, explores, maps,
-   charges, falls, gets up and dies; the rover leaves the deployed world.
-3. **Mapping and navigation for legs** — #381: SLAM, an unbounded
-   multi-floor map, places instead of coordinates.
-4. **The arm and the tools** — the rack and tools rebuilt for #378's
-   coupling; every challenge re-solved by ladder A on the quadruped pair.
-5. **Terrain and the second floor** — #280: the staircase, the curb, the
-   rocks and terrain challenges.
-6. **The rover is deleted** — #376's last stage, after tagging `rover-final`.
-
-What the 2026-09-11 batch built carries over to the new body: the
-challenges (`Challenges.md`), agent-written procedures (Overseer.md §2b),
-agent-built tools (§2d), near-field 3D (#34), the six qualities' metrics
-(Evaluation.md §3) and the second house with its lab (#215, #226, #227).
-M11 (hands: tier-1 tagged objects) waits for the arm (step 4); M12, two
-robots, landed as #167. Postponed, unchanged in direction: #274 (the
-qualification bar), #279 (body as a spec), #281 (training as a tool, which
-builds on #377's training pipeline) and #222–#224 (memory and measurement).
+The quadruped pivot sets it: #375 holds the steps, Ben's decisions and what
+carries over, and each step's issues are filed when it begins. In order: this
+cleanup (#376); measuring before building, in sim only (the body #377, the
+arm, coupling and dock #378, the hardware plan and its order gate #379, a
+body interface through the lifecycle #380); the quadruped on the served
+world; mapping for legs (#381); the arm and the tools; terrain and the
+second floor (#280); and the rover deleted.
 
 ## Design philosophy
 
@@ -157,10 +135,8 @@ builds on #377's training pipeline) and #222–#224 (memory and measurement).
 
 ## Architecture
 
-The body changes under this table (#375): rows marked † are the rover's, and
-the quadruped replaces them — legs and a two-joint arm sized by #377 and
-#378, legged odometry and SLAM (#381), a body interface through the
-lifecycle (#380). The rest carries over unchanged.
+Rows marked † are the rover's, and the quadruped replaces them (#375); the
+rest carries over.
 
 | Capability | Approach |
 |---|---|
@@ -201,42 +177,18 @@ order of work". The per-issue changelog that used to sit here (~400 lines on
 milestones 8–15) is gone: the issues, `git log` and the docs above are the
 record, and CLAUDE.md carries the constraints that still bind.
 
-## Hardware: a plan, and a gate before anything is ordered
+## Hardware
 
-The rover's road to hardware (Aug 2026) is retired with the rover. The
-quadruped's hardware plan — the bill of materials against a budget of up to
-$20,000, the build order, safety, the robot's computer — is #379, and
-**nothing is ordered until the simulated machine, watched on the site, has
-shown a capable machine**: walking the property, the curb and the rocks, the
-stairs, a tool swap with the arm, charging, and getting up after a fall, all
-with torque, thermal and energy margin. Parts are datasheet-only until then,
-with what no datasheet gives randomised across a plausible range. The first
-order is one leg on a bench; the hardware milestone is a real quadruped that
-walks to a real rack, takes a tool, carries it and hangs it back.
-
-What the rover's plan measured that carries over:
-
-- **Compute**: desktop timings for the stages that transfer to hardware,
-  scaled by a pessimistic 5× for a Cortex-A76, came to ~138 ms per
-  perception cycle (7.3 Hz) and ~78 ms once stereo was dropped — tag-based
-  perception needs no accelerator. The walking policy's cost is #377's to
-  measure.
-- **A tool calibrated off ground truth has no hardware equivalent** until it
-  gets one: the plotter's `drawing.calibrate()` reads the pen tip from
-  `site_xpos`, which a real robot needs a jig or a camera to replace.
-- **Sensor realism is still open where the rover left it**: gyro bias and
-  encoder quantisation are unmodelled, and rendered tag images are
-  noise-free, so the measured 4.5 m decode range will shrink under motion
-  blur and real optics.
-- **Mass is budgeted last**, once the other choices settle, because every
-  physics threshold derives from it; and a coupling is trusted only after a
-  physical trial of its print tolerance.
+The rover's road to hardware is retired with the rover. The quadruped's
+hardware plan, and the gate before anything is ordered — the simulated
+machine, watched on the site, shown capable with torque, thermal and energy
+margin — are #379.
 
 ## Tooling
 
 - **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
-- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image. ⚠ This box's NVIDIA driver is CUDA 12.8: PyPI's default torch wheel (cu130) silently falls back to CPU, so a torch that returns comes from PyTorch's cu128 index (`[tool.uv.index]` with `explicit = true`, as the plug era had it)
+- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image.
 - **Classical vision & robotics:** OpenCV, NumPy
 
 ## Where things are written down

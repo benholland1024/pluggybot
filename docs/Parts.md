@@ -5,10 +5,7 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
-> **These are the wheeled rover's parts and its rack's.** The quadruped's are
-> chosen by #377 (the body) and #378 (the arm, coupling and dock) and planned
-> against the order gate in #379; the rover's sections go with the rover
-> (#376, stage C).
+> **These are the wheeled rover's parts**; the quadruped's are #377–#379's.
 
 > **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
 > pluggybot.rack.catalog` (issue #185) — every part below with its number,
@@ -51,8 +48,8 @@ that touch the peg need print accuracy.
 
 **Electronics volume.** A Pi 5 is 85 × 56 mm; the 24 × 18 cm chassis has room
 for Pi + motor driver + battery without growing. No accelerator HAT is
-needed (PluggyPlan.md "Hardware: a plan, and a gate before anything is
-ordered", the compute budget).
+needed: desktop timings for the stages that transfer to hardware, scaled a
+pessimistic 5× for a Cortex-A76, came to ~78 ms per perception cycle.
 
 ## Drive system
 
@@ -243,7 +240,7 @@ integrates over motion and `HeightMap.things` bridges one unmeasured cell.
 
 **Mast** = the fixed vertical column. **Lift** = the carriage that travels up
 it (and the actuator driving that). **Telescoping arm** = the horizontal
-extension carrying the fork (the plug robot's plug before it). Hello Robot Stretch's
+extension carrying the fork. Hello Robot Stretch's
 vocabulary and architecture: base owns x/yaw, lift owns z, arm owns reach.
 
 ### ⚠ The mass budget is the binding constraint
@@ -258,10 +255,9 @@ lean-pad (ToolPattern.md, "the force budget").
 What came out of it and still binds: **battery position is a design
 variable, not packaging** — x = +0.05 (ahead of centre) for tipping margin,
 **y = +0.06 as a counterweight** for the arm assembly hanging at y = −0.05,
-without which the robot veers 26 cm right over 4 m open-loop.
-`test_arm_mass_is_counterbalanced` pins it; carrying the heaviest module
-adds 5.5 mm over 2.7 m and needs no re-tune (SimNotes "What the plug era
-taught that still holds").
+without which the robot veers 26 cm right over 4 m open-loop (the catalog's
+`battery.pos` feed pins the position); carrying the heaviest module adds
+5.5 mm over 2.7 m and needs no re-tune.
 
 ### Lift and telescoping arm — 2× linear actuator
 
@@ -269,8 +265,8 @@ taught that still holds").
 
 - Source: [igus.com/product/DLE-LA-0001](https://www.igus.com/product/DLE-LA-0001). Price: **TBD** — igus quotes stroke-configured units through their configurator, not a fixed list price. Get a quote for both axes together.
 - Catalog entry `igus_dle_la_0001`: 50 N thrust is both axes' `forcerange`
-  (6× the worst-case 7.8 N Schuko insertion the plug era measured); the 0.12 N·m holding torque holds
-  position unpowered, which is why `power.ACTUATOR_W` is drawn only while
+  (6× the plug era's worst-case 7.8 N insertion); the 0.12 N·m holding torque
+  holds position unpowered, which is why `power.ACTUATOR_W` is drawn only while
   moving and a parked module axis is a position servo at its target; the
   dryspin® 6.35 × 5.08 screw feeds 0.0254 mm per 1.8° step, far finer than
   the ±3 mm docking budget. Stroke is configurable — want ~0.25 m lift and
@@ -279,14 +275,6 @@ taught that still holds").
 
 Reach is set by parking the base at ~0.25 m; a 0.6 m cantilever is
 unaffordable on this chassis.
-
-### Plug
-
-**Rewireable Schuko CEE 7/7 plug (Type F)** — e.g. [Leads Direct rewireable right-angle](https://leadsdirect.co.uk/shop/schuko-cee77-plug-rewireable-black-right-angle/); equivalents at Reichelt/Conrad. Price ≈ **€3–6**. The face of the plug module (`module_plug`), visual only (contype 0): nothing inserts it since the plug era was retired (#376).
-
-Catalog entry `schuko_plug`: pin diameter and pitch are the module's own
-pin geometry, pinned equal; the body diameter is not (35.5 mm against the
-real 36.7).
 
 ### Compliant wrist (passive)
 
@@ -377,8 +365,7 @@ the chassis plate.** Also needed: a 3S balance charger, and a **12 V → 5 V
 
 ⚠ The models already carry the pack as a 400 g placeholder box at that
 position. A real pack of a different mass or footprint moves every physics
-threshold derived from the model — which is why mass is budgeted last
-(PluggyPlan.md "Hardware: a plan, and a gate before anything is ordered").
+threshold derived from the model, which is why mass is budgeted last.
 
 ## Electronics — later (low priority)
 
@@ -397,7 +384,7 @@ threshold derived from the model — which is why mass is budgeted last
 6. **Battery pack** — specific 3S LiPo (or 4S LiFePO4) from a German retailer, with
    dimensions checked against the chassis plate. Position x = +0.05, y = +0.06, low.
 7. ~~Third camera routing~~ → **Closed (Aug 2026) by the LIDAR swap**: two cameras on two CSI ports, LIDAR on USB/UART.
-8. ~~Plug body diameter~~ → **Moot (Sep 2026)**: the plug era is retired (#376), and nothing inserts the plug module's plug.
+8. ~~Plug body diameter~~ → **Moot**: the plug era is retired (#376).
 9. **Lift/arm stroke + price** — get an igus quote for two NEMA11 lead-screw actuators
    (~0.25 m and ~0.20 m stroke) and their masses.
 10. **Depth camera sourcing and draw** — RealSense left Intel in 2025: confirm

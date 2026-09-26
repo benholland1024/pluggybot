@@ -12,8 +12,7 @@ today (LCD, plug, pen, claw, seed dispenser) and every bay is taken (§6).
 The next builder may not be a person: the agent-built tools (Overseer.md
 §2d) use `rack/coupling.py`'s generator as the emitter and §2's envelope as
 their validator, so keep §2 in a form a validator can read — numbers, not
-stories. (This doc describes the rover's fork coupling; #375 step 4 rewrites
-it for the quadruped's arm.)
+stories.
 
 Read this alongside, not instead of:
 - `docs/SimNotes.md` — how each number here was found. This doc says *what
