@@ -5785,6 +5785,8 @@ class HubLifecycle:
     errand = self._errand_now
     state = {
       "energyWh": self.battery.energy_wh, "module": self.module,
+      # ...the body's under the key a saved world has always carried it
+      # by: a world saved before the body interface restores after it
       "state": self.state, "mission": kept,
       "nearField": (None if self.near_field is None or self.near_field.origin is None
                     else list(self.near_field.origin)),
