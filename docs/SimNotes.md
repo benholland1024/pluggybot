@@ -1966,6 +1966,29 @@ sees the base's linear velocity; what no datasheet gives is randomised
 (rotor inertia, joint friction, a 0-20 ms command delay, effort limits,
 mass and CoM for the arm).
 
+**Getting up** (`models/quadruped_getup.npz`, `Pluggy-Quad-Getup`, a policy
+of its own; 1500 iterations on a rented RTX 4090, `training/pod.sh`): each
+episode starts lying on the belly pack or dropped from 0.35-0.55 m in a
+random orientation, legs anywhere. Flown in our physics (`--getup`) it
+stands from 20 of 20 random drops (median 0.5 s from release) and from the
+belly in 0.2 s — by driving every joint to its 22 N·m peak: a spring up,
+not a rise, 87 mWh against the scripted fold-and-push's 44. Fine in the
+sim; for hardware, torque and speed penalties should buy a gentler one.
+⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
+on its BACK as upright; the task pays for gravity's sign in the body frame.
+
+**Stairs, blind** (`models/quadruped_rough_blind.npz`, `Pluggy-Quad-Rough`:
+a curriculum over stairs up and down to 0.20 m risers on a 0.28 m tread,
+blocks to 0.15 m, rough ground and slopes; the critic sees the terrain, the
+actor does not): flown in our physics (`--climb`, three trials a case), it
+clears **one step of 0.15 m up and down, and a four-step flight of 0.12 m**;
+the house's 0.18 m riser is beyond it blind. The flat-only policy managed
+0.05 m up. It walks the flat as well as the flat policy (0.49 and 1.02 m/s).
+The run stopped at 2600 of 3000 iterations: MuJoCo Warp warns once a step
+for every box lying on a height field with more than 50 contacts, and 1.5 M
+such lines through Python to the pod's network volume had slowed it
+threefold (`pod.sh` filters them now).
+
 **Legged odometry** (`legs/odometry.py`, `--odometry`: the policy walks a
 21 m course of straights, an arc, a turn on the spot and a sidestep): 2.4-
 4.0 % of distance over five noise seeds, heading within 2°. Two corrections

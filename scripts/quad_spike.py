@@ -826,6 +826,44 @@ def climb(path=POLICY_NPZ, risers=(0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20, 0.2
           f"{wins['down']:>8d}/{trials} {drift:>25s}")
 
 
+#: The posture flight: (seconds, command). Heights are offsets from the stand.
+POSTURE_SCHEDULE = [
+  (2.0, Twist()),
+  (3.0, Twist(height=-0.10)),
+  (3.0, Twist(height=-0.14)),
+  (3.0, Twist(pitch=0.2)),
+  (3.0, Twist(pitch=-0.2)),
+  (3.0, Twist(roll=0.15)),
+  (3.0, Twist(vx=0.5, height=-0.08)),
+  (3.0, Twist(vx=0.5, pitch=0.15)),
+  (2.0, Twist()),
+]
+
+
+def posture(path) -> None:
+  """A posture policy holding commanded heights, pitches and rolls, still
+  and walking: what it was told against what it did, the last 1.5 s of each."""
+  model, data, drv = _policy_world(path)
+  print(f"{'command':34s} {'height m (want)':>16s} {'pitch deg (want)':>17s} "
+        f"{'roll deg (want)':>16s} {'vx':>5s}")
+  for seconds, twist in POSTURE_SCHEDULE:
+    t0, rows = data.time, []
+    while data.time - t0 < seconds:
+      drv.step(twist)
+      if data.time - t0 > seconds - 1.5:
+        r, p, _ = _quat_rpy(data.qpos[3:7])
+        rot = data.xmat[drv.root].reshape(3, 3)
+        rows.append((data.qpos[2], p, r, (rot.T @ data.qvel[:3])[0]))
+      if data.qpos[2] < 0.08:
+        break
+    z, p, r, vx = np.mean(rows, axis=0)
+    label = (f"vx {twist.vx:.1f} h {twist.height:+.2f} p {twist.pitch:+.2f} "
+             f"r {twist.roll:+.2f}")
+    print(f"{label:34s} {z:7.3f} ({CHOSEN.stand_height + twist.height:5.3f}) "
+          f"{math.degrees(p):8.1f} ({math.degrees(twist.pitch):5.1f}) "
+          f"{math.degrees(r):7.1f} ({math.degrees(twist.roll):5.1f}) {vx:5.2f}")
+
+
 def getup(path, trials: int = 20, seconds: float = 6.0) -> None:
   """The get-up policy in our physics: dropped from 0.45 m in a random
   orientation with its joints anywhere in range, and from the belly. Stood
@@ -1017,6 +1055,8 @@ def main(argv=None) -> None:
   ap.add_argument("--trace", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--climb", nargs="?", const=str(POLICY_NPZ), default=None,
                   help="the tallest riser a policy clears blind, up and down")
+  ap.add_argument("--posture", default=None, metavar="NPZ",
+                  help="a posture policy holding commanded heights and tilts")
   ap.add_argument("--getup", default=None, metavar="NPZ",
                   help="a get-up policy from random falls and from the belly")
   ap.add_argument("--odometry", nargs="?", const=str(POLICY_NPZ), default=None,
@@ -1036,6 +1076,8 @@ def main(argv=None) -> None:
     climb(args.climb)
   elif args.getup:
     getup(args.getup)
+  elif args.posture:
+    posture(args.posture)
   elif args.odometry:
     odometry(args.odometry)
   elif args.determinism:
