@@ -2510,7 +2510,7 @@ trips -- the mouse's feed in the lab, then a carry at the rack, `--trips
 |---|---|---|---|---|
 | perfect sensors, no matcher (056a4a1, the sim before) | 0.60 m | 1.7 cm | 0.34° | reached each time; the first trip's plate pump left the belief 0.6 m out through all three, until the dock |
 | honest sensors, no matcher (the before) | 5.41 m | 0.28 m | 70.7° | never reached: `no route over the floor mapped so far` 0.2 m short of the lobby's door, then lost |
-| honest sensors, matched (the after) | 0.34 m | 1.6 cm | 1.08° | reached each time, 0.2-0.34 m out in the lab and 7 mm at the rack after every trip; the search fired twice |
+| honest sensors, matched (the after) | 0.34 m | 1.6 cm | 1.08° | reached each time, 0.2-0.34 m out in the lab and back to 7 mm, 7 mm and 6 cm at the rack; the search fired twice |
 
 The quadruped walks the rover's own route, three times out and back (145
 m), on the flat policy steered by the TRUE pose -- what is measured is the
@@ -2524,7 +2524,7 @@ the same IMU draws:
 
 Neither estimate accumulates once matched: every trip reaches the lab
 ~0.2 m out (the frame its map was laid in on the way) and comes home to
-under a centimetre.
+about a centimetre (1.2, 0.6 and 0.7 cm).
 
 **The lab door**, asked of the robot's own planner: can it plan from where
 it believed the lobby was to where it believed the lab was? Open for the
