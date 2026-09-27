@@ -133,7 +133,8 @@ class PolicyDriver:
   it; the joint targets change on a policy step and the drivers hold them
   between."""
 
-  def __init__(self, model, data, policy: WalkingPolicy, prefix: str = ""):
+  def __init__(self, model, data, policy: WalkingPolicy, prefix: str = "",
+               scan=None):
     self.m, self.d, self.policy = model, data, policy
     self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
     ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
@@ -155,6 +156,9 @@ class PolicyDriver:
     self.scan_xy = scan_offsets()
     #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray.
     self.scan_groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
+    #: Where the scan comes from: the ideal casts, or what the robot has
+    #: (`legs.scan.MapScan.scan`, #388).
+    self.scan = scan if scan is not None else self.height_scan
     self.last_action = np.zeros(len(JOINT_NAMES))
     self.target = policy.default_q.copy()
     self.steps = 0
@@ -173,7 +177,7 @@ class PolicyDriver:
       "actions": lambda: self.last_action,
       "command": twist.array,
       "posture": twist.posture,
-      "height_scan": self.height_scan,
+      "height_scan": self.scan,
     }
     return np.concatenate([
       np.asarray(terms[name](), dtype=float) * scale

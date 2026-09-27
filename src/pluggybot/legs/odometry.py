@@ -51,7 +51,8 @@ CONSENSUS_M_S = 0.15
 
 
 class LegOdometry:
-  """Integrates (x, y, yaw) in the world frame from the start pose."""
+  """Integrates (x, y, z, yaw) in the world frame from the start pose; z is
+  what a map of the stairs is built on (#388)."""
 
   def __init__(self, model, data, seed: int = 0, prefix: str = ""):
     self.m, self.d = model, data
@@ -72,8 +73,7 @@ class LegOdometry:
     self.bias = math.radians(GYRO_BIAS_DPS) * self.rng.uniform(-1, 1)
     self.lag = max(1, round(CONTACT_LAG_S / model.opt.timestep))
     self.history: list[np.ndarray] = []
-    x, y = data.qpos[0], data.qpos[1]
-    self.x, self.y = float(x), float(y)
+    self.x, self.y, self.z = (float(v) for v in data.qpos[0:3])
     self.yaw = self._true_yaw()
     self.distance = 0.0
     #: The body's velocity estimate, body frame, and the steps it has been
@@ -163,6 +163,7 @@ class LegOdometry:
     c, s = math.cos(self.yaw), math.sin(self.yaw)
     self.x += (c * v[0] - s * v[1]) * dt
     self.y += (s * v[0] + c * v[1]) * dt
+    self.z += v[2] * dt
     true_v = d.qvel[self.fa:self.fa + 2]
     self.distance += float(np.hypot(*true_v)) * dt
 
@@ -172,3 +173,7 @@ class LegOdometry:
     dyaw = math.atan2(math.sin(self.yaw - self._true_yaw()),
                       math.cos(self.yaw - self._true_yaw()))
     return e, dyaw
+
+  def height_error(self) -> float:
+    """The height estimate's error against the truth, m."""
+    return self.z - float(self.d.qpos[2])

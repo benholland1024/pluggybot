@@ -43,6 +43,7 @@ from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE,
                                   BodySpec, body_xml, lie_qpos, pose_qpos)
 from pluggybot.legs.odometry import LegOdometry  # noqa: E402
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
+from pluggybot.legs.scan import MapScan  # noqa: E402
 from pluggybot.legs.scripted import Command, VirtualModel, _quat_rpy  # noqa: E402
 
 #: The climbs: a curb and a house stair's riser (#280's world builds both).
@@ -771,21 +772,29 @@ def odometry(path=POLICY_NPZ, seeds: int = 5) -> None:
 TREAD_M = 0.28
 
 
-def staircase_scenery(rise: float, steps: int, edge: float = 0.6) -> str:
-  """`steps` risers of `rise` on a `TREAD_M` tread from x = `edge`, then a
-  landing."""
+def staircase_scenery(rise: float, steps: int, edge: float = 0.6,
+                      down: bool = False) -> str:
+  """`steps` risers of `rise` on a `TREAD_M` tread from x = `edge`: up to a
+  landing, or `down` from a landing (the robot starts on it) to the floor."""
+  box = ('\n    <geom name="{}" type="box" size="{} 1.0 {}" pos="{} 0 {}" '
+         'rgba="0.6 0.5 0.4 1"/>')
+  if down:
+    top = steps * rise
+    geoms = [box.format("landing", 5.0, top / 2, edge - 5.0, top / 2)]
+    for i in range(steps - 1):
+      h = (steps - 1 - i) * rise
+      geoms.append(box.format(f"stair{i}", TREAD_M / 2, h / 2,
+                              edge + (i + 0.5) * TREAD_M, h / 2))
+    return "".join(geoms)
   geoms = []
   for i in range(steps):
-    x0 = edge + i * TREAD_M
     h = (i + 1) * rise
-    geoms.append(f'\n    <geom name="stair{i}" type="box" size="{TREAD_M / 2} 1.0 {h / 2}" '
-                 f'pos="{x0 + TREAD_M / 2} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
-  x0 = edge + steps * TREAD_M
-  h = steps * rise
+    geoms.append(box.format(f"stair{i}", TREAD_M / 2, h / 2,
+                            edge + (i + 0.5) * TREAD_M, h / 2))
   # A long landing: a flight is flown for a fixed time, and a policy that
   # climbed quickly must not "fail" by walking off the far end of it.
-  geoms.append(f'\n    <geom name="landing" type="box" size="5.0 1.0 {h / 2}" '
-               f'pos="{x0 + 5.0} 0 {h / 2}" rgba="0.6 0.5 0.4 1"/>')
+  h = steps * rise
+  geoms.append(box.format("landing", 5.0, h / 2, edge + steps * TREAD_M + 5.0, h / 2))
   return "".join(geoms)
 
 
@@ -799,47 +808,134 @@ def _policy_world(path, scenery: str = "", key: int = 0):
   return model, data, drv
 
 
-def climb(path=POLICY_NPZ, risers=(0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20, 0.22),
-          speed: float = 0.4, trials: int = 3) -> None:
-  """The tallest riser a policy clears: one step up (a curb), a flight of
-  four on a house's tread, and a step down, each flown in our physics
-  `trials` times from 0.6-0.8 m short, commanded straight at it. Legged
-  odometry's drift is over the climbs that succeeded."""
-  print(f"{'riser m':>7s} {'step up':>8s} {'4-step flight':>14s} {'step down':>10s} "
-        f"{'odometry % on the climbs':>25s}")
+#: What `--climb` flies (#388): a name, the risers, and up or down. A flight
+#: of ten is the house's floor to its second floor.
+CLIMBS = (("step up", 1, True), ("flight of 4", 4, True), ("flight of 10", 10, True),
+          ("step down", 1, False), ("10 down", 10, False))
+#: Where a seeing policy's scan comes from: the ideal casts it trained on,
+#: or the D435's map laid through the true pose or the legs' own reckoning
+#: (`legs/scan.py`).
+SCANS = ("ideal", "map", "odometry")
+#: The first riser's edge (or the top step's nose, going down), in x.
+CLIMB_EDGE_M = 0.6
+#: A climb counts if the robot still stands where it arrived this long after.
+SETTLE_ON_ARRIVAL_S = 2.0
+
+
+def fly_climb(path, rise: float, steps: int, up: bool, trial: int,
+              scan: str = "ideal", speed: float = 0.4) -> dict:
+  """One climb, `0.6 + 0.1 * trial` m short of the first riser, commanded
+  straight at it: whether the robot arrived (on the landing, or on the floor
+  past the last riser) and still stood there `SETTLE_ON_ARRIVAL_S` later,
+  legged odometry's drift at the moment it arrived, and -- on a map's scan
+  -- how far that scan was from the ideal one."""
+  model, data, drv = _policy_world(path, staircase_scenery(rise, steps, CLIMB_EDGE_M,
+                                                           down=not up))
+  data.qpos[0] -= 0.1 * trial
+  if not up:
+    data.qpos[2] += steps * rise
+  mujoco.mj_forward(model, data)
+  odo = LegOdometry(model, data, seed=trial)
+  eye = None
+  if scan != "ideal" and "height_scan" in drv.policy.observation_names:
+    eye = MapScan(model, data, odometry=odo if scan == "odometry" else None, seed=trial)
+    drv.scan = eye.scan
+  top = steps * rise
+
+  def there() -> bool:
+    if up:
+      return data.qpos[2] > top + 0.8 * CHOSEN.stand_height
+    return (data.qpos[0] > CLIMB_EDGE_M + (steps - 1) * TREAD_M + 0.3
+            and abs(data.qpos[2] - CHOSEN.stand_height) < 0.08)
+
+  errors, unseen, arrived, taus = [], [], None, []
+  margin = np.full(12, math.inf)
+  lo, hi = model.jnt_range[1:13].T
+  for _ in range(int((4.0 + 2.5 * steps) / model.opt.timestep)):
+    if eye is not None and drv.steps % drv.every == 0:
+      errors.append(np.abs(eye.scan() - drv.height_scan()))
+      unseen.append(float(1.0 - eye.seen().mean()))
+    drv.step(Twist(vx=speed))
+    odo.step()
+    if eye is not None:
+      eye.step()
+    if data.xmat[drv.root][8] < math.cos(math.radians(70)):
+      break
+    taus.append(np.abs(data.actuator_force[drv.act]))
+    q = data.qpos[drv.qadr]
+    margin = np.minimum(margin, np.minimum(q - lo, hi - q))
+    if arrived is None and there():
+      arrived = {"at_s": data.time, "drift_pct": odo.error()[0] / max(odo.distance, 1e-6) * 100,
+                 "height_err": odo.height_error()}
+    if arrived is not None and data.time - arrived["at_s"] > SETTLE_ON_ARRIVAL_S:
+      break
+  made = arrived is not None and there() and data.xmat[drv.root][8] > 0.9
+  err = np.concatenate(errors) if errors else np.zeros(0)
+  return {"rise": rise, "steps": steps, "up": up, "trial": trial, "made": bool(made),
+          **(arrived or {}), "scan_err": err,
+          "margin_rad": _by_joint(margin[None, :], np.min),
+          "torque": _by_joint(np.array(taus), lambda a: float(np.percentile(a, PEAK_PCT))),
+          "unseen": float(np.mean(unseen)) if unseen else float("nan")}
+
+
+def _fly_climb(args):
+  return fly_climb(*args)
+
+
+def climb(path=POLICY_NPZ, risers=(0.10, 0.12, 0.15, 0.18, 0.20, 0.22),
+          trials: int = 5, scan: str = "ideal", jobs: int = 1) -> list[dict]:
+  """The tallest riser a policy clears: each of `CLIMBS`, `trials` times, in
+  our physics. Odometry's drift is over the climbs that succeeded; a map's
+  scan error is over every decision of every flight."""
+  todo = [(path, rise, steps, up, trial, scan)
+          for rise in risers for _, steps, up in CLIMBS for trial in range(trials)]
+  if jobs > 1:
+    from multiprocessing import Pool
+    with Pool(jobs) as pool:
+      rows = pool.map(_fly_climb, todo, chunksize=1)
+  else:
+    rows = [fly_climb(*t) for t in todo]
+  print(f"policy {Path(path).name}, scan: {scan}, {trials} trials a case")
+  print(f"{'riser m':>7s} " + " ".join(f"{name:>12s}" for name, _, _ in CLIMBS))
   for rise in risers:
-    wins, drifts = {"step": 0, "flight": 0, "down": 0}, []
-    for trial in range(trials):
-      back = 0.1 * trial
-      for case, steps in (("step", 1), ("flight", 4)):
-        model, data, drv = _policy_world(path, staircase_scenery(rise, steps))
-        data.qpos[0] -= back
-        mujoco.mj_forward(model, data)
-        odo = LegOdometry(model, data, seed=trial)
-        top = steps * rise
-        for _ in range(int((4.0 + 2.5 * steps) / model.opt.timestep)):
-          drv.step(Twist(vx=speed))
-          odo.step()
-          if data.qpos[2] < 0.12:
-            break
-        if data.qpos[2] > top + 0.8 * CHOSEN.stand_height:
-          wins[case] += 1
-          drifts.append(odo.error()[0] / max(odo.distance, 1e-6) * 100)
-      scenery = (f'\n    <geom name="ledge" type="box" size="1.0 1.0 {rise / 2}" '
-                 f'pos="-0.4 0 {rise / 2}" rgba="0.6 0.5 0.4 1"/>')
-      model, data, drv = _policy_world(path, scenery)
-      data.qpos[0] -= back
-      data.qpos[2] += rise
-      mujoco.mj_forward(model, data)
-      for _ in range(int(6.0 / model.opt.timestep)):
-        drv.step(Twist(vx=speed))
-        if data.qpos[2] < 0.12:
-          break
-      if data.qpos[0] > 1.2 and abs(data.qpos[2] - CHOSEN.stand_height) < 0.08:
-        wins["down"] += 1
-    drift = f"{np.mean(drifts):.1f}" if drifts else "-"
-    print(f"{rise:7.2f} {wins['step']:>6d}/{trials} {wins['flight']:>12d}/{trials} "
-          f"{wins['down']:>8d}/{trials} {drift:>25s}")
+    cells = []
+    for _, steps, up in CLIMBS:
+      mine = [r for r in rows if r["rise"] == rise and r["steps"] == steps and r["up"] == up]
+      cells.append(f"{sum(r['made'] for r in mine)}/{len(mine)}")
+    print(f"{rise:7.2f} " + " ".join(f"{c:>12s}" for c in cells))
+  print(f"the flights of ten that arrived: p{PEAK_PCT} torque abd/flex/knee, N*m "
+        f"(peak {CHOSEN.motor.peak_torque:.0f}); nearest each came to a stop, rad")
+  for rise in risers:
+    for up in (True, False):
+      ok = [r for r in rows if r["rise"] == rise and r["steps"] == 10 and r["up"] == up
+            and r["made"]]
+      if ok:
+        t = np.max([r["torque"] for r in ok], axis=0)
+        print(f"  {rise:.2f} {'up  ' if up else 'down'}: {'/'.join(f'{x:4.1f}' for x in t)}"
+              f"   stop margin {'/'.join(f'{x:.2f}' for x in np.min([r['margin_rad'] for r in ok], axis=0))}")
+  print("legged odometry on the flights of ten that arrived: drift % of distance; "
+        "height error, cm (+ reads high)")
+  for rise in risers:
+    for up in (True, False):
+      ok = [r for r in rows if r["rise"] == rise and r["steps"] == 10 and r["up"] == up
+            and r["made"]]
+      if ok:
+        print(f"  {rise:.2f} {'up  ' if up else 'down'}: drift "
+              f"{np.mean([r['drift_pct'] for r in ok]):4.1f} %  height "
+              + " ".join(f"{r['height_err'] * 100:+.0f}" for r in ok))
+  errs = [r for r in rows if len(r["scan_err"])]
+  if errs:
+    print("the map's scan against the ideal one, per flight of ten (|difference|, mm):")
+    for rise in risers:
+      for up in (True, False):
+        mine = [r for r in errs if r["rise"] == rise and r["steps"] == 10 and r["up"] == up]
+        if not mine:
+          continue
+        e = np.concatenate([r["scan_err"] for r in mine]) * 1000
+        print(f"  {rise:.2f} {'up  ' if up else 'down'}: median {np.median(e):5.1f}  "
+              f"p95 {np.percentile(e, 95):6.1f}  over 5 cm {np.mean(e > 50):.0%}  "
+              f"unseen {np.mean([r['unseen'] for r in mine]):.0%}")
+  return rows
 
 
 #: The posture flight: (seconds, command). Heights are offsets from the stand.
@@ -1071,7 +1167,14 @@ def main(argv=None) -> None:
                                      "hashed: identical or not")
   ap.add_argument("--trace", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--climb", nargs="?", const=str(POLICY_NPZ), default=None,
-                  help="the tallest riser a policy clears blind, up and down")
+                  help="the tallest riser a policy clears, as a step, flights of "
+                       "4 and 10 up and 10 down")
+  ap.add_argument("--scan", choices=SCANS, default="ideal",
+                  help="--climb: a seeing policy's scan source (legs/scan.py)")
+  ap.add_argument("--trials", type=int, default=5, help="--climb: trials a case")
+  ap.add_argument("--risers", default=None,
+                  help="--climb: comma-separated riser heights, m")
+  ap.add_argument("--jobs", type=int, default=1, help="--climb: processes")
   ap.add_argument("--posture", default=None, metavar="NPZ",
                   help="a posture policy holding commanded heights and tilts")
   ap.add_argument("--getup", default=None, metavar="NPZ",
@@ -1090,7 +1193,9 @@ def main(argv=None) -> None:
     import json
     print(json.dumps(trace_policy(args.trace)))
   elif args.climb:
-    climb(args.climb)
+    risers = tuple(float(r) for r in args.risers.split(",")) if args.risers else None
+    climb(args.climb, **({"risers": risers} if risers else {}), trials=args.trials,
+          scan=args.scan, jobs=args.jobs)
   elif args.getup:
     getup(args.getup)
   elif args.posture:

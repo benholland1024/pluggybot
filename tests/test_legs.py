@@ -320,6 +320,24 @@ def test_the_height_scan_is_mjlabs_grid_turned_with_the_heading(tmp_path):
   assert math.isclose(xy[:, 0].max(), SCAN_SIZE_M[0] / 2, abs_tol=1e-9)
 
 
+def test_the_policy_reads_the_scan_it_is_given(tmp_path):
+  # `quad_spike.py --climb --scan map` hands the driver the D435's map
+  # (#388): a driver that kept casting ideal rays would fly the ideal scan
+  # under the map's name.
+  import json
+  from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
+  a = _tiny_policy(tmp_path / "p.npz", obs=45 + 187)
+  meta = json.loads(str(a["meta"]))
+  meta["observation_names"] += ",height_scan"
+  meta["observation_terms_scale"] = "1,1,1,1,1,1,0.2"
+  a["meta"] = np.array(json.dumps(meta))
+  np.savez(tmp_path / "p.npz", **a)
+  model, data = _compiled()
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"),
+                     scan=lambda: np.full(187, 0.25))
+  assert np.allclose(drv.observation(Twist_())[45:] / 0.2, 0.25)
+
+
 def Twist_():
   from pluggybot.legs.policy import Twist
   return Twist()

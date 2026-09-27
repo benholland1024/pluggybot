@@ -1979,44 +1979,17 @@ sim; for hardware, torque and speed penalties should buy a gentler one.
 ⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
 on its BACK as upright; the task pays for gravity's sign in the body frame.
 
-**Stairs, blind** (`models/quadruped_rough_blind.npz`, `Pluggy-Quad-Rough`:
-a curriculum over stairs up and down to 0.20 m risers on a 0.28 m tread,
-blocks to 0.15 m, rough ground and slopes; the critic sees the terrain, the
-actor does not): flown in our physics (`--climb`, three trials a case), it
-clears **one step of 0.15 m up and down, and a four-step flight of 0.12 m**;
-the house's 0.18 m riser is beyond it blind. The flat-only policy managed
-0.05 m up. It walks the flat as well as the flat policy (0.49 and 1.02 m/s).
-The run stopped at 2600 of 3000 iterations: MuJoCo Warp warns once a step
-for every box lying on a height field with more than 50 contacts, and 1.5 M
-such lines through Python to the pod's network volume had slowed it
-threefold (`pod.sh` filters them now).
-
-**Stairs, seeing** (`Pluggy-Quad-Rough-Perceptive`: the same curriculum, the
-actor also shown the terrain's height under a 1.6 × 1.0 m grid at 0.1 m —
-on the robot, the D435's height map sampled there). ⚠ mjlab casts that
-grid from the body's own height, so a ray a metre ahead on a flight starts
-INSIDE a step above the body and reports the floor under it; the grid is
-cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
+**Stairs** (`Pluggy-Quad-Rough`, blind: the critic sees the terrain, the
+actor does not; `-Perceptive`: the actor is also shown the terrain's height
+under a 1.6 × 1.0 m grid at 0.1 m, on the robot the D435's height map
+sampled there): "The stairs curriculum (issue #388)" below. ⚠ mjlab casts
+that grid from the body's own height, so a ray a metre ahead on a flight
+starts INSIDE a step above the body and reports the floor under it; the
+grid is cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
 `legs/policy.py` casts the same grid in our physics (its layout is pinned).
-At 3000 iterations it cleared what the blind policy cleared; resumed to
-6000 (`models/quadruped_rough_seeing.npz`), three trials a case in our
-physics (`--climb`), against the blind policy's:
-
-| | blind (2600 it.) | seeing (6000 it.) |
-|---|---|---|
-| one step 0.15 / 0.18 m | 3/3 / 1/3 | 3/3 / **2/3** |
-| four-step flight 0.10 / 0.12 m | 2/3 / 1/3 | 2/3 / 0/3 |
-| step down 0.15 m | 3/3 | 3/3 |
-| odometry drift on the climbs | 0.9-7.2 % | **1.1-2.1 %** |
-
-The scan does reach it — flattened, the 0.15 m step goes from 3 of 3 to 0
-of 3. **Neither climbs a house's flight of 0.18 m risers**, and the limit is
-the curriculum, not the body: the terrain levels stalled near 3 of 10
-(risers ~0.10 m) across 6000 iterations, while the push up a 0.18 m riser
-needs 5.1 N·m of the knee's 22. What to change is the next stairs issue's:
-more forward commands on the stairs (a robot is promoted for walking half
-a tile, which a slow command never does), more stairs in the mix, a foot
-clearance reward for the 0.28 m tread.
+⚠ MuJoCo Warp warns once a step for every box lying on a height field with
+more than 50 contacts: 1.5 M such lines through Python to a pod's network
+volume slowed a run threefold (`pod.sh` filters them).
 
 **Posture** (`models/quadruped_posture.npz`, `Pluggy-Quad-Posture`: walking
 with the torso's height offset, pitch and roll commanded; 2500 iterations on
@@ -2058,6 +2031,126 @@ scripted gait's rules above are pinned in `tests/test_legs.py` only as far
 as "it trots"; the policy's arithmetic, its observation, its rate and the
 odometry's two corrections are pinned there too; the tables are the
 script's to re-fly.
+
+## The stairs curriculum (issue #388)
+
+**Why #377's stalled.** mjlab promotes a robot a level for ending a 20 s
+episode 4 m from its tile's centre, and its commands turn and sidestep every
+3-8 s, so a capable robot seldom got there: across 6000 iterations even the
+FLAT column's level sat at 4.3 of 10, where the level changes nothing. And
+the columns were named backwards — ⚠ mjlab's `pyramid_stairs_inv` spawns the
+robot in a pit, so walking out CLIMBS; `pyramid_stairs` spawns it on top —
+and the one that climbs had stalled at level 1.7, risers of ~0.08 m.
+
+**What changed** (`training/quad_train/task.py`, `stairs.py`):
+- on a stair tile, three commands in four walk straight out at 0.3-0.7 m/s,
+  heading along the nearest of the pyramid's four flights (±14°). ⚠ A reset
+  resamples the command BEFORE mjlab's `sim.forward()`, so the pose read
+  there is the last episode's: the command is aimed on the next update;
+- flights of eight (mjlab's 3 m platform and 1 m border left five), risers
+  0.10-0.26 m across the ten levels, the house's 0.18 m between levels 4 and
+  5; 60 % of the robots on stairs;
+- `upright` against the terrain's fitted plane, as mjlab's Go1 recipe has
+  it: a flight is 33°, level against gravity the hind legs cannot reach it,
+  and the stock reward kept a quarter of its value for a torso parallel to
+  the flight;
+- mjlab's foot clearance also charged a foot swung HIGH, the lift a riser
+  needs. `foot_nose_clearance` is one-sided: a moving foot's centre 7 cm over
+  the highest terrain within half a tread (a ray starting inside a step reads
+  zero), so a foot closing on a riser answers to the tread above it, and one
+  stepping down to the tread it leaves until it is half a tread past the nose;
+- a thigh or shank on a step costs 0.25, the torso or belly 1; the walking
+  pose's tolerance is wider at the hip's flexion (0.5 rad) and the knee (0.8).
+
+Resumed from #377's seeing policy (6000 iterations) for 4000 more on a rented
+L40S (1 h 24 min), the climbing column went from 0.9 to ~4 of 10 (0.17 m; a
+column's mean, which the graduates' reset to a random level holds down) and
+the descending one to ~7; `models/quadruped_rough_seeing.npz` is the last
+iteration, the best of the checkpoints flown.
+
+**What it climbs** (`quad_spike.py --climb`, our physics, five trials a
+case; a flight is ten risers on a 0.28 m tread, the house's floor to its
+second floor; the robot runs the policy's mean action; "map" is the D435's
+scan, below):
+
+| flight of ten, up / down | #377 blind | #377 seeing | #388 seeing | #388 seeing, map |
+|---|---|---|---|---|
+| 0.10 m | 1/5 / 5/5 | 3/5 / 0/5 | 5/5 / 5/5 | 5/5 / 5/5 |
+| 0.15 m | 0/5 / 3/5 | 0/5 / 0/5 | 5/5 / 5/5 | 5/5 / 5/5 |
+| **0.18 m, the house's** | 0/5 / 3/5 | 0/5 / 0/5 | **5/5 / 5/5** | **5/5 / 5/5** |
+| 0.20 m | 0/5 / 1/5 | 0/5 / 0/5 | 5/5 / 2/5 | 5/5 / 5/5 |
+| 0.22 m (the UK's limit for a home) | 0/5 / 0/5 | 0/5 / 0/5 | 4/5 / 0/5 | 5/5 / 5/5 |
+
+Ten trials each way on the house's flight: 10/10 up and 10/10 down, on either
+scan. It still walks the flat (0.52 and 1.09 m/s for 0.5 and 1.0, turns 0.79
+of 0.8 rad/s, sidesteps 0.27 of 0.3; 89 W at 0.5 m/s against #377's 90), and
+its run hashes IDENTICAL in two processes (`--determinism`). #377's blind
+policy stays the blind one: trained on this curriculum it could not climb the
+pits' flights even at the lowest level (0.10 m), and it lost the flights it
+had (`stairs-blind1`, stopped at 3684 iterations).
+
+**The mean action hesitates at an edge.** Mid-run, a checkpoint walked to
+the first riser and STOOD there, front feet at its base — while the same
+weights with training's exploration noise (std 0.32) climbed 0.15 m flights
+2-3 of 5: in training the noise breaks the stall, so the curriculum's level
+is the noisy policy's. Four hundred iterations later the mean action climbed
+them 5 of 5. The same happened at the top of a descent, later. A policy on
+the ideal scan is also shown an input it never trained on: mjlab corrupts the
+scan with ±10 cm of uniform noise.
+
+**The scan the robot has** (`legs/scan.py`; `--climb --scan map|odometry`):
+the D435 on the nose (`DepthCamera(mount="body")`: the torso is not level on
+a flight, so its attitude is applied by the caller), its points laid in a
+2 cm map (`HeightMap` with a world-height band) through the body's pose,
+read at the scan's grid. Where the camera has seen, the map's scan is the
+ideal to a median 0.3-0.9 mm; 5-18 % of the points are off by more than
+5 cm, at step edges. It sees the floor from ~0.5 m ahead and ~0.45 m to
+either side, so 17-45 % of the scan is UNSEEN on a flight — the outer rows,
+the ground behind, the lower treads behind a nose going down — and each such
+point reads the nearest cell the camera saw. ⚠ Read as the ground under the
+feet instead, a flight's upper treads were the floor, 0.1-0.4 m wrong on up
+to a fifth of the scan. On that scan the policy climbs AS WELL OR BETTER
+(table): at the top of a flight the occluded treads, filled from the nose's
+side, make the drop look gentler, and the mean action walks down where the
+ideal scan's true drop made it hesitate (ten trials at 0.18 m, iteration
+6950: down 0/10 on the ideal scan, 10/10 on the map's, 10/10 on the ideal
+with the map's fill in the unseen points, 2/10 on the map with the ideal's
+there; neither ±2-10 cm of noise nor a 2-4 cm max-pooling of the ideal scan
+did it).
+So the next policy should be TRAINED on the map's scan — its occlusion, its
+fill and its noise — rather than lean on a difference it never saw.
+
+**Legged odometry on the stairs** (for #381): climbing a flight of ten the
+position drifts 1-5 % of distance and the height reads 9-22 cm LOW at the
+top (1.0-2.2 m climbed). Much of that is a sink the height has on flat
+ground too — 18 cm over 4.9 m walked at 0.4 m/s, 14 cm of it with perfectly
+timed contact and no sensor noise, so the stance feet's kinematics, not the
+31 ms contact lag. DESCENDING is where it fails: ⚠ a foot is taken for
+lifting when its contact point rises faster than 0.25 m/s relative to the
+BODY, and a flight walked down at 0.4 m/s lowers the body ~0.3 m/s, so every
+planted foot is dropped and the estimate coasts: 2-4 % of distance on
+0.10-0.15 m flights but 28-37 % on 0.18-0.20 m ones, and, walked down faster
+on the map's scan, 9-86 % and up to 0.4 m of height (a crouch lowered at
+0.97 m/s does the same; gating against the body's estimate instead fed back,
+and a trot drifted 37 %). Laid through the legs' own pose, the map's scan is
+off by a median 16-32 mm and 12-41 % of its points by more than 5 cm: the
+robot still climbs every flight to 0.22 m, and descends the house's 2/5. The
+stairs need the pose corrected against the map, not the legs alone.
+
+**What the body pays on the house's flight:** the knee's p99.5 is 13.5 of
+its 22 N·m (the scripted push up one riser needed 5.1; 0.22 m risers take
+15.3), and a climb straightens a hind knee to its stop (−0.35 rad) for ~0.4 s
+while the front knees fold to within 0.15-0.4 rad of theirs: the reach is
+there, with no margin to spare in the hind leg — a knee driven into its stop
+is #379's to cushion or to extend. The failures along the way were stalls at
+the bottom (the knees never left the stand's range), not a leg that could not
+reach.
+
+**What is true now:** the house's 0.18 m flight is climbed and descended, and
+so is a 0.22 m one on the map's scan: the limit was the curriculum, and the
+body's size is not the answer (#388's decision point was not reached). The
+stairs policy runs on the ideal scan in `legs/policy.py` by default and on
+the D435's map with `scan=MapScan(...).scan`; nothing served runs it yet.
 
 ## The served sim's speed (issue #385)
 
@@ -2138,11 +2231,12 @@ at 10 Hz is the sensor as specified (Rover.md) — halving its rate or its
 rays would halve its share, and that is a decision about the sensor, not
 a speed-up; the tag camera's renders, whose resolution is what the decode
 needs at the standoff, and which #378's dock replaces. The quadruped
-brings one more when it climbs: the perceptive policy's height scan is 187
-`mj_ray`s from Python a policy step (parallel rays, which one
-`mj_multiRay` cannot cast): 1.2 ms in the home world, ~60 ms a sim second
-per robot — to be paid when the stairs arrive, not by the first deploy's
-flat policy.
+brings one more when it climbs: the stairs policy's scan (#388). On the
+ideal casts it is 187 `mj_ray`s from Python a policy step (parallel rays,
+which one `mj_multiRay` cannot cast): 1.2 ms in the home world, ~60 ms a
+sim second per robot. On the D435's map (`legs/scan.py`) it is the depth
+frames and the map's update instead, not measured here. Either is paid
+when the stairs are served, not by the first deploy's flat policy.
 
 **The day, before and after** (box, the same day both ways, the narration
 IDENTICAL line for line — the pair's peer returns included): staging
