@@ -206,7 +206,8 @@ def _pads(spec: BodySpec) -> str:
 
 def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
              standalone: bool = True, scenery: str = "", assets: str = "",
-             after: str = "", drive: str = "position") -> str:
+             after: str = "", drive: str = "position",
+             arm: dict | None = None) -> str:
   """The robot as MJCF. `standalone` wraps it with a floor, a light, the
   solver options and any `scenery` (MJCF bodies/geoms for the worldbody, and
   the `assets` they use), so it compiles alone; otherwise a
@@ -218,7 +219,11 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
   driver's PD and the torque-speed envelope run by MuJoCo's `dcmotor`
   (issue #385) -- the robot a policy walks. "torque": the torque itself,
   for the scripted gait (`legs.scripted`), whose caller clips it through
-  `actuator.JointLimits` -- a measuring instrument that commands torque."""
+  `actuator.JointLimits` -- a measuring instrument that commands torque.
+
+  `arm` is a real arm in place of the budget's placeholder: the fragments
+  `legs.arm.arm_mjcf` builds. Its joints come AFTER the legs', so the
+  legs stay `qpos[7:19]` and the keyframes carry the arm stowed."""
   m = spec.motor
   tx, ty, tz = spec.torso
   h0 = spec.stand_height
@@ -264,7 +269,9 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
         </body>
       </body>""")
 
-  if spec.arm_reach:
+  if arm is not None:
+    arm_geoms = "\n      " + arm["torso"]
+  elif spec.arm_reach:
     # Straight ahead from the shoulder at full length, the tool at the tip.
     arm_geoms = f"""
       <geom name="arm" class="visual" type="capsule" size="0.025"
@@ -329,7 +336,7 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
               friction="0.9 0.02 0.01" contype="1" conaffinity="0" group="1"
               rgba="0.1 0.1 0.1 1"/>
       </default>
-    </default>
+    </default>{arm["default"] if arm else ""}
   </default>
 
   <worldbody>
@@ -370,20 +377,21 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
       </body>
       <site name="arm_shoulder" pos="{_v(arm_x, 0, tz + 0.03)}" size="0.01"/>{arm_geoms}
-{''.join(legs)}
+{''.join(legs)}{arm["body"] if arm else ""}
     </body>
   </worldbody>
-
+{_arm_links(arm)}
   <actuator>
-{actuators}
+{actuators}{("\n    " + arm["actuator"]) if arm else ""}
   </actuator>
 
   <sensor>
 {sensors}
   </sensor>
 """
-  stand = " ".join(_f(q) for q in pose_qpos(spec, h0))
-  lie = " ".join(_f(q) for q in lie_qpos(spec))
+  extra = list(arm["qpos"]) if arm else []
+  stand = " ".join(_f(q) for q in pose_qpos(spec, h0) + extra)
+  lie = " ".join(_f(q) for q in lie_qpos(spec) + extra)
   key = f"""
   <keyframe>
     <key name="stand" qpos="0 0 {_f(h0)} 1 0 0 0 {stand}"/>
@@ -413,6 +421,17 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
   </worldbody>""" if after else ""}
 </mujoco>
 """
+
+
+def _arm_links(arm: dict | None) -> str:
+  """An arm's linkages: its tendons, and the equality that keeps its plate
+  level (`legs.arm`)."""
+  if not arm:
+    return ""
+  out = f"\n  <tendon>{arm['tendon']}\n  </tendon>"
+  if arm["equality"]:
+    out += f"\n  <equality>{arm['equality']}\n  </equality>"
+  return out + "\n"
 
 
 def training_constants(spec: BodySpec = CHOSEN) -> dict:

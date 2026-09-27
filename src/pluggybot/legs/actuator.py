@@ -129,6 +129,20 @@ GIM4305_10 = Motor(
   diameter=0.053, length=0.032, source="Steadywin selection tables; "
   "Pupper v3 tech specs; cs123 pupper-mjlab model")
 
+#: The wrist motor #378's option (b) would have needed, for its table only:
+#: Steadywin GIM4310-10 with the GDK34 at 48 V (Steadywin's GDK selection
+#: table, 2026-09-15): 1.35 N*m at thermal equilibrium (1.85 for 5 min),
+#: 10.26 stalled for 2 s, 516.7 rpm at most (54.1 rad/s); Kt 0.78, 1.961 ohm
+#: phase to phase. The torque-speed line's intercept is unpublished (the
+#: stall stands in), and so is the rotor's inertia (the GIM4305-10's, Pupper
+#: v3's model, stands in). 227 g, 53 x 38 mm. EUR 143.95 (OpenELAB).
+GIM4310_10 = Motor(
+  name="Steadywin GIM4310-10 + GDK34", rated_torque=1.35, peak_torque=10.26,
+  noload_speed=54.1, saturation_torque=10.26, bus_v=48.0, kt=0.78,
+  r_phase=0.98, rotor_inertia=1.6e-5, ratio=10.0, mass=0.227,
+  diameter=0.053, length=0.038, price_eur=143.95,
+  source="Steadywin GDK selection table (2026-09-15)")
+
 #: The pack's voltage across a discharge (12S Li-ion, #377's pack): 3.0 to
 #: 4.2 V a cell. Training randomises the bus across it; the tables fly the
 #: nominal 3.6 V a cell, where the motor is 10 % slower than its 48 V curve.
