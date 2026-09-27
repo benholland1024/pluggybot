@@ -93,6 +93,14 @@ def test_the_funnel_centres_a_belly_only_while_its_faces_are_slippery(cradle_mu,
   assert dk.dock_charge_contact(model, data) is charges
 
 
+def test_a_belly_let_go_above_the_dock_lands_on_it_not_through_it():
+  # MuJoCo's soft contact let a 9 kg belly falling 30 mm sink through the
+  # 6 mm plate onto the floor; the plate's collision box is keeled under it.
+  model, data = _lying(lift=0.030, seconds=1.0)
+  assert abs(data.qpos[2] - (dk.DEFAULT.bed_z + qm.CHOSEN.belly_depth)) < 0.002
+  assert dk.dock_charge_contact(model, data)
+
+
 def test_the_dock_leaves_the_feet_room_walking_straight():
   # The walk-in steers onto the axis before its front feet reach the dock
   # and walks straight over it (`walk_in_twist`), where the nearest stance
@@ -126,6 +134,18 @@ def test_the_fit_takes_the_facing_from_the_baseline_between_tags():
   two = {i: seen[i] for i in list(seen)[:2]}
   assert dk.fit_dock(two).yaw == pytest.approx(pose[2], abs=1e-9)
   assert dk.fit_dock({list(seen)[0]: seen[list(seen)[0]]}) is None
+
+
+def test_the_boards_baseline_keeps_a_depth_error_off_the_seat():
+  # The facing is fitted to where the tags are, and the seat is board_x
+  # behind them, so ranges that disagree left to right turn the believed
+  # axis and swing the seat sideways. From 1.6 m the left and right tags'
+  # PnP ranges disagreed by 3-4 mm; walking in with the tags +-70 mm apart
+  # the robot believed itself 17 mm off an axis it walked within 7 mm of.
+  truth = (1.0, 0.0, 0.0)
+  seen = {i: dk.compose(truth, (x, y, 0.0))[:2] for i, (x, y, _) in dk.tag_layout().items()}
+  split = {i: (p[0] + (0.002 if p[1] > 0 else -0.002), p[1]) for i, p in seen.items()}
+  assert abs(dk.fit_dock(split).y - truth[1]) < 0.010
 
 
 @pytest.mark.parametrize("stance", ["standing to lie", "lying"])
