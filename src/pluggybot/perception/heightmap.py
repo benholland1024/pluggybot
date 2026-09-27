@@ -49,8 +49,13 @@ class HeightMap:
   never seen; `count` how many frames have measured each cell; indexed
   `[iy, ix]` with `(ix, iy)` at the API, like the occupancy grid."""
 
-  def __init__(self, size_m: float = SIZE_M, cell_m: float = CELL_M) -> None:
+  def __init__(self, size_m: float = SIZE_M, cell_m: float = CELL_M,
+               z_band: tuple[float, float] = (Z_MIN, Z_MAX)) -> None:
     self.cell_m = cell_m
+    #: The heights a point may have to be kept. The rover's are above its
+    #: floor; a legged body's map holds WORLD heights, stairs included, and
+    #: sets its own band (`legs/scan.py`).
+    self.z_min, self.z_max = z_band
     self.n = int(round(size_m / cell_m))
     self.height = np.full((self.n, self.n), np.nan)
     self.count = np.zeros((self.n, self.n), dtype=np.int32)
@@ -92,7 +97,7 @@ class HeightMap:
     self.recentre(x, y)
     if len(points) == 0:
       return 0
-    keep = (points[:, 2] > Z_MIN) & (points[:, 2] < Z_MAX)
+    keep = (points[:, 2] > self.z_min) & (points[:, 2] < self.z_max)
     p = points[keep]
     c, s = math.cos(th), math.sin(th)
     wx = x + c * p[:, 0] - s * p[:, 1]
