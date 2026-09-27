@@ -64,6 +64,12 @@ MASS_TAG_IDS = (23, 24)
 #: see a pair, and a pair's BASELINE gives the facing (issue #88).
 DOCK_TAG_IDS = (25, 26, 27, 28)
 DOCK_TAG_SIZE = 0.060
+#: The quadruped's rack (issue #378; legs/rack.py): a pair a bay, three
+#: bays, either side of each bay under its peg's ends, so the nose camera
+#: at the working pose sees the bay's pair and fits the rack's facing to
+#: their baseline.
+LEGS_RACK_TAG_IDS = (29, 30, 31, 32, 33, 34)
+LEGS_RACK_TAG_SIZE = 0.060
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -79,7 +85,8 @@ TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
              **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
-             **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS}}
+             **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
+             **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS}}
 
 TAG_DIR = Path("models/tags")
 
