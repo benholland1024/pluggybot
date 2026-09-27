@@ -2,15 +2,15 @@
 
 The mapper's range source since the sensor-realism pass (Aug 2026), when it
 replaced a stereo pair that measured unable to build the map (docs/Parts.md
-"Vision & ranging" keeps the decision and the numbers). `Scanner.scan()`
-already returned `(angles, ranges)`, a laser scan's interface, so the swap
-changed the sensor and not the mapping.
+"Vision & ranging" keeps the decision and the numbers). The camera scanner
+it replaced already returned `(angles, ranges)`, a laser scan's interface, so
+the swap changed the sensor and not the mapping.
 
 Modelled on an RPLIDAR C1-class unit: 360°, ~10 Hz, 12 m, ±30 mm.
 
 Three things here are deliberately honest rather than convenient:
 
-  RAY CASTS, NOT A DEPTH IMAGE. `mj_ray` intersects real scene geometry, so
+  RAY CASTS, NOT A DEPTH IMAGE. `mj_multiRay` intersects real scene geometry, so
   there is no camera FOV ceiling and each ray has proper per-ray semantics.
   A depth-image row could never have produced 360° anyway.
 
@@ -123,7 +123,14 @@ class Lidar:
     #: world invisible to every sensor on board.
     self._other_geoms: set = set()
     self._other_roots: list[str] = []
-    self._geomid = np.zeros(1, dtype=np.int32)
+    self._dist = np.zeros(n_rays)
+    self._hit = np.zeros(n_rays, dtype=np.int32)
+    self._index_geoms()
+
+  def _index_geoms(self) -> None:
+    """The two geom sets as arrays, for the scan's `np.isin`."""
+    self._self_ids = np.fromiter(self._self_geoms, dtype=np.int32)
+    self._other_ids = np.fromiter(self._other_geoms, dtype=np.int32)
 
   def rebind(self, model) -> None:
     """A recompiled world: the site and the geom sets by name again
@@ -134,11 +141,13 @@ class Lidar:
     self._other_geoms = set()
     for root in list(self._other_roots):
       self._other_geoms |= self._robot_geoms(model, root)
+    self._index_geoms()
 
   def exclude_robot(self, root_name: str) -> None:
-    self._other_roots.append(root_name)
     """Drop another robot's body from every scan (see `_other_geoms`)."""
+    self._other_roots.append(root_name)
     self._other_geoms |= self._robot_geoms(self.model, root_name)
+    self._index_geoms()
 
   @staticmethod
   def _robot_geoms(model, root_name: str) -> set:
@@ -178,33 +187,34 @@ class Lidar:
     pos = np.array(data.site_xpos[self.site_id], dtype=np.float64)
     mat = np.array(data.site_xmat[self.site_id],
                    dtype=np.float64).reshape(3, 3)
-    world_dirs = self._dirs @ mat.T          # site frame -> world
-
-    angles, ranges = [], []
-    peer_angles, peer_ranges = [], []
-    for i in range(self.n_rays):
-      vec = np.ascontiguousarray(world_dirs[i])
-      dist = mujoco.mj_ray(self.model, data, pos, vec, None, 1, -1,
-                           self._geomid)
-      hit = int(self._geomid[0])
-      if dist >= 0.0 and hit in self._self_geoms:
-        continue                              # self-filter: no information
-      peer = dist >= 0.0 and hit in self._other_geoms
-      if dist < 0.0 or dist >= self.max_range:
-        angles.append(self.ray_angles[i])     # nothing out there: free to max
-        ranges.append(self.max_range)
-        continue
-      rng = self.peer_rng if peer else self.rng
+    world_dirs = np.ascontiguousarray((self._dirs @ mat.T).reshape(-1))
+    # ONE call for the whole scan (issue #385): every ray's distance and
+    # geom are bit-identical to `mj_ray`'s one at a time (108 000 rays at
+    # 300 poses in the home world), for a third of the cost. No cutoff, so
+    # the call is the only thing that changed.
+    dist, hit = self._dist, self._hit
+    mujoco.mj_multiRay(self.model, data, pos, world_dirs, None, 1, -1,
+                       hit, dist, None, self.n_rays, mujoco.mjMAXVAL)
+    struck = dist >= 0.0
+    mine = struck & np.isin(hit, self._self_ids)   # self-filter: no information
+    far = ~mine & (~struck | (dist >= self.max_range))  # nothing: free to max
+    peer = ~mine & ~far & np.isin(hit, self._other_ids)
+    kept = far.copy()
+    ranges = np.full(self.n_rays, self.max_range)
+    # The noise is still drawn ray by ray, in bearing order, from each
+    # stream in turn: a batched draw takes the same numbers in another
+    # order, and no day flown before it would hash the same again.
+    sd = self.sigma_m + self.sigma_frac * dist
+    for i in np.flatnonzero(~mine & ~far):
+      rng = self.peer_rng if peer[i] else self.rng
       if rng.random() < self.dropout:
         continue                              # surface gave no return
-      noisy = dist + rng.normal(
-        0.0, self.sigma_m + self.sigma_frac * dist)
-      out_a, out_r = (peer_angles, peer_ranges) if peer else (angles, ranges)
-      out_a.append(self.ray_angles[i])
-      out_r.append(float(np.clip(noisy, 0.02, self.max_range)))
-    return (np.asarray(angles), np.asarray(ranges),
-            np.asarray(peer_angles, dtype=float),
-            np.asarray(peer_ranges, dtype=float))
+      ranges[i] = dist[i] + rng.normal(0.0, sd[i])
+      kept[i] = True
+    np.clip(ranges, 0.02, self.max_range, out=ranges)
+    room, theirs = kept & ~peer, kept & peer
+    return (self.ray_angles[room], ranges[room],
+            self.ray_angles[theirs], ranges[theirs])
 
   def blind_fraction(self, data) -> float:
     """Share of bearings the robot's own body occludes -- a mounting metric."""

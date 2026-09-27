@@ -146,18 +146,19 @@ def _stub_life(clock=None):
       calls.append((name, a))
       return tick.result(value)
     return make
-  swap = SimpleNamespace(
+  body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
-    set_lift_routine=routine("set_lift"), arm_act=0)
-  mission = SimpleNamespace(
-    swap=swap, swap_at_bay_routine=routine("swap", "arrived"),
-    drive_to_routine=routine("drive_to", True),
-    face_routine=routine("face", True), _drive_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), tags=SimpleNamespace(detect=lambda d: {}))
-  life = SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
+    actuator=lambda name: 0, ramp_routine=routine("set_lift"),
+    fetch_tool_routine=routine("swap", "arrived"),
+    stow_tool_routine=routine("swap", "arrived"),
+    go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
+    face_routine=routine("face", True), hold_routine=routine("wait"),
+    pose=(0.0, 0.0, 0.0), detect_tags=lambda: {})
+  life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,
-                         model=None, world="home", boards=None)
+                         model=None, world="home", boards=None,
+                         drive_why=lambda x, y: "the drive gave up (why)")
   return life
 
 
@@ -166,7 +167,7 @@ def test_a_refused_program_never_runs_a_step():
   life = _stub_life()
   bad = Program.single("bad", [Step("wait", {"seconds": 1.0}), Step("fly")])
   with pytest.raises(Refused) as e:
-    tick.run(SimpleNamespace(_step_once=lambda *a: None),
+    tick.run(SimpleNamespace(step=lambda *a: None),
              st.run_program_routine(life, bad, HOME))
   assert "unknown verb 'fly'" in str(e.value)
   assert life.calls == []
@@ -179,7 +180,7 @@ def test_two_roles_validate_but_one_robot_refuses_to_run_them():
                                   "seeker": (Step("look"),)})
   assert st.validate(p, HOME) == []
   with pytest.raises(Refused, match="2 roles: this robot must be told"):
-    tick.run(SimpleNamespace(_step_once=lambda *a: None),
+    tick.run(SimpleNamespace(step=lambda *a: None),
              st.run_program_routine(_stub_life(), p, HOME))
 
 
@@ -187,7 +188,7 @@ def test_two_roles_validate_but_one_robot_refuses_to_run_them():
 
 
 def _run(life, program):
-  return tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  return tick.run(SimpleNamespace(step=lambda *a: None),
                   st.run_program_routine(life, program, HOME))
 
 
@@ -210,7 +211,7 @@ def test_a_failed_step_stops_the_program_with_an_honest_partial_result():
   def short(*a, **kw):
     life.calls.append(("drive_to", a))
     return tick.result(False)
-  life.mission.drive_to_routine = short
+  life.body.go_to_routine = short
   p = Program.single("p", [Step("wait", {"seconds": 1.0}),
                            Step("drive_to", {"x": 1.0, "y": 1.0}),
                            Step("face", {"heading": 0.0})])
@@ -226,7 +227,7 @@ def test_the_budget_stops_a_program_at_a_step_boundary():
   def slow_wait(seconds, *a, **kw):
     life.data.time += 100.0
     return tick.result(None)
-  life.mission._drive_routine = slow_wait
+  life.body.hold_routine = slow_wait
   p = Program.single("p", [Step("wait", {"seconds": 1.0})] * 3, budget_s=150.0)
   r = _run(life, p)
   assert r["stopped"] == "budget" and r["completed"] == 2 and not r["ok"]
@@ -262,8 +263,8 @@ def _life(world="room_hub"):
 
 def _stub_swaps(life, monkeypatch, fetch_ok=True, hung=True):
   """The swap stack as stubs: `swap_at_bay_routine` steps nothing, the
-  coupling reports whatever the test says. `module_power_contact` is the
-  seating criterion the fetch verb reads, so it is stubbed at the verb."""
+  coupling reports whatever the test says -- a module on the fork is seated
+  and powered (`Body.tool_powered`, the criterion the fetch verb reads)."""
   on_fork: dict = {}
 
   def swap_at_bay(station, verb, module=None, tries=2):
@@ -271,13 +272,13 @@ def _stub_swaps(life, monkeypatch, fetch_ok=True, hung=True):
     if verb == "pick" and fetch_ok:
       on_fork[module] = True
     return tick.result("arrived")
-  life.mission.swap_at_bay_routine = swap_at_bay
-  life.mission.swap.module_state = lambda tool: {
+  life.body.mission.swap_at_bay_routine = swap_at_bay
+  life.body.mission.swap.module_state = lambda tool: {
     "on_fork": on_fork.get(tool, False),
     "hung": hung and not on_fork.get(tool, False)}
-  monkeypatch.setattr(st, "module_power_contact", lambda *a, **k: True)
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  life.body.tool_powered = lambda tool: on_fork.get(tool, False)
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)
   return on_fork
 
 
@@ -313,7 +314,7 @@ def test_a_program_cut_short_is_stowed_and_scored_as_it_stands(monkeypatch):
   that says how far it got."""
   life = _life()
   on_fork = _stub_swaps(life, monkeypatch)
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
   p = Program.single("short", [Step("fetch", {"tool": "module_lcd"}),
                                Step("drive_to", {"x": 1.0, "y": 1.0}),
                                Step("stow")])
@@ -347,8 +348,7 @@ def test_a_refused_program_is_an_errand_that_did_nothing(monkeypatch):
 def test_the_generic_verdict_reads_the_rack_not_the_runner():
   """A runner that says every step passed is still failed by a tool that is
   not hung: `toolsHung` is read off the swap in the sampler."""
-  life = SimpleNamespace(mission=SimpleNamespace(swap=SimpleNamespace(
-    module_state=lambda t: {"hung": False})))
+  life = SimpleNamespace(body=SimpleNamespace(module_state=lambda t: {"hung": False}))
   result = {"procedure": {"program": "p", "total": 2, "completed": 2, "ok": True,
                           "steps": [{"verb": "fetch", "ok": True, "tool": "module_lcd"},
                                     {"verb": "stow", "ok": True}]}}
@@ -426,7 +426,6 @@ def test_the_example_programs_validate_against_home():
 CTRL_WRITERS = {
   "rack/swap.py", "rack/coupling.py", "mission/mission.py",
   "tools/drawing.py", "tools/gripper.py", "tools/dispenser.py",
-  "envs/dock_env.py", "docking/schuko.py",
   # issue #168 slice B: the workshop's RIG is `coupling.run_pick`'s shape --
   # a spike harness driving the spike's carrier and a built tool's servos
   # to answer hang / pick / conduct / work / stow. Not a runtime path: a
@@ -435,6 +434,11 @@ CTRL_WRITERS = {
   # issue #345: a restart PUTS BACK the controls the saved world held, by
   # actuator name -- the state the controllers above wrote, never a choice.
   "continuation.py",
+  # issue #377, moved by #385: the quadruped's leg drivers -- a policy's
+  # joint targets and gains, a routine's torque, or nothing held -- the one
+  # path its twelve joints are commanded through (the rover's is
+  # rack/swap.py). The policy commands them; it no longer writes `ctrl`.
+  "legs/drivers.py",
 }
 
 
@@ -487,9 +491,9 @@ def test_a_composed_draw_produces_the_native_drawings_board_result():
     life = _life("home")
     life.boards = board_book("home")
     cfg = world_config("home")
-    life.mission.start_at(*cfg["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*cfg["start"])
+    life.body.start_discovery()
+    life.body.mission._spin()
     life.run_errand(build(life))
     rec = life.boards["whiteboard_a"]
     return rec.strokes, [ln["points"] for ln in rec.lines]

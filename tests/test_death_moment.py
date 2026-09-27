@@ -35,7 +35,7 @@ def _life(world: str = "room_hub") -> HubLifecycle:
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], errand=False,
                       mortal=True)
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
   life.survival_since = float(data.time)
   return life
@@ -53,7 +53,7 @@ def _stop_on_death(life) -> None:
   def hook() -> None:
     if life.dead is not None:
       raise MissionAborted("dead")
-  life.mission.step_hooks.append(hook)
+  life.body.step_hooks.append(hook)
 
 
 def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
@@ -72,17 +72,20 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
   # the fork holds the pen, as far as anything that asks can tell
   monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
   life.data.ctrl[life.model.actuator("pen_carriage").id] = 0.012
-  life.mission.swap.reckoner.x += 0.25
-  life.mission.swap.reckoner.theta += 2 * math.pi   # a heading is never wrapped
+  life.body.mission.swap.reckoner.x += 0.25
+  life.body.mission.swap.reckoner.theta += 2 * math.pi   # a heading is never wrapped
+  # ...and kept there: matched (#386), the scans would take the 0.25 m out
+  # before the death this reads it at
+  life.body.mission.matcher = None
   t0 = float(life.data.time)
 
   def starve() -> None:
     if life.data.time >= t0 + 2.0:
       life.battery.energy_wh = 0.0
-  life.mission.step_hooks.append(starve)
+  life.body.step_hooks.append(starve)
   _stop_on_death(life)
   with pytest.raises(MissionAborted):
-    life.mission.run(life.run_errand_routine(errand))
+    life.body.run(life.run_errand_routine(errand))
 
   assert len(seen) == 1 and seen[0]["cause"] == "flat"
   at = seen[0]["at"]
@@ -112,7 +115,7 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
 def _lay_on_its_right_side(life, yaw: float) -> None:
   """Roll the robot 90 deg onto its right side, facing `yaw`."""
   d = life.data
-  q = life.mission.swap.root_qadr
+  q = life.body.mission.swap.root_qadr
   facing = np.array([math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)])
   roll = np.array([math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0])
   quat = np.zeros(4)
@@ -137,14 +140,14 @@ def test_a_topple_is_read_as_the_robot_falls_not_when_it_is_declared_dead():
     if not fell and life.data.time >= t0 + 0.5:
       _lay_on_its_right_side(life, math.radians(120.0))
       fell.append(float(life.data.time))
-  life.mission.step_hooks.append(push)
+  life.body.step_hooks.append(push)
   where = {"procedure": "reach", "n": 1, "line": 2}
-  life.mission.run(st.run_verb(life, st.VERBS["wait"], {"seconds": 1.0}, where))
+  life.body.run(st.run_verb(life, st.VERBS["wait"], {"seconds": 1.0}, where))
   assert life.dead is None and life.step_now is None
   # ...the fall is kept across a restart, as the tilt clock is (#345)
   state, _ = life.kept_state()
   assert state["fall"] is not None and state["fall"] == life._fall
-  life.mission._drive(lc.TOPPLE_HOLD_S + 0.5, 0.0, 0.0)
+  life.body.mission._drive(lc.TOPPLE_HOLD_S + 0.5, 0.0, 0.0)
 
   assert len(seen) == 1 and seen[0]["cause"] == "stuck"
   at = seen[0]["at"]
@@ -172,8 +175,8 @@ def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
   me, peer = build_pair("room_hub", errands=("none", "none"), mortal=True)
   seen = _deaths(me)
   adr = SECOND.qpos_adr(me.model)
-  me.data.qpos[adr:adr + 2] = me.data.qpos[me.mission.swap.root_qadr:
-                                           me.mission.swap.root_qadr + 2] + [0.6, 0.8]
+  me.data.qpos[adr:adr + 2] = me.data.qpos[me.body.mission.swap.root_qadr:
+                                           me.body.mission.swap.root_qadr + 2] + [0.6, 0.8]
   mujoco.mj_forward(me.model, me.data)
   me._die("flat", "the pack reached zero")
   assert seen[-1]["at"]["peer"] == {"name": peer.robot_name or peer.root,

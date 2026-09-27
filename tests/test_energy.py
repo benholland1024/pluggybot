@@ -146,7 +146,7 @@ def test_the_margin_flips_on_the_dearest_errand_not_the_mean():
 
 
 def test_the_far_board_is_priced_apart_from_the_near_one():
-  """⚠ THE DEFECT CLAUDE.md RECORDS UNDER ISSUE #21, closed. home's two
+  """⚠ ISSUE #21's DEFECT (docs/Rover.md, "Energy on wheels"), closed. home's two
   whiteboards are not the same job: `whiteboard_b` is 7 m away through a
   doorway and measures 1.113 Wh against `whiteboard_a`'s 0.929. One number
   for both either kills the robot on the way back from the far one -- which
@@ -261,15 +261,11 @@ def test_every_shipped_world_prices_every_errand_it_can_build():
 
 def life_with(world: str = "home", battery_wh: float = HOSTING_WH,
               errands=None) -> lc.HubLifecycle:
-  """A lifecycle with no viewer and nothing driving. `_afford_next` touches
-  no physics, so this stays a fast test."""
-  model = model_of(world)
-  cfg = lc.world_config(world)
-  return lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         battery_wh=battery_wh, rack=cfg["rack"],
-                         grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"],
-                         world=world, errands=errands or [])
+  """A lifecycle with nothing driving: `_afford_next` touches no physics,
+  so it lives on a stub body (issue #380) and this stays a fast test."""
+  from test_body import stub_life
+  return stub_life(world, battery_wh=battery_wh, errands=errands or [],
+                   errand=True)
 
 
 def test_an_errand_that_will_not_fit_is_deferred_and_stays_queued():
@@ -348,7 +344,7 @@ def test_a_task_errand_is_priced_by_its_own_kind_not_by_the_action():
   """A task's estimate knows which end of the house it is being asked about;
   a per-action figure cannot. The dearer one has to win, or the far
   whiteboard is priced as the near one -- which is exactly the 0.968-against-
-  0.93 death CLAUDE.md records."""
+  0.93 death issue #21 recorded."""
   life = life_with()
   errand = carry_errand(use_at=(1.5, 1.8))
   errand.estimate_wh = 3.0
@@ -437,7 +433,7 @@ def test_the_scripted_policy_never_rotates_onto_what_the_world_cannot_do():
   loop does -- otherwise the API going down means the robot proposing an
   errand this world refuses, over and over, until the budget runs out."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  state = {"decisions": 0, "mapDone": True,
+  state = {"decisions": 0, "floorExplored": True,
            "possibleActions": ["carry", "explore", "idle", "charge"]}
   for _ in range(4):
     d = ov.scripted(menu, state, "test")
@@ -452,7 +448,7 @@ def test_the_scripted_policy_still_picks_what_a_charge_would_afford():
   `explore` for the whole minute before every charge, which is not the
   fallback doing a day's work."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  d = ov.scripted(menu, {"decisions": 0, "mapDone": True,
+  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True,
                          "affordableActions": [],
                          "possibleActions": ["draw", "carry"]}, "test")
   assert d.action == "draw"
@@ -462,7 +458,7 @@ def test_an_empty_possible_list_filters_nothing():
   """A caller that supplies none -- a unit test, an older context dict --
   must not be read as "this robot can do nothing"."""
   menu = ov.Menu.for_world("home", lc.board_book("home"))
-  d = ov.scripted(menu, {"decisions": 0, "mapDone": True}, "test")
+  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True}, "test")
   assert d.action == "draw"
 
 
@@ -560,7 +556,7 @@ def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_ca
   unconditionally, which is the regression the flown test was written for.
   """
   from pluggybot.mission.errand import Errand
-  life = home_lifecycle(battery_wh=MARGIN_PACK_WH, errands=[])
+  life = life_with("home", battery_wh=MARGIN_PACK_WH)
   assert life.reserve_margin_wh == HOME_RESERVE, "not in the margin regime"
   cost = life.energy.cost("census")
   assert cost + HOME_RESERVE <= life.charged_wh, "census must be fundable"
@@ -599,9 +595,9 @@ def test_the_charge_loop_is_bounded_by_the_scaled_cap_not_the_old_constant(
     life.data.time += float(seconds)
     return
     yield
-  monkeypatch.setattr(life.mission, "_drive_routine", fake_press)
-  monkeypatch.setattr(life.mission, "anchor_at_dock", lambda: None)
-  monkeypatch.setattr(life.mission.swap, "_drive_until_routine",
+  monkeypatch.setattr(life.body.mission, "_drive_routine", fake_press)
+  monkeypatch.setattr(life.body.mission, "anchor_at_dock", lambda: None)
+  monkeypatch.setattr(life.body.mission.swap, "_drive_until_routine",
                       lambda *_a, **_k: tick.result(None))
   life.charging_now = True                   # the pins conduct throughout
   life.battery.energy_wh = 0.9               # ...and it never fills
@@ -628,7 +624,9 @@ def test_the_scaled_cap_still_clears_the_time_a_full_charge_takes(pack_wh,
   takes to seat the pins -- and each is a mutation this catches. The rate is
   the SLOWEST measured press, which is the one the cap has to cover.
   """
-  life = home_lifecycle(battery_wh=pack_wh, errands=[], charge_scale=scale)
+  from test_body import stub_life
+  life = stub_life("home", battery_wh=pack_wh, errands=[], errand=True,
+                   charge_scale=scale)
   fill_s = life.charged_wh * 3600.0 / (life.energy.charge_w * scale)
   assert life.charge_timeout >= fill_s * lc.CHARGE_TIMEOUT_SLACK * 0.999, \
       "the cap sits under the slack a real press needs"
@@ -664,11 +662,11 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
   assert life.energy.cost("census") + HOME_RESERVE <= life.charged_wh
 
   states: list[str] = []
-  life.mission.step_hooks.append(
+  life.body.step_hooks.append(
     lambda: states.append(life.state)
     if life.state != (states[-1] if states else None) else None)
   low = []
-  life.mission.step_hooks.append(
+  life.body.step_hooks.append(
     lambda: low.append(life.battery.fraction))
 
   # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). Everything asserted
@@ -746,18 +744,18 @@ def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
   life.max_sim_time = 3000.0
-  life.blacklist, life.map_done = set(), False
+  life.blacklist, life.floor_explored = set(), False
   life.explore_deadline = 1e9
-  life.mission.start_at(*lc.world_config("home")["start"])
-  life.mission.start_discovery()
-  life.mission._spin()
+  life.body.start_at(*lc.world_config("home")["start"])
+  life.body.start_discovery()
+  life.body.mission._spin()
   try:
     life.explore(budget=30.0, mark_done=False)
     life.battery.energy_wh = 0.9          # a long way from full
     assert life.go_charge(), "never reached the rack"
     life.charge()
   finally:
-    life.mission.close()
+    life.body.close()
   assert topped and topped[0] >= lc.CHARGED, \
       f"the charge stopped at {(topped or [0])[0]:.1%}"
   assert life.charge_cycles == 1
@@ -784,18 +782,18 @@ def test_a_scaled_charge_still_completes_inside_its_own_cap():
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
   life.max_sim_time = 3000.0
-  life.blacklist, life.map_done = set(), False
+  life.blacklist, life.floor_explored = set(), False
   life.explore_deadline = 1e9
-  life.mission.start_at(*lc.world_config("home")["start"])
-  life.mission.start_discovery()
-  life.mission._spin()
+  life.body.start_at(*lc.world_config("home")["start"])
+  life.body.start_discovery()
+  life.body.mission._spin()
   try:
     life.explore(budget=30.0, mark_done=False)
     life.battery.energy_wh = 0.9          # the same long way from full
     assert life.go_charge(), "never reached the rack"
     life.charge()
   finally:
-    life.mission.close()
+    life.body.close()
   assert topped and topped[0] >= lc.CHARGED, \
       f"the scaled charge stopped at {(topped or [0])[0]:.1%} -- the cap and " \
       f"the rate disagree"

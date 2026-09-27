@@ -28,8 +28,8 @@ from pluggybot.tools.drawing import PenPlotter, square_path
 from pluggybot.tools.gripper import ClawTool
 from pluggybot.rack.swap import HubSwap
 
-WORLDS = ("models/world.xml", "models/world_fork.xml", "models/playground.xml",
-          "models/room_1.xml", "models/room_hub.xml", "models/hub_world.xml")
+WORLDS = ("models/world.xml", "models/world_fork.xml", "models/room_hub.xml",
+          "models/hub_world.xml")
 WHEEL_JOINTS = ("left_wheel_joint", "right_wheel_joint")
 
 

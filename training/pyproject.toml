@@ -1,0 +1,16 @@
+[project]
+name = "pluggybot-training"
+version = "0.1.0"
+description = "Trains the quadruped's walking policy (issue #377). A project of its own: nothing here is imported by pluggybot, and none of it enters the serving image (deploy/requirements-serve.txt)."
+# mjlab 1.5.x is the line that pins mujoco ~=3.10.0, the served sim's own
+# version, so a policy is trained on the physics it will run on. It also caps
+# numpy < 2.5, below pluggybot's, which is why this project reads the body
+# from the files pluggybot generates instead of importing pluggybot.
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "mjlab>=1.5.3,<1.6",
+  "onnx>=1.17",
+]
+
+[tool.uv]
+package = false

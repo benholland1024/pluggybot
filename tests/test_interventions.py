@@ -21,7 +21,6 @@ that every use is written down where it cannot be edited.
 
 import json
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
@@ -35,18 +34,16 @@ from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, INTERVENTION_KINDS, PROTOCOL_VERSION,
 )
 
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+
 
 def _life(world: str = "room_hub", inbox=None, ledger=None,
           **kw) -> HubLifecycle:
+  """An admin's reach-in is the lifecycle's bookkeeping: a stub body
+  carries it (issue #380)."""
   cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      inbox=inbox, ledger=ledger, **kw)
-  life.mission.start_at(*cfg["start"])
+  life = stub_life(world, inbox=inbox, ledger=ledger, **kw)
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
   return life
 
@@ -215,8 +212,7 @@ def test_a_balance_has_no_debt_and_a_world_with_no_ledger_says_so():
   {"type": "set_battery", "frac": 1.0},
   {"type": "set_points", "points": 99},
 ])
-def test_an_intervention_is_refused_while_a_module_is_on_the_fork(monkeypatch,
-                                                                  raw):
+def test_an_intervention_is_refused_while_a_module_is_on_the_fork(raw):
   """⚠ NOT symmetry with `reset_tool` for its own sake. The energy gate
   prices the next errand against the pack BETWEEN errands and never inside
   one, so a pack that moves while a module is seated changes the arithmetic
@@ -225,8 +221,8 @@ def test_an_intervention_is_refused_while_a_module_is_on_the_fork(monkeypatch,
   from pluggybot.economy.ledger import Ledger
 
   life = _life(inbox=Inbox(), ledger=Ledger())
-  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
-  life.mission._drive(0.2, 0.0, 0.0)
+  life.body.holding = life.module                 # seated on its coupling
+  life.body.run(life.body.hold_routine(0.2))
   assert life.tool_powered, "the seam did not see the seated module"
   before = (life.battery.energy_wh, life.ledger.balance())
 

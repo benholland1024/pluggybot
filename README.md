@@ -135,14 +135,6 @@ closes it (paid, once) or deletes it (not).
 
 Start one of the various scripts:
 ```bash
-uv run python scripts/teleop.py      # Teleop test the robot
-uv run python scripts/map_teleop.py  # Teleop the robot while updating /map.png
-uv run python scripts/explore.py     # Run the frontier exploration script (also updates map)
-
-uv run python scripts/lifecycle.py    # THE loop the project is named after:
-                                      # explore -> find an outlet -> dock ->
-                                      # charge -> resume. Saves map.png/views.png
-
 uv run python scripts/hub_mission.py --view  # Explore, find + use hub
 uv run python scripts/hub_lifecycle.py --view  # Hub-era battery loop: explore,
                                       # fetch a tool, use it, stow it, charge
@@ -260,21 +252,4 @@ wiring it into a long run:
 # both need a key; --tokens-only makes no decisions and bills no tokens
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
-```
-
-# Outlet visual recognition with Yolo CNN
-
-Regenerate the training data:
-```bash
-MUJOCO_GL=egl uv run python scripts/generate_outlet_dataset.py --count 1200
-```
-
-Train the outlet detector with YOLO:
-```bash
-uv run yolo detect train data=datasets/outlets/dataset.yaml model=yolo11n.pt epochs=50 imgsz=640
-```
-
-Test predictions with YOLO:
-```bash
-uv run yolo predict model=runs/detect/train/weights/best.pt source=datasets/outlets/images/val
 ```

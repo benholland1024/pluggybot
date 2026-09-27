@@ -146,6 +146,17 @@ def total(*readers: Reader) -> Reader:
   return read
 
 
+def switched_bays() -> Reader:
+  """How many bays the compiled world gives a presence switch (issue #351):
+  those whose switch V (`coupling.BAY_SWITCH_PLATES`) is in the model."""
+  def read(spec):
+    from pluggybot.rack.coupling import BAY_SWITCH_PLATES, STATION_YS, bay_prefix
+    names = {g.name for g in spec.geoms}
+    return sum(all(bay_prefix(i) + p in names for p in BAY_SWITCH_PLATES)
+               for i in range(len(STATION_YS)))
+  return read
+
+
 @dataclass
 class Feed:
   """One sim constant this part sets. `constant` is its name as a reader
@@ -251,6 +262,9 @@ PARTS: tuple[Part, ...] = (
            "torque", expect=5.5),
       code("power.NOLOAD_A", "A", expect=0.2),
       code("power.NOLOAD_SPEED", "rad/s", "the no-load speed, rounded"),
+      code("perception.encoders.WHEEL_COUNTS_PER_REV", "counts",
+           "the encoder the reckoner counts: 64 a motor turn, x 50 (#386)",
+           expect=3200),
     ),
     note="Passed over: the 30:1 sibling (#4752, same price) -- push force "
          "over top speed. The motor has no geom of its own; its 205 g is "
@@ -576,15 +590,15 @@ PARTS: tuple[Part, ...] = (
                   "pinPitch": 19}, quantity=1,
     capabilities={"ratingA": 16, "ratingV": 250},
     feeds=(
-      code("docking.schuko.PIN_LEN", "m", expect=0.019),
-      code("docking.schuko.R_PIN", "m", "half the 4.8 mm pin", expect=0.0024),
-      code("docking.schuko.PIN_SEP", "m", "half the 19 mm pin pitch",
-           expect=0.0095),
-      code("docking.schuko.R_BODY", "m",
-           "⚠ 35.5 mm across, against the real 36.7: 0.15 mm of clearance "
-           "per side in a 37 mm recess, not 0.75 -- open decision 8"),
+      Feed("module_plug_pin_l.size[0]",
+           same(geom("module_plug_pin_l", "size", 0),
+                geom("module_plug_pin_r", "size", 0)),
+           "m", "half the 4.8 mm pin", expect=0.0024),
+      Feed("module_plug_pin_l.fromto[1]", geom("module_plug_pin_l", "fromto", 1),
+           "m", "half the 19 mm pin pitch", expect=0.0095),
       Feed("module_plug_barrel.size[0]", geom("module_plug_barrel", "size", 0),
-           "m", "the module's barrel, the spike's radius"),
+           "m", "the module's barrel: ⚠ 35.5 mm across, against the real "
+           "36.7"),
     ),
     why={"partNumber": "a class of part (any rewireable CEE 7/7); Parts.md "
          "links one example", "massG": "not recorded",
@@ -872,6 +886,46 @@ PARTS: tuple[Part, ...] = (
          "dimensionsMm": "many parts; each is a `rack/coupling.py` constant",
          "priceEur": PRINTED},
     note="Open: whether the trays need steel wear inserts.",
+  ),
+  Part(
+    "bay_switch", "Bay presence switch: one Omron D2F-01L2 hinge-roller-lever "
+    "microswitch in each tool bay's V-tray", "sensor", "chosen", ("body",),
+    ("rack", "rack_built"), partNumber="D2F-01L2",
+    source="https://www.digikey.de/de/products/detail/omron-electronics-inc-"
+    "emc-div/D2F-01L2/368444",
+    massG=0.5, dimensionsMm={"length": 12.8, "width": 5.8, "height": 16.5},
+    priceEur=2.59, quantity=8,
+    capabilities={"sense": "contact", "operatingForceN": 0.78,
+                  "releasingForceN": 0.05, "overtravelMm": 0.55,
+                  "contactRating": "0.1 A 30 V DC", "powerW": 0},
+    feeds=(
+      Feed("bay*_tray_l_*", switched_bays(), "bays",
+           "one switch in each bay's +y V (`coupling.BAY_SWITCH_PLATES`): "
+           "five on the first rail, three on the built one", expect=8),
+    ),
+    note="Feeds `coupling.bay_switches`, all the rack reports over the "
+         "network: which bays are occupied, never by which module (issue "
+         "#351). The robot's `rack` context is built off these, its own "
+         "fork and what the other robot says it carries, and nothing else. "
+         "In the sim the switch is its V's two plates read off the contact "
+         "list, as the bumper is. ⚠ Force is not modelled, and a bare "
+         "switch under one tray would not close for every module: the LCD "
+         "(143 g) and the plug (156 g) put 0.70 and 0.77 N on each tray "
+         "against the 0.78 N operating force. The physical design needs the "
+         "lever to carry the tray, or a lighter switch; open, not guessed.",
+  ),
+  Part(
+    "rack_controller", "ESP32-class board on the rack: reads the bay "
+    "switches and reports them over the network", "electronics",
+    "candidate", ("body",), ("rack",), priceEur=5, quantity=1,
+    why={"partNumber": "any ESP32 dev board; none chosen",
+         "source": "no board chosen", "massG": "not recorded",
+         "dimensionsMm": "not recorded"},
+    note="The rack's only electronics besides the charger: eight inputs, "
+         "one per `bay_switch`, and the radio that makes the rack a "
+         "network fact rather than something a robot has to go and look "
+         "at (issue #351). A candidate, like the charger board, until a "
+         "board is chosen.",
   ),
   Part(
     "m3_fasteners", "M3 screws and nuts (assorted)", "fastener", "chosen",

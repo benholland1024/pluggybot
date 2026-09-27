@@ -2,15 +2,15 @@
 
 The deploy image is deliberately NOT the dev environment: it installs the
 handful of packages `scripts/serve.py` actually needs rather than
-uv-syncing a project whose torch is a ~3 GB CUDA wheel with no place on a
-GPU-less server. That saving is only safe while two things stay true, and
-both fail silently -- the suite stays green and the container dies on the
-server, minutes into a mission, where nobody is watching:
+uv-syncing the whole project. That saving is only safe while two things
+stay true, and both fail silently -- the suite stays green and the
+container dies on the server, minutes into a mission, where nobody is
+watching:
 
   - the pins in `deploy/requirements-serve.txt` still match `uv.lock`, so
     the box runs the versions this repo is tested against;
-  - the serve path still needs nothing the image leaves out. One `import
-    torch` in a module the lifecycle touches is enough, and it costs
+  - the serve path still needs nothing the image leaves out. One heavy
+    import in a module the lifecycle touches is enough, and it costs
     nothing locally.
 
 The second one is checked by RUNNING the serve path with those packages
@@ -144,29 +144,29 @@ life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     overseer=boss,
                     errands=errands_for("draw", "home", book), boards=book)
 activities = cfg["activities"](model, data)
-life.mission.step_hooks.append(activities.step_hook(model, data))
+life.body.step_hooks.append(activities.step_hook(model, data))
 # Port 1 is nothing: the publisher's retry loop is the point, not a peer.
 pub = WsPublisher(model, data, "ws://127.0.0.1:1",
                   model_name=cfg["model_name"],
-                  status_fn=life.telemetry_status, grid=life.mission.grid,
+                  status_fn=life.telemetry_status, grid=life.body.grid,
                   activities=activities, boards=book)
-life.mission.step_hooks.append(pub.step_hook)
+life.body.step_hooks.append(pub.step_hook)
 try:
-  life.mission.start_at(*cfg["start"])
-  life.mission.start_discovery()
-  life.mission._spin()          # lidar, tag detection, grid, frame building
+  life.body.start_at(*cfg["start"])
+  life.body.start_discovery()
+  life.body.mission._spin()          # lidar, tag detection, grid, frame building
 finally:
   pub.close()
-  life.mission.close()
+  life.body.close()
 print("ok")
 """
 
 
 def test_serve_path_runs_without_the_packages_the_image_omits():
-  """torch, ultralytics, SB3 and the apriltag GENERATOR belong to training,
-  dataset generation and world generation -- none of which run on the
-  serving box. If the mission stack starts needing one, this fails here
-  rather than on the server, ten minutes into a mission, at night."""
+  """The video encoder and the apriltag GENERATOR belong to demos and world
+  generation -- neither runs on the serving box. If the mission stack starts
+  needing one, this fails here rather than on the server, ten minutes into
+  a mission, at night."""
   forbidden = _forbidden_modules()
   proc = subprocess.run(
     [sys.executable, "-c", _BLOCKED_MISSION, ",".join(sorted(forbidden))],

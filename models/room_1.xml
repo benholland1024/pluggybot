@@ -1,4 +1,0 @@
-<mujoco>
-  <include file="world.xml"/>
-  <include file="room_1_scenery.xml"/>
-</mujoco>

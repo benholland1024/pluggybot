@@ -1,7 +1,7 @@
 [project]
 name = "pluggybot"
 version = "0.1.0"
-description = "A simulated robot that plugs itself in using RL and other tools"
+description = "A simulated, hardware-honest robot and the autonomous agent that lives in it"
 readme = "README.md"
 authors = [
     { name = "Ben Holland", email = "benholland1024@gmail.com" }
@@ -13,7 +13,6 @@ dependencies = [
     # overseer imports it lazily and falls back to scripted errands when it is
     # missing, so a sim without it still flies.
     "anthropic>=0.75.0",
-    "gymnasium>=1.3.0",
     "imageio>=2.37.4",
     "imageio-ffmpeg>=0.6.0",
     "moms-apriltag>=2023.1.15",
@@ -22,25 +21,8 @@ dependencies = [
     "pillow>=12.3.0",
     "pupil-apriltags>=1.0.4.post11",
     "scipy>=1.18.0",
-    "stable-baselines3>=2.9.0",
-    "torch>=2.11.0",
-    "torchvision>=0.26.0",
-    "ultralytics>=8.4.114",
     "websockets>=17.0.1",
 ]
-
-# PyPI's default torch is built for CUDA 13.0, which needs a 580+ NVIDIA driver.
-# This machine runs 570.x (CUDA 12.8), so the default wheel silently falls back
-# to CPU. Pull torch/torchvision from PyTorch's cu128 index instead.
-# `explicit = true` means ONLY these two packages come from it.
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchvision = { index = "pytorch-cu128" }
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]

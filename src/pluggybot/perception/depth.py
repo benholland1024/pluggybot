@@ -51,6 +51,9 @@ Honest where the part is, and the tests pin each:
   true pitch is in the ray, the nominal pitch is in the reconstruction, and
   the difference is the honest error. Where the robot IS is the map's
   business, and the map takes the believed pose (`HeightMap.update`).
+  A legged body (`mount="body"`, #388) gets its points in the root body's
+  own frame: its torso pitches 33° on a flight, so no level can be
+  assumed, and the caller applies its attitude estimate (`legs/scan.py`).
 """
 
 from dataclasses import dataclass, field
@@ -60,6 +63,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import control
+from pluggybot.power import DEPTH_CAMERA_W
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -90,6 +94,29 @@ FLOOR_TOL = 0.02          # m: a point under this is floor, for the mount metric
 
 #: One empty cloud, shared: a frame with no peer in it allocates nothing.
 _NO_POINTS = np.zeros((0, 3))
+_NO_GEOMS = np.zeros(0, dtype=np.int32)
+
+
+def _quat_mat(quat) -> np.ndarray:
+  mat = np.zeros(9)
+  mujoco.mju_quat2Mat(mat, np.asarray(quat, dtype=np.float64))
+  return mat.reshape(3, 3)
+
+
+def _fixed_mount(model, cam_id: int, root: int) -> tuple[np.ndarray, np.ndarray]:
+  """A camera's pose in the root body's frame, composed through the bodies
+  between them, which must be fixed to it (no joint on the way)."""
+  pos = np.array(model.cam_pos[cam_id], dtype=np.float64)
+  mat = _quat_mat(model.cam_quat[cam_id])
+  body = int(model.cam_bodyid[cam_id])
+  while body != root:
+    if body == 0 or model.body_jntnum[body]:
+      raise ValueError(f"camera {cam_id} is not fixed to body {root}")
+    bmat = _quat_mat(model.body_quat[body])
+    pos = model.body_pos[body] + bmat @ pos
+    mat = bmat @ mat
+    body = int(model.body_parentid[body])
+  return pos, mat
 
 
 @dataclass
@@ -107,22 +134,30 @@ class DepthFrame:
   the height map must not contain a robot that will have driven off by the
   time anything reads the map, and the thing that must not drive into it
   must. Nothing is inferred here -- these are the same casts, sorted by
-  what they hit."""
+  what they hit. `peer_geoms` is the geom each of those rows hit, so a
+  consumer can say WHICH robot it saw (issue #365: one lying on the floor
+  is not held for, `HubLifecycle._near_field_step`)."""
   z: np.ndarray
   points: np.ndarray
   self_fraction: float
   peers: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
+  peer_geoms: np.ndarray = field(
+    default_factory=lambda: np.zeros(0, dtype=np.int32))
 
 
 class DepthCamera:
   """D435-class depth camera over MuJoCo ray casts, from a camera element."""
+
+  #: What it draws while it streams, W (the loop adds it to the pack's load
+  #: whenever the camera is on).
+  draw_w = DEPTH_CAMERA_W
 
   def __init__(self, model, handle: RobotHandle = FIRST,
                camera_name: str = CAMERA, width: int = WIDTH,
                height: int = HEIGHT, min_z: float = MIN_Z,
                max_z: float = MAX_Z, noise_k: float = NOISE_K,
                dropout: float = DROPOUT, baseline: float = BASELINE,
-               seed: int = 0) -> None:
+               seed: int = 0, mount: str = "axle") -> None:
     self.handle = handle
     self.camera_name = handle.el(camera_name)
     self.width, self.height = width, height
@@ -156,16 +191,21 @@ class DepthCamera:
     # re-expressed relative to the axle midpoint on the floor. Points are
     # reconstructed through this, never through the live pose.
     root = model.body(handle.root).id
-    if int(model.cam_bodyid[self.cam_id]) != root:
-      raise ValueError(f"{self.camera_name} must sit on {handle.root} itself")
-    axle = np.mean([model.body(handle.el(w)).pos
-                    for w in ("left_wheel", "right_wheel")], axis=0)
-    self.origin_robot = (np.array(model.cam_pos[self.cam_id]) - axle
-                         + np.array([0.0, 0.0, control.WHEEL_RADIUS]))
-    mat = np.zeros(9)
-    mujoco.mju_quat2Mat(mat, np.array(model.cam_quat[self.cam_id],
-                                      dtype=np.float64))
-    self._dirs_robot = self._dirs_cam @ mat.reshape(3, 3).T
+    if mount == "body":
+      # A legged body (#388): the root body's own frame, the torso's pitch
+      # left to the caller's attitude estimate -- on a flight it is 33°.
+      self.origin_robot, mat = _fixed_mount(model, self.cam_id, root)
+    elif mount == "axle":
+      if int(model.cam_bodyid[self.cam_id]) != root:
+        raise ValueError(f"{self.camera_name} must sit on {handle.root} itself")
+      axle = np.mean([model.body(handle.el(w)).pos
+                      for w in ("left_wheel", "right_wheel")], axis=0)
+      self.origin_robot = (np.array(model.cam_pos[self.cam_id]) - axle
+                           + np.array([0.0, 0.0, control.WHEEL_RADIUS]))
+      mat = _quat_mat(model.cam_quat[self.cam_id])
+    else:
+      raise ValueError(f"unknown mount {mount!r}")
+    self._dirs_robot = self._dirs_cam @ mat.T
 
   def rebind(self, model) -> None:
     """A recompiled world: the camera and the geom sets by name again
@@ -210,15 +250,17 @@ class DepthCamera:
     # the same trade `Lidar.scan_split` makes one sensor along: the map must
     # not hold a body that moves, and the reflex must see it. Skipped
     # entirely when no peer is in frame, so a single robot pays nothing.
-    peers = _NO_POINTS
+    peers, peer_geoms = _NO_POINTS, _NO_GEOMS
     if self._theirs.size:
       theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
       if theirs.any():
-        peers = self._cloud(np.where(theirs, z, np.nan),
-                             self.peer_rng)[1]
+        pz, peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng)
+        # `peers`' rows, in order; a mask index copies the reused ray buffer
+        peer_geoms = self._geomid[~np.isnan(pz)]
     z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
-                      self_fraction=float(robot.mean()), peers=peers)
+                      self_fraction=float(robot.mean()), peers=peers,
+                      peer_geoms=peer_geoms)
 
   def _cloud(self, z: np.ndarray, rng) -> tuple[np.ndarray, np.ndarray]:
     """Range gate, noise, dropout and the pinhole reconstruction: `(z,

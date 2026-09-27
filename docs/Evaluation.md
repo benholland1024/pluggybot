@@ -176,6 +176,12 @@ two-robot series is never pooled with a single-robot one, and the rollup's
 series key must carry the robot count when the wire lands (slice E). The
 single-robot prefix is unchanged.
 
+**Every world's context carries `rack`** (issue #351): where each tool is,
+off a presence switch per bay, the robot's own fork and the other robot's
+`carrying`. It is on `guarded` and `autonomous` alike, because it is a fact
+and not a rail. `guarded`'s prefix is unchanged but its context is not: a
+`guarded` series flown before this saw no `rack` block (Overseer.md §2i).
+
 ### What the `autonomous` arm turns on, and where
 
 | | where | note |
@@ -220,8 +226,8 @@ deaths in `History.md`: does *seeing the stake* change anything?
 
 ⚠ **A1–A3 ARE POSTPONED (2026-09-11) AND MAY BE SCRAPPED.** The ladder was
 designed before the world it measures existed: points-as-currency, hearts,
-event maps and the prompt all moved after A0 flew, and the next batch
-(`PluggyPlan.md`, "The next batch") moves them again. A rung measured against
+event maps and the prompt all moved after A0 flew, and the quadruped pivot
+(`PluggyPlan.md`, "The order of work") moves them again. A rung measured against
 each intermediate world describes a different experiment each time. A0 stands
 as the record of the rails coming off; what is measured next is derived from
 the six qualities, after that batch lands. ⚠ The prompt is part of the arm and
@@ -1453,9 +1459,12 @@ Four things only the observatory can show:
 ⚠ **OBSERVATORY DATA WITHOUT A BUILD IDENTIFIER IS NOT WEAKER DATA, IT IS
 UNUSABLE DATA** — two regimes wear one name and nothing can separate them
 afterwards. The header carries a `build` block (`commit`, `dataHashes`, `arm`,
-`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, and since #263
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #263
 `constitutions` — which constitution each robot was told it is, by name and
-content hash, per robot root, because a pair may be given two) built by
+content hash, per robot root, because a pair may be given two — and since
+#387 `body`, the body's name and the sha256 of each policy it walks and gets
+up on, absent for the rover; `dataHashes.world` hashes the body's files, so
+a retrained policy is a new regime) built by
 `evaluation.record.build_identity`, the SAME function the experiment record's
 `commit` and `dataHashes` come from: a header and a record that computed their
 own hashes would agree until the day one of them learned about a file the other
@@ -1820,7 +1829,7 @@ fallback disqualifier, the `autonomous` arm and A0. The capacity sweep was
 **closed without flying** (issue #118) — both its axes are defined by an economy
 the next batch changes again.
 
-**What comes next is in `PluggyPlan.md`, "The next batch"**, and this section
+**What comes next is in `PluggyPlan.md`, "The order of work"**, and this section
 does not keep a second copy of it. Two rules from this tranche outlive it:
 
 ⚠ **MEASUREMENT WAITS FOR THE DESIGN.** A rung measured before the world's

@@ -158,9 +158,9 @@ def main() -> None:
   aborted = False
   cycles: list[dict] = []
   try:
-    life.mission.start_at(*home.SPAWNS["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*home.SPAWNS["start"])
+    life.body.start_discovery()
+    life.body.mission._spin()
     for n in range(max(args.cycles, 1)):
       if args.cycles > 1:
         print(f"\n--- cycle {n + 1}/{args.cycles} ---")
@@ -170,7 +170,7 @@ def main() -> None:
   except MissionAborted:
     aborted = True
   finally:
-    life.mission.close()
+    life.body.close()
     if viewer is not None:
       viewer.close()
   if aborted:
@@ -198,7 +198,7 @@ def main() -> None:
   print(f"board state      {rec.strokes} strokes, {rec.ink_m * 1000:.0f} mm of "
         f"ink, {rec.fill:.0%} of the pen's reach, {rec.clears} clear(s), "
         f"programs {rec.programs}")
-  print(f"sim time {data.time:.1f}s  collisions {life.mission.collision_steps}")
+  print(f"sim time {data.time:.1f}s  collisions {life.body.collision_steps}")
   # A stow verdict only means anything if something was FETCHED first: a
   # module that never left the rack is still hanging in it, and `hung` says
   # True. The two-cycle run caught exactly that -- a failed second fetch

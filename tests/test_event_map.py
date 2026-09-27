@@ -473,7 +473,7 @@ def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
   from pluggybot import tick
   from pluggybot.economy.tasks import TaskBoard
   from pluggybot.lifecycle import shown_offers, world_config
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   board = TaskBoard(path=None)
   if shown:
     board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
@@ -481,15 +481,15 @@ def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
               origin="unseeded",
               event_map=ev.EventMap((ev.Row(event="nothing_to_do",
                                             action=ev.ASK, kind="offers"),)))
-  life = _lifecycle("home", overseer=boss, tasks=board)
+  life = stub_life("home", overseer=boss, tasks=board)
   life._minded = True                       # past the bootstrap
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  life.body.hold_routine = lambda *a, **kw: tick.result(None)
   try:
-    life.mission.start_at(*world_config("home")["start"])
+    life.body.start_at(*world_config("home")["start"])
     assert bool(shown_offers(life)) is shown
-    life.mission.run(life._arbitrate_routine())
+    life.body.run(life._arbitrate_routine())
   finally:
-    life.mission.close()
+    life.body.close()
   assert len(boss.client.calls) == (1 if shown else 0)
 
 
@@ -668,16 +668,16 @@ def test_the_lifecycle_fills_in_whose_map_it_is(menu, tmp_path):
   """The message reaches the wire through the lifecycle that owns the mind,
   which is what knows the root (`r2_` on a second robot)."""
   from pluggybot.lifecycle import world_config
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   boss = make(menu, full(action="idle", standing_order="explore"))
-  life = _lifecycle("home", overseer=boss)
+  life = stub_life("home", overseer=boss)
   seen = []
   life.on_event.append(seen.append)
   try:
-    life.mission.start_at(*world_config("home")["start"])
+    life.body.start_at(*world_config("home")["start"])
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
   maps = [m for m in seen if m["type"] == "event_map"]
   assert len(maps) == 1 and maps[0]["robot"] == life.root == "pluggybot"
   assert maps[0]["rows"][-1] == {"event": "decision_failed", "action": "explore"}
@@ -833,12 +833,12 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
 
 def _arbitrate_twice(boss, tmp_path):
   """Two passes of the arbitration seam on a lifecycle built round `boss`."""
-  from test_overseer import _lifecycle
-  life = _lifecycle("home", overseer=boss)
+  from test_body import stub_life
+  life = stub_life("home", overseer=boss)
   try:
     _pass_twice(life)
   finally:
-    life.mission.close()
+    life.body.close()
   return life
 
 
@@ -848,10 +848,10 @@ def _pass_twice(life):
   stands there."""
   from pluggybot import tick
   from pluggybot.lifecycle import world_config
-  life.mission._drive_routine = lambda *a, **kw: tick.result(None)
-  life.mission.start_at(*world_config("home")["start"])
-  life.mission.run(life._arbitrate_routine())
-  life.mission.run(life._arbitrate_routine())
+  life.body.hold_routine = lambda *a, **kw: tick.result(None)
+  life.body.start_at(*world_config("home")["start"])
+  life.body.run(life._arbitrate_routine())
+  life.body.run(life._arbitrate_routine())
 
 
 def test_a_garbled_bootstrap_is_asked_again(menu, tmp_path):
@@ -899,11 +899,11 @@ def test_the_next_generation_is_asked(menu, tmp_path):
   hour later.
   """
   from pluggybot.economy.ledger import HEARTS, Ledger
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   boss = make(menu, full(action="idle", reason="working it out"),
               origin="unseeded")
   ledger = Ledger(path=tmp_path / "ledger.json")
-  life = _lifecycle("home", overseer=boss, ledger=ledger,
+  life = stub_life("home", overseer=boss, ledger=ledger,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   life._minded = True                       # this life has answered
   ledger.robots[life.root]["hearts"] = 1    # ...and it is on its last
@@ -1062,12 +1062,12 @@ def test_a_robot_stood_back_up_does_not_die_again_instantly():
 def _context(menu, boss, **kw):
   """The volatile context a lifecycle built on this overseer would send."""
   from pluggybot.lifecycle import overseer_context
-  from test_overseer import _lifecycle
-  life = _lifecycle("home", overseer=boss, **kw)
+  from test_body import stub_life
+  life = stub_life("home", overseer=boss, **kw)
   try:
     return life, overseer_context(life)
   except BaseException:                      # pragma: no cover -- fixture only
-    life.mission.close()
+    life.body.close()
     raise
 
 
@@ -1089,7 +1089,7 @@ def test_the_list_is_read_back_as_the_rows_an_answer_would_send(menu):
     assert state["eventMap"]["rows"][0].keys() <= {"event", "action",
                                                    "value", "kind"}
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_an_empty_list_is_shown_as_an_empty_list_rather_than_left_out(menu):
@@ -1104,7 +1104,7 @@ def test_an_empty_list_is_shown_as_an_empty_list_rather_than_left_out(menu):
     assert len(boss.event_map) == 0
     assert state["eventMap"] == {"rows": [], "lastAskedSAgo": None}
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_world_that_honours_no_map_is_shown_none_of_this(menu):
@@ -1116,7 +1116,7 @@ def test_a_world_that_honours_no_map_is_shown_none_of_this(menu):
     assert life.event_map is None
     assert "eventMap" not in state
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_block_carries_the_rows_and_the_clock_and_never_the_verdict(menu):
@@ -1133,7 +1133,7 @@ def test_the_block_carries_the_rows_and_the_clock_and_never_the_verdict(menu):
     flat = str(state["eventMap"])
     assert "keepsAsk" not in flat and str(UNMINDED_AFTER_S) not in flat
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_silence_shown_is_the_gap_before_the_ask_not_since_it(menu,
@@ -1156,16 +1156,16 @@ def test_the_silence_shown_is_the_gap_before_the_ask_not_since_it(menu,
     assert overseer_context(life)["eventMap"]["lastAskedSAgo"] == 900.0
     assert life._last_ask_t == life._asked_t == float(life.data.time)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_robot_stood_back_up_is_shown_a_silence_of_its_own(menu, tmp_path):
   """The gap a dead robot closed belongs to the life that closed it. A robot
   standing up from `unminded` is one nothing has asked YET, and None says
   that where a carried-over number would say it had just been consulted."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   boss = make(menu, origin="unseeded")
-  life = _lifecycle("home", overseer=boss,
+  life = stub_life("home", overseer=boss,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   try:
     life._asked_after_s = 12.0
@@ -1175,7 +1175,7 @@ def test_a_robot_stood_back_up_is_shown_a_silence_of_its_own(menu, tmp_path):
     life._stand_up("the world", True, dict(life.dead))
     assert life._asked_after_s is None
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- ...and the death line says which of the three mistakes it was ----------
@@ -1262,9 +1262,9 @@ def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
   `unminded` line is the only record of a configuration that has since been
   thrown away with the process. Flown through `_death_step`, not asserted
   off the string, because the wiring is the claim."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   boss = make(menu, origin="unseeded")
-  life = _lifecycle("home", overseer=boss,
+  life = stub_life("home", overseer=boss,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   try:
     life.mortal = True
@@ -1275,7 +1275,7 @@ def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
     assert "my list is empty" in life.dead["why"]
     assert "my list is empty" in life.thoughts.read("History.md")
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 # ---- the list is kept, until a true death (issue #337) ------------------------
@@ -1288,15 +1288,15 @@ KEPT = rows(("every", ev.ASK, 600, ""), ("battery_below", "charge", 0.2, ""))
 def _run(menu, root, *answers, origin="unseeded", **kw):
   """One run of a robot on `root`'s volume, as a served world builds one
   every sim-hour: a mind, and the lifecycle that keeps its list."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
   memory = ThoughtFiles.open(str(root))
-  life = _lifecycle("home", overseer=make(menu, *answers, origin=origin,
+  life = stub_life("home", overseer=make(menu, *answers, origin=origin,
                                           thoughts=memory),
                     thoughts=memory, **kw)
   try:
     yield life
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 @pytest.mark.parametrize("origin", ["seeded", "unseeded"])
@@ -1500,9 +1500,9 @@ def test_an_answer_that_outlives_its_robot_is_not_the_next_robots(menu,
         life._die("flat", "the pack reached zero")
       time.sleep(0.01)
       return tick.result(None)
-    life.mission.start_at(*world_config("home")["start"])    # (drives: first)
-    life.mission._drive_routine = think_slice
-    life.mission.run(life._decide_routine())
+    life.body.start_at(*world_config("home")["start"])    # (drives: first)
+    life.body.hold_routine = think_slice
+    life.body.run(life._decide_routine())
   assert life.true_deaths, "the fixture did not die mid-think"
   assert len(life.overseer.decisions) == 1 and life.decisions == []
   assert life.event_map == ev.origin_map("unseeded", menu) and not life._minded

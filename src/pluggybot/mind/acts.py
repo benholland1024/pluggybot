@@ -61,11 +61,11 @@ def need_of(other) -> tuple[str, dict]:
     "holdsJob": False, "carrying": "",
   }
   if other.tasks is not None:
-    root = other.mission.handle.root
+    root = other.root
     state["holdsJob"] = any(t.claimed_by == root and t.state in ("claimed", "active")
                             for t in other.tasks.tasks.values())
   if other.module:
-    on_fork = other.mission.swap.module_state(other.module)["on_fork"]
+    on_fork = other.body.module_state(other.module)["on_fork"]
     state["carrying"] = other.module if on_fork else ""
   if battery.energy_wh < other.low_battery_wh:
     return "charge", state
@@ -93,8 +93,10 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
   """The first checkable statement in `text`, and its truth -- or None.
 
   Four shapes are checked, each against the world and nothing else:
-    "bay C is empty"            -- `rack` (module -> bay index), a bay with
-                                   no module on it is empty
+    "bay C is empty"            -- `rack` (module -> the bay it HANGS in,
+                                   `HubLifecycle.racked` -- never the
+                                   inventory), a bay nothing hangs in is
+                                   empty
     "module_pen is on the rack" -- `rack` again: hung on some bay
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charge bay is free"    -- `charging`: is any robot charging now

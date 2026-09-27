@@ -5,6 +5,11 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
+> **The quadruped's parts are the first section** (#377); everything after
+> it is the wheeled rover's, and goes with the rover (#376 stage C). The
+> quadruped's are not in `protocol/parts.json` yet: #379 puts its bill of
+> materials there.
+
 > **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
 > pluggybot.rack.catalog` (issue #185) — every part below with its number,
 > source, mass, price and the sim constant it feeds, the constant's value
@@ -14,6 +19,98 @@ constant with no part behind it is a guess and is marked as one.
 > This doc keeps the reasoning; the spec→parameter tables live there.
 
 > **Sourcing note:** Pololu (US) parts are stocked by German/EU distributors — mainly [Eckstein-shop.de](https://eckstein-shop.de/Pololu_EN), plus BerryBase, EXP-Tech, Welectron, Botland and TME.eu — so no US import is needed. All prices are **approximate, incl. 19% VAT, as of July 2026** — re-check before ordering.
+
+---
+
+## The quadruped body (#377)
+
+Chosen 2026-09-26 by `scripts/quad_spike.py`; the tables that chose it are
+SimNotes, "The quadruped body", the body is `pluggybot.legs.model.CHOSEN`
+(`models/quadruped.xml`), and every actuator number sits at its constant in
+`legs/actuator.py` with its source. **Nothing is ordered**: #379 holds the
+bill of materials and the gate before the first purchase.
+
+| part | chosen | mass | price | what it feeds |
+|---|---|---|---|---|
+| leg actuator ×12 | Steadywin **GIM8108-8** with the GDS68 driver (FOC, CAN, MIT mode) | 396 g, Ø97 × 55 mm | €124.95 (OpenELAB, Munich); $129.20 (Steadywin) | `actuator.GIM8108_8` |
+| pack | **12S1P Molicel P45B** 21700 (43.2 V nominal, 36–50.4 V, 194 Wh) | 0.95 kg: twelve 70 g cells plus a BMS, case and leads (estimated) | `null` — not priced yet | `MassBudget.battery`, `actuator.BUS_V_RANGE` |
+| 2D LIDAR | Slamtec RPLIDAR C1 (the rover's) | 110 g | as the rover's | 1.15 W, the maker's 230 mA at 5 V |
+| depth camera | RealSense D435 (the rover's) | 75 g (datasheet, March 2026) | as the rover's | 2.0 W, as `power.DEPTH_CAMERA_W` |
+| compute, two cameras, IMU | as the rover's (Raspberry Pi 5, Camera Module 3) | in `electronics` | | 6.0 W, the rover's figure less its LIDAR |
+| frame | aluminium side plates and cross members | 1.0 kg (estimated) | `null` — no design yet | `MassBudget.frame` |
+| thigh, shank, foot | tube, no belt (the knee is direct), rubber foot | 0.21 kg a leg (estimated) | `null` — no design yet | `BodySpec.*_mass` |
+| #378's arm | placeholder budget | 0.9 kg + a 250 g tool | — | re-fly the tables if #378 needs more |
+
+**Why 48 V (12S).** The GIM8108-8 is rated at 48 V, and joint SPEED, not
+torque, is what binds this body: a 1.5 m/s trot drives a joint to 90 % of
+its no-load speed on a nominal pack and saturates it on an empty one. At
+24 V the no-load speed is about 20 rad/s instead of 31 (the GDS sheet's
+curve), which would cap the robot near a walk.
+
+**What the datasheets leave open, and what the sim does about it:**
+- **Steadywin's two selection tables disagree** (the GDS and GDZ .xlsx on
+  the store page: rated torque 7.5 vs 6.71 N·m, Kt 1.0 vs 1.19, 110 vs 256
+  rpm rated). The sim takes the lower figure, and the loss model the one
+  pair (Kt 1.19, R 0.72) whose 1.5·R·I² fits under the maker's own 48 V
+  efficiency curve. A written answer from Steadywin would settle it.
+- **Rotor inertia is not published.** The one transcribed value (4.55e-6
+  kg·m²) is 10–25× under every motor of the class; the sim uses the class's
+  range, 4.1e-5 to 1.1e-4 (training samples it), nominal 7.2e-5 (the Mini
+  Cheetah actuator's, the same 21 pole pairs).
+- **Heat:** no Steadywin part publishes a thermal resistance; the sim uses
+  the Mini Cheetah actuator's measured 1.23 K/W and 32 J/K (Katz 2018), up
+  to the GDS68's 90 °C motor alarm.
+- **Friction, command latency and backlash** are unpublished; training
+  randomises 0.05–0.6 N·m and 0–20 ms, and backlash (15 arcmin in the
+  tables) is encoder noise to the policy.
+
+**The body that was too small.** A Pupper-v3-class body (3 kg, GIM4305-10,
+1.0 N·m continuous) stands and walks as built, but carrying the suite
+(4.4 kg) it spends 92 % of its continuous torque STANDING, is 23 % over it
+holding the arm out, cannot push itself up from its belly or up a 0.12 m
+curb, and its whole leg (0.17 m) is shorter than a house's riser.
+
+### The IMU and the encoders, as the robot reads them (#386)
+
+Both bodies carry the same IMU, and neither is told the sim's exact angles
+or rates: `perception/imu.py` and `perception/encoders.py` give every
+reading the part's own error, each number from its sheet or a stated range.
+
+| part | what the sim adds | from |
+|---|---|---|
+| IMU: TDK **ICM-42688-P** | gyro 0.0028 °/s/√Hz white noise; accelerometer 65 µg/√Hz (x, y), 70 (z) | DS-000347 rev 1.9, Tables 1–2 (tested in production) |
+| | the offset left after the boot calibration: ±0.005 °/s/°C (gyro) and ±0.15 mg/°C (accel) over `TEMP_SWING_C` = 10 °C — ±0.05 °/s and ±1.5 mg, drawn per axis | the sheet's variation over temperature (characterised); the 10 °C swing is a stated choice. The initial ±0.5 °/s and ±20 mg are what the calibration removes |
+| | scale ±0.5 % per axis, gyro and accelerometer | the sheet's initial tolerance (tested in production) |
+| | not modelled: cross-axis (±1.25 % gyro, ±1 % accel), nonlinearity (±0.1 %) | small against rates that average out on a near-level body |
+| rover wheel encoders | whole counts, 3200 a wheel turn | Pololu #4753 (64 CPR × 50) |
+| leg joints (GDS68, MIT mode) | position in 16 bits over ±12.5 rad (0.38 mrad), velocity in 12 bits over ±65 rad/s (32 mrad/s), on top of the gearbox backlash | the MIT protocol's fields; the ranges are the driver's settings, unpublished — stated as the protocol's defaults in Katz's firmware, the velocity range above the joint's 31.4 rad/s no-load speed |
+
+### The dock (#378)
+
+The robot charges by lying down onto a cradle (`pluggybot.legs.dock`, flown
+by `scripts/dock_spike.py`); the tables that chose it are SimNotes, "The
+quadruped's dock". Nothing is ordered (#379).
+
+| part | chosen | mass | price | what it feeds |
+|---|---|---|---|---|
+| charge contacts ×4 | Mill-Max **0858-0-15-20-82-14-11-0** spring-loaded pin, two a pole: 12 A at a 30 °C rise (9.6 A derated), 20 mΩ max, 25 g free and 120 g at its rated 1.143 mm of a 2.286 mm stroke, a 1.27 mm plunger, gold over nickel | under 1 g each | $2.45 each (DigiKey US, Sept 2026) | `dock.PIN_*`, `dock.pole_spring()` |
+| belly pads ×2 | 160 × 20 mm plated strips flush with the pack's underside, 60 mm apart | in the pack's 0.95 kg | `null` — no design yet (a gold-finished PCB strip is the likely part) | `model.PAD_HALF`, `model.PAD_Y` |
+| charger | a 12S Li-ion CC-CV charger, 50.4 V at 5 A (BOUNDMOTOR's, for one) | not published | $99 (BOUNDMOTOR) | `dock.CHARGE_A`; `CHARGE_W`, 216 W at the pack's nominal 43.2 V |
+| cradle: bed and funnel faces | machined UHMW-PE: sliding friction 0.12–0.17 (a supplier's figure), polyethylene on steel 0.2 static (Engineering ToolBox) | `null` — no design yet | `null` — no design yet | `DockSpec.cradle_mu`, flown at 0.3 |
+| tag board | four 60 mm tag36h11 tags (ids 25–28) printed on a board on a post | — | — | `tags.DOCK_TAG_IDS`, `DOCK_TAG_SIZE`, `dock.tag_layout` |
+
+**Why 5 A.** The Molicel P45B datasheet gives 4.5 A as its standard charge
+(1.5 h) and 13.5 A as its maximum (70 °C cut-off). 5 A is 1.1C for the 12S1P
+pack; one pin a pole carries it with 4.6 A to spare, and the four lose half
+a watt.
+
+**Why sprung pins, and not the robot's weight.** The dock was proposed with
+the robot's own weight (~90 N) as the contacts' preload. But a lying
+quadruped rests on its belly AND on four limp legs, so rigid contacts under
+it carry whatever the legs leave them: a robot lying 6 mm off centre put
+all 57 N through one bar and hung the other pad 0.3 mm clear. The weight
+seats the belly on the bed; the pins' springs, 2.35 N a pole at their
+rated travel, are the contact.
 
 ---
 
@@ -46,7 +143,8 @@ that touch the peg need print accuracy.
 
 **Electronics volume.** A Pi 5 is 85 × 56 mm; the 24 × 18 cm chassis has room
 for Pi + motor driver + battery without growing. No accelerator HAT is
-needed (PluggyPlan.md "Road to hardware", item 1).
+needed: desktop timings for the stages that transfer to hardware, scaled a
+pessimistic 5× for a Cortex-A76, came to ~78 ms per perception cycle.
 
 ## Drive system
 
@@ -61,9 +159,9 @@ needed (PluggyPlan.md "Road to hardware", item 1).
   "Physics modeling rules"; stall torque 2.06 N·m and no-load 20.9 rad/s are
   the motor actuator's `forcerange` / `ctrlrange` and `power.STALL_TORQUE` /
   `NOLOAD_SPEED`; 5.5 A stall / 0.2 A no-load are `power.STALL_A` /
-  `NOLOAD_A`. The 64 CPR encoder (3200 CPR at the output) has no model yet
-  — odometry is perfect-encoder today. 6 mm D-shaft, which sets the wheel
-  choice below.
+  `NOLOAD_A`. The 64 CPR encoder (3200 CPR at the output) is
+  `perception/encoders.WHEEL_COUNTS_PER_REV`: the reckoner counts whole
+  counts (#386). 6 mm D-shaft, which sets the wheel choice below.
 
 Runner-up, not selected: the 30:1 sibling (#4752, same price; 330 rpm /
 1.37 N·m) — passed over for the 50:1's push force, because speed is a low
@@ -122,8 +220,9 @@ build this map: the room is flat painted walls, the classic no-disparity
 case. Tables and method: SimNotes "Sensor-realism pass".
 
 Catalog entries `lidar_rplidar_c1` (Slamtec RPLIDAR C1 or A1M8: 360°,
-10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W. `perception/lidar.py` casts 360
-`mj_ray`s at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
+10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W — the maker's datasheet says 1.15 W
+typical, found by #377 and left for the rover's last days. `perception/lidar.py` casts 360
+rays (one `mj_multiRay`) at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
 under-ranges it to 8 m on purpose, drops self-hits; its offset from the axle
 is `LIDAR_ORIGIN`, which the grid update bakes in — move the unit, move the
 constant) and `pi_camera_3` (×2: `left_eye` on the head for AprilTags,
@@ -158,7 +257,7 @@ neither asked was whether any stereo pair could produce the mapper's scan.
 
 **Decision.** A third ranging sensor, for the one place the scan plane never
 looks: the floor. An **Intel/RealSense D435** (active IR stereo, 87° × 58°,
-848 × 480 depth, 50 mm baseline, 72 g, 90 × 25 × 25 mm, USB 3) on the **mast
+848 × 480 depth, 50 mm baseline, 72 g (75 g in the March 2026 datasheet), 90 × 25 × 25 mm, USB 3) on the **mast
 top, over the axle, pitched 40° down**. Applied to `pluggybot_fork.xml`
 (`depth_cam_body`, `depth_eye`); `perception/depth.py` is the sim,
 `perception/heightmap.py` the robot-centric 2.5D map it feeds, and
@@ -231,35 +330,30 @@ integrates over motion and `HeightMap.things` bridges one unmeasured cell.
 
 ---
 
-## Arm & docking (milestone 6)
+## Arm (milestone 6)
 
 ### Naming
 
 **Mast** = the fixed vertical column. **Lift** = the carriage that travels up
 it (and the actuator driving that). **Telescoping arm** = the horizontal
-extension carrying the plug, and now the fork. Hello Robot Stretch's
+extension carrying the fork. Hello Robot Stretch's
 vocabulary and architecture: base owns x/yaw, lift owns z, arm owns reach.
 
 ### ⚠ The mass budget is the binding constraint
 
-Measured in sim (`models/world.xml`, headless force probe, ramped loads on
-the armed robot): pushing at outlet height (0.30 m), forward docking holds
-**~3 N then slides**; backward holds ~4 N then goes caster-light. Schuko
-insertion forces measured by the spike: **0.7 N** perfectly aligned,
-**6.1 N** at 2 mm lateral, **7.8 N** at 2° yaw. So insertion must stay
-≲3 N → terminal alignment ≲1 mm, a compliant wrist, and forward docking
-(mapping and cameras face forward; the failure mode is a benign slide).
+Measured in sim (headless force probe, ramped loads on the armed robot at
+0.30 m): pushing forward holds **~3 N then slides**; backward holds ~4 N
+then goes caster-light. So the arm's working forces stay small — a
+compliant wrist, and forward docking (mapping and cameras face forward; the
+failure mode is a benign slide) — and a tool that must press gets the
+lean-pad (ToolPattern.md, "the force budget").
 
-Two things that came out of it and still bind:
-- **Battery position is a design variable, not packaging** — x = +0.05
-  (ahead of centre) for tipping margin, **y = +0.06 as a counterweight** for
-  the arm assembly hanging at y = −0.05, without which the robot veers 26 cm
-  right over 4 m open-loop. `test_arm_mass_is_counterbalanced` pins it;
-  carrying the heaviest module adds 5.5 mm over 2.7 m and needs no re-tune
-  (SimNotes "Asymmetric mass makes a diff-drive veer open-loop").
-- **A wall cannot brace you.** A wall contact is one-way — it pushes the
-  robot the same way the insertion reaction does — so bracing pads were
-  falsified in sim (SimNotes "A wall cannot brace you").
+What came out of it and still binds: **battery position is a design
+variable, not packaging** — x = +0.05 (ahead of centre) for tipping margin,
+**y = +0.06 as a counterweight** for the arm assembly hanging at y = −0.05,
+without which the robot veers 26 cm right over 4 m open-loop (the catalog's
+`battery.pos` feed pins the position); carrying the heaviest module adds
+5.5 mm over 2.7 m and needs no re-tune.
 
 ### Lift and telescoping arm — 2× linear actuator
 
@@ -267,33 +361,16 @@ Two things that came out of it and still bind:
 
 - Source: [igus.com/product/DLE-LA-0001](https://www.igus.com/product/DLE-LA-0001). Price: **TBD** — igus quotes stroke-configured units through their configurator, not a fixed list price. Get a quote for both axes together.
 - Catalog entry `igus_dle_la_0001`: 50 N thrust is both axes' `forcerange`
-  (6× the worst-case 7.8 N insertion); the 0.12 N·m holding torque holds
-  position unpowered, which is why `power.ACTUATOR_W` is drawn only while
+  (6× the plug era's worst-case 7.8 N insertion); the 0.12 N·m holding torque
+  holds position unpowered, which is why `power.ACTUATOR_W` is drawn only while
   moving and a parked module axis is a position servo at its target; the
   dryspin® 6.35 × 5.08 screw feeds 0.0254 mm per 1.8° step, far finer than
   the ±3 mm docking budget. Stroke is configurable — want ~0.25 m lift and
   ~0.20 m reach (the model's lift travels 0.31 m). Mass TBD, and it matters
   (mass budget above).
 
-Stroke rationale: the lift must span outlet heights 0.26–0.38 m in
-`room_1.xml` and carry the docking camera high enough to keep a 0.38 m
-outlet in frame at close range (a fixed 0.18 m eye loses it below 0.40 m —
-measured). Reach is set by parking the base at ~0.25 m; a 0.6 m cantilever
-is unaffordable on this chassis.
-
-### Plug
-
-**Rewireable Schuko CEE 7/7 plug (Type F)** — e.g. [Leads Direct rewireable right-angle](https://leadsdirect.co.uk/shop/schuko-cee77-plug-rewireable-black-right-angle/); equivalents at Reichelt/Conrad. Price ≈ **€3–6**. A right-angle plug puts the cable exit parallel to the wall instead of along the arm axis.
-
-Catalog entry `schuko_plug`: pin length, diameter and pitch are
-`docking/schuko.py`'s `PIN_LEN` / `R_PIN` / `PIN_SEP`, pinned equal; the
-body diameter is not.
-
-⚠ **Open (decision 8):** the real body is 36.7 mm, not the 35.5 mm the spike
-assumed. Against a 37 mm recess that is **0.15 mm clearance per side, not
-0.75 mm** — a 5× tighter fit than the tolerance sweep was run at. Confirm on
-a specific datasheet and re-run `scripts/schuko_spike.py`; the ±3 mm / ±3°
-envelope may shrink.
+Reach is set by parking the base at ~0.25 m; a 0.6 m cantilever is
+unaffordable on this chassis.
 
 ### Compliant wrist (passive)
 
@@ -306,20 +383,6 @@ plate, **≈ €10**. The sim models it as 150 N/m lateral and 1 N·m/rad angula
 (`coupling.LAT_STIFFNESS` / `YAW_STIFFNESS`, and the fork model's wrist
 joints); those were guesses — measure the built part and update, since the
 whole tolerance envelope scales with them.
-
-### Alignment feelers — ❌ removed from the hub robot
-
-`pluggybot_fork.xml` has none (its `fork_prong_l/r` are the fork's tines).
-The plug robot `pluggybot.xml` keeps them as `prong_l`/`prong_r`, frozen for
-milestone 6–7 reproducibility: two prongs on the lift carriage straddling
-the socket at lateral **±0.085 m**, on a bracket **2 cm above the plug
-axis** — both offsets load-bearing (the ±0.07 they replaced landed on the
-socket housing's edge; on the plug axis the left prong swept the battery),
-`test_prongs_clear_the_socket_housing`. What they buy, measured: two-point
-wall contact squares yaw and references insertion depth — not tipping
-resistance. Why removed: they bake in an outlet-housing width real outlets
-do not standardise; the circular well is the only standard geometry, so a
-plug-anywhere module, if it is ever built, is well-centric.
 
 ---
 
@@ -334,6 +397,7 @@ and models TBD.**
 | Part | Route | Notes → sim |
 |---|---|---|
 | Rack: rail, posts, shelf, V-trays, wall braces | rail/posts/base from stock (above); trays and brackets **3D-printed** (PETG; the trays see ~3 N loads) | geometry = `rack/coupling.py` constants; 1.86 m of rail for five bays + charge bay |
+| Bay presence switches | one Omron D2F-01L2 per bay (eight, €2.59 each) in the +y V-tray; a board on the rack reads them and reports them over the network (`rack_controller`, none chosen) | `coupling.bay_switches`: which bays are taken, never by which module — what the robot's `rack` context is built off (Overseer.md §2i). The sim reads contact, not force: a bare switch under one tray would not close for the LCD or the plug (0.70 and 0.77 N a tray against its 0.78 N), so the lever has to carry the tray, or a lighter switch; open |
 | Tool peg axles | **6 mm steel rod** (conductive — see below), 2× 63 mm conductors on a 24 mm insulating centre bush, 150 mm overall | the one loaded part **and the electrical connector** — `PEG_R`, `PEG_HALF`, `PEG_INSUL_HALF` / `PEG_COND_HALF` |
 | Arm fork + V-notches | 3D-printed, mounts where the plug's RCC sits | prong stance ±58 mm (`FORK_Y`) |
 | Module frames (LCD, plug, pen, claw, seed dispenser) | 3D-printed plates, common peg interface | 130–211 g measured, ~250 g practical ceiling (ToolPattern.md "Mass and geometry class") |
@@ -397,8 +461,7 @@ the chassis plate.** Also needed: a 3S balance charger, and a **12 V → 5 V
 
 ⚠ The models already carry the pack as a 400 g placeholder box at that
 position. A real pack of a different mass or footprint moves every physics
-threshold derived from the model — the mass re-budget in PluggyPlan.md
-"Road to hardware" (item 5), to be done last.
+threshold derived from the model, which is why mass is budgeted last.
 
 ## Electronics — later (low priority)
 
@@ -417,9 +480,7 @@ threshold derived from the model — the mass re-budget in PluggyPlan.md
 6. **Battery pack** — specific 3S LiPo (or 4S LiFePO4) from a German retailer, with
    dimensions checked against the chassis plate. Position x = +0.05, y = +0.06, low.
 7. ~~Third camera routing~~ → **Closed (Aug 2026) by the LIDAR swap**: two cameras on two CSI ports, LIDAR on USB/UART.
-8. **Plug body diameter** — 35.5 mm (spike assumption) vs 36.7 mm (spec found for
-   rewireable CEE 7/7). Confirm on a real datasheet, then re-run `schuko_spike.py`;
-   the docking tolerance envelope depends on it.
+8. ~~Plug body diameter~~ → **Moot**: the plug era is retired (#376).
 9. **Lift/arm stroke + price** — get an igus quote for two NEMA11 lead-screw actuators
    (~0.25 m and ~0.20 m stroke) and their masses.
 10. **Depth camera sourcing and draw** — RealSense left Intel in 2025: confirm

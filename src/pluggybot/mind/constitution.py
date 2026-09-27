@@ -110,3 +110,35 @@ def resolve(name: str | None = None, env: str = NAME_ENV,
   first, `SECOND_NAME_ENV` for the second of a pair)."""
   name = (name or os.environ.get(env, "")).strip() or DEFAULT_NAME
   return load(name, library)
+
+
+#: WHAT THE ROBOT IS, per body (issue #387). Every library file opens with
+#: the rover's body; a robot with legs is told its own, and nothing else in
+#: the text moves -- the disposition is the file's, the body is the world's.
+#: The swap is ASSERTED: a file without the rover's paragraph is refused,
+#: never quietly left telling a quadruped it has wheels.
+BODY_PARAGRAPHS = {
+  "rover": (
+    "You are a small two-wheeled robot living in a simulated house with a "
+    "garden. You have a tool rack (your \"hub\") where you also charge, a fork "
+    "that carries one tool module at a time, and an LCD face."),
+  "quadruped": (
+    "You are a four-legged robot about the size of a small dog, living in a "
+    "simulated house with a garden. You walk, you lie down to rest, and you "
+    "charge by lying down on your dock. You have no arm yet, so the tools on "
+    "the rack in the living room are not yours to use until you do."),
+}
+
+
+def for_body(constitution: Constitution, body: str = "rover") -> Constitution:
+  """The constitution as a robot with this body reads it: the rover's
+  opening paragraph swapped for the body's own, the name kept, the hash of
+  what is read (so the header tells the two texts apart)."""
+  if body == "rover":
+    return constitution
+  rover = BODY_PARAGRAPHS["rover"]
+  if rover not in constitution.text:
+    raise ValueError(f"constitution {constitution.name!r} does not open with the "
+                     "rover's body, so it cannot be told a quadruped's")
+  return Constitution.of(constitution.name,
+                         constitution.text.replace(rover, BODY_PARAGRAPHS[body], 1))

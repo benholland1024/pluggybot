@@ -10,6 +10,235 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The first quadruped period: no offers, no upkeep (#387) — opens when this PR is deployed
+
+**What changed.** The robots are quadrupeds (#377's body, walking on its
+policy, getting up on its own; #378's dock). The rover has left the served
+world: the pair is `home_quad_pair`, the same house with the dock on the
+living room's south wall. The body in numbers is SimNotes, "The first
+quadruped deploy". Four things change what a row means:
+
+- **No job offers and no upkeep** (Ben, 2026-09-27): nothing a quadruped
+  can do pays yet, and upkeep with nothing to earn only schedules deaths.
+  So no `tasks` and no `metabolism` on the wire, no `unpaid` death, and
+  the prompt says nothing about upkeep (`mortal_rule`). Points still move:
+  a closed ticket pays, gifts move them, hearts can still be bought.
+- **Code lies the body down after 8.6 s without a motion command**, and
+  stands it before the next (the rest reflex; the mind is not asked).
+  `posture: lying` is the most common posture of the day, and never a fall.
+- **The `stuck` death is a fall the body could not get up from in 20 s**
+  (the get-up policy stood 31 of 35 measured falls, the slowest in 13.4 s).
+  A body that lies down to rest is not down.
+- **What the robot can do shrank**: no tool, so no tool errand, no
+  workshop, no tower, and no lab (its jobs run the rover's programs along
+  the rover's routes); a procedure has four verbs (`drive_to`, `face`,
+  `wait`, `drive`) and five sensors.
+
+The minds carry over: the rover world's saved `world.npz` is refused by
+name, so the bodies start from the XML, but each robot keeps its memory, its
+ledger and hearts, and its kept event map -- a kept row naming a tool errand
+is left out and said in History.
+
+**What the period is for.**
+
+- **Basic mobility in the house**: does it walk the rooms, the doors and
+  the garden, and how often does it fall, press into something or stall
+  (`press_steps`, `falls`, the drive causes). Flown, a 260 s explore toured
+  the living room, the bedroom, the hall, the kitchen, the workshop and both
+  gardens.
+- **The dock**: how many trips end lying on the pins, how many charges
+  finish, and how often the pair meets there (one dock, two robots).
+- **Upkeep off works**: no `unpaid` death, no hunger in any header, and
+  nothing in History about upkeep.
+- **What the minds do with free time and no money to earn** -- every hour
+  is theirs.
+
+**Not yet known.** The served speed on the deploy box with this body (the
+dev machine flew the pair at 0.96x real time, quiet); how the D435's
+obstacle layer (the planner's first reader of the depth camera) behaves
+over a week; whether the reserve holds from the loop's far corner at the
+quadruped's Wh per metre.
+
+### The map stays true under drift (#386) — opens when this PR is deployed
+
+**What changed.** Both rovers' odometry reads its parts' errors now: whole
+encoder counts and an ICM-42688-P gyro with its datasheet's noise, the
+offset its boot calibration leaves and its scale error. And every level
+LIDAR scan is matched against the robot's own map before it is fused: the
+matched pose is the belief, the pose the planner plans from and the pose
+the other robot is told (SimNotes, "The map stays true under drift"). A
+fit the map disagrees with is searched round (±0.6 m, ±6°) and refused
+if nothing agrees, a refused scan is not fused, and a robot standing still
+fuses one every 5 s. Nothing on the wire, in the prompt or in the economy
+moved.
+
+**What the period is for.**
+
+- **Does a map keep one copy of each wall.** Flown, a day of lab trips
+  kept the pose within centimetres in the house and ~0.3 m in the lab
+  (odometry alone lost the lab), and the lab door open in the robot's own
+  map. A week of trips, restarts and stand-ups has not been flown.
+- **The drive causes** (#350): a `no route` on the lab's way was the
+  honest gyro's drift in the flights without the matcher; it should not be
+  a reason the live world gives.
+- **What still loses a robot.** The feed plate's wheel pump is absorbed,
+  and a pose left past the fit's reach is found by the search; a stand-up,
+  a restart mid-errand and the other robot in view (kept out of the map,
+  as before) have not been measured against the matcher.
+
+**Not yet known.** The matcher's verdicts are not on the wire: a period
+that finds a lost robot reads it off the drive causes and the map image.
+
+### The verbs get there (#353) and the challenges pay double (#355) — opens when this PR is deployed
+
+**Two changes in one period, on purpose: the first makes both challenges
+reachable, the second makes them worth it.** On `42f4a11` `stack_tower` was
+offered 94 times and `find_mass` 30 times, done 0 times, and pay was not
+what stopped them: Rowan claimed the tower 6 times in a day. What stopped
+them was bookkeeping the house's own verbs already did:
+
+- a procedure's `drive_to` past the LIDAR's 8 m, or to a cell never seen,
+  now walks the house's route first (`lifecycle.route_to`, the doorways
+  `pick` and the cage programs drive by). Every live `drive_to(22, 3)`
+  from the house stopped 6.6-9.1 m short, which Rowan then read as the
+  pack. A route leg is a waypoint: reached within 2 m, passed by when the
+  other robot stands on it -- Rowan stands by ON the workshop route's first
+  leg, which stopped Luca's tower on the pair before this;
+- `pick` on an empty fork fetches the claw (Rowan's `build_tower` never
+  did); with another tool aboard, `pick` and `place` say stow it first;
+- the tower pays 100 (90 + the neatness bonus; it was 50) and the bench
+  120 (it was 60): per watt-hour both paid less than a whiteboard answer.
+  `guarded`'s table and prefix do not move -- the rows are `challenges.json`'s.
+
+The prompt moved by two verb docs (`drive_to`, `pick`) and the two
+payouts in the `autonomous` table.
+
+**What the period is for.**
+
+- **Is either challenge EVER done live.** Rowan's own `build_tower`,
+  verbatim, stacks the tower from the hall on the pair locally, and its
+  `mass_check` crosses the street and takes the cube (it records no
+  finding, so it is not paid). The first `SCORE stack` / `SCORE mass` that
+  passes is the reading.
+- **The drive causes.** #350's baseline split `no route` against
+  `stalled`; long procedure drives should now fail, when they fail, on a
+  named leg (`on the house's route there, the leg to …`).
+- **The lab belief.** Whether a robot that reaches the lab keeps declining
+  it over a round trip it believed was ~7.5 Wh.
+
+**Not yet known.** Whether double the pay moves claims at all, with
+reachability changing in the same period -- the two cannot be told apart
+here, which was the price of one period.
+
+### The rack says where each tool is (#351) — opens when this PR is deployed
+
+**What changed in the context.** `rack` used to say which bay each module
+belongs to. Now it says where each one is: `on bay C`, `on your fork`, `on
+Rowan's fork`, or `not on its bay and on no fork` (a built tool: `on its
+bay`). It is built from a presence switch per bay, which the rack reports
+over the network (a bay is taken, never by which module), the robot's own
+fork, and what the other robot says it carries. It is on every arm now:
+`guarded` gains the block, with the originals and no rail, and its prefix
+does not move. On `autonomous` one sentence of the workshop rule changed
+("says where each tool is" for "says what hangs where"), so the deployed
+prefix moved by those words. A `tell` claim about the rack ("bay C is
+empty", "module_pen is on the rack") is now graded against what hangs
+where, not the inventory. Before, "bay C is empty" said while the pen rode
+the other robot's fork was recorded false. Overseer.md §2i.
+
+**What the period is for.** Jobs lost at the rack to a tool that was not
+on its bay. On 42f4a11 three claimed jobs were lost that way: two picks of
+the pen while it rode Luca's fork, and one while it lay on the floor. The
+rows to read are the History lines a failed pick writes (`pick_failure`):
+"module_pen is on Luca's fork" and "it was not on its bay, and no robot is
+carrying it". Both should fall. A `message` act's `claimTrue` about a bay
+or a module compares only within this period.
+
+**Not yet known.** Whether the robot acts on it. Avoiding the loss means
+not taking a job whose tool it has just been told is away. It is also not
+known whether the lost-tool clock (#347, 5 minutes) already makes `not on
+its bay and on no fork` too rare to matter.
+
+### A failed job says what failed (#350) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD, so it is a regime break.** Nothing
+in the world moved, and no grade either: every verdict is measured as it was
+and pays what it paid. What moved is the words. On 42f4a11 the robots read
+`answer: no ink reached whiteboard_b` fourteen times in a day, and none of
+the fourteen was ink: 5 picks refused at the rack, 2 pens on the other's
+fork, 1 on the floor, 6 drives that gave up. Three lab trips that never left
+the living room read "the plate was never pressed". A census whose pick
+failed read "from None", and a `drive_to` the planner could not route read
+"stopped 9.1 m short", which Rowan took for the pack running short. Now:
+
+- a failed verdict LEADS with the errand's own failure before its
+  use-phase (`could not pick up …`, `never reached whiteboard_b: …`,
+  `dropped … on the way`, `never squared up to …: …`), and the measured
+  grade follows it. History says it once;
+- a drive that gives up says which of four it was: `no route over the floor
+  mapped so far`, `stalled`, the other robot by name (in the way, or at
+  the goal, and whether it is standing or lying there, #365), or `out of
+  time`. The same clause ends
+  `USE_TOOL: never got there`, a procedure's `drive_to` and `draw`, the
+  travel to a prop, `GO_CHARGE` and the `stuck` death after it, and a leg
+  of a care/feed/shock route (`never reached the cage: …, on leg 1 of 5`);
+- `mapDone` in the context is `floorExplored`, on every arm. It is a
+  volatile field: `guarded`'s prefix and `GUARDED_RULES_SHA` did not move,
+  and no rule named it.
+
+**What the period is for.**
+
+- **Tickets.** Luca's tk_0001/0002/0005 and Rowan's tk_0002/0003 came from
+  these words. A new ticket about the ink path, a dead plate or the event
+  map not landing, filed after a failure that was really the rack or a
+  route, means the words still point the wrong way.
+- **The lab belief.** Both robots decline the bench, the feed and the shock
+  over a round trip of "~7.5 Wh"; the jobs' own figure is ~2.4. Whether
+  either takes a lab job again, once Ben's ticket replies are in History
+  and a failed leg says `no route` or `stalled` rather than a distance.
+- **What a robot does after each cause.** A refused pick, a stall and the
+  other robot in the way want different next moves (wait, re-route, try
+  later). Read the decision that follows each `the drive gave up` line
+  against its cause.
+
+**Not yet known.** How the causes split live: the deployed log has never
+said, so the first day's counts are the baseline. `no route` against
+`stalled` is the split to watch for #353 (long drives follow the zone
+route).
+
+### A robot lying down is avoided where it lies (#365) — opens when this PR is deployed
+
+**What changed in the world.** On the pair, a robot that has fallen over
+(tilted past 60°, from the moment it falls, dead or not) is now avoided
+where its body lies, not where it says it is. What it says had come loose
+from the body: the errand it fell in went on turning its wheels, and that
+moved its reported pose by up to 2.2 m in 10 s. So the other robot's planner
+steered round an empty spot and drove at the body. On 2026-09-23 Rowan
+drove into Luca where Luca lay, and fell over too. The space kept round a
+fallen robot is also wider (0.70 m against 0.60), because its mast lies
+along the floor. The depth camera no longer stops the other robot for a
+fallen one, and a drive that cannot get past one no longer waits for it,
+because a fallen robot does not move out of the way until it is stood up.
+The planner routes round it instead, and hears of a fall or a stand-up
+within a tenth of a second; the lidar's front stop and the bumper still
+see it. The `WAIT:` line and the History line about a bay it blocks say
+the other robot is "lying knocked over", not "standing". Nothing changes
+while both robots stand, or for a robot alone. The prompts, the schema and
+the wire are unchanged. SimNotes, "A robot lying down was avoided where it
+said it was", has the measurements.
+
+**What the period is for.** Whether one fall still becomes two. The
+previous period had one such pair of deaths in 7 days (09-23 18:02), too
+few to read a rate off. So the reading is a check, not a rate: any
+`?kind=encounter` `touched` row while one of the pair is down is a defect
+to file. So is a `stuck` death whose `data.at.peer` (#362) is within about
+1 m of a robot already dead.
+
+**Not yet known.** Whether a robot lying in a doorway or at the rack now
+stops the other robot's work until the stand-up (up to 5 minutes). Before,
+the planner did not know the body was there, and the camera stopped the
+drive in front of it anyway.
+
 ### A stand-up ends the errand it lands in (#348) — opens when this PR is deployed
 
 **What changed in the world.** A dead robot's timer stood it up at the start

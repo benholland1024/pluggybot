@@ -40,7 +40,7 @@ from pluggybot.control import wrap_angle
 from pluggybot.economy.census import Zone, count_objects, score, survey_route, true_count
 from pluggybot.rack.coupling import HUB_STATION_YS, STATION_YS
 from pluggybot.tick import Routine
-from pluggybot.tools.drawing import Board, Envelope, PenPlotter, board_standoff
+from pluggybot.tools.drawing import PEN_MODULE, Board, Envelope, board_standoff
 from pluggybot.tools.strokes import StrokeProgram, from_cli
 
 LCD_BAY = HUB_STATION_YS[0]
@@ -199,7 +199,7 @@ def drawing_errand(book, board_name: str, board: Board,
     figure = figure.fitted(envelope)
 
   def use(life) -> Routine:
-    plotter = PenPlotter(life.model, life.data, life.mission.swap, board=board)
+    plotter = life.body.tool(PEN_MODULE, board=board)
     # The stroke hook is wired HERE rather than in the plotter's constructor
     # signature at the call site, because it needs the errand's program name:
     # a bare polyline list has no name, and "which programs are on this board"
@@ -239,10 +239,17 @@ def drawing_errand(book, board_name: str, board: Board,
       # reflex. Skip the press entirely, restore the carry pose, and say so:
       # the evaluator finds no new ink and fails the job honestly.
       yield from plotter.carry_config_routine()
-      life._say(f"USE_TOOL: never squared up to {board_name} -- "
+      # ...and which of the two it was, first in the verdict (issue #350)
+      tx, ty = plotter.board_standoff()
+      px, py = life.body.pose_xy()
+      off = math.hypot(tx - px, ty - py)
+      how = ("the turn to face it ran out of time" if not plotter.squared else
+             f"it stopped {off:.2f} m from where the pen draws")
+      life._say(f"USE_TOOL: never squared up to {board_name} -- {how} -- "
                 "skipping the drawing")
       return {"squared": False, "board": board_name, "figure": figure.name,
-              "error": "never squared up to the board"}
+              "error": "never squared up to the board",
+              "failedBefore": f"never squared up to {board_name}: {how}"}
     life._say(f"USE_TOOL: drawing {figure.name} on {board_name} "
               f"({len(figure.strokes)} strokes, {figure.ink_length:.2f} m of ink)")
     result = yield from plotter.draw_program_routine(figure)
@@ -378,10 +385,10 @@ def census_errand(zone: Zone, label: str = "plants",
     tally: dict = {"count": 0, "objects": [], "coverage": 0.0}
     stopped, vantages = "route", 0
     for i, (wx, wy) in enumerate(points, start=1):
-      arrived = yield from life.mission.drive_to_routine(wx, wy, timeout=timeout)
-      yield from life.mission._spin_routine()   # a vantage point is only worth the look
+      arrived = yield from life.body.go_to_routine(wx, wy, timeout=timeout)
+      yield from life.body.look_around_routine()   # a vantage point is only worth the look
       vantages = i
-      tally = count_objects(life.mission.grid, zone)
+      tally = count_objects(life.body.grid, zone)
       if screen is not None:
         screen.show_count(tally["count"], label, face="determined", hint="none")
       life._say(f"USE_TOOL: vantage {i}/{len(points)}"
@@ -435,7 +442,7 @@ def census_errand(zone: Zone, label: str = "plants",
               f"{verdict['coverage']:.0%} of the zone surveyed")
     # Stand still and SHOW it. See PRESENT_S: the alternative is a number
     # that exists only inside this function.
-    yield from life.mission._drive_routine(PRESENT_S, 0.0, 0.0)
+    yield from life.body.hold_routine(PRESENT_S)
     return {"census": verdict, "zone": zone.name, "label": label,
             "objects": tally["objects"], "vantages": vantages,
             "stopped": stopped}
@@ -464,8 +471,8 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
 
   def use(life) -> Routine:
     screen = getattr(life, "screen", None)
-    mission = life.mission
-    x0, y0, _ = mission.pose
+    body = life.body
+    x0, y0, _ = body.pose
     landed = []
     stopped = ""
     for step, face, hint, v, w, seconds in routine:
@@ -481,9 +488,9 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
       travelled = 0.0
       slices = max(1, round(seconds / DANCE_SLICE))
       for _ in range(slices):
-        px, py, pth = mission.pose
-        yield from mission._drive_routine(seconds / slices, v, w)
-        nx, ny, nth = mission.pose
+        px, py, pth = body.pose
+        yield from body.velocity_routine(seconds / slices, v, w)
+        nx, ny, nth = body.pose
         turned += wrap_angle(nth - pth)
         travelled += math.hypot(nx - px, ny - py)
       want_turn, want_travel = w * seconds, abs(v) * seconds
@@ -497,13 +504,13 @@ def dance_errand(at: tuple[float, float], module: str = "module_lcd",
                      "turnedRad": round(turned, 3),
                      "travelledM": round(travelled, 3)})
 
-    drift = math.hypot(mission.pose[0] - x0, mission.pose[1] - y0)
+    drift = math.hypot(body.pose[0] - x0, body.pose[1] - y0)
     done = sum(1 for m in landed if m["landed"])
     if screen is not None:
       screen.face("happy" if done == len(landed) else "worried", "bounce")
     life._say(f"USE_TOOL: danced {done}/{len(landed)} moves, "
               f"{drift:.2f} m of drift")
-    yield from mission._drive_routine(PRESENT_S, 0.0, 0.0)   # hold the bow (see PRESENT_S)
+    yield from body.hold_routine(PRESENT_S)   # hold the bow (see PRESENT_S)
     return {"dance": {"moves": len(landed), "landed": done,
                       "driftM": round(drift, 3),
                       # ⚠ AGAINST THE ROUTINE, NOT AGAINST WHAT IT MANAGED.

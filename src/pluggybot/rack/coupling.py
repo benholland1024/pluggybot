@@ -1,7 +1,7 @@
 """Standalone hub tool-coupling spike (milestone-8 prep).
 
-No robot here (schuko_spike's little sibling): a compliant carrier moves a
-two-prong FORK through a scripted pick or return against a fixed hub shelf.
+No robot here: a compliant carrier moves a two-prong FORK through a
+scripted pick or return against a fixed hub shelf.
 The questions this answers before any controller or hub layout depends on
 them:
   - does the fork-and-peg gravity latch actually work in MuJoCo contact?
@@ -22,8 +22,8 @@ Pick: slide the fork in under the peg overhangs, lift 15 mm (pegs seat into
 the fork Vs, tool rises off the trays), back away. Return is the reverse.
 Gravity is the latch; V depth is the retention -- both measured here.
 
-Like the schuko recess, a V-notch is concave, so each one is COMPOSED of two
-45-degree tilted boxes (convex pieces).
+A V-notch is concave, and MuJoCo collides convex pieces only, so each one
+is COMPOSED of two 45-degree tilted boxes.
 """
 
 import math
@@ -132,7 +132,7 @@ FORK_POLE_GEOMS = {"l": ("fork_vl_a", "fork_vl_b"),
 
 # -- carrier ("the robot", simplified) ---------------------------------------
 PUSH_FORCE = 10.0       # N cap on the approach axis
-LAT_STIFFNESS = 150.0   # N/m lateral compliance (same guess as schuko spike)
+LAT_STIFFNESS = 150.0   # N/m lateral compliance (a guess: catalog `rcc_wrist`)
 YAW_STIFFNESS = 1.0     # N*m/rad
 START_X = 0.16          # carrier start: fork tips well clear of the peg
 
@@ -350,13 +350,18 @@ def contact_pairs(data) -> np.ndarray:
 
 
 def touching(data, a: int, others) -> bool:
-  """Is geom `a` in contact with any geom in `others`?"""
+  """Is geom `a` in contact with any geom in `others`?
+
+  The rows holding `a` first, then those few in Python: `np.isin`'s fixed
+  cost, twice a call, twice a step per robot for the tool's poles, was 11 %
+  of the served pair's physics thread (issue #385)."""
   g = contact_pairs(data)
-  if g.shape[0] == 0:
+  mine = g[(g[:, 0] == a) | (g[:, 1] == a)]
+  if mine.shape[0] == 0:
     return False
-  others = np.fromiter(others, dtype=g.dtype)
-  return bool(np.any(((g[:, 0] == a) & np.isin(g[:, 1], others))
-                     | ((g[:, 1] == a) & np.isin(g[:, 0], others))))
+  others = set(others)
+  return any((x == a and y in others) or (y == a and x in others)
+             for x, y in mine.tolist())
 
 
 def module_power_state(model, data, name: str = "module_lcd",
@@ -545,12 +550,41 @@ def rack_charge_contact(model, data, prefix: str = "") -> bool:
   pin_l, pin_r = geom_id(model, "rack_pin_l"), geom_id(model, "rack_pin_r")
   if chassis is None or pin_l is None or pin_r is None:
     raise KeyError("no chassis or charge pins in this model")
+  # The chassis's few rows, then Python, as `touching` (issue #385).
   g = contact_pairs(data)
-  if g.shape[0] == 0:
-    return False
-  mine = (g[:, 0] == chassis) | (g[:, 1] == chassis)
-  others = np.where(g[mine, 0] == chassis, g[mine, 1], g[mine, 0])
-  return bool(np.any(others == pin_l) and np.any(others == pin_r))
+  rows = g[(g[:, 0] == chassis) | (g[:, 1] == chassis)].tolist()
+  others = {y if x == chassis else x for x, y in rows}
+  return pin_l in others and pin_r in others
+
+
+#: The V a bay's presence switch sits in (issue #351): ONE switch a bay, in
+#: the +y tray, so a module hanging by its other end alone reads absent --
+#: as it would on a rack with one switch a bay.
+BAY_SWITCH_PLATES = ("tray_l_a", "tray_l_b")
+
+
+def bay_switches(model, data) -> tuple[bool | None, ...]:
+  """Each bay's presence switch, by `STATION_YS` index: True while anything
+  rests in its V, None where this world has no such bay (no built rail).
+
+  What the rack reports over the network, and all it reports (issue #351):
+  a bay is occupied, never by WHICH module -- a module hung in another's
+  bay presses that bay's switch. Read off the contact list, as the bumper
+  is (catalog `bay_switch`); the switch's force is not modelled.
+
+  No debounce, MEASURED: on home, 2.0 M samples over a 472 s charge press
+  and a carry, a switch disagreed with its module only while that module
+  was being swapped (at most 44 ms) and for one step as the world settled
+  in its first second, before any decision."""
+  g = contact_pairs(data)
+  out: list[bool | None] = []
+  for i in range(len(STATION_YS)):
+    ids = [geom_id(model, bay_prefix(i) + p) for p in BAY_SWITCH_PLATES]
+    if any(gid is None for gid in ids):
+      out.append(None)
+      continue
+    out.append(bool(g.shape[0]) and bool(np.isin(g, ids).any()))
+  return tuple(out)
 
 
 def _bay_xml(prefix: str, y: float, tag_id: int) -> str:
@@ -1112,8 +1146,7 @@ def _module_faces() -> tuple[str, str]:
     f'material="tagmat{MODULE_TAG_IDS["module_seed"]}"/>'
     # The magazine: a square tube of four walls, hanging entirely below the
     # plate. Square rather than round because a box is a convex primitive and
-    # a tube is not -- the same decomposition the V-notches and the schuko
-    # recess needed.
+    # a tube is not -- the same decomposition the V-notches needed.
     + "".join(
       f'\n      <geom name="module_seed_tube_{lbl}" type="box" '
       f'size="{sx:.4f} {sy:.4f} {tube_half_h:.4f}" '

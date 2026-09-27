@@ -22,7 +22,6 @@ robot has to live with having died. Only running OUT archives.
 
 import re
 
-import mujoco
 import pytest
 
 from pluggybot.economy.ledger import HEARTS, Ledger
@@ -40,8 +39,6 @@ def _life(world: str = "room_hub", points_per_hour: float = 3600.0,
   3600 points/hour a point comes due every sim-second, so an upkeep death is
   a second away rather than an hour."""
   cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
   ledger = Ledger(path=(tmp_path / "ledger.json") if tmp_path else None)
   if balance:
     ledger.award(evaluate("draw", {"board": "whiteboard_a", "strokes": 6,
@@ -54,15 +51,14 @@ def _life(world: str = "room_hub", points_per_hour: float = 3600.0,
   metabolism = Metabolism(ledger, Appetite(points_per_hour=points_per_hour,
                                            cap=400, satisfied_at=200,
                                            hungry_at=100))
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      mortal=True, ledger=ledger, thoughts=thoughts,
-                      metabolism=metabolism, **kw)
-  life.mission.start_at(*cfg["start"])
+  # ...on a stub body: hearts and upkeep are the lifecycle's bookkeeping,
+  # and all a test needs of the body is that time passes (issue #380)
+  from test_body import stub_life
+  life = stub_life(world, mortal=True, ledger=ledger, thoughts=thoughts,
+                   metabolism=metabolism, **kw)
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
-  life.survival_since = float(data.time)
+  life.survival_since = float(life.data.time)
   return life
 
 
@@ -85,7 +81,7 @@ def test_a_death_costs_exactly_one_heart(tmp_path):
   life = _life(points_per_hour=0.0, balance=50, tmp_path=tmp_path)
   assert life.ledger.hearts() == HEARTS == 5
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(0.5))
   assert life.dead is not None and life.ledger.hearts() == 4
   # ...and it says so where the robot will read it back.
   assert any("4 lives left" in line
@@ -129,7 +125,7 @@ def test_upkeep_that_cannot_be_paid_is_a_death_of_its_own_kind(tmp_path):
   assert "unpaid" in DEATH_CAUSES
   life = _life(points_per_hour=3600.0, balance=2, tmp_path=tmp_path)
   seen = _events(life)
-  life.mission._drive(4.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(4.0))
   assert life.dead is not None and life.dead["cause"] == "unpaid"
   assert life.ledger.balance() == 0 and life.ledger.hearts() == 4
   death = next(e for e in seen if e["type"] == "death")
@@ -162,11 +158,11 @@ def test_a_broke_robot_is_not_killed_twice_for_the_same_nothing(tmp_path):
   What closes it is a condition the robot can MEET: one point banked re-arms
   the hazard."""
   life = _life(points_per_hour=3600.0, balance=1, tmp_path=tmp_path)
-  life.mission._drive(3.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(3.0))
   assert life.dead is not None and life.ledger.hearts() == 4
   # Stand it up and let a long time pass, still broke: no second death.
   life.stand_up("a test", auto=False)
-  life.mission._drive(20.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(20.0))
   assert life.dead is None, "it was killed again for the same empty wallet"
   assert life.ledger.hearts() == 4
   # ...and earning re-arms it, which is the way out and also the way back in.
@@ -177,7 +173,7 @@ def test_a_broke_robot_is_not_killed_twice_for_the_same_nothing(tmp_path):
   banked = life.ledger.award(evaluate("dance", {"moves": 9, "landed": 9,
                                                 "driftM": 0.1}))["points"]
   assert banked > 0
-  life.mission._drive(banked + 6.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(banked + 6.0))
   assert life.dead is not None, "banking something puts the hazard back"
 
 
@@ -194,7 +190,7 @@ def test_running_out_archives_the_volume_and_starts_a_new_robot(tmp_path):
   life.thoughts.intend("get both boards inked before the week is out")
   life.ledger.robots["pluggybot"]["hearts"] = 1
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(0.5))
 
   assert life.ledger.hearts() == HEARTS, "a new robot starts with a full set"
   assert life.ledger.balance() == 0, "and with nothing"
@@ -225,7 +221,7 @@ def test_the_new_robot_reads_that_it_is_not_the_first(tmp_path):
   life = _life(points_per_hour=0.0, balance=0, tmp_path=tmp_path)
   life.ledger.robots["pluggybot"]["hearts"] = 1
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(0.5))
   history = life.thoughts.volatile()[HISTORY]
   assert any("second robot" in line for line in history), history
   assert not any("died" in line for line in history), \
@@ -238,14 +234,14 @@ def test_a_true_death_starts_solvent(tmp_path):
   earned anything."""
   life = _life(points_per_hour=3600.0, balance=1, tmp_path=tmp_path)
   life.ledger.robots["pluggybot"]["hearts"] = 1
-  life.mission._drive(3.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(3.0))
   assert life.ledger.generations() == 1
   # Cleared at the archive; the sliver since is this drive, not a debt the
   # dead robot handed over.
   assert life.ledger.owed() < 0.5 and life.ledger.balance() == 0
   assert life.metabolism.missed == 0
   life.stand_up("a test", auto=False)
-  life.mission._drive(10.0, 0.0, 0.0)
+  life.body.run(life.body.hold_routine(10.0))
   assert life.dead is None, "the new robot was killed by the old one's debt"
 
 

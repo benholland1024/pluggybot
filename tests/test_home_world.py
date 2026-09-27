@@ -189,7 +189,7 @@ def test_a_board_can_be_stood_in_front_of(home_model):
   must not be there is something it was never sent to.
   """
   from pluggybot.behavior.navigation import FRONT_STOP_RANGE
-  from pluggybot.mission.mission import LIDAR_ORIGIN
+  from pluggybot.perception.lidar import LIDAR_ORIGIN
   from pluggybot.tools.drawing import board_standoff
 
   bar = FRONT_STOP_RANGE + LIDAR_ORIGIN[0]
@@ -557,10 +557,10 @@ def _bay_fix_in(world_xml: str):
   try:
     station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
     sx, sy, hd = bay_standoff(station_y, cfg["rack"])
-    life.mission.start_at(sx, sy, hd)
-    return life.mission.bay_fix(station_y)
+    life.body.start_at(sx, sy, hd)
+    return life.body.mission.bay_fix(station_y)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_dock_camera_decodes_a_bay_tag_from_the_standoff():

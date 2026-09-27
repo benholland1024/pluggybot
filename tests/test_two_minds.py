@@ -71,8 +71,8 @@ def test_what_a_mind_is_shown_of_the_other_is_the_public_surface_only():
   lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"),
                      overseer=True)
   a, b = lives
-  a.mission.start_at(0.5, 3.0, 0.0)
-  b.mission.start_at(3.0, 3.0, 0.0)
+  a.body.start_at(0.5, 3.0, 0.0)
+  b.body.start_at(3.0, 3.0, 0.0)
   a.thoughts.pin("I prefer the pen", t=0.0)
   a.thoughts.intend("draw a sun every day", t=0.0)
   a.status = "SWAP_PICK done -- carrying the module"

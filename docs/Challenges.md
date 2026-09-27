@@ -4,7 +4,8 @@ The decision issue #120 asked for: how a challenge the robot has never seen
 gets a verdict, without the thing being graded touching the grade. Fourth of
 the pattern docs, beside `TaskPattern.md`, and written first as a decision
 with one worked example rather than a framework — the framework comes with
-the challenge set (PluggyPlan.md, "The next batch", item 4).
+the challenge set (the 2026-09-11 batch's novel tasks; PluggyPlan.md, "The
+order of work").
 
 Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.

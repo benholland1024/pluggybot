@@ -18,7 +18,7 @@ chatters at the timestep frequency — the robot vibrates and bounces instead
 of driving. `armature` is the motor rotor's inertia *reflected through the
 gearbox*, which scales with gear-ratio²: rotor ~5×10⁻⁶ kg·m² × 50² →
 **`armature="0.012"`** (`models/pluggybot*.xml`). The same chatter appears on
-any velocity servo driving a light mass — the schuko rig's 90 g carrier did
+any velocity servo driving a light mass — a spike rig's 90 g carrier did
 it — and the cure there is a constant-force `<motor>` plus joint
 `damping = F/v`, which `implicitfast` integrates implicitly and which is the
 honest "10 N push, 2 cm/s free speed" semantics anyway.
@@ -86,7 +86,7 @@ exist in that weight class.
 ## Test & world hygiene
 
 - **`models/world.xml` is bare** (floor + light + robot) and physics tests run
-  there; `playground.xml` / `room_1.xml` add scenery via `<include>`. Scenery
+  there; `room_hub.xml` adds scenery via `<include>`. Scenery
   once parked a box in the drive-test lane, and the veer re-measurement drove
   straight into a board the author had placed two hours earlier. Copying the
   floor into an including file doubles every wheel contact — a "repeated
@@ -131,9 +131,10 @@ exist in that weight class.
 - **Adjacent-link interpenetration is silent.** Contact filtering treats a
   weld group as one body, so a carriage can sweep straight through its own
   head mount and the pipeline reports nothing. Clearance must be asserted from
-  *geometry* — `tests/test_arm.py`'s AABB transit sweep, which has since
-  caught the parked fork (9 mm into the chassis), a widened prong through the
-  battery, and two 5 mm tube/carriage overlaps that contacts never would.
+  *geometry* — an AABB transit sweep (`tests/test_hub_swap.py` sweeps the
+  fork's), which has caught the parked fork 9 mm into the chassis, a widened
+  prong through the battery, and two 5 mm tube/carriage overlaps that
+  contacts never would.
   Endpoint checks are not envelope checks; contact checks are not clearance
   checks. (A grandchild is not filtered either: the pen quill fought the
   module plate it was modelled inside, jamming the carriage at +21.9 mm while
@@ -183,163 +184,13 @@ exist in that weight class.
   repeated pathless replans. A* plans to the reachable cell NEAREST an
   unreachable goal, never a blind greedy advance into unknown space.
 
-## Plug-era lessons (milestones 5–6, parked)
+## The plug era
 
-Wall-outlet docking — the YOLO outlet detector, the plug arm with its
-alignment feelers, the scripted DOCK controller and the RL environment — was
-parked when the hub made purpose-built low-force docking the charge path
-(PluggyPlan, milestone 6). `scripts/lifecycle.py`, `envs/dock_env.py` and
-`docking/schuko.py` still run and their tests still pass; this section keeps
-what transferred.
-
-### Landmark and detector lessons (milestone 5)
-- **"Where I saw it from" is not "which way it faces."** Deriving an outlet's
-  normal from the mean sighting position recorded where the robot happened to
-  drive: **31.2°** off the wall, the hand-off pose 33 cm sideways. Reading the
-  normal off the occupancy grid (`landmarks.wall_normal`: sum unit vectors to
-  nearby free cells; a wall blocks half the circle so the sum points out of
-  it) gave 0.0°. Still the rack's facing source (`RackFinder`), with its
-  free-standing-partition caveat — see "The charge press is an odometry pump".
-- **Decompose an error before fixing it.** The 33° miss was first blamed on
-  odometry drift, which measured **0.02°**; the estimator owned all of it.
-- **The camera's FOV bounds usable height**: eye at z 0.18 m, fovy 41° → a
-  target at 0.38 m is seen at 0.6 m and gone at 0.35 m. The same geometry is
-  why the claw cannot see its grip point and why the dock camera must drop the
-  lift to see the charge tag.
-- **The generator's own val split cannot measure the detector** — it reported
-  mAP50-95 0.9938 while calling a light switch an outlet. Every real defect
-  was found by `scripts/eval_detector.py` (collision-free poses through
-  `room_1.xml`, scored against segmentation truth) or by a distance sweep.
-- **A handful of poses is a smoke test, not a measurement.** An 8-pose spot
-  check read a decoy moving 0.61 → 0.93 as a regression; over 300 poses the
-  ranking reversed. Compare recipes on hundreds of samples or not at all
-  (`train_docking.py` `EVAL_EPISODES`).
-- **Check what a generator change actually produced** before training on it:
-  a distance-scaled aim jitter pushed the decoy out of shot in 22 % of the
-  negatives it was meant to sharpen (decoy false positives 9 → 26).
-- **Recall is recoverable; precision errors compound.** The robot sees each
-  outlet 13+ times a run, so a miss is recovered next glance, but a
-  *systematic* false positive on a fixed decoy accumulates in one place and
-  graduated into a confirmed phantom the robot parked in front of (−364 cm
-  from the nearest real outlet). Threshold 0.5 → 0.7 (26 of 40 decoy hits
-  gone for 2 detections in 105), `MIN_SIGHTINGS = 3`, and a close-range
-  re-verify before committing — `reject_target(forget=True)` erases phantoms
-  only, because deleting a real outlet that merely jammed twice loses a
-  charging spot for good. Tune a threshold against what the consumer does
-  with the errors, not against F1.
-- **Budget the tolerance across the whole chain.** `FACING_TOLERANCE` at 2°
-  spent two-thirds of the ±3° docking budget on the settle alone; at 0.5° the
-  pipeline parks at −0.49° / 1.3 cm / 60 cm out, and that 0.5° is what the hub
-  coupling's < 2° yaw envelope still relies on.
-
-### Docking lessons (milestone 6)
-- **Walls have no holes**, so wall sockets are surface-mount (Aufputz)
-  fixtures — recess fully proud of the wall, invisible collision bodies in
-  the generated `models/schuko_sockets.xml`, aligned with the visual outlets
-  and absent from segmentation.
-- **A wall cannot brace you — one-way contacts don't pull.** Wall pads meant
-  to take the insertion couple only push the robot *away*, the same direction
-  as the reaction; with-brace tipped worse than without. Measured push
-  capacity at outlet height: ~3 N forward, ~4 N backward. The mirror image
-  arrived with the hub: a gravity hook doesn't push either (the lean-pad).
-- **Asymmetric mass makes a diff-drive veer open-loop** — the arm at y=−0.05
-  veered 26 cm over 4 m because unequal wheel loads slip unequally. The
-  battery at y=+0.06 is tuned to null the *measured* veer, counterweight
-  first and packaging second; re-measured with every module aboard, the
-  heaviest adds 5.5 mm over 2.7 m and no re-tune is needed: tool mass is
-  bounded by the coupling and the tip-load budget, not by veer.
-- **Gravity is a docking axis.** The plug axis sags 7.8 mm under gravity
-  (`DOCK_DROOP_COMP`; the fork line sags the same, `swap.DROOP_COMP`), and
-  press-induced pitch sag grows with lift height. Feed-forward calibration
-  constants, exactly the shape a real robot needs.
-- **A camera above the plug loses the target exactly when it matters.** Below
-  ~0.32 m the socket slides out of the frame bottom and the box centre biases
-  up (+23 mm at 0.19 m) while the lateral centre stays honest (+1 mm).
-  Measure each axis of a visual servo separately; they do not fail together.
-- **The seat detector was harder than the seating.** Four positional verdicts
-  (extension window, base release, odometry advance, floor contact by name)
-  were each defeated by a real event. What survived is **the electrical
-  criterion** — a pin ≥ 19 mm into the recess, reachable only through a hole
-  — and it is literally the sensor the hardware has. It carried over verbatim
-  to `rack_charge_contact`, to `module_power_state` and to every swap
-  verdict since.
-- **Scripted-baseline verdict: mechanics solved, vision-z is the gap.** From
-  a perfect standoff the stack docks deterministically
-  (`test_mechanical_dock_from_perfect_standoff`); end to end under 2 cm of
-  standoff jitter, 4/12, failures dominated by plug-height error the
-  box-centre servo cannot measure. That gap is what `envs/dock_env.py` was
-  built to fill.
-
-### Schuko contact spike (`docking/schuko.py`, `scripts/schuko_spike.py`)
-A compliant carrier pushes the plug at a `PUSH_FORCE` 10 N cap; guarded by
-`tests/test_schuko.py` and still one row of the noslip sweep.
-- **Collision geoms must be convex**, so the recess is *composed*: a 12-box
-  well wall, 12 tilted boxes as the entry funnel, floor slabs leaving two pin
-  holes; capsule pin tips double as their own chamfer.
-- **Capture is set by the entry chamfer, not the recess.** Measured
-  chamfer → tolerance: 2 mm → ±3 mm, 4 mm → ±6 mm, 8 mm → ±18 mm. Real Schuko
-  rims have a ~2 mm bevel, so the honest envelope is **±3 mm lateral / ±3 mm
-  vertical / ±2° yaw**: capture ≈ body clearance (0.75 mm) + chamfer, and the
-  deep well only guides *after* capture. Do not widen the chamfer to make a
-  failing controller pass — that tunes the world, not the robot (a dished
-  face plate on the physical outlet is a Parts.md decision, not a sim
-  default).
-- **Yaw is the tight constraint**, with a signature: every yaw/lateral jam
-  stops ~19 mm short (= pin length) as the pins bottom beside their holes.
-- Jams stall cleanly at the force cap (worst transient ~32 N) at
-  `timestep 0.001` + `solref "0.005 1"`, which is the swap's floor too.
-
-### The RL docking environment (`envs/dock_env.py`, milestone 6)
-- **A synthetic sensor must be calibrated against the real one — including
-  the robot's own body.** The projected "detector box" needed two measured
-  corrections: the real YOLO boxes plate + housing at a 47 mm half-extent,
-  not the 42 mm plate; and with the arm extended the tube top climbs the
-  frame and shrinks real boxes ~25 % from below. A policy trained without
-  the occlusion learned to approach arm-first, because in-env vision saw
-  through its own arm.
-- **Randomise with a mocap body, not recompilation** — the socket rides
-  `mocap="true"` and reset writes `mocap_pos`; static geoms on it behave as
-  kinematic fixtures.
-- **The eval protocol is only trustworthy once it reproduces the baseline.**
-  `eval_docking.py` makes the jitter protocol explicit constants and reran
-  the scripted controller to the recorded 4/12 before scoring the policy —
-  same trials, same real YOLO, same electrical criterion for both.
-- **Odometry in the loop is part of the sensor model.** A policy trained on
-  true-pose observations scored 100 % in-env and 1/24 in the room: it had
-  learned to grind the wheels against the wall, free under ground truth and
-  fatal under dead reckoning. The env runs the actual `DeadReckoner`;
-  whatever estimator the robot runs, the training env runs the same one.
-- **SAC on this task finds the skill early and destabilises late** (peak,
-  then collapse with runaway episodes in the replay buffer, reproduced twice);
-  `best.zip` is chosen by eval success rate, never recency.
-- The scoreboard — scripted 8/24, RL 6/24, failures complementary — is in
-  PluggyPlan's milestone table. The lesson: in-env success bought by details
-  of a synthetic sensor is repaid at deployment, and only an eval that runs
-  BOTH controllers on the SAME trials makes the repayment visible. Its own
-  residual mismatch (an arm-out box extent the calibration did not cover)
-  parked the policy in an out-of-distribution hover at one outlet.
-
-## Rendering lessons (milestone 5)
-
-### Segmentation rendering needs `offsamples="0"`
-MuJoCo applies multisample antialiasing to the segmentation buffer too,
-blending geom IDs at edges, so stray pixels carry IDs of geoms that are not
-there — and a label box spans the min/max of its mask, so one pixel 200 px
-away stretches it across the frame. Over 236 positive scenes **12.3 % grew a
-second blob and 5.5 % came out grossly elongated**; training scored mAP50-95
-0.940 *despite* ~3 % garbage labels, and the val images showed the model
-drawing two tight, correct boxes where the truth was one absurd bar. The
-model was right. `<visual><quality offsamples="0"/></visual>` drops stray
-blobs to 0.0 %, and `make_labeled_sample` keeps only the largest connected
-blob. **The renderer is not a measurement device by default** — the same
-lesson returned for the robot's cameras in issue #110, below.
-
-### Dataset regeneration must clean its output directory
-The train/val split is a per-image random draw, so a file whose split changes
-leaves its old copy alive in the other split: regenerating after the MSAA
-fix left **195 stale pairs** from the buggy run in training, and every
-"residual" corrupt label was a leftover. The generator deletes `images/` and
-`labels/` first (pytest-guarded); the symptom is one basename in both splits.
+The plug-anywhere robot (milestones 5–7: an outlet detector, a plug arm with
+alignment feelers, scripted and RL docking controllers, a Schuko contact
+spike) was parked by the hub pivot and deleted in #376; git history before
+that issue holds it and its numbers. Its wall sockets survive as frozen
+scenery in `models/schuko_sockets.xml`, which `room_hub.xml` includes.
 
 ## Hub coupling spike (milestone-8 prep)
 
@@ -349,7 +200,7 @@ the peg *outboard* of the trays, gravity is the latch, and the only verbs are
 slide and lift (no wrist). Guarded by `tests/test_hub_coupling.py`:
 
 - **Measured envelope: ±4 mm lateral, −8/+6 mm vertical, < 2° yaw.** Yaw is
-  the tight constraint again: picks survive 2°, returns do not, ±4° jams at
+  the tight constraint: picks survive 2°, returns do not, ±4° jams at
   50–120 N (`test_yaw_4deg_is_outside_the_envelope` pins the limitation — if
   it starts passing, re-measure and update here). Navigation's 0.5° settle is
   what makes v1 usable.
@@ -363,10 +214,10 @@ slide and lift (no wrist). Guarded by `tests/test_hub_coupling.py`:
 - **Depth referencing by gentle press**: the approach drives until the fork
   bridge bottoms against the tool face under the force cap.
 
-### Robot integration: the fork inherits the plug's lessons, item by item
+### Robot integration
 - The bumper reaches the hub before the fork does (retracted vertex 25 mm
   behind the chassis front), so the arm extends 60 mm for hub work.
-- RCC droop is a fork axis too: `DROOP_COMP` 8 mm, feed-forward in the lift
+- RCC droop is a fork axis: `DROOP_COMP` 8 mm, feed-forward in the lift
   preset.
 - The parked fork interpenetrated the chassis (9 mm plus 3 mm of spring
   droop), caught by the geometric clearance sweep; `FORK_MOUNT_RAISE` absorbs
@@ -536,8 +387,8 @@ quill; the base is parked throughout. What it cost:
 
 ## Sensor-realism pass: stereo could not produce the map's scan
 
-The mapper was fed MuJoCo's ground-truth depth buffer through `scanner.py`,
-which read ONE camera's depth row — a 2D laser scan wearing a camera's
+The mapper was fed MuJoCo's ground-truth depth buffer through a camera
+scanner that read ONE camera's depth row — a 2D laser scan wearing a camera's
 clothes, with `right_eye` vestigial. OpenCV SGBM on the actual rendered pair,
 in the best case stereo will ever get (parallel, coplanar, noise-free
 cameras): mid-room facing a painted wall, disparity on **49.7 %** of the scan
@@ -547,7 +398,7 @@ rack's AprilTags. The decision (2D LIDAR + one camera, `perception/lidar.py`)
 and both tables are in Parts.md, "Vision & ranging". The lesson: **a sensor
 that never fails cannot teach you which behaviours depend on it** — this gap
 survived seven milestones because ground-truth depth always works, the same
-trap the detector's val split set one layer up.
+trap the outlet detector's val split set one layer up.
 
 ## The claw module (milestone 8): the fourth tool
 
@@ -603,7 +454,7 @@ used 1.0, so the measured envelope was never the one in play. At the honest
 `PEG_FRICTION = 0.4` with `priority="1"` (the caster lesson, third outing)
 the coupling seats with noslip on or off, and continuity got honestly worse
 (a lower-μ peg shifts more under hard driving: the 178 ms above). The
-tempting move was to raise μ until it stuck — the schuko-chamfer mistake in
+tempting move was to raise μ until it stuck — the widened-chamfer mistake in
 a new costume.
 
 The claw then stopped needing any solver mode: a hard contact constraint on
@@ -643,13 +494,13 @@ figures are the SQUARE (the creep-sensitive figure); "robot swap" is a
 9-point hand-off jitter grid (±3 mm × ±1°), open-loop from
 `place_at_standoff`:
 
-| noslip | rig cycle | schuko | robot swap clean | pen ink | pen form | ms/step (room_hub) |
-|---|---|---|---|---|---|---|
-| 0 (was shipped) | 5/7 | 5/5 | 5/9 | 63 % | 1.94 mm | 0.210 |
-| 1 | 5/7 | 5/5 | 3/9 | 72 % | 1.84 mm | 0.410 |
-| 2 | — | — | 3/9 | 92 % | 0.60 mm | ≈0.41 |
-| 3 | 6/7 | 5/5 | 1/9 | 93 % | 0.61 mm | 0.422 |
-| **0 + wheel brake** | 5/7 | 5/5 | **5/9** | **99 %** | **0.60 mm** | **0.210** |
+| noslip | rig cycle | robot swap clean | pen ink | pen form | ms/step (room_hub) |
+|---|---|---|---|---|---|
+| 0 (was shipped) | 5/7 | 5/9 | 63 % | 1.94 mm | 0.210 |
+| 1 | 5/7 | 3/9 | 72 % | 1.84 mm | 0.410 |
+| 2 | — | 3/9 | 92 % | 0.60 mm | ≈0.41 |
+| 3 | 6/7 | 1/9 | 93 % | 0.61 mm | 0.422 |
+| **0 + wheel brake** | 5/7 | **5/9** | **99 %** | **0.60 mm** | **0.210** |
 
 - **Always-on noslip is worse than useless at the system level.** The
   aligned all-clear still holds, but under ±3 mm of hand-off jitter every
@@ -1044,16 +895,15 @@ frame coherent:
   prior is "what a robot that booted docked knows": the map frame is DEFINED
   by the dock, as on hardware. The rack landmark is re-seeded there too, and
   drift is bounded to one shift's worth.
-- **The rack merges by identity, not distance** (`RackFinder.look`). The
-  store's 0.4 m gate is for anonymous outlets; after 0.5 m of decoherence a
-  recovery spin's sightings spawned a SECOND rack landmark the stale one
-  outvoted, so the spin that existed to fix the belief could not touch it.
+- **The rack merges by identity, not distance** (`RackFinder.look`). Behind
+  a 0.4 m distance gate, 0.5 m of decoherence let a recovery spin's
+  sightings spawn a SECOND rack landmark the stale one outvoted, so the spin
+  that existed to fix the belief could not touch it.
 - **The rack belief is recency-weighted** (`RACK_RECENCY` 0.25, an EMA past
   the first sightings). A mission-long average remembers the MEAN historical
   frame: a 2000-sighting belief moved by nothing when fresh looks arrived.
   Sized against what a spin delivers (~5 sightings), five looks move it ~76 %,
-  enough for the bay tag to enter the dock camera's view. Outlets keep the
-  pure average.
+  enough for the bay tag to enter the dock camera's view.
 - **The bays got the charge bay's no-tag recovery** (spin, refresh, fresh run,
   look again) — and it only works WITH the two belief rules above:
   `test_the_recovery_finds_a_bay_the_first_look_lost` fails if any of the
@@ -1210,7 +1060,7 @@ looks carry it into the robot's beliefs.** `offsamples="0"` makes every
 render byte-identical at no cost to the detector (same tag set, centres and
 translations at every range out to 2 m, nothing at 3), so the robot's
 cameras render without it (`models/pluggybot*.xml`, the coupling spike's
-XML) — the segmentation-label lesson through a different door. Ruled OUT:
+XML). Ruled OUT:
 the lidar, the two-thread decoder (one answer per image, every time), and
 contention (per render, not per machine). ⚠ The committed `scripted` series
 in `results/` predates the fix and is the record of the pre-fix spread;
@@ -1271,7 +1121,9 @@ had touched. `Lidar.scan_split` answers the two consumers separately
 (issue #316), and contact is an `encounter` phase.
 
 **What is true now:** another robot is never in the map, always in the
-SENSORS, and in the mask as its reported pose. Both sensors sort the same
+SENSORS, and in the mask as its reported pose -- or, lying on the floor,
+as its body ("A robot lying down was avoided where it said it was",
+below). Both sensors sort the same
 casts by what they hit -- `Lidar.scan_split` (#316) and `DepthFrame.peers`
 (#328) -- and neither hands the map a body that will have driven off by
 the time anything reads it.
@@ -1474,7 +1326,11 @@ unknown space, since driving there is what grows the map toward the goal;
 for an INFLATED one, today's rule -- changes every drive whose goal is
 unmapped and wants its own flights. The flown lap keeps every leg inside
 what the leg before mapped (6.6 m against the LIDAR's 8 m;
-`test_home_world.loop_legs`). Expect the same stall from an
+`test_home_world.loop_legs`). A PROCEDURE's `drive_to` past the LIDAR's
+reach or off the map walks `lifecycle.route_to`'s doorways first (issue
+#353); its hops are the house's legs (up to 7.9 m, where the lab's way
+meets the workshop's), and the first is as far as the robot stands from
+it. Expect the same stall from an
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
 drives toward a wall, stops, and explores from there.
 
@@ -1920,6 +1776,975 @@ first (`steps.run_verb`), which is a rule of its own and was not what
 toppled Rowan; that pose and the return's (`carry_configuration_routine`)
 move the lift up before the arm comes in and down after it; and a module
 lost for `LOST_TOOL_S` goes back to its bay by itself.
+
+## A robot lying down was avoided where it said it was (issue #365)
+
+On 2026-09-23 at 18:02 UTC Rowan drove into Luca, who had lain on its side
+for three minutes after toppling mid-fetch at the rack. It bumped Luca for
+about a minute (the encounter rows close from 0.51 m to 0.06 m) and fell
+over too. The build was `e77704c`: the lidar saw the other robot (#316),
+and the depth camera's peer channel (#328) had merged 13 minutes earlier
+and was not deployed. Each guard, measured on room_hub with one robot
+toppled at a fixed pose and the other sent past it:
+
+- **The planner's disc followed the belief, and the belief had left the
+  body.** The errand a robot falls in keeps commanding its wheels until it
+  returns, and a wheel turning in the air is travel to the reckoner: up
+  to 2.2 m in 10 s, by how it lies and which way the wheels are told to
+  turn. On its side, 10 s of cruise put the reported pose 1.5-2.2 m off
+  the body; face-down, cruising moved it not at all and reversing 1.3 m.
+  A dead peer stayed in `others`; nothing filtered it. It was just in the
+  wrong place.
+- **A lying robot reaches further.** Its geoms' bounding circles reach
+  0.51-0.52 m from the chassis origin (the mast lies along the floor),
+  against 0.30 m upright. From the middle of its footprint they reach
+  0.32-0.33 m, against a standing robot's 0.27 m armed.
+- **The lidar sees it in most poses**: 1-27 returns off the body, but on
+  its left side none beyond 0.7 m.
+- **The depth camera's peer channel sees it well**: 120-590 points at
+  0.5-1.2 m in every pose, and the corridor catches it inside 0.60 m.
+
+Flown from (-1.6, 0) to (1.3, 0) past a robot lying at (-0.3, 0) or 0.25 m
+off that line, its reckoner 1.8 m off its body; four falls x two offsets:
+
+| guards | arrived | touched it |
+|---|---|---|
+| 09-23's (no peer channel), disc on the belief | 3/8 | 4/8, up to 1313 contact steps; one driver tilted 9°; the five that failed backed off 8-16 times |
+| today's (peer channel), disc on the belief | 0/8 | 0/8 -- held ~0.6 m short until the drive gave up |
+| disc on the body, no peer channel | 8/8 | 0/8 |
+| disc on the body, peer channel holding for it | 6/8 | 0/8 -- face-down, both offsets, held 0.52 m short |
+| disc on the body, not held for | 8/8 | 0/8 |
+
+The face-down hold is geometry, not noise. The detour runs straight at the
+body and turns at the disc's edge, and the corridor looks 0.60 m ahead, so
+it sees the body just before the turn. A hold waits for the other robot to
+move, and a robot on the floor will not move until it is stood up.
+
+**What is true now:** a robot lying down is avoided where its body lies.
+"Lying down" means the chassis past `TOPPLE_TILT_RAD`, from the moment it
+falls, dead or not. `HubLifecycle.keep_clear` answers the middle of its
+footprint with `DOWN_ROBOT_CELLS` (0.70 m), placed where the DRIVER's own
+sensors would put it (`HubMission.as_seen`), so the driver's own drift
+cancels. That matters: 0.37 m of floor is all there is between the detour
+and the body, and the pair's drifts ran 0.24-0.55 m. A fallen robot cannot
+report itself, and a real robot would see it as a lump in a depth image.
+The depth camera does not hold for a robot lying down, and a stagnated
+drive does not wait on one (`_other_in_the_way`); the lidar's front stop
+and the bumper still see it. Because the hold no longer covers the moment
+of a fall, a drive looks at who is lying down every `DOWN_CHECK_S` (0.1 s)
+and replans at once when that changes. Measured without it, a robot
+knocked flat 0.5 m ahead just after a replan was met only by the lidar's
+0.25 m stop, the driver's axle 0.18 m from the body; with it, the replan
+comes 0.04-0.1 s after the fall and the axle keeps 0.31 m or more. Once
+stood up (a warp that resets the reckoner), it is avoided where it says it
+is again, and the plan hears that at once too. A line about a robot on the
+floor says it is "lying knocked over" (`posture`), never "standing". Not
+changed: the mind is still shown the reported pose (`others_context`), and
+a fallen robot's reckoner still counts its wheels.
+
+## The quadruped body (issue #377)
+
+The body was sized before anything was trained, on a scripted gait
+(`legs/scripted.py`: stance feet push, tau = -J^T f, for the torso's height,
+attitude and velocity; swing feet follow a Raibert placement under a
+Cartesian PD). It is a measuring instrument, never the robot's gait, and it
+can under-read a policy that stamps harder, so the tables state margins.
+`scripts/quad_spike.py` flies every table below (`--torque`, `--sweep`,
+`--thermal`, `--energy`, `--pupper`); Parts.md, "The quadruped body", has
+the parts and the sources.
+
+**The torque table** (the chosen body, 9.34 kg, a 43.2 V pack; "p99.5" is the
+99.5th percentile of a joint's |torque| over every sample of all four legs,
+because a touchdown spike lasts a step and says more about the footfall
+than the load; the peak is 22 N·m, the continuous rating 6.71):
+
+| activity | knee p99.5 | knee RMS | fastest joint, % of no-load |
+|---|---|---|---|
+| stand | 3.3 | 3.2 | 0 |
+| stand, #378's arm at full reach | 4.1 | 4.1 | 0 |
+| deep crouch (0.15 m) | 4.8 | 4.8 | 0 |
+| walk (a trot at 0.3 m/s) | 7.1 | 4.7 | 43 |
+| trot 1.0 m/s | 8.4 | 4.8 | 69 |
+| trot 1.5 m/s | 10.2 | 5.2 | 90 |
+| push up a 0.18 m riser | 5.1 | 3.8 | 7 |
+
+The knee is always the worst joint. **Speed binds before torque**: a 1.5
+m/s trot takes a joint to 90 % of its no-load speed on a nominal pack and to
+100 % on an empty one (`--bus 36`), so the body's top speed is ~1.0–1.2 m/s.
+
+**What the instrument got wrong first, each found by filming it:**
+- *The attitude loop ran about the world's axes.* Roll and pitch are the
+  HEADING's, and past 90° of heading the correction reverses: a turn on the
+  spot flipped the body at 140°. The loop now runs in the heading frame.
+- *A foot placed for the torso's velocity lands behind a turning hip.* The
+  Raibert target uses the hip's own velocity (w × r).
+- *Height and pitch referenced to the ground under the hips* jump a whole
+  riser in one step as a hip crosses an edge, and the body flipped
+  backwards; they follow the ground the FEET stand on, low-passed.
+- *A scripted climb is chaotic*: 4 of 18 climbs across six riser heights,
+  the failures landing a foot on an edge or trailing the hind legs. So the
+  table measures a climb's LOAD by a repeatable push up a riser (the front
+  feet on the step, the hind on the floor, the torso crouched and pitched,
+  risen to the stand in 0.6 s); the policy's own climbs are its measurement.
+- *A four-beat walk falls* without a body sway to keep the CoM inside three
+  feet; "walk" in the tables is a trot at 0.3 m/s, as a learned policy's is.
+
+**The sweep that chose it** (`--sweep`: knee belt 1.0/1.5 × legs 0.19/0.21/
+0.23 m × the unpublished rotor inertia at both ends of its range): a direct
+knee on 0.21 m links. A 1.5:1 belt buys torque the knee does not need (its
+p99.5 is 54–55 % of the peak at 1:1 across the inertia range, and its RMS at
+most 86 % of the continuous rating at the heaviest rotor) and costs the one
+thing that binds, knee speed, while multiplying the knee's reflected inertia
+by 2.25. The 0.19 m legs fell once at the heavy rotor; 0.23 m buys nothing.
+
+**The belly.** With a 0.21 m leg and the knee at its −2.75 rad stop, a
+folded leg holds the hips 0.10 m up, so a torso whose underside is 0.055 m
+below the hips cannot rest on it: the legs carry the robot "lying down".
+The battery hangs below the torso as a belly pack, 0.105 m under the hip
+axis; the robot lies on it with its shanks flat and its drivers holding
+nothing (`model.lie_qpos`), and its charge pads are flush with its
+underside (#378, "The quadruped's dock"). The belly carries 67 of the
+robot's 92 N on a bare floor: the rest is the legs' own weight (a hip's
+two-motor stack is 0.8 kg) resting on their feet. Lying down and standing
+up take 2.2 s each (`--energy`).
+
+**Heat** (`--thermal`; the Mini Cheetah actuator's measured 1.23 K/W and
+32 J/K, a 39 s time constant): a first-order winding driven by non-negative
+heat never passes the highest steady state among the activities it runs
+through, so each activity SUSTAINED bounds any day. The hottest winding is
+a knee's: 66 °C on a 40 °C day at a sustained 1.5 m/s trot, 24 K under the
+GDS68's 90 °C alarm; standing, 50 °C.
+
+**Energy** (`--energy`; windings 1.5·R·I², shaft work counted only when
+positive, no credit for regeneration):
+
+| state | W | of which windings |
+|---|---|---|
+| lying (drivers powered, holding nothing) | 14.9 | 0 |
+| standing | 53.9 | 38.9 |
+| walking (0.3 m/s) | 116 | 85 |
+| trotting 1.0 m/s | 180 | 110 |
+
+The windings dominate everything below a trot: standing costs 39 W more
+than lying, and a stand-up plus a lie-down cost 93 mWh together, so **any
+wait longer than 8.6 s is cheaper lying down**. The mind takes 5–40 s a
+decision (Overseer.md §6), so a body that stands through its waits spends
+most of its idle power on holding itself up. The 194 Wh pack is ~13 h
+lying, ~3.6 h standing, ~1.7 h walking.
+
+**The rest posture, proposed** (#377 item 5; the decision is Ben's, at the
+first quadruped deploy): **code lies the robot down, and the mind is not
+asked.** A body left standing through its mind's silences bleeds 39 W, ~20 %
+of the pack an hour of waiting, so if lying down were the agent's to find,
+surviving would require discovering a posture, and valuing survival and
+knowing the body's trick would look the same — the forcing function
+PluggyPlan's principles rule out. The rover's parking brake is the
+precedent: a body reflex that decides nothing the mind decides. The reflex
+lies down after `T_REST` without a motion command (the break-even, ~9 s)
+and stands up before the next one (2.2 s, 44 mWh), and it does NOT choose
+what to do, refuse an act, or hide itself: the posture rides the wire as a
+fact, and the stand-up is part of every errand's measured cost. Open: the
+agent may also be given a way to hold a stand (to watch a door), as a power
+on `autonomous` — that adds a choice without forcing one.
+
+**The small body** (`--pupper`): a Pupper-v3-class body (its published
+geometry and actuator, 3.0 kg) stands with a 55 % RMS margin and walks at
+0.3 m/s. Carrying the suite (4.4 kg) it spends 92 % of its continuous
+torque standing, 123 % holding the arm out, and cannot stand up from its
+belly or push up the 0.12 m curb; its whole leg is shorter than the riser.
+
+**The walking policy** (`training/`, mjlab 1.5.3 on MuJoCo 3.10; the first
+one is `models/quadruped_policy.npz`, 98 M steps on 2048 envs in 66 min on
+the GTX 1660 Super): trained on mjlab's 5 ms physics with its DC-motor
+actuator, and FLOWN in ours (2 ms, `legs/policy.py`: the policy in numpy,
+the driver's PD and envelope in MuJoCo's `dcmotor` since #385, which
+re-flew these numbers within 0.01 m/s, 0.3 N·m and 3 % of the power) by
+`quad_spike.py --policy`. It tracks 0.5 and 1.0 m/s at 0.54 and 1.07,
+turns 0.78 of 0.8 rad/s, sidesteps 0.22 of 0.3, and never falls; its
+knee's p99.5 is 7.9 N·m and its worst RMS 4.8 (the scripted trot's were
+8.4 and 4.8 at 1.0 m/s), it draws 88 W at 0.5 m/s
+and 109 W at 1.0 m/s against the scripted trot's 116 and 180, and it
+tilts the torso under 0.4°. The exported file is checked against its ONNX
+source before it is written (2e-6), and a flight hashes IDENTICAL in two
+processes, at one BLAS thread or six (`--determinism`). The actor never
+sees the base's linear velocity; what no datasheet gives is randomised
+(rotor inertia, joint friction, a 0-20 ms command delay, effort limits,
+mass and CoM for the arm).
+
+**Getting up** (`models/quadruped_getup.npz`, `Pluggy-Quad-Getup`, a policy
+of its own; 1500 iterations on a rented RTX 4090, `training/pod.sh`): each
+episode starts lying on the belly pack or dropped from 0.35-0.55 m in a
+random orientation, legs anywhere. Flown in our physics (`--getup`) it
+stands from 20 of 20 random drops (median 0.5 s from release) and from the
+belly in 0.2 s — by driving every joint to its 22 N·m peak: a spring up,
+not a rise, 87 mWh against the scripted fold-and-push's 44. Fine in the
+sim; for hardware, torque and speed penalties should buy a gentler one.
+⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
+on its BACK as upright; the task pays for gravity's sign in the body frame.
+
+**Stairs** (`Pluggy-Quad-Rough`, blind: the critic sees the terrain, the
+actor does not; `-Perceptive`: the actor is also shown the terrain's height
+under a 1.6 × 1.0 m grid at 0.1 m, on the robot the D435's height map
+sampled there): "The stairs curriculum (issue #388)" below. ⚠ mjlab casts
+that grid from the body's own height, so a ray a metre ahead on a flight
+starts INSIDE a step above the body and reports the floor under it; the
+grid is cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
+`legs/policy.py` casts the same grid in our physics (its layout is pinned).
+⚠ MuJoCo Warp warns once a step for every box lying on a height field with
+more than 50 contacts: 1.5 M such lines through Python to a pod's network
+volume slowed a run threefold (`pod.sh` filters them).
+
+**Posture** (`models/quadruped_posture.npz`, `Pluggy-Quad-Posture`: walking
+with the torso's height offset, pitch and roll commanded; 2500 iterations on
+the 4090): in our physics (`--posture`) it crouches to within 6 mm of 0.224
+and 0.184 m, pitches ±11° and rolls 8.4 of 8.6°, walks crouched at 0.56
+m/s, and walks as the flat policy does (1.06 m/s; turns 0.85 of 0.8 rad/s;
+sidesteps 0.26 of 0.3) without falling. The tilt is tracked as gravity's
+direction in the body frame, replacing the stock "stay level" reward.
+
+**Legged odometry** (`legs/odometry.py`, `--odometry`: the policy walks a
+21 m course of straights, an arc, a turn on the spot and a sidestep): 2.4-
+4.0 % of distance over five noise seeds, heading within 2°. Two corrections
+made it: the ball foot ROLLS, so its centre moves while its contact point
+does not (without the correction, 6.6 % with perfect contact and no
+noise); and a contact estimate read off current arrives ~31 ms late
+(ODRI's measurement), so for a moment after each footfall only the LIFTING
+pair is flagged planted: gated against the last estimate and tested for a
+foot rising off the floor, the estimate holds through it (averaged in, 27 %,
+and a gate alone ratcheted the estimate down to nothing).
+
+**The served loop** (`--served`: the home world with its rover taken out
+and two quadrupeds in, against two rovers) is #385's to measure and move
+("The served sim's speed" below).
+
+**The sensors on a moving torso** (`--rays`, quiet box): the policy tilts
+the torso under 0.4°, which moves the 2D scan plane (0.49 m up, on a rear
+mast clear of the stowed arm) ±5 cm at 8 m — IMU compensation removes it,
+and the D435 on the nose carries the ground. A 2D LIDAR stays for the first
+quadruped deploy; a 3D one (Livox Mid-360: 265 g, 6.5 W, €739) is #381's
+question for stairs and a multi-floor map. What the sim would pay: the 2D
+scan is ~1.2 ms since #385, one `mj_multiRay` of 4 000 rays 4.9 ms, of
+10 000 12 ms, and a full Mid-360 frame of 20 000 rays 24 ms — a quarter of
+real time per robot at 10 Hz.
+
+**What is true now:** the body is `legs.model.CHOSEN` and
+`models/quadruped.xml` is its generated MJCF; the numbers are a
+datasheet's where one exists and a range where none does (Parts.md); the
+scripted gait's rules above are pinned in `tests/test_legs.py` only as far
+as "it trots"; the policy's arithmetic, its observation, its rate and the
+odometry's two corrections are pinned there too; the tables are the
+script's to re-fly.
+
+## The stairs curriculum (issue #388)
+
+**Why #377's stalled.** mjlab promotes a robot a level for ending a 20 s
+episode 4 m from its tile's centre, and its commands turn and sidestep every
+3-8 s, so a capable robot seldom got there: across 6000 iterations even the
+FLAT column's level sat at 4.3 of 10, where the level changes nothing. And
+the columns were named backwards — ⚠ mjlab's `pyramid_stairs_inv` spawns the
+robot in a pit, so walking out CLIMBS; `pyramid_stairs` spawns it on top —
+and the one that climbs had stalled at level 1.7, risers of ~0.08 m.
+
+**What changed** (`training/quad_train/task.py`, `stairs.py`):
+- on a stair tile, three commands in four walk straight out at 0.3-0.7 m/s,
+  heading along the nearest of the pyramid's four flights (±14°). ⚠ A reset
+  resamples the command BEFORE mjlab's `sim.forward()`, so the pose read
+  there is the last episode's: the command is aimed on the next update;
+- flights of eight (mjlab's 3 m platform and 1 m border left five), risers
+  0.10-0.26 m across the ten levels, the house's 0.18 m between levels 4 and
+  5; 60 % of the robots on stairs;
+- `upright` against the terrain's fitted plane, as mjlab's Go1 recipe has
+  it: a flight is 33°, level against gravity the hind legs cannot reach it,
+  and the stock reward kept a quarter of its value for a torso parallel to
+  the flight;
+- mjlab's foot clearance also charged a foot swung HIGH, the lift a riser
+  needs. `foot_nose_clearance` is one-sided: a moving foot's centre 7 cm over
+  the highest terrain within half a tread (a ray starting inside a step reads
+  zero), so a foot closing on a riser answers to the tread above it, and one
+  stepping down to the tread it leaves until it is half a tread past the nose;
+- a thigh or shank on a step costs 0.25, the torso or belly 1; the walking
+  pose's tolerance is wider at the hip's flexion (0.5 rad) and the knee (0.8).
+
+Resumed from #377's seeing policy (6000 iterations) for 4000 more on a rented
+L40S (1 h 24 min), the climbing column went from 0.9 to ~4 of 10 (0.17 m; a
+column's mean, which the graduates' reset to a random level holds down) and
+the descending one to ~7; `models/quadruped_rough_seeing.npz` is the last
+iteration, the best of the checkpoints flown.
+
+**What it climbs** (`quad_spike.py --climb`, our physics, five trials a
+case; a flight is ten risers on a 0.28 m tread, the house's floor to its
+second floor; the robot runs the policy's mean action; "map" is the D435's
+scan, below):
+
+| flight of ten, up / down | #377 blind | #377 seeing | #388 seeing | #388 seeing, map |
+|---|---|---|---|---|
+| 0.10 m | 1/5 / 5/5 | 3/5 / 0/5 | 5/5 / 5/5 | 5/5 / 5/5 |
+| 0.15 m | 0/5 / 3/5 | 0/5 / 0/5 | 5/5 / 5/5 | 5/5 / 5/5 |
+| **0.18 m, the house's** | 0/5 / 3/5 | 0/5 / 0/5 | **5/5 / 5/5** | **5/5 / 5/5** |
+| 0.20 m | 0/5 / 1/5 | 0/5 / 0/5 | 5/5 / 2/5 | 5/5 / 5/5 |
+| 0.22 m (the UK's limit for a home) | 0/5 / 0/5 | 0/5 / 0/5 | 4/5 / 0/5 | 5/5 / 5/5 |
+
+Ten trials each way on the house's flight: 10/10 up and 10/10 down, on either
+scan. It still walks the flat (0.52 and 1.09 m/s for 0.5 and 1.0, turns 0.79
+of 0.8 rad/s, sidesteps 0.27 of 0.3; 89 W at 0.5 m/s against #377's 90), and
+its run hashes IDENTICAL in two processes (`--determinism`). #377's blind
+policy stays the blind one: trained on this curriculum it could not climb the
+pits' flights even at the lowest level (0.10 m), and it lost the flights it
+had (`stairs-blind1`, stopped at 3684 iterations).
+
+**The mean action hesitates at an edge.** Mid-run, a checkpoint walked to
+the first riser and STOOD there, front feet at its base — while the same
+weights with training's exploration noise (std 0.32) climbed 0.15 m flights
+2-3 of 5: in training the noise breaks the stall, so the curriculum's level
+is the noisy policy's. Four hundred iterations later the mean action climbed
+them 5 of 5. The same happened at the top of a descent, later. A policy on
+the ideal scan is also shown an input it never trained on: mjlab corrupts the
+scan with ±10 cm of uniform noise.
+
+**The scan the robot has** (`legs/scan.py`; `--climb --scan map|odometry`):
+the D435 on the nose (`DepthCamera(mount="body")`: the torso is not level on
+a flight, so its attitude is applied by the caller), its points laid in a
+2 cm map (`HeightMap` with a world-height band) through the body's pose,
+read at the scan's grid. Where the camera has seen, the map's scan is the
+ideal to a median 0.3-0.9 mm; 5-18 % of the points are off by more than
+5 cm, at step edges. It sees the floor from ~0.5 m ahead and ~0.45 m to
+either side, so 17-45 % of the scan is UNSEEN on a flight — the outer rows,
+the ground behind, the lower treads behind a nose going down — and each such
+point reads the nearest cell the camera saw. ⚠ Read as the ground under the
+feet instead, a flight's upper treads were the floor, 0.1-0.4 m wrong on up
+to a fifth of the scan. On that scan the policy climbs AS WELL OR BETTER
+(table): at the top of a flight the occluded treads, filled from the nose's
+side, make the drop look gentler, and the mean action walks down where the
+ideal scan's true drop made it hesitate (ten trials at 0.18 m, iteration
+6950: down 0/10 on the ideal scan, 10/10 on the map's, 10/10 on the ideal
+with the map's fill in the unseen points, 2/10 on the map with the ideal's
+there; neither ±2-10 cm of noise nor a 2-4 cm max-pooling of the ideal scan
+did it).
+So the next policy should be TRAINED on the map's scan — its occlusion, its
+fill and its noise — rather than lean on a difference it never saw.
+
+**Legged odometry on the stairs** (for #381): climbing a flight of ten the
+position drifts 1-5 % of distance and the height reads 9-22 cm LOW at the
+top (1.0-2.2 m climbed). Much of that is a sink the height has on flat
+ground too — 18 cm over 4.9 m walked at 0.4 m/s, 14 cm of it with perfectly
+timed contact and no sensor noise, so the stance feet's kinematics, not the
+31 ms contact lag. DESCENDING is where it fails: ⚠ a foot is taken for
+lifting when its contact point rises faster than 0.25 m/s relative to the
+BODY, and a flight walked down at 0.4 m/s lowers the body ~0.3 m/s, so every
+planted foot is dropped and the estimate coasts: 2-4 % of distance on
+0.10-0.15 m flights but 28-37 % on 0.18-0.20 m ones, and, walked down faster
+on the map's scan, 9-86 % and up to 0.4 m of height (a crouch lowered at
+0.97 m/s does the same; gating against the body's estimate instead fed back,
+and a trot drifted 37 %). Laid through the legs' own pose, the map's scan is
+off by a median 16-32 mm and 12-41 % of its points by more than 5 cm: the
+robot still climbs every flight to 0.22 m, and descends the house's 2/5. The
+stairs need the pose corrected against the map, not the legs alone.
+
+**What the body pays on the house's flight:** the knee's p99.5 is 13.5 of
+its 22 N·m (the scripted push up one riser needed 5.1; 0.22 m risers take
+15.3), and a climb straightens a hind knee to its stop (−0.35 rad) for ~0.4 s
+while the front knees fold to within 0.15-0.4 rad of theirs: the reach is
+there, with no margin to spare in the hind leg — a knee driven into its stop
+is #379's to cushion or to extend. The failures along the way were stalls at
+the bottom (the knees never left the stand's range), not a leg that could not
+reach.
+
+**What is true now:** the house's 0.18 m flight is climbed and descended, and
+so is a 0.22 m one on the map's scan: the limit was the curriculum, and the
+body's size is not the answer (#388's decision point was not reached). The
+stairs policy runs on the ideal scan in `legs/policy.py` by default and on
+the D435's map with `scan=MapScan(...).scan`; nothing served runs it yet.
+
+## The quadruped's dock (issue #378)
+
+The quadruped charges the way it rests: it walks over a cradle, stops with
+its belly above it and lies down onto it (`legs/dock.py`; every table here
+is `scripts/dock_spike.py`'s; the parts are Parts.md, "The dock"). The
+cradle is a 6 mm UHMW-PE plate with a bed 128 mm wide and two faces rising
+30 mm at 55° to a mouth 170 mm wide; in the bed, two poles of two
+spring-loaded pins press up into the belly's two flush pads. A board of four
+60 mm tags on a post 0.62 m ahead of the seat is what the walk steers by
+and what the robot measures itself off once it lies there: its nose camera
+sees the upper pair standing to lie down and the lower pair lying.
+
+**The capture envelope** (`--capture`; the robot placed standing where it
+lies down from, off by the row, then lying down with #377's scripted
+lower-and-fold; the verdict is the electrical criterion). ✓ charges:
+
+| across | yaw 0° | 5° | 10° | 15° |
+|---|---|---|---|---|
+| 0–25 mm | ✓ | ✓ | ✓ | – |
+| 30 mm | – | ✓ | ✓ | – |
+| 35 mm | – | ✓ | – | – |
+| 40, 50 mm | – | – | – | – |
+
+Along the axis it charges from −60 to +90 mm (the pads are 160 mm long, the
+pins 20 mm apart at the seat), and it lies within ±4 mm across and ±2° of
+the axis whatever it came down with. The two premises, same rows: with the
+faces at the belly case's own friction (`--sticky`, μ 1.0 — the pair's MAX
+without `priority`) it fails from 10 mm square-on and everywhere from
+20 mm; with no funnel at all (`--flat`) the pads alone forgive 10 mm, and
+the belly lies wherever it landed. **A funnel is a funnel only while tan(face angle) beats the
+friction with room to spare.** (Without walls a 15° twist still charges;
+the funnel's walls prop a belly turned that far.)
+
+**The approach** (`--approach`; standing at the standoff 1 m behind the
+seat, TRULY off by the row while it believes it stands exactly there): it
+looks, walks in steering by the board, stops, checks what it believes,
+lies down, and backs out for another run if the pins do not conduct. The
+starts: a grid (0–0.3 m across × 0–30°) and 40 drawn uniform in ±0.3 m
+across, ±0.3 m along and ±30°; turned away from the board, it sweeps the
+spot until the board decodes.
+
+| steering by | docked | first try | a foot on the dock | lies across / yaw / along | median |
+|---|---|---|---|---|---|
+| the board, re-read every 0.25 s | 52 of 52 | 40 | 8 runs, at most 1.1 s | ±4 mm / ±1.6° / −16..+6 mm | 9.9 s, 182 mWh |
+| one look a run, then its legs (`--blind`) | 52 of 52 | 39 | 27 runs, up to 1.4 s | ±4 mm / ±1.6° / −31..−5 mm | 10.1 s, 187 mWh |
+
+Both dock every time: one good look from the standoff is enough, the funnel
+forgiving what the legs drift over a metre. Re-reading the board is what
+keeps the feet off the dock and the belly on the seat along its axis. The
+retries are the starts both close and far off the axis: from where a front
+foot could land on the dock the walk goes straight, more than 20 mm off the
+axis there it stops, and the check backs it out for another run. Six of
+the eight runs that touched the dock were those retries, every contact over
+0.3 s among them; the other two grazed it (0.23 s, 0.02 s) from starts that
+began close. (Before a fit had to span the board, a
+turned start could decode one column of it, fit that at any heading as 0,
+and carry the one look into the wrong place: blind docked 41 of 52.)
+
+**Docked** (`--hold`, five dockings from up to 0.2 m and 20° off): the criterion
+held on every step of a minute lying there, each pole pressing 2.3 N; the
+board's lower pair gave the robot its pose in the dock's frame to 2.2–2.7
+mm and within 0.17°; and it stood up and backed 0.6 m off the dock in 7 s
+and 157 mWh, no foot touching it. A docking and an undocking together cost
+about a third of a watt-hour against a 194 Wh pack; the charger's 216 W
+fills that pack in under an hour, the CV tail aside.
+
+**What shaped it, each measured before it was believed:**
+
+- **The walking policy does not creep.** Commanded 0.15 m/s it walks
+  5 mm/s, 0.2 → 0.11, 0.3 → 0.28; sideways 0.2 → 0.01; turning under
+  0.2 rad/s it barely turns (all four committed policies; the posture
+  policy's band is the narrowest) — a pose loop with a proportional gain
+  stalled 11 cm short. WALKING, small corrections do track (yaw 0.05 →
+  0.045 rad/s, sideways 0.1 → 0.06). So the walk-in walks THROUGH at
+  0.3 m/s, pursuing a point on the dock's axis, and cuts the command
+  `STOP_M` short: from 0.3 m/s the flat policy comes to rest 22 ± 5.5 mm on
+  (eight stops in every phase of the gait; the posture policy ±11). ⚠ This
+  is every fine positioning's problem on this body, not only the dock's.
+- **The feet bound the dock's width, not the belly.** The nearest stance
+  foot's centre to the body's centreline: 124 mm walking straight at
+  0.3 m/s, 120 steering at 0.1 rad/s, 108 sidestepping at 0.15 m/s, 84–92
+  turning at 0.5 rad/s while walking and 74 turning on the spot. A 95 mm
+  mouth (±98 over its faces) put a foot on a face now and then; the mouth is
+  ±85 (±88), and from where a front foot could land on it (17–20 mm ahead
+  of its hip) the walk-in walks straight — no sidestep, at most 0.1 rad/s of
+  steering, never a turn on the spot, and more than 20 mm off the axis it
+  stops and the check backs it out.
+- **Rigid contacts under a lying quadruped are statically indeterminate.**
+  The first cradle had contact bars 4 mm proud, the robot's weight as the
+  preload the issue proposed. But the belly shares the load with four limp
+  legs (it carries 67 of the robot's 92 N on a bare floor; the rest is the
+  legs' own weight on their feet), so which support carries what is set by
+  sub-millimetre heights: a robot lying 6 mm off centre rolled 0.2° onto its
+  right feet, all 57 N went through the left bar, and the right pad hung
+  0.3 mm clear — seated in the funnel, not charging. The contacts are
+  sprung pins (Mill-Max 0858, two a pole, 2.35 N a pole at their rated
+  1.143 mm travel): the weight seats the belly, the springs are the contact.
+- **Lying down moves the body back 34.8 mm onto the dock** (35.5–36.2 onto
+  the bare floor): #377's fold swings the legs forward under the belly. The
+  walk-in stops `LIE_SHIFT_M` ahead of the seat.
+- **The board's baseline is the approach's precision.** The facing comes
+  from where the tags are (Kabsch over their translations, the #88 rule),
+  and the seat is 0.62 m behind the board, so a facing error swings the
+  believed axis: with the tags ±70 mm apart the robot believed itself up to
+  17 mm off the axis while it walked over the dock within 7 mm of it. At
+  ±140 mm, and each look blended half into the last (`dock.blend`), the
+  belief follows the truth to ~5 mm. A fit needs its tags to SPAN the
+  board: a column's two tags are one point in the plane, and seen alone
+  they fitted any heading as 0 with a perfect rms. And one whose tags sit
+  more than 30 mm from the drawing is refused (real looks: 1.6 mm median,
+  14 worst of 80), not blended in.
+
+**Five MuJoCo traps the pins walked into**, each now a constant with its
+number: (1) contact filtering between a parent and its child body does not
+apply to a body welded to the world, so the pins collided with their own
+plate — they meet the robot alone (`contype` bits); (2) soft contact scales
+with the bodies' effective mass, and against a gram-scale sprung pin the
+pad sank 1.2 mm into it at 0.12 N instead of pressing it down — the pins'
+contact is `solref 0.004` (two steps) with `solimp 0.99 0.999`, pressing
+2.32 N a pole of the part's 2.35; (3) a light pole then chattered against
+that stiff contact, the criterion flipping 1286 times in 10 s of lying
+there — a 0.1 kg armature (the plungers' inertia, a numerical stand-in)
+holds it every step; (4) a 9 kg belly let go 30 mm up sank through the
+6 mm plate onto the floor, so the plate's collision box reaches 50 mm under
+the floor; (5) #377's `VirtualModel` read the body's inertia off a fresh
+MjData's all-zero mass matrix when built before a forward pass, and its
+lie-down moved the body 44.6 mm instead of 34.8 — it now refuses.
+
+**The dock is the map's origin** (#381's plan: decided). Lying docked, the
+robot reads its pose in the dock's frame off the board's lower pair to
+2.2–2.7 mm and 0.17° (`--hold`). The seat alone would give it a few mm and
+~2° — the funnel's clearance lets the belly lie up to 2° twisted — so the
+anchor is the BOARD, read lying, not the seat. The dock is the one pose
+the robot returns to by construction, it needs no survey, and one dock
+serves the pair, so both robots' maps share its frame. `rack_prior`'s
+commissioned pose retires for the quadruped: #387's `anchor_at_dock` snaps
+the legs' estimate to what the board says. Where the dock stands in the
+world is the sim's to know (the site's drawing, its own checks); the robot
+needs only its frame.
+
+**What is true now:** the dock is `legs.dock.DEFAULT` (`dock_xml`, any
+world; `world_xml`, the spike's and the tests' standalone world, the dock
+AFTER the robot, `body_xml(after=)`, because the standalone keyframes index
+the robot's free joint from `qpos[0]` — `LegOdometry` finds its robot by
+name); the criterion is `dock_charge_contact`, each pad on a pin of its own
+pole; the walk-in is `walk_in_twist`, `fit_dock`,
+`seen_from` and `blend`; nothing in the served sim loads any of it until
+#387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
+lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
+
+## The served sim's speed (issue #385)
+
+A pair on the deploy box ran below real time (0.96× over a carry, 0.80×
+over a day, rooftop #296), and two quadrupeds cost more than two rovers:
+their policies and their drivers' PD. Everything here was timed on the
+deploy box itself (AMD EPYC 9645, Zen 5c, 3.7 GHz; the prod image, osmesa)
+in throwaway containers beside the live world, because the dev machine was
+never quiet.
+
+**The LIDAR is one call.** `Lidar.scan_split` cast its 360 bearings with an
+`mj_ray` each and drew the noise inside the loop: 3.55 ms a scan on the
+box, 35 ms of every sim second per robot at 10 Hz — and most of it was the
+Python around the rays (a scalar `np.clip` alone is microseconds), not the
+rays. One `mj_multiRay` returns every distance and geom bit-identical to
+the per-ray calls (108 000 rays at 300 poses in the home world, at any
+cutoff); the masks are numpy; the noise is still drawn ray by ray in
+bearing order from each of the two streams, because a batch draws the same
+numbers in another order and no flown day would hash the same again. 1.18
+ms a scan now: ~24 ms a sim second per robot. A scripted home day hashes
+IDENTICAL before and after, alone and with a parked second robot (3 234
+state samples, 11 262 scans, 4 063 tag images and decodes).
+
+**The legs' drivers in C.** The driver's PD and the torque-speed envelope
+ran in numpy on every physics step. MuJoCo's `dcmotor` in position mode
+runs them in C, but it models a VOLTAGE: its controller makes
+v = kp (target − q) − kd q̇, clamped at the bus, and the motor turns it
+into K (v − K q̇) / R, clamped at the current limit. With K and R the
+envelope's own line (K = bus / no-load speed, R = K · bus / saturation
+torque — an equivalent DC pair, not the windings' Kt and R) the clamp at
+the bus IS the envelope, and kp = Kp R / K, kd = Kd R / K − K make the
+torque the PD: 1e-14 N·m apart at 24 000 random joint states, the peak
+clip among them. kd comes out negative (−0.43), and that is right: an FOC
+driver cancels the back-EMF that a bare voltage would add as damping.
+What does differ is the integration: `implicitfast` integrates an
+actuator's velocity term implicitly, so one step from identical states
+differs by up to ~1 rad/s (1e-15 under Euler) — the closer model of a
+driver whose loop runs at kHz, not the explicit 5 ms PD the policies
+trained on. They walk on it within tolerance (numpy → dcmotor):
+
+| | numpy PD | dcmotor |
+|---|---|---|
+| tracking at 0.5 / 1.0 m/s | 0.54 / 1.07 | 0.53 / 1.06 |
+| knee p99.5 / worst RMS at 1.0 m/s, N·m | 7.9 / 4.8 | 7.8 / 4.7 |
+| power at 0.5 / 1.0 m/s, W | 88.1 / 108.9 | 89.0 / 112.1 |
+| get-up from 20 falls; from the belly | 20/20; 0.2 s, 87 mWh | the same |
+| posture, every commanded row | | within 0.1° and 1 mm |
+| legged odometry, 5 seeds | 2.4–4.0 % | 3.3–4.0 % |
+| seeing climbs | | the same, one more 0.10 m flight (3/3) |
+
+and a flight hashes IDENTICAL in two processes. #388's stairs policy,
+merged after these, re-flown on the dcmotor: every case at the house's
+0.18 m riser 10/10 on either scan (the flight of ten up and down among
+them), the knee's p99.5 13.6–13.9 N·m (#388's 13.5), and the flat as
+before (0.51 / 1.08 m/s, 89 W at 0.5). #378's dock, whose approach walks
+on the policy and lies down on the scripted routines' torque (the reason
+for `legs/drivers.py`), re-flown on them: the capture envelope cell for
+cell; the approach 52 of 52 docked (37 at the first try, #378's 40), feet
+on the dock in 8 runs for at most 1.06 s, median 9.8 s and 182 mWh; held
+docked, 100 % contact at 2.3 N a pole, the board's pose to 2.2–3.0 mm. On the box the quadruped
+pair's physics and controllers went from 231–236 to 191–199 ms of wall per
+sim second (`quad_spike.py --served`, A B A B): quadruped ÷ rover 1.30–1.40
+→ 1.12–1.13, the rest the two policies.
+
+**A served day, profiled.** `serve.py --pair --free-run` on the box, the
+home world, a scripted day with the jobs, hunger and the near field on
+(`--errand draw --errand2 carry`, 4 084 sim s) streaming to a local sink,
+under `py-spy` at 100 Hz. The physics thread's time, by what it was doing:
+
+| share | what |
+|---|---|
+| 28.9 % | `mj_step`, the physics |
+| 25.6 % | the depth camera (8 400 rays a frame at 10 Hz per robot) and its height map |
+| 11.4 % | the tag camera: osmesa renders and the decode, localising at the rack and the dock |
+| 4.0 % | the charge pins' contact criterion, every step |
+| 3.8 % | the tool's poles, every step (11 % before `touching` lost `np.isin`) |
+| 3.5 % | the planner's replans (the inflation's distance transform) |
+| 3.3 % | the activities (encounters, the cage, the plates) |
+| 2.8 % | the LIDAR |
+| 2.7 % | the occupancy grid's update |
+
+Fixed, as exact rewrites (each day hashes IDENTICAL): `touching`'s two
+`np.isin` a call, and `rack_charge_contact`'s, both now the few rows that
+hold the geom, checked in Python; the pack's scalar `np.clip`. **Not
+cheap, and deliberate:** the physics; the depth camera, whose 8 400 rays
+at 10 Hz is the sensor as specified (Rover.md) — halving its rate or its
+rays would halve its share, and that is a decision about the sensor, not
+a speed-up; the tag camera's renders, whose resolution is what the decode
+needs at the standoff, and which #378's dock replaces. The quadruped
+brings one more when it climbs: the stairs policy's scan (#388). On the
+ideal casts it is 187 `mj_ray`s from Python a policy step (parallel rays,
+which one `mj_multiRay` cannot cast): 1.2 ms in the home world, ~60 ms a
+sim second per robot. On the D435's map (`legs/scan.py`) it is the depth
+frames and the map's update instead, not measured here. Either is paid
+when the stairs are served, not by the first deploy's flat policy.
+
+**The day, before and after** (box, the same day both ways, the narration
+IDENTICAL line for line — the pair's peer returns included): staging
+**0.97–0.98×** real time (4 084 s in 4 177–4 195 s of wall, two runs), the
+scan batched 1.01×,
+the tool's poles and the pack too 1.10×, the charge pins too **1.14×**
+(3 578 s). That is a longer and calmer day than #296's 0.80× (a 259 s
+carry day heavy with swaps at 1 ms steps); a day's multiple is a property
+of what the day did.
+
+**The server.** A quadruped pair costs the box ~20 ms a sim second more
+than a rover pair (the two policies, above), so it would serve at ~1.1×
+over this day. #377 had asked for at least 1.3× — a margin, never argued:
+1.3× needs ~770 ms of wall a sim second, a physics thread ~1.2× the box's.
+A candidate core was rented by the hour (Runpod's `cpu5c`, 4 vCPUs): an
+**AMD EPYC 4564P** — the Ryzen 9 7950X's silicon on AM5, Zen 4 at up to
+5.88 GHz — on a host shared with other tenants (load 25–30 of its 32
+threads, so a pessimistic reading). The same code (all but the charge pins'
+fix), the same day: **1.82×** real time (4 167 s in 2 293 s), and over the
+span the two days share before they part (0.1–640 s; its Mesa is 25.1, the
+image's 25.0, and a render that differs moves a decode) 1.75× against the
+box's 1.07×: **1.64× the box**. Physics alone (`--served`) 1.5×; a scan
+0.72 ms. A quadruped pair there, the same arithmetic: **~1.78×**. The core
+is the answer, not the count: the physics is one thread.
+
+**Decided (Ben, 2026-09-27): the served world stays on the current box**,
+at about a fifth of the candidates' price. So the served world does NOT
+have #377's 1.3×: a quadruped pair is expected at ~1.1× over a day, and the
+known costs ahead take it under 1× — #386's scan matching runs on every
+scan, and the stairs policy's scan is ~60 ms a sim second per robot. Below
+1× nothing breaks: the world runs slower than the wall, the site plays the
+stream at its measured pace (rooftop #298), and everything the robots are
+scored on runs on sim time, as the rover pair's weeks at 0.5–0.8× showed.
+The pair is re-measured on the box at #387, once it is served for real; a
+faster box is the lever if the slow playback ever matters, and the EPYC
+above is what one buys.
+
+**What is true now:** the scan is one `mj_multiRay`, its noise drawn in
+bearing order (`test_the_batched_scan_is_the_scan_it_replaced` pins every
+ray against the per-ray scan); the leg drivers are position-mode
+`dcmotor`s, commanded as a GDS68 is (`legs/drivers.py`): a policy's command
+carries its own gains, a routine's torque rides a target with the damping
+cancelled and steps as a torque motor does, and `limp()` holds nothing, so
+the policy and the scripted routines share one body (the dock's approach
+does); the default gains are `actuator.driver_gains`, one definition that
+`training/` reads from `quadruped.json` (`tests/test_legs.py`). The served
+pair's physics thread is now about a third physics, a quarter depth camera
+and a tenth tag camera, and none of the three is cheap to cut. A pair is
+one physics thread, so the lever left is the core, and the box keeps its
+core for now (above).
+
+## The map stays true under drift (issue #386)
+
+The sim's odometry was kinder than hardware: exact wheel angles, a gyro with
+no noise, and a quadruped whose tilt was read off the truth. Made honest
+(`perception/imu.py`, `perception/encoders.py`; the numbers are Parts.md's
+table), the rover's heading walked -7.3 deg in 260 s -- the ICM-42688-P's
+offset after its boot calibration, 0.005 deg/s/degC over a 10 degC swing --
+and its lab trip failed on the way: `no route over the floor mapped so far`,
+0.2 m short of the lobby's door (staging, with the perfect gyro, arrived).
+Legged odometry went from 3.3-4.0 % of distance on #377's course to
+3.7-5.2 %. So every level scan is now matched against the robot's own map
+before it is fused (`mapping/scan_match.py`), and the pose it matches to is
+the belief.
+
+**Why Gauss-Newton, and a search only when it fails.** Between two scans
+0.1 s apart odometry is off by millimetres, well inside a fit's basin, and
+a fit costs ~0.5 ms where a correlative search over a useful window costs
+tens; the fit's own normal matrix says which directions the walls fix,
+which the issue asks for by name. A search (brute force over ±0.6 m and
+±6° in whole cells and degrees, then a fit from its best) runs only when a
+fit disagrees with its map -- a pose already past the fit's reach -- and a
+robot lost beyond that window has the dock, and #381's loop closure.
+
+Every piece was found by flying a lab trip with each scan and the true pose
+recorded, and replaying the matcher over the recording in seconds. A
+replay of the matcher the flight flew reproduces the flight to the digit; a
+replay of a variant shows what it would have believed along the same path
+(a flight with it steers by that belief and parts from the recording), so
+the numbers below the table are re-flown.
+
+| piece | without it | with it |
+|---|---|---|
+| a SIGNED distance, zero on a wall's first cell, "inside" measured from the free side | a wall seen through ranging noise is a band 3 cells deep; unsigned, a point inside it pulled on nothing (a synthetic room recovered to 0.5 deg); measured from the band's back, the back was a second face, a point past the middle was pushed through the wall and the fit crept, unconverged after 8 iterations; zeroed on the cell's face, every wall read up to a cell near | recovered to ~1 cm and 0.05 deg, every offset to the same pose |
+| returns short of 6.5 m only | a wall at the LIDAR's 8 m reach is seen SHORT -- its long draws are clipped to "no return", and the map clears it with the same rays: the street's far wall pulled the pose +32 mm a scan (from the true pose, against a true map) | 0.0 mm (sd 3.5); the trip's worst error 0.61 → 0.18 m |
+| odometry's pose as a term of the fit | every scan put the map's quantisation into the pose: with PERFECT odometry the house read 5-12 cm and 0.8 deg off | 7.5 cm, under 1 deg |
+| ...and a ROBUST one (Cauchy, 5 mm) | wheels spinning on the lab's feed plate pumped ~10 mm a scan for 12 s; a plain prior held on, the fit left its basin and turned the pose 12 deg to explain it, and the robot drove home 3.4 m out | the pump absorbed: 0.22 m at the plate, 5 cm by the day's end |
+| degeneracy off the walls' SMOOTHED normals | 5 cm cells make a straight wall step, and a corridor's jags read 12 % of a real constraint; a threshold that held a corridor held the lab's weak direction during the pump too, where odometry was the thing that was wrong | a corridor 0.003, a room 0.34: held at 0.05 |
+| a scan fused only once the robot moved (1 cm / 0.5 deg) or every 5 s | docked 388 s, 3 800 scans fused at a pose jittering by a millimetre walked the map and the pose together 0.15 m | 0.03 m |
+| a fit the map disagrees with searched round (±0.6 m, ±6°), and refused if nothing agrees | a second plate stall left the pose 0.3-0.5 m out, past the field's 0.3 m reach: flown, it drove home that far off and fused a second house until the dock's anchor | an injected 0.45 m offset recovered in 5 s at the dock and in the house, in ~1 min leaving the lab; replayed without one it never fires, and flown it fired twice in a day of three trips |
+
+What did NOT work, and why: gating on the share of inliers (refusing a scan
+whose live points mostly disagreed) refused exactly the scans that would have
+corrected the plate's pump, and the robot was lost anyway; a Gaussian-
+smoothed distance gave the fit a valley with a floor above zero, and
+Gauss-Newton overshot it into a two-cycle; weighting points by their ranging
+noise held directions the walls fixed (800-970 of 2 284 scans) and the
+trip's worst error rose 0.23 → 0.42-0.52 m; a reach of 0.6 m pulled the
+pose onto the wrong walls during the plate's stall (0.22 → 0.53 m); a
+field recomputed every scan made the pose chase its own freshest evidence
+(0.45 → 0.60 m worst).
+
+**The drift baseline, before and after, for both bodies**
+(`scripts/drift_spike.py`). The rover flies a home day of three lab round
+trips -- the mouse's feed in the lab, then a carry at the rack, `--trips
+3` -- on each tree:
+
+| rover, three lab trips | worst | median | worst heading | the lab |
+|---|---|---|---|---|
+| perfect sensors, no matcher (056a4a1, the sim before) | 0.60 m | 1.7 cm | 0.34° | reached each time; the first trip's plate pump left the belief 0.6 m out through all three, until the dock |
+| honest sensors, no matcher (the before) | 5.41 m | 0.28 m | 70.7° | never reached: `no route over the floor mapped so far` 0.2 m short of the lobby's door, then lost |
+| honest sensors, matched (the after) | 0.34 m | 1.6 cm | 1.08° | reached each time, 0.2-0.34 m out in the lab and back to 7 mm, 7 mm and 6 cm at the rack; the search fired twice |
+
+The quadruped walks the rover's own route, three times out and back (145
+m), on the flat policy steered by the TRUE pose -- what is measured is the
+estimate, so its steering must not depend on it -- with two estimates off
+the same IMU draws:
+
+| quadruped, three lab trips | worst | median | at home | worst heading |
+|---|---|---|---|---|
+| legged odometry alone (the before) | 3.14 m | 1.13 m | 2.26 m | 12.9° |
+| matched (the after) | 0.20 m | 0.11 m | 0.7 cm | 0.95° |
+
+Neither estimate accumulates once matched: every trip reaches the lab
+~0.2 m out (the frame its map was laid in on the way) and comes home to
+about a centimetre (1.2, 0.6 and 0.7 cm).
+
+**The lab door**, asked of the robot's own planner: can it plan from where
+it believed the lobby was to where it believed the lab was? Open for the
+matched rover after each of its trips, and for the sim before; the honest
+rover without the matcher never reached the lab to have a door to ask
+about. The quadruped's odometry map plans "open" as well -- because its
+walls are gone: three rotated copies of the lab, and the lobby's east wall,
+the one with the door in it, rubbed out by rays laid through later poses.
+A map smeared by drift loses walls as well as doubling them, which is why
+the spike saves each map's picture beside its trace. For scale: in a map
+laid through the TRUE poses the door leaves 0.30 m a plan can use at the
+wall (1 m, less 0.35 m of inflation each side), so the issue's estimate
+holds -- ~0.3 m of smear closes it.
+
+**Found on the way.** The quadruped attached into a world read its joint
+ranges in DEGREES: the include form of `legs/model.body_xml` carries no
+`<compiler>`, and MuJoCo's default unit is the degree -- the knee's
+-2.75..-0.35 rad became -0.048..-0.006, and standing, the joint limits threw
+the robot 0.4 m into the air. `quad_spike.py`'s pair world was built so,
+which #385's quad-pair timing flew; both go through
+`legs.model.attachable()` now. And the quadruped's LIDAR site sat at the
+centre of its own puck: every ray hit the housing at 4 cm and the
+self-filter dropped all 360 -- the site is 6 mm above the puck now, as the
+rover's is (no mass moved).
+
+**What is true now.** Every level scan is matched before it is fused and
+the matched pose is the belief (`HubMission._match`); the rover's dock
+anchor stays, and the two agree at the dock to centimetres. A match costs
+0.67 ms on the dev machine (median 0.46, p99 7.2 -- the field's refresh, 5
+ms every 20 fused scans or 1 m, and the rare search): 6.7 ms of a sim
+second per robot at 10 Hz. Fusing only the scans after the robot moved
+took the grid's updates on a recorded day of lab trips from every level
+scan to 6 918 of 10 947, and the mapping as a whole from ~21 to ~20 ms a
+sim second; a day that stands still less saves less. The matcher is
+deterministic (einsum's own loops, no BLAS product) and its field is kept
+state: a scripted home day hashes IDENTICAL in two processes (2 025 state
+samples, `determinism_spike.py`), and saved at t = 419 s and carried on
+in a new process it is IDENTICAL after the restore (1 186 samples,
+`--resume-at 400`). Not done: a scan
+tilted past `MAP_TILT_RAD` is neither matched nor fused, so a wheel pump
+while tilted runs free until the robot is level and the search finds it;
+a robot lost beyond the search's window has only the dock
+(#381's loop closure); the first trip through new territory carries its
+own drift into the map it lays (0.2-0.3 m by the lab), which later visits
+match to but do not correct; and the rover's map gate still reads its tilt
+off the pose, the one sensor left that is the sim's (it goes with the
+rover).
+
+## The first quadruped deploy (issue #387)
+
+The body #377 sized, walking on its policy and getting up on its own, put
+into the house the rover lived in (`legs/world.py`: the rover taken out by
+what names it, the quadruped -- or the served pair -- and #378's dock put
+in, the dock's board against the living room's south wall at x 3.5). It is
+a `Body` (`legs/body.py`) over `QuadMission`, a `Navigator`: the map, the
+planner, the drive and the peer rules the rover had, moved out of
+`HubMission` into `navigator.py` whole -- a scripted home day of 1012 sim s
+hashes IDENTICAL against the rover before the move.
+
+**The rest reflex and the posture.** Beneath every command a posture
+machine: `standing` walks what it is told; 8.6 s with no motion command
+(`posture.T_REST_S`, #377's break-even) lies the body down (2.2 s, then a
+second limp to settle); a motion command to a lying body stands it first
+(2.2 s); a torso past 60° (the topple angle every body is judged down at)
+or slumped under 0.20 m for half a second is a fall, and the get-up
+policy drives until it is upright at its height for half a second. The
+lie-down and the stand-up moved from `quad_spike.py` into `legs/posture.py`
+and fly the spike's tables byte for byte.
+
+**Getting up, and the `stuck` death.** Shoved over 48 times in six places
+(the open floor, beside the couch, against the south wall, the hall, the
+kitchen counter, a doorway): 35 falls, 31 up -- median 1.2 s, p95 4.2 s,
+the slowest 13.4 s against the south wall -- and 4 wedged, never up in
+40 s (one upside-down against the couch). So a body that rights itself is
+`stuck` after 20 s down (`QuadBody.stuck_after_s`), not the rover's 2 s,
+and its death line says "fell and could not get up in 20 s".
+
+**The LIDAR's plane is over the furniture.** The quadruped's LIDAR sits on
+a rear mast so its plane clears the stowed arm: 0.506 m up. The couch
+(0.50 m) and the bed (0.40 m) are UNDER it, and a planner fed the LIDAR
+alone routes through both; the rover's plane (0.223 m) saw them. The D435
+on the nose does, so its points between 0.08 and 0.60 m over the floor are
+a layer the planner plans round (`QuadMission._fold_low`,
+`_planning_grid`); the explore's frontiers and the streamed map read the
+same view (`QuadBody.grid`). It is the first thing on the robot that
+decides off the depth camera, and it is NOT the height map: a layer of its
+own, log-odds like the grid. Three rules made it usable, each after it
+shut a door:
+
+- only points within 1.8 m (σ 12 mm): at the part's 3 m range a floor
+  pixel read 5 cm high often enough to leave single obstacle cells in the
+  middle of doorways, and at the inflation's 0.35 m a side a 1.0 m door has
+  0.30 m of plannable width -- one stray cell closes it;
+- three frames of evidence before a cell is an obstacle, and a floor point
+  clears one;
+- never within three cells of what the LIDAR maps: walls are the LIDAR's
+  (and matched, #386), and the camera's view of their bases through a
+  drifting pose only thickened them.
+
+**The planner and the drive, as the house found them.**
+
+- *The front stop sat beyond the planner's clearance.* A centre 0.35 m from
+  a wall puts the rear-mast LIDAR 0.50 m from it, and a 0.64 m stop fired
+  on every waypoint the planner laid along one: a drive toward the
+  bedroom's divider backed off every second for 135 s. It is 0.45 m
+  (the nose 6 cm off), and it tests the CORRIDOR ahead (±0.12 m), not the
+  rover's 0.35 rad cone, which at that range reached 0.15 m out -- a wall
+  alongside at 0.16 m fired it every scan, and the robot backed 2.3 m into
+  a corner.
+- *The dead band made arcs.* The policy walks nothing under ~0.2 m/s
+  (#378), so a small command is raised to 0.25 m/s -- and the rover's
+  driving law crawls while it turns, so raised, the crawl swept 0.25 m
+  arcs into the walls it was turning away from. A crawl with a turn to
+  make is a pivot (`command_for`).
+- *A detour read as a stall.* The rover's drive gives up after 10 s
+  without getting closer to its goal in a straight line; from the
+  bedroom's corner the only way to the hall walks 2.5 m round the divider
+  first, and every such drive "stalled". A quadruped's progress is read
+  along its route (`Navigator.PROGRESS_ALONG_ROUTE`); the rover's is not,
+  and its day is unchanged.
+- *A press reversed into the far wall.* The thighs scraped the kitchen
+  counter's end walking past it; reversing replanned the same scrape until
+  the hind knees met the north wall. A press on a flank steps SIDEWAYS
+  away (`retreat_from`), one on the nose backs off, one on the hind knees
+  steps forward. (The press itself had first fired on the floor: the
+  house's floors are boxes named `*_floor_geom`.)
+- *The explore gave up on reachable floor.* The rover's explorer A*s the
+  20 nearest frontiers and blacklists each failure; the depth layer's
+  small obstacles seal pockets of frontier near the robot, and three such
+  rounds ended the explore with the kitchen and the garden unseen. The
+  quadruped's drops frontiers off its own connected floor before any A*,
+  and blacklists none (`Body.plan_frontier`).
+- *A stand-in replanned every step.* A goal just off the plannable floor
+  is driven to its nearest reachable cell; standing on it, the waypoints
+  run out and the drive replanned every physics step until its stagnation
+  cut -- 4 190 plans in 90 s of a pair, 15 ms each. A plan asked again
+  within 0.5 s from the same spot is the last plan.
+
+With those, a 260 s explore tours the living room, the bedroom, the hall,
+the kitchen, the workshop and both gardens, and the belief ends within a
+few centimetres of the truth (scan matching, #386).
+
+**The planner's sizes.** The body's outline, measured off its geoms:
+standing it reaches 0.38 m from the torso's centre (the hind knees, 0.36 m
+behind it) and 0.20 m to either side; lying, 0.43 m; fallen, 0.63 m from
+the middle of its footprint (worst of 20 random drops). The map's
+inflation stays the rover's 7 cells (0.35 m square on, 0.25 m on a
+diagonal): it covers the half-width, and the body walks forward through a
+door. The disc round another quadruped is 14 cells (its outline lying plus
+this one's half-width), 18 round a fallen one.
+
+**The dock, from the loop.** The approach is #378's (`dock_routine`): turn
+to the dock's heading at the standoff (the walk there arrives facing where
+it came from, and the search turns reach only ±75°), find the board, walk
+in by it, stop, check the line-up, lie down; the pads conduct or it backs
+out and tries again. Lying there, the board anchors the reckoning (a few
+mm); the charger puts 216 W in and the body draws 15 W lying, 201 W net.
+A day that starts low docks first try and charges 35 → 90 % in 198 s on
+the 20 Wh test pack.
+
+**Energy** (`energy_spike.py --world home_quad`, 40 Wh pack): the explore
+draws 84.7 W (6.11 Wh over 260 s) -- the legs' windings and shafts off the
+drivers' own torques (`LegPack`) plus the electronics' 14.9 W; the charge
+is 201.1 W net. No errand rows: the body has no arm. The served pack is
+the real one, 194.4 Wh (twelve P45B cells).
+
+**Speed.** Profiled on a pair, the first cut ran 0.56x real time on the
+dev machine: the replanning storm above, and the legs' odometry at
+0.78 ms a step -- most of it `np.cross` on 3-vectors, replaced by the same
+arithmetic written out (bit-identical over 200 000 random pairs, a tenth of
+the cost). With those and lookups in place of `np.isin` on the physics
+seam, the same day at 0.96x on a quiet dev machine, IDENTICAL end state to
+before. The deploy box's core measured 1.17x the dev machine's (#377).
+
+**The reserve** (`energy_spike.py --world home_quad --reserve`): over the
+rover's worst-case route home (the loop's south-west corner, the sidewalk,
+the gate, the garden door; 44.6 m) the walk costs 2.64 Wh (59 mWh/m, twice
+the rover's) and the dock 0.43 Wh; with one failed docking on top (another
+approach, and the stand-up and lie-down it costs), `legs.world.RESERVE_WH`
+is 3.6 Wh.
+
+**A pair, twice alike -- and what a stand-up did to the other robot.**
+`determinism_spike.py --pair` flies the served pair's day with a fall and a
+death arranged (`pair.arrange_hazards`: the second robot knocked onto its
+side at 40 s and its pack emptied at 120 s; a 30 s restart timer; an inbox
+each, as `serve.py` builds them) and hashes the whole world. The first
+flight hashed IDENTICAL twice and was wrong both times: the timer's
+stand-up placed the second robot with `start_at`, which settled the body by
+stepping the physics for a second on its own -- and for that second the
+first robot, walking in the same loop, ran no policy and no odometry. It
+went over, got up 0.44 m from where it believed it was, found no route to
+the dock and died `stuck`. The quadruped's `start_at` steps nothing now:
+the body settles under the day's next command. (The rover's still settles a
+second, coasting its pair's other rover on its last wheel command; that is
+milder, and changing it moves the rover's parity.) A stand-up also never
+lands on another robot: a start pose with a body within 1.0 m is passed
+over for the next commissioned one (`HubLifecycle.up_pose`). Flown again:
+IDENTICAL over 924 samples to 461.6 s -- the second robot knocked over at
+40 s and up in a second, dead `flat` at 120 s and waiting, stood up at 150
+s and exploring on, lying down by reflex at 260 s once it had nothing to
+do; the first docked at 170 s and charged 11 -> 90 % in 284 s, stood and
+backed off. Nobody else fell. Restarted mid-day (`--resume-at 40
+--battery-fraction 0.45`), a robot saved as it left for the dock (246 s)
+and carried on in a new process is IDENTICAL to the day flown straight
+through over 869 samples: the 115 s walk, the docking, 311 s lying on the
+pins (3 -> 90 %), the stand and the back-off.
+
+**Open: two robots meeting head-on hold for each other.** The re-recorded
+pair fixture has them meet 0.9 m apart just inside the workshop doorway;
+each holds for the other (the rover's #328 rule: a robot is held for, never
+backed away from) for ~66 s, the rest reflex laying each down in turn, until
+a drive's patience runs out and one goes round. It ends by itself; nothing
+yet decides who yields.
+
+**What is true now:** the served world is `home_quad_pair`
+(`serve.py --pair --body quadruped`); the rules above are pinned in
+`tests/test_quadruped.py`; the prompt says where a quadruped charges and
+how it dies in its own words, and nothing about upkeep where there is none
+(`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
+swapped for the quadruped's (`constitution.for_body`, asserted).
 
 ## Debugging workflow that worked
 

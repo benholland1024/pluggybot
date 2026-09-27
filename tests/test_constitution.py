@@ -10,12 +10,11 @@ steps, and the record is built from a config dict.
 import json
 import re
 
-import mujoco
 import pytest
 
 from pluggybot.evaluation import record as rec
 from pluggybot.evaluation import rollup
-from pluggybot.lifecycle import HubLifecycle, world_config
+from pluggybot.lifecycle import HubLifecycle
 from pluggybot.mind import constitution as c
 from pluggybot.mind import text
 from pluggybot.mind.thoughts import CONSTITUTION_FILE, HISTORY, MAIN, ThoughtFiles
@@ -190,14 +189,10 @@ def test_the_change_vocabulary_is_the_wires():
 
 
 def _life(thoughts: ThoughtFiles) -> HubLifecycle:
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  return HubLifecycle(model, data, realtime=False, world="room_hub",
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      thoughts=thoughts)
+  """What the robot is told about itself is the lifecycle's bookkeeping: a
+  stub body carries it (issue #380)."""
+  from test_body import stub_life
+  return stub_life("room_hub", thoughts=thoughts)
 
 
 def test_the_lifecycle_announces_a_swap_once_in_history_and_on_the_wire(tmp_path):

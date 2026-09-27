@@ -405,7 +405,8 @@ def eval_census(m: dict) -> tuple[bool, dict, str]:
              "coverage": round(coverage, 3), "vantages": int(m.get("vantages") or 0),
              "zone": m.get("zone")}
   if not reported:
-    return False, metrics, f"no count came back from {metrics['zone']}"
+    return False, metrics, ("no count came back" + (f" from {metrics['zone']}"
+                                                     if metrics["zone"] else ""))
   ok = counted == truth
   # The reason line is streamed and logged, so it says whether the answer was
   # right without saying what the right answer WAS -- same rule as `secret`.
@@ -771,13 +772,22 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
 
 
 def evaluate(task: str, measurements: dict,
-             table: RewardTable | None = None) -> Verdict:
+             table: RewardTable | None = None, failed: str = "") -> Verdict:
   """Judge one finished task. The only place a Verdict is ever built.
 
   `measurements` are read by the evaluator and by nothing else: a "points"
   key in there is ignored, because the payout comes from the table applied to
   the metrics the EVALUATOR returned, never from anything the caller handed
   in.
+
+  `failed` is the errand's own failure BEFORE its use-phase -- a refused
+  pick, a drive that never arrived, a board it never squared up to -- and
+  a failed verdict's reason LEADS with it (issue #350). It moves no point
+  and no metric: the grade is the evaluator's, off the world, and what the
+  world shows ("no ink reached whiteboard_b") follows. Without it that was
+  the whole line, fourteen times a day, for a pen that never left the rack
+  -- and both robots ticketed the ink path. A PASSED verdict is left as it
+  is: a carry whose drive fell short and whose tool went home was done.
   """
   table = table if table is not None else default_table()
   reward = table[task]                     # unknown task: no payout to look up
@@ -786,6 +796,8 @@ def evaluate(task: str, measurements: dict,
     raise KeyError(f"task {task!r} has a reward-table entry but no evaluator "
                    f"in economy/scoring.py -- nothing may award points without one")
   ok, metrics, reason = check(dict(measurements))
+  if failed and not ok:
+    reason = f"{failed} -- {reason}"
   quality = reward.quality(metrics)
   pending = reward.tier == "visitor"
   return Verdict(task=task, tier=reward.tier, ok=ok, quality=quality,
@@ -919,8 +931,11 @@ def sample_answer(life, errand, result: dict, before: dict) -> dict:
 
 def sample_census(life, errand, result: dict, before: dict) -> dict:
   census = result.get("census") or {}
+  # The zone is the ERRAND's as well as the use-phase's: a census whose
+  # pick failed never ran one, and its verdict said "from None" (#350).
   return {"counted": census.get("counted"), "truth": census.get("truth"),
-          "coverage": census.get("coverage"), "zone": result.get("zone"),
+          "coverage": census.get("coverage"),
+          "zone": result.get("zone") or errand.detail.get("zone"),
           "vantages": result.get("vantages")}
 
 
@@ -936,9 +951,17 @@ def sample_carry(life, errand, result: dict, before: dict) -> dict:
   `module_state` is the coupling's own answer -- hung on its bracket, or not
   -- so a carry errand cannot pass by saying it stowed the module.
   """
-  state = life.mission.swap.module_state(errand.module)
+  state = life.body.module_state(errand.module)
   return {"picked": bool(result.get("picked")), "stowed": bool(state["hung"]),
           "module": errand.module}
+
+
+def fetched_tools(run: dict) -> list[str]:
+  """Every tool a run took off the rack: each `fetch` that landed, and the
+  claw a `pick` fetched for itself (issue #353, the step's `fetched`)."""
+  return [st["tool"] if st.get("verb") == "fetch" else st["fetched"]
+          for st in run.get("steps", ())
+          if (st.get("verb") == "fetch" and st.get("ok")) or st.get("fetched")]
 
 
 def sample_program(life, errand, result: dict, before: dict) -> dict:
@@ -946,9 +969,7 @@ def sample_program(life, errand, result: dict, before: dict) -> dict:
   the world, one per step) and whether every fetched tool is hung -- read
   off the swap again here, not off the runner's word."""
   run = result.get("procedure") or {}
-  fetched = [st.get("tool") for st in run.get("steps", ())
-             if st.get("verb") == "fetch" and st.get("ok")]
-  hung = all(life.mission.swap.module_state(t)["hung"] for t in fetched)
+  hung = all(life.body.module_state(t)["hung"] for t in fetched_tools(run))
   return {**{k: run.get(k) for k in ("program", "total", "completed",
                                      "failedAt", "stopped", "seconds",
                                      "refused")},
@@ -965,7 +986,7 @@ def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
 def wallet_before(other) -> dict:
   """The reading a take is measured against (issue #228): the other's
   balance off ITS ledger, before anything moves, keyed by its root."""
-  return {"to": other.mission.handle.root,
+  return {"to": other.root,
           "balance": other.ledger.balance() if other.ledger is not None else None}
 
 
@@ -1063,18 +1084,21 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
 
 
 def score_errand(life, errand, result: dict, before: dict | None = None,
-                 table: RewardTable | None = None) -> Verdict | None:
+                 table: RewardTable | None = None,
+                 failed: str = "") -> Verdict | None:
   """Evaluate a finished errand, or None if its task is not scoreable.
 
   Not an error: "narrative only" is one of the four tiers, and an errand
   built by hand for a demo may have no task at all. What is an error is a
   task with a payout and no evaluator -- `evaluate` raises on that.
+  `failed` is `evaluate`'s: the errand's own failure, which leads.
   """
   task = getattr(errand, "task", "") or ""
   sample = SAMPLERS.get(task)
   if not task or sample is None:
     return None
-  return evaluate(task, sample(life, errand, result, before or {}), table=table)
+  return evaluate(task, sample(life, errand, result, before or {}), table=table,
+                  failed=failed)
 
 
 def score_charge(life, before: dict, table: RewardTable | None = None) -> Verdict:

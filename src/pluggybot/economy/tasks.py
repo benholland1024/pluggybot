@@ -802,10 +802,10 @@ class TaskBoard:
     answer for any name, and taking its dearest-measured fallback here would
     price a `carry` as a `census`.
 
-    ⚠ TARGET FIRST. This is the answer to the defect CLAUDE.md records under
-    issue #21: the estimate was per KIND, home's far whiteboard costs 0.14 Wh
+    ⚠ TARGET FIRST. This is the answer to issue #21's defect (docs/Rover.md,
+    "Energy on wheels"): the estimate was per KIND, home's far whiteboard costs 0.14 Wh
     more than its near one, and a job claimed at 88 %% drew perfectly and then
-    died on the way back. The note there says not to fix it by padding the
+    died on the way back. CLAUDE.md says not to fix it by padding the
     table, and this is why -- padding deletes the near board from the demo
     cell, while a second measured row costs nothing and is true.
     """

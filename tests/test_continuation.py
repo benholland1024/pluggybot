@@ -66,7 +66,7 @@ def _prelude(life, snap=None, max_sim_time: float = 600.0, day=None):
 
   life.at_loop_top.append(stop)
   with pytest.raises(_Stop):
-    life.mission.run(day)
+    life.body.run(day)
 
 
 def _history(life) -> list[str]:
@@ -139,11 +139,11 @@ def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   resets something: a robot at 5 % in minute 59 woke at 100 %."""
   life = _life(tmp_path)
   cfg = world_config("room_hub")
-  life.mission.start_at(*cfg["start"])
-  life.mission.start_discovery()
-  life.mission._drive(1.5, 0.15, 0.6)             # scans, a look, travel
+  life.body.start_at(*cfg["start"])
+  life.body.start_discovery()
+  life.body.mission._drive(1.5, 0.15, 0.6)             # scans, a look, travel
   life.battery.energy_wh = 0.37
-  life.map_done = True
+  life.floor_explored = True
   life.explore_deadline = 12.5
   snap = _saved(life, tmp_path)
 
@@ -152,13 +152,13 @@ def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   assert back.data.time == life.data.time
   assert np.array_equal(back.data.qpos, life.data.qpos)
   assert back.battery.energy_wh == 0.37
-  assert back.mission.pose == life.mission.pose
-  assert np.array_equal(back.mission.grid.grid, life.mission.grid.grid)
-  assert (life.mission.grid.grid != 0).any()     # the map had something in it
-  assert back.mission.rack == life.mission.rack
-  assert ([lm.x for lm in back.mission.finder.landmarks.landmarks]
-          == [lm.x for lm in life.mission.finder.landmarks.landmarks])
-  assert back.map_done and back.explore_deadline == 12.5
+  assert back.body.pose == life.body.pose
+  assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
+  assert (life.body.grid.grid != 0).any()     # the map had something in it
+  assert back.body.rack == life.body.rack
+  assert ([lm.x for lm in back.body.mission.finder.landmarks.landmarks]
+          == [lm.x for lm in life.body.mission.finder.landmarks.landmarks])
+  assert back.floor_explored and back.explore_deadline == 12.5
   # ...and it never went back to the start pose or spun: nothing moved
   assert back.data.time == life.data.time
 
@@ -170,18 +170,18 @@ def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
   and the route off it parted 3 s later; the depth camera has one too."""
   life = _life(tmp_path, near_field=True)
   cfg = world_config("room_hub")
-  life.mission.start_at(*cfg["start"])
-  life.mission._drive(0.6, 0.1, 0.4)
+  life.body.start_at(*cfg["start"])
+  life.body.mission._drive(0.6, 0.1, 0.4)
   snap = _saved(life, tmp_path)
-  life.mission._drive(0.6, 0.12, -0.3)
+  life.body.mission._drive(0.6, 0.12, -0.3)
 
   back = _life(tmp_path, near_field=True)
   back.begin(cfg["start"])
   continuation.restore([back], snap)
-  back.mission._drive(0.6, 0.12, -0.3)
+  back.body.mission._drive(0.6, 0.12, -0.3)
   assert np.array_equal(back.data.qpos, life.data.qpos)
-  assert back.mission.pose == life.mission.pose
-  assert np.array_equal(back.mission.grid.grid, life.mission.grid.grid)
+  assert back.body.pose == life.body.pose
+  assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
   assert np.array_equal(back.near_field.height, life.near_field.height,
                         equal_nan=True)
 
@@ -192,10 +192,10 @@ def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp
   free at 100 %. It comes back dead, its stand-up clock going on."""
   life = _life(tmp_path, mortal=True, restart_after_s=300.0)
   cfg = world_config("room_hub")
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.mission._drive(0.5, 0.0, 0.0)
   assert life.dead is not None and len(life.deaths) == 1
   left = life.reset_in_s
   snap = _saved(life, tmp_path)
@@ -204,7 +204,7 @@ def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp
   _prelude(back, snap)
   assert back.dead == life.dead
   assert back.reset_in_s == left
-  back.mission._drive(1.0, 0.0, 0.0)
+  back.body.mission._drive(1.0, 0.0, 0.0)
   assert back.deaths == []                        # no second death
   assert any("still down (flat)" in ln for ln in _history(back))
 
@@ -350,8 +350,8 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
   maps come back only into the world they were saved from."""
   life = _life(tmp_path)
   cfg = world_config("room_hub")
-  life.mission.start_at(*cfg["start"])
-  life.mission._drive(1.0, 0.2, 0.0)
+  life.body.start_at(*cfg["start"])
+  life.body.mission._drive(1.0, 0.2, 0.0)
   life.battery.energy_wh = 0.42
   snap = _saved(life, tmp_path)
   snap.meta["fingerprint"] = "another-world"
@@ -397,17 +397,17 @@ def test_the_keeper_saves_on_the_seam_and_a_signal_stops_at_a_step(tmp_path):
   path = tmp_path / "world.npz"
   keeper = continuation.Keeper([life], path, every_s=0.1)
   assert life.continuing
-  life.mission._drive(0.25, 0.0, 0.0)
+  life.body.mission._drive(0.25, 0.0, 0.0)
   assert keeper.saves == 2 and path.exists()
   meta = json.loads(str(np.load(path)["meta"]))
   assert meta["resumes"] == 0 and meta["world"] == "room_hub"
 
   life._standing_up = True
   keeper.request_stop("SIGTERM")
-  life.mission._drive(0.01, 0.0, 0.0)             # deferred, not raised
+  life.body.mission._drive(0.01, 0.0, 0.0)             # deferred, not raised
   life._standing_up = False
   with pytest.raises(MissionAborted, match="SIGTERM"):
-    life.mission._drive(0.01, 0.0, 0.0)
+    life.body.mission._drive(0.01, 0.0, 0.0)
 
 
 def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
@@ -419,8 +419,8 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   starts = (cfg["start"], cfg["start2"])
   lives = build_pair("room_hub")
   for life, start in zip(lives, starts):
-    life.mission.start_at(*start)
-  lives[1].mission._drive(0.8, 0.2, 0.3)
+    life.body.start_at(*start)
+  lives[1].body.mission._drive(0.8, 0.2, 0.3)
   lives[0].battery.energy_wh, lives[1].battery.energy_wh = 0.3, 0.6
   lives[0].encounters.count = 4
   path = tmp_path / "world.npz"
@@ -435,8 +435,8 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   assert np.array_equal(back[0].data.qpos, lives[0].data.qpos)
   for was, now in zip(lives, back):
     assert now.battery.energy_wh == was.battery.energy_wh
-    assert now.mission.pose == was.mission.pose
-    assert np.array_equal(now.mission.grid.grid, was.mission.grid.grid)
+    assert now.body.pose == was.body.pose
+    assert np.array_equal(now.body.grid.grid, was.body.grid.grid)
   assert back[0].encounters.count == 4
 
 
@@ -446,13 +446,13 @@ def test_a_world_saved_mid_charge_counts_travel_again_and_says_so(tmp_path):
   reckoner would never count travel again; the robot is told the charge
   was cut short instead."""
   life = _life(tmp_path)
-  life.mission.start_at(*world_config("room_hub")["start"])
-  life.mission.swap.pinned = True
+  life.body.start_at(*world_config("room_hub")["start"])
+  life.body.mission.swap.pinned = True
   life.state = "CHARGE"
   snap = _saved(life, tmp_path)
   back = _life(tmp_path)
   _prelude(back, snap)
-  assert back.mission.swap.pinned is False
+  assert back.body.mission.swap.pinned is False
   assert any("it cut my charge short" in ln for ln in _history(back))
 
 
@@ -465,12 +465,12 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   starts = (cfg["start"], cfg["start2"])
 
   def fly(lives):
-    tick.run_many([(life.mission.swap, life.mission._drive_routine(0.5, 0.15, w))
+    tick.run_many([(life.body.mission.swap, life.body.mission._drive_routine(0.5, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
   lives = build_pair("room_hub", near_field=True)
   for life, start in zip(lives, starts):
-    life.mission.start_at(*start)
+    life.body.start_at(*start)
   fly(lives)
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
@@ -484,8 +484,8 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   fly(back)
   assert np.array_equal(back[0].data.qpos, lives[0].data.qpos)
   for was, now in zip(lives, back):
-    assert now.mission.pose == was.mission.pose
-    assert np.array_equal(now.mission.grid.grid, was.mission.grid.grid)
+    assert now.body.pose == was.body.pose
+    assert np.array_equal(now.body.grid.grid, was.body.grid.grid)
     assert np.array_equal(now.near_field.height, was.near_field.height,
                           equal_nan=True)
 
@@ -501,13 +501,13 @@ def test_a_pen_stowed_after_a_restart_has_its_carriage_centred_first(tmp_path):
   errand's own does."""
   from pluggybot.procedure import steps
   life = _life(tmp_path)
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("room_hub")["start"])
   act = life.model.actuator("pen_carriage")
   qadr = int(life.model.joint("pen_carriage_joint").qposadr[0])
   life.data.ctrl[act.id] = 0.037
-  life.mission._drive(1.0, 0.0, 0.0)
+  life.body.mission._drive(1.0, 0.0, 0.0)
   assert life.data.qpos[qadr] > 0.03
-  life.mission.run(steps.carry_configuration_routine(life, "module_pen"))
+  life.body.run(steps.carry_configuration_routine(life, "module_pen"))
   assert abs(life.data.qpos[qadr]) < 0.002
 
 
@@ -568,15 +568,15 @@ def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
   robot that believed its map complete would never explore the empty one
   it has (found in review). Where it IS stays put."""
   life = _life(tmp_path)
-  life.mission.start_at(*world_config("room_hub")["start"])
-  life.map_done = True
+  life.body.start_at(*world_config("room_hub")["start"])
+  life.floor_explored = True
   life.blacklist = {(1, 2)}
   snap = _saved(life, tmp_path)
   snap.arrays["pluggybot/grid"] = np.zeros((4, 4))
   back = _life(tmp_path)
   _prelude(back, snap)
-  assert back.resumed["inPlace"] and back.mission.pose == life.mission.pose
-  assert not back.map_done and back.blacklist == set()
+  assert back.resumed["inPlace"] and back.body.pose == life.body.pose
+  assert not back.floor_explored and back.blacklist == set()
 
 
 def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp_path):
@@ -589,7 +589,7 @@ def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp
   back = _life(tmp_path)
   _prelude(back, snap)
   assert back.module == "module_lcd"
-  back.mission.swap.module_state(back.module)
+  back.body.mission.swap.module_state(back.module)
 
 
 def test_what_begin_says_is_stamped_on_the_restored_clock(tmp_path):
@@ -626,7 +626,7 @@ def test_an_offered_challenge_finds_its_props_where_the_offer_says(tmp_path):
   # ...and one against a robot's chassis, which is somebody's mid-job
   held = int(life.model.joint(int(life.model.body("block_2").jntadr[0])).qposadr[0])
   mujoco.mj_forward(life.model, life.data)            # the chassis box's centre
-  life.data.qpos[held:held + 3] = life.data.geom_xpos[life.mission.chassis_gid]
+  life.data.qpos[held:held + 3] = life.data.geom_xpos[life.body.mission.chassis_gid]
   mujoco.mj_forward(life.model, life.data)
   against = life.data.qpos[held:held + 3].copy()
   block = life.model.body("block_2").id
@@ -652,8 +652,8 @@ def test_a_pair_is_saved_after_every_robots_step_not_between_them(tmp_path):
   from pluggybot.pair import build_pair
   lives = build_pair("room_hub")
   keeper = continuation.Keeper(lives, tmp_path / "world.npz")
-  assert keeper.step_hook in lives[-1].mission.step_hooks
-  assert keeper.step_hook not in lives[0].mission.step_hooks
+  assert keeper.step_hook in lives[-1].body.step_hooks
+  assert keeper.step_hook not in lives[0].body.step_hooks
   assert all(life.continuing for life in lives)
 
 

@@ -5,7 +5,7 @@ A real servo takes a setpoint, a lead screw takes a target at a bounded
 speed, a motor controller takes (v, w). That is the finest grain an agent's
 program can honestly reach on real hardware, and it is the grain here:
 `move(axis, target)` walks ONE actuator's setpoint through
-`HubSwap.ramp_routine` (the ramping rule, inside the primitive), and
+`Body.ramp_routine` (the ramping rule, inside the primitive), and
 `read(sensor)` is one scalar off the world. Nothing below this level is
 reachable from a program -- the fence in tests/test_procedure.py lists who
 writes `data.ctrl`, and this module is not on it.
@@ -76,17 +76,17 @@ def _ramp(actuator: str, settle: float = 0.5):
     axis = next(a for a in AXES.values() if a.actuator == actuator)
     # a body axis (lift, arm) is THIS robot's; a tool's axis is the module's
     # and shared (issue #167) -- the handle says which
-    name = actuator if axis.requires else life.mission.swap.handle.el(actuator)
+    name = actuator if axis.requires else life.body.handle.el(actuator)
     act = life.model.actuator(name).id
-    yield from life.mission.swap.ramp_routine(act, float(target), axis.speed,
-                                              settle=settle)
+    yield from life.body.ramp_routine(act, float(target), axis.speed,
+                                      settle=settle)
   return run
 
 
 def _jaws(life, opening: float) -> Routine:
   """The claw's two actuators as one axis: 0 open .. 1 closed, ramped."""
-  from pluggybot.tools.gripper import ClawTool
-  claw = ClawTool(life.model, life.data, life.mission.swap)
+  from pluggybot.tools.gripper import CLAW_MODULE
+  claw = life.body.tool(CLAW_MODULE)
   yield from claw.jaws_routine(float(opening))
 
 
@@ -121,7 +121,7 @@ def _joint(life, name: str, body: bool = True) -> float:
   """A joint position, measured. `body` joints are this robot's (prefixed
   by its handle, issue #167); a module's joint is the world's."""
   if body:
-    name = life.mission.swap.handle.el(name)
+    name = life.body.handle.el(name)
   return float(life.data.qpos[life.model.joint(name).qposadr[0]])
 
 
@@ -158,10 +158,8 @@ def _claw_holding(life) -> float:
 
 def _seated(life) -> float:
   from pluggybot.procedure.steps import _carried
-  from pluggybot.rack.coupling import module_power_contact
   tool = _carried(life)
-  return 1.0 if tool and module_power_contact(
-    life.model, life.data, tool, life.mission.swap.handle.prefix) else 0.0
+  return 1.0 if tool and life.body.tool_powered(tool) else 0.0
 
 
 def _last_look(life, key: str, default: float) -> float:
@@ -188,7 +186,7 @@ def noise(life, key: str, sigma: float) -> float:
   and one world replays byte-identical. Seeded off a checksum rather than
   `hash()`, which Python salts per process."""
   step = int(round(float(life.data.time) / float(life.model.opt.timestep)))
-  prefix = getattr(getattr(getattr(life, "mission", None), "swap", None), "handle", None)
+  prefix = getattr(getattr(life, "body", None), "handle", None)
   tag = f"{key}:{getattr(prefix, 'prefix', '')}:{step}"
   seed = zlib.crc32(tag.encode())
   return float(np.random.default_rng(seed).normal(0.0, sigma))
@@ -200,7 +198,7 @@ def _lift_force(life) -> float:
   module holds. MEASURED (challenge/bench.py): a cube in the claw's jaws
   moves it by exactly `dm * g`. Read off the actuator's own force with a
   load cell's noise, so it is a scale exactly as far as a real one is."""
-  act = life.mission.swap.lift_act
+  act = life.body.actuator("lift")
   return float(life.data.actuator_force[act]) + noise(life, "lift.force", LOAD_NOISE_N)
 
 
@@ -220,7 +218,7 @@ SENSORS: dict[str, Sensor] = {
                        "what the mast's lead screw is pushing with, N (+ up): "
                        "at rest, the weight it carries, read with a load "
                        "cell's noise"),
-  "bumper": Sensor("bumper", lambda life: 1.0 if life.mission.swap.pressing else 0.0,
+  "bumper": Sensor("bumper", lambda life: 1.0 if life.body.pressing else 0.0,
                    "1 while the chassis presses against something"),
   "module.seated": Sensor("module.seated", _seated,
                           "1 when a module is on the fork and powered"),
@@ -238,6 +236,9 @@ SENSORS: dict[str, Sensor] = {
   "look.lateral": Sensor("look.lateral", lambda life: _last_look(life, "lateral", 0.0),
                          "its lateral offset, m, + to the camera's left"),
 }
+#: What a body with no arm can read (issue #387): its pack, its wallet,
+#: the clock and its bumper -- none of the mast's, the fork's or a tool's.
+BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
 
 
 #: The ramp as the public name a built tool registers its axes with
@@ -269,7 +270,7 @@ def setpoints(life, module: str | None) -> dict[str, float]:
         value = axis.setpoint(life)
       else:
         name = (axis.actuator if axis.requires
-                else life.mission.swap.handle.el(axis.actuator))
+                else life.body.handle.el(axis.actuator))
         value = float(life.data.ctrl[life.model.actuator(name).id])
     except KeyError:
       continue

@@ -16,6 +16,7 @@ import pytest
 
 from pluggybot import tick
 from pluggybot import lifecycle as lc
+from pluggybot.mission import rover
 from pluggybot.lifecycle import HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu
@@ -42,7 +43,7 @@ def _life(world: str = "room_hub", inbox=None, mortal=True,
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], errand=False,
                       inbox=inbox, mortal=mortal, **kw)
-  life.mission.start_at(*cfg["start"])
+  life.body.start_at(*cfg["start"])
   life.home_pose = tuple(cfg["start"])
   life.survival_since = float(data.time)
   return life
@@ -91,10 +92,10 @@ def test_a_pack_reaching_zero_is_a_flat_death_recorded_three_ways():
   robot record says `dead: flat`."""
   life = _life()
   seen = _events(life)
-  life.mission._drive(1.0, 0.0, 0.0)
+  life.body.mission._drive(1.0, 0.0, 0.0)
   assert life.dead is None and life.survival_s == pytest.approx(1.0, abs=0.05)
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.mission._drive(0.5, 0.0, 0.0)
   assert life.dead is not None and life.dead["cause"] == "flat"
   assert life.deaths == [life.dead]
   assert seen[-1]["type"] == "death" and seen[-1]["cause"] == "flat"
@@ -104,7 +105,7 @@ def test_a_pack_reaching_zero_is_a_flat_death_recorded_three_ways():
              for line in life.thoughts.volatile()[HISTORY])
   # ...and idempotent: a body that also topples afterwards is still one flat
   _topple(life)
-  life.mission._drive(3.0, 0.0, 0.0)
+  life.body.mission._drive(3.0, 0.0, 0.0)
   assert len(life.deaths) == 1 and life.dead["cause"] == "flat"
 
 
@@ -115,12 +116,12 @@ def test_a_robot_on_its_side_is_a_stuck_death_and_a_wobble_is_not():
   d = life.data
   d.qpos[3:7] = [math.cos(0.3), math.sin(0.3), 0.0, 0.0]
   mujoco.mj_forward(life.model, d)
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.mission._drive(0.5, 0.0, 0.0)
   assert life.dead is None
   _topple(life)
-  life.mission._drive(lc.TOPPLE_HOLD_S / 2, 0.0, 0.0)
+  life.body.mission._drive(lc.TOPPLE_HOLD_S / 2, 0.0, 0.0)
   assert life.dead is None, "held for less than TOPPLE_HOLD_S: not yet"
-  life.mission._drive(lc.TOPPLE_HOLD_S, 0.0, 0.0)
+  life.body.mission._drive(lc.TOPPLE_HOLD_S, 0.0, 0.0)
   assert life.dead is not None and life.dead["cause"] == "stuck"
   assert "knocked over" in life.dead["why"]
   assert seen[-1]["type"] == "death" and seen[-1]["cause"] == "stuck"
@@ -136,7 +137,7 @@ def test_a_robot_on_its_side_writes_nothing_into_its_map():
   from types import SimpleNamespace
   from pluggybot.mission.mission import MAP_TILT_RAD
   life = _life(near_field=True)
-  m = life.mission
+  m = life.body.mission
   lidar_z = float(life.data.site_xpos[m.lidar.site_id][2])
   assert MAP_TILT_RAD < math.atan2(lidar_z, m.lidar.max_range), \
       "tilted this far, the scan plane meets the floor inside the LIDAR's range"
@@ -183,10 +184,10 @@ def test_a_reset_rights_a_robot_on_its_side_in_the_garden():
   life = _life("home", inbox=Inbox())
   seen = _events(life)
   gx, gy = zone_centre("home", "garden")
-  life.mission.start_at(gx, gy, 0.0)
-  life.mission._drive(2.0, 0.0, 0.0)
+  life.body.start_at(gx, gy, 0.0)
+  life.body.mission._drive(2.0, 0.0, 0.0)
   _topple(life)
-  life.mission._drive(lc.TOPPLE_HOLD_S + 0.5, 0.0, 0.0)
+  life.body.mission._drive(lc.TOPPLE_HOLD_S + 0.5, 0.0, 0.0)
   assert life.dead is not None and life.dead["cause"] == "stuck"
   life.battery.energy_wh = 0.3 * life.battery.capacity_wh
   life.inbox.offer({"type": "reset_robot", "id": "rr_01", "from": "ben"})
@@ -212,8 +213,8 @@ def test_a_reset_is_refused_mid_swap(monkeypatch):
   """A module seated on the fork is a tool in use; warping the robot out
   from under it would MAKE the mess `reset_tool` exists to clean up."""
   life = _life(inbox=Inbox())
-  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
-  life.mission._drive(0.2, 0.0, 0.0)
+  monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
+  life.body.mission._drive(0.2, 0.0, 0.0)
   assert life.tool_powered, "the seam did not see the seated module"
   pose = life.data.qpos[:3].copy()
   life.inbox.offer({"type": "reset_robot", "id": "rr_02", "from": "ben"})
@@ -258,7 +259,7 @@ def test_a_dead_robot_with_an_inbox_waits_and_a_reset_resumes_the_day():
       sent[0] = True
       life.inbox.offer({"type": "reset_robot", "id": "rr_04", "from": "ben"})
 
-  life.mission.step_hooks.append(hook)
+  life.body.step_hooks.append(hook)
   life.stop_when(lambda: bool(life.resets) and life.state not in ("DEAD",))
   r = life.run(world_config("room_hub")["start"], max_sim_time=60.0,
                explore_budget=5.0)
@@ -272,9 +273,9 @@ def test_a_dead_robot_with_an_inbox_waits_and_a_reset_resumes_the_day():
 
 def test_the_next_decision_is_shown_the_death_and_the_clock():
   life = _life()
-  life.mission._drive(1.5, 0.0, 0.0)
+  life.body.mission._drive(1.5, 0.0, 0.0)
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.3, 0.0, 0.0)
+  life.body.mission._drive(0.3, 0.0, 0.0)
   ctx = ov.context_for(life, thoughts=life.thoughts)
   assert ctx["survival"]["deaths"] == 1
   assert ctx["survival"]["aliveS"] == pytest.approx(1.8, abs=0.2)
@@ -302,8 +303,10 @@ def test_the_robot_is_told_it_can_die_only_where_it_can():
   assert "YOU CAN DIE" not in rules(False)
   # ...and the flag ADDS a block and changes nothing else, so an immortal
   # world's cached prefix is what it was before issue #107 -- which is what
-  # keeps every existing run's prompt cache warm.
-  assert rules(True).replace(ov.MORTAL_RULE, "").strip() == rules(False).strip()
+  # keeps every existing run's prompt cache warm. (A world with no appetite
+  # is told the rule without its upkeep clauses, issue #387.)
+  assert rules(True).replace(ov.mortal_rule(appetite=False), "").strip() \
+      == rules(False).strip()
 
 
 def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():
@@ -320,7 +323,7 @@ def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():
   life = _life(mortal=False)
   assert life.mortal is False
   life.battery.energy_wh = 0.0
-  life.mission._drive(0.5, 0.0, 0.0)
+  life.body.mission._drive(0.5, 0.0, 0.0)
   assert life.dead is None and life.deaths == []
   r = life.run(world_config("room_hub")["start"], max_sim_time=30.0,
                explore_budget=5.0)
@@ -343,8 +346,8 @@ def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():
 def _dead_holding(monkeypatch, parked: bool, **kw):
   """A robot that died with a module still coupled, parked or mid-errand."""
   life = _life(inbox=Inbox(), **kw)
-  monkeypatch.setattr(lc, "module_power_contact", lambda *a, **k: True)
-  life.mission._drive(0.2, 0.0, 0.0)
+  monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
+  life.body.mission._drive(0.2, 0.0, 0.0)
   assert life.tool_powered, "the seam did not see the seated module"
   life._die("flat", "the pack reached zero")
   #  The day loop parks a dead robot only once the errand that killed it
@@ -381,7 +384,7 @@ def test_a_robot_parked_dead_holding_a_tool_is_stood_up_and_the_tool_goes_home(
     #  every prefix and every module, so the seam recomputes it True during
     #  the rescue -- a fact about the stub and not about the world.)
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_dead_robot_still_in_its_errand_waits_for_the_stow(monkeypatch):
@@ -397,7 +400,7 @@ def test_a_dead_robot_still_in_its_errand_waits_for_the_stow(monkeypatch):
     assert list(life.data.qpos[:3]) == pytest.approx(list(pose))
     assert life.resets == []
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_restart_timer_gets_a_parked_robot_up_with_a_tool_on_its_fork(
@@ -419,7 +422,7 @@ def test_the_restart_timer_gets_a_parked_robot_up_with_a_tool_on_its_fork(
     #  a dead robot, so there is nothing to contaminate.
     assert life.resets[-1]["intervention"] is False
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_every_admin_kind_treats_a_parked_dead_robot_the_same(monkeypatch):
@@ -439,7 +442,7 @@ def test_every_admin_kind_treats_a_parked_dead_robot_the_same(monkeypatch):
       life._visitor_step()
       assert "stow it first" not in life.status, kind
     finally:
-      life.mission.close()
+      life.body.close()
 
     still = _dead_holding(monkeypatch, parked=False, ledger=Ledger())
     try:
@@ -447,4 +450,4 @@ def test_every_admin_kind_treats_a_parked_dead_robot_the_same(monkeypatch):
       still._visitor_step()
       assert "stow it first" in still.status, kind
     finally:
-      still.mission.close()
+      still.body.close()

@@ -11,13 +11,14 @@ robots' bookkeeping. No robot ever blocks the other.
 Mutual awareness, the honest half: each mission is handed the other's
 REPORTED pose (`HubMission.others`) -- what a robot may know of another over
 the network -- so A* keeps clear of where it is now and a blocked drive waits
-for it to move; and each lidar DROPS the other's body from its scans
-(`Lidar.exclude_robot`), the way a fleet subtracts a broadcast footprint,
-because a robot that drives past otherwise paints a wake of inflated
-obstacle into the map and walls in the robot it passed (measured, and the
-reason the first attempt at a contested bay ended in "no route"). What is
-NOT here: the other robot as a mind -- that is the minds' slice (C) and the
-context they are shown.
+for it to move (or, while it lies on the floor, of where its BODY is: issue
+#365, `HubLifecycle.keep_clear`); and each lidar DROPS the other's body from
+its scans (`Lidar.exclude_robot`), the way a fleet subtracts a broadcast
+footprint, because a robot that drives past otherwise paints a wake of
+inflated obstacle into the map and walls in the robot it passed (measured,
+and the reason the first attempt at a contested bay ended in "no route").
+What is NOT here: the other robot as a mind -- that is the minds' slice (C)
+and the context they are shown.
 
 The rack is one rack: one charge bay, five tool bays, contended. Tool
 contention is the minds' to negotiate and this module arbitrates nothing; a
@@ -40,8 +41,8 @@ from pluggybot.lifecycle import (
 )
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
-from pluggybot.mission.mission import MissionAborted
 from pluggybot.robot import FIRST, SECOND, pair_model_name, world_spec
+from pluggybot.tick import MissionAborted
 
 
 #: The second robot's default display name; the first keeps `Pluggy`.
@@ -118,7 +119,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # after `compile()` -- and without it `can_reshape` refuses every build
   # with "this world was compiled without its spec", which is what the
   # deployed pair was hitting before it ever reached the pair rule below.
-  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix)
+  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
+                    body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -153,9 +155,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
-  charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
-    for i in range(len(handles)))
+  charters = tuple(constitutions.for_body(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
+    cfg.get("body", "rover")) for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,
@@ -205,17 +207,20 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
     # ...and the lost-tool clock is the world's (issue #347): one hand, on
     # the first robot's seam, or a tool would be put back twice
     life.lost_tool_after_s = None
-  # Each mission is told where the OTHERS say they are, its lidar drops
-  # their bodies from the scan (see the module doc and `Lidar.exclude_robot`),
-  # and its mind is shown what they broadcast (`peers`).
+  # Each mission is told where the OTHERS say they are (where they lie, once
+  # knocked over), its lidar drops their bodies from the scan (see the module
+  # doc and `Lidar.exclude_robot`), and its mind is shown what they broadcast
+  # (`peers`).
   for life in lives:
     others = [other for other in lives if other is not life]
     life.peers = others
-    life.mission.others = [other.mission.pose_xy for other in others]
+    life.body.others = [
+      (lambda other=other, me=life.body: other.keep_clear(seen_by=me))
+      for other in others]
     for other in others:
-      life.mission.lidar.exclude_robot(other.mission.handle.root)
+      life.body.know_peer(other.root)
       if life.depth_camera is not None:
-        life.depth_camera.exclude_robot(other.mission.handle.root)
+        life.depth_camera.exclude_robot(other.root)
   # The world's activities sense once per step, on the first robot's hooks:
   # they are the world's, and two copies would sense everything twice. The
   # pair's own -- the ENCOUNTERS between the two (activity/encounter.py) --
@@ -223,10 +228,10 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.encounter import Encounters
   activities = cfg["activities"](model, data) if cfg["activities"] else ActivitySet()
-  meetings = Encounters(model, lives[0].mission.handle, lives[1].mission.handle,
+  meetings = Encounters(model, lives[0].body.handle, lives[1].body.handle,
                         lives=lives)
   activities.add(meetings)
-  lives[0].mission.step_hooks.append(activities.step_hook(model, data))
+  lives[0].body.step_hooks.append(activities.step_hook(model, data))
   for life in lives:
     life.activities = activities
     life.encounters = meetings
@@ -252,7 +257,7 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
   task = board.offer(kind, lives[0].world, t=t)
   if task is None:
     raise ValueError(f"the board would not offer {kind}")
-  by_root = {life.mission.handle.root: life for life in lives}
+  by_root = {life.root: life for life in lives}
   # The referee is in the world's activities from the OFFER (idle, with no
   # roles yet), so the recording's header lists it and its flags ride every
   # frame; the roles are bound at the claim. It senses on the activity set's
@@ -283,17 +288,51 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
     claims = event.get("claims") or {}
     if set(claims) != {"hider", "seeker"}:
       return
-    game.assign(hider=by_root[claims["hider"]].mission.handle,
-                seeker=by_root[claims["seeker"]].mission.handle)
+    game.assign(hider=by_root[claims["hider"]].body.handle,
+                seeker=by_root[claims["seeker"]].body.handle)
     state["game"] = game
     if lives[0].activities is None:
-      lives[0].mission.step_hooks.append(lambda: game.sense(model, data))
+      lives[0].body.step_hooks.append(lambda: game.sense(model, data))
     game.on_over.append(settle)
     for life in lives:
       life._say(f"GAME {kind}: {by_root[claims['hider']].robot_name} hides, "
                 f"{by_root[claims['seeker']].robot_name} seeks")
   board.on_event.append(on_claim)
   return task, state
+
+
+def arrange_hazards(lives: list, fall_at: float, drain_at: float,
+                    who: int = 1) -> dict:
+  """The two things a scripted day never does by itself, done to ONE robot
+  of a quadruped pair on the clock (issue #387): it is knocked onto its side
+  at the first step past `fall_at` where it stands, and its pack is emptied
+  at `drain_at`. The body rights itself, and the loop kills it `flat` and
+  stands it up `restart_after_s` later -- so a day arranged this way flies
+  every posture and both deaths' halves the deployed pair can meet, and
+  hashes like any other day: nothing here reads a clock but the sim's.
+  Returns what it did, and when, for the caller to assert on."""
+  import math
+  from pluggybot.legs import body as qb
+  life = lives[who]
+  model, data = life.model, life.data
+  q = life.body.handle.qpos_adr(model)
+  v = life.body.handle.dof_adr(model)
+  done: dict = {"fell": None, "drained": None}
+
+  def hook() -> None:
+    t = float(data.time)
+    if (done["fell"] is None and t >= fall_at and life.dead is None
+        and life.body.posture == qb.STANDING):
+      data.qpos[q + 2] = 0.25                                    # on its side
+      data.qpos[q + 3:q + 7] = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
+      data.qvel[v:v + 6] = 0.0
+      mujoco.mj_forward(model, data)
+      done["fell"] = t
+    if done["drained"] is None and t >= drain_at:
+      life.battery.energy_wh = 0.0
+      done["drained"] = t
+  life.body.step_hooks.append(hook)
+  return done
 
 
 def record_pair(lives: list, path: str):
@@ -315,19 +354,19 @@ def record_pair(lives: list, path: str):
     boards=first.boards, ledger=(first.ledger._ledger
                                  if hasattr(first.ledger, "_ledger") else first.ledger),
     tasks=first.tasks, thoughts=first.thoughts, metabolism=first.metabolism,
-    grid=first.mission.grid, robot_name=first.robot_name,
+    grid=first.body.grid, robot_name=first.robot_name,
     heightmap=first.near_field,
     goals=ov.goals_text(thoughts=first.thoughts),
     steering=first.overseer is not None, overseer=first.overseer,
     tickets=first.tickets,
-    others=[StreamRobot(o.mission.handle.root, o.robot_name, o.telemetry_status,
+    others=[StreamRobot(o.root, o.robot_name, o.telemetry_status,
                         metabolism=o.metabolism, thoughts=o.thoughts,
                         goals=ov.goals_text(thoughts=o.thoughts),
-                        steering=o.overseer is not None, grid=o.mission.grid,
+                        steering=o.overseer is not None, grid=o.body.grid,
                         heightmap=o.near_field, overseer=o.overseer,
                         tickets=o.tickets)
             for o in others])
-  first.mission.step_hooks.append(recorder.step_hook)
+  first.body.step_hooks.append(recorder.step_hook)
   # ...and a recompiled world reaches its census (issues #168, #315). On
   # the FIRST robot alone, as its step hook is: `_recompile` rebinds every
   # lifecycle in the world, so a tool the second robot builds fires this
@@ -368,13 +407,13 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
     continuation.restore(lives, resume)
   aborted = False
   try:
-    tick.run_many([(life.mission.swap, day) for life, day in zip(lives, days)],
+    tick.run_many([(life.body.stepper, day) for life, day in zip(lives, days)],
                   name="pair")
   except MissionAborted:
     aborted = True
   finally:
     for life in lives:
-      life.mission.close()
+      life.body.close()
     if recorder is not None:
       recorder.close()
   return [life.end(aborted) for life in lives]

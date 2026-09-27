@@ -25,16 +25,11 @@ what the hardware will actually have.
 """
 
 import math
-import time
 
 import mujoco
 import numpy as np
-from scipy import ndimage
 
-from pluggybot.behavior.navigation import (
-  BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
-)
-from pluggybot.control import square_up_routine, wrap_angle
+from pluggybot.behavior.navigation import drive_toward
 from pluggybot.rack.coupling import (
   BAY_TAG_FACE_X, CHARGE_BAY_Y, CHARGE_TAG_X, HUB_STATION_YS, RACK_HANG_X,
   bay_tag_id, module_power_contact, rack_charge_contact,
@@ -49,12 +44,16 @@ from pluggybot.rack.swap import (
   ARM_EXT, CARRY_OFFSET, PICK_OVERSHOOT,
   PLUG_LATERAL, STANDOFF, VERTEX_AHEAD_OF_AXLE, HubSwap, align_lift,
 )
-from pluggybot.mapping.astar import astar, nearest_traversable
-from pluggybot.mapping.frontier import traversable_mask
-from pluggybot.mapping.occupancy_grid import OccupancyGrid
-from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar
+from pluggybot.perception.lidar import (
+  robot_geoms,
+)
+from pluggybot.navigator import (  # noqa: F401 -- re-exported: their old home
+  ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, DOWN_ROBOT_CELLS, DRIVE_GAVE_UP,
+  FACING_TOLERANCE, OTHER_ROBOT_CELLS, PEER_CLEARANCE_M, PEER_HOLD_S,
+  PEER_STOP_AHEAD_M, PEER_STOP_HALF_M, STAGNATION_S, Navigator, gave_up,
+)
 from pluggybot.robot import FIRST, RobotHandle
-from pluggybot.tick import Routine
+from pluggybot.tick import MissionAborted, Routine  # noqa: F401 -- its old home
 
 CHARGE_PIN_X = 0.114      # rack-local x of the pogo-pin faces
 CHARGE_STANDOFF = 0.42    # m out from the pin faces the creep starts at
@@ -85,7 +84,12 @@ CHARGE_PRESS_STALL_S = 4.0
 #: the lift is free to serve the camera; a mission arrives here with
 #: whatever height the last stow left, which is exactly the trap.
 CHARGE_LOOK_LIFT = 0.0
-FACING_TOLERANCE = math.radians(0.5)
+CHARGE_CREEP = 0.04         # m/s nosing into the pins
+CHARGE_PRESS = 0.012        # m/s held press while charging: the milestone-7
+                            # lesson -- contacts need sustained press, or the
+                            # suspension relaxes and the circuit opens
+CHARGE_APPROACH_MAX = 0.55  # m of creep before giving up on finding the pins
+UNDOCK_REVERSE = 0.30       # m backed off the rack afterwards
 #: A scan goes into the MAP only while the chassis is this close to level
 #: (issue #339). Tilted past 1.6 deg the scan plane meets the floor inside
 #: the LIDAR's 8 m (it sits 0.223 m up), and on its side half its rays see
@@ -98,6 +102,10 @@ FACING_TOLERANCE = math.radians(0.5)
 #: out. A skipped scan costs a tenth of a second of map; a wrong one costs
 #: the map. The reflex still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
+#: Whether a scan is aligned against the map before it is fused (issue
+#: #386, `mapping/scan_match.py`). A measurement's switch, never a
+#: deployment's: `scripts/drift_spike.py` flies the same day both ways.
+SCAN_MATCH = True
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 #: Swaps on SWAP_TIMESTEP, per MODEL (issue #264). The step is the model's
 #: and a pair shares one: the first robot out of its swap used to put the
@@ -301,71 +309,9 @@ class TagSpotter:
     self.detector.close()
 
 
-#: How far round another robot's believed centre A* keeps this robot's
-#: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
-#: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
-#: (0.15 m bare, 0.27 m armed) -- two armed robots passing at 0.62 m.
-OTHER_ROBOT_CELLS = 12
-#: A stagnated drive with another robot this close to us or to the goal is
-#: a robot in the way, and the drive WAITS this long before looking again.
-OTHER_NEAR_M = 1.2
-OTHER_WAIT_S = 2.0
-#: How close to the goal a stagnated drive counts as having arrived after
-#: all -- the tolerance the bay approach then measures its way out of.
-CLOSE_ENOUGH_M = 0.15
-#: ANOTHER ROBOT'S BODY IN THE WAY (issue #328), off the near-field depth
-#: camera's peer channel (`DepthFrame.peers`): a peer point nearer than
-#: this, inside the corridor this robot is about to drive through, holds
-#: the drive still until it clears.
-#:
-#: The numbers are MEASURED, not chosen. The corridor is the ROBOT: its
-#: widest parts are the tyres at 0.150 m either side of centre and the fork
-#: prongs at 0.143, so 0.20 leaves 50 mm and no more. The range is what the
-#: camera can actually deliver: a peer's nearest point sits at about
-#: (centre gap - 0.12) in this frame, so 0.60 m fires at a ~0.72 m gap
-#: where the frame carries 300-600 points of it -- and it has to fire up
-#: there, because below a ~0.4 m gap the peer's near face falls inside
-#: `depth.MIN_Z` (0.28 m) and the camera stops seeing the thing it is
-#: about to hit. The LIDAR's 0.25 m front stop is the floor under all of
-#: this and is unchanged; it sees the mast alone (issue #316).
-PEER_STOP_AHEAD_M = 0.60
-PEER_STOP_HALF_M = 0.20
-#: How long a sighting stays worth acting on: three frames at
-#: `depth.PERIOD`. A hold that outlived the sighting would be a robot
-#: standing still because something USED to be there, which is the mistake
-#: the map makes and the reason the peer channel exists at all.
-PEER_HOLD_S = 0.3
-#: ⚠ AND THE HOLD IS AGAINST THE TRAVEL LEFT, NOT AGAINST THE CAMERA
-#: (issue #328). A robot with 0.1 m still to drive cannot reach a peer
-#: 0.5 m ahead, and holding for one is how a robot parked BESIDE the
-#: charge bay stopped the other robot charging at all: measured, a peer
-#: 0.50-0.56 m from the charge standoff took the approach from 96 s and a
-#: dock to 201 s and none, because arriving at the standoff turns the
-#: robot to face the rack and sweeps a body it will never travel into
-#: through the corridor. So the drive holds only for a peer nearer than
-#: what is left of the drive plus this: the robot's front face, which
-#: rides 0.20 m ahead of the axle the points are measured from, and
-#: 0.10 m of clearance behind it.
-PEER_CLEARANCE_M = 0.30
-#: A drive's LAST leg -- its final waypoint and the goal itself -- is a
-#: terminal approach (`drive_toward(slow_radius=)`, navigation.py's rule),
-#: tapering over this many metres. The path waypoints before it keep the
-#: sweeping law. MEASURED (issue #277): a stow begun 13 cm from the bay's
-#: standoff -- a procedure that fetches a tool, tries it where it stands
-#: and stows it -- handed the plain law a goal closer than its overshoot
-#: and orbited it, 690 deg of turning in 16 s; whether the stagnation cut
-#: then landed inside `drive_to`'s 15 cm "close enough" was a coin the map
-#: tossed, and the built-tool rail beside bay E turned it over. The
-#: dispenser's own hops use the same 0.25 (`tools/dispenser.py`).
-ARRIVAL_SLOW_RADIUS = 0.25
-
-
-class MissionAborted(RuntimeError):
-  """The viewer window was closed mid-mission."""
-
-
-class HubMission:
-  """Navigate room_hub to the rack, swap a tool, bring it back.
+class HubMission(Navigator):
+  """Navigate room_hub to the rack, swap a tool, bring it back: the rover's
+  half, over the `Navigator` every body shares (`navigator.py`).
 
   Pass a passive mujoco viewer to watch it live: every phase of both the
   mission and the swap bottoms out in HubSwap._step_once, so one hook there
@@ -375,17 +321,15 @@ class HubMission:
   robot's actual speed.
   """
 
-  VIEW_PERIOD = 0.02       # s of sim time between viewer syncs
-
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                rack: RackPose | None = None,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
                handle: RobotHandle = FIRST) -> None:
-    self.model, self.data = model, data
-    #: WHICH ROBOT (issue #167). The swap, the lidar, the cameras and every
-    #: element below resolve through it; `FIRST` is the bare names.
-    self.handle = handle
     self.swap = HubSwap(model, data, handle=handle)
+    # ...the map, the LIDAR and the drive, read `SCAN_MATCH` off this
+    # module at construction, where `drift_spike.py` and the tests set it
+    super().__init__(model, data, handle=handle, grid_bounds=grid_bounds,
+                     viewer=viewer, realtime=realtime, match=SCAN_MATCH)
     # What the robot believes about the rack. The prior is what a robot
     # that booted on its dock knows; discover_rack() replaces it with what
     # the robot has actually seen.
@@ -410,28 +354,11 @@ class HubMission:
     self.fix_source = ""
     self.refine_blocked = False   # `refine_standoff` ran out of budget short
     self._next_look = 0.0
-    self.viewer = viewer
-    self.realtime = realtime
-    self._next_sync = 0.0
-    self._wall0 = time.time()
-    # Callbacks run on EVERY physics step, whatever phase is driving (both
-    # the mission and the swap bottom out in HubSwap._step_once). The
-    # battery hooks in here: energy must drain in lockstep with the physics,
-    # not per phase, or a long terminal creep is free.
-    self.step_hooks: list = []
+    # Both the mission and the swap bottom out in HubSwap._step_once: the
+    # step hooks run from there.
     self.swap.on_step = self._on_step
-    self.lidar = Lidar(model, site_name=handle.el("lidar"),
-                       robot_body=handle.root)
-    self._next_scan = 0.0
-    # Bounds are per-WORLD (issue #6): room_hub keeps its historical box,
-    # home_world passes its own from the generator's meta -- a grid sized
-    # for one room silently truncates every scan beyond its edge.
-    gx0, gy0, gx1, gy1 = grid_bounds
-    self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
-                              resolution=0.05)
     self.tags = TagSpotter(model, handle=handle)
     self.cruise_timestep = model.opt.timestep
-    self.backoff_until = 0.0
     #: Set by `swap_at_bay_routine` when it gave a bay up because another
     #: robot was standing on its standoff (issue #313), cleared at the top
     #: of every attempt: how far off that robot said it was. The caller
@@ -450,25 +377,7 @@ class HubMission:
     #: its verdict; None otherwise. The lost-tool clock (issue #347) leaves
     #: that bay's module alone, whatever the module_state says mid-swap.
     self.swapping_at: float | None = None
-    #: The peer stop (issue #328): the last sighting in the corridor ahead
-    #: -- how far off it was and when -- and how many times a drive has
-    #: actually HELD for one. Episodes, not frames, and counted where the
-    #: hold happens rather than where the sighting does: a robot that sees
-    #: the other one while parked has not changed what it was doing, and
-    #: "how often did this change anything" is the number that says
-    #: whether any of it helps.
-    self.peer_seen_m: float | None = None
-    self.peer_seen_t = 0.0
-    self.peer_holds = 0
-    self.step_count = 0
-    self.collision_steps = 0
     self._resolve(model)
-    #: THE OTHER ROBOTS (issue #167): callables returning each one's believed
-    #: (x, y), read at plan time so A* routes round a footprint the lidar
-    #: may not have marked yet. What a robot may know of another over the
-    #: network is its reported pose -- odometry is a work order's kind of
-    #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
-    self.others: list = []
 
   def _resolve(self, model) -> None:
     """Every id this mission caches, by name. Shared by `__init__` and
@@ -478,6 +387,10 @@ class HubMission:
     self._charge_pin_gids = {model.geom("rack_pin_l").id,
                              model.geom("rack_pin_r").id}
     self._pin_gids_array = np.array(sorted(self._charge_pin_gids))
+    #: This robot's geoms, root and subtree: what another robot's sensors
+    #: attribute to it (issue #365).
+    self.body_gids = np.array(sorted(robot_geoms(model, self.handle.root)),
+                              dtype=np.int32)
 
   def rebind(self, model, data) -> None:
     """Point the mission and everything it owns at a recompiled world
@@ -498,6 +411,8 @@ class HubMission:
     where the rack is and what it has seen of it, the map, and the clocks
     its sensors run on. JSON, and the grid as an array."""
     r, sw = self.swap.reckoner, self.swap
+    match, match_arrays = (self.matcher.kept_state() if self.matcher is not None
+                           else (None, {}))
     finder = self.finder or self._closed_finder
     marks = ([] if finder is None else
              [[lm.x, lm.y, lm.z, lm.n_sightings, lm.seen_from_x,
@@ -516,8 +431,9 @@ class HubMission:
              "lidarRng": [self.lidar.rng.bit_generator.state,
                           self.lidar.peer_rng.bit_generator.state],
              "press": {"pressing": sw.pressing, "side": sw._press_side,
-                       "until": sw._press_until}},
-            {"grid": self.grid.grid})
+                       "until": sw._press_until},
+             "imu": sw.imu.kept_state(), "match": match},
+            {"grid": self.grid.grid, **match_arrays})
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
     """Put `kept_state` back, into a world whose bodies are where it was
@@ -556,26 +472,13 @@ class HubMission:
     self.swap.pressing = bool(press.get("pressing", False))
     self.swap._press_side = float(press.get("side", 0.0))
     self.swap._press_until = float(press.get("until", -1.0))
+    # ...and the sensors a save before #386 did not have: a fresh draw
+    # then, and a field computed off the restored map at the first scan
+    if state.get("imu"):
+      self.swap.imu.restore_kept(state["imu"])
+    if self.matcher is not None and state.get("match") and mapped:
+      self.matcher.restore_kept(state["match"], arrays)
     return mapped
-
-  def _on_step(self) -> None:
-    for hook in self.step_hooks:
-      hook()
-    if self.viewer is not None:
-      self._sync()
-
-  def _sync(self) -> None:
-    """Viewer tick, called from every physics step (decimated + paced)."""
-    if self.data.time < self._next_sync:
-      return
-    self._next_sync = self.data.time + self.VIEW_PERIOD
-    if not self.viewer.is_running():
-      raise MissionAborted("viewer closed")
-    self.viewer.sync()
-    if self.realtime:
-      ahead = self.data.time - (time.time() - self._wall0)
-      if ahead > 0:
-        time.sleep(min(ahead, 0.05))
 
   def level(self) -> bool:
     """Whether the chassis is level enough for a scan to be a map of the
@@ -593,6 +496,15 @@ class HubMission:
     r = self.swap.reckoner
     return r.x, r.y, r.theta
 
+  def _set_pose(self, x: float, y: float, theta: float) -> None:
+    r = self.swap.reckoner
+    r.x, r.y, r.theta = x, y, theta
+
+  @property
+  def pressing(self) -> bool:
+    """The bumper (issue #94)."""
+    return self.swap.pressing
+
   def true_pose(self) -> tuple[float, float, float]:
     """Where the robot IS, in `pose`'s terms: the axle midpoint and the
     heading, off the root joint. The heading is the chassis's forward axis
@@ -608,15 +520,6 @@ class HubMission:
     # the chassis body origin rides 0.08 m ahead of the axle midpoint
     return (float(d.qpos[q]) - 0.08 * fx, float(d.qpos[q + 1]) - 0.08 * fy,
             math.atan2(fy, fx))
-
-  def truth_error(self) -> list[float]:
-    """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
-    dead reckoning has drifted by, for a failed swap's trace (issue #264)."""
-    ax, ay, yaw = self.true_pose()
-    bx, by, bth = self.pose
-    dyaw = (bth - yaw + math.pi) % (2 * math.pi) - math.pi
-    return [round(1000 * (bx - ax), 1), round(1000 * (by - ay), 1),
-            round(math.degrees(dyaw), 2)]
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Place the robot and initialize odometry from the known start pose."""
@@ -636,7 +539,7 @@ class HubMission:
     mujoco.mj_forward(self.model, d)
     r = self.swap.reckoner
     r.x, r.y, r.theta = x, y, yaw
-    r.update(float(d.qpos[self.swap.left_adr]), float(d.qpos[self.swap.right_adr]))
+    r.update(*self.swap.encoders())
     self._drive(1.0, 0.0, 0.0)
 
   # ---- navigation plumbing -------------------------------------------------
@@ -650,26 +553,12 @@ class HubMission:
   def run(self, routine, name: str = ""):
     return self.swap.run(routine, name)
 
-  def _drive(self, seconds: float, v: float, w: float) -> None:
-    return self.run(self._drive_routine(seconds, v, w))
-
-  def _drive_routine(self, seconds: float, v: float, w: float) -> Routine:
-    for _ in range(round(seconds / self.model.opt.timestep)):
-      yield from self._nav_routine(v, w)
-
   def _nav_step(self, tl: float, tr: float) -> None:
     """One physics step with scanning, tag-looking + collision bookkeeping."""
     self.swap._step_once(tl, tr)
     self._after_step()
 
-  def _nav_routine(self, v: float, w: float) -> Routine:
-    """`_nav_step` as a routine: the step is the yield, the bookkeeping runs
-    when the driver resumes -- after the step, as before."""
-    yield v, w
-    self._after_step()
-
-  def _after_step(self) -> None:
-    self.step_count += 1
+  def _look_step(self) -> None:
     # Look for the rack tag on a cadence through EVERY maneuver, not just
     # during the opening spin. Measured why: from the demo's start pose the
     # floor-box occludes the rack tag entirely (the sight line runs below
@@ -684,32 +573,8 @@ class HubMission:
       # rack moved the rack belief 0.1-1.4 m (measured, 5 of 8 falls).
       if self.level():
         self.finder.look(self.data, self.pose)
-    # Scan on a TIME cadence at the part's real rate. The camera scanner ran
-    # every 20 physics steps (50 Hz) because a depth render is free in sim; a
-    # spinning mirror is not, and pretending otherwise would let the mapper
-    # rely on data the hardware cannot deliver.
-    if self.data.time >= self._next_scan:
-      self._next_scan = self.data.time + LIDAR_PERIOD
-      # ⚠ ONE SCAN, TWO CONSUMERS WITH OPPOSITE NEEDS (issue #316). The MAP
-      # must not contain another robot -- painted in and inflated, a robot
-      # driving past walls in the robot it passed (issue #167) -- and the
-      # REFLEX must, because the other robot is the only thing in the world
-      # that moves. Excluding it from the scan silenced both, and the 0.25 m
-      # stop that holds this robot off a wall, a doorpost and a bed was
-      # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
-      if self.level():
-        self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                         origin=LIDAR_ORIGIN)
-      if self.data.time >= self.backoff_until:
-        all_angles = np.concatenate((angles, peer_angles))
-        all_ranges = np.concatenate((ranges, peer_ranges))
-        front = all_ranges[np.abs(all_angles) < 0.35]
-        # front can be EMPTY: those bearings may all be self-occluded (the
-        # arm crosses the scan plane at some lift heights). No reading is not
-        # a clear path -- hold course rather than inventing one.
-        if front.size and front.min() < FRONT_STOP_RANGE:
-          self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _contact_step(self) -> None:
     # The chassis's contacts off the array view (rooftop #296), not a
     # Python loop over every contact in the world each step.
     g = self.data.contact.geom[:self.data.ncon]
@@ -721,16 +586,6 @@ class HubMission:
       others = np.where(g[mine, 0] == self.chassis_gid, g[mine, 1], g[mine, 0])
       if not np.isin(others, self._pin_gids_array).all():
         self.collision_steps += 1
-
-  def _spin(self) -> None:
-    return self.run(self._spin_routine())
-
-  def _spin_routine(self) -> Routine:
-    """A 360 look-around: seeds the map (and tag sightings, via _nav_step)."""
-    remaining = 2 * math.pi
-    while remaining > 0:
-      yield from self._nav_routine(0.0, W_SPIN)
-      remaining -= W_SPIN * self.model.opt.timestep
 
   def start_discovery(self) -> None:
     """Begin watching for the rack tag (every maneuver from here on)."""
@@ -754,277 +609,7 @@ class HubMission:
       self.rack_discovered = True
     return found
 
-  def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
-    trav = traversable_mask(self.grid.grid)
-    self._mask_others(trav)
-    rows, cols = trav.shape
-    # The halo escape, shared with `navigation.plan` since issue #92 -- this
-    # inline version is where the idea was born, and exploration's planner
-    # not having it is what let a sealed-in robot declare the house mapped.
-    start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
-    if start is None:
-      return None
-    goal = self.grid.world_to_cell(wx, wy)
-    goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
-    if not trav[goal[1], goal[0]]:
-      # The goal sits in unknown or inflated space. Plan to the nearest
-      # cell OF THIS ROBOT'S OWN COMPONENT instead -- the 4-connected
-      # component its start cell is in, `astar`'s own neighbourhood:
-      # driving there grows the map toward the goal, and the next replan
-      # gets closer. (A blind greedy advance was tried first and measured
-      # awful: it rammed the floor-box's reflex zone forever, ignoring the
-      # very map it was building.)
-      # ⚠ OWN COMPONENT, not the nearest free cell anywhere (issue #298):
-      # the bedroom seen through its doorway leaves one-cell islands of
-      # free space near whiteboard_b, the island nearest the board's use
-      # pose was one cell nearer than the reachable wedge beside it,
-      # `astar` answered None and the drive gave up in 0 s -- the board
-      # paid nobody in 30 deployed hours, and never did in a single-robot
-      # flight. ⚠ A TRAVERSABLE goal in another component still plans
-      # None, deliberately: that is a frontier behind the other robot, and
-      # explore's strike logic counts on the drive stepping nothing
-      # (`test_explore_does_not_spin_when_the_other_robot_blocks_...`).
-      labels, _ = ndimage.label(trav)
-      ys, xs = np.nonzero(labels == labels[start[1], start[0]])
-      if len(xs) == 0:
-        return None
-      d2 = (xs - goal[0]) ** 2 + (ys - goal[1]) ** 2
-      k = int(np.argmin(d2))
-      goal = (int(xs[k]), int(ys[k]))
-    path = astar(trav, start, goal)
-    return None if path is None else path_to_waypoints(self.grid, path)
-
-  def drive_to(self, wx: float, wy: float, timeout: float = 90.0) -> bool:
-    return self.run(self.drive_to_routine(wx, wy, timeout))
-
-  def drive_to_routine(self, wx: float, wy: float,
-                       timeout: float = 90.0) -> Routine:
-    """A*-navigate to a world point, arriving within 8 cm. Plans through
-    known space only, targeting the reachable cell nearest the goal until
-    the goal itself becomes reachable. Gives up on stagnation (no progress
-    toward the goal for 10 sim-seconds)."""
-    waypoints: list[tuple[float, float]] = []
-    next_replan = 0.0
-    holding = False                    # is this drive standing for a peer
-    t0 = self.data.time
-    best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
-    last_improve = t0
-    while self.data.time - t0 < timeout:
-      dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
-      if dist < 0.08 and not waypoints:
-        return True
-      if dist < best_dist - 0.02:
-        best_dist, last_improve = dist, self.data.time
-      elif self.data.time - last_improve > 10.0:
-        if self._other_in_the_way(wx, wy):
-          # ANOTHER ROBOT IS WHERE THIS ONE NEEDS TO BE (issue #167). A
-          # blocked route is a wait, not a failure: stand still, let it
-          # move, look again -- bounded by `timeout`, which is the whole
-          # of this robot's patience. Giving up here was measured: two
-          # robots sent for the same bay, and the first to arrive reported
-          # "no route" after 16 s with the other crossing its path.
-          yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
-          last_improve = self.data.time
-          waypoints = []
-          continue
-        return dist < CLOSE_ENOUGH_M     # stagnated: close enough or fail
-      peer_m = self.peer_sighting()
-      if peer_m is not None and peer_m < dist + PEER_CLEARANCE_M:
-        # ⚠ A ROBOT IS HELD FOR, NOT BACKED AWAY FROM (issue #328), and the
-        # branch sits above the backoff for that reason. The wall reflex
-        # reverses because a wall will still be there in a second and
-        # reversing is what buys the room to plan round it; the other robot
-        # is the one obstacle in this world that MOVES, so standing still
-        # costs a second and solves it -- and the reverse is blind behind,
-        # which is a poor thing to do near the only other thing that drives.
-        # ⚠ ...AND ONLY FOR A BODY THIS DRIVE COULD REACH (`PEER_CLEARANCE_M`):
-        # holding for one it stops short of is what took a charge from 96 s
-        # to never.
-        # Bounded by `timeout` like every other wait here, and the drive
-        # stagnates honestly if the other robot never moves.
-        if not holding:
-          self.peer_holds += 1
-          holding = True
-        yield from self._nav_routine(0.0, 0.0)
-        waypoints = []
-        continue
-      holding = False
-      if self.data.time < self.backoff_until:
-        yield from self._nav_routine(-0.15, 0.0)
-        waypoints = []
-        continue
-      if self.data.time >= next_replan or not waypoints:
-        next_replan = self.data.time + 2.0
-        planned = self._plan_to(wx, wy)
-        if planned is None:
-          return dist < CLOSE_ENOUGH_M   # no known space at all
-        waypoints = planned
-      while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
-                                     waypoints[0][1] - self.pose[1]) < 0.08:
-        waypoints.pop(0)
-      # The last waypoint is the goal's cell and the goal is 8 cm at most
-      # beyond it: both are the final approach, and get the law that
-      # cannot orbit (ARRIVAL_SLOW_RADIUS); every waypoint before them is
-      # swept through.
-      if len(waypoints) > 1:
-        v, w = drive_toward(self.pose, waypoints[0])
-      else:
-        v, w = drive_toward(self.pose, waypoints[0] if waypoints else (wx, wy),
-                            slow_radius=ARRIVAL_SLOW_RADIUS)
-      yield from self._nav_routine(v, w)
-      if self.swap.pressing:
-        # The BUMPER reflex (issue #94), the lidar reflex's twin for what
-        # the scan plane (0.223 m) looks straight over: back off and replan
-        # rather than grind. The reckoner already holds its travel through
-        # a press, so a robot that keeps meeting the same unseen thing now
-        # stagnates honestly above -- where before it "arrived" at a point
-        # it never reached, 4 m of imaginary travel later.
-        self.backoff_until = self.data.time + BACKOFF_TIME
-    return False
-
-  def face(self, heading: float) -> bool:
-    return self.run(self.face_routine(heading))
-
-  def face_routine(self, heading: float) -> Routine:
-    """Turn in place to `heading`. False if the budget ran out first
-    (issue #108) -- a robot that cannot turn must not be a robot that never
-    gets back to the arbitration loop."""
-    _, squared = yield from square_up_routine(
-      lambda: wrap_angle(heading - self.pose[2]),
-      lambda w: self._nav_routine(0.0, w),
-      lambda: self._drive_routine(0.5, 0.0, 0.0),
-      lambda: float(self.data.time), tol=FACING_TOLERANCE, tries=1,
-      done_within=float("inf"), gain=2.5, limit=1.0)
-    return squared
-
   # ---- the mission ---------------------------------------------------------
-
-  def _other_in_the_way(self, wx: float, wy: float) -> bool:
-    """Is another robot within reach of this one, or of its goal?"""
-    px, py, _ = self.pose
-    for where in self.others:
-      ox, oy = where()
-      if (math.hypot(ox - px, oy - py) < OTHER_NEAR_M
-          or math.hypot(ox - wx, oy - wy) < OTHER_NEAR_M):
-        return True
-    return False
-
-  def peer_ahead(self, points) -> float | None:
-    """The nearest point of ANOTHER ROBOT's body in the corridor this one
-    is about to drive through, or None (issue #328).
-
-    Points are the depth camera's peer channel, in the robot frame: x
-    ahead of the axle, y to its left. The test is the robot's own
-    footprint swept forward, not a cone -- a cone is what the LIDAR's front
-    stop has, and it is why a peer 0.25 m across the bow put ZERO rays in
-    it while its chassis was still wide enough to clip (measured, issue
-    #328). Height is not tested: a robot is solid all the way up, and the
-    only points here are a robot's.
-    """
-    if points is None or len(points) == 0:
-      return None
-    x, y = points[:, 0], points[:, 1]
-    ahead = ((x > 0.0) & (x <= PEER_STOP_AHEAD_M)
-             & (np.abs(y) <= PEER_STOP_HALF_M))
-    return float(x[ahead].min()) if ahead.any() else None
-
-  def watch_for_peers(self, points) -> float | None:
-    """One depth frame's peer channel, recorded (issue #328): how far off
-    the nearest body in the corridor was, and when it was seen.
-
-    The seam only SEES. Whether a sighting is worth stopping for depends
-    on how far this robot still has to drive, which is the drive's
-    business and nobody else's -- the same division the front stop makes,
-    where the scan arms a clock and `drive_to_routine` decides what to do
-    about it.
-    """
-    near = self.peer_ahead(points)
-    if near is not None:
-      self.peer_seen_m, self.peer_seen_t = near, float(self.data.time)
-    return near
-
-  def peer_sighting(self) -> float | None:
-    """The last peer sighting if it is still fresh (`PEER_HOLD_S`), else
-    None -- a sighting that has aged out is where the robot USED to be."""
-    if (self.peer_seen_m is None
-        or self.data.time - self.peer_seen_t > PEER_HOLD_S):
-      return None
-    return self.peer_seen_m
-
-  def peer_on_the_goal(self, wx: float, wy: float) -> float | None:
-    """How far off the nearest robot standing ON this goal is, or None.
-
-    ARITHMETIC, NOT A GUESS (issue #313). `_mask_others` takes a disc of
-    `OTHER_ROBOT_CELLS` (0.60 m) out of the traversable mask around every
-    other robot's reported pose, so when the goal is inside one the nearest
-    cell A* may plan to is `radius - distance` away from it -- and a drive
-    that stagnates there is only called arrived inside `CLOSE_ENOUGH_M`.
-    A peer nearer the goal than the difference (0.45 m) therefore makes
-    arrival IMPOSSIBLE, however many attempts are spent on it.
-
-    That is the whole of #313: a robot parked at one bay's standoff is
-    0.26 m from its neighbour's, the best reachable point is 0.35 m short,
-    and three pick attempts out of three failed at "no route" -- while the
-    same robot 0.56 m away leaves 0.06 m and three out of three land. It
-    is not contention, contact or the planner: nothing the swap does can
-    reach a goal the map has been told to keep it out of.
-
-    The distance is to the REPORTED pose (a network fact, drifting
-    0.24-0.55 m on the deployed pair), which is also what the mask uses --
-    so this answers the question the planner actually asked.
-    """
-    if not self.others:
-      return None
-    radius = OTHER_ROBOT_CELLS * self.grid.resolution - CLOSE_ENOUGH_M
-    near = min((math.hypot(ox - wx, oy - wy)
-                for ox, oy in (where() for where in self.others)), default=None)
-    return near if near is not None and near < radius else None
-
-  def reachable(self, points) -> list[bool]:
-    """Which world points this robot could plan to right now (issue #346):
-    traversable after the other robots are masked out, and in the SAME
-    4-connected component as its own start cell -- `_plan_to`'s own two
-    tests, asked of candidates rather than of one goal."""
-    trav = traversable_mask(self.grid.grid)
-    self._mask_others(trav)
-    start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
-    if start is None:
-      return [False] * len(points)
-    labels, _ = ndimage.label(trav)
-    own = labels[start[1], start[0]]
-    rows, cols = trav.shape
-    out = []
-    for wx, wy in points:
-      cx, cy = self.grid.world_to_cell(wx, wy)
-      out.append(0 <= cx < cols and 0 <= cy < rows
-                 and bool(trav[cy, cx]) and labels[cy, cx] == own)
-    return out
-
-  def _mask_others(self, trav) -> None:
-    """Take every other robot's footprint out of the traversable mask,
-    inflated as the map's obstacles are (issue #167). This is where the
-    other robot SAYS it is now -- a network fact, refreshed every replan.
-    Its body is in no scan of this robot's (`Lidar.scan_split`: the map
-    never sees another robot, and since issue #316 the front-stop reflex
-    always does), so the mask is the only thing routing around it.
-    ⚠ A goal INSIDE one of these discs cannot be reached at all --
-    `peer_on_the_goal` is that arithmetic, and callers ask it before
-    spending another attempt on a drive that has nowhere to arrive."""
-    if not self.others:
-      return
-    rows, cols = trav.shape
-    r = OTHER_ROBOT_CELLS
-    for where in self.others:
-      ox, oy = where()
-      cx, cy = self.grid.world_to_cell(ox, oy)
-      x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
-      y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
-      if x0 >= x1 or y0 >= y1:
-        continue
-      ys, xs = np.ogrid[y0:y1, x0:x1]
-      trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
 
   def steer_fn(self, tag_id: int, target: float = 0.0):
     """Terminal-servo callback for HubSwap: steer on ONE named bay marker,
@@ -1312,8 +897,7 @@ class HubMission:
     """One look of the charge approach, into `last_charge` (issue #346)."""
     px, py, _ = self.pose
     sx, sy, _ = charge_standoff(self.rack_prior)
-    peers = [math.hypot(ox - sx, oy - sy)
-             for ox, oy in (where() for where in self.others)]
+    peers = [math.hypot(b.x - sx, b.y - sy) for b in self._bodies()]
     self.last_charge["attempts"].append({
       "fix": fix is not None, "err": self.truth_error(),
       "fromStandoffM": round(math.hypot(px - sx, py - sy), 3),

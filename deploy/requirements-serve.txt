@@ -1,11 +1,9 @@
 # The serving image's dependencies -- deliberately NOT the project's.
 #
 # `scripts/serve.py` imports mujoco, numpy, scipy, pillow and websockets and
-# nothing else; the rest of pyproject.toml (torch, ultralytics,
-# stable-baselines3, gymnasium, the apriltag libraries) belongs to training,
-# dataset generation and the detector, none of which run on the serving box.
-# Installing it there would pull a ~3 GB CUDA torch wheel onto a machine with
-# no GPU.
+# nothing else; the rest of pyproject.toml (the demo-video encoder, the
+# apriltag GENERATOR) runs at a desk, never on the serving box. Training
+# dependencies, when a body needs them (issue #375), stay out of this file.
 #
 # Versions are the ones in uv.lock, and `tests/test_deploy.py` fails if this
 # file drifts from it or if the serve path grows an import that is not here --

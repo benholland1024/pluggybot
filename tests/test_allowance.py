@@ -400,11 +400,11 @@ def test_an_unreadable_or_unknown_mode_fails_OPEN(tmp_path):
 def test_free_mode_makes_no_api_call_and_still_decides(tmp_path):
   """`scripted` is FREE mode, not off: the world keeps running and looks
   alive, because a world that goes dark to save money looks broken."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "scripted"}))
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.mode = ModeSwitch(path)
   life.overseer = Overseer(MENU, client=FakeClient(answer(action="charge")))
   life._decide()
@@ -420,11 +420,11 @@ def test_a_pause_stops_the_physics_and_keeps_the_heartbeat(tmp_path):
   """`paused` is the one mode with a wire surface of its own, and this is
   why: no physics means no frames, and a silent stream is what a dead sim
   looks like."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.mode = ModeSwitch(path)
   beats: list = []
   life.pause_hooks.append(beats.append)
@@ -501,13 +501,13 @@ def test_the_pause_is_announced_once_and_beats_while_it_lasts(tmp_path):
   rising `heldS`, and the release used to send `llm` TWICE -- once from the
   change hook and once from the resume hook, 0.0 s apart.
   """
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   from pluggybot.lifecycle import attach_mode_stream
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))
-  life = _lifecycle("room_hub", errand=False)
+  life = stub_life("room_hub", errand=False)
   life.mode = ModeSwitch(path)
   sent: list = []
   resynced: list = []

@@ -1,7 +1,7 @@
 # The serving image copies models/, src/, scripts/serve.py and deploy/ and
-# nothing else, so this file is about build-context SIZE: ~130 MB of
-# datasets, training runs, demo footage and detector weights would otherwise
-# be tarred up and handed to the daemon on every build.
+# nothing else, so this file is about build-context SIZE: local datasets,
+# training runs, demo footage and weights would otherwise be tarred up and
+# handed to the daemon on every build.
 #
 # Patterns are ANCHORED (leading /) wherever they name an image artefact:
 # a bare `*.png` would also drop models/tags/*.png, which are the apriltag

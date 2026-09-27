@@ -12,17 +12,15 @@ The POWER side is anchored to the real parts (docs/Parts.md):
     screw holds position unpowered — Parts.md), ~5 W each in motion.
   - Charging: ~1C on the 5 Ah 3S pack ≈ 55 W into the battery. The battery
     does not know or care WHAT it is plugged into — the charge signal is
-    the electrical contact criterion (docking/contact.py), which is exactly
-    the abstraction milestone 8's hub will reuse.
+    an electrical contact criterion (`rack.coupling.rack_charge_contact`:
+    both pogo pins on the bumper).
 
 The CAPACITY side is deliberately a knob: the real ~55 Wh pack would take
 hours of sim time to drain, so the default is a scaled "demo cell" that runs
-flat in minutes. Scale capacity, never the physics — the same lesson as the
-schuko chamfer (tune the world honestly or not at all): power draw numbers
-stay honest, and `--battery-wh 55.5` runs the real pack.
+flat in minutes. Scale capacity, never the physics (tune the world honestly
+or not at all): power draw numbers stay honest, and `--battery-wh 55.5` runs
+the real pack.
 """
-
-import numpy as np
 
 NOMINAL_V = 11.1        # 3S LiPo nominal
 STALL_A = 5.5           # per drive motor, at
@@ -92,12 +90,15 @@ def charge_scale_from_env(default: float = 1.0) -> float:
   return value
 
 
-class Battery:
-  """Tracks stored energy against the robot's actual actuator effort."""
+class Pack:
+  """A pack's energy book (issue #380): what it holds, and what one step of
+  drawing -- or charging -- does to it. Every body's; what a body DRAWS is
+  its own (`power_draw`): `Battery` below is the rover's, and a body with
+  no electrical model of its own draws a steady `draw_w`."""
 
-  def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
+  def __init__(self, capacity_wh: float = DEMO_CAPACITY_WH,
                fraction: float = 1.0, charge_scale: float = 1.0,
-               prefix: str = "") -> None:
+               draw_w: float = 0.0) -> None:
     if charge_scale <= 0.0:
       raise ValueError(f"charge_scale must be > 0, got {charge_scale}")
     self.capacity_wh = capacity_wh
@@ -109,26 +110,15 @@ class Battery:
     #: faster charge means more cycles an hour, more points, and a
     #: metabolism calibrated against a throughput that is not the real one.
     self.charge_scale = float(charge_scale)
-    # WHOSE motors (issue #167): the second robot's carry its prefix.
-    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
-                        model.actuator(prefix + "right_motor").id]
-    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
-                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
-    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
-                        model.joint(prefix + "arm_joint").dofadr[0]]
+    self.draw_w = float(draw_w)
+    #: What its charger puts in while it conducts, W: the rover's rack
+    #: (`CHARGE_W`), or a body's own (the quadruped's dock, `legs.dock`).
+    self.charge_w = CHARGE_W
     self.last_power_w = 0.0
 
   def power_draw(self, data) -> float:
     """Instantaneous electrical load in watts (excluding charging)."""
-    p = ELECTRONICS_W
-    for act, dof in zip(self._wheel_acts, self._wheel_dofs):
-      tau = abs(float(data.actuator_force[act]))
-      speed = min(abs(float(data.qvel[dof])) / NOLOAD_SPEED, 1.0)
-      p += NOMINAL_V * (NOLOAD_A * speed + STALL_A * min(tau / STALL_TORQUE, 1.0))
-    for dof in self._screw_dofs:
-      if abs(float(data.qvel[dof])) > ACTUATOR_MOVING:
-        p += ACTUATOR_W
-    return p
+    return self.draw_w
 
   def update(self, data, dt: float, charging: bool = False,
              tool_w: float = 0.0) -> None:
@@ -150,10 +140,12 @@ class Battery:
       # At 1.0 this is arithmetically identical to the `p -= CHARGE_W` it
       # replaces, which is what lets every existing mission, recording and
       # measurement stand unchanged.
-      p = (p - CHARGE_W) * self.charge_scale
+      p = (p - self.charge_w) * self.charge_scale
     self.last_power_w = p
-    self.energy_wh = float(np.clip(self.energy_wh - p * dt / 3600.0,
-                                   0.0, self.capacity_wh))
+    # `min`/`max`, not `np.clip`: the same float, without numpy's
+    # microseconds on a scalar every step (issue #385).
+    self.energy_wh = float(min(max(self.energy_wh - p * dt / 3600.0, 0.0),
+                               self.capacity_wh))
 
   @property
   def fraction(self) -> float:
@@ -162,3 +154,33 @@ class Battery:
   @property
   def empty(self) -> bool:
     return self.energy_wh <= 0.0
+
+
+class Battery(Pack):
+  """The rover's pack: stored energy against the robot's actual actuator
+  effort -- its wheel motors and lead screws."""
+
+  def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
+               fraction: float = 1.0, charge_scale: float = 1.0,
+               prefix: str = "") -> None:
+    super().__init__(capacity_wh, fraction, charge_scale)
+    # WHOSE motors (issue #167): the second robot's carry its prefix.
+    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
+                        model.actuator(prefix + "right_motor").id]
+    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
+                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
+    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
+                        model.joint(prefix + "arm_joint").dofadr[0]]
+
+  def power_draw(self, data) -> float:
+    """Instantaneous electrical load in watts (excluding charging)."""
+    p = ELECTRONICS_W
+    for act, dof in zip(self._wheel_acts, self._wheel_dofs):
+      tau = abs(float(data.actuator_force[act]))
+      speed = min(abs(float(data.qvel[dof])) / NOLOAD_SPEED, 1.0)
+      p += NOMINAL_V * (NOLOAD_A * speed + STALL_A * min(tau / STALL_TORQUE, 1.0))
+    for dof in self._screw_dofs:
+      if abs(float(data.qvel[dof])) > ACTUATOR_MOVING:
+        p += ACTUATOR_W
+    return p
+

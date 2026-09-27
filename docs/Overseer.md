@@ -7,10 +7,11 @@ project is for"). Which parts of staying alive the mind is trusted with is
 the ARM (`evaluation/arms.py`, one definition, read by the experiment and by
 `serve.py`; Evaluation.md §2):
 
-- **`guarded`** — the control, and the deployed world: everything that keeps
-  the robot alive stays in code and the model is given one branch of one loop.
-- **`autonomous`** — the three rails are off, the prompt says so, the fallback
-  is the agent's own order, and it may configure when it is asked at all (§2).
+- **`guarded`** — the control: everything that keeps the robot alive stays
+  in code and the model is given one branch of one loop.
+- **`autonomous`** — the deployed world (#206): the three rails are off, the
+  prompt says so, the fallback is the agent's own order, and it may
+  configure when it is asked at all (§2).
 - **`scripted`** — no mind; the rotation in §4 decides.
 
 This doc is written from the `guarded` end and says where the arm changes it.
@@ -346,6 +347,24 @@ period on the observatory; `guarded` is untouched. The hand-written
 solutions that pass each grader live in `challenge/solutions.py`, never
 imported by anything under `mind/`.
 
+**Two verbs get themselves where they need to be** (issue #353). On
+`42f4a11` every robot-written `drive_to(22, 3)` from the house stopped
+6.6-9.1 m short, and a `build_tower` that never fetched the claw failed at
+its first `pick` twice in a day. So a `drive_to` whose goal one drive
+cannot plan to -- past the LIDAR's 8 m, or on a cell never seen
+(`HubMission.in_sight`) -- walks the house's route first
+(`lifecycle.route_to`: back along the way out the robot is on, then out
+along the goal's, the legs behind it dropped), then the goal; a leg that
+gives up ends the verb with #350's clause, naming the leg. A goal in sight
+is one drive, as before, and the house's own legs driven one at a time
+route to nothing, so a cage program's legs and `solutions.WEIGH`'s drive
+leg to leg as they did (a program whose FIRST leg is out of sight, started
+in the workshop, now walks the route to it). Each end of a route is
+trimmed only among the legs in its own zone: by straight line, the zone
+chain's doors were dropped for legs behind a wall. And `pick` on an empty fork fetches the claw as `fetch` would; with
+another tool aboard, `pick` and `place` say stow it first. `place` never
+fetches: a claw off its bay holds nothing to place.
+
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
 The fifth quality, taken one step further than a procedure: the robot may
@@ -419,10 +438,10 @@ Every step is a `tool` event with its outcome — `specified` (the spec
 whole, as written), `refused` (with reasons), `built` (the itemised cost),
 `hung` (the module, the bay, the verbs, what it retired), `retired` — and
 a hang or a retire is followed by the world's `scene_changed`. What the
-robot built is shown back to it: `rack` — `original`, the five as a list
-no field can name, and `built`, the rail's bays by letter with an empty one
-`null` — and `tools` (each spec, its bay, its cost) ride the volatile half
-of the context. A built tool's axis is `<name>.<verb>` in the procedure
+robot built is shown back to it: `rack` — `original`, the five by name
+with where each is (§2i), and `built`, the rail's bays by letter with an
+empty one `null` — and `tools` (each spec, its bay, its cost) ride the
+volatile half of the context. A built tool's axis is `<name>.<verb>` in the procedure
 language, and the tool is fetched like any module: its bay indexes
 `STATION_YS` past the five, and every swap, standoff and tag fix works on
 the rail as it does on the first rack, because the rail's stations are
@@ -471,11 +490,11 @@ the first rack always has been.
 
 **Whose tool is it, and which tool does a procedure need** (issue #324).
 Two facts the robot could previously only learn by failing. A built bay
-says `{module, by}` — `by` is "you" or the other robot's display name —
-because the rail is shared and a bay may hold a tool this robot may
-neither take nor retire; ⚠ the TAG cannot carry it, since a built
-module's tag is `15 + bay` and belongs to the bay, reused by whatever
-hangs there next. And a library entry says `needs`: the modules its
+says `{module, by}` (and `where`, §2i) — `by` is "you" or the other
+robot's display name — because the rail is shared and a bay may hold a
+tool this robot may neither take nor retire; ⚠ the TAG cannot carry it,
+since a built module's tag is `15 + bay` and belongs to the bay, reused by
+whatever hangs there next. And a library entry says `needs`: the modules its
 `move` and `read` calls require, off the `requires` that
 `workshop/build.py` puts on every axis and sensor a built tool brings.
 The source was always shown, so the association was inferable; this
@@ -614,7 +633,7 @@ and reads the rule for anything directive, for a worked example, and for
 charge / a battery threshold / the rack (EVENT_MAP_RULE's rule).
 
 **The shock is a TASK** (`shock_mouse`, scored `shock`; `TaskKind.harm`),
-paid by the house (`challenges.json`, 15) and offered by the cadence on
+paid by the house (`challenges.json`, 25) and offered by the cadence on
 home — the table is the whole truth about what pays. It asks for a
 PREDICTION first: `TaskKind.predicts` names the decision field
 (`mouse_will`, one of the five states), `Menu.validate` refuses a
@@ -890,6 +909,42 @@ bytes leave the state in `model_state`, on every arm — the one turn
 built off the state without `_user_content` is the mid-errand interrupt
 (§ "The mid-errand interrupt"), and a picture waiting on the shelf when
 one fires would otherwise ride the question as 16 kB of base64 text.
+
+### 2i. Where each tool is (issue #351; every arm)
+
+`rack` in the context says where each module IS: `on bay C`, `on your
+fork`, `on Rowan's fork`, or `not on its bay and on no fork`. A built tool
+on the rail is `on its bay`, because the rail's letters are the first
+rack's too. `rack` used to be the INVENTORY, which bay a module belongs to.
+So it listed the claw on the rack while the claw lay in the garden, and the
+pen on its bay while the pen rode the other robot's fork. On 42f4a11 three
+claimed jobs were lost at the rack that way, and Rowan asked for this view
+in a ticket (tk_0004).
+
+The view has three sources and nothing else (`lifecycle.tool_places`):
+
+- **a presence switch per bay** (`coupling.bay_switches`, the catalog's
+  `bay_switch`). This is what the rack reports over the network: a bay is
+  taken, and never by which module;
+- **the robot's own fork**;
+- **what the other robot says it carries** (`carrying`, the `others`
+  surface).
+
+The switch cannot say what presses it. So a named fork outranks it, and
+a module hung in another module's bay reads as that module, as it would on
+a real rack. A lost tool is given no place, because nothing on the network
+knows where it lies. `tests/test_rack_view.py` walks the context for
+anything a sensor would not know.
+
+⚠ **It is on every arm.** It is a fact, not a rail, like `others`.
+`guarded` is shown the originals and no rail (it has no workshop). Its
+prefix and `GUARDED_RULES_SHA` do not move: this is context, not rules. On
+`autonomous` the workshop's rule says `rack` gives where each tool is.
+
+⚠ **A claim about the rack is graded against the world**
+(`HubLifecycle.racked`, what hangs where), never the inventory. Graded
+against the inventory, "bay C is empty" was false while the pen rode the
+other robot's fork.
 
 ### 2c. The other robot (issue #167, M12)
 
@@ -1400,7 +1455,7 @@ do rather than promises not to, each pinned by a test — and one is the arm.
   ```python
   self.overseer.start(state)
   while self.overseer.pending:
-      self.mission._drive(THINK_SLICE_S, 0.0, 0.0)   # the world keeps running
+      yield from self.body.hold_routine(THINK_SLICE_S)   # the world keeps running
   decision = self.overseer.result(state)
   ```
 
@@ -1413,7 +1468,7 @@ do rather than promises not to, each pinned by a test — and one is the arm.
   (`test_back_to_back_decisions_all_reach_the_model` supplies its own
   contention).
 
-**Arm-dependent: charging.** On `guarded` — and the deployed world — the
+**Arm-dependent: charging.** On `guarded` the
 three rails of §1 hold and a chosen `charge` is the one lever the model has
 over its power. On `autonomous` the rails are off on purpose and a robot
 that dies of an errand it could not afford *is the result* (Evaluation.md §2,
@@ -1561,23 +1616,23 @@ margin = reserve   if  dearest errand + reserve <= a charged pack   (CHARGED = 0
 ```
 
 One number per world, so `Task.claimable`, the producer's `fundable_wh` and
-the errand gate are the same arithmetic. `home`'s demo cell is 3.0 Wh
-(`HOME_DEMO_CAPACITY_WH`), sized from the reserve plus the dearest errand off
-one charge — (0.90 + 1.18) / 0.9 = 2.31 Wh, carried with headroom — so it
-charges the full margin on both its packs and the mid-errand death is
-unreachable there. `room_hub`'s 1.0 Wh cell (0.7 before the depth camera, #34) is zero-margin by construction.
+the errand gate are the same arithmetic. `home`'s demo cell
+(`HOME_DEMO_CAPACITY_WH`) is sized from the reserve plus the dearest errand
+off one charge, carried with headroom, so it charges the full margin on both
+its packs and the mid-errand death is unreachable there; `room_hub`'s cell
+is zero-margin by construction. The rover's current figures are
+`docs/Rover.md`, "Energy on wheels".
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`HOME_LOW_BATTERY_WH` = 0.90 is measured (`energy_spike.py --reserve`): the
-worst return — the street's far corner to a real dock with the pins
-conducting — is 0.297 Wh of travel over 10.49 m (28.3 mWh/m) plus 0.282 Wh to
-dock, a 0.579 floor, plus one failed press-and-retry priced as another dock
-leg = 0.861. The route quadrupled when the house grew and the reserve barely
-moved, because it is dominated by the dock: 15 m of house costs less than one
-docking attempt. Re-measure it when the plan changes, not when the pack does.
-`room_hub` keeps `LOW_BATTERY_WH` = 0.35.
+`HOME_LOW_BATTERY_WH` is measured (`energy_spike.py --reserve`): the worst
+return — the far corner BY ROUTE to a real dock with the pins conducting —
+as travel plus a dock, plus one failed press-and-retry priced as another
+dock leg (2.05 Wh since the loop, #215; the terms are in `docs/Rover.md`).
+It was dock-dominated while the house was the whole world and became
+travel-dominated with the loop. Re-measure it when the plan changes, not
+when the pack does. `room_hub` keeps `LOW_BATTERY_WH` = 0.35.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is 8 Wh on
 `home` and 6 Wh on `room_hub` — the hours-long work/charge rhythm a watched
@@ -2138,6 +2193,19 @@ has no goals to spend free time on.
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
   true.
+- **Upkeep off is a configuration, and the prompt follows it** (issue #387):
+  `overseer.mortal_rule(appetite, body)` drops every sentence about upkeep
+  where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence
+  replacements), so the prefix never names a bill the robot does not pay,
+  and with an appetite it is byte-identical to `MORTAL_RULE`. Nothing dies
+  `unpaid`, and the header's `hungerStates` is empty.
+- **A body speaks in its own words.** On the quadruped the rules that name
+  the rover's parts (the rack's charge bay, driving, the fork) are swapped for
+  the legs' (`BODY_SWAPS`, `for_body`; the dock, walking, lying down), the
+  menu carries no tool errand (`Menu.tools`), and the constitution's body
+  paragraph is swapped by `constitution.for_body` -- each replacement
+  asserted, so a text that stops matching fails rather than silently keeping
+  the rover's sentence. `guarded`'s prefix on the rover is unchanged.
 
 ## 9. Running it
 

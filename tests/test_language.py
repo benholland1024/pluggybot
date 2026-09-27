@@ -17,7 +17,7 @@ from pluggybot import tick
 from pluggybot.lifecycle import HubLifecycle, errand_from, world_config, world_facts
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Decision, Menu, Overseer
-from pluggybot.mission.mission import HubMission
+from pluggybot.mission.rover import RoverBody
 from pluggybot.procedure import axes, lang, library as lib, steps as st
 from pluggybot.procedure.steps import Refused
 
@@ -149,27 +149,29 @@ def _stub_life():
       return tick.result(value)
     return make
   from pluggybot.robot import FIRST
-  swap = SimpleNamespace(module_state=lambda tool: {"on_fork": False, "hung": True},
-                         set_lift_routine=routine("set_lift"),
-                         ramp_routine=routine("ramp"), pressing=False,
-                         handle=FIRST, arm_act=0)
   model = SimpleNamespace(actuator=lambda name: SimpleNamespace(id=0))
-  mission = SimpleNamespace(
-    swap=swap, swap_at_bay_routine=routine("swap", "arrived"),
-    drive_to_routine=routine("drive_to", True), face_routine=routine("face", True),
-    _drive_routine=routine("drive"), pose=(0.0, 0.0, 0.0),
-    tags=SimpleNamespace(detect=lambda d: {}))
-  return SimpleNamespace(mission=mission, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
+  body = SimpleNamespace(
+    module_state=lambda tool: {"on_fork": False, "hung": True},
+    ramp_routine=routine("ramp"), pressing=False, handle=FIRST,
+    actuator=lambda name: 0,
+    fetch_tool_routine=routine("swap", "arrived"),
+    stow_tool_routine=routine("swap", "arrived"),
+    go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
+    in_sight=lambda x, y: True, hold_routine=routine("wait"),
+    velocity_routine=routine("drive"), pose=(0.0, 0.0, 0.0),
+    detect_tags=lambda: {})
+  return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls, model=model,
                          world="home", boards=None, ledger=None,
-                         battery=SimpleNamespace(fraction=0.5, energy_wh=4.0))
+                         battery=SimpleNamespace(fraction=0.5, energy_wh=4.0),
+                         drive_why=lambda x, y: "the drive gave up (why)")
 
 
 def run(src, life=None, facts=HOME):
   life = life or _stub_life()
   proc = lang.compile_procedure(src, facts)
-  r = tick.run(SimpleNamespace(_step_once=lambda *a: None),
+  r = tick.run(SimpleNamespace(step=lambda *a: None),
                lang.run_procedure_routine(life, proc, facts))
   return r, life
 
@@ -204,7 +206,7 @@ def test_a_while_reads_the_world_each_time_round():
   def wait(seconds, *a, **kw):
     life.battery.fraction += 0.25
     return tick.result(None)
-  life.mission._drive_routine = wait
+  life.body.hold_routine = wait
   r, _ = run('def x():\n  while read("battery.frac") < 1:\n    wait(1)\n', life)
   assert r["ok"] and r["completed"] == 4
 
@@ -217,7 +219,7 @@ def test_a_computed_argument_is_checked_when_it_is_computed():
 
 def test_a_failed_step_ends_the_procedure_honestly():
   life = _stub_life()
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
   r, _ = run('def x():\n  wait(1)\n  drive_to(1, 1)\n  wait(1)\n', life)
   assert not r["ok"] and r["completed"] == 1 and r["failedAt"] == 1
   assert r["total"] == 2 and len(r["steps"]) == 2
@@ -247,7 +249,7 @@ def test_the_time_budget_stops_at_a_step_boundary():
   def slow(seconds, *a, **kw):
     life.data.time += 100.0
     return tick.result(None)
-  life.mission._drive_routine = slow
+  life.body.hold_routine = slow
   r, _ = run('def x():\n  budget(seconds=150)\n  for i in range(5):\n    wait(1)\n',
              life)
   assert r["stopped"] == "budget" and r["completed"] == 2
@@ -316,14 +318,14 @@ def test_the_same_procedure_twice_is_one_trajectory(hub_model):
 
   def fly():
     data = mujoco.MjData(hub_model)
-    mission = HubMission(hub_model, data, viewer=None, realtime=False)
-    mission.start_at(0.5, 3.0, 0.0)
-    life = SimpleNamespace(mission=mission, model=hub_model, data=data,
+    body = RoverBody(hub_model, data, viewer=None, realtime=False)
+    body.start_at(0.5, 3.0, 0.0)
+    life = SimpleNamespace(body=body, model=hub_model, data=data,
                            module="", swaps_done=0, interrupted=lambda: False,
                            _say=lambda *a, **k: None, world="room_hub",
                            boards=None, ledger=None,
                            battery=SimpleNamespace(fraction=0.5, energy_wh=1.0))
-    r = mission.run(lang.run_procedure_routine(life, proc, HUB))
+    r = body.run(lang.run_procedure_routine(life, proc, HUB))
     assert r["ok"], r
     return _hash(data), r["completed"]
   a, b = fly(), fly()
@@ -556,7 +558,7 @@ def test_a_procedure_cut_short_is_stowed(monkeypatch):
   from test_procedure import _stub_swaps
   life = _life()
   on_fork = _stub_swaps(life, monkeypatch)
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
   L = lib.Library(HUB)
   L.define("short", 'def short():\n  fetch("module_lcd")\n  drive_to(1, 1)\n  stow()\n')
   result = life.run_errand(errand_from(Decision(action="procedure:short"),

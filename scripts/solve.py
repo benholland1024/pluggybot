@@ -20,11 +20,20 @@ Each starts at the rack in the living room. `challenge/solutions.py`
 holds the procedures and the numbers they measured. Writes solve.png: a
 filmstrip from a camera on the work.
 
+  --pair            the home PAIR as deployed (issue #353): Luca at the
+                    rack and Rowan in the hall, near-field on; `--robot`
+                    flies (1 from the rack, 2 from the hall) while the
+                    other stands where it started, one loop for both
+  --source FILE     fly a procedure of your own -- a robot's, copied off
+                    the observatory -- instead of the solution
+
 Usage:
   MUJOCO_GL=egl uv run python scripts/solve.py --feature tower
   uv run python scripts/solve.py --feature bench --view
   MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --at-the-row
       # skip the drive: start in the workshop with the claw on the fork
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --pair --robot 2 \\
+      --source build_tower.py
 """
 
 import argparse
@@ -72,7 +81,7 @@ class _Mind:
 
 def build_life(view: bool, state_dir: str):
   cfg = world_config("home")
-  spec = world_spec(cfg["model"])
+  spec = world_spec(cfg["model"], body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -91,7 +100,7 @@ def build_life(view: bool, state_dir: str):
 def claw_in_hand_at_the_row(life, stand=(-10.2, -4.75, math.pi)) -> None:
   """Pick the claw at its bay, then carry robot AND module to a stand in
   the workshop by one rigid transform (docs/Testing.md, lever 4)."""
-  m, swap, model, data = life.mission, life.mission.swap, life.model, life.data
+  m, swap, model, data = life.body.mission, life.body.mission.swap, life.model, life.data
   sx, sy, hd = bay_standoff(HUB_STATION_YS[3], m.rack)
   m.start_at(sx, sy, hd)
   lift0 = align_lift()
@@ -131,7 +140,7 @@ def claw_in_hand_at_the_row(life, stand=(-10.2, -4.75, math.pi)) -> None:
   mujoco.mj_forward(model, data)
   r = swap.reckoner
   r.x, r.y, r.theta = x, y, yaw
-  r.update(float(data.qpos[swap.left_adr]), float(data.qpos[swap.right_adr]))
+  r.update(*swap.encoders())
   swap._run(1.0, 0.0)
   m.start_discovery()
   m._spin()
@@ -152,22 +161,62 @@ def _camera(life, frames: list, track: str):
     state["next"] = data.time + FRAME_EVERY_S
     renderer.update_scene(data, cam)
     frames.append((label or f"t={data.time:.0f}s {life.state}", renderer.render().copy()))
-  life.mission.step_hooks.append(grab)
+  life.body.step_hooks.append(grab)
   return grab
 
 
+def build_pair_lives(robot: int, state_dir: str):
+  """The home PAIR as deployed (issue #353): hosting packs, near-field on,
+  and robot `robot` (1 or 2) given the tower's mind and a task board."""
+  from pluggybot.pair import build_pair
+  lives = build_pair("home", pack="hosting", errands=("none", "none"),
+                     autonomous=True, overseer=False, near_field=True)
+  life = lives[robot - 1]
+  life.overseer = _Mind()
+  life.tasks = TaskBoard(path=str(Path(state_dir) / "tasks.json"))
+  # ...hooked as `HubLifecycle.__init__` hooks a board it is handed, or an
+  # offer never sets the bench's mass or the props out (review of #353)
+  life.tasks.on_event.append(life._bench_offered)
+  return lives, life
+
+
+def fly_beside(lives: list, life, routine):
+  """`routine` flown by `life` while every other robot stands where it
+  is, one physics loop for all (`tick.run_many`); its result."""
+  done = [False]
+
+  def flying():
+    try:
+      return (yield from routine)
+    finally:
+      done[0] = True
+
+  def standing():
+    while not done[0]:
+      yield 0.0, 0.0
+  return tick.run_many([(life.body.mission.swap, flying())]
+                       + [(other.body.mission.swap, standing()) for other in lives
+                          if other is not life], name="solve")[0]
+
+
 def run(life, feature: str, source: str | None = None, frames: list | None = None) -> dict:
+  return life.body.run(run_routine(life, feature, source, frames))
+
+
+def run_routine(life, feature: str, source: str | None = None, frames: list | None = None):
   """A feature's path exactly as a robot's: the offer claimed, the
   procedure defined and run as an errand (or the act's errand run),
   `done`, the grade on the seam."""
   from pluggybot import lifecycle as lc
-  m, data = life.mission, life.data
+  from pluggybot.procedure import lang
+  m, data = life.body.mission, life.data
   track = {"tower": stack.BLOCKS[0], "bench": "mass_unknown", "mouse": "lab_mouse"}[feature]
   grab = _camera(life, frames, track) if frames is not None else None
   events: list = []
   life.on_event.append(events.append)
   if feature == "mouse":
-    result = life.run_errand(lc.cage_errand("home", "feed", from_xy=m.pose_xy()))
+    result = yield from life.run_errand_routine(
+      lc.cage_errand("home", "feed", from_xy=m.pose_xy()))
     care = [e for e in events if e["type"] == "care"]
     if grab:
       grab("the act", force=True)
@@ -178,11 +227,11 @@ def run(life, feature: str, source: str | None = None, frames: list | None = Non
     task = life.tasks.offer("find_mass", "lab", ttl=3000.0, t=float(data.time),
                             params={"known_g": 100, "known_tag": 23, "unknown_tag": 24})
   assert task is not None and life._claim_task(task.id)
-  library = lib.Library(world_facts("home"))
-  name = "tower" if feature == "tower" else "weigh"
+  library = lib.Library(world_facts("home", rack=life.rack_inventory))
+  name = lang.parse(source).name
   library.define(name, source)
   errand = errand_from(ov.Decision(action=f"procedure:{name}"), "home", library=library)
-  result = life.run_errand(errand)
+  result = yield from life.run_errand_routine(errand)
   if feature == "bench":
     # the finding, as a mind writes it off the locals History shows it
     mass = (result["procedure"].get("locals") or {}).get("mass")
@@ -191,7 +240,7 @@ def run(life, feature: str, source: str | None = None, frames: list | None = Non
         "quantity": "unknown mass", "value": round(float(mass), 3), "unit": "kg",
         "method": "the lift, tared", "topic": "mass_bench"}))
   life._done(ov.Decision(action="idle", reason="", done=task.id))
-  tick.run(m.swap, life._grade_routine())
+  yield from life._grade_routine()
   if grab:
     grab(f"graded at t={data.time:.0f}s", force=True)
   return {"errand": result, "grade": life.grades[-1] if life.grades else None}
@@ -217,34 +266,57 @@ def main() -> None:
   parser.add_argument("--view", action="store_true", help="open the viewer")
   parser.add_argument("--at-the-row", action="store_true",
                       help="tower only: start in the workshop with the claw on the fork")
+  parser.add_argument("--pair", action="store_true",
+                      help="the home pair as deployed; --robot flies, the other stands")
+  parser.add_argument("--robot", type=int, choices=(1, 2), default=1,
+                      help="with --pair: 1 flies from the rack, 2 from the hall")
+  parser.add_argument("--source", help="a procedure file to fly instead of the solution")
   parser.add_argument("--out", default=OUT)
   args = parser.parse_args()
+  if args.pair and (args.view or args.at_the_row):
+    parser.error("--pair takes neither --view nor --at-the-row")
+  if args.source and (args.at_the_row or args.feature == "mouse"):
+    parser.error("--source flies a procedure: not with --at-the-row or the mouse")
 
   frames: list = []
+  source = (Path(args.source).read_text() if args.source else
+            {"tower": solutions.TOWER, "bench": solutions.WEIGH, "mouse": None}[args.feature])
   with tempfile.TemporaryDirectory() as state_dir:
-    life, viewer = build_life(args.view, state_dir)
-    if args.feature == "mouse":
-      from pluggybot import lifecycle as lc
-      acts = lc.home_activities(life.model, life.data)
-      life.mission.step_hooks.append(acts.step_hook(life.model, life.data))
-      life.activities = acts
-    m = life.mission
+    viewer, others = None, []
+    if args.pair:
+      lives, life = build_pair_lives(args.robot, state_dir)
+      others = [other for other in lives if other is not life]
+      cfg = world_config("home")
+      for each, start in zip(lives, (cfg["start"], cfg["start2"])):
+        each.body.start_at(*start)
+        each.body.start_discovery()
+        each.body.mission._spin()
+    else:
+      life, viewer = build_life(args.view, state_dir)
+      if args.feature == "mouse":
+        from pluggybot import lifecycle as lc
+        acts = lc.home_activities(life.model, life.data)
+        life.body.step_hooks.append(acts.step_hook(life.model, life.data))
+        life.activities = acts
+    m = life.body.mission
     t0 = time.time()
     try:
-      if args.at_the_row and args.feature == "tower":
+      if args.pair:
+        out = fly_beside(lives, life, run_routine(life, args.feature, source, frames))
+      elif args.at_the_row and args.feature == "tower":
         claw_in_hand_at_the_row(life)
         out = run(life, "tower", solutions.TOWER_AT_THE_ROW, frames)
       else:
         m.start_at(*world_config("home")["start"])
         m.start_discovery()
         m._spin()
-        source = {"tower": solutions.TOWER, "bench": solutions.WEIGH, "mouse": None}[args.feature]
         out = run(life, args.feature, source, frames)
     except MissionAborted:
       print("aborted (viewer closed)")
       return
     finally:
-      m.close()
+      for each in (life, *others):
+        each.body.close()
       if viewer is not None:
         viewer.close()
   proc = out["errand"]["procedure"]
@@ -266,8 +338,12 @@ def main() -> None:
     print(f"GRADE: {'PASSED' if grade and grade['ok'] else 'FAILED'} -- "
           f"{grade['reason'] if grade else 'never graded'}"
           f"{f' (+{grade['points']} points)' if grade else ''}")
-  st = life.mission.swap.module_state("module_claw")
+  st = life.body.mission.swap.module_state("module_claw")
   print(f"claw: {'hung in its bay' if st['hung'] else 'NOT on the rack'}")
+  for other in others:
+    x, y, _ = other.body.true_pose()
+    print(f"{other.robot_name}: stood at ({x:.2f}, {y:.2f})"
+          + (f", DEAD ({other.dead['cause']})" if other.dead else ""))
   print(f"sim {life.data.time:.0f} s, wall {time.time() - t0:.0f} s, "
         f"pack {life.battery.fraction:.0%}, "
         f"{(life.battery.capacity_wh - life.battery.energy_wh):.2f} Wh spent")

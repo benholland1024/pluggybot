@@ -152,7 +152,7 @@ geom toggles are **model-global** (every `MjData` sees them), a mocap pose is
 ### 3.5 Poll on the step hook, cheaply
 
 `ActivitySet.step_hook(model, data)` gives one callback for a whole world's
-activities, appended to `HubMission.step_hooks` — the same per-step seam the
+activities, appended to `Body.step_hooks` — the same per-step seam the
 battery drains through and telemetry decimates from. It runs at 500–1000 Hz,
 so `sense()` must do no rendering, no allocation and no I/O.
 

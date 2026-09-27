@@ -45,8 +45,10 @@ Each source is a statement of what the world requires, read that way:
 #: goes to where the house set a cube out when it cannot see it (its
 #: `prop_stand`), and the errand around the procedure hangs the claw back.
 #: MEASURED (2026-09-21, from the rack, hosting pack): 489 sim s, 2.7 Wh,
-#: placements 2.6 and 4.7 mm off, 5.3 mm of lean at the grade, +26 with
-#: the neatness bonus, the claw back on bay D to 0.7 mm.
+#: placements 2.6 and 4.7 mm off, 5.3 mm of lean at the grade (6 of the
+#: neatness bonus's 10), the claw back on bay D to 0.7 mm. On the pair
+#: (#353, Rowan standing by on the workshop route's first leg): 482 sim s,
+#: 5.2 mm of lean.
 TOWER = '''def tower():
   budget(steps=80, seconds=420)
   fetch("module_claw")
@@ -73,8 +75,11 @@ TOWER_AT_THE_ROW = '''def tower():
 #: through the open garden (7.0, 1.2): the planner's own way back hugs the
 #: house wall past the garden light's pole and the front-stop reflex
 #: stalled it there. MEASURED (2026-09-21, from the rack, hosting pack,
-#: the bank's first draw): 25 steps, 387 sim s, 2.8 Wh, `mass` 0.149 kg within the grade's 10 %, +25,
-#: the claw back on bay D.
+#: the bank's first draw): 25 steps, 387 sim s, 2.8 Wh, `mass` 0.149 kg
+#: within the grade's 10 %, the claw back on bay D. ⚠ On the pair (#353)
+#: the first leg home, `drive_to(22.0, 3.0)` -- the lab door's line --
+#: stops 0.26 m short ("no route") every time: the grade passes off the
+#: recorded mass and the errand's stow brings the claw home.
 WEIGH = '''def weigh():
   budget(steps=60, seconds=1800)
   fetch("module_claw")

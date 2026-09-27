@@ -8,7 +8,6 @@ world runs it, and every assertion below has a half that says so.
 
 import hashlib
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
@@ -16,16 +15,14 @@ from pluggybot.economy.tasks import Task
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
 
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+
 MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
 
 
 def _life(world: str = "home", **kw):
-  cfg = lc.world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world=world, battery_wh=cfg["battery_wh"],
-                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"], **kw)
+  """The rails are the lifecycle's bookkeeping: a stub body carries them."""
+  return stub_life(world, **kw)
 
 
 # ---- the prompt ---------------------------------------------------------------
@@ -293,7 +290,7 @@ def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
   client = _Broken()
   boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
                   calls_per_hour=99)
-  state = {"decisions": 0, "mapDone": True}
+  state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_IDLE_RUN + 3):
     decision = boss.decide(state)
     assert decision.action == ov.STANDING_ORDER_FLOOR
@@ -358,7 +355,7 @@ def test_a_run_of_bad_answers_does_not_back_off_a_healthy_endpoint():
   client = _Garbler()
   boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
                   calls_per_hour=99)
-  state = {"decisions": 0, "mapDone": True}
+  state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 3):
     assert boss.decide(state).source == "fallback:garbled"
   assert client.calls == ov.MAX_CONSECUTIVE_ERRORS + 3, \

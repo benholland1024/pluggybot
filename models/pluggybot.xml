@@ -202,11 +202,10 @@
 
           <!-- Plug on a passive compliant wrist (RCC, Parts.md): sprung
                slides/hinges let contact forces self-centre the plug instead
-               of jamming. Stiffnesses copied from the schuko spike carrier —
-               placeholder until a real spring pack is measured. Geometry
-               matches docking/schuko.py (35.5 mm body — open decision 8:
-               real rewireable plugs may be 36.7 mm). Collision ENABLED:
-               this is the geom that docks. -->
+               of jamming. Stiffnesses are placeholders until a real spring
+               pack is measured; the body is 35.5 mm (real rewireable plugs
+               may be 36.7 mm). Collision ENABLED: this is the geom that
+               docks. -->
           <body name="plug" pos="0.14 0 0">
             <joint name="plug_lat_y" type="slide" axis="0 1 0" range="-0.02 0.02"
                    stiffness="150" damping="4" armature="1e-5"/>

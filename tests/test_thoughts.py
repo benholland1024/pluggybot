@@ -672,20 +672,20 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
   """The files are written by the thing that actually runs the robot, not by
   a test calling the API directly -- and both halves land: what the code
   recorded about the decision, and what the robot chose to keep from it."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
   boss = Overseer(Menu.for_world("room_hub", None), thoughts=files,
                   client=FakeClient(full(action="carry", reason="tidying up",
                                          pin="bay C sticks a little")))
-  life = _lifecycle("room_hub", overseer=boss, thoughts=files, errand=False)
+  life = stub_life("room_hub", overseer=boss, thoughts=files, errand=False)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.mission.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("room_hub")["start"])
   try:
     life._decide()
   finally:
-    life.mission.close()
+    life.body.close()
 
   assert "chose carry: tidying up" in files.read(HISTORY)
   assert files.read(TOP_OF_MIND) == "bay C sticks a little"
@@ -700,10 +700,10 @@ def test_the_mission_cannot_write_the_files_it_does_not_own(tmp_path):
   """`_remember` is code writing History. The same lifecycle must not be
   able to reach Main.md or Goals.md, whatever it passes -- the permission
   table is enforced at the write path, not promised by its callers."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = _lifecycle("room_hub", thoughts=files, errand=False)
+  life = stub_life("room_hub", thoughts=files, errand=False)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life._remember("something happened")
@@ -720,10 +720,10 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   nobody can see leaves a robot believing it remembered something, and the
   only symptom is a mind that never learns anything -- indistinguishable
   from a model with nothing to say."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = _lifecycle("room_hub", thoughts=files, errand=False)
+  life = stub_life("room_hub", thoughts=files, errand=False)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   # Fill the robot's file, then ask it to learn one more thing.
@@ -746,10 +746,10 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   `_reconsider` -- and the vocabulary is asserted EQUAL to `THOUGHT_VERBS`,
   so a fifth verb added to `_reconsider` without the constant fails here
   rather than silently vanishing from the site's history."""
-  from test_overseer import _lifecycle
+  from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = _lifecycle("room_hub", thoughts=files, errand=False)
+  life = stub_life("room_hub", thoughts=files, errand=False)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
 

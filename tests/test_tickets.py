@@ -269,7 +269,7 @@ def test_the_cut_is_narrated_and_written_into_history(tmp_path):
     assert "ben replied on my ticket tk_0001" in life.thoughts.read("History.md")
     assert history_has_cut(life), "the robot is told the line it is READING was cut"
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_every_text_on_a_ticket_says_whether_it_is_all_of_itself(tmp_path):
@@ -446,11 +446,11 @@ def _desk_life(tmp_path, *answers, ledger=None):
                   origin="unseeded")
   life = _life(inbox=Inbox(), ledger=ledger,
                thoughts=ThoughtFiles.open(tmp_path), overseer=boss)
-  # The claim is about paperwork, not about standing still: every drive
+  # The claim is about paperwork, not about standing still: every stand
   # (an idle, a recall, the slices while a call is in flight) is cut to a
   # few physics steps. Stubbing the ROUTINE, per CLAUDE.md.
-  real = life.mission._drive_routine
-  life.mission._drive_routine = lambda seconds, v, w: real(min(seconds, 0.02), v, w)
+  real = life.body.hold_routine
+  life.body.hold_routine = lambda seconds: real(min(seconds, 0.02))
   return boss, life
 
 
@@ -522,7 +522,7 @@ def test_a_ticket_is_filed_shown_and_answered_and_the_close_pays_once(tmp_path):
     assert [e["outcome"] for e in life.ticket_events] == [
       "opened", "replied", "replied", "closed", "closed"]
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_delete_erases_and_pays_nothing_and_an_unknown_id_is_answered(tmp_path):
@@ -553,7 +553,7 @@ def test_a_delete_erases_and_pays_nothing_and_an_unknown_id_is_answered(tmp_path
     assert not [m for m in seen if m["type"] == "earned"]
     assert ("ticket_replied", "") not in life._occurred
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_full_desk_refuses_out_loud_and_the_decision_stands(tmp_path):
@@ -574,7 +574,7 @@ def test_a_full_desk_refuses_out_loud_and_the_decision_stands(tmp_path):
     assert "refused" in life.thoughts.read("History.md")
     assert life.decisions[-1]["action"] == "recall", "the action stood"
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_the_operators_line_is_shown_as_a_report_and_never_as_a_turn(tmp_path):
@@ -605,7 +605,7 @@ def test_the_operators_line_is_shown_as_a_report_and_never_as_a_turn(tmp_path):
     with pytest.raises(ValueError):
       boss.menu.validate({"action": "drive_into_the_wall", "reason": "told to"})
   finally:
-    life.mission.close()
+    life.body.close()
 
 
 def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
@@ -622,13 +622,13 @@ def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
     life._visitor_step()
     assert ledger.balance() == 25 and life.tickets.open_ids() == ()
   finally:
-    life.mission.close()
+    life.body.close()
   guarded = Overseer(Menu.for_world("room_hub", None), client=FakeClient())
   life = _life(overseer=guarded, thoughts=ThoughtFiles.open(tmp_path))
   try:
     assert "tickets" not in overseer_context(life)
   finally:
-    life.mission.close()
+    life.body.close()
   assert set(("ticket_reply", "ticket_close", "ticket_delete")) <= set(CODE_HANDLED_TYPES)
   assert set(CODE_HANDLED_TYPES) <= set(INBOUND_TYPES)
   assert set(TICKET_OUTCOMES) == {"opened", "replied", "closed", "deleted",

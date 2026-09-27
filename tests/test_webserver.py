@@ -717,7 +717,7 @@ class _FakeLife:
     # (issue #315): a crash message off a `data` captured at setup would
     # report a sim time a recompiled run had left behind.
     self.model, self.data = model, data
-    self.mission = types.SimpleNamespace(step_hooks=[], grid=None)
+    self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing")
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way
@@ -1004,7 +1004,7 @@ def test_a_pair_that_crashes_says_so_too(monkeypatch, tmp_path):
 
   def dying_run_pair(lives, **kw):
     for life in lives:
-      life.mission.close()
+      life.body.close()
     raise KeyError("r2_pluggybot")
 
   monkeypatch.setattr(pair_mod, "run_pair", dying_run_pair)
@@ -1478,7 +1478,7 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   def fake_run_pair(lives, **kw):
     flown["lives"], flown["kw"] = lives, kw
     for life in lives:
-      life.mission.close()
+      life.body.close()
     return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
              "module_stowed": True, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
@@ -1501,7 +1501,7 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   (other,) = pub.init_kwargs["others"]
   assert (other.root, other.name) == (SECOND.root, "Rowan")
   assert other.metabolism is b.metabolism and other.thoughts is b.thoughts
-  assert other.grid is b.mission.grid and other.status_fn == b.telemetry_status
+  assert other.grid is b.body.grid and other.status_fn == b.telemetry_status
   assert pub.init_kwargs["metabolism"] is a.metabolism
   assert pub.init_kwargs["ledger"] is a.ledger._ledger is b.ledger._ledger
   assert pub.init_kwargs["tasks"] is a.tasks is b.tasks
@@ -1556,7 +1556,7 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
   def fake_run_pair(lives, **kw):
     flown["lives"] = lives
     for life in lives:
-      life.mission.close()
+      life.body.close()
     return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
              "module_stowed": True, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
@@ -1607,7 +1607,7 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
   def fake_run_pair(lives, **kw):
     flown["lives"] = lives
     for life in lives:
-      life.mission.close()
+      life.body.close()
     return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
              "module_stowed": True, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
@@ -1639,7 +1639,7 @@ def test_serve_keeps_the_world_and_a_signal_only_asks_it_to_stop(monkeypatch, tm
     life, _, _ = _serve_wiring(monkeypatch, ["--world", "room_hub",
                                              "--world-state", str(tmp_path / "w.npz")])
     assert life.continuing and life.run_kwargs["resume"] is None
-    keeper = life.mission.step_hooks[-1].__self__
+    keeper = life.body.step_hooks[-1].__self__
     handler = signal.getsignal(signal.SIGTERM)
     handler(signal.SIGTERM, None)
     assert keeper.stop_requested == "SIGTERM"

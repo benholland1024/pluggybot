@@ -1053,6 +1053,52 @@ def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
     assert e["phase"] in ENCOUNTER_PHASES and set(e["robots"]) == set(roots)
 
 
+@pytest.mark.parametrize("pair", [False, True], ids=["home_quad", "home_quad_pair"])
+def test_the_quadruped_scene_fixtures_are_current(pair):
+  """The home world with legs in it (issue #387): the rover taken out and
+  the quadruped -- or the served pair -- and its dock put in at load, so
+  the scene is built from the world's SPEC, as the sim builds it. Stale on
+  any change to the house, the body or the dock."""
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.robot import SECOND, pair_model_name, world_spec
+  cfg = world_config(QUAD_HOME)
+  name = pair_model_name(cfg["model_name"]) if pair else cfg["model_name"]
+  scene = json.loads((PROTOCOL / f"scene.{name}.json").read_text())
+  assert scene["protocolVersion"] == PROTOCOL_VERSION and scene["model"] == name
+  model = world_spec(cfg["model"], second_at=cfg["start2"][:2] if pair else None,
+                     body="quadruped").compile()
+  meta = json.loads(Path(cfg["meta"]).read_text())
+  flag = " --pair" if pair else ""
+  assert scene == scene_dict(model, name, meta=meta), \
+    f"stale fixture: uv run python -m pluggybot.telemetry.scene --world {QUAD_HOME}{flag}"
+  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
+  assert "FL_thigh" in owners and owners["dock"] is None and "chassis" not in owners
+  if pair:
+    assert [n for n, o in owners.items() if o == SECOND.root] == \
+      [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
+
+
+def test_the_quadruped_pair_recording_is_the_periods_shape():
+  """The first quadruped period's fixture (issue #387): no offers and no
+  upkeep -- no `tasks` block, no appetite, `hungerStates: []` -- and every
+  frame says each robot's POSTURE, lying among them: the first walks to
+  the dock and lies on it to charge, the second explores and rests."""
+  from pluggybot.robot import FIRST, SECOND
+  with gzip.open(PROTOCOL / "telemetry.home_quad_pair.jsonl.gz", "rt") as f:
+    lines = [json.loads(line) for line in f]
+  header, frames = lines[0], frames_of(lines)
+  roots = [FIRST.root, SECOND.root]
+  assert header["model"] == "home_quad_pair" and list(header["robots"]) == roots
+  assert header["hungerStates"] == [] and not header["taskKinds"]
+  for root in roots:
+    recs = [f["robots"][root] for f in frames if root in f["robots"]]
+    assert all("posture" in r and "metabolism" not in r for r in recs)
+    assert {"standing", "lying"} <= {r["posture"] for r in recs}
+  first = {f["robots"][FIRST.root]["state"] for f in frames if "state" in f["robots"][FIRST.root]}
+  assert "CHARGE" in first, "the first robot lies on the dock and charges"
+  assert not any(x.get("type") == "tasks" or "tasks" in x for x in lines[1:])
+
+
 def test_the_home_fixture_shows_the_census_answer():
   """An errand's RESULT has to survive at least one frame (issue #13).
 
@@ -1586,12 +1632,12 @@ def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path
   path = str(tmp_path / "census.jsonl")
   rec = TelemetryRecorder(model, life.data, path, model_name="home_world",
                           status_fn=life.telemetry_status)
-  life.mission.step_hooks.append(rec.step_hook)
+  life.body.step_hooks.append(rec.step_hook)
   errand, = [e for e in lc.errands_for("census", "home", None)
              if e.task == "census"]
-  life.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
+  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
   try:
-    result = life.mission.run(errand.use(life))
+    result = life.body.run(errand.use(life))
   finally:
     rec.close()
 

@@ -74,7 +74,7 @@ class Encounters(Activity):
     #: encounters only, which is every caller before it.
     self.lives = tuple(lives)
     #: per robot: was it at the bay on the last step
-    self._at_bay = {life.mission.handle.root: False for life in self.lives}
+    self._at_bay = {life.root: False for life in self.lives}
     #: yields waiting to be honoured: (yielder, needy, t)
     self._open: list = []
     self.yields = 0
@@ -164,7 +164,7 @@ class Encounters(Activity):
     for `YIELD_WINDOW_S`, whether the needy one reaches `CHARGE`."""
     now = float(data.time)
     for life in self.lives:
-      root = life.mission.handle.root
+      root = life.root
       at = life.state in AT_THE_BAY
       was = self._at_bay[root]
       self._at_bay[root] = at
@@ -177,11 +177,11 @@ class Encounters(Activity):
           continue
         if other.battery.energy_wh < other.low_battery_wh:
           self.yields += 1
-          self._open.append((root, other.mission.handle.root, now))
+          self._open.append((root, other.root, now))
           self._emit_yield("yielded", now, life, other)
     for yielder, needy, t0 in list(self._open):
-      needy_life = next(o for o in self.lives if o.mission.handle.root == needy)
-      giver = next(o for o in self.lives if o.mission.handle.root == yielder)
+      needy_life = next(o for o in self.lives if o.root == needy)
+      giver = next(o for o in self.lives if o.root == yielder)
       if needy_life.state == "CHARGE":
         self._open.remove((yielder, needy, t0))
         self._emit_yield("honoured", now, giver, needy_life, since=now - t0)
@@ -192,8 +192,8 @@ class Encounters(Activity):
   def _emit_yield(self, phase: str, t: float, yielder, needy,
                   since: float | None = None) -> None:
     event = {"type": "yield", "t": round(t, 3), "phase": phase,
-             "robot": yielder.mission.handle.root,
-             "to": needy.mission.handle.root,
+             "robot": yielder.root,
+             "to": needy.root,
              "yielderFrac": round(float(yielder.battery.fraction), 4),
              "needyFrac": round(float(needy.battery.fraction), 4),
              "needyReserveWh": round(float(needy.low_battery_wh), 4),

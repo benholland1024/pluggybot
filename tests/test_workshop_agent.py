@@ -92,9 +92,16 @@ def _life(tmp_path, world="room_hub", points=100, workshop=None, step=True):
 
   def fabricate(seconds):
     life.waited.append(seconds)
-    yield from life.mission._drive_routine(0.2, 0.0, 0.0)
+    yield from life.body.mission._drive_routine(0.2, 0.0, 0.0)
   life._fabricate_routine = fabricate
   return life
+
+
+#: The five originals, each hung on its own bay, as the rack view says it
+#: (issue #351).
+ON_THEIR_BAYS = {"module_lcd": "on bay A", "module_plug": "on bay B",
+                 "module_pen": "on bay C", "module_claw": "on bay D",
+                 "module_seed": "on bay E"}
 
 
 def _decision(**fields):
@@ -104,7 +111,7 @@ def _decision(**fields):
 def _run(life, decision):
   events = []
   life.on_event.append(events.append)
-  tick.run(life.mission.swap, life._workshop_routine(decision))
+  tick.run(life.body.mission.swap, life._workshop_routine(decision))
   return events
 
 
@@ -253,11 +260,12 @@ def test_a_build_pays_waits_and_hangs(tmp_path):
   # no field can name, its own rail by the letters `build_tool` takes
   state = overseer_context(life)
   assert state["rack"] == {
-    "original": list(TOOL_BAYS),
+    "original": ON_THEIR_BAYS,
     # ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324): the rail is the world's
     # and a pair shares it, so "the scoop is in C" was never the whole fact.
+    # ...and where the tool IS (issue #351), off the bay's own switch.
     "built": {"A": None, "B": None,
-              "C": {"module": "module_scoop", "by": "you"}}}
+              "C": {"module": "module_scoop", "by": "you", "where": "on its bay"}}}
   assert state["tools"][0]["hung"] and state["tools"][0]["bay"] == "C"
 
 
@@ -408,7 +416,7 @@ def test_a_retire_empties_the_bay_and_a_build_may_take_it(tmp_path):
   assert _outcomes(events) == ["retired"]
   assert "module_scoop" not in life.rack_inventory and "scoop.tilt" not in axes.AXES
   assert not (tmp_path / "tools" / "scoop.tool.json").exists()
-  assert overseer_context(life)["rack"] == {"original": list(TOOL_BAYS),
+  assert overseer_context(life)["rack"] == {"original": ON_THEIR_BAYS,
                                            "built": {"A": None, "B": None, "C": None}}
   events = _run(life, _decision(retire_tool="scoop"))
   assert _outcomes(events) == ["refused"]
@@ -613,7 +621,7 @@ def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
   # the moment it starts printing, as a peer taking an errand would.
   busy = {"why": ""}
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)
@@ -626,7 +634,7 @@ def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
     if life.waited and float(life.data.time) > 1.0:
       busy["why"] = ""
     yield from real(sec, v, w)
-  life.mission._drive_routine = freeing
+  life.body.mission._drive_routine = freeing
 
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
                                             "spec": SCOOP}))
@@ -653,7 +661,7 @@ def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypat
   life = _life(tmp_path, points=100)
   busy = {"why": ""}                                 # free until it prints
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)
@@ -700,7 +708,7 @@ def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
   from pluggybot.lifecycle import STOOD_UP
   life = _life(tmp_path, points=100)
   life.home_pose = tuple(world_config("room_hub")["start"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     yield from real(0.2, 0.0, 0.0)
@@ -712,7 +720,7 @@ def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
   events: list = []
   life.on_event.append(events.append)
   build = _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP})
-  out = tick.run(life.mission.swap,
+  out = tick.run(life.body.mission.swap,
                  life._until_stood_up_routine(life._workshop_routine(build)))
   assert out is STOOD_UP
   assert life.ledger.balance() == 97                  # paid, once
@@ -732,7 +740,7 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
   life = _life(tmp_path, points=100)
   busy = {"why": ""}
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.mission._drive_routine
+  real = life.body.mission._drive_routine
 
   def fabricate(seconds):
     life.waited.append(seconds)
@@ -761,7 +769,7 @@ def test_a_built_bay_says_whose_tool_it_is():
   by trying. ⚠ The TAG cannot carry it — a built module's tag is `15 + bay`
   and belongs to the BAY, reused by whatever hangs there next — so the
   context is the only place ownership can be said."""
-  from pluggybot.lifecycle import rack_context
+  from pluggybot.lifecycle import rack_context, tool_places
   from pluggybot.pair import build_pair
   from pluggybot.workshop import validate
   a, b = build_pair("room_hub", pack="hosting", errands=("none", "none"),
@@ -772,12 +780,13 @@ def test_a_built_bay_says_whose_tool_it_is():
   a.hang_tool(validate.check(SCOOP), 0)
   b.hang_tool(validate.check({**SCOOP, "name": "grabber"}), 1)
 
-  mine = rack_context(a.rack_inventory, a.built_by())["built"]
-  theirs = rack_context(b.rack_inventory, b.built_by())["built"]
-  assert mine["A"] == {"module": "module_scoop", "by": "you"}
-  assert mine["B"] == {"module": "module_grabber", "by": b.robot_name}
-  assert theirs["A"] == {"module": "module_scoop", "by": a.robot_name}
-  assert theirs["B"] == {"module": "module_grabber", "by": "you"}
+  mine = rack_context(a.rack_inventory, tool_places(a), a.built_by())["built"]
+  theirs = rack_context(b.rack_inventory, tool_places(b), b.built_by())["built"]
+  here = {"where": "on its bay"}
+  assert mine["A"] == {"module": "module_scoop", "by": "you", **here}
+  assert mine["B"] == {"module": "module_grabber", "by": b.robot_name, **here}
+  assert theirs["A"] == {"module": "module_scoop", "by": a.robot_name, **here}
+  assert theirs["B"] == {"module": "module_grabber", "by": "you", **here}
   assert mine["C"] is theirs["C"] is None
   # ...and it agrees with what the seam will actually refuse
   with pytest.raises(Exception, match="not yours to retire"):

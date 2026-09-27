@@ -399,7 +399,7 @@ def test_the_call_steps_the_sim_rather_than_freezing_it(menu):
   from pluggybot.lifecycle import HubLifecycle
   src = inspect.getsource(HubLifecycle._ask_interrupt)
   assert "while self.overseer.interrupt_pending:" in src
-  assert "self.mission._drive(THINK_SLICE_S, 0.0, 0.0)" in src
+  assert "self.body.run(self.body.hold_routine(THINK_SLICE_S))" in src
 
 
 def test_interrupted_is_a_method_because_it_has_a_side_effect(menu):

@@ -531,7 +531,7 @@ def test_the_context_carries_the_appetite_and_omits_it_when_there_is_none():
     boards = None
     ledger = None
     verdicts: list = []
-    map_done = True
+    floor_explored = True
 
   state = ov.context_for(FakeLife(), metabolism={"state": "hungry",
                                                  "points": 3})
@@ -636,18 +636,13 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
   from pluggybot.economy.tasks import TaskBoard
   from pluggybot.mission.errand import Errand
 
-  cfg = lc.world_config("home")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  from test_body import stub_life
   ledger = Ledger(path=None)
   metab = Metabolism(ledger, Appetite(points_per_hour=30.0, cap=400,
                                       satisfied_at=45, hungry_at=20))
   board = TaskBoard(path=None)
-  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world="home", battery_wh=cfg["battery_wh"],
-                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"],
-                         boards=lc.board_book("home"), errand=False,
-                         ledger=ledger, metabolism=metab, tasks=board)
+  life = stub_life("home", boards=lc.board_book("home"), ledger=ledger,
+                   metabolism=metab, tasks=board)
 
   def gates() -> dict:
     """Everything the loop reads before it commits the body to anything."""
@@ -721,7 +716,7 @@ def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path,
     seen.append((life.state, life.metabolism.points))
     hungers.add(life.metabolism.state)
     return (life.swaps_done >= 2 and life.charge_cycles >= 1
-            and life.mission.swap.module_state(life.module)["hung"])
+            and life.body.mission.swap.module_state(life.module)["hung"])
 
   r = run_demo(world="room_hub", ledger_state=str(tmp_path / "ledger.json"),
                stop_when=settled)

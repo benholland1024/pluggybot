@@ -45,7 +45,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from pluggybot.mission.mission import MissionAborted
+from pluggybot.tick import MissionAborted
 
 #: Bumped when a field changes meaning; an older file loads, a newer one
 #: refuses (the task board's rule, for the same volume).
@@ -355,6 +355,11 @@ def restore(lives, snap: Snapshot) -> dict:
 # ---- the keeper ----------------------------------------------------------------
 
 
+#: The postures a save waits out (`Body.posture`): the quadruped's two
+#: scripted moves and its get-up, `QuadMission.MOVING`, held to it by a test.
+MOVING_POSTURES = ("lying_down", "standing_up", "getting_up")
+
+
 class Keeper:
   """Saves the world on the physics seam every `every_s`, and on request.
 
@@ -382,12 +387,15 @@ class Keeper:
     self._next: float | None = None
     for life in self.lives:
       life.continuing = True
-    self.lives[-1].mission.step_hooks.append(self.step_hook)
+    self.lives[-1].body.step_hooks.append(self.step_hook)
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the
-    sim with the pose moved and the pack not yet refilled."""
-    return any(life._standing_up for life in self.lives)
+    sim with the pose moved and the pack not yet refilled. ...And a body
+    mid-move (issue #387): a quadruped lying down, standing up or getting
+    up is a scripted move or a policy part-way, which no file holds."""
+    return any(life._standing_up or life.body.posture in MOVING_POSTURES
+               for life in self.lives)
 
   def step_hook(self) -> None:
     if self.busy():

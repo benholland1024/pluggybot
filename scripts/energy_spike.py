@@ -42,6 +42,8 @@ from pathlib import Path
 
 import mujoco
 
+from pluggybot.robot import world_spec  # noqa: E402
+
 from pluggybot.lifecycle import (
   HubLifecycle, board_book, draw_errand_for, errands_for, points_ledger,
   world_config, world_screens,
@@ -69,7 +71,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
             charge_s: float) -> dict:
   """Fly every errand once and report what each one took out of the pack."""
   cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  # ...the world with its body in it (issue #387: `home_quad` puts the
+  # quadruped and its dock in at load)
+  model = world_spec(cfg["model"], body=cfg.get("body", "rover")).compile()
   data = mujoco.MjData(model)
   book = board_book(world)
   screens = world_screens(model, data)
@@ -84,21 +88,21 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
                       near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
     life.activities = activities
 
   # `explore` reads these two off the running mission (`run()` sets them);
   # this script drives the phases directly, so it sets them itself.
   life.max_sim_time = 1e9
   life.blacklist = set()
-  life.map_done = False
+  life.floor_explored = False
   life.explore_deadline = 1e9
 
   out: dict = {"world": world, "batteryWh": battery_wh, "actions": {}}
   try:
-    life.mission.start_at(*cfg["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*cfg["start"])
+    life.body.start_discovery()
+    life.body.run(life.body.look_around_routine())
 
     # ---- explore, which is also how the rack gets found -------------------
     t0, e0 = float(data.time), life.battery.energy_wh
@@ -182,13 +186,17 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       # on the step where the suspension has not settled yet.
       t0, e0 = float(data.time), life.battery.energy_wh
       end = t0 + charge_s
+      # ...held as `charge()` holds it: the body's own press, or its lying
+      # on the dock's pins (issue #387)
+      life.body.docked = True
       while float(data.time) < end:
-        life.mission._drive(0.25, 0.012, 0.0)
+        life.body.run(life.body.dock_hold_routine(0.25))
         if not life.charging_now:
-          life.mission._drive(1.0, 0.04, 0.0)
+          life.body.run(life.body.redock_routine())
           if not life.charging_now:
             print("  charge    lost the pins")
             break
+      life.body.docked = False
       dt = max(1e-6, float(data.time) - t0)
       gained = life.battery.energy_wh - e0
       out["chargeW"] = gained * 3600.0 / dt
@@ -197,7 +205,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     else:
       print("  charge    could not reach the rack -- no chargeW measured")
   finally:
-    life.mission.close()
+    life.body.close()
   return out
 
 
@@ -233,7 +241,9 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
   from pluggybot.home import world as home
 
   cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  # ...the world with its body in it (issue #387: `home_quad` puts the
+  # quadruped and its dock in at load)
+  model = world_spec(cfg["model"], body=cfg.get("body", "rover")).compile()
   data = mujoco.MjData(model)
   life = HubLifecycle(model, data, realtime=False, battery_wh=battery_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
@@ -242,24 +252,24 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
                       near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
-    life.mission.step_hooks.append(activities.step_hook(model, data))
+    life.body.step_hooks.append(activities.step_hook(model, data))
   life.max_sim_time = 1e9
   life.blacklist = set()
-  life.map_done = False
+  life.floor_explored = False
   life.explore_deadline = 1e9
 
   out: dict = {"world": world}
   try:
-    life.mission.start_at(*cfg["start"])
-    life.mission.start_discovery()
-    life.mission._spin()
+    life.body.start_at(*cfg["start"])
+    life.body.start_discovery()
+    life.body.run(life.body.look_around_routine())
     life.explore(budget=explore_s, mark_done=False)
 
     path = list(home.HOME_WORST_RETURN_PATH)
     # Start AT the worst point, odometry seeded from truth: this measures the
     # route's energy, not the robot's confusion about where it is.
     hd = math.atan2(path[1][1] - path[0][1], path[1][0] - path[0][0])
-    life.mission.start_at(path[0][0], path[0][1], hd)
+    life.body.start_at(path[0][0], path[0][1], hd)
     life.battery.energy_wh = battery_wh
 
     t0, e0 = float(data.time), life.battery.energy_wh
@@ -270,15 +280,15 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
     # STANDOFF and then creeps on the tag. That split is also the honest one:
     # travel is what a distance model can predict, docking is what it cannot.
     for wx, wy in path[1:-1]:
-      metres += math.hypot(wx - life.mission.pose[0],
-                           wy - life.mission.pose[1])
+      metres += math.hypot(wx - life.body.pose[0],
+                           wy - life.body.pose[1])
       deadline = float(data.time) + 120.0
       while float(data.time) < deadline:
-        px, py, _ = life.mission.pose
+        px, py, _ = life.body.pose
         if math.hypot(wx - px, wy - py) < 0.15:
           break
-        v, w = drive_toward(life.mission.pose, (wx, wy), slow_radius=0.5)
-        life.mission._drive(0.05, v, w)
+        v, w = drive_toward(life.body.pose, (wx, wy), slow_radius=0.5)
+        life.body.run(life.body.velocity_routine(0.05, v, w))
     travel = e0 - life.battery.energy_wh
     out["travelWh"] = travel
     out["travelS"] = float(data.time) - t0
@@ -297,14 +307,14 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
     print(f"  RESERVE   {out['reserveWh']:.4f} Wh floor "
           f"(travel + dock, before the retry margin)")
   finally:
-    life.mission.close()
+    life.body.close()
   return out
 
 
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", default="home", choices=("home", "room_hub"))
+  ap.add_argument("--world", default="home", choices=("home", "room_hub", "home_quad"))
   ap.add_argument("--battery-wh", type=float, default=BIG_PACK_WH,
                   help="an oversized pack, so nothing measured is cut short")
   ap.add_argument("--explore-s", type=float, default=None,
@@ -325,7 +335,10 @@ def main() -> None:
   cfg = world_config(args.world)
   explore_s = args.explore_s if args.explore_s is not None \
       else float(cfg["explore_budget"])
-  actions = tuple(a for a in args.actions.split(",") if a)
+  # ...and a body with no arm has no errand to price (issue #387): its
+  # rows are the explore's and the charger's
+  actions = (tuple(a for a in args.actions.split(",") if a)
+             if cfg.get("tools", True) else ())
   wall = time.time()
   if args.reserve:
     print(f"== {args.world}: measuring the worst-case return trip on a "

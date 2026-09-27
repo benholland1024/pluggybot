@@ -10,9 +10,9 @@ robot (PluggyPlan.md "What this project is for"; Evaluation.md §5).
 
 ## The one seam, and the one rule
 
-Every physics step in the hub stack bottoms out in `HubSwap._step_once`,
-which fires `HubMission.step_hooks` — the same per-step callback list the
-battery drains through. Everything here is another hook on that list, so it
+Every physics step bottoms out in the body's stepper (the rover's
+`HubSwap._step_once`), which fires `Body.step_hooks` — the same per-step
+callback list the battery drains through. Everything here is another hook on that list, so it
 works regardless of who owns the loop.
 
 The rule all hooks obey: **no I/O inside the physics step**. A hook may
@@ -126,6 +126,17 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
+`serve.py --body quadruped` (`$PLUGGY_BODY`; issue #387) serves the same
+house with the rover taken out and the quadruped and its dock put in: the
+world is `home_quad` (`home_quad_pair` with `--pair`), the errand defaults
+to `none`, and a tool errand is refused -- the body has no arm yet. The
+deployed period flies it with no job offers (`PLUGGY_TASKS` blank, which the
+image otherwise sets) and no upkeep (no `--metabolism`). A `world.npz`
+saved by the rover's world is refused by name, so the first quadruped
+process starts from the XML; the memories, the ledger and the kept event
+maps carry on, and a kept row naming a tool errand is left out and said in
+History.
+
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
 it explores, then stands by for the shared board's work), `--robot-name-2`
@@ -163,8 +174,8 @@ things about it are decisions rather than boilerplate:
 
 - **It is not the dev environment.** The serve path imports mujoco, numpy,
   scipy, pillow, websockets, the apriltag detector and the overseer's client
-  — no torch, no ultralytics, no SB3, which would put a ~3 GB CUDA wheel on a
-  machine with no GPU. The image installs `deploy/requirements-serve.txt`,
+  — not the video encoder or the tag GENERATOR, and never a training stack
+  (#375). The image installs `deploy/requirements-serve.txt`,
   pinned to `uv.lock`, and `tests/test_deploy.py` fails if the pins drift
   from the lock or the mission stack grows an import the image omits — it
   blocks the omitted packages and actually flies the robot, because the
@@ -408,3 +419,22 @@ those read as arrays the same pair measured **0.96×** over the 60 s carry
 the swaps at 1 ms timesteps being the dear part), 2026-09-20. A pair is
 one physics thread: more cores do not move it, and the site's
 pace-following clock covers what is left.
+
+**A served day, and the core that would carry it** (issue #385, 2026-09-27;
+SimNotes, "The served sim's speed"). `--pair --free-run` on the deploy box,
+the home world, a scripted day with the jobs, hunger and the near field on
+(`--errand draw --errand2 carry --tasks --metabolism --near-field`, 4 084
+sim s), streaming to `ws_sink.py`: staging **0.97–0.98×**, this change
+**1.14×**, the narration identical line for line; no frame dropped either
+way. The same code on a rented **AMD EPYC 4564P** core (Zen 4, up to 5.88
+GHz, a shared host): **1.82×**, 1.64× the box over the span the two days
+share. A quadruped pair adds ~20 ms of wall a sim second on the box, ~11 on
+the EPYC: ~1.1× here, ~1.78× there. #377 had asked for 1.3× over a day;
+**Ben decided (2026-09-27) to stay on this box**, so the served world runs
+near 1.1× and will slip under 1× as #386's scan matching and the stairs
+land, which the site's pace-following clock plays slow rather than breaks
+(SimNotes has the reasoning). The measuring kit is the throwaway container
+the box runs beside the live world: `docker run --rm --cpus 2 --memory 3g
+-e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e PYTHONPATH=/w/src -v
+<tree>:/w -w /w --entrypoint sh rooftop-prod-sim`, a `ws_sink.py` in the
+background, then `serve.py` as above.

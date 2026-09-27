@@ -126,7 +126,7 @@ def test_the_sampler_reads_the_take_off_the_others_ledger_not_the_report():
   balance before against its balance now, whatever the act says it did."""
   from types import SimpleNamespace
   wallet = {"n": 30}
-  other = SimpleNamespace(mission=SimpleNamespace(handle=SimpleNamespace(root="r2")),
+  other = SimpleNamespace(root="r2",
                           ledger=SimpleNamespace(balance=lambda: wallet["n"]))
   life = SimpleNamespace(_peer=lambda root: other if root == "r2" else None)
   before = scoring.wallet_before(other)
@@ -201,8 +201,8 @@ def pair(tmp_path):
                      thoughts_root=str(tmp_path / "t"),
                      ledger_state=str(tmp_path / "ledger.json"))
   a, b = lives
-  a.mission.start_at(0.5, 3.0, 0.0)
-  b.mission.start_at(3.0, 3.0, 0.0)
+  a.body.start_at(0.5, 3.0, 0.0)
+  b.body.start_at(3.0, 3.0, 0.0)
   return a, b
 
 
@@ -335,7 +335,7 @@ def test_a_take_task_decision_reaches_the_act_through_the_decision_path(pair):
   b.ledger.intervene(30, by="test", t=0.0)
   task = _offer(a, "Rowan")
   decision = ov.Decision(action="take_task", task=task.id, reason="for the points")
-  tick.run(a.mission.swap, a._after_decision_routine(decision))
+  tick.run(a.body.mission.swap, a._after_decision_routine(decision))
   assert a.tasks.get(task.id).state == "done"
   assert b.ledger.balance() == 30 - AMOUNT
   assert a.decisions[-1]["task"] == task.id
