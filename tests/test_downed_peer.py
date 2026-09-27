@@ -21,9 +21,9 @@ import numpy as np
 import pytest
 
 from pluggybot.body import KeepClear
-from pluggybot.mission.mission import (
+from pluggybot.mission.mission import HubMission
+from pluggybot.navigator import (
   CLOSE_ENOUGH_M, DOWN_CHECK_S, DOWN_ROBOT_CELLS, OTHER_ROBOT_CELLS,
-  HubMission, _cells,
 )
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, SECOND
@@ -77,7 +77,7 @@ def test_a_robot_lying_down_is_avoided_where_it_lies_not_where_it_says(lie):
   said = peer.body.pose_xy()
   assert math.dist(body, said) > 1.5, "the premise: the reckoner left the body"
   keep = me.body.others[0]()
-  assert keep.down and _cells(keep) == DOWN_ROBOT_CELLS
+  assert keep.down and me.body.mission._cells(keep) == DOWN_ROBOT_CELLS
   x, y = keep.x, keep.y
   assert (x, y) == pytest.approx(me.body.as_seen(*body), abs=1e-9)
   # a driver that knows where it is -- to its scans' centimetres (#386)
