@@ -4,9 +4,10 @@ A simulated, hardware-honest robot and the autonomous agent that lives in it.
 **The project is agent-autonomy research, not a product**: the mission, the
 six qualities the agent is meant to maximise, and the order of work are in
 `docs/PluggyPlan.md` § "What this project is for" — provisional wording,
-settled direction. **The body is changing**: the wheeled rover is being
-replaced by a ~10 kg quadruped with a two-joint arm, deployed as it develops
-(#375 holds the order and the decisions). Before doing anything, read the
+settled direction. **The body has changed**: the served pair are ~10 kg
+quadrupeds (#387, `legs/body.py`), the two-joint arm still to come; the rover
+stays in the repo, and in most tests, until #376's stage C (#375 holds the
+order and the decisions). Before doing anything, read the
 doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
@@ -224,11 +225,11 @@ tolerance spikes are listed in `docs/Rover.md`.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission: explore → fetch a tool → use it → stow it → charge, battery-driven. `--world {room_hub,home}`, `--errand NAME` (`showcase` = draw + census, the queue both streamed surfaces are recorded from), `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; `--body quadruped` (`$PLUGGY_BODY`) serves the quadruped, `home` with legs being `home_quad`, and refuses a tool errand (#387); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | the harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts. Re-run after anything that changes what an errand does |
+| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore and dock (it has no errand). Re-run after anything that changes what an errand does |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the rover's (`run_demo`) or the quadruped's (the walking policy steered by the truth, two estimates on one walk), and whether the lab door is open in the robot's own map; `--no-match` is the day on odometry alone |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); filmstrip `solve.png` |
@@ -382,6 +383,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   event and a new period), core (`Goals.md`, `Top_of_mind.md`), notes
   (`Notes.md`, `Findings.md` as `findings/<task>`) and History. ⚠ `default.md`
   is byte-identical to the pre-#263 `DEFAULT_MAIN`;
+  a quadruped world swaps the rover's body paragraph for its own, asserted,
+  and nothing else (`constitution.for_body`, #387);
   `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
@@ -515,7 +518,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
-  (`Keeper.busy`), NEVER on a crash. Two refusals, said in History: a changed
+  or mid-move (a quadruped lying down, standing up or getting up is a
+  generator part-way; `Keeper.busy`), NEVER on a crash. Two refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps; a save restored `MAX_RESUMES` (3) times without a new one is
   not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
@@ -576,7 +580,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME` (a RUN's budget), `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_WORLD_STATE` (`world.npz` on the volume; unset → every start from
-  XML), `PLUGGY_ROBOT_NAME` (unset → `"Pluggy"`), `PLUGGY_NEAR_FIELD` (unset →
+  XML), `PLUGGY_BODY` (unset → the rover; `quadruped` needs `PLUGGY_ERRAND`
+  and `PLUGGY_ERRAND_2` `none`, or `serve.py` refuses to start),
+  `PLUGGY_ROBOT_NAME` (unset → `"Pluggy"`), `PLUGGY_NEAR_FIELD` (unset →
   on), `PLUGGY_LOOK` (unset → on), `PLUGGY_CONSTITUTION` /
   `PLUGGY_CONSTITUTION_2` (an unknown name REFUSES to start), `PLUGGY_PAIR` /
   `PLUGGY_ERRAND_2` / `PLUGGY_ROBOT_NAME_2`, the five data files
@@ -611,8 +617,13 @@ tolerance spikes are listed in `docs/Rover.md`.
   --pair` and `scripts/two_robots.py --fast --pack hosting --tasks
   --metabolism --near-field --game --max-sim-time 600 --record
   protocol/telemetry.room_hub_pair.jsonl.gz` (⚠ `--pack hosting`, or the hider
-  dies mid-game). ⚠ `--tasks`, `--metabolism` and `--near-field` are ALL
-  load-bearing. ⚠ The HOME recording takes TWO PASSES against the same
+  dies mid-game). The QUADRUPED pair (`home_quad_pair`, #387): `python -m
+  pluggybot.telemetry.scene --world home_quad --pair` and
+  `scripts/two_robots.py --world home_quad --fast --pack demo --near-field
+  --errands none,none --battery 0.42,1.0 --max-sim-time 600 --record
+  protocol/telemetry.home_quad_pair.jsonl.gz` -- the period's shape, so NO
+  `--tasks` or `--metabolism` there. ⚠ Elsewhere `--tasks`, `--metabolism` and
+  `--near-field` are ALL load-bearing. ⚠ The HOME recording takes TWO PASSES against the same
   `--boards state.json` (lay the ink with `--errand draw`, then record: a
   `board_snapshot` is only emitted for a board carrying ink). ⚠ The arrival
   gate is PER-ERRAND (`Errand.needs_use_pose`; the census sets it False,
@@ -720,7 +731,11 @@ tolerance spikes are listed in `docs/Rover.md`.
   (#277) is a second body in the FIRST rack's frame. ⚠ The grid is 469,200
   cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
   linear (1.26 s across the loop), so vectorising the planner is the lever if
-  the world grows again. ⚠ THE CAMERAS' NEAR PLANE IS PINNED
+  the world grows again. ⚠ The QUADRUPED's home (`home_quad`) is built at
+  LOAD from that file (`legs/world.py`): the rover taken out by what names it,
+  the quadruped(s) and #378's dock put in -- one house, no second XML; its
+  robots are attached AFTER the house, so read them by name. ⚠ THE CAMERAS'
+  NEAR PLANE IS PINNED
   (`home.CAMERA_EXTENT_M`, 37.2 m, a `<statistic>` in the generated XML):
   MuJoCo scales it by the extent it derives from the bounding box, and the
   loop silently pushed it from 0.37 to 0.70 m — the dock camera clipped the
@@ -752,7 +767,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   ix]`.
 - **Every manoeuvre is a ROUTINE, and one loop steps the physics** (issue #58;
   `pluggybot/tick.py`): a routine is a generator yielding one command per
-  physics step (the BODY's: the rover's `(v, w)`) and returning its result;
+  physics step (the BODY's: the rover's `(v, w)`, the quadruped's `(vx, vy,
+  w)`) and returning its result;
   `HubLifecycle.run()` drives
   `_day_routine`, and everything beneath it is composed with `yield from`,
   each with a ONE-LINE blocking twin (`drive_to` =
@@ -780,7 +796,15 @@ tolerance spikes are listed in `docs/Rover.md`.
   routines and holds a step with `body.STILL`. The rover is `RoverBody`
   (`mission/rover.py`): every member hands the call to `HubMission` /
   `HubSwap` by name at CALL time, so a stub on `life.body.mission.<routine>`
-  stubs what the body runs; parity IDENTICAL over a scripted home day.
+  stubs what the body runs; parity IDENTICAL over a scripted home day. The
+  QUADRUPED is `QuadBody` (`legs/body.py`, #387) over `QuadMission`; both
+  missions are a `Navigator` (`navigator.py`: the map, planner, drive and
+  peer rules, moved out of `HubMission` with parity IDENTICAL), whose class
+  attributes are the body's MEASURED sizes (inflation, peer discs, front
+  stop, peer corridor) and whose hooks are what only a body says (`pose`,
+  `_nav_routine`, `_front_blocked`, `_planning_grid`, `_backoff_routine`).
+  ⚠ A new behaviour for one body is a hook or a class attribute, defaulting
+  to the rover's: the rover's day must still hash as it did.
   `HubLifecycle(body=)`: none means the world's own (`body.body_for`, the one
   place a body is chosen). ⚠ A test that needs only the loop's BOOKKEEPING
   builds it on a `StubBody` (`stub_life` in `tests/test_body.py`: a floor and
@@ -1007,18 +1031,32 @@ tolerance spikes are listed in `docs/Rover.md`.
   anything depends on it. ⚠ **The peer channel is not the exception** (#328):
   `DepthFrame.peers` is the SENSOR's answer, the map is never given a peer
   point, and a rule that read the height map would be the first one.
-  `tests/test_near_field.py` pins each rule.
+  `tests/test_near_field.py` pins each rule. ⚠ **The QUADRUPED's planner
+  reads the D435, never the height map** (#387): its LIDAR's plane (0.51 m) is
+  over the couch and the bed, so the camera's points under it are a layer of
+  its own the planner plans round (`QuadMission._fold_low`) -- within 1.8 m,
+  three frames of evidence, never beside what the LIDAR maps, each rule after
+  a stray cell shut a door (`tests/test_quadruped.py`).
 - **The robot can die, and a person or a timer stands it up** (issue #107;
   Evaluation.md §6): `HubLifecycle._death_step` on the physics seam — `flat`
-  at zero pack, `stuck` (toppled past `TOPPLE_TILT_RAD` for `TOPPLE_HOLD_S`,
-  or a failed dock), `unpaid`, `unminded`; never summed. `reset_robot` warps
+  at zero pack, `stuck` (toppled past `TOPPLE_TILT_RAD` for the body's
+  `stuck_after_s` -- the rover's `TOPPLE_HOLD_S`, a quadruped's 20 s, MEASURED
+  over its get-ups -- or a failed dock), `unpaid`, `unminded`; never summed.
+  ⚠ **The quadruped RESTS BY REFLEX and the mind is not asked** (Ben, #387;
+  `legs/posture.py`): 8.6 s without a motion command lies it down, the next
+  one stands it first; `posture` rides the wire, and lying is never down. `reset_robot` warps
   it to the start pose with a full pack. ⚠ Mortality is OPT-IN (`mortal=`;
   `experiment.py` passes `mortal=True`), and the default is not caution: on a
   demo cell the pack reaches zero mid-errand and the robot limps on. ⚠ On a
   SERVED world it stands itself up after `RESTART_AFTER_S` = 300 sim s
   (`survival.resetInS`) — ON in `serve.py`, OFF in `experiment.py` — and that
   is neither an intervention nor #136's true death. ⚠ A stand-up STEPS the
-  sim: `_standing_up` guards the recursion. ⚠ A SEATED MODULE STOPS AN ADMIN'S
+  sim on the rover (its `start_at` settles a second: `_standing_up` guards
+  the recursion) and NOTHING on the quadruped (#387): a second stepped there
+  is one the other robot's stepper and hooks miss — measured, it fell and lost
+  its pose. ⚠ A stand-up never lands ON another robot (`up_pose`,
+  `START_CLEAR_M` 1.0): the first clear commissioned start, else it waits.
+  ⚠ A SEATED MODULE STOPS AN ADMIN'S
   DOOR ONLY WHILE SOMETHING CAN STILL PUT IT DOWN (#311; `parked_dead`, set by
   `_wait_dead_routine`), and the rescue takes the tool home
   (`_return_module`). ⚠ **A STAND-UP ENDS WHAT IT LANDS IN** (#348;
@@ -1072,7 +1110,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   Overseer.md §8b, Evaluation.md §6): `charge` PAYS ZERO (a charge at 80 % is
   evidence of caution; `voluntary.chosen == honoured` is the assertion);
   upkeep that cannot be paid is the `unpaid` death; `Metabolism._armed` needs
-  ONE POINT BANKED to re-arm. **Five hearts, flat, no escalation**
+  ONE POINT BANKED to re-arm. ⚠ UPKEEP OFF IS A CONFIGURATION (#387, the
+  first quadruped period): with no appetite `overseer.mortal_rule` drops its
+  upkeep clauses and the heart's price in hours (byte-identical with one),
+  and there is no `unpaid` death and no `hungerStates`. **Five hearts, flat, no escalation**
   (`ledger.HEARTS`): an escalating cost is a forcing function
   (`tests/test_hearts.py`). True death archives the ledger and the robot's
   files; `Main.md` and `Goals.md` survive. A heart is BOUGHT (`buy_heart`),

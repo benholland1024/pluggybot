@@ -9,7 +9,8 @@ runs, and the day flown through the interface is the day flown before it
 stage C).
 """
 
-from pluggybot.body import Body
+from pluggybot.behavior.navigation import plan
+from pluggybot.body import TOPPLE_HOLD_S, Body
 from pluggybot.mission.mission import (
   CHARGE_APPROACH_MAX, CHARGE_CREEP, CHARGE_PRESS, MAP_TILT_RAD, UNDOCK_REVERSE,
   HubMission, bay_standoff, charge_standoff, charge_trace, gave_up, swap_trace,
@@ -28,8 +29,12 @@ class RoverBody(Body):
 
   STILL = (0.0, 0.0)
   level_tilt_rad = MAP_TILT_RAD
-  #: The rover has no posture to rest in.
+  #: The rover has no posture to rest in, and a fall is for somebody else
+  #: to right (`body.TOPPLE_HOLD_S` is its whole budget).
   resting = False
+  posture = "standing"
+  rights_itself = False
+  stuck_after_s = TOPPLE_HOLD_S
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                rack=None, grid_bounds=(-3, -3, 7, 7),
@@ -87,6 +92,9 @@ class RoverBody(Body):
     return self.mission._spin_routine()
 
   grid = property(lambda self: self.mission.grid)
+
+  def plan_frontier(self, blacklist):
+    return plan(self.mission.grid, self.mission.pose, blacklist)
 
   def reachable(self, points) -> list[bool]:
     return self.mission.reachable(points)

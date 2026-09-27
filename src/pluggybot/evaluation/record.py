@@ -97,7 +97,30 @@ def world_hash(world: str) -> str:
       visit(path.parent / ref.decode())
 
   visit(root)
+  # ...and a body put in at load (issue #387), which the XML does not name:
+  # the quadruped's generated model, its drivers' gains and the policies it
+  # walks and gets up on -- a retrained policy is a new regime
+  for rel in BODY_FILES.get(world_config(world).get("body", "rover"), ()):
+    visit(REPO / rel)
   return digest.hexdigest()
+
+
+#: The files a body put into a world at load is made of (`world_hash`).
+BODY_FILES = {"quadruped": ("models/quadruped.xml", "models/quadruped.json",
+                            "models/quadruped_policy.npz",
+                            "models/quadruped_getup.npz")}
+
+
+def body_identity(world: str) -> dict | None:
+  """WHICH BODY a world's robots have (issue #387), where it is not the
+  rover: its name and the sha256 of each policy it runs, by role."""
+  from pluggybot.lifecycle import world_config
+  body = world_config(world).get("body", "rover")
+  if body == "rover":
+    return None
+  from pluggybot.legs.body import policies
+  walk, getup = policies()
+  return {"name": body, "policies": {"walk": walk.sha256, "getup": getup.sha256}}
 
 
 def data_hashes(world: str) -> dict[str, str]:
@@ -141,7 +164,8 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    hashes: dict | None = None,
                    commit: str | None = None,
                    constitutions: dict | None = None,
-                   eyes: str | None = None) -> dict:
+                   eyes: str | None = None,
+                   body: dict | None = None) -> dict:
   """WHICH BUILD produced a stream, in the experiment's own vocabulary
   (issue #132; docs/Evaluation.md §5).
 
@@ -210,6 +234,10 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # what the robot "saw" then depends on it. ABSENT where the arm cannot
     # look, on the rung's terms.
     **({"eyes": eyes} if eyes else {}),
+    # ...and WHICH BODY (issue #387): the quadruped and the policies it
+    # walks and gets up on (`body_identity`). ABSENT for the rover, on the
+    # rung's terms, so every rover header reads as it did.
+    **({"body": dict(body)} if body else {}),
   }
 
 

@@ -323,11 +323,13 @@ def test_explore_does_not_spin_when_the_other_robot_blocks_the_only_route(monkey
   m.others = [lambda: (2.2, 1.0)]                  # standing across it
 
   # The premise: the two planners disagree about this frontier.
-  path, status = lc.plan(g, m.pose, set())
+  from pluggybot.mission import rover
+  path, status = rover.plan(g, m.pose, set())
   assert status == "ok"
   assert m._plan_to(*g.cell_to_world(*path[-1])) is None
 
-  real, plans = lc.plan, []
+  # ...the frontier planner the rover's explore asks (`Body.plan_frontier`)
+  real, plans = rover.plan, []
 
   def counted(*a, **kw):
     plans.append(life.data.time)
@@ -336,7 +338,7 @@ def test_explore_does_not_spin_when_the_other_robot_blocks_the_only_route(monkey
                            f"time {life.data.time:.3f} without stepping")
     return real(*a, **kw)
 
-  monkeypatch.setattr(lc, "plan", counted)
+  monkeypatch.setattr(rover, "plan", counted)
   # The spin is 7 s of physics and not the claim; stubbed, nothing here steps.
   m._spin_routine = lambda *a, **kw: tick.result(None)
   step = tick.Step(life.explore_routine(budget=30.0))

@@ -36,7 +36,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import continuation
-from pluggybot.behavior.navigation import STRIKES_TO_FINISH, plan
+from pluggybot.behavior.navigation import STRIKES_TO_FINISH
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
   bay_switches, built_bay_index, is_built_bay,
@@ -46,7 +46,9 @@ from pluggybot.mission.errand import (
   programmed_errand,
   carry_errand, census_errand, dance_errand, drawing_errand,
 )
-from pluggybot.body import Body, KeepClear, body_for
+from pluggybot.body import (  # noqa: F401 -- the topple's old home
+  TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
+)
 from pluggybot.rack.localize import RackPose
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -70,7 +72,7 @@ from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
-from pluggybot.power import DEPTH_CAMERA_W, MODULE_IDLE_W, charge_scale_from_env
+from pluggybot.power import MODULE_IDLE_W, charge_scale_from_env
 from pluggybot.telemetry.protocol import (
   DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
   robot_roots,
@@ -88,12 +90,6 @@ State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL", "LOOK",
 #: second of landing, long enough that the check is not the cost.
 LOOK_SLICE_S = 0.2
 
-#: Chassis tilt from upright that counts as knocked over (issue #107), and
-#: how long it has to hold: a wheel riding a threshold tips the body for a
-#: moment and recovers, a robot on its side does not. 60 deg is past any
-#: pose the drive can right itself from.
-TOPPLE_TILT_RAD = math.radians(60.0)
-TOPPLE_HOLD_S = 2.0
 #: How often the death seam looks (sim seconds); it is on every physics
 #: step and a quaternion-to-tilt every 2 ms would be the cost, not the check.
 DEATH_CHECK_S = 0.1
@@ -181,6 +177,12 @@ EVENTS_CHECK_S = 1.0
 #: written against one span per run and turning this on by default would
 #: change what every committed number means without anybody choosing it.
 RESTART_AFTER_S = 300.0
+#: A stand-up puts the robot on a start pose no other robot's body is within
+#: this of, m (issue #387): a stand-up is a warp, and a warp INTO a body is
+#: an overlap the solver throws both out of. Two quadrupeds' reach from
+#: their torsos' centres (0.38 m each, the hind knees; the rover's is less)
+#: and a hand's width between them.
+START_CLEAR_M = 1.0
 
 #: How long a finished build will stand and wait for room on the rack
 #: (issue #315), and how often it looks. A DESIGN DECISION, not a
@@ -599,8 +601,11 @@ class HubLifecycle:
     #: cannot hang at all (`can_reshape` says so). Nothing else reads the
     #: rail's presence -- the grammar keys off `world_config`'s count, which
     #: a test holds equal to this.
-    self.has_built_rack = mujoco.mj_name2id(
+    # ...and on a body that can hang one (issue #387): the rail stands in
+    # the quadruped's world, and waits for its arm.
+    self.has_built_rack = (mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
+      and world_config(world).get("tools", True))
     self.tools_built = 0
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
@@ -1099,7 +1104,7 @@ class HubLifecycle:
     # load like the module's, drawn only where the sensor is on.
     self.battery.update(self.data, dt, charging=self.charging_now,
                         tool_w=(MODULE_IDLE_W if self.tool_powered else 0.0)
-                        + (DEPTH_CAMERA_W if self.depth_camera is not None
+                        + (self.depth_camera.draw_w if self.depth_camera is not None
                            else 0.0))
     self._screen_step()
     self._death_step()
@@ -1153,7 +1158,8 @@ class HubLifecycle:
     a day that hit zero inside an errand, docked on nothing and ended "day
     over". The moment is recorded here; what the body does next is the
     errand's business until it returns. A `stuck` death by toppling is the
-    chassis past TOPPLE_TILT_RAD for TOPPLE_HOLD_S.
+    torso past TOPPLE_TILT_RAD for the body's `stuck_after_s`: the rover's
+    TOPPLE_HOLD_S, or a get-up's budget for a body that rights itself.
     """
     if (not self.mortal or self.dead is not None
         or self.data.time < self._next_death_check):
@@ -1198,9 +1204,12 @@ class HubLifecycle:
       # TOPPLE_HOLD_S later, by which time the errand has had two seconds
       # to react to the fall -- a failed pick lowers the lift and moves on.
       self._fall = self._moment()
-    elif self.data.time - self._tilted_since >= TOPPLE_HOLD_S:
-      self._die("stuck", f"knocked over ({math.degrees(tilt):.0f} deg from "
-                         "upright)", at=self._fall)
+    elif self.data.time - self._tilted_since >= self.body.stuck_after_s:
+      # ...a body that gets itself up (issue #387) is `stuck` only once its
+      # get-up has had its measured budget and it is still down
+      self._die("stuck", (f"fell and could not get up in {self.body.stuck_after_s:.0f} s "
+                          if self.body.rights_itself else "knocked over ")
+                + f"({math.degrees(tilt):.0f} deg from upright)", at=self._fall)
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and the world's."""
@@ -1470,7 +1479,26 @@ class HubLifecycle:
       return
     if float(self.data.time) - self.dead["t"] < self.restart_after_s:
       return
+    if self.up_pose() is None:
+      return                             # every start is under a robot: next step
     self.stand_up(AUTO_RESTART_BY, auto=True)
+
+  def up_pose(self) -> tuple[float, float, float] | None:
+    """Where a stand-up puts this robot (issue #387): its own start pose,
+    or -- with another robot's body on it -- the first of the others' start
+    poses that is clear, each a pose the world was commissioned with; None
+    while every one is taken. Read off the other robots' TRUE bodies: the
+    stand-up is the world's own hand, and it can see what it puts a robot
+    down on. With two robots one start is always clear."""
+    if self.home_pose is None:
+      return None
+    for pose in [self.home_pose] + [p.home_pose for p in self.peers
+                                    if p.home_pose is not None]:
+      if all(math.hypot(p.body.footprint_centre()[0] - pose[0],
+                        p.body.footprint_centre()[1] - pose[1]) >= START_CLEAR_M
+             for p in self.peers):
+        return tuple(pose)
+    return None
 
   @property
   def expects_work(self) -> bool:
@@ -1976,6 +2004,11 @@ class HubLifecycle:
       # at this instant -- and absent when there is no switch, which reads
       # as `llm` and is what every demo and test is.
       **({"mode": self.mode.mode} if self.mode is not None else {}),
+      # ITS POSTURE (issue #387): lying down to rest is a fact the site
+      # draws, never a fall -- `standing`, `lying_down`, `lying`,
+      # `standing_up` or `getting_up`. Absent for a body that has none (the
+      # rover always stands), so its frames read as they did.
+      **({"posture": self.body.posture} if self.body.rights_itself else {}),
       "battery": {"frac": round(self.battery.fraction, 4),
                   "watts": round(self.battery.last_power_w, 2),
                   "charging": self.charging_now},
@@ -2121,7 +2154,7 @@ class HubLifecycle:
         self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
         return
-      path, status = plan(self.body.grid, self.body.pose, self.blacklist)
+      path, status = self.body.plan_frontier(self.blacklist)
       if status == "ok":
         wx, wy = self.body.grid.cell_to_world(*path[-1])
         t0 = self.data.time
@@ -3619,7 +3652,13 @@ class HubLifecycle:
         self._return_module(held)
         self.tool_powered = False
         self._say(f"{held} was still on my fork -- back on its bay")
-    self.body.start_at(*self.home_pose)
+    # ...and never onto another robot (issue #387; `up_pose`). An admin's
+    # hand with every start taken still puts it home: a person chose.
+    pose = self.up_pose() or self.home_pose
+    whose = next((p.robot_name for p in self.peers
+                  if pose != self.home_pose and p.home_pose is not None
+                  and tuple(p.home_pose) == tuple(pose)), None)
+    self.body.start_at(*pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
@@ -3663,13 +3702,17 @@ class HubLifecycle:
       # and "I waited and got up" are two different things to have believed
       # about your own life. The death line above it survives either way --
       # that is what dying costs (Evaluation.md §6).
-      self._say(f"UP again after {dead_s:.0f} s down -- back at the start "
-                "pose with a full pack (nobody came; the world stood me up)")
+      self._say(f"UP again after {dead_s:.0f} s down -- back at "
+                + (f"{whose}'s start pose (another robot was on mine)"
+                   if whose else "the start pose")
+                + " with a full pack (nobody came; the world stood me up)")
       self._remember(f"stood back up on my own after {dead_s:.0f} s down")
     else:
-      self._say(f"ADMIN {by} reset me -- back at the start pose with a full "
-                "pack" + (f" after {dead_s:.0f} s dead" if was else
-                          " (I was not dead)"))
+      self._say(f"ADMIN {by} reset me -- back at "
+                + (f"{whose}'s start pose (another robot was on mine)"
+                   if whose else "the start pose")
+                + " with a full pack" + (f" after {dead_s:.0f} s dead" if was else
+                                         " (I was not dead)"))
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
                                          if was else " while still awake"))
     self._emit(event)
@@ -7302,7 +7345,11 @@ def posture(peers, name: str) -> str:
   the way on purpose, and History is what the mind reads back."""
   for p in peers:
     if (p.robot_name or p.root) == name:
-      return "lying knocked over" if p.down() else "standing"
+      if p.down():
+        return "lying knocked over"
+      # ...and one lying down by choice is resting, never fallen (#387).
+      # `getattr`, because a test's stand-in peer need not have a posture.
+      return "lying down to rest" if getattr(p.body, "resting", False) else "standing"
   return "standing"
 
 
@@ -7319,7 +7366,11 @@ def others_context(life) -> list[dict]:
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
                 "doing": other.status[:120], "carrying": carried,
-                "dead": other.dead["cause"] if other.dead else None})
+                "dead": other.dead["cause"] if other.dead else None,
+                # ...and whether it is lying down to rest (issue #387): a
+                # posture anyone in the room can see, never a fall
+                **({"posture": other.body.posture}
+                   if other.body.rights_itself else {})})
   return out
 
 
@@ -7366,16 +7417,22 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   pen knows. `rack` is a lifecycle's inventory once the workshop has hung
   a tool (issue #168); without it, the shipped five."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import TOOL_BAYS, WorldFacts
+  from pluggybot.procedure.steps import BODY_VERBS, TOOL_BAYS, WorldFacts
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS),
+  # A body with no arm (issue #387) has no tool to fetch, no axis to move
+  # and none of the fork's senses: a program naming one is refused up
+  # front, with the name, as any unknown one is.
+  armed = cfg.get("tools", True)
+  return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS) if armed else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
                                   if n not in ("text", "answer")),
-                    axes=tuple(axes.AXES), sensors=tuple(axes.SENSORS))
+                    axes=tuple(axes.AXES) if armed else (),
+                    sensors=tuple(axes.SENSORS) if armed else axes.BODY_SENSORS,
+                    verbs=None if armed else BODY_VERBS)
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -7702,6 +7759,25 @@ def world_config(world: str) -> dict:
       # the whiteboard the website renders.
       "meta": "models/home_world.meta.json",
     }
+  if world == QUAD_HOME:
+    # THE HOME WORLD WITH LEGS IN IT (issue #387): the same house, the rover
+    # taken out and the quadruped and its dock put in (`legs/world.py`,
+    # built at load from the rover's file, so there is one house). What
+    # differs is what the BODY can do: no tool on this body until the arm
+    # (#378), so no tool errand, no workshop and no tower; the lab's jobs
+    # run the rover's programs along its surveyed routes, so no lab either
+    # this period. Its packs are the quadruped's (`legs.model.PACK_WH`).
+    from pluggybot.legs import model as legs_model
+    from pluggybot.legs import world as legs_world
+    cfg = {k: v for k, v in world_config("home").items() if k not in ("tower", "lab")}
+    cfg.update({
+      "model_name": QUAD_HOME, "body": "quadruped", "tools": False,
+      "built_bays": 0, "dock": legs_world.dock_pose(),
+      "battery_wh": legs_world.DEMO_WH,
+      "hosting_battery_wh": legs_model.PACK_WH,
+      "low_battery_wh": legs_world.RESERVE_WH,
+    })
+    return cfg
   if world == "room_hub":
     return {
       "model": "models/room_hub.xml", "model_name": "room_hub",
@@ -7723,7 +7799,21 @@ def world_config(world: str) -> dict:
                                # navigated room
       "built_bays": len(BUILT_STATION_YS),   # the rail fits its north wall
     }
-  raise ValueError(f"unknown world {world!r} (room_hub or home)")
+  raise ValueError(f"unknown world {world!r} (room_hub, home or {QUAD_HOME})")
+
+
+#: The home world with the quadruped in it (issue #387): `world_config`'s
+#: name for it, and the wire's `model`.
+QUAD_HOME = "home_quad"
+
+
+def world_for(world: str, body: str = "rover") -> str:
+  """The world a body lives in: `home` with legs is `home_quad`."""
+  if body == "rover":
+    return world
+  if body == "quadruped" and world == "home":
+    return QUAD_HOME
+  raise ValueError(f"no {body} world for {world!r} (the quadruped lives in home)")
 
 
 def run_demo(start=None, view: bool = False,
@@ -7791,7 +7881,8 @@ def run_demo(start=None, view: bool = False,
   # and never driven -- the parity instrument's "with the second robot
   # parked" arm. Driving it is the next slice.
   from pluggybot.robot import world_spec
-  spec = world_spec(cfg["model"], second_at=second_robot)
+  spec = world_spec(cfg["model"], second_at=second_robot,
+                    body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -7845,7 +7936,8 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   # ...living by the named constitution (issue #263): the flag, else
   # `$PLUGGY_CONSTITUTION`, else the library's default.
-  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution,
+                            body=cfg.get("body", "rover"))
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,

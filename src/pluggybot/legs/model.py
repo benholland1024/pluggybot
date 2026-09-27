@@ -120,6 +120,24 @@ class BodySpec:
     return replace(self, **kw)
 
 
+#: What is powered whatever the legs do, W (Parts.md, "The quadruped body").
+ELECTRONICS_W = {
+  # Pi 5 + two cameras + IMU: the rover's `power.ELECTRONICS_W` less its
+  # LIDAR share. Raspberry Pi publishes no load figure.
+  "compute + cameras": 6.0,
+  # RPLIDAR C1: 230 mA typical at 5 V (Slamtec datasheet rev 1.1).
+  "lidar": 1.15,
+  # RealSense D435 streaming depth with its projector: the rover's
+  # `power.DEPTH_CAMERA_W` (the maker's 3.40 W is depth AND 1080p colour).
+  "depth camera": 2.0,
+  # Twelve GDS68 drivers powered, the maker's standby current (< 10 mA) at
+  # 48 V. An enabled FOC loop at zero torque is unpublished and draws more.
+  "drivers": 12 * 0.48,
+}
+#: The pack: 12S1P Molicel P45B, twelve 3.6 V 4.5 Ah cells (Parts.md,
+#: "The quadruped body"), Wh. The served world flies it as it is (#387).
+PACK_WH = 12 * 3.6 * 4.5
+
 #: The body #377 proposes; `models/quadruped.xml` is its standalone MJCF.
 CHOSEN = BodySpec()
 MODEL_XML = "models/quadruped.xml"

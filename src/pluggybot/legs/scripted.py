@@ -57,22 +57,23 @@ def _quat_rpy(q) -> tuple[float, float, float]:
 
 class VirtualModel:
   """Torques for all twelve joints from a `Command`, one physics step at a
-  time. `root` is the robot's free body."""
+  time. `root` is the robot's free body; `prefix` names WHICH robot (a
+  second one's elements are `r2_...`, `robot.RobotHandle`)."""
 
   def __init__(self, model, data, spec: BodySpec, root: str = "pluggybot",
-               terrain=None):
+               terrain=None, prefix: str = ""):
     self.m, self.d, self.spec = model, data, spec
     #: (x, y) -> ground height. The scripted gait is TOLD the terrain (a
     #: blind policy is not); it is how the table measures a climb's torques.
     self.terrain = terrain or (lambda x, y: 0.0)
-    self.root = model.body(root).id
+    self.root = model.body(prefix + root).id
     self.mass = float(model.body_subtreemass[self.root])
-    self.qadr = np.array([model.jnt_qposadr[model.joint(j).id]
+    self.qadr = np.array([model.jnt_qposadr[model.joint(prefix + j).id]
                           for j in JOINT_NAMES])
-    self.vadr = np.array([model.jnt_dofadr[model.joint(j).id]
+    self.vadr = np.array([model.jnt_dofadr[model.joint(prefix + j).id]
                           for j in JOINT_NAMES])
-    self.sites = [model.site(f"{leg}_foot").id for leg in LEGS]
-    self.hips = [model.body(f"{leg}_thigh").id for leg in LEGS]
+    self.sites = [model.site(f"{prefix}{leg}_foot").id for leg in LEGS]
+    self.hips = [model.body(f"{prefix}{leg}_thigh").id for leg in LEGS]
     self.jac = np.zeros((3, model.nv))
     #: The swing PD was tuned on the 9.3 kg body; a lighter one gets gains
     #: in proportion, or its swing saturates small actuators.

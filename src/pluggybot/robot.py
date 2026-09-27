@@ -122,12 +122,26 @@ def pair_model_name(model_name: str) -> str:
   return f"{model_name}{PAIR_SUFFIX}"
 
 
+#: The bodies a world's robots may have (`world_config`'s `body`): the
+#: rover its XML carries, or the quadruped put in its place (issue #387).
+BODIES = ("rover", "quadruped")
+
+
 def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
-               chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjSpec:
+               chassis_rgba=SECOND_CHASSIS_RGBA,
+               body: str = "rover") -> mujoco.MjSpec:
   """A world's SPEC with, optionally, a second robot parked at `second_at`.
   Kept by the lifecycle (issue #168 slice C) so a tool can be hung mid-run
   by editing it and recompiling. MEASURED: `spec.compile()` is trajectory-
-  identical to `MjModel.from_xml_path` (tests/test_recompile.py)."""
+  identical to `MjModel.from_xml_path` (tests/test_recompile.py).
+  `body="quadruped"` takes the rover out and puts the quadruped and its
+  dock in (`legs.world.home_spec`)."""
+  if body == "quadruped":
+    from pluggybot.legs.world import home_spec
+    return home_spec(second_at=second_at, second_prefix=prefix,
+                     second_rgba=chassis_rgba, path=path)
+  if body != "rover":
+    raise ValueError(f"unknown body {body!r} ({' or '.join(BODIES)})")
   spec = mujoco.MjSpec.from_file(path)
   if second_at is not None:
     attach_robot(spec, second_at, prefix, chassis_rgba)
@@ -136,10 +150,11 @@ def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
 
 def world_with_robots(path: str, second_at=None,
                       prefix: str = SECOND_PREFIX,
-                      chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjModel:
+                      chassis_rgba=SECOND_CHASSIS_RGBA,
+                      body: str = "rover") -> mujoco.MjModel:
   """A world's model with, optionally, a second robot parked at `second_at`
-  in its own livery. `None` compiles the world exactly as `from_xml_path`
-  would."""
-  if second_at is None:
+  in its own livery. `None` compiles the rover's world exactly as
+  `from_xml_path` would."""
+  if second_at is None and body == "rover":
     return mujoco.MjModel.from_xml_path(path)
-  return world_spec(path, second_at, prefix, chassis_rgba).compile()
+  return world_spec(path, second_at, prefix, chassis_rgba, body=body).compile()

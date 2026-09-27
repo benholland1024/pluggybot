@@ -189,7 +189,7 @@ def test_a_board_can_be_stood_in_front_of(home_model):
   must not be there is something it was never sent to.
   """
   from pluggybot.behavior.navigation import FRONT_STOP_RANGE
-  from pluggybot.mission.mission import LIDAR_ORIGIN
+  from pluggybot.perception.lidar import LIDAR_ORIGIN
   from pluggybot.tools.drawing import board_standoff
 
   bar = FRONT_STOP_RANGE + LIDAR_ORIGIN[0]

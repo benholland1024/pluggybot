@@ -119,7 +119,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # after `compile()` -- and without it `can_reshape` refuses every build
   # with "this world was compiled without its spec", which is what the
   # deployed pair was hitting before it ever reached the pair rule below.
-  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix)
+  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
+                    body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -154,9 +155,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
-  charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
-    for i in range(len(handles)))
+  charters = tuple(constitutions.for_body(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
+    cfg.get("body", "rover")) for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,
@@ -298,6 +299,40 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
                 f"{by_root[claims['seeker']].robot_name} seeks")
   board.on_event.append(on_claim)
   return task, state
+
+
+def arrange_hazards(lives: list, fall_at: float, drain_at: float,
+                    who: int = 1) -> dict:
+  """The two things a scripted day never does by itself, done to ONE robot
+  of a quadruped pair on the clock (issue #387): it is knocked onto its side
+  at the first step past `fall_at` where it stands, and its pack is emptied
+  at `drain_at`. The body rights itself, and the loop kills it `flat` and
+  stands it up `restart_after_s` later -- so a day arranged this way flies
+  every posture and both deaths' halves the deployed pair can meet, and
+  hashes like any other day: nothing here reads a clock but the sim's.
+  Returns what it did, and when, for the caller to assert on."""
+  import math
+  from pluggybot.legs import body as qb
+  life = lives[who]
+  model, data = life.model, life.data
+  q = life.body.handle.qpos_adr(model)
+  v = life.body.handle.dof_adr(model)
+  done: dict = {"fell": None, "drained": None}
+
+  def hook() -> None:
+    t = float(data.time)
+    if (done["fell"] is None and t >= fall_at and life.dead is None
+        and life.body.posture == qb.STANDING):
+      data.qpos[q + 2] = 0.25                                    # on its side
+      data.qpos[q + 3:q + 7] = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
+      data.qvel[v:v + 6] = 0.0
+      mujoco.mj_forward(model, data)
+      done["fell"] = t
+    if done["drained"] is None and t >= drain_at:
+      life.battery.energy_wh = 0.0
+      done["drained"] = t
+  life.body.step_hooks.append(hook)
+  return done
 
 
 def record_pair(lives: list, path: str):

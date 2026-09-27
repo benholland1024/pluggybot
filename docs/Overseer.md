@@ -2193,6 +2193,19 @@ has no goals to spend free time on.
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
   true.
+- **Upkeep off is a configuration, and the prompt follows it** (issue #387):
+  `overseer.mortal_rule(appetite, body)` drops every sentence about upkeep
+  where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence
+  replacements), so the prefix never names a bill the robot does not pay,
+  and with an appetite it is byte-identical to `MORTAL_RULE`. Nothing dies
+  `unpaid`, and the header's `hungerStates` is empty.
+- **A body speaks in its own words.** On the quadruped the rules that name
+  the rover's parts (the rack's charge bay, driving, the fork) are swapped for
+  the legs' (`BODY_SWAPS`, `for_body`; the dock, walking, lying down), the
+  menu carries no tool errand (`Menu.tools`), and the constitution's body
+  paragraph is swapped by `constitution.for_body` -- each replacement
+  asserted, so a text that stops matching fails rather than silently keeping
+  the rover's sentence. `guarded`'s prefix on the rover is unchanged.
 
 ## 9. Running it
 

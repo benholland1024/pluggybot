@@ -48,6 +48,13 @@ LIFT_M_S = 0.25
 CONSENSUS_M_S = 0.15
 
 
+def _cross(a, b) -> np.ndarray:
+  """`np.cross` of two 3-vectors, in its own arithmetic (bit-identical) at a
+  tenth of its cost: it ran eight times a physics step per robot (#387)."""
+  return np.array([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+                   a[0] * b[1] - a[1] * b[0]])
+
+
 class LegOdometry:
   """Integrates (x, y, z, yaw) in the world frame from the start pose; z is
   what a map of the stairs is built on (#388)."""
@@ -93,11 +100,9 @@ class LegOdometry:
 
   def _contact(self) -> np.ndarray:
     """Which feet touch anything, as the sim knows it now."""
-    touching = np.zeros(4, dtype=bool)
-    geoms = self.d.contact.geom[:self.d.ncon]
-    for i, g in enumerate(self.feet_geom):
-      touching[i] = bool((geoms == g).any())
-    return touching
+    present = np.zeros(self.m.ngeom, dtype=bool)
+    present[self.d.contact.geom[:self.d.ncon].ravel()] = True
+    return present[self.feet_geom]
 
   def step(self) -> None:
     """Call once per physics step, after it."""
@@ -137,8 +142,8 @@ class LegOdometry:
       # is not (w_shank x r_foot * up). Without this the estimate ran 6.6 %
       # long with perfect contact and no noise.
       w_shank = self.jacr[:, self.vadr] @ qd + w_meas
-      v_center = self.jac[:, self.vadr] @ qd + np.cross(w_meas, r)
-      v_contact = v_center + np.cross(w_shank, -self.foot_r * up)
+      v_center = self.jac[:, self.vadr] @ qd + _cross(w_meas, r)
+      v_contact = v_center + _cross(w_shank, -self.foot_r * up)
       # A foot rising off the floor is not in stance, whatever the lagging
       # contact estimate says (a planted foot's point moves with the body's
       # bob, a few cm/s).

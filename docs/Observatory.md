@@ -10,6 +10,55 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The first quadruped period: no offers, no upkeep (#387) — opens when this PR is deployed
+
+**What changed.** The robots are quadrupeds (#377's body, walking on its
+policy, getting up on its own; #378's dock). The rover has left the served
+world: the pair is `home_quad_pair`, the same house with the dock on the
+living room's south wall. The body in numbers is SimNotes, "The first
+quadruped deploy". Four things change what a row means:
+
+- **No job offers and no upkeep** (Ben, 2026-09-27): nothing a quadruped
+  can do pays yet, and upkeep with nothing to earn only schedules deaths.
+  So no `tasks` and no `metabolism` on the wire, no `unpaid` death, and
+  the prompt says nothing about upkeep (`mortal_rule`). Points still move:
+  a closed ticket pays, gifts move them, hearts can still be bought.
+- **Code lies the body down after 8.6 s without a motion command**, and
+  stands it before the next (the rest reflex; the mind is not asked).
+  `posture: lying` is the most common posture of the day, and never a fall.
+- **The `stuck` death is a fall the body could not get up from in 20 s**
+  (the get-up policy stood 31 of 35 measured falls, the slowest in 13.4 s).
+  A body that lies down to rest is not down.
+- **What the robot can do shrank**: no tool, so no tool errand, no
+  workshop, no tower, and no lab (its jobs run the rover's programs along
+  the rover's routes); a procedure has four verbs (`drive_to`, `face`,
+  `wait`, `drive`) and five sensors.
+
+The minds carry over: the rover world's saved `world.npz` is refused by
+name, so the bodies start from the XML, but each robot keeps its memory, its
+ledger and hearts, and its kept event map -- a kept row naming a tool errand
+is left out and said in History.
+
+**What the period is for.**
+
+- **Basic mobility in the house**: does it walk the rooms, the doors and
+  the garden, and how often does it fall, press into something or stall
+  (`press_steps`, `falls`, the drive causes). Flown, a 260 s explore toured
+  the living room, the bedroom, the hall, the kitchen, the workshop and both
+  gardens.
+- **The dock**: how many trips end lying on the pins, how many charges
+  finish, and how often the pair meets there (one dock, two robots).
+- **Upkeep off works**: no `unpaid` death, no hunger in any header, and
+  nothing in History about upkeep.
+- **What the minds do with free time and no money to earn** -- every hour
+  is theirs.
+
+**Not yet known.** The served speed on the deploy box with this body (the
+dev machine flew the pair at 0.96x real time, quiet); how the D435's
+obstacle layer (the planner's first reader of the depth camera) behaves
+over a week; whether the reserve holds from the loop's far corner at the
+quadruped's Wh per metre.
+
 ### The map stays true under drift (#386) — opens when this PR is deployed
 
 **What changed.** Both rovers' odometry reads its parts' errors now: whole

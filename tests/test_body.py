@@ -20,12 +20,13 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
 #: The machines' own modules -- the rover's, deleted with it (#376, stage C),
 #: and the quadruped's (`legs/`: its model, controller, reckoning and the scan
-#: its policy reads, #388) -- and the one place a body is chosen
-#: (`body.body_for`). EVERY OTHER MODULE in `src/` is on the loop's side of
-#: the seam, a new one included: it reaches a robot's body only as
-#: `<life>.body.<member>`, a member being a name `Body` declares.
+#: its policy reads, #388) -- the navigation both are built on
+#: (`navigator.py`, #387: a body's map, LIDAR and drive) and the one place a
+#: body is chosen (`body.body_for`). EVERY OTHER MODULE in `src/` is on the
+#: loop's side of the seam, a new one included: it reaches a robot's body
+#: only as `<life>.body.<member>`, a member being a name `Body` declares.
 BODY_SIDE = ("mission/mission.py", "mission/rover.py", "rack/", "tools/", "body.py",
-             "legs/")
+             "legs/", "navigator.py")
 
 
 def loop_side() -> list[str]:

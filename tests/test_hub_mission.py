@@ -104,12 +104,13 @@ def test_a_drive_ends_with_a_terminal_approach_and_sweeps_before_it(room_model, 
     legs = [(0.3, 0.0), (0.6, 0.0), (0.9, 0.0)]
     mission._plan_to = lambda wx, wy: list(legs)
     calls = []
-    real = mm.drive_toward
+    from pluggybot import navigator
+    real = navigator.drive_toward
 
     def spy(pose, waypoint, slow_radius=None):
       calls.append((tuple(round(v, 3) for v in waypoint), slow_radius))
       return real(pose, waypoint, slow_radius=slow_radius)
-    monkeypatch.setattr(mm, "drive_toward", spy)
+    monkeypatch.setattr(navigator, "drive_toward", spy)
 
     def teleport(v, w):
       # the step: 5 cm along the bow per call, into the reckoner directly --

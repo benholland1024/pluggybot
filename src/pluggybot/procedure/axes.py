@@ -236,6 +236,9 @@ SENSORS: dict[str, Sensor] = {
   "look.lateral": Sensor("look.lateral", lambda life: _last_look(life, "lateral", 0.0),
                          "its lateral offset, m, + to the camera's left"),
 }
+#: What a body with no arm can read (issue #387): its pack, its wallet,
+#: the clock and its bumper -- none of the mast's, the fork's or a tool's.
+BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
 
 
 #: The ramp as the public name a built tool registers its axes with
