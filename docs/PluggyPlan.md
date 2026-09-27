@@ -127,9 +127,9 @@ second floor (#280); and the rover deleted.
 - **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
   of the hardest problems in robotics; PluggyBot never does. Its tool and
   charge couplings are rigid — on the rover a gravity latch and pogo pins
-  the base drives into; for the quadruped, a coupling redesigned with the
-  arm and a dock it lies down on (#378) — contact-rich alignment, but
-  tractable.
+  the base drives into; for the quadruped, the same gravity latch re-sized
+  for a two-joint arm's fork, and a dock it lies down on (#378) —
+  contact-rich alignment, but tractable.
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
   where the problem is solved, RL where it earns its keep, and an LLM for the
