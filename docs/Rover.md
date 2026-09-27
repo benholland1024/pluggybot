@@ -72,14 +72,19 @@ the last commit that runs the rover `rover-final`.
   map can make an estimate worse (`RackFinder` KEEPS a well-conditioned facing
   because driving behind the rack turns it into a free-standing partition).
   `scripts/stall_spike.py`; SimNotes "A stalled drive is an odometry pump".
-- **The dock is also the anchor** (issue #42): dead reckoning is corrected in
-  exactly one place, `HubMission.anchor_at_dock`, when both pins conduct — a
-  pose the robot occupies to millimetres by construction. ⚠ Snapped to the
-  COMMISSIONED PRIOR (`rack_prior`), never the believed rack (anchored to the
-  belief, the error tracked itself 0.003 → 0.344 m over four sim-hours). Two
-  belief rules travel with it: the rack landmark merges BY DECODED IDENTITY,
-  never by distance, and its position is recency-weighted (`RACK_RECENCY`).
-  The bay recovery (`swap_at_bay`'s spin-refresh-retry) depends on both;
+- **The dock is also the anchor** (issue #42): dead reckoning is snapped at
+  `HubMission.anchor_at_dock` when both pins conduct — a pose the robot
+  occupies to millimetres by construction — and, since #386, corrected by
+  every level scan the matcher accepts (`HubMission._match`; SimNotes, "The
+  map stays true under drift"). The two agree at the dock to centimetres;
+  where they would not, the next scans pull the pose back to the map's
+  frame, because the map is what the planner and the other robot read.
+  ⚠ Snapped to the COMMISSIONED PRIOR (`rack_prior`), never the believed
+  rack (anchored to the belief, the error tracked itself 0.003 → 0.344 m
+  over four sim-hours). Two belief rules travel with it: the rack landmark
+  merges BY DECODED IDENTITY, never by distance, and its position is
+  recency-weighted (`RACK_RECENCY`). The bay recovery (`swap_at_bay`'s
+  spin-refresh-retry) depends on both;
   `test_the_recovery_finds_a_bay_the_first_look_lost` pins all three. The
   pen's ERASE rides the first successful press, never arrival. Map evidence
   decay is DEFERRED on measurement.

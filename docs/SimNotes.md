@@ -2450,6 +2450,129 @@ and a tenth tag camera, and none of the three is cheap to cut. A pair is
 one physics thread, so the lever left is the core, and the box keeps its
 core for now (above).
 
+## The map stays true under drift (issue #386)
+
+The sim's odometry was kinder than hardware: exact wheel angles, a gyro with
+no noise, and a quadruped whose tilt was read off the truth. Made honest
+(`perception/imu.py`, `perception/encoders.py`; the numbers are Parts.md's
+table), the rover's heading walked -7.3 deg in 260 s -- the ICM-42688-P's
+offset after its boot calibration, 0.005 deg/s/degC over a 10 degC swing --
+and its lab trip failed on the way: `no route over the floor mapped so far`,
+0.2 m short of the lobby's door (staging, with the perfect gyro, arrived).
+Legged odometry went from 3.3-4.0 % of distance on #377's course to
+3.7-5.2 %. So every level scan is now matched against the robot's own map
+before it is fused (`mapping/scan_match.py`), and the pose it matches to is
+the belief.
+
+**Why Gauss-Newton, and a search only when it fails.** Between two scans
+0.1 s apart odometry is off by millimetres, well inside a fit's basin, and
+a fit costs ~0.5 ms where a correlative search over a useful window costs
+tens; the fit's own normal matrix says which directions the walls fix,
+which the issue asks for by name. A search (brute force over ±0.6 m and
+±6° in whole cells and degrees, then a fit from its best) runs only when a
+fit disagrees with its map -- a pose already past the fit's reach -- and a
+robot lost beyond that window has the dock, and #381's loop closure.
+
+Every piece was found by flying a lab trip with each scan and the true pose
+recorded, and replaying the matcher over the recording in seconds. A
+replay of the matcher the flight flew reproduces the flight to the digit; a
+replay of a variant shows what it would have believed along the same path
+(a flight with it steers by that belief and parts from the recording), so
+the numbers below the table are re-flown.
+
+| piece | without it | with it |
+|---|---|---|
+| a SIGNED distance, zero on a wall's first cell, "inside" measured from the free side | a wall seen through ranging noise is a band 3 cells deep; unsigned, a point inside it pulled on nothing (a synthetic room recovered to 0.5 deg); measured from the band's back, the back was a second face, a point past the middle was pushed through the wall and the fit crept, unconverged after 8 iterations; zeroed on the cell's face, every wall read up to a cell near | recovered to ~1 cm and 0.05 deg, every offset to the same pose |
+| returns short of 6.5 m only | a wall at the LIDAR's 8 m reach is seen SHORT -- its long draws are clipped to "no return", and the map clears it with the same rays: the street's far wall pulled the pose +32 mm a scan (from the true pose, against a true map) | 0.0 mm (sd 3.5); the trip's worst error 0.61 → 0.18 m |
+| odometry's pose as a term of the fit | every scan put the map's quantisation into the pose: with PERFECT odometry the house read 5-12 cm and 0.8 deg off | 7.5 cm, under 1 deg |
+| ...and a ROBUST one (Cauchy, 5 mm) | wheels spinning on the lab's feed plate pumped ~10 mm a scan for 12 s; a plain prior held on, the fit left its basin and turned the pose 12 deg to explain it, and the robot drove home 3.4 m out | the pump absorbed: 0.22 m at the plate, 5 cm by the day's end |
+| degeneracy off the walls' SMOOTHED normals | 5 cm cells make a straight wall step, and a corridor's jags read 12 % of a real constraint; a threshold that held a corridor held the lab's weak direction during the pump too, where odometry was the thing that was wrong | a corridor 0.003, a room 0.34: held at 0.05 |
+| a scan fused only once the robot moved (1 cm / 0.5 deg) or every 5 s | docked 388 s, 3 800 scans fused at a pose jittering by a millimetre walked the map and the pose together 0.15 m | 0.03 m |
+| a fit the map disagrees with searched round (±0.6 m, ±6°), and refused if nothing agrees | a second plate stall left the pose 0.3-0.5 m out, past the field's 0.3 m reach: flown, it drove home that far off and fused a second house until the dock's anchor | an injected 0.45 m offset recovered in 5 s at the dock and in the house, in ~1 min leaving the lab; replayed without one it never fires, and flown it fired twice in a day of three trips |
+
+What did NOT work, and why: gating on the share of inliers (refusing a scan
+whose live points mostly disagreed) refused exactly the scans that would have
+corrected the plate's pump, and the robot was lost anyway; a Gaussian-
+smoothed distance gave the fit a valley with a floor above zero, and
+Gauss-Newton overshot it into a two-cycle; weighting points by their ranging
+noise held directions the walls fixed (800-970 of 2 284 scans) and the
+trip's worst error rose 0.23 → 0.42-0.52 m; a reach of 0.6 m pulled the
+pose onto the wrong walls during the plate's stall (0.22 → 0.53 m); a
+field recomputed every scan made the pose chase its own freshest evidence
+(0.45 → 0.60 m worst).
+
+**The drift baseline, before and after, for both bodies**
+(`scripts/drift_spike.py`). The rover flies a home day of three lab round
+trips -- the mouse's feed in the lab, then a carry at the rack, `--trips
+3` -- on each tree:
+
+| rover, three lab trips | worst | median | worst heading | the lab |
+|---|---|---|---|---|
+| perfect sensors, no matcher (056a4a1, the sim before) | 0.60 m | 1.7 cm | 0.34° | reached each time; the first trip's plate pump left the belief 0.6 m out through all three, until the dock |
+| honest sensors, no matcher (the before) | 5.41 m | 0.28 m | 70.7° | never reached: `no route over the floor mapped so far` 0.2 m short of the lobby's door, then lost |
+| honest sensors, matched (the after) | 0.34 m | 1.6 cm | 1.08° | reached each time, 0.2-0.34 m out in the lab and 7 mm at the rack after every trip; the search fired twice |
+
+The quadruped walks the rover's own route, three times out and back (145
+m), on the flat policy steered by the TRUE pose -- what is measured is the
+estimate, so its steering must not depend on it -- with two estimates off
+the same IMU draws:
+
+| quadruped, three lab trips | worst | median | at home | worst heading |
+|---|---|---|---|---|
+| legged odometry alone (the before) | 3.14 m | 1.13 m | 2.26 m | 12.9° |
+| matched (the after) | 0.20 m | 0.11 m | 0.7 cm | 0.95° |
+
+Neither estimate accumulates once matched: every trip reaches the lab
+~0.2 m out (the frame its map was laid in on the way) and comes home to
+under a centimetre.
+
+**The lab door**, asked of the robot's own planner: can it plan from where
+it believed the lobby was to where it believed the lab was? Open for the
+matched rover after each of its trips, and for the sim before; the honest
+rover without the matcher never reached the lab to have a door to ask
+about. The quadruped's odometry map plans "open" as well -- because its
+walls are gone: three rotated copies of the lab, and the lobby's east wall,
+the one with the door in it, rubbed out by rays laid through later poses.
+A map smeared by drift loses walls as well as doubling them, which is why
+the spike saves each map's picture beside its trace. For scale: in a map
+laid through the TRUE poses the door leaves 0.30 m a plan can use at the
+wall (1 m, less 0.35 m of inflation each side), so the issue's estimate
+holds -- ~0.3 m of smear closes it.
+
+**Found on the way.** The quadruped attached into a world read its joint
+ranges in DEGREES: the include form of `legs/model.body_xml` carries no
+`<compiler>`, and MuJoCo's default unit is the degree -- the knee's
+-2.75..-0.35 rad became -0.048..-0.006, and standing, the joint limits threw
+the robot 0.4 m into the air. `quad_spike.py`'s pair world was built so,
+which #385's quad-pair timing flew; both go through
+`legs.model.attachable()` now. And the quadruped's LIDAR site sat at the
+centre of its own puck: every ray hit the housing at 4 cm and the
+self-filter dropped all 360 -- the site is 6 mm above the puck now, as the
+rover's is (no mass moved).
+
+**What is true now.** Every level scan is matched before it is fused and
+the matched pose is the belief (`HubMission._match`); the rover's dock
+anchor stays, and the two agree at the dock to centimetres. A match costs
+0.67 ms on the dev machine (median 0.46, p99 7.2 -- the field's refresh, 5
+ms every 20 fused scans or 1 m, and the rare search): 6.7 ms of a sim
+second per robot at 10 Hz. Fusing only the scans after the robot moved
+took the grid's updates on a recorded day of lab trips from every level
+scan to 6 918 of 10 947, and the mapping as a whole from ~21 to ~20 ms a
+sim second; a day that stands still less saves less. The matcher is
+deterministic (einsum's own loops, no BLAS product) and its field is kept
+state: a scripted home day hashes IDENTICAL in two processes (2 025 state
+samples, `determinism_spike.py`), and saved at t = 419 s and carried on
+in a new process it is IDENTICAL after the restore (1 186 samples,
+`--resume-at 400`). Not done: a scan
+tilted past `MAP_TILT_RAD` is neither matched nor fused, so a wheel pump
+while tilted runs free until the robot is level and the search finds it;
+a robot lost beyond the search's window has only the dock
+(#381's loop closure); the first trip through new territory carries its
+own drift into the map it lays (0.2-0.3 m by the lab), which later visits
+match to but do not correct; and the rover's map gate still reads its tilt
+off the pose, the one sensor left that is the sim's (it goes with the
+rover).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

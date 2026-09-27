@@ -363,12 +363,11 @@ class ScanMatcher:
 
   def _judge(self, asked, pts, fit, found: bool = False):
     """The verdict on a fit: (the pose to lay the scan at, why, the rest of
-    `Match`). Which directions the
-    walls fix is read where the fit ENDED (offset, a room's points sit off
-    its walls and it looks like a corridor), and the correction is kept
-    only along those (Zhang, Kaess & Singh 2016, "solution remapping").
-    Converged, the last evaluation is the final pose's to within
-    CONVERGED_M."""
+    `Match`). Which directions the walls fix is read where the fit ENDED
+    (offset, a room's points sit off its walls and it looks like a
+    corridor), and the correction is kept only along those (Zhang, Kaess &
+    Singh 2016, "solution remapping"). Converged, the last evaluation is the
+    final pose's to within CONVERGED_M."""
     (x, y, th), d, live = fit
     x0, y0, th0 = asked
     info, vec = self._directions((x, y, th), pts, d, live)

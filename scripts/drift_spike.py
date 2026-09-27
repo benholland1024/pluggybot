@@ -20,9 +20,11 @@ so the drift is read off it as it happens; nothing here changes the day.
               estimate, so its steering must not depend on it -- with
               legged odometry, the rear-mast LIDAR and the robot's own map.
 
-Reports per leg the worst and the last position error, the heading error,
-the lab door's plannable width in the map at the end of each trip, and the
-matcher's answers and cost.
+Reports per leg the worst and the last position error and the heading
+error; after each trip whether the lab door is open in the robot's own map
+(a plan from where it believed the lobby was to where it believed the lab
+was); the matcher's answers and cost. With `--out`, each map is saved
+beside the trace, and a picture of it round the lobby and the lab.
 """
 
 from __future__ import annotations
