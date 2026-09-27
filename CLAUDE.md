@@ -234,7 +234,7 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables, `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics, `--served`/`--rays` time the pair and the sensors |
 
-- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
+- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`, the scripted gait is the `"torque"` instrument), the PD and the envelope in C; their gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`, and `PolicyDriver` refuses a model whose drivers are not the ones its policy was trained on. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
@@ -943,6 +943,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   `geom_id`): four per-step Python loops over `data.contact[i]` were 49 % of
   the physics thread against 13 % in `mj_step`. A new per-step check goes
   through the same readers (`tests/test_contact_reads.py` shows parity).
+  Likewise the LIDAR's 360 rays are ONE `mj_multiRay` (#385), bit-identical
+  to `mj_ray` one at a time; ⚠ its NOISE is still drawn ray by ray in bearing
+  order, or no flown day hashes the same again
+  (`test_the_batched_scan_is_the_scan_it_replaced`).
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws.
