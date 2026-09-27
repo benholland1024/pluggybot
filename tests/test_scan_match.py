@@ -1,7 +1,8 @@
 """Scan matching (issue #386), pinned on synthetic scans: rooms and
 corridors drawn as segments, scans cast analytically with the LIDAR's own
-noise, maps fused from known poses. Nothing here flies; the flights that
-measured it are `scripts/drift_spike.py`."""
+noise, maps fused from known poses. Nothing here flies but the one proof
+behind `--endurance` at the end; the flights that measured it are
+`scripts/drift_spike.py`."""
 
 import math
 import time
@@ -366,3 +367,40 @@ def test_a_scan_the_map_cannot_explain_is_refused_and_not_fused(room):
   got = m.match(TRUE, ANGLES, cast(elsewhere, (1.2, 1.6, 0.9), np.random.default_rng(22)))
   assert got.why == "inconsistent" and not got.accepted and not got.fuse
   assert got.pose == TRUE
+
+
+# ⚠ BEHIND `--endurance`: one lab trip on the honest sensors, ~45 s of
+# wall clock. Its RULES are pinned above on synthetic scans;
+# what only a flight proves is the whole chain -- a gyro with its
+# calibration residue and counted wheels, every scan laid through the pose
+# the walls gave -- still gets the rover through the lobby's door to the
+# cage. On odometry alone it gave up 0.2 m short of that door (`no route`
+# at t = 83 s); matched, its worst on the way was 0.21 m.
+@pytest.mark.slow
+@pytest.mark.endurance
+def test_the_rover_reaches_the_cage_on_honest_sensors(tmp_path):
+  """The feed errand from the start pose, matcher on: the program completes
+  and the belief stays within 0.3 m of the truth. Stops on its claim, the
+  errand's result."""
+  from pluggybot.lifecycle import cage_errand, run_demo
+  worst = [0.0]
+
+  def on_ready(life):
+    life.errands[:] = [cage_errand("home", "feed")]
+
+    def step():
+      tx, ty, _ = life.body.true_pose()
+      bx, by, _ = life.body.pose
+      worst[0] = max(worst[0], math.hypot(bx - tx, by - ty))
+    life.body.step_hooks.append(step)
+
+  r = run_demo(view=False, realtime=False, world="home", pack="hosting",
+               errand="none", max_sim_time=400.0, tasks=False, metabolism=False,
+               overseer=False, thoughts_root=str(tmp_path / "thoughts"),
+               ledger_state=str(tmp_path / "ledger.json"),
+               board_state=str(tmp_path / "boards.json"),
+               spend_state=str(tmp_path / "spend.json"),
+               on_ready=on_ready, stop_when=lambda life: bool(life.errand_results))
+  feed = next(e for e in r["errands"] if e["errand"] == "care:feed")
+  assert feed["procedure"]["ok"], feed["procedure"]
+  assert worst[0] < 0.3, worst[0]
