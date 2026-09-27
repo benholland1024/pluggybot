@@ -84,6 +84,11 @@ class VirtualModel:
     mujoco.mj_fullM(model, data, full)
     fa = model.body_dofadr[self.root]
     self.inertia = np.diag(full[fa + 3:fa + 6, fa + 3:fa + 6]).copy()
+    # A fresh MjData's mass matrix is all zeros until a forward pass: built
+    # on one, the attitude loop ran without its feed-forward and a lie-down
+    # moved the body 44.6 mm instead of 34.8 (#378).
+    if not np.all(self.inertia > 0):
+      raise ValueError("forward the data (mj_forward) before building the gait")
 
   def reset(self) -> None:
     """Re-anchor on the body as it stands now: where to hold, which way to

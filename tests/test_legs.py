@@ -285,3 +285,16 @@ def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
   touching = {int(g) for pair in data.contact.geom[:data.ncon] for g in pair}
   assert belly in touching
   assert abs(data.qpos[2] - qm.CHOSEN.belly_depth) < 0.005
+
+
+def test_the_scripted_gait_refuses_a_body_that_was_never_forwarded():
+  # It reads the body's inertia off the mass matrix once, and a fresh
+  # MjData's is zeros: built on one, its attitude loop had no feed-forward
+  # and a lie-down landed 10 mm off where it lands (#378).
+  import pytest
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+  with pytest.raises(ValueError, match="mj_forward"):
+    VirtualModel(model, mujoco.MjData(model), qm.CHOSEN)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  assert np.all(VirtualModel(model, data, qm.CHOSEN).inertia > 0)
