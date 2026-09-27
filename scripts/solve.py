@@ -81,7 +81,7 @@ class _Mind:
 
 def build_life(view: bool, state_dir: str):
   cfg = world_config("home")
-  spec = world_spec(cfg["model"])
+  spec = world_spec(cfg["model"], body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None

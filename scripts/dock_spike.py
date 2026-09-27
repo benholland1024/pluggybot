@@ -59,11 +59,7 @@ from pluggybot.rack.tags import DOCK_TAG_SIZE, TagDetector  # noqa: E402
 
 #: How long the robot lies before the verdict is read, s.
 SETTLE_S = 1.0
-#: How often the walk re-reads the board, s of sim (a render and a decode).
-LOOK_EVERY_S = 0.25
-#: No board in view: turn on the spot by these steps (deg, so +25, -25,
-#: +50, -50, +75, -75 from where it started) and look after each.
-SEARCH_STEPS = (25.0, -50.0, 75.0, -100.0, 125.0, -150.0)
+LOOK_EVERY_S, SEARCH_STEPS = dk.LOOK_EVERY_S, dk.SEARCH_STEPS
 #: The random starts: TRUE offsets from the standoff, uniform in +-these.
 START_ACROSS_M, START_ALONG_M, START_YAW_DEG = 0.3, 0.3, 30.0
 
@@ -305,10 +301,7 @@ def capture_table(spec: dk.DockSpec, label: str) -> None:
 
 # ---- the approach -------------------------------------------------------------
 
-#: Standing over the seat, how far off the robot may believe it is and still
-#: lie down: well inside the funnel's capture.
-LIE_ACROSS_M, LIE_YAW = 0.015, math.radians(6.0)
-LIE_ALONG_M = 0.05
+LIE_ACROSS_M, LIE_YAW, LIE_ALONG_M = dk.LIE_ACROSS_M, dk.LIE_YAW, dk.LIE_ALONG_M
 
 
 def walk_in(rig: Rig, source: str, budget_s: float = 20.0) -> str:

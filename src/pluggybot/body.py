@@ -51,6 +51,15 @@ from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
 
+#: Torso tilt from upright that counts as knocked over (issue #107), and
+#: how long it has to hold: a wheel riding a threshold tips the body for a
+#: moment and recovers, a robot on its side does not. 60 deg is past any
+#: pose the rover's drive can right itself from, and the quadruped's
+#: get-up takes over at the same angle (`legs.posture.FALL_TILT_RAD`).
+TOPPLE_TILT_RAD = math.radians(60.0)
+TOPPLE_HOLD_S = 2.0
+
+
 class KeepClear(NamedTuple):
   """Another robot, as one of `Body.others` answers it: where to keep clear
   of, and whether it is LYING DOWN (issue #365) -- a disc round its body,
@@ -160,6 +169,12 @@ class Body(abc.ABC):
   #: Its map of the floor (`mapping.OccupancyGrid`): what it plans over,
   #: what exploring plans frontiers on, what a census counts off.
   grid: Any
+
+  @abc.abstractmethod
+  def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:
+    """The explore's next leg (`behavior.navigation.plan`): a cell path to
+    the nearest frontier it can reach over ITS map, at its inflation, and a
+    status. `blacklist` is the frontiers given up on this explore."""
 
   @abc.abstractmethod
   def reachable(self, points) -> list[bool]:
@@ -409,6 +424,17 @@ class Body(abc.ABC):
 
   #: Lying down to rest. Always False on the rover, which has no posture.
   resting: bool
+  #: Its posture, as the wire carries it (issue #387): `standing`,
+  #: `lying_down`, `lying`, `standing_up` or `getting_up` -- the rover always
+  #: stands. Lying down to rest is a posture, never a fall.
+  posture: str
+  #: Whether it gets itself up from a fall (issue #387): the quadruped's
+  #: get-up policy does; the rover waits for somebody.
+  rights_itself: bool
+  #: How long a fall may last before it is the `stuck` death, s: the
+  #: rover's `lifecycle.TOPPLE_HOLD_S`, a body that rights itself its
+  #: get-up's MEASURED budget.
+  stuck_after_s: float
 
   @abc.abstractmethod
   def rest_routine(self) -> Routine:
@@ -429,12 +455,21 @@ def members() -> frozenset[str]:
 
 def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   """The body this robot IS, in this world: the one choice a lifecycle
-  built without one makes (`HubLifecycle(body=None)`). Today only the
-  rover lives in any world (`mission/rover.py`, `kw` its navigation: the
-  viewer, pacing, rack prior and map bounds); the quadruped is chosen here
-  by what the model carries."""
+  built without one makes (`HubLifecycle(body=None)`), by what the model
+  carries under this robot's names -- legs (`legs/body.py`, issue #387) or
+  the rover (`mission/rover.py`). `kw` is its navigation: the viewer,
+  pacing, rack prior and map bounds."""
+  if is_quadruped(model, handle):
+    from pluggybot.legs.body import QuadBody
+    return QuadBody(model, data, handle=handle, **kw)
   from pluggybot.mission.rover import RoverBody
   return RoverBody(model, data, handle=handle, **kw)
+
+
+def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
+  """Does this robot walk? Its first leg's hip, by name."""
+  return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
+                           handle.el("FL_hip_abd")) >= 0
 
 
 # ---- the stub: a body with no physics ---------------------------------------
@@ -488,6 +523,9 @@ class StubBody(Body):
 
   STILL = ()
   level_tilt_rad = math.radians(1.5)
+  posture = "standing"
+  rights_itself = False
+  stuck_after_s = 2.0
 
   @staticmethod
   def world():
@@ -582,6 +620,10 @@ class StubBody(Body):
   def look_around_routine(self):
     return
     yield
+
+  def plan_frontier(self, blacklist):
+    from pluggybot.behavior.navigation import plan
+    return plan(self.grid, self.pose, blacklist)
 
   def reachable(self, points):
     return [True] * len(points)

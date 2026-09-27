@@ -411,6 +411,27 @@ FOOT_REACH_M = 0.02
 #: swings a few mm look to look, and a tighter net stopped straight walks.
 OVER_ACROSS_M = 0.020
 
+#: How often the walk re-reads the board, s of sim (a render and a decode).
+LOOK_EVERY_S = 0.25
+#: No board in view: turn on the spot by these steps (deg, so +25, -25,
+#: +50, -50, +75, -75 from where it started) and look after each.
+SEARCH_STEPS = (25.0, -50.0, 75.0, -100.0, 125.0, -150.0)
+#: Standing over the seat, how far off the robot may believe it is and still
+#: lie down: well inside the funnel's capture.
+LIE_ACROSS_M, LIE_YAW = 0.015, math.radians(6.0)
+LIE_ALONG_M = 0.05
+#: The walk in gives up after this long, s; a run that did not line up
+#: backs out this far and settles before looking again (m, s, s).
+WALK_IN_S = 20.0
+BACK_OUT_M, BACK_OUT_S, BACK_OUT_SETTLE_S = 0.9, 8.0, 0.8
+#: Stopped over the seat, it stands still this long before the look that
+#: checks the line-up, s; a search turn settles for its own, s.
+STOPPED_S, TURN_SETTLE_S = 0.8, 0.4
+#: A search turn ends within this of its heading, or at its budget.
+TURN_TOL, TURN_BUDGET_S = math.radians(3.0), 10.0
+#: Attempts at the dock before the approach gives up.
+TRIES = 3
+
 
 def over_dock_x(spec: DockSpec = DEFAULT) -> float:
   """Where, in the dock's frame, the robot's front feet can land on the

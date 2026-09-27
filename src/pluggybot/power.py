@@ -111,6 +111,9 @@ class Pack:
     #: metabolism calibrated against a throughput that is not the real one.
     self.charge_scale = float(charge_scale)
     self.draw_w = float(draw_w)
+    #: What its charger puts in while it conducts, W: the rover's rack
+    #: (`CHARGE_W`), or a body's own (the quadruped's dock, `legs.dock`).
+    self.charge_w = CHARGE_W
     self.last_power_w = 0.0
 
   def power_draw(self, data) -> float:
@@ -137,7 +140,7 @@ class Pack:
       # At 1.0 this is arithmetically identical to the `p -= CHARGE_W` it
       # replaces, which is what lets every existing mission, recording and
       # measurement stand unchanged.
-      p = (p - CHARGE_W) * self.charge_scale
+      p = (p - self.charge_w) * self.charge_scale
     self.last_power_w = p
     # `min`/`max`, not `np.clip`: the same float, without numpy's
     # microseconds on a scalar every step (issue #385).

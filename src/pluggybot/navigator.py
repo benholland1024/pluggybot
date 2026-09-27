@@ -180,6 +180,15 @@ class Navigator:
   PEER_STOP_HALF_M = PEER_STOP_HALF_M
   PEER_CLEARANCE_M = PEER_CLEARANCE_M
   FACING_TOLERANCE = FACING_TOLERANCE
+  #: How a drive's progress is read (`STAGNATION_S`): in a straight line to
+  #: the goal, the rover's, or ALONG THE ROUTE it plans (issue #387): from
+  #: the bedroom's corner the only way to the hall door walks 2.5 m round
+  #: the divider first, away from the goal, and read in a straight line
+  #: every such drive "stalled" at 10 s -- MEASURED, 21 in a row.
+  PROGRESS_ALONG_ROUTE = False
+  #: ...and a replan whose route is this much longer than the best seen is
+  #: a NEW route, whose progress is read from where it starts, m.
+  NEW_ROUTE_M = 0.5
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
@@ -246,6 +255,14 @@ class Navigator:
     #: `_bodies` reads both.
     self.others: list = []
 
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #168): the map and the belief are state and
+    stay; the LIDAR and this body's geoms are found again by name."""
+    self.model, self.data = model, data
+    self.lidar.rebind(model)
+    self.body_gids = np.array(sorted(robot_geoms(model, self.handle.root)),
+                              dtype=np.int32)
+
   # ---- what the body says --------------------------------------------------
 
   @property
@@ -270,6 +287,12 @@ class Navigator:
   def pressing(self) -> bool:
     """Pressed against something it is moving into."""
     return False
+
+  def _planning_grid(self) -> np.ndarray:
+    """The map the planner plans over, as log-odds: the LIDAR's grid here.
+    A body that senses below its scan plane adds what it saw there (the
+    quadruped's depth camera, `legs.body.QuadMission`)."""
+    return self.grid.grid
 
   def run(self, routine, name: str = ""):
     raise NotImplementedError
@@ -383,12 +406,18 @@ class Navigator:
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))
-        front = all_ranges[np.abs(all_angles) < 0.35]
-        # front can be EMPTY: those bearings may all be self-occluded (the
-        # arm crosses the scan plane at some lift heights). No reading is not
-        # a clear path -- hold course rather than inventing one.
-        if front.size and front.min() < self.FRONT_STOP_RANGE:
+        if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _front_blocked(self, angles, ranges) -> bool:
+    """The front stop's test, over one scan's bearings and ranges (the room
+    and the other robots): a return inside `FRONT_STOP_RANGE` within 0.35
+    rad of dead ahead."""
+    front = ranges[np.abs(angles) < 0.35]
+    # front can be EMPTY: those bearings may all be self-occluded (the
+    # arm crosses the scan plane at some lift heights). No reading is not
+    # a clear path -- hold course rather than inventing one.
+    return bool(front.size and front.min() < self.FRONT_STOP_RANGE)
 
   def _contact_step(self) -> None:
     """The body's contacts, after the scan: nothing here; the rover
@@ -422,7 +451,7 @@ class Navigator:
     """A* to the goal, or to its stand-in (below). The floor before the
     other robots are masked out is kept (`_floor`) for
     `_route_cut_by_others`."""
-    self._floor = traversable_mask(self.grid.grid, self.INFLATION_CELLS)
+    self._floor = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     trav = self._floor.copy()
     self._mask_others(trav)
     self._stand_in = None
@@ -523,8 +552,9 @@ class Navigator:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
         return self._drove(wx, wy, t0, "")
-      if dist < best_dist - 0.02:
-        best_dist, last_improve = dist, self.data.time
+      left = self._left(dist, waypoints, wx, wy)
+      if left < best_dist - 0.02:
+        best_dist, last_improve = left, self.data.time
         waiting = False
       elif self.data.time - last_improve > STAGNATION_S:
         if self._other_in_the_way(wx, wy):
@@ -569,7 +599,7 @@ class Navigator:
         continue
       holding = False
       if self.data.time < self.backoff_until:
-        yield from self._nav_routine(-self.BACKOFF_V, 0.0)
+        yield from self._backoff_routine()
         waypoints = []
         continue
       if self.others and self.data.time >= next_downs:
@@ -588,6 +618,10 @@ class Navigator:
             else "peer" if self.others and self._route_cut_by_others(wx, wy)
             else "no_route"))
         waypoints = planned
+        if self.PROGRESS_ALONG_ROUTE:
+          route = self._left(dist, waypoints, wx, wy)
+          if route > best_dist + self.NEW_ROUTE_M:
+            best_dist, last_improve = route, self.data.time
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < 0.08:
         waypoints.pop(0)
@@ -612,6 +646,23 @@ class Navigator:
     return self._drove(wx, wy, t0, (
       "peer" if waiting or holding or self.peer_on_the_goal(wx, wy) is not None
       else "timeout"))
+
+  def _backoff_routine(self) -> Routine:
+    """One step of the reflex's retreat, after the front stop or the
+    bumper (`backoff_until`): straight back."""
+    yield from self._nav_routine(-self.BACKOFF_V, 0.0)
+
+  def _left(self, dist: float, waypoints, wx: float, wy: float) -> float:
+    """How far a drive has still to go: `dist`, the straight line, or --
+    `PROGRESS_ALONG_ROUTE` -- along its waypoints to the goal."""
+    if not self.PROGRESS_ALONG_ROUTE or not waypoints:
+      return dist
+    x, y = self.pose[0], self.pose[1]
+    total = 0.0
+    for px, py in (*waypoints, (wx, wy)):
+      total += math.hypot(px - x, py - y)
+      x, y = px, py
+    return total
 
   def _drove(self, wx: float, wy: float, t0: float, why: str) -> bool:
     """Record how a drive ended in `last_drive` (issue #350) and answer it:
@@ -764,7 +815,7 @@ class Navigator:
     traversable after the other robots are masked out, and in the SAME
     4-connected component as its own start cell -- `_plan_to`'s own two
     tests, asked of candidates rather than of one goal."""
-    trav = traversable_mask(self.grid.grid, self.INFLATION_CELLS)
+    trav = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     self._mask_others(trav)
     start = nearest_traversable(
       trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))

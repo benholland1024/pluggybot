@@ -112,6 +112,9 @@ class WorldFacts:
   #: `move` may move and `read` may read, presence checked at run time
   axes: tuple[str, ...] = ()
   sensors: tuple[str, ...] = ()
+  #: the verbs this world's BODY can run (issue #387), or None for every
+  #: one: a body with no arm has no tool, no claw and no pen
+  verbs: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -1010,10 +1013,22 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None) -> Routine
     life.step_now = before
 
 
-def describe_vocabulary() -> list[dict]:
-  """The verbs as data -- what a prompt or a validator's error names."""
+#: What a body with no arm can run (issue #387): walking, turning, standing
+#: still and the base at a velocity -- nothing that needs a tool, and no
+#: `look`, whose ranges are the rover's bay tags'.
+BODY_VERBS = ("drive_to", "face", "wait", "drive")
+#: ...and how a walking body's prompt describes the one whose words are the
+#: rover's.
+BODY_DOCS = {"drive_to": "walk over the map to a world point; ok on arrival"}
+
+
+def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
+  """The verbs as data -- what a prompt or a validator's error names --
+  every one, or those a body can run (`verbs`, in its words)."""
+  keep = VERBS if verbs is None else {n: VERBS[n] for n in verbs}
   return [{"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
-           "doc": v.doc} for v in VERBS.values()]
+           "doc": v.doc if verbs is None else BODY_DOCS.get(v.name, v.doc)}
+          for v in keep.values()]
 
 
 # ---- validation: total, before a single step runs ----------------------------
@@ -1047,6 +1062,9 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
                partial: bool = False) -> list[str]:
   """Every argument of one step. `partial` skips the missing-argument rule,
   for a language checking only the literal half of a call."""
+  if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
+    return [f"{verb.name}: this body has no arm yet, so it has no {verb.name} "
+            f"(it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
   missing = set(verb.args) - set(args)

@@ -7,6 +7,7 @@ directly.
 import math
 
 import numpy as np
+from scipy import ndimage
 
 from pluggybot.control import wrap_angle
 from pluggybot.mapping.astar import astar, nearest_traversable
@@ -34,15 +35,23 @@ TERMINAL_CONE = math.radians(25)   # a terminal approach translates only while
 
 
 def plan(grid: OccupancyGrid, pose: Pose,
-         blacklist: set[Cell]) -> tuple[list[Cell] | None, str]:
+         blacklist: set[Cell], robot_radius_cells: int = 7,
+         own_component: bool = False) -> tuple[list[Cell] | None, str]:
   """Pick the nearest reachable frontier and plan a path to it.
 
   Returns (path, status): path is a cell list or None; status is "ok",
   "no-frontiers" (map fully explored) or "no-reachable" (frontiers exist
   but none could be pathed to this round).
+
+  `own_component` drops, before any A*, every frontier outside the start
+  cell's 4-connected floor -- the ones A* would fail on -- and blacklists
+  none of them (issue #387): a depth camera's small obstacles seal pockets
+  of frontier near the robot, and tried nearest first they filled the 20
+  attempts, and the three strikes, while reachable floor stood unseen.
   """
-  trav = traversable_mask(grid.grid)
-  frontiers = find_frontiers(grid.grid, traversable=trav)
+  grid_now = grid.grid
+  trav = traversable_mask(grid_now, robot_radius_cells)
+  frontiers = find_frontiers(grid_now, traversable=trav)
   if len(frontiers) == 0:
     return None, "no-frontiers"
 
@@ -57,6 +66,11 @@ def plan(grid: OccupancyGrid, pose: Pose,
   if start is None:
     return None, "no-reachable"          # off the map, not merely sealed in
   rix, riy = start
+  if own_component:
+    labels, _ = ndimage.label(trav)
+    frontiers = frontiers[labels[frontiers[:, 1], frontiers[:, 0]] == labels[riy, rix]]
+    if len(frontiers) == 0:
+      return None, "no-reachable"
 
   dist = np.hypot(frontiers[:, 0] - rix, frontiers[:, 1] - riy)
   eligible = dist >= MIN_FRONTIER_CELLS

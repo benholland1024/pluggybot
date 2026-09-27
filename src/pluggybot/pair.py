@@ -119,7 +119,8 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # after `compile()` -- and without it `can_reshape` refuses every build
   # with "this world was compiled without its spec", which is what the
   # deployed pair was hitting before it ever reached the pair rule below.
-  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix)
+  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
+                    body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -154,9 +155,9 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
-  charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
-    for i in range(len(handles)))
+  charters = tuple(constitutions.for_body(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
+    cfg.get("body", "rover")) for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,

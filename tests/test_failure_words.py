@@ -133,6 +133,8 @@ class _Drive:
   _bodies = HubMission._bodies
   peer_on_the_goal = HubMission.peer_on_the_goal
   _cells = HubMission._cells
+  _left = HubMission._left
+  PROGRESS_ALONG_ROUTE = HubMission.PROGRESS_ALONG_ROUTE
   # ...the rover's measured sizes, which the drive reads off its body
   BACKOFF_V, PEER_CLEARANCE_M = HubMission.BACKOFF_V, HubMission.PEER_CLEARANCE_M
   OTHER_ROBOT_CELLS = HubMission.OTHER_ROBOT_CELLS
