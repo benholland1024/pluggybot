@@ -81,6 +81,9 @@ def test_the_array_readers_agree_with_the_struct_loops_on_a_live_world():
     others = set(g[g[:, 0] == a, 1]) | set(g[g[:, 1] == a, 0])
     assert coupling.touching(data, int(a), others)
     assert not coupling.touching(data, int(a), [model.ngeom + 1])
+    # ...and not what is in contact with something else only.
+    elsewhere = set(g.ravel()) - others - {a}
+    assert not coupling.touching(data, int(a), elsewhere)
   assert not coupling.touching(mujoco.MjData(model), 0, [1])
 
 

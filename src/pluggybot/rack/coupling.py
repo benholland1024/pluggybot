@@ -350,13 +350,18 @@ def contact_pairs(data) -> np.ndarray:
 
 
 def touching(data, a: int, others) -> bool:
-  """Is geom `a` in contact with any geom in `others`?"""
+  """Is geom `a` in contact with any geom in `others`?
+
+  The rows holding `a` first, then those few in Python: `np.isin`'s fixed
+  cost, twice a call, twice a step per robot for the tool's poles, was 11 %
+  of the served pair's physics thread (issue #385)."""
   g = contact_pairs(data)
-  if g.shape[0] == 0:
+  mine = g[(g[:, 0] == a) | (g[:, 1] == a)]
+  if mine.shape[0] == 0:
     return False
-  others = np.fromiter(others, dtype=g.dtype)
-  return bool(np.any(((g[:, 0] == a) & np.isin(g[:, 1], others))
-                     | ((g[:, 1] == a) & np.isin(g[:, 0], others))))
+  others = set(others)
+  return any((x == a and y in others) or (y == a and x in others)
+             for x, y in mine.tolist())
 
 
 def module_power_state(model, data, name: str = "module_lcd",

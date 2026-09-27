@@ -22,8 +22,6 @@ or not at all): power draw numbers stay honest, and `--battery-wh 55.5` runs
 the real pack.
 """
 
-import numpy as np
-
 NOMINAL_V = 11.1        # 3S LiPo nominal
 STALL_A = 5.5           # per drive motor, at
 STALL_TORQUE = 2.06     # N·m (Pololu #4753)
@@ -141,8 +139,10 @@ class Pack:
       # measurement stand unchanged.
       p = (p - CHARGE_W) * self.charge_scale
     self.last_power_w = p
-    self.energy_wh = float(np.clip(self.energy_wh - p * dt / 3600.0,
-                                   0.0, self.capacity_wh))
+    # `min`/`max`, not `np.clip`: the same float, without numpy's
+    # microseconds on a scalar every step (issue #385).
+    self.energy_wh = min(max(self.energy_wh - p * dt / 3600.0, 0.0),
+                         self.capacity_wh)
 
   @property
   def fraction(self) -> float:
