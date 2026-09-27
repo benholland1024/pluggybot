@@ -150,6 +150,18 @@ LATENCY_S = (0.0, 0.02)
 #:   output only to within it, so it is observation noise to the policy.
 BACKLASH_RAD = 0.0044
 
+#: The driver's PD loop (the GDS68's MIT mode, Kp 0-500 and Kd 0-5), set
+#: from the reflected inertia: a 10 Hz loop at damping ratio 2, mjlab's Go1
+#: recipe. Every policy is trained on these gains (`training/` reads them
+#: from `models/quadruped.json`) and the served model's drivers run them.
+DRIVER_HZ, DRIVER_ZETA = 10.0, 2.0
+
+
+def driver_gains(motor: Motor) -> tuple[float, float]:
+  """(stiffness N*m/rad, damping N*m*s/rad), one pair for every joint."""
+  w = 2 * np.pi * DRIVER_HZ
+  return motor.armature * w ** 2, 2 * DRIVER_ZETA * motor.armature * w
+
 
 @dataclass(frozen=True)
 class JointLimits:
@@ -163,6 +175,8 @@ class JointLimits:
   #: Joint-side torque constant, N*m/A, and phase resistance.
   kt: np.ndarray
   r_phase: np.ndarray
+  #: The pack's voltage these limits are at.
+  bus_v: float = BUS_V_NOMINAL
 
   @classmethod
   def of(cls, motor: Motor, knee_ratio: float = 1.0,
@@ -173,11 +187,36 @@ class JointLimits:
     return cls(peak=motor.peak_torque * g, rated=motor.rated_torque * g,
                saturation=motor.saturation_torque * g,
                noload=motor.noload_speed / g, kt=motor.kt * g,
-               r_phase=np.full(12, motor.r_phase))
+               r_phase=np.full(12, motor.r_phase), bus_v=motor.bus_v)
 
   def clip(self, tau: np.ndarray, qd: np.ndarray) -> np.ndarray:
     lo, hi = envelope(qd, self.saturation, self.peak, self.noload)
     return np.clip(tau, lo, hi)
+
+  def dcmotor(self, stiffness: float, damping: float) -> list[dict]:
+    """Each joint's driver as MuJoCo's own `dcmotor` in position mode
+    (issue #385), so the PD and the envelope run in C on every physics step.
+
+    The motor is the envelope's line: K = bus / no-load speed and R = K *
+    bus / saturation torque (an equivalent DC pair, NOT the windings' Kt
+    and R, which `copper_w` keeps). The dcmotor's controller makes a
+    VOLTAGE, v = kp (target - q) - kd qd, clamped at the bus, and the motor
+    turns it into K (v - K qd) / R, clamped at the peak. So the driver's
+    torque PD is kp = Kp R / K and kd = Kd R / K - K: negative, because
+    the FOC driver cancels the back-EMF the voltage model would add as
+    damping. Inside the no-load speed the force equals `clip` of the PD to
+    1e-14 N*m; `implicitfast` then integrates its damping implicitly,
+    which is what makes a flight differ (SimNotes, "The legs' drivers in
+    C")."""
+    rows = []
+    for j in range(len(self.peak)):
+      k = self.bus_v / self.noload[j]
+      r = k * self.bus_v / self.saturation[j]
+      rows.append({"motorconst": (k, 0.0), "resistance": r,
+                   "saturation": (self.peak[j], 0.0, 0.0),
+                   "controller": (stiffness * r / k, 0.0, damping * r / k - k,
+                                  0.0, 0.0, self.bus_v)})
+    return rows
 
   def copper_w(self, tau: np.ndarray) -> np.ndarray:
     """Heat in each winding at joint torque `tau`, W: 1.5 * R * I^2 with

@@ -149,7 +149,8 @@ def build(spec: BodySpec, act: Activity):
   under its hip, the torso pitched along the line between and crouched."""
   spec = spec.with_(arm_reach=act.arm_reach)
   scenery = step_scenery(act.step) if act.step else ""
-  model = mujoco.MjModel.from_xml_string(body_xml(spec, scenery=scenery))
+  model = mujoco.MjModel.from_xml_string(
+    body_xml(spec, scenery=scenery, drive="torque"))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   if act.start_height is not None:
@@ -298,12 +299,21 @@ class Meter:
     self.peak = np.zeros(12)
 
   def step(self, tau: np.ndarray) -> None:
-    d, dt = self.d, self.m.opt.timestep
+    """A torque-drive step: the envelope here, then the bill."""
+    d = self.d
     t = self.lim.clip(tau, d.qvel[6:18])
     d.ctrl[:] = t
     mujoco.mj_step(self.m, d)
+    self._bill(t)
+
+  def bill(self) -> None:
+    """After a position-drive step: what the drivers applied."""
+    self._bill(self.d.actuator_force[:12].copy())
+
+  def _bill(self, t: np.ndarray) -> None:
+    dt = self.m.opt.timestep
     self.copper_j += float(self.lim.copper_w(t).sum()) * dt
-    self.mech_j += float(np.clip(t * d.qvel[6:18], 0, None).sum()) * dt
+    self.mech_j += float(np.clip(t * self.d.qvel[6:18], 0, None).sum()) * dt
     np.maximum(self.peak, np.abs(t), out=self.peak)
 
   def pd(self, target: np.ndarray) -> np.ndarray:
@@ -355,7 +365,7 @@ def stand_up_routine(spec: BodySpec, data, vm: VirtualModel,
 
 
 def _metered(spec: BodySpec, key: int, routine):
-  model = mujoco.MjModel.from_xml_string(body_xml(spec))
+  model = mujoco.MjModel.from_xml_string(body_xml(spec, drive="torque"))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, key)
   mujoco.mj_forward(model, data)
@@ -463,8 +473,9 @@ MID360_VFOV = (-7.0, 52.0)
 
 def ray_cost(world: str = "models/home_world.xml") -> None:
   """What a scan costs the physics thread, in the home world: the 2D LIDAR
-  (360 rays, one `mj_ray` each, as `perception/lidar.py` casts) against a
-  3D LIDAR frame of N rays through one `mj_multiRay`."""
+  (360 rays in one `mj_multiRay`, as `perception/lidar.py` casts them, the
+  noise drawn ray by ray) against a 3D LIDAR frame of N rays, also one
+  `mj_multiRay`."""
   from pluggybot.perception.lidar import Lidar
   model = mujoco.MjModel.from_xml_path(world)
   data = mujoco.MjData(model)
@@ -475,7 +486,7 @@ def ray_cost(world: str = "models/home_world.xml") -> None:
     lidar.scan(data)
   two_d = (time.perf_counter() - t) / 50
   print(f"{'scan':34s} {'rays':>7s} {'ms a scan':>9s} {'ms per sim s at 10 Hz':>22s}")
-  print(f"{'2D LIDAR (lidar.py, mj_ray each)':34s} {360:7d} {two_d * 1e3:9.2f} "
+  print(f"{'2D LIDAR (lidar.py)':34s} {360:7d} {two_d * 1e3:9.2f} "
         f"{two_d * 1e4:22.1f}")
   pos = data.site("lidar").xpos.copy() if model.nsite and any(
     model.site(i).name == "lidar" for i in range(model.nsite)) else data.qpos[:3] + [0, 0, 0.45]
@@ -498,6 +509,13 @@ def ray_cost(world: str = "models/home_world.xml") -> None:
     ms = (time.perf_counter() - t) / reps * 1e3
     print(f"{'3D LIDAR frame (mj_multiRay)':34s} {len(dirs):7d} {ms:9.2f} "
           f"{ms * 10:22.1f}")
+
+
+def _driver(model, data, policy: WalkingPolicy, prefix: str = "") -> PolicyDriver:
+  """A policy on one body, its drivers on the pack the tables fly (`--bus`)."""
+  drv = PolicyDriver(model, data, policy, prefix=prefix)
+  drv.set_bus(BUS_V)
+  return drv
 
 
 def quad_pair_world(policy: WalkingPolicy):
@@ -524,17 +542,15 @@ def quad_pair_world(policy: WalkingPolicy):
     data.qpos[j:j + 12] = pose_qpos(CHOSEN, CHOSEN.stand_height)
   mujoco.mj_forward(model, data)
   for prefix in ("", "r2_"):
-    drivers.append(PolicyDriver(model, data, policy,
-                                JointLimits.of(CHOSEN.motor, 1.0, BUS_V),
-                                prefix=prefix))
+    drivers.append(_driver(model, data, policy, prefix=prefix))
   return model, data, drivers
 
 
 def served_cost(path=POLICY_NPZ, sim_s: float = 10.0, rounds: int = 3) -> None:
   """What a pair's physics thread spends per sim second on what the BODY
   changes -- the physics and the body's own controller -- for two rovers
-  (their wheel servos are MuJoCo's) against two quadrupeds (the policy and
-  the PD in numpy), interleaved A B A B (CLAUDE.md: wall clock tracks the
+  (their wheel servos are MuJoCo's) against two quadrupeds (the policy in
+  numpy, the drivers' PD in MuJoCo's dcmotor), interleaved A B A B (CLAUDE.md: wall clock tracks the
   machine). The sensors' costs are the same rays at the same rates for either
   body, so the ratio scales the rover pair's measured multiple on the box."""
   from pluggybot.robot import world_with_robots
@@ -553,8 +569,8 @@ def served_cost(path=POLICY_NPZ, sim_s: float = 10.0, rounds: int = 3) -> None:
     model, data, drivers = quad_pair_world(policy)
     t = time.perf_counter()
     for _ in range(int(sim_s / model.opt.timestep)):
-      for i, drv in enumerate(drivers):
-        data.ctrl[12 * i:12 * i + 12] = drv.torque(twist)
+      for drv in drivers:
+        drv.command(twist)
       mujoco.mj_step(model, data)
     results["quadruped pair"].append((time.perf_counter() - t) / sim_s)
   for name, xs in results.items():
@@ -629,7 +645,7 @@ DEMO = [
 
 def view(spec: BodySpec) -> None:
   from mujoco import viewer as mj_viewer
-  model = mujoco.MjModel.from_xml_string(body_xml(spec))
+  model = mujoco.MjModel.from_xml_string(body_xml(spec, drive="torque"))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
@@ -739,7 +755,7 @@ def odometry(path=POLICY_NPZ, seeds: int = 5) -> None:
     data = mujoco.MjData(model)
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
-    drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+    drv = _driver(model, data, policy)
     odo = LegOdometry(model, data, seed=seed)
     for seconds, twist in ODOMETRY_COURSE:
       t0 = data.time
@@ -779,7 +795,7 @@ def _policy_world(path, scenery: str = "", key: int = 0):
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, key)
   mujoco.mj_forward(model, data)
-  drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+  drv = _driver(model, data, policy)
   return model, data, drv
 
 
@@ -885,7 +901,8 @@ def getup(path, trials: int = 20, seconds: float = 6.0) -> None:
     meter = Meter(CHOSEN, model, data)
     held, stood_at = 0.0, None
     while data.time < seconds:
-      meter.step(drv.torque(Twist()))
+      drv.step(Twist())
+      meter.bill()
       up = -(data.xmat[drv.root].reshape(3, 3).T @ [0, 0, 1])[2] < -0.95
       high = abs(data.qpos[2] - CHOSEN.stand_height) < 0.04
       held = held + model.opt.timestep if (up and high) else 0.0
@@ -919,7 +936,7 @@ def trace_policy(path, every_s: float = 0.2) -> list[str]:
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
-  drv = PolicyDriver(model, data, policy, JointLimits.of(CHOSEN.motor, 1.0, BUS_V))
+  drv = _driver(model, data, policy)
   every = round(every_s / model.opt.timestep)
   hashes = []
   for seconds, twist in POLICY_SCHEDULE:
@@ -960,7 +977,7 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
-  drv = PolicyDriver(model, data, policy, JointLimits.of(spec.motor, spec.knee_ratio, BUS_V))
+  drv = _driver(model, data, policy)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
@@ -970,13 +987,13 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
   rows, fell, wall0 = [], False, time.time()
   act_s, n_act = 0.0, 0
-  lim = drv.limits
+  lim = JointLimits.of(spec.motor, spec.knee_ratio, BUS_V)
   for seconds, twist in POLICY_SCHEDULE:
     t0, vel, yaw_rate, taus, tilt, copper, mech = data.time, [], [], [], [], [], []
     while data.time - t0 < seconds and not fell:
       decide = drv.steps % drv.every == 0
       t = time.perf_counter()
-      data.ctrl[:12] = drv.torque(twist)
+      drv.command(twist)
       if decide:
         act_s += time.perf_counter() - t
         n_act += 1
@@ -985,8 +1002,8 @@ def fly_policy(path=POLICY_NPZ, spec: BodySpec = CHOSEN, view: bool = False):
         rot = data.xmat[drv.root].reshape(3, 3)
         vel.append(rot.T @ data.qvel[0:3])
         yaw_rate.append(data.qvel[5])
-        taus.append(data.ctrl[:12].copy())
-        tau, qd = data.ctrl[:12], data.qvel[drv.vadr]
+        tau, qd = data.actuator_force[drv.act].copy(), data.qvel[drv.vadr]
+        taus.append(tau)
         copper.append(float(lim.copper_w(tau).sum()))
         mech.append(float(np.clip(tau * qd, 0, None).sum()))
         r_, p_, _ = _quat_rpy(data.qpos[3:7])

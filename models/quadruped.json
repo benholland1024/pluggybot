@@ -65,6 +65,10 @@
    0.00704
   ]
  },
+ "driver": {
+  "stiffness": 18.191654832087906,
+  "damping": 1.1581167158193413
+ },
  "friction_nominal": 0.1,
  "friction_range": [
   0.05,

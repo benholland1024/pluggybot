@@ -22,7 +22,8 @@ MuJoCo's, from each geom's shape at uniform density.
 from dataclasses import dataclass, field, replace
 import math
 
-from pluggybot.legs.actuator import FRICTION_NOMINAL, GIM4305_10, GIM8108_8, Motor
+from pluggybot.legs.actuator import (FRICTION_NOMINAL, GIM4305_10, GIM8108_8,
+                                     JointLimits, Motor, driver_gains)
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 LEGS = ("FL", "FR", "HL", "HR")
@@ -150,6 +151,11 @@ def _v(*vs: float) -> str:
   return " ".join(_f(v) for v in vs)
 
 
+def _exact(*vs: float) -> str:
+  """Round-trip precision, for the drivers: their gains are the policy's."""
+  return " ".join(repr(float(v)) for v in vs)
+
+
 def leg_ik(spec: BodySpec, x: float, z: float) -> tuple[float, float]:
   """Hip flexion and knee angles putting the foot at (x, z) in the leg's
   plane, relative to the flexion axis (z < 0 is down). Knee bent back."""
@@ -179,10 +185,17 @@ def pose_qpos(spec: BodySpec, height: float, x_off: float = 0.0,
 
 
 def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
-             standalone: bool = True, scenery: str = "") -> str:
+             standalone: bool = True, scenery: str = "",
+             drive: str = "position") -> str:
   """The robot as MJCF. `standalone` wraps it with a floor, a light, the
   solver options and any `scenery` (MJCF bodies/geoms for the worldbody), so
-  it compiles alone; otherwise a `<mujocoinclude>`."""
+  it compiles alone; otherwise a `<mujocoinclude>`.
+
+  `drive` is what a joint's `ctrl` means. "position": a joint target, the
+  driver's PD and the torque-speed envelope run by MuJoCo's `dcmotor`
+  (issue #385) -- the robot a policy walks. "torque": the torque itself,
+  for the scripted gait (`legs.scripted`), whose caller clips it through
+  `actuator.JointLimits` -- a measuring instrument that commands torque."""
   m = spec.motor
   tx, ty, tz = spec.torso
   h0 = spec.stand_height
@@ -247,12 +260,20 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
             pos="{_v(arm_x - 0.05, 0, tz + 0.09)}" mass="{_f(budget.tool)}"
             rgba="0.9 0.8 0.2 1"/>"""
 
-  # The actuators write torque: the driver's PD loop and the torque-speed
-  # envelope are `legs.actuator`'s, run in Python at the physics rate, so
-  # the XML carries only the peak as a hard stop.
-  actuators = "\n".join(
-    f'    <motor name="{jn}" joint="{jn}" ctrlrange="{_v(-peak[jn.split("_", 1)[1]], peak[jn.split("_", 1)[1]])}"/>'
-    for jn in JOINT_NAMES)
+  if drive == "position":
+    drivers = JointLimits.of(m, spec.knee_ratio).dcmotor(*driver_gains(m))
+    actuators = "\n".join(
+      f'    <dcmotor name="{jn}" joint="{jn}" input="position" '
+      f'motorconst="{_exact(*d["motorconst"])}" resistance="{_exact(d["resistance"])}" '
+      f'saturation="{_exact(*d["saturation"])}" controller="{_exact(*d["controller"])}"/>'
+      for jn, d in zip(JOINT_NAMES, drivers))
+  elif drive == "torque":
+    # The peak as a hard stop; the envelope is the caller's.
+    actuators = "\n".join(
+      f'    <motor name="{jn}" joint="{jn}" ctrlrange="{_v(-peak[jn.split("_", 1)[1]], peak[jn.split("_", 1)[1]])}"/>'
+      for jn in JOINT_NAMES)
+  else:
+    raise ValueError(f"drive is 'position' or 'torque', not {drive!r}")
   # Named as mjlab's velocity task reads them (`robot/imu_ang_vel`, ...), so
   # the training side (`training/`) uses this file unchanged.
   sensors = "\n".join(
@@ -389,6 +410,9 @@ def training_constants(spec: BodySpec = CHOSEN) -> dict:
       "armature": m.armature,
       "armature_range": [r * m.ratio ** 2 for r in spec.motor.rotor_range],
     },
+    # The driver's PD gains every policy is trained on, and the served
+    # model's dcmotors run (`actuator.driver_gains`).
+    "driver": dict(zip(("stiffness", "damping"), act.driver_gains(spec.motor))),
     "friction_nominal": act.FRICTION_NOMINAL,
     "friction_range": list(act.FRICTION_NM),
     "latency_s": list(act.LATENCY_S),

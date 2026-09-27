@@ -7,9 +7,10 @@ from pathlib import Path
 
 import mujoco
 import numpy as np
+import pytest
 
 from pluggybot.legs import model as qm
-from pluggybot.legs.actuator import GIM8108_8, JointLimits, envelope
+from pluggybot.legs.actuator import GIM8108_8, JointLimits, driver_gains, envelope
 from pluggybot.legs.scripted import Command, VirtualModel
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ def test_a_foot_grips_with_its_own_friction_not_the_floors():
   # Friction combines as the pair's MAX unless the foot claims priority
   # (SimNotes, "THE caster lesson"): without it the floor's 1.0 wins and
   # randomising the foot's friction in training would change nothing.
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")
   for _ in range(50):
     mujoco.mj_step(model, data)
   feet = {model.geom(f"{leg}_foot").id for leg in qm.LEGS}
@@ -84,7 +85,7 @@ def test_the_knee_belt_multiplies_torque_divides_speed_and_squares_inertia():
 def test_the_scripted_gait_trots_forward_without_falling():
   # The tables' instrument: if it stops walking, every number it made is
   # unreproducible. Two seconds of a 0.5 m/s trot.
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")
   vm = VirtualModel(model, data, qm.CHOSEN)
   lim = JointLimits.of(qm.CHOSEN.motor)
   for _ in range(int(2.0 / model.opt.timestep)):
@@ -109,8 +110,9 @@ def _tiny_policy(path, obs=45, hidden=8, act=12, seed=0):
           "action_scale": ",".join(["0.3"] * act),
           "observation_names": "base_ang_vel,projected_gravity,joint_pos,"
                                "joint_vel,actions,command"}
-  training = {"train_dt": 0.005, "decimation": 4, "stiffness": 18.0,
-              "damping": 1.2, "env_steps": 0, "envs": 1, "gpu": "-",
+  stiffness, damping = driver_gains(qm.CHOSEN.motor)
+  training = {"train_dt": 0.005, "decimation": 4, "stiffness": stiffness,
+              "damping": damping, "env_steps": 0, "envs": 1, "gpu": "-",
               "wall": "-"}
   arrays = {"obs_mean": rng.normal(size=obs).astype(np.float32),
             "obs_div": (1 + rng.random(obs)).astype(np.float32),
@@ -143,8 +145,7 @@ def test_the_observation_is_the_one_mjlab_trained_on(tmp_path):
   from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy
   _tiny_policy(tmp_path / "p.npz")
   model, data = _compiled()
-  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"),
-                     JointLimits.of(qm.CHOSEN.motor))
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"))
   obs = drv.observation(Twist(0.4, -0.1, 0.3))
   assert obs.shape == (45,)
   assert np.allclose(obs[3:6], [0, 0, -1])        # standing level
@@ -152,7 +153,7 @@ def test_the_observation_is_the_one_mjlab_trained_on(tmp_path):
   assert np.allclose(obs[42:45], [0.4, -0.1, 0.3])
 
 
-def test_the_policy_decides_every_tenth_step_and_the_pd_runs_every_step(tmp_path):
+def test_the_policy_decides_every_tenth_step_and_the_drivers_run_every_step(tmp_path):
   from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy
   _tiny_policy(tmp_path / "p.npz")
   model, data = _compiled()
@@ -160,14 +161,85 @@ def test_the_policy_decides_every_tenth_step_and_the_pd_runs_every_step(tmp_path
   calls = []
   act = policy.act
   policy.act = lambda obs: calls.append(1) or act(obs)
-  drv = PolicyDriver(model, data, policy, JointLimits.of(qm.CHOSEN.motor))
+  drv = PolicyDriver(model, data, policy)
   assert drv.every == 10                           # 50 Hz on 2 ms steps
-  torques = []
+  targets, torques = [], []
   for _ in range(25):
-    torques.append(drv.torque(Twist()))
+    drv.command(Twist())
+    targets.append(data.ctrl.copy())
     mujoco.mj_step(model, data)
+    torques.append(data.actuator_force.copy())
   assert len(calls) == 3                           # steps 0, 10, 20
+  assert np.array_equal(targets[1], targets[9])    # held between decisions
+  assert not np.array_equal(targets[9], targets[10])
   assert not np.allclose(torques[1], torques[2])   # the PD tracks the body
+
+
+def _random_joint_states(model, data, rng):
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  data.qpos[7:19] += rng.normal(0, 0.3, 12)
+  data.qvel[6:18] = rng.normal(0, 12, 12)
+  data.ctrl[:] = data.qpos[7:19] + rng.normal(0, 0.5, 12)
+  mujoco.mj_forward(model, data)
+
+
+def test_the_drivers_dcmotor_is_the_pd_inside_the_envelope():
+  # Issue #385 moved the driver's PD and the torque-speed envelope from
+  # numpy into MuJoCo's `dcmotor`, whose controller makes a VOLTAGE: its
+  # gains are the torque PD's through the motor's K and R, and a wrong
+  # sign or a missing back-EMF term is a different motor. At any state
+  # inside the no-load speed, the force must be the clipped PD it replaced
+  # -- on the nominal pack and on an empty one (`set_bus`).
+  from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
+  model, data = _compiled()
+  stiffness, damping = driver_gains(qm.CHOSEN.motor)
+  drv = PolicyDriver(model, data, WalkingPolicy())
+  rng = np.random.default_rng(0)
+  for bus in (43.2, 36.0):
+    drv.set_bus(bus)
+    lim = JointLimits.of(qm.CHOSEN.motor, bus_v=bus)
+    clipped = 0
+    for _ in range(300):
+      _random_joint_states(model, data, rng)
+      q, qd = data.qpos[7:19], data.qvel[6:18]
+      want = lim.clip(stiffness * (data.ctrl - q) - damping * qd, qd)
+      inside = np.abs(qd) < lim.noload
+      assert np.allclose(data.actuator_force[inside], want[inside],
+                         rtol=0, atol=1e-9)
+      clipped += int((np.abs(want) >= lim.peak - 1e-9).sum())
+    assert clipped > 100                        # the peak clip was exercised
+
+
+def test_a_policy_walks_only_on_the_drivers_it_was_trained_on(tmp_path):
+  import json
+  from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
+  a = _tiny_policy(tmp_path / "p.npz")
+  model, data = _compiled(drive="torque")
+  with pytest.raises(ValueError, match="trained"):
+    PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"))
+  training = json.loads(str(a["training"]))
+  training["stiffness"] *= 1.5
+  a["training"] = np.array(json.dumps(training))
+  np.savez(tmp_path / "q.npz", **a)
+  model, data = _compiled()
+  with pytest.raises(ValueError, match="trained"):
+    PolicyDriver(model, data, WalkingPolicy(tmp_path / "q.npz"))
+
+
+def test_every_committed_policy_was_trained_on_the_drivers_gains():
+  # One definition (`actuator.driver_gains`): the served model's dcmotors
+  # run it, `training/` reads it from quadruped.json, and each committed
+  # policy recorded what it was trained on.
+  import json
+  from pluggybot.legs.policy import WalkingPolicy
+  gains = driver_gains(qm.CHOSEN.motor)
+  body = json.loads((ROOT / qm.CONSTANTS_JSON).read_text())
+  assert (body["driver"]["stiffness"], body["driver"]["damping"]) == gains
+  files = sorted((ROOT / "models").glob("quadruped_*.npz"))
+  assert files
+  for path in files:
+    policy = WalkingPolicy(path)
+    assert (policy.stiffness, policy.damping) == gains, path.name
 
 
 def test_running_the_policy_imports_no_training_stack():
@@ -192,7 +264,7 @@ def _trot_odometry(monkeypatch, lag_s):
   monkeypatch.setattr(od, "GYRO_NOISE", 0.0)
   monkeypatch.setattr(od, "GYRO_BIAS_DPS", 0.0)
   monkeypatch.setattr(od, "BACKLASH_RAD", 0.0)
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")
   vm = VirtualModel(model, data, qm.CHOSEN)
   lim = JointLimits.of(qm.CHOSEN.motor)
   odo = od.LegOdometry(model, data)
@@ -236,8 +308,7 @@ def test_the_height_scan_is_mjlabs_grid_turned_with_the_heading(tmp_path):
   block = ('\n    <geom name="block" type="box" size="0.23 0.18 0.05" '
            'pos="0.55 0.3 0.05"/>')
   model, data = _compiled(scenery=block)
-  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"),
-                     JointLimits.of(qm.CHOSEN.motor))
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"))
   scan = drv.observation(Twist_())[45:] / 0.2
   xy = scan_offsets()
   under = (np.abs(xy[:, 0] - 0.55) < 0.23) & (np.abs(xy[:, 1] - 0.3) < 0.18)
@@ -258,7 +329,7 @@ def test_the_scripted_gait_turns_on_the_spot_through_180_degrees():
   # Its attitude loop once ran about the WORLD's axes: roll and pitch are
   # the heading's, the correction reversed past 90 deg of heading, and a
   # turn on the spot flipped the body at 140 deg.
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")
   vm = VirtualModel(model, data, qm.CHOSEN)
   lim = JointLimits.of(qm.CHOSEN.motor)
   lowest = 1.0
@@ -276,7 +347,7 @@ def test_the_scripted_gait_turns_on_the_spot_through_180_degrees():
 def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
   # A folded leg holds the hips 0.10 m up, so the belly pack hangs below
   # that: lying down, the legs carry nothing (SimNotes, "The belly").
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")
   mujoco.mj_resetDataKeyframe(model, data, 1)
   for _ in range(int(1.0 / model.opt.timestep)):
     data.ctrl[:] = 0.0

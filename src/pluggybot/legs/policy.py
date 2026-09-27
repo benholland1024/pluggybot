@@ -14,10 +14,12 @@ for speed; the float64 forward pass is what keeps two days one day.
 `PolicyDriver` is the robot's side of it: every `decimation` physics steps it
 builds the observation mjlab trained on -- the gyro, gravity in the body
 frame, joint positions and speeds off the encoders, the last action and the
-command -- asks the policy for joint targets, and on EVERY physics step runs
-the driver's PD toward them through the actuator's envelope
-(`actuator.JointLimits`). The observation reads no velocity the body could
-not measure: the policy was trained without the base's linear velocity.
+command -- asks the policy for joint targets and hands them to the drivers.
+The drivers are MuJoCo's `dcmotor`s (`model.body_xml`'s "position" drive,
+issue #385): the PD and the torque-speed envelope on EVERY physics step, in
+C, with no Python between two policy steps. The observation reads no
+velocity the body could not measure: the policy was trained without the
+base's linear velocity.
 """
 
 from dataclasses import dataclass
@@ -28,7 +30,6 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from pluggybot.legs.actuator import JointLimits
 from pluggybot.legs.model import JOINT_NAMES
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
@@ -118,16 +119,36 @@ class Twist:
     return np.array([self.height, self.pitch, self.roll])
 
 
-class PolicyDriver:
-  """The policy on one body: `torque(twist)` once per physics step."""
+def driver_gains(model, actuators) -> tuple[np.ndarray, np.ndarray]:
+  """The torque PD (stiffness, damping) each position-mode `dcmotor` runs,
+  read back off the compiled model (`actuator.JointLimits.dcmotor` has the
+  algebra; `gainprm` holds R, K, kp, kd at 0, 1, 4, 6 in MuJoCo 3.10)."""
+  g = model.actuator_gainprm[actuators]
+  r, k, kp, kd = g[:, 0], g[:, 1], g[:, 4], g[:, 6]
+  return kp * k / r, (kd + k) * k / r
 
-  def __init__(self, model, data, policy: WalkingPolicy, limits: JointLimits,
-               prefix: str = ""):
-    self.m, self.d, self.policy, self.limits = model, data, policy, limits
+
+class PolicyDriver:
+  """The policy on one body: `command(twist)` once per physics step, before
+  it; the joint targets change on a policy step and the drivers hold them
+  between."""
+
+  def __init__(self, model, data, policy: WalkingPolicy, prefix: str = ""):
+    self.m, self.d, self.policy = model, data, policy
     self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
     ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
     self.qadr = np.array([model.jnt_qposadr[j] for j in ids])
     self.vadr = np.array([model.jnt_dofadr[j] for j in ids])
+    self.act = np.array([model.actuator(f"{prefix}{n}").id for n in JOINT_NAMES])
+    # A policy walks on the gains it was trained with, or not at all.
+    dc = model.actuator_dyntype[self.act] == mujoco.mjtDyn.mjDYN_DCMOTOR
+    kp, kd = driver_gains(model, self.act)
+    if not (dc.all() and np.allclose(kp, policy.stiffness, rtol=1e-9)
+            and np.allclose(kd, policy.damping, rtol=1e-9)):
+      raise ValueError(
+        f"the model's leg drivers are not the ones this policy was trained "
+        f"on (stiffness {policy.stiffness:.6g}, damping {policy.damping:.6g}): "
+        f"build it with body_xml(drive='position')")
     self.gyro = model.sensor(f"{prefix}imu_ang_vel").id
     self.gyro_adr = model.sensor_adr[self.gyro]
     self.every = max(1, round(policy.period / model.opt.timestep))
@@ -180,18 +201,21 @@ class PolicyDriver:
         out[i] = body[2] - (top - dist)
     return out
 
-  def torque(self, twist: Twist) -> np.ndarray:
+  def set_bus(self, volts: float) -> None:
+    """The pack at `volts`: only the drivers' voltage clamp moves (K and R
+    are the motor's own; `gainprm[7]` in MuJoCo 3.10)."""
+    self.m.actuator_gainprm[self.act, 7] = volts
+
+  def command(self, twist: Twist) -> None:
+    """Before each physics step: on a policy step, new joint targets."""
     if self.steps % self.every == 0:
       action = self.policy.act(self.observation(twist))
       self.last_action = action
       self.target = self.policy.default_q + self.policy.action_scale * action
+      self.d.ctrl[self.act] = self.target
     self.steps += 1
-    q, qd = self.d.qpos[self.qadr], self.d.qvel[self.vadr]
-    tau = self.policy.stiffness * (self.target - q) - self.policy.damping * qd
-    return self.limits.clip(tau, qd)
 
   def step(self, twist: Twist) -> None:
-    """One physics step with the policy driving (the standalone model's
-    actuators are the twelve leg motors, in joint order)."""
-    self.d.ctrl[:12] = self.torque(twist)
+    """One physics step with the policy driving."""
+    self.command(twist)
     mujoco.mj_step(self.m, self.d)
