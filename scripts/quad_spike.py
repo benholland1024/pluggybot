@@ -39,7 +39,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
-from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE,  # noqa: E402
+from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE, attachable,  # noqa: E402
                                   BodySpec, body_xml, lie_qpos, pose_qpos)
 from pluggybot.legs.odometry import LegOdometry  # noqa: E402
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
@@ -527,12 +527,10 @@ def quad_pair_world(policy: WalkingPolicy):
              + list(spec.equalities) + list(spec.excludes)):
     spec.delete(el)
   spec.delete(spec.body("pluggybot"))
-  robot = body_xml(CHOSEN, standalone=False).replace(
-    "<mujocoinclude>", "<mujoco>").replace("</mujocoinclude>", "</mujoco>")
   for prefix, x in (("", 0.0), ("r2_", 1.5)):
     frame = spec.worldbody.add_frame()
     frame.pos = [x, 0.0, 0.0]
-    spec.attach(mujoco.MjSpec.from_string(robot), prefix=prefix, frame=frame)
+    spec.attach(attachable(CHOSEN), prefix=prefix, frame=frame)
   model = spec.compile()
   data = mujoco.MjData(model)
   drivers = []
