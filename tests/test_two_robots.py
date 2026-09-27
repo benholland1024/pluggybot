@@ -766,8 +766,9 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   assert counted.draws == 2 * hits, \
     f"the map's stream was drawn {counted.draws} times for {hits} of its own returns"
   # A world with nobody else in it splits into nothing: the single-robot
-  # path is the same ray loop it always was.
+  # path is the same scan it always was.
   m.lidar._other_geoms = set()
+  m.lidar._index_geoms()
   _, _, alone_a, alone_r = m.lidar.scan_split(data)
   assert alone_a.size == 0 and alone_r.size == 0
 

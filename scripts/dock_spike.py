@@ -105,7 +105,7 @@ class Rig:
     mujoco.mj_resetDataKeyframe(m, self.data, 0)
     mujoco.mj_forward(m, self.data)
     self.lim = JointLimits.of(CHOSEN.motor)
-    self.drv = PolicyDriver(m, self.data, policy or WalkingPolicy(), self.lim)
+    self.drv = PolicyDriver(m, self.data, policy or WalkingPolicy())
     self.vm = VirtualModel(m, self.data, CHOSEN)
     self.root = m.body("pluggybot").id
     self.det = TagDetector(m, "nav_eye", tag_size=DOCK_TAG_SIZE) if look else None
@@ -173,7 +173,7 @@ class Rig:
   def _after(self) -> None:
     d, dt = self.data, self.model.opt.timestep
     self.odo.step()
-    tau, qd = d.ctrl[:12], d.qvel[6:18]
+    tau, qd = d.actuator_force[self.drv.act], d.qvel[6:18]
     self.leg_j += float(self.lim.copper_w(tau).sum()
                         + np.clip(tau * qd, 0, None).sum()) * dt
     if self.on_feet:
@@ -204,9 +204,9 @@ class Rig:
     self._after()
 
   def torque_step(self, tau) -> None:
-    d = self.data
-    d.ctrl[:12] = self.lim.clip(tau, d.qvel[6:18])
-    mujoco.mj_step(self.model, d)
+    """A routine's torque, through the drivers' envelope (`legs.drivers`)."""
+    self.drv.drivers.torque(tau)
+    mujoco.mj_step(self.model, self.data)
     self._after()
 
   def hold(self, seconds: float) -> None:

@@ -207,7 +207,7 @@ case. Tables and method: SimNotes "Sensor-realism pass".
 Catalog entries `lidar_rplidar_c1` (Slamtec RPLIDAR C1 or A1M8: 360°,
 10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W — the maker's datasheet says 1.15 W
 typical, found by #377 and left for the rover's last days. `perception/lidar.py` casts 360
-`mj_ray`s at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
+rays (one `mj_multiRay`) at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
 under-ranges it to 8 m on purpose, drops self-hits; its offset from the axle
 is `LIDAR_ORIGIN`, which the grid update bakes in — move the unit, move the
 constant) and `pi_camera_3` (×2: `left_eye` on the head for AprilTags,

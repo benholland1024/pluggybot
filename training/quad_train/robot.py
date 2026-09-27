@@ -3,7 +3,6 @@ generates: `models/quadruped.xml` and `models/quadruped.json`
 (`uv run python -m pluggybot.legs.model`). Nothing is typed twice."""
 
 import json
-import math
 from pathlib import Path
 
 import mujoco
@@ -21,13 +20,11 @@ FEET = tuple(f"{leg}_foot" for leg in BODY["legs"])
 #: sim runs 0.002, and `scripts/quad_policy.py` flies the policy there.
 TRAIN_DT = 0.005
 
-#: The driver's PD gains, from the reflected inertia: a 10 Hz loop, damping
-#: ratio 2 (mjlab's Go1 recipe). Inside the GDS68's MIT-mode ranges (Kp 0-500,
-#: Kd 0-5).
-NATURAL_FREQ = 10 * 2 * math.pi
-DAMPING_RATIO = 2.0
-STIFFNESS = MOTOR["armature"] * NATURAL_FREQ ** 2
-DAMPING = 2 * DAMPING_RATIO * MOTOR["armature"] * NATURAL_FREQ
+#: The driver's PD gains (`pluggybot.legs.actuator.driver_gains`: a 10 Hz
+#: loop at damping ratio 2 on the reflected inertia), which the served
+#: model's dcmotors run too.
+STIFFNESS = BODY["driver"]["stiffness"]
+DAMPING = BODY["driver"]["damping"]
 
 
 def get_spec() -> mujoco.MjSpec:

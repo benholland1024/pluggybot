@@ -1956,11 +1956,13 @@ belly or push up the 0.12 m curb; its whole leg is shorter than the riser.
 **The walking policy** (`training/`, mjlab 1.5.3 on MuJoCo 3.10; the first
 one is `models/quadruped_policy.npz`, 98 M steps on 2048 envs in 66 min on
 the GTX 1660 Super): trained on mjlab's 5 ms physics with its DC-motor
-actuator, and FLOWN in ours (2 ms, `legs/policy.py`: numpy, the PD and the
-envelope at the physics rate) by `quad_spike.py --policy`. It tracks 0.5
-and 1.0 m/s at 0.54 and 1.07, turns 0.78 of 0.8 rad/s, sidesteps 0.22 of
-0.3, and never falls; its knee's p99.5 is 7.9 N·m and its worst RMS 4.8
-(the scripted trot's were 8.4 and 4.8 at 1.0 m/s), it draws 88 W at 0.5 m/s
+actuator, and FLOWN in ours (2 ms, `legs/policy.py`: the policy in numpy,
+the driver's PD and envelope in MuJoCo's `dcmotor` since #385, which
+re-flew these numbers within 0.01 m/s, 0.3 N·m and 3 % of the power) by
+`quad_spike.py --policy`. It tracks 0.5 and 1.0 m/s at 0.54 and 1.07,
+turns 0.78 of 0.8 rad/s, sidesteps 0.22 of 0.3, and never falls; its
+knee's p99.5 is 7.9 N·m and its worst RMS 4.8 (the scripted trot's were
+8.4 and 4.8 at 1.0 m/s), it draws 88 W at 0.5 m/s
 and 109 W at 1.0 m/s against the scripted trot's 116 and 180, and it
 tilts the torso under 0.4°. The exported file is checked against its ONNX
 source before it is written (2e-6), and a flight hashes IDENTICAL in two
@@ -2011,32 +2013,19 @@ pair is flagged planted: gated against the last estimate and tested for a
 foot rising off the floor, the estimate holds through it (averaged in, 27 %,
 and a gate alone ratcheted the estimate down to nothing).
 
-**The served loop** (`--served`, under the exclusive lock; the home world
-with its rover taken out and two quadrupeds in, against two rovers): the
-physics and the body's own controller cost 255 ms of wall per sim second
-for the quadruped pair against 193 for the rover pair (1.32×): ~21 ms is
-the two policies (213 us a step, 50 Hz each) and ~40 ms the numpy PD and
-envelope on every physics step, which MuJoCo's native `dcmotor` actuator
-would run in C. Scaled onto the deploy box (the rover pair's measured
-0.96× over a carry and 0.80× over a day; the box ran ~0.93× this machine's
-speed in #296), the quadruped pair would run ~0.90× and ~0.76× as it
-stands, ~0.94× and ~0.79× with the PD in C. **1.3× over a day needs the
-physics thread ~1.65× faster**: a core ~1.7× an i5-9600KF's single-thread
-speed (the current desktop-class parts are about there), or the sensors and
-the policies moved off the physics thread. Confirm by a `--free-run` of the
-served pair on the candidate before buying.
+**The served loop** (`--served`: the home world with its rover taken out
+and two quadrupeds in, against two rovers) is #385's to measure and move
+("The served sim's speed" below).
 
 **The sensors on a moving torso** (`--rays`, quiet box): the policy tilts
 the torso under 0.4°, which moves the 2D scan plane (0.49 m up, on a rear
 mast clear of the stowed arm) ±5 cm at 8 m — IMU compensation removes it,
 and the D435 on the nose carries the ground. A 2D LIDAR stays for the first
 quadruped deploy; a 3D one (Livox Mid-360: 265 g, 6.5 W, €739) is #381's
-question for stairs and a multi-floor map. What the sim would pay: today's
-2D scan costs 4.1 ms (360 `mj_ray` calls from Python), one batched
-`mj_multiRay` of 4 000 rays 4.9 ms, of 10 000 12 ms, and a full Mid-360
-frame of 20 000 rays 24 ms — a quarter of real time per robot at 10 Hz.
-Batching the 2D scan into one `mj_multiRay` would cut ~36 ms per sim second
-per robot for either body.
+question for stairs and a multi-floor map. What the sim would pay: the 2D
+scan is ~1.2 ms since #385, one `mj_multiRay` of 4 000 rays 4.9 ms, of
+10 000 12 ms, and a full Mid-360 frame of 20 000 rays 24 ms — a quarter of
+real time per robot at 10 Hz.
 
 **What is true now:** the body is `legs.model.CHOSEN` and
 `models/quadruped.xml` is its generated MJCF; the numbers are a
@@ -2315,6 +2304,151 @@ pole; the walk-in is `walk_in_twist`, `fit_dock`,
 `seen_from` and `blend`; nothing in the served sim loads any of it until
 #387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
 lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
+
+## The served sim's speed (issue #385)
+
+A pair on the deploy box ran below real time (0.96× over a carry, 0.80×
+over a day, rooftop #296), and two quadrupeds cost more than two rovers:
+their policies and their drivers' PD. Everything here was timed on the
+deploy box itself (AMD EPYC 9645, Zen 5c, 3.7 GHz; the prod image, osmesa)
+in throwaway containers beside the live world, because the dev machine was
+never quiet.
+
+**The LIDAR is one call.** `Lidar.scan_split` cast its 360 bearings with an
+`mj_ray` each and drew the noise inside the loop: 3.55 ms a scan on the
+box, 35 ms of every sim second per robot at 10 Hz — and most of it was the
+Python around the rays (a scalar `np.clip` alone is microseconds), not the
+rays. One `mj_multiRay` returns every distance and geom bit-identical to
+the per-ray calls (108 000 rays at 300 poses in the home world, at any
+cutoff); the masks are numpy; the noise is still drawn ray by ray in
+bearing order from each of the two streams, because a batch draws the same
+numbers in another order and no flown day would hash the same again. 1.18
+ms a scan now: ~24 ms a sim second per robot. A scripted home day hashes
+IDENTICAL before and after, alone and with a parked second robot (3 234
+state samples, 11 262 scans, 4 063 tag images and decodes).
+
+**The legs' drivers in C.** The driver's PD and the torque-speed envelope
+ran in numpy on every physics step. MuJoCo's `dcmotor` in position mode
+runs them in C, but it models a VOLTAGE: its controller makes
+v = kp (target − q) − kd q̇, clamped at the bus, and the motor turns it
+into K (v − K q̇) / R, clamped at the current limit. With K and R the
+envelope's own line (K = bus / no-load speed, R = K · bus / saturation
+torque — an equivalent DC pair, not the windings' Kt and R) the clamp at
+the bus IS the envelope, and kp = Kp R / K, kd = Kd R / K − K make the
+torque the PD: 1e-14 N·m apart at 24 000 random joint states, the peak
+clip among them. kd comes out negative (−0.43), and that is right: an FOC
+driver cancels the back-EMF that a bare voltage would add as damping.
+What does differ is the integration: `implicitfast` integrates an
+actuator's velocity term implicitly, so one step from identical states
+differs by up to ~1 rad/s (1e-15 under Euler) — the closer model of a
+driver whose loop runs at kHz, not the explicit 5 ms PD the policies
+trained on. They walk on it within tolerance (numpy → dcmotor):
+
+| | numpy PD | dcmotor |
+|---|---|---|
+| tracking at 0.5 / 1.0 m/s | 0.54 / 1.07 | 0.53 / 1.06 |
+| knee p99.5 / worst RMS at 1.0 m/s, N·m | 7.9 / 4.8 | 7.8 / 4.7 |
+| power at 0.5 / 1.0 m/s, W | 88.1 / 108.9 | 89.0 / 112.1 |
+| get-up from 20 falls; from the belly | 20/20; 0.2 s, 87 mWh | the same |
+| posture, every commanded row | | within 0.1° and 1 mm |
+| legged odometry, 5 seeds | 2.4–4.0 % | 3.3–4.0 % |
+| seeing climbs | | the same, one more 0.10 m flight (3/3) |
+
+and a flight hashes IDENTICAL in two processes. #388's stairs policy,
+merged after these, re-flown on the dcmotor: every case at the house's
+0.18 m riser 10/10 on either scan (the flight of ten up and down among
+them), the knee's p99.5 13.6–13.9 N·m (#388's 13.5), and the flat as
+before (0.51 / 1.08 m/s, 89 W at 0.5). #378's dock, whose approach walks
+on the policy and lies down on the scripted routines' torque (the reason
+for `legs/drivers.py`), re-flown on them: the capture envelope cell for
+cell; the approach 52 of 52 docked (37 at the first try, #378's 40), feet
+on the dock in 8 runs for at most 1.06 s, median 9.8 s and 182 mWh; held
+docked, 100 % contact at 2.3 N a pole, the board's pose to 2.2–3.0 mm. On the box the quadruped
+pair's physics and controllers went from 231–236 to 191–199 ms of wall per
+sim second (`quad_spike.py --served`, A B A B): quadruped ÷ rover 1.30–1.40
+→ 1.12–1.13, the rest the two policies.
+
+**A served day, profiled.** `serve.py --pair --free-run` on the box, the
+home world, a scripted day with the jobs, hunger and the near field on
+(`--errand draw --errand2 carry`, 4 084 sim s) streaming to a local sink,
+under `py-spy` at 100 Hz. The physics thread's time, by what it was doing:
+
+| share | what |
+|---|---|
+| 28.9 % | `mj_step`, the physics |
+| 25.6 % | the depth camera (8 400 rays a frame at 10 Hz per robot) and its height map |
+| 11.4 % | the tag camera: osmesa renders and the decode, localising at the rack and the dock |
+| 4.0 % | the charge pins' contact criterion, every step |
+| 3.8 % | the tool's poles, every step (11 % before `touching` lost `np.isin`) |
+| 3.5 % | the planner's replans (the inflation's distance transform) |
+| 3.3 % | the activities (encounters, the cage, the plates) |
+| 2.8 % | the LIDAR |
+| 2.7 % | the occupancy grid's update |
+
+Fixed, as exact rewrites (each day hashes IDENTICAL): `touching`'s two
+`np.isin` a call, and `rack_charge_contact`'s, both now the few rows that
+hold the geom, checked in Python; the pack's scalar `np.clip`. **Not
+cheap, and deliberate:** the physics; the depth camera, whose 8 400 rays
+at 10 Hz is the sensor as specified (Rover.md) — halving its rate or its
+rays would halve its share, and that is a decision about the sensor, not
+a speed-up; the tag camera's renders, whose resolution is what the decode
+needs at the standoff, and which #378's dock replaces. The quadruped
+brings one more when it climbs: the stairs policy's scan (#388). On the
+ideal casts it is 187 `mj_ray`s from Python a policy step (parallel rays,
+which one `mj_multiRay` cannot cast): 1.2 ms in the home world, ~60 ms a
+sim second per robot. On the D435's map (`legs/scan.py`) it is the depth
+frames and the map's update instead, not measured here. Either is paid
+when the stairs are served, not by the first deploy's flat policy.
+
+**The day, before and after** (box, the same day both ways, the narration
+IDENTICAL line for line — the pair's peer returns included): staging
+**0.97–0.98×** real time (4 084 s in 4 177–4 195 s of wall, two runs), the
+scan batched 1.01×,
+the tool's poles and the pack too 1.10×, the charge pins too **1.14×**
+(3 578 s). That is a longer and calmer day than #296's 0.80× (a 259 s
+carry day heavy with swaps at 1 ms steps); a day's multiple is a property
+of what the day did.
+
+**The server.** A quadruped pair costs the box ~20 ms a sim second more
+than a rover pair (the two policies, above), so it would serve at ~1.1×
+over this day. #377 had asked for at least 1.3× — a margin, never argued:
+1.3× needs ~770 ms of wall a sim second, a physics thread ~1.2× the box's.
+A candidate core was rented by the hour (Runpod's `cpu5c`, 4 vCPUs): an
+**AMD EPYC 4564P** — the Ryzen 9 7950X's silicon on AM5, Zen 4 at up to
+5.88 GHz — on a host shared with other tenants (load 25–30 of its 32
+threads, so a pessimistic reading). The same code (all but the charge pins'
+fix), the same day: **1.82×** real time (4 167 s in 2 293 s), and over the
+span the two days share before they part (0.1–640 s; its Mesa is 25.1, the
+image's 25.0, and a render that differs moves a decode) 1.75× against the
+box's 1.07×: **1.64× the box**. Physics alone (`--served`) 1.5×; a scan
+0.72 ms. A quadruped pair there, the same arithmetic: **~1.78×**. The core
+is the answer, not the count: the physics is one thread.
+
+**Decided (Ben, 2026-09-27): the served world stays on the current box**,
+at about a fifth of the candidates' price. So the served world does NOT
+have #377's 1.3×: a quadruped pair is expected at ~1.1× over a day, and the
+known costs ahead take it under 1× — #386's scan matching runs on every
+scan, and the stairs policy's scan is ~60 ms a sim second per robot. Below
+1× nothing breaks: the world runs slower than the wall, the site plays the
+stream at its measured pace (rooftop #298), and everything the robots are
+scored on runs on sim time, as the rover pair's weeks at 0.5–0.8× showed.
+The pair is re-measured on the box at #387, once it is served for real; a
+faster box is the lever if the slow playback ever matters, and the EPYC
+above is what one buys.
+
+**What is true now:** the scan is one `mj_multiRay`, its noise drawn in
+bearing order (`test_the_batched_scan_is_the_scan_it_replaced` pins every
+ray against the per-ray scan); the leg drivers are position-mode
+`dcmotor`s, commanded as a GDS68 is (`legs/drivers.py`): a policy's command
+carries its own gains, a routine's torque rides a target with the damping
+cancelled and steps as a torque motor does, and `limp()` holds nothing, so
+the policy and the scripted routines share one body (the dock's approach
+does); the default gains are `actuator.driver_gains`, one definition that
+`training/` reads from `quadruped.json` (`tests/test_legs.py`). The served
+pair's physics thread is now about a third physics, a quarter depth camera
+and a tenth tag camera, and none of the three is cheap to cut. A pair is
+one physics thread, so the lever left is the core, and the box keeps its
+core for now (above).
 
 ## Debugging workflow that worked
 

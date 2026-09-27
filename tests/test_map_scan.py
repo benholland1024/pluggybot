@@ -17,8 +17,9 @@ from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
 
 
-def _compiled(scenery: str = "", pitch: float = 0.0):
-  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN, scenery=scenery))
+def _compiled(scenery: str = "", pitch: float = 0.0, drive: str = "position"):
+  model = mujoco.MjModel.from_xml_string(
+    qm.body_xml(qm.CHOSEN, scenery=scenery, drive=drive))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   data.qpos[3:7] = [math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]
@@ -83,7 +84,7 @@ def test_odometry_reckons_the_height_the_legs_lower_the_body():
   # centimetre. (Faster than `LIFT_M_S`, every planted foot reads as lifting
   # and the height stops following; a flight stepped down at 0.4 m/s
   # lowers the body ~0.26 m/s, `quad_spike.py --climb` measures it.)
-  model, data = _compiled()
+  model, data = _compiled(drive="torque")      # the scripted gait: torque
   vm = VirtualModel(model, data, qm.CHOSEN)
   lim = JointLimits.of(qm.CHOSEN.motor)
   odo = LegOdometry(model, data)

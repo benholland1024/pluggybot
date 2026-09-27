@@ -434,10 +434,11 @@ CTRL_WRITERS = {
   # issue #345: a restart PUTS BACK the controls the saved world held, by
   # actuator name -- the state the controllers above wrote, never a choice.
   "continuation.py",
-  # issue #377: the quadruped's leg drive -- the walking policy's joint
-  # targets through the driver's PD and the actuator envelope, the one path
-  # its twelve joints are commanded through (the rover's is rack/swap.py).
-  "legs/policy.py",
+  # issue #377, moved by #385: the quadruped's leg drivers -- a policy's
+  # joint targets and gains, a routine's torque, or nothing held -- the one
+  # path its twelve joints are commanded through (the rover's is
+  # rack/swap.py). The policy commands them; it no longer writes `ctrl`.
+  "legs/drivers.py",
 }
 
 

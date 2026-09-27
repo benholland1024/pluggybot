@@ -14,6 +14,7 @@ import pytest
 
 from pluggybot.legs import dock as dk
 from pluggybot.legs import model as qm
+from pluggybot.legs.drivers import Drivers
 from pluggybot.legs.policy import Twist
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,8 +34,8 @@ def _lying(spec=dk.DEFAULT, *, y=0.0, yaw=0.0, lift=0.002, seconds=0.5):
   data.qpos[2] = spec.bed_z + qm.CHOSEN.belly_depth + lift
   data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
   mujoco.mj_forward(model, data)
+  Drivers(model, data).limp()
   for _ in range(int(seconds / model.opt.timestep)):
-    data.ctrl[:] = 0.0
     mujoco.mj_step(model, data)
   return model, data
 
@@ -73,8 +74,7 @@ def test_the_criterion_holds_every_step_of_lying_there():
   model, data = _lying(y=0.004, seconds=0.5)
   held = 0
   for _ in range(int(1.0 / model.opt.timestep)):
-    data.ctrl[:] = 0.0
-    mujoco.mj_step(model, data)
+    mujoco.mj_step(model, data)                       # still limp
     held += dk.dock_charge_contact(model, data)
   assert held == int(1.0 / model.opt.timestep)
 
@@ -225,13 +225,12 @@ def test_the_walk_in_never_asks_the_policy_to_creep():
 def test_the_flat_policy_stops_where_the_walk_in_cuts_its_command():
   # STOP_M is the committed policy's coast from APPROACH_V: a retrained
   # policy that stops elsewhere lands every docking that far off.
-  from pluggybot.legs.actuator import JointLimits
   from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
   model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
-  drv = PolicyDriver(model, data, WalkingPolicy(), JointLimits.of(qm.CHOSEN.motor))
+  drv = PolicyDriver(model, data, WalkingPolicy())
   for _ in range(int(1.5 / model.opt.timestep)):
     drv.step(Twist(vx=dk.APPROACH_V))
   x0 = data.qpos[0]
@@ -247,21 +246,19 @@ def test_standing_lie_shift_ahead_of_the_seat_it_lies_down_onto_it():
   # every docking that much off the seat.
   sys.path.insert(0, str(ROOT / "scripts"))
   import quad_spike as qs
-  from pluggybot.legs.actuator import JointLimits
   from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
   from pluggybot.legs.scripted import VirtualModel
   model, data = _world()
   mujoco.mj_resetDataKeyframe(model, data, 0)
   data.qpos[0] = dk.LIE_SHIFT_M
   mujoco.mj_forward(model, data)
-  lim = JointLimits.of(qm.CHOSEN.motor)
   # It lies down from the stance the policy stopped it in.
-  drv = PolicyDriver(model, data, WalkingPolicy(), lim)
+  drv = PolicyDriver(model, data, WalkingPolicy())
   for _ in range(int(0.5 / model.opt.timestep)):
     drv.step(Twist())
   x0 = data.qpos[0]
   for tau in qs.lie_down_routine(qm.CHOSEN, data, VirtualModel(model, data, qm.CHOSEN)):
-    data.ctrl[:] = lim.clip(tau, data.qvel[6:18])
+    drv.drivers.torque(tau)                          # the routine's torque
     mujoco.mj_step(model, data)
   assert abs((x0 - data.qpos[0]) - dk.LIE_SHIFT_M) < 0.003
   assert dk.dock_charge_contact(model, data)

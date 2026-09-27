@@ -117,3 +117,63 @@ def test_grid_origin_must_match_the_sensor(room_model, settled):
   b.update(pose, angles, ranges, 8.0)          # wrong (camera) origin
   assert not np.allclose(a.grid, b.grid), \
     "the origin argument does nothing -- the map cannot be sensor-agnostic"
+
+
+def _one_ray_at_a_time(lidar, data):
+  """The scan as it was cast before issue #385: `mj_ray` per bearing, the
+  noise drawn inside the loop. Kept here as the reference the batch must
+  equal bit for bit."""
+  pos = np.array(data.site_xpos[lidar.site_id])
+  mat = np.array(data.site_xmat[lidar.site_id]).reshape(3, 3)
+  dirs = lidar._dirs @ mat.T
+  geomid = np.zeros(1, dtype=np.int32)
+  out = ([], [], [], [])
+  for i in range(lidar.n_rays):
+    dist = mujoco.mj_ray(lidar.model, data, pos, np.ascontiguousarray(dirs[i]),
+                         None, 1, -1, geomid)
+    hit = int(geomid[0])
+    if dist >= 0.0 and hit in lidar._self_geoms:
+      continue
+    peer = dist >= 0.0 and hit in lidar._other_geoms
+    if dist < 0.0 or dist >= lidar.max_range:
+      out[0].append(lidar.ray_angles[i])
+      out[1].append(lidar.max_range)
+      continue
+    rng = lidar.peer_rng if peer else lidar.rng
+    if rng.random() < lidar.dropout:
+      continue
+    noisy = dist + rng.normal(0.0, lidar.sigma_m + lidar.sigma_frac * dist)
+    a, r = (out[2], out[3]) if peer else (out[0], out[1])
+    a.append(lidar.ray_angles[i])
+    r.append(float(np.clip(noisy, 0.02, lidar.max_range)))
+  return tuple(np.asarray(x, dtype=float) for x in out)
+
+
+def test_the_batched_scan_is_the_scan_it_replaced():
+  """Issue #385 casts the 360 rays in ONE `mj_multiRay` and keeps the noise
+  loop only for the draws. A day must hash as it did (the parity rule), so
+  every ray is pinned against the per-ray scan it replaced: the self-hits,
+  another robot's returns on their own stream, the dropouts, the bearings
+  that return nothing -- over several poses, so both noise streams run
+  long enough to drift apart if a draw moved."""
+  from pluggybot.robot import SECOND, world_with_robots
+  model = world_with_robots("models/room_hub.xml", second_at=(2.0, 3.0))
+  data = mujoco.MjData(model)
+  batched, reference = Lidar(model, seed=3), Lidar(model, seed=3)
+  for lidar in (batched, reference):
+    lidar.exclude_robot(SECOND.root)
+  saw_peer = saw_far = False
+  for k, (x, y, yaw) in enumerate([(0.5, 3.0, 0.0), (1.0, 2.5, 0.4),
+                                   (0.8, 3.4, -0.3), (-1.0, 1.0, 2.5),
+                                   (1.2, 3.0, 0.1)] * 3):
+    data.qpos[:3] = [x, y, 0.045]
+    data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+    mujoco.mj_forward(model, data)
+    got, want = batched.scan_split(data), _one_ray_at_a_time(reference, data)
+    for g, w, name in zip(got, want, ("angles", "ranges", "peer angles",
+                                      "peer ranges")):
+      assert g.dtype == w.dtype and np.array_equal(g, w), \
+        f"pose {k}: the batched scan's {name} differ from the per-ray scan's"
+    saw_peer |= got[2].size > 0
+    saw_far |= bool((got[1] == batched.max_range).any())
+  assert saw_peer and saw_far, "the poses never exercised a peer or a far ray"

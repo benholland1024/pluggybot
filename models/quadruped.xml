@@ -185,18 +185,18 @@
   </worldbody>
 
   <actuator>
-    <motor name="FL_hip_abd" joint="FL_hip_abd" ctrlrange="-22 22"/>
-    <motor name="FL_hip_flex" joint="FL_hip_flex" ctrlrange="-22 22"/>
-    <motor name="FL_knee" joint="FL_knee" ctrlrange="-22 22"/>
-    <motor name="FR_hip_abd" joint="FR_hip_abd" ctrlrange="-22 22"/>
-    <motor name="FR_hip_flex" joint="FR_hip_flex" ctrlrange="-22 22"/>
-    <motor name="FR_knee" joint="FR_knee" ctrlrange="-22 22"/>
-    <motor name="HL_hip_abd" joint="HL_hip_abd" ctrlrange="-22 22"/>
-    <motor name="HL_hip_flex" joint="HL_hip_flex" ctrlrange="-22 22"/>
-    <motor name="HL_knee" joint="HL_knee" ctrlrange="-22 22"/>
-    <motor name="HR_hip_abd" joint="HR_hip_abd" ctrlrange="-22 22"/>
-    <motor name="HR_hip_flex" joint="HR_hip_flex" ctrlrange="-22 22"/>
-    <motor name="HR_knee" joint="HR_knee" ctrlrange="-22 22"/>
+    <dcmotor name="FL_hip_abd" joint="FL_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="FL_hip_flex" joint="FL_hip_flex" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="FL_knee" joint="FL_knee" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="FR_hip_abd" joint="FR_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="FR_hip_flex" joint="FR_hip_flex" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="FR_knee" joint="FR_knee" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HL_hip_abd" joint="HL_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HL_hip_flex" joint="HL_hip_flex" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HL_knee" joint="HL_knee" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HR_hip_abd" joint="HR_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HR_hip_flex" joint="HR_hip_flex" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <dcmotor name="HR_knee" joint="HR_knee" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
   </actuator>
 
   <sensor>
