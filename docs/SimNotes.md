@@ -2348,7 +2348,7 @@ steeper V does that for nothing. **The choice is (a).**
 
 **The motors are the legs' GIM8108-8.** Holding, the arm's worst static
 load at any target is 2.1 N·m, and flown it peaked at 2.0 N·m on the flat
-and 4.1 coming down the stairs with its RMS under 1.33 — a fifth of the
+and 4.2 coming down the stairs with its RMS under 1.3 on the flat — a fifth of the
 motor's 6.76 N·m continuous rating. The GIM6010-8 would do the work, but it
 weighs 388 g against 396 for 5.16 N·m continuous at 48 V: the same mass for
 less torque, and one spare, one driver and one set of gains is worth it.
@@ -2473,7 +2473,7 @@ gravity seat cannot hold upside down, and a lock would keep the tool on an
 arm the robot is rolling across. Left out at its carry pose, the arm then
 props the robot on its side, and the get-up policy — trained with a
 placeholder arm that collides with nothing — never rolls it. **Folded as
-the torso passes 60°, it stood in 0.5 s.** From 20 random drops with the
+the torso passes 60°, it stood in 0.4 s.** From 20 random drops with the
 arm folded it stands 20 of 20 (median 0.5 s; the placeholder's 0.6). The
 fold drives the elbow's motor to its 22 N·m peak through the impact.
 

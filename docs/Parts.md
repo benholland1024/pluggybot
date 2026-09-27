@@ -134,8 +134,8 @@ nothing here is in the served world yet (#375, step 4).
 | rack tags | six 60 mm tag36h11 tags (ids 29–34), a pair a bay at ±75 mm, 0.40 m up | — | — | `rack.RACK_TAG_IDS`, `rack.tag_layout` |
 
 **Why the legs' motor, not a smaller one.** The arm's worst static load at
-any target is 2.1 N·m, and flown it never passed 4.1 N·m (down a flight of
-stairs), with an RMS under 1.33 — well inside either candidate. Steadywin's
+any target is 2.1 N·m, and flown it never passed 4.2 N·m (down a flight of
+stairs), with an RMS under 1.3 on the flat — well inside either candidate. Steadywin's
 GIM6010-8 with the GDS68 would do the work, but it weighs 388 g against 396
 for 5.16 N·m continuous at 48 V (their GDK table; 5 N·m rated at 24 V in the
 GDS table, 11 peak; which winding the store's 48 V option ships is not
