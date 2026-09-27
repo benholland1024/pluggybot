@@ -2209,13 +2209,20 @@ spot until the board decodes.
 
 | steering by | docked | first try | a foot on the dock | lies across / yaw / along | median |
 |---|---|---|---|---|---|
-| the board, re-read every 0.25 s | 52 of 52 | 49 | 11 runs, at most 0.33 s | ±4 mm / ±1.9° / −16..+7 mm | 9.3 s, 167 mWh |
-| one look, then its legs (`--blind`) | 41 of 52 | 30 | 34 runs, up to 7.2 s | — | 9.7 s, 177 mWh |
+| the board, re-read every 0.25 s | 52 of 52 | 40 | 8 runs, at most 1.1 s | ±4 mm / ±1.6° / −16..+6 mm | 9.9 s, 182 mWh |
+| one look a run, then its legs (`--blind`) | 52 of 52 | 39 | 27 runs, up to 1.4 s | ±4 mm / ±1.6° / −31..−5 mm | 10.1 s, 187 mWh |
 
-Steering by the board, the feet that touched grazed a face's outer edge,
-the longest from starts that began close with far to line up; blind, the
-robot walked its feet onto the faces, and three tries left it lying as far
-as 275 mm off the dock.
+Both dock every time: one good look from the standoff is enough, the funnel
+forgiving what the legs drift over a metre. Re-reading the board is what
+keeps the feet off the dock and the belly on the seat along its axis. The
+retries are the starts both close and far off the axis: from where a front
+foot could land on the dock the walk goes straight, more than 20 mm off the
+axis there it stops, and the check backs it out for another run. Six of
+the eight runs that touched the dock were those retries, every contact over
+0.3 s among them; the other two grazed it (0.23 s, 0.02 s) from starts that
+began close. (Before a fit had to span the board, a
+turned start could decode one column of it, fit that at any heading as 0,
+and carry the one look into the wrong place: blind docked 41 of 52.)
 
 **Docked** (`--hold`, five dockings from up to 0.2 m and 20° off): the criterion
 held on every step of a minute lying there, each pole pressing 2.3 N; the
@@ -2242,9 +2249,10 @@ fills that pack in under an hour, the CV tail aside.
   0.3 m/s, 120 steering at 0.1 rad/s, 108 sidestepping at 0.15 m/s, 84–92
   turning at 0.5 rad/s while walking and 74 turning on the spot. A 95 mm
   mouth (±98 over its faces) put a foot on a face now and then; the mouth is
-  ±85 (±88), and over the dock the walk-in walks straight — no sidestep, at
-  most 0.1 rad/s of steering, never a turn on the spot, and more than 20 mm
-  off the axis it stops and the check backs it out.
+  ±85 (±88), and from where a front foot could land on it (17–20 mm ahead
+  of its hip) the walk-in walks straight — no sidestep, at most 0.1 rad/s of
+  steering, never a turn on the spot, and more than 20 mm off the axis it
+  stops and the check backs it out.
 - **Rigid contacts under a lying quadruped are statically indeterminate.**
   The first cradle had contact bars 4 mm proud, the robot's weight as the
   preload the issue proposed. But the belly shares the load with four limp
@@ -2264,7 +2272,11 @@ fills that pack in under an hour, the CV tail aside.
   believed axis: with the tags ±70 mm apart the robot believed itself up to
   17 mm off the axis while it walked over the dock within 7 mm of it. At
   ±140 mm, and each look blended half into the last (`dock.blend`), the
-  belief follows the truth to ~5 mm.
+  belief follows the truth to ~5 mm. A fit needs its tags to SPAN the
+  board: a column's two tags are one point in the plane, and seen alone
+  they fitted any heading as 0 with a perfect rms. And one whose tags sit
+  more than 30 mm from the drawing is refused (real looks: 1.6 mm median,
+  14 worst of 80), not blended in.
 
 **Five MuJoCo traps the pins walked into**, each now a constant with its
 number: (1) contact filtering between a parent and its child body does not
@@ -2296,9 +2308,10 @@ needs only its frame.
 
 **What is true now:** the dock is `legs.dock.DEFAULT` (`dock_xml`, any
 world; `world_xml`, the spike's and the tests' standalone world, the dock
-AFTER the robot because `LegOdometry` and the keyframes read the robot's
-free joint at `qpos[0]`); the criterion is `dock_charge_contact`, each pad
-on a pin of its own pole; the walk-in is `walk_in_twist`, `fit_dock`,
+AFTER the robot, `body_xml(after=)`, because the standalone keyframes index
+the robot's free joint from `qpos[0]` — `LegOdometry` finds its robot by
+name); the criterion is `dock_charge_contact`, each pad on a pin of its own
+pole; the walk-in is `walk_in_twist`, `fit_dock`,
 `seen_from` and `blend`; nothing in the served sim loads any of it until
 #387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
 lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
