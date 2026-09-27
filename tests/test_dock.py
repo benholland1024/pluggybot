@@ -126,14 +126,33 @@ def test_the_boards_committed_tags_are_the_generators():
 
 
 def test_the_fit_takes_the_facing_from_the_baseline_between_tags():
+  import itertools
   pose = (1.3, -0.12, math.radians(12.0))
-  seen = {i: dk.compose(pose, (x, y, 0.0))[:2] for i, (x, y, _) in dk.tag_layout().items()}
+  layout = dk.tag_layout()
+  seen = {i: dk.compose(pose, (x, y, 0.0))[:2] for i, (x, y, _) in layout.items()}
   fix = dk.fit_dock(seen)
   assert (fix.x, fix.y, fix.yaw) == pytest.approx(pose, abs=1e-9)
-  # Any two do; one fixes no direction.
-  two = {i: seen[i] for i in list(seen)[:2]}
-  assert dk.fit_dock(two).yaw == pytest.approx(pose[2], abs=1e-9)
-  assert dk.fit_dock({list(seen)[0]: seen[list(seen)[0]]}) is None
+  # Any two across the board do -- a row's pair, a diagonal -- but a
+  # column's two tags are ONE point in the plane: no baseline, no facing
+  # (seen alone they fitted any heading as 0, with an rms of 0).
+  for a, b in itertools.combinations(seen, 2):
+    two = dk.fit_dock({a: seen[a], b: seen[b]})
+    if layout[a][:2] == layout[b][:2]:
+      assert two is None
+    else:
+      assert two.yaw == pytest.approx(pose[2], abs=1e-9)
+  assert dk.fit_dock({25: seen[25]}) is None
+
+
+def test_a_tag_that_is_not_where_the_drawing_says_refuses_the_fit():
+  # A misdecoded tag or a range gone wrong is refused, not blended in: the
+  # walk-in folds each look half into what it believes.
+  pose = (1.0, 0.0, 0.0)
+  seen = {i: dk.compose(pose, (x, y, 0.0))[:2] for i, (x, y, _) in dk.tag_layout().items()}
+  seen[25] = (seen[25][0] + 0.1, seen[25][1])
+  assert dk.fit_dock(seen) is None
+  seen[25] = (seen[25][0] - 0.1 + 0.005, seen[25][1])     # 5 mm: a real look's
+  assert dk.fit_dock(seen) is not None
 
 
 def test_the_boards_baseline_keeps_a_depth_error_off_the_seat():

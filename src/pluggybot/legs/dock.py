@@ -9,13 +9,9 @@ within the funnel's mouth. A board of AprilTags ahead of the cradle is what
 the walk steers by, and what the robot measures its pose off once it lies
 there.
 
-⚠ THE CONTACTS ARE SPRUNG, NOT RIGID. A lying quadruped rests on its belly
-AND on four limp legs, so rigid contacts under it are statically
-indeterminate: which of them carries load is decided by sub-millimetre
-heights. Measured on rigid bars 4 mm proud: a robot lying 6 mm off centre
-rolled 0.2 deg onto its right feet, put all 57 N through the left bar and
-hung the right pad 0.3 mm clear -- not charging, lying in the funnel. The
-weight seats the belly; the pins' springs are the preload.
+⚠ THE CONTACTS ARE SPRUNG, NOT RIGID: a lying quadruped rests on its belly
+and four limp legs, so rigid contacts under it carry whatever the legs
+leave them (SimNotes, "The quadruped's dock").
 
 Everything is in the DOCK's frame: the origin on the floor under the docked
 robot's body centre, +x the way the docked robot faces (toward the board).
@@ -33,7 +29,7 @@ from pathlib import Path
 from pluggybot.legs.actuator import BUS_V_NOMINAL
 from pluggybot.legs.model import CHOSEN, body_xml
 from pluggybot.legs.policy import Twist
-from pluggybot.rack.coupling import contact_pairs, geom_id
+from pluggybot.rack.coupling import geom_id, touching
 from pluggybot.rack.tags import (DOCK_TAG_IDS, DOCK_TAG_SIZE, TAG_DIR, asset_xml,
                                  plate_half_extent)
 
@@ -57,8 +53,9 @@ PIN_DX = 0.010
 #: is the rover's, `power.CHARGE_W`). #387 wires it into the pack.
 CHARGE_A = 5.0
 CHARGE_W = CHARGE_A * BUS_V_NOMINAL
-#: How far the plate's collision box reaches below the floor (it cannot be
-#: seen there): see `dock_xml`.
+#: How far the plate's collision box reaches under the floor, where it
+#: cannot be seen: MuJoCo's soft contact let a 9 kg belly let go 30 mm up
+#: sink through the 6 mm plate onto the floor.
 BASE_KEEL = 0.05
 #: The pins' contact: the stiffest the 2 ms step integrates (a time constant
 #: of two steps) and a near-hard impedance. Measured lying on the bed: the
@@ -66,8 +63,10 @@ BASE_KEEL = 0.05
 #: 2.35; at MuJoCo's default the pad sank into them and they pressed 0.49.
 PIN_SOLREF = "0.004 1"
 PIN_SOLIMP = "0.99 0.999 0.001"
-#: The pole's joint: see `dock_xml`. Critically damped against the pins'
-#: springs at this armature.
+#: The pole's joint. The armature is a numerical stand-in for the plungers'
+#: inertia: at a gram's worth (0.01 kg) a pole chattered against the stiff
+#: pin contact -- the criterion flipped 1286 times in 10 s of lying there --
+#: and at 0.1 kg it holds every step. Critically damped at that armature.
 POLE_ARMATURE = 0.1
 POLE_DAMPING = 25.0
 #: A plated tip on a plated pad: unpublished, a stated choice between a
@@ -164,9 +163,7 @@ def dock_xml(spec: DockSpec = DEFAULT, pos=(0.0, 0.0), yaw_deg: float = 0.0,
   s = spec
   g = []
   half_l = s.length / 2
-  # The plate, its collision box reaching BASE_KEEL below the floor: MuJoCo's
-  # soft contact let a 9 kg belly landing at 0.77 m/s (a 30 mm fall) sink
-  # through 6 mm of plate onto the floor. Its top is the bed either way.
+  # The plate's collision box is keeled BASE_KEEL under the floor.
   depth = s.base_t + BASE_KEEL
   mu = f'friction="{_f(s.cradle_mu)} 0.005 0.0001" priority="1"'
   g.append(f'<geom name="{name}_base" type="box" size="{_f(half_l)} {_f(s.outer_half)} '
@@ -187,16 +184,10 @@ def dock_xml(spec: DockSpec = DEFAULT, pos=(0.0, 0.0), yaw_deg: float = 0.0,
              f'quat="{_quat_x(side * ang)}" {mu} contype="2" conaffinity="1" '
              f'rgba="0.85 0.85 0.8 1"/>')
     # A pole: its pins' plungers ride one slide joint, the springs in
-    # parallel; the force is the part's. ⚠ POLE_ARMATURE is a numerical
-    # stand-in for the plungers' inertia: at a gram's worth (0.01 kg) a pole
-    # chattered against the stiff pin contact -- the criterion flipped 1286
-    # times in 10 s of lying there -- and at 0.1 kg it holds every step.
-    # ⚠ A pin meets the robot and nothing of its own dock (contype 0): it
-    # rides in a hole in the plate, and MuJoCo's parent filter does not
-    # apply to a body welded to the world -- the plate held the pins up.
-    # ⚠ ...and its contact is stiff (PIN_SOLREF, PIN_SOLIMP, priority 2):
-    # at the default, a pad lying on the pins sank 1.2 mm into them at
-    # 0.12 N instead of pressing them down against their springs.
+    # parallel (POLE_ARMATURE, PIN_SOLREF: why each is what it is). ⚠ A pin
+    # meets the robot and nothing of its own dock (contype 0): it rides in a
+    # hole in the plate, and MuJoCo's parent filter does not apply to a body
+    # welded to the world -- the plate held the pins up.
     pins = "".join(
       f'\n        <geom name="{name}_pin_{lbl}{i}" type="sphere" size="{_f(PIN_TIP_R)}" '
       f'pos="{_f(dx)} 0 {_f(PIN_TRAVEL - PIN_TIP_R)}" contype="0" conaffinity="1" '
@@ -232,11 +223,8 @@ def dock_xml(spec: DockSpec = DEFAULT, pos=(0.0, 0.0), yaw_deg: float = 0.0,
 def world_xml(spec: DockSpec = DEFAULT) -> tuple[str, dict[str, bytes]]:
   """#377's body standing at the origin and a dock whose frame is the
   world's, as MJCF and the assets it reads: what the spike and the tests
-  fly. ⚠ The dock comes AFTER the robot: its pin poles are joints, and the
-  standalone body's tools (its keyframes, `quad_spike`'s routines,
-  `LegOdometry`'s start) read the robot's free joint at qpos[0]."""
-  xml = body_xml(CHOSEN, assets="\n    " + asset_xml(DOCK_TAG_IDS))
-  xml = xml.replace("</mujoco>", f"  <worldbody>\n    {dock_xml(spec)}\n  </worldbody>\n</mujoco>")
+  fly. The dock's pin poles are joints, so it goes AFTER the robot."""
+  xml = body_xml(CHOSEN, assets="\n    " + asset_xml(DOCK_TAG_IDS), after=dock_xml(spec))
   root = Path(__file__).resolve().parents[3]
   assets = {f"tags/tag{i}.png": (root / TAG_DIR / f"tag{i}.png").read_bytes()
             for i in DOCK_TAG_IDS}
@@ -248,16 +236,12 @@ def dock_charge_contact(model, data, prefix: str = "", name: str = "dock") -> bo
   criterion, as `rack_charge_contact` is the rover's. A pad on the other
   pole is a reversed robot, and is not charging. `prefix` names whose
   belly."""
-  g = contact_pairs(data)
   for lbl in ("l", "r"):
     pad = geom_id(model, f"{prefix}belly_pad_{lbl}")
     pins = [geom_id(model, f"{name}_pin_{lbl}{i}") for i in range(PINS_PER_POLE)]
     if pad is None or None in pins:
       raise KeyError("no belly pads or dock pins in this model")
-    if g.shape[0] == 0:
-      return False
-    mine = (g[:, 0] == pad) | (g[:, 1] == pad)
-    if not np.any(np.isin(g[mine], pins)):
+    if not touching(data, pad, pins):
       return False
   return True
 
@@ -276,6 +260,16 @@ class DockFix:
   rms: float      # m; how far the decoded tags sit from the fitted layout
 
 
+#: A fit needs its tags to span this much of the board, m: its facing comes
+#: from the baseline, and a column's two tags are ONE point in the plane --
+#: seen alone, they fitted any heading as 0 with a perfect rms.
+MIN_BASELINE_M = 0.1
+#: ...and to sit where the drawing says within this, m: a misdecoded tag or
+#: a range gone wrong is refused, not blended in. Real looks through the
+#: approach: 1.6 mm median, 14 mm worst of 80.
+MAX_FIT_RMS_M = 0.03
+
+
 def fit_dock(seen: dict[int, tuple[float, float]],
              spec: DockSpec = DEFAULT) -> DockFix | None:
   """Fit the board's drawing to where its tags were decoded.
@@ -284,14 +278,16 @@ def fit_dock(seen: dict[int, tuple[float, float]],
   translation in the observer's frame; ids not on the board are ignored.
   A least-squares 2D rigid fit (Kabsch, as `localize.fit_rack_facing`), so
   the facing comes from the BASELINE between tags and never from one tag's
-  PnP yaw, which square-on is a coin flip (issue #88). None with fewer than
-  two tags: one point fixes no direction."""
+  PnP yaw, which square-on is a coin flip (issue #88). None without a
+  baseline (MIN_BASELINE_M) or beyond MAX_FIT_RMS_M."""
   layout = tag_layout(spec)
   ids = [i for i in seen if i in layout]
   if len(ids) < 2:
     return None
   p = np.array([layout[i][:2] for i in ids], dtype=float)
   q = np.array([seen[i] for i in ids], dtype=float)
+  if np.linalg.norm(p - p[0], axis=1).max() < MIN_BASELINE_M:
+    return None
   pm, qm = p.mean(axis=0), q.mean(axis=0)
   h = (p - pm).T @ (q - qm)
   yaw = math.atan2(h[0, 1] - h[1, 0], h[0, 0] + h[1, 1])
@@ -299,6 +295,8 @@ def fit_dock(seen: dict[int, tuple[float, float]],
   rot = np.array([[c, -s], [s, c]])
   t = qm - rot @ pm
   rms = float(np.sqrt(np.mean(np.sum((q - (p @ rot.T + t)) ** 2, axis=1))))
+  if rms > MAX_FIT_RMS_M:
+    return None
   return DockFix(float(t[0]), float(t[1]), yaw, len(ids), rms)
 
 
@@ -403,6 +401,9 @@ TURN_W = 0.4
 #: walk's to finish over it.
 OVER_YAW_MAX = 0.1
 FOOT_TRACK_M = 0.120
+#: How far ahead of its hip a front foot lands, m: 17-20 mm walking at
+#: 0.3 m/s, sidestepping, steering or turning on the spot.
+FOOT_REACH_M = 0.02
 #: ...and it walks over the dock only near its axis: further off than this
 #: it stops, and the check backs it out for another run (a start 0.28 m
 #: across and 0.18 m close had a foot on a face for 0.42 s). Wider than the
@@ -412,9 +413,9 @@ OVER_ACROSS_M = 0.020
 
 
 def over_dock_x(spec: DockSpec = DEFAULT) -> float:
-  """Where, in the dock's frame, the robot's front feet reach the dock's
-  rear edge: from here on it walks straight."""
-  return -(spec.length / 2 + CHOSEN.hip_x + CHOSEN.foot_r)
+  """Where, in the dock's frame, the robot's front feet can land on the
+  dock's rear edge: from here on it walks straight."""
+  return -(spec.length / 2 + CHOSEN.hip_x + CHOSEN.foot_r + FOOT_REACH_M)
 
 
 def walk_in_twist(ex: float, ey: float, eth: float,
