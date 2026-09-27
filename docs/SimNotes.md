@@ -2398,7 +2398,10 @@ and the longest the contact opens is 56 ms, under the 200 ms holding
 capacitor the rover's peg was sized with. What moves is the swing, so a
 carried tool needs clear air 45° either way. The knees with the real arm
 and a tool aboard read p99.5 7.7–9.4 N·m on the flat and 14.0 climbing (the
-climb read 13.5 without the arm, #388).
+climb read 13.5 without the arm, #388). Carrying, the robot weighs 9.60 kg
+against the placeholder's 9.34, its CoM 21 mm forward and 18 mm up: inside
+the committed policies' randomisation (the torso's mass ±15 %, its CoM
+±5 cm along and ±3 cm up), which is why they walk it untrained.
 
 **A fall throws the tool, and the arm must fold** (`--fall`, `--getup`).
 Pushed over while trotting, the robot throws the tool whatever holds it: a

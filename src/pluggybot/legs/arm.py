@@ -518,6 +518,9 @@ class ArmDriver:
   def __init__(self, model, data, spec: ArmSpec, prefix: str = ""):
     import mujoco
     from pluggybot.legs.actuator import JointLimits
+    if spec.level == "wrist":
+      raise ValueError("a wrist motor (option b) is the reach table's, never "
+                       "driven: this driver holds a shoulder and an elbow")
     self.m, self.d, self.spec = model, data, spec
     j = {n: model.joint(f"{prefix}arm_{n}").id
          for n in ("shoulder", "elbow", "wrist") if _has(model, f"{prefix}arm_{n}")}

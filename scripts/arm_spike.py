@@ -269,15 +269,16 @@ class Rig:
     """Take the tool whose peg the robot believes is at `aim` (torso frame
     x, z): in under it, lift, back out. The verdict is the criterion's."""
     px, pz = aim
-    out = {}
-    self.fork_to(px - STANDOFF, pz - FORK_DROP, speed=0.2)
-    self.fork_to(px, pz - FORK_DROP)
+    out = {"lifted": False, "picked": False, "tilt": self.tool_tilt()}
+    if not (self.fork_to(px - STANDOFF, pz - FORK_DROP, speed=0.2)
+            and self.fork_to(px, pz - FORK_DROP)):
+      return {**out, "why": "out of reach"}
     self.arm.payload = (self.tool_kg, TOOL_COM)
-    self.fork_to(px, pz - FORK_DROP + LIFT)
+    reached = self.fork_to(px, pz - FORK_DROP + LIFT)
     out["lifted"] = self.powered()
-    self.fork_to(px - BACK_OUT, pz - FORK_DROP + LIFT)
+    reached = self.fork_to(px - BACK_OUT, pz - FORK_DROP + LIFT) and reached
     self.hold(0.5)
-    out["picked"] = self.powered() and not self.on_bay()
+    out["picked"] = reached and self.powered() and not self.on_bay()
     out["tilt"] = self.tool_tilt()
     return out
 
@@ -285,12 +286,12 @@ class Rig:
     """Hang the carried tool back on the bay the robot believes is at `aim`:
     over it, down, out."""
     px, pz = aim
-    self.fork_to(px, pz - FORK_DROP + LIFT)
-    self.fork_to(px, pz - FORK_DROP)
+    if not (self.fork_to(px, pz - FORK_DROP + LIFT) and self.fork_to(px, pz - FORK_DROP)):
+      return {"returned": False, "why": "out of reach"}
     self.arm.payload = (0.0, (0.0, 0.0))
-    self.fork_to(px - BACK_OUT, pz - FORK_DROP)
+    reached = self.fork_to(px - BACK_OUT, pz - FORK_DROP)
     self.hold(0.5)
-    return {"returned": self.on_bay() and not self.powered()}
+    return {"returned": reached and self.on_bay() and not self.powered()}
 
 
 def settled(spec=am.ArmSpec(), **kw) -> Rig:
