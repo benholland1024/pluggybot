@@ -163,6 +163,30 @@ MUJOCO_GL=egl uv run python scripts/module_power.py  # Tool power across the
 Headless (no window) runs want `MUJOCO_GL=egl` in front; `--view` runs want it
 left off.
 
+The quadruped (#375) and its arm (#378), each scene looping until the window
+closes:
+```bash
+uv run python scripts/arm_spike.py --view         # fetch a tool: find the rack,
+                                      # walk in by its tags, pick, hold it up,
+                                      # hang it back
+uv run python scripts/arm_spike.py --view carry   # walk, trot, stop, turn and
+                                      # sidestep with a tool on the fork
+uv run python scripts/arm_spike.py --view stairs  # over a hill of the house's
+                                      # flight and back, carrying one
+uv run python scripts/arm_spike.py --view fall    # pushed over: the arm folds
+                                      # and it stands (every other time not)
+uv run python scripts/arm_spike.py --view reach   # the arm through the targets
+                                      # that chose it, a marker at each
+uv run python scripts/dock_spike.py --view        # lying down onto the dock
+uv run python scripts/quad_spike.py --policy --view  # the walking policy
+uv run python scripts/two_robots.py --world home_quad --view --errands none,none
+                                      # the served pair in the home world
+```
+
+`arm_spike.py --help` lists the tables behind the scenes (`--capture`,
+`--approach`, `--retention --stairs`, ...); SimNotes, "The quadruped's arm,
+its coupling and the rack", has what they measured.
+
 ## Recording a demo
 
 `draw.py` and `pickup.py` take `--record PATH` (`.mp4` or `.gif`) and render
