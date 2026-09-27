@@ -1842,6 +1842,234 @@ floor says it is "lying knocked over" (`posture`), never "standing". Not
 changed: the mind is still shown the reported pose (`others_context`), and
 a fallen robot's reckoner still counts its wheels.
 
+## The quadruped body (issue #377)
+
+The body was sized before anything was trained, on a scripted gait
+(`legs/scripted.py`: stance feet push, tau = -J^T f, for the torso's height,
+attitude and velocity; swing feet follow a Raibert placement under a
+Cartesian PD). It is a measuring instrument, never the robot's gait, and it
+can under-read a policy that stamps harder, so the tables state margins.
+`scripts/quad_spike.py` flies every table below (`--torque`, `--sweep`,
+`--thermal`, `--energy`, `--pupper`); Parts.md, "The quadruped body", has
+the parts and the sources.
+
+**The torque table** (the chosen body, 9.34 kg, a 43.2 V pack; "p99.5" is the
+99.5th percentile of a joint's |torque| over every sample of all four legs,
+because a touchdown spike lasts a step and says more about the footfall
+than the load; the peak is 22 N·m, the continuous rating 6.71):
+
+| activity | knee p99.5 | knee RMS | fastest joint, % of no-load |
+|---|---|---|---|
+| stand | 3.3 | 3.2 | 0 |
+| stand, #378's arm at full reach | 4.1 | 4.1 | 0 |
+| deep crouch (0.15 m) | 4.8 | 4.8 | 0 |
+| walk (a trot at 0.3 m/s) | 7.1 | 4.7 | 43 |
+| trot 1.0 m/s | 8.4 | 4.8 | 69 |
+| trot 1.5 m/s | 10.2 | 5.2 | 90 |
+| push up a 0.18 m riser | 5.1 | 3.8 | 7 |
+
+The knee is always the worst joint. **Speed binds before torque**: a 1.5
+m/s trot takes a joint to 90 % of its no-load speed on a nominal pack and to
+100 % on an empty one (`--bus 36`), so the body's top speed is ~1.0–1.2 m/s.
+
+**What the instrument got wrong first, each found by filming it:**
+- *The attitude loop ran about the world's axes.* Roll and pitch are the
+  HEADING's, and past 90° of heading the correction reverses: a turn on the
+  spot flipped the body at 140°. The loop now runs in the heading frame.
+- *A foot placed for the torso's velocity lands behind a turning hip.* The
+  Raibert target uses the hip's own velocity (w × r).
+- *Height and pitch referenced to the ground under the hips* jump a whole
+  riser in one step as a hip crosses an edge, and the body flipped
+  backwards; they follow the ground the FEET stand on, low-passed.
+- *A scripted climb is chaotic*: 4 of 18 climbs across six riser heights,
+  the failures landing a foot on an edge or trailing the hind legs. So the
+  table measures a climb's LOAD by a repeatable push up a riser (the front
+  feet on the step, the hind on the floor, the torso crouched and pitched,
+  risen to the stand in 0.6 s); the policy's own climbs are its measurement.
+- *A four-beat walk falls* without a body sway to keep the CoM inside three
+  feet; "walk" in the tables is a trot at 0.3 m/s, as a learned policy's is.
+
+**The sweep that chose it** (`--sweep`: knee belt 1.0/1.5 × legs 0.19/0.21/
+0.23 m × the unpublished rotor inertia at both ends of its range): a direct
+knee on 0.21 m links. A 1.5:1 belt buys torque the knee does not need (its
+p99.5 is 54–55 % of the peak at 1:1 across the inertia range, and its RMS at
+most 86 % of the continuous rating at the heaviest rotor) and costs the one
+thing that binds, knee speed, while multiplying the knee's reflected inertia
+by 2.25. The 0.19 m legs fell once at the heavy rotor; 0.23 m buys nothing.
+
+**The belly.** With a 0.21 m leg and the knee at its −2.75 rad stop, a
+folded leg holds the hips 0.10 m up, so a torso whose underside is 0.055 m
+below the hips cannot rest on it: the legs carry the robot "lying down".
+The battery hangs below the torso as a belly pack, 0.105 m under the hip
+axis; the robot lies on it with its shanks flat and its drivers holding
+nothing (`model.lie_qpos`), and #378's dock contacts can go on its
+underside. Lying down and standing up take 2.2 s each (`--energy`).
+
+**Heat** (`--thermal`; the Mini Cheetah actuator's measured 1.23 K/W and
+32 J/K, a 39 s time constant): a first-order winding driven by non-negative
+heat never passes the highest steady state among the activities it runs
+through, so each activity SUSTAINED bounds any day. The hottest winding is
+a knee's: 66 °C on a 40 °C day at a sustained 1.5 m/s trot, 24 K under the
+GDS68's 90 °C alarm; standing, 50 °C.
+
+**Energy** (`--energy`; windings 1.5·R·I², shaft work counted only when
+positive, no credit for regeneration):
+
+| state | W | of which windings |
+|---|---|---|
+| lying (drivers powered, holding nothing) | 14.9 | 0 |
+| standing | 53.9 | 38.9 |
+| walking (0.3 m/s) | 116 | 85 |
+| trotting 1.0 m/s | 180 | 110 |
+
+The windings dominate everything below a trot: standing costs 39 W more
+than lying, and a stand-up plus a lie-down cost 93 mWh together, so **any
+wait longer than 8.6 s is cheaper lying down**. The mind takes 5–40 s a
+decision (Overseer.md §6), so a body that stands through its waits spends
+most of its idle power on holding itself up. The 194 Wh pack is ~13 h
+lying, ~3.6 h standing, ~1.7 h walking.
+
+**The rest posture, proposed** (#377 item 5; the decision is Ben's, at the
+first quadruped deploy): **code lies the robot down, and the mind is not
+asked.** A body left standing through its mind's silences bleeds 39 W, ~20 %
+of the pack an hour of waiting, so if lying down were the agent's to find,
+surviving would require discovering a posture, and valuing survival and
+knowing the body's trick would look the same — the forcing function
+PluggyPlan's principles rule out. The rover's parking brake is the
+precedent: a body reflex that decides nothing the mind decides. The reflex
+lies down after `T_REST` without a motion command (the break-even, ~9 s)
+and stands up before the next one (2.2 s, 44 mWh), and it does NOT choose
+what to do, refuse an act, or hide itself: the posture rides the wire as a
+fact, and the stand-up is part of every errand's measured cost. Open: the
+agent may also be given a way to hold a stand (to watch a door), as a power
+on `autonomous` — that adds a choice without forcing one.
+
+**The small body** (`--pupper`): a Pupper-v3-class body (its published
+geometry and actuator, 3.0 kg) stands with a 55 % RMS margin and walks at
+0.3 m/s. Carrying the suite (4.4 kg) it spends 92 % of its continuous
+torque standing, 123 % holding the arm out, and cannot stand up from its
+belly or push up the 0.12 m curb; its whole leg is shorter than the riser.
+
+**The walking policy** (`training/`, mjlab 1.5.3 on MuJoCo 3.10; the first
+one is `models/quadruped_policy.npz`, 98 M steps on 2048 envs in 66 min on
+the GTX 1660 Super): trained on mjlab's 5 ms physics with its DC-motor
+actuator, and FLOWN in ours (2 ms, `legs/policy.py`: numpy, the PD and the
+envelope at the physics rate) by `quad_spike.py --policy`. It tracks 0.5
+and 1.0 m/s at 0.54 and 1.07, turns 0.78 of 0.8 rad/s, sidesteps 0.22 of
+0.3, and never falls; its knee's p99.5 is 7.9 N·m and its worst RMS 4.8
+(the scripted trot's were 8.4 and 4.8 at 1.0 m/s), it draws 88 W at 0.5 m/s
+and 109 W at 1.0 m/s against the scripted trot's 116 and 180, and it
+tilts the torso under 0.4°. The exported file is checked against its ONNX
+source before it is written (2e-6), and a flight hashes IDENTICAL in two
+processes, at one BLAS thread or six (`--determinism`). The actor never
+sees the base's linear velocity; what no datasheet gives is randomised
+(rotor inertia, joint friction, a 0-20 ms command delay, effort limits,
+mass and CoM for the arm).
+
+**Getting up** (`models/quadruped_getup.npz`, `Pluggy-Quad-Getup`, a policy
+of its own; 1500 iterations on a rented RTX 4090, `training/pod.sh`): each
+episode starts lying on the belly pack or dropped from 0.35-0.55 m in a
+random orientation, legs anywhere. Flown in our physics (`--getup`) it
+stands from 20 of 20 random drops (median 0.5 s from release) and from the
+belly in 0.2 s — by driving every joint to its 22 N·m peak: a spring up,
+not a rise, 87 mWh against the scripted fold-and-push's 44. Fine in the
+sim; for hardware, torque and speed penalties should buy a gentler one.
+⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
+on its BACK as upright; the task pays for gravity's sign in the body frame.
+
+**Stairs, blind** (`models/quadruped_rough_blind.npz`, `Pluggy-Quad-Rough`:
+a curriculum over stairs up and down to 0.20 m risers on a 0.28 m tread,
+blocks to 0.15 m, rough ground and slopes; the critic sees the terrain, the
+actor does not): flown in our physics (`--climb`, three trials a case), it
+clears **one step of 0.15 m up and down, and a four-step flight of 0.12 m**;
+the house's 0.18 m riser is beyond it blind. The flat-only policy managed
+0.05 m up. It walks the flat as well as the flat policy (0.49 and 1.02 m/s).
+The run stopped at 2600 of 3000 iterations: MuJoCo Warp warns once a step
+for every box lying on a height field with more than 50 contacts, and 1.5 M
+such lines through Python to the pod's network volume had slowed it
+threefold (`pod.sh` filters them now).
+
+**Stairs, seeing** (`Pluggy-Quad-Rough-Perceptive`: the same curriculum, the
+actor also shown the terrain's height under a 1.6 × 1.0 m grid at 0.1 m —
+on the robot, the D435's height map sampled there). ⚠ mjlab casts that
+grid from the body's own height, so a ray a metre ahead on a flight starts
+INSIDE a step above the body and reports the floor under it; the grid is
+cast from 1 m above the body (`task.RaisedGridPatternCfg`), and
+`legs/policy.py` casts the same grid in our physics (its layout is pinned).
+At 3000 iterations it cleared what the blind policy cleared; resumed to
+6000 (`models/quadruped_rough_seeing.npz`), three trials a case in our
+physics (`--climb`), against the blind policy's:
+
+| | blind (2600 it.) | seeing (6000 it.) |
+|---|---|---|
+| one step 0.15 / 0.18 m | 3/3 / 1/3 | 3/3 / **2/3** |
+| four-step flight 0.10 / 0.12 m | 2/3 / 1/3 | 2/3 / 0/3 |
+| step down 0.15 m | 3/3 | 3/3 |
+| odometry drift on the climbs | 0.9-7.2 % | **1.1-2.1 %** |
+
+The scan does reach it — flattened, the 0.15 m step goes from 3 of 3 to 0
+of 3. **Neither climbs a house's flight of 0.18 m risers**, and the limit is
+the curriculum, not the body: the terrain levels stalled near 3 of 10
+(risers ~0.10 m) across 6000 iterations, while the push up a 0.18 m riser
+needs 5.1 N·m of the knee's 22. What to change is the next stairs issue's:
+more forward commands on the stairs (a robot is promoted for walking half
+a tile, which a slow command never does), more stairs in the mix, a foot
+clearance reward for the 0.28 m tread.
+
+**Posture** (`models/quadruped_posture.npz`, `Pluggy-Quad-Posture`: walking
+with the torso's height offset, pitch and roll commanded; 2500 iterations on
+the 4090): in our physics (`--posture`) it crouches to within 6 mm of 0.224
+and 0.184 m, pitches ±11° and rolls 8.4 of 8.6°, walks crouched at 0.56
+m/s, and walks as the flat policy does (1.06 m/s; turns 0.85 of 0.8 rad/s;
+sidesteps 0.26 of 0.3) without falling. The tilt is tracked as gravity's
+direction in the body frame, replacing the stock "stay level" reward.
+
+**Legged odometry** (`legs/odometry.py`, `--odometry`: the policy walks a
+21 m course of straights, an arc, a turn on the spot and a sidestep): 2.4-
+4.0 % of distance over five noise seeds, heading within 2°. Two corrections
+made it: the ball foot ROLLS, so its centre moves while its contact point
+does not (without the correction, 6.6 % with perfect contact and no
+noise); and a contact estimate read off current arrives ~31 ms late
+(ODRI's measurement), so for a moment after each footfall only the LIFTING
+pair is flagged planted: gated against the last estimate and tested for a
+foot rising off the floor, the estimate holds through it (averaged in, 27 %,
+and a gate alone ratcheted the estimate down to nothing).
+
+**The served loop** (`--served`, under the exclusive lock; the home world
+with its rover taken out and two quadrupeds in, against two rovers): the
+physics and the body's own controller cost 255 ms of wall per sim second
+for the quadruped pair against 193 for the rover pair (1.32×): ~21 ms is
+the two policies (213 us a step, 50 Hz each) and ~40 ms the numpy PD and
+envelope on every physics step, which MuJoCo's native `dcmotor` actuator
+would run in C. Scaled onto the deploy box (the rover pair's measured
+0.96× over a carry and 0.80× over a day; the box ran ~0.93× this machine's
+speed in #296), the quadruped pair would run ~0.90× and ~0.76× as it
+stands, ~0.94× and ~0.79× with the PD in C. **1.3× over a day needs the
+physics thread ~1.65× faster**: a core ~1.7× an i5-9600KF's single-thread
+speed (the current desktop-class parts are about there), or the sensors and
+the policies moved off the physics thread. Confirm by a `--free-run` of the
+served pair on the candidate before buying.
+
+**The sensors on a moving torso** (`--rays`, quiet box): the policy tilts
+the torso under 0.4°, which moves the 2D scan plane (0.49 m up, on a rear
+mast clear of the stowed arm) ±5 cm at 8 m — IMU compensation removes it,
+and the D435 on the nose carries the ground. A 2D LIDAR stays for the first
+quadruped deploy; a 3D one (Livox Mid-360: 265 g, 6.5 W, €739) is #381's
+question for stairs and a multi-floor map. What the sim would pay: today's
+2D scan costs 4.1 ms (360 `mj_ray` calls from Python), one batched
+`mj_multiRay` of 4 000 rays 4.9 ms, of 10 000 12 ms, and a full Mid-360
+frame of 20 000 rays 24 ms — a quarter of real time per robot at 10 Hz.
+Batching the 2D scan into one `mj_multiRay` would cut ~36 ms per sim second
+per robot for either body.
+
+**What is true now:** the body is `legs.model.CHOSEN` and
+`models/quadruped.xml` is its generated MJCF; the numbers are a
+datasheet's where one exists and a range where none does (Parts.md); the
+scripted gait's rules above are pinned in `tests/test_legs.py` only as far
+as "it trots"; the policy's arithmetic, its observation, its rate and the
+odometry's two corrections are pinned there too; the tables are the
+script's to re-fly.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

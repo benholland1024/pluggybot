@@ -5,7 +5,10 @@ parameter each number feeds. Hardware honesty (PluggyPlan.md, "What stays
 fixed") is why this file exists: every part is purchasable, and a sim
 constant with no part behind it is a guess and is marked as one.
 
-> **These are the wheeled rover's parts**; the quadruped's are #377–#379's.
+> **The quadruped's parts are the first section** (#377); everything after
+> it is the wheeled rover's, and goes with the rover (#376 stage C). The
+> quadruped's are not in `protocol/parts.json` yet: #379 puts its bill of
+> materials there.
 
 > **The list is data:** `protocol/parts.json`, emitted by `uv run python -m
 > pluggybot.rack.catalog` (issue #185) — every part below with its number,
@@ -16,6 +19,56 @@ constant with no part behind it is a guess and is marked as one.
 > This doc keeps the reasoning; the spec→parameter tables live there.
 
 > **Sourcing note:** Pololu (US) parts are stocked by German/EU distributors — mainly [Eckstein-shop.de](https://eckstein-shop.de/Pololu_EN), plus BerryBase, EXP-Tech, Welectron, Botland and TME.eu — so no US import is needed. All prices are **approximate, incl. 19% VAT, as of July 2026** — re-check before ordering.
+
+---
+
+## The quadruped body (#377)
+
+Chosen 2026-09-26 by `scripts/quad_spike.py`; the tables that chose it are
+SimNotes, "The quadruped body", the body is `pluggybot.legs.model.CHOSEN`
+(`models/quadruped.xml`), and every actuator number sits at its constant in
+`legs/actuator.py` with its source. **Nothing is ordered**: #379 holds the
+bill of materials and the gate before the first purchase.
+
+| part | chosen | mass | price | what it feeds |
+|---|---|---|---|---|
+| leg actuator ×12 | Steadywin **GIM8108-8** with the GDS68 driver (FOC, CAN, MIT mode) | 396 g, Ø97 × 55 mm | €124.95 (OpenELAB, Munich); $129.20 (Steadywin) | `actuator.GIM8108_8` |
+| pack | **12S1P Molicel P45B** 21700 (43.2 V nominal, 36–50.4 V, 194 Wh) | 0.95 kg: twelve 70 g cells plus a BMS, case and leads (estimated) | `null` — not priced yet | `MassBudget.battery`, `actuator.BUS_V_RANGE` |
+| 2D LIDAR | Slamtec RPLIDAR C1 (the rover's) | 110 g | as the rover's | 1.15 W, the maker's 230 mA at 5 V |
+| depth camera | RealSense D435 (the rover's) | 75 g (datasheet, March 2026) | as the rover's | 2.0 W, as `power.DEPTH_CAMERA_W` |
+| compute, two cameras, IMU | as the rover's (Raspberry Pi 5, Camera Module 3) | in `electronics` | | 6.0 W, the rover's figure less its LIDAR |
+| frame | aluminium side plates and cross members | 1.0 kg (estimated) | `null` — no design yet | `MassBudget.frame` |
+| thigh, shank, foot | tube, no belt (the knee is direct), rubber foot | 0.21 kg a leg (estimated) | `null` — no design yet | `BodySpec.*_mass` |
+| #378's arm | placeholder budget | 0.9 kg + a 250 g tool | — | re-fly the tables if #378 needs more |
+
+**Why 48 V (12S).** The GIM8108-8 is rated at 48 V, and joint SPEED, not
+torque, is what binds this body: a 1.5 m/s trot drives a joint to 90 % of
+its no-load speed on a nominal pack and saturates it on an empty one. At
+24 V the no-load speed is about 20 rad/s instead of 31 (the GDS sheet's
+curve), which would cap the robot near a walk.
+
+**What the datasheets leave open, and what the sim does about it:**
+- **Steadywin's two selection tables disagree** (the GDS and GDZ .xlsx on
+  the store page: rated torque 7.5 vs 6.71 N·m, Kt 1.0 vs 1.19, 110 vs 256
+  rpm rated). The sim takes the lower figure, and the loss model the one
+  pair (Kt 1.19, R 0.72) whose 1.5·R·I² fits under the maker's own 48 V
+  efficiency curve. A written answer from Steadywin would settle it.
+- **Rotor inertia is not published.** The one transcribed value (4.55e-6
+  kg·m²) is 10–25× under every motor of the class; the sim uses the class's
+  range, 4.1e-5 to 1.1e-4 (training samples it), nominal 7.2e-5 (the Mini
+  Cheetah actuator's, the same 21 pole pairs).
+- **Heat:** no Steadywin part publishes a thermal resistance; the sim uses
+  the Mini Cheetah actuator's measured 1.23 K/W and 32 J/K (Katz 2018), up
+  to the GDS68's 90 °C motor alarm.
+- **Friction, command latency and backlash** are unpublished; training
+  randomises 0.05–0.6 N·m and 0–20 ms, and backlash (15 arcmin in the
+  tables) is encoder noise to the policy.
+
+**The body that was too small.** A Pupper-v3-class body (3 kg, GIM4305-10,
+1.0 N·m continuous) stands and walks as built, but carrying the suite
+(4.4 kg) it spends 92 % of its continuous torque STANDING, is 23 % over it
+holding the arm out, cannot push itself up from its belly or up a 0.12 m
+curb, and its whole leg (0.17 m) is shorter than a house's riser.
 
 ---
 
@@ -125,7 +178,8 @@ build this map: the room is flat painted walls, the classic no-disparity
 case. Tables and method: SimNotes "Sensor-realism pass".
 
 Catalog entries `lidar_rplidar_c1` (Slamtec RPLIDAR C1 or A1M8: 360°,
-10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W. `perception/lidar.py` casts 360
+10 Hz, 12 m, ±30 mm, ~110 g, ~2.5 W — the maker's datasheet says 1.15 W
+typical, found by #377 and left for the rover's last days. `perception/lidar.py` casts 360
 `mj_ray`s at the part's 10 Hz with ±10 mm + 1 % noise and 2 % dropout,
 under-ranges it to 8 m on purpose, drops self-hits; its offset from the axle
 is `LIDAR_ORIGIN`, which the grid update bakes in — move the unit, move the
@@ -161,7 +215,7 @@ neither asked was whether any stereo pair could produce the mapper's scan.
 
 **Decision.** A third ranging sensor, for the one place the scan plane never
 looks: the floor. An **Intel/RealSense D435** (active IR stereo, 87° × 58°,
-848 × 480 depth, 50 mm baseline, 72 g, 90 × 25 × 25 mm, USB 3) on the **mast
+848 × 480 depth, 50 mm baseline, 72 g (75 g in the March 2026 datasheet), 90 × 25 × 25 mm, USB 3) on the **mast
 top, over the axle, pitched 40° down**. Applied to `pluggybot_fork.xml`
 (`depth_cam_body`, `depth_eye`); `perception/depth.py` is the sim,
 `perception/heightmap.py` the robot-centric 2.5D map it feeds, and

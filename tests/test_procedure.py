@@ -434,6 +434,10 @@ CTRL_WRITERS = {
   # issue #345: a restart PUTS BACK the controls the saved world held, by
   # actuator name -- the state the controllers above wrote, never a choice.
   "continuation.py",
+  # issue #377: the quadruped's leg drive -- the walking policy's joint
+  # targets through the driver's PD and the actuator envelope, the one path
+  # its twelve joints are commanded through (the rover's is rack/swap.py).
+  "legs/policy.py",
 }
 
 
