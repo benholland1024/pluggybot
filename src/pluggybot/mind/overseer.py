@@ -2449,6 +2449,10 @@ BODY_SWAPS = {"quadruped": (
   ("no rule takes you to the rack", "no rule takes you to the dock"),
   ("you may go to the rack at any level", "you may go to the dock at any level"),
   ("still charge, still drive,", "still charge, still walk,"),
+  # the reward table's rows (`economy/rewards.json`'s details)
+  ("Reach the hub's charge bay and fill the pack",
+   "Reach your dock and lie on it until the pack is full"),
+  ("drive onto the", "walk onto the"),
   ("You share the rack, the bays and the tools on them, the\n"
    "whiteboards, the charge bay and the jobs on offer; nothing decides between\n"
    "you, and a tool one of you is carrying is not on its bay for the other.",
@@ -3507,8 +3511,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
      + json.dumps(world, indent=1, sort_keys=True)),
     ("WHAT TASKS PAY",
      "WHAT TASKS PAY (points; you cannot change this table, and neither can "
-     "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures),
-                                       indent=1, sort_keys=True)),
+     "anyone watching)\n" + for_body(json.dumps(table.as_context(challenges=procedures),
+                                                indent=1, sort_keys=True), menu.body)),
     # ⚠ THE ROBOT'S GOALS ARE NOT HERE ANY MORE (issue #154). They are its
     # own now, so they change during a run and ride the USER TURN with the
     # other two writable files -- `context_for` puts them there. What the

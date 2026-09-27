@@ -128,6 +128,18 @@ def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
           min(max(vy, -VY_MAX), VY_MAX), min(max(w, -W_MAX), W_MAX))
 
 
+def retreat_from(at: tuple[float, float], speed: float,
+                 end_m: float) -> tuple[float, float]:
+  """Which way to step off a touch at `at` (x ahead, y left of the torso's
+  centre), as (vx, vy): back off the nose, forward off the hind knees,
+  sideways off a flank (`QuadMission._backoff_routine`)."""
+  if at[0] > end_m:
+    return (-speed, 0.0)
+  if at[0] < -end_m:
+    return (speed, 0.0)
+  return (0.0, -math.copysign(speed, at[1]))
+
+
 def is_motion(command) -> bool:
   return any(abs(c) >= MOTION_EPS for c in command)
 
@@ -612,14 +624,9 @@ class QuadMission(Navigator):
     knees; after the LIDAR's front stop, straight back."""
     if self.pressed_at is not None:
       at, self.pressed_at = self.pressed_at, None
-      if at[0] > self.PRESS_END_M:
-        away = (-self.BACKOFF_V, 0.0)
-      elif at[0] < -self.PRESS_END_M:
-        away = (self.BACKOFF_V, 0.0)
-      else:
-        away = (0.0, -math.copysign(self.BACKOFF_V, at[1]))
       # ...for the whole of this retreat's window
-      self._retreat = (away, self.backoff_until)
+      self._retreat = (retreat_from(at, self.BACKOFF_V, self.PRESS_END_M),
+                       self.backoff_until)
     away, until = self._retreat
     if until != self.backoff_until:
       away = (-self.BACKOFF_V, 0.0)
@@ -926,19 +933,57 @@ class QuadMission(Navigator):
       self._board.close()
       self._board = None
 
+  #: Postures a save waits out (`continuation.Keeper.busy`): a scripted move
+  #: is a generator half-way through, and a get-up a policy mid-flail.
+  MOVING = (LYING_DOWN, STANDING_UP, GETTING_UP)
+
   def kept_state(self) -> tuple[dict, dict]:
-    """What it believes, for a restart (issue #345): the reckoning, the
-    posture it rests in, the dock and the clocks; the grid and the depth
-    camera's layer as arrays."""
+    """What it believes and what its controllers hold, for a restart (issue
+    #345): the reckoning (with the contact history its lag reads), the
+    posture and its clocks, the two policies and the drivers' gains -- which
+    live in the MODEL and a restart builds fresh -- the depth frame it
+    last took, the dock, the plan it last made, the sensors' noise; the grid
+    and the depth camera's layer as arrays. Never saved mid-move
+    (`MOVING`): a scripted move is a generator."""
     o = self.odo
     match, match_arrays = (self.matcher.kept_state() if self.matcher is not None
                            else (None, {}))
+    g = self.model.actuator_gainprm[self.drivers.act]
+    arrays = {"grid": self.grid.grid, "low": self.low,
+              "gains": np.array(g[:, [3, 4, 5, 6, 7]], dtype=float),
+              "odoHistory": (np.array(o.history, dtype=bool) if o.history
+                             else np.zeros((0, len(LEGS)), dtype=bool)),
+              **match_arrays}
+    policies = {}
+    for name, drv in (("walk", self.walker), ("getup", self.getup)):
+      policies[name] = {"steps": drv.steps}
+      arrays[f"{name}Action"] = np.array(drv.last_action, dtype=float)
+      arrays[f"{name}Target"] = np.array(drv.target, dtype=float)
+    frame = None
+    if self._frame is not None:
+      f = self._frame
+      frame = {"t": self._frame_t, "used": self._frame_used_t,
+               "self": f.self_fraction}
+      arrays.update(frameZ=f.z, framePoints=f.points, framePeers=f.peers,
+                    framePeerGeoms=f.peer_geoms)
+    memo = self._plan_memo
     return ({"odometry": {"x": o.x, "y": o.y, "z": o.z, "v": o.v.tolist(),
                           "held": o.held, "quat": list(o.att.q),
                           "distance": o.distance,
                           "rng": o.rng.bit_generator.state,
                           "imu": o.imu.kept_state()},
              "posture": self.posture, "lastMotion": self.last_motion_t,
+             "want": self.want, "slumpedSince": self._slumped_since,
+             "stoodSince": self._stood_since, "falls": self.falls,
+             "docked": self.docked, "torqued": self.drivers.torqued,
+             "policies": policies, "frame": frame,
+             "memo": None if memo is None else
+             [list(memo[0]), memo[1], list(memo[2]),
+              None if memo[3] is None else [list(p) for p in memo[3]],
+              None if memo[4] is None else list(memo[4])],
+             "pressedAt": None if self.pressed_at is None else list(self.pressed_at),
+             "retreat": [list(self._retreat[0]), self._retreat[1]],
+             "pressing": self._pressing,
              "dockSeen": None if self.dock_seen is None else list(self.dock_seen),
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until},
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
@@ -947,7 +992,7 @@ class QuadMission(Navigator):
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
              "match": match},
-            {"grid": self.grid.grid, "low": self.low, **match_arrays})
+            arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
     o, s = self.odo, state["odometry"]
@@ -959,11 +1004,42 @@ class QuadMission(Navigator):
     o.distance = float(s["distance"])
     o.rng.bit_generator.state = s["rng"]
     o.imu.restore_kept(s["imu"])
-    # A lying body is laid back down by the world's own bodies; a posture
-    # mid-move goes on as the one it was heading for.
-    self.posture = {LYING_DOWN: LYING, STANDING_UP: STANDING}.get(
-      state["posture"], state["posture"])
+    if "odoHistory" in arrays:
+      o.history = [np.array(row, dtype=bool) for row in arrays["odoHistory"]]
+    self.posture = state["posture"]
+    self._move = None
     self.last_motion_t = float(state["lastMotion"])
+    self.want = state.get("want")
+    self._slumped_since = state.get("slumpedSince")
+    self._stood_since = state.get("stoodSince")
+    self.falls = int(state.get("falls", 0))
+    self.docked = bool(state.get("docked", False))
+    if "gains" in arrays:
+      self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
+    self.drivers.torqued = bool(state.get("torqued", False))
+    for name, drv in (("walk", self.walker), ("getup", self.getup)):
+      kept = state.get("policies", {}).get(name)
+      if kept is not None:
+        drv.steps = int(kept["steps"])
+        drv.last_action = np.array(arrays[f"{name}Action"], dtype=float)
+        drv.target = np.array(arrays[f"{name}Target"], dtype=float)
+    frame = state.get("frame")
+    if frame is not None:
+      self._frame = DepthFrame(z=arrays["frameZ"], points=arrays["framePoints"],
+                               self_fraction=float(frame["self"]),
+                               peers=arrays["framePeers"],
+                               peer_geoms=np.asarray(arrays["framePeerGeoms"], dtype=np.int32))
+      self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
+    memo = state.get("memo")
+    self._plan_memo = (None if memo is None else
+                       (tuple(memo[0]), float(memo[1]), tuple(memo[2]),
+                        None if memo[3] is None else [tuple(p) for p in memo[3]],
+                        None if memo[4] is None else tuple(memo[4])))
+    self.pressed_at = (None if state.get("pressedAt") is None
+                       else tuple(state["pressedAt"]))
+    if state.get("retreat"):
+      self._retreat = (tuple(state["retreat"][0]), state["retreat"][1])
+    self._pressing = bool(state.get("pressing", False))
     self.dock_seen = (None if state.get("dockSeen") is None
                       else tuple(state["dockSeen"]))
     clocks = state.get("clocks", {})
@@ -996,7 +1072,12 @@ class QuadMission(Navigator):
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --
-    a mission's start, and a stand-up after a death. Steps a second."""
+    a mission's start, and a stand-up after a death. ⚠ STEPS NOTHING
+    (issue #387): a stand-up lands on the seam of a loop another robot is
+    walking in, and a second stepped here was a second its policy and its
+    odometry did not run -- measured, it went over and came up 0.44 m from
+    where it believed it was, and found no route to the dock. The body
+    settles in the loop, under whatever the day commands next."""
     from pluggybot.legs.world import stand
     stand(self.model, self.data, self.handle.prefix, x, y, yaw)
     self._move, self.want = None, None
@@ -1008,7 +1089,6 @@ class QuadMission(Navigator):
     self._vm = None
     self._handover(self.walker)
     self.last_motion_t = float(self.data.time)
-    self.run(self._drive_routine(1.0, 0.0, 0.0))
 
 
 class QuadBody(Body):
@@ -1019,8 +1099,11 @@ class QuadBody(Body):
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT
   #: A fall is got up from (the get-up policy) until it has lasted this
-  #: long, s: then it is the `stuck` death. MEASURED (`quad_spike.py
-  #: --getup`, SimNotes "The first quadruped deploy").
+  #: long, s: then it is the `stuck` death. MEASURED over 35 falls in six
+  #: places in the house, the couch, a wall and the hall among them: 31 up,
+  #: median 1.2 s, p95 4.2 s, the slowest 13.4 s against the south wall --
+  #: and 4 never, wedged, in 40 s. Half as long again as the slowest that
+  #: got up (SimNotes, "The first quadruped deploy").
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True

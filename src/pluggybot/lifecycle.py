@@ -177,6 +177,12 @@ EVENTS_CHECK_S = 1.0
 #: written against one span per run and turning this on by default would
 #: change what every committed number means without anybody choosing it.
 RESTART_AFTER_S = 300.0
+#: A stand-up puts the robot on a start pose no other robot's body is within
+#: this of, m (issue #387): a stand-up is a warp, and a warp INTO a body is
+#: an overlap the solver throws both out of. Two quadrupeds' reach from
+#: their torsos' centres (0.38 m each, the hind knees; the rover's is less)
+#: and a hand's width between them.
+START_CLEAR_M = 1.0
 
 #: How long a finished build will stand and wait for room on the rack
 #: (issue #315), and how often it looks. A DESIGN DECISION, not a
@@ -1473,7 +1479,26 @@ class HubLifecycle:
       return
     if float(self.data.time) - self.dead["t"] < self.restart_after_s:
       return
+    if self.up_pose() is None:
+      return                             # every start is under a robot: next step
     self.stand_up(AUTO_RESTART_BY, auto=True)
+
+  def up_pose(self) -> tuple[float, float, float] | None:
+    """Where a stand-up puts this robot (issue #387): its own start pose,
+    or -- with another robot's body on it -- the first of the others' start
+    poses that is clear, each a pose the world was commissioned with; None
+    while every one is taken. Read off the other robots' TRUE bodies: the
+    stand-up is the world's own hand, and it can see what it puts a robot
+    down on. With two robots one start is always clear."""
+    if self.home_pose is None:
+      return None
+    for pose in [self.home_pose] + [p.home_pose for p in self.peers
+                                    if p.home_pose is not None]:
+      if all(math.hypot(p.body.footprint_centre()[0] - pose[0],
+                        p.body.footprint_centre()[1] - pose[1]) >= START_CLEAR_M
+             for p in self.peers):
+        return tuple(pose)
+    return None
 
   @property
   def expects_work(self) -> bool:
@@ -3627,7 +3652,13 @@ class HubLifecycle:
         self._return_module(held)
         self.tool_powered = False
         self._say(f"{held} was still on my fork -- back on its bay")
-    self.body.start_at(*self.home_pose)
+    # ...and never onto another robot (issue #387; `up_pose`). An admin's
+    # hand with every start taken still puts it home: a person chose.
+    pose = self.up_pose() or self.home_pose
+    whose = next((p.robot_name for p in self.peers
+                  if pose != self.home_pose and p.home_pose is not None
+                  and tuple(p.home_pose) == tuple(pose)), None)
+    self.body.start_at(*pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
@@ -3671,13 +3702,17 @@ class HubLifecycle:
       # and "I waited and got up" are two different things to have believed
       # about your own life. The death line above it survives either way --
       # that is what dying costs (Evaluation.md §6).
-      self._say(f"UP again after {dead_s:.0f} s down -- back at the start "
-                "pose with a full pack (nobody came; the world stood me up)")
+      self._say(f"UP again after {dead_s:.0f} s down -- back at "
+                + (f"{whose}'s start pose (another robot was on mine)"
+                   if whose else "the start pose")
+                + " with a full pack (nobody came; the world stood me up)")
       self._remember(f"stood back up on my own after {dead_s:.0f} s down")
     else:
-      self._say(f"ADMIN {by} reset me -- back at the start pose with a full "
-                "pack" + (f" after {dead_s:.0f} s dead" if was else
-                          " (I was not dead)"))
+      self._say(f"ADMIN {by} reset me -- back at "
+                + (f"{whose}'s start pose (another robot was on mine)"
+                   if whose else "the start pose")
+                + " with a full pack" + (f" after {dead_s:.0f} s dead" if was else
+                                         " (I was not dead)"))
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
                                          if was else " while still awake"))
     self._emit(event)
@@ -7312,8 +7347,9 @@ def posture(peers, name: str) -> str:
     if (p.robot_name or p.root) == name:
       if p.down():
         return "lying knocked over"
-      # ...and one lying down by choice is resting, never fallen (#387)
-      return "lying down to rest" if p.body.resting else "standing"
+      # ...and one lying down by choice is resting, never fallen (#387).
+      # `getattr`, because a test's stand-in peer need not have a posture.
+      return "lying down to rest" if getattr(p.body, "resting", False) else "standing"
   return "standing"
 
 

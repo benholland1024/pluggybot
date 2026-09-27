@@ -134,7 +134,9 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Put the body upright at a pose and tell its estimate so: a mission
-    start, and a stand-up (issue #143). May step the sim to settle."""
+    start, and a stand-up (issue #143). ⚠ A step taken here is one no other
+    robot's stepper or hooks see (a stand-up lands mid-loop): the rover
+    settles a second, the quadruped steps nothing (issue #387)."""
 
   @abc.abstractmethod
   def go_to_routine(self, x: float, y: float, timeout: float = 90.0) -> Routine:

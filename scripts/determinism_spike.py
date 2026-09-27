@@ -21,6 +21,10 @@ is the physics itself.
     ... --sequential            # one at a time, the contention hypothesis
     ... --nthreads 1            # the AprilTag detector single-threaded
     ... --compare DIR           # re-read traces without flying
+    ... --pair --pack demo --battery-fraction 0.4 --sim-s 420
+                                # issue #387: the quadruped PAIR's day, with a
+                                # fall and a death arranged (`--fall-at`,
+                                # `--drain-at`), the whole world hashed
     ... --resume-at 400         # issue #345: the day flown straight through,
                                 # against the same day saved at the first
                                 # idle moment past t=400 and carried on from
@@ -141,7 +145,10 @@ def child(cfg: dict, trace_path: Path) -> None:
       from pluggybot.mission.mission import MissionAborted
 
       def save_here():
-        if d.time >= float(cfg["saveAt"]):
+        # ...never mid-move, as the served keeper waits it out
+        # (`continuation.Keeper.busy`, issue #387)
+        if (d.time >= float(cfg["saveAt"])
+            and life.body.posture not in continuation.MOVING_POSTURES):
           continuation.write(continuation.capture([life], life.world_fingerprint),
                              cfg["worldState"])
           log(k="saved", t=round(float(d.time), 4))
@@ -149,22 +156,70 @@ def child(cfg: dict, trace_path: Path) -> None:
       life.at_loop_top.append(save_here)
 
   st = Path(cfg.get("stateDir") or tempfile.mkdtemp(prefix="pluggy-det-"))
+  if cfg.get("pair"):
+    return _pair_child(cfg, st, log, out)
   sim_s = float(cfg["simS"])
   if cfg.get("resume"):
     # the RESUMING arm: carries on from the save, to the same end
     from pluggybot import continuation
     sim_s -= continuation.read(cfg["worldState"]).t
   t0 = time.time()
+  economy = cfg.get("economy", True)
   r = run_demo(view=False, realtime=False, world=cfg["world"], pack=cfg["pack"],
                errand=cfg.get("errand", "draw"), max_sim_time=sim_s,
-               tasks=True, metabolism=True, overseer=False,
+               tasks=economy, metabolism=economy, overseer=False,
+               battery_fraction=float(cfg.get("batteryFraction", 1.0)),
                thoughts_root=str(st / "thoughts"), ledger_state=str(st / "ledger.json"),
-               board_state=str(st / "boards.json"), tasks_state=str(st / "tasks.json"),
+               board_state=str(st / "boards.json"),
+               tasks_state=str(st / "tasks.json") if economy else None,
                spend_state=str(st / "spend.json"),
                second_robot=cfg.get("secondRobot"), on_ready=on_ready,
                world_state=cfg["worldState"] if cfg.get("resume") else None)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
+  out.close()
+
+
+def _pair_child(cfg: dict, st: Path, log, out) -> None:
+  """The quadruped PAIR's scripted home day (issue #387), the whole world
+  hashed: the first robot starts low and walks to the dock, the second is
+  knocked over and later emptied (`pair.arrange_hazards`), dies `flat` and
+  is stood up -- every posture and both halves of a death, twice alike."""
+  import numpy as np
+
+  from pluggybot import pair
+  from pluggybot.mind.inbox import Inbox
+
+  # an inbox each, as `serve.py` builds them: a dead robot with somebody
+  # who could reach in waits for its stand-up rather than ending its day
+  lives = pair.build_pair("home_quad", pack=cfg["pack"], errands=("none", "none"),
+                          inboxes=(Inbox(), Inbox()),
+                          mortal=True, restart_after_s=float(cfg["restartAfterS"]),
+                          thoughts_root=str(st / "thoughts"),
+                          ledger_state=str(st / "ledger.json"))
+  for life, frac in zip(lives, cfg["batteryFractions"]):
+    life.battery.energy_wh = life.battery.capacity_wh * frac
+  done = pair.arrange_hazards(lives, fall_at=float(cfg["fallAt"]),
+                              drain_at=float(cfg["drainAt"]))
+  d = lives[0].data
+  state = {"next": 0.0}
+
+  def step():
+    if d.time >= state["next"]:
+      state["next"] = (math.floor(d.time / TRACE_EVERY_S) + 1) * TRACE_EVERY_S
+      log(k="step", t=round(float(d.time), 4), q=_h(np.concatenate([d.qpos, d.qvel])),
+          c=_h(d.ctrl), wh=[round(life.battery.energy_wh, 6) for life in lives],
+          s=[life.state for life in lives], p=[life.body.posture for life in lives])
+  lives[0].body.step_hooks.append(step)
+  for life in lives:
+    life.say_hooks.append(lambda t, msg, root=life.root:
+                          log(k="say", t=round(float(t), 3), msg=f"{root}: {msg}"))
+  t0 = time.time()
+  pair.run_pair(lives, max_sim_time=float(cfg["simS"]))
+  log(k="end", t=round(float(d.time), 3), wall=round(time.time() - t0, 1),
+      battery=[life.battery.fraction for life in lives], fell=done["fell"],
+      drained=done["drained"], falls=[life.body.mission.falls for life in lives],
+      deaths=[[x["cause"] for x in life.deaths] for life in lives])
   out.close()
 
 
@@ -187,7 +242,8 @@ def first_divergence(a: list[dict], b: list[dict]) -> dict:
   div = next((i for i in range(n) if (sa[i]["t"], sa[i]["q"], sa[i]["c"])
               != (sb[i]["t"], sb[i]["q"], sb[i]["c"])), None)
   if div is None:
-    return {"diverged": False, "stepsCompared": n, "endA": a[-1], "endB": b[-1]}
+    return {"diverged": False, "stepsCompared": n,
+            "endA": a[-1] if a else None, "endB": b[-1] if b else None}
   t_ok = sa[div - 1]["t"] if div else 0.0
   t_bad = sa[div]["t"]
   # every perception event in the window, paired in order per kind
@@ -293,7 +349,13 @@ def main() -> int:
   ap.add_argument("--sim-s", type=float, default=1500.0)
   ap.add_argument("--world", default="home")
   ap.add_argument("--pack", default="hosting")
-  ap.add_argument("--errand", default="draw", help="carry for room_hub")
+  ap.add_argument("--errand", default="draw", help="carry for room_hub, none "
+                                                   "for home_quad")
+  ap.add_argument("--battery-fraction", type=float, default=1.0,
+                  help="the pack at the start: low, and the day charges")
+  ap.add_argument("--no-economy", dest="economy", action="store_false",
+                  help="no job offers and no upkeep: the first quadruped "
+                       "period's shape (issue #387)")
   ap.add_argument("--nthreads", type=int, default=None,
                   help="AprilTag detector threads (the shipped detector uses 2)")
   ap.add_argument("--sequential", action="store_true")
@@ -301,6 +363,15 @@ def main() -> int:
                   help="park a second robot at X,Y (issue #167): the parity "
                        "flight's other arm -- the first robot's day should "
                        "hash identical to one flown alone")
+  ap.add_argument("--pair", action="store_true",
+                  help="issue #387: the QUADRUPED pair's home day, the whole "
+                       "world hashed -- the first robot starts low and "
+                       "charges, the second is knocked over at --fall-at and "
+                       "emptied at --drain-at, dies and is stood up")
+  ap.add_argument("--fall-at", type=float, default=40.0)
+  ap.add_argument("--drain-at", type=float, default=120.0)
+  ap.add_argument("--restart-after", type=float, default=30.0,
+                  help="--pair: sim s from a death to the stand-up")
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", default=None, metavar="DIR")
   ap.add_argument("--resume-at", type=float, default=None, metavar="T",
@@ -317,9 +388,14 @@ def main() -> int:
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   cfg = {"world": args.world, "pack": args.pack, "simS": args.sim_s,
-         "errand": args.errand, "nthreads": args.nthreads,
+         "errand": args.errand, "nthreads": args.nthreads, "economy": args.economy,
+         "batteryFraction": args.battery_fraction,
          "secondRobot": ([float(v) for v in args.second_robot.split(",")]
                          if args.second_robot else None)}
+  if args.pair:
+    cfg.update(pair=True, world="home_quad", fallAt=args.fall_at,
+               drainAt=args.drain_at, restartAfterS=args.restart_after,
+               batteryFractions=[args.battery_fraction, 1.0])
   cfg_path = out / "config.json"
   cfg_path.write_text(json.dumps(cfg))
   env = {**os.environ, "MUJOCO_GL": os.environ.get("MUJOCO_GL", "egl")}
