@@ -20,6 +20,8 @@ from pluggybot.rack.coupling import (
   HUB_PEG_Z, LIFT_STEP, PEG_R, RACK_HANG_X, STATION_YS, TRAY_VERTEX_DROP,
 )
 from pluggybot.odometry.dead_reckoning import DeadReckoner
+from pluggybot.perception.encoders import counted
+from pluggybot.perception.imu import Imu
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
@@ -118,6 +120,10 @@ class HubSwap:
     self.handle = handle
     self.rebind(model, data)
     self.reckoner = DeadReckoner(wheel_radius=0.045, track_width=0.21)
+    #: What the reckoner is told (issue #386): the wheels in whole encoder
+    #: counts and the yaw rate off an ICM-42688-P, never the sim's exact
+    #: joint angles and gyro (`perception/encoders.py`, `perception/imu.py`).
+    self.imu = Imu(f"{handle.prefix}rover")
     #: PRESSED AGAINST SOMETHING THAT WILL NOT MOVE. While this is set, dead
     #: reckoning stops integrating TRAVEL -- the heading still comes off the
     #: gyro, which is not lying about anything.
@@ -183,8 +189,7 @@ class HubSwap:
     mujoco.mj_forward(self.model, d)
     self._run(1.0, 0.0)                  # settle
     self.reckoner.x, self.reckoner.y, self.reckoner.theta = axle_x, axle_y, yaw
-    self.reckoner.update(float(d.qpos[self.left_adr]),
-                         float(d.qpos[self.right_adr]))
+    self.reckoner.update(*self.encoders())
 
   def _pressing(self) -> bool:
     """Is the chassis pressed against something, on the side the wheels are
@@ -232,6 +237,11 @@ class HubSwap:
     return (d.time < self._press_until
             and press_opposes_drive(self._press_side, v_wheels))
 
+  def encoders(self) -> tuple[float, float]:
+    """The wheels' angles as their encoders count them, rad."""
+    d = self.data
+    return counted(float(d.qpos[self.left_adr])), counted(float(d.qpos[self.right_adr]))
+
   def _step_once(self, tl: float, tr: float) -> None:
     """One physics step for ONE robot: its wheel setpoints, the step, its
     bookkeeping. Two robots share the step (issue #167, `tick.run_many`):
@@ -265,9 +275,9 @@ class HubSwap:
       self.press_steps += 1
     held = ((self.reckoner.x, self.reckoner.y)
             if self.pinned or self.pressing else None)
-    self.reckoner.update(float(d.qpos[self.left_adr]),
-                         float(d.qpos[self.right_adr]),
-                         gyro_yaw_rate=float(d.sensordata[self.gyro_adr + 2]),
+    self.reckoner.update(*self.encoders(),
+                         gyro_yaw_rate=self.imu.gyro_z(
+                           float(d.sensordata[self.gyro_adr + 2]), ts),
                          dt=ts)
     if held is not None:
       # The wheel counts still advance -- they have to, the encoders are real

@@ -312,9 +312,11 @@ def test_running_the_policy_imports_no_training_stack():
 
 def _trot_odometry(monkeypatch, lag_s):
   from pluggybot.legs import odometry as od
+  from pluggybot.perception import imu
   monkeypatch.setattr(od, "CONTACT_LAG_S", lag_s)
-  monkeypatch.setattr(od, "GYRO_NOISE", 0.0)
-  monkeypatch.setattr(od, "GYRO_BIAS_DPS", 0.0)
+  for name in ("GYRO_NOISE", "GYRO_BIAS", "GYRO_SCALE", "ACCEL_BIAS", "ACCEL_SCALE"):
+    monkeypatch.setattr(imu, name, 0.0)
+  monkeypatch.setattr(imu, "ACCEL_NOISE", (0.0, 0.0, 0.0))
   monkeypatch.setattr(od, "BACKLASH_RAD", 0.0)
   model, data = _compiled(drive="torque")
   vm = VirtualModel(model, data, qm.CHOSEN)

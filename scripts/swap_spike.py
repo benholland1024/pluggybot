@@ -207,8 +207,7 @@ def yaw_main() -> None:
   mujoco.mj_forward(model, data)
   r = mission.swap.reckoner
   r.x, r.y, r.theta = sx, sy, hd
-  r.update(float(data.qpos[mission.swap.left_adr]),
-           float(data.qpos[mission.swap.right_adr]))
+  r.update(*mission.swap.encoders())
   mission._drive(1.0, 0.0, 0.0)
   mission.swap._run(1.5, 0.0, lift_target=CHARGE_LOOK_LIFT)
   yaw_sweep(mission, "charge standoff", mission.charge_bay_fix,
