@@ -210,20 +210,72 @@ def test_the_drivers_dcmotor_is_the_pd_inside_the_envelope():
     assert clipped > 100                        # the peak clip was exercised
 
 
-def test_a_policy_walks_only_on_the_drivers_it_was_trained_on(tmp_path):
+def test_a_policy_commands_its_own_gains_and_takes_them_back_from_a_routine(tmp_path):
+  # A GDS68 takes the gains in every command, so a policy trained on other
+  # gains walks on ITS gains, and after a routine has pushed with torque
+  # (which cancels the drivers' damping) the policy's next step brings them
+  # back -- or it would walk on a routine's gains until its next decision.
   import json
-  from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
+  from pluggybot.legs.drivers import Drivers
+  from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy
   a = _tiny_policy(tmp_path / "p.npz")
-  model, data = _compiled(drive="torque")
-  with pytest.raises(ValueError, match="trained"):
-    PolicyDriver(model, data, WalkingPolicy(tmp_path / "p.npz"))
   training = json.loads(str(a["training"]))
   training["stiffness"] *= 1.5
   a["training"] = np.array(json.dumps(training))
   np.savez(tmp_path / "q.npz", **a)
   model, data = _compiled()
-  with pytest.raises(ValueError, match="trained"):
-    PolicyDriver(model, data, WalkingPolicy(tmp_path / "q.npz"))
+  drv = PolicyDriver(model, data, WalkingPolicy(tmp_path / "q.npz"))
+  drv.step(Twist())
+  kp, kd = drv.drivers.gains()
+  assert np.allclose(kp, training["stiffness"]) and np.allclose(kd, training["damping"])
+  drv.drivers.torque(np.zeros(12))
+  mujoco.mj_step(model, data)
+  assert np.allclose(drv.drivers.gains()[1], 0.0, atol=1e-12)
+  drv.step(Twist())                                 # not a decision step
+  assert np.allclose(drv.drivers.gains()[0], training["stiffness"])
+  # A body built with torque motors has no drivers to command.
+  model, data = _compiled(drive="torque")
+  with pytest.raises(ValueError, match="no drivers"):
+    Drivers(model, data)
+
+
+def test_a_torque_through_the_drivers_steps_as_the_torque_motor_does():
+  # A routine's torque rides a target offset with the damping cancelled,
+  # so `implicitfast` integrates nothing it would not for a torque motor:
+  # one step from the same state lands where the plain motor and numpy's
+  # envelope land, to rounding. With the damping left in, the implicit
+  # step differed by ~1 rad/s; and `limp` holds nothing.
+  from pluggybot.legs.drivers import Drivers
+  plain, plain_d = _compiled(drive="torque")
+  model, data = _compiled()
+  drivers = Drivers(model, data)
+  lim = JointLimits.of(qm.CHOSEN.motor)
+  rng = np.random.default_rng(0)
+  for _ in range(100):
+    for m, d in ((plain, plain_d), (model, data)):
+      mujoco.mj_resetDataKeyframe(m, d, 0)
+    dq, tau = rng.normal(0, 0.2, 12), rng.normal(0, 12, 12)
+    # Inside the no-load speed: past it the motor brakes, as a DC motor
+    # does, where numpy's envelope only clipped.
+    v = np.clip(rng.normal(0, 8, 12), -0.9 * lim.noload, 0.9 * lim.noload)
+    for m, d in ((plain, plain_d), (model, data)):
+      d.qpos[7:19] += dq
+      d.qvel[6:18] = v
+      mujoco.mj_forward(m, d)
+    plain_d.ctrl[:] = lim.clip(tau, plain_d.qvel[6:18])
+    drivers.torque(tau)
+    mujoco.mj_step(plain, plain_d)
+    mujoco.mj_step(model, data)
+    assert np.allclose(data.actuator_force, plain_d.actuator_force, rtol=0, atol=1e-9)
+    assert np.allclose(data.qvel, plain_d.qvel, rtol=0, atol=1e-9)
+  drivers.limp()
+  mujoco.mj_forward(model, data)
+  assert np.allclose(data.actuator_force, 0.0, atol=1e-9)
+  # ...and drivers taken up after a `limp` still push: the torque does not
+  # ride on whatever stiffness the last command left (zero, here).
+  Drivers(model, data).torque(np.full(12, 5.0))
+  mujoco.mj_forward(model, data)
+  assert np.allclose(data.actuator_force, 5.0, atol=1e-9)
 
 
 def test_every_committed_policy_was_trained_on_the_drivers_gains():
@@ -374,3 +426,47 @@ def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
   touching = {int(g) for pair in data.contact.geom[:data.ncon] for g in pair}
   assert belly in touching
   assert abs(data.qpos[2] - qm.CHOSEN.belly_depth) < 0.005
+
+
+def test_the_scripted_gait_refuses_a_body_that_was_never_forwarded():
+  # It reads the body's inertia off the mass matrix once, and a fresh
+  # MjData's is zeros: built on one, its attitude loop had no feed-forward
+  # and a lie-down landed 10 mm off where it lands (#378).
+  import pytest
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+  with pytest.raises(ValueError, match="mj_forward"):
+    VirtualModel(model, mujoco.MjData(model), qm.CHOSEN)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  assert np.all(VirtualModel(model, data, qm.CHOSEN).inertia > 0)
+
+
+def test_odometry_finds_the_robot_whatever_comes_before_it_in_qpos():
+  # It read the robot's pose at qpos[0:3] and built its leg kinematics with
+  # the identity rotation at qpos[3]: in a world with a jointed body ahead
+  # of the robot (the dock's pin poles, a free prop) it reckoned from that
+  # body and walked its legs on a torso with no rotation (#378).
+  from pluggybot.legs import odometry as od
+  prop = ('\n    <body name="prop" pos="3 2 0.1"><freejoint/>'
+          '<geom type="box" size="0.05 0.05 0.05"/></body>')
+  model = mujoco.MjModel.from_xml_string(
+    qm.body_xml(qm.CHOSEN, scenery=prop, drive="torque"))   # the scripted gait
+  data = mujoco.MjData(model)
+  root = model.body("pluggybot").id
+  q = model.jnt_qposadr[model.body_jntadr[root]]
+  assert q > 0                                       # the prop is qpos[0:7]
+  data.qpos[q:q + 7] = (0, 0, qm.CHOSEN.stand_height, 1, 0, 0, 0)
+  for n, a in zip(qm.JOINT_NAMES, qm.pose_qpos(qm.CHOSEN, qm.CHOSEN.stand_height)):
+    data.qpos[model.jnt_qposadr[model.joint(n).id]] = a
+  mujoco.mj_forward(model, data)
+  vm = VirtualModel(model, data, qm.CHOSEN)
+  lim = JointLimits.of(qm.CHOSEN.motor)
+  odo = od.LegOdometry(model, data)
+  assert odo.error()[0] < 1e-9
+  for _ in range(int(2.0 / model.opt.timestep)):
+    cmd = Command(gait="trot", vx=0.5 * min(data.time / 0.5, 1.0), period=0.35)
+    data.ctrl[:] = lim.clip(vm.torque(cmd), data.qvel[vm.vadr])
+    mujoco.mj_step(model, data)
+    odo.step()
+  assert data.qpos[q] > 0.5                          # it walked
+  assert odo.error()[0] / odo.distance < 0.05

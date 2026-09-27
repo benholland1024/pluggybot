@@ -409,18 +409,21 @@ the swaps at 1 ms timesteps being the dear part), 2026-09-20. A pair is
 one physics thread: more cores do not move it, and the site's
 pace-following clock covers what is left.
 
-**A served day, and the core that would carry it** (issue #385,
-2026-09-27; SimNotes, "The served sim's speed"). `--pair --free-run` on
-the deploy box, the home world, a scripted day with the jobs, hunger and
-the near field on (`--errand draw --errand2 carry --tasks --metabolism
---near-field`, 4 084 sim s), streaming to `ws_sink.py`: staging **0.97–0.98×**,
-this change **1.14×**, the narration identical line for line; no frame
-dropped either way. The same code on a rented **AMD EPYC 4564P** core (Zen
-4, up to 5.88 GHz, a shared host): **1.82×**, 1.64× the box over the span
-the two days share. A quadruped pair adds ~20 ms of wall a sim second on
-the box, ~11 on the EPYC: ~1.1× here, ~1.78× there, against #385's
-target of 1.3× over a day. The measuring kit is the throwaway
-container the box runs beside the live world: `docker run --rm --cpus 2
---memory 3g -e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e
-PYTHONPATH=/w/src -v <tree>:/w -w /w --entrypoint sh rooftop-prod-sim`,
-a `ws_sink.py` in the background, then `serve.py` as above.
+**A served day, and the core that would carry it** (issue #385, 2026-09-27;
+SimNotes, "The served sim's speed"). `--pair --free-run` on the deploy box,
+the home world, a scripted day with the jobs, hunger and the near field on
+(`--errand draw --errand2 carry --tasks --metabolism --near-field`, 4 084
+sim s), streaming to `ws_sink.py`: staging **0.97–0.98×**, this change
+**1.14×**, the narration identical line for line; no frame dropped either
+way. The same code on a rented **AMD EPYC 4564P** core (Zen 4, up to 5.88
+GHz, a shared host): **1.82×**, 1.64× the box over the span the two days
+share. A quadruped pair adds ~20 ms of wall a sim second on the box, ~11 on
+the EPYC: ~1.1× here, ~1.78× there. #377 had asked for 1.3× over a day;
+**Ben decided (2026-09-27) to stay on this box**, so the served world runs
+near 1.1× and will slip under 1× as #386's scan matching and the stairs
+land, which the site's pace-following clock plays slow rather than breaks
+(SimNotes has the reasoning). The measuring kit is the throwaway container
+the box runs beside the live world: `docker run --rm --cpus 2 --memory 3g
+-e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e PYTHONPATH=/w/src -v
+<tree>:/w -w /w --entrypoint sh rooftop-prod-sim`, a `ws_sink.py` in the
+background, then `serve.py` as above.

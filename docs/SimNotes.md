@@ -1902,8 +1902,11 @@ folded leg holds the hips 0.10 m up, so a torso whose underside is 0.055 m
 below the hips cannot rest on it: the legs carry the robot "lying down".
 The battery hangs below the torso as a belly pack, 0.105 m under the hip
 axis; the robot lies on it with its shanks flat and its drivers holding
-nothing (`model.lie_qpos`), and #378's dock contacts can go on its
-underside. Lying down and standing up take 2.2 s each (`--energy`).
+nothing (`model.lie_qpos`), and its charge pads are flush with its
+underside (#378, "The quadruped's dock"). The belly carries 67 of the
+robot's 92 N on a bare floor: the rest is the legs' own weight (a hip's
+two-motor stack is 0.8 kg) resting on their feet. Lying down and standing
+up take 2.2 s each (`--energy`).
 
 **Heat** (`--thermal`; the Mini Cheetah actuator's measured 1.23 K/W and
 32 J/K, a 39 s time constant): a first-order winding driven by non-negative
@@ -2152,6 +2155,156 @@ body's size is not the answer (#388's decision point was not reached). The
 stairs policy runs on the ideal scan in `legs/policy.py` by default and on
 the D435's map with `scan=MapScan(...).scan`; nothing served runs it yet.
 
+## The quadruped's dock (issue #378)
+
+The quadruped charges the way it rests: it walks over a cradle, stops with
+its belly above it and lies down onto it (`legs/dock.py`; every table here
+is `scripts/dock_spike.py`'s; the parts are Parts.md, "The dock"). The
+cradle is a 6 mm UHMW-PE plate with a bed 128 mm wide and two faces rising
+30 mm at 55° to a mouth 170 mm wide; in the bed, two poles of two
+spring-loaded pins press up into the belly's two flush pads. A board of four
+60 mm tags on a post 0.62 m ahead of the seat is what the walk steers by
+and what the robot measures itself off once it lies there: its nose camera
+sees the upper pair standing to lie down and the lower pair lying.
+
+**The capture envelope** (`--capture`; the robot placed standing where it
+lies down from, off by the row, then lying down with #377's scripted
+lower-and-fold; the verdict is the electrical criterion). ✓ charges:
+
+| across | yaw 0° | 5° | 10° | 15° |
+|---|---|---|---|---|
+| 0–25 mm | ✓ | ✓ | ✓ | – |
+| 30 mm | – | ✓ | ✓ | – |
+| 35 mm | – | ✓ | – | – |
+| 40, 50 mm | – | – | – | – |
+
+Along the axis it charges from −60 to +90 mm (the pads are 160 mm long, the
+pins 20 mm apart at the seat), and it lies within ±4 mm across and ±2° of
+the axis whatever it came down with. The two premises, same rows: with the
+faces at the belly case's own friction (`--sticky`, μ 1.0 — the pair's MAX
+without `priority`) it fails from 10 mm square-on and everywhere from
+20 mm; with no funnel at all (`--flat`) the pads alone forgive 10 mm, and
+the belly lies wherever it landed. **A funnel is a funnel only while tan(face angle) beats the
+friction with room to spare.** (Without walls a 15° twist still charges;
+the funnel's walls prop a belly turned that far.)
+
+**The approach** (`--approach`; standing at the standoff 1 m behind the
+seat, TRULY off by the row while it believes it stands exactly there): it
+looks, walks in steering by the board, stops, checks what it believes,
+lies down, and backs out for another run if the pins do not conduct. The
+starts: a grid (0–0.3 m across × 0–30°) and 40 drawn uniform in ±0.3 m
+across, ±0.3 m along and ±30°; turned away from the board, it sweeps the
+spot until the board decodes.
+
+| steering by | docked | first try | a foot on the dock | lies across / yaw / along | median |
+|---|---|---|---|---|---|
+| the board, re-read every 0.25 s | 52 of 52 | 40 | 8 runs, at most 1.1 s | ±4 mm / ±1.6° / −16..+6 mm | 9.9 s, 182 mWh |
+| one look a run, then its legs (`--blind`) | 52 of 52 | 39 | 27 runs, up to 1.4 s | ±4 mm / ±1.6° / −31..−5 mm | 10.1 s, 187 mWh |
+
+Both dock every time: one good look from the standoff is enough, the funnel
+forgiving what the legs drift over a metre. Re-reading the board is what
+keeps the feet off the dock and the belly on the seat along its axis. The
+retries are the starts both close and far off the axis: from where a front
+foot could land on the dock the walk goes straight, more than 20 mm off the
+axis there it stops, and the check backs it out for another run. Six of
+the eight runs that touched the dock were those retries, every contact over
+0.3 s among them; the other two grazed it (0.23 s, 0.02 s) from starts that
+began close. (Before a fit had to span the board, a
+turned start could decode one column of it, fit that at any heading as 0,
+and carry the one look into the wrong place: blind docked 41 of 52.)
+
+**Docked** (`--hold`, five dockings from up to 0.2 m and 20° off): the criterion
+held on every step of a minute lying there, each pole pressing 2.3 N; the
+board's lower pair gave the robot its pose in the dock's frame to 2.2–2.7
+mm and within 0.17°; and it stood up and backed 0.6 m off the dock in 7 s
+and 157 mWh, no foot touching it. A docking and an undocking together cost
+about a third of a watt-hour against a 194 Wh pack; the charger's 216 W
+fills that pack in under an hour, the CV tail aside.
+
+**What shaped it, each measured before it was believed:**
+
+- **The walking policy does not creep.** Commanded 0.15 m/s it walks
+  5 mm/s, 0.2 → 0.11, 0.3 → 0.28; sideways 0.2 → 0.01; turning under
+  0.2 rad/s it barely turns (all four committed policies; the posture
+  policy's band is the narrowest) — a pose loop with a proportional gain
+  stalled 11 cm short. WALKING, small corrections do track (yaw 0.05 →
+  0.045 rad/s, sideways 0.1 → 0.06). So the walk-in walks THROUGH at
+  0.3 m/s, pursuing a point on the dock's axis, and cuts the command
+  `STOP_M` short: from 0.3 m/s the flat policy comes to rest 22 ± 5.5 mm on
+  (eight stops in every phase of the gait; the posture policy ±11). ⚠ This
+  is every fine positioning's problem on this body, not only the dock's.
+- **The feet bound the dock's width, not the belly.** The nearest stance
+  foot's centre to the body's centreline: 124 mm walking straight at
+  0.3 m/s, 120 steering at 0.1 rad/s, 108 sidestepping at 0.15 m/s, 84–92
+  turning at 0.5 rad/s while walking and 74 turning on the spot. A 95 mm
+  mouth (±98 over its faces) put a foot on a face now and then; the mouth is
+  ±85 (±88), and from where a front foot could land on it (17–20 mm ahead
+  of its hip) the walk-in walks straight — no sidestep, at most 0.1 rad/s of
+  steering, never a turn on the spot, and more than 20 mm off the axis it
+  stops and the check backs it out.
+- **Rigid contacts under a lying quadruped are statically indeterminate.**
+  The first cradle had contact bars 4 mm proud, the robot's weight as the
+  preload the issue proposed. But the belly shares the load with four limp
+  legs (it carries 67 of the robot's 92 N on a bare floor; the rest is the
+  legs' own weight on their feet), so which support carries what is set by
+  sub-millimetre heights: a robot lying 6 mm off centre rolled 0.2° onto its
+  right feet, all 57 N went through the left bar, and the right pad hung
+  0.3 mm clear — seated in the funnel, not charging. The contacts are
+  sprung pins (Mill-Max 0858, two a pole, 2.35 N a pole at their rated
+  1.143 mm travel): the weight seats the belly, the springs are the contact.
+- **Lying down moves the body back 34.8 mm onto the dock** (35.5–36.2 onto
+  the bare floor): #377's fold swings the legs forward under the belly. The
+  walk-in stops `LIE_SHIFT_M` ahead of the seat.
+- **The board's baseline is the approach's precision.** The facing comes
+  from where the tags are (Kabsch over their translations, the #88 rule),
+  and the seat is 0.62 m behind the board, so a facing error swings the
+  believed axis: with the tags ±70 mm apart the robot believed itself up to
+  17 mm off the axis while it walked over the dock within 7 mm of it. At
+  ±140 mm, and each look blended half into the last (`dock.blend`), the
+  belief follows the truth to ~5 mm. A fit needs its tags to SPAN the
+  board: a column's two tags are one point in the plane, and seen alone
+  they fitted any heading as 0 with a perfect rms. And one whose tags sit
+  more than 30 mm from the drawing is refused (real looks: 1.6 mm median,
+  14 worst of 80), not blended in.
+
+**Five MuJoCo traps the pins walked into**, each now a constant with its
+number: (1) contact filtering between a parent and its child body does not
+apply to a body welded to the world, so the pins collided with their own
+plate — they meet the robot alone (`contype` bits); (2) soft contact scales
+with the bodies' effective mass, and against a gram-scale sprung pin the
+pad sank 1.2 mm into it at 0.12 N instead of pressing it down — the pins'
+contact is `solref 0.004` (two steps) with `solimp 0.99 0.999`, pressing
+2.32 N a pole of the part's 2.35; (3) a light pole then chattered against
+that stiff contact, the criterion flipping 1286 times in 10 s of lying
+there — a 0.1 kg armature (the plungers' inertia, a numerical stand-in)
+holds it every step; (4) a 9 kg belly let go 30 mm up sank through the
+6 mm plate onto the floor, so the plate's collision box reaches 50 mm under
+the floor; (5) #377's `VirtualModel` read the body's inertia off a fresh
+MjData's all-zero mass matrix when built before a forward pass, and its
+lie-down moved the body 44.6 mm instead of 34.8 — it now refuses.
+
+**The dock is the map's origin** (#381's plan: decided). Lying docked, the
+robot reads its pose in the dock's frame off the board's lower pair to
+2.2–2.7 mm and 0.17° (`--hold`). The seat alone would give it a few mm and
+~2° — the funnel's clearance lets the belly lie up to 2° twisted — so the
+anchor is the BOARD, read lying, not the seat. The dock is the one pose
+the robot returns to by construction, it needs no survey, and one dock
+serves the pair, so both robots' maps share its frame. `rack_prior`'s
+commissioned pose retires for the quadruped: #387's `anchor_at_dock` snaps
+the legs' estimate to what the board says. Where the dock stands in the
+world is the sim's to know (the site's drawing, its own checks); the robot
+needs only its frame.
+
+**What is true now:** the dock is `legs.dock.DEFAULT` (`dock_xml`, any
+world; `world_xml`, the spike's and the tests' standalone world, the dock
+AFTER the robot, `body_xml(after=)`, because the standalone keyframes index
+the robot's free joint from `qpos[0]` — `LegOdometry` finds its robot by
+name); the criterion is `dock_charge_contact`, each pad on a pin of its own
+pole; the walk-in is `walk_in_twist`, `fit_dock`,
+`seen_from` and `blend`; nothing in the served sim loads any of it until
+#387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
+lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
+
 ## The served sim's speed (issue #385)
 
 A pair on the deploy box ran below real time (0.96× over a carry, 0.80×
@@ -2205,7 +2358,12 @@ and a flight hashes IDENTICAL in two processes. #388's stairs policy,
 merged after these, re-flown on the dcmotor: every case at the house's
 0.18 m riser 10/10 on either scan (the flight of ten up and down among
 them), the knee's p99.5 13.6–13.9 N·m (#388's 13.5), and the flat as
-before (0.51 / 1.08 m/s, 89 W at 0.5). On the box the quadruped
+before (0.51 / 1.08 m/s, 89 W at 0.5). #378's dock, whose approach walks
+on the policy and lies down on the scripted routines' torque (the reason
+for `legs/drivers.py`), re-flown on them: the capture envelope cell for
+cell; the approach 52 of 52 docked (37 at the first try, #378's 40), feet
+on the dock in 8 runs for at most 1.06 s, median 9.8 s and 182 mWh; held
+docked, 100 % contact at 2.3 N a pole, the board's pose to 2.2–3.0 mm. On the box the quadruped
 pair's physics and controllers went from 231–236 to 191–199 ms of wall per
 sim second (`quad_spike.py --served`, A B A B): quadruped ÷ rover 1.30–1.40
 → 1.12–1.13, the rest the two policies.
@@ -2253,31 +2411,44 @@ of what the day did.
 
 **The server.** A quadruped pair costs the box ~20 ms a sim second more
 than a rover pair (the two policies, above), so it would serve at ~1.1×
-over this day; 1.3× needs ~770 ms of wall a sim second, a physics thread
-~1.2× the box's. A candidate core was rented by the hour (Runpod's `cpu5c`,
-4 vCPUs): an **AMD EPYC 4564P** — the Ryzen 9 7950X's silicon on AM5, Zen 4
-at up to 5.88 GHz — on a host shared with other tenants (load 25–30 of its
-32 threads, so a pessimistic reading). The same code (all but the charge
-pins' fix), the same day: **1.82×** real time (4 167 s in 2 293 s), and
-over the span the two days share before they part (0.1–640 s; its Mesa is
-25.1, the image's 25.0, and a render that differs moves a decode) 1.75×
-against the box's 1.07×: **1.64× the box**. Physics alone (`--served`)
-1.5×; a scan 0.72 ms. A quadruped pair there, the same arithmetic:
-**~1.78×**. The core is the answer, not the count: the physics is one
-thread.
+over this day. #377 had asked for at least 1.3× — a margin, never argued:
+1.3× needs ~770 ms of wall a sim second, a physics thread ~1.2× the box's.
+A candidate core was rented by the hour (Runpod's `cpu5c`, 4 vCPUs): an
+**AMD EPYC 4564P** — the Ryzen 9 7950X's silicon on AM5, Zen 4 at up to
+5.88 GHz — on a host shared with other tenants (load 25–30 of its 32
+threads, so a pessimistic reading). The same code (all but the charge pins'
+fix), the same day: **1.82×** real time (4 167 s in 2 293 s), and over the
+span the two days share before they part (0.1–640 s; its Mesa is 25.1, the
+image's 25.0, and a render that differs moves a decode) 1.75× against the
+box's 1.07×: **1.64× the box**. Physics alone (`--served`) 1.5×; a scan
+0.72 ms. A quadruped pair there, the same arithmetic: **~1.78×**. The core
+is the answer, not the count: the physics is one thread.
+
+**Decided (Ben, 2026-09-27): the served world stays on the current box**,
+at about a fifth of the candidates' price. So the served world does NOT
+have #377's 1.3×: a quadruped pair is expected at ~1.1× over a day, and the
+known costs ahead take it under 1× — #386's scan matching runs on every
+scan, and the stairs policy's scan is ~60 ms a sim second per robot. Below
+1× nothing breaks: the world runs slower than the wall, the site plays the
+stream at its measured pace (rooftop #298), and everything the robots are
+scored on runs on sim time, as the rover pair's weeks at 0.5–0.8× showed.
+The pair is re-measured on the box at #387, once it is served for real; a
+faster box is the lever if the slow playback ever matters, and the EPYC
+above is what one buys.
 
 **What is true now:** the scan is one `mj_multiRay`, its noise drawn in
 bearing order (`test_the_batched_scan_is_the_scan_it_replaced` pins every
 ray against the per-ray scan); the leg drivers are position-mode
-`dcmotor`s whose gains are `actuator.driver_gains`, one definition that
-`training/` reads from `quadruped.json`, and a policy is refused on
-drivers it was not trained on (`tests/test_legs.py`); the scripted gait
-keeps torque motors (`body_xml(drive="torque")`), since it commands torque.
-The served pair's physics thread is now about a third physics, a quarter
-depth camera and a tenth tag camera, and none of the three is cheap to
-cut. A pair is one physics thread, so the lever left is the core: a Zen 4
-core at desktop clocks runs the served pair 1.64× the deploy box's. Which
-server is Ben's decision; the candidates and their prices are on #385.
+`dcmotor`s, commanded as a GDS68 is (`legs/drivers.py`): a policy's command
+carries its own gains, a routine's torque rides a target with the damping
+cancelled and steps as a torque motor does, and `limp()` holds nothing, so
+the policy and the scripted routines share one body (the dock's approach
+does); the default gains are `actuator.driver_gains`, one definition that
+`training/` reads from `quadruped.json` (`tests/test_legs.py`). The served
+pair's physics thread is now about a third physics, a quarter depth camera
+and a tenth tag camera, and none of the three is cheap to cut. A pair is
+one physics thread, so the lever left is the core, and the box keeps its
+core for now (above).
 
 ## Debugging workflow that worked
 
