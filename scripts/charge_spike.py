@@ -63,8 +63,7 @@ def run_one(across: float, dyaw_deg: float, blind: bool) -> dict:
   mujoco.mj_forward(model, d)
   r = mission.swap.reckoner
   r.x, r.y, r.theta = sx, sy, hd
-  r.update(float(d.qpos[mission.swap.left_adr]),
-           float(d.qpos[mission.swap.right_adr]))
+  r.update(*mission.swap.encoders())
   mission._drive(1.0, 0.0, 0.0)           # settle
   if blind:
     # what go_charge did before issue #32: face + refine in the believed

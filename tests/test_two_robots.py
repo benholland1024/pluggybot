@@ -52,10 +52,15 @@ def _subtree_hash(model, data, handle: RobotHandle):
   return np.concatenate([data.xpos[ids].ravel(), data.xquat[ids].ravel()]).tobytes()
 
 
-def test_a_parked_second_robot_leaves_the_first_robots_trajectory_byte_identical():
+def test_a_parked_second_robot_leaves_the_first_robots_trajectory_byte_identical(monkeypatch):
   """The parity claim at test scale. MuJoCo 3.10's solver is island-
   separable, so an extra robot resting on the floor changes nothing in the
-  first robot's numbers -- measured near and far before this was built."""
+  first robot's numbers -- measured near and far before this was built.
+  The SOLVER's claim: a robot parked in view hides the walls behind it from
+  the first robot's scan, and matched (#386) a scan is the belief."""
+  from pluggybot.mission import mission as mission_mod
+  monkeypatch.setattr(mission_mod, "SCAN_MATCH", False)
+
   def fly(model):
     data = mujoco.MjData(model)
     m = HubMission(model, data, viewer=None, realtime=False)
@@ -82,7 +87,8 @@ def test_the_second_robot_drives_through_its_handle_and_the_first_stays_put():
   assert second.face(1.2)
   assert float(data.qpos[q]) - x0 > 0.2, "the second robot did not move"
   assert abs(second.pose[2] - 1.2) < 0.05
-  assert abs(first.pose[0] - 0.5) < 1e-6 and abs(first.pose[1] - 3.0) < 1e-6
+  # its belief to its scans' millimetres: the other robot moved in its view (#386)
+  assert abs(first.pose[0] - 0.5) < 0.01 and abs(first.pose[1] - 3.0) < 0.01
   # the first robot's bodies did not move while the second drove (it was
   # held by its own brake; the hash is over its whole subtree)
   after = _subtree_hash(model, data, FIRST)

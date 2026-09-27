@@ -70,6 +70,21 @@ curve), which would cap the robot near a walk.
 holding the arm out, cannot push itself up from its belly or up a 0.12 m
 curb, and its whole leg (0.17 m) is shorter than a house's riser.
 
+### The IMU and the encoders, as the robot reads them (#386)
+
+Both bodies carry the same IMU, and neither is told the sim's exact angles
+or rates: `perception/imu.py` and `perception/encoders.py` give every
+reading the part's own error, each number from its sheet or a stated range.
+
+| part | what the sim adds | from |
+|---|---|---|
+| IMU: TDK **ICM-42688-P** | gyro 0.0028 °/s/√Hz white noise; accelerometer 65 µg/√Hz (x, y), 70 (z) | DS-000347 rev 1.9, Tables 1–2 (tested in production) |
+| | the offset left after the boot calibration: ±0.005 °/s/°C (gyro) and ±0.15 mg/°C (accel) over `TEMP_SWING_C` = 10 °C — ±0.05 °/s and ±1.5 mg, drawn per axis | the sheet's variation over temperature (characterised); the 10 °C swing is a stated choice. The initial ±0.5 °/s and ±20 mg are what the calibration removes |
+| | scale ±0.5 % per axis, gyro and accelerometer | the sheet's initial tolerance (tested in production) |
+| | not modelled: cross-axis (±1.25 % gyro, ±1 % accel), nonlinearity (±0.1 %) | small against rates that average out on a near-level body |
+| rover wheel encoders | whole counts, 3200 a wheel turn | Pololu #4753 (64 CPR × 50) |
+| leg joints (GDS68, MIT mode) | position in 16 bits over ±12.5 rad (0.38 mrad), velocity in 12 bits over ±65 rad/s (32 mrad/s), on top of the gearbox backlash | the MIT protocol's fields; the ranges are the driver's settings, unpublished — stated as the protocol's defaults in Katz's firmware, the velocity range above the joint's 31.4 rad/s no-load speed |
+
 ### The dock (#378)
 
 The robot charges by lying down onto a cradle (`pluggybot.legs.dock`, flown
@@ -144,9 +159,9 @@ pessimistic 5× for a Cortex-A76, came to ~78 ms per perception cycle.
   "Physics modeling rules"; stall torque 2.06 N·m and no-load 20.9 rad/s are
   the motor actuator's `forcerange` / `ctrlrange` and `power.STALL_TORQUE` /
   `NOLOAD_SPEED`; 5.5 A stall / 0.2 A no-load are `power.STALL_A` /
-  `NOLOAD_A`. The 64 CPR encoder (3200 CPR at the output) has no model yet
-  — odometry is perfect-encoder today. 6 mm D-shaft, which sets the wheel
-  choice below.
+  `NOLOAD_A`. The 64 CPR encoder (3200 CPR at the output) is
+  `perception/encoders.WHEEL_COUNTS_PER_REV`: the reckoner counts whole
+  counts (#386). 6 mm D-shaft, which sets the wheel choice below.
 
 Runner-up, not selected: the 30:1 sibling (#4752, same price; 330 rpm /
 1.37 N·m) — passed over for the 50:1's push force, because speed is a low

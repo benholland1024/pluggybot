@@ -229,6 +229,7 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/experiment.py` | the harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts. Re-run after anything that changes what an errand does |
+| `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the rover's (`run_demo`) or the quadruped's (the walking policy steered by the truth, two estimates on one walk), and whether the lab door is open in the robot's own map; `--no-match` is the day on odometry alone |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
@@ -960,11 +961,35 @@ tolerance spikes are listed in `docs/Rover.md`.
   are Rover.md): every TERMINAL LOOP has a budget and an explicit answer — an
   empty pack does not stop the body and the guards run between errands, so an
   unbounded loop drains it, and a bound is not a recovery; dead reckoning is
-  corrected in ONE place, at the dock, snapped to the COMMISSIONED PRIOR,
-  never the belief (anchored to the belief, the error tracked itself 0.003 →
-  0.344 m over four sim-hours); a reading goes into the map only while the
-  body is LEVEL — on its side a LIDAR paints the sky into a map that outlives
-  the stand-up.
+  anchored at the dock to the COMMISSIONED PRIOR, never the belief (anchored
+  to the belief, the error tracked itself 0.003 → 0.344 m over four
+  sim-hours), and otherwise corrected only by the scan matcher (below); a
+  reading goes into the map only while the body is LEVEL — on its side a
+  LIDAR paints the sky into a map that outlives the stand-up.
+- **Every level scan is matched against the robot's own map before it is
+  fused, and the matched pose IS the belief** — what the map is laid
+  through, the planner plans from and the other robot is told (issue #386;
+  `mapping/scan_match.py`, `HubMission._match`; SimNotes, "The map stays
+  true under drift"). Gauss–Newton on the map's signed distance, and every
+  piece's measured failure is at its constant: odometry is a ROBUST prior
+  (held plainly, a wheel pump ran the pose 3.4 m); a direction the walls do
+  not fix keeps odometry's estimate; a fit the map disagrees with is
+  searched round (±0.6 m, ±6°) and refused if nothing agrees; a refused or
+  slid scan is NOT FUSED, and a scan is fused only once the robot has moved
+  or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
+  ⚠ No BLAS product (einsum's own loop); the field is kept state.
+  ⚠ `mission.SCAN_MATCH` is a measurement's switch, never a deployment's.
+- **The sensors that feed an estimate are the parts', never the sim's**
+  (issue #386; `perception/imu.py`, `perception/encoders.py`, Parts.md's
+  table): an ICM-42688-P on both bodies, whole counts on the rover's
+  wheels, the GDS68's CAN fields on the legs, the quadruped's tilt off its
+  IMU (`imu.Attitude`); one noise stream per robot, kept across a restart.
+  The sim's own checks (`true_pose`, deaths, traces) read the truth and
+  never feed a belief; the one stand-in left is the rover's map gate (its
+  tilt off the pose), and it goes with the rover. ⚠ The quadruped enters a
+  world through `legs.model.attachable()`: the include form has no
+  `<compiler>`, MuJoCo read its joint ranges in DEGREES, and the stand
+  threw it 0.4 m up.
 - **Contact params combine as the elementwise MAX unless `priority` is set** —
   a low `friction` without `priority="1"` does nothing.
 - **The robot's cameras render without MSAA** (`offsamples="0"`, issue #110):

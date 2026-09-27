@@ -127,6 +127,14 @@
      "value": 21,
      "unit": "rad/s",
      "note": "the no-load speed, rounded"
+    },
+    {
+     "constant": "perception.encoders.WHEEL_COUNTS_PER_REV",
+     "where": "code",
+     "value": 3200,
+     "unit": "counts",
+     "note": "the encoder the reckoner counts: 64 a motor turn, x 50 (#386)",
+     "expect": 3200
     }
    ],
    "why": {},

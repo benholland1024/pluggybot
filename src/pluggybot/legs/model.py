@@ -355,7 +355,9 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
               pos="0 0 0.04" mass="{_f(min(0.02, budget.scanner))}" rgba="0.3 0.3 0.3 1"/>
         <geom name="lidar" class="visual" type="cylinder" size="0.0378 0.0205"
               pos="0 0 0.1" mass="{_f(budget.scanner - min(0.02, budget.scanner))}" rgba="0.05 0.05 0.05 1"/>
-        <site name="lidar" pos="0 0 0.1" size="0.005"/>
+        <!-- 6 mm above the puck, as the rover's: cast from inside the
+             housing, every ray hit the housing (#386). -->
+        <site name="lidar" pos="0 0 0.1265" size="0.005"/>
       </body>
       <body name="depth_cam_body" pos="{_v(tx + 0.012, 0, 0.0)}" euler="0 0.5236 0">
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
@@ -445,6 +447,19 @@ def training_constants(spec: BodySpec = CHOSEN) -> dict:
     "bus_v_range": list(act.BUS_V_RANGE),
     "backlash_rad": act.BACKLASH_RAD,
   }
+
+
+def attachable(spec: BodySpec = CHOSEN, **kw):
+  """The robot as an `MjSpec` to attach into another world, its angles in
+  RADIANS. The include form carries no `<compiler>`, and parsed on its own
+  MuJoCo reads a joint's range in degrees: attached into the home world
+  so, the knee's -2.75..-0.35 rad became -0.048..-0.006 and the stand threw
+  the robot 0.4 m into the air (#386)."""
+  import mujoco
+  xml = body_xml(spec, standalone=False, **kw)
+  xml = xml.replace("<mujocoinclude>",
+                    '<mujoco>\n  <compiler angle="radian" autolimits="true"/>')
+  return mujoco.MjSpec.from_string(xml.replace("</mujocoinclude>", "</mujoco>"))
 
 
 def write_body(path: str = MODEL_XML, spec: BodySpec = CHOSEN) -> None:

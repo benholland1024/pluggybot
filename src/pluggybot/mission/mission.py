@@ -52,6 +52,7 @@ from pluggybot.rack.swap import (
 from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
+from pluggybot.mapping.scan_match import ScanMatcher
 from pluggybot.perception.lidar import (
   LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, robot_geoms,
 )
@@ -107,6 +108,10 @@ FACING_TOLERANCE = math.radians(0.5)
 #: out. A skipped scan costs a tenth of a second of map; a wrong one costs
 #: the map. The reflex still reads every scan.
 MAP_TILT_RAD = math.radians(1.5)
+#: Whether a scan is aligned against the map before it is fused (issue
+#: #386, `mapping/scan_match.py`). A measurement's switch, never a
+#: deployment's: `scripts/drift_spike.py` flies the same day both ways.
+SCAN_MATCH = True
 SWAP_TIMESTEP = 0.001     # mm-scale peg/V contacts (the spike's floor)
 #: Swaps on SWAP_TIMESTEP, per MODEL (issue #264). The step is the model's
 #: and a pair shares one: the first robot out of its swap used to put the
@@ -495,6 +500,11 @@ class HubMission:
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
                               resolution=0.05)
+    #: Each scan aligned against the map before it is fused (issue #386);
+    #: None flies on odometry alone, as every day did before it.
+    self.matcher = (ScanMatcher(self.grid, origin=LIDAR_ORIGIN,
+                                max_range=self.lidar.max_range)
+                    if SCAN_MATCH else None)
     self.tags = TagSpotter(model, handle=handle)
     self.cruise_timestep = model.opt.timestep
     self.backoff_until = 0.0
@@ -581,6 +591,8 @@ class HubMission:
     where the rack is and what it has seen of it, the map, and the clocks
     its sensors run on. JSON, and the grid as an array."""
     r, sw = self.swap.reckoner, self.swap
+    match, match_arrays = (self.matcher.kept_state() if self.matcher is not None
+                           else (None, {}))
     finder = self.finder or self._closed_finder
     marks = ([] if finder is None else
              [[lm.x, lm.y, lm.z, lm.n_sightings, lm.seen_from_x,
@@ -599,8 +611,9 @@ class HubMission:
              "lidarRng": [self.lidar.rng.bit_generator.state,
                           self.lidar.peer_rng.bit_generator.state],
              "press": {"pressing": sw.pressing, "side": sw._press_side,
-                       "until": sw._press_until}},
-            {"grid": self.grid.grid})
+                       "until": sw._press_until},
+             "imu": sw.imu.kept_state(), "match": match},
+            {"grid": self.grid.grid, **match_arrays})
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
     """Put `kept_state` back, into a world whose bodies are where it was
@@ -639,6 +652,12 @@ class HubMission:
     self.swap.pressing = bool(press.get("pressing", False))
     self.swap._press_side = float(press.get("side", 0.0))
     self.swap._press_until = float(press.get("until", -1.0))
+    # ...and the sensors a save before #386 did not have: a fresh draw
+    # then, and a field computed off the restored map at the first scan
+    if state.get("imu"):
+      self.swap.imu.restore_kept(state["imu"])
+    if self.matcher is not None and state.get("match") and mapped:
+      self.matcher.restore_kept(state["match"], arrays)
     return mapped
 
   def _on_step(self) -> None:
@@ -746,7 +765,7 @@ class HubMission:
     mujoco.mj_forward(self.model, d)
     r = self.swap.reckoner
     r.x, r.y, r.theta = x, y, yaw
-    r.update(float(d.qpos[self.swap.left_adr]), float(d.qpos[self.swap.right_adr]))
+    r.update(*self.swap.encoders())
     self._drive(1.0, 0.0, 0.0)
 
   # ---- navigation plumbing -------------------------------------------------
@@ -809,8 +828,14 @@ class HubMission:
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
       if self.level():
-        self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                         origin=LIDAR_ORIGIN)
+        m = self._match(angles, ranges)
+        if m is None or self.matcher.fuses(m, self.data.time):
+          self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
+                           origin=LIDAR_ORIGIN)
+          if m is not None:
+            self.matcher.fused(self.pose, self.data.time)
+      elif self.matcher is not None:
+        self.matcher.fuse_next()
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))
@@ -831,6 +856,19 @@ class HubMission:
       others = np.where(g[mine, 0] == self.chassis_gid, g[mine, 1], g[mine, 0])
       if not np.isin(others, self._pin_gids_array).all():
         self.collision_steps += 1
+
+  def _match(self, angles, ranges):
+    """Align the scan with the map it is about to go into (issue #386) and
+    move the belief to where the walls put it: the pose the map is laid
+    through, the planner plans from and the other robot is told. The match,
+    or None with no matcher."""
+    if self.matcher is None:
+      return None
+    m = self.matcher.match(self.pose, angles, ranges)
+    if m.accepted:
+      r = self.swap.reckoner
+      r.x, r.y, r.theta = m.pose
+    return m
 
   def _spin(self) -> None:
     return self.run(self._spin_routine())

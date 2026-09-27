@@ -10,6 +10,36 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The map stays true under drift (#386) — opens when this PR is deployed
+
+**What changed.** Both rovers' odometry reads its parts' errors now: whole
+encoder counts and an ICM-42688-P gyro with its datasheet's noise, the
+offset its boot calibration leaves and its scale error. And every level
+LIDAR scan is matched against the robot's own map before it is fused: the
+matched pose is the belief, the pose the planner plans from and the pose
+the other robot is told (SimNotes, "The map stays true under drift"). A
+fit the map disagrees with is searched round (±0.6 m, ±6°) and refused
+if nothing agrees, a refused scan is not fused, and a robot standing still
+fuses one every 5 s. Nothing on the wire, in the prompt or in the economy
+moved.
+
+**What the period is for.**
+
+- **Does a map keep one copy of each wall.** Flown, a day of lab trips
+  kept the pose within centimetres in the house and ~0.3 m in the lab
+  (odometry alone lost the lab), and the lab door open in the robot's own
+  map. A week of trips, restarts and stand-ups has not been flown.
+- **The drive causes** (#350): a `no route` on the lab's way was the
+  honest gyro's drift in the flights without the matcher; it should not be
+  a reason the live world gives.
+- **What still loses a robot.** The feed plate's wheel pump is absorbed,
+  and a pose left past the fit's reach is found by the search; a stand-up,
+  a restart mid-errand and the other robot in view (kept out of the map,
+  as before) have not been measured against the matcher.
+
+**Not yet known.** The matcher's verdicts are not on the wire: a period
+that finds a lost robot reads it off the drive causes and the map image.
+
 ### The verbs get there (#353) and the challenges pay double (#355) — opens when this PR is deployed
 
 **Two changes in one period, on purpose: the first makes both challenges

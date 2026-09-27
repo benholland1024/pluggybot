@@ -262,6 +262,9 @@ PARTS: tuple[Part, ...] = (
            "torque", expect=5.5),
       code("power.NOLOAD_A", "A", expect=0.2),
       code("power.NOLOAD_SPEED", "rad/s", "the no-load speed, rounded"),
+      code("perception.encoders.WHEEL_COUNTS_PER_REV", "counts",
+           "the encoder the reckoner counts: 64 a motor turn, x 50 (#386)",
+           expect=3200),
     ),
     note="Passed over: the 30:1 sibling (#4752, same price) -- push force "
          "over top speed. The motor has no geom of its own; its 205 g is "

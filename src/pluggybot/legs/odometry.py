@@ -5,22 +5,24 @@ A foot on the ground does not slide, so the torso's velocity is minus the
 contact point's velocity relative to the torso: v = -(J(q) q' + w x r(q)),
 corrected for the ball foot's roll, over the feet in stance that agree with
 the last estimate; J and r are the leg's kinematics at the MEASURED joint angles
-(a scratch copy of the model, torso at the origin). Heading
-integrates the gyro; roll and pitch come from the gravity reference and do
-not drift. The estimate is only as good as the parts:
+(a scratch copy of the model, torso at the origin). The orientation is the
+IMU's own (`perception/imu.Attitude`): roll and pitch pulled to the
+accelerometer's gravity, so they do not drift, and the heading integrated
+off the gyro, so it does. The estimate is only as good as the parts:
 
   encoders      the output shaft is known to within the gearbox's backlash,
                 15 arcmin (both Steadywin tables): uniform in +-half of it,
-                redrawn each step. The 14-bit encoder itself is ~50 urad.
-  gyro          ICM-42688-P: white noise 2.8 mdps/sqrt(Hz) (TDK); the bias
-                instability is NOT published, so a constant residual bias
-                after calibration, +-`GYRO_BIAS_DPS` (a stated choice).
+                redrawn each step; and the driver reports it over CAN in
+                whole counts of its 16-bit field, the speed in its 12-bit
+                one (`perception/encoders.py`, issue #386).
+  IMU           an ICM-42688-P's noise, calibration residue and scale error,
+                on all three axes of both parts (`perception/imu.py`).
   contact       read off current, not a switch: ODRI measured a current-
                 based estimate lagging the truth by ~31 ms (Grimminger 2020),
                 so the sim's contact is delayed by `CONTACT_LAG_S`.
 
-Nothing in the served sim reads it yet; #381 builds on the numbers
-`scripts/quad_spike.py --odometry` measures.
+Nothing in the served sim reads it yet; #387 puts it there, corrected by
+scan matching (`mapping/scan_match.py`, `scripts/drift_spike.py`).
 """
 
 import math
@@ -30,14 +32,10 @@ import numpy as np
 
 from pluggybot.legs.actuator import BACKLASH_RAD
 from pluggybot.legs.model import JOINT_NAMES, LEGS
+from pluggybot.perception.encoders import LEG_POSITION_LSB, LEG_VELOCITY_LSB, quantised
+from pluggybot.perception.imu import Attitude, Imu
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
-#: ICM-42688-P gyro noise density, rad/s/sqrt(Hz) (TDK: 2.8 mdps/sqrt(Hz)).
-GYRO_NOISE = math.radians(2.8e-3)
-#: Residual gyro bias after a calibration, deg/s: unpublished for this part
-#: (the BMI088 publishes a +-1 deg/s zero-rate offset BEFORE calibration and
-#: 0.015 deg/s/K of drift); a stated choice, randomised in +-it.
-GYRO_BIAS_DPS = 0.05
 #: How late a foot's contact is known, s (ODRI's current-based estimate).
 CONTACT_LAG_S = 0.031
 #: A flagged foot whose contact point rises faster than this, relative to the
@@ -57,6 +55,10 @@ class LegOdometry:
   def __init__(self, model, data, seed: int = 0, prefix: str = ""):
     self.m, self.d = model, data
     self.rng = np.random.default_rng(seed)
+    #: The IMU (issue #386), its own stream off the robot's prefix and the
+    #: seed; its accelerometer is the model's.
+    self.imu = Imu(f"{prefix}quad:{seed}")
+    self.acc_adr = int(model.sensor(f"{prefix}imu_lin_acc").adr[0])
     self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
     ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
     self.qadr = np.array([model.jnt_qposadr[j] for j in ids])
@@ -73,11 +75,12 @@ class LegOdometry:
     #: The robot's free joint in qpos, by name: a world may carry jointed
     #: bodies before it (#378).
     self.qroot = int(model.jnt_qposadr[model.body_jntadr[self.root]])
-    self.bias = math.radians(GYRO_BIAS_DPS) * self.rng.uniform(-1, 1)
     self.lag = max(1, round(CONTACT_LAG_S / model.opt.timestep))
     self.history: list[np.ndarray] = []
     self.x, self.y, self.z = (float(v) for v in data.qpos[self.qroot:self.qroot + 3])
-    self.yaw = self._true_yaw()
+    #: The orientation as the IMU says it, from the one the body starts in.
+    self.att = Attitude(data.xquat[self.root])
+    self.yaw = self.att.yaw()
     self.distance = 0.0
     #: The body's velocity estimate, body frame, and the steps it has been
     #: held with no foot agreeing.
@@ -103,14 +106,16 @@ class LegOdometry:
     if len(self.history) > self.lag:
       self.history.pop(0)
     stance = self.history[0]
-    # Measured joints: the output within the backlash band.
+    # Measured joints: the output within the backlash band, in the
+    # driver's counts.
     half = BACKLASH_RAD / 2
-    q = d.qpos[self.qadr] + self.rng.uniform(-half, half, 12)
-    qd = d.qvel[self.vadr]
-    # Measured body rate (the gyro reads in the body frame).
-    w_body = d.qvel[self.fa + 3:self.fa + 6]
-    w_meas = w_body + self.rng.normal(0, GYRO_NOISE / math.sqrt(dt), 3)
-    w_meas[2] += self.bias
+    q = quantised(d.qpos[self.qadr] + self.rng.uniform(-half, half, 12),
+                  LEG_POSITION_LSB)
+    qd = quantised(d.qvel[self.vadr], LEG_VELOCITY_LSB)
+    # Measured body rate and specific force (both in the body frame), and
+    # the orientation they say.
+    w_meas = self.imu.gyro(d.qvel[self.fa + 3:self.fa + 6], dt)
+    self.att.step(w_meas, self.imu.accel(d.sensordata[self.acc_adr:self.acc_adr + 3], dt), dt)
     # Leg kinematics at the measured angles, torso at the origin, level.
     k = self.kin
     k.qpos[:] = m.qpos0
@@ -120,9 +125,8 @@ class LegOdometry:
     k.qvel[self.vadr] = qd
     mujoco.mj_kinematics(m, k)
     mujoco.mj_comPos(m, k)
-    # Roll and pitch from gravity (bounded, no drift); yaw integrates.
-    rot = d.xmat[self.root].reshape(3, 3)
-    up = rot.T @ np.array([0.0, 0.0, 1.0])     # the floor's normal, body frame
+    rot = self.att.matrix()
+    up = rot[2, :]                             # the floor's normal, body frame
     vs = []
     for i, sid in enumerate(self.feet_site):
       if not stance[i]:
@@ -157,18 +161,21 @@ class LegOdometry:
       if self.held > 2 * self.lag and vs:
         self.v = np.median(vs, axis=0)
         self.held = 0
-    yaw_true = self._true_yaw()
-    level = np.array([[math.cos(yaw_true), math.sin(yaw_true), 0],
-                      [-math.sin(yaw_true), math.cos(yaw_true), 0],
-                      [0, 0, 1]]) @ rot   # the torso's tilt, heading removed
-    self.yaw += float((rot @ w_meas)[2]) * dt
-    v = level @ self.v
+    self.yaw = self.att.yaw()
+    v = self.att.level() @ self.v             # the torso's tilt, heading removed
     c, s = math.cos(self.yaw), math.sin(self.yaw)
     self.x += (c * v[0] - s * v[1]) * dt
     self.y += (s * v[0] + c * v[1]) * dt
     self.z += v[2] * dt
     true_v = d.qvel[self.fa:self.fa + 2]
     self.distance += float(np.hypot(*true_v)) * dt
+
+  def correct(self, x: float, y: float, yaw: float) -> None:
+    """A pose from outside the legs (a scan match, the dock): the position
+    and the heading, the tilt left to the IMU."""
+    self.x, self.y = float(x), float(y)
+    self.att.turn(float(yaw) - self.yaw)
+    self.yaw = self.att.yaw()
 
   def error(self) -> tuple[float, float]:
     """(position error, m; heading error, rad) against the truth."""

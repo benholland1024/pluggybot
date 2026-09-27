@@ -109,6 +109,9 @@ def test_a_stalled_drive_still_pumps_without_the_bumper_rule(monkeypatch):
   from pluggybot.rack.swap import HubSwap
   monkeypatch.setattr(HubSwap, "_pressing", lambda self: False)
   mission = home_mission()
+  # ...and the scans' matching (#386), which absorbs the pump as well (the
+  # belief came within 16 mm of the truth): the premise is the bumper rule's
+  mission.matcher = None
   try:
     true_m, believed_m = press_the_fence(mission)
     assert believed_m - true_m > 2.0, (true_m, believed_m)

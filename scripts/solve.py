@@ -140,7 +140,7 @@ def claw_in_hand_at_the_row(life, stand=(-10.2, -4.75, math.pi)) -> None:
   mujoco.mj_forward(model, data)
   r = swap.reckoner
   r.x, r.y, r.theta = x, y, yaw
-  r.update(float(data.qpos[swap.left_adr]), float(data.qpos[swap.right_adr]))
+  r.update(*swap.encoders())
   swap._run(1.0, 0.0)
   m.start_discovery()
   m._spin()
