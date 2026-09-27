@@ -8,7 +8,7 @@ mission N times in separate processes and, in each, hashes:
 
   step    qpos + qvel + ctrl every TRACE_EVERY_S of sim time
   tag     each TagDetector.detect: the rendered camera image, and the decode
-  lidar   each Lidar.scan: the ranges
+  lidar   each Lidar.scan_split: the bearings and ranges, room and peers
   say     every narration line
 
 then aligns the traces and reports the first step whose state differs and
@@ -84,14 +84,18 @@ def child(cfg: dict, trace_path: Path) -> None:
 
   tags.TagDetector.detect = detect
 
-  real_scan = lidar_mod.Lidar.scan
+  # `scan_split`, which `scan` calls too: the mission casts through it
+  # (issue #316), so hooking `scan` logged no lidar rows at all.
+  real_scan = lidar_mod.Lidar.scan_split
 
-  def scan(self, data):
-    angles, ranges = real_scan(self, data)
-    log(k="lidar", t=round(float(data.time), 4), h=_h(ranges), n=int(len(ranges)))
-    return angles, ranges
+  def scan_split(self, data):
+    out = real_scan(self, data)
+    log(k="lidar", t=round(float(data.time), 4),
+        h=_h(np.concatenate([out[0], out[1], out[2], out[3]])),
+        n=int(len(out[1])), peers=int(len(out[3])))
+    return out
 
-  lidar_mod.Lidar.scan = scan
+  lidar_mod.Lidar.scan_split = scan_split
 
   state = {"next": 0.0}
 

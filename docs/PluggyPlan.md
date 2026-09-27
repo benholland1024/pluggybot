@@ -142,7 +142,7 @@ rest carries over.
 |---|---|
 | Body interface | `body.py` (#380): everything the day loop and the procedure verbs may ask of a body, and the only way they reach one; the command a routine yields is the body's own; a `StubBody` carries the loop's bookkeeping in tests |
 | Body † | the wheeled rover (`docs/Rover.md`; `mission/rover.py` implements the interface) until a ~10 kg quadruped with a two-joint arm replaces it on the deployed world (#375) |
-| Ranging † | 2D scanning LIDAR (`perception/lidar.py`): 360 `mj_ray` casts at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
+| Ranging † | 2D scanning LIDAR (`perception/lidar.py`): 360 ray casts (one `mj_multiRay`) at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
 | Near field † | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
 | Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`) |
 | Odometry † | dead reckoning from wheel encoders + gyro, anchored at the dock (issue #42), held during presses (#94) |
