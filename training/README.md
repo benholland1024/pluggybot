@@ -30,9 +30,14 @@ uv run python scripts/quad_spike.py --determinism
 ```
 
 **Tasks:** `Pluggy-Quad-Flat` (walking on flat ground) and
-`Pluggy-Quad-Rough` (stairs up and down to 0.20 m risers on a 0.28 m tread,
-blocks to 0.15 m, rough ground, slopes; blind — the critic sees the terrain,
-the actor does not).
+`Pluggy-Quad-Rough` (stairs, blocks to 0.15 m, rough ground, slopes; blind —
+the critic sees the terrain, the actor does not), `-Perceptive` with the
+actor shown the height scan. The stairs (#388) are flights of eight on a
+0.28 m tread, risers from 0.10 to 0.26 m across the ten levels (the house's
+0.18 in the middle); on a stair tile most commands walk straight out along a
+flight (`quad_train/stairs.py`), because a robot is promoted for ending an
+episode 4 m from its tile's centre and a turning, sidestepping command seldom
+gets it there. `Pluggy-Quad-Getup` and `Pluggy-Quad-Posture` are SimNotes'.
 
 ⚠ **The GPU is shared** with the test suite, whose EGL renderers hold 3–4 GB
 of a 6 GB card: stay at ≤ 2048 environments while it runs, or take
