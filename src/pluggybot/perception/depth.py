@@ -63,6 +63,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import control
+from pluggybot.power import DEPTH_CAMERA_W
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -146,6 +147,10 @@ class DepthFrame:
 
 class DepthCamera:
   """D435-class depth camera over MuJoCo ray casts, from a camera element."""
+
+  #: What it draws while it streams, W (the loop adds it to the pack's load
+  #: whenever the camera is on).
+  draw_w = DEPTH_CAMERA_W
 
   def __init__(self, model, handle: RobotHandle = FIRST,
                camera_name: str = CAMERA, width: int = WIDTH,

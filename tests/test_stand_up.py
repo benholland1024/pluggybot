@@ -309,7 +309,9 @@ def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working(monkeypatch
     life.body.mission._drive(0.2, 0.0, 0.0)
     assert life.tool_powered, "the seam did not see the seated module"
     bay_y = STATION_YS[life.rack_inventory[life.module]]
-    life.peers = [SimpleNamespace(body=SimpleNamespace(swapping_at=bay_y))]
+    life.peers = [SimpleNamespace(home_pose=None,       # far from any start
+                                  body=SimpleNamespace(swapping_at=bay_y,
+                                                       footprint_centre=lambda: (9.0, 9.0)))]
     life._die("flat", "the pack reached zero")
     life.stand_up(lc.AUTO_RESTART_BY, auto=True)
     assert life.dead is None
@@ -494,3 +496,36 @@ def test_the_rule_names_stood_up_and_who_and_shows_no_rule_for_it():
   assert "`timer`" in line and "`admin`" in line
   assert not any("stood_up" in ln for ln in rule.splitlines() if "->" in ln)
   assert "stood back up" in ov.MORTAL_RULE
+
+
+# ---- never onto another robot ------------------------------------------------
+
+
+def test_a_stand_up_never_lands_on_another_robot():
+  """#387: a stand-up is a warp, and a warp INTO another robot's body is an
+  overlap the solver throws both out of. It takes the first commissioned
+  start no robot's body is on (`up_pose`) -- the other's, with two -- and
+  waits only while every one is taken. Stub bodies: the rule is where it
+  puts the robot."""
+  from pluggybot.body import StubBody
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  a_body, b_body = StubBody(), StubBody()
+  a = stub_life(body=a_body, mortal=True, restart_after_s=TIMER_S)
+  b = stub_life(body=b_body, robot_name="Rowan")
+  a.peers, b.peers = [b], [a]
+  a.home_pose, b.home_pose = (1.0, 1.0, 0.0), (4.0, 1.0, 0.0)
+  a_body.x, a_body.y = 2.5, 3.0
+  b_body.x, b_body.y = 1.3, 1.1                   # Rowan on the dead robot's start
+  a.battery.energy_wh = 0.0
+  a_body.run(a_body.hold_routine(PAST_S))
+  assert a.dead is None, "stood up on time"
+  assert (a_body.x, a_body.y) == (4.0, 1.0), "...on the start that was clear"
+  assert any("Rowan's start pose" in line for line in a.log)
+  # ...and with EVERY start taken, it waits, then goes home once it is clear
+  b.home_pose = (1.5, 1.0, 0.0)
+  a.battery.energy_wh = 0.0
+  a_body.run(a_body.hold_routine(PAST_S))
+  assert a.dead is not None, "no clear start: still down past the timer"
+  b_body.x, b_body.y = 6.0, 6.0
+  a_body.run(a_body.hold_routine(0.5))
+  assert a.dead is None and (a_body.x, a_body.y) == (1.0, 1.0)

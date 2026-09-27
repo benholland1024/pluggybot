@@ -39,12 +39,14 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
-from pluggybot.legs.model import (CHOSEN, LEGS, PUPPER_CLASS, PUPPER_WITH_SUITE, attachable,  # noqa: E402
-                                  BodySpec, body_xml, lie_qpos, pose_qpos)
+from pluggybot.legs.model import (CHOSEN, ELECTRONICS_W, LEGS, PUPPER_CLASS,  # noqa: E402
+                                  PUPPER_WITH_SUITE, BodySpec, attachable, body_xml,
+                                  pose_qpos)
 from pluggybot.legs.odometry import LegOdometry  # noqa: E402
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
 from pluggybot.legs.scan import MapScan  # noqa: E402
 from pluggybot.legs.scripted import Command, VirtualModel, _quat_rpy  # noqa: E402
+from pluggybot.legs import posture as moves  # noqa: E402
 
 #: The climbs: a curb and a house stair's riser (#280's world builds both).
 CURB_M, RISER_M = 0.12, 0.18
@@ -283,11 +285,9 @@ def power_row(spec: BodySpec, act: Activity) -> dict:
   }
 
 
-#: The driver's PD for a joint-space move (lying down, folding the legs):
-#: stiff enough to fold a leg under the belly in a second, N*m/rad, N*m*s/rad.
-FOLD_KP, FOLD_KD = 60.0, 1.5
-#: Crouch height the legs fold to before the push up, m.
-FOLD_H = 0.16
+#: The fold's PD and crouch, and the two moves, are the body's own
+#: (`legs/posture.py`, issue #387); the names stay here for the tables.
+FOLD_KP, FOLD_KD, FOLD_H = moves.FOLD_KP, moves.FOLD_KD, moves.FOLD_H
 
 
 class Meter:
@@ -325,44 +325,21 @@ class Meter:
     return (self.copper_j + self.mech_j) / 3600
 
 
-def _ease(s: float) -> float:
-  s = min(max(s, 0.0), 1.0)
-  return 0.5 - 0.5 * math.cos(math.pi * s)
-
-
-def _pd(data, target: np.ndarray) -> np.ndarray:
-  """The driver's own PD toward joint targets (the standalone model: the
-  robot's joints are qpos[7:19])."""
-  return FOLD_KP * (target - data.qpos[7:19]) - FOLD_KD * data.qvel[6:18]
+_ease = moves.ease
 
 
 def lie_down_routine(spec: BodySpec, data, vm: VirtualModel,
                      lower_s: float = 1.2, fold_s: float = 1.0):
-  """Stand -> belly, one torque a physics step: lower under the scripted
-  gait to the fold height, then fold the legs out to the rest pose."""
-  vm.reset()
-  h0, t0 = float(data.qpos[2]), data.time
-  while data.time - t0 < lower_s:
-    s = _ease((data.time - t0) / lower_s)
-    yield vm.torque(Command(height=h0 + s * (FOLD_H - h0)))
-  start, lie, t0 = data.qpos[7:19].copy(), np.array(lie_qpos(spec)), data.time
-  while data.time - t0 < fold_s:
-    yield _pd(data, start + _ease((data.time - t0) / fold_s) * (lie - start))
+  """Stand -> belly on the standalone model (`legs.posture.lie_down_routine`)."""
+  return moves.lie_down_routine(spec, data, vm, moves.Joints.of(vm.m),
+                                lower_s, fold_s)
 
 
 def stand_up_routine(spec: BodySpec, data, vm: VirtualModel,
                      fold_s: float = 1.0, rise_s: float = 1.2):
-  """Belly -> stand: fold the feet under the hips (the belly still takes
-  the weight), then push up under the scripted gait."""
-  start, t0 = data.qpos[7:19].copy(), data.time
-  crouch = np.array(pose_qpos(spec, FOLD_H))
-  while data.time - t0 < fold_s:
-    yield _pd(data, start + _ease((data.time - t0) / fold_s) * (crouch - start))
-  vm.reset()
-  z0, t0 = float(data.qpos[2]), data.time
-  while data.time - t0 < rise_s:
-    s = _ease((data.time - t0) / rise_s)
-    yield vm.torque(Command(height=z0 + s * (spec.stand_height - z0)))
+  """Belly -> stand on the standalone model (`legs.posture.stand_up_routine`)."""
+  return moves.stand_up_routine(spec, data, vm, moves.Joints.of(vm.m),
+                                fold_s, rise_s)
 
 
 def _metered(spec: BodySpec, key: int, routine):
@@ -391,20 +368,6 @@ def lie_down(spec: BodySpec):
   return data.time, meter.wh, meter.peak, resting
 
 
-#: What is powered whatever the legs do, W (Parts.md, "The quadruped body").
-ELECTRONICS_W = {
-  # Pi 5 + two cameras + IMU: the rover's `power.ELECTRONICS_W` less its
-  # LIDAR share. Raspberry Pi publishes no load figure.
-  "compute + cameras": 6.0,
-  # RPLIDAR C1: 230 mA typical at 5 V (Slamtec datasheet rev 1.1).
-  "lidar": 1.15,
-  # RealSense D435 streaming depth with its projector: the rover's
-  # `power.DEPTH_CAMERA_W` (the maker's 3.40 W is depth AND 1080p colour).
-  "depth camera": 2.0,
-  # Twelve GDS68 drivers powered, the maker's standby current (< 10 mA) at
-  # 48 V. An enabled FOC loop at zero torque is unpublished and draws more.
-  "drivers": 12 * 0.48,
-}
 #: Ambient air for the thermal table, C: a warm room; `--thermal` also
 #: flies a hot day.
 AMBIENT_C = (30.0, 40.0)

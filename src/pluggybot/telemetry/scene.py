@@ -325,10 +325,24 @@ def main() -> None:
                            "the pair demo parks it (issue #167): named "
                            "<name>_pair, the scene a two-robot recording "
                            "is replayed in")
+  parser.add_argument("--world", default=None, metavar="NAME",
+                      help="a world by its `world_config` name instead of a "
+                           "model file -- one whose robots are put in at load "
+                           "(`home_quad`, issue #387), named as it is on the "
+                           "wire")
   args = parser.parse_args()
 
   name = Path(args.model).stem
-  if args.pair:
+  if args.world:
+    from pluggybot.lifecycle import world_config
+    from pluggybot.robot import pair_model_name, world_spec
+    cfg = world_config(args.world)
+    spec = world_spec(cfg["model"], second_at=cfg["start2"][:2] if args.pair else None,
+                      body=cfg.get("body", "rover"))
+    model = spec.compile()
+    name = pair_model_name(cfg["model_name"]) if args.pair else cfg["model_name"]
+    args.model = cfg["model"]
+  elif args.pair:
     from pluggybot.lifecycle import world_config
     from pluggybot.robot import pair_model_name, world_with_robots
     cfg = next((c for c in (world_config(w) for w in ("room_hub", "home"))

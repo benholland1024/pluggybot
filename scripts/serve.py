@@ -76,13 +76,13 @@ from pluggybot.economy.cadence import default_cadence
 from pluggybot.evaluation.arms import (
   ARM_ENV, ORIGIN_ENV, RUNGS, RUNG_ENV, arm_flags, origin_for, rung_for,
 )
-from pluggybot.evaluation.record import build_identity
+from pluggybot.evaluation.record import body_identity, build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
-from pluggybot.robot import world_spec
+from pluggybot.robot import BODIES, world_spec
 from pluggybot.lifecycle import (
   LOST_TOOL_S, RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
-  points_ledger, task_board, task_producer, world_config, world_screens,
+  points_ledger, task_board, task_producer, world_config, world_for, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
@@ -115,6 +115,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       default="room_hub",
                       help="which world to serve: room_hub (default) or the "
                            "generated home world (issue #6)")
+  parser.add_argument("--body", choices=BODIES,
+                      default=os.environ.get("PLUGGY_BODY", "rover") or "rover",
+                      help="which body the robots have (issue #387): the "
+                           "wheeled rover, or the quadruped, which lives in "
+                           "the home world as `home_quad` -- no arm yet, so "
+                           "no tool errand. Default $PLUGGY_BODY, then rover")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -191,11 +197,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
                                           "dance", "artwork", "showcase",
                                           "none"),
-                      default="carry",
+                      default=None,
                       help="what the robot is FOR this run (issue #12): carry "
                            "(the milestone-8 LCD errand), draw (fetch the pen, "
                            "erase a whiteboard and draw on it), draw2 (two "
-                           "boards, charging in between), none")
+                           "boards, charging in between), none. Default "
+                           "carry, and none for a body with no arm")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -325,6 +332,18 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       metavar="N", help="hard cap on LLM calls per rolling "
                                         "hour (default 60)")
   args = parser.parse_args()
+  # WHICH BODY (issue #387): the world a body lives in is its own name --
+  # `home` with legs is `home_quad` -- and everything below keys off it, so
+  # the energy table, the menu and the wire's `model` are the body's.
+  try:
+    args.world = world_for(args.world, args.body)
+  except ValueError as e:
+    parser.error(str(e))
+  if args.errand is None:
+    args.errand = "carry" if args.body == "rover" else "none"
+  if args.body != "rover" and (args.errand != "none" or args.errand2 != "none"):
+    parser.error(f"the {args.body} has no arm yet, so no errand that takes a "
+                 "tool: --errand none (and --errand2 none)")
 
   # WHICH ARM (issue #142). Until this, `serve.py` REPORTED an arm and had no
   # way to set one: the identity header read `autonomous` off
@@ -373,7 +392,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # Compiled FROM ITS SPEC and the spec kept (issue #168 slice C), so a
   # tool the agent builds can be hung mid-run; measured identical to
   # `from_xml_path` (tests/test_recompile.py).
-  spec = world_spec(cfg["model"])
+  spec = world_spec(cfg["model"], body=cfg.get("body", "rover"))
   model = spec.compile()
   data = mujoco.MjData(model)
   # Board state is the world's, not the run's: loaded before the mission and
@@ -420,7 +439,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # surfaces. Attached on EVERY served world, overseer or not: a scripted
   # rotation still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution)
+  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
+                            body=cfg.get("body", "rover"))
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.
@@ -562,7 +582,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     constitutions={life.root: memory.constitution.as_dict()},
     # ...and which model LOOKS (issue #275): the mind's own, where the
     # menu offers `look`; absent where it does not.
-    eyes=boss.model if (boss is not None and boss.menu.look) else None)
+    eyes=boss.model if (boss is not None and boss.menu.look) else None,
+    # ...and which BODY, with the policies it walks on (issue #387).
+    body=body_identity(args.world))
   print(f"build: {identity['commit']} / {identity['arm']}"
         + (f" {identity['rung']}" if identity.get("rung") else "")
         + (f" {identity['origin']}" if identity.get("origin") else "")
@@ -811,7 +833,8 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
     # given two, and that is the experiment the library exists for.
     constitutions={life.root: life.thoughts.constitution.as_dict()
                    for life in lives},
-    eyes=boss.model if (boss is not None and boss.menu.look) else None)
+    eyes=boss.model if (boss is not None and boss.menu.look) else None,
+    body=body_identity(args.world))
   print(f"build: {identity['commit']} / {identity['arm']} / PAIR "
         f"{names[0]} + {names[1]}"
         + (f" / {identity['model']} via {identity['backend']}"

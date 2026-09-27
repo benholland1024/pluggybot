@@ -2760,6 +2760,179 @@ match to but do not correct; and the rover's map gate still reads its tilt
 off the pose, the one sensor left that is the sim's (it goes with the
 rover).
 
+## The first quadruped deploy (issue #387)
+
+The body #377 sized, walking on its policy and getting up on its own, put
+into the house the rover lived in (`legs/world.py`: the rover taken out by
+what names it, the quadruped -- or the served pair -- and #378's dock put
+in, the dock's board against the living room's south wall at x 3.5). It is
+a `Body` (`legs/body.py`) over `QuadMission`, a `Navigator`: the map, the
+planner, the drive and the peer rules the rover had, moved out of
+`HubMission` into `navigator.py` whole -- a scripted home day of 1012 sim s
+hashes IDENTICAL against the rover before the move.
+
+**The rest reflex and the posture.** Beneath every command a posture
+machine: `standing` walks what it is told; 8.6 s with no motion command
+(`posture.T_REST_S`, #377's break-even) lies the body down (2.2 s, then a
+second limp to settle); a motion command to a lying body stands it first
+(2.2 s); a torso past 60° (the topple angle every body is judged down at)
+or slumped under 0.20 m for half a second is a fall, and the get-up
+policy drives until it is upright at its height for half a second. The
+lie-down and the stand-up moved from `quad_spike.py` into `legs/posture.py`
+and fly the spike's tables byte for byte.
+
+**Getting up, and the `stuck` death.** Shoved over 48 times in six places
+(the open floor, beside the couch, against the south wall, the hall, the
+kitchen counter, a doorway): 35 falls, 31 up -- median 1.2 s, p95 4.2 s,
+the slowest 13.4 s against the south wall -- and 4 wedged, never up in
+40 s (one upside-down against the couch). So a body that rights itself is
+`stuck` after 20 s down (`QuadBody.stuck_after_s`), not the rover's 2 s,
+and its death line says "fell and could not get up in 20 s".
+
+**The LIDAR's plane is over the furniture.** The quadruped's LIDAR sits on
+a rear mast so its plane clears the stowed arm: 0.506 m up. The couch
+(0.50 m) and the bed (0.40 m) are UNDER it, and a planner fed the LIDAR
+alone routes through both; the rover's plane (0.223 m) saw them. The D435
+on the nose does, so its points between 0.08 and 0.60 m over the floor are
+a layer the planner plans round (`QuadMission._fold_low`,
+`_planning_grid`); the explore's frontiers and the streamed map read the
+same view (`QuadBody.grid`). It is the first thing on the robot that
+decides off the depth camera, and it is NOT the height map: a layer of its
+own, log-odds like the grid. Three rules made it usable, each after it
+shut a door:
+
+- only points within 1.8 m (σ 12 mm): at the part's 3 m range a floor
+  pixel read 5 cm high often enough to leave single obstacle cells in the
+  middle of doorways, and at the inflation's 0.35 m a side a 1.0 m door has
+  0.30 m of plannable width -- one stray cell closes it;
+- three frames of evidence before a cell is an obstacle, and a floor point
+  clears one;
+- never within three cells of what the LIDAR maps: walls are the LIDAR's
+  (and matched, #386), and the camera's view of their bases through a
+  drifting pose only thickened them.
+
+**The planner and the drive, as the house found them.**
+
+- *The front stop sat beyond the planner's clearance.* A centre 0.35 m from
+  a wall puts the rear-mast LIDAR 0.50 m from it, and a 0.64 m stop fired
+  on every waypoint the planner laid along one: a drive toward the
+  bedroom's divider backed off every second for 135 s. It is 0.45 m
+  (the nose 6 cm off), and it tests the CORRIDOR ahead (±0.12 m), not the
+  rover's 0.35 rad cone, which at that range reached 0.15 m out -- a wall
+  alongside at 0.16 m fired it every scan, and the robot backed 2.3 m into
+  a corner.
+- *The dead band made arcs.* The policy walks nothing under ~0.2 m/s
+  (#378), so a small command is raised to 0.25 m/s -- and the rover's
+  driving law crawls while it turns, so raised, the crawl swept 0.25 m
+  arcs into the walls it was turning away from. A crawl with a turn to
+  make is a pivot (`command_for`).
+- *A detour read as a stall.* The rover's drive gives up after 10 s
+  without getting closer to its goal in a straight line; from the
+  bedroom's corner the only way to the hall walks 2.5 m round the divider
+  first, and every such drive "stalled". A quadruped's progress is read
+  along its route (`Navigator.PROGRESS_ALONG_ROUTE`); the rover's is not,
+  and its day is unchanged.
+- *A press reversed into the far wall.* The thighs scraped the kitchen
+  counter's end walking past it; reversing replanned the same scrape until
+  the hind knees met the north wall. A press on a flank steps SIDEWAYS
+  away (`retreat_from`), one on the nose backs off, one on the hind knees
+  steps forward. (The press itself had first fired on the floor: the
+  house's floors are boxes named `*_floor_geom`.)
+- *The explore gave up on reachable floor.* The rover's explorer A*s the
+  20 nearest frontiers and blacklists each failure; the depth layer's
+  small obstacles seal pockets of frontier near the robot, and three such
+  rounds ended the explore with the kitchen and the garden unseen. The
+  quadruped's drops frontiers off its own connected floor before any A*,
+  and blacklists none (`Body.plan_frontier`).
+- *A stand-in replanned every step.* A goal just off the plannable floor
+  is driven to its nearest reachable cell; standing on it, the waypoints
+  run out and the drive replanned every physics step until its stagnation
+  cut -- 4 190 plans in 90 s of a pair, 15 ms each. A plan asked again
+  within 0.5 s from the same spot is the last plan.
+
+With those, a 260 s explore tours the living room, the bedroom, the hall,
+the kitchen, the workshop and both gardens, and the belief ends within a
+few centimetres of the truth (scan matching, #386).
+
+**The planner's sizes.** The body's outline, measured off its geoms:
+standing it reaches 0.38 m from the torso's centre (the hind knees, 0.36 m
+behind it) and 0.20 m to either side; lying, 0.43 m; fallen, 0.63 m from
+the middle of its footprint (worst of 20 random drops). The map's
+inflation stays the rover's 7 cells (0.35 m square on, 0.25 m on a
+diagonal): it covers the half-width, and the body walks forward through a
+door. The disc round another quadruped is 14 cells (its outline lying plus
+this one's half-width), 18 round a fallen one.
+
+**The dock, from the loop.** The approach is #378's (`dock_routine`): turn
+to the dock's heading at the standoff (the walk there arrives facing where
+it came from, and the search turns reach only ±75°), find the board, walk
+in by it, stop, check the line-up, lie down; the pads conduct or it backs
+out and tries again. Lying there, the board anchors the reckoning (a few
+mm); the charger puts 216 W in and the body draws 15 W lying, 201 W net.
+A day that starts low docks first try and charges 35 → 90 % in 198 s on
+the 20 Wh test pack.
+
+**Energy** (`energy_spike.py --world home_quad`, 40 Wh pack): the explore
+draws 84.7 W (6.11 Wh over 260 s) -- the legs' windings and shafts off the
+drivers' own torques (`LegPack`) plus the electronics' 14.9 W; the charge
+is 201.1 W net. No errand rows: the body has no arm. The served pack is
+the real one, 194.4 Wh (twelve P45B cells).
+
+**Speed.** Profiled on a pair, the first cut ran 0.56x real time on the
+dev machine: the replanning storm above, and the legs' odometry at
+0.78 ms a step -- most of it `np.cross` on 3-vectors, replaced by the same
+arithmetic written out (bit-identical over 200 000 random pairs, a tenth of
+the cost). With those and lookups in place of `np.isin` on the physics
+seam, the same day at 0.96x on a quiet dev machine, IDENTICAL end state to
+before. The deploy box's core measured 1.17x the dev machine's (#377).
+
+**The reserve** (`energy_spike.py --world home_quad --reserve`): over the
+rover's worst-case route home (the loop's south-west corner, the sidewalk,
+the gate, the garden door; 44.6 m) the walk costs 2.64 Wh (59 mWh/m, twice
+the rover's) and the dock 0.43 Wh; with one failed docking on top (another
+approach, and the stand-up and lie-down it costs), `legs.world.RESERVE_WH`
+is 3.6 Wh.
+
+**A pair, twice alike -- and what a stand-up did to the other robot.**
+`determinism_spike.py --pair` flies the served pair's day with a fall and a
+death arranged (`pair.arrange_hazards`: the second robot knocked onto its
+side at 40 s and its pack emptied at 120 s; a 30 s restart timer; an inbox
+each, as `serve.py` builds them) and hashes the whole world. The first
+flight hashed IDENTICAL twice and was wrong both times: the timer's
+stand-up placed the second robot with `start_at`, which settled the body by
+stepping the physics for a second on its own -- and for that second the
+first robot, walking in the same loop, ran no policy and no odometry. It
+went over, got up 0.44 m from where it believed it was, found no route to
+the dock and died `stuck`. The quadruped's `start_at` steps nothing now:
+the body settles under the day's next command. (The rover's still settles a
+second, coasting its pair's other rover on its last wheel command; that is
+milder, and changing it moves the rover's parity.) A stand-up also never
+lands on another robot: a start pose with a body within 1.0 m is passed
+over for the next commissioned one (`HubLifecycle.up_pose`). Flown again:
+IDENTICAL over 924 samples to 461.6 s -- the second robot knocked over at
+40 s and up in a second, dead `flat` at 120 s and waiting, stood up at 150
+s and exploring on, lying down by reflex at 260 s once it had nothing to
+do; the first docked at 170 s and charged 11 -> 90 % in 284 s, stood and
+backed off. Nobody else fell. Restarted mid-day (`--resume-at 40
+--battery-fraction 0.45`), a robot saved as it left for the dock (246 s)
+and carried on in a new process is IDENTICAL to the day flown straight
+through over 869 samples: the 115 s walk, the docking, 311 s lying on the
+pins (3 -> 90 %), the stand and the back-off.
+
+**Open: two robots meeting head-on hold for each other.** The re-recorded
+pair fixture has them meet 0.9 m apart just inside the workshop doorway;
+each holds for the other (the rover's #328 rule: a robot is held for, never
+backed away from) for ~66 s, the rest reflex laying each down in turn, until
+a drive's patience runs out and one goes round. It ends by itself; nothing
+yet decides who yields.
+
+**What is true now:** the served world is `home_quad_pair`
+(`serve.py --pair --body quadruped`); the rules above are pinned in
+`tests/test_quadruped.py`; the prompt says where a quadruped charges and
+how it dies in its own words, and nothing about upkeep where there is none
+(`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
+swapped for the quadruped's (`constitution.for_body`, asserted).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

@@ -16,7 +16,8 @@ from pluggybot import tick
 from pluggybot.economy import scoring
 from pluggybot.lifecycle import HubLifecycle
 from pluggybot.mission.errand import Errand
-from pluggybot.mission.mission import DRIVE_GAVE_UP, HubMission, KeepClear, gave_up
+from pluggybot.body import KeepClear
+from pluggybot.mission.mission import DRIVE_GAVE_UP, HubMission, gave_up
 from pluggybot.rack.coupling import HUB_STATION_YS
 from pluggybot.robot import SECOND
 
@@ -131,6 +132,14 @@ class _Drive:
   _other_in_the_way = HubMission._other_in_the_way
   _bodies = HubMission._bodies
   peer_on_the_goal = HubMission.peer_on_the_goal
+  _cells = HubMission._cells
+  _left = HubMission._left
+  PROGRESS_ALONG_ROUTE = HubMission.PROGRESS_ALONG_ROUTE
+  # ...the rover's measured sizes, which the drive reads off its body
+  BACKOFF_V, PEER_CLEARANCE_M = HubMission.BACKOFF_V, HubMission.PEER_CLEARANCE_M
+  OTHER_ROBOT_CELLS = HubMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = HubMission.DOWN_ROBOT_CELLS
+  pressing = False
 
   def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
     self.data = SimpleNamespace(time=0.0)
@@ -139,7 +148,6 @@ class _Drive:
     self.pose = (0.0, 0.0, 0.0)
     self.others = list(others)
     self.backoff_until, self.peer_holds = 0.0, 0
-    self.swap = SimpleNamespace(pressing=False)
     self.last_drive, self._stand_in = None, None
     self._plan, self._step, self._sighting = plan, step, sighting
 
