@@ -74,6 +74,9 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
   life.data.ctrl[life.model.actuator("pen_carriage").id] = 0.012
   life.body.mission.swap.reckoner.x += 0.25
   life.body.mission.swap.reckoner.theta += 2 * math.pi   # a heading is never wrapped
+  # ...and kept there: matched (#386), the scans would take the 0.25 m out
+  # before the death this reads it at
+  life.body.mission.matcher = None
   t0 = float(life.data.time)
 
   def starve() -> None:

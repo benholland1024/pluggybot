@@ -237,7 +237,8 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
     state = overseer_context(life)
     block = state["seen"][0]
     assert block["from"] == look.SENDER and block["image"] == "attached"
-    assert block["id"] == "look:pluggybot:1" and block["at"]["headingDeg"] == 90.0
+    assert block["id"] == "look:pluggybot:1"
+    assert block["at"]["headingDeg"] == pytest.approx(90.0, abs=1.0)   # the belief's (#386)
     assert base64.b64decode(block["jpeg"]) == JPEG
     assert state["looksLeft"] == MAX_LOOK_RUN - 1
     life._decide()

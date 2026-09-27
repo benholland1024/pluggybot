@@ -80,7 +80,8 @@ def test_a_robot_lying_down_is_avoided_where_it_lies_not_where_it_says(lie):
   assert keep.down and _cells(keep) == DOWN_ROBOT_CELLS
   x, y = keep.x, keep.y
   assert (x, y) == pytest.approx(me.body.as_seen(*body), abs=1e-9)
-  assert math.dist((x, y), body) < 1e-3       # a driver that knows where it is
+  # a driver that knows where it is -- to its scans' centimetres (#386)
+  assert math.dist((x, y), body) < 0.02
   path = me.body.mission._plan_to(*GOAL)
   assert path is not None and math.dist(path[-1], GOAL) < 0.1
   # The plan keeps this robot's centre a swing (0.35 m, the map's own

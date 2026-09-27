@@ -86,6 +86,9 @@ def test_a_charge_kills_the_shifts_accumulated_drift():
   data = mujoco.MjData(model)
   mission = HubMission(model, data, viewer=None, realtime=False,
                        rack=TRUE_RACK, grid_bounds=home.GRID_BOUNDS)
+  # The ANCHOR's rule: with the scans matched (#386) the walls take most of
+  # the drift out before contact, and the premise below is the dock's alone.
+  mission.matcher = None
   try:
     sx, sy, hd = charge_standoff(TRUE_RACK)
     mission.start_at(sx, sy, hd)

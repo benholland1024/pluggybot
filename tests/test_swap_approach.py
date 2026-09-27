@@ -142,6 +142,9 @@ def test_a_blind_return_at_the_cliff_fails_to_hang_the_module():
   the pick trajectory by a fraction of a millimetre.
   """
   mission = carrying_mission()
+  # ...and the scans' matching (#386), which takes the decoherence out on its
+  # own (the blind return hung the module): the premise is bay_fix's
+  mission.matcher = None
   try:
     mission.bay_fix = lambda *a, **k: None      # what swap_at_bay did before
     decohere(mission, DROP_ACROSS)

@@ -163,7 +163,8 @@ def test_the_drive_back_to_a_bay_standoff_gives_up_at_its_budget(room_model, mon
         next(routine)                           # no physics: nobody moves
     except StopIteration as done:
       lateral = done.value
-      assert lateral == pytest.approx(0.3), "the robot never moved, and says so"
+      # the belief it measures from, which a start's scans move by mm (#386)
+      assert lateral == pytest.approx(0.3, abs=0.02), "the robot never moved, and says so"
     # one pass: out of budget short of the standoff, it stops and says so
     assert data.time - t0 == pytest.approx(mm.REFINE_BUDGET_S, abs=0.01)
     assert mission.refine_blocked

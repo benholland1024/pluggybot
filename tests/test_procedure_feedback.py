@@ -471,9 +471,11 @@ def test_the_trace_measures_the_belief_against_the_true_pose():
   life = _room_hub_life()
   m = life.body.mission
   m.start_at(1.0, 1.0, 0.5)
-  assert m.truth_error() == pytest.approx([0.0, 0.0, 0.0], abs=0.2)
+  # the parts' noise and the scans' matching leave a start a few mm out (#386)
+  start = m.truth_error()
+  assert start == pytest.approx([0.0, 0.0, 0.0], abs=5.0)
   m.swap.reckoner.x += 0.012
-  assert m.truth_error()[0] == pytest.approx(12.0, abs=0.2)
+  assert m.truth_error()[0] - start[0] == pytest.approx(12.0, abs=0.2)
 
 
 def test_a_missed_pick_is_measured_where_the_approach_ended():
