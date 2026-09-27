@@ -58,6 +58,45 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a body with legs (`posture`; `build.body`; the `home_quad` worlds)
+
+pluggybot #387, the first quadruped deploy. Nothing a consumer reads
+changes shape; three things are new beside it.
+
+- **A robot's record carries its `posture`** where its body has one:
+  `standing`, `lying_down`, `lying`, `standing_up` or `getting_up`. Code
+  lies a quadruped down after ~9 s without a motion command (Ben's rest
+  reflex) and stands it before the next, so `lying` is the most common
+  posture of the day and is NEVER a fall: a fall is `getting_up`, and a
+  fall it could not get up from is the `stuck` death (`death.why` says
+  "fell and could not get up in 20 s"). ABSENT on the rover, which always
+  stands, so its frames read as they did.
+
+  ```jsonc
+  "robots": {"pluggybot": {"state": "IDLE", "posture": "lying", ...}}
+  ```
+
+- **The `build` block names the body** (`build.body`), with the sha256 of
+  each policy it walks and gets up on; absent for the rover, on `rung`'s
+  terms. `dataHashes.world` hashes the body's files too (its generated
+  model, its drivers' gains, the policies), so a retrained policy is a new
+  regime:
+
+  ```jsonc
+  "build": {..., "body": {"name": "quadruped",
+                          "policies": {"walk": "…64 hex…", "getup": "…"}}}
+  ```
+
+- **Two new worlds, `home_quad` and `home_quad_pair`**: the home world with
+  the rover taken out and the quadruped put in -- one, or the served pair --
+  and #378's dock on the living room's south wall (the `dock` body, its
+  pins on two sprung poles, its board's tags 25-28). The quadruped is
+  primitives only (boxes, capsules, cylinders, spheres), every leg link a
+  dynamic body of its own. `scene.home_quad_pair.json` and
+  `telemetry.home_quad_pair.jsonl.gz` are its fixtures; the recording is the
+  period's shape -- no job offers and no upkeep, so no `tasks` or
+  `metabolism` block and `hungerStates: []`.
+
 ### 0.21.0, additive: a death says where the robot was and what it was doing (`death.at`)
 
 pluggybot #362. Seven topples in the week to 2026-09-24 could not be
@@ -2340,6 +2379,8 @@ against the body census.
 | `telemetry.room_hub_pair.jsonl.gz` | Two scripted robots on `room_hub` from one loop, a shared board with **hide-and-seek** on it (one robot per role), both **appetites**, both **maps**, the pair's **encounters** | `MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz` |
 | `scene.home_world_pair.json` | The home world with the second robot attached (issue #181): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair` |
 | `telemetry.home_world_pair.jsonl.gz` | The SERVED pair shape: two robots on `home`, the first drawing, the second exploring then standing by for the board's work, both appetites and maps | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting --tasks --metabolism --errands draw,none --max-sim-time 600 --record protocol/telemetry.home_world_pair.jsonl.gz` |
+| `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair --body quadruped` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
+| `telemetry.home_quad_pair.jsonl.gz` | The first quadruped period's shape: no offers, no upkeep; the two meet in the workshop doorway and hold for each other ~66 s, lying down by reflex in turn, then the first robot, started low, walks to the dock, lies on it and charges while the second rests by reflex -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.42,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
 
 ⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
 off by default — a task board adds errands, which reshuffles a whole mission
