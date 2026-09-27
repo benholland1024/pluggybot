@@ -303,3 +303,46 @@ def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
   touching = {int(g) for pair in data.contact.geom[:data.ncon] for g in pair}
   assert belly in touching
   assert abs(data.qpos[2] - qm.CHOSEN.belly_depth) < 0.005
+
+
+def test_the_scripted_gait_refuses_a_body_that_was_never_forwarded():
+  # It reads the body's inertia off the mass matrix once, and a fresh
+  # MjData's is zeros: built on one, its attitude loop had no feed-forward
+  # and a lie-down landed 10 mm off where it lands (#378).
+  import pytest
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+  with pytest.raises(ValueError, match="mj_forward"):
+    VirtualModel(model, mujoco.MjData(model), qm.CHOSEN)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  assert np.all(VirtualModel(model, data, qm.CHOSEN).inertia > 0)
+
+
+def test_odometry_finds_the_robot_whatever_comes_before_it_in_qpos():
+  # It read the robot's pose at qpos[0:3] and built its leg kinematics with
+  # the identity rotation at qpos[3]: in a world with a jointed body ahead
+  # of the robot (the dock's pin poles, a free prop) it reckoned from that
+  # body and walked its legs on a torso with no rotation (#378).
+  from pluggybot.legs import odometry as od
+  prop = ('\n    <body name="prop" pos="3 2 0.1"><freejoint/>'
+          '<geom type="box" size="0.05 0.05 0.05"/></body>')
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN, scenery=prop))
+  data = mujoco.MjData(model)
+  root = model.body("pluggybot").id
+  q = model.jnt_qposadr[model.body_jntadr[root]]
+  assert q > 0                                       # the prop is qpos[0:7]
+  data.qpos[q:q + 7] = (0, 0, qm.CHOSEN.stand_height, 1, 0, 0, 0)
+  for n, a in zip(qm.JOINT_NAMES, qm.pose_qpos(qm.CHOSEN, qm.CHOSEN.stand_height)):
+    data.qpos[model.jnt_qposadr[model.joint(n).id]] = a
+  mujoco.mj_forward(model, data)
+  vm = VirtualModel(model, data, qm.CHOSEN)
+  lim = JointLimits.of(qm.CHOSEN.motor)
+  odo = od.LegOdometry(model, data)
+  assert odo.error()[0] < 1e-9
+  for _ in range(int(2.0 / model.opt.timestep)):
+    cmd = Command(gait="trot", vx=0.5 * min(data.time / 0.5, 1.0), period=0.35)
+    data.ctrl[:] = lim.clip(vm.torque(cmd), data.qvel[vm.vadr])
+    mujoco.mj_step(model, data)
+    odo.step()
+  assert data.qpos[q] > 0.5                          # it walked
+  assert odo.error()[0] / odo.distance < 0.05

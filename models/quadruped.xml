@@ -51,6 +51,12 @@
       <geom name="belly" type="box" size="0.11 0.06 0.025"
             pos="0 0 -0.08" mass="0.95"
             contype="1" conaffinity="0" group="1" rgba="0.15 0.15 0.2 1"/>
+      <geom name="belly_pad_l" type="box" size="0.08 0.01 0.0015"
+            pos="0 0.03 -0.1035" mass="0" contype="1" conaffinity="0"
+            group="1" rgba="0.85 0.65 0.2 1"/>
+      <geom name="belly_pad_r" type="box" size="0.08 0.01 0.0015"
+            pos="0 -0.03 -0.1035" mass="0" contype="1" conaffinity="0"
+            group="1" rgba="0.85 0.65 0.2 1"/>
       <geom name="electronics" class="visual" type="box" size="0.06 0.05 0.015"
             pos="-0.05 0 0.03" mass="0.4" rgba="0.1 0.5 0.2 1"/>
       <geom name="abd_motors" class="visual" type="box" size="0.19 0.09 0.045"

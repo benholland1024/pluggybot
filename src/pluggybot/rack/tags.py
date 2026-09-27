@@ -59,6 +59,11 @@ BLOCK_TAG_SIZE = 0.026 * 8 / 10
 #: next two ids. Which one is which is a fact the offer states (#227): the
 #: known mass is told, the unknown is what the job is.
 MASS_TAG_IDS = (23, 24)
+#: The quadruped's dock (issue #378; legs/dock.py): a board of four, two
+#: rows of two, so a robot standing over the dock and one lying on it each
+#: see a pair, and a pair's BASELINE gives the facing (issue #88).
+DOCK_TAG_IDS = (25, 26, 27, 28)
+DOCK_TAG_SIZE = 0.060
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -73,7 +78,8 @@ TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
              **{i: SMALL_TAG_SIZE for i in BAY_TAG_IDS},
              **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
-             **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS}}
+             **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
+             **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS}}
 
 TAG_DIR = Path("models/tags")
 
@@ -105,11 +111,13 @@ def tag_image(tag_id: int) -> np.ndarray:
 HUB_TAG_IDS = (RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values())
 
 
-def write_tag_pngs(directory: Path = TAG_DIR) -> list[int]:
-  """Write every tag PNG any world references. Returns the ids written."""
+def write_tag_pngs(directory: Path = TAG_DIR, ids=None) -> list[int]:
+  """Write every tag PNG any world references, or just `ids`. Returns the
+  ids written: the home world declares exactly these as its textures, so
+  the dock's (no world carries it yet, #387) are asked for by name."""
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
-  ids = [*HUB_TAG_IDS, *BLOCK_TAG_IDS, *MASS_TAG_IDS]
+  ids = list(ids) if ids is not None else [*HUB_TAG_IDS, *BLOCK_TAG_IDS, *MASS_TAG_IDS]
   for tag_id in ids:
     Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
   return ids

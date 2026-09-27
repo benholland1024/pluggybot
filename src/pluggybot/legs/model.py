@@ -178,11 +178,35 @@ def pose_qpos(spec: BodySpec, height: float, x_off: float = 0.0,
   return [abd, flex, knee] * 4
 
 
+#: The belly's charge pads (#378, `legs/dock.py`): two strips along x on
+#: the pack's underside, FLUSH with it, so the robot rests on them anywhere
+#: it lies and they meet the dock's pins where it docks. Half-extents, and
+#: the strips' centres at y = +-PAD_Y. Their mass is the pack's. 3 mm deep
+#: in the sim (a real pad is a plated strip): a pin's tip is 1.27 mm across,
+#: and landing hard it sank past a 1 mm pad into the case behind it.
+PAD_HALF = (0.08, 0.01, 0.0015)
+PAD_Y = 0.03
+
+
+def _pads(spec: BodySpec) -> str:
+  z = -spec.belly_depth + PAD_HALF[2]
+  return "".join(
+    f"""
+      <geom name="belly_pad_{lbl}" type="box" size="{_v(*PAD_HALF)}"
+            pos="{_v(0, side * PAD_Y, z)}" mass="0" contype="1" conaffinity="0"
+            group="1" rgba="0.85 0.65 0.2 1"/>"""
+    for side, lbl in ((1, "l"), (-1, "r")))
+
+
 def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
-             standalone: bool = True, scenery: str = "") -> str:
+             standalone: bool = True, scenery: str = "", assets: str = "",
+             after: str = "") -> str:
   """The robot as MJCF. `standalone` wraps it with a floor, a light, the
-  solver options and any `scenery` (MJCF bodies/geoms for the worldbody), so
-  it compiles alone; otherwise a `<mujocoinclude>`."""
+  solver options and any `scenery` (MJCF bodies/geoms for the worldbody, and
+  the `assets` they use), so it compiles alone; otherwise a
+  `<mujocoinclude>`. ⚠ Scenery with JOINTS goes in `after`, a worldbody
+  after the robot's: the keyframes (and `quad_spike`'s routines) index the
+  robot's free joint from qpos[0]."""
   m = spec.motor
   tx, ty, tz = spec.torso
   h0 = spec.stand_height
@@ -298,7 +322,7 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
            lies on (and #378's dock contacts are on its underside). -->
       <geom name="belly" type="box" size="{_v(0.11, 0.06, (spec.belly_depth - tz) / 2)}"
             pos="{_v(0, 0, -(spec.belly_depth + tz) / 2)}" mass="{_f(budget.battery)}"
-            contype="1" conaffinity="0" group="1" rgba="0.15 0.15 0.2 1"/>
+            contype="1" conaffinity="0" group="1" rgba="0.15 0.15 0.2 1"/>{_pads(spec)}
       <geom name="electronics" class="visual" type="box" size="0.06 0.05 0.015"
             pos="-0.05 0 0.03" mass="{_f(budget.electronics)}" rgba="0.1 0.5 0.2 1"/>
       <geom name="abd_motors" class="visual" type="box" size="{_v(tx - 0.02, ty - 0.01, tz - 0.01)}"
@@ -355,13 +379,16 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
   <asset>
     <texture name="grid" type="2d" builtin="checker" rgb1="0.82 0.82 0.8"
              rgb2="0.7 0.7 0.68" width="512" height="512"/>
-    <material name="grid" texture="grid" texrepeat="8 8" reflectance="0"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance="0"/>{assets}
   </asset>
   <worldbody>
     <light pos="0 0 4" dir="0 0 -1" directional="true"/>
     <geom name="floor" type="plane" size="20 20 0.1" material="grid"/>{scenery}
   </worldbody>
-{robot}{key}
+{robot}{key}{f"""
+  <worldbody>
+    {after}
+  </worldbody>""" if after else ""}
 </mujoco>
 """
 

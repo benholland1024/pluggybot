@@ -70,10 +70,13 @@ class LegOdometry:
     self.jacr = np.zeros((3, model.nv))
     self.foot_r = float(model.geom_size[self.feet_geom[0]][0])
     self.fa = model.body_dofadr[self.root]
+    #: The robot's free joint in qpos, by name: a world may carry jointed
+    #: bodies before it (#378).
+    self.qroot = int(model.jnt_qposadr[model.body_jntadr[self.root]])
     self.bias = math.radians(GYRO_BIAS_DPS) * self.rng.uniform(-1, 1)
     self.lag = max(1, round(CONTACT_LAG_S / model.opt.timestep))
     self.history: list[np.ndarray] = []
-    self.x, self.y, self.z = (float(v) for v in data.qpos[0:3])
+    self.x, self.y, self.z = (float(v) for v in data.qpos[self.qroot:self.qroot + 3])
     self.yaw = self._true_yaw()
     self.distance = 0.0
     #: The body's velocity estimate, body frame, and the steps it has been
@@ -110,8 +113,8 @@ class LegOdometry:
     w_meas[2] += self.bias
     # Leg kinematics at the measured angles, torso at the origin, level.
     k = self.kin
-    k.qpos[:] = 0.0
-    k.qpos[3] = 1.0
+    k.qpos[:] = m.qpos0
+    k.qpos[self.qroot:self.qroot + 7] = (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
     k.qpos[self.qadr] = q
     k.qvel[:] = 0.0
     k.qvel[self.vadr] = qd
@@ -169,11 +172,12 @@ class LegOdometry:
 
   def error(self) -> tuple[float, float]:
     """(position error, m; heading error, rad) against the truth."""
-    e = math.hypot(self.x - self.d.qpos[0], self.y - self.d.qpos[1])
+    x, y = self.d.qpos[self.qroot:self.qroot + 2]
+    e = math.hypot(self.x - x, self.y - y)
     dyaw = math.atan2(math.sin(self.yaw - self._true_yaw()),
                       math.cos(self.yaw - self._true_yaw()))
     return e, dyaw
 
   def height_error(self) -> float:
     """The height estimate's error against the truth, m."""
-    return self.z - float(self.d.qpos[2])
+    return self.z - float(self.d.qpos[self.qroot + 2])
