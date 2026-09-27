@@ -2201,7 +2201,11 @@ trained on. They walk on it within tolerance (numpy → dcmotor):
 | legged odometry, 5 seeds | 2.4–4.0 % | 3.3–4.0 % |
 | seeing climbs | | the same, one more 0.10 m flight (3/3) |
 
-and a flight hashes IDENTICAL in two processes. On the box the quadruped
+and a flight hashes IDENTICAL in two processes. #388's stairs policy,
+merged after these, re-flown on the dcmotor: every case at the house's
+0.18 m riser 10/10 on either scan (the flight of ten up and down among
+them), the knee's p99.5 13.6–13.9 N·m (#388's 13.5), and the flat as
+before (0.51 / 1.08 m/s, 89 W at 0.5). On the box the quadruped
 pair's physics and controllers went from 231–236 to 191–199 ms of wall per
 sim second (`quad_spike.py --served`, A B A B): quadruped ÷ rover 1.30–1.40
 → 1.12–1.13, the rest the two policies.
