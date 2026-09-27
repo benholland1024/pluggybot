@@ -717,7 +717,7 @@ class _FakeLife:
     # (issue #315): a crash message off a `data` captured at setup would
     # report a sim time a recompiled run had left behind.
     self.model, self.data = model, data
-    self.body = types.SimpleNamespace(step_hooks=[], grid=None)
+    self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing")
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way
