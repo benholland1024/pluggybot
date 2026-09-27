@@ -1,6 +1,10 @@
 {
  "schema": 1,
  "world": "models/room_hub.xml",
+ "worlds": {
+  "rover": "models/room_hub.xml",
+  "quadruped": "models/quadruped.xml"
+ },
  "kinds": [
   "motor",
   "actuator",
@@ -9,7 +13,8 @@
   "power",
   "electronics",
   "fastener",
-  "scaffold"
+  "scaffold",
+  "equipment"
  ],
  "statuses": [
   "chosen",
@@ -18,7 +23,8 @@
  ],
  "shelves": [
   "body",
-  "catalog"
+  "catalog",
+  "build"
  ],
  "nullable": [
   "partNumber",
@@ -36,6 +42,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -152,6 +159,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -186,6 +194,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -254,6 +263,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -287,6 +297,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -320,6 +331,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -385,6 +397,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -417,6 +430,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -486,6 +500,7 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -535,14 +550,15 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
    "partNumber": "RPLIDAR C1",
-   "source": null,
+   "source": "https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec",
    "massG": 110,
    "dimensionsMm": null,
-   "priceEur": null,
+   "priceEur": 84.9,
    "priceFor": "each",
    "quantity": 1,
    "capabilities": {
@@ -597,9 +613,7 @@
     }
    ],
    "why": {
-    "source": "Parts.md lists stockists (Botland, EXP-Tech, Welectron) without a link",
-    "dimensionsMm": "not recorded",
-    "priceEur": "€65-100 depending on the stockist and the A1M8 alternative (Parts.md)"
+    "dimensionsMm": "not recorded"
    },
    "note": "Replaced the stereo pair (Aug 2026): a ~17° blind sector behind-right where the mast stands in the scan plane is measured by `Lidar.blind_fraction`, and self-hits are dropped rather than reported as free space.",
    "workshop": {
@@ -616,18 +630,19 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
    "partNumber": "Camera Module 3",
-   "source": "https://www.welectron.com/Official-Raspberry-Pi-Camera-Module-3",
+   "source": "https://www.berrybase.de/raspberry-pi-camera-module-3-12mp",
    "massG": 4,
    "dimensionsMm": {
     "length": 25,
     "width": 24,
     "height": 11.5
    },
-   "priceEur": 25.5,
+   "priceEur": 28.9,
    "priceFor": "each",
    "quantity": 2,
    "capabilities": {
@@ -670,18 +685,19 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
    "partNumber": "D435",
-   "source": null,
-   "massG": 72,
+   "source": "https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002",
+   "massG": 75,
    "dimensionsMm": {
     "length": 90,
     "width": 25,
     "height": 25
    },
-   "priceEur": null,
+   "priceEur": 340.01,
    "priceFor": "each",
    "quantity": 1,
    "capabilities": {
@@ -709,8 +725,7 @@
      "where": "model",
      "value": 0.072,
      "unit": "kg",
-     "note": "the unit, on the mast top over the axle: CoM +10.7 mm, cruise launch pitch 0.9 -> 1.3°",
-     "expect": 0.072
+     "note": "the unit, on the mast top over the axle: CoM +10.7 mm, cruise launch pitch 0.9 -> 1.3°; 72 g, inside the datasheet's 75 ±10 %"
     },
     {
      "constant": "depth_cam_body.size",
@@ -768,10 +783,7 @@
      "note": "drawn only while the near-field map is built; ~1.9 W measured by users streaming depth with the projector, 3.5 W the USB budget, the datasheet figure is Parts.md's open decision 10"
     }
    ],
-   "why": {
-    "source": "RealSense left Intel in 2025; order from a distributor (Mouser, Reichelt) -- link not verified",
-    "priceEur": "roughly €300-400 at EU distributors in 2026, unverified"
-   },
+   "why": {},
    "note": "Issue #34: the near-field sensor, so the robot can find things on the floor the scan plane looks over. Chosen over the D405 (7-50 cm, but PASSIVE stereo: fails on painted floors and matte printed modules exactly as the DIY pair did), a CSI time-of-flight module (the Pi 5's two CSI ports are the two cameras) and a second LIDAR tilted at the floor (a line, only while moving; cannot look at a thing from a standstill). Its draw is `power.DEPTH_CAMERA_W`, on the pack only while the map is built -- on where served, off in a test (docs/Parts.md \"near-field depth camera\").",
    "workshop": {
     "usable": false,
@@ -786,6 +798,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -821,6 +834,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -856,6 +870,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -951,6 +966,7 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_plug"
    ],
@@ -1014,6 +1030,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -1080,6 +1097,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -1113,6 +1131,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -1205,6 +1224,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack"
    ],
@@ -1238,6 +1258,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack",
     "pluggybot"
@@ -1286,17 +1307,18 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
-   "partNumber": "Raspberry Pi 5 8GB",
-   "source": "https://www.berrybase.de/en/raspberry-pi-5-8gb-ram",
+   "partNumber": "SC1112",
+   "source": "https://www.berrybase.de/raspberry-pi-5-8gb-ram",
    "massG": null,
    "dimensionsMm": {
     "length": 85,
     "width": 56
    },
-   "priceEur": 202.9,
+   "priceEur": 184.9,
    "priceFor": "each",
    "quantity": 1,
    "capabilities": {
@@ -1304,9 +1326,9 @@
    },
    "feeds": [],
    "why": {
-    "massG": "not recorded"
+    "massG": "Raspberry Pi publishes none; BerryBase's 65 g is packed"
    },
-   "note": "€202.90 is the cheapest Geizhals listing (July 2026) INCLUDING an active-cooler kit, well above the historical ~€90 board price; verify the standalone board before budgeting. No accelerator HAT.",
+   "note": "The board alone at BerryBase (2026-09-28); the active cooler is SC1148. No accelerator HAT.",
    "workshop": {
     "usable": false,
     "why": "on the body shelf, not the catalog"
@@ -1320,6 +1342,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot"
    ],
@@ -1358,8 +1381,10 @@
    "status": "chosen",
    "shelves": [
     "body",
-    "catalog"
+    "catalog",
+    "build"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_lcd",
     "module_plug",
@@ -1403,8 +1428,10 @@
    "status": "candidate",
    "shelves": [
     "body",
-    "catalog"
+    "catalog",
+    "build"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_lcd"
    ],
@@ -1451,6 +1478,7 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_lcd",
     "module_plug",
@@ -1551,6 +1579,7 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_lcd",
     "module_plug",
@@ -1623,6 +1652,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack"
    ],
@@ -1713,6 +1743,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack"
    ],
@@ -1801,6 +1832,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack",
     "pluggybot"
@@ -1879,8 +1911,10 @@
    "kind": "sensor",
    "status": "chosen",
    "shelves": [
-    "body"
+    "body",
+    "build"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack",
     "rack_built"
@@ -1929,6 +1963,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "rack"
    ],
@@ -1962,6 +1997,7 @@
     "body",
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "pluggybot",
     "rack"
@@ -1996,6 +2032,7 @@
    "shelves": [
     "body"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_pen"
    ],
@@ -2070,6 +2107,7 @@
    "shelves": [
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_claw",
     "module_seed"
@@ -2151,6 +2189,7 @@
    "shelves": [
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [],
    "partNumber": "FS90-FB",
    "source": "https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-servo-with-position-feedback-5904422327088.html",
@@ -2188,8 +2227,10 @@
    "kind": "actuator",
    "status": "chosen",
    "shelves": [
-    "catalog"
+    "catalog",
+    "build"
    ],
+   "robot": "rover",
    "usedBy": [],
    "partNumber": "FS90MG",
    "source": "https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo",
@@ -2228,8 +2269,10 @@
    "kind": "actuator",
    "status": "chosen",
    "shelves": [
-    "catalog"
+    "catalog",
+    "build"
    ],
+   "robot": "rover",
    "usedBy": [],
    "partNumber": "L12-100-50-6-R",
    "source": "https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540",
@@ -2269,6 +2312,7 @@
    "shelves": [
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [],
    "partNumber": "ESP32-CAM",
    "source": "https://www.berrybase.de/en/esp32-cam-development-board-incl.-ov2640-camera-module",
@@ -2305,6 +2349,7 @@
    "shelves": [
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [
     "module_claw"
    ],
@@ -2349,6 +2394,7 @@
    "shelves": [
     "catalog"
    ],
+   "robot": "rover",
    "usedBy": [],
    "partNumber": null,
    "source": null,
@@ -2377,6 +2423,4093 @@
    "workshop": {
     "usable": true
    }
+  },
+  {
+   "id": "quad_rplidar_c1",
+   "name": "Slamtec RPLIDAR C1 2D LIDAR",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "lidar_mast"
+   ],
+   "partNumber": "RPLIDAR C1",
+   "source": "https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec",
+   "massG": 110,
+   "dimensionsMm": null,
+   "priceEur": 84.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "rangeM": 12,
+    "rateHz": 10,
+    "fovDeg": 360,
+    "supplyV": 5,
+    "currentMa": 230,
+    "startCurrentMa": 800,
+    "interface": "USB/UART"
+   },
+   "feeds": [
+    {
+     "constant": "legs.model.ELECTRONICS_W['lidar']",
+     "where": "code",
+     "value": 1.15,
+     "unit": "W",
+     "note": "230 mA typical at 5 V (Slamtec datasheet rev 1.2)",
+     "expect": 1.15
+    },
+    {
+     "constant": "legs.model.MassBudget.scanner",
+     "where": "code",
+     "value": 0.13,
+     "unit": "kg",
+     "note": "the unit's 110 g and its mast"
+    },
+    {
+     "constant": "lidar.pos[2]",
+     "where": "model",
+     "value": 0.1265,
+     "unit": "m",
+     "note": "the scan head on its mast: the scan plane 0.51 m up, over the couch and the bed"
+    },
+    {
+     "constant": "perception.lidar.LIDAR_PERIOD",
+     "where": "code",
+     "value": 0.1,
+     "unit": "s",
+     "note": "10 Hz, the part's rate",
+     "expect": 0.1
+    },
+    {
+     "constant": "perception.lidar.MAX_RANGE",
+     "where": "code",
+     "value": 8,
+     "unit": "m",
+     "note": "8 m, UNDER the part's 12 m on purpose (the rover's entry says why)"
+    }
+   ],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "Funduino (DE) has it in stock; OpenELAB lists it at €79.95 with 4 left from a warehouse it does not name (it ships from China in 10-20 days otherwise). It draws 800 mA for a moment at start-up.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_realsense_d435",
+   "name": "RealSense D435 depth camera (active IR stereo)",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "depth_cam_body"
+   ],
+   "partNumber": "D435",
+   "source": "https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002",
+   "massG": 75,
+   "dimensionsMm": {
+    "length": 90,
+    "width": 25,
+    "height": 25
+   },
+   "priceEur": 340.01,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "fovHDeg": 87,
+    "fovVDeg": 58,
+    "baselineMm": 50,
+    "interface": "USB 3",
+    "maxPowerW": 3.4
+   },
+   "feeds": [
+    {
+     "constant": "depth_eye.fovy",
+     "where": "model",
+     "value": 58,
+     "unit": "°",
+     "note": "the depth field's vertical angle",
+     "expect": 58
+    },
+    {
+     "constant": "legs.model.ELECTRONICS_W['depth camera']",
+     "where": "code",
+     "value": 2,
+     "unit": "W",
+     "note": "depth with its projector; the datasheet's 3.40 W is depth and 1080p colour at once"
+    },
+    {
+     "constant": "legs.model.MassBudget.depth_cam",
+     "where": "code",
+     "value": 0.09,
+     "unit": "kg",
+     "note": "the unit's 75 g and a bracket"
+    },
+    {
+     "constant": "perception.depth.MIN_Z",
+     "where": "code",
+     "value": 0.28,
+     "unit": "m",
+     "note": "the datasheet's min-Z",
+     "expect": 0.28
+    },
+    {
+     "constant": "perception.depth.BASELINE",
+     "where": "code",
+     "value": 0.05,
+     "unit": "m",
+     "note": "",
+     "expect": 0.05
+    }
+   ],
+   "why": {},
+   "note": "DigiKey DE's kit (961448, with cable and tripod), none in stock; MyBotShop (DE) €419.99 in 21 days; RealSense's own store $314, backordered 6-8 weeks, import duty on top. Cognex agreed to buy RealSense on 2026-09-22 (closing in Q4 2026): the bill's longest lead, and the one to watch.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_pi_camera_3",
+   "name": "Raspberry Pi Camera Module 3",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "nav_cam_body"
+   ],
+   "partNumber": "Camera Module 3",
+   "source": "https://www.berrybase.de/raspberry-pi-camera-module-3-12mp",
+   "massG": 4,
+   "dimensionsMm": {
+    "length": 25,
+    "width": 24,
+    "height": 11.5
+   },
+   "priceEur": 28.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "sensor": "IMX708",
+    "fovHDeg": 66,
+    "fovVDeg": 41
+   },
+   "feeds": [
+    {
+     "constant": "nav_eye.fovy",
+     "where": "model",
+     "value": 41,
+     "unit": "°",
+     "note": "the one navigation camera: the rack's and the dock's tags",
+     "expect": 41
+    },
+    {
+     "constant": "legs.model.MassBudget.cameras",
+     "where": "code",
+     "value": 0.03,
+     "unit": "kg",
+     "note": "budgets two modules; the model carries one"
+    }
+   ],
+   "why": {},
+   "note": "One on the body: the model has one navigation camera, where the rover had two. It ships with the old 15-pin cable; a Pi 5 needs `pi5_camera_cable`.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pi5_camera_cable",
+   "name": "Raspberry Pi camera cable, standard to mini, 200 mm",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "nav_cam_body"
+   ],
+   "partNumber": "SC1128",
+   "source": "https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 1.2,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "pins": "22 (Pi 5) to 15 (camera)",
+    "lengthMm": 200
+   },
+   "feeds": [],
+   "why": {
+    "massG": "only a shipping weight is given",
+    "dimensionsMm": "a 200 mm flat cable"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "tdk_ev_icm42688p",
+   "name": "TDK InvenSense ICM-42688-P evaluation board (IMU)",
+   "kind": "sensor",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "EV_ICM-42688-P",
+   "source": "https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 36.79,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "interface": "I2C, I3C or SPI",
+    "logicV": "1.8 or 3.0"
+   },
+   "feeds": [
+    {
+     "constant": "perception.imu.GYRO_NOISE",
+     "where": "code",
+     "value": 4.9e-05,
+     "unit": "rad/s/√Hz",
+     "note": "0.0028 °/s/√Hz (DS-000347, tested in production)",
+     "expect": 4.9e-05
+    },
+    {
+     "constant": "perception.imu.ACCEL_NOISE",
+     "where": "code",
+     "value": [
+      0.000637,
+      0.000637,
+      0.000686
+     ],
+     "unit": "m/s²/√Hz",
+     "note": "65 µg/√Hz on x and y, 70 on z",
+     "expect": [
+      0.000637,
+      0.000637,
+      0.000686
+     ]
+    },
+    {
+     "constant": "perception.imu.GYRO_SCALE",
+     "where": "code",
+     "value": 0.005,
+     "unit": "1",
+     "note": "±0.5 % initial tolerance",
+     "expect": 0.005
+    }
+   ],
+   "why": {
+    "massG": "not published for the board",
+    "dimensionsMm": "not published for the board"
+   },
+   "note": "TDK's own board, a 2×10 header, used with jump wires or soldered (TDK AN-000488): the one ICM-42688-P board in stock at an EU storefront; the supply of the chip is short (a Tindie maker raised its price for it).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "gim8108_8",
+   "name": "Steadywin GIM8108-8 joint motor with the GDS68 driver (8:1, FOC, CAN, MIT mode), 48 V",
+   "kind": "motor",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "SW-GIM8108-8-S68",
+   "source": "https://openelab.io/products/steadywin-gim8108-8-robot-motor?variant=46976063668422",
+   "massG": 396,
+   "dimensionsMm": {
+    "diameter": 97,
+    "length": 55
+   },
+   "priceEur": 124.95,
+   "priceFor": "each",
+   "quantity": 14,
+   "capabilities": {
+    "ratedTorqueNm": 7.5,
+    "peakTorqueNm": 22,
+    "ratedRpm": 110,
+    "maxRpm": 320,
+    "ratio": 8,
+    "busV": "12-56",
+    "connector": "XT30(2+2): power and CAN in one"
+   },
+   "feeds": [
+    {
+     "constant": "FL_hip_abd.forcerange",
+     "where": "model",
+     "value": 22,
+     "unit": "N·m",
+     "note": "the peak torque, all twelve leg drivers alike",
+     "expect": 22
+    },
+    {
+     "constant": "FL_hip_abd.armature",
+     "where": "model",
+     "value": 0.004608,
+     "unit": "kg·m²",
+     "note": "the rotor's inertia x 8²: the class's nominal, unpublished"
+    },
+    {
+     "constant": "legs.actuator.GIM8108_8.rated_torque",
+     "where": "code",
+     "value": 6.71,
+     "unit": "N·m",
+     "note": "the lower of the maker's two tables (this seller's says 7.5)"
+    },
+    {
+     "constant": "legs.actuator.GIM8108_8.peak_torque",
+     "where": "code",
+     "value": 22,
+     "unit": "N·m",
+     "note": "",
+     "expect": 22
+    },
+    {
+     "constant": "legs.actuator.GIM8108_8.noload_speed",
+     "where": "code",
+     "value": 31.4,
+     "unit": "rad/s",
+     "note": "at 48 V, off the maker's curve"
+    },
+    {
+     "constant": "legs.actuator.GIM8108_8.mass",
+     "where": "code",
+     "value": 0.396,
+     "unit": "kg",
+     "note": "with the driver",
+     "expect": 0.396
+    },
+    {
+     "constant": "legs.actuator.GIM8108_8.price_eur",
+     "where": "code",
+     "value": 124.95,
+     "unit": "€",
+     "note": "the price the sizing tables were drawn at",
+     "expect": 124.95
+    }
+   ],
+   "why": {},
+   "note": "Twelve on the legs and two on the arm (#378): one part, one driver, one set of gains. €124.95 is a sale on €134.95, and on pre-order: none in OpenELAB's Munich or US warehouse, \"restock in 10-20 days\", no count, so sixteen go through its quote form. Steadywin's own store is $129.20 plus $185 of express to Germany for fourteen, 12-26 days, VAT and duty unstated. No cable comes with it; power and CAN share one XT30(2+2) (manual rev 1.4).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "amass_xt30_22_pair",
+   "name": "Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "XT30(2+2)",
+   "source": "https://www.3dptronics.com/electronics/xt3022-connectors-pair",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 5.0,
+   "priceFor": "pair",
+   "quantity": 14,
+   "capabilities": {
+    "wiring": "16, 18 or 20 AWG (Amass)",
+    "ratedA": "15 with 18 AWG (Amass)"
+   },
+   "feeds": [],
+   "why": {
+    "massG": "not stated",
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The female mates each GDS68's power-and-CAN socket. No German shop stocks it: 3DPTronics (Italy) sells pairs only, its cart says VAT in; LCSC has the female alone (C19268028) at $0.38. Amass lists 16-20 AWG for its cups, not 14.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "lapp_unitronic_can",
+   "name": "LAPP UNITRONIC BUS CAN 1 x 2 x 0.22 mm², shielded, by the metre",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "2170260/1",
+   "source": "https://www.conrad.de/de/p/lapp-2170260-1-busleitung-unitronic-bus-1-x-2-x-0-22-mm-violett-meterware-603992.html",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 1.98,
+   "priceFor": "each",
+   "quantity": 10,
+   "capabilities": {
+    "impedanceOhm": 120,
+    "outerDiameterMm": 5.7
+   },
+   "feeds": [],
+   "why": {
+    "massG": "not stated",
+    "dimensionsMm": "5.7 mm across, by the metre"
+   },
+   "note": "The four buses. Rated for fixed installation, and a leg flexes it; LAPP's flexible CAN FD P is sold at Conrad only by the 100 m to businesses.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "silicone_wire_14awg",
+   "name": "Silicone wire, 14 AWG (2.08 mm²), 1 m",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "SK14S / SK14R",
+   "source": "https://www.mylipo.de/Silikonkabel-14AWG-208mm-schwarz_1",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 2.25,
+   "priceFor": "each",
+   "quantity": 20,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "massG": "not stated per metre",
+    "dimensionsMm": "a metre of 2.08 mm²"
+   },
+   "note": "Each driver's drop from the 10 AWG bus, red and black. Amass lists 16-20 AWG for the XT30(2+2)'s cups: step down to 16 at the plug.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "raspberry_pi_5_quad",
+   "name": "Raspberry Pi 5, 8 GB",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "SC1112",
+   "source": "https://www.berrybase.de/raspberry-pi-5-8gb-ram",
+   "massG": null,
+   "dimensionsMm": {
+    "length": 85,
+    "width": 56
+   },
+   "priceEur": 184.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "csiPorts": 2,
+    "power": "5 V 5 A"
+   },
+   "feeds": [
+    {
+     "constant": "legs.model.ELECTRONICS_W['compute + cameras']",
+     "where": "code",
+     "value": 6,
+     "unit": "W",
+     "note": "the rover's figure less its LIDAR; Raspberry Pi publishes no load figure"
+    }
+   ],
+   "why": {
+    "massG": "Raspberry Pi publishes none; BerryBase's 65 g is packed"
+   },
+   "note": "The rover's board. The 16 GB (SC1113) is €319.20 in stock, if #379's budget for the computer asks for it.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pi5_active_cooler",
+   "name": "Raspberry Pi Active Cooler for the Pi 5",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "SC1148",
+   "source": "https://www.berrybase.de/raspberry-pi-active-cooler-luefter-fuer-raspberry-pi-5",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 5.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "massG": "only a packed weight (29 g) is given",
+    "dimensionsMm": "the Pi 5's footprint"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pi_ssd_kit_256",
+   "name": "Raspberry Pi SSD Kit, 256 GB (M.2 HAT+ and NVMe)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "SC1675",
+   "source": "https://www.berrybase.de/raspberry-pi-ssd-kit-fuer-raspberry-pi-5-256gb",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 54.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "capacityGb": 256,
+    "iops": "40k read, 70k write (4 kB)"
+   },
+   "feeds": [],
+   "why": {
+    "massG": "only a packed weight (35 g) is given",
+    "dimensionsMm": "a HAT on the Pi 5's footprint"
+   },
+   "note": "Out of stock at every EU seller read; the 512 GB kit (SC1676) is €166.10 in stock at Reichelt, and the M.2 HAT+ alone (SC1166) €12.50 at BerryBase.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "waveshare_can_hat_plus",
+   "name": "Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "27338",
+   "source": "https://eckstein-shop.de/WaveShare-2CH-Isolated-CAN-Bus-Expansion-HAT-for-Raspberry-Pi",
+   "massG": 45,
+   "dimensionsMm": null,
+   "priceEur": 29.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "channels": 2,
+    "controller": "MCP2515 (CAN 2.0)",
+    "bitrate": "1 Mbit/s (its wiki's example)",
+    "pi5": "listed"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a HAT on the Pi's footprint"
+   },
+   "note": "Two of the four buses, one a pair of legs. Its wiki lists the Pi 5 and documents the stack with the CAN FD HAT: four channels.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "waveshare_can_fd_hat",
+   "name": "Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "17075",
+   "source": "https://www.welectron.com/Waveshare-17075-2-CH-CAN-FD-HAT_1",
+   "massG": 40,
+   "dimensionsMm": null,
+   "priceEur": 51.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "channels": 2,
+    "controller": "MCP2518FD (CAN FD)",
+    "isolationKv": 5
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a HAT on the Pi's footprint"
+   },
+   "note": "The other two buses: the arm's and a spare. Its own wiki lists Pis up to the 4B; the Pi 5 stack is the HAT+'s wiki's. Four USB adapters (`ucan_v1`, €8.99) are the fallback.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "ucan_v1",
+   "name": "UCAN V1.0 USB-CAN adapter (candleLight firmware)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "OP00014",
+   "source": "https://eckstein-shop.de/ucan-v1-usb-can-adapter",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 8.99,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "firmware": "candleLight (Linux gs_usb, socketcan)"
+   },
+   "feeds": [],
+   "why": {
+    "massG": "not on the page",
+    "dimensionsMm": "not on the page"
+   },
+   "note": "The bench leg's bus from a PC. The page gives no bitrate; candleLight runs a bus at 1 Mbit/s. PEAK's PCAN-USB is €199 ex VAT and sold to businesses only.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pi5_psu_27w",
+   "name": "Raspberry Pi 27 W USB-C power supply (EU)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "SC1152",
+   "source": "https://www.berrybase.de/raspberry-pi-27w-usb-c-power-supply-netzteil-weiss",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 12.4,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "output": "5.1 V 5 A (PD)"
+   },
+   "feeds": [],
+   "why": {
+    "massG": "only a packed weight (60 g) is given",
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The Pi on the bench, before the robot's 5 V rail exists.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "molicel_p45b",
+   "name": "Molicel INR21700-P45B Li-ion cell (21700, 4.5 Ah)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "INR21700-P45B",
+   "source": "https://www.akkuteile.de/en/lithium-ionen-battery/size-21700/molicel/molicel-inr21700-p45b-4500mah-li-ion-battery-3-6v-3-7v_100852_3119",
+   "massG": 70,
+   "dimensionsMm": null,
+   "priceEur": 7.0,
+   "priceFor": "each",
+   "quantity": 12,
+   "capabilities": {
+    "capacityAh": 4.5,
+    "nominalV": 3.6,
+    "chargeV": 4.2,
+    "continuousA": 45
+   },
+   "feeds": [
+    {
+     "constant": "legs.model.PACK_WH",
+     "where": "code",
+     "value": 194.4,
+     "unit": "Wh",
+     "note": "twelve in series, 3.6 V x 4.5 Ah",
+     "expect": 194.4
+    },
+    {
+     "constant": "legs.actuator.BUS_V_NOMINAL",
+     "where": "code",
+     "value": 43.2,
+     "unit": "V",
+     "note": "12 x 3.6",
+     "expect": 43.2
+    },
+    {
+     "constant": "legs.actuator.BUS_V_RANGE",
+     "where": "code",
+     "value": [
+      36,
+      50.4
+     ],
+     "unit": "V",
+     "note": "12 x 3.0 to 12 x 4.2: the top is the cell's charge voltage, the bottom the sim's cut-off"
+    },
+    {
+     "constant": "legs.model.MassBudget.battery",
+     "where": "code",
+     "value": 0.95,
+     "unit": "kg",
+     "note": "the pack: twelve 70 g cells, the BMS, a case and leads"
+    }
+   ],
+   "why": {
+    "dimensionsMm": "the 21700 format; the sheet's figures not read"
+   },
+   "note": "€7.00 each for eight or more (€7.90 for one to three) at akkuteile.de, the same SKU at LiPo24. No German seller publishes a 12S1P built to order: Enerprof's smallest 12S Molicel pack is a 12S3P at €860 in 14-28 days, the rest quote on request, so the pack is built here (`spot_welder`).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "jbd_bms_12s_120a",
+   "name": "JBD smart BMS, 10S-17S, 120 A, Bluetooth",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "10S-17S-120A-BT-UART",
+   "source": "https://bikebattery.de/JBD-10S-17S-120A-360A-Intelligentes-Smart-Bluetooth-BMS-RS485-Android-iOS-APP-11S-12S-13S-14S-15S-16S",
+   "massG": 100,
+   "dimensionsMm": {
+    "length": 105,
+    "width": 55,
+    "height": 12
+   },
+   "priceEur": 112.99,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "seriesCells": "10-17",
+    "continuousA": 120,
+    "balancing": "active; current not stated"
+   },
+   "feeds": [],
+   "why": {},
+   "note": "The seller's 60 A and 80 A versions are sold out; the JK JK-BD6A20S6P (60 A, 0.6 A active balancing) is €60.82 ex VAT from JK's own store in China with no delivery time stated. Mass is the seller's article weight.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "noeifevo_charger_12s",
+   "name": "NOEIFEVO 50.4 V 5 A Li-ion charger (12S, CC/CV)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "HRH-300L-50405-XT60",
+   "source": "https://www.noeifevo.de/products/noeifevo-50-4v-5a-lithium-ladegerat-fur-12s-44-4v-li-ionen-lipo-akku-e-bike-roller-ladegerat-led-anzeige-aluminiumgehause",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 69.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "outputV": 50.4,
+    "outputA": 5,
+    "inputV": "220-240 AC"
+   },
+   "feeds": [
+    {
+     "constant": "legs.dock.CHARGE_A",
+     "where": "code",
+     "value": 5,
+     "unit": "A",
+     "note": "the charger's CC current",
+     "expect": 5
+    },
+    {
+     "constant": "legs.dock.CHARGE_W",
+     "where": "code",
+     "value": 216,
+     "unit": "W",
+     "note": "5 A at the pack's nominal 43.2 V"
+    }
+   ],
+   "why": {
+    "massG": "not published",
+    "dimensionsMm": "not published"
+   },
+   "note": "The dock's charger. The page states no VAT and no warehouse: its policy is 3-7 working days to Germany from Poland, 7-15 from China, and a sold-out label sits beside the add-to-cart. BOUNDMOTOR's (Parts.md's first pick) is $99 plus import duty, 12-20 days by air, with a barrel plug needing an adapter.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "meanwell_ddr_60l_5",
+   "name": "Mean Well DDR-60L-5 DC-DC converter, 18-75 V in, 5 V 12 A, isolated (DIN rail)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "DDR-60L-5",
+   "source": "https://www.reichelt.com/de/en/dc-dc-converter-60w-5v-12a-ddr-60l-5-p256746.html",
+   "massG": 216,
+   "dimensionsMm": null,
+   "priceEur": 43.8,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "inputV": "18-75",
+    "outputV": "5 (4.5-5.5 adjustable)",
+    "outputA": 12,
+    "isolationKv": 4
+   },
+   "feeds": [
+    {
+     "constant": "legs.model.ELECTRONICS_W['compute + cameras']",
+     "where": "code",
+     "value": 6,
+     "unit": "W",
+     "note": "the Pi 5, its camera and the IMU on the 5 V rail"
+    }
+   ],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "Set to 5.1 V for the Pi 5. The DDR-60G is 9-36 V in and would not take the pack.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "amass_xt90s",
+   "name": "Amass XT90-S anti-spark connector pair",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "XT90S",
+   "source": "https://www.mhm-modellbau.de/part-AM-XT90S.php",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 4.05,
+   "priceFor": "pair",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "massG": "not on the page",
+    "dimensionsMm": "not on the page"
+   },
+   "note": "The pack's lead, the charger's and the bench supply's: the anti-spark half takes the drivers' inrush as it mates.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "victron_midi_60a",
+   "name": "Victron MIDI fuse 60 A / 58 V",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "CIP133060010",
+   "source": "https://www.klimaworld.com/products/victron-midi-fuse-sicherungen-58v-48v-60a",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 14.29,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "currentA": 60,
+    "voltageV": 58,
+    "dropMv": 70
+   },
+   "feeds": [],
+   "why": {
+    "massG": "only a shipping weight is given",
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The pack's main fuse. Victron's sheet does not state its breaking capacity.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "victron_midi_holder",
+   "name": "Victron MIDI fuse holder",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "CIP000050001",
+   "source": "https://www.offgridtec.com/victron-midi-fuse-sicherung-halter.html",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 10.12,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "currentA": 200,
+    "maxV": 58
+   },
+   "feeds": [],
+   "why": {
+    "massG": "the page gives 0.2 with no unit",
+    "dimensionsMm": "not recorded"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "silicone_wire_10awg",
+   "name": "Silicone wire, 10 AWG (6 mm²), 1 m",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "2392 (red), 2393 (black)",
+   "source": "https://www.modellbau-skeries.de/p/silikonkabel-10awg-6mm-x-1000mm-rot",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 4.4,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "massG": "not stated per metre",
+    "dimensionsMm": "a metre of 6 mm²"
+   },
+   "note": "The bus from the pack through the fuse and the contactor to the legs' drivers.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "albright_sw80b549",
+   "name": "Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "SW80B549",
+   "source": "https://www.rijregeling.nl/en/product/albright-contactors-and-accessories/sw80-series/sw80b549-albright-contactor-12v-contactor/",
+   "massG": 400,
+   "dimensionsMm": null,
+   "priceEur": 82.28,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "coilV": 12,
+    "continuousA": 100,
+    "maxV": 96,
+    "breaksA": "190 A resistive at 96 V"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The e-stop's switch: the motor bus opens when the button on the robot or the wireless relay breaks its coil circuit. The B version, with blowouts: the plain SW80 is rated to break load only to 48 V, and the pack charges to 50.4. ⚠ Confirm the coil is CONTINUOUS-rated before ordering: Albright's sheet rates SW80 coils by class (continuous 7-13 W down to 25 % duty at 20-30 W) and neither it nor the seller says which the 549 is; ARC Components lists the SW80B-5 and -35 as 12 V continuous, at £51.05 ex VAT and 7-9 weeks. €68.00 plus 21 % Dutch VAT as the page shows it; about 350 g and 50 g of blowouts (Albright's sheet). TE's Kilovac LEV100 (190 g) sells to businesses only, at €127.44 ex VAT.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "schneider_xb5as8442",
+   "name": "Schneider Harmony XB5AS8442 emergency stop, 40 mm twist-release head, 1 NC",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "XB5AS8442",
+   "source": "https://www.reichelt.com/de/en/shop/product/emergency_stop_switch_harmony_xb5_twist_unlock_22_mm_1_nc-382385",
+   "massG": 61,
+   "dimensionsMm": null,
+   "priceEur": 30.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "contact": "1 NC",
+    "mountMm": 22,
+    "ip": "IP66"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a 40 mm head on a 22 mm hole"
+   },
+   "note": "One on the robot, one on the bench rig. Eaton's M22 in three parts (head, adapter, NC contact) is €34.42 and in stock.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "radiomaster_pocket",
+   "name": "RadioMaster Pocket ELRS transmitter (EU LBT)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "Pocket ELRS EU-LBT",
+   "source": "https://n-factory.de/RadioMaster-Pocket-ELRS-Remote-Control-EU-LBT",
+   "massG": 288,
+   "dimensionsMm": null,
+   "priceEur": 79.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not published"
+   },
+   "note": "The wireless e-stop's hand unit: a switch on it holds the receiver's relay closed. It runs on two 18650 cells, not included. A commercial wireless e-stop (Tyro Indus 1S) is €725 ex VAT, the receiver not stated.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "radiomaster_er6",
+   "name": "RadioMaster ER6 ELRS PWM receiver (LBT)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "ER6 ELRS LBT",
+   "source": "https://n-factory.de/RadioMaster-ER6-ELRS-LBT-24-GHz-PWM-Receiver",
+   "massG": 14.5,
+   "dimensionsMm": null,
+   "priceEur": 31.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "failsafe": "at link quality 0 or 1 s without a packet, per channel 988-2012 µs"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pololu_rc_relay",
+   "name": "Pololu RC Switch with Relay (assembled)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "2804",
+   "source": "https://eckstein-shop.de/Pololu-RC-Switch-with-Relay-Assembled-EN",
+   "massG": 17,
+   "dimensionsMm": null,
+   "priceEur": 21.36,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "relayA": 10,
+    "threshold": "on above about 1700 µs"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "In the contactor's coil circuit, in series with the e-stop button: the receiver's failsafe at 988 µs opens it, and Pololu's safe-start needs off-then-on to close it again.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "meanwell_ddr_30l_12",
+   "name": "Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "DDR-30L-12",
+   "source": "https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735",
+   "massG": 120,
+   "dimensionsMm": null,
+   "priceEur": 27.1,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "inputV": "18-75",
+    "outputV": "12 (9-13.2 adjustable)",
+    "outputA": 2.5
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The contactor's coil. 30 W covers every class of SW80 coil; the 15 W DDR-15L-12 (€23.30) holds only a continuous one.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "molicel_p28a",
+   "name": "Molicel INR18650-P28A Li-ion cell (18650, flat top)",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "INR18650-P28A",
+   "source": "https://www.lipo24.de/products/molicel-inr18650-p28a-2800mah-35a-lithium-ionen-akku-3-6v-3-7v",
+   "massG": 48,
+   "dimensionsMm": {
+    "diameter": 18.45,
+    "length": 65
+   },
+   "priceEur": 5.95,
+   "priceFor": "each",
+   "quantity": 2,
+   "capabilities": {},
+   "feeds": [],
+   "why": {},
+   "note": "The wireless e-stop's transmitter runs on two.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "arcol_hs25_47r",
+   "name": "Arcol HS25 wirewound resistor, 47 Ω, 25 W, aluminium housing",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "HS25 47R F",
+   "source": "https://www.reichelt.com/de/en/shop/product/wirewound_resistor_axial_25_w_47_ohm_1_-233471",
+   "massG": 14,
+   "dimensionsMm": null,
+   "priceEur": 2.99,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "ohms": 47,
+    "watts": "25 on a heatsink, 12.5 free"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "Pre-charge: the drivers' capacitors fill through it, about 1 A at 50.4 V, before the contactor closes; the sheet gives no pulse rating, only continuous power.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "hongfa_hf115f_012",
+   "name": "Hongfa HF115F relay, 12 V coil, 16 A changeover",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": "HF115F-012-1ZS3A",
+   "source": "https://www.reichelt.com/de/en/shop/product/miniature_power_relay_12_v_dc_16_a_1_changeover_contact-260113",
+   "massG": 13,
+   "dimensionsMm": null,
+   "priceEur": 3.1,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "coil": "12 V, 360 Ω",
+    "maxV": "300 V DC"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "Switches the pre-charge resistor in, then out once the contactor has taken the bus; what it breaks at 60 V DC is a curve on the sheet, not a number.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_frame_plates",
+   "name": "The torso's frame: two 3 mm aluminium side plates, end caps and cross members",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.MassBudget.frame",
+     "where": "code",
+     "value": 1,
+     "unit": "kg",
+     "note": "estimated"
+    },
+    {
+     "constant": "legs.model.CHOSEN.torso",
+     "where": "code",
+     "value": [
+      0.21,
+      0.1,
+      0.055
+     ],
+     "unit": "m",
+     "note": "the torso's half-extents"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a laser cutter, once drawn",
+    "massG": "estimated at 1.0 kg (`MassBudget.frame`), no design yet",
+    "dimensionsMm": "side plates 400 x 110 mm; the rest undrawn",
+    "priceEur": "no design yet: priced from its drawing"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "cf_tube_25_22",
+   "name": "Carbon fibre tube, roll-wrapped, 25 mm OD / 22 mm ID, 1 m (Easy Composites)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "FL_thigh",
+    "FL_shank"
+   ],
+   "partNumber": "CFT-WF-25-22-1",
+   "source": "https://www.easycomposites.eu/25mm-23mm-woven-finish-carbon-fibre-tube",
+   "massG": 168.5,
+   "dimensionsMm": {
+    "outer": 25,
+    "inner": 22,
+    "length": 1000
+   },
+   "priceEur": 46.05,
+   "priceFor": "each",
+   "quantity": 2,
+   "capabilities": {
+    "wallMm": 1.5,
+    "tensileModulusGpa": 64
+   },
+   "feeds": [
+    {
+     "constant": "legs.model.CHOSEN.thigh",
+     "where": "code",
+     "value": 0.21,
+     "unit": "m",
+     "note": "four thighs"
+    },
+    {
+     "constant": "legs.model.CHOSEN.shank",
+     "where": "code",
+     "value": 0.21,
+     "unit": "m",
+     "note": "and four shanks: 1.68 m of tube"
+    },
+    {
+     "constant": "legs.model.CHOSEN.thigh_mass",
+     "where": "code",
+     "value": 0.12,
+     "unit": "kg",
+     "note": "the link with its clamps, estimated"
+    },
+    {
+     "constant": "legs.model.CHOSEN.shank_mass",
+     "where": "code",
+     "value": 0.07,
+     "unit": "kg",
+     "note": "estimated"
+    }
+   ],
+   "why": {},
+   "note": "The 1.5 mm wall, for a leg; the 1 mm 25/23 (€37.72, 113 g a metre) is the arm's class. The page's variant list sits under the 25/23's address.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_leg_brackets",
+   "name": "The legs' motor mounts, hip brackets, knee housings and tube clamps, with their fasteners",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "FL_hip",
+    "FL_thigh"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.CHOSEN.hip_out",
+     "where": "code",
+     "value": 0.085,
+     "unit": "m",
+     "note": "abduction axis to the leg's plane: half the motor stack and a bracket"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a job shop, once drawn",
+    "massG": "in `thigh_mass` and the frame's budget, estimated",
+    "dimensionsMm": "no design yet",
+    "priceEur": "no design yet: priced from its drawings"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "squash_balls_12",
+   "name": "Dunlop Pro squash balls, box of 12 (40 mm, 24 g each)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "FL_shank"
+   ],
+   "partNumber": "700108",
+   "source": "https://www.squashpoint.de/dunlop-pro-squashball-12er-box.html",
+   "massG": 288,
+   "dimensionsMm": {
+    "diameter": 40
+   },
+   "priceEur": 37.5,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.CHOSEN.foot_r",
+     "where": "code",
+     "value": 0.022,
+     "unit": "m",
+     "note": "the model's foot is 44 mm across; a squash ball is 40"
+    }
+   ],
+   "why": {},
+   "note": "The feet, four and eight spares. What hobby builders use; whether one holds up under a 10 kg trot is on no page, and the box is the cheap way to find out. A sale price (was €51.00).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "cf_tube_20_18",
+   "name": "Carbon fibre tube, roll-wrapped, 20 mm OD / 18 mm ID, 1 m (Easy Composites)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "CFT-WF-20-18-1",
+   "source": "https://www.easycomposites.eu/20mm-woven-finish-carbon-fibre-tube",
+   "massG": 86.5,
+   "dimensionsMm": {
+    "outer": 20,
+    "inner": 18,
+    "length": 1000
+   },
+   "priceEur": 27.91,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "wallMm": 1,
+    "tensileModulusGpa": 64
+   },
+   "feeds": [
+    {
+     "constant": "legs.arm.ArmSpec.upper",
+     "where": "code",
+     "value": 0.25,
+     "unit": "m",
+     "note": "the upper arm"
+    },
+    {
+     "constant": "legs.arm.ArmSpec.fore",
+     "where": "code",
+     "value": 0.35,
+     "unit": "m",
+     "note": "and the forearm, 0.60 m of tube"
+    },
+    {
+     "constant": "legs.arm.TUBE_R",
+     "where": "code",
+     "value": 0.011,
+     "unit": "m",
+     "note": "the capsule the sim collides: the tube and its rod ends"
+    }
+   ],
+   "why": {},
+   "note": "€23.45 a metre ex VAT, as Parts.md had it (#378).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "skf_61800_2rs1",
+   "name": "SKF 61800-2RS1 deep-groove ball bearing, 10 x 19 x 5 mm",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "61800-2RS1",
+   "source": "https://www.kugellager-shop.net/61800-2rs1-skf-rillenkugellager-10x19x5mm.html",
+   "massG": 4.7,
+   "dimensionsMm": {
+    "bore": 10,
+    "outer": 19,
+    "width": 5
+   },
+   "priceEur": 7.6,
+   "priceFor": "each",
+   "quantity": 4,
+   "capabilities": {
+    "dynamicKn": 1.72,
+    "staticKn": 0.83
+   },
+   "feeds": [],
+   "why": {},
+   "note": "The elbow's and the wrist's pivots, two each. €6.84 from ten; the mass is another seller's page (SKF's did not load).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "igus_kcrm_05",
+   "name": "igus igubal KCRM-05 rod end, M5 female, right-hand",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "KCRM-05",
+   "source": "https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05",
+   "massG": 3.1,
+   "dimensionsMm": null,
+   "priceEur": 5.43,
+   "priceFor": "each",
+   "quantity": 6,
+   "capabilities": {
+    "thread": "M5 x 0.8",
+    "boreMm": 5,
+    "staticRadialN": "1200 short-term, 600 long-term"
+   },
+   "feeds": [
+    {
+     "constant": "legs.arm.ArmSpec.rods_mass",
+     "where": "code",
+     "value": 0.06,
+     "unit": "kg",
+     "note": "the three rods and their six ends, estimated"
+    }
+   ],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The parallelogram's rods' ends. igus shows €4.56 ex VAT; €4.37 at ten. A steel PHSA5 is €2.87 at Dold, and 20 g.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_arm_fork",
+   "name": "The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.arm.ArmSpec.plate_mass",
+     "where": "code",
+     "value": 0.08,
+     "unit": "kg",
+     "note": "estimated"
+    },
+    {
+     "constant": "legs.arm.ForkSpec.flank_deg",
+     "where": "code",
+     "value": 60,
+     "unit": "°",
+     "note": "the V's flanks, for the stairs"
+    },
+    {
+     "constant": "legs.arm.ForkSpec.fork_y",
+     "where": "code",
+     "value": 0.085,
+     "unit": "m",
+     "note": "the V's at ±85 mm"
+    },
+    {
+     "constant": "legs.arm.ForkSpec.v_half_len",
+     "where": "code",
+     "value": 0.0156,
+     "unit": "m",
+     "note": "the flanks 31 mm long"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a job shop, once drawn",
+    "massG": "estimated at 0.08 kg (`ArmSpec.plate_mass`)",
+    "dimensionsMm": "no design yet",
+    "priceEur": "no design yet: priced from its drawing"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "ptfe_tape_glass",
+   "name": "PTFE glass-fabric adhesive tape, 0.13 mm, 25 mm x 30 m",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "PTFE Klebeband 0.13 SW",
+   "source": "https://shop.hightechflon.com/PTFE-Teflon-Klebeband-0-13%20mm-ptfe-glasgewebe/Page-16-1-96-183.aspx",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 29.67,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.arm.RAMP_MU",
+     "where": "code",
+     "value": 0.15,
+     "unit": "1",
+     "note": "the end-ramps' slippery face"
+    }
+   ],
+   "why": {
+    "massG": "255 g/m² on the page; the roll is not weighed",
+    "dimensionsMm": "25 mm x 30 m, 0.13 mm thick"
+   },
+   "note": "The ramps' face. The smoother pure-PTFE film is €76.42 for the same roll; acetal inserts machined into the fork are the other way.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_tool_peg",
+   "name": "Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.rack.PEG_HALF",
+     "where": "code",
+     "value": 0.11,
+     "unit": "m",
+     "note": "half its 220 mm"
+    },
+    {
+     "constant": "legs.rack.PEG_MASS",
+     "where": "code",
+     "value": 0.028889,
+     "unit": "kg",
+     "note": "the rover's grams a millimetre"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "turned in the shop, once drawn",
+    "massG": "29 g, the rover's peg's grams a millimetre (`PEG_MASS`)",
+    "dimensionsMm": "6 x 220 mm",
+    "priceEur": "no design yet"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "dold_3030_1m",
+   "name": "Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "67700-Z",
+   "source": "https://www.dold-mechatronik.de/Aluminum-Profile-30x30L-B-Type-Groove-8-084kg-m-Customized-Cutting-50-to-6000mm",
+   "massG": 843,
+   "dimensionsMm": {
+    "width": 30,
+    "height": 30,
+    "length": 1000
+   },
+   "priceEur": 10.4,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.rack.RackSpec.peg_z",
+     "where": "code",
+     "value": 0.5,
+     "unit": "m",
+     "note": "the rack's pegs 0.50 m up"
+    },
+    {
+     "constant": "legs.rack.RackSpec.rail_z",
+     "where": "code",
+     "value": 0.62,
+     "unit": "m",
+     "note": "its rail"
+    }
+   ],
+   "why": {},
+   "note": "€9.90 a metre and €0.50 a cut, so a metre in one piece is €10.40.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "dold_angle_30",
+   "name": "Angle bracket 30, B-type slot 8, with its screws and hammer nuts",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "66918-BSA",
+   "source": "https://www.dold-mechatronik.de/Angle-30-B-type-groove-8-with-mounting-kit-and-cap",
+   "massG": 60,
+   "dimensionsMm": null,
+   "priceEur": 1.79,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "€1.79 from ten, €2.20 singly: the bill buys fourteen.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_rack_board",
+   "name": "The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.rack.TRAY_Y",
+     "where": "code",
+     "value": 0.045,
+     "unit": "m",
+     "note": "the trays at ±45 mm"
+    },
+    {
+     "constant": "legs.rack.RACK_TAG_IDS",
+     "where": "code",
+     "value": [
+      29,
+      30,
+      31,
+      32,
+      33,
+      34
+     ],
+     "unit": "id",
+     "note": "tags 29-34, a pair a bay"
+    },
+    {
+     "constant": "legs.dock.DockSpec.board_x",
+     "where": "code",
+     "value": 0.62,
+     "unit": "m",
+     "note": "the dock's tag board"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a board and the shop's PETG",
+    "massG": "no design yet",
+    "dimensionsMm": "about 1.0 x 0.6 m",
+    "priceEur": "no design yet"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "millmax_0858",
+   "name": "Mill-Max 0858-0-15-20-82-14-11-0 spring-loaded pin (gold, 1.27 mm plunger, 2.29 mm stroke)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "0858-0-15-20-82-14-11-0",
+   "source": "https://www.digikey.de/de/products/detail/mill-max-manufacturing-corp/0858-0-15-20-82-14-11-0/7667985",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 2.12,
+   "priceFor": "each",
+   "quantity": 4,
+   "capabilities": {
+    "currentA": 12,
+    "forceFreeG": 25,
+    "forceMidG": 120
+   },
+   "feeds": [
+    {
+     "constant": "legs.dock.PIN_TRAVEL",
+     "where": "code",
+     "value": 0.001143,
+     "unit": "m",
+     "note": "the rated travel",
+     "expect": 0.001143
+    },
+    {
+     "constant": "legs.dock.PIN_STROKE",
+     "where": "code",
+     "value": 0.002286,
+     "unit": "m",
+     "note": "the full stroke",
+     "expect": 0.002286
+    },
+    {
+     "constant": "legs.dock.PIN_TIP_R",
+     "where": "code",
+     "value": 0.000635,
+     "unit": "m",
+     "note": "the 1.27 mm plunger's radius",
+     "expect": 0.000635
+    },
+    {
+     "constant": "legs.dock.PIN_FREE_N",
+     "where": "code",
+     "value": 0.24525,
+     "unit": "N",
+     "note": "25 g at the start of travel"
+    },
+    {
+     "constant": "legs.dock.PIN_MID_N",
+     "where": "code",
+     "value": 1.1772,
+     "unit": "N",
+     "note": "120 g mid-stroke"
+    }
+   ],
+   "why": {
+    "massG": "not on DigiKey; the datasheet not read",
+    "dimensionsMm": "7.32-9.60 mm working height"
+   },
+   "note": "€1.781 ex VAT each at ten (€2.499 singly, VAT in). Parts.md's $2.45 was DigiKey US's.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "aisler_belly_pads",
+   "name": "Belly pads: 2-layer ENIG PCB, 160 x 20 mm, a batch of 6 (AISLER Budget)",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": "https://aisler.net/en/products/boards",
+   "massG": null,
+   "dimensionsMm": {
+    "length": 160,
+    "width": 20,
+    "thickness": 1.6
+   },
+   "priceEur": 38.83,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.PAD_HALF",
+     "where": "code",
+     "value": [
+      0.08,
+      0.01,
+      0.0015
+     ],
+     "unit": "m",
+     "note": "half the 160 x 20 mm strip"
+    },
+    {
+     "constant": "legs.model.PAD_Y",
+     "where": "code",
+     "value": 0.03,
+     "unit": "m",
+     "note": "the two pads 60 mm apart"
+    }
+   ],
+   "why": {
+    "partNumber": "a board of our own, ordered by its gerbers",
+    "massG": "not given"
+   },
+   "note": "Made and shipped in Germany; asking for five prices six. JLCPCB's five are €19.90 with no VAT shown, plus shipping.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "uhmwpe_300_10",
+   "name": "UHMW-PE (PE 1000) sheet, natural, 300 x 300 x 10 mm",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "0100-RI45070-0300-0300-N",
+   "source": "https://www.kunststoffhaus.de/0020-RI45070-DIV-10-25-mm-PE-UHMW-Platte-PE-1000-Polyethylen-Abm-und-Farbe-waehlbar",
+   "massG": null,
+   "dimensionsMm": {
+    "length": 300,
+    "width": 300,
+    "thickness": 10
+   },
+   "priceEur": 46.67,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.dock.DockSpec.cradle_mu",
+     "where": "code",
+     "value": 0.3,
+     "unit": "1",
+     "note": "flown at 0.3; UHMW-PE slides at 0.12-0.17 (a supplier's figure)"
+    }
+   ],
+   "why": {
+    "massG": "not given; about 840 g at the material's 0.93 g/cm³"
+   },
+   "note": "The cradle's bed and funnel faces. ADS cuts one for €32.17 (€25 of it the saw) and states no lead time.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_cradle_work",
+   "name": "The dock's cradle: the bed and funnel faces cut from the sheet, on a base",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.dock.DockSpec.mouth_half",
+     "where": "code",
+     "value": 0.085,
+     "unit": "m",
+     "note": "the funnel's mouth"
+    },
+    {
+     "constant": "legs.dock.DockSpec.bed_half",
+     "where": "code",
+     "value": 0.064,
+     "unit": "m",
+     "note": "the bed"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a job shop, once drawn",
+    "massG": "no design yet",
+    "dimensionsMm": "a 0.30 m cradle",
+    "priceEur": "no design yet"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_pack_materials",
+   "name": "The pack's printed case, fish paper, heat-shrink and 12S balance lead",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.CHOSEN.belly_depth",
+     "where": "code",
+     "value": 0.105,
+     "unit": "m",
+     "note": "the belly pack's depth under the hips"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "small parts, not priced",
+    "massG": "in `MassBudget.battery`",
+    "dimensionsMm": "no design yet",
+    "priceEur": "small parts, not priced"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "dold_mgn12_rail_1000",
+   "name": "Linear rail MGN12, 1000 mm (Dold)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "MGN12R-1000",
+   "source": "https://www.dold-mechatronik.de/Linearfuehrung-MGN12R-1000mm",
+   "massG": 650,
+   "dimensionsMm": null,
+   "priceEur": 47.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a 1000 mm MGN12 rail"
+   },
+   "note": "The bench leg hangs on it and hops. The MGN15's are sold out to late November.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "dold_mgn12h",
+   "name": "Linear carriage MGN12H (Dold)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "MGN12H",
+   "source": "https://www.dold-mechatronik.de/Linearwagen-MGN12H",
+   "massG": 54,
+   "dimensionsMm": null,
+   "priceEur": 13.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "dynamicKn": 3.72,
+    "staticKn": 5.88
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_bench_mount",
+   "name": "The bench leg's mount: the carriage's plate holding the hip, and the hop's end stops",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "legs.model.CHOSEN.stand_height",
+     "where": "code",
+     "value": 0.3244,
+     "unit": "m",
+     "note": "the hop's travel sized from the standing height"
+    }
+   ],
+   "why": {
+    "partNumber": "no design yet",
+    "source": "a laser cutter, once drawn",
+    "massG": "no design yet",
+    "dimensionsMm": "no design yet",
+    "priceEur": "no design yet"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "quad_gantry_fittings",
+   "name": "The gantry's fittings: angle brackets and T-nuts for 40x40 slot 8, and two eye bolts",
+   "kind": "fastener",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 0,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "partNumber": "not read for 40x40",
+    "source": "Dold, not read",
+    "massG": "not read",
+    "dimensionsMm": "slot 8",
+    "priceEur": "not read for 40x40"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "korad_ka6005p",
+   "name": "Korad KA6005P lab power supply, 0-60 V, 0-5 A, safety terminals",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "KA6005P",
+   "source": "https://www.welectron.com/Korad-KA6005P-Benchtop-Power-Supply-Safety-Terminals",
+   "massG": 7500,
+   "dimensionsMm": null,
+   "priceEur": 239.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "outputV": "0-60",
+    "outputA": "0-5",
+    "powerW": 300,
+    "modes": "CC/CV, USB and RS232"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The bench leg's first power-ups, current-limited. A lab supply cannot take back what the motors return on landing, so the leg hops on the pack (and a clamp), never on this. Joy-IT's RD6012 with its 65 V supply and case gives 12 A for €239.28, on an open-frame supply.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "hilumin_strip_10m",
+   "name": "Hilumin (nickel-plated steel) cell strip, 10 x 0.15 mm, 10 m",
+   "kind": "power",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "2645314",
+   "source": "https://www.akkuman.de/shop/Schweissband-aus-Hilumin-10-mm-015-dick-10-m-lang",
+   "massG": 150,
+   "dimensionsMm": null,
+   "priceEur": 19.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "widthMm": 10,
+    "thicknessMm": 0.15
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "10 m of 10 x 0.15 mm"
+   },
+   "note": "Nickel-plated steel, not nickel: more resistance, so the links that carry the whole pack current are doubled. Pure nickel was in stock at no EU seller a page could be read from.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "kweld_kit",
+   "name": "keenlab kWeld spot welder, complete kit, cables assembled",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "kWeld complete kit",
+   "source": "https://www.keenlab.de/index.php/product/kweld-complete-kit/",
+   "massG": 800,
+   "dimensionsMm": null,
+   "priceEur": 210.63,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "strip": "up to about 0.3 mm",
+    "pulses": "energy-regulated"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "€177.00 ex VAT as the page shows it. It needs a source of 800 A: `kweld_kcap`. Malectrics' V4 bundle is €148.75 without its LiPo; FNIRSI's SWM-10 is €42.90 and welds 0.1-0.25 mm.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "kweld_kcap",
+   "name": "keenlab kCap ultracapacitor module for the kWeld",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "kCap",
+   "source": "https://www.keenlab.de/index.php/product/kweld-ultracapacitor-module/",
+   "massG": 600,
+   "dimensionsMm": null,
+   "priceEur": 153.51,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "pulseA": 1300,
+    "chargeV": 8.1
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "€129.00 ex VAT as the page shows it; the bench supply charges it.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "engineer_pa09",
+   "name": "Engineer PA-09 crimping tool (JST-PH/GH class, AWG 32-20)",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "PA-09",
+   "source": "https://www.kiwi-electronics.com/en/jst-crimping-tool-pa-09-916",
+   "massG": 135,
+   "dimensionsMm": null,
+   "priceEur": 47.59,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "€39.99 ex VAT; ships from the Netherlands. The drivers' CAN and power leads.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "knipex_9762145a",
+   "name": "Knipex 97 62 145 A ferrule crimping pliers, 0.25-2.5 mm²",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "97 62 145 A",
+   "source": "https://www.reichelt.com/de/en/shop/product/crimping_pliers_for_end_sleeves_ferrules_-184328",
+   "massG": 170,
+   "dimensionsMm": null,
+   "priceEur": 30.8,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "pinecil_v2",
+   "name": "Pine64 Pinecil V2 soldering iron",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "PINECIL-BB2",
+   "source": "https://eleshop.de/pinecil-smart-mini-tragbarer-lotkolben.html",
+   "massG": 28,
+   "dimensionsMm": null,
+   "priceEur": 39.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "powerW": 88,
+    "supply": "USB-C PD 12-20 V or DC 12-24 V"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "No supply included; the bench supply runs it off its barrel jack.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "unit_ut161e",
+   "name": "UNI-T UT161E true-RMS multimeter",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "UT161E",
+   "source": "https://eleshop.de/uni-t-ut161e.html",
+   "massG": 400,
+   "dimensionsMm": null,
+   "priceEur": 95.6,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "counts": 22000,
+    "category": "CAT III 1000 V"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The EU name of the UT61E+; Reichelt has it at €109.00.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "proxxon_mc5",
+   "name": "Proxxon MicroClick MC 5 torque wrench, 1-5 N·m, 1/4\"",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "23347",
+   "source": "https://www.reichelt.com/de/en/shop/product/micro-click_torque_screwdriver_5_s-91768",
+   "massG": 431,
+   "dimensionsMm": null,
+   "priceEur": 77.99,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "rangeNm": "1-5",
+    "accuracy": "±6 %"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The actuators' and frame's screws to their torques.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "wera_950pks9",
+   "name": "Wera 950 PKS/9 SM N metric hex key set, 1.5-10 mm",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "05133163001",
+   "source": "https://www.reichelt.com/de/en/shop/product/spanner_set_hex_950_pks_smn_9-pieces-169289",
+   "massG": 265,
+   "dimensionsMm": null,
+   "priceEur": 21.8,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "bambu_p1s",
+   "name": "Bambu Lab P1S 3D printer (printer only)",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "P1S",
+   "source": "https://eu.store.bambulab.com/products/p1s",
+   "massG": 12950,
+   "dimensionsMm": null,
+   "priceEur": 379.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "buildVolumeMm": {
+     "x": 256,
+     "y": 256,
+     "z": 256
+    },
+    "petg": "ideal (maker)"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "not recorded"
+   },
+   "note": "Enclosed, for PETG: the rack's trays, the tools' frames, the cable guides, the pack's case. The page says the VAT may change at checkout. The A1 (open) is €259.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "petg_1kg",
+   "name": "PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "F10765",
+   "source": "https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/",
+   "massG": 1000,
+   "dimensionsMm": null,
+   "priceEur": 21.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a 1 kg spool"
+   },
+   "note": "",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "dold_4040_1m",
+   "name": "Aluminium extrusion 40x40 light, I-type slot 8, cut to length (1 m)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "60800-Z",
+   "source": "https://www.dold-mechatronik.de/Aluminum-Profile-40x40L-I-Type-Groove-8-176kg-m-Customized-Cutting-50-to-6000mm",
+   "massG": 1759,
+   "dimensionsMm": {
+    "width": 40,
+    "height": 40,
+    "length": 1000
+   },
+   "priceEur": 18.9,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [],
+   "why": {},
+   "note": "€17.90 a metre and €1.00 a cut, so a metre in one piece is €18.90.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "donges_rope_ratchet_113",
+   "name": "Dönges rope ratchet, 113 kg, 5 m",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "Seilzugratsche 113 kg",
+   "source": "https://www.feuerwehrdiscount.de/seilzugratsche-rope-ratchet/auslastung-bis-max.-68-kg",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 33.99,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "ratedKg": 113,
+    "ropeM": 5
+   },
+   "feeds": [],
+   "why": {
+    "massG": "given for the 68 kg one only",
+    "dimensionsMm": "not recorded"
+   },
+   "note": "The body's hanger, raised and lowered by hand. The 68 kg one is €14.99; the 113 kg one leaves the catch load its margin (the page's variant).",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "mammut_magic_sling_120",
+   "name": "Mammut Magic Sling 12.0, 120 cm (22 kN)",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "314-0107",
+   "source": "https://www.bergfreunde.de/mammut-magic-sling-120-bandschlinge/",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 18.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "breakingKn": 22,
+    "widthMm": 12
+   },
+   "feeds": [],
+   "why": {
+    "massG": "not on the page",
+    "dimensionsMm": "a 120 cm sling"
+   },
+   "note": "No harness is sold for a robot: two slings round the torso, fore and aft, meet at the ratchet.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
+  },
+  {
+   "id": "hummelt_bungee_10m",
+   "name": "Bungee cord, 8 mm, 10 m (Hummelt)",
+   "kind": "equipment",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": "1037",
+   "source": "https://hummelt-shop.de/produkt/expanderseil-gummiseil-8mm-blau/",
+   "massG": 420,
+   "dimensionsMm": null,
+   "priceEur": 12.49,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "breakingKg": 70,
+    "stretch": "95-110 %"
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "10 m of 8 mm cord"
+   },
+   "note": "Between the ratchet and the slings, doubled or tripled, so a fall is caught softly.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
+   }
   }
- ]
+ ],
+ "build": {
+  "budgetUsd": 20000,
+  "usdPerEur": 1.1403,
+  "rateDate": "2026-09-25",
+  "rateSource": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+  "vat": 0.19,
+  "checked": "2026-09-28",
+  "contingency": 0.15,
+  "groups": [
+   "actuation",
+   "power",
+   "compute",
+   "sensors",
+   "frame and legs",
+   "arm",
+   "tools",
+   "rack",
+   "dock",
+   "safety",
+   "bench leg",
+   "gantry",
+   "spares",
+   "shop"
+  ],
+  "lines": [
+   {
+    "part": "gim8108_8",
+    "name": "Steadywin GIM8108-8 joint motor with the GDS68 driver (8:1, FOC, CAN, MIT mode), 48 V",
+    "group": "actuation",
+    "quantity": 14,
+    "priceFor": "each",
+    "eachEur": 124.95,
+    "lineEur": 1749.3,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "pre-order: none in stock, \"restock in 10-20 days\" (OpenELAB)",
+    "why": {},
+    "note": "twelve on the legs, two on the arm"
+   },
+   {
+    "part": "amass_xt30_22_pair",
+    "name": "Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)",
+    "group": "actuation",
+    "quantity": 16,
+    "priceFor": "pair",
+    "eachEur": 5.0,
+    "lineEur": 80.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy)",
+    "why": {},
+    "note": "one a driver, spares' too"
+   },
+   {
+    "part": "lapp_unitronic_can",
+    "name": "LAPP UNITRONIC BUS CAN 1 x 2 x 0.22 mm², shielded, by the metre",
+    "group": "actuation",
+    "quantity": 10,
+    "priceFor": "each",
+    "eachEur": 1.98,
+    "lineEur": 19.8,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "176 m in stock, delivered on 2026-09-30 (Conrad)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "silicone_wire_14awg",
+    "name": "Silicone wire, 14 AWG (2.08 mm²), 1 m",
+    "group": "actuation",
+    "quantity": 20,
+    "priceFor": "each",
+    "eachEur": 2.25,
+    "lineEur": 45.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "available now, 1-3 working days (MyLipo)",
+    "why": {},
+    "note": "ten metres red, ten black"
+   },
+   {
+    "part": "raspberry_pi_5_quad",
+    "name": "Raspberry Pi 5, 8 GB",
+    "group": "compute",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 184.9,
+    "lineEur": 184.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (BerryBase)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "pi5_active_cooler",
+    "name": "Raspberry Pi Active Cooler for the Pi 5",
+    "group": "compute",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 5.9,
+    "lineEur": 5.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (BerryBase)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "pi_ssd_kit_256",
+    "name": "Raspberry Pi SSD Kit, 256 GB (M.2 HAT+ and NVMe)",
+    "group": "compute",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 54.9,
+    "lineEur": 54.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "not deliverable now (BerryBase); the 512 GB kit is in stock at Reichelt for €166.10",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "waveshare_can_hat_plus",
+    "name": "Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi",
+    "group": "compute",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 29.95,
+    "lineEur": 29.95,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (Eckstein)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "waveshare_can_fd_hat",
+    "name": "Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi",
+    "group": "compute",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 51.9,
+    "lineEur": 51.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock (short supply), 1-3 business days (Welectron)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_frame_plates",
+    "name": "The torso's frame: two 3 mm aluminium side plates, end caps and cross members",
+    "group": "frame and legs",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 300.0,
+    "allowance": true,
+    "basis": "six to eight 3 mm AlMg3 parts: AluFritze's online configurator prices a plain 300 x 150 mm rectangle at €20.02 (four for €80.10, 10-14 working days); a plate with holes is priced from its drawing",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "cf_tube_25_22",
+    "name": "Carbon fibre tube, roll-wrapped, 25 mm OD / 22 mm ID, 1 m (Easy Composites)",
+    "group": "frame and legs",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 46.05,
+    "lineEur": 92.1,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "more than 50 in stock, dispatched the same day before 13:00, DHL 2 days (Easy Composites, NL)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_leg_brackets",
+    "name": "The legs' motor mounts, hip brackets, knee housings and tube clamps, with their fasteners",
+    "group": "frame and legs",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 800.0,
+    "allowance": true,
+    "basis": "twelve motor mounts, four hip brackets and eight tube clamps, nothing drawn, sized as machined aluminium at a job shop; printed on the shop's P1S they cost their filament",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "squash_balls_12",
+    "name": "Dunlop Pro squash balls, box of 12 (40 mm, 24 g each)",
+    "group": "frame and legs",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 37.5,
+    "lineEur": 37.5,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 working days (squashpoint.de)",
+    "why": {},
+    "note": "four feet and eight spares"
+   },
+   {
+    "part": "cf_tube_20_18",
+    "name": "Carbon fibre tube, roll-wrapped, 20 mm OD / 18 mm ID, 1 m (Easy Composites)",
+    "group": "arm",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 27.91,
+    "lineEur": 27.91,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "more than 50 in stock, dispatched the same day before 13:00, DHL 2 days (Easy Composites, NL)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "skf_61800_2rs1",
+    "name": "SKF 61800-2RS1 deep-groove ball bearing, 10 x 19 x 5 mm",
+    "group": "arm",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 7.6,
+    "lineEur": 30.4,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-4 days (kugellager-shop.net)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "igus_kcrm_05",
+    "name": "igus igubal KCRM-05 rod end, M5 female, right-hand",
+    "group": "arm",
+    "quantity": 6,
+    "priceFor": "each",
+    "eachEur": 5.43,
+    "lineEur": 32.58,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ready to ship in 24 hours (igus)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_arm_fork",
+    "name": "The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods",
+    "group": "arm",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 150.0,
+    "allowance": true,
+    "basis": "one machined aluminium plate with its prongs, V's and ramps, and three 5 mm rods threaded M5: a plain 4 mm plate is €23.12 at AluFritze, the V's and ramps are machining",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "ptfe_tape_glass",
+    "name": "PTFE glass-fabric adhesive tape, 0.13 mm, 25 mm x 30 m",
+    "group": "arm",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 29.67,
+    "lineEur": 29.67,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "2-4 working days (High-tech-flon)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_tool_peg",
+    "name": "Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush",
+    "group": "tools",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 30.0,
+    "allowance": true,
+    "basis": "four pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as the rover's peg (`peg_rod_6mm`)",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "servo_fs90mg",
+    "name": "FEETECH FS90MG micro servo (digital, metal gears)",
+    "group": "tools",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 5.95,
+    "lineEur": 11.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+    },
+    "note": "the claw's jaws and the seed dispenser's gate"
+   },
+   {
+    "part": "slide_l12_100",
+    "name": "Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)",
+    "group": "tools",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 77.05,
+    "lineEur": 77.05,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+    },
+    "note": "the pen's sideways carriage: 100 mm of the 110 it wants, the nearest slide with a published draw"
+   },
+   {
+    "part": "module_esp32",
+    "name": "ESP32-class board, one per module",
+    "group": "tools",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 5,
+    "lineEur": 20,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "no board chosen"
+    },
+    "note": "one a tool"
+   },
+   {
+    "part": "lcd_display",
+    "name": "Small SPI/I2C display driven by the module's ESP32",
+    "group": "tools",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 20.0,
+    "allowance": true,
+    "basis": "a small SPI display for the LCD tool's ESP32; the rover's LCD module never chose one",
+    "leadTime": null,
+    "why": {
+     "leadTime": "no display chosen"
+    },
+    "note": ""
+   },
+   {
+    "part": "bay_switch",
+    "name": "Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray",
+    "group": "rack",
+    "quantity": 3,
+    "priceFor": "each",
+    "eachEur": 2.59,
+    "lineEur": 7.77,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+    },
+    "note": "one a bay, as the rover's rack reports its bays (#351)"
+   },
+   {
+    "part": "module_esp32",
+    "name": "ESP32-class board, one per module",
+    "group": "rack",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 5,
+    "lineEur": 5,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "no board chosen"
+    },
+    "note": "the rack's board, which reports the switches"
+   },
+   {
+    "part": "dold_3030_1m",
+    "name": "Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)",
+    "group": "rack",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 10.4,
+    "lineEur": 41.6,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 4-5 working days (Dold)",
+    "why": {},
+    "note": "two posts, the rail and its feet"
+   },
+   {
+    "part": "dold_angle_30",
+    "name": "Angle bracket 30, B-type slot 8, with its screws and hammer nuts",
+    "group": "rack",
+    "quantity": 8,
+    "priceFor": "each",
+    "eachEur": 1.79,
+    "lineEur": 14.32,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 3-4 working days (Dold)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_rack_board",
+    "name": "The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags",
+    "group": "rack",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 40.0,
+    "allowance": true,
+    "basis": "a 1.0 x 0.6 m plywood back board, six V-trays printed in PETG from the shop's spools, and the rack's six and the dock's four 60 mm tags printed and laminated",
+    "leadTime": null,
+    "why": {
+     "leadTime": "a board from a DIY store; the trays and tags printed in the shop"
+    },
+    "note": ""
+   },
+   {
+    "part": "molicel_p45b",
+    "name": "Molicel INR21700-P45B Li-ion cell (21700, 4.5 Ah)",
+    "group": "power",
+    "quantity": 12,
+    "priceFor": "each",
+    "eachEur": 7.0,
+    "lineEur": 84.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ready to ship in 1-2 days (akkuteile.de)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "jbd_bms_12s_120a",
+    "name": "JBD smart BMS, 10S-17S, 120 A, Bluetooth",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 112.99,
+    "lineEur": 112.99,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "short stock, 1-5 working days (bikebattery.de)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "hilumin_strip_10m",
+    "name": "Hilumin (nickel-plated steel) cell strip, 10 x 0.15 mm, 10 m",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 19.95,
+    "lineEur": 19.95,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 working days (AKKUman)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "meanwell_ddr_60l_5",
+    "name": "Mean Well DDR-60L-5 DC-DC converter, 18-75 V in, 5 V 12 A, isolated (DIN rail)",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 43.8,
+    "lineEur": 43.8,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "amass_xt90s",
+    "name": "Amass XT90-S anti-spark connector pair",
+    "group": "power",
+    "quantity": 3,
+    "priceFor": "pair",
+    "eachEur": 4.05,
+    "lineEur": 12.15,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 working days (MHM)",
+    "why": {},
+    "note": "the pack's lead, the charger's and the bench supply's"
+   },
+   {
+    "part": "victron_midi_60a",
+    "name": "Victron MIDI fuse 60 A / 58 V",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 14.29,
+    "lineEur": 14.29,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 working days (Klimaworld)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "victron_midi_holder",
+    "name": "Victron MIDI fuse holder",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 10.12,
+    "lineEur": 10.12,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ships in 1-3 working days (Offgridtec)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "silicone_wire_10awg",
+    "name": "Silicone wire, 10 AWG (6 mm²), 1 m",
+    "group": "power",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 4.4,
+    "lineEur": 17.6,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (Skeries)",
+    "why": {},
+    "note": "two metres red, two black"
+   },
+   {
+    "part": "quad_pack_materials",
+    "name": "The pack's printed case, fish paper, heat-shrink and 12S balance lead",
+    "group": "power",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 30.0,
+    "allowance": true,
+    "basis": "the case printed in the shop's PETG; fish paper, heat-shrink and a 12S balance lead",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "quad_rplidar_c1",
+    "name": "Slamtec RPLIDAR C1 2D LIDAR",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 84.9,
+    "lineEur": 84.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "1-3 business days (Funduino)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_realsense_d435",
+    "name": "RealSense D435 depth camera (active IR stereo)",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 340.01,
+    "lineEur": 340.01,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_pi_camera_3",
+    "name": "Raspberry Pi Camera Module 3",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 28.9,
+    "lineEur": 28.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (BerryBase)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "pi5_camera_cable",
+    "name": "Raspberry Pi camera cable, standard to mini, 200 mm",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 1.2,
+    "lineEur": 1.2,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (BerryBase)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "tdk_ev_icm42688p",
+    "name": "TDK InvenSense ICM-42688-P evaluation board (IMU)",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 36.79,
+    "lineEur": 36.79,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "138 in stock, the maker's standard lead 16 weeks (DigiKey DE)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "millmax_0858",
+    "name": "Mill-Max 0858-0-15-20-82-14-11-0 spring-loaded pin (gold, 1.27 mm plunger, 2.29 mm stroke)",
+    "group": "dock",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 2.12,
+    "lineEur": 8.48,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "18,820 in stock, the maker's standard lead 4 weeks (DigiKey DE)",
+    "why": {},
+    "note": "two a pole"
+   },
+   {
+    "part": "aisler_belly_pads",
+    "name": "Belly pads: 2-layer ENIG PCB, 160 x 20 mm, a batch of 6 (AISLER Budget)",
+    "group": "dock",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 38.83,
+    "lineEur": 38.83,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "dispatched in about 10 business days, then 2 days by post (AISLER)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "uhmwpe_300_10",
+    "name": "UHMW-PE (PE 1000) sheet, natural, 300 x 300 x 10 mm",
+    "group": "dock",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 46.67,
+    "lineEur": 46.67,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "available now, 3-5 working days (kunststoffhaus.de)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_cradle_work",
+    "name": "The dock's cradle: the bed and funnel faces cut from the sheet, on a base",
+    "group": "dock",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 100.0,
+    "allowance": true,
+    "basis": "the bed and the funnel's faces routed from the sheet and screwed to a base: an hour at a job shop, or by hand",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "noeifevo_charger_12s",
+    "name": "NOEIFEVO 50.4 V 5 A Li-ion charger (12S, CC/CV)",
+    "group": "dock",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 69.0,
+    "lineEur": 69.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "3-7 working days from its Polish warehouse, 7-15 from China; the page does not say which",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "albright_sw80b549",
+    "name": "Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 82.28,
+    "lineEur": 82.28,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "the page states none (it can be put in the cart)"
+    },
+    "note": ""
+   },
+   {
+    "part": "schneider_xb5as8442",
+    "name": "Schneider Harmony XB5AS8442 emergency stop, 40 mm twist-release head, 1 NC",
+    "group": "safety",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 30.95,
+    "lineEur": 61.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "available on 2026-10-01 (Reichelt)",
+    "why": {},
+    "note": "one on the robot, one on the bench rig"
+   },
+   {
+    "part": "radiomaster_pocket",
+    "name": "RadioMaster Pocket ELRS transmitter (EU LBT)",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 79.95,
+    "lineEur": 79.95,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ships the same day (n-Factory)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "radiomaster_er6",
+    "name": "RadioMaster ER6 ELRS PWM receiver (LBT)",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 31.95,
+    "lineEur": 31.95,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ships the same day (n-Factory)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "pololu_rc_relay",
+    "name": "Pololu RC Switch with Relay (assembled)",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 21.36,
+    "lineEur": 21.36,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "about 8-10 days (Eckstein)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "molicel_p28a",
+    "name": "Molicel INR18650-P28A Li-ion cell (18650, flat top)",
+    "group": "safety",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 5.95,
+    "lineEur": 11.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "available, 1-3 days (LiPo24)",
+    "why": {},
+    "note": "the transmitter's"
+   },
+   {
+    "part": "meanwell_ddr_30l_12",
+    "name": "Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 27.1,
+    "lineEur": 27.1,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": "the contactor's coil"
+   },
+   {
+    "part": "arcol_hs25_47r",
+    "name": "Arcol HS25 wirewound resistor, 47 Ω, 25 W, aluminium housing",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 2.99,
+    "lineEur": 2.99,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": "pre-charge"
+   },
+   {
+    "part": "hongfa_hf115f_012",
+    "name": "Hongfa HF115F relay, 12 V coil, 16 A changeover",
+    "group": "safety",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 3.1,
+    "lineEur": 3.1,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": "pre-charge"
+   },
+   {
+    "part": "korad_ka6005p",
+    "name": "Korad KA6005P lab power supply, 0-60 V, 0-5 A, safety terminals",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 239.0,
+    "lineEur": 239.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 business days (Welectron)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "ucan_v1",
+    "name": "UCAN V1.0 USB-CAN adapter (candleLight firmware)",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 8.99,
+    "lineEur": 8.99,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (Eckstein)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "dold_mgn12_rail_1000",
+    "name": "Linear rail MGN12, 1000 mm (Dold)",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 47.0,
+    "lineEur": 47.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 3-4 working days (Dold)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "dold_mgn12h",
+    "name": "Linear carriage MGN12H (Dold)",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 13.0,
+    "lineEur": 13.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 3-4 working days (Dold)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "dold_3030_1m",
+    "name": "Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)",
+    "group": "bench leg",
+    "quantity": 3,
+    "priceFor": "each",
+    "eachEur": 10.4,
+    "lineEur": 31.2,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 4-5 working days (Dold)",
+    "why": {},
+    "note": "the stand: a 1.2 m upright and its base"
+   },
+   {
+    "part": "dold_angle_30",
+    "name": "Angle bracket 30, B-type slot 8, with its screws and hammer nuts",
+    "group": "bench leg",
+    "quantity": 6,
+    "priceFor": "each",
+    "eachEur": 1.79,
+    "lineEur": 10.74,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 3-4 working days (Dold)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_bench_mount",
+    "name": "The bench leg's mount: the carriage's plate holding the hip, and the hop's end stops",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 60.0,
+    "allowance": true,
+    "basis": "a 4 mm AlMg3 plate at AluFritze (a plain 300 x 150 mm one is €23.12) and printed end stops",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "pi5_psu_27w",
+    "name": "Raspberry Pi 27 W USB-C power supply (EU)",
+    "group": "bench leg",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 12.4,
+    "lineEur": 12.4,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 days (BerryBase)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "dold_4040_1m",
+    "name": "Aluminium extrusion 40x40 light, I-type slot 8, cut to length (1 m)",
+    "group": "gantry",
+    "quantity": 8,
+    "priceFor": "each",
+    "eachEur": 18.9,
+    "lineEur": 151.2,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 4-5 working days (Dold)",
+    "why": {},
+    "note": "two 2 m uprights, a 1.5 m beam and two 1 m feet, priced as metres; a longer cut saves a euro"
+   },
+   {
+    "part": "donges_rope_ratchet_113",
+    "name": "Dönges rope ratchet, 113 kg, 5 m",
+    "group": "gantry",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 33.99,
+    "lineEur": 33.99,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 working days (feuerwehrdiscount.de)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "mammut_magic_sling_120",
+    "name": "Mammut Magic Sling 12.0, 120 cm (22 kN)",
+    "group": "gantry",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 18.0,
+    "lineEur": 36.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "2-3 working days (Bergfreunde)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "hummelt_bungee_10m",
+    "name": "Bungee cord, 8 mm, 10 m (Hummelt)",
+    "group": "gantry",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 12.49,
+    "lineEur": 12.49,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 2-3 days (Hummelt)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "quad_gantry_fittings",
+    "name": "The gantry's fittings: angle brackets and T-nuts for 40x40 slot 8, and two eye bolts",
+    "group": "gantry",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 40.0,
+    "allowance": true,
+    "basis": "eight angle brackets with T-nuts for 40x40 slot 8 and two eye bolts; the 30x30's brackets are €1.79-2.20 at Dold, the 40x40's were not read",
+    "leadTime": null,
+    "why": {
+     "leadTime": "not read for 40x40"
+    },
+    "note": ""
+   },
+   {
+    "part": "gim8108_8",
+    "name": "Steadywin GIM8108-8 joint motor with the GDS68 driver (8:1, FOC, CAN, MIT mode), 48 V",
+    "group": "spares",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 124.95,
+    "lineEur": 249.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "pre-order: none in stock, \"restock in 10-20 days\" (OpenELAB)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "molicel_p45b",
+    "name": "Molicel INR21700-P45B Li-ion cell (21700, 4.5 Ah)",
+    "group": "spares",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 7.0,
+    "lineEur": 14.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ready to ship in 1-2 days (akkuteile.de)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "victron_midi_60a",
+    "name": "Victron MIDI fuse 60 A / 58 V",
+    "group": "spares",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 14.29,
+    "lineEur": 28.58,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-3 working days (Klimaworld)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "millmax_0858",
+    "name": "Mill-Max 0858-0-15-20-82-14-11-0 spring-loaded pin (gold, 1.27 mm plunger, 2.29 mm stroke)",
+    "group": "spares",
+    "quantity": 6,
+    "priceFor": "each",
+    "eachEur": 2.12,
+    "lineEur": 12.72,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "18,820 in stock, the maker's standard lead 4 weeks (DigiKey DE)",
+    "why": {},
+    "note": "with the dock's four, ten: the price at ten"
+   },
+   {
+    "part": "skf_61800_2rs1",
+    "name": "SKF 61800-2RS1 deep-groove ball bearing, 10 x 19 x 5 mm",
+    "group": "spares",
+    "quantity": 2,
+    "priceFor": "each",
+    "eachEur": 7.6,
+    "lineEur": 15.2,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-4 days (kugellager-shop.net)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "kweld_kit",
+    "name": "keenlab kWeld spot welder, complete kit, cables assembled",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 210.63,
+    "lineEur": 210.63,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "28 in stock (keenlab)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "kweld_kcap",
+    "name": "keenlab kCap ultracapacitor module for the kWeld",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 153.51,
+    "lineEur": 153.51,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "41 in stock (keenlab)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "engineer_pa09",
+    "name": "Engineer PA-09 crimping tool (JST-PH/GH class, AWG 32-20)",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 47.59,
+    "lineEur": 47.59,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "31 in stock, ships the same day (Kiwi, NL)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "knipex_9762145a",
+    "name": "Knipex 97 62 145 A ferrule crimping pliers, 0.25-2.5 mm²",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 30.8,
+    "lineEur": 30.8,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "pinecil_v2",
+    "name": "Pine64 Pinecil V2 soldering iron",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 39.9,
+    "lineEur": 39.9,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, ships the same day (eleshop)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "unit_ut161e",
+    "name": "UNI-T UT161E true-RMS multimeter",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 95.6,
+    "lineEur": 95.6,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "expected on 2026-10-07 (eleshop)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "proxxon_mc5",
+    "name": "Proxxon MicroClick MC 5 torque wrench, 1-5 N·m, 1/4\"",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 77.99,
+    "lineEur": 77.99,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "wera_950pks9",
+    "name": "Wera 950 PKS/9 SM N metric hex key set, 1.5-10 mm",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 21.8,
+    "lineEur": 21.8,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "bambu_p1s",
+    "name": "Bambu Lab P1S 3D printer (printer only)",
+    "group": "shop",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 379.0,
+    "lineEur": 379.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "ships from the EU warehouse in 1-3 business days (Bambu Lab)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "petg_1kg",
+    "name": "PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)",
+    "group": "shop",
+    "quantity": 3,
+    "priceFor": "each",
+    "eachEur": 21.0,
+    "lineEur": 63.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "in stock; the page and its terms give no delivery time"
+    },
+    "note": "the rack's trays, the tools' frames, the pack's case, cable guides"
+   }
+  ],
+  "totals": {
+   "sourcedEur": 5977.89,
+   "allowanceEur": 1570.0,
+   "contingencyEur": 1132.18,
+   "totalEur": 8680.07,
+   "totalUsd": 9897.88,
+   "budgetEur": 17539.24,
+   "byGroup": {
+    "actuation": 1894.1,
+    "power": 344.9,
+    "compute": 327.55,
+    "sensors": 491.8,
+    "frame and legs": 1229.6,
+    "arm": 270.56,
+    "tools": 158.95,
+    "rack": 108.69,
+    "dock": 262.98,
+    "safety": 322.53,
+    "bench leg": 422.33,
+    "gantry": 273.68,
+    "spares": 320.4,
+    "shop": 1119.82
+   }
+  }
+ }
 }

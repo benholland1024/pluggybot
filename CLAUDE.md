@@ -633,8 +633,12 @@ tolerance spikes are listed in `docs/Rover.md`.
   two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
   `rack/catalog.py` → `protocol/parts.json`, vendored to the website's parts
-  page): `body` and `catalog` shelves. ⚠ EVERY `feeds` VALUE IS READ OFF
-  `models/room_hub.xml` or the live constant — never typed
+  page): `body` and `catalog` shelves, and `build`, the quadruped's bill of
+  materials (#379: `LINES` buy the parts, an undesigned one at an ALLOWANCE
+  with its basis, never a price; Parts.md's bill is RENDERED from them, and
+  a test fails if the two differ). ⚠ EVERY `feeds` VALUE IS READ OFF its
+  robot's model (`WORLDS`: `room_hub.xml`, `quadruped.xml`) or the live
+  constant — never typed
   (`test_no_feed_is_typed`), so a moved literal is a STALE fixture (`uv run
   python -m pluggybot.rack.catalog`), and an `expect` pins the datasheet's
   number to the sim's. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null` WITH A

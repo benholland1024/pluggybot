@@ -231,7 +231,7 @@ def unbuildable(part: catalog.Part) -> str | None:
   the validator's refusals and the prompt's list (issue #168 slice D), so
   the robot is never told a part is usable that `parse` would refuse."""
   if "catalog" not in part.shelves:
-    return "on the body shelf, not the catalog"
+    return f"on the {part.shelves[0]} shelf, not the catalog"
   if part.kind == "scaffold":
     return None
   if part.status != "chosen":
@@ -385,7 +385,7 @@ def parse(raw) -> Tool:
       unknown_part = True
       continue
     if "catalog" not in part.shelves:
-      reasons.append(f"{where}: {part.id} is on the body shelf, not the catalog")
+      reasons.append(f"{where}: {part.id} is on the {part.shelves[0]} shelf, not the catalog")
     if part.status != "chosen":
       reasons.append(f"{where}: {part.id} is {part.status}, not chosen"
                      + (f" ({part.why.get('partNumber')})" if part.why.get("partNumber") else ""))
