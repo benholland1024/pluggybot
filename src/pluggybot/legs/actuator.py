@@ -206,8 +206,8 @@ class JointLimits:
     the FOC driver cancels the back-EMF the voltage model would add as
     damping. Inside the no-load speed the force equals `clip` of the PD to
     1e-14 N*m; `implicitfast` then integrates its damping implicitly,
-    which is what makes a flight differ (SimNotes, "The legs' drivers in
-    C")."""
+    which is what makes a flight differ (SimNotes, "The served sim's
+    speed")."""
     rows = []
     for j in range(len(self.peak)):
       k = self.bus_v / self.noload[j]

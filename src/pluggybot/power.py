@@ -141,8 +141,8 @@ class Pack:
     self.last_power_w = p
     # `min`/`max`, not `np.clip`: the same float, without numpy's
     # microseconds on a scalar every step (issue #385).
-    self.energy_wh = min(max(self.energy_wh - p * dt / 3600.0, 0.0),
-                         self.capacity_wh)
+    self.energy_wh = float(min(max(self.energy_wh - p * dt / 3600.0, 0.0),
+                               self.capacity_wh))
 
   @property
   def fraction(self) -> float:
