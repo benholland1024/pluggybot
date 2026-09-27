@@ -550,12 +550,11 @@ def rack_charge_contact(model, data, prefix: str = "") -> bool:
   pin_l, pin_r = geom_id(model, "rack_pin_l"), geom_id(model, "rack_pin_r")
   if chassis is None or pin_l is None or pin_r is None:
     raise KeyError("no chassis or charge pins in this model")
+  # The chassis's few rows, then Python, as `touching` (issue #385).
   g = contact_pairs(data)
-  if g.shape[0] == 0:
-    return False
-  mine = (g[:, 0] == chassis) | (g[:, 1] == chassis)
-  others = np.where(g[mine, 0] == chassis, g[mine, 1], g[mine, 0])
-  return bool(np.any(others == pin_l) and np.any(others == pin_r))
+  rows = g[(g[:, 0] == chassis) | (g[:, 1] == chassis)].tolist()
+  others = {y if x == chassis else x for x, y in rows}
+  return pin_l in others and pin_r in others
 
 
 #: The V a bay's presence switch sits in (issue #351): ONE switch a bay, in
