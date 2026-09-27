@@ -21,10 +21,13 @@ SimNotes, "The quadruped's dock".
                 preload on each pad, the pose the board gives it (the
                 anchor), and standing up and backing off the dock
   --mouth M, --bed B   fly any table on a dock of another width (m)
+  --view        dockings in the MuJoCo viewer, one after another, each from a
+                new random start at the standoff; close the window to quit
   (default)     a filmstrip of one docking, dock_spike.png
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/dock_spike.py [--capture|--approach|--hold]
+  uv run python scripts/dock_spike.py --view     # a window: MUJOCO_GL left off
 """
 
 import os
@@ -38,6 +41,7 @@ from dataclasses import replace  # noqa: E402
 import math  # noqa: E402
 from pathlib import Path  # noqa: E402
 import sys  # noqa: E402
+import time  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -74,6 +78,10 @@ def world(spec: dk.DockSpec = dk.DEFAULT):
 def _yaw(q) -> float:
   w, x, y, z = q
   return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+class ViewerClosed(Exception):
+  """The viewer's window was closed: the flight stops where it is."""
 
 
 def handover(drv: PolicyDriver) -> None:
@@ -119,6 +127,10 @@ class Rig:
     #: What the legs and their drivers drew, J (the electronics are added by
     #: the reader: they draw whatever the legs do).
     self.leg_j = 0.0
+    #: A passive viewer to hand every tenth step to, at real time (`--view`),
+    #: and (wall, sim) time when its pacing last began.
+    self.viewer = None
+    self._pace = None
 
   def close(self) -> None:
     if self.det is not None:
@@ -169,6 +181,23 @@ class Rig:
         self.feet_on_dock_s += dt
       if self._on_dock(self._body):
         self.body_on_dock_s += dt
+    if self.viewer is not None:
+      self._show()
+
+  def _show(self) -> None:
+    """Hand the frame to the viewer, holding the sim to real time."""
+    d = self.data
+    if not self.viewer.is_running():
+      raise ViewerClosed
+    if round(d.time / self.model.opt.timestep) % 10:
+      return
+    self.viewer.sync()
+    now = time.time()
+    if self._pace is None or d.time < self._pace[1]:   # `place` restarts time
+      self._pace = (now, d.time)
+    ahead = (d.time - self._pace[1]) - (now - self._pace[0])
+    if ahead > 0:
+      time.sleep(ahead)
 
   def step(self, twist: Twist) -> None:
     self.drv.step(twist)
@@ -573,6 +602,49 @@ def filmstrip(out: str, spec: dk.DockSpec = dk.DEFAULT) -> None:
   print(f"wrote {out}")
 
 
+# ---- the viewer ---------------------------------------------------------------
+
+def view(spec: dk.DockSpec = dk.DEFAULT, seed: int | None = None) -> None:
+  """Dockings in the MuJoCo viewer, one after another, each from a new
+  random start at the standoff: it looks, walks in steering by the board,
+  lies down, lies there a moment, stands up and backs off. Close the window
+  to quit."""
+  from mujoco import viewer as mj_viewer
+  rng = np.random.default_rng(seed)
+  rig = Rig(spec)
+  print("Each docking starts at the standoff, 1 m behind the seat, TRULY off by a "
+        "random offset while the robot believes it stands exactly there. Close the "
+        "window to quit.")
+  with mj_viewer.launch_passive(rig.model, rig.data) as viewer:
+    viewer.cam.lookat[:] = (-0.35, 0.0, 0.1)
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 2.4, 145.0, -25.0
+    rig.viewer = viewer
+    k = 0
+    try:
+      while viewer.is_running():
+        k += 1
+        across = rng.uniform(-START_ACROSS_M, START_ACROSS_M)
+        along = rng.uniform(-START_ALONG_M, START_ALONG_M)
+        yaw = rng.uniform(-START_YAW_DEG, START_YAW_DEG)
+        print(f"docking {k}: {across:+.2f} m across, {along:+.2f} m along, "
+              f"{yaw:+.0f} deg turned")
+        rig.place(-dk.STANDOFF_M + along, across, math.radians(yaw),
+                  belief=(-dk.STANDOFF_M, 0.0, 0.0))
+        r = approach(rig, "look")
+        tries = f"{r['tries']} {'try' if r['tries'] == 1 else 'tries'}"
+        print(f"  {'charging' if r['ok'] else 'not docked (' + r['why'] + ')'} "
+              f"after {tries}, {r['seconds']:.1f} s")
+        if r["ok"]:
+          t0 = rig.data.time
+          while rig.data.time - t0 < 3.0:     # lying there, the drivers idle
+            rig.torque_step(np.zeros(12))
+          rig.stand_up()
+          back_out(rig, 0.6)
+    except ViewerClosed:
+      pass
+  rig.close()
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--capture", action="store_true")
@@ -588,6 +660,8 @@ def main(argv=None) -> None:
   ap.add_argument("--n", type=int, default=0,
                   help="with --approach: this many random starts after the grid")
   ap.add_argument("--hold", action="store_true")
+  ap.add_argument("--view", action="store_true",
+                  help="dockings in the MuJoCo viewer until the window closes")
   ap.add_argument("--mouth", type=float, default=None)
   ap.add_argument("--bed", type=float, default=None)
   ap.add_argument("--out", default="dock_spike.png")
@@ -609,6 +683,8 @@ def main(argv=None) -> None:
                    spec, args.n)
   elif args.hold:
     hold_table(spec)
+  elif args.view:
+    view(spec)
   else:
     filmstrip(args.out, spec)
 
