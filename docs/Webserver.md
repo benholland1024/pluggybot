@@ -126,6 +126,17 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
+`serve.py --body quadruped` (`$PLUGGY_BODY`; issue #387) serves the same
+house with the rover taken out and the quadruped and its dock put in: the
+world is `home_quad` (`home_quad_pair` with `--pair`), the errand defaults
+to `none`, and a tool errand is refused -- the body has no arm yet. The
+deployed period flies it with no job offers (`PLUGGY_TASKS` blank, which the
+image otherwise sets) and no upkeep (no `--metabolism`). A `world.npz`
+saved by the rover's world is refused by name, so the first quadruped
+process starts from the XML; the memories, the ledger and the kept event
+maps carry on, and a kept row naming a tool errand is left out and said in
+History.
+
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
 it explores, then stands by for the shared board's work), `--robot-name-2`

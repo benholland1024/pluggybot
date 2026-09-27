@@ -1459,9 +1459,12 @@ Four things only the observatory can show:
 ⚠ **OBSERVATORY DATA WITHOUT A BUILD IDENTIFIER IS NOT WEAKER DATA, IT IS
 UNUSABLE DATA** — two regimes wear one name and nothing can separate them
 afterwards. The header carries a `build` block (`commit`, `dataHashes`, `arm`,
-`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, and since #263
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #263
 `constitutions` — which constitution each robot was told it is, by name and
-content hash, per robot root, because a pair may be given two) built by
+content hash, per robot root, because a pair may be given two — and since
+#387 `body`, the body's name and the sha256 of each policy it walks and gets
+up on, absent for the rover; `dataHashes.world` hashes the body's files, so
+a retrained policy is a new regime) built by
 `evaluation.record.build_identity`, the SAME function the experiment record's
 `commit` and `dataHashes` come from: a header and a record that computed their
 own hashes would agree until the day one of them learned about a file the other
