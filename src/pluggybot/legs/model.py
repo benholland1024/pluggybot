@@ -199,11 +199,14 @@ def _pads(spec: BodySpec) -> str:
 
 
 def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
-             standalone: bool = True, scenery: str = "", assets: str = "") -> str:
+             standalone: bool = True, scenery: str = "", assets: str = "",
+             after: str = "") -> str:
   """The robot as MJCF. `standalone` wraps it with a floor, a light, the
   solver options and any `scenery` (MJCF bodies/geoms for the worldbody, and
   the `assets` they use), so it compiles alone; otherwise a
-  `<mujocoinclude>`."""
+  `<mujocoinclude>`. ⚠ Scenery with JOINTS goes in `after`, a worldbody
+  after the robot's: the keyframes (and `quad_spike`'s routines) index the
+  robot's free joint from qpos[0]."""
   m = spec.motor
   tx, ty, tz = spec.torso
   h0 = spec.stand_height
@@ -382,7 +385,10 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
     <light pos="0 0 4" dir="0 0 -1" directional="true"/>
     <geom name="floor" type="plane" size="20 20 0.1" material="grid"/>{scenery}
   </worldbody>
-{robot}{key}
+{robot}{key}{f"""
+  <worldbody>
+    {after}
+  </worldbody>""" if after else ""}
 </mujoco>
 """
 
