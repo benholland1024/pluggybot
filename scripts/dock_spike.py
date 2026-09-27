@@ -16,7 +16,7 @@ SimNotes, "The quadruped's dock".
                 it believes it stands exactly there, it looks at the board,
                 walks in, stops, checks, lies down, and retries. A grid, then
                 `--n` random starts. Premise: `--blind` (one look at the
-                standoff, then its legs alone).
+                start of each run, then its legs alone).
   --hold        docked: the contact through a minute lying there, the
                 preload on each pad, the pose the board gives it (the
                 anchor), and standing up and backing off the dock
@@ -367,6 +367,7 @@ def approach(rig: Rig, source: str = "look", tries: int = 3) -> dict:
   Returns what the last attempt saw."""
   out = {"ok": False, "tries": 0, "why": ""}
   t0, j0 = rig.data.time, rig.leg_j
+  feet0, body0 = rig.feet_on_dock_s, rig.body_on_dock_s
   for attempt in range(tries):
     out["tries"] = attempt + 1
     if not find_board(rig):
@@ -392,7 +393,7 @@ def approach(rig: Rig, source: str = "look", tries: int = 3) -> dict:
     rig.stand_up()
     back_out(rig)
   out.update(seconds=rig.data.time - t0, wh=rig.wh(j0, rig.data.time - t0),
-             feet=rig.feet_on_dock_s, body=rig.body_on_dock_s)
+             feet=rig.feet_on_dock_s - feet0, body=rig.body_on_dock_s - body0)
   return out
 
 
@@ -654,7 +655,7 @@ def main(argv=None) -> None:
                   help="with --capture: no funnel, the bars alone")
   ap.add_argument("--approach", action="store_true")
   ap.add_argument("--blind", action="store_true",
-                  help="with --approach: one look, then the legs' reckoning")
+                  help="with --approach: one look a run, then the legs' reckoning")
   ap.add_argument("--truth", action="store_true",
                   help="with --approach: steer by the sim's pose (the floor)")
   ap.add_argument("--n", type=int, default=0,
