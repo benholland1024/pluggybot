@@ -18,16 +18,19 @@ from pluggybot.mission.rover import RoverBody
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
-#: The rover's own modules -- deleted with it (#376, stage C) -- and the one
-#: place a body is chosen (`body.body_for`). EVERY OTHER MODULE in `src/` is
-#: on the loop's side of the seam, a new one included: it reaches a robot's
-#: body only as `<life>.body.<member>`, a member being a name `Body` declares.
-ROVER_SIDE = ("mission/mission.py", "mission/rover.py", "rack/", "tools/", "body.py")
+#: The machines' own modules -- the rover's, deleted with it (#376, stage C),
+#: and the quadruped's (`legs/`: its model, controller, reckoning and the scan
+#: its policy reads, #388) -- and the one place a body is chosen
+#: (`body.body_for`). EVERY OTHER MODULE in `src/` is on the loop's side of
+#: the seam, a new one included: it reaches a robot's body only as
+#: `<life>.body.<member>`, a member being a name `Body` declares.
+BODY_SIDE = ("mission/mission.py", "mission/rover.py", "rack/", "tools/", "body.py",
+             "legs/")
 
 
 def loop_side() -> list[str]:
   return sorted(rel for rel in (str(p.relative_to(SRC)) for p in SRC.rglob("*.py"))
-                if not rel.startswith(ROVER_SIDE))
+                if not rel.startswith(BODY_SIDE))
 #: ...and never the rover itself: its objects, its classes and the criteria
 #: its coupling is read by. Its constants may be imported -- a number is not
 #: a reach -- but nothing that acts on or senses the rover.

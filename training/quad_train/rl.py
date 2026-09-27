@@ -10,8 +10,11 @@ def ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
       hidden_dims=(512, 256, 128), activation="elu", obs_normalization=True,
+      # std_range is rsl_rl's default, listed so the CLI can cap the noise
+      # (`--agent.actor.distribution-cfg.std-range 1e-6 0.15`).
       distribution_cfg={"class_name": "GaussianDistribution",
-                        "init_std": 1.0, "std_type": "scalar"}),
+                        "init_std": 1.0, "std_type": "scalar",
+                        "std_range": (1e-6, 1e6)}),
     critic=RslRlModelCfg(
       hidden_dims=(512, 256, 128), activation="elu", obs_normalization=True),
     algorithm=RslRlPpoAlgorithmCfg(
