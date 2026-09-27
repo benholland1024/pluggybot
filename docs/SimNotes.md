@@ -2305,6 +2305,190 @@ pole; the walk-in is `walk_in_twist`, `fit_dock`,
 #387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
 lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
 
+## The quadruped's arm, its coupling and the rack (issue #378)
+
+The arm is two pitch joints on the torso's top front, both motors stacked
+at the shoulder (`legs/arm.py`; every table here is `scripts/arm_spike.py`'s;
+the parts are Parts.md, "The arm and its coupling"). The elbow's motor
+drives the forearm's ABSOLUTE angle through a rod beside the upper arm, and
+a second, passive parallelogram keeps the end plate at the torso's angle
+wherever the arm is, as a palletising robot's does. The shoulder axis sits
+0.15 m ahead of the torso's centre and 0.10 m over it; the links are 0.25 and
+0.35 m; the arm weighs 1.17 kg without a tool (the body's placeholder
+budgeted 0.9). A tool still hangs by the rover's plate and split peg, now
+220 mm long; the fork at the arm's tip takes it at ±85 mm, and the rack's
+trays at ±45. None of it is in the served world yet (#375, step 4).
+
+**The level-tool choice** (`--reach`). A gravity seat wants its V's level,
+and with two pitch joints the plate's angle is their sum. The three options,
+against the world's targets with the plate level:
+
+| target | (a) a parallelogram | (c) the legs pitch the body |
+|---|---|---|
+| the claw on the floor, 0.40–0.50 m ahead | yes, ≤ 2.1 N·m | no |
+| the claw on a 0.8 m tabletop | yes | no |
+| the pen at a board's bottom row (0.19 m) | yes | no |
+| its middle and top rows (0.30, 0.41 m) | yes | at −11° and −3° of pitch |
+| a rack bay's peg (0.50 m) | yes | at −9° and a 7 cm crouch |
+| carrying over the nose | yes | no |
+
+(c) needs the forearm within the posture policy's ±11° of level, so it
+reaches three of nine, each at a posture the tool's job then depends on.
+(b), a third motor pitching the plate, reaches what (a) reaches and puts
+its motor at the end of the lever: holding the claw and a 0.4 kg cube
+straight out takes 4.86 N·m of the two motors under (a), 7.02 with a
+GIM4310-10 at the wrist (+44 %, the wrist motor at 61 % of its own
+continuous rating) and 8.01 with a GIM8108-8 there (+65 %). What (b) buys
+is a plate held level against the body's pitch — 27–33° down a flight of
+stairs, measured below — and a tool tilted on purpose; the pendant seat
+needs neither, because a hung tool hangs plumb whatever the plate does.
+**The choice is (a).**
+
+**The motors are the legs' GIM8108-8.** Holding, the arm's worst static
+load at any target is 2.1 N·m, and flown it peaked at 2.0 N·m on the flat
+and 4.1 coming down the stairs with its RMS under 1.33 — a fifth of the
+motor's 6.76 N·m continuous rating. The GIM6010-8 would do the work, but it
+weighs 388 g against 396 for 5.16 N·m continuous at 48 V: the same mass for
+less torque, and one spare, one driver and one set of gains is worth it.
+
+**The coupling's capture** (`--capture`: the robot placed standing at the
+bay, off by the row, the arm aimed where the peg truly is; a pick, then the
+tool hung back; ✓ both, P picked only):
+
+| off by | the arm's fork | the rover's fork (`--rover`) | trays at ±35 (`--narrow`) |
+|---|---|---|---|
+| across −20 / −15 / −10 mm | P / ✓ / ✓ | – / – / – | P / P / P |
+| across 5 / 10 / 15 / 20 / 25 mm | ✓ / ✓ / ✓ / ✓ / – | ✓ / – / – / – / – | ✓ / ✓ / ✓ / P / – |
+| yaw 6 / 8° | ✓ / – | ✓ / ✓ | ✓ / ✓ |
+| aim along −10..+5 / +10 mm | ✓ / P | ✓ / P | ✓ / P |
+| aim height ±10 mm | ✓ | ✓ | ✓ |
+
+The rover's fork on the arm takes nothing 10 mm off: its end-stops sit 4 mm
+past its peg's ends, and one lands under the peg. The arm's fork takes the
+peg anywhere in ±20 mm (its stops are 45° ramps a peg end slides down) and
+yaw to 6° (at 8° the far V is 12 mm out, past its mouth). A return turns on
+the room the tool's plate has between the trays: at ±35 mm (9 mm of room)
+it set its plate on a tray's corner from 10 mm off. The asymmetry is the
+stance's yaw creep during the pick (below): the fork keeps moving one way.
+
+**The approach** (`--approach`; standing 1 m behind the bay's working pose,
+TRULY off by up to ±0.3 m across and along and ±30° while it believes it
+stands exactly there: it looks, walks in steering by the rack's tags,
+stops, waits, measures the bay, and takes the tool if lined up, else backs
+out and tries again; then it hangs the tool back): **41 of 41 — a centred
+start and 40 random ones — took the tool and hung it back, 25 on the first
+try**, a median 18.6 s. Measured off the tags, the aim was within 0.9 mm
+along and 1.5 mm in height every time; the robot stood −15..+9 mm across
+and within 2.2° of square. A start turned 26° away sees none of the rack's
+tags, and sweeps the spot until they fit, as the dock's approach does.
+
+**Carrying** (`--retention`: the tool carried high over the nose; the
+criterion every step; "swing" the tool off plumb, "plate" the plate off
+level):
+
+| flight | open, longest | swing | plate | still seated |
+|---|---|---|---|---|
+| walk 0.3 m/s, trot 0.6 and 1.0 m/s, turn, sidestep, a hard start | ≤ 4 ms | ≤ 10° | ≤ 2.8° | yes |
+| stop from 1.0 m/s | 16–18 ms | 25° | 4.0° | yes |
+| up the house's flight (ten 0.18 m risers) | 20 ms | 23° | 27° | yes |
+| down it | 56 ms | 44° | 33° | yes |
+
+**No lock.** Gravity holds the tool through everything the robot walks,
+and the longest the contact opens is 56 ms, under the 200 ms holding
+capacitor the rover's peg was sized with. What moves is the swing, so a
+carried tool needs clear air 45° either way. The knees with the real arm
+and a tool aboard read p99.5 7.7–9.4 N·m on the flat and 14.0 climbing (the
+climb read 13.5 without the arm, #388).
+
+**A fall throws the tool, and the arm must fold** (`--fall`, `--getup`).
+Pushed over while trotting, the robot throws the tool whatever holds it: a
+gravity seat cannot hold upside down, and a lock would keep the tool on an
+arm the robot is rolling across. Left out at its carry pose, the arm then
+props the robot on its side, and the get-up policy — trained with a
+placeholder arm that collides with nothing — never rolls it. **Folded as
+the torso passes 60°, it stood in 0.5 s.** From 20 random drops with the
+arm folded it stands 20 of 20 (median 0.5 s; the placeholder's 0.6). The
+fold drives the elbow's motor to its 22 N·m peak through the impact.
+
+**What the arm hides** (`--sensors`). Stowed — the upper arm straight back
+over the torso, the forearm 10° up from it — it hides nothing: no LIDAR ray
+and no pixel of the nose or depth camera. Folded flat, the fork hid 13 %
+of the nose camera's image; tilted 15°, the forearm blinds 9 LIDAR rays.
+Carrying at the carry pose, only the upper arm crosses the scan plane: 5
+rays of 360, and no camera pixels.
+
+**The tool envelope** (`--envelope`, the constants in `legs/arm.py`, for the
+workshop's validator in step 4): **0.40 kg; its CoM on its peg or up to
+60 mm ahead of it (0.35 N·m); 0.20 m under its peg; 12 W.** A CoM ahead of
+the peg leans the tool onto the lean-pad (6–8°, seated through a trot at
+0.25, 0.40 and 0.60 kg). A mass behind it, below the peg, is where the pad
+and its post are: the table's −30 mm rows rest on the post. At 90 mm ahead
+a 0.40 kg tool slipped its plate past the pad and flopped to 74°, where
+0.60 kg at 60 mm (the same moment) held: the lever binds as well as the
+moment.
+
+**What shaped it, each measured before it was believed:**
+- **A pad that pushes levers the tool while its peg is on the trays.** At
+  the rover's 2.7 mm of intrusion the lean-pad met the plate's bottom edge
+  as the fork lifted, before the V's took the peg, and levered the tool 15°
+  up the V's flank. A pad fixed to the fork cannot reach the plate only
+  after the seat (the geometry makes the contact at the seat or before), so
+  it stands 3 mm behind the plate and takes a pressing tool's reaction
+  after 4° of swing. It is a round bar: a square one's corner caught the
+  plate's edge.
+- **The IK must not wrap the shoulder.** The stow is at 180°, and a target
+  close over the shoulder wants more; wrapped to −180, the joint limit
+  swung the arm the other way through the robot.
+- **A tool faces the robot, so its left conductor rides the arm's right
+  V.** The V's are named for the pole they take.
+- **The level linkage carries a tool's lean.** The elbow's motor holds the
+  weight at the wrist; what the tool does ahead of the wrist goes to the
+  torso through the parallelogram (virtual work: the equality acts on all
+  three joints alike). The closed form first charged it to the elbow.
+- **The lift must clear the trays' V corners.** The rover's 36 mm cleared
+  them by −0.4 mm; a return aimed 10 mm low knocked the tool off. 46 mm
+  clears them by 10.
+- **The ramps' face is slippery** (acetal or PTFE, μ 0.15). At the peg's
+  own 0.4, the ramp's push was 0.30 of the tool's weight against the far
+  V's grip of 0.28, and a pick from 15 mm off at 4° left the end on the
+  ramp (with the 36 mm lift; with the 46 mm one both seat).
+- **A carried tool is terrain to the stairs policy.** The height scan
+  reads group-0 geometry as ground, and a tool over the nose read as a
+  0.4 m obstacle: the robot filters what it carries as it filters itself.
+- **A stopped robot keeps turning.** The flat policy holds no heading (its
+  yaw-rate dead band never corrects a slow turn): after the walk-in's stop
+  it turned 1.4° in 0.5 s and 2.7° by 6 s, 7 mm a second at the fork, and 3
+  of 21 picks that began inside the capture ended outside it. The robot
+  waits 3 s and measures the bay again (`rack.SETTLE_AFTER_WALK_S`).
+- **A bay's tags must stay in the nose camera's view from the working
+  pose.** Between the bays (±150 mm) they sat 25° off its axis, and 2.7° of
+  yaw took one out of the frame; a pair a bay at ±75 mm sits at 20°.
+
+**Which tools survive** (#375 step 4 rebuilds them on the longer peg):
+- **the pen** — it keeps its sideways carriage; the arm gives it a board's
+  full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
+  force, reacted by the pad;
+- **the claw** — the arm reaches the floor 0.40–0.50 m ahead with the
+  rover's 154 mm pendant, so the pendant can shorten; holding the bench's
+  0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's 0.60 kg
+  rows were, and held straight out at 39 % of the motors' rating;
+- **the LCD and the seed dispenser** — unchanged but for the peg;
+- **the plug does not** — no job uses it, and the robot charges by lying
+  on its dock (#390).
+
+**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice), built
+onto the body by `model.body_xml(arm=arm_mjcf(...))` — a spike's body, not
+yet `CHOSEN`'s, whose placeholder still budgets 0.9 kg; the controller is
+`ArmDriver` (the GDS68's PD plus the arm's own gravity off its model); the
+coupling is `ArmSpec().fork` with `rack.tool_xml`'s peg, judged by
+`rack.tool_power`; the rack is `rack.DEFAULT` (three bays at 0.30 m, pegs at
+0.50 m, tags 29–34), found by `rack.bay_aim` and walked into by
+`rack.walk_in_twist`; the stow, the carry pose, the fold threshold and the
+tool envelope are `legs/arm.py`'s constants. `tests/test_arm.py` pins each
+rule above. Step 4 builds the arm into `CHOSEN`, the rack and the tools
+into the served world, the envelope into the workshop's validator, the fold
+into the body's reflexes and the carried-tool filter into the scans.
+
 ## The served sim's speed (issue #385)
 
 A pair on the deploy box ran below real time (0.96× over a carry, 0.80×

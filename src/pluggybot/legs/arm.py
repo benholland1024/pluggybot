@@ -153,10 +153,10 @@ FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 #:         out at 39 % of its motors' continuous rating. The ceiling keeps a
 #:         payload's room under both.
 #:   ahead a tool's CoM on or AHEAD of its peg (away from the robot) leans
-#:         it onto the lean-pad, 6-8 deg; toward the robot it swings free
-#:         (77 deg) or into the pad's post. 0.40 kg 90 mm ahead (0.35 N*m)
-#:         slipped its plate past the pad and flopped to 56 deg; 0.60 kg 60
-#:         mm ahead (the same moment) held: the lever binds, and the moment.
+#:         it onto the lean-pad, 6-8 deg; a mass behind it, below the peg,
+#:         meets the pad's post. 0.40 kg 90 mm ahead (0.35 N*m) slipped its
+#:         plate past the pad and flopped to 74 deg; 0.60 kg 60 mm ahead
+#:         (the same moment) held: the lever binds, and the moment.
 #:   drop  under the peg at the carry pose (`CARRY`) a pendant this long
 #:         keeps 2 cm over the LIDAR's scan plane (`test_arm.py` reads it).
 #:   power the peg is still the connector (`rack.coupling.PEG_POWER_W`), its
