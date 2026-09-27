@@ -127,7 +127,7 @@ nothing here is in the served world yet (#375, step 4).
 | link tubes | carbon-fibre tube, 20/18 mm woven roll-wrapped (Easy Composites): 0.25 m upper arm, 0.35 m forearm | 86.5 g/m (maker), 52 g for both | €23.45 a metre, ex VAT (Easy Composites EU, Sept 2026) | `arm.TUBE_R`, `ArmSpec.upper`/`fore` |
 | link fittings and pivots | aluminium tube clamps and the elbow's and wrist's pivots on **6800-2RS** ball bearings (10 × 19 × 5 mm; NSK: 1.89 kN dynamic) | 5 g a bearing (NSK); the fittings `null` — no design yet | €4.81 a bearing (SKF 61800-2RS1, toolineo.de); €1.50 generic | `ArmSpec.upper_mass`/`fore_mass`, 0.12 kg each with the tubes, ESTIMATED |
 | parallelogram rods ×3 | the elbow's drive rod beside the upper arm, and the level linkage's two | `null` — no design yet (a carbon or aluminium rod with rod ends) | `null` — no design yet | `ArmSpec.rods_mass`, 0.06 kg, ESTIMATED |
-| end plate, fork and lean-pad | the plate on the wrist pivot; two prongs with V-notches at ±85 mm; end-stop ramps 1.5 mm past a peg's ends; a round lean-pad bar 3 mm behind a seated tool | `null` — no design yet (machined aluminium or printed) | `null` — no design yet | `ArmSpec.plate_mass`, 0.08 kg ESTIMATED; `ForkSpec` |
+| end plate, fork and lean-pad | the plate on the wrist pivot; two prongs with V-notches at ±85 mm, their flanks 60° and 31 mm long (bare metal: they are the poles); 53° end-stop ramps 1.5 mm past a peg's ends; a round lean-pad bar 3 mm behind a seated tool | `null` — no design yet (machined aluminium or printed) | `null` — no design yet | `ArmSpec.plate_mass`, 0.08 kg ESTIMATED; `ForkSpec` |
 | ramp faces | acetal inserts or PTFE tape on the end-stop ramps: μ 0.15 against a steel peg | — | — | `arm.RAMP_MU` |
 | tool pegs | the rover's 6 mm split steel peg (Parts.md, "Tool hub & modules": two conductors on an insulating bush) lengthened to 220 mm | 29 g (the rover's 20 g for 150 mm) | as the rover's | `rack.PEG_HALF`, `rack.peg_kg` |
 | the rack | a back board and a rail, each bay's two V-trays at ±45 mm on brackets hung from the rail; three bays at 0.30 m, pegs 0.50 m up | `null` — no design yet | `null` — no design yet | `rack.RackSpec`, `rack.TRAY_Y` |
@@ -148,15 +148,19 @@ the GIM8108-8 is one spare, one driver and one set of gains with the legs.
   OpenELAB): 44 % more holding torque at full reach than the parallelogram,
   itself at 61 % of its rating, for a plate level against the body's pitch
   that a hung tool does not need.
-- **A lock** — a magnet in each V (supermagnete **S-10-03-N**, 10 × 3 mm
-  N42: 17.7 N on a thick steel plate, and about a third of that at 1 mm,
-  read by eye off the maker's chart; €0.50) or a spring catch: gravity
-  held the tool through every walk, trot and flight of stairs, and in a fall
-  a lock would keep the tool on an arm the robot rolls across.
+- **A lock**, for now — a magnet in each V (supermagnete **S-10-03-N**,
+  10 × 3 mm N42: 17.7 N on a thick steel plate, and about a third of that
+  at 1 mm, read by eye off the maker's chart; €0.50) or a spring catch.
+  Gravity held the tool through every walk and trot and up the stairs;
+  coming down, about 1 descent in 60 floats the peg at a step (the fork
+  falls faster than g) and the tool goes. The magnet is the candidate if
+  step 4 finds tools carried downstairs often; in a fall a lock would keep
+  the tool on an arm the robot rolls across.
 - **Pogo pins at the coupling** (Mill-Max **0906-1-15-20-75-14-11-0**:
   6.5 A at a 30 °C rise, 10 g free and 60 g at 0.71 mm, $0.86 at DigiKey):
   the peg stays the connector. Its preload is the tool's weight, and flown
-  it opened for at most 56 ms against the rover's 200 ms holding capacitor.
+  it opened for at most 88 ms (down the stairs) against the rover's 200 ms
+  holding capacitor.
 
 ---
 

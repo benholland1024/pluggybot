@@ -149,7 +149,7 @@ def test_a_carried_tool_hangs_clear_of_the_lidars_scan_plane():
   # centre, read off the model).
   model, data = _body()
   lidar_z = data.site_xpos[model.site("lidar").id][2] - data.xpos[1][2]
-  seat_z = am.CARRY[1] + rk.PEG_R * math.sqrt(2)
+  seat_z = am.CARRY[1] + am.ForkSpec().seat_rise()
   assert seat_z - am.TOOL_MAX_DROP_M > lidar_z + 0.01
 
 
@@ -207,22 +207,23 @@ def test_the_lean_pad_stands_behind_a_seated_tool(intrude, plumb):
 
 def test_the_end_ramps_push_a_peg_along_harder_than_the_far_v_holds_it():
   # A peg end on a ramp slides in along its axis only if the ramp's push
-  # beats the far V's grip. Half the tool's weight on each: the ramp pushes
-  # N (sin a - mu cos a) with N cos a = W/2, the V holds mu_peg sqrt 2 W/2.
-  # At the peg's own 0.4 that was 0.30 against 0.28 of W and a pick from
-  # 15 mm off at 4 deg left the end on the ramp, its pole open (flown with
-  # the rover's 36 mm lift; with the 46 mm one both seat, and the slippery
-  # face stays as the margin).
+  # beats the far V's grip. Half the tool's weight on each: a ramp at a
+  # pushes N (sin a - mu cos a) with N cos a = W/2, and the far V's flanks
+  # at f hold it with mu_peg W / (2 cos f). With 45 deg V's and ramps at the
+  # peg's own 0.4 that was 0.30 against 0.28 of W, and a pick from 15 mm
+  # off at 4 deg left the end on the ramp, its pole open. The 60 deg V
+  # grips harder: the 45 deg ramp's slippery face and the 53 deg ramp's
+  # rough one each fall short of the margin, and the ramp is both.
   f = am.ForkSpec()
-  a = math.atan2(f.ramp_h, f.ramp_w)
   from pluggybot.rack.coupling import PEG_FRICTION
 
-  def push(mu):
-    n = 0.5 / math.cos(a)
-    return n * (math.sin(a) - mu * math.cos(a))
-  grip = PEG_FRICTION * math.sqrt(2) * 0.5
-  assert push(am.RAMP_MU) > 1.4 * grip
-  assert push(PEG_FRICTION) < 1.1 * grip
+  def push(mu, a):
+    return 0.5 * (math.tan(a) - mu)
+  grip = PEG_FRICTION * 0.5 / math.cos(math.radians(f.flank_deg))
+  a = math.atan2(f.ramp_h, f.ramp_w)
+  assert push(am.RAMP_MU, a) > 1.4 * grip
+  assert push(PEG_FRICTION, a) < 1.2 * grip
+  assert push(am.RAMP_MU, math.radians(45.0)) < 1.1 * grip
 
 
 def test_the_rovers_fork_on_the_arm_takes_nothing_10_mm_off():
@@ -248,12 +249,82 @@ def test_a_tool_taken_12_mm_off_hangs_back_between_its_trays(narrow, hung):
 
 
 def test_the_lift_carries_the_peg_clear_of_the_trays_corners():
-  # A carried peg crosses the trays' V corners (their flanks' tops, 15.6 mm
-  # over a vertex) LIFT - FORK_DROP over its rest, with its radius under
-  # it: the rover's 36 mm cleared them by -0.4 mm.
+  # The fork meets a hanging peg FORK_DROP less its seat's rise into the
+  # lift, so a carried peg rides LIFT - FORK_DROP + rise over its rest, and
+  # its underside must clear the trays' V corners (their flanks' tops,
+  # 15.6 mm over a vertex) by more than an aim 10 mm low: the rover's
+  # 36 mm cleared them by 4, and such a return knocked the tool off.
   corner = 2 * rk.V_HALF_LEN / math.sqrt(2) - rk.TRAY_VERTEX_DROP
-  assert am.LIFT - am.FORK_DROP - (corner + rk.PEG_R) >= 0.008
-  assert 0.036 - am.FORK_DROP - (corner + rk.PEG_R) < 0
+
+  def clear(lift, drop, fork):
+    return lift - drop + fork.seat_rise() - (corner + rk.PEG_R)
+  assert clear(am.LIFT, am.FORK_DROP, am.ForkSpec()) >= 0.013
+  assert clear(0.036, 0.022, sp.ROVER_FORK) < 0.010
+
+
+def test_the_steeper_v_keeps_the_rovers_mouth():
+  # A V's mouth (a flank's run across the plate) is its capture along the
+  # bay. Steepened to 60 deg on the rover's 22 mm flanks it narrowed from
+  # 15.6 mm to 11, and the capture's corners went chaotic: a pick 15 mm
+  # across at 4 deg failed after a 0.4 mm move of the end-ramps. Lengthened
+  # to keep 15.6, every corner to +-18 mm and +-4 deg passes.
+  def mouth(f):
+    return 2 * f.v_half_len * math.cos(math.radians(f.flank_deg))
+  assert mouth(am.ForkSpec()) >= mouth(sp.ROVER_FORK) - 1e-4
+  assert mouth(replace(am.ForkSpec(), v_half_len=sp.ROVER_FORK.v_half_len)) < 0.012
+
+
+def test_the_fork_passes_under_a_hanging_peg_on_the_way_in():
+  # The V's flanks' tops pass under a hanging peg's underside with the
+  # 3.4 mm the rover's 45 deg V had at a 22 mm drop; the 60 deg flanks
+  # stand 27 mm tall, and at that drop they would meet the peg.
+  f = am.ForkSpec()
+  assert am.FORK_DROP - f.flank_top() - rk.PEG_R >= 0.003
+  assert 0.022 - f.flank_top() - rk.PEG_R < 0
+  assert 0.022 - sp.ROVER_FORK.flank_top() - rk.PEG_R >= 0.003
+
+
+def _on_a_pitched_fork(fork: am.ForkSpec, up_flank: float, seconds: float = 0.5) -> float:
+  """The fork alone, pitched nose-down to a descent's worst
+  (`STAIR_PITCH_DEG`), a tool's peg set `up_flank` up the flank that lays
+  down, the tool plumb: how far up that flank the peg is `seconds` later."""
+  from pluggybot.rack.coupling import PEG_ABOVE_BODY
+  spec = am.ArmSpec().with_(fork=fork)
+  a = math.radians(am.STAIR_PITCH_DEG)
+  rot = np.array([[math.cos(a), 0, math.sin(a)], [0, 1, 0], [-math.sin(a), 0, math.cos(a)]])
+  base = np.array([0.0, 0.0, 0.5])
+  f = math.radians(fork.flank_deg)
+  seat = np.array([fork.vertex_x, 0.0, fork.vertex_z + fork.seat_rise()])
+  up = np.array([math.cos(f), 0.0, math.sin(f)])
+  peg = base + rot @ (seat + up_flank * up)
+  xml = f"""<mujoco><option timestep="0.002"/>
+    <default>{am.ARM_DEFAULTS.format(friction=0.01, tube=am.TUBE_R)}
+      {rk.tool_default("tool")}</default>
+    <worldbody>
+      <body name="arm_plate" pos="{base[0]} 0 {base[2]}"
+            quat="{math.cos(a / 2)} 0 {math.sin(a / 2)} 0">
+        {am.fork_xml(spec)}
+      </body>
+      {rk.tool_xml("tool", tuple(peg), yaw=math.pi)}
+    </worldbody></mujoco>"""
+  model = mujoco.MjModel.from_xml_string(xml)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  for _ in range(int(seconds / model.opt.timestep)):
+    mujoco.mj_step(model, data)
+  tool = model.body("tool").id
+  axis = data.xpos[tool] + data.xmat[tool].reshape(3, 3) @ [0, 0, PEG_ABOVE_BODY]
+  return float((rot.T @ (axis - base) - seat) @ up)
+
+
+@pytest.mark.parametrize("fork, home", [(am.ForkSpec(), True), (sp.FIRST_FORK, False)])
+def test_a_peg_jolted_up_the_low_flank_on_the_stairs_slides_home(fork, home):
+  # Down the stairs the plate pitches with the torso and one flank of each
+  # V lays down: at the rover's 45 deg, to 12 deg off level at the worst
+  # pitch, under the peg's friction angle (21.8), so a jolt that hops the
+  # peg 5 mm up it leaves it there, one step from off (flown: 13 of 17
+  # tools 60 mm ahead of their peg lost); at 60 deg it slides home.
+  assert (_on_a_pitched_fork(fork, 0.005) < 0.001) is home
 
 
 def test_the_fork_and_the_trays_share_one_peg_with_room_between():

@@ -34,6 +34,7 @@ import math
 import numpy as np
 
 from pluggybot.legs.actuator import GIM8108_8, Motor
+from pluggybot.rack.coupling import PEG_R
 
 #: A link's tube and the rods beside it: radius of the capsule the sim
 #: collides and draws, m (a 20/18 mm carbon tube with its rod ends).
@@ -44,25 +45,40 @@ TUBE_R = 0.011
 class ForkSpec:
   """The coupling's arm half, in the PLATE frame. Lengths in metres."""
 
-  #: The V-notches' vertex (where a seated peg's axis sits, less the peg's
-  #: radius over sin 45 deg) ahead of and below the wrist axis.
+  #: The V-notches' vertex (where a seated peg's axis sits, less
+  #: `seat_rise`) ahead of and below the wrist axis.
   vertex_x: float = 0.085
   vertex_z: float = -0.030
   #: The two V-notches, either side of the arm's plane, under the peg's two
   #: conductors (the poles).
   fork_y: float = 0.085
+  #: The V's flanks off the plate's plane, deg. ⚠ STEEPER THAN THE ROVER'S
+  #: 45: the plate pitches with the torso, up to `STAIR_PITCH_DEG` down a
+  #: flight, and that lays one flank down -- at 45, to 12 deg off level,
+  #: under the peg's friction angle (21.8 deg), so a jolt that hops the peg
+  #: leaves it on that flank or carries it over: a tool leaning 60 mm ahead
+  #: was lost on 13 of 17 descents; at 60, on none of 18
+  #: (`--retention --stairs [--first]`). The faces stay plain metal, the
+  #: peg's 0.4: faced at 0.2 they let a jolt slide the peg along its axis
+  #: and up an end-ramp, and the tool was lost.
+  flank_deg: float = 60.0
   #: A V plate: half-length along its flank, half-width across, half-thick.
-  v_half_len: float = 0.011
+  #: ⚠ The flank's run across the plate is the V's mouth, its capture along
+  #: the bay: 31 mm long keeps the rover's 15.6 at 60 deg. At the rover's
+  #: 22 mm the mouth was 11, and the capture's corners went chaotic.
+  v_half_len: float = 0.0156
   v_half_w: float = 0.006
   v_thick: float = 0.003
   #: The end-stops: a ramp outboard of each peg end, from `stop_y` (1.5 mm
   #: past a centred peg's end: a tool rides the fork within that) rising
-  #: `ramp_h` over `ramp_w`: a peg end the fork lifts under slides down it
-  #: and inward. Steeper than the V's friction angle (tan^-1 0.57, 30 deg),
-  #: or it holds. The rover's stops, 4 mm past a peg with no ramps, took
-  #: nothing 10 mm off (`--capture --rover`).
+  #: `ramp_h` over `ramp_w` (53 deg): a peg end the fork lifts under slides
+  #: down it and inward, if the ramp's push beats the far V's grip, which
+  #: the steeper V raised (`test_arm.py` has the arithmetic); the top stays
+  #: 20 mm over the vertex, under a peg the fork passes beneath. The rover's
+  #: stops, 4 mm past a peg with no ramps, took nothing 10 mm off
+  #: (`--capture --rover`).
   stop_y: float = 0.1115
-  ramp_w: float = 0.020
+  ramp_w: float = 0.015
   ramp_h: float = 0.020
   #: The lean-pad, behind a seated module's back plate, `pad_drop` under
   #: the V's vertex: low enough that on the approach, FORK_DROP under a
@@ -76,6 +92,20 @@ class ForkSpec:
   #: tool that presses (the pen): the reaction swings it 4 deg onto the pad.
   pad_drop: float = 0.040
   pad_intrude: float = -0.003
+
+  def seat_rise(self, peg_r: float = PEG_R) -> float:
+    """A seated peg's axis over the V's vertex."""
+    return peg_r / math.cos(math.radians(self.flank_deg))
+
+  def flank_top(self) -> float:
+    """The flanks' top edges over the V's vertex."""
+    return 2 * self.v_half_len * math.sin(math.radians(self.flank_deg))
+
+
+#: The plate's worst pitch off level coming down the house's flight (ten
+#: 0.18 m risers), deg, measured (`--retention --stairs`): the parallelogram
+#: holds the plate at the TORSO's angle, and a descent pitches the torso.
+STAIR_PITCH_DEG = 33.0
 
 
 @dataclass(frozen=True)
@@ -147,34 +177,38 @@ FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 
 #: THE TOOL ENVELOPE a tool on this coupling must fit (the workshop's
 #: validator's, #375 step 4; `rack.coupling`'s are the rover's). Measured
-#: (the spike's `--envelope`: carried through a 1.0 m/s trot and a stop):
+#: (the spike's `--envelope`: carried through a 1.0 m/s trot and a stop;
+#: `--retention --stairs`: the house's flight, both ways, at 0, 30 and
+#: 60 mm ahead):
 #:   mass  a tool of 0.60 kg stayed seated with its CoM up to 60 mm off its
 #:         peg; the arm holds 0.61 kg (the claw and a 0.4 kg cube) straight
 #:         out at 39 % of its motors' continuous rating. The ceiling keeps a
 #:         payload's room under both.
 #:   ahead a tool's CoM on or AHEAD of its peg (away from the robot) leans
-#:         it onto the lean-pad, 6-8 deg; a mass behind it, below the peg,
-#:         meets the pad's post. 0.40 kg 90 mm ahead (0.35 N*m) slipped its
-#:         plate past the pad and flopped to 74 deg; 0.60 kg 60 mm ahead
-#:         (the same moment) held: the lever binds, and the moment.
+#:         it onto the lean-pad, 6 deg; a mass behind it, below the peg,
+#:         meets the pad's post. 60 mm is the stairs' tested range: at 90
+#:         the flat and 27 descents held too, where the rover's 45 deg V's
+#:         had flopped a 0.40 kg tool to 74 deg on the flat.
 #:   drop  under the peg at the carry pose (`CARRY`) a pendant this long
 #:         keeps 2 cm over the LIDAR's scan plane (`test_arm.py` reads it).
 #:   power the peg is still the connector (`rack.coupling.PEG_POWER_W`), its
-#:         preload the tool's weight; flown, it opened for at most 56 ms (down
-#:         a flight of stairs) against the 200 ms holding capacitor.
+#:         preload the tool's weight; flown, it opened for at most 96 ms (down
+#:         a flight of stairs, 60 mm ahead) against the 200 ms holding
+#:         capacitor.
 TOOL_MAX_KG = 0.40
 TOOL_MAX_AHEAD_M = 0.060
 TOOL_MAX_MOMENT_NM = 0.35
 TOOL_MAX_DROP_M = 0.20
 
 #: The coupling's verbs (the rover's, `rack.coupling`): the fork's V vertex
-#: runs FORK_DROP under a hanging peg on the way in, the lift takes it LIFT
-#: above that, and it backs out BACK_OUT; a return is the reverse. LIFT
-#: carries the peg 10 mm over the trays' V corners (15.6 mm over a vertex):
-#: the rover's 36 mm cleared them by -0.4 mm, and a return aimed 10 mm low
-#: knocked the tool off the tray.
-FORK_DROP = 0.022
-LIFT = 0.046
+#: runs FORK_DROP under a hanging peg on the way in (its flanks' tops pass
+#: 3.4 mm under the peg), the lift takes it LIFT above that, and it backs
+#: out BACK_OUT; a return is the reverse. LIFT carries the peg's underside
+#: 14 mm over the trays' V corners: the rover's 36 mm (with the 45 deg V)
+#: cleared them by 4, and a return aimed 10 mm low knocked the tool off the
+#: tray.
+FORK_DROP = 0.0335
+LIFT = 0.056
 STANDOFF = 0.08
 BACK_OUT = 0.10
 #: The fork's speed along its straight lines, m/s.
@@ -203,11 +237,11 @@ def plate_angle(spec: ArmSpec, qs: float, qe: float, qw: float = 0.0) -> float:
 
 
 def seat_xz(spec: ArmSpec, qs: float, qe: float, qw: float = 0.0,
-            peg_r: float = 0.003) -> tuple[float, float]:
+            peg_r: float = PEG_R) -> tuple[float, float]:
   """Where a seated peg's axis sits, in the torso frame's x-z."""
   wx, wz = wrist_xz(spec, qs, qe)
   a = plate_angle(spec, qs, qe, qw)
-  fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + peg_r * math.sqrt(2)
+  fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + spec.fork.seat_rise(peg_r)
   return (wx + fx * math.cos(a) - fz * math.sin(a),
           wz + fx * math.sin(a) + fz * math.cos(a))
 
@@ -240,10 +274,10 @@ def solve(spec: ArmSpec, x: float, z: float, elbow: str = "up",
 
 
 def solve_seat(spec: ArmSpec, x: float, z: float, elbow: str = "up",
-               peg_r: float = 0.003, near=None) -> tuple[float, float] | None:
+               peg_r: float = PEG_R, near=None) -> tuple[float, float] | None:
   """(shoulder, elbow) putting a seated peg's axis at (x, z), the plate
   level (the parallelogram's case: its angle does not depend on the joints)."""
-  fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + peg_r * math.sqrt(2)
+  fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + spec.fork.seat_rise(peg_r)
   return solve(spec, x - fx, z - fz, elbow, near)
 
 
@@ -310,16 +344,18 @@ def _v(*vs: float) -> str:
 
 
 def _v_notch(prefix: str, x: float, y: float, z: float, f: ForkSpec) -> str:
-  """An upward-open V (the peg's axis along y) of two 45 deg plates whose
-  upper faces are the flanks, vertex at (x, y, z): `rack.coupling`'s."""
-  off = f.v_half_len / math.sqrt(2)
+  """An upward-open V (the peg's axis along y) of two plates `flank_deg` off
+  level whose upper faces are the flanks, vertex at (x, y, z)
+  (`rack.coupling`'s, at 45)."""
+  a = math.radians(f.flank_deg)
+  ox, oz = f.v_half_len * math.cos(a), f.v_half_len * math.sin(a)
   out = []
   for s, lbl in ((-1, "a"), (1, "b")):
     out.append(
       f'<geom name="{prefix}{lbl}" class="fork" type="box" '
       f'size="{_v(f.v_half_len, f.v_half_w, f.v_thick)}" '
-      f'pos="{_v(x + s * off, y, z + off - f.v_thick * math.sqrt(2))}" '
-      f'quat="{_quat_y(-s * math.pi / 4)}"/>')
+      f'pos="{_v(x + s * ox, y, z + oz - f.v_thick / math.cos(a))}" '
+      f'quat="{_quat_y(-s * a)}"/>')
   return "\n          ".join(out)
 
 
@@ -346,10 +382,11 @@ def fork_xml(spec: ArmSpec, prefix: str = "") -> str:
     # arm's plane, its low edge `stop_y` out at the V's height. A peg end
     # it meets while the fork lifts slides down it toward the middle.
     ang = math.atan2(f.ramp_h, f.ramp_w)
+    half_t = 0.0015
     g.append(f'<geom name="{prefix}arm_ramp_{lbl}" class="fork" type="box" '
              f'friction="{_f(RAMP_MU)} 0.005 0.0001" priority="2" '
-             f'size="{_v(0.006, math.hypot(f.ramp_w, f.ramp_h) / 2, 0.0015)}" '
-             f'pos="{_v(vx, s * (f.stop_y + f.ramp_w / 2), vz + f.ramp_h / 2 - 0.0015 * math.sqrt(2))}" '
+             f'size="{_v(0.006, math.hypot(f.ramp_w, f.ramp_h) / 2, half_t)}" '
+             f'pos="{_v(vx, s * (f.stop_y + f.ramp_w / 2), vz + f.ramp_h / 2 - half_t / math.cos(ang))}" '
              f'quat="{_quat_x(s * ang)}"/>')
   # The bridge across the prongs' roots, and the lean-pad on its post.
   g.append(f'<geom name="{prefix}arm_bridge" class="fork" type="box" '
@@ -382,10 +419,10 @@ MODULE_HALF_X = 0.010
 PAD_R = 0.005
 #: The end-ramps' face: acetal or PTFE-faced (0.15; priority 2 over the
 #: peg's 0.4). Sliding a peg in along its axis is the ramp's push against
-#: the far V's grip: at the peg's 0.4 that is 0.30 of the tool's weight
-#: against 0.28, and a pick from 15 mm off at 4 deg left the peg's end on
-#: the ramp and its pole open (with the rover's 36 mm lift; since the 46 mm
-#: one both seat, and the face is the margin); at 0.15, 0.43 against 0.28.
+#: the far V's grip: with 45 deg V's and ramps at the peg's 0.4 that was
+#: 0.30 of the tool's weight against 0.28, and a pick from 15 mm off at
+#: 4 deg left the peg's end on the ramp, its pole open. The 60 deg V grips
+#: at 0.40; the 53 deg ramp's slippery face pushes 0.59.
 RAMP_MU = 0.15
 
 

@@ -30,21 +30,30 @@ coupling and the rack".
                 turns, sidesteps and hard stops: how often the coupling's
                 criterion opens, the longest, the swing, the arm's and the
                 knees' torques. `--stairs`: up and down the house's flight
-                on the seeing policy. `--fall`: pushed over trotting, with
-                and without the fold reflex, then the get-up policy
+                on the seeing policy, from rest, `--n` starts a row, a tool
+                on its peg's line, 30 mm and 60 mm ahead of it (`--first`:
+                the fork as first built, its V's at 45 deg -- the premise).
+                `--fall`: pushed over trotting, with and without the fold
+                reflex, then the get-up policy
   --getup       the get-up policy from 20 random drops, the arm folded,
                 against the placeholder it was trained with
   --sensors     what the stowed arm, and the arm carrying, hide from the
                 LIDAR and the nose and depth cameras
   --envelope    a tool's mass and how far its CoM sits off its peg, carried
                 through a trot and a stop: seated, and at what angle
-  --view        fetches in the MuJoCo viewer, one after another, each from a
-                new random start; close the window to quit
+  --view [SCENE]  a scene in the MuJoCo viewer, over and over, at real time,
+                until the window closes: `fetch` (the default: walk in, take
+                the tool, hold it up, hang it back), `carry` (walks, trots,
+                stops and turns with a tool), `stairs` (over a hill of the
+                house's flight with one), `fall` (pushed over; the arm folds,
+                or every other time does not), `reach` (the arm through the
+                targets that chose it)
   (default)     a filmstrip of one fetch, arm_spike.png
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/arm_spike.py [--reach|--capture|--approach|...]
-  uv run python scripts/arm_spike.py --view     # a window: MUJOCO_GL left off
+  uv run python scripts/arm_spike.py --view [fetch|carry|stairs|fall|reach]
+                                                # a window: MUJOCO_GL left off
 """
 
 import os
@@ -58,6 +67,7 @@ from dataclasses import replace  # noqa: E402
 import math  # noqa: E402
 from pathlib import Path  # noqa: E402
 import sys  # noqa: E402
+import time  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -68,6 +78,7 @@ from pluggybot.legs.actuator import GIM4310_10, GIM8108_8  # noqa: E402
 from pluggybot.legs.model import CHOSEN, body_xml  # noqa: E402
 from pluggybot.legs.policy import PolicyDriver, Twist, WalkingPolicy  # noqa: E402
 from pluggybot.legs.scripted import _quat_rpy  # noqa: E402
+from pluggybot.rack import coupling as rover_coupling  # noqa: E402
 from pluggybot.rack.coupling import PEG_ABOVE_BODY  # noqa: E402
 from pluggybot.rack.tags import TAG_DIR, asset_xml  # noqa: E402
 from pluggybot.telemetry.protocol import ROBOT_ROOT  # noqa: E402
@@ -92,16 +103,26 @@ SETTLE_S = 3.0
 
 
 #: The PREMISES: `--rover`, the rover's coupling on the arm -- its fork's
-#: V-notches at +-58 mm, end-stops 4 mm past the ends of a 150 mm peg with
-#: no ramps, the trays at +-40 mm (`rack.coupling`); `--loose`, this
+#: 45 deg V-notches at +-58 mm, end-stops 4 mm past the ends of a 150 mm peg
+#: with no ramps, the trays at +-40 mm, its own 22 mm drop and 36 mm lift
+#: (`rack.coupling`); `--loose`, this
 #: fork's ramps with the rover's 4 mm of play at the stops.
-ROVER_FORK = am.ForkSpec(fork_y=0.058, stop_y=0.079, ramp_w=0.0005, ramp_h=0.012)
+ROVER_FORK = am.ForkSpec(fork_y=0.058, flank_deg=45.0, v_half_len=0.011, stop_y=0.079,
+                         ramp_w=0.0005, ramp_h=0.012)
 ROVER_RACK = replace(rk.DEFAULT, tray_y=0.040, peg_half=0.075)
 LOOSE_FORK = replace(am.ForkSpec(), stop_y=rk.PEG_HALF + 0.004)
 #: ...and `--narrow`: the trays at the rover's room for the plate (+-35 mm,
 #: 9 mm either side), the fork and the peg 10 mm in with them.
 NARROW_RACK = replace(rk.DEFAULT, tray_y=0.035, peg_half=0.100)
 NARROW_FORK = replace(am.ForkSpec(), fork_y=0.075, stop_y=0.1015)
+#: ...and the stairs' (`--retention --stairs --first`): the fork as this
+#: issue first built it, its V's the rover's (45 deg, 22 mm flanks) and its
+#: end-ramps at 45 deg.
+FIRST_FORK = replace(am.ForkSpec(), flank_deg=45.0, v_half_len=0.011, ramp_w=0.020)
+
+
+class ViewerClosed(Exception):
+  """The viewer's window was closed: the scene stops where it is."""
 
 
 class Rig:
@@ -111,8 +132,12 @@ class Rig:
                policy=None, tool_kg: float = TOOL_KG, rover: bool = False,
                scenery: str = "", tool_group: int = 0, lump: tuple | None = None,
                loose: bool = False):
+    #: The verbs' drop under a hanging peg and lift: the rover's own with
+    #: its coupling.
+    self.drop, self.lift = FORK_DROP, LIFT
     if rover:
       spec, rack = spec.with_(fork=ROVER_FORK), ROVER_RACK
+      self.drop, self.lift = rover_coupling.FORK_DROP, rover_coupling.LIFT_STEP
     if loose:
       spec = spec.with_(fork=LOOSE_FORK)
     self.spec, self.rack = spec, rack
@@ -152,7 +177,10 @@ class Rig:
     self.arm = am.ArmDriver(m, d, spec)
     self.seat = m.site("arm_seat").id
     self.tool_kg = tool_kg
+    #: A passive viewer to hand every tenth step to, at real time (`--view`),
+    #: and (wall, sim) time when its pacing last began.
     self.viewer = None
+    self._pace = None
 
   # ---- the world ------------------------------------------------------------
 
@@ -191,7 +219,7 @@ class Rig:
     v = d.site_xpos[self.seat]
     rot = d.xmat[self.root].reshape(3, 3)
     _, _, yaw = _quat_rpy(d.qpos[3:7])
-    peg = v + rot @ np.array([0.0, 0.0, rk.PEG_R * math.sqrt(2) + 0.0003])
+    peg = v + rot @ np.array([0.0, 0.0, self.spec.fork.seat_rise() + 0.0003])
     d.qpos[self.tool_adr:self.tool_adr + 3] = peg - [0, 0, PEG_ABOVE_BODY]
     ty = yaw + math.pi
     d.qpos[self.tool_adr + 3:self.tool_adr + 7] = [math.cos(ty / 2), 0, 0, math.sin(ty / 2)]
@@ -227,10 +255,22 @@ class Rig:
     self.arm.step()
     mujoco.mj_step(self.model, self.data)
     if self.viewer is not None:
-      if not self.viewer.is_running():
-        raise SystemExit
-      if round(self.data.time / self.model.opt.timestep) % 10 == 0:
-        self.viewer.sync()
+      self._show()
+
+  def _show(self) -> None:
+    """Hand the frame to the viewer, holding the sim to real time."""
+    d = self.data
+    if not self.viewer.is_running():
+      raise ViewerClosed
+    if round(d.time / self.model.opt.timestep) % 10:
+      return
+    self.viewer.sync()
+    now = time.time()
+    if self._pace is None or d.time < self._pace[1]:     # a reset restarts time
+      self._pace = (now, d.time)
+    ahead = (d.time - self._pace[1]) - (now - self._pace[0])
+    if ahead > 0:
+      time.sleep(ahead)
 
   def hold(self, seconds: float, twist: Twist = Twist()) -> None:
     t0 = self.data.time
@@ -270,13 +310,14 @@ class Rig:
     x, z): in under it, lift, back out. The verdict is the criterion's."""
     px, pz = aim
     out = {"lifted": False, "picked": False, "tilt": self.tool_tilt()}
-    if not (self.fork_to(px - STANDOFF, pz - FORK_DROP, speed=0.2)
-            and self.fork_to(px, pz - FORK_DROP)):
+    drop, lift = self.drop, self.lift
+    if not (self.fork_to(px - STANDOFF, pz - drop, speed=0.2)
+            and self.fork_to(px, pz - drop)):
       return {**out, "why": "out of reach"}
     self.arm.payload = (self.tool_kg, TOOL_COM)
-    reached = self.fork_to(px, pz - FORK_DROP + LIFT)
+    reached = self.fork_to(px, pz - drop + lift)
     out["lifted"] = self.powered()
-    reached = self.fork_to(px - BACK_OUT, pz - FORK_DROP + LIFT) and reached
+    reached = self.fork_to(px - BACK_OUT, pz - drop + lift) and reached
     self.hold(0.5)
     out["picked"] = reached and self.powered() and not self.on_bay()
     out["tilt"] = self.tool_tilt()
@@ -286,10 +327,11 @@ class Rig:
     """Hang the carried tool back on the bay the robot believes is at `aim`:
     over it, down, out."""
     px, pz = aim
-    if not (self.fork_to(px, pz - FORK_DROP + LIFT) and self.fork_to(px, pz - FORK_DROP)):
+    drop, lift = self.drop, self.lift
+    if not (self.fork_to(px, pz - drop + lift) and self.fork_to(px, pz - drop)):
       return {"returned": False, "why": "out of reach"}
     self.arm.payload = (0.0, (0.0, 0.0))
-    reached = self.fork_to(px - BACK_OUT, pz - FORK_DROP)
+    reached = self.fork_to(px - BACK_OUT, pz - drop)
     self.hold(0.5)
     return {"returned": reached and self.on_bay() and not self.powered()}
 
@@ -457,40 +499,6 @@ def filmstrip(out: str) -> None:
   print(f"wrote {out}")
 
 
-def view(seed: int | None = None) -> None:
-  """Fetches in the MuJoCo viewer, one after another, each from a new random
-  start at the standoff: the walk in, the pick, the carry, the tool hung
-  back, the stow. Close the window to quit."""
-  from mujoco import viewer as mj_viewer
-  rng = np.random.default_rng(seed)
-  rig = Approach(seed=0)
-  rig.hold(1.0)
-  print("Each fetch starts 1 m behind the bay's working pose, TRULY off by a random "
-        "offset while the robot believes it stands exactly there. Close the window to quit.")
-  with mj_viewer.launch_passive(rig.model, rig.data) as viewer:
-    viewer.cam.lookat[:] = (-0.2, 0.0, 0.35)
-    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 2.4, 215.0, -20.0
-    rig.viewer = viewer
-    try:
-      while viewer.is_running():
-        across = rng.uniform(-START_ACROSS_M, START_ACROSS_M)
-        along = rng.uniform(-START_ALONG_M, START_ALONG_M)
-        yaw = rng.uniform(-START_YAW_DEG, START_YAW_DEG)
-        print(f"fetch: {across:+.2f} m across, {along:+.2f} m along, {yaw:+.0f} deg turned")
-        rig.place(-APPROACH_STANDOFF + along, across, math.radians(yaw),
-                  belief=(-APPROACH_STANDOFF, 0.0, 0.0))
-        rig.rack_belief = None
-        r = approach(rig)
-        print(f"  picked {r['picked']}, hung back {r['returned']} after {r['tries']} "
-              f"{'try' if r['tries'] == 1 else 'tries'} {r['why']}")
-        rig.arm.aim(*rig.spec.stow)
-        rig.hold(2.0)
-        back_out(rig, 0.8)
-    except SystemExit:
-      pass
-  rig.close()
-
-
 # ---- carrying: retention and outages -----------------------------------------------
 
 CARRY = am.CARRY
@@ -552,11 +560,19 @@ RETENTION_HEAD = (f"{'flight':22s} {'open %':>8s} {'longest ms':>9s} {'swing deg
 
 
 def carrying(policy=None, scenery: str = "", key: int = 0, z_lift: float = 0.0,
-             tool_kg: float = TOOL_KG, lump: tuple | None = None) -> Rig:
-  """A robot standing with the tool seated on its fork at the carry pose.
-  `lump` = (kg, x, z): a mass on the tool at (x, z) of its plate's frame
-  (+x toward the robot) -- a tool whose CoM is off its peg."""
-  rig = Rig(rack=None, policy=policy, scenery=scenery, tool_group=3, tool_kg=tool_kg,
+             tool_kg: float = TOOL_KG, ahead: float = 0.0,
+             fork: am.ForkSpec | None = None) -> Rig:
+  """A robot standing with the tool seated on its fork at the carry pose. A
+  tool whose CoM sits `ahead` of its peg (+: away from the robot) carries
+  the offset in a lump: the plate's own mass sits on the peg's axis, so the
+  whole tool's CoM is `ahead` off when the lump is ahead * kg / lump out (a
+  tool's +x faces the robot: ahead is its -x). `fork`: another fork's."""
+  lump = None
+  if ahead:
+    lump_kg = tool_kg - rk.MODULE_MASS
+    lump = (lump_kg, -ahead * tool_kg / lump_kg, -PEG_ABOVE_BODY)
+  spec = am.ArmSpec() if fork is None else am.ArmSpec().with_(fork=fork)
+  rig = Rig(spec, rack=None, policy=policy, scenery=scenery, tool_group=3, tool_kg=tool_kg,
             lump=lump)
   if z_lift:
     rig.data.qpos[2] += z_lift
@@ -564,6 +580,8 @@ def carrying(policy=None, scenery: str = "", key: int = 0, z_lift: float = 0.0,
   rig.hold(1.0)
   rig.fork_to(*CARRY, speed=0.2)
   rig.mount_tool()
+  if ahead:
+    rig.arm.payload = (tool_kg, (ahead, -PEG_ABOVE_BODY))
   rig.hold(1.0)
   return rig
 
@@ -581,35 +599,83 @@ def retention_flat(tool_kg: float = TOOL_KG) -> None:
     print(w.row(name))
 
 
-def retention_stairs(rise: float = 0.18, steps: int = 10) -> None:
-  """The house's flight up and down on the seeing policy, the tool carried."""
+#: The stairs' table: a tool whose CoM sits on its peg, 30 mm ahead of it
+#: and at the envelope's limit, up and down the house's flight from rest,
+#: STAIR_FLIGHTS starts each STAIR_BACK_M further back.
+STAIR_AHEAD = (0.0, 0.030, am.TOOL_MAX_AHEAD_M)
+STAIR_FLIGHTS = 20
+STAIR_BACK_M = 0.07
+
+
+def stair_one(args) -> dict:
+  """One flight from rest, facing along it (the seeing policy's own case),
+  the tool carried: did the robot arrive, and is the tool still on its fork?"""
+  up, ahead, k, fork, rise, steps = args
   sys.path.insert(0, str(ROOT / "scripts"))
   import quad_spike as qs
   from pluggybot.legs.policy import POLICY_NPZ
-  seeing = POLICY_NPZ.with_name("quadruped_rough_seeing.npz")
-  print(f"a flight of {steps} x {rise} m risers on the seeing policy (ideal scan), "
-        f"carried at {CARRY}:")
-  print(RETENTION_HEAD + f" {'arrived':>7s}")
+  scen = qs.staircase_scenery(rise, steps, qs.CLIMB_EDGE_M, down=not up)
+  rig = carrying(policy=POLICY_NPZ.with_name("quadruped_rough_seeing.npz"), scenery=scen,
+                 z_lift=0.0 if up else steps * rise, ahead=ahead, fork=fork)
+  d = rig.data
+  # Back along the flight, the tool with it: a robot carrying one is never
+  # moved without it.
+  d.qpos[0] -= STAIR_BACK_M * k
+  d.qpos[rig.tool_adr] -= STAIR_BACK_M * k
+  mujoco.mj_forward(rig.model, d)
+  w = Watch(rig)
+  top_x = qs.CLIMB_EDGE_M + steps * qs.TREAD_M
+  t0 = d.time
+  arrived = False
+  while d.time - t0 < 4.0 + 2.5 * steps and not arrived:
+    rig.step(Twist(vx=0.4))
+    w.tick()
+    if up:
+      arrived = d.qpos[0] > top_x + 0.3 and d.qpos[2] > steps * rise + 0.8 * CHOSEN.stand_height
+    else:
+      arrived = (d.qpos[0] > top_x - qs.TREAD_M + 0.3
+                 and abs(d.qpos[2] - CHOSEN.stand_height) < 0.08)
+  rig.hold(1.0)
+  dt = rig.model.opt.timestep
+  tau = np.array(w.arm_tau)
+  return {"up": up, "ahead": ahead, "arrived": arrived, "seated": rig.powered(),
+          "open_ms": w.worst * dt * 1000, "swing": w.swing, "plate": w.plate,
+          "arm": float(tau.max()), "knee": float(np.percentile(np.array(w.knee), 99.5))}
+
+
+def retention_stairs(rise: float = 0.18, steps: int = 10, n: int = STAIR_FLIGHTS,
+                     jobs: int = 3, fork: am.ForkSpec | None = None) -> None:
+  """The house's flight up and down on the seeing policy, the tool carried,
+  at each lean. A flight that never arrived is the policy's (a descent
+  sometimes stalls at the top edge), counted apart from the coupling's."""
+  todo = [(up, a, k, fork, rise, steps) for up in (True, False) for a in STAIR_AHEAD
+          for k in range(n)]
+  if jobs > 1:
+    from multiprocessing import Pool
+    with Pool(jobs) as pool:
+      rows = pool.map(stair_one, todo, chunksize=1)
+  else:
+    rows = [stair_one(t) for t in todo]
+  f = fork or am.ForkSpec()
+  ramp = math.degrees(math.atan2(f.ramp_h, f.ramp_w))
+  print(f"a flight of {steps} x {rise} m risers on the seeing policy (ideal scan), from "
+        f"rest, a {TOOL_KG * 1000:.0f} g tool carried at {CARRY} on {f.flank_deg:.0f} deg "
+        f"V's and {ramp:.0f} deg end-ramps; {n} starts each:")
+  print(f"{'flight':6s} {'ahead mm':>8s} {'arrived':>8s} {'kept':>5s} {'lost':>5s} "
+        f"{'longest open ms':>15s} {'swing deg':>9s} {'plate deg':>9s} {'arm peak':>8s} "
+        f"{'knee p99.5':>10s}")
   for up in (True, False):
-    scen = qs.staircase_scenery(rise, steps, qs.CLIMB_EDGE_M, down=not up)
-    rig = carrying(policy=seeing, scenery=scen, z_lift=0.0 if up else steps * rise)
-    w = Watch(rig)
-    top = steps * rise
-    t0 = rig.data.time
-    arrived = False
-    while rig.data.time - t0 < 4.0 + 2.5 * steps:
-      rig.step(Twist(vx=0.4))
-      w.tick()
-      d = rig.data
-      if up and d.qpos[2] > top + 0.8 * CHOSEN.stand_height:
-        arrived = True
-      if not up and d.qpos[0] > qs.CLIMB_EDGE_M + (steps - 1) * qs.TREAD_M + 0.3 \
-          and abs(d.qpos[2] - CHOSEN.stand_height) < 0.08:
-        arrived = True
-      if arrived:
-        break
-    rig.hold(2.0)
-    print(w.row("up" if up else "down") + f" {'yes' if arrived else 'NO':>7s}")
+    for a in STAIR_AHEAD:
+      mine = [r for r in rows if r["up"] == up and r["ahead"] == a]
+      got = [r for r in mine if r["arrived"]]
+      kept = [r for r in got if r["seated"]]
+      worst = max((r["open_ms"] for r in kept), default=0.0)
+      print(f"{'up' if up else 'down':6s} {a * 1000:8.0f} {len(got):4d}/{len(mine):<3d} "
+            f"{len(kept):5d} {len(got) - len(kept):5d} {worst:15.0f} "
+            f"{max((r['swing'] for r in kept), default=0.0):9.1f} "
+            f"{max((r['plate'] for r in got), default=0.0):9.1f} "
+            f"{max((r['arm'] for r in got), default=0.0):8.1f} "
+            f"{max((r['knee'] for r in got), default=0.0):10.1f}")
 
 
 def fall(push_ns: float = 30.0, reflex: bool = True, getup_s: float = 6.0) -> dict:
@@ -905,9 +971,10 @@ def back_out(rig: Approach, metres: float = 0.6, budget_s: float = 6.0) -> None:
   rig.hold(0.8)
 
 
-def approach(rig: Approach, tries: int = 3) -> dict:
+def approach(rig: Approach, tries: int = 3, carry_s: float = 0.0) -> dict:
   """From the standoff: look, walk in, stop, measure the bay, take the tool
-  if lined up (else back out and try again), then hang it back."""
+  if lined up (else back out and try again), then hang it back -- holding
+  it up at the carry pose `carry_s` first, for the viewer."""
   out = {"picked": False, "returned": False, "tries": 0, "why": ""}
   t0 = rig.data.time
   for attempt in range(tries):
@@ -933,6 +1000,14 @@ def approach(rig: Approach, tries: int = 3) -> dict:
     out.update(true_across=float(p[1]), aim_err_x=a.x - tx, aim_err_z=a.z - tz)
     res = rig.pick((a.x, a.z))
     out["picked"] = res["picked"]
+    if res["picked"] and carry_s:
+      rig.fork_to(*CARRY, speed=0.2)
+      rig.hold(carry_s)
+      rig.fork_to(a.x - BACK_OUT, a.z - rig.drop + rig.lift, speed=0.2)
+      # Swinging a tool up and down shifts the stance under the arm (25 mm
+      # of it, measured): an aim taken before is stale. Stand, look again.
+      rig.hold(rk.SETTLE_AFTER_WALK_S)
+      a = rig.aim() or a
     if res["picked"]:
       out["returned"] = rig.put_back((a.x, a.z))["returned"]
     out["why"] = "" if out["picked"] and out["returned"] else "coupling"
@@ -1026,7 +1101,7 @@ def _reach(spec, x, z, level: str, height: float = 0.0):
     c, sn = math.cos(pitch), math.sin(pitch)
     # The target in the pitched torso's frame (pitch about the torso's centre).
     xt, zt = c * x + sn * z, -sn * x + c * z
-    fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + 0.003 * math.sqrt(2)
+    fx, fz = spec.fork.vertex_x, spec.fork.vertex_z + spec.fork.seat_rise()
     phi = -pitch                       # the forearm's angle that levels the plate
     wx, wz = xt - (fx * math.cos(phi) - fz * math.sin(phi)), zt - (fx * math.sin(phi) + fz * math.cos(phi))
     ex, ez = wx - spec.fore * math.cos(phi), wz - spec.fore * math.sin(phi)
@@ -1095,12 +1170,7 @@ def envelope_one(args) -> dict:
   carried through a 1.0 m/s trot and a stop: still seated, and at what
   angle does it hang?"""
   kg, ahead = args
-  lump_kg = kg - rk.MODULE_MASS
-  # The lump carries the offset: the plate's own mass sits on the peg's
-  # axis, so the whole tool's CoM is `ahead` off when the lump is
-  # ahead * kg / lump. A tool's +x faces the robot: ahead is its -x.
-  rig = carrying(tool_kg=kg, lump=(lump_kg, -ahead * kg / lump_kg, -PEG_ABOVE_BODY))
-  rig.arm.payload = (kg, (ahead, -PEG_ABOVE_BODY))
+  rig = carrying(tool_kg=kg, ahead=ahead)
   w = Watch(rig)
   for seconds, twist in ((3.0, Twist(vx=1.0)), (2.0, Twist())):
     t0 = rig.data.time
@@ -1127,6 +1197,279 @@ def envelope_table(jobs: int = 3) -> None:
           f"{r['swing']:9.1f}")
 
 
+# ---- the viewer ------------------------------------------------------------------
+
+def watch(rig: Rig, scene, *, track: bool = True, lookat=None, distance: float = 2.2,
+          azimuth: float = 150.0, elevation: float = -18.0) -> None:
+  """Run `scene(rig)` over and over in the MuJoCo viewer, at real time, until
+  the window closes. MuJoCo's azimuth 0 looks along +x, the way the robot
+  faces at the start."""
+  from mujoco import viewer as mj_viewer
+  with mj_viewer.launch_passive(rig.model, rig.data) as viewer:
+    if track:
+      viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+      viewer.cam.trackbodyid = rig.root
+    else:
+      viewer.cam.lookat[:] = lookat
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = distance, azimuth, elevation
+    rig.viewer = viewer
+    try:
+      while viewer.is_running():
+        scene(rig)
+    except ViewerClosed:
+      pass
+  rig.viewer = None
+
+
+def view_fetch(seed: int | None = None) -> None:
+  """Fetches, one after another, each from a new random start at the
+  approach's standoff: the rack found, the walk in by its tags, the pick,
+  the tool held up at the carry pose, hung back, the arm stowed."""
+  rng = np.random.default_rng(seed)
+  rig = Approach(seed=0)
+  rig.hold(1.0)
+  print("Each fetch starts 1 m behind the bay's working pose, TRULY off by a random "
+        "offset while the robot believes it stands exactly there.")
+
+  def scene(rig):
+    across = rng.uniform(-START_ACROSS_M, START_ACROSS_M)
+    along = rng.uniform(-START_ALONG_M, START_ALONG_M)
+    yaw = rng.uniform(-START_YAW_DEG, START_YAW_DEG)
+    print(f"fetch: {across:+.2f} m across, {along:+.2f} m along, {yaw:+.0f} deg turned")
+    rig.place(-APPROACH_STANDOFF + along, across, math.radians(yaw),
+              belief=(-APPROACH_STANDOFF, 0.0, 0.0))
+    rig.rack_belief = None
+    r = approach(rig, carry_s=3.0)
+    print(f"  picked {r['picked']}, hung back {r['returned']} after {r['tries']} "
+          f"{'try' if r['tries'] == 1 else 'tries'} {r['why']}")
+    rig.arm.aim(*rig.spec.stow)
+    rig.hold(2.0)
+    back_out(rig, 0.8)
+  try:
+    watch(rig, scene, track=False, lookat=(-0.3, 0.0, 0.35), distance=2.6,
+          azimuth=25.0, elevation=-20.0)
+  finally:
+    rig.close()
+
+
+#: The carry scene's loop: out and back, so the robot stays in view.
+CARRY_LOOP = (
+  ("walk 0.3 m/s", 5.0, Twist(vx=0.3)),
+  ("trot 0.6 m/s", 4.0, Twist(vx=0.6)),
+  ("trot 1.0 m/s", 3.0, Twist(vx=1.0)),
+  ("stop from 1.0 m/s", 2.0, Twist()),
+  ("turn round", 4.0, Twist(yaw_rate=0.8)),
+  ("trot 1.0 m/s", 3.0, Twist(vx=1.0)),
+  ("trot 0.6 m/s", 4.0, Twist(vx=0.6)),
+  ("walk 0.3 m/s", 5.0, Twist(vx=0.3)),
+  ("stop", 2.0, Twist()),
+  ("turn round", 4.0, Twist(yaw_rate=-0.8)),
+  ("sidestep left", 3.0, Twist(vy=0.3)),
+  ("sidestep right", 3.0, Twist(vy=-0.3)),
+  ("stand", 2.0, Twist()),
+)
+
+
+def carry_scene(rig: Rig) -> None:
+  for name, seconds, twist in CARRY_LOOP:
+    print(f"  {name}")
+    rig.hold(seconds, twist)
+
+
+def view_carry() -> None:
+  """A tool carried high over the nose through walks, trots, hard stops,
+  turns and sidesteps, on the flat policy."""
+  print("A tool carried at the carry pose, over the nose and above the LIDAR's "
+        "scan plane: the gravity seat holds; watch the swing at the stops.")
+  watch(carrying(), carry_scene, distance=2.0, azimuth=120.0, elevation=-12.0)
+
+
+def _yaw(rig: Rig) -> float:
+  return _quat_rpy(rig.data.qpos[3:7])[2]
+
+
+def _turn_to(rig: Rig, heading: float, budget_s: float = 8.0) -> None:
+  """Turn on the spot to a heading (the true one: a viewer's scene, not a
+  measurement)."""
+  t0 = rig.data.time
+  while rig.data.time - t0 < budget_s:
+    e = math.atan2(math.sin(heading - _yaw(rig)), math.cos(heading - _yaw(rig)))
+    if abs(e) < math.radians(8.0):
+      break
+    rig.step(Twist(yaw_rate=math.copysign(0.8, e)))
+  rig.hold(1.0)
+
+
+def hill_scenery(rise: float, steps: int, edge: float, landing: float) -> str:
+  """The house's flight up from x = `edge`, a `landing` across the top, and
+  a flight down the far side: a robot crosses it without turning on it."""
+  import quad_spike as qs
+  box = ('\n    <geom name="{}" type="box" size="{} 1.0 {}" pos="{} 0 {}" '
+         'rgba="0.6 0.5 0.4 1"/>')
+  top_x = edge + steps * qs.TREAD_M
+  g = [qs.staircase_scenery(rise, steps, edge).split('\n    <geom name="landing"')[0]]
+  g.append(box.format("landing", landing / 2, steps * rise / 2, top_x + landing / 2,
+                      steps * rise / 2))
+  for i in range(steps - 1):
+    h = (steps - 1 - i) * rise
+    g.append(box.format(f"down{i}", qs.TREAD_M / 2, h / 2,
+                        top_x + landing + (i + 0.5) * qs.TREAD_M, h / 2))
+  return "".join(g)
+
+
+def _cross(rig: Rig, heading: float, until) -> bool:
+  """Walk at 0.4 m/s holding `heading` until `until()`, at most 60 s."""
+  t0 = rig.data.time
+  while not until() and rig.data.time - t0 < 60.0:
+    e = math.atan2(math.sin(heading - _yaw(rig)), math.cos(heading - _yaw(rig)))
+    rig.step(Twist(vx=0.4, yaw_rate=max(-0.5, min(0.5, 2.0 * e))))
+  return until()
+
+
+def view_stairs(rise: float = 0.18, steps: int = 10, landing: float = 1.5) -> None:
+  """Over a hill of the house's flight -- up, across a landing, down the
+  far side -- carrying a tool on the seeing policy, turning round on the
+  flat at each end: the flights from rest, facing along them, that the
+  stairs' table flies."""
+  sys.path.insert(0, str(ROOT / "scripts"))
+  import quad_spike as qs
+  from pluggybot.legs.policy import POLICY_NPZ
+  edge = qs.CLIMB_EDGE_M
+  far = edge + (2 * steps - 1) * qs.TREAD_M + landing
+  rig = carrying(policy=POLICY_NPZ.with_name("quadruped_rough_seeing.npz"),
+                 scenery=hill_scenery(rise, steps, edge, landing))
+  d = rig.data
+  print(f"Over a hill of the house's flight ({steps} risers of {rise} m each way), "
+        f"carrying a tool: the plate pitches with the torso, the tool hangs plumb.")
+
+  def scene(rig):
+    for heading, name, until in (
+        (0.0, "over the hill", lambda: d.qpos[0] > far + 0.8),
+        (math.pi, "and back", lambda: d.qpos[0] < edge - 0.8)):
+      print(f"  {name}")
+      if not _cross(rig, heading, until):
+        print("  (stalled on the flight: the policy's, not the coupling's)")
+      print(f"  the tool {'still on the fork' if rig.powered() else 'is OFF the fork'}")
+      rig.hold(1.0)
+      _turn_to(rig, math.pi - heading)
+  watch(rig, scene, distance=3.0, azimuth=90.0, elevation=-10.0)
+
+
+def view_fall(push_ns: float = 30.0) -> None:
+  """Trotting with a tool, pushed over; the get-up policy stands it. Every
+  other fall the arm stays at its carry pose -- the premise -- and the robot
+  cannot get up."""
+  from pluggybot.legs.policy import POLICY_NPZ
+  rig = carrying()
+  walking = rig.drv.policy
+  getup = WalkingPolicy(POLICY_NPZ.with_name("quadruped_getup.npz"))
+  count = [0]
+  print("Pushed over while trotting with a tool. The tool is thrown either way; "
+        "the arm folds as the torso passes 60 deg, except every other time.")
+
+  def scene(rig):
+    m, d = rig.model, rig.data
+    reflex = count[0] % 2 == 0
+    count[0] += 1
+    print(f"  trotting ... pushed ({'the arm folds' if reflex else 'the arm held out: the premise'})")
+    t0 = d.time
+    while d.time - t0 < 2.0:
+      rig.step(Twist(vx=0.6))
+    d.xfrc_applied[rig.root] = [0.0, push_ns / 0.1, 0.0, 0.0, 0.0, 0.0]
+    t0 = d.time
+    while d.time - t0 < 0.1:
+      rig.step(Twist(vx=0.6))
+    d.xfrc_applied[rig.root] = 0.0
+    folded = False
+    while d.time - t0 < 2.0:
+      if reflex and not folded and d.xmat[rig.root].reshape(3, 3)[2, 2] < am.FOLD_ON_FALL_COS:
+        rig.arm.payload = (0.0, (0.0, 0.0))
+        rig.arm.aim(*rig.spec.stow)
+        folded = True
+      rig.step(Twist())
+    rig.drv = PolicyDriver(m, d, getup)
+    t0, held, stood = d.time, 0.0, None
+    while d.time - t0 < 5.0 and stood is None:
+      rig.step(Twist())
+      upright = d.xmat[rig.root].reshape(3, 3)[2, 2] > 0.95
+      high = abs(d.qpos[2] - CHOSEN.stand_height) < 0.04
+      held = held + m.opt.timestep if (upright and high) else 0.0
+      if held >= 0.5:
+        stood = d.time - t0 - 0.5
+    print(f"  {'stood in %.1f s' % stood if stood is not None else 'cannot get up'}")
+    rig.hold(1.5)
+    # Stand it back up where it started, the arm stowed, the tool on the fork.
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    d.qpos[rig.tool_adr:rig.tool_adr + 3] = [5.0, 5.0, 0.1]
+    mujoco.mj_forward(m, d)
+    rig.drv = PolicyDriver(m, d, walking)
+    rig.arm.target = np.array(rig.arm.q())
+    rig.arm.goal = rig.arm.target.copy()
+    rig.arm.payload = (0.0, (0.0, 0.0))
+    rig.hold(1.0)
+    rig.fork_to(*CARRY, speed=0.2)
+    rig.mount_tool()
+    rig.hold(1.0)
+  watch(rig, scene, distance=2.2, azimuth=150.0, elevation=-18.0)
+
+
+#: What `--view reach` visits, in the torso frame: the fork's V vertex for
+#: each target (its working point is a marker), and how long it holds there.
+def reach_targets(spec: am.ArmSpec) -> list[tuple[str, tuple[float, float], tuple[float, float]]]:
+  """(name, the V vertex's (x, z), the working point's (x, z)), torso frame."""
+  h0 = CHOSEN.stand_height
+  r = spec.fork.seat_rise()
+  gx, gz = CLAW_GRIP
+  px, pz = PEN_TIP
+  out = [("the carry pose", CARRY, (CARRY[0], CARRY[1] + r - 0.022))]
+  out.append(("a rack bay's peg, 0.50 m up", (WORK_X, rk.DEFAULT.peg_z - h0 - r),
+              (WORK_X, rk.DEFAULT.peg_z - h0)))
+  for zb in (0.41, 0.30, 0.19):
+    tip = (0.43, zb - h0)
+    out.append((f"a pen at a board's {zb:.2f} m row, 0.43 m ahead",
+                (tip[0] - px, tip[1] - pz - r), tip))
+  grip = (0.45, 0.013 - h0)
+  out.append(("a claw's grip on the floor, 0.45 m ahead", (grip[0] - gx, grip[1] - gz - r), grip))
+  out.append(("the carry pose", CARRY, (CARRY[0], CARRY[1] + r - 0.022)))
+  grip = (0.40, 0.813 - h0)
+  out.append(("a claw's grip on a 0.8 m tabletop, 0.40 m ahead",
+              (grip[0] - gx, grip[1] - gz - r), grip))
+  return out
+
+
+def view_reach() -> None:
+  """The arm through the targets that chose it, the plate level at every one;
+  a red marker at each working point (a claw's grip, a pen's tip)."""
+  spec = am.ArmSpec()
+  targets = reach_targets(spec)
+  markers = "".join(
+    f'\n    <geom name="mark{k}" type="sphere" size="0.012" pos="0 0 -1" '
+    f'contype="0" conaffinity="0" rgba="0.9 0.1 0.1 0.8"/>' for k in range(len(targets)))
+  rig = Rig(rack=None, scenery=markers)
+  rig.hold(SETTLE_S)
+  m, d = rig.model, rig.data
+  rot = d.xmat[rig.root].reshape(3, 3)
+  for k, (_, _, (wx, wz)) in enumerate(targets):
+    m.geom_pos[m.geom(f"mark{k}").id] = d.xpos[rig.root] + rot @ np.array([wx, 0.0, wz])
+  rig.fork_to(*CARRY, speed=0.2)
+  rig.mount_tool()
+  rig.hold(1.0)
+  print("The arm through the targets that chose it; a red marker at each working "
+        "point. The plate stays level at every one (the parallelogram).")
+
+  def scene(rig):
+    for name, (vx, vz), _ in targets:
+      print(f"  {name}")
+      rig.fork_to(vx, vz, speed=0.15)
+      rig.hold(2.0)
+  watch(rig, scene, track=False, lookat=d.xpos[rig.root] + np.array([0.3, 0.0, 0.1]),
+        distance=1.9, azimuth=90.0, elevation=-5.0)
+
+
+VIEWS = {"fetch": view_fetch, "carry": view_carry, "stairs": view_stairs,
+         "fall": view_fall, "reach": view_reach}
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--capture", action="store_true")
@@ -1139,21 +1482,27 @@ def main(argv=None) -> None:
   ap.add_argument("--jobs", type=int, default=3)
   ap.add_argument("--retention", action="store_true")
   ap.add_argument("--stairs", action="store_true", help="with --retention")
+  ap.add_argument("--first", action="store_true",
+                  help="with --retention --stairs: the fork as first built, its V's "
+                       "and ramps at 45 deg (the premise)")
   ap.add_argument("--fall", action="store_true", help="with --retention")
   ap.add_argument("--getup", action="store_true")
   ap.add_argument("--sensors", action="store_true")
   ap.add_argument("--approach", action="store_true")
   ap.add_argument("--reach", action="store_true")
   ap.add_argument("--envelope", action="store_true")
-  ap.add_argument("--view", action="store_true")
-  ap.add_argument("--n", type=int, default=20, help="--approach: random starts")
+  ap.add_argument("--view", nargs="?", const="fetch", choices=tuple(VIEWS),
+                  help="watch a scene in the MuJoCo viewer (default: fetch) until "
+                       "the window closes")
+  ap.add_argument("--n", type=int, default=20,
+                  help="--approach: random starts; --retention --stairs: starts per row")
   ap.add_argument("--out", default="arm_spike.png")
   args = ap.parse_args(argv)
   if args.capture:
     capture_table("rover" if args.rover else "loose" if args.loose
                   else "narrow" if args.narrow else "", args.jobs)
   elif args.retention and args.stairs:
-    retention_stairs()
+    retention_stairs(n=args.n, jobs=args.jobs, fork=FIRST_FORK if args.first else None)
   elif args.retention and args.fall:
     retention_fall(reflex=True)
     retention_fall(reflex=False)
@@ -1170,7 +1519,7 @@ def main(argv=None) -> None:
   elif args.envelope:
     envelope_table(args.jobs)
   elif args.view:
-    view()
+    VIEWS[args.view]()
   else:
     filmstrip(args.out)
 
