@@ -34,9 +34,20 @@ ROVER_ROOT = ROBOT_ROOT
 #: The quadruped's packs in this world, Wh. A test's: small enough that a
 #: day's test charges. The served pack is the real one (`model.PACK_WH`).
 DEMO_WH = 20.0
-#: The return-trip reserve: what the walk home from the far corner of the
-#: loop costs, and a stand-up (`scripts/energy_spike.py --reserve`).
-RESERVE_WH = 8.0
+#: The return-trip reserve, Wh: MEASURED on the quadruped over the rover's
+#: worst-case route (`home.HOME_WORST_RETURN_PATH`: the loop's south-west
+#: corner, the sidewalk band, the gate and the garden door) to a REAL dock,
+#: lying on the pins (`scripts/energy_spike.py --world home_quad --reserve`):
+#:
+#:     travel   2.639 Wh over 44.62 m of route  (59.1 mWh/m, twice the rover's)
+#:     dock     0.432 Wh  (to the standoff, the board, the walk in, the lie-down)
+#:     floor    3.071 Wh
+#:
+#: ...plus the constant's own definition, one failed docking: another dock
+#: leg and the stand-up and lie-down it costs (93 mWh, #377) -- 3.596,
+#: carried as 3.6. A property of the floor plan, not of the pack, as the
+#: rover's `HOME_LOW_BATTERY_WH` is.
+RESERVE_WH = 3.6
 
 
 def dock_pose() -> tuple[float, float, float]:
