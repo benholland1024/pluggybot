@@ -70,6 +70,33 @@ curve), which would cap the robot near a walk.
 holding the arm out, cannot push itself up from its belly or up a 0.12 m
 curb, and its whole leg (0.17 m) is shorter than a house's riser.
 
+### The dock (#378)
+
+The robot charges by lying down onto a cradle (`pluggybot.legs.dock`, flown
+by `scripts/dock_spike.py`); the tables that chose it are SimNotes, "The
+quadruped's dock". Nothing is ordered (#379).
+
+| part | chosen | mass | price | what it feeds |
+|---|---|---|---|---|
+| charge contacts ×4 | Mill-Max **0858-0-15-20-82-14-11-0** spring-loaded pin, two a pole: 12 A at a 30 °C rise (9.6 A derated), 20 mΩ max, 25 g free and 120 g at its rated 1.143 mm of a 2.286 mm stroke, a 1.27 mm plunger, gold over nickel | under 1 g each | $2.45 each (DigiKey US, Sept 2026) | `dock.PIN_*`, `dock.pole_spring()` |
+| belly pads ×2 | 160 × 20 mm plated strips flush with the pack's underside, 60 mm apart | in the pack's 0.95 kg | `null` — no design yet (a gold-finished PCB strip is the likely part) | `model.PAD_HALF`, `model.PAD_Y` |
+| charger | a 12S Li-ion CC-CV charger, 50.4 V at 5 A (BOUNDMOTOR's, for one) | not published | $99 (BOUNDMOTOR) | `dock.CHARGE_A`; `CHARGE_W`, 216 W at the pack's nominal 43.2 V |
+| cradle: bed and funnel faces | machined UHMW-PE: sliding friction 0.12–0.17 (a supplier's figure), polyethylene on steel 0.2 static (Engineering ToolBox) | `null` — no design yet | `null` — no design yet | `DockSpec.cradle_mu`, flown at 0.3 |
+| tag board | four 60 mm tag36h11 tags (ids 25–28) printed on a board on a post | — | — | `tags.DOCK_TAG_IDS`, `DOCK_TAG_SIZE`, `dock.tag_layout` |
+
+**Why 5 A.** The Molicel P45B datasheet gives 4.5 A as its standard charge
+(1.5 h) and 13.5 A as its maximum (70 °C cut-off). 5 A is 1.1C for the 12S1P
+pack; one pin a pole carries it with 4.6 A to spare, and the four lose half
+a watt.
+
+**Why sprung pins, and not the robot's weight.** The dock was proposed with
+the robot's own weight (~90 N) as the contacts' preload. But a lying
+quadruped rests on its belly AND on four limp legs, so rigid contacts under
+it carry whatever the legs leave them: a robot lying 6 mm off centre put
+all 57 N through one bar and hung the other pad 0.3 mm clear. The weight
+seats the belly on the bed; the pins' springs, 2.35 N a pole at their
+rated travel, are the contact.
+
 ---
 
 ## Scale — how big is any of this?

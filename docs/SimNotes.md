@@ -1902,8 +1902,11 @@ folded leg holds the hips 0.10 m up, so a torso whose underside is 0.055 m
 below the hips cannot rest on it: the legs carry the robot "lying down".
 The battery hangs below the torso as a belly pack, 0.105 m under the hip
 axis; the robot lies on it with its shanks flat and its drivers holding
-nothing (`model.lie_qpos`), and #378's dock contacts can go on its
-underside. Lying down and standing up take 2.2 s each (`--energy`).
+nothing (`model.lie_qpos`), and its charge pads are flush with its
+underside (#378, "The quadruped's dock"). The belly carries 67 of the
+robot's 92 N on a bare floor: the rest is the legs' own weight (a hip's
+two-motor stack is 0.8 kg) resting on their feet. Lying down and standing
+up take 2.2 s each (`--energy`).
 
 **Heat** (`--thermal`; the Mini Cheetah actuator's measured 1.23 K/W and
 32 J/K, a 39 s time constant): a first-order winding driven by non-negative
@@ -2069,6 +2072,143 @@ scripted gait's rules above are pinned in `tests/test_legs.py` only as far
 as "it trots"; the policy's arithmetic, its observation, its rate and the
 odometry's two corrections are pinned there too; the tables are the
 script's to re-fly.
+
+## The quadruped's dock (issue #378)
+
+The quadruped charges the way it rests: it walks over a cradle, stops with
+its belly above it and lies down onto it (`legs/dock.py`; every table here
+is `scripts/dock_spike.py`'s; the parts are Parts.md, "The dock"). The
+cradle is a 6 mm UHMW-PE plate with a bed 128 mm wide and two faces rising
+30 mm at 55° to a mouth 170 mm wide; in the bed, two poles of two
+spring-loaded pins press up into the belly's two flush pads. A board of four
+60 mm tags on a post 0.62 m ahead of the seat is what the walk steers by
+and what the robot measures itself off once it lies there: its nose camera
+sees the upper pair standing to lie down and the lower pair lying.
+
+**The capture envelope** (`--capture`; the robot placed standing where it
+lies down from, off by the row, then lying down with #377's scripted
+lower-and-fold; the verdict is the electrical criterion). ✓ charges:
+
+| across | yaw 0° | 5° | 10° | 15° |
+|---|---|---|---|---|
+| 0–25 mm | ✓ | ✓ | ✓ | – |
+| 30 mm | – | ✓ | ✓ | – |
+| 35 mm | – | ✓ | – | – |
+| 40, 50 mm | – | – | – | – |
+
+Along the axis it charges from −60 to +90 mm (the pads are 160 mm long, the
+pins 20 mm apart at the seat), and it lies within ±4 mm across and ±2° of
+the axis whatever it came down with. The two premises, same rows: with the
+faces at the belly case's own friction (`--sticky`, μ 1.0 — the pair's MAX
+without `priority`) it fails from 10 mm square-on and everywhere from
+20 mm; with no funnel at all (`--flat`) the pads alone forgive 10 mm, and
+the belly lies wherever it landed. **A funnel is a funnel only while tan(face angle) beats the
+friction with room to spare.** (Without walls a 15° twist still charges;
+the funnel's walls prop a belly turned that far.)
+
+**The approach** (`--approach`; standing at the standoff 1 m behind the
+seat, TRULY off by the row while it believes it stands exactly there): it
+looks, walks in steering by the board, stops, checks what it believes,
+lies down, and backs out for another run if the pins do not conduct. The
+starts: a grid (0–0.3 m across × 0–30°) and 40 drawn uniform in ±0.3 m
+across, ±0.3 m along and ±30°; turned away from the board, it sweeps the
+spot until the board decodes.
+
+| steering by | docked | first try | a foot on the dock | lies across / yaw / along | median |
+|---|---|---|---|---|---|
+| the board, re-read every 0.25 s | 52 of 52 | 49 | 11 runs, at most 0.33 s | ±4 mm / ±1.9° / −16..+7 mm | 9.3 s, 167 mWh |
+| one look, then its legs (`--blind`) | 41 of 52 | 30 | 34 runs, up to 7.2 s | — | 9.7 s, 177 mWh |
+
+Steering by the board, the feet that touched grazed a face's outer edge,
+the longest from starts that began close with far to line up; blind, the
+robot walked its feet onto the faces, and three tries left it lying as far
+as 275 mm off the dock.
+
+**Docked** (`--hold`, five dockings from up to 0.2 m and 20° off): the criterion
+held on every step of a minute lying there, each pole pressing 2.3 N; the
+board's lower pair gave the robot its pose in the dock's frame to 2.2–2.7
+mm and within 0.17°; and it stood up and backed 0.6 m off the dock in 7 s
+and 157 mWh, no foot touching it. A docking and an undocking together cost
+about a third of a watt-hour against a 194 Wh pack; the charger's 216 W
+fills that pack in under an hour, the CV tail aside.
+
+**What shaped it, each measured before it was believed:**
+
+- **The walking policy does not creep.** Commanded 0.15 m/s it walks
+  5 mm/s, 0.2 → 0.11, 0.3 → 0.28; sideways 0.2 → 0.01; turning under
+  0.2 rad/s it barely turns (all four committed policies; the posture
+  policy's band is the narrowest) — a pose loop with a proportional gain
+  stalled 11 cm short. WALKING, small corrections do track (yaw 0.05 →
+  0.045 rad/s, sideways 0.1 → 0.06). So the walk-in walks THROUGH at
+  0.3 m/s, pursuing a point on the dock's axis, and cuts the command
+  `STOP_M` short: from 0.3 m/s the flat policy comes to rest 22 ± 5.5 mm on
+  (eight stops in every phase of the gait; the posture policy ±11). ⚠ This
+  is every fine positioning's problem on this body, not only the dock's.
+- **The feet bound the dock's width, not the belly.** The nearest stance
+  foot's centre to the body's centreline: 124 mm walking straight at
+  0.3 m/s, 120 steering at 0.1 rad/s, 108 sidestepping at 0.15 m/s, 84–92
+  turning at 0.5 rad/s while walking and 74 turning on the spot. A 95 mm
+  mouth (±98 over its faces) put a foot on a face now and then; the mouth is
+  ±85 (±88), and over the dock the walk-in walks straight — no sidestep, at
+  most 0.1 rad/s of steering, never a turn on the spot, and more than 20 mm
+  off the axis it stops and the check backs it out.
+- **Rigid contacts under a lying quadruped are statically indeterminate.**
+  The first cradle had contact bars 4 mm proud, the robot's weight as the
+  preload the issue proposed. But the belly shares the load with four limp
+  legs (it carries 67 of the robot's 92 N on a bare floor; the rest is the
+  legs' own weight on their feet), so which support carries what is set by
+  sub-millimetre heights: a robot lying 6 mm off centre rolled 0.2° onto its
+  right feet, all 57 N went through the left bar, and the right pad hung
+  0.3 mm clear — seated in the funnel, not charging. The contacts are
+  sprung pins (Mill-Max 0858, two a pole, 2.35 N a pole at their rated
+  1.143 mm travel): the weight seats the belly, the springs are the contact.
+- **Lying down moves the body back 34.8 mm onto the dock** (35.5–36.2 onto
+  the bare floor): #377's fold swings the legs forward under the belly. The
+  walk-in stops `LIE_SHIFT_M` ahead of the seat.
+- **The board's baseline is the approach's precision.** The facing comes
+  from where the tags are (Kabsch over their translations, the #88 rule),
+  and the seat is 0.62 m behind the board, so a facing error swings the
+  believed axis: with the tags ±70 mm apart the robot believed itself up to
+  17 mm off the axis while it walked over the dock within 7 mm of it. At
+  ±140 mm, and each look blended half into the last (`dock.blend`), the
+  belief follows the truth to ~5 mm.
+
+**Five MuJoCo traps the pins walked into**, each now a constant with its
+number: (1) contact filtering between a parent and its child body does not
+apply to a body welded to the world, so the pins collided with their own
+plate — they meet the robot alone (`contype` bits); (2) soft contact scales
+with the bodies' effective mass, and against a gram-scale sprung pin the
+pad sank 1.2 mm into it at 0.12 N instead of pressing it down — the pins'
+contact is `solref 0.004` (two steps) with `solimp 0.99 0.999`, pressing
+2.32 N a pole of the part's 2.35; (3) a light pole then chattered against
+that stiff contact, the criterion flipping 1286 times in 10 s of lying
+there — a 0.1 kg armature (the plungers' inertia, a numerical stand-in)
+holds it every step; (4) a 9 kg belly let go 30 mm up sank through the
+6 mm plate onto the floor, so the plate's collision box reaches 50 mm under
+the floor; (5) #377's `VirtualModel` read the body's inertia off a fresh
+MjData's all-zero mass matrix when built before a forward pass, and its
+lie-down moved the body 44.6 mm instead of 34.8 — it now refuses.
+
+**The dock is the map's origin** (#381's plan: decided). Lying docked, the
+robot reads its pose in the dock's frame off the board's lower pair to
+2.2–2.7 mm and 0.17° (`--hold`). The seat alone would give it a few mm and
+~2° — the funnel's clearance lets the belly lie up to 2° twisted — so the
+anchor is the BOARD, read lying, not the seat. The dock is the one pose
+the robot returns to by construction, it needs no survey, and one dock
+serves the pair, so both robots' maps share its frame. `rack_prior`'s
+commissioned pose retires for the quadruped: #387's `anchor_at_dock` snaps
+the legs' estimate to what the board says. Where the dock stands in the
+world is the sim's to know (the site's drawing, its own checks); the robot
+needs only its frame.
+
+**What is true now:** the dock is `legs.dock.DEFAULT` (`dock_xml`, any
+world; `world_xml`, the spike's and the tests' standalone world, the dock
+AFTER the robot because `LegOdometry` and the keyframes read the robot's
+free joint at `qpos[0]`); the criterion is `dock_charge_contact`, each pad
+on a pin of its own pole; the walk-in is `walk_in_twist`, `fit_dock`,
+`seen_from` and `blend`; nothing in the served sim loads any of it until
+#387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
+lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
 
 ## Debugging workflow that worked
 

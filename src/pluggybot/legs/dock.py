@@ -12,10 +12,10 @@ there.
 ⚠ THE CONTACTS ARE SPRUNG, NOT RIGID. A lying quadruped rests on its belly
 AND on four limp legs, so rigid contacts under it are statically
 indeterminate: which of them carries load is decided by sub-millimetre
-heights. Measured: rigid bars 4 mm proud held each pad at ~16 N, and a robot
-lying 6 mm off centre rolled 0.2 deg onto its right feet and lifted one pad
-0.3 mm clear of its bar -- not charging, lying in the funnel. The weight
-seats the belly; the pins' springs are the preload.
+heights. Measured on rigid bars 4 mm proud: a robot lying 6 mm off centre
+rolled 0.2 deg onto its right feet, put all 57 N through the left bar and
+hung the right pad 0.3 mm clear -- not charging, lying in the funnel. The
+weight seats the belly; the pins' springs are the preload.
 
 Everything is in the DOCK's frame: the origin on the floor under the docked
 robot's body centre, +x the way the docked robot faces (toward the board).
