@@ -14,7 +14,11 @@ for, and a robot that never earns it is a finding about the robot.
                     against the hidden mass
   --feature mouse   `lifecycle.cage_errand("home", "feed")`: the care
                     program to the lab and onto the feed plate, judged off
-                    the cage's own count (a `care` event, `landed`)
+                    the cage's own count (a `care` event, `landed`); on
+                    legs (`--body quadruped`, issue #403) the paid JOB --
+                    `feed_mouse` offered, claimed with a prediction, walked
+                    and graded by `eval_feed` -- `--n` times, from the dock
+                    or (`--from lab`) from inside the lab
 
 Each starts at the rack in the living room. `challenge/solutions.py`
 holds the procedures and the numbers they measured. Writes solve.png: a
@@ -34,6 +38,8 @@ Usage:
       # skip the drive: start in the workshop with the claw on the fork
   MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --pair --robot 2 \\
       --source build_tower.py
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature mouse --pair --body quadruped \\
+      --n 10 --from lab
 """
 
 import argparse
@@ -165,11 +171,12 @@ def _camera(life, frames: list, track: str):
   return grab
 
 
-def build_pair_lives(robot: int, state_dir: str):
+def build_pair_lives(robot: int, state_dir: str, world: str = "home"):
   """The home PAIR as deployed (issue #353): hosting packs, near-field on,
-  and robot `robot` (1 or 2) given the tower's mind and a task board."""
+  and robot `robot` (1 or 2) given the tower's mind and a task board --
+  on wheels, or on legs (`home_quad`, issue #403)."""
   from pluggybot.pair import build_pair
-  lives = build_pair("home", pack="hosting", errands=("none", "none"),
+  lives = build_pair(world, pack="hosting", errands=("none", "none"),
                      autonomous=True, overseer=False, near_field=True)
   life = lives[robot - 1]
   life.overseer = _Mind()
@@ -178,6 +185,19 @@ def build_pair_lives(robot: int, state_dir: str):
   # offer never sets the bench's mass or the props out (review of #353)
   life.tasks.on_event.append(life._bench_offered)
   return lives, life
+
+
+def start_pair(lives: list, legs: bool = False) -> None:
+  """Each robot of the pair at its start, its map begun: Luca by the rack,
+  Rowan in the hall."""
+  cfg = world_config("home")
+  for each, start in zip(lives, (cfg["start"], cfg["start2"])):
+    each.body.start_at(*start)
+    each.body.start_discovery()
+    if legs:
+      each.body.run(each.body.look_around_routine())
+    else:
+      each.body.mission._spin()
 
 
 def fly_beside(lives: list, life, routine):
@@ -191,11 +211,11 @@ def fly_beside(lives: list, life, routine):
     finally:
       done[0] = True
 
-  def standing():
+  def standing(other):
     while not done[0]:
-      yield 0.0, 0.0
-  return tick.run_many([(life.body.mission.swap, flying())]
-                       + [(other.body.mission.swap, standing()) for other in lives
+      yield other.body.STILL
+  return tick.run_many([(life.body.stepper, flying())]
+                       + [(other.body.stepper, standing(other)) for other in lives
                           if other is not life], name="solve")[0]
 
 
@@ -214,6 +234,8 @@ def run_routine(life, feature: str, source: str | None = None, frames: list | No
   grab = _camera(life, frames, track) if frames is not None else None
   events: list = []
   life.on_event.append(events.append)
+  if feature == "mouse" and life.world == lc.QUAD_HOME:
+    return (yield from feed_job_routine(life, events))
   if feature == "mouse":
     result = yield from life.run_errand_routine(
       lc.cage_errand("home", "feed", from_xy=m.pose_xy()))
@@ -246,6 +268,58 @@ def run_routine(life, feature: str, source: str | None = None, frames: list | No
   return {"errand": result, "grade": life.grades[-1] if life.grades else None}
 
 
+#: What the hand-written feed predicts: a fed mouse eats.
+FEED_PREDICTS = "eating"
+
+
+def feed_job_routine(life, events: list):
+  """The paid feed as a robot on legs does it (issue #403): the offer on
+  the board, claimed with a prediction, its errand walked, the job graded
+  by `eval_feed` through `scoring.evaluate` -- the door the robot's own
+  claim goes through. What the cage counted on EVERY plate comes back, so a
+  press of another is seen."""
+  cage, data = life.cage, life.data
+  counts = dict(cage.counts)
+  task = life.tasks.offer("feed_mouse", "lab", t=float(data.time))
+  assert task is not None and life._claim_task(task.id, answer=FEED_PREDICTS)
+  errand = life.errands.pop(0)
+  result = yield from life.run_errand_routine(errand)
+  care = [e for e in events if e["type"] == "care"]
+  done = life.tasks.get(task.id)
+  verdict = dict(done.verdict or {}) if done is not None else {}
+  return {"errand": result, "care": care[-1] if care else None,
+          "grade": {"ok": bool(verdict.get("ok")), "reason": verdict.get("reason", ""),
+                    "points": verdict.get("points", 0)},
+          "presses": {k: cage.counts[k] - counts[k] for k in ("shock", "feed", "toy")},
+          "presses_off_job": [e for e in events if e["type"] == "press"]}
+
+
+def feed_trials_routine(life, n: int, start: str, events: list):
+  """`n` paid feeds on legs, each from the DOCK (walked back to it and
+  lain on between) or, `start == "lab"`, each from where the last ended,
+  after one walk in (issue #403: the success rate the issue asks for)."""
+  out = []
+  if start == "lab":
+    first = yield from feed_job_routine(life, events)
+    print(f"  walk in: {'PASSED' if first['grade']['ok'] else 'FAILED'} "
+          f"-- {first['grade']['reason']}")
+  for i in range(n):
+    if start == "dock":
+      yield from life.go_charge_routine()
+      yield from life.body.undock_routine()
+    t0 = float(life.data.time)
+    run = yield from feed_job_routine(life, events)
+    x, y, _ = life.body.pose
+    tx, ty, _ = life.body.true_pose()
+    run["seconds"] = float(life.data.time) - t0
+    run["drift"] = math.hypot(x - tx, y - ty)
+    out.append(run)
+    print(f"  {i + 1:2d}/{n}: {'PASSED' if run['grade']['ok'] else 'FAILED'} "
+          f"{run['seconds']:5.0f} s, presses {run['presses']}, "
+          f"belief {run['drift']:.2f} m off -- {run['grade']['reason']}")
+  return out
+
+
 def filmstrip(frames, path: str) -> None:
   if not frames:
     return
@@ -271,12 +345,22 @@ def main() -> None:
   parser.add_argument("--robot", type=int, choices=(1, 2), default=1,
                       help="with --pair: 1 flies from the rack, 2 from the hall")
   parser.add_argument("--source", help="a procedure file to fly instead of the solution")
+  parser.add_argument("--body", choices=("rover", "quadruped"), default="rover",
+                      help="the pair on legs (issue #403): the mouse's paid job only")
+  parser.add_argument("--n", type=int, default=1,
+                      help="on legs: how many paid feeds, one after another")
+  parser.add_argument("--from", dest="start", choices=("dock", "lab"), default="dock",
+                      help="on legs: each feed from the dock, or from inside the lab")
   parser.add_argument("--out", default=OUT)
   args = parser.parse_args()
   if args.pair and (args.view or args.at_the_row):
     parser.error("--pair takes neither --view nor --at-the-row")
   if args.source and (args.at_the_row or args.feature == "mouse"):
     parser.error("--source flies a procedure: not with --at-the-row or the mouse")
+  legs = args.body == "quadruped"
+  if legs and not (args.pair and args.feature == "mouse"):
+    parser.error("--body quadruped flies the mouse's paid job on the pair: "
+                 "--feature mouse --pair (it has no arm for the tower or the bench)")
 
   frames: list = []
   source = (Path(args.source).read_text() if args.source else
@@ -284,13 +368,11 @@ def main() -> None:
   with tempfile.TemporaryDirectory() as state_dir:
     viewer, others = None, []
     if args.pair:
-      lives, life = build_pair_lives(args.robot, state_dir)
+      from pluggybot.lifecycle import QUAD_HOME
+      lives, life = build_pair_lives(args.robot, state_dir,
+                                     world=QUAD_HOME if legs else "home")
       others = [other for other in lives if other is not life]
-      cfg = world_config("home")
-      for each, start in zip(lives, (cfg["start"], cfg["start2"])):
-        each.body.start_at(*start)
-        each.body.start_discovery()
-        each.body.mission._spin()
+      start_pair(lives, legs)
     else:
       life, viewer = build_life(args.view, state_dir)
       if args.feature == "mouse":
@@ -301,7 +383,11 @@ def main() -> None:
     m = life.body.mission
     t0 = time.time()
     try:
-      if args.pair:
+      if legs:
+        events: list = []
+        life.on_event.append(events.append)
+        trials = fly_beside(lives, life, feed_trials_routine(life, args.n, args.start, events))
+      elif args.pair:
         out = fly_beside(lives, life, run_routine(life, args.feature, source, frames))
       elif args.at_the_row and args.feature == "tower":
         claw_in_hand_at_the_row(life)
@@ -319,6 +405,20 @@ def main() -> None:
         each.body.close()
       if viewer is not None:
         viewer.close()
+  if legs:
+    passed = sum(1 for run in trials if run["grade"]["ok"])
+    other = {k: sum(run["presses"][k] for run in trials) for k in ("shock", "toy")}
+    off = [e for e in events if e["type"] == "press"]
+    print(f"\nFEED on legs, from the {args.start}: {passed}/{len(trials)} paid; "
+          f"presses of another plate: {other}; `press` events: {len(off)}; "
+          f"mean {sum(r['seconds'] for r in trials) / max(len(trials), 1):.0f} sim s, "
+          f"belief {max((r['drift'] for r in trials), default=0.0):.2f} m off at worst")
+    for each in others:
+      x, y, _ = each.body.true_pose()
+      print(f"{each.robot_name}: stood at ({x:.2f}, {y:.2f})"
+            + (f", DEAD ({each.dead['cause']})" if each.dead else ""))
+    print(f"sim {life.data.time:.0f} s, wall {time.time() - t0:.0f} s")
+    return
   proc = out["errand"]["procedure"]
   print()
   for step in proc["steps"]:

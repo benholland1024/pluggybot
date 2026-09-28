@@ -561,6 +561,36 @@ def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
 
 
 @pytest.mark.endurance
+def test_the_paid_feed_is_done_on_legs_by_the_pair(tmp_path):
+  """Ladder A on legs (issue #403): the quadruped pair as deployed, Luca
+  walking from its start to the lab by the planner alone (no surveyed
+  road) while Rowan stands in the hall; `feed_mouse` offered, claimed with
+  a prediction and graded by `eval_feed` through `scoring.evaluate`, the
+  mouse eating, no other plate pressed. ~2 min wall; every rule it stands
+  on is pinned fast in tests/test_lab_on_legs.py (the lab, the rule, the
+  one offer, the walk's patience, the lanes that keep off the other
+  plates, the stray press)."""
+  import sys
+  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+  import solve as demo
+  from pluggybot.lifecycle import QUAD_HOME
+  lives, life = demo.build_pair_lives(1, str(tmp_path), world=QUAD_HOME)
+  events: list = []
+  life.on_event.append(events.append)
+  try:
+    demo.start_pair(lives, legs=True)
+    run = demo.fly_beside(lives, life, demo.feed_job_routine(life, events))
+  finally:
+    for each in lives:
+      each.body.close()
+  assert run["grade"]["ok"] and run["grade"]["points"] > 0, run["grade"]
+  assert run["presses"]["feed"] >= 1, run["presses"]
+  assert run["presses"]["shock"] == run["presses"]["toy"] == 0, run["presses"]
+  assert not run["presses_off_job"] and life.cage.state == "eating"
+  assert run["care"]["kind"] == "feed_mouse" and run["care"]["landed"] >= 1
+
+
+@pytest.mark.endurance
 def test_a_claw_lowered_by_a_procedure_is_stowed_from_the_pick_height(tmp_path):
   """Luca's weighing (issue #264): `set_lift(0.03)`, then `stow()`. The
   return starts from the lift it is handed; from 0.03 m it drove the claw
