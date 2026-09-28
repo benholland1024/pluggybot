@@ -84,27 +84,23 @@ def test_low_battery_is_an_absolute_reserve(room_model):
   assert life.needs_charge
 
 
-# ⚠ THE room_hub ARM IS BEHIND `--endurance` (suite budget, 2026-09-13):
-# 254 s under the parallel suite, and its pieces are proved in the default
-# run by `test_hub_mission::test_full_hub_mission` (fetch, use, stow on
-# room_hub) and the charge-approach tests. The HOME arm stays: it is the
-# served world, the harder room, and the guard on `world_config`.
+# ⚠ HOME ONLY. The room_hub arm was retired (2026-09-28): its demo cell now
+# funds the carry and ends the day at 38 % without visiting the hub, and
+# `test_hub_mission::test_full_hub_mission` flies fetch, use and stow there.
 @pytest.mark.slow
-@pytest.mark.parametrize("world", [
-  pytest.param("room_hub", marks=pytest.mark.endurance),
-  "home",
-])
-def test_full_hub_lifecycle(world):
+def test_full_hub_lifecycle():
   """The milestone-8 claim end to end: find the hub by looking, fetch a
   tool, use it elsewhere, stow it, then notice the battery and charge at
   the hub -- collision-free.
 
-  The home arm (issue #9) is the one the website serves, and it is a
-  harder room than room_hub: the mission has to get through a door gap to
-  reach its use_at, so a bad world constant shows up here as a collision
-  or a dropped module rather than as an exception. Every constant comes
-  from world_config, so this is also the guard on that table.
+  In the home world (issue #9), the harder room: the mission has to get
+  through a door gap to reach its use_at, so a bad world constant shows up
+  here as a collision or a dropped module rather than as an exception.
+  Every constant comes from world_config, so this is also the guard on
+  that table.
   """
+  import os
+
   from pluggybot.lifecycle import run_demo
 
   # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The whole milestone-8
@@ -120,7 +116,7 @@ def test_full_hub_lifecycle(world):
     return (life.swaps_done >= 2 and life.charge_cycles >= 1
             and life.body.mission.swap.module_state(life.module)["hung"])
 
-  # ⚠ THE HOME ARM STARTS HALF-CHARGED (issue #84). On the old 1.1 Wh cell
+  # ⚠ IT STARTS HALF-CHARGED (issue #84). On the old 1.1 Wh cell
   # one carry errand demanded a charge; the grown cell (3.0 Wh then, 4.5
   # since the loop, #215) funds the same day with room to spare, and the
   # loop -- correctly -- ends a done mission without visiting the hub,
@@ -140,15 +136,11 @@ def test_full_hub_lifecycle(world):
   # what it always did on the old cell -- the pinned-odometry mechanics are
   # exercised for similar sim-seconds -- while the deployed rate stays
   # honest (test_battery pins the served default at 1.0).
-  if world == "home":
-    import os
-    os.environ["PLUGGY_CHARGE_SCALE"] = "4"
-    try:
-      r = run_demo(world=world, stop_when=settled, battery_fraction=0.55)
-    finally:
-      os.environ.pop("PLUGGY_CHARGE_SCALE", None)
-  else:
-    r = run_demo(world=world, stop_when=settled)   # start pose from world config
+  os.environ["PLUGGY_CHARGE_SCALE"] = "4"
+  try:
+    r = run_demo(world="home", stop_when=settled, battery_fraction=0.55)
+  finally:
+    os.environ.pop("PLUGGY_CHARGE_SCALE", None)
   assert r["rack_discovered"], "never localized the rack from its tag"
   assert r["swaps_done"] == 2, "the tool errand did not complete"
   assert r["module_stowed"], "the module was not put back"

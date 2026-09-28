@@ -35,7 +35,7 @@ build-backend = "uv_build"
 # way. Scaling is ~1.8x rather than 6x -- the mission tests contend for
 # memory/GPU bandwidth, and each one runs ~36 % slower under load, so
 # `--dist worksteal` measured identical to `load` (the limit is contention,
-# not scheduling). The floor is test_full_hub_lifecycle[home] at 157 s alone.
+# not scheduling). The floor is test_full_hub_lifecycle at 157 s alone.
 # Pass `-n0` to run in-process: single tests, `--pdb`, and readable live
 # output all want it, and spawning six workers for one test is a net loss.
 addopts = "-n auto --dist worksteal"

@@ -28,7 +28,7 @@ produce identical recordings, identical panels, and identical impressions in a
 watcher. The same holds for self-preservation and for the appetite loop.
 
 ⚠ **A SINGLE RUN IS NOT EVIDENCE HERE, AND THIS REPO ALREADY KNOWS IT.**
-`test_full_hub_lifecycle[home]` has measured 157 s, 250 s and 369 s on three
+`test_full_hub_lifecycle` has measured 157 s, 250 s and 369 s on three
 different days for the same code. Mission runtime is *emergent* — the loop
 runs until the battery cycle completes, so any change reshuffles the whole
 trajectory. Watching one run and forming an impression is the failure mode
