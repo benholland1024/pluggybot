@@ -285,6 +285,11 @@ SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
 #: `explore` decision eats the whole mission, and the point of an overseer is
 #: that it decides repeatedly.
 DECIDED_EXPLORE_S = 45.0
+#: ...and how long the walk to a NAMED zone may take before the explore
+#: begins wherever it stands, s: a decided action's patience (issue #381;
+#: a program names its own, `steps.MAX_PATIENCE_S`). MEASURED: see
+#: SimNotes, "Walking into the unknown".
+ZONE_PATIENCE_S = 300.0
 #: ...and how long `idle` stands still for. Long enough to read on the stream
 #: as a deliberate pause, short enough not to be a way of doing nothing all day.
 DECIDED_IDLE_S = 4.0
@@ -578,8 +583,10 @@ class HubLifecycle:
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
     #: The procedure step running right now (`steps.run_verb` sets it), for
-    #: a death to name (issue #362).
+    #: a death to name (issue #362) -- and when its program's budget ends,
+    #: sim s, past which no walk inside it waits (issue #381).
     self.step_now: dict | None = None
+    self.step_until: float | None = None
     #: Called at the top of every pass of the day loop, where nothing is in
     #: flight -- the one moment a saved world is the same with or without a
     #: restart after it (the parity check, `scripts/determinism_spike.py`).
@@ -5150,6 +5157,13 @@ class HubLifecycle:
     if self._in_errand and row.event in ev.INTERRUPTING_EVENTS:
       self._interrupt_pending = row
 
+  @property
+  def aborting(self) -> bool:
+    """Has this errand's interrupt been answered "stop and go" -- the
+    latch `interrupted()` sets, read without resolving anything (a
+    procedure verb reads it, `steps.run_verb`)."""
+    return self._aborting
+
   def interrupted(self) -> bool:
     """Should the errand in progress stop here and go home (issue #116)?
 
@@ -5753,7 +5767,7 @@ class HubLifecycle:
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        yield from self.body.go_to_routine(wx, wy, timeout=60.0)
+        yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)
       yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
     if decision.action == "idle":

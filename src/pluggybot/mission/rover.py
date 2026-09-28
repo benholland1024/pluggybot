@@ -70,12 +70,11 @@ class RoverBody(Body):
   def start_at(self, x, y, yaw) -> None:
     self.mission.start_at(x, y, yaw)
 
-  def go_to_routine(self, x, y, timeout=None) -> Routine:
+  def go_to_routine(self, x, y, timeout=None, stop=None) -> Routine:
     # ...forwarding only what was given: `drive_to_routine`'s own default
     # is the rover's, and a stub standing in for it may not take one
-    if timeout is None:
-      return self.mission.drive_to_routine(x, y)
-    return self.mission.drive_to_routine(x, y, timeout=timeout)
+    kw = {k: v for k, v in (("timeout", timeout), ("stop", stop)) if v is not None}
+    return self.mission.drive_to_routine(x, y, **kw)
 
   last_drive = property(lambda self: self.mission.last_drive)
 

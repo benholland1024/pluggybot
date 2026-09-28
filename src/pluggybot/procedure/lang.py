@@ -279,7 +279,7 @@ class _Parser:
           self.refuse(node, f"{fn.id} takes no {kw.arg or '**'}")
           continue
         args[kw.arg] = self.arg(kw.value)
-      missing = [n for n in names if n not in args]
+      missing = [n for n in names if n not in args and verb.args[n].default is None]
       if missing:
         self.refuse(node, f"{fn.id} needs {', '.join(missing)}")
       return ("verb", fn.id, args, getattr(node, "lineno", 0))
@@ -581,9 +581,14 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
     else:
       verdict = yield from st.run_verb(life, spec, values,
                                        {"procedure": proc.name, "n": count,
-                                        "line": line})
+                                        "line": line},
+                                       until=t0 + proc.budget_s)
     entry = {"i": count - 1, "verb": verb, "line": line, **verdict}
     result["steps"].append(entry)
+    if verdict.get("stopped") == "interrupted":
+      # the robot's own interrupt ended a walk inside it (issue #381,
+      # `run_verb`): an abort, as between two verbs, never a failed step
+      raise _Stop("interrupted")
     if not verdict.get("ok"):
       result["failedAt"] = count - 1
       life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line})"

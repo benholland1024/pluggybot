@@ -76,8 +76,13 @@ MAX_STEPS = 24
 MAX_BUDGET_S = 1800.0
 DEFAULT_BUDGET_S = 600.0
 MAX_WAIT_S = 60.0
-#: Per-step drive timeout: the native errand's carry drive uses 60 s.
+#: Per-step drive timeout: the native errand's carry drive uses 60 s. It is
+#: `drive_to`'s patience when the program names none (issue #381) ...
 DRIVE_TIMEOUT_S = 60.0
+#: ...and the most it may name, s: the longest true route in the home world
+#: is 44 m, ~150 s walked (`scripts/unknown_spike.py`), and a first walk
+#: through floor nobody has mapped finds its doors on the way.
+MAX_PATIENCE_S = 600.0
 #: A drive to where the house set a cube out that ends farther than this
 #: from it did not get there (issue #264): the robot still looks from where
 #: it stopped, but a failed look is not one "from where the house set it
@@ -190,12 +195,13 @@ class Program:
 class Arg:
   """One typed argument. `choices` is a name on `WorldFacts` (the world
   decides), `lo`/`hi` bound a number, `bounds` says a pair is checked
-  against the world's box."""
+  against the world's box. One with a `default` may be left out."""
 
   kind: str                    # "float" | "str"
   lo: float | None = None
   hi: float | None = None
   choices: str | None = None
+  default: float | None = None
 
 
 @dataclass(frozen=True)
@@ -337,13 +343,21 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   ⚠ UP BEFORE IN, IN BEFORE DOWN. A lift that has to rise goes first, so a
   claw that released a cube at 0.03 m lifts its open jaws off it before the
   arm pulls them back through it; a lift that has to fall goes last, so a
-  tool held out over a bench comes in before it comes down."""
+  tool held out over a bench comes in before it comes down.
+
+  ⚠ A BODY WITH NO ARM HAS NO CARRYING POSE (issue #381): the quadruped's
+  `actuator` names none (#387), and asking for its arm raised before every
+  `drive_to`, `face` and `drive` -- no procedure on legs had walked a
+  step."""
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
   body = life.body
   if tool is None:
-    return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
+    try:
+      return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
+    except KeyError:
+      return []
   model = life.model
   claw = _claw(life) if tool == CLAW_MODULE else None
   holding = claw is not None and claw.held() is not None
@@ -411,36 +425,85 @@ def _stow(life, args: dict) -> Routine:
   return verdict
 
 
-def legs_routine(life, legs) -> Routine:
+def legs_routine(life, legs, stop=None) -> Routine:
   """Walk a route's legs in order, each a WAYPOINT (issue #353): reached
   on arrival or within `LEG_DONE_M` of it, and passed by when another
   robot stands on it -- arrival there is impossible by arithmetic
   (`peer_on_the_goal`). MEASURED on the pair: the bench's route ended at
   the garden_2 gate, its stand-in 0.2 m short, and the tower's in the
   hall, where Rowan stands by on the workshop route's first leg. Returns
-  the leg it could not get near, or None."""
+  the leg it could not get near, or None; a leg its `stop` ended
+  (`go_to_routine`) is one it did not get near."""
   from pluggybot.lifecycle import LEG_DONE_M
   for lx, ly in legs:
     if life.body.peer_on_the_goal(lx, ly) is not None:
       continue
-    arrived = yield from life.body.go_to_routine(lx, ly, timeout=DRIVE_TIMEOUT_S)
+    arrived = yield from _go(life, lx, ly, DRIVE_TIMEOUT_S, stop)
     px, py = life.body.pose_xy()
-    if not arrived and math.hypot(lx - px, ly - py) > LEG_DONE_M:
+    if not arrived and (_stopped(life)
+                        or math.hypot(lx - px, ly - py) > LEG_DONE_M):
       return (lx, ly)
   return None
+
+
+def _go(life, x: float, y: float, timeout: float, stop) -> Routine:
+  """`Body.go_to_routine`, handing it `stop` only when there is one."""
+  if stop is None:
+    return life.body.go_to_routine(x, y, timeout=timeout)
+  return life.body.go_to_routine(x, y, timeout=timeout, stop=stop)
+
+
+def _stopped(life) -> bool:
+  """Did the body's last walk end on its `stop` (issue #381)?"""
+  from pluggybot.navigator import DRIVE_STOPPED
+  rec = getattr(life.body, "last_drive", None)
+  return bool(rec) and rec.get("why") == DRIVE_STOPPED
+
+
+def _interrupt(life):
+  """A walk's `stop` inside a job: the robot's own hazard row, resolved
+  where the walk stands (`HubLifecycle.interrupted`, issue #116) -- a walk
+  is a safe point at every step. None where there is nothing to ask."""
+  return getattr(life, "interrupted", None)
+
+
+def _patience(life, args: dict) -> float:
+  """How long this walk may take: the program's `patience`, or
+  `DRIVE_TIMEOUT_S` -- and never past the program's own budget
+  (`life.step_until`, `run_verb`)."""
+  s = float(args.get("patience", DRIVE_TIMEOUT_S))
+  until = getattr(life, "step_until", None)
+  if until is not None:
+    s = min(s, max(0.0, float(until) - float(life.data.time)))
+  return s
+
+
+def _walk_stopped(life, x: float, y: float, route: dict) -> dict:
+  """A walk the robot's own interrupt ended (issue #381): an abort, never
+  a failure -- the runners stop the program as `interrupted`."""
+  px, py, _ = life.body.pose
+  short = round(math.hypot(x - px, y - py), 3)
+  return {"ok": False, "stopped": "interrupted", "shortM": short, **route,
+          "reason": f"stopped on the way to ({x:g}, {y:g}) by its own interrupt, "
+                    f"{short:.1f} m short, at ({px:.1f}, {py:.1f})"}
 
 
 def _drive_to(life, args: dict) -> Routine:
   from pluggybot.lifecycle import route_to
   x, y = float(args["x"]), float(args["y"])
+  stop = _interrupt(life)
   # ⚠ A GOAL ONE DRIVE CANNOT PLAN TO GOES BY THE HOUSE'S ROUTE (issue
   # #353), as `pick` and the cage programs already did: the planner sees
   # only the map and the LIDAR reaches 8 m, and every robot-written
-  # `drive_to(22, 3)` from the house stopped 6.6-9.1 m short.
+  # `drive_to(22, 3)` from the house stopped 6.6-9.1 m short. A world with
+  # no route written -- every world with legs -- walks into the unknown
+  # instead (issue #381, `Navigator.OPTIMISTIC`).
   legs = ([] if life.body.in_sight(x, y)
           else route_to(life.world, life.body.pose_xy(), (x, y)))
   route = {"route": [[round(lx, 2), round(ly, 2)] for lx, ly in legs]} if legs else {}
-  stopped = yield from legs_routine(life, legs)
+  stopped = yield from legs_routine(life, legs, stop=stop)
+  if stopped is not None and _stopped(life):
+    return _walk_stopped(life, x, y, route)
   if stopped is not None:
     (lx, ly), (px, py, _) = stopped, life.body.pose
     why = life.drive_why(lx, ly)
@@ -448,11 +511,13 @@ def _drive_to(life, args: dict) -> Routine:
             **route, "reason": f"did not arrive at ({x:g}, {y:g}): on the house's "
                                f"route there, the leg to ({lx:g}, {ly:g}) -- {why}, "
                                f"at ({px:.1f}, {py:.1f})"}
-  arrived = yield from life.body.go_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
+  arrived = yield from _go(life, x, y, _patience(life, args), stop)
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
     return {"ok": True, "shortM": short, **route}
+  if _stopped(life):
+    return _walk_stopped(life, x, y, route)
   # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
   # short of (22, 3)" was a route the planner could not make, and Rowan
   # read it as the pack -- then told Luca, and both declined the lab.
@@ -624,13 +689,17 @@ def _travel_routine(life, tag: int) -> Routine:
     inside = math.hypot(stand[0] - px, stand[1] - py) < math.hypot(
       stand[0] - legs[-1][0], stand[1] - legs[-1][1])
     legs = [] if inside else legs_ahead(legs, (px, py))
-  stopped = yield from legs_routine(life, legs)
+  stop = _interrupt(life)
+  stopped = yield from legs_routine(life, legs, stop=stop)
   if stopped is not None:
     px, py = life.body.pose_xy()
     return False, (f"and the route to where the house set it out stopped at "
-                   f"({px:.1f}, {py:.1f}): {life.drive_why(*stopped)}")
-  if not (yield from life.body.go_to_routine(*stand, timeout=DRIVE_TIMEOUT_S)):
+                   f"({px:.1f}, {py:.1f}): " + ("its own interrupt" if _stopped(life)
+                                                else life.drive_why(*stopped)))
+  if not (yield from _go(life, *stand, DRIVE_TIMEOUT_S, stop)):
     px, py = life.body.pose_xy()
+    if _stopped(life):
+      return False, f"and its own interrupt stopped it on the way, at ({px:.1f}, {py:.1f})"
     if math.hypot(stand[0] - px, stand[1] - py) > STAND_SHORT_M:
       # ...and it LOOKS from there anyway: the cube may well be in view, as
       # it always was before this sentence existed. Only the words change.
@@ -951,10 +1020,14 @@ VERBS: dict[str, Verb] = {
                 "pick a module off its bay; ok when seated and powered", drives=True),
   "stow": Verb("stow", {}, _stow, "hang the carried module back; ok when hung",
                drives=True),
-  "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float")},
+  # `patience` (issue #381): the walk's budget, the robot's to set
+  "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float"),
+                                "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
+                                                default=DRIVE_TIMEOUT_S)},
                    _drive_to, "A* to a world point; one past the lidar's 8 m or off "
                    "the map goes by the house's route through its doorways "
-                   "first; ok on arrival", drives=True),
+                   "first; ok on arrival, and it gives up after `patience` "
+                   f"seconds (at most {MAX_PATIENCE_S:.0f})", drives=True),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
                _face, "turn in place; ok when squared within the budget", drives=True),
   "set_lift": Verb("set_lift", {"height": Arg("float", lo=LIFT_RANGE_M[0],
@@ -995,22 +1068,39 @@ VERBS: dict[str, Verb] = {
 }
 
 
-def run_verb(life, verb: Verb, args: dict, where: dict | None = None) -> Routine:
+def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
+             until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
   A verb that drives puts the fork into its carrying pose first (issue
   #347) -- here, once, so a verb added later cannot forget it -- and the
   verb's own use-phase sets its working pose again on arrival.
 
   While it runs, `life.step_now` says which step this is (`where`: the
-  procedure, the count, a line), for a death to name (issue #362)."""
+  procedure, the count, a line), for a death to name (issue #362), and
+  `life.step_until` when the program's budget ends (`until`, sim s), past
+  which no walk inside it waits (`_patience`).
+
+  ⚠ A VERB THE ROBOT'S OWN INTERRUPT ENDED IS STOPPED, NOT FAILED (issue
+  #381): a walk inside it asks the interrupt as it goes (`_interrupt`),
+  and when the answer latched an abort during this verb, a verb that did
+  not succeed says `stopped: interrupted` -- both runners stop the program
+  there as an abort, never at a failed step."""
   before = getattr(life, "step_now", None)
+  before_until = getattr(life, "step_until", None)
+  aborting = bool(getattr(life, "aborting", False))
   life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
+  life.step_until = until
   try:
     if verb.drives:
       yield from travel_pose_routine(life)
-    return (yield from verb.run(life, args))
+    verdict = yield from verb.run(life, args)
+    if (not verdict.get("ok") and not aborting
+        and getattr(life, "aborting", False)):
+      verdict = {**verdict, "stopped": "interrupted"}
+    return verdict
   finally:
     life.step_now = before
+    life.step_until = before_until
 
 
 #: What a body with no arm can run (issue #387): walking, turning, standing
@@ -1019,16 +1109,32 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None) -> Routine
 BODY_VERBS = ("drive_to", "face", "wait", "drive")
 #: ...and how a walking body's prompt describes the one whose words are the
 #: rover's.
-BODY_DOCS = {"drive_to": "walk over the map to a world point; ok on arrival"}
+BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
+                         "yet on it; ok on arrival, and it gives up after "
+                         f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})"}
 
 
 def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
   """The verbs as data -- what a prompt or a validator's error names --
-  every one, or those a body can run (`verbs`, in its words)."""
+  every one, or those a body can run (`verbs`, in its words). An argument
+  that may be left out rides `defaults` with what it is when it is."""
   keep = VERBS if verbs is None else {n: VERBS[n] for n in verbs}
-  return [{"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
-           "doc": v.doc if verbs is None else BODY_DOCS.get(v.name, v.doc)}
-          for v in keep.values()]
+  out = []
+  for v in keep.values():
+    entry = {"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
+             "doc": v.doc if verbs is None else BODY_DOCS.get(v.name, v.doc)}
+    defaults = {k: a.default for k, a in v.args.items() if a.default is not None}
+    if defaults:
+      entry["defaults"] = defaults
+    out.append(entry)
+  return out
+
+
+def signature(entry: dict) -> str:
+  """A described verb as a call: `drive_to(x, y, patience=60)`."""
+  given = entry.get("defaults", {})
+  return entry["verb"] + "(" + ", ".join(
+    f"{k}={given[k]:g}" if k in given else k for k in entry["args"]) + ")"
 
 
 # ---- validation: total, before a single step runs ----------------------------
@@ -1067,7 +1173,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
             f"(it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
-  missing = set(verb.args) - set(args)
+  missing = {k for k, a in verb.args.items() if a.default is None} - set(args)
   if extra:
     bad.append(f"{verb.name} takes no {', '.join(sorted(extra))}")
   if missing and not partial:
@@ -1155,8 +1261,9 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
                             "steps": [], "ok": False}
   t0 = float(life.data.time)
   for i, step in enumerate(steps):
-    # Safe points: between steps. A hazard row (issue #116) or the budget
-    # stops the program here, never inside a step.
+    # Safe points: between steps, and inside a walk (issue #381, `run_verb`).
+    # A hazard row (issue #116) or the budget stops the program there,
+    # never inside anything else.
     if i and life.interrupted():
       result["stopped"] = "interrupted"
       break
@@ -1166,9 +1273,13 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
     verdict = yield from run_verb(life, VERBS[step.verb], step.args,
                                   {"procedure": program.name, "n": i + 1,
-                                   "of": len(steps)})
+                                   "of": len(steps)},
+                                  until=t0 + program.budget_s)
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
+    if verdict.get("stopped") == "interrupted":
+      result["stopped"] = "interrupted"
+      break
     if not verdict.get("ok"):
       result["failedAt"] = i
       life._say(f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} "

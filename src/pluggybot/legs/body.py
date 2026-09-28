@@ -268,6 +268,10 @@ class QuadMission(Navigator):
   #: Its drive reads progress along the route (`Navigator`): a detour round
   #: a wall is progress.
   PROGRESS_ALONG_ROUTE = True
+  #: It walks into the unknown (issue #381): plans through floor it has not
+  #: seen, and a map still growing is progress too.
+  OPTIMISTIC = True
+  PROGRESS_MAP_GROWTH = True
   #: The turn's rate, rad/s per rad of error, and its budget, s.
   FACE_GAIN, FACE_BUDGET_S = 1.5, 12.0
 
@@ -1147,10 +1151,9 @@ class QuadBody(Body):
   def start_at(self, x, y, yaw) -> None:
     self.mission.start_at(x, y, yaw)
 
-  def go_to_routine(self, x, y, timeout=None) -> Routine:
-    if timeout is None:
-      return self.mission.drive_to_routine(x, y)
-    return self.mission.drive_to_routine(x, y, timeout=timeout)
+  def go_to_routine(self, x, y, timeout=None, stop=None) -> Routine:
+    kw = {k: v for k, v in (("timeout", timeout), ("stop", stop)) if v is not None}
+    return self.mission.drive_to_routine(x, y, **kw)
 
   last_drive = property(lambda self: self.mission.last_drive)
 
