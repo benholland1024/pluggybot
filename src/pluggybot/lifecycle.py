@@ -611,7 +611,7 @@ class HubLifecycle:
     #: rail's presence -- the grammar keys off `world_config`'s count, which
     #: a test holds equal to this.
     # ...and on a body that can hang one (issue #387): the rail stands in
-    # the quadruped's world, and waits for its arm.
+    # the quadruped's world, and waits for its arm to take a tool (#405).
     self.has_built_rack = (mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
       and world_config(world).get("tools", True))
@@ -7487,16 +7487,23 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  # A body with no arm (issue #387) has no tool to fetch, no axis to move
-  # and none of the fork's senses: a program naming one is refused up
-  # front, with the name, as any unknown one is.
+  # A body that takes no tool (issue #387) has none to fetch and none of
+  # the fork's senses: a program naming one is refused up front, with the
+  # name, as any unknown one is. Its axes are its own (issue #405: the
+  # quadruped's arm), and never another body's.
   armed = cfg.get("tools", True)
+  own = axes.BODY_AXES[cfg.get("body", "rover")]
+  theirs = {a for axs in axes.BODY_AXES.values() for a in axs} - set(own)
+  legs = cfg.get("body", "rover") == "quadruped"
   return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS) if armed else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
                                   if n not in ("text", "answer")),
-                    axes=tuple(axes.AXES) if armed else (),
-                    sensors=tuple(axes.SENSORS) if armed else axes.BODY_SENSORS,
+                    axes=(tuple(a for a in axes.AXES if a not in theirs)
+                          if armed else own),
+                    sensors=(tuple(n for n in axes.SENSORS if n not in theirs)
+                             if armed else
+                             axes.LEGS_SENSORS if legs else axes.BODY_SENSORS),
                     verbs=None if armed else BODY_VERBS)
 
 
@@ -7828,8 +7835,8 @@ def world_config(world: str) -> dict:
     # THE HOME WORLD WITH LEGS IN IT (issue #387): the same house, the rover
     # taken out and the quadruped and its dock put in (`legs/world.py`,
     # built at load from the rover's file, so there is one house). What
-    # differs is what the BODY can do: no tool on this body until the arm
-    # (#378), so no tool errand, no workshop and no tower; the lab's jobs
+    # differs is what the BODY can do: its arm takes no tool until a rack
+    # of its own (#405), so no tool errand, no workshop and no tower; the lab's jobs
     # run the rover's programs along its surveyed routes, so no lab either
     # this period. Its packs are the quadruped's (`legs.model.PACK_WH`).
     from pluggybot.legs import model as legs_model

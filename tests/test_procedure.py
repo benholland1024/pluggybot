@@ -149,6 +149,7 @@ def _stub_life(clock=None):
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
     actuator=lambda name: 0, ramp_routine=routine("set_lift"),
+    setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
@@ -441,7 +442,9 @@ CTRL_WRITERS = {
   "legs/drivers.py",
   # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
   # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
-  # path the arm's joints are commanded through.
+  # path the arm's joints are commanded through: the served body's since
+  # #405, where a procedure's `move` reaches it only as a goal
+  # (`QuadMission.arm_ramp_routine`).
   "legs/arm.py",
 }
 

@@ -76,8 +76,9 @@ def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
 
 
 def test_home_with_legs_is_its_own_world_and_offers_no_tool():
-  """No arm yet (#378), so no errand that needs a tool, no workshop, no tool
-  verb in a procedure -- refused with the reason, as any unknown one is."""
+  """An arm that takes no tool yet (#405, step 4a), so no errand that needs
+  one, no workshop, no tool verb in a procedure -- refused with the reason,
+  as any unknown one is -- and only its own arm's axes to move."""
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
@@ -86,9 +87,11 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool():
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())
   facts = world_facts(QUAD_HOME)
-  assert facts.tools == () and facts.axes == ()
+  # its arm's two joints are its axes (#405), and no tool is its to fetch
+  assert facts.tools == () and facts.axes == ("shoulder", "elbow")
+  assert "lift" not in facts.sensors and "shoulder" in facts.sensors
   bad = st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts)
-  assert bad and "no arm" in bad[0]
+  assert bad and "takes no tool" in bad[0]
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
   # ...and the rover's world keeps every one
   assert "carry" in ov.Menu.for_world("home").available()
@@ -393,7 +396,9 @@ def test_the_pack_draws_what_the_drivers_do(quad_world):
       watts.append(pack.power_draw(body.data))
     assert 40.0 < np.mean(watts) < 75.0, np.mean(watts)
     assert pack.charge_w == pytest.approx(5.0 * 43.2)
-    assert pack.base_w == pytest.approx(14.91)
+    # the computer, the LIDAR, the D435 and fourteen drivers' standby: the
+    # legs' twelve and the arm's two (#405)
+    assert pack.base_w == pytest.approx(6.0 + 1.15 + 2.0 + 14 * 0.48)
   finally:
     body.close()
 
@@ -474,13 +479,13 @@ def test_the_build_identity_names_the_body_and_hashes_its_policies():
   assert "body" not in build_identity("home", arm="guarded", commit="x", hashes={})
 
 
-def test_serve_refuses_a_tool_errand_on_a_body_with_no_arm():
+def test_serve_refuses_a_tool_errand_on_a_body_whose_arm_takes_no_tool():
   import subprocess
   import sys
   out = subprocess.run([sys.executable, "scripts/serve.py", "--world", "home",
                         "--body", "quadruped", "--errand", "draw"],
                        capture_output=True, text=True, timeout=120)
-  assert out.returncode == 2 and "no arm yet" in out.stderr
+  assert out.returncode == 2 and "takes no tool yet" in out.stderr
 
 
 # ---- the day, flown whole --------------------------------------------------------

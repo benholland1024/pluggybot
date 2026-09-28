@@ -275,6 +275,9 @@ class RoverBody(Body):
   def ramp_routine(self, act, target, speed, settle=0.0) -> Routine:
     return self.mission.swap.ramp_routine(act, target, speed, settle=settle)
 
+  def setpoint(self, act) -> float:
+    return float(self.data.ctrl[act])
+
   def settle_routine(self, seconds) -> Routine:
     return self.mission.swap._run_routine(seconds, 0.0)
 

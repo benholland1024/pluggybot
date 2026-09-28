@@ -153,7 +153,7 @@ def _stub_life():
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
     ramp_routine=routine("ramp"), pressing=False, handle=FIRST,
-    actuator=lambda name: 0,
+    actuator=lambda name: 0, setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
@@ -291,7 +291,10 @@ def test_the_axes_ramp_at_the_speeds_the_tools_measured():
   assert axes.AXES["lift"].speed == LIFT_SPEED
   assert axes.AXES["pen.carriage"].speed == CARRIAGE_SPEED
   assert all(a.lo < a.hi and a.speed > 0 for a in axes.AXES.values())
-  assert set(HOME.axes) == set(axes.AXES) and set(HOME.sensors) == set(axes.SENSORS)
+  # the rover's world names every axis and sensor but the quadruped's arm (#405)
+  rover = set(axes.ARM_JOINTS)
+  assert set(HOME.axes) == set(axes.AXES) - rover
+  assert set(HOME.sensors) == set(axes.SENSORS) - rover
 
 
 # ---- determinism: the same procedure on the same world is one trajectory -------

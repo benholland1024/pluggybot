@@ -50,7 +50,7 @@
   -2.735266
  ],
  "belly_depth": 0.105,
- "mass": 9.342,
+ "mass": 9.364,
  "knee_ratio": 1.0,
  "motor": {
   "name": "Steadywin GIM8108-8 + GDS68",
@@ -82,5 +82,29 @@
   36.0,
   50.4
  ],
- "backlash_rad": 0.0044
+ "backlash_rad": 0.0044,
+ "arm": {
+  "joints": [
+   "arm_shoulder",
+   "arm_elbow",
+   "arm_wrist"
+  ],
+  "stow_qpos": [
+   3.141593,
+   -2.966593,
+   -0.175
+  ],
+  "tendons": [
+   "arm_fore",
+   "arm_level"
+  ],
+  "equalities": [
+   "arm_level"
+  ],
+  "axis": [
+   0.0,
+   -1.0,
+   0.0
+  ]
+ }
 }

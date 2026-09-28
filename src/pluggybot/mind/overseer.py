@@ -2872,10 +2872,11 @@ SENSORS for `read("<sensor>")` -- one number, measured
 """
 
 
-#: The rule as a body with NO ARM reads it (issue #387): an example that
-#: walks and waits, no tool to hang back and no carrying pose, no axes, and
-#: only the verbs and sensors it has (`steps.BODY_VERBS`,
-#: `axes.BODY_SENSORS`) -- the validator refuses the rest with the reason.
+#: The rule as a body that takes NO TOOL reads it (issue #387): an example
+#: that walks and waits, no tool to hang back, and only the verbs, axes and
+#: sensors it has (`steps.BODY_VERBS`; the quadruped's arm, issue #405:
+#: `axes.ARM_JOINTS`, `axes.LEGS_SENSORS`) -- the validator refuses the
+#: rest with the reason.
 _LEGS_SWAPS = (
   ("""      n = 0
       fetch("module_lcd")
@@ -2904,8 +2905,20 @@ _LEGS_SWAPS = (
    "draws the arm in and puts a tool on the fork back in its carrying pose: the\n"
    "lift where a fetch leaves it and the tool's own axes at rest, except that a\n"
    "cube in the claw stays held, out in front at carrying height. So a pose set\n"
-   "with `move` or `set_lift` lasts until the next of them.\n", ""),
+   "with `move` or `set_lift` lasts until the next of them.\n",
+   "A verb that moves the robot (%(drivers)s) first\n"
+   "folds the arm back to its stow, and so does lying down to rest, so a pose\n"
+   "set with `move` lasts until the next of them. Moving the arm stands the\n"
+   "robot up if it is lying down.\n"),
 )
+
+#: ...and its axes: a joint's angle, with no tool to require.
+PROCEDURE_TAIL_LEGS = """\
+
+
+AXES for `move("<axis>", target)` -- a joint's angle, walked at the axis's
+own speed
+"""
 
 
 def procedure_rule(armed: bool = True) -> str:
@@ -2919,10 +2932,14 @@ def procedure_rule(armed: bool = True) -> str:
       head = head.replace(old, new)
     verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
                       for v in describe_vocabulary(BODY_VERBS))
+    drivers = ", ".join(f"`{n}`" for n in BODY_VERBS if VERBS[n].drives)
     reg = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
     reg["bumper"] = "1 while its body presses against something"
-    se = "\n".join(f"  {n} -- {reg[n]}" for n in axes.BODY_SENSORS)
-    return head % {"cap": MAX_PROCEDURES} + verbs + PROCEDURE_SENSORS + se
+    ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
+                   for a in (axes.AXES[n] for n in axes.ARM_JOINTS))
+    se = "\n".join(f"  {n} -- {reg[n]}" for n in axes.LEGS_SENSORS)
+    return (head % {"cap": MAX_PROCEDURES, "drivers": drivers} + verbs
+            + PROCEDURE_TAIL_LEGS + ax + PROCEDURE_SENSORS + se)
   drivers = ", ".join(f"`{name}`" for name, v in VERBS.items() if v.drives)
   verbs = "\n".join(
     f"  {signature(v)}  -- {v['doc']}"
