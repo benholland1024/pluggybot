@@ -1332,7 +1332,8 @@ reach or off the map walks `lifecycle.route_to`'s doorways first (issue
 meets the workshop's), and the first is as far as the robot stands from
 it. Expect the same stall from an
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
-drives toward a wall, stops, and explores from there.
+drives toward a wall, stops, and explores from there. That is the rover; the
+quadruped plans through the unknown instead ("Walking into the unknown").
 
 ## ...and then the bed was standing in its way (#305)
 
@@ -3079,6 +3080,157 @@ the larger in four, and two rolling off the back (13.3 and 15.4 N·m).
 
 **An arm left out no longer stops it** (#378's section, "A fall throws
 the tool, and the arm folds").
+
+## Walking into the unknown (issue #381, the walking stage)
+
+A fresh quadruped -- its start pose in the living room, an empty map, one
+look round -- sent once to each of the property's 24 zones
+(`scripts/unknown_spike.py`: a zone's centre moved to the nearest floor
+0.45 m from anything, each walk in its own process, 300 s a walk) reached
+**9**, and every failure was the same one: `no route` at a stand-in pressed
+against a wall. The planner planned over mapped floor only and aimed an
+unmapped goal at the reachable cell nearest it in a straight line ("A goal
+out of sight is aimed at through the nearest wall"), which from inside a
+house is against the wall between the robot and the goal: the workshop's
+wall for the kitchen, the living room's south wall for the south garden,
+the garden fence 3 m from its gate for the street. The lab and the store
+arrived only because every door on their way (the gate, garden_2's, the
+lobby's, the lab's) sits on y = 3.1, the straight line -- in 103 and 118 s,
+past the 60 s a procedure's `drive_to` and a decided `explore(zone)` gave a
+walk: with the budgets the robot had, 4 of 24.
+
+**Unknown is floor at a price** (`mapping/optimistic.py`, the quadruped's
+`Navigator.OPTIMISTIC`). A cell nobody has seen costs `UNKNOWN_COST` a
+metre against a mapped cell's 1; a known wall grown by the inflation is not
+floor on either side of it (the far side of a wall is not a way through);
+the plan runs as straight as the map allows, the LIDAR sees the walls it
+crossed as the robot walks, and the next plan (every 2 s) goes round them.
+A doorway is found by finding the walls either side of it. No route at all
+is then a fact about the map: the walls the robot has seen enclose the
+goal. The stand-in stays for a goal INSIDE a wall's inflation (a board's
+use pose), and a goal on the floor but walled off is no plan. The same 24
+walks after:
+
+| zone | true route | before | after |
+|---|---|---|---|
+| kitchen | 13.3 m | no route, 2.4 m short | 38.6 s, 13.6 m walked |
+| workshop | 11.9 m | 40.0 s, 14.1 m | 36.4 s, 12.0 m |
+| hall | 5.6 m | 20.4 s, 6.3 m | 17.7 s, 5.6 m |
+| living | 0.3 m | 3.6 s | 5.4 s |
+| bedroom | 3.7 m | 10.2 s, 3.7 m | 10.7 s, 3.8 m |
+| garden | 7.1 m | 67.0 s, 13.3 m | 20.8 s, 7.6 m |
+| garden_south | 9.4 m | no route, 2.4 m short | 28.3 s, 10.1 m |
+| sidewalk | 13.4 m | no route, 1.1 m short | 39.4 s, 14.2 m |
+| street | 14.3 m | no route, 3.5 m short | 38.8 s, 15.1 m |
+| sidewalk_2 | 16.5 m | 64.7 s, 21.0 m | 44.6 s, 17.2 m |
+| garden_2 | 19.7 m | no route, 1.9 m short | 52.3 s, 20.3 m |
+| lobby | 22.7 m | no route, 2.0 m short | 61.2 s, 23.3 m |
+| lab | 25.0 m | 118.3 s, 32.6 m | 64.6 s, 25.6 m |
+| store | 29.5 m | 103.3 s, 34.0 m | 78.3 s, 30.1 m |
+| sidewalk_north | 24.9 m | out of time, 1.9 m short | 159.3 s, 60.6 m |
+| sidewalk_2_north | 23.6 m | 118.9 s, 32.6 m | 65.8 s, 24.2 m |
+| sidewalk_south | 31.1 m | no route, 4.3 m short | 163.7 s, 62.0 m |
+| sidewalk_2_south | 28.3 m | no route, 12.5 m short | 75.6 s, 29.0 m |
+| sidewalk_west | 42.7 m | no route, 1.1 m short | 243.8 s, 93.3 m |
+| sidewalk_east | 36.2 m | no route, 1.2 m short | 165.1 s, 63.6 m |
+| street_north | 17.2 m | no route, 4.8 m short | 54.5 s, 20.1 m |
+| street_south | 23.3 m | no route, 8.1 m short | 84.2 s, 30.6 m |
+| street_west | 43.6 m | no route, 3.5 m short | 246.2 s, 94.5 m |
+| street_east | 37.1 m | no route, 3.3 m short | 165.8 s, 64.7 m |
+
+**24 of 24**, 15 of them within 7 % of the true route and 16 within 20 %
+(the "true route" is the same planner over the compiled world's own floor,
+nothing left unknown; the living room's 0.3 m aside). The other seven all
+end on the loop round the two houses, at 1.3-2.4 times the route, and it is
+the right answer to the question the robot was asked: from the middle of a
+house it has never seen, the cheapest way anywhere is
+through the walls it has not seen yet. Sent to the west street it tried the
+bedroom's north wall, then the kitchen's west wall -- the house has no door
+on either side -- found both, and went out by the garden door and round the
+north sidewalk. A first walk into the world is an exploration, and its map
+is kept: sent back to its start and there again (`--again`), the second
+walk to the west street took 117 s and 45.2 m (the route is 43.6), to
+the south street 60 s and 23.2 m (23.3); the near ones were near their
+routes both times. ⚠ One walk back did not arrive: from the north sidewalk
+it shuttled east and west for its whole 300 s (108.7 m), because the house's
+north wall is 4 cm thick, thinner than a cell, and the robot walking along
+it carves it out of its own map with grazing rays -- the map had it free
+from x = -3 to 6 m -- and the planner routes through where it was (#401: a
+choice of sensor model, filed, not made here).
+
+**Why this price.** A known detour is taken while it is under twice the
+unknown shortcut (`UNKNOWN_COST` 2). It is a choice, not a fit: swept to 1.25 and 4
+over six fresh walks it moved four not at all and two by 3 s, because a
+fresh map offers no known detour to weigh -- every way out is unknown. What
+it decides is a second walk's: the way it knows against a shortcut it has
+not seen.
+
+**The map still growing is progress** (`PROGRESS_MAP_GROWTH`,
+`MAP_GROWTH_CELLS`): a walk into the unknown turns back when it meets a
+wall, and a route that lengthened because the map showed a wall is not a
+stall. The rover's progress rule (the straight line) and the quadruped's
+(#387's route length) both read that as no progress. Walking into new floor
+the map grows by 800-1 850 cells a second; standing still 20 s after
+arriving, by -5 to +195 cells (a fused scan's edge at the LIDAR's reach):
+`MAP_GROWTH_CELLS` is 400 in 10 s, 4x that.
+
+**The search is scipy's compiled Dijkstra, on a 10 cm lattice built once.**
+Measured on the home grid (469 200 cells) on a busy dev box, a fresh map
+from the start pose: A* in pure Python with the unknown priced took 0.5-10 s
+a far plan (it expands every cell cheaper than the goal, and the unknown's
+price makes that most of them); scipy's Dijkstra over the 5 cm lattice
+~260 ms, over a 10 cm one built per plan ~240 ms. What made it cheap:
+
+- a lattice cell is 2 x 2 map cells and passes only if all four do
+  (`BLOCK`): a gap keeps a path at any alignment while it is 3 map cells
+  wide, and every door of the house is 6 once inflated;
+- the CSR graph is built once per grid shape (~0.1-0.4 s, shared by a
+  pair) with eight slots a node, and a plan writes its weights -- a step at
+  a time into contiguous arrays and interleaved in one copy (6.5 ms, where
+  writing each step into its stride-8 slots cost 15.2);
+- an `inf` weight is no edge to scipy, so a wall is a weight, not a
+  rebuilt graph;
+- a goal on the floor is searched for no further than the straight line to
+  it at the dearest cost and 2 m (`LIMIT_SLACK_M`), then without a limit if
+  that missed: a 3 m hop settles 1.9 ms of search where the whole lattice
+  takes ~20.
+
+Alone (the busy box's best of nine) a plan is ~5 ms of search near and
+10-20 far, on ~8 ms of costing the map (the inflation's distance transform
+over the whole grid, the next lever); in flight the median plan was 35-65 ms.
+Over the 24 walks planning was **30.7 ms a walked sim second (2.6 % of the
+wall clock)** against the old planner's 18.7 (1.5 %), on the same busy box
+-- dearer a plan, and fewer of them: no stand-in replanned in a storm.
+
+**The patience is the robot's, and its interrupt reaches the walk.**
+`drive_to(x, y, patience=S)`: 60 s unsaid, 600 at most, never past the
+procedure's own budget; the longest walk above took 246 s. A decided
+`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). A walk
+asks the robot's own hazard rows every second (`go_to_routine(stop=)`) and
+ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the four
+ways a drive gives up -- and a procedure it stops is `stopped:
+interrupted`, as between two verbs.
+
+**Found on the way: no procedure on legs had walked a step.** Every verb
+that moves takes the carrying pose first (#347), which asked the body for
+its arm, and the quadruped has none: `drive_to`, `face` and `drive` raised
+before they moved, on every run since the first quadruped deploy. The
+observatory's two days on `5c6e6cf`: 6 565 procedures validated, 6 562
+aborted, 3 ran; of the last 196 aborts read, 193 were one procedure run
+again and again at one sim instant, the loop spinning with the world stopped
+(#400: an action that takes no sim time can be fired again at once).
+
+**What is true now.** The quadruped walks into the unknown and the rover
+does not: its planner and its day are unchanged until #376's stage C -- a
+scripted rover home day hashes IDENTICAL against staging (2 025 samples to
+1 012 s). The quadruped pair's day hashes IDENTICAL in two processes (1 046
+samples to 522.6 s), and a quadruped's day saved at 232.7 s, as it left its
+explore for the dock, and carried on in a new process is IDENTICAL after
+the restore (942 samples, `--resume-at 40`). `scripts/unknown_spike.py [--before]
+[--again]` is the measurement; the rules are pinned in
+`tests/test_unknown.py`. Not done: the map is still the
+property's rectangle (#381's stage 4), loop closure (stage 3), and what a
+walk into the unknown costs is not yet in any offer (stage 7).
 
 ## Debugging workflow that worked
 

@@ -219,7 +219,9 @@ change. Nothing in `procedure/` writes `data.ctrl` (the fence,
 **Total by construction:** a procedure declares `budget(steps=N,
 seconds=S)` and code caps both (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800); every
 loop is bounded; the interpreter checks budgets and `interrupted()` at every
-verb, which is a safe point; a runaway `while` stops at `MAX_ITER` as
+verb, which is a safe point, and a walk inside a verb asks it every second
+on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
+and never a failed step); a runaway `while` stops at `MAX_ITER` as
 `loop-cap`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
 the procedure with the step and the reason in the record. Abort means stow:
@@ -364,6 +366,15 @@ trimmed only among the legs in its own zone: by straight line, the zone
 chain's doors were dropped for legs behind a wall. And `pick` on an empty fork fetches the claw as `fetch` would; with
 another tool aboard, `pick` and `place` say stow it first. `place` never
 fetches: a claw off its bay holds nothing to place.
+
+**On legs there is no route: a walk goes into the unknown** (issue #381).
+No world with legs writes one, so a quadruped's `drive_to` plans through
+floor it has not seen as well as floor it has, at a price, and finds the
+doors by finding the walls either side of them (SimNotes, "Walking into
+the unknown"). How long it may take is the procedure's to say:
+`drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
+never past the procedure's own budget. A decided `explore(zone)` walks to
+its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s).
 
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
