@@ -1099,11 +1099,12 @@ class QuadBody(Body):
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT
   #: A fall is got up from (the get-up policy) until it has lasted this
-  #: long, s: then it is the `stuck` death. MEASURED over 35 falls in six
-  #: places in the house, the couch, a wall and the hall among them: 31 up,
-  #: median 1.2 s, p95 4.2 s, the slowest 13.4 s against the south wall --
-  #: and 4 never, wedged, in 40 s. Half as long again as the slowest that
-  #: got up (SimNotes, "The first quadruped deploy").
+  #: long, s: then it is the `stuck` death. MEASURED (`quad_spike.py
+  #: --shove`: 48 shoves in six places in the house, the couch, a wall and
+  #: the hall among them): #389's get-up stood from all 37 falls, median
+  #: 2.0 s, the slowest 4.6 s. Set at 20 for #377's (half as long again as
+  #: its slowest) and kept: a margin for falls those six places do not make
+  #: (SimNotes, "A gentler get-up").
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
