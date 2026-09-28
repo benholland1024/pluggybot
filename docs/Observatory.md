@@ -10,6 +10,34 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### An action that takes no time costs a moment (#400) — opens when this PR is deployed
+
+**What changed in the world.** A decision acted on at the same sim instant
+as the last one now waits `DECIDED_IDLE_S` (4 s) first. Before it, an
+action that stepped no physics -- a procedure whose first verb raised, one
+refused at run time, a verb that ended where it began -- came straight back
+to the arbitration, and a row that fired again ran it again at that
+instant: on `5c6e6cf` Luca's `dock_walk` ran 193 times at one sim instant
+while both robots stood still. Such a row now runs once every 4 s; the
+narration says `took no sim time -- standing 4 s`, and History says it once
+per run of them. Which row the map picks is unchanged, and so is anything
+whose action takes time. Nothing on the wire, in the prompt or in the
+economy moved.
+
+**What the period is for.**
+
+- **No run at a gap of 0.0 s.** Consecutive `procedure` rows of one robot
+  0.0 s apart should not appear on this build. A run of them 4 s apart is a
+  row repeating an action that takes no time, and how long a mind leaves
+  one running before it changes the row or the procedure is the reading.
+- **What such a run costs the site.** One lap every 4 s is up to 900
+  procedure runs an hour per robot, two rows each. If the observatory shows
+  that volume, the hold's length is the lever (the idle slice, 60 s, is the
+  alternative), and moving it is a decision rather than a tuning.
+
+**Not yet known.** Whether an action other than a procedure takes no time
+live, on legs.
+
 ### Walking into the unknown (#381's walking stage) — opens when this PR is deployed
 
 **What changed in the world.** Three things, and the first is a bug the

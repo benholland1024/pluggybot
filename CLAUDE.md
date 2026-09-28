@@ -300,6 +300,13 @@ tolerance spikes are listed in `docs/Rover.md`.
     `events.ACTION_FAILURES` (`busy`/`unrunnable`/`unclaimable`/
     `unbuildable`/`beyond`), stated in `EVENT_MAP_RULE` and counted by cause;
     `busy` is the whole rate limit;
+  - ⚠ **a decision acted on at the sim instant of the last one waits
+    `DECIDED_IDLE_S` first** (#400, `_new_moment_routine`): an action that
+    steps no physics otherwise sends the loop round with the world standing
+    still (one procedure 193 times at one instant, both robots frozen).
+    AFTER the map is read, never before (a failure and `nothing_to_do` are
+    one tick); History once per run of them; a death in the hold ends the
+    pass. Not a rate limit, not an `ACTION_FAILURES` cause;
   - **going unminded is a death** (a fourth cause, never summed), and ⚠ THE
     AGENT IS TOLD THE NUMBER (#322; a test reads it off the constant), plus
     that a row fires when the robot is next FREE. `UNMINDED_AFTER_S` = 1800

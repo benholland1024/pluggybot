@@ -1282,6 +1282,26 @@ otherwise).
   (`events.ACTION_FAILURES`: `busy` / `unrunnable` / `unclaimable` /
   `unbuildable` / `beyond`, counted by cause in the record). `busy` is the
   whole rate limit and deliberately not per-row.
+- **A decision acted on at the instant of the last one waits a moment
+  first** (issue #400; `HubLifecycle._new_moment_routine`). An action that
+  steps no physics — a procedure whose first verb raises, a verb that ends
+  where it began — brings the loop straight back to `_arbitrate`, and a row
+  that fires again sends it round again with nothing in between to move the
+  world: on the first quadruped build every walking verb raised before its
+  first step (#399), and Luca's `dock_walk` ran 193 times at one sim instant
+  while both robots stood still on the one physics thread. So when the last
+  decision — any producer's, stamped in `_after_decision_routine` — was
+  acted on at this same instant, the loop stands `DECIDED_IDLE_S` first,
+  what an action that could not happen already cost: narrated every time,
+  said in History once per run of them (the robot sees its last dozen
+  lines). ⚠ AFTER the map is read, never before: a failure and
+  `nothing_to_do` are one tick with the first match winning, and a hold
+  before the read hands the seam the failure alone. It is not a rate limit
+  (an action that takes time is never held, and no row is dropped or
+  reordered) and not an `ACTION_FAILURES` cause (the action ran, and its
+  outcome is already a `task_failed` and a History line). A death or the
+  day's end inside the hold ends the pass before it acts: a stand-up keeps
+  the errand queue.
 - **The bootstrap**: an empty map has no `ask` row, so `_arbitrate` asks
   until the mind has answered for itself — a decision that was neither a
   fallback nor a map row — and not a moment longer: the world's behaviour
