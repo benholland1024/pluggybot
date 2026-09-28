@@ -619,7 +619,9 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
                   autonomous=True, origin="seeded", standing_orders=True)
   life = stub_life("room_hub", overseer=boss, thoughts=memory, autonomous=True)
   life.stop_when(lambda: any(e.get("procedure") for e in life.errand_results))
-  out = life.run(start=world_config("room_hub")["start"], max_sim_time=75.0)
+  # The claim ends the day; the budget has room for late answers, which on
+  # the stub are SIM time.
+  out = life.run(start=world_config("room_hub")["start"], max_sim_time=600.0)
   fired = [d for d in out["decisions"] if d["action"] == "procedure:look_twice"]
   assert fired and fired[0]["source"] == "event:every"
   runs = [e for e in out["errands"] if e.get("procedure")]

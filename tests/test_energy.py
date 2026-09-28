@@ -663,8 +663,12 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_f
       sent.append((_name, life.battery.energy_wh))
       return (yield from _real(*a, **kw))
     setattr(life.body, name, spy)
-  life.stop_when(lambda: len(life.errand_results) >= 1 and life.charge_cycles >= 1)
-  r = life.run(lc.world_config("home")["start"], max_sim_time=120.0)
+  # Ends at the first errand's result, where the claim is decided either way
+  # (charged first, or not): an ungated census decided again and again on
+  # the stub runs away rather than failing. The budget is a backstop with
+  # room for a late answer, which on the stub is SIM time.
+  life.stop_when(lambda: len(life.errand_results) >= 1)
+  r = life.run(lc.world_config("home")["start"], max_sim_time=300.0)
 
   assert any("DEFER census" in line for line in life.log), \
       f"the census was never deferred: {life.log[-8:]}"

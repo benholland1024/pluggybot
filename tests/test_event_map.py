@@ -1840,7 +1840,10 @@ def test_a_seeded_day_asks_where_the_old_one_asked():
                 full(action="idle", reason="thinking"), origin=origin)
     life = stub_life("room_hub", overseer=boss)
     life.stop_when(lambda: len(life.decisions) >= 9)
-    out = life.run(start=world_config("room_hub")["start"], max_sim_time=90.0)
+    # ⚠ THE COUNT ENDS THE DAY, NEVER THE BUDGET: on the stub a late answer
+    # is SIM time (~40 s per 100 ms the thread waits), so a loaded box ran
+    # one day into 90 s before its ninth decision and not the other.
+    out = life.run(start=world_config("room_hub")["start"], max_sim_time=3600.0)
     return [d["action"] for d in out["decisions"]], out
 
   plain_actions, plain = fly("none")

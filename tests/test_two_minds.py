@@ -129,7 +129,9 @@ def test_two_minds_keep_their_own_books_through_one_loop(tmp_path):
   a, b = lives
   a.peers, b.peers = [b], [a]
   assert a.overseer.others == ("Rowan",) and b.overseer.others == ("Pluggy",)
-  results = run_pair(lives, max_sim_time=200.0, stop_when=lambda ls: (
+  # The claim ends the day; the budget has room for late answers, which on
+  # the stub are SIM time.
+  results = run_pair(lives, max_sim_time=600.0, stop_when=lambda ls: (
     ls[1].swaps_done >= 2 and all(len(life.decisions) >= 2 for life in ls)))
   assert results[1]["swaps_done"] >= 2 and all(r["dead"] is None for r in results)
   for r, name in zip(results, ("Pluggy", "Rowan")):

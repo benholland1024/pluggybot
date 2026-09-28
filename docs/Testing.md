@@ -52,6 +52,13 @@ and wall clock tracks the machine. So:
    that would end the day never moves — so end it from the spy with
    `MissionAborted` and fail on that. A stub waiting sim-hours may run a
    coarser `<option timestep>`: nothing it steps is physics.
+   ⚠ A LATE ANSWER IS SIM TIME on the stub: the loop holds think-slices
+   while a call is out, so every 100 ms the answering thread waits is ~40
+   sim-seconds. Stop on the claim — a count, a result, the point where it
+   is decided either way — and give the budget room: a budget near the
+   claim is a race the loaded suite loses (the seeded day did, 2026-09-28),
+   and on the stub the long path a regression takes can run away rather
+   than fail.
 2. **Stub the routine, not the twin.** Every manoeuvre is a generator
    (`pluggybot/tick.py`); a test stubs it with `tick.result(value)` —
    `life.body.go_to_routine = lambda *a, **kw: tick.result(True)` — and
