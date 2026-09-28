@@ -121,11 +121,11 @@ doc that owns what you are about to touch:
   the mind, the economy, the record, the wire — is a day on the stub in the
   default run. A flight's rule is pinned fast (name the pin in the comment
   above the mark), it is `slow`, and it names the paths its claim stands on,
-  `@pytest.mark.endurance(when=(...))`. **Before calling work done, if your
-  branch touches a flight's `when`:** `MUJOCO_GL=egl uv run pytest -q
-  --endurance-changed -m endurance` flies exactly those — usually none, and
-  never "before a release" as such. `--endurance` flies every one,
-  deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
+  `@pytest.mark.endurance(when=(...))`. **Before calling work done:**
+  `MUJOCO_GL=egl uv run pytest -q --endurance-changed -m endurance` flies
+  exactly the flights your branch touches — usually none, when it costs a
+  collection. There is no "before a release" beyond that; `--endurance`
+  flies every one, deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
   `lifecycle.py` is in none: its rules are pinned on the stub. ⚠ A flag, not
   `-m 'not endurance'` in `addopts`: pytest keeps the LAST `-m`, so the
   everyday `-m "not slow"` would silently switch them back on. The decision

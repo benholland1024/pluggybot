@@ -20,7 +20,7 @@ The rules, each pinned without a mission (docs/Testing.md):
      nothing under `mind/` imports `challenge.solutions`.
 
 The integration -- the tower stacked BY THE CLAW from the rack, graded on
-the seam with the hold -- is the endurance flight at the bottom, and
+the seam with the hold -- is the endurance flight below, and
 `scripts/solve.py` is the same flight with a filmstrip.
 """
 
