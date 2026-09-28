@@ -1915,6 +1915,138 @@ def test_an_impossible_row_is_filtered_and_an_unwise_one_is_not(menu):
                                _state(0.9, possible=["draw", "charge"]))
 
 
+# ---- an action that takes no time is not the world standing still (#400) -----
+
+
+def _instant_life(menu, *emap, **kw):
+  """A robot on the stub whose one procedure, `walk`, raises before its
+  first step -- the deployed pair's, where every walking verb did (#399) --
+  and a spy that fails the test on a second decision at one sim instant,
+  so the spin fails rather than hangs. The acting times are the list."""
+  from dataclasses import replace
+
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure import library as lib
+  from test_body import stub_life
+  library = lib.Library(world_facts("home"))
+  library.define("walk", "def walk():\n  drive_to(1.0, 1.0)\n")
+  boss = make(replace(menu, procedures=True), origin="unseeded", library=library,
+              event_map=ev.EventMap(tuple(ev.Row(event=e, action=a)
+                                          for e, a in emap)), **kw)
+  life = stub_life("home", overseer=boss, autonomous=True)
+
+  def raises(*a, **k):
+    raise KeyError("arm")
+    yield
+
+  life.body.go_to_routine = raises
+  acted, act = [], life._after_decision_routine
+
+  def once_an_instant(decision):
+    t = float(life.data.time)
+    assert t not in acted, f"{decision.action} acted on twice at t={t}"
+    acted.append(t)
+    return act(decision)
+
+  life._after_decision_routine = once_an_instant
+  return life, acted
+
+
+def _fly(life, seconds: float = 10.0):
+  from pluggybot.lifecycle import world_config
+  life.run(start=world_config("home")["start"], max_sim_time=seconds)
+
+
+@pytest.mark.parametrize("emap, kw", [
+  ((("nothing_to_do", "procedure:walk"),), {}),
+  # ...and an `ask` answered at once: the budget refuses the call and the
+  # agent's own failure row runs the procedure, stamping the clock each lap
+  ((("nothing_to_do", ev.ASK), ("decision_failed", "procedure:walk")),
+   {"calls_per_hour": 0}),
+], ids=["row", "ask"])
+def test_a_row_whose_action_takes_no_time_does_not_fire_twice_at_one_instant(
+    menu, emap, kw):
+  """Issue #400: 6 562 of 6 565 procedures on the deployed pair aborted in
+  two days, and Luca's `dock_walk` ran 193 times at ONE sim instant -- an
+  errand that raises before its first step takes no time, the row fires
+  again, and every robot on the physics thread stood still while it spun.
+  Shown to fail without the hold (the second decision is at t=0)."""
+  from pluggybot.lifecycle import DECIDED_IDLE_S
+  life, acted = _instant_life(menu, *emap, **kw)
+  _fly(life)
+  assert len(acted) == 3, "the row kept firing, a moment apart"
+  assert all(b - a == pytest.approx(DECIDED_IDLE_S) for a, b in zip(acted, acted[1:]))
+  assert life.data.time >= 10.0, "the day ended on its clock"
+  assert life.thoughts.read("History.md").count(
+    "procedure:walk ended the moment it began, so I stood still 4 s") == 1
+
+
+def test_the_moment_comes_after_the_map_is_read_so_no_rows_choice_moves(menu):
+  """A failure and `nothing_to_do` are ONE tick after an errand, first match
+  winning, whether it took an hour or no time at all. A hold before the
+  map is read hands the seam the failure alone, and the lower row wins:
+  shown to fail with the hold moved to the top of `_arbitrate_routine`."""
+  life, acted = _instant_life(menu, ("nothing_to_do", "procedure:walk"),
+                              ("task_failed", "idle"))
+  _fly(life)
+  assert set(life.overseer.rows_fired) == {"nothing_to_do"}
+  assert len(acted) == 3
+
+
+def test_a_run_of_instant_decisions_is_said_in_history_once(menu):
+  """Once per run of them, and again for the next run: the robot sees
+  History's last dozen lines, and a line a lap would be most of them. The
+  narration says every one."""
+  from pluggybot.lifecycle import DECIDED_IDLE_S
+  from test_body import stub_life
+  life = stub_life("home", overseer=make(menu, origin="unseeded"))
+  said = lambda: life.thoughts.read("History.md").count("ended the moment it began")  # noqa: E731
+  t0 = float(life.data.time)
+  life._decided_at = (t0, "procedure:walk")
+  assert life.body.run(life._new_moment_routine()) is True
+  assert float(life.data.time) == pytest.approx(t0 + DECIDED_IDLE_S)
+  life._decided_at = (float(life.data.time), "procedure:walk")
+  life.body.run(life._new_moment_routine())
+  assert said() == 1
+  life.body.run(life.body.hold_routine(1.0))        # something took time
+  t = float(life.data.time)
+  assert life.body.run(life._new_moment_routine()) is True
+  assert float(life.data.time) == t, "nothing to stand still for"
+  life._decided_at = (t, "take_task")
+  life.body.run(life._new_moment_routine())
+  assert said() == 2
+
+
+def test_a_death_in_the_moment_ends_the_pass_before_it_acts(menu):
+  """Nothing is done about a row after the robot died waiting to do it: a
+  stand-up keeps the errand queue, so an errand queued by a dead robot ran
+  when it got up. In a spin the hold is nearly all the time there is, so
+  that is where the `unminded` death lands."""
+  from pluggybot import tick
+  life, acted = _instant_life(menu, ("nothing_to_do", "procedure:walk"))
+  life._decided_at = (float(life.data.time), "procedure:walk")
+
+  def fatal(seconds):
+    life.dead = {"t": float(life.data.time), "cause": "unminded", "why": "a test"}
+    return tick.result(None)
+
+  life.body.hold_routine = fatal
+  life.body.run(life._arbitrate_routine())
+  assert not acted and not life.errands
+
+
+def test_the_moment_is_kept_across_a_restart(menu):
+  """State that decides goes in `kept_state` (issue #345): a save at the
+  loop's top can fall between a decision and the pass after it."""
+  from test_body import stub_life
+  life = stub_life("home", overseer=make(menu, origin="unseeded"))
+  life._decided_at, life._stood_still = (12.5, "procedure:walk"), True
+  state, arrays = life.kept_state()
+  back = stub_life("home", overseer=make(menu, origin="unseeded"))
+  back.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  assert back._decided_at == (12.5, "procedure:walk") and back._stood_still
+
+
 def test_the_arbitration_loops_shape_is_unchanged():
   """⚠ NOT A REWRITE OF THE ARBITRATION LOOP. The map is evaluated on the
   physics seam and the loop's one overseer branch runs whatever it queued --
