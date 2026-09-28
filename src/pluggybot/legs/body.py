@@ -718,6 +718,17 @@ class QuadMission(Navigator):
   #: a flank (the torso is 0.21 m long either side, 0.10 m wide).
   PRESS_END_M = 0.15
 
+  def watch_for_peers(self, points) -> float | None:
+    """The depth camera's peer channel, recorded only on its feet: a drive
+    holds while it has a fresh sighting, the rest reflex lays a body down
+    in a long hold, and lying its nose looks along the floor -- where a
+    resting peer's stowed arm lies. Two resting robots each held for the
+    other for the rest of an explore (#405: before the arm, a resting body
+    showed nothing that low); on its feet it looks again."""
+    if self.posture != STANDING:
+      return None
+    return super().watch_for_peers(points)
+
   def _backoff_routine(self) -> Routine:
     """The retreat, away from where it was touched: a legged body steps
     SIDEWAYS off a flank -- MEASURED, reversing off a thigh that scraped the

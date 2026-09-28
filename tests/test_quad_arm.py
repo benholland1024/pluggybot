@@ -206,6 +206,23 @@ def test_a_move_the_arm_cannot_finish_is_a_failed_step(quad_world, monkeypatch):
     body.close()
 
 
+def test_a_resting_body_records_no_peer_to_hold_for(quad_world):
+  # The drive holds while it has a fresh sighting and the rest reflex lays
+  # a holding body down; lying, its nose camera sees a resting peer's arm
+  # along the floor, and the two held for each other for the rest of an
+  # explore (the pair's recording, #405).
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    ahead = np.array([[0.4, 0.0, 0.2]])
+    mis.posture = qb.LYING
+    assert body.watch_for_peers(ahead) is None and mis.peer_seen_m is None
+    mis.posture = qb.STANDING
+    assert body.watch_for_peers(ahead) == pytest.approx(0.4)
+  finally:
+    body.close()
+
+
 def test_the_pack_bills_the_arms_two_motors(quad_world):
   body = _quad(quad_world)
   try:
