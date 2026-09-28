@@ -592,19 +592,20 @@ def test_a_failed_run_names_the_line_that_failed_and_why(monkeypatch):
   assert ran["outcome"] == "ran" and "failedLine" not in ran and "failedReason" not in ran
 
 
-# ---- the flown one: written by the agent, invoked by its own row ------------------
+# ---- the day: written by the agent, invoked by its own row -----------------------
 
 
-@pytest.mark.endurance
 def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
-  """The integration the issue asks for: one flown run in which the model
-  defines a procedure and writes a row that runs it, and the row fires and
-  the procedure completes -- with no scripted rotation anywhere (the arm is
-  `autonomous`). 84 s, behind --endurance: every rule it exercises (the row
-  token, the define, the errand by name, the stow) is pinned above."""
-  from test_event_map import attach
+  """The integration the issue asks for, as a day on the stub (issue #380):
+  the model defines a procedure and writes a row that runs it, the row
+  fires, and the procedure completes -- with no scripted rotation anywhere
+  (the arm is `autonomous`). The row, queued while the robot idles, runs
+  when it is next free. Shown to fail by dropping `self._define(decision)`
+  from `_after_decision_routine`.
+  """
   from test_overseer import FakeClient, full
-  from pluggybot.lifecycle import run_demo
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  from pluggybot.mind.thoughts import ThoughtFiles
   src = "def look_twice():\n  look()\n  wait(1)\n  look()\n"
   first = full(action="idle", reason="setting up",
                define={"name": "look_twice", "source": src},
@@ -613,12 +614,12 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
                           {"event": "nothing_to_do", "action": "ask", "value": 0,
                            "kind": ""}])
   client = FakeClient(first, full(action="idle", reason="waiting"))
-  out = run_demo(view=False, realtime=False, world="room_hub", errand="none",
-                 max_sim_time=75.0, overseer=True, standing_orders=True,
-                 autonomous=True, origin="seeded",
-                 thoughts_root=str(tmp_path / "t"),
-                 ledger_state=str(tmp_path / "ledger.json"),
-                 on_ready=attach(client))
+  memory = ThoughtFiles.open(str(tmp_path / "t"))
+  boss = ov.build("room_hub", None, enabled=True, client=client, thoughts=memory,
+                  autonomous=True, origin="seeded", standing_orders=True)
+  life = stub_life("room_hub", overseer=boss, thoughts=memory, autonomous=True)
+  life.stop_when(lambda: any(e.get("procedure") for e in life.errand_results))
+  out = life.run(start=world_config("room_hub")["start"], max_sim_time=75.0)
   fired = [d for d in out["decisions"] if d["action"] == "procedure:look_twice"]
   assert fired and fired[0]["source"] == "event:every"
   runs = [e for e in out["errands"] if e.get("procedure")]
