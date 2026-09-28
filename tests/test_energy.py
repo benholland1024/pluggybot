@@ -548,10 +548,10 @@ def home_lifecycle(**kw) -> lc.HubLifecycle:
 
 
 def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_can():
-  """The rule the dearest-errand proof flies: `_afford_next` is False when
-  cost plus the return-trip reserve exceeds what is in the pack, and True
-  when it does not. Shown to fail with `_afford_next` returning True
-  unconditionally, which is the regression the flown test was written for.
+  """The rule the census-only day below runs on: `_afford_next` is False
+  when cost plus the return-trip reserve exceeds what is in the pack, and
+  True when it does not. Shown to fail with `_afford_next` returning True
+  unconditionally, which is the regression that day was written for.
   """
   from pluggybot.mission.errand import Errand
   life = life_with("home", battery_wh=MARGIN_PACK_WH)
@@ -576,9 +576,9 @@ def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_ca
 
 def test_the_charge_loop_is_bounded_by_the_scaled_cap_not_the_old_constant(
     monkeypatch):
-  """The wiring the 513 s proof flew: `charge()` gives a cycle
-  `self.charge_timeout` seconds, sized to THIS pack, and not the flat
-  `CHARGE_TIMEOUT` that ended every deployed charge at 65 %.
+  """The wiring the table-rate charge below runs through: `charge()` gives
+  a cycle `self.charge_timeout` seconds, sized to THIS pack, and not the
+  flat `CHARGE_TIMEOUT` that ended every deployed charge at 65 %.
 
   The press is FAKED -- `_drive` advances the sim clock and steps no physics
   -- and the pack is held below full, so the loop runs to its bound and the

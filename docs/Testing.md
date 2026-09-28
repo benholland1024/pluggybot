@@ -13,10 +13,13 @@ kinds:
 - **A rule** — an inequality, a branch order, one line of wiring. Pin it
   with a direct call, a fake press, a stubbed drive. Milliseconds. This is
   the test that must exist; the other two are optional.
-- **An integration** — "the refusal produces a charge and a completed errand
-  on real physics". Fly it, stop it on the claim (`stop_when`), and if the
-  rule is already pinned put it behind `--endurance` with a comment naming
-  the pin above the mark.
+- **An integration** — "the refusal produces a charge and then the errand".
+  If it is the loop's BOOKKEEPING — the mind, the economy, the record, the
+  wire, what the body is sent to do and in what order — it is a day on the
+  stub, in the default run (§2.1). If it is PHYSICS — a dock, a walk, a
+  claw, a body in a world — fly it, stop it on the claim (`stop_when`), and
+  with its rule pinned put it behind `--endurance`, naming what it guards
+  (§4).
 - **A premise** — the old defect still reproduces with the fix bypassed
   (`--blind`, `--no-brake`). `slow`; it cannot catch a regression while you
   iterate, it only stops the premise rotting.
@@ -38,9 +41,17 @@ and wall clock tracks the machine. So:
    `StubBody` (issue #380), a floor and no robot, ~25 ms against ~350 ms. Its
    manoeuvres arrive at once, its senses answer what the test set
    (`holding`, `on_charger`, `attitude`), time passes only where it holds, and
-   it outlives the rover. A claim about the body, the world's geometry (a
-   camera's pose, a module on the floor, the built rail) or two robots in one
-   world stays on the rover.
+   it outlives the rover. Two robots are two stubs on ONE world
+   (`StubBody(model, data, handle=SECOND)`) ticked by `run_pair`. A claim
+   about the body or the world's geometry (a camera's pose, a module on the
+   floor, the built rail) stays on the rover.
+   ⚠ A stub manoeuvre takes NO sim time, so a step hook never sees one:
+   wrap the body's routines and read what the loop commanded, with what
+   (`test_a_starving_robot_still_charges_navigates_and_stows`). And a gate
+   that refuses forever SPINS at one instant instead of failing — the clock
+   that would end the day never moves — so end it from the spy with
+   `MissionAborted` and fail on that. A stub waiting sim-hours may run a
+   coarser `<option timestep>`: nothing it steps is physics.
 2. **Stub the routine, not the twin.** Every manoeuvre is a generator
    (`pluggybot/tick.py`); a test stubs it with `tick.result(value)` —
    `life.body.go_to_routine = lambda *a, **kw: tick.result(True)` — and
@@ -67,8 +78,9 @@ and wall clock tracks the machine. So:
    referee tests). An evaluator reads a dict of measurements — hand it one.
 7. **Let a vendored fixture be the integration proof.** `protocol/*.jsonl.gz`
    are real flown missions, read in a second; a test over one of them proves
-   the wire shape for free. That is what let the live pair recording
-   (226 s) move behind `--endurance`.
+   the wire shape for free, and a recorder driven by hand — its events
+   through the pair's own doors, `step_hook` for a frame — proves the wiring
+   with nothing stepped.
 8. **Stop on the claim.** `HubLifecycle.stop_when` / `MissionAborted` from a
    step hook the moment the assertion is decidable; make the predicate the
    SUCCESS condition so a regression still runs the long path and fails on
@@ -92,5 +104,11 @@ and wall clock tracks the machine. So:
 ## 4. What to write above the mark
 
 A `slow` mark says why the test cannot be shortened past what it does. An
-`endurance` mark names the fast test that pins its rule. A test with neither
-and a mission in it is the drift the budget exists to catch.
+`endurance` flight is also `slow`; the comment above it names the fast test
+that pins its rule, and `when=` names the paths its physics stands on — a
+directory, a file or a file prefix. That is when it flies:
+`--endurance-changed` selects the flights a change touches, and
+`tests/test_endurance.py` fails on a path that has moved. Leave out what is
+pinned on the stub (the loop's side, `lifecycle.py`), or every change flies
+it. A test with neither mark and a mission in it is the drift the budget
+exists to catch.

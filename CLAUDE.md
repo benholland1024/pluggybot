@@ -42,9 +42,10 @@ doc that owns what you are about to touch:
   **And it is written as cheaply as it can be while still failing for the
   right reason** (Ben, 2026-09-12): pin the RULE — the inequality, the branch
   order, the one line of wiring — with a fake press, a stubbed drive, a direct
-  call; fly a whole mission only when the claim is genuinely about the
-  integration, and then stop it on the claim (`stop_when`). A flown proof
-  whose rule is already pinned goes behind `--endurance`.
+  call; an integration of the loop's bookkeeping is a day on the stub
+  (`stub_life`); fly a whole mission only when the claim is genuinely about
+  PHYSICS, and then stop it on the claim (`stop_when`). A flown proof whose
+  rule is already pinned goes behind `--endurance`.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
   APPROVAL.** The full suite is **6:53** (2026-09-26, #376). Any change to
   testing that would take it past **10 minutes on a quiet machine, or 15 on a
@@ -114,14 +115,21 @@ doc that owns what you are about to touch:
   shortened: `test_a_question_is_asked_answered_and_graded_twice_unattended`
   (issue #22) already stops on its claim, and "**twice**, with nobody
   watching" IS the claim.
-- **A flown proof whose RULE is pinned by a fast test goes behind
-  `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
-  `pyproject.toml`), run deliberately, before a release or after touching the
-  mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`. ⚠
-  Moving a test there is a claim that its rule IS pinned fast — name the pin
-  in the comment above the mark. ⚠ A flag, not `-m 'not endurance'` in
-  `addopts`: pytest keeps the LAST `-m`, so the everyday `-m "not slow"` would
-  silently switch them back on. The decision behind it (Ben, 2026-09-12):
+- **Behind `--endurance` is PHYSICS no fast test can make, and a flight
+  flies only when a change touches what it guards** (issues #158, #380;
+  `tests/conftest.py`, `tests/test_endurance.py`). The loop's bookkeeping —
+  the mind, the economy, the record, the wire — is a day on the stub in the
+  default run. A flight's rule is pinned fast (name the pin in the comment
+  above the mark), it is `slow`, and it names the paths its claim stands on,
+  `@pytest.mark.endurance(when=(...))`. **Before calling work done, if your
+  branch touches a flight's `when`:** `MUJOCO_GL=egl uv run pytest -q
+  --endurance-changed -m endurance` flies exactly those — usually none, and
+  never "before a release" as such. `--endurance` flies every one,
+  deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
+  `lifecycle.py` is in none: its rules are pinned on the stub. ⚠ A flag, not
+  `-m 'not endurance'` in `addopts`: pytest keeps the LAST `-m`, so the
+  everyday `-m "not slow"` would silently switch them back on. The decision
+  behind it (Ben, 2026-09-12):
   while the design is moving, a generous pack is ASSUMED to fund any single
   errand and a battery death costs a heart. ⚠
   `test_charge_priority_survives_an_overseer_that_never_charges` stays in the
