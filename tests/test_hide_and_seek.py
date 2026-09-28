@@ -156,22 +156,34 @@ def test_the_pair_arranges_the_game_and_pays_the_winner_only(monkeypatch):
   assert b.ledger.balance() == before[1], "the seeker was paid for losing"
 
 
-@pytest.mark.endurance
-def test_hide_and_seek_is_played_by_two_robots():
-  """The game flown on room_hub: both claim, the hider drives off, the
-  seeker counts and sweeps, the referee calls it, and the task resolves
-  with one verdict. Behind --endurance (~5 min of two robots' physics);
-  every rule it exercises is pinned above."""
-  lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
-                     tasks=True)
-  task, state = arrange_game(lives)
-  results = run_pair(lives, max_sim_time=SEEK_HEAD_START_S + SEEK_S + 200.0,
-                     stop_when=lambda ls: ls[0].tasks.get(task.id).state
-                     in ("done", "failed"))
-  game = state["game"]
-  assert game is not None and game.over_at is not None
-  final = lives[0].tasks.get(task.id)
-  assert final.state == "done" and final.verdict["metrics"]["winner"] in ("hider", "seeker")
-  assert all(r["dead"] is None for r in results)
-  paid = [r["points"] for r in results]
-  assert sorted(paid) == [0, TABLE["hide_and_seek"].base]
+def test_each_robot_claims_a_role_and_plays_that_roles_steps():
+  """The game's chain short of the physics, on two stub bodies (issue #380):
+  the loop's own claim takes the first open role, then the other robot's
+  takes the second -- one each; each robot's queued errand is ITS role's
+  steps, run to the end; and the referee's clock starts as a role's errand
+  begins. The referee's call off the world and the one verdict banked on
+  the winner's wallet are the posed tests above; what a physical hider or
+  seeker does on its way is the navigation's."""
+  from types import SimpleNamespace
+
+  from pluggybot.body import StubBody
+  from pluggybot.lifecycle import world_config
+  from test_body import stub_life
+  board = TaskBoard(table=scoring.default_table())
+  task = board.offer("hide_and_seek", "room_hub", t=0.0)
+  cfg = world_config("room_hub")
+  a = stub_life("room_hub", tasks=board)
+  b = stub_life("room_hub", tasks=board, body=StubBody(
+    handle=SECOND, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"]))
+  started: list = []
+  for life in (a, b):
+    life.game = SimpleNamespace(start=started.append)
+  assert a._claim_next_task() and b._claim_next_task()
+  assert board.get(task.id).claims == {"hider": FIRST.root, "seeker": SECOND.root}
+  program = hide_and_seek_program("room_hub")
+  for life, role in ((a, "hider"), (b, "seeker")):
+    assert [e.role for e in life.errands] == [role], "one role's errand each"
+    run = life.run_errand(life.errands.pop(0))["procedure"]
+    assert run["ok"] and run["role"] == role, run
+    assert [s["verb"] for s in run["steps"]] == [s.verb for s in program.steps(role)]
+  assert len(started) == 2, "a role's errand began without the referee's clock"
