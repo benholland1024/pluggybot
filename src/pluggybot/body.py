@@ -139,10 +139,14 @@ class Body(abc.ABC):
     settles a second, the quadruped steps nothing (issue #387)."""
 
   @abc.abstractmethod
-  def go_to_routine(self, x: float, y: float, timeout: float = 90.0) -> Routine:
+  def go_to_routine(self, x: float, y: float, timeout: float = 90.0,
+                    stop=None) -> Routine:
     """Go to a world point over the map, round the other robots; True on
     arrival. Why it did not arrive is `last_drive`. The rover drives it
-    (`HubMission.drive_to_routine`); a legged body walks it."""
+    (`HubMission.drive_to_routine`); a legged body walks it, through floor
+    it has not mapped as well (issue #381). `timeout` is its patience;
+    `stop`, a callable asked every second on the way, ends it where it
+    stands when it answers True (`navigator.DRIVE_STOPPED`)."""
 
   #: How the last `go_to_routine` ended (issue #350): `why` ("" arrived,
   #: else the body's cause), `goal`, `seconds`, `shortM`, and for a peer
@@ -600,7 +604,7 @@ class StubBody(Body):
   def start_at(self, x, y, yaw) -> None:
     self.x, self.y, self.theta = float(x), float(y), float(yaw)
 
-  def go_to_routine(self, x, y, timeout=90.0):
+  def go_to_routine(self, x, y, timeout=90.0, stop=None):
     self.went.append((float(x), float(y)))
     self.x, self.y = float(x), float(y)
     self.last_drive = {"why": "", "goal": (float(x), float(y)),

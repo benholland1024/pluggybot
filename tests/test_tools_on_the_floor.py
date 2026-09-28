@@ -45,7 +45,7 @@ def _pen_life(model, monkeypatch):
     data.ctrl[acts[name]] = value
   seen: list = []
 
-  def drive_to_routine(x, y, timeout=None):
+  def drive_to_routine(x, y, timeout=None, stop=None):
     seen.append({name: float(data.ctrl[a]) for name, a in acts.items()})
     return tick.result(True)
   mission.drive_to_routine = drive_to_routine
@@ -203,7 +203,7 @@ def test_draw_takes_the_route_to_its_board_before_its_own_approach(monkeypatch):
   monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
   arrive = {"ok": True}
 
-  def drive_to_routine(x, y, timeout=None):
+  def drive_to_routine(x, y, timeout=None, stop=None):
     order.append(("drive_to", round(x, 3), round(y, 3)))
     return tick.result(arrive["ok"])
   life = SimpleNamespace(world="home", boards=lc.board_book("home"),

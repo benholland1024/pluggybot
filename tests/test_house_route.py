@@ -138,7 +138,7 @@ def test_a_leg_is_a_waypoint_near_is_reached_and_a_robot_on_it_is_passed_by():
     life, drives, _ = _life((-3.5, 1.0))
     inner = life.body.go_to_routine
 
-    def drive(x, y, timeout):
+    def drive(x, y, timeout, stop=None):
       if (x, y) != gate:
         return inner(x, y, timeout)
       drives.append((x, y))

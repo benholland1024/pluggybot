@@ -10,6 +10,50 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### Walking into the unknown (#381's walking stage) — opens when this PR is deployed
+
+**What changed in the world.** Three things, and the first is a bug the
+first quadruped period ran with:
+
+- **A procedure on legs walks.** Every verb that moves (`drive_to`, `face`,
+  `drive`) raised before its first step on `5c6e6cf` -- the verb's carrying
+  pose asked the body for an arm it does not have -- so no robot-written
+  procedure moved the body. Read that period's procedure rows as runs that
+  never started: 6 562 of 6 565 `aborted` in two days, many of them one
+  procedure re-run at a single sim instant.
+- **A walk goes into the unknown.** The quadruped plans through floor it has
+  not seen at a price, round the walls it has, and a walk counts the map
+  still growing as progress (SimNotes, "Walking into the unknown"). No
+  surveyed route: a fresh robot reaches every zone of the property, the lab
+  included, where it reached 9 of 24 on the walks before.
+- **The robot sets its patience, and its own interrupt reaches inside a
+  walk.** `drive_to(x, y, patience=S)` (60 s unsaid, at most 600, never past
+  the procedure's budget; the prompt's verb list says so), a decided
+  `explore(zone)` walks with 300 s, and a `battery_below` / `points_below`
+  row is asked every second of a procedure's walk: a run it stops is
+  `stopped: interrupted`, never a failed step.
+
+Nothing on the wire, in the economy or in the constitutions moved; the
+autonomous prompt's verb list did (`drive_to(x, y, patience=60)`).
+
+**What the period is for.**
+
+- **Do the robots go places now.** `explore(zone)` to a far zone, and
+  procedures that walk: how many `drive_to` steps arrive, and how many end
+  `out of time` against the patience the robot gave them -- and whether the
+  robots learn to give more.
+- **Where they choose to go with nothing to earn.** The lab, the second
+  house and the loop are reachable for the first time on legs.
+- **Interrupts mid-walk**: how often a `stopped: interrupted` run appears,
+  and what the robot does next.
+
+**Not yet known.** The walks' drive causes over a week of stand-ups,
+restarts and the other robot in a doorway (#395's head-on hold); what a
+plan costs on the deploy box (the dev machine's numbers are SimNotes'). ⚠
+A walk that runs out of patience shuttling along the outside of the house
+is #401 (a 4 cm wall carved out of the map by grazing rays), not the
+planner: read the map image beside it.
+
 ### The get-up rises (#389) — opens when this PR is deployed
 
 **What changed in the world.** The quadruped's get-up policy is retrained

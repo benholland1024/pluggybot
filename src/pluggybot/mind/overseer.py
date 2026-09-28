@@ -2911,13 +2911,13 @@ _LEGS_SWAPS = (
 def procedure_rule(armed: bool = True) -> str:
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import BODY_VERBS, VERBS, describe_vocabulary
+  from pluggybot.procedure.steps import BODY_VERBS, VERBS, describe_vocabulary, signature
   if not armed:
     head = PROCEDURE_HEAD
     for old, new in _LEGS_SWAPS:
       assert old in head, f"PROCEDURE_HEAD moved: {old[:40]!r}"
       head = head.replace(old, new)
-    verbs = "\n".join(f"  {v['verb']}({', '.join(v['args'])})  -- {v['doc']}"
+    verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
                       for v in describe_vocabulary(BODY_VERBS))
     reg = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
     reg["bumper"] = "1 while its body presses against something"
@@ -2925,7 +2925,7 @@ def procedure_rule(armed: bool = True) -> str:
     return head % {"cap": MAX_PROCEDURES} + verbs + PROCEDURE_SENSORS + se
   drivers = ", ".join(f"`{name}`" for name, v in VERBS.items() if v.drives)
   verbs = "\n".join(
-    f"  {v['verb']}({', '.join(v['args'])})  -- {v['doc']}"
+    f"  {signature(v)}  -- {v['doc']}"
     for v in describe_vocabulary())
   reg = axes.describe()
   ax = "\n".join(
