@@ -548,6 +548,7 @@ def test_a_tool_the_agent_specified_is_built_fetched_used_and_stowed(tmp_path, m
   run = life.run_errand(life.errands.pop(0))["procedure"]
 
   assert _outcomes(events) == ["specified", "built", "hung"]
+  assert life.ledger.balance() == 97, "the build was not paid for, once"
   assert run["ok"] and run["completed"] == 5, run
   assert fetched[0] == ("pick", BUILT_STATION_YS[2], "module_scoop")
   tilt = life.model.actuator(axes.AXES["scoop.tilt"].actuator).id

@@ -90,8 +90,9 @@ def test_a_flight_is_flown_only_when_a_change_touches_what_it_guards():
 
 def test_the_change_is_the_branch_and_the_working_tree(tmp_path):
   """Against the MERGE BASE, so what landed on the base since is not this
-  change's; and the working tree counts -- committed, staged, unstaged and
-  untracked -- because the flights are asked for while the work is live."""
+  change's; the working tree counts -- committed, staged, unstaged and
+  untracked -- because the flights are asked for while the work is live; and
+  a rename is both its ends, or a file moved out of `legs/` flies nothing."""
   env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
 
@@ -103,13 +104,14 @@ def test_the_change_is_the_branch_and_the_working_tree(tmp_path):
     (tmp_path / name).write_text(text)
 
   git("init", "-q", "-b", "base")
-  for name in ("kept.py", "edited.py", "staged.py"):
-    write(name)
+  for name in ("kept.py", "edited.py", "staged.py", "moved.py"):
+    write(name, f"# {name}\n" * 20)
   git("add", ".")
   git("commit", "-q", "-m", "base")
   git("checkout", "-q", "-b", "work")
   write("committed.py")
   git("add", "committed.py")
+  git("mv", "moved.py", "renamed.py")
   git("commit", "-q", "-m", "work")
   git("checkout", "-q", "base")
   write("landed_on_base.py")
@@ -121,6 +123,7 @@ def test_the_change_is_the_branch_and_the_working_tree(tmp_path):
   write("edited.py", "y")
   write("untracked.py")
   assert conftest.changed_paths(tmp_path, "base") == {
-    "committed.py", "staged.py", "edited.py", "untracked.py"}
+    "committed.py", "moved.py", "renamed.py", "staged.py", "edited.py",
+    "untracked.py"}
   with pytest.raises(pytest.UsageError):
     conftest.changed_paths(tmp_path, "no-such-branch")

@@ -47,14 +47,15 @@ def pytest_addoption(parser):
 
 def changed_paths(root, base: str) -> set[str]:
   """Every path the working tree differs in from its merge base with `base`:
-  committed, staged, unstaged and untracked."""
+  committed, staged, unstaged and untracked, and BOTH ends of a rename (a
+  file moved out of a flight's directory is a change to it)."""
   def git(*args) -> list[str]:
     out = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
     if out.returncode:
       raise pytest.UsageError(f"{CHANGED_OPT}: git {' '.join(args)}: {out.stderr.strip()}")
     return out.stdout.splitlines()
   since = git("merge-base", base, "HEAD")[0]
-  return set(git("diff", "--name-only", since)) | set(
+  return set(git("diff", "--name-only", "--no-renames", since)) | set(
     git("ls-files", "--others", "--exclude-standard"))
 
 
